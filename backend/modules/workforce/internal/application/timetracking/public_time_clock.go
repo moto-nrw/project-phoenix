@@ -3,7 +3,6 @@ package timetracking
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -225,29 +224,30 @@ func MapTimeTrackingError(err error) error {
 			Action: deviation.Action, PlannedTime: deviation.PlannedTime, ActualTime: deviation.ActualTime, DeviationMinutes: deviation.DeviationMinutes,
 		}
 	}
-	msg := err.Error()
 	switch {
-	case msg == "already checked in", msg == "already checked out today", msg == "break already active":
+	case matchesTimeTrackingError(err, workforce.ErrAlreadyCheckedIn, workforce.ErrAlreadyCheckedOut, workforce.ErrBreakAlreadyActive):
 		return &workforce.TimeTrackingError{Kind: workforce.ErrTimeTrackingConflict, Cause: err}
-	case strings.HasPrefix(msg, "work session overlaps an existing block"):
-		return &workforce.TimeTrackingError{Kind: workforce.ErrWorkSessionOverlap, Cause: err}
-	case msg == "no active session found", msg == "no session found for today", msg == "session not found", msg == "no active break found":
+	case errors.Is(err, workforce.ErrWorkSessionOverlap):
+		return err
+	case matchesTimeTrackingError(err, workforce.ErrNoActiveSession, workforce.ErrNoSessionForToday, workforce.ErrSessionNotFound, workforce.ErrNoActiveBreak):
 		return &workforce.TimeTrackingError{Kind: workforce.ErrTimeTrackingNotFound, Cause: err}
-	case msg == "can only update own sessions", msg == "session does not belong to requesting staff":
+	case matchesTimeTrackingError(err, workforce.ErrSessionUpdateNotOwned, workforce.ErrSessionNotOwned):
 		return &workforce.TimeTrackingError{Kind: workforce.ErrTimeTrackingForbidden, Cause: err}
-	case strings.HasPrefix(msg, "status must be"),
-		strings.HasPrefix(msg, "source must be"),
-		msg == "notes required when changing status",
-		msg == "notes required when changing recorded times",
-		msg == "break minutes cannot be negative",
-		msg == "break duration cannot be negative",
-		msg == "invalid session data: check-in time must be before check-out time",
-		msg == "check_out_time must be after check_in_time",
-		strings.HasPrefix(msg, "planned_duration_minutes must be"),
-		strings.HasPrefix(msg, "break ") && strings.Contains(msg, "does not belong to this session"),
-		msg == "cannot edit duration of an active break":
+	case matchesTimeTrackingError(err, workforce.ErrSessionStatusInvalid, workforce.ErrSessionSourceInvalid,
+		workforce.ErrSessionStatusNoteRequired, workforce.ErrSessionTimesNoteRequired, workforce.ErrBreakMinutesNegative,
+		workforce.ErrBreakDurationNegative, workforce.ErrSessionTimeOrder, workforce.ErrSessionCheckoutOrder,
+		workforce.ErrPlannedBreakDurationInvalid, workforce.ErrBreakNotOwned, workforce.ErrActiveBreakDurationEdit):
 		return &workforce.TimeTrackingError{Kind: workforce.ErrTimeTrackingInvalid, Cause: err}
 	default:
 		return err
 	}
+}
+
+func matchesTimeTrackingError(err error, targets ...error) bool {
+	for _, target := range targets {
+		if errors.Is(err, target) {
+			return true
+		}
+	}
+	return false
 }

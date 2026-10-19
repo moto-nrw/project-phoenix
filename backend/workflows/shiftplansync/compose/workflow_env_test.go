@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
@@ -24,7 +25,7 @@ import (
 // retained timetable planning services serve the Betreuungsplan staffing.
 type planSyncEnv struct {
 	db    *bun.DB
-	repos api.TimetableTestRepositories
+	repos owners.TimetableTestRepositories
 	// deviations is the Änderungsprotokoll the suites read back.
 	deviations api.TimetableDeviationAudit
 	timetable  api.TimetableTestModule
@@ -53,27 +54,27 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 
 	repos, err := api.NewTimetableTestRepositories(testpkg.NewDatabase(t, db), clocks...)
 	require.NoError(t, err)
-	members := api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db))
-	rooms, err := api.NewTimetableRoomRows(testpkg.NewDatabase(t, db))
+	members := owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db))
+	rooms, err := owners.NewTimetableRoomRows(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	schoolCalendar, err := api.NewTimetableSchoolCalendar(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	deviations := api.NewTimetableDeviationAudit(testpkg.NewDatabase(t, db))
 	timetable, _, realtimeHub, err := api.NewTimetableTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
 	require.NoError(t, err)
-	membership, err := api.NewSchoolMembership(testpkg.NewDatabase(t, db))
+	membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	capability, err := api.NewWorkforce(testpkg.NewDatabase(t, db), membership)
+	capability, err := owners.NewWorkforce(testpkg.NewDatabase(t, db), membership)
 	require.NoError(t, err)
 
 	shiftPlanning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
 		Workforce:       capability,
-		Staff:           api.NewPlanStaffDirectory(members.Staff),
+		Staff:           owners.NewPlanStaffDirectory(members.Staff),
 		CalendarPeriods: schoolCalendar.SchoolCalendar(),
-		ShiftMoveAudit:  api.NewShiftMoveAudit(deviations.DeviationEvent),
+		ShiftMoveAudit:  owners.NewShiftMoveAudit(deviations.DeviationEvent),
 		Instances:       repos.InstanceReads(),
 		InstanceStaff:   repos.InstanceStaffReads(),
-		Rooms:           api.NewTimetableRoomNames(rooms.Facilities),
+		Rooms:           owners.NewTimetableRoomNames(rooms.Facilities),
 		ActivityGroups:  repos.GroupReads(),
 		DB:              db,
 		Broadcaster:     realtimeHub,
@@ -105,7 +106,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 		Deviations:        timetable.TimetableData.Deviations,
 		ActivityInstances: repos.InstanceReads(),
 		InstanceStaff:     repos.InstanceStaffReads(),
-		Staff:             api.NewPlanStaffDirectory(members.Staff),
+		Staff:             owners.NewPlanStaffDirectory(members.Staff),
 		Broadcaster:       broadcaster,
 		Logger:            logger,
 	})

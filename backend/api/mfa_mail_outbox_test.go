@@ -8,9 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -103,17 +107,17 @@ func TestMFACodeOutboxCommitsWithChallengeBeforeSynchronousDelivery(t *testing.T
 	}
 }
 
-func mfaLeasedMailFixture(t *testing.T, send mfaOutboxTransport) (*bun.DB, context.Context, mfaMailer, *delivery.Worker) {
+func mfaLeasedMailFixture(t *testing.T, send mfaOutboxTransport) (*bun.DB, context.Context, owners.MFAMailer, *delivery.Worker) {
 	t.Helper()
 	testpkg.SetupIsolatedTestDB(t)
 	db, ctx, _ := mailTransactionFixture(t)
 	database := testpkg.NewDatabase(t, db)
-	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{DB: db, People: enrollmentFlowGuardianDirectory{}, Observe: func(delivery.Observation) {}})
+	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{DB: db, People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {}})
 	require.NoError(t, err)
-	provider := &deliveryCompose.MailPushProvider{Registry: deliveryCompose.NewEmailTemplateRegistry(map[string]deliveryCompose.MailRenderer{transactionalMailKind: transactionalMailRenderer{logger: slog.Default()}}), Mailer: send, Logger: slog.Default(), Tenants: deliveryCompose.NewTenantTransactions(db)}
+	provider := &deliveryCompose.MailPushProvider{Registry: deliveryCompose.NewEmailTemplateRegistry(map[string]deliveryCompose.MailRenderer{owners.TransactionalMailKind: owners.TransactionalMailRenderer{Logger: slog.Default()}}), Mailer: send, Logger: slog.Default(), Tenants: deliveryCompose.NewTenantTransactions(db)}
 	worker, err := deliveryCompose.NewWorker(runtime, provider)
 	require.NoError(t, err)
-	mail, err := newMFAMailer(database, runtime, send, email.Email{}, "", slog.Default(), []time.Duration{time.Millisecond})
+	mail, err := owners.NewMFAMailer(database, runtime, send, email.Email{}, "", slog.Default(), []time.Duration{time.Millisecond})
 	require.NoError(t, err)
 	return db, ctx, mail, worker
 }
@@ -146,7 +150,7 @@ func TestMFACodeLeasedFailureIsTerminalAndCrashIsRecovered(t *testing.T) {
 			require.NoError(t, func() error { _, err := worker.RunOnce(ctx, 2, 6); return err }())
 			var state string
 			var attempts int
-			require.NoError(t, db.NewRaw(`SELECT status, attempts FROM platform.email_outbox WHERE kind = ? AND related_entity_type = ? AND related_entity_id = ?`, transactionalMailKind, "mfa_email_code", account.ID).Scan(ctx, &state, &attempts))
+			require.NoError(t, db.NewRaw(`SELECT status, attempts FROM platform.email_outbox WHERE kind = ? AND related_entity_type = ? AND related_entity_id = ?`, owners.TransactionalMailKind, "mfa_email_code", account.ID).Scan(ctx, &state, &attempts))
 			if fail {
 				assert.Equal(t, "dead_letter", state)
 				assert.Equal(t, 3, attempts)

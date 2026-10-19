@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging"
 )
 
 type AnnouncementAccess interface{ messaging.AnnouncementAccess }

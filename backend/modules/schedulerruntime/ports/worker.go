@@ -6,6 +6,7 @@
 package ports
 
 import (
+	"context"
 	"log/slog"
 	"time"
 )
@@ -31,7 +32,9 @@ type WorkerDependencies struct {
 	OperatorInvitationCleanup OperatorInvitationCleaner
 	// OperatorRetention deletes the operator ledger and the deactivated
 	// operator accounts after their window (#4047).
-	OperatorRetention  OperatorRetention
+	OperatorRetention OperatorRetention
+	// AccountRetention tombstones the accounts no school needs (#4043).
+	AccountRetention   AccountRetention
 	WorkSessionCleanup WorkSessionCleaner
 	BreakAutoEnder     BreakAutoEnder
 	AutoCheckouter     AutoCheckouter
@@ -67,8 +70,10 @@ type WorkerDependencies struct {
 	StudentLifecycleAudit     StudentLifecycleAuditor
 	CareExitEffector          CareExitEffector
 	OutboxWorker              OutboxWorkerRunner
-	RolloverDeadlineRunner    RolloverDeadlineRunner
-	ReminderNotifications     ReminderNotificationTick
+	// SettleExpiredTransfers terminalizes ambiguous manual uploads, never retries them.
+	SettleExpiredTransfers func(context.Context, int) (int, error)
+	RolloverDeadlineRunner RolloverDeadlineRunner
+	ReminderNotifications  ReminderNotificationTick
 	// Lease elects the single Worker that runs jobs (#2726). Every Worker
 	// process, embedded in Serve or standalone, runs under it.
 	Lease WorkerLease

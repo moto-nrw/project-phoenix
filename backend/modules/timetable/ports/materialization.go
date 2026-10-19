@@ -4,8 +4,6 @@ import (
 	"context"
 	"log/slog"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -25,16 +23,16 @@ type CareBoundReader interface {
 // Staffing announces created instances to the staffing caches (#1844); nil
 // announces nothing.
 type MaterializationDependencies struct {
-	GroupRepo      activitiesModels.GroupRepository
-	ScheduleRepo   activitiesModels.ScheduleRepository
-	EnrollmentRepo activitiesModels.StudentEnrollmentRepository
-	SupervisorRepo activitiesModels.SupervisorPlannedRepository
-	PeriodRepo     scheduleModels.CalendarPeriodRepository
-	InstanceRepo   scheduleModels.ActivityInstanceRepository
-	StaffRepo      scheduleModels.InstanceStaffRepository
-	StudentRepo    scheduleModels.InstanceStudentRepository
-	ExceptionRepo  scheduleModels.ActivityExceptionRepository
-	TimeframeRepo  scheduleModels.TimeframeRepository
+	GroupRepo      ActivityGroupRecords
+	ScheduleRepo   ActivityScheduleRecords
+	EnrollmentRepo ActivityEnrollmentRecords
+	SupervisorRepo PlannedSupervisorRecords
+	PeriodRepo     CalendarPeriodRecords
+	InstanceRepo   ActivityInstanceRecords
+	StaffRepo      InstanceStaffRecords
+	StudentRepo    InstanceStudentRecords
+	ExceptionRepo  ActivityExceptionRecords
+	TimeframeRepo  TimeframeRecords
 	CareBounds     CareBoundReader
 	NonWorkingDays timetable.NonWorkingDayCalendar
 	RecurrenceLock timetable.RecurrenceWriteLock

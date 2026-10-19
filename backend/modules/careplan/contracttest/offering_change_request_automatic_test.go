@@ -3,8 +3,9 @@ package contracttest_test
 import (
 	"context"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
@@ -51,9 +52,9 @@ func createAutoAddTarget(
 	env *decisionTestEnv,
 	label string,
 	triggerID int64,
-) *enrollmentModels.CareOffering {
+) *offeringContract.CareOfferingRecord {
 	t.Helper()
-	offering := createAdjustmentCareOfferingWith(t, env, "Automatisch "+label, func(o *enrollmentModels.CareOffering) {
+	offering := createAdjustmentCareOfferingWith(t, env, "Automatisch "+label, func(o *offeringContract.CareOfferingRecord) {
 		o.SortOrder = 203
 	})
 	// Create writes only the offering row; the rule lives in
@@ -74,7 +75,7 @@ func createPendingTriggerRequest(
 ) *careplan.OfferingChangeRequest {
 	t.Helper()
 	ctx := offeringChangeAdminContext(t)
-	row, err := svc.SubmitOfferingChange(ctx, careplan.CreateOfferingChangeInput{
+	row, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.SubmitOfferingChange, careplan.CreateOfferingChangeInput{
 		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
 		Selections: []careplan.OfferingChangeSelection{{
 			OfferingID: fx.newOffering.ID, SelectedDays: days,
@@ -165,16 +166,16 @@ func TestOfferingChangeRequestService_ListPending_IncludesUnchangedGrandfathered
 		ManualSelectedDays:    []string{"tue"},
 		AutomaticSelectedDays: []string{"mon"},
 	}))
-	auto.AvailabilityRule = &enrollmentModels.CareOfferingAvailabilityRule{
-		Match: enrollmentModels.AvailabilityMatchAll,
-		Conditions: []enrollmentModels.CareOfferingAvailabilityCondition{{
-			Source:   enrollmentModels.AvailabilitySourceGradeLevel,
-			Operator: enrollmentModels.AvailabilityOperatorIn,
+	auto.AvailabilityRule = &offeringContract.CareOfferingAvailabilityRule{
+		Match: offeringContract.AvailabilityMatchAll,
+		Conditions: []offeringContract.CareOfferingAvailabilityCondition{{
+			Source:   offeringContract.AvailabilitySourceGradeLevel,
+			Operator: offeringContract.AvailabilityOperatorIn,
 			Value:    []int{1},
 		}},
 	}
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, auto))
-	row, err := svc.SubmitOfferingChange(ctx, careplan.CreateOfferingChangeInput{
+	row, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.SubmitOfferingChange, careplan.CreateOfferingChangeInput{
 		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
 		Selections: []careplan.OfferingChangeSelection{
 			{OfferingID: fx.oldOffering.ID, SelectedDays: []string{"mon"}},
@@ -215,14 +216,14 @@ func TestOfferingChangeRequestService_Decide_ExclusionSkipsAutoTargetAndRecordsO
 	auto := createAutoAddTarget(t, env, "OptOut", fx.newOffering.ID)
 	row := createPendingTriggerRequest(t, env, svc, fx, []string{"mon", "tue"})
 
-	require.NoError(t, svc.Decide(ctx, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
 		RequestID:               row.ID,
 		Approve:                 true,
 		ReviewedBy:              env.creatorID,
 		ExcludedAutoOfferingIDs: []int64{auto.ID},
 	}))
 
-	links, err := env.reposEnrollment.Enrollment().RequestChildOfferingsAtDate(ctx, fx.childID, enrollmentTest.Date(fx.switchDate))
+	links, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), env.reposEnrollment.Enrollment().RequestChildOfferingsAtDate, fx.childID, enrollmentTest.Date(fx.switchDate))
 	require.NoError(t, err)
 	linkedIDs := make([]int64, 0, len(links))
 	for _, link := range links {
@@ -259,7 +260,7 @@ func TestOfferingChangeRequestService_Decide_ExclusionOmitsNeverBookedTargetFrom
 	auto := createAutoAddTarget(t, env, "OptOutSnapshot", fx.newOffering.ID)
 	row := createPendingTriggerRequest(t, env, svc, fx, []string{"mon"})
 
-	require.NoError(t, svc.Decide(ctx, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID,
 		ExcludedAutoOfferingIDs: []int64{auto.ID},
 	}))
@@ -287,17 +288,17 @@ func TestOfferingChangeRequestService_Decide_SnapshotMatchesGrandfatheredAutomat
 		SelectedDays:          []string{"mon"},
 		AutomaticSelectedDays: []string{"mon"},
 	}))
-	automatic.AvailabilityRule = &enrollmentModels.CareOfferingAvailabilityRule{
-		Match: enrollmentModels.AvailabilityMatchAll,
-		Conditions: []enrollmentModels.CareOfferingAvailabilityCondition{{
-			Source:   enrollmentModels.AvailabilitySourceGradeLevel,
-			Operator: enrollmentModels.AvailabilityOperatorIn,
+	automatic.AvailabilityRule = &offeringContract.CareOfferingAvailabilityRule{
+		Match: offeringContract.AvailabilityMatchAll,
+		Conditions: []offeringContract.CareOfferingAvailabilityCondition{{
+			Source:   offeringContract.AvailabilitySourceGradeLevel,
+			Operator: offeringContract.AvailabilityOperatorIn,
 			Value:    []int{1},
 		}},
 	}
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, automatic))
 
-	row, err := svc.SubmitOfferingChange(ctx, careplan.CreateOfferingChangeInput{
+	row, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.SubmitOfferingChange, careplan.CreateOfferingChangeInput{
 		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
 		Selections: []careplan.OfferingChangeSelection{
 			{OfferingID: fx.oldOffering.ID, SelectedDays: []string{"mon"}},
@@ -306,10 +307,10 @@ func TestOfferingChangeRequestService_Decide_SnapshotMatchesGrandfatheredAutomat
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, svc.Decide(ctx, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID,
 	}))
-	links, err := env.reposEnrollment.Enrollment().RequestChildOfferingsAtDate(ctx, fx.childID, enrollmentTest.Date(fx.switchDate))
+	links, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), env.reposEnrollment.Enrollment().RequestChildOfferingsAtDate, fx.childID, enrollmentTest.Date(fx.switchDate))
 	require.NoError(t, err)
 	applied := false
 	for _, link := range links {
@@ -337,10 +338,10 @@ func TestOfferingChangeRequestService_Decide_ExclusionKeepsManualAndRequiredLunc
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "OptOutMixed")
-	care := createAdjustmentCareOfferingWith(t, env, "Ganztag OptOutMixed", func(o *enrollmentModels.CareOffering) {
+	care := createAdjustmentCareOfferingWith(t, env, "Ganztag OptOutMixed", func(o *offeringContract.CareOfferingRecord) {
 		o.CountsAsCare, o.CountsAsCareSet, o.SortOrder = true, true, 203
 	})
-	trigger := createAdjustmentCareOfferingWith(t, env, "Randstunde OptOutMixed", func(o *enrollmentModels.CareOffering) {
+	trigger := createAdjustmentCareOfferingWith(t, env, "Randstunde OptOutMixed", func(o *offeringContract.CareOfferingRecord) {
 		o.CountsAsCare, o.CountsAsCareSet = false, true
 		o.SortOrder = 204
 	})
@@ -349,7 +350,7 @@ func TestOfferingChangeRequestService_Decide_ExclusionKeepsManualAndRequiredLunc
 	lunch.CountsAsCare, lunch.CountsAsCareSet = false, true
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, lunch))
 
-	row, err := svc.SubmitOfferingChange(ctx, careplan.CreateOfferingChangeInput{
+	row, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.SubmitOfferingChange, careplan.CreateOfferingChangeInput{
 		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
 		Selections: []careplan.OfferingChangeSelection{
 			{OfferingID: care.ID, SelectedDays: []string{"wed"}},
@@ -374,7 +375,7 @@ func TestOfferingChangeRequestService_Decide_ExclusionKeepsManualAndRequiredLunc
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID,
 		ExcludedAutoOfferingIDs: []int64{lunch.ID},
 	}))
-	links, err := env.reposEnrollment.Enrollment().RequestChildOfferingsAtDate(ctx, fx.childID, enrollmentTest.Date(fx.switchDate))
+	links, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), env.reposEnrollment.Enrollment().RequestChildOfferingsAtDate, fx.childID, enrollmentTest.Date(fx.switchDate))
 	require.NoError(t, err)
 	for _, link := range links {
 		if link.CareOfferingID == lunch.ID {
@@ -393,10 +394,10 @@ func TestOfferingChangeRequestService_PreviewDecision_RecomputesPartialExclusion
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "PreviewPartialCascade")
-	care := createAdjustmentCareOfferingWith(t, env, "Ganztag PreviewPartialCascade", func(o *enrollmentModels.CareOffering) {
+	care := createAdjustmentCareOfferingWith(t, env, "Ganztag PreviewPartialCascade", func(o *offeringContract.CareOfferingRecord) {
 		o.CountsAsCare, o.CountsAsCareSet, o.SortOrder = true, true, 203
 	})
-	trigger := createAdjustmentCareOfferingWith(t, env, "Randstunde PreviewPartialCascade", func(o *enrollmentModels.CareOffering) {
+	trigger := createAdjustmentCareOfferingWith(t, env, "Randstunde PreviewPartialCascade", func(o *offeringContract.CareOfferingRecord) {
 		o.CountsAsCare, o.CountsAsCareSet, o.SortOrder = false, true, 204
 	})
 	mixed := createAutoAddTarget(t, env, "PreviewPartialCascade", trigger.ID)
@@ -407,7 +408,7 @@ func TestOfferingChangeRequestService_PreviewDecision_RecomputesPartialExclusion
 	downstream.CountsAsCare, downstream.CountsAsCareSet, downstream.SortOrder = false, true, 206
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, downstream))
 
-	row, err := svc.SubmitOfferingChange(ctx, careplan.CreateOfferingChangeInput{
+	row, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.SubmitOfferingChange, careplan.CreateOfferingChangeInput{
 		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
 		Selections: []careplan.OfferingChangeSelection{
 			{OfferingID: care.ID, SelectedDays: []string{"wed"}},
@@ -417,7 +418,7 @@ func TestOfferingChangeRequestService_PreviewDecision_RecomputesPartialExclusion
 	})
 	require.NoError(t, err)
 
-	preview, err := svc.PreviewDecision(ctx, row.ID, []int64{mixed.ID}, nil)
+	preview, err := testpkg.TenantQuery3(t, ctx, testpkg.SetupTestDB(t), svc.PreviewDecision, row.ID, []int64{mixed.ID}, nil)
 	require.NoError(t, err)
 	byID := make(map[int64][]string, len(preview.Selections))
 	for _, selection := range preview.Selections {
@@ -439,7 +440,7 @@ func TestOfferingChangeRequestService_Decide_RejectsExclusionOfNonAutomaticOffer
 	createAutoAddTarget(t, env, "OptOutInvalid", fx.newOffering.ID)
 	row := createPendingTriggerRequest(t, env, svc, fx, []string{"mon"})
 
-	err := svc.Decide(ctx, careplan.OfferingChangeDecisionInput{
+	err := testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
 		RequestID:               row.ID,
 		Approve:                 true,
 		ReviewedBy:              env.creatorID,
@@ -450,7 +451,7 @@ func TestOfferingChangeRequestService_Decide_RejectsExclusionOfNonAutomaticOffer
 
 	pending, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, pending.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusPending, pending.Status)
 }
 
 func TestOfferingChangeRequestService_Decide_RejectsExclusionWithoutRuleDerivedDays(t *testing.T) {
@@ -461,15 +462,15 @@ func TestOfferingChangeRequestService_Decide_RejectsExclusionWithoutRuleDerivedD
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "OptOutNoRuleDays")
-	care := createAdjustmentCareOfferingWith(t, env, "Ganztag OptOutNoRuleDays", func(o *enrollmentModels.CareOffering) {
+	care := createAdjustmentCareOfferingWith(t, env, "Ganztag OptOutNoRuleDays", func(o *offeringContract.CareOfferingRecord) {
 		o.CountsAsCare = true
 		o.CountsAsCareSet = true
 		o.SortOrder = 203
 	})
-	trigger := createAdjustmentCareOfferingWith(t, env, "Randstunde OptOutNoRuleDays", func(o *enrollmentModels.CareOffering) {
+	trigger := createAdjustmentCareOfferingWith(t, env, "Randstunde OptOutNoRuleDays", func(o *offeringContract.CareOfferingRecord) {
 		o.SortOrder = 204
 	})
-	lunch := createAdjustmentCareOfferingWith(t, env, "Mittagessen OptOutNoRuleDays", func(o *enrollmentModels.CareOffering) {
+	lunch := createAdjustmentCareOfferingWith(t, env, "Mittagessen OptOutNoRuleDays", func(o *offeringContract.CareOfferingRecord) {
 		o.AvailableDays = []string{"mon"}
 		o.IsRequired = true
 		o.IncludesLunch = true
@@ -479,7 +480,7 @@ func TestOfferingChangeRequestService_Decide_RejectsExclusionWithoutRuleDerivedD
 	})
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).ReplaceAutoAddTriggers(ctx, lunch.ID, []int64{trigger.ID}))
 
-	row, err := svc.SubmitOfferingChange(ctx, careplan.CreateOfferingChangeInput{
+	row, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.SubmitOfferingChange, careplan.CreateOfferingChangeInput{
 		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
 		Selections: []careplan.OfferingChangeSelection{
 			{OfferingID: care.ID, SelectedDays: []string{"mon"}},
@@ -488,7 +489,7 @@ func TestOfferingChangeRequestService_Decide_RejectsExclusionWithoutRuleDerivedD
 	})
 	require.NoError(t, err)
 
-	err = svc.Decide(ctx, careplan.OfferingChangeDecisionInput{
+	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
 		RequestID:               row.ID,
 		Approve:                 true,
 		ReviewedBy:              env.creatorID,
@@ -499,7 +500,7 @@ func TestOfferingChangeRequestService_Decide_RejectsExclusionWithoutRuleDerivedD
 
 	pending, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, pending.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusPending, pending.Status)
 }
 
 func TestOfferingChangeRequestService_Decide_RevalidatesExclusionAgainstAppliedRules(t *testing.T) {
@@ -529,7 +530,7 @@ func TestOfferingChangeRequestService_Decide_RevalidatesExclusionAgainstAppliedR
 
 	pending, findErr := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, findErr)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, pending.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusPending, pending.Status)
 	assert.Nil(t, pending.DecisionSnapshot)
 }
 
@@ -544,7 +545,7 @@ func TestOfferingChangeRequestService_Decide_RejectionFreezesDiffSnapshot(t *tes
 	auto := createAutoAddTarget(t, env, "SnapReject", fx.newOffering.ID)
 	row := createPendingTriggerRequest(t, env, svc, fx, []string{"mon"})
 
-	require.NoError(t, svc.Decide(ctx, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
 		RequestID:  row.ID,
 		Approve:    false,
 		Reason:     "Kapazität",
@@ -555,7 +556,7 @@ func TestOfferingChangeRequestService_Decide_RejectionFreezesDiffSnapshot(t *tes
 	require.NoError(t, err)
 	require.NotNil(t, decided.DecisionSnapshot)
 	assert.Empty(t, decided.DecisionSnapshot.OverriddenOfferings)
-	var autoSnap *enrollmentModels.OfferingChangeSnapshotEntry
+	var autoSnap *offeringContract.OfferingChangeSnapshotEntry
 	for i := range decided.DecisionSnapshot.Diff {
 		if decided.DecisionSnapshot.Diff[i].OfferingID == auto.ID {
 			autoSnap = &decided.DecisionSnapshot.Diff[i]
@@ -586,17 +587,17 @@ func TestOfferingChangeRequestService_Decide_RejectionFallsBackToPayloadSnapshot
 	fx.newOffering.IsActive = false
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, fx.newOffering))
 
-	err := svc.Decide(ctx, careplan.OfferingChangeDecisionInput{
+	err := testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, Approve: false, Reason: "Kapazität", ReviewedBy: env.creatorID,
 	})
 	require.NoError(t, err)
 
 	decided, findErr := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, findErr)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusRejected, decided.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusRejected, decided.Status)
 	require.NotNil(t, decided.DecisionSnapshot)
 	require.NotEmpty(t, decided.DecisionSnapshot.Diff)
-	assert.Contains(t, decided.DecisionSnapshot.Diff, enrollmentModels.OfferingChangeSnapshotEntry{
+	assert.Contains(t, decided.DecisionSnapshot.Diff, offeringContract.OfferingChangeSnapshotEntry{
 		OfferingID: fx.newOffering.ID,
 		Label:      fx.newOffering.Name,
 		OldState:   "not_booked",

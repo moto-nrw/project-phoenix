@@ -8,10 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -46,9 +49,9 @@ type scenarioSetup struct {
 	ctx             context.Context
 	tenantID        int64
 	cleanup         func()
-	period          *scheduleModels.CalendarPeriod
-	template        *activitiesModels.Group
-	schedule        *activitiesModels.Schedule
+	period          *fixtures.CalendarPeriod
+	template        *activityContract.Group
+	schedule        *activityContract.Schedule
 	timeframe       *testpkg.Timeframe
 	students        []int64
 	staffID         int64
@@ -90,14 +93,15 @@ func makeScenario(t *testing.T, weekday int, materializeDate calendar.Date) *sce
 	suffix := time.Now().UnixNano()
 
 	// 1. Calendar period — no A/B, wide range, active.
-	period := &scheduleModels.CalendarPeriod{
-		Name:            fmt.Sprintf("Schuljahr-%d", suffix),
-		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       scheduleModels.NewDate(materializeDate.Year()-1, 8, 1),
-		EndDate:         scheduleModels.NewDate(materializeDate.Year()+1, 7, 31),
-		WeekCycleLength: 1,
-		IsActive:        true,
-	}
+	period := fixtures.NewCalendarPeriod(func(fixtureRow *fixtures.CalendarPeriod) {
+		fixtureRow.Name = fmt.Sprintf("Schuljahr-%d", suffix)
+		fixtureRow.PeriodType = fixtures.PeriodTypeSchoolYear()
+		fixtureRow.StartDate = calendar.NewDate(materializeDate.Year()-1, 8, 1)
+		fixtureRow.EndDate = calendar.NewDate(materializeDate.Year()+1, 7, 31)
+		fixtureRow.WeekCycleLength = 1
+		fixtureRow.IsActive = true
+	})
+
 	createCalendarPeriodRow(t, db, ctx, period)
 
 	// 2. Fixtures: room, staff, 3 students.
@@ -109,7 +113,7 @@ func makeScenario(t *testing.T, weekday int, materializeDate calendar.Date) *sce
 
 	// 3. Template activity group (is_template = true, planned_room_id set).
 	category := testpkg.CreateTestActivityCategoryForTenant(t, db, tenantID, fmt.Sprintf("Cat-%d", suffix))
-	template := &activitiesModels.Group{
+	template := &activityContract.Group{
 		Name:            fmt.Sprintf("Malen-AG-%d", suffix),
 		MaxParticipants: 20,
 		IsOpen:          true,
@@ -119,7 +123,7 @@ func makeScenario(t *testing.T, weekday int, materializeDate calendar.Date) *sce
 		IsTemplate:      true,
 	}
 	template.SetTenantID(tenantID)
-	_, err = db.NewInsert().Model(template).ModelTableExpr(`activities.groups AS "group"`).Exec(ctx)
+	_, err = db.NewInsert().Model(activityGroupFixture(template)).ModelTableExpr(`activities.groups AS "group"`).Exec(ctx)
 	require.NoError(t, err)
 
 	// 4. Timeframe 14:00–15:00 today (the wall-clock date is irrelevant for
@@ -127,42 +131,42 @@ func makeScenario(t *testing.T, weekday int, materializeDate calendar.Date) *sce
 	timeframe := testpkg.CreateTestTimeframeForTenant(t, db, tenantID, fmt.Sprintf("Nachmittag-%d", suffix))
 
 	// 5. Schedule: weekday + timeframe, no A/B pattern.
-	sched := &activitiesModels.Schedule{
+	sched := &activityContract.Schedule{
 		Weekday:         weekday,
 		TimeframeID:     &timeframe.ID,
 		ActivityGroupID: template.ID,
 		WeekPattern:     0,
 	}
 	sched.SetTenantID(tenantID)
-	_, err = db.NewInsert().Model(sched).ModelTableExpr(`activities.schedules`).Exec(ctx)
+	_, err = db.NewInsert().Model(activityScheduleFixture(sched)).ModelTableExpr(`activities.schedules`).Exec(ctx)
 	require.NoError(t, err)
 
 	// 6. Enrollments: student1 + student2 valid unbounded; student3 expired
 	// the day before materializeDate.
-	expiredUntil := activitiesModels.Date(materializeDate.AddDays(-1))
-	validFrom := activitiesModels.Date(materializeDate.AddDays(-30))
-	enroll1 := &activitiesModels.StudentEnrollment{StudentID: student1.ID, ActivityGroupID: template.ID, ValidFrom: validFrom}
+	expiredUntil := activityContract.Date(materializeDate.AddDays(-1))
+	validFrom := activityContract.Date(materializeDate.AddDays(-30))
+	enroll1 := &activityContract.StudentEnrollment{StudentID: student1.ID, ActivityGroupID: template.ID, ValidFrom: validFrom}
 	enroll1.SetTenantID(tenantID)
-	_, err = db.NewInsert().Model(enroll1).ModelTableExpr(`activities.student_enrollments`).ExcludeColumn("selected_weekdays").Exec(ctx)
+	_, err = db.NewInsert().Model(activityStudentEnrollmentFixture(enroll1)).ModelTableExpr(`activities.student_enrollments`).ExcludeColumn("selected_weekdays").Exec(ctx)
 	require.NoError(t, err)
-	enroll2 := &activitiesModels.StudentEnrollment{StudentID: student2.ID, ActivityGroupID: template.ID, ValidFrom: validFrom}
+	enroll2 := &activityContract.StudentEnrollment{StudentID: student2.ID, ActivityGroupID: template.ID, ValidFrom: validFrom}
 	enroll2.SetTenantID(tenantID)
-	_, err = db.NewInsert().Model(enroll2).ModelTableExpr(`activities.student_enrollments`).ExcludeColumn("selected_weekdays").Exec(ctx)
+	_, err = db.NewInsert().Model(activityStudentEnrollmentFixture(enroll2)).ModelTableExpr(`activities.student_enrollments`).ExcludeColumn("selected_weekdays").Exec(ctx)
 	require.NoError(t, err)
-	enroll3 := &activitiesModels.StudentEnrollment{StudentID: student3.ID, ActivityGroupID: template.ID, ValidFrom: validFrom, ValidUntil: &expiredUntil}
+	enroll3 := &activityContract.StudentEnrollment{StudentID: student3.ID, ActivityGroupID: template.ID, ValidFrom: validFrom, ValidUntil: &expiredUntil}
 	enroll3.SetTenantID(tenantID)
-	_, err = db.NewInsert().Model(enroll3).ModelTableExpr(`activities.student_enrollments`).ExcludeColumn("selected_weekdays").Exec(ctx)
+	_, err = db.NewInsert().Model(activityStudentEnrollmentFixture(enroll3)).ModelTableExpr(`activities.student_enrollments`).ExcludeColumn("selected_weekdays").Exec(ctx)
 	require.NoError(t, err)
 
 	// 7. Supervisor (primary, unbounded).
-	sup := &activitiesModels.SupervisorPlanned{StaffID: staff.ID, GroupID: template.ID, IsPrimary: true, ValidFrom: validFrom}
+	sup := &activityContract.SupervisorPlanned{StaffID: staff.ID, GroupID: template.ID, IsPrimary: true, ValidFrom: validFrom}
 	sup.SetTenantID(tenantID)
-	_, err = db.NewInsert().Model(sup).ModelTableExpr(`activities.supervisors`).Exec(ctx)
+	_, err = db.NewInsert().Model(activitySupervisorPlannedFixture(sup)).ModelTableExpr(`activities.supervisors`).Exec(ctx)
 	require.NoError(t, err)
 
 	s := &scenarioSetup{
 		svc:             svc,
-		instance:        ttLifecycle.Instances,
+		instance:        fixtures.FromInstanceLifecycle(ttLifecycle.Instances),
 		timetableData:   ttPlanning.Planning,
 		active:          ttActive,
 		materialization: ttMaterialization,
@@ -205,7 +209,7 @@ func TestMaterializeForTenant_EndToEnd(t *testing.T) {
 	// in the middle of a "school year" so the period bounds are obviously
 	// satisfied.
 	materializeDate := calendar.NewDate(2026, time.April, 20) // Mon
-	s := makeScenario(t, activitiesModels.WeekdayMonday, materializeDate)
+	s := makeScenario(t, activityContract.WeekdayMonday, materializeDate)
 	defer s.runCleanup(t)
 
 	from := materializeDate
@@ -234,7 +238,7 @@ func TestMaterializeForTenant_EndToEnd(t *testing.T) {
 	// Change status to 'active' and re-run. Must still be skipped-existing
 	// (the merge strategy skips every existing row regardless of status,
 	// v1 insert-only).
-	testpkg.SetActivityInstanceLifecycle(t, s.ctx, s.db, instanceRows[0].ID, scheduleModels.InstanceStatusActive)
+	testpkg.SetActivityInstanceLifecycle(t, s.ctx, s.db, instanceRows[0].ID, fixtures.InstanceStatusActive())
 	r3, err := s.svc.MaterializeForTenant(s.ctx, from, to, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	assert.Zero(t, r3.InstancesCreated)
@@ -250,7 +254,7 @@ func TestMaterializeForTenant_ExcludesGraduatedStudents(t *testing.T) {
 	t.Parallel()
 
 	materializeDate := calendar.NewDate(2026, time.April, 20) // Mon
-	s := makeScenario(t, activitiesModels.WeekdayMonday, materializeDate)
+	s := makeScenario(t, activityContract.WeekdayMonday, materializeDate)
 	defer s.runCleanup(t)
 
 	// Graduate one of the two students with a valid enrollment. Their enrollment
@@ -286,7 +290,7 @@ func TestMaterializeForTenant_MultipleDynamicTargetsFollowClassChanges(t *testin
 	t.Parallel()
 
 	firstMonday := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, firstMonday)
+	s := makeScenario(t, activityContract.WeekdayMonday, firstMonday)
 	defer s.runCleanup(t)
 
 	laterStudent := testpkg.CreateTestStudentForTenant(
@@ -297,11 +301,11 @@ func TestMaterializeForTenant_MultipleDynamicTargetsFollowClassChanges(t *testin
 
 	class3a := "3a"
 	class4a := "4a"
-	targetRepo, ok := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.(activitiesModels.GroupTargetRepository)
+	targetRepo, ok := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.(fixtures.GroupTargets)
 	require.True(t, ok)
-	require.NoError(t, targetRepo.ReplaceTargets(s.ctx, s.template.ID, []*activitiesModels.GroupTarget{
-		{TargetGroupType: activitiesModels.TargetGroupTypeKlasse, TargetSchoolClass: &class3a},
-		{TargetGroupType: activitiesModels.TargetGroupTypeKlasse, TargetSchoolClass: &class4a},
+	require.NoError(t, targetRepo.ReplaceTargets(s.ctx, s.template.ID, []*activityContract.GroupTarget{
+		{TargetGroupType: activityContract.TargetGroupTypeKlasse, TargetSchoolClass: &class3a},
+		{TargetGroupType: activityContract.TargetGroupTypeKlasse, TargetSchoolClass: &class4a},
 	}))
 
 	first, err := s.svc.MaterializeForTenant(s.ctx, firstMonday, firstMonday, timetable.MaterializationSourceManual)
@@ -330,15 +334,16 @@ func TestMaterializeForTenant_ExceptionCancelled_Skips(t *testing.T) {
 	t.Parallel()
 
 	materializeDate := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, materializeDate)
+	s := makeScenario(t, activityContract.WeekdayMonday, materializeDate)
 	defer s.runCleanup(t)
 
 	// Insert a cancelled exception for the target date.
-	exc := &scheduleModels.ActivityException{
-		ActivityGroupID: s.template.ID,
-		ExceptionDate:   scheduleModels.Date(materializeDate),
-		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
-	}
+	exc := fixtures.NewActivityException(func(fixtureRow *fixtures.ActivityException) {
+		fixtureRow.ActivityGroupID = s.template.ID
+		fixtureRow.ExceptionDate = calendar.Date(materializeDate)
+		fixtureRow.ExceptionType = fixtures.ActivityExceptionCancelled()
+	})
+
 	exc.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(exc).ModelTableExpr(`schedule.activity_exceptions`).Exec(s.ctx)
 	require.NoError(t, err)
@@ -353,19 +358,20 @@ func TestMaterializeForTenant_ExceptionModified_OverridesStartTime(t *testing.T)
 	t.Parallel()
 
 	materializeDate := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, materializeDate)
+	s := makeScenario(t, activityContract.WeekdayMonday, materializeDate)
 	defer s.runCleanup(t)
 
 	// Year 1 (not 0) — PostgreSQL TIMESTAMPTZ rejects "0000-01-01" because
 	// ISO 8601 has no year zero. The time-of-day is all we care about; bun
 	// writes "13:00:00" into the TIME column regardless of the date portion.
 	newStart := time.Date(1, 1, 1, 13, 0, 0, 0, time.UTC)
-	exc := &scheduleModels.ActivityException{
-		ActivityGroupID: s.template.ID,
-		ExceptionDate:   scheduleModels.Date(materializeDate),
-		ExceptionType:   scheduleModels.ActivityExceptionModified,
-		StartTime:       &newStart,
-	}
+	exc := fixtures.NewActivityException(func(fixtureRow *fixtures.ActivityException) {
+		fixtureRow.ActivityGroupID = s.template.ID
+		fixtureRow.ExceptionDate = calendar.Date(materializeDate)
+		fixtureRow.ExceptionType = fixtures.ActivityExceptionModified()
+		fixtureRow.StartTime = &newStart
+	})
+
 	exc.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(exc).ModelTableExpr(`schedule.activity_exceptions`).Exec(s.ctx)
 	require.NoError(t, err)
@@ -431,14 +437,15 @@ func TestMaterializeForTenant_NoTemplates_ReturnsWarning(t *testing.T) {
 
 	from := calendar.NewDate(2026, 4, 20)
 	to := from.AddDays(6)
-	period := &scheduleModels.CalendarPeriod{
-		Name:            "No Templates Test 2025/2026",
-		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       scheduleModels.NewDate(2025, 8, 1),
-		EndDate:         scheduleModels.NewDate(2026, 7, 31),
-		WeekCycleLength: 1,
-		IsActive:        true,
-	}
+	period := fixtures.NewCalendarPeriod(func(fixtureRow *fixtures.CalendarPeriod) {
+		fixtureRow.Name = "No Templates Test 2025/2026"
+		fixtureRow.PeriodType = fixtures.PeriodTypeSchoolYear()
+		fixtureRow.StartDate = calendar.NewDate(2025, 8, 1)
+		fixtureRow.EndDate = calendar.NewDate(2026, 7, 31)
+		fixtureRow.WeekCycleLength = 1
+		fixtureRow.IsActive = true
+	})
+
 	createCalendarPeriodRow(t, db, ctx, period)
 
 	r, err := svc.MaterializeForTenant(ctx, from, to, timetable.MaterializationSourceManual)
@@ -463,7 +470,7 @@ func TestMaterializeForTenant_PreFetchObservesFirstRunThenSkips(t *testing.T) {
 	// a unit test on isUniqueViolation — simulating it end-to-end would
 	// require contrived concurrency that does not model real production.
 	materializeDate := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, materializeDate)
+	s := makeScenario(t, activityContract.WeekdayMonday, materializeDate)
 	defer s.runCleanup(t)
 
 	r1, err := s.svc.MaterializeForTenant(s.ctx, materializeDate, materializeDate.AddDays(6), timetable.MaterializationSourceManual)
@@ -484,18 +491,19 @@ func TestMaterializeForTenant_TemplateScheduleBoundToPeriod_OutOfRange_Skips(t *
 	t.Parallel()
 
 	materializeDate := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, materializeDate)
+	s := makeScenario(t, activityContract.WeekdayMonday, materializeDate)
 	defer s.runCleanup(t)
 
 	// Create a holiday period that is active but only covers Oct 2026.
-	holiday := &scheduleModels.CalendarPeriod{
-		Name:            fmt.Sprintf("Herbstferien-%d", time.Now().UnixNano()),
-		PeriodType:      scheduleModels.PeriodTypeHoliday,
-		StartDate:       scheduleModels.NewDate(2026, 10, 14),
-		EndDate:         scheduleModels.NewDate(2026, 10, 25),
-		WeekCycleLength: 1,
-		IsActive:        true,
-	}
+	holiday := fixtures.NewCalendarPeriod(func(fixtureRow *fixtures.CalendarPeriod) {
+		fixtureRow.Name = fmt.Sprintf("Herbstferien-%d", time.Now().UnixNano())
+		fixtureRow.PeriodType = fixtures.PeriodTypeHoliday()
+		fixtureRow.StartDate = calendar.NewDate(2026, 10, 14)
+		fixtureRow.EndDate = calendar.NewDate(2026, 10, 25)
+		fixtureRow.WeekCycleLength = 1
+		fixtureRow.IsActive = true
+	})
+
 	createCalendarPeriodRow(t, s.db, s.ctx, holiday)
 	s.extraCleanups = append(s.extraCleanups, func() {
 	})
@@ -504,7 +512,7 @@ func TestMaterializeForTenant_TemplateScheduleBoundToPeriod_OutOfRange_Skips(t *
 	// (April 20+) is outside the holiday period → no instance should be
 	// created.
 	_, err := s.db.NewUpdate().
-		Model((*activitiesModels.Schedule)(nil)).
+		Model(activityScheduleFixture((*activityContract.Schedule)(nil))).
 		ModelTableExpr(`activities.schedules`).
 		Set("calendar_period_id = ?", holiday.ID).
 		Where("id = ?", s.schedule.ID).
@@ -523,14 +531,14 @@ func TestMaterializeForTenant_ABWeekSmoke(t *testing.T) {
 	t.Parallel()
 
 	materializeDate := calendar.NewDate(2026, time.April, 20) // Mon, "Week A"
-	s := makeScenario(t, activitiesModels.WeekdayMonday, materializeDate)
+	s := makeScenario(t, activityContract.WeekdayMonday, materializeDate)
 	defer s.runCleanup(t)
 
 	// Flip the period to A/B cycle with anchor = materializeDate. Anchor week
 	// resolves to Week A (pattern 1).
 	anchor := materializeDate
 	_, err := s.db.NewUpdate().
-		Model((*scheduleModels.CalendarPeriod)(nil)).
+		Model((*fixtures.CalendarPeriod)(nil)).
 		ModelTableExpr(`schedule.calendar_periods AS "calendar_period"`).
 		Set("week_cycle_length = ?", 2).
 		Set("week_cycle_anchor = ?", anchor).
@@ -541,7 +549,7 @@ func TestMaterializeForTenant_ABWeekSmoke(t *testing.T) {
 
 	// Existing schedule has week_pattern=0 (every week) — set it to 2 (Week B).
 	_, err = s.db.NewUpdate().
-		Model((*activitiesModels.Schedule)(nil)).
+		Model(activityScheduleFixture((*activityContract.Schedule)(nil))).
 		ModelTableExpr(`activities.schedules`).
 		Set("week_pattern = ?", 2).
 		Where("id = ?", s.schedule.ID).
@@ -588,7 +596,7 @@ func TestMaterializeForTenant_ScheduleValidUntil_SkipsEndedDates(t *testing.T) {
 
 	firstMonday := calendar.NewDate(2026, time.April, 20) // Mon
 	secondMonday := firstMonday.AddDays(7)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, firstMonday)
+	s := makeScenario(t, activityContract.WeekdayMonday, firstMonday)
 	defer s.runCleanup(t)
 
 	// Baseline: valid_until is NULL — the second Monday materializes normally
@@ -602,7 +610,7 @@ func TestMaterializeForTenant_ScheduleValidUntil_SkipsEndedDates(t *testing.T) {
 	// Monday is before the cap and still materializes, the second is ended.
 	capDate := firstMonday.AddDays(1) // Tue
 	_, err = s.db.NewUpdate().
-		Model((*activitiesModels.Schedule)(nil)).
+		Model(activityScheduleFixture((*activityContract.Schedule)(nil))).
 		ModelTableExpr(`activities.schedules`).
 		Set("valid_until = ?", capDate).
 		Where("id = ?", s.schedule.ID).
@@ -632,13 +640,13 @@ func TestMaterializeForTenant_ScheduleValidFrom_SkipsNotStartedDates(t *testing.
 
 	firstMonday := calendar.NewDate(2026, time.April, 20) // Mon
 	secondMonday := firstMonday.AddDays(7)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, firstMonday)
+	s := makeScenario(t, activityContract.WeekdayMonday, firstMonday)
 	defer s.runCleanup(t)
 
 	// Start the schedule on the second Monday (inclusive): the first Monday
 	// is before valid_from and must be skipped, the second materializes.
 	_, err := s.db.NewUpdate().
-		Model((*activitiesModels.Schedule)(nil)).
+		Model(activityScheduleFixture((*activityContract.Schedule)(nil))).
 		ModelTableExpr(`activities.schedules`).
 		Set("valid_from = ?", secondMonday).
 		Where("id = ?", s.schedule.ID).
@@ -662,36 +670,36 @@ func TestMaterializeForTenant_ScheduleValidFrom_SkipsNotStartedDates(t *testing.
 // adapter over the School Calendar and fills in the generated ID. The
 // scenarios below need calendar rows as fixtures, not the administrative
 // rules the period editor enforces.
-func createCalendarPeriodRow(t *testing.T, db *bun.DB, ctx context.Context, period *scheduleModels.CalendarPeriod) {
+func createCalendarPeriodRow(t *testing.T, db *bun.DB, ctx context.Context, period *fixtures.CalendarPeriod) {
 	t.Helper()
-	repo := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).CalendarPeriod
-	require.NoError(t, repo.Create(ctx, period))
+	repo := fixtures.FromCalendarPeriodRecords(api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).CalendarPeriod)
+	require.NoError(t, repo.Create(testpkg.WithTenantRuntime(t, ctx, db), period))
 }
 
 // updateCalendarPeriodRow rewrites a period row the same way.
-func updateCalendarPeriodRow(t *testing.T, db *bun.DB, ctx context.Context, period *scheduleModels.CalendarPeriod) {
+func updateCalendarPeriodRow(t *testing.T, db *bun.DB, ctx context.Context, period *fixtures.CalendarPeriod) {
 	t.Helper()
-	repo := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).CalendarPeriod
+	repo := fixtures.FromCalendarPeriodRecords(api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).CalendarPeriod)
 	require.NoError(t, repo.Update(ctx, period))
 }
 
 // newTestMaterialization composes the Timetable owner's materialization over
 // the retained repositories, the way the composition root does, without the
 // per-date care filter and the staffing announcement.
-func newTestMaterialization(t *testing.T, db *bun.DB, repos *api.CareScheduleSuiteRepositories, timetableRepos api.TimetableRepositories) timetable.MaterializationCapability {
+func newTestMaterialization(t *testing.T, db *bun.DB, repos *api.CareScheduleSuiteRepositories, timetableRepos owners.TimetableRepositories) timetable.MaterializationCapability {
 	t.Helper()
 	svc, err := compose.NewMaterialization(timetablePorts.MaterializationDependencies{
 		GroupRepo:      timetableRepos.ActivityGroup,
 		ScheduleRepo:   timetableRepos.ActivitySchedule,
 		EnrollmentRepo: timetableRepos.StudentEnrollment,
 		SupervisorRepo: timetableRepos.ActivitySupervisor,
-		PeriodRepo:     repos.CalendarPeriod,
-		InstanceRepo:   timetableRepos.ActivityInstance,
-		StaffRepo:      timetableRepos.InstanceStaff,
-		StudentRepo:    timetableRepos.InstanceStudent,
-		ExceptionRepo:  timetableRepos.ActivityException,
-		TimeframeRepo:  timetableRepos.Timeframe,
-		RecurrenceLock: api.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, db)),
+		PeriodRepo:     fixtures.IntoCalendarPeriodRecords(fixtures.FromCalendarPeriodRecords(repos.CalendarPeriod)),
+		InstanceRepo:   fixtures.IntoActivityInstanceRecords(fixtures.FromActivityInstanceRecords(timetableRepos.ActivityInstance)),
+		StaffRepo:      fixtures.IntoInstanceStaffRecords(fixtures.FromInstanceStaffRecords(timetableRepos.InstanceStaff)),
+		StudentRepo:    fixtures.IntoInstanceStudentRecords(fixtures.FromInstanceStudentRecords(timetableRepos.InstanceStudent)),
+		ExceptionRepo:  fixtures.IntoActivityExceptionRecords(fixtures.FromActivityExceptionRecords(timetableRepos.ActivityException)),
+		TimeframeRepo:  fixtures.IntoTimeframeRecords(fixtures.FromTimeframeRecords(timetableRepos.Timeframe)),
+		RecurrenceLock: owners.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, db)),
 		Transactions:   compose.NewTenantTransactions(db),
 		Logger:         slog.Default(),
 	})

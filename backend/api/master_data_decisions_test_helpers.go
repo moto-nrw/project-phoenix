@@ -6,11 +6,14 @@ import (
 	"errors"
 	"log/slog"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	"github.com/moto-nrw/project-phoenix/realtime"
 
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -31,7 +34,7 @@ type MasterDataDecisionTestOptions struct {
 // MasterDataDecisionTestPeople are the People Directory rows and recorders
 // the decision binds. Nil effects are skipped.
 type MasterDataDecisionTestPeople struct {
-	People   MasterDataPeople
+	People   owners.MasterDataPeople
 	Students peoplePorts.StudentRepository
 	Persons  peoplePorts.PersonRepository
 	Audit    peoplePorts.StudentChangeRecorder
@@ -43,7 +46,7 @@ type MasterDataDecisionTestPeople struct {
 // nil emitter or broadcaster is skipped.
 func NewTestMasterDataDecisions(
 	options MasterDataDecisionTestOptions, people MasterDataDecisionTestPeople,
-	emitter *communicationCompose.ParentEventEmitter, broadcaster realtime.Broadcaster,
+	emitter eventContract.Emitter, broadcaster realtime.Broadcaster,
 ) (*carePlanCompose.MasterDataDecisions, error) {
 	if options.CarePlan == nil || people.People == nil || people.Students == nil || people.Persons == nil {
 		return nil, errors.New("test master data decisions: care plan capability, field review, student and person repositories are required")
@@ -52,7 +55,7 @@ func NewTestMasterDataDecisions(
 	if scope == nil {
 		scope = schoolWideReviewScope
 	}
-	return NewMasterDataDecisions(
+	return owners.NewMasterDataDecisions(
 		options.CarePlan, people.People, people.Students, people.Persons, people.Audit, scope,
 		emitter, broadcaster, people.Events, options.Shares, options.Logger, options.Today,
 	)

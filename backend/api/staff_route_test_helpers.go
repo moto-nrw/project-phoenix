@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -16,8 +18,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-func newStaffIdentityForTests(db transactionruntime.Database) (*CallerRows, MembershipTestRepositories, error) {
-	members, err := NewMembershipTestRepositories(db)
+func newStaffIdentityForTests(db transactionruntime.Database) (*owners.CallerRows, owners.MembershipTestRepositories, error) {
+	members, err := owners.NewMembershipTestRepositories(db)
 	if err != nil {
 		return nil, members, err
 	}
@@ -38,7 +40,7 @@ type AbsenceTypeTestModule struct {
 
 // NewAbsenceTypeTestModule composes the Abwesenheitsarten catalog over db and
 // returns it with the caller context of its routes.
-func NewAbsenceTypeTestModule(db transactionruntime.Database, clocks ...func() time.Time) (AbsenceTypeTestModule, *CallerRows, error) {
+func NewAbsenceTypeTestModule(db transactionruntime.Database, clocks ...func() time.Time) (AbsenceTypeTestModule, *owners.CallerRows, error) {
 	identity, _, err := newStaffIdentityForTests(db)
 	if err != nil {
 		return AbsenceTypeTestModule{}, nil, err
@@ -56,14 +58,14 @@ type BirthdayTestModule struct {
 
 // NewBirthdayTestModule composes the birthday capability over db and returns
 // it with the caller context of its routes and the tenant settings it reads.
-func NewBirthdayTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (BirthdayTestModule, *CallerRows, SettingsTestModule, error) {
-	settings, err := NewSettingsTestModule(db, unit)
+func NewBirthdayTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (BirthdayTestModule, *owners.CallerRows, owners.SettingsTestModule, error) {
+	settings, err := owners.NewSettingsTestModule(db, unit)
 	if err != nil {
-		return BirthdayTestModule{}, nil, SettingsTestModule{}, err
+		return BirthdayTestModule{}, nil, owners.SettingsTestModule{}, err
 	}
 	identity, members, err := newStaffIdentityForTests(db)
 	if err != nil {
-		return BirthdayTestModule{}, nil, SettingsTestModule{}, err
+		return BirthdayTestModule{}, nil, owners.SettingsTestModule{}, err
 	}
 	birthdays := NewBirthdays(
 		BirthdayRepositories{Students: NewStudentLookupTestRepository(db), Staff: members.Staff, Persons: members.Person},
@@ -75,7 +77,7 @@ func NewBirthdayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 // retained repositories the way the service graph does, with caller-supplied
 // settings and clock.
 func NewBirthdayCapabilityForTests(db transactionruntime.Database, settings BirthdaySettingsSource, now func() time.Time) peopledirectory.Birthdays {
-	members, err := NewMembershipTestRepositories(db)
+	members, err := owners.NewMembershipTestRepositories(db)
 	if err != nil {
 		panic(err)
 	}
@@ -88,7 +90,6 @@ func NewBirthdayCapabilityForTests(db transactionruntime.Database, settings Birt
 // administration: the activity service whose Kategorie↔Schichtart linker it
 // calls and the timetable rows it runs over.
 type ShiftTypeTestModule struct {
-	Activities   timetableCompose.ActivityService
 	Repositories ShiftTypeTestRepositories
 }
 
@@ -97,7 +98,7 @@ type ShiftTypeTestModule struct {
 // repositories, with the Kategorie↔Schichtart linker of the activity service.
 // It returns the administration with the Timetable side it runs over.
 func NewShiftTypeTestModule(db transactionruntime.Database) (workforce.ShiftTypeAdministration, ShiftTypeTestModule, error) {
-	repos := NewShiftTypeTestRepositories(db, MustNewMembershipTestRepositories(db))
+	repos := NewShiftTypeTestRepositories(db, owners.MustNewMembershipTestRepositories(db))
 	linker, err := timetableCompose.NewService(repos.Timetable, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		return nil, ShiftTypeTestModule{}, err
@@ -106,7 +107,7 @@ func NewShiftTypeTestModule(db transactionruntime.Database) (workforce.ShiftType
 	if err != nil {
 		return nil, ShiftTypeTestModule{}, err
 	}
-	rooms, err := NewTimetableRoomRows(db)
+	rooms, err := owners.NewTimetableRoomRows(db)
 	if err != nil {
 		return nil, ShiftTypeTestModule{}, err
 	}
@@ -115,25 +116,25 @@ func NewShiftTypeTestModule(db transactionruntime.Database) (workforce.ShiftType
 		return nil, ShiftTypeTestModule{}, err
 	}
 	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
-		Workforce: NewAbsenceTypeTestCapability(db), Staff: NewPlanStaffDirectory(MustNewMembershipTestRepositories(db).Staff), CalendarPeriods: calendar.SchoolCalendar(),
+		Workforce: NewAbsenceTypeTestCapability(db), Staff: owners.NewPlanStaffDirectory(owners.MustNewMembershipTestRepositories(db).Staff), CalendarPeriods: calendar.SchoolCalendar(),
 		Instances: timetableCompose.NewTimetableInstanceReads(timetable.ActivityInstance), InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(timetable.InstanceStaff),
-		Rooms: facilitiesCompose.NewRoomNameDirectory(rooms.Room.Records), ActivityGroups: timetableCompose.NewTimetableGroupReads(timetable.ActivityGroup),
+		Rooms: facilitiesCompose.NewRoomNameDirectory(rooms.Room), ActivityGroups: timetableCompose.NewTimetableGroupReads(timetable.ActivityGroup),
 		CategoryLinker: timetableCompose.ShiftTypeCategoryLinker(linker.SetCategoryShiftTypeLinks), DB: db.Pool(), Logger: slog.Default(),
 	})
 	if err != nil {
 		return nil, ShiftTypeTestModule{}, err
 	}
-	return planning.ShiftTypes, ShiftTypeTestModule{Activities: linker, Repositories: repos}, nil
+	return planning.ShiftTypes, ShiftTypeTestModule{Repositories: repos}, nil
 }
 
 type DeviceTestModule struct{ IoT devicefleetCompose.IoTService }
 
 func NewDeviceTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (DeviceTestModule, error) {
-	settings, err := NewSettingsTestModule(db, unit)
+	settings, err := owners.NewSettingsTestModule(db, unit)
 	if err != nil {
 		return DeviceTestModule{}, err
 	}
-	fleet, err := NewDeviceFleet(db, NewOnlineWindowMinutes(settings.Settings, nil))
+	fleet, err := owners.NewDeviceFleet(db, owners.NewOnlineWindowMinutes(settings.Settings, nil))
 	if err != nil {
 		return DeviceTestModule{}, err
 	}

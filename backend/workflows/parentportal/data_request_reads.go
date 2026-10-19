@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
 )
 
 type DataRequestSnapshot care.StudentDataChangeRequest

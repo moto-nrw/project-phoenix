@@ -14,7 +14,7 @@ import (
 func TestAccountProfiles(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	profiles, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	profiles, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "account-profile")
@@ -84,4 +84,22 @@ func TestAccountProfiles(t *testing.T) {
 	for _, invalidID := range []int64{0, -1} {
 		require.Error(t, profiles.SetAccountBio(ctx, invalidID, "Invalid"))
 	}
+}
+
+func TestAccountProfilesRejectErasedAccounts(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	profiles, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	require.NoError(t, err)
+	account := testpkg.CreateTestAccount(t, db, "erased-account-profile")
+	ctx := testpkg.Ctx(t)
+	_, err = db.NewRaw(`UPDATE auth.accounts SET personal_data_erased_at = NOW() WHERE id = ?`, account.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	err = profiles.SetAccountBio(ctx, account.ID, "May not return")
+	require.ErrorContains(t, err, "cannot reference an erased account")
+
+	var profilesCount int
+	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM users.profiles WHERE account_id = ?`, account.ID).Scan(ctx, &profilesCount))
+	require.Zero(t, profilesCount)
 }

@@ -15,7 +15,7 @@ func (s *Service) ListLiveGroups(ctx context.Context, ids []int64) ([]ports.Live
 }
 
 func (s *Service) QueryLiveGroups(ctx context.Context, filter ports.LiveGroupFilter) (result []ports.LiveGroup, err error) {
-	err = s.run("query_live_groups", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "query_live_groups", func(ctx context.Context) (ports.Stats, error) {
 		if filter.Limit < 0 || filter.Offset < 0 {
 			return ports.Stats{}, errors.New("student presence: invalid pagination")
 		}
@@ -45,7 +45,7 @@ func (s *Service) QueryLiveGroups(ctx context.Context, filter ports.LiveGroupFil
 // supervises on date. A supervision counts from its start date up to, not
 // including, its end date.
 func (s *Service) ListSupervisedLiveGroups(ctx context.Context, staffID int64, date ports.Date) (result []ports.LiveGroup, err error) {
-	err = s.run("list_supervised_live_groups", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "list_supervised_live_groups", func(ctx context.Context) (ports.Stats, error) {
 		if staffID <= 0 {
 			return ports.Stats{}, errors.New("student presence: invalid staff ID")
 		}
@@ -68,7 +68,7 @@ func (s *Service) ListSupervisedLiveGroups(ctx context.Context, staffID int64, d
 }
 
 func (s *Service) OccupiedActivityGroupIDs(ctx context.Context, ids []int64) (result []int64, err error) {
-	err = s.run("occupied_activity_group_ids", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "occupied_activity_group_ids", func(ctx context.Context) (ports.Stats, error) {
 		for _, id := range ids {
 			if id <= 0 {
 				return ports.Stats{}, errors.New("student presence: invalid activity group ID")
@@ -85,7 +85,7 @@ func (s *Service) ListGroupSupervisions(ctx context.Context, groupID int64) ([]p
 	return s.QueryGroupSupervisions(ctx, ports.GroupSupervisionFilter{GroupIDs: []int64{groupID}})
 }
 func (s *Service) QueryGroupSupervisions(ctx context.Context, filter ports.GroupSupervisionFilter) (result []ports.GroupSupervision, err error) {
-	err = s.run("query_group_supervisions", func() (ports.Stats, error) {
+	err = s.runQuery(ctx, filter.ForUpdate, "query_group_supervisions", func(ctx context.Context) (ports.Stats, error) {
 		if filter.Limit < 0 || filter.Offset < 0 {
 			return ports.Stats{}, errors.New("student presence: invalid supervision pagination")
 		}
@@ -120,7 +120,7 @@ func (s *Service) QueryGroupSupervisions(ctx context.Context, filter ports.Group
 }
 
 func (s *Service) StaffIDsWithSupervisionOn(ctx context.Context, date ports.Date) (result []int64, err error) {
-	err = s.run("staff_ids_with_supervision", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "staff_ids_with_supervision", func(ctx context.Context) (ports.Stats, error) {
 		var stats ports.Stats
 		result, stats, err = s.store.StaffIDsWithSupervisionOn(ctx, date)
 		return stats, err
@@ -129,7 +129,7 @@ func (s *Service) StaffIDsWithSupervisionOn(ctx context.Context, date ports.Date
 }
 
 func (s *Service) SupervisedRoomsOn(ctx context.Context, date ports.Date) (result []ports.StaffRoomSupervision, err error) {
-	err = s.run("supervised_rooms_on", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "supervised_rooms_on", func(ctx context.Context) (ports.Stats, error) {
 		var stats ports.Stats
 		result, stats, err = s.store.SupervisedRoomsOn(ctx, date)
 		return stats, err

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -27,7 +28,7 @@ import (
 
 type wiredMFAFixture struct {
 	svc      identityaccess.AccountMFA
-	repos    api.MembershipTestRepositories
+	repos    owners.MembershipTestRepositories
 	db       *bun.DB
 	tenantID int64
 	mailer   *testpkg.CapturingMailer
@@ -53,7 +54,7 @@ func newWiredMFAFixture(t *testing.T) *wiredMFAFixture {
 
 	return &wiredMFAFixture{
 		svc:      module.MFA,
-		repos:    api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)),
+		repos:    owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)),
 		db:       db,
 		tenantID: tenantID,
 		mailer:   mailer,

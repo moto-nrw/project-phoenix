@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -26,23 +25,6 @@ type Observation = ports.Observation
 // OrderingSettings are the school's meal ordering settings as stored.
 type OrderingSettings = ports.OrderingSettings
 
-type ParticipantCandidate struct {
-	StudentID   int64
-	FirstName   string
-	LastName    string
-	SchoolClass string
-}
-
-type ParticipantFinder func(context.Context, string) ([]ParticipantCandidate, error)
-
-// StudentNameFinder names children by ID, enrolled or not, for past orders.
-type StudentNameFinder func(context.Context, []int64) ([]ParticipantCandidate, error)
-
-// CalendarFinder reads the school calendar for the inclusive window
-// [from, to]: the closed days (closing days, public holidays) and the days of
-// school holiday periods, both as YYYY-MM-DD sets.
-type CalendarFinder func(ctx context.Context, from, to string) (closed, holiday map[string]bool, err error)
-
 type Dependencies struct {
 	DB       *bun.DB
 	Settings interface {
@@ -52,9 +34,9 @@ type Dependencies struct {
 	}
 	Observe      func(Observation)
 	Now          func() time.Time
-	Participants ParticipantFinder
-	StudentNames StudentNameFinder
-	Calendar     CalendarFinder
+	Participants mealplan.ParticipantFinder
+	StudentNames mealplan.StudentNameFinder
+	Calendar     mealplan.CalendarFinder
 }
 
 func New(dependencies Dependencies) (*mealplan.Module, error) {
@@ -76,48 +58,8 @@ func New(dependencies Dependencies) (*mealplan.Module, error) {
 		}
 		return tx, tenantID.Int64(), nil
 	})
-	service := application.New(store, participantDirectory{find: dependencies.Participants, names: dependencies.StudentNames}, schoolCalendar{find: dependencies.Calendar}, dependencies.Settings, TransactionFunc(tenant.NewTransactionRunner().RunInTx), dependencies.Observe, dependencies.Now)
-	return mealplan.NewModule(engine{service: service}), nil
-}
-
-type participantDirectory struct {
-	find  ParticipantFinder
-	names StudentNameFinder
-}
-
-func (d participantDirectory) FindStudentNames(ctx context.Context, ids []int64) (map[int64]domain.DailyCandidate, domain.OperationStats, error) {
-	started := time.Now()
-	rows, err := d.names(ctx, ids)
-	names := make(map[int64]domain.DailyCandidate, len(rows))
-	for _, row := range rows {
-		names[row.StudentID] = domain.DailyCandidate(row)
-	}
-	return names, domain.OperationStats{Queries: 1, Rows: int64(len(rows)), StatementDuration: time.Since(started)}, err
-}
-
-func (d participantDirectory) FindDailyCandidates(ctx context.Context, date domain.Date) ([]domain.DailyCandidate, domain.OperationStats, error) {
-	started := time.Now()
-	rows, err := d.find(ctx, date.String())
-	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
-	if err != nil {
-		return nil, stats, err
-	}
-	stats.Rows = int64(len(rows))
-	candidates := make([]domain.DailyCandidate, 0, len(rows))
-	for _, row := range rows {
-		candidates = append(candidates, domain.DailyCandidate{
-			StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName, SchoolClass: row.SchoolClass,
-		})
-	}
-	return candidates, stats, nil
-}
-
-type schoolCalendar struct{ find CalendarFinder }
-
-func (c schoolCalendar) Days(ctx context.Context, from, to domain.Date) (domain.CalendarDays, domain.OperationStats, error) {
-	started := time.Now()
-	closed, holiday, err := c.find(ctx, from.String(), to.String())
-	return domain.NewCalendarDays(closed, holiday), domain.OperationStats{Queries: 3, StatementDuration: time.Since(started)}, err
+	service := application.New(store, application.NewParticipantDirectory(dependencies.Participants, dependencies.StudentNames), application.NewSchoolCalendar(dependencies.Calendar), dependencies.Settings, TransactionFunc(tenant.NewTransactionRunner().RunInTx), dependencies.Observe, dependencies.Now)
+	return application.NewPublicModule(service), nil
 }
 
 // Settings are the meal plan's settings resolvers, bound at construction.
@@ -144,210 +86,4 @@ func (s *Settings) MealRegistrationEnabled(ctx context.Context) (bool, error) {
 
 func (s *Settings) MealOrderingSettings(ctx context.Context) (OrderingSettings, error) {
 	return s.orderingSettings(ctx)
-}
-
-type engine struct{ service *application.Service }
-
-func (e engine) Available(ctx context.Context) (bool, error) { return e.service.Available(ctx) }
-
-func (e engine) Week(ctx context.Context, monday string) ([]mealplan.Entry, error) {
-	parsed, err := domain.ParseDate(monday)
-	if err != nil {
-		return nil, err
-	}
-	entries, err := e.service.Week(ctx, parsed)
-	if err != nil {
-		return nil, mapError(err)
-	}
-	result := make([]mealplan.Entry, 0, len(entries))
-	for _, entry := range entries {
-		result = append(result, mealplan.Entry{Date: mealplan.Date(entry.Date.String()), Position: entry.Position, Dish: entry.Dish, Note: entry.Note})
-	}
-	return result, nil
-}
-
-func (e engine) Replace(ctx context.Context, date string, dishes []mealplan.Dish) error {
-	parsed, err := domain.ParseDate(date)
-	if err != nil {
-		return err
-	}
-	values := make([]domain.Dish, 0, len(dishes))
-	for _, dish := range dishes {
-		values = append(values, domain.Dish{Dish: dish.Dish, Note: dish.Note})
-	}
-	return mapError(e.service.Replace(ctx, parsed, values))
-}
-
-func (e engine) Clear(ctx context.Context, date string) error {
-	parsed, err := domain.ParseDate(date)
-	if err != nil {
-		return err
-	}
-	return mapError(e.service.Clear(ctx, parsed))
-}
-
-func (e engine) RegistrationAvailable(ctx context.Context) (bool, error) {
-	available, err := e.service.RegistrationAvailable(ctx)
-	return available, mapError(err)
-}
-
-func (e engine) Participation(ctx context.Context, studentID int64, from, to string) (mealplan.ParticipationPlan, error) {
-	start, err := domain.ParseDate(from)
-	if err != nil {
-		return mealplan.ParticipationPlan{}, err
-	}
-	end, err := domain.ParseDate(to)
-	if err != nil {
-		return mealplan.ParticipationPlan{}, err
-	}
-	plan, err := e.service.Participation(ctx, studentID, start, end)
-	if err != nil {
-		return mealplan.ParticipationPlan{}, mapError(err)
-	}
-	return publicParticipationPlan(plan), nil
-}
-
-func (e engine) ReplaceParticipationSchedule(ctx context.Context, studentID, accountID int64, weekdays []mealplan.Weekday, effectiveFrom string) (mealplan.Date, error) {
-	values := make([]domain.Weekday, 0, len(weekdays))
-	for _, weekday := range weekdays {
-		values = append(values, domain.Weekday(weekday))
-	}
-	from, err := e.service.ReplaceParticipationSchedule(ctx, studentID, accountID, values, domain.Date(effectiveFrom))
-	return mealplan.Date(from.String()), mapError(err)
-}
-
-func (e engine) SetParticipationDay(ctx context.Context, studentID, accountID int64, date string, participating, bySchool bool) error {
-	parsed, err := domain.ParseDate(date)
-	if err != nil {
-		return err
-	}
-	return mapError(e.service.SetParticipationDay(ctx, studentID, accountID, parsed, participating, bySchool))
-}
-
-func (e engine) SetParticipationWeek(ctx context.Context, studentID, accountID int64, monday string, participating bool) (mealplan.WeekChange, error) {
-	parsed, err := domain.ParseDate(monday)
-	if err != nil {
-		return mealplan.WeekChange{}, err
-	}
-	changed, locked, err := e.service.SetParticipationWeek(ctx, studentID, accountID, parsed, participating)
-	if err != nil {
-		return mealplan.WeekChange{}, mapError(err)
-	}
-	return mealplan.WeekChange{Changed: publicDates(changed), Locked: publicDates(locked)}, nil
-}
-
-func publicDates(dates []domain.Date) []mealplan.Date {
-	result := make([]mealplan.Date, 0, len(dates))
-	for _, date := range dates {
-		result = append(result, mealplan.Date(date.String()))
-	}
-	return result
-}
-
-func (e engine) ClearParticipationDay(ctx context.Context, studentID, accountID int64, date string, bySchool bool) error {
-	parsed, err := domain.ParseDate(date)
-	if err != nil {
-		return err
-	}
-	return mapError(e.service.ClearParticipationDay(ctx, studentID, accountID, parsed, bySchool))
-}
-
-func (e engine) DailyParticipants(ctx context.Context, date string) (mealplan.DailyList, error) {
-	parsed, err := domain.ParseDate(date)
-	if err != nil {
-		return mealplan.DailyList{}, err
-	}
-	list, err := e.service.DailyParticipants(ctx, parsed)
-	if err != nil {
-		return mealplan.DailyList{}, mapError(err)
-	}
-	result := mealplan.DailyList{Date: mealplan.Date(list.Date.String()), CutoffTime: list.CutoffTime, Deadline: list.Deadline, Closed: list.Closed, Participants: make([]mealplan.DailyParticipant, 0, len(list.Participants))}
-	for _, participant := range list.Participants {
-		result.Participants = append(result.Participants, mealplan.DailyParticipant(participant))
-	}
-	for _, other := range list.Others {
-		result.Others = append(result.Others, mealplan.DailyParticipant(other))
-	}
-	return result, nil
-}
-
-func (e engine) SettleOrders(ctx context.Context) error {
-	return mapError(e.service.SettleOrders(ctx))
-}
-
-func (e engine) Orders(ctx context.Context, from, to string) (mealplan.OrderWeek, error) {
-	view, err := e.service.Orders(ctx, domain.Date(from), domain.Date(to))
-	if err != nil {
-		return mealplan.OrderWeek{}, mapError(err)
-	}
-	week := mealplan.OrderWeek{Rhythm: string(view.Rules.Rhythm), Detail: string(view.Rules.Detail), Days: make([]mealplan.OrderDay, 0, len(view.Days))}
-	for _, day := range view.Days {
-		week.Days = append(week.Days, publicOrderDay(day, view.Names))
-	}
-	return week, nil
-}
-
-func publicOrderDay(day domain.OrderDay, names map[int64]domain.DailyCandidate) mealplan.OrderDay {
-	child := func(studentID int64, schoolClass string) mealplan.OrderChild {
-		name := names[studentID]
-		return mealplan.OrderChild{StudentID: studentID, FirstName: name.FirstName, LastName: name.LastName, SchoolClass: schoolClass}
-	}
-	result := mealplan.OrderDay{Date: mealplan.Date(day.Date.String()), Closed: day.Closed, Deadline: day.Deadline, Status: mealplan.OrderOpen, Total: len(day.Children)}
-	if day.Unordered {
-		result.Status = mealplan.OrderUnordered
-	}
-	if day.Order != nil {
-		result.Status, result.OrderID, result.ConfirmedAt = mealplan.OrderOrdered, day.Order.ID, day.Order.ConfirmedAt
-		if day.Order.ConfirmedAt != nil {
-			result.Status = mealplan.OrderConfirmed
-		}
-	}
-	for _, count := range domain.CountByClass(day.Children) {
-		result.Classes = append(result.Classes, mealplan.ClassCount(count))
-	}
-	for _, eating := range day.Eating {
-		result.Children = append(result.Children, mealplan.OrderChild(eating))
-	}
-	for _, change := range day.Changes {
-		result.Changes = append(result.Changes, mealplan.OrderChange{Sequence: change.Sequence, Date: result.Date, Child: child(change.StudentID, change.SchoolClass), Delta: change.Delta, DetectedAt: change.DetectedAt})
-	}
-	return result
-}
-
-func publicParticipationPlan(plan domain.ParticipationPlan) mealplan.ParticipationPlan {
-	result := mealplan.ParticipationPlan{EffectiveFrom: mealplan.Date(plan.EffectiveFrom.String()), CutoffTime: plan.CutoffTime, Model: mealplan.RegistrationModel(plan.Model), ScheduleChangeable: plan.ScheduleChangeable, SickCancels: plan.Sick == domain.SickCancelled, Weekdays: make([]mealplan.Weekday, 0, len(plan.Weekdays)), Days: make([]mealplan.ParticipationDay, 0, len(plan.Days))}
-	for _, weekday := range plan.Weekdays {
-		result.Weekdays = append(result.Weekdays, mealplan.Weekday(weekday))
-	}
-	for _, day := range plan.Days {
-		result.Days = append(result.Days, mealplan.ParticipationDay{
-			Date: mealplan.Date(day.Date.String()), Participating: day.Participating, Regular: day.Regular, Source: mealplan.ParticipationSource(day.Source),
-			Changeable: day.Changeable(), CanRegister: day.CanRegister, CanCancel: day.CanCancel,
-			RegisterUntil: day.RegisterUntil, CancelUntil: day.CancelUntil,
-		})
-	}
-	return result
-}
-
-// publicErrors maps the application's errors to the module's, first match
-// wins.
-var publicErrors = []struct{ from, to error }{
-	{application.ErrDisabled, mealplan.ErrDisabled},
-	{application.ErrRegistrationDisabled, mealplan.ErrRegistrationDisabled},
-	{application.ErrCutoffPassed, mealplan.ErrParticipationCutoff},
-	{application.ErrPastDay, mealplan.ErrPastDay},
-	{application.ErrDayClosed, mealplan.ErrDayClosed},
-	{application.ErrStudentNotFound, mealplan.ErrStudentNotFound},
-	{application.ErrNotEnrolled, mealplan.ErrChildNotEnrolled},
-	{application.ErrInvalidCutoff, mealplan.ErrInvalidParticipation},
-	{application.ErrTooFarAhead, mealplan.ErrInvalidParticipation},
-}
-
-func mapError(err error) error {
-	for _, mapping := range publicErrors {
-		if errors.Is(err, mapping.from) {
-			return mapping.to
-		}
-	}
-	return err
 }

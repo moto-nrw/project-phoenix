@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
@@ -34,7 +36,7 @@ func DatabaseStatsPermissions() []string {
 // (#4013): the retained student, staff and group rows, the rooms, the
 // activities, the roles and permissions and the devices. It redacts every
 // count the caller's permissions do not cover.
-func newDatabaseStats(people peopleCompose.Repositories, groups EducationGroupRepository, roomOwner facilitiesModule.Capability, timetable timetableCompose.Repositories, identity *identityaccess.Module, deviceOwner devicefleet.Capability, logger *slog.Logger) DatabaseStatsReader {
+func newDatabaseStats(people peopleCompose.Repositories, groups owners.EducationGroupRows, roomOwner facilitiesModule.Capability, timetable timetableCompose.Repositories, identity *identityaccess.Module, deviceOwner devicefleet.Capability, logger *slog.Logger) DatabaseStatsReader {
 	rooms := facilitiesCompose.NewRoomRepository(roomOwner)
 	devices := devicefleetRepositoryAdapter.NewDeviceRepository(deviceOwner)
 	stats := transactionruntime.NewDatabaseStats(statsContract.StatsDependencies{
@@ -50,7 +52,7 @@ func newDatabaseStats(people peopleCompose.Repositories, groups EducationGroupRe
 			return len(rows), err
 		},
 		Activities: func(ctx context.Context) (int, error) {
-			rows, err := timetable.ActivityGroup.List(ctx, nil)
+			rows, err := timetable.ActivityGroup.ListAll(ctx)
 			return len(rows), err
 		},
 		Groups: func(ctx context.Context) (int, error) {

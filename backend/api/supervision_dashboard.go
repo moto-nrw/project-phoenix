@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	supervisionDashboardHTTP "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -434,7 +436,7 @@ func (s supervisionSchedule) PlannedNow(ctx context.Context, query supervisionda
 	if err != nil {
 		return nil, err
 	}
-	return calendarMapSlice(planned, supervisionPlannedInstance), nil
+	return owners.CalendarMapSlice(planned, supervisionPlannedInstance), nil
 }
 
 func (s supervisionSchedule) ActiveSessions(ctx context.Context, date supervisiondashboard.Date) ([]supervisiondashboard.ActiveSession, error) {
@@ -446,7 +448,7 @@ func (s supervisionSchedule) ActiveSessions(ctx context.Context, date supervisio
 	if err != nil {
 		return nil, err
 	}
-	return calendarMapSlice(sessions, func(session timetable.OperationActiveSession) supervisiondashboard.ActiveSession {
+	return owners.CalendarMapSlice(sessions, func(session timetable.OperationActiveSession) supervisiondashboard.ActiveSession {
 		return supervisiondashboard.ActiveSession{
 			ActiveGroupID: session.ActiveGroupID,
 			InstanceID:    session.InstanceID,
@@ -466,7 +468,7 @@ func (s supervisionSchedule) SessionBlocks(ctx context.Context, query supervisio
 	if err != nil {
 		return nil, err
 	}
-	return calendarMapSlice(blocks, func(block timetable.OperationSessionBlock) supervisiondashboard.SessionBlock {
+	return owners.CalendarMapSlice(blocks, func(block timetable.OperationSessionBlock) supervisiondashboard.SessionBlock {
 		return supervisiondashboard.SessionBlock{
 			ActiveGroupID: block.ActiveGroupID,
 			InstanceID:    block.InstanceID,
@@ -503,10 +505,10 @@ func supervisionPlannedInstance(instance timetable.OperationPlannedInstance) sup
 		IsPrimary:             instance.IsPrimary,
 		IsSubstitute:          instance.IsSubstitute,
 		IsAbsent:              instance.IsAbsent,
-		RosterPreview:         calendarMapSlice(instance.RosterPreview, supervisionRosterRow),
+		RosterPreview:         owners.CalendarMapSlice(instance.RosterPreview, supervisionRosterRow),
 		PickupTimesLoaded:     instance.PickupTimesLoaded,
 		PickupTimesRedacted:   instance.PickupTimesRedacted,
-		Warnings:              calendarMapSlice(instance.Warnings, supervisionConflictWarning),
+		Warnings:              owners.CalendarMapSlice(instance.Warnings, supervisionConflictWarning),
 		CanStart:              instance.CanStart,
 		StartAvailableAt:      instance.StartAvailableAt,
 		StartExpiresAt:        instance.StartExpiresAt,
@@ -515,7 +517,7 @@ func supervisionPlannedInstance(instance timetable.OperationPlannedInstance) sup
 		PlanningTrackName:     instance.PlanningTrackName,
 		PlanningTrackColor:    instance.PlanningTrackColor,
 		GroupName:             instance.GroupName,
-		StaffNames: calendarMapSlice(instance.StaffNames, func(name timetable.OperationStaffName) supervisiondashboard.StaffName {
+		StaffNames: owners.CalendarMapSlice(instance.StaffNames, func(name timetable.OperationStaffName) supervisiondashboard.StaffName {
 			return supervisiondashboard.StaffName{StaffID: name.StaffID, DisplayName: name.DisplayName, IsSubstitute: name.IsSubstitute}
 		}),
 	}
@@ -542,7 +544,7 @@ func supervisionRosterRow(row timetable.OperationRosterRow) supervisiondashboard
 		CheckedOutAt:     row.CheckedOutAt,
 		VisitEntryTime:   row.VisitEntryTime,
 		PickupTime:       row.PickupTime,
-		Warnings: calendarMapSlice(row.Warnings, func(warning timetable.OperationRosterWarning) supervisiondashboard.RosterWarning {
+		Warnings: owners.CalendarMapSlice(row.Warnings, func(warning timetable.OperationRosterWarning) supervisiondashboard.RosterWarning {
 			return supervisiondashboard.RosterWarning{
 				Kind:                  warning.Kind,
 				Message:               warning.Message,
@@ -681,7 +683,7 @@ func (p supervisionPlanning) Pickups(ctx context.Context, studentIDs []int64, da
 			PickupTime:  supervisionWallClock(pickup.PickupTime),
 			IsException: pickup.IsException, DayDepartureMode: pickup.DayDepartureMode,
 			Notes: pickup.Notes,
-			DayNotes: calendarMapSlice(pickup.DayNotes, func(note careplan.NoteData) supervisiondashboard.DayNote {
+			DayNotes: owners.CalendarMapSlice(pickup.DayNotes, func(note careplan.NoteData) supervisiondashboard.DayNote {
 				return supervisiondashboard.DayNote{ID: note.ID, Content: note.Content}
 			}),
 		}
@@ -709,7 +711,7 @@ func (p supervisionPlanning) Arrivals(ctx context.Context, studentIDs []int64, d
 			ArrivalTime: supervisionWallClock(arrival.ArrivalTime),
 			IsException: arrival.IsException,
 			Notes:       arrival.Notes,
-			DayNotes: calendarMapSlice(arrival.DayNotes, func(note careplan.ArrivalNoteData) supervisiondashboard.DayNote {
+			DayNotes: owners.CalendarMapSlice(arrival.DayNotes, func(note careplan.ArrivalNoteData) supervisiondashboard.DayNote {
 				return supervisiondashboard.DayNote{ID: note.ID, Content: note.Content}
 			}),
 		}

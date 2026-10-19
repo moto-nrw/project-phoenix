@@ -31,7 +31,11 @@ func newRawGuardianFinancialDataRepository(runtime Runtime) *GuardianFinancialDa
 // error.
 func (r *GuardianFinancialDataRepository) FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) (*users.GuardianFinancialData, error) {
 	data := new(users.GuardianFinancialData)
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB1, databaseErr1 := r.runtime.DB(ctx)
+	if databaseErr1 != nil {
+		return *new(*users.GuardianFinancialData), databaseErr1
+	}
+	query := ambientDB1.NewSelect().
 		Model(data).
 		ModelTableExpr(`users.guardian_financial_data AS "guardian_financial_data"`).
 		Where(`"guardian_financial_data".guardian_profile_id = ?`, guardianProfileID)
@@ -57,7 +61,11 @@ func (r *GuardianFinancialDataRepository) ListByGuardianProfileIDs(ctx context.C
 	}
 
 	var rows []*users.GuardianFinancialData
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB2, databaseErr2 := r.runtime.DB(ctx)
+	if databaseErr2 != nil {
+		return *new(map[int64]*users.GuardianFinancialData), databaseErr2
+	}
+	query := ambientDB2.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`users.guardian_financial_data AS "guardian_financial_data"`).
 		Where(`"guardian_financial_data".guardian_profile_id IN (?)`, bun.List(guardianProfileIDs))
@@ -84,7 +92,11 @@ func (r *GuardianFinancialDataRepository) Create(ctx context.Context, data *user
 		return err
 	}
 	ensureTenantID(ctx, r.runtime, data)
-	if _, err := r.runtime.DB(ctx).NewInsert().Model(data).ModelTableExpr(`users.guardian_financial_data`).Exec(ctx); err != nil {
+	ambientDB3, databaseErr3 := r.runtime.DB(ctx)
+	if databaseErr3 != nil {
+		return databaseErr3
+	}
+	if _, err := ambientDB3.NewInsert().Model(data).ModelTableExpr(`users.guardian_financial_data`).Exec(ctx); err != nil {
 		return &ports.DatabaseError{Op: "create", Err: err}
 	}
 	return nil
@@ -98,7 +110,11 @@ func (r *GuardianFinancialDataRepository) Update(ctx context.Context, data *user
 	if err := data.Validate(); err != nil {
 		return err
 	}
-	query := r.runtime.DB(ctx).NewUpdate().
+	ambientDB4, databaseErr4 := r.runtime.DB(ctx)
+	if databaseErr4 != nil {
+		return databaseErr4
+	}
+	query := ambientDB4.NewUpdate().
 		Model(data).
 		ModelTableExpr(`users.guardian_financial_data AS "guardian_financial_data"`).
 		WherePK()

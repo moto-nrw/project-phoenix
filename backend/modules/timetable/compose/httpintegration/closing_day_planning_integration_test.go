@@ -5,12 +5,13 @@ import (
 	"testing"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -24,11 +25,12 @@ import (
 
 func insertScenarioClosingDay(t *testing.T, s *scenarioSetup, start, end calendar.Date) {
 	t.Helper()
-	row := &scheduleModels.ClosingDay{
-		StartDate: scheduleModels.Date(start),
-		EndDate:   scheduleModels.Date(end),
-		Reason:    "Herbstferien",
-	}
+	row := fixtures.NewClosingDay(func(fixtureRow *fixtures.ClosingDay) {
+		fixtureRow.StartDate = calendar.Date(start)
+		fixtureRow.EndDate = calendar.Date(end)
+		fixtureRow.Reason = "Herbstferien"
+	})
+
 	row.TenantID = s.tenantID
 	_, err := s.db.NewInsert().Model(row).ModelTableExpr(`schedule.closing_days`).Exec(s.ctx)
 	require.NoError(t, err)
@@ -53,7 +55,7 @@ func countCancelledExceptions(t *testing.T, db *bun.DB, s *scenarioSetup, date c
 	count, err := db.NewSelect().Table("schedule.activity_exceptions").
 		Where("activity_group_id = ?", s.template.ID).
 		Where("exception_date = ?", date).
-		Where("exception_type = ?", scheduleModels.ActivityExceptionCancelled).
+		Where("exception_type = ?", fixtures.ActivityExceptionCancelled()).
 		Where("tenant_id = ?", s.tenantID).
 		Count(s.ctx)
 	require.NoError(t, err)
@@ -66,7 +68,7 @@ func TestMaterializeForTenant_SkipsHolidaysAndClosingDays(t *testing.T) {
 	easterMonday := calendar.NewDate(2026, time.April, 6)
 	closingMonday := calendar.NewDate(2026, time.April, 13)
 	regularMonday := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, regularMonday)
+	s := makeScenario(t, activityContract.WeekdayMonday, regularMonday)
 	insertScenarioClosingDay(t, s, closingMonday, closingMonday.AddDays(4))
 
 	result, err := s.materialization.MaterializeForTenant(s.ctx, easterMonday, regularMonday, timetable.MaterializationSourceManual)
@@ -86,7 +88,7 @@ func TestMaterializeForTenant_SeriesIncludingClosingDaysStillSkipsHolidays(t *te
 	easterMonday := calendar.NewDate(2026, time.April, 6)
 	closingMonday := calendar.NewDate(2026, time.April, 13)
 	regularMonday := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, regularMonday)
+	s := makeScenario(t, activityContract.WeekdayMonday, regularMonday)
 	// A holiday inside the closure: the holiday wins even for holiday care.
 	insertScenarioClosingDay(t, s, easterMonday, closingMonday)
 	setSeriesIncludesClosingDays(t, s, true)
@@ -109,7 +111,7 @@ func TestDetectEditedInWindow_FollowsClosingDaySkip(t *testing.T) {
 
 	closingMonday := calendar.NewDate(2026, time.April, 13)
 	regularMonday := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, regularMonday)
+	s := makeScenario(t, activityContract.WeekdayMonday, regularMonday)
 	insertScenarioClosingDay(t, s, closingMonday, closingMonday)
 
 	detect := func() []timetable.EditedOccurrence {
@@ -143,7 +145,7 @@ func TestDetectEditedInWindow_OccurrencePlannedBeforeClosureIsNoEdit(t *testing.
 
 	closingMonday := calendar.NewDate(2026, time.April, 13)
 	regularMonday := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, closingMonday)
+	s := makeScenario(t, activityContract.WeekdayMonday, closingMonday)
 
 	_, err := s.materialization.MaterializeForTenant(s.ctx, closingMonday, regularMonday, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
@@ -165,7 +167,7 @@ func TestDetectEditedInWindow_OccurrencePlannedBeforeClosureIsNoEdit(t *testing.
 func bulkCancelScenario(t *testing.T) (*scenarioSetup, []calendar.Date) {
 	t.Helper()
 	first := calendar.NewDate(2026, time.August, 17)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, first)
+	s := makeScenario(t, activityContract.WeekdayMonday, first)
 	// Tenant transactions follow the test onto its own database when it opted
 	// into one (the query budget below); otherwise this is the package runtime.
 	s.ctx = testpkg.WithTestTenantRuntime(t, s.ctx)
@@ -186,7 +188,7 @@ func TestBulkCancelPlanned_CancelsAndRemovesPlannedOccurrences(t *testing.T) {
 	past, today, active, second, third, outside := mondays[0], mondays[1], mondays[2], mondays[3], mondays[4], mondays[5]
 	activeRows := listInstancesForDate(t, s.db, s.template.ID, active)
 	require.Len(t, activeRows, 1)
-	setInstanceStatus(t, s, activeRows[0].ID, scheduleModels.InstanceStatusActive)
+	setInstanceStatus(t, s, activeRows[0].ID, fixtures.InstanceStatusActive())
 
 	preview, err := s.instance.BulkCancelPlanned(s.ctx, past, third, timetable.BulkCancelOptions{DryRun: true, IncludeClosingDaySeries: false}, nil)
 	require.NoError(t, err)
@@ -214,7 +216,7 @@ func TestBulkCancelPlanned_CancelsAndRemovesPlannedOccurrences(t *testing.T) {
 	assert.Len(t, listInstancesForDate(t, s.db, s.template.ID, past), 1, "past occurrences stay")
 	kept := listInstancesForDate(t, s.db, s.template.ID, active)
 	require.Len(t, kept, 1, "running occurrences stay")
-	assert.Equal(t, scheduleModels.InstanceStatusActive, kept[0].Status)
+	assert.Equal(t, fixtures.InstanceStatusActive(), kept[0].Status)
 	assert.Len(t, listInstancesForDate(t, s.db, s.template.ID, outside), 1, "occurrences outside the range stay")
 
 	again, err := s.materialization.MaterializeForTenant(s.ctx, mondays[0], mondays[5], timetable.MaterializationSourceManual)
@@ -308,7 +310,7 @@ func TestReplanWeek_FollowsTheSeriesClosingDayFlag(t *testing.T) {
 	first := calendar.NewDate(2026, time.August, 31)
 	closing := first.AddDays(7)
 	last := first.AddDays(14)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, first)
+	s := makeScenario(t, activityContract.WeekdayMonday, first)
 	insertScenarioClosingDay(t, s, closing, closing)
 	setSeriesIncludesClosingDays(t, s, true)
 	_, err := s.materialization.MaterializeForTenant(s.ctx, first, last, timetable.MaterializationSourceManual)

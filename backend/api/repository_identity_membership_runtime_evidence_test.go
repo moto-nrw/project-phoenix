@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -27,9 +29,9 @@ func TestIdentityMembershipRuntimeEvidence(t *testing.T) {
 	require.NoError(t, err)
 	identity, err := NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	organizations, err := NewOrganizationTenancy(testpkg.NewDatabase(t, db))
+	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	staff, err := NewStaffMessagingTestRepositories(testpkg.NewDatabase(t, db), MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	staff, err := NewStaffMessagingTestRepositories(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

@@ -53,6 +53,13 @@ export function SchoolCheckinSelectionBar({
       data-checkin-selection-bar="true"
     >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-900">
+          <CheckSquare
+            className="text-moto-green h-4 w-4 shrink-0"
+            aria-hidden
+          />
+          An- und Abmelde-Modus aktiv
+        </span>
         <SegmentedControl
           ariaLabel="Tipp-Verhalten"
           items={[
@@ -121,9 +128,9 @@ export function SchoolCheckinSelectionBar({
               </Button>
               <Button
                 type="button"
-                variant="ghost"
-                size="compact"
-                className="ml-1 rounded-full shadow-none"
+                variant="primary"
+                size="md"
+                className="ml-1"
                 onClick={onFinish}
                 disabled={isRunning}
               >
@@ -133,14 +140,14 @@ export function SchoolCheckinSelectionBar({
           </>
         ) : (
           <>
-            <span className="hidden text-xs text-gray-500 sm:inline">
+            <span className="min-w-0 flex-1 text-xs text-gray-500">
               Jeder Tipp meldet sofort an oder ab.
             </span>
             <Button
               type="button"
-              variant="ghost"
-              size="compact"
-              className="ml-auto rounded-full shadow-none"
+              variant="primary"
+              size="md"
+              className="ml-auto"
               onClick={onFinish}
               disabled={isRunning}
             >

@@ -17,8 +17,8 @@ func TestObserveResultReportsDatabaseWork(t *testing.T) {
 	require.NoError(t, err)
 
 	db := bun.NewDB(sqlDB, pgdialect.New())
-	InstallMessageQueryInstrumentation(db)
-	InstallMessageQueryInstrumentation(db)
+	InstrumentMessageQueries(db, false)
+	InstrumentMessageQueries(db, false)
 	mock.ExpectExec("UPDATE").WillReturnResult(sqlmock.NewResult(0, 3))
 	mock.ExpectClose()
 
@@ -39,4 +39,51 @@ func TestObserveResultReportsDatabaseWork(t *testing.T) {
 	assert.Positive(t, observed.Duration)
 	require.NoError(t, db.Close())
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestMessageQueryInstrumentationLeavesSharedDatabaseUnchanged(t *testing.T) {
+	t.Parallel()
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	mock.MatchExpectationsInOrder(false)
+	db := bun.NewDB(sqlDB, pgdialect.New())
+	for range 8 {
+		mock.ExpectExec("UPDATE").WillReturnResult(sqlmock.NewResult(0, 3))
+		mock.ExpectExec("UPDATE").WillReturnResult(sqlmock.NewResult(0, 3))
+	}
+	mock.ExpectClose()
+	t.Cleanup(func() {
+		require.NoError(t, db.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	for range 8 {
+		t.Run("root", func(t *testing.T) {
+			t.Parallel()
+			rootDB := InstrumentMessageQueries(db, true)
+			require.NotSame(t, db, rootDB)
+			require.Same(t, db.DB, rootDB.DB, "roots share the SQL connection pool")
+
+			var observed Observation
+			_, err := observeResult(context.Background(), func(got Observation) {
+				observed = got
+			}, "staff_messages.test", func(ctx context.Context) (int, error) {
+				_, execErr := rootDB.ExecContext(ctx, "UPDATE users.staff_messages SET body = body")
+				return 0, execErr
+			})
+			require.NoError(t, err)
+			require.Equal(t, 1, observed.Stats.Queries)
+			require.EqualValues(t, 3, observed.Stats.Rows)
+
+			_, err = observeResult(context.Background(), func(got Observation) {
+				observed = got
+			}, "staff_messages.test", func(ctx context.Context) (int, error) {
+				_, execErr := db.ExecContext(ctx, "UPDATE users.staff_messages SET body = body")
+				return 0, execErr
+			})
+			require.NoError(t, err)
+			require.Zero(t, observed.Stats.Queries, "root instrumentation must not mutate the shared handle")
+		})
+	}
 }

@@ -43,11 +43,11 @@
   "runtime_evidence": {
     "source": "Local verification on 2026-10-16 of this #4077 slice. No production or staging requests and no benchmark run.",
     "sources": [
-      "backend/modules/presenceprojection/rows.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/modules/presenceprojection/rows.go",
       "backend/modules/timetable/compose/presence_reads.go",
-      "backend/api/presence_reads.go",
-      "backend/modules/presenceprojection/manual_planning_test.go",
-      "backend/api/owner_roots.go"
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/presence_reads.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/modules/presenceprojection/manual_planning_test.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/owner_roots.go"
     ],
     "workload": "Affected Go suites through scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development against the local postgres-test server with per-test tenants.",
     "thresholds": "Affected suites pass with unchanged assertion strength; the architecture check reports the listed keys as retired and an unchanged composition surface.",

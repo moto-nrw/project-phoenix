@@ -65,7 +65,7 @@ func setupStudentModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, api.
 func storeRawTenantSetting(t *testing.T, db *bun.DB, tenantID int64, key string, raw json.RawMessage) {
 	t.Helper()
 	ctx := testpkg.TenantContext(tenantID)
-	require.NoError(t, api.StoreRawTenantSettingForTests(ctx, testpkg.NewDatabase(t, db), tenantID, key, raw),
+	require.NoError(t, testpkg.TenantCommand4(t, ctx, db, api.StoreRawTenantSettingForTests, testpkg.NewDatabase(t, db), tenantID, key, raw),
 		"store raw %s override", key)
 }
 

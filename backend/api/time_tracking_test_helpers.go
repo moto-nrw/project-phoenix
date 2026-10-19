@@ -6,6 +6,8 @@ import (
 	"context"
 	"log/slog"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -18,8 +20,8 @@ import (
 // work-session repositories and the tenant settings to compose the Workforce
 // time-tracking side the way the service graph composes it (#3413).
 type timeTrackingTestGraph struct {
-	Audits        timeTrackingAudits
-	People        timeTrackingStaffLookup
+	Audits        owners.TimeTrackingAudits
+	People        owners.TimeTrackingStaffLookup
 	Holidays      workforceCompose.HolidayDatesReader
 	Events        workforceCompose.EventPublisher
 	ShiftPlanSync workforceCompose.ShiftPlanSyncer
@@ -45,17 +47,17 @@ func newTimeTrackingTestModule(db transactionruntime.Database, repos WorkSession
 		}
 		return len(staff), withoutPersonnelNumber, nil
 	})
-	membership, err := NewSchoolMembership(db)
+	membership, err := owners.NewSchoolMembership(db)
 	if err != nil {
 		return nil, err
 	}
 	employment := workforceCompose.MustNewStaffEmployment(db.Pool())
 	side, err := newTimeTracking(repos.Workforce, workforceCompose.TimeTrackingPorts{
 		Absences: repos.StaffAbsence, AbsenceAudits: workforceCompose.NewStaffAbsenceAuditRepository(repos.Workforce),
-		Staff:        WorkSessionStaff(staffRows, employment, membership),
+		Staff:        owners.WorkSessionStaff(staffRows, employment, membership),
 		Supervisions: presence.GroupSupervisor, SessionRecords: presence.ActiveGroup, Holidays: graph.Holidays,
 		Events: graph.Events, Logger: graph.Logger, Today: graph.Today, AbsenceEmail: absenceEmail,
-	}, graph.Audits, staffRows, graph.People, employment, NewStaffWorkScheduleRepository(repos.Workforce), NewWorkTimeModelRepository(repos.Workforce),
+	}, graph.Audits, staffRows, graph.People, employment, owners.NewStaffWorkScheduleRepository(repos.Workforce), owners.NewWorkTimeModelRepository(repos.Workforce),
 		settings, payroll, db,
 	)
 	if err != nil {
@@ -100,8 +102,8 @@ type PayrollSettings interface {
 // Platform's payroll status over the given settings and personnel counter,
 // the way the service graph binds them, for suites that may not name the
 // Settings Platform's services.
-func NewPayrollExportSettings(settings PayrollSettings, countPersonnel func(context.Context) (int, int, error)) PayrollExportSettings {
-	return PayrollExportSettings{Source: settingsCompose.NewPayrollStatusService(settings, countPersonnel)}
+func NewPayrollExportSettings(settings PayrollSettings, countPersonnel func(context.Context) (int, int, error)) owners.PayrollExportSettings {
+	return owners.PayrollExportSettings{Source: settingsCompose.NewPayrollStatusService(settings, countPersonnel)}
 }
 
 // newTimeTracking composes the Workforce time-tracking side (#3413) over the
@@ -111,11 +113,11 @@ func NewPayrollExportSettings(settings PayrollSettings, countPersonnel func(cont
 // the events, the absence mail, the logger and the clock. timeTrackingPorts sets every
 // other port over the remaining arguments and leaves these alone.
 func newTimeTracking(
-	workforce workforceModule.Capability, bound workforceCompose.TimeTrackingPorts, audits timeTrackingAudits,
-	staff timeTrackingStaffRecords, people timeTrackingStaffLookup, employment workforceCompose.StaffEmploymentQuery,
-	schedules timeTrackingWorkSchedules, timeModels timeTrackingWorkTimeModels,
-	settings timeTrackingSettings, payroll settingsCompose.PayrollStatusGetter, db transactionruntime.Database,
+	workforce workforceModule.Capability, bound workforceCompose.TimeTrackingPorts, audits owners.TimeTrackingAudits,
+	staff owners.TimeTrackingStaffRecords, people owners.TimeTrackingStaffLookup, employment workforceCompose.StaffEmploymentQuery,
+	schedules owners.TimeTrackingWorkSchedules, timeModels owners.TimeTrackingWorkTimeModels,
+	settings owners.TimeTrackingSettings, payroll settingsCompose.PayrollStatusGetter, db transactionruntime.Database,
 ) (*workforceCompose.WorkSessionSide, error) {
-	ports := timeTrackingPorts(workforce, bound, audits, staff, employment, schedules, timeModels, settings, payroll, db)
-	return workforceCompose.NewWorkSessionSide(workforce, ports, staffScheduleBindings(people))
+	ports := owners.TimeTrackingPorts(workforce, bound, audits, staff, employment, schedules, timeModels, settings, payroll, db)
+	return workforceCompose.NewWorkSessionSide(workforce, ports, owners.StaffScheduleBindings(people))
 }

@@ -11,7 +11,7 @@ import (
 // GenerateRecurrenceEvents uses the owner rule and preserves the established
 // daily/weekly/monthly/yearly event ordering, clamping, and count semantics.
 func (s *Service) GenerateRecurrenceEvents(ctx context.Context, id int64, start, end time.Time) (events []time.Time, err error) {
-	err = s.run("generate_recurrence_events", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "generate_recurrence_events", func(ctx context.Context, stats *domain.OperationStats) error {
 		rule, found, measured, readErr := s.store.FindRecurrenceRule(ctx, id)
 		stats.Add(measured)
 		if readErr != nil {

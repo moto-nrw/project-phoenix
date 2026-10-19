@@ -22,11 +22,11 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -47,25 +47,25 @@ func TestInstance_SetUnderstaffedAck_HappyPath(t *testing.T) {
 	ai := seedInstance(t, s, false, false)
 
 	note := "keine Vertretung verfügbar"
-	got, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, true, &note, nil)
+	got, err := testpkg.TenantQuery4(t, s.ctx, testpkg.SetupTestDB(t), svc.SetUnderstaffedAck, ai.ID, true, &note, nil)
 	require.NoError(t, err)
 	assert.True(t, got.UnderstaffedAck)
 	require.NotNil(t, got.UnderstaffedNote)
 	assert.Equal(t, note, *got.UnderstaffedNote)
 
-	reloaded, err := s.timetable.ActivityInstance.FindByID(s.ctx, ai.ID)
+	reloaded, err := fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance).FindByID(s.ctx, ai.ID)
 	require.NoError(t, err)
 	assert.True(t, reloaded.UnderstaffedAck)
 	require.NotNil(t, reloaded.UnderstaffedNote)
 	assert.Equal(t, note, *reloaded.UnderstaffedNote)
 
 	// Clearing the flag also clears the note so a stale reason cannot linger.
-	cleared, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, false, nil, nil)
+	cleared, err := testpkg.TenantQuery4(t, s.ctx, testpkg.SetupTestDB(t), svc.SetUnderstaffedAck, ai.ID, false, nil, nil)
 	require.NoError(t, err)
 	assert.False(t, cleared.UnderstaffedAck)
 	assert.Nil(t, cleared.UnderstaffedNote)
 
-	reloaded2, err := s.timetable.ActivityInstance.FindByID(s.ctx, ai.ID)
+	reloaded2, err := fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance).FindByID(s.ctx, ai.ID)
 	require.NoError(t, err)
 	assert.False(t, reloaded2.UnderstaffedAck)
 	assert.Nil(t, reloaded2.UnderstaffedNote)
@@ -77,7 +77,7 @@ func TestInstance_SetUnderstaffedAck_CompletedRejected(t *testing.T) {
 	s := buildLifecycle(t)
 	svc := instanceServiceWithBroadcaster(t, s, nil)
 	ai := seedInstance(t, s, false, false)
-	forceSetInstanceStatus(t, s, ai.ID, scheduleModels.InstanceStatusCompleted)
+	forceSetInstanceStatus(t, s, ai.ID, fixtures.InstanceStatusCompleted())
 
 	_, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, true, nil, nil)
 	assert.ErrorIs(t, err, timetable.ErrInvalidInstanceTransition)
@@ -97,7 +97,7 @@ func TestInstance_SetUnderstaffedAck_RejectedWhileStaffed(t *testing.T) {
 	assert.ErrorIs(t, err, timetable.ErrUnderstaffedAckStillStaffed)
 
 	// The flag never flipped in the DB.
-	reloaded, err := s.timetable.ActivityInstance.FindByID(s.ctx, ai.ID)
+	reloaded, err := fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance).FindByID(s.ctx, ai.ID)
 	require.NoError(t, err)
 	assert.False(t, reloaded.UnderstaffedAck)
 
@@ -125,7 +125,7 @@ func TestInstance_SetUnderstaffedAck_AllowedWhilePartiallyStaffed(t *testing.T) 
 	testpkg.CreateTestInstanceStaff(t, s.db, ai.ID, absentStaff.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
 
 	note := "keine Vertretung für die zweite Position"
-	got, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, true, &note, nil)
+	got, err := testpkg.TenantQuery4(t, s.ctx, testpkg.SetupTestDB(t), svc.SetUnderstaffedAck, ai.ID, true, &note, nil)
 	require.NoError(t, err)
 	assert.True(t, got.UnderstaffedAck)
 	require.NotNil(t, got.UnderstaffedNote)
@@ -155,9 +155,9 @@ func TestInstance_Cancel_WithReason_Persists(t *testing.T) {
 	require.NoError(t, err)
 	// The lifecycle's public view carries no cancel reason; the stored row
 	// is the contract.
-	assert.Equal(t, scheduleModels.InstanceStatusCancelled, cancelled.Status)
+	assert.Equal(t, fixtures.InstanceStatusCancelled(), cancelled.Status)
 
-	reloaded, err := s.timetable.ActivityInstance.FindByID(s.ctx, ai.ID)
+	reloaded, err := fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance).FindByID(s.ctx, ai.ID)
 	require.NoError(t, err)
 	require.NotNil(t, reloaded.CancelReason)
 	assert.Equal(t, "Ausflug", *reloaded.CancelReason)
@@ -177,7 +177,7 @@ func TestInstance_Start_HappyPath(t *testing.T) {
 	require.NotNil(t, result)
 	require.NotNil(t, result.Instance)
 
-	assert.Equal(t, scheduleModels.InstanceStatusActive, result.Instance.Status)
+	assert.Equal(t, fixtures.InstanceStatusActive(), result.Instance.Status)
 	require.NotNil(t, result.Instance.ActiveGroupID)
 	assert.Equal(t, result.ActiveGroupID, *result.Instance.ActiveGroupID)
 	assert.NotNil(t, result.Instance.StartedAt)
@@ -313,7 +313,7 @@ func TestInstance_UpdatePlannedRejectsDateOutsideActiveCalendarPeriod(t *testing
 	}, nil)
 
 	require.ErrorIs(t, err, timetable.ErrInstanceOutsideActiveCalendarPeriod)
-	stored, err := s.timetable.ActivityInstance.FindByID(s.ctx, instance.ID)
+	stored, err := fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance).FindByID(s.ctx, instance.ID)
 	require.NoError(t, err)
 	assert.Equal(t, instance.Date.String(), stored.Date.String())
 }
@@ -483,7 +483,7 @@ func TestInstance_Complete_HappyPath(t *testing.T) {
 
 	completed, err := s.svc.Complete(s.ctx, ai.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.InstanceStatusCompleted, completed.Status)
+	assert.Equal(t, fixtures.InstanceStatusCompleted(), completed.Status)
 	require.NotNil(t, completed.CompletedAt)
 
 	// Bridge active.group must be closed.
@@ -523,7 +523,7 @@ func TestInstance_Complete_ConfirmationMustMatchOpenVisits(t *testing.T) {
 
 	completed, err := s.svc.Complete(timetable.WithCompletionConfirmation(s.ctx, []int64{s.student1}), ai.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.InstanceStatusCompleted, completed.Status)
+	assert.Equal(t, fixtures.InstanceStatusCompleted(), completed.Status)
 }
 
 func TestInstance_Reopen_RestoresAbsenceProvenance(t *testing.T) {
@@ -536,7 +536,7 @@ func TestInstance_Reopen_RestoresAbsenceProvenance(t *testing.T) {
 	if instanceWeekday == 0 {
 		instanceWeekday = 7
 	}
-	for weekday := scheduleModels.WeekdayMonday; weekday <= scheduleModels.WeekdayFriday; weekday++ {
+	for weekday := fixtures.WeekdayMonday(); weekday <= fixtures.WeekdayFriday(); weekday++ {
 		if weekday == instanceWeekday {
 			continue
 		}
@@ -557,20 +557,20 @@ func TestInstance_Reopen_RestoresAbsenceProvenance(t *testing.T) {
 	partial := testpkg.CreateTestPickupException(t, s.db, s.student2, ai.Date.AddDays(1), s.staffID, "13:00", "Termin")
 	partialRow := fetchAttendance(t, s, ai.ID, s.student2)
 	testpkg.UpdateSessionAttendance(t, s.ctx, s.db, partialRow.ID, map[string]any{
-		"status":              scheduleModels.AttendanceStatusAbsent,
-		"substatus":           scheduleModels.AttendanceSubstatusExcused,
+		"status":              fixtures.AttendanceStatusAbsent(),
+		"substatus":           fixtures.AttendanceSubstatusExcused(),
 		"pickup_exception_id": partial.ID,
 	})
 
 	beforeSick := fetchAttendance(t, s, ai.ID, s.student1)
-	require.Equal(t, scheduleModels.AttendanceStatusAbsent, beforeSick.Status)
+	require.Equal(t, fixtures.AttendanceStatusAbsent(), beforeSick.Status)
 	require.NotNil(t, beforeSick.StudentStatusDayID)
 	assert.Equal(t, sick.ID, *beforeSick.StudentStatusDayID)
 	require.NotNil(t, beforeSick.Substatus)
-	assert.Equal(t, scheduleModels.AttendanceSubstatusSick, *beforeSick.Substatus)
+	assert.Equal(t, fixtures.AttendanceSubstatusSick(), *beforeSick.Substatus)
 
 	beforePickup := fetchAttendance(t, s, ai.ID, s.student2)
-	require.Equal(t, scheduleModels.AttendanceStatusAbsent, beforePickup.Status)
+	require.Equal(t, fixtures.AttendanceStatusAbsent(), beforePickup.Status)
 	require.NotNil(t, beforePickup.PickupExceptionID)
 	assert.Equal(t, partial.ID, *beforePickup.PickupExceptionID)
 
@@ -589,31 +589,32 @@ func TestInstance_Reopen_RestoresAbsenceProvenance(t *testing.T) {
 
 	reopened, err := s.svc.Reopen(s.ctx, ai.ID, 0, true)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.InstanceStatusActive, reopened.Instance.Status)
+	assert.Equal(t, fixtures.InstanceStatusActive(), reopened.Instance.Status)
 
 	restoredSick := fetchAttendance(t, s, ai.ID, s.student1)
 	assert.False(t, restoredSick.NotScheduled)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, restoredSick.Status)
+	assert.Equal(t, fixtures.AttendanceStatusAbsent(), restoredSick.Status)
 	require.NotNil(t, restoredSick.StudentStatusDayID)
 	assert.Equal(t, sick.ID, *restoredSick.StudentStatusDayID)
 	require.NotNil(t, restoredSick.Substatus)
-	assert.Equal(t, scheduleModels.AttendanceSubstatusSick, *restoredSick.Substatus)
+	assert.Equal(t, fixtures.AttendanceSubstatusSick(), *restoredSick.Substatus)
 
 	restoredPickup := fetchAttendance(t, s, ai.ID, s.student2)
 	assert.False(t, restoredPickup.NotScheduled)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, restoredPickup.Status)
+	assert.Equal(t, fixtures.AttendanceStatusAbsent(), restoredPickup.Status)
 	require.NotNil(t, restoredPickup.PickupExceptionID)
 	assert.Equal(t, partial.ID, *restoredPickup.PickupExceptionID)
 }
 
 type failingRecoveryRestore struct {
-	scheduleModels.ActivityRecoveryRepository
+	fixtures.
+		ActivityRecoveryRecords
 	afterRestore error
 	restores     int
 }
 
-func (r *failingRecoveryRestore) Restore(ctx context.Context, id int64, snapshot scheduleModels.ActivityCompletionSnapshot, now time.Time) error {
-	if err := r.ActivityRecoveryRepository.Restore(ctx, id, snapshot, now); err != nil {
+func (r *failingRecoveryRestore) Restore(ctx context.Context, id int64, snapshot fixtures.ActivityCompletionSnapshot, now time.Time) error {
+	if err := r.ActivityRecoveryRecords.Restore(ctx, id, snapshot, now); err != nil {
 		return err
 	}
 	r.restores++
@@ -666,7 +667,7 @@ func testReopenWriteRollback(t *testing.T, stage string) {
 		"second-assignment": {"active.activity_session_attendance", secondAttendanceID},
 		"instance":          {"active.activity_sessions", sessionID},
 	}
-	fault := &failingRecoveryRestore{ActivityRecoveryRepository: compose.NewRetainedActivityRecoveryRepository(s.db, s.timetable.InstanceStudent)}
+	fault := &failingRecoveryRestore{ActivityRecoveryRecords: fixtures.FromActivityRecoveryRecords(compose.NewRetainedActivityRecoveryRepository(s.db, fixtures.IntoInstanceStudentRecords(fixtures.FromInstanceStudentRecords(s.timetable.InstanceStudent))))}
 	removeFault := func() {}
 	expectedRestores := 0
 	if stage == "complete" {
@@ -682,9 +683,9 @@ func testReopenWriteRollback(t *testing.T, stage string) {
 	require.ErrorContains(t, err, injected.Error())
 	require.Equal(t, expectedRestores, fault.restores, "fault must stop at its named write boundary")
 	assert.Empty(t, broadcaster.Calls())
-	stored, err := s.timetable.ActivityInstance.FindByID(s.ctx, ai.ID)
+	stored, err := fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance).FindByID(s.ctx, ai.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.InstanceStatusCompleted, stored.Status)
+	assert.Equal(t, fixtures.InstanceStatusCompleted(), stored.Status)
 	assert.NotEmpty(t, stored.CompletionSnapshot)
 	supervisors, err := s.repos.GroupSupervisor.FindByActiveGroupID(s.ctx, started.ActiveGroupID, false)
 	require.NoError(t, err)
@@ -704,7 +705,7 @@ func testReopenWriteRollback(t *testing.T, stage string) {
 	fault.afterRestore = nil
 	reopened, err := s.svc.Reopen(s.ctx, ai.ID, 0, true)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.InstanceStatusActive, reopened.Instance.Status)
+	assert.Equal(t, fixtures.InstanceStatusActive(), reopened.Instance.Status)
 	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
 	require.ErrorIs(t, err, timetable.ErrInvalidInstanceTransition)
 	visits, err = presence.ListVisits(s.ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{started.ActiveGroupID}})
@@ -754,7 +755,7 @@ func TestInstance_Reopen_HappyPath(t *testing.T) {
 
 	reopened, err := s.svc.Reopen(s.ctx, ai.ID, 0, true)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.InstanceStatusActive, reopened.Instance.Status)
+	assert.Equal(t, fixtures.InstanceStatusActive(), reopened.Instance.Status)
 	assert.Equal(t, started.ActiveGroupID, reopened.ActiveGroupID)
 
 	group, err := s.active.GetActiveGroup(s.ctx, started.ActiveGroupID)
@@ -1025,7 +1026,7 @@ func TestInstance_Cancel_FromPlanned_LeavesNoActiveGroup(t *testing.T) {
 
 	cancelled, err := s.svc.Cancel(s.ctx, ai.ID, nil, nil)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.InstanceStatusCancelled, cancelled.Status)
+	assert.Equal(t, fixtures.InstanceStatusCancelled(), cancelled.Status)
 	require.NotNil(t, cancelled.CompletedAt)
 	assert.Nil(t, cancelled.ActiveGroupID, "cancel-from-planned must not create a bridge")
 
@@ -1047,7 +1048,7 @@ func TestInstance_Cancel_FromActive_EndsBridge(t *testing.T) {
 
 	cancelled, err := s.svc.Cancel(s.ctx, ai.ID, nil, nil)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.InstanceStatusCancelled, cancelled.Status)
+	assert.Equal(t, fixtures.InstanceStatusCancelled(), cancelled.Status)
 
 	group, err := s.active.GetActiveGroup(s.ctx, started.ActiveGroupID)
 	require.NoError(t, err)
@@ -1059,11 +1060,7 @@ func TestInstance_Cancel_FromActive_EndsBridge(t *testing.T) {
 func TestInstance_Start_Rejects_NonPlanned(t *testing.T) {
 	t.Parallel()
 
-	for _, status := range []string{
-		scheduleModels.InstanceStatusActive,
-		scheduleModels.InstanceStatusCompleted,
-		scheduleModels.InstanceStatusCancelled,
-	} {
+	for _, status := range []string{fixtures.InstanceStatusActive(), fixtures.InstanceStatusCompleted(), fixtures.InstanceStatusCancelled()} {
 		t.Run(status, func(t *testing.T) {
 			s := buildLifecycle(t)
 			ai := seedInstance(t, s, false, false)
@@ -1080,11 +1077,7 @@ func TestInstance_Start_Rejects_NonPlanned(t *testing.T) {
 func TestInstance_Complete_Rejects_NonActive(t *testing.T) {
 	t.Parallel()
 
-	for _, status := range []string{
-		scheduleModels.InstanceStatusPlanned,
-		scheduleModels.InstanceStatusCompleted,
-		scheduleModels.InstanceStatusCancelled,
-	} {
+	for _, status := range []string{fixtures.InstanceStatusPlanned(), fixtures.InstanceStatusCompleted(), fixtures.InstanceStatusCancelled()} {
 		t.Run(status, func(t *testing.T) {
 			s := buildLifecycle(t)
 			ai := seedInstance(t, s, false, false)
@@ -1102,7 +1095,7 @@ func TestInstance_Cancel_Rejects_Completed(t *testing.T) {
 
 	s := buildLifecycle(t)
 	ai := seedInstance(t, s, false, false)
-	forceSetInstanceStatus(t, s, ai.ID, scheduleModels.InstanceStatusCompleted)
+	forceSetInstanceStatus(t, s, ai.ID, fixtures.InstanceStatusCompleted())
 
 	_, err := s.svc.Cancel(s.ctx, ai.ID, nil, nil)
 	require.Error(t, err)
@@ -1114,7 +1107,7 @@ func TestInstance_Cancel_Rejects_AlreadyCancelled(t *testing.T) {
 
 	s := buildLifecycle(t)
 	ai := seedInstance(t, s, false, false)
-	forceSetInstanceStatus(t, s, ai.ID, scheduleModels.InstanceStatusCancelled)
+	forceSetInstanceStatus(t, s, ai.ID, fixtures.InstanceStatusCancelled())
 
 	_, err := s.svc.Cancel(s.ctx, ai.ID, nil, nil)
 	require.Error(t, err)
@@ -1143,18 +1136,26 @@ func TestInstance_Start_SkipsAbsentStaff(t *testing.T) {
 	ai := seedInstance(t, s, false, false)
 
 	// Primary staff (present) + a second staff flagged absent.
-	primary := &scheduleModels.InstanceStaff{
-		InstanceID: ai.ID, StaffID: s.staffID, IsPrimary: true, IsAbsent: false,
-	}
+	primary := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.InstanceID = ai.ID
+		fixtureRow.StaffID = s.staffID
+		fixtureRow.IsPrimary = true
+		fixtureRow.IsAbsent = false
+	})
+
 	primary.SetTenantID(testpkg.Tenant(t))
 	_, err := s.db.NewInsert().Model(primary).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 	require.NoError(t, err)
 
 	absent := testpkg.CreateTestStaff(t, s.db, "Absent", fmt.Sprintf("Staff-%d", time.Now().UnixNano()))
 
-	absentRow := &scheduleModels.InstanceStaff{
-		InstanceID: ai.ID, StaffID: absent.ID, IsPrimary: false, IsAbsent: true,
-	}
+	absentRow := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.InstanceID = ai.ID
+		fixtureRow.StaffID = absent.ID
+		fixtureRow.IsPrimary = false
+		fixtureRow.IsAbsent = true
+	})
+
 	absentRow.SetTenantID(testpkg.Tenant(t))
 	_, err = s.db.NewInsert().Model(absentRow).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 	require.NoError(t, err)
@@ -1196,7 +1197,7 @@ func TestInstance_Start_OccupiedRoomIsNotAConflict(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Empty(t, result.Warnings, "a pure room overlap must not warn (#2139); got %+v", result.Warnings)
-	assert.Equal(t, scheduleModels.InstanceStatusActive, result.Instance.Status, "warnings never block the transition")
+	assert.Equal(t, fixtures.InstanceStatusActive(), result.Instance.Status, "warnings never block the transition")
 }
 
 func TestInstance_Start_StaffSameRoomIsNotAConflict(t *testing.T) {
@@ -1239,7 +1240,7 @@ func seedBridgedActiveInstance(t *testing.T, s *lifecycleSetup, group *studentpr
 		StartTime:     time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
 		RoomID:        group.RoomID,
-		Status:        scheduleModels.InstanceStatusActive,
+		Status:        fixtures.InstanceStatusActive(),
 		IsSpontaneous: true,
 		ActiveGroupID: &group.ID,
 	}
@@ -1247,7 +1248,12 @@ func seedBridgedActiveInstance(t *testing.T, s *lifecycleSetup, group *studentpr
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, ai)
 
 	if withStaffRow {
-		row := &scheduleModels.InstanceStaff{InstanceID: ai.ID, StaffID: staffID, IsPrimary: true, RoomID: overrideRoomID}
+		row := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+			fixtureRow.InstanceID = ai.ID
+			fixtureRow.StaffID = staffID
+			fixtureRow.IsPrimary = true
+			fixtureRow.RoomID = overrideRoomID
+		})
 		row.SetTenantID(testpkg.Tenant(t))
 		_, err := s.db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 		require.NoError(t, err)
@@ -1427,11 +1433,11 @@ func TestInstance_ReplanWeek_OnlyDeletesPlannedNonSpontaneous(t *testing.T) {
 	to := from.AddDays(6)
 
 	// Six seeded rows inside the window — one of each protected kind.
-	plannedNormal := insertInstance(t, s, from, scheduleModels.InstanceStatusPlanned, false)
-	plannedSpont := insertInstance(t, s, from.AddDays(1), scheduleModels.InstanceStatusPlanned, true)
-	active := insertInstance(t, s, from.AddDays(2), scheduleModels.InstanceStatusActive, false)
-	completed := insertInstance(t, s, from.AddDays(3), scheduleModels.InstanceStatusCompleted, false)
-	cancelled := insertInstance(t, s, from.AddDays(4), scheduleModels.InstanceStatusCancelled, false)
+	plannedNormal := insertInstance(t, s, from, fixtures.InstanceStatusPlanned(), false)
+	plannedSpont := insertInstance(t, s, from.AddDays(1), fixtures.InstanceStatusPlanned(), true)
+	active := insertInstance(t, s, from.AddDays(2), fixtures.InstanceStatusActive(), false)
+	completed := insertInstance(t, s, from.AddDays(3), fixtures.InstanceStatusCompleted(), false)
+	cancelled := insertInstance(t, s, from.AddDays(4), fixtures.InstanceStatusCancelled(), false)
 	// #2299: a manual planning-module block without an offering is planned
 	// (is_spontaneous=false) but has no template — materialization could never
 	// recreate it, so a whole-grid re-plan must not delete it.
@@ -1441,7 +1447,7 @@ func TestInstance_ReplanWeek_OnlyDeletesPlannedNonSpontaneous(t *testing.T) {
 		StartTime: time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
 		RoomID:    s.roomID,
-		Status:    scheduleModels.InstanceStatusPlanned,
+		Status:    fixtures.InstanceStatusPlanned(),
 	}
 	plannedManual.TenantID = tenant.FromContext(s.ctx)
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, plannedManual)
@@ -1470,7 +1476,7 @@ func TestInstance_ReplanWeek_RemovesFutureLegacyWeekendInstances(t *testing.T) {
 		from = from.AddDays(1)
 	}
 	to := from.AddDays(6)
-	legacyWeekend := insertInstance(t, s, from.AddDays(5), scheduleModels.InstanceStatusPlanned, false)
+	legacyWeekend := insertInstance(t, s, from.AddDays(5), fixtures.InstanceStatusPlanned(), false)
 
 	result, err := s.svc.ReplanWeek(s.ctx, from, to, &s.tmplID, nil)
 	require.NoError(t, err)
@@ -1492,14 +1498,14 @@ func TestInstance_ReplanWeek_ScopedToActivityGroup(t *testing.T) {
 	// Second template in the same tenant with its own planned instance.
 	otherGroup := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("LC-Other-%d", time.Now().UnixNano()))
 
-	mine := insertInstance(t, s, from, scheduleModels.InstanceStatusPlanned, false)
+	mine := insertInstance(t, s, from, fixtures.InstanceStatusPlanned(), false)
 	other := &testpkg.ActivityInstance{
 		Date:            testpkg.ScheduleDate(from.AddDays(1)),
 		Title:           fmt.Sprintf("Row-other-%d", time.Now().UnixNano()),
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:         time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
 		RoomID:          s.roomID,
-		Status:          scheduleModels.InstanceStatusPlanned,
+		Status:          fixtures.InstanceStatusPlanned(),
 		IsSpontaneous:   false,
 		ActivityGroupID: &otherGroup.ID,
 	}
@@ -1549,7 +1555,7 @@ func TestInstance_Create_AssignsUniqueStaffAndStudents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, scheduleModels.InstanceStatusPlanned, inst.Status)
+	assert.Equal(t, fixtures.InstanceStatusPlanned(), inst.Status)
 	assert.False(t, inst.IsSpontaneous)
 	// The lifecycle's public view carries no creator; the stored row does.
 	stored := reloadInstance(t, s, inst.ID)
@@ -1589,9 +1595,9 @@ func TestInstance_CreateAndUpdatePlanned_ReapplyActiveStatusDays(t *testing.T) {
 	require.NoError(t, err)
 
 	createdRow := fetchAttendance(t, s, inst.ID, s.student1)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, createdRow.Status)
+	assert.Equal(t, fixtures.AttendanceStatusAbsent(), createdRow.Status)
 	require.NotNil(t, createdRow.Substatus)
-	assert.Equal(t, scheduleModels.AttendanceSubstatusSick, *createdRow.Substatus)
+	assert.Equal(t, fixtures.AttendanceSubstatusSick(), *createdRow.Substatus)
 	require.NotNil(t, createdRow.StudentStatusDayID)
 	assert.Equal(t, sick.ID, *createdRow.StudentStatusDayID)
 
@@ -1604,9 +1610,9 @@ func TestInstance_CreateAndUpdatePlanned_ReapplyActiveStatusDays(t *testing.T) {
 	assert.Equal(t, updatedDate, updated.Date)
 
 	updatedRow := fetchAttendance(t, s, inst.ID, s.student2)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, updatedRow.Status)
+	assert.Equal(t, fixtures.AttendanceStatusAbsent(), updatedRow.Status)
 	require.NotNil(t, updatedRow.Substatus)
-	assert.Equal(t, scheduleModels.AttendanceSubstatusExcused, *updatedRow.Substatus)
+	assert.Equal(t, fixtures.AttendanceSubstatusExcused(), *updatedRow.Substatus)
 	require.NotNil(t, updatedRow.StudentStatusDayID)
 	assert.Equal(t, excused.ID, *updatedRow.StudentStatusDayID)
 }
@@ -1733,7 +1739,7 @@ func TestInstance_UpdatePlanned_ReplacesAssignmentsAndFields(t *testing.T) {
 	assert.Equal(t, 1, countRowsWhere(t, s, "schedule.instance_students", "instance_id", ai.ID))
 
 	row := fetchAttendance(t, s, ai.ID, s.student2)
-	assert.Equal(t, scheduleModels.AttendanceStatusExpected, row.Status)
+	assert.Equal(t, fixtures.AttendanceStatusExpected(), row.Status)
 }
 
 // guardedLifecycleSettings satisfies timetablePorts.LifecycleSettings for the
@@ -1877,11 +1883,7 @@ func TestInstance_UpdatePlanned_RejectsCrossTenantReferencesBeforeMutation(t *te
 func TestInstance_UpdatePlanned_RejectsNonPlanned(t *testing.T) {
 	t.Parallel()
 
-	for _, status := range []string{
-		scheduleModels.InstanceStatusActive,
-		scheduleModels.InstanceStatusCompleted,
-		scheduleModels.InstanceStatusCancelled,
-	} {
+	for _, status := range []string{fixtures.InstanceStatusActive(), fixtures.InstanceStatusCompleted(), fixtures.InstanceStatusCancelled()} {
 		t.Run(status, func(t *testing.T) {
 			s := buildLifecycle(t)
 			ai := seedInstance(t, s, false, false)
@@ -1903,10 +1905,7 @@ func TestInstance_UpdatePlanned_RejectsNonPlanned(t *testing.T) {
 func TestInstance_DeleteCancelled_PlannedOrCancelled(t *testing.T) {
 	t.Parallel()
 
-	for _, status := range []string{
-		scheduleModels.InstanceStatusActive,
-		scheduleModels.InstanceStatusCompleted,
-	} {
+	for _, status := range []string{fixtures.InstanceStatusActive(), fixtures.InstanceStatusCompleted()} {
 		t.Run("rejects "+status, func(t *testing.T) {
 			s := buildLifecycle(t)
 			ai := seedInstance(t, s, false, false)
@@ -1930,13 +1929,13 @@ func TestInstance_DeleteCancelled_PlannedOrCancelled(t *testing.T) {
 		require.Len(t, exceptions, 1)
 		assert.Equal(t, s.tmplID, exceptions[0].ActivityGroupID)
 		assert.Equal(t, ai.Date.String(), exceptions[0].ExceptionDate.String())
-		assert.Equal(t, scheduleModels.ActivityExceptionCancelled, exceptions[0].ExceptionType)
+		assert.Equal(t, fixtures.ActivityExceptionCancelled(), exceptions[0].ExceptionType)
 	})
 
 	t.Run("deletes cancelled template occurrence", func(t *testing.T) {
 		s := buildLifecycle(t)
 		ai := seedInstance(t, s, false, false)
-		forceSetInstanceStatus(t, s, ai.ID, scheduleModels.InstanceStatusCancelled)
+		forceSetInstanceStatus(t, s, ai.ID, fixtures.InstanceStatusCancelled())
 
 		require.NoError(t, s.svc.DeleteCancelled(s.ctx, ai.ID))
 		assert.False(t, instanceExists(t, s, ai.ID))
@@ -1945,7 +1944,7 @@ func TestInstance_DeleteCancelled_PlannedOrCancelled(t *testing.T) {
 
 	t.Run("deletes spontaneous planned occurrence without exception", func(t *testing.T) {
 		s := buildLifecycle(t)
-		id := insertInstance(t, s, calendar.NewDate(2026, 4, 20), scheduleModels.InstanceStatusPlanned, true)
+		id := insertInstance(t, s, calendar.NewDate(2026, 4, 20), fixtures.InstanceStatusPlanned(), true)
 
 		require.NoError(t, s.svc.DeleteCancelled(s.ctx, id))
 		assert.False(t, instanceExists(t, s, id))
@@ -1955,8 +1954,8 @@ func TestInstance_DeleteCancelled_PlannedOrCancelled(t *testing.T) {
 	t.Run("rejects single delete when template has multiple same-day slots", func(t *testing.T) {
 		s := buildLifecycle(t)
 		date := calendar.NewDate(2026, 4, 20)
-		firstID := insertInstanceAt(t, s, date, scheduleModels.InstanceStatusPlanned, false, 14)
-		secondID := insertInstanceAt(t, s, date, scheduleModels.InstanceStatusPlanned, false, 15)
+		firstID := insertInstanceAt(t, s, date, fixtures.InstanceStatusPlanned(), false, 14)
+		secondID := insertInstanceAt(t, s, date, fixtures.InstanceStatusPlanned(), false, 15)
 
 		err := s.svc.DeleteCancelled(s.ctx, firstID)
 		require.Error(t, err)
@@ -1980,7 +1979,7 @@ func TestInstance_Complete_MarksRemainingExpectedAsAbsent(t *testing.T) {
 
 	// Simulate a live check-in for student1 via the monotonic mirror path.
 	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db))
-	updated, err := timetableRepos.InstanceStudent.UpdateAttendanceFromCheckin(
+	updated, err := fixtures.FromInstanceStudentRecords(timetableRepos.InstanceStudent).UpdateAttendanceFromCheckin(
 		s.ctx, ai.ID, s.student1, time.Now(),
 	)
 	require.NoError(t, err)
@@ -1990,11 +1989,11 @@ func TestInstance_Complete_MarksRemainingExpectedAsAbsent(t *testing.T) {
 	require.NoError(t, err)
 
 	got1 := fetchAttendance(t, s, ai.ID, s.student1)
-	assert.Equal(t, scheduleModels.AttendanceStatusPresent, got1.Status,
+	assert.Equal(t, fixtures.AttendanceStatusPresent(), got1.Status,
 		"checked-in student must stay present after Complete")
 
 	got2 := fetchAttendance(t, s, ai.ID, s.student2)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got2.Status,
+	assert.Equal(t, fixtures.AttendanceStatusAbsent(), got2.Status,
 		"expected student must be flipped to absent at Complete")
 }
 
@@ -2002,7 +2001,7 @@ func TestInstance_Complete_MarksRemainingExpectedAsAbsent(t *testing.T) {
 // (#1747). Assigning a whole group or year to an activity puts every member on
 // every occurrence; stamping the ones who are not booked that weekday "absent"
 // claims they failed to show up to care they never had, and that claim then
-// travels into attendance statistics and exports.
+// travels into attendance statistics and extimetablePorts.
 func TestInstance_Complete_SkipsChildrenNotInCareThatDay(t *testing.T) {
 	t.Parallel()
 
@@ -2016,7 +2015,7 @@ func TestInstance_Complete_SkipsChildrenNotInCareThatDay(t *testing.T) {
 	if instanceWeekday == 0 {
 		instanceWeekday = 7 // ISO: the schedule tables key Sunday as 7
 	}
-	for weekday := scheduleModels.WeekdayMonday; weekday <= scheduleModels.WeekdayFriday; weekday++ {
+	for weekday := fixtures.WeekdayMonday(); weekday <= fixtures.WeekdayFriday(); weekday++ {
 		if weekday == instanceWeekday {
 			continue
 		}
@@ -2030,13 +2029,13 @@ func TestInstance_Complete_SkipsChildrenNotInCareThatDay(t *testing.T) {
 	require.NoError(t, err)
 
 	got1 := fetchAttendance(t, s, ai.ID, s.student1)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got1.Status,
+	assert.Equal(t, fixtures.AttendanceStatusAbsent(), got1.Status,
 		"a child without any care plan is still expected, so Complete marks them absent")
 	assert.False(t, got1.NotScheduled,
 		"a real absence must never carry the non-booking marker")
 
 	got2 := fetchAttendance(t, s, ai.ID, s.student2)
-	assert.Equal(t, scheduleModels.AttendanceStatusExpected, got2.Status,
+	assert.Equal(t, fixtures.AttendanceStatusExpected(), got2.Status,
 		"a child not booked for care on this weekday must not be recorded absent")
 	assert.True(t, got2.NotScheduled,
 		"the spared row carries the reason it was spared, so no later writer of "+
@@ -2073,7 +2072,7 @@ func TestInstance_Complete_RecordsAbsenceForCancelledDay(t *testing.T) {
 	require.NoError(t, err)
 
 	got := fetchAttendance(t, s, ai.ID, s.student2)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got.Status,
+	assert.Equal(t, fixtures.AttendanceStatusAbsent(), got.Status,
 		"a cancelled care day is an absence and must be recorded as one")
 }
 
@@ -2089,13 +2088,13 @@ func TestInstance_Cancel_FromPlanned_DoesNotTouchAttendance(t *testing.T) {
 
 	cancelled, err := s.svc.Cancel(s.ctx, ai.ID, nil, nil)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.InstanceStatusCancelled, cancelled.Status)
+	assert.Equal(t, fixtures.InstanceStatusCancelled(), cancelled.Status)
 
 	got1 := fetchAttendance(t, s, ai.ID, s.student1)
-	assert.Equal(t, scheduleModels.AttendanceStatusExpected, got1.Status,
+	assert.Equal(t, fixtures.AttendanceStatusExpected(), got1.Status,
 		"Cancel(planned) must not flip attendance to absent")
 	got2 := fetchAttendance(t, s, ai.ID, s.student2)
-	assert.Equal(t, scheduleModels.AttendanceStatusExpected, got2.Status)
+	assert.Equal(t, fixtures.AttendanceStatusExpected(), got2.Status)
 }
 
 // Same rule for Cancel from active. Even the fire-alarm scenario: students
@@ -2111,7 +2110,7 @@ func TestInstance_Cancel_FromActive_DoesNotTouchAttendance(t *testing.T) {
 	require.NoError(t, err)
 
 	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db))
-	_, err = timetableRepos.InstanceStudent.UpdateAttendanceFromCheckin(
+	_, err = fixtures.FromInstanceStudentRecords(timetableRepos.InstanceStudent).UpdateAttendanceFromCheckin(
 		s.ctx, ai.ID, s.student1, time.Now(),
 	)
 	require.NoError(t, err)
@@ -2120,10 +2119,10 @@ func TestInstance_Cancel_FromActive_DoesNotTouchAttendance(t *testing.T) {
 	require.NoError(t, err)
 
 	got1 := fetchAttendance(t, s, ai.ID, s.student1)
-	assert.Equal(t, scheduleModels.AttendanceStatusPresent, got1.Status,
+	assert.Equal(t, fixtures.AttendanceStatusPresent(), got1.Status,
 		"Cancel(active) must preserve present rows — they were actually there")
 	got2 := fetchAttendance(t, s, ai.ID, s.student2)
-	assert.Equal(t, scheduleModels.AttendanceStatusExpected, got2.Status,
+	assert.Equal(t, fixtures.AttendanceStatusExpected(), got2.Status,
 		"Cancel(active) must not flip expected → absent")
 }
 

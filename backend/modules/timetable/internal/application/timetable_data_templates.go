@@ -3,8 +3,10 @@ package application
 import (
 	"context"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	activitiesModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/activityrecords"
 )
 
 // The Vorlagen list (#1839): every schedule row of a template carries the
@@ -23,8 +25,6 @@ func (d *timetableData) ListTemplateEntries(ctx context.Context, templateID *int
 	return d.templateEntries(ctx, rows, nil, distinctTemplateIDs(rows), childrenPerStaffRatio)
 }
 
-// ListTemplateEntriesForTemplatePeriod is the detail read model of one
-// editable template period, with period-scoped roster and capacity.
 func (d *timetableData) ListTemplateEntriesForTemplatePeriod(ctx context.Context, templateID, periodID int64, childrenPerStaffRatio int) ([]timetable.TemplateListEntry, error) {
 	rows, err := d.deps.Templates.ListTemplateRowsForTemplatePeriod(ctx, templateID, periodID)
 	if err != nil {
@@ -41,8 +41,6 @@ func (d *timetableData) ListTemplateEntriesForPeriod(ctx context.Context, period
 	return d.templateEntries(ctx, rows, periodID, distinctTemplateIDs(rows), childrenPerStaffRatio)
 }
 
-// ListTemplateWeekdayRoster is a thin read: grouping the rows into weekday
-// assignments is a presentation concern of the caller.
 func (d *timetableData) ListTemplateWeekdayRoster(ctx context.Context, templateID, calendarPeriodID *int64) ([]timetable.TemplateWeekdayRosterRow, error) {
 	rows, err := d.deps.Templates.ListTemplateWeekdayRoster(ctx, templateID, calendarPeriodID)
 	if err != nil {
@@ -59,7 +57,8 @@ func (d *timetableData) ListTemplateWeekdayRoster(ctx context.Context, templateI
 
 func (d *timetableData) templateEntries(ctx context.Context, rows []activitiesModels.TemplateListRow, periodID *int64, templateIDs []int64, childrenPerStaffRatio int) ([]timetable.TemplateListEntry, error) {
 	setDisplayRosterCapacity(rows)
-	if err := d.attachTemplateTargets(ctx, rows); err != nil {
+	targets, err := d.attachTemplateTargets(ctx, rows)
+	if err != nil {
 		return nil, err
 	}
 	if len(templateIDs) > 0 {
@@ -71,34 +70,33 @@ func (d *timetableData) templateEntries(ctx context.Context, rows []activitiesMo
 	}
 	entries := make([]timetable.TemplateListEntry, 0, len(rows))
 	for _, row := range rows {
-		entries = append(entries, templateListEntryOf(row))
+		entries = append(entries, templateListEntryOf(row, targets[row.TemplateID]))
 	}
 	return entries, nil
 }
 
 // attachTemplateTargets adds the dynamic targets and counts a target's
 // children into the template's roster.
-func (d *timetableData) attachTemplateTargets(ctx context.Context, rows []activitiesModels.TemplateListRow) error {
+func (d *timetableData) attachTemplateTargets(ctx context.Context, rows []activitiesModels.TemplateListRow) (map[int64][]*activityContract.GroupTarget, error) {
 	templateIDs := distinctTemplateIDs(rows)
 	targetsByGroup, err := d.deps.Templates.FindTargetsByGroupIDs(ctx, templateIDs)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !hasTemplateTargets(targetsByGroup) {
-		return nil
+		return targetsByGroup, nil
 	}
 	targetStudentsByGroup, err := d.deps.Templates.FindTargetStudentIDsByGroupIDs(ctx, templateIDs)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for i := range rows {
-		rows[i].Targets = targetsByGroup[rows[i].TemplateID]
 		rows[i].EnrollmentCount = unionCount(rows[i].StudentIDs, targetStudentsByGroup[rows[i].TemplateID])
 	}
-	return nil
+	return targetsByGroup, nil
 }
 
-func hasTemplateTargets(targetsByGroup map[int64][]*activitiesModels.GroupTarget) bool {
+func hasTemplateTargets(targetsByGroup map[int64][]*activityContract.GroupTarget) bool {
 	for _, targets := range targetsByGroup {
 		if len(targets) > 0 {
 			return true
@@ -257,7 +255,7 @@ func templateOccurrenceIsWorse(candidate, current activitiesModels.TemplateCapac
 
 // templateListEntryOf maps a retained template list row onto the owner's
 // list entry.
-func templateListEntryOf(row activitiesModels.TemplateListRow) timetable.TemplateListEntry {
+func templateListEntryOf(row activitiesModels.TemplateListRow, targets []*activityContract.GroupTarget) timetable.TemplateListEntry {
 	entry := timetable.TemplateListEntry{TemplateListRow: timetable.TemplateListRow{
 		TemplateID: row.TemplateID, Name: row.Name, Type: row.Type,
 		CategoryID: row.CategoryID, CategoryName: row.CategoryName,
@@ -291,7 +289,7 @@ func templateListEntryOf(row activitiesModels.TemplateListRow) timetable.Templat
 	if classes, err := row.ParseSourceSchoolClasses(); err == nil {
 		entry.SourceSchoolClasses = classes
 	}
-	for _, target := range row.Targets {
+	for _, target := range targets {
 		if target == nil {
 			continue
 		}

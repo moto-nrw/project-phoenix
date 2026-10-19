@@ -4,6 +4,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // The operational day, the timetable data reads and the attendance
@@ -19,6 +20,9 @@ func NewOperations(deps ports.OperationDependencies, caller ports.OperationCalle
 }
 
 func NewTimetableData(deps ports.TimetableDataDependencies) (timetable.TimetableDataCapability, error) {
+	if deps.RunInTx == nil {
+		deps.RunInTx = tenant.NewTransactionRunner().RunInTx
+	}
 	return application.NewTimetableData(deps)
 }
 

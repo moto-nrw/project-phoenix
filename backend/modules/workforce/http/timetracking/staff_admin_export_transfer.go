@@ -1,6 +1,7 @@
 package timetracking
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -69,13 +70,11 @@ func (rs *StaffAdminResource) exportSFTPStatus(w http.ResponseWriter, r *http.Re
 
 // transferExportViaSFTP handles POST /api/staff/time-tracking/export/sftp.
 // Same permission as the export itself; the export parameters come from the
-// query, and the remote path never does.
+// body, and the remote path never does.
 //
-// A failed transfer answers 200 with success=false, not 5xx. That is not
-// cosmetic: TenantTxMiddleware rolls the tenant transaction back on a 5xx,
-// which would delete the journal row recording the failed attempt — the exact
-// row the audit requirement asks for. 5xx stays reserved for failures where
-// nothing was attempted or nothing could be recorded.
+// A transport failure answers 200 with transferred=false. Infrastructure
+// failures answer 5xx; the independently committed intent and access audit
+// survive any later request-transaction rollback.
 func (rs *StaffAdminResource) transferExportViaSFTP(w http.ResponseWriter, r *http.Request) {
 	req, err := parseTimeExportBody(r)
 	if err != nil {
@@ -105,26 +104,24 @@ func (rs *StaffAdminResource) transferExportViaSFTP(w http.ResponseWriter, r *ht
 		return
 	}
 
-	file, err := rs.TimeExportService.ExportStaffTime(r.Context(), req, claims.AccountID, strings.Join(claims.Roles, ","))
-	if err != nil {
-		rs.logger.Error("failed to build time tracking export for transfer", "error", err.Error())
-		common.RenderError(w, r, common.RenderWithRules(err, timeExportErrorRules, common.ErrorInternalServer))
-		return
-	}
-
 	actorName := strings.TrimSpace(claims.DisplayName)
 
 	outcome, err := rs.ExportTransfer.Transfer(r.Context(), ExportTransferRequest{
-		Kind:           exportTransferKindStaffTimeTracking,
-		Format:         req.Format,
-		Filename:       file.Filename,
-		Data:           file.Data,
+		Kind:   exportTransferKindStaffTimeTracking,
+		Format: req.Format,
+		PrepareFile: func(ctx context.Context) (string, []byte, error) {
+			file, err := rs.TimeExportService.ExportStaffTime(ctx, req, claims.AccountID, strings.Join(claims.Roles, ","))
+			if err != nil {
+				return "", nil, err
+			}
+			return file.Filename, file.Data, nil
+		},
 		ActorAccountID: claims.AccountID,
 		ActorName:      actorName,
 	})
 	if err != nil {
 		rs.logger.Error("failed to transfer time tracking export", "error", err.Error())
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, common.RenderWithRules(err, timeExportErrorRules, common.ErrorInternalServer))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, outcome, "SFTP transfer")

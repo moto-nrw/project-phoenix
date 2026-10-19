@@ -234,7 +234,7 @@ func applyGroupSubstitutionEquality(filter *workforce.GroupSubstitutionFilter, f
 		if !ok {
 			return errors.New("tenant_id filter must be an integer")
 		}
-		filter.TenantID = id
+		filter.TenantID = &id
 	case "group_id":
 		id, ok := conditionInt64(value)
 		if !ok {

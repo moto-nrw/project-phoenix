@@ -29,14 +29,14 @@ const (
 // --- work sessions ---
 
 func (s *Store) FindWorkSession(ctx context.Context, id int64) (domain.WorkSession, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.WorkSession{}, false, domain.OperationStats{}, err
 	}
 	row := &workSessionRow{}
 	query := withTenant(db.NewSelect().Model(row).
 		ModelTableExpr(tableWorkSessions+` AS "work_session"`).
-		Where(`"work_session".id = ?`, id), aliasWorkSession, tenantID)
+		Where(`"work_session".id = ?`, id), aliasWorkSession, scope)
 	found, stats, err := scanOne(ctx, query, "find work session")
 	if err != nil || !found {
 		return domain.WorkSession{}, found, stats, err
@@ -45,7 +45,7 @@ func (s *Store) FindWorkSession(ctx context.Context, id int64) (domain.WorkSessi
 }
 
 func (s *Store) LockOpenWorkSession(ctx context.Context, id int64) (domain.WorkSession, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.WorkSession{}, false, domain.OperationStats{}, err
 	}
@@ -53,7 +53,7 @@ func (s *Store) LockOpenWorkSession(ctx context.Context, id int64) (domain.WorkS
 	query := withTenant(db.NewSelect().Model(row).
 		ModelTableExpr(tableWorkSessions+` AS "work_session"`).
 		Where(`"work_session".id = ?`, id).
-		Where(`"work_session".check_out_time IS NULL`), aliasWorkSession, tenantID).
+		Where(`"work_session".check_out_time IS NULL`), aliasWorkSession, scope).
 		For("UPDATE")
 	found, stats, err := scanOne(ctx, query, "lock open work session")
 	if err != nil || !found {
@@ -63,7 +63,7 @@ func (s *Store) LockOpenWorkSession(ctx context.Context, id int64) (domain.WorkS
 }
 
 func (s *Store) OpenWorkSessionOn(ctx context.Context, staffID int64, date string, lock bool) (domain.WorkSession, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.WorkSession{}, false, domain.OperationStats{}, err
 	}
@@ -72,7 +72,7 @@ func (s *Store) OpenWorkSessionOn(ctx context.Context, staffID int64, date strin
 		ModelTableExpr(tableWorkSessions+` AS "work_session"`).
 		Where(`"work_session".staff_id = ?`, staffID).
 		Where(`"work_session".date = ?`, date).
-		Where(`"work_session".check_out_time IS NULL`), aliasWorkSession, tenantID)
+		Where(`"work_session".check_out_time IS NULL`), aliasWorkSession, scope)
 	if lock {
 		query = query.For("UPDATE")
 	}
@@ -88,7 +88,7 @@ func (s *Store) OpenWorkSessionOn(ctx context.Context, staffID int64, date strin
 // is inside MaxOpenWorkSessionDuration. Past that limit a forgotten checkout
 // is not a running block (#2402).
 func (s *Store) LatestOpenWorkSession(ctx context.Context, staffID int64, today string, now time.Time) (domain.WorkSession, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.WorkSession{}, false, domain.OperationStats{}, err
 	}
@@ -98,7 +98,7 @@ func (s *Store) LatestOpenWorkSession(ctx context.Context, staffID int64, today 
 		Where(`"work_session".staff_id = ?`, staffID).
 		Where(`"work_session".check_out_time IS NULL`).
 		Where(`("work_session".date >= ? OR "work_session".check_in_time > ?)`,
-			today, now.Add(-domain.MaxOpenWorkSessionDuration)), aliasWorkSession, tenantID).
+			today, now.Add(-domain.MaxOpenWorkSessionDuration)), aliasWorkSession, scope).
 		OrderExpr(`"work_session".date DESC, "work_session".check_in_time DESC`).
 		Limit(1)
 	found, stats, err := scanOne(ctx, query, "find latest open work session")
@@ -109,13 +109,13 @@ func (s *Store) LatestOpenWorkSession(ctx context.Context, staffID int64, today 
 }
 
 func (s *Store) ListWorkSessions(ctx context.Context, filter domain.WorkSessionFilter) ([]domain.WorkSession, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []workSessionRow{}
 	query := applyWorkSessionFilter(withTenant(db.NewSelect().Model(&rows).
-		ModelTableExpr(tableWorkSessions+` AS "work_session"`), aliasWorkSession, tenantID), filter)
+		ModelTableExpr(tableWorkSessions+` AS "work_session"`), aliasWorkSession, scope), filter)
 	if len(filter.Order) == 0 {
 		query = query.OrderExpr(`"work_session".id ASC`)
 	}
@@ -140,7 +140,7 @@ func (s *Store) ListOverlappingWorkSessions(ctx context.Context, staffIDs []int6
 	if len(staffIDs) == 0 {
 		return nil, domain.OperationStats{}, nil
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -148,7 +148,7 @@ func (s *Store) ListOverlappingWorkSessions(ctx context.Context, staffIDs []int6
 	query := withTenant(db.NewSelect().Model(&rows).
 		ModelTableExpr(tableWorkSessions+` AS "work_session"`).
 		Where(`"work_session".staff_id IN (?)`, bun.List(staffIDs)).
-		Where(`("work_session".check_out_time IS NULL OR "work_session".check_out_time > ?)`, from), aliasWorkSession, tenantID).
+		Where(`("work_session".check_out_time IS NULL OR "work_session".check_out_time > ?)`, from), aliasWorkSession, scope).
 		OrderExpr(`"work_session".staff_id ASC, "work_session".check_in_time ASC`)
 	if to != nil {
 		query = query.Where(`"work_session".check_in_time < ?`, *to)
@@ -162,12 +162,12 @@ func (s *Store) ListOverlappingWorkSessions(ctx context.Context, staffIDs []int6
 }
 
 func (s *Store) CountWorkSessions(ctx context.Context, filter domain.WorkSessionFilter) (int, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
 	query := applyWorkSessionFilter(withTenant(db.NewSelect().Model((*workSessionRow)(nil)).
-		ModelTableExpr(tableWorkSessions+` AS "work_session"`), aliasWorkSession, tenantID), filter)
+		ModelTableExpr(tableWorkSessions+` AS "work_session"`), aliasWorkSession, scope), filter)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	count, err := query.Count(ctx)
@@ -179,13 +179,13 @@ func (s *Store) CountWorkSessions(ctx context.Context, filter domain.WorkSession
 }
 
 func (s *Store) OldestWorkSessionDate(ctx context.Context, before string) (string, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return "", domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewSelect().Model((*workSessionRow)(nil)).
 		ModelTableExpr(tableWorkSessions+` AS "work_session"`).
-		ColumnExpr(`TO_CHAR(MIN("work_session".date), 'YYYY-MM-DD')`), aliasWorkSession, tenantID)
+		ColumnExpr(`TO_CHAR(MIN("work_session".date), 'YYYY-MM-DD')`), aliasWorkSession, scope)
 	if before != "" {
 		query = query.Where(`"work_session".date < ?`, before)
 	}
@@ -205,13 +205,13 @@ func (s *Store) OldestWorkSessionDate(ctx context.Context, before string) (strin
 }
 
 func (s *Store) DeleteWorkSessionsOlderThan(ctx context.Context, cutoff string) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewDelete().Model((*workSessionRow)(nil)).
 		ModelTableExpr(tableWorkSessions+` AS "work_session"`).
-		Where(`"work_session".date < ?`, cutoff), aliasWorkSession, tenantID)
+		Where(`"work_session".date < ?`, cutoff), aliasWorkSession, scope)
 	stats, err := execAffected(ctx, query, "delete work sessions older than")
 	return stats.Rows, stats, err
 }
@@ -220,7 +220,7 @@ func (s *Store) DeleteWorkSessionsOlderThan(ctx context.Context, cutoff string) 
 // whose check-in is inside the live window, so a person working across
 // Berlin midnight stays present while a forgotten checkout drops out.
 func (s *Store) WorkPresenceMap(ctx context.Context, today string, now time.Time) (map[int64]string, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -235,7 +235,7 @@ func (s *Store) WorkPresenceMap(ctx context.Context, today string, now time.Time
 		ColumnExpr(`"work_session".status`).
 		ColumnExpr(`"work_session".check_out_time`).
 		Where(`("work_session".date = ? OR ("work_session".check_out_time IS NULL AND "work_session".check_in_time > ?))`,
-			today, now.Add(-domain.MaxOpenWorkSessionDuration)), aliasWorkSession, tenantID)
+			today, now.Add(-domain.MaxOpenWorkSessionDuration)), aliasWorkSession, scope)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = query.Scan(ctx, &results)
@@ -258,13 +258,13 @@ func (s *Store) WorkPresenceMap(ctx context.Context, today string, now time.Time
 }
 
 func (s *Store) CreateWorkSession(ctx context.Context, value domain.WorkSession) (domain.WorkSession, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.WorkSession{}, domain.OperationStats{}, err
 	}
 	row := workSessionFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -281,20 +281,20 @@ func (s *Store) CreateWorkSession(ctx context.Context, value domain.WorkSession)
 }
 
 func (s *Store) UpdateWorkSession(ctx context.Context, value domain.WorkSession) (domain.WorkSession, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.WorkSession{}, false, domain.OperationStats{}, err
 	}
 	row := workSessionFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	query := withTenant(db.NewUpdate().Model(row).
 		ModelTableExpr(tableWorkSessions+` AS "work_session"`).
 		ExcludeColumn("created_at", "updated_at").
 		Set("updated_at = NOW()").
 		WherePK().
-		Returning("*"), aliasWorkSession, tenantID)
+		Returning("*"), aliasWorkSession, scope)
 	stats, err := execAffected(ctx, query, "update work session")
 	if err != nil {
 		if isUniqueViolationOn(err, domain.WorkSessionOpenConstraint) {
@@ -310,18 +310,18 @@ func (s *Store) UpdateWorkSession(ctx context.Context, value domain.WorkSession)
 }
 
 func (s *Store) DeleteWorkSession(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewDelete().Model((*workSessionRow)(nil)).
 		ModelTableExpr(tableWorkSessions+` AS "work_session"`).
-		Where(`"work_session".id = ?`, id), aliasWorkSession, tenantID)
+		Where(`"work_session".id = ?`, id), aliasWorkSession, scope)
 	return execAffected(ctx, query, "delete work session")
 }
 
 func (s *Store) SetWorkSessionBreakMinutes(ctx context.Context, id int64, minutes int) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
@@ -329,13 +329,13 @@ func (s *Store) SetWorkSessionBreakMinutes(ctx context.Context, id int64, minute
 		ModelTableExpr(tableWorkSessions+` AS "work_session"`).
 		Set("break_minutes = ?", minutes).
 		Set("updated_at = NOW()").
-		Where(`"work_session".id = ?`, id), aliasWorkSession, tenantID)
+		Where(`"work_session".id = ?`, id), aliasWorkSession, scope)
 	stats, err := execAffected(ctx, query, "update work session break minutes")
 	return stats.Rows, stats, err
 }
 
 func (s *Store) CloseWorkSession(ctx context.Context, id int64, checkOut time.Time, autoCheckedOut bool) (bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
@@ -345,7 +345,7 @@ func (s *Store) CloseWorkSession(ctx context.Context, id int64, checkOut time.Ti
 		Set("auto_checked_out = ?", autoCheckedOut).
 		Set("updated_at = NOW()").
 		Where(`"work_session".id = ?`, id).
-		Where(`"work_session".check_out_time IS NULL`), aliasWorkSession, tenantID)
+		Where(`"work_session".check_out_time IS NULL`), aliasWorkSession, scope)
 	stats, err := execAffected(ctx, query, "close work session")
 	if err != nil {
 		return false, stats, err
@@ -394,14 +394,14 @@ func applyWorkSessionFilter(query *bun.SelectQuery, filter domain.WorkSessionFil
 // --- staff balance adjustments ---
 
 func (s *Store) FindStaffBalanceAdjustment(ctx context.Context, id int64) (domain.StaffBalanceAdjustment, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffBalanceAdjustment{}, false, domain.OperationStats{}, err
 	}
 	row := &staffBalanceAdjustmentRow{}
 	query := withTenant(db.NewSelect().Model(row).
 		ModelTableExpr(tableStaffBalanceAdjustments+` AS "staff_balance_adjustment"`).
-		Where(`"staff_balance_adjustment".id = ?`, id), aliasStaffBalanceAdjustment, tenantID)
+		Where(`"staff_balance_adjustment".id = ?`, id), aliasStaffBalanceAdjustment, scope)
 	found, stats, err := scanOne(ctx, query, "find staff balance adjustment")
 	if err != nil || !found {
 		return domain.StaffBalanceAdjustment{}, found, stats, err
@@ -410,13 +410,13 @@ func (s *Store) FindStaffBalanceAdjustment(ctx context.Context, id int64) (domai
 }
 
 func (s *Store) ListStaffBalanceAdjustments(ctx context.Context, filter domain.StaffBalanceAdjustmentFilter) ([]domain.StaffBalanceAdjustment, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []staffBalanceAdjustmentRow{}
 	query := withTenant(db.NewSelect().Model(&rows).
-		ModelTableExpr(tableStaffBalanceAdjustments+` AS "staff_balance_adjustment"`), aliasStaffBalanceAdjustment, tenantID)
+		ModelTableExpr(tableStaffBalanceAdjustments+` AS "staff_balance_adjustment"`), aliasStaffBalanceAdjustment, scope)
 	if filter.StaffID > 0 {
 		query = query.Where(`"staff_balance_adjustment".staff_id = ?`, filter.StaffID)
 	}
@@ -450,13 +450,13 @@ func (s *Store) ListStaffBalanceAdjustments(ctx context.Context, filter domain.S
 }
 
 func (s *Store) CreateStaffBalanceAdjustment(ctx context.Context, value domain.StaffBalanceAdjustment) (domain.StaffBalanceAdjustment, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffBalanceAdjustment{}, domain.OperationStats{}, err
 	}
 	row := staffBalanceAdjustmentFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -470,20 +470,20 @@ func (s *Store) CreateStaffBalanceAdjustment(ctx context.Context, value domain.S
 }
 
 func (s *Store) UpdateStaffBalanceAdjustment(ctx context.Context, value domain.StaffBalanceAdjustment) (domain.StaffBalanceAdjustment, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffBalanceAdjustment{}, false, domain.OperationStats{}, err
 	}
 	row := staffBalanceAdjustmentFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	query := withTenant(db.NewUpdate().Model(row).
 		ModelTableExpr(tableStaffBalanceAdjustments+` AS "staff_balance_adjustment"`).
 		ExcludeColumn("created_at", "updated_at").
 		Set("updated_at = NOW()").
 		WherePK().
-		Returning("*"), aliasStaffBalanceAdjustment, tenantID)
+		Returning("*"), aliasStaffBalanceAdjustment, scope)
 	stats, err := execAffected(ctx, query, "update staff balance adjustment")
 	if err != nil {
 		return domain.StaffBalanceAdjustment{}, false, stats, err
@@ -496,27 +496,27 @@ func (s *Store) UpdateStaffBalanceAdjustment(ctx context.Context, value domain.S
 }
 
 func (s *Store) DeleteStaffBalanceAdjustment(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewDelete().Model((*staffBalanceAdjustmentRow)(nil)).
 		ModelTableExpr(tableStaffBalanceAdjustments+` AS "staff_balance_adjustment"`).
-		Where(`"staff_balance_adjustment".id = ?`, id), aliasStaffBalanceAdjustment, tenantID)
+		Where(`"staff_balance_adjustment".id = ?`, id), aliasStaffBalanceAdjustment, scope)
 	return execAffected(ctx, query, "delete staff balance adjustment")
 }
 
 // --- staff vacation openings ---
 
 func (s *Store) FindStaffVacationOpening(ctx context.Context, id int64) (domain.StaffVacationOpening, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffVacationOpening{}, false, domain.OperationStats{}, err
 	}
 	row := &staffVacationOpeningRow{}
 	query := withTenant(db.NewSelect().Model(row).
 		ModelTableExpr(tableStaffVacationOpenings+` AS "staff_vacation_opening"`).
-		Where(`"staff_vacation_opening".id = ?`, id), aliasStaffVacationOpening, tenantID)
+		Where(`"staff_vacation_opening".id = ?`, id), aliasStaffVacationOpening, scope)
 	found, stats, err := scanOne(ctx, query, "find staff vacation opening")
 	if err != nil || !found {
 		return domain.StaffVacationOpening{}, found, stats, err
@@ -525,13 +525,13 @@ func (s *Store) FindStaffVacationOpening(ctx context.Context, id int64) (domain.
 }
 
 func (s *Store) ListStaffVacationOpenings(ctx context.Context, filter domain.StaffVacationFilter) ([]domain.StaffVacationOpening, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []staffVacationOpeningRow{}
 	query := applyStaffVacationFilter(withTenant(db.NewSelect().Model(&rows).
-		ModelTableExpr(tableStaffVacationOpenings+` AS "staff_vacation_opening"`), aliasStaffVacationOpening, tenantID), aliasStaffVacationOpening, filter)
+		ModelTableExpr(tableStaffVacationOpenings+` AS "staff_vacation_opening"`), aliasStaffVacationOpening, scope), aliasStaffVacationOpening, filter)
 	stats, err := scanAll(ctx, query, "list staff vacation openings")
 	if err != nil {
 		return nil, stats, err
@@ -545,13 +545,13 @@ func (s *Store) ListStaffVacationOpenings(ctx context.Context, filter domain.Sta
 }
 
 func (s *Store) CreateStaffVacationOpening(ctx context.Context, value domain.StaffVacationOpening) (domain.StaffVacationOpening, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffVacationOpening{}, domain.OperationStats{}, err
 	}
 	row := staffVacationOpeningFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -565,20 +565,20 @@ func (s *Store) CreateStaffVacationOpening(ctx context.Context, value domain.Sta
 }
 
 func (s *Store) UpdateStaffVacationOpening(ctx context.Context, value domain.StaffVacationOpening) (domain.StaffVacationOpening, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffVacationOpening{}, false, domain.OperationStats{}, err
 	}
 	row := staffVacationOpeningFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	query := withTenant(db.NewUpdate().Model(row).
 		ModelTableExpr(tableStaffVacationOpenings+` AS "staff_vacation_opening"`).
 		ExcludeColumn("created_at", "updated_at").
 		Set("updated_at = NOW()").
 		WherePK().
-		Returning("*"), aliasStaffVacationOpening, tenantID)
+		Returning("*"), aliasStaffVacationOpening, scope)
 	stats, err := execAffected(ctx, query, "update staff vacation opening")
 	if err != nil {
 		return domain.StaffVacationOpening{}, false, stats, err
@@ -591,27 +591,27 @@ func (s *Store) UpdateStaffVacationOpening(ctx context.Context, value domain.Sta
 }
 
 func (s *Store) DeleteStaffVacationOpening(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewDelete().Model((*staffVacationOpeningRow)(nil)).
 		ModelTableExpr(tableStaffVacationOpenings+` AS "staff_vacation_opening"`).
-		Where(`"staff_vacation_opening".id = ?`, id), aliasStaffVacationOpening, tenantID)
+		Where(`"staff_vacation_opening".id = ?`, id), aliasStaffVacationOpening, scope)
 	return execAffected(ctx, query, "delete staff vacation opening")
 }
 
 // --- staff vacation quota ---
 
 func (s *Store) FindStaffVacationQuota(ctx context.Context, id int64) (domain.StaffVacationQuota, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffVacationQuota{}, false, domain.OperationStats{}, err
 	}
 	row := &staffVacationQuotaRow{}
 	query := withTenant(db.NewSelect().Model(row).
 		ModelTableExpr(tableStaffVacationQuota+` AS "staff_vacation_quota"`).
-		Where(`"staff_vacation_quota".id = ?`, id), aliasStaffVacationQuota, tenantID)
+		Where(`"staff_vacation_quota".id = ?`, id), aliasStaffVacationQuota, scope)
 	found, stats, err := scanOne(ctx, query, "find staff vacation quota")
 	if err != nil || !found {
 		return domain.StaffVacationQuota{}, found, stats, err
@@ -620,13 +620,13 @@ func (s *Store) FindStaffVacationQuota(ctx context.Context, id int64) (domain.St
 }
 
 func (s *Store) ListStaffVacationQuotas(ctx context.Context, filter domain.StaffVacationFilter) ([]domain.StaffVacationQuota, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []staffVacationQuotaRow{}
 	query := applyStaffVacationFilter(withTenant(db.NewSelect().Model(&rows).
-		ModelTableExpr(tableStaffVacationQuota+` AS "staff_vacation_quota"`), aliasStaffVacationQuota, tenantID), aliasStaffVacationQuota, filter)
+		ModelTableExpr(tableStaffVacationQuota+` AS "staff_vacation_quota"`), aliasStaffVacationQuota, scope), aliasStaffVacationQuota, filter)
 	stats, err := scanAll(ctx, query, "list staff vacation quotas")
 	if err != nil {
 		return nil, stats, err
@@ -640,13 +640,13 @@ func (s *Store) ListStaffVacationQuotas(ctx context.Context, filter domain.Staff
 }
 
 func (s *Store) CreateStaffVacationQuota(ctx context.Context, value domain.StaffVacationQuota) (domain.StaffVacationQuota, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffVacationQuota{}, domain.OperationStats{}, err
 	}
 	row := staffVacationQuotaFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -660,20 +660,20 @@ func (s *Store) CreateStaffVacationQuota(ctx context.Context, value domain.Staff
 }
 
 func (s *Store) UpdateStaffVacationQuota(ctx context.Context, value domain.StaffVacationQuota) (domain.StaffVacationQuota, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffVacationQuota{}, false, domain.OperationStats{}, err
 	}
 	row := staffVacationQuotaFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	query := withTenant(db.NewUpdate().Model(row).
 		ModelTableExpr(tableStaffVacationQuota+` AS "staff_vacation_quota"`).
 		ExcludeColumn("created_at", "updated_at").
 		Set("updated_at = NOW()").
 		WherePK().
-		Returning("*"), aliasStaffVacationQuota, tenantID)
+		Returning("*"), aliasStaffVacationQuota, scope)
 	stats, err := execAffected(ctx, query, "update staff vacation quota")
 	if err != nil {
 		return domain.StaffVacationQuota{}, false, stats, err
@@ -686,24 +686,24 @@ func (s *Store) UpdateStaffVacationQuota(ctx context.Context, value domain.Staff
 }
 
 func (s *Store) DeleteStaffVacationQuota(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewDelete().Model((*staffVacationQuotaRow)(nil)).
 		ModelTableExpr(tableStaffVacationQuota+` AS "staff_vacation_quota"`).
-		Where(`"staff_vacation_quota".id = ?`, id), aliasStaffVacationQuota, tenantID)
+		Where(`"staff_vacation_quota".id = ?`, id), aliasStaffVacationQuota, scope)
 	return execAffected(ctx, query, "delete staff vacation quota")
 }
 
 func (s *Store) UpsertStaffVacationQuota(ctx context.Context, value domain.StaffVacationQuota) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	row := staffVacationQuotaFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	var stats domain.OperationStats
 	var previous *staffVacationQuotaRow

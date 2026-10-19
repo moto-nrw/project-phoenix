@@ -6,7 +6,7 @@ import (
 
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
 )
 
 // MealPlanProvider is the Meal Plan capability of the child's school, in the

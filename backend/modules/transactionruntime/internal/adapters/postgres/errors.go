@@ -7,18 +7,8 @@ import (
 	"net"
 	"strings"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
-
-// IsUniqueViolation reports PostgreSQL's unique_violation through the
-// runtime's retained detector, which also reads a degraded driver error.
-func IsUniqueViolation(err error) bool { return modelBase.IsUniqueViolation(err) }
-
-// IsUniqueViolationOn is IsUniqueViolation for one constraint or index name.
-func IsUniqueViolationOn(err error, constraint string) bool {
-	return modelBase.IsUniqueViolationOn(err, constraint)
-}
 
 // IsTransientDatabaseError reports whether err represents a temporary database
 // connectivity failure rather than a domain validation error. Callers can use

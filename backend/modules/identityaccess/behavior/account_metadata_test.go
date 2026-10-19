@@ -14,7 +14,7 @@ import (
 func TestAccountMetadataSelfEdits(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	profiles, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	profiles, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	account := testpkg.CreateTestAccount(t, db, "self-metadata")
 	ctx := testpkg.Ctx(t)
@@ -72,10 +72,32 @@ func TestAccountMetadataSelfEdits(t *testing.T) {
 	require.ErrorIs(t, profiles.SetAccountAvatar(ctx, 0, "missing"), identityaccess.ErrAccountNotFound)
 }
 
+func TestAccountMetadataIgnoresErasedAccounts(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	profiles, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	require.NoError(t, err)
+	account := testpkg.CreateTestAccount(t, db, "erased-metadata")
+	ctx := testpkg.Ctx(t)
+	_, err = db.NewRaw(`UPDATE auth.accounts SET username = 'before-erasure', avatar = '/uploads/avatars/global/before.jpg',
+		personal_data_erased_at = NOW() WHERE id = ?`, account.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	_, err = profiles.FindAccountMetadata(ctx, account.ID)
+	require.ErrorIs(t, err, identityaccess.ErrAccountNotFound)
+	require.ErrorIs(t, profiles.SetAccountUsername(ctx, account.ID, "after-erasure"), identityaccess.ErrAccountNotFound)
+	require.ErrorIs(t, profiles.SetAccountAvatar(ctx, account.ID, "/uploads/avatars/global/after.jpg"), identityaccess.ErrAccountNotFound)
+
+	var username, avatar string
+	require.NoError(t, db.NewRaw(`SELECT username, avatar FROM auth.accounts WHERE id = ?`, account.ID).Scan(ctx, &username, &avatar))
+	require.Equal(t, "before-erasure", username)
+	require.Equal(t, "/uploads/avatars/global/before.jpg", avatar)
+}
+
 func TestAccountMetadataPropagatesDatabaseFailure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	profiles, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	profiles, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	require.NoError(t, db.Close())
 

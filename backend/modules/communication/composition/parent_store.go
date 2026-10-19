@@ -24,20 +24,8 @@ import (
 // only adds the defense-in-depth tenant_id filter, and is zero for
 // administrative and cross-tenant work.
 func parentDatabase(db *bun.DB) parentpostgres.Database {
-	return func(ctx context.Context) (bun.IDB, int64, error) {
-		tenantID := tenant.FromContext(ctx)
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return db, tenantID, nil
-		}
-		switch tx := transaction.(type) {
-		case bun.Tx:
-			return tx, tenantID, nil
-		case *bun.Tx:
-			if tx != nil {
-				return tx, tenantID, nil
-			}
-		}
-		return db, tenantID, nil
+	return func(ctx context.Context) (bun.IDB, parentpostgres.TenantScope, error) {
+		raw, present := tenant.TransactionFromContext(ctx)
+		return parentpostgres.ResolveDatabase(raw, present, db, parentpostgres.ScopeFor(tenant.FromContext(ctx), tenant.IsAdminTx(ctx)))
 	}
 }

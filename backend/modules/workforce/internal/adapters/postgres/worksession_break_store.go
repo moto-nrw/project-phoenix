@@ -12,14 +12,14 @@ import (
 // --- work session breaks ---
 
 func (s *Store) FindWorkSessionBreak(ctx context.Context, id int64) (domain.WorkSessionBreak, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.WorkSessionBreak{}, false, domain.OperationStats{}, err
 	}
 	row := &workSessionBreakRow{}
 	query := withTenant(db.NewSelect().Model(row).
 		ModelTableExpr(tableWorkSessionBreaks+` AS "work_session_break"`).
-		Where(`"work_session_break".id = ?`, id), aliasWorkSessionBreak, tenantID)
+		Where(`"work_session_break".id = ?`, id), aliasWorkSessionBreak, scope)
 	found, stats, err := scanOne(ctx, query, "find work session break")
 	if err != nil || !found {
 		return domain.WorkSessionBreak{}, found, stats, err
@@ -28,13 +28,13 @@ func (s *Store) FindWorkSessionBreak(ctx context.Context, id int64) (domain.Work
 }
 
 func (s *Store) ListWorkSessionBreaks(ctx context.Context, filter domain.WorkSessionBreakFilter) ([]domain.WorkSessionBreak, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []workSessionBreakRow{}
 	query := withTenant(db.NewSelect().Model(&rows).
-		ModelTableExpr(tableWorkSessionBreaks+` AS "work_session_break"`), aliasWorkSessionBreak, tenantID)
+		ModelTableExpr(tableWorkSessionBreaks+` AS "work_session_break"`), aliasWorkSessionBreak, scope)
 	if filter.SessionID > 0 {
 		query = query.Where(`"work_session_break".session_id = ?`, filter.SessionID)
 	}
@@ -62,7 +62,7 @@ func (s *Store) ListWorkSessionBreaks(ctx context.Context, filter domain.WorkSes
 }
 
 func (s *Store) ExpiredWorkSessionBreaks(ctx context.Context, before time.Time) ([]domain.WorkSessionBreak, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -71,7 +71,7 @@ func (s *Store) ExpiredWorkSessionBreaks(ctx context.Context, before time.Time) 
 		ModelTableExpr(tableWorkSessionBreaks+` AS "work_session_break"`).
 		Where(`"work_session_break".ended_at IS NULL`).
 		Where(`"work_session_break".planned_end_time IS NOT NULL`).
-		Where(`"work_session_break".planned_end_time <= ?`, before), aliasWorkSessionBreak, tenantID).
+		Where(`"work_session_break".planned_end_time <= ?`, before), aliasWorkSessionBreak, scope).
 		OrderExpr(`"work_session_break".id ASC`)
 	stats, err := scanAll(ctx, query, "list expired work session breaks")
 	if err != nil {
@@ -82,13 +82,13 @@ func (s *Store) ExpiredWorkSessionBreaks(ctx context.Context, before time.Time) 
 }
 
 func (s *Store) CreateWorkSessionBreak(ctx context.Context, value domain.WorkSessionBreak) (domain.WorkSessionBreak, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.WorkSessionBreak{}, domain.OperationStats{}, err
 	}
 	row := workSessionBreakFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -102,20 +102,20 @@ func (s *Store) CreateWorkSessionBreak(ctx context.Context, value domain.WorkSes
 }
 
 func (s *Store) UpdateWorkSessionBreak(ctx context.Context, value domain.WorkSessionBreak) (domain.WorkSessionBreak, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.WorkSessionBreak{}, false, domain.OperationStats{}, err
 	}
 	row := workSessionBreakFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	query := withTenant(db.NewUpdate().Model(row).
 		ModelTableExpr(tableWorkSessionBreaks+` AS "work_session_break"`).
 		ExcludeColumn("created_at", "updated_at").
 		Set("updated_at = NOW()").
 		WherePK().
-		Returning("*"), aliasWorkSessionBreak, tenantID)
+		Returning("*"), aliasWorkSessionBreak, scope)
 	stats, err := execAffected(ctx, query, "update work session break")
 	if err != nil {
 		return domain.WorkSessionBreak{}, false, stats, err
@@ -128,18 +128,18 @@ func (s *Store) UpdateWorkSessionBreak(ctx context.Context, value domain.WorkSes
 }
 
 func (s *Store) DeleteWorkSessionBreak(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewDelete().Model((*workSessionBreakRow)(nil)).
 		ModelTableExpr(tableWorkSessionBreaks+` AS "work_session_break"`).
-		Where(`"work_session_break".id = ?`, id), aliasWorkSessionBreak, tenantID)
+		Where(`"work_session_break".id = ?`, id), aliasWorkSessionBreak, scope)
 	return execAffected(ctx, query, "delete work session break")
 }
 
 func (s *Store) EndWorkSessionBreak(ctx context.Context, id int64, endedAt time.Time, durationMinutes int) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
@@ -149,13 +149,13 @@ func (s *Store) EndWorkSessionBreak(ctx context.Context, id int64, endedAt time.
 		Set("duration_minutes = ?", durationMinutes).
 		Set("updated_at = NOW()").
 		Where(`"work_session_break".id = ?`, id).
-		Where(`"work_session_break".ended_at IS NULL`), aliasWorkSessionBreak, tenantID)
+		Where(`"work_session_break".ended_at IS NULL`), aliasWorkSessionBreak, scope)
 	stats, err := execAffected(ctx, query, "end work session break")
 	return stats.Rows, stats, err
 }
 
 func (s *Store) SetWorkSessionBreakDuration(ctx context.Context, id int64, durationMinutes int, endedAt time.Time) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
@@ -164,7 +164,7 @@ func (s *Store) SetWorkSessionBreakDuration(ctx context.Context, id int64, durat
 		Set("duration_minutes = ?", durationMinutes).
 		Set("ended_at = ?", endedAt).
 		Set("updated_at = NOW()").
-		Where(`"work_session_break".id = ?`, id), aliasWorkSessionBreak, tenantID)
+		Where(`"work_session_break".id = ?`, id), aliasWorkSessionBreak, scope)
 	stats, err := execAffected(ctx, query, "update work session break duration")
 	return stats.Rows, stats, err
 }

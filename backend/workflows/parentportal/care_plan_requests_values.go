@@ -1,6 +1,6 @@
 package parentportal
 
-import "github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
+import "github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
 
 func carePlanToAppExcusedAbsenceRequest(value ExcusedAbsenceRequestSnapshot) care.ExcusedAbsenceRequest {
 	return care.ExcusedAbsenceRequest{

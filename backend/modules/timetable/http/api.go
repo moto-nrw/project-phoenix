@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/go-chi/render"
@@ -14,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -109,8 +108,10 @@ type Dependencies struct {
 	// shift-coverage probe from the Timetable owner (#3550).
 	ConflictDetection  timetable.ConflictDetectionCapability
 	CareDayService     careplan.CareDayQuery
-	UserContextService securityruntime.StudentAccessUserContext
-	SettingsService    settings.Resolver
+	UserContextService interface {
+		HasCurrentStaff(context.Context) (bool, error)
+	}
+	SettingsService settings.Resolver
 	// OfferingSourceOptions serves the offering-source editor support
 	// endpoint, the empty-roster explanation of the instance list and the
 	// roster indicator of the template list (#2137, #3140).
@@ -579,17 +580,7 @@ func calendarPeriodWriteErrorRenderer(r *http.Request, err error, serverMsg stri
 }
 
 func isCalendarPeriodRosterDeleteConflict(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	if errors.Is(err, schoolcalendar.ErrCalendarPeriodRosterConflict) {
-		return true
-	}
-
-	msg := err.Error()
-	return strings.Contains(msg, "duplicate key value violates unique constraint \"idx_student_enrollments_active\"") ||
-		strings.Contains(msg, "duplicate key value violates unique constraint \"idx_supervisors_active\"")
+	return errors.Is(err, schoolcalendar.ErrCalendarPeriodRosterConflict)
 }
 
 // defaultChildrenPerStaffRatio mirrors the registry default for
@@ -623,7 +614,7 @@ func (rs *Resource) enforcePlannedEnd(ctx context.Context) (bool, error) {
 	}
 	enforce, err := rs.SettingsService.ResolveBool(ctx, settings.KeyTimetableEnforcePlannedEnd)
 	if err != nil {
-		return false, fmt.Errorf("%w: resolve planned end policy: %v", timetable.ErrLifecycleSettings, err)
+		return false, fmt.Errorf("%w: resolve planned end policy: %w", timetable.ErrLifecycleSettings, err)
 	}
 	return enforce, nil
 }
@@ -634,7 +625,7 @@ func (rs *Resource) completeLeadMinutes(ctx context.Context) (int, error) {
 	}
 	lead, err := rs.SettingsService.ResolveInt(ctx, settings.KeyTimetableCompleteLeadMinutes)
 	if err != nil {
-		return 0, fmt.Errorf("%w: resolve complete lead: %v", timetable.ErrLifecycleSettings, err)
+		return 0, fmt.Errorf("%w: resolve complete lead: %w", timetable.ErrLifecycleSettings, err)
 	}
 	return lead, nil
 }

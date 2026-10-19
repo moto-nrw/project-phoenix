@@ -17,22 +17,23 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func testStore(t *testing.T, db *bun.DB) (*postgresadapter.Store, context.Context) {
+func testStore(t *testing.T, db *bun.DB) (*workerCommandsForTest, context.Context) {
 	t.Helper()
 	ctx := testpkg.WithTenantRuntime(t, context.Background(), db)
-	store := postgresadapter.New(
-		func(ctx context.Context, expectedTenantID int64) (bun.IDB, error) {
-			tx, _ := tenant.TransactionFromContext(ctx)
-			return tx.(bun.Tx), nil
-		},
-		func(ctx context.Context, callback func(context.Context, bun.IDB) error) error {
-			return tenant.WithAdminTx(ctx, db, func(txCtx context.Context, tx bun.Tx) error { return callback(txCtx, tx) })
-		},
-	)
+	raw := postgresadapter.New(func(ctx context.Context, _ int64) (bun.IDB, error) {
+		raw, ok := tenant.TransactionFromContext(ctx)
+		if !ok {
+			return nil, fmt.Errorf("transaction is required")
+		}
+		return raw.(bun.Tx), nil
+	}, postgresadapter.RequireAdminDatabase)
+	store := newWorkerCommandsForTest(raw, func(ctx context.Context, callback func(context.Context) error) error {
+		return tenant.WithAdminTx(ctx, db, func(txCtx context.Context, _ bun.Tx) error { return callback(txCtx) })
+	})
 	return store, ctx
 }
 
-func enqueueEmail(t *testing.T, db *bun.DB, store *postgresadapter.Store, ctx context.Context, key string) domain.Enqueued {
+func enqueueEmail(t *testing.T, db *bun.DB, store *workerCommandsForTest, ctx context.Context, key string) domain.Enqueued {
 	t.Helper()
 	var enqueued domain.Enqueued
 	err := tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {

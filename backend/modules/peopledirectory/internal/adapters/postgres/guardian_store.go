@@ -63,10 +63,12 @@ type GuardianStore struct {
 // GuardianLinks is People Directory's reader port onto the guardian link
 // projection (ADR 0058); the composition root binds it. Each row source is
 // aliased "student_guardian" and runs in the caller's statement and
-// transaction; a zero tenant leaves the rows unscoped.
+// transaction, with separately named explicit all-school row sources.
 type GuardianLinks interface {
 	GuardianLinkRows(db bun.IDB, tenantID int64) *bun.SelectQuery
+	AllSchoolsGuardianLinkRows(db bun.IDB) *bun.SelectQuery
 	GuardianLinkModelRows(db bun.IDB, tenantID int64, model any) *bun.SelectQuery
+	AllSchoolsGuardianLinkModelRows(db bun.IDB, model any) *bun.SelectQuery
 }
 
 // errGuardianLinksUnbound fails a link read closed in a graph that bound no
@@ -87,16 +89,16 @@ func (s *GuardianStore) ListLinksByAccount(ctx context.Context, accountID int64)
 	if s.links == nil {
 		return nil, domain.OperationStats{}, errGuardianLinksUnbound
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []guardianLinkRow{}
-	query := s.links.GuardianLinkModelRows(db, 0, &rows).
+	query := s.linkModelRows(db, scope, &rows).
 		Join(`JOIN users.guardian_profiles AS "guardian_profile" ON "guardian_profile".id = "student_guardian".guardian_profile_id AND "guardian_profile".tenant_id = "student_guardian".tenant_id`).
 		Where(`"guardian_profile".account_id = ?`, accountID)
-	if tenantID > 0 {
-		query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
+	if !scope.AcrossSchools {
+		query = query.Where(`"student_guardian".tenant_id = ?`, scope.TenantID)
 	}
 	query = query.OrderExpr(`"student_guardian".tenant_id ASC, "student_guardian".student_id ASC, "student_guardian".id ASC`)
 	stats := domain.OperationStats{Queries: 1}
@@ -127,14 +129,14 @@ func (s *GuardianStore) ListByIDs(ctx context.Context, ids []int64) ([]domain.Gu
 }
 
 func (s *GuardianStore) listGuardians(ctx context.Context, operation string, narrow func(*bun.SelectQuery) *bun.SelectQuery) ([]domain.Guardian, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []guardianRow{}
 	query := narrow(db.NewSelect().Model(&rows).ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`))
-	if tenantID > 0 {
-		query = query.Where(`"guardian_profile".tenant_id = ?`, tenantID)
+	if !scope.AcrossSchools {
+		query = query.Where(`"guardian_profile".tenant_id = ?`, scope.TenantID)
 	}
 	query = query.OrderExpr(`"guardian_profile".tenant_id ASC, "guardian_profile".id ASC`)
 	stats := domain.OperationStats{Queries: 1}
@@ -153,7 +155,7 @@ func (s *GuardianStore) listGuardians(ctx context.Context, operation string, nar
 }
 
 func (s *GuardianStore) CountLinks(ctx context.Context, guardianIDs []int64) (map[int64]int, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -165,8 +167,8 @@ func (s *GuardianStore) CountLinks(ctx context.Context, guardianIDs []int64) (ma
 		ColumnExpr(`"student_guardian".guardian_profile_id AS guardian_profile_id`).
 		ColumnExpr(`COUNT(*)::int AS links`).
 		Where(`"student_guardian".guardian_profile_id IN (?)`, bun.List(guardianIDs))
-	if tenantID > 0 {
-		query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
+	if !scope.AcrossSchools {
+		query = query.Where(`"student_guardian".tenant_id = ?`, scope.TenantID)
 	}
 	query = query.GroupExpr(`"student_guardian".guardian_profile_id`)
 	stats := domain.OperationStats{Queries: 1}
@@ -195,7 +197,7 @@ func (s *GuardianStore) ListAccountLinksByStudents(ctx context.Context, studentI
 	if s.links == nil {
 		return nil, domain.OperationStats{}, errGuardianLinksUnbound
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -203,7 +205,7 @@ func (s *GuardianStore) ListAccountLinksByStudents(ctx context.Context, studentI
 		guardianLinkRow
 		AccountID int64 `bun:"portal_account_id"`
 	}{}
-	query := s.links.GuardianLinkModelRows(db, 0, &rows).
+	query := s.linkModelRows(db, scope, &rows).
 		ColumnExpr(`"student_guardian".id, "student_guardian".tenant_id, "student_guardian".student_id,
 			"student_guardian".guardian_profile_id, "student_guardian".relationship_type, "student_guardian".guardian_role,
 			"student_guardian".is_primary, "student_guardian".is_emergency_contact, "student_guardian".can_pickup,
@@ -214,8 +216,8 @@ func (s *GuardianStore) ListAccountLinksByStudents(ctx context.Context, studentI
 		Where(`"student_guardian".student_id IN (?)`, bun.List(studentIDs)).
 		Where(`"guardian_profile".account_id IS NOT NULL`).
 		Where(`"guardian_profile".has_account = true`)
-	if tenantID > 0 {
-		query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
+	if !scope.AcrossSchools {
+		query = query.Where(`"student_guardian".tenant_id = ?`, scope.TenantID)
 	}
 	query = query.OrderExpr(`"student_guardian".student_id ASC, "student_guardian".id ASC`)
 	stats := domain.OperationStats{Queries: 1}
@@ -264,4 +266,11 @@ func toDomainLink(row guardianLinkRow) domain.GuardianLink {
 		PickupNotes: row.PickupNotes, EmergencyPriority: row.EmergencyPriority, IsPayer: row.IsPayer,
 		Permissions: domain.GrantedPermissions(row.Permissions),
 	}
+}
+
+func (s *GuardianStore) linkModelRows(db bun.IDB, scope TenantScope, model any) *bun.SelectQuery {
+	if scope.AcrossSchools {
+		return s.links.AllSchoolsGuardianLinkModelRows(db, model)
+	}
+	return s.links.GuardianLinkModelRows(db, scope.TenantID, model)
 }

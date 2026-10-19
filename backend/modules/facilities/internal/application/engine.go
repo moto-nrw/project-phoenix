@@ -70,7 +70,7 @@ func (e Engine) FindRoomForUpdate(ctx context.Context, id int64) (facilities.Roo
 
 func (e Engine) FindRoomByName(ctx context.Context, name string) (facilities.Room, error) {
 	var result domain.Room
-	err := e.service.run("find_room_by_name", func(stats *domain.OperationStats) error {
+	err := e.service.runWrite(ctx, "find_room_by_name", func(ctx context.Context, stats *domain.OperationStats) error {
 		room, found, queryStats, findErr := e.service.store.FindByName(ctx, name)
 		stats.Add(queryStats)
 		if findErr != nil {
@@ -100,7 +100,7 @@ func (e Engine) ListRooms(ctx context.Context, filter facilities.RoomFilter) ([]
 		ExcludeSystem: filter.ExcludeSystem, IsOpenRoom: filter.IsOpenRoom,
 	}
 
-	err = e.service.run("list_rooms", func(stats *domain.OperationStats) error {
+	err = e.service.runWrite(ctx, "list_rooms", func(ctx context.Context, stats *domain.OperationStats) error {
 		rooms, queryStats, listErr := e.service.store.List(ctx, domainFilter)
 		stats.Add(queryStats)
 		result = rooms
@@ -120,7 +120,7 @@ func (e Engine) ListRoomsPage(ctx context.Context, filter facilities.RoomFilter,
 		ExcludeSystem: filter.ExcludeSystem, IsOpenRoom: filter.IsOpenRoom,
 	}
 
-	err = e.service.run("list_rooms_page", func(stats *domain.OperationStats) error {
+	err = e.service.runWrite(ctx, "list_rooms_page", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, total, queryStats, err = e.service.store.ListPage(ctx, domainFilter, offset, limit)
 		stats.Add(queryStats)
@@ -131,7 +131,7 @@ func (e Engine) ListRoomsPage(ctx context.Context, filter facilities.RoomFilter,
 
 func (e Engine) ListRoomsByID(ctx context.Context, ids []int64) ([]facilities.Room, error) {
 	var result []domain.Room
-	err := e.service.run("list_rooms_by_id", func(stats *domain.OperationStats) error {
+	err := e.service.runWrite(ctx, "list_rooms_by_id", func(ctx context.Context, stats *domain.OperationStats) error {
 		rooms, queryStats, listErr := e.service.store.ListByIDs(ctx, ids)
 		stats.Add(queryStats)
 		result = rooms

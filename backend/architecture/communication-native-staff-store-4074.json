@@ -33,7 +33,7 @@
       "backend/modules/communication/staffstore/repositories.go",
       "backend/modules/communication/internal/domain/staff_messages.go",
       "backend/modules/communication/staff_colleagues.go",
-      "backend/api/communication_staff_colleagues.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/communication_staff_colleagues.go",
       "backend/api/communication_staff_records_test.go"
     ],
     "workload": "Existing native Staff Messaging/Root suites, actual DB create/read/inbox/cursor/participant probes, and real insert-failure metadata checks; full nonfast structural gates.",

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -37,7 +37,7 @@ func TestGroupRepository_Create(t *testing.T) {
 			Name: uniqueName,
 		}
 
-		err := repo.Create(ctx, group)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, group)
 		require.NoError(t, err)
 		assert.NotZero(t, group.ID)
 
@@ -53,11 +53,11 @@ func TestGroupRepository_Create(t *testing.T) {
 			RoomID: &room.ID,
 		}
 
-		err := repo.Create(ctx, group)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, group)
 		require.NoError(t, err)
 		assert.NotZero(t, group.ID)
 
-		found, err := repo.FindByID(ctx, group.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(group.ID))
 		require.NoError(t, err)
 		require.NotNil(t, found.RoomID)
 		assert.Equal(t, room.ID, *found.RoomID)
@@ -76,14 +76,14 @@ func TestGroupRepository_FindByID(t *testing.T) {
 	t.Run("finds existing group", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "FindByID")
 
-		found, err := repo.FindByID(ctx, group.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(group.ID))
 		require.NoError(t, err)
 		assert.Equal(t, group.ID, found.ID)
 		assert.Contains(t, found.Name, "FindByID")
 	})
 
 	t.Run("returns error for non-existent group", func(t *testing.T) {
-		_, err := repo.FindByID(ctx, int64(999999))
+		_, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(int64(999999)))
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no rows")
 	})
@@ -101,7 +101,7 @@ func TestGroupRepository_FindByIDs(t *testing.T) {
 		group1 := testpkg.CreateTestEducationGroup(t, db, "FindByIDs1")
 		group2 := testpkg.CreateTestEducationGroup(t, db, "FindByIDs2")
 
-		groups, err := repo.FindByIDs(ctx, []int64{group1.ID, group2.ID})
+		groups, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByIDs, []int64{group1.ID, group2.ID})
 		require.NoError(t, err)
 		assert.Len(t, groups, 2)
 		assert.NotNil(t, groups[group1.ID])
@@ -109,7 +109,7 @@ func TestGroupRepository_FindByIDs(t *testing.T) {
 	})
 
 	t.Run("returns empty map for empty IDs", func(t *testing.T) {
-		groups, err := repo.FindByIDs(ctx, []int64{})
+		groups, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByIDs, []int64{})
 		require.NoError(t, err)
 		assert.Empty(t, groups)
 	})
@@ -129,10 +129,10 @@ func TestGroupRepository_Update(t *testing.T) {
 		newName := fmt.Sprintf("UpdatedName-%d", time.Now().UnixNano())
 		group.Name = newName
 
-		err := repo.Update(ctx, group)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Update, group)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, group.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(group.ID))
 		require.NoError(t, err)
 		assert.Equal(t, newName, found.Name)
 	})
@@ -149,10 +149,10 @@ func TestGroupRepository_Delete(t *testing.T) {
 	t.Run("deletes existing group", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "DeleteTest")
 
-		err := repo.Delete(ctx, group.ID)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Delete, any(group.ID))
 		require.NoError(t, err)
 
-		_, err = repo.FindByID(ctx, group.ID)
+		_, err = testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(group.ID))
 		require.Error(t, err)
 	})
 }
@@ -172,7 +172,7 @@ func TestGroupRepository_List(t *testing.T) {
 	t.Run("lists all groups with no filters", func(t *testing.T) {
 		testpkg.CreateTestEducationGroup(t, db, "ListTest")
 
-		groups, err := repo.List(ctx, nil)
+		groups, err := testpkg.TenantQuery1(t, ctx, db, repo.List, nil)
 		require.NoError(t, err)
 		assert.NotEmpty(t, groups)
 	})
@@ -189,7 +189,7 @@ func TestGroupRepository_ListWithRooms(t *testing.T) {
 	t.Run("lists groups with pagination", func(t *testing.T) {
 		testpkg.CreateTestEducationGroup(t, db, "PaginationTest")
 
-		groups, err := repo.ListWithRooms(ctx, &schoolStructureCompose.GroupListQuery{Limit: 10})
+		groups, err := testpkg.TenantQuery1(t, ctx, db, repo.ListWithRooms, &schoolStructureCompose.GroupListQuery{Limit: 10})
 		require.NoError(t, err)
 		assert.NotEmpty(t, groups)
 		assert.LessOrEqual(t, len(groups), 10)
@@ -207,13 +207,13 @@ func TestGroupRepository_FindByName(t *testing.T) {
 	t.Run("finds group by exact name", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "UniqueNameTest")
 
-		found, err := repo.FindByName(ctx, group.Name)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByName, group.Name)
 		require.NoError(t, err)
 		assert.Equal(t, group.ID, found.ID)
 	})
 
 	t.Run("returns error for non-existent name", func(t *testing.T) {
-		_, err := repo.FindByName(ctx, "NonExistentGroupName12345")
+		_, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByName, "NonExistentGroupName12345")
 		require.Error(t, err)
 	})
 }
@@ -249,7 +249,7 @@ func TestGroupRepository_FindByTeacher(t *testing.T) {
 		}()
 
 		// Find by teacher
-		groups, err := repo.FindByTeacher(ctx, teacher.ID)
+		groups, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByTeacher, teacher.ID)
 		require.NoError(t, err)
 		assert.NotEmpty(t, groups)
 
@@ -280,11 +280,11 @@ func TestGroupRepository_FindWithRoom(t *testing.T) {
 			Name:   uniqueName,
 			RoomID: &room.ID,
 		}
-		err := repo.Create(ctx, group)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, group)
 		require.NoError(t, err)
 
 		// Find with room
-		found, err := repo.FindWithRoom(ctx, group.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindWithRoom, group.ID)
 		require.NoError(t, err)
 		require.NotNil(t, found.Room)
 		assert.Contains(t, found.Room.Name, "WithRoomTest")
@@ -293,7 +293,7 @@ func TestGroupRepository_FindWithRoom(t *testing.T) {
 	t.Run("finds group without room", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "NoRoomTest")
 
-		found, err := repo.FindWithRoom(ctx, group.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindWithRoom, group.ID)
 		require.NoError(t, err)
 		assert.Nil(t, found.Room)
 	})
@@ -312,7 +312,7 @@ func TestGroupRepository_Create_Validation(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nil group", func(t *testing.T) {
-		err := repo.Create(ctx, nil)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be nil")
 	})
@@ -321,7 +321,7 @@ func TestGroupRepository_Create_Validation(t *testing.T) {
 		group := &schoolStructureCompose.Group{
 			Name: "",
 		}
-		err := repo.Create(ctx, group)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, group)
 		require.Error(t, err)
 	})
 }
@@ -335,7 +335,7 @@ func TestGroupRepository_Update_Validation(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nil group", func(t *testing.T) {
-		err := repo.Update(ctx, nil)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Update, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be nil")
 	})
@@ -344,7 +344,7 @@ func TestGroupRepository_Update_Validation(t *testing.T) {
 		group := schoolStructureGroupOf(testpkg.CreateTestEducationGroup(t, db, "UpdateValidation"))
 
 		group.Name = "" // Invalid empty name
-		err := repo.Update(ctx, group)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Update, group)
 		require.Error(t, err)
 	})
 }
@@ -372,7 +372,7 @@ func TestGroupRepository_List_WithFilters(t *testing.T) {
 			"name_like": uniquePrefix,
 		}
 
-		groups, err := repo.List(ctx, filters)
+		groups, err := testpkg.TenantQuery1(t, ctx, db, repo.List, filters)
 		require.NoError(t, err)
 
 		// Should find both FilterTest groups but not OtherGroup
@@ -394,14 +394,14 @@ func TestGroupRepository_List_WithFilters(t *testing.T) {
 			Name:   uniqueName,
 			RoomID: &room.ID,
 		}
-		err := repo.Create(ctx, groupWithRoom)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, groupWithRoom)
 		require.NoError(t, err)
 
 		filters := map[string]interface{}{
 			"has_room": true,
 		}
 
-		groups, err := repo.List(ctx, filters)
+		groups, err := testpkg.TenantQuery1(t, ctx, db, repo.List, filters)
 		require.NoError(t, err)
 
 		// All returned groups should have room_id set
@@ -418,7 +418,7 @@ func TestGroupRepository_List_WithFilters(t *testing.T) {
 			"has_room": false,
 		}
 
-		groups, err := repo.List(ctx, filters)
+		groups, err := testpkg.TenantQuery1(t, ctx, db, repo.List, filters)
 		require.NoError(t, err)
 
 		// All returned groups should NOT have room_id set
@@ -441,7 +441,7 @@ func TestGroupRepository_ListWithRooms_Advanced(t *testing.T) {
 		group1 := testpkg.CreateTestEducationGroup(t, db, "AAA-First")
 		group2 := testpkg.CreateTestEducationGroup(t, db, "ZZZ-Last")
 
-		groups, err := repo.ListWithRooms(ctx, &schoolStructureCompose.GroupListQuery{SortByName: true})
+		groups, err := testpkg.TenantQuery1(t, ctx, db, repo.ListWithRooms, &schoolStructureCompose.GroupListQuery{SortByName: true})
 		require.NoError(t, err)
 		assert.NotEmpty(t, groups)
 
@@ -463,7 +463,7 @@ func TestGroupRepository_ListWithRooms_Advanced(t *testing.T) {
 	t.Run("lists with filter and pagination combined", func(t *testing.T) {
 		combined := testpkg.CreateTestEducationGroup(t, db, "CombinedTest")
 
-		groups, err := repo.ListWithRooms(ctx, &schoolStructureCompose.GroupListQuery{NameContains: "CombinedTest", Limit: 5})
+		groups, err := testpkg.TenantQuery1(t, ctx, db, repo.ListWithRooms, &schoolStructureCompose.GroupListQuery{NameContains: "CombinedTest", Limit: 5})
 		require.NoError(t, err)
 		require.Len(t, groups, 1)
 		assert.Equal(t, combined.ID, groups[0].ID)
@@ -473,7 +473,7 @@ func TestGroupRepository_ListWithRooms_Advanced(t *testing.T) {
 		testpkg.CreateTestEducationGroup(t, db, "CountedTest-1")
 		testpkg.CreateTestEducationGroup(t, db, "CountedTest-2")
 
-		count, err := repo.CountGroups(ctx, &schoolStructureCompose.GroupListQuery{NameContains: "countedtest", Limit: 1})
+		count, err := testpkg.TenantQuery1(t, ctx, db, repo.CountGroups, &schoolStructureCompose.GroupListQuery{NameContains: "countedtest", Limit: 1})
 		require.NoError(t, err)
 		assert.Equal(t, 2, count)
 	})
@@ -492,16 +492,16 @@ func TestGroupRepository_FindByName_CaseInsensitive(t *testing.T) {
 		group := &schoolStructureCompose.Group{
 			Name: uniqueName,
 		}
-		err := repo.Create(ctx, group)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, group)
 		require.NoError(t, err)
 
 		// Search with different case
-		found, err := repo.FindByName(ctx, uniqueName)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByName, uniqueName)
 		require.NoError(t, err)
 		assert.Equal(t, group.ID, found.ID)
 
 		// Search with lowercase
-		foundLower, err := repo.FindByName(ctx, uniqueName)
+		foundLower, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByName, uniqueName)
 		require.NoError(t, err)
 		assert.Equal(t, group.ID, foundLower.ID)
 	})
@@ -522,23 +522,23 @@ func TestGroupWritesStayInsideTheCallerTenant(t *testing.T) {
 	forged.Name = "Must not replace the foreign group"
 	forged.TenantID = testpkg.Tenant(t)
 	err := testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
-		return repo.Update(ctx, &forged)
+		return testpkg.TenantCommand1(t, ctx, db, repo.Update, &forged)
 	})
 	require.Error(t, err, "a foreign id cannot be updated or moved into the caller's school")
 
 	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
-		return repo.Delete(ctx, foreign.ID)
+		return testpkg.TenantCommand1(t, ctx, db, repo.Delete, any(foreign.ID))
 	}), "deleting an invisible id remains the legacy no-op")
 
 	forgedInsert := &schoolStructureCompose.Group{Name: "Must not enter the foreign school"}
 	forgedInsert.TenantID = foreignTenant
 	err = testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
-		return repo.Create(ctx, forgedInsert)
+		return testpkg.TenantCommand1(t, ctx, db, repo.Create, forgedInsert)
 	})
 	require.ErrorContains(t, err, "row-level security", "the catalog must retain PostgreSQL WITH CHECK isolation")
 
 	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), db, foreignTenant, func(ctx context.Context, _ bun.Tx) error {
-		kept, err := repo.FindByID(ctx, foreign.ID)
+		kept, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(foreign.ID))
 		require.NoError(t, err)
 		assert.Equal(t, foreign.Name, kept.Name)
 		assert.Equal(t, foreignTenant, kept.TenantID)

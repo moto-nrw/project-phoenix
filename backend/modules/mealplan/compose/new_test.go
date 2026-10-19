@@ -7,11 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/mealplan"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -26,7 +27,7 @@ type testParticipantRow struct {
 }
 
 // testStudentNames names children by ID from the test database.
-func testStudentNames(ctx context.Context, ids []int64) ([]ParticipantCandidate, error) {
+func testStudentNames(ctx context.Context, ids []int64) ([]mealplan.ParticipantCandidate, error) {
 	transaction, ok := tenant.TransactionFromContext(ctx)
 	if !ok {
 		return nil, errors.New("test student names: transaction is required")
@@ -42,9 +43,9 @@ func testStudentNames(ctx context.Context, ids []int64) ([]ParticipantCandidate,
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id AND "person".tenant_id = "student".tenant_id`).
 		Where(`"student".id IN (?)`, bun.List(ids)).
 		Scan(ctx)
-	result := make([]ParticipantCandidate, 0, len(rows))
+	result := make([]mealplan.ParticipantCandidate, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, ParticipantCandidate(row))
+		result = append(result, mealplan.ParticipantCandidate(row))
 	}
 	return result, err
 }
@@ -55,7 +56,7 @@ func openCalendar(context.Context, string, string) (map[string]bool, map[string]
 }
 
 // fixedCalendar is a school calendar with the given closed and holiday days.
-func fixedCalendar(closed, holiday []string) CalendarFinder {
+func fixedCalendar(closed, holiday []string) mealplan.CalendarFinder {
 	return func(_ context.Context, from, to string) (map[string]bool, map[string]bool, error) {
 		closedDays, holidayDays := map[string]bool{}, map[string]bool{}
 		for _, day := range closed {
@@ -72,7 +73,7 @@ func fixedCalendar(closed, holiday []string) CalendarFinder {
 	}
 }
 
-func testParticipantFinder(ctx context.Context, date string) ([]ParticipantCandidate, error) {
+func testParticipantFinder(ctx context.Context, date string) ([]mealplan.ParticipantCandidate, error) {
 	transaction, ok := tenant.TransactionFromContext(ctx)
 	if !ok {
 		return nil, errors.New("test participant finder: transaction is required")
@@ -100,9 +101,9 @@ func testParticipantFinder(ctx context.Context, date string) ([]ParticipantCandi
 	if err != nil {
 		return nil, err
 	}
-	result := make([]ParticipantCandidate, 0, len(rows))
+	result := make([]mealplan.ParticipantCandidate, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, ParticipantCandidate(row))
+		result = append(result, mealplan.ParticipantCandidate(row))
 	}
 	return result, nil
 }
@@ -759,7 +760,7 @@ func TestSickCancelledModeCancelsAbsencesReportedAfterTheDeadline(t *testing.T) 
 	assert.True(t, plan.Days[0].Participating, "with the default the meal stays ordered")
 }
 
-func buildModuleWithCalendar(t *testing.T, db *bun.DB, calendar CalendarFinder, now time.Time) *mealplan.Module {
+func buildModuleWithCalendar(t *testing.T, db *bun.DB, calendar mealplan.CalendarFinder, now time.Time) *mealplan.Module {
 	t.Helper()
 	module, err := New(Dependencies{
 		DB:           db,

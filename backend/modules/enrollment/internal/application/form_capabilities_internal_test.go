@@ -5,9 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -49,7 +50,7 @@ func TestNormalizeSubmissionForCapabilities_StripsGradeAndClass(t *testing.T) {
 	class := "3a"
 	req := SubmitRequest{Children: []SubmitChild{{TargetGradeLevel: &grade, TargetSchoolClass: &class}}}
 
-	err := normalizeSubmissionForCapabilities(&req, enrollment.FormCapabilities{CollectGradeLevel: false, CareOfferingsEnabled: true})
+	err := normalizeSubmissionForCapabilities(&req, enrollmentNative.FormCapabilities{CollectGradeLevel: false, CareOfferingsEnabled: true})
 
 	require.NoError(t, err)
 	assert.Nil(t, req.Children[0].TargetGradeLevel)
@@ -63,23 +64,23 @@ func TestNormalizeSubmissionForCapabilities_RejectsForgedOfferings(t *testing.T)
 
 	req := SubmitRequest{Children: []SubmitChild{{OfferingIDs: []int64{42}}}}
 
-	err := normalizeSubmissionForCapabilities(&req, enrollment.FormCapabilities{CollectGradeLevel: true, CareOfferingsEnabled: false})
+	err := normalizeSubmissionForCapabilities(&req, enrollmentNative.FormCapabilities{CollectGradeLevel: true, CareOfferingsEnabled: false})
 
 	assert.ErrorIs(t, err, careplan.ErrCareOfferingsDisabled)
-	assert.ErrorIs(t, publicError(err), enrollment.ErrCareOfferingsDisabled)
+	assert.ErrorIs(t, publicError(err), enrollmentNative.ErrCareOfferingsDisabled)
 }
 
 func TestAllChildrenParentResolved(t *testing.T) {
 	t.Parallel()
 
 	resolved := []*RequestChild{
-		{Status: enrollmentModels.ChildStatusApproved},
-		{Status: enrollmentModels.ChildStatusRejected},
-		{Status: enrollmentModels.ChildStatusWaitlisted},
-		{Status: enrollmentModels.ChildStatusWithdrawn},
+		{Status: enrollmentNative.ChildStatusApproved},
+		{Status: enrollmentNative.ChildStatusRejected},
+		{Status: enrollmentNative.ChildStatusWaitlisted},
+		{Status: enrollmentNative.ChildStatusWithdrawn},
 	}
 	assert.True(t, childrenParentResolved(resolved))
-	resolved[1].Status = enrollmentModels.ChildStatusUnderReview
+	resolved[1].Status = enrollmentNative.ChildStatusUnderReview
 	assert.False(t, childrenParentResolved(resolved))
 	assert.False(t, childrenParentResolved(nil))
 }
@@ -87,12 +88,12 @@ func TestAllChildrenParentResolved(t *testing.T) {
 func TestEffectiveFormCapabilitiesRequiresGradeForConditionalCatalog(t *testing.T) {
 	t.Parallel()
 
-	offering := &enrollmentModels.CareOffering{
-		AvailabilityRule: testGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1, 2),
+	offering := &offeringContract.CareOfferingRecord{
+		AvailabilityRule: testGradeAvailabilityRule(offeringContract.AvailabilityOperatorIn, 1, 2),
 	}
-	got := effectiveFormCapabilities(enrollment.FormCapabilities{CareOfferingsEnabled: true}, []*enrollmentModels.CareOffering{offering})
+	got := effectiveFormCapabilities(enrollmentNative.FormCapabilities{CareOfferingsEnabled: true}, []*offeringContract.CareOfferingRecord{offering})
 	require.True(t, got.CollectGradeLevel)
 
-	got = effectiveFormCapabilities(enrollment.FormCapabilities{CareOfferingsEnabled: false}, []*enrollmentModels.CareOffering{offering})
+	got = effectiveFormCapabilities(enrollmentNative.FormCapabilities{CareOfferingsEnabled: false}, []*offeringContract.CareOfferingRecord{offering})
 	require.False(t, got.CollectGradeLevel)
 }

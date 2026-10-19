@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -355,7 +356,7 @@ func TestCreateSpecialRoomSession_WCNeedsStaffText(t *testing.T) {
 	h := newHarness(t)
 	room := facilities.Room{ID: 42, Name: facilities.WCRoomName}
 	h.rooms.toilet = &room
-	h.activities.listErr = errors.New("WC activity auto-create requires staff context")
+	h.activities.listErr = fmt.Errorf("%w", devicescan.ErrWCNeedsStaff)
 
 	_, err := h.service().createSpecialRoomSession(context.Background(), room)
 

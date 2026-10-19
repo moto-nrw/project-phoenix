@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -26,11 +27,11 @@ func (f *overviewFixture) newExportService() timetracking.StaffTimeExportService
 	return timetracking.NewStaffTimeExportService(
 		f.svc,
 		f.newWorkSessionService(),
-		api.TimeExportStaff(f.repos.Staff),
-		api.NewTimeTrackingDataAccessAudit(api.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).DataAccessLog),
+		owners.TimeExportStaff(f.repos.Staff),
+		owners.NewTimeTrackingDataAccessAudit(owners.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).DataAccessLog),
 		nil,
 		nil,
-		api.RenderTimeTrackingWorkbook,
+		owners.RenderTimeTrackingWorkbook,
 	)
 }
 
@@ -38,14 +39,14 @@ func (f *overviewFixture) newWorkSessionService() timetracking.WorkSessionServic
 	// nil settings: the F9 deviation checks are opt-in and irrelevant for
 	// reading export rows.
 	return timetracking.NewWorkSessionService(
-		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, api.NewWorkSessionAudit(api.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).WorkSessionEdit),
-		f.reposAbsences.StaffAbsence, f.reposPresence.GroupSupervisor, f.reposPresence.ActiveGroup, api.WorkSessionStaff(f.repos.Staff, api.MustNewStaffEmployment(testpkg.MustDatabase(f.db)), f.reposMembership.Membership),
-		api.NewWorkSessionSchedules(api.NewStaffWorkScheduleRepository(f.workforce)), api.NewWorkSessionTimeModels(api.NewWorkTimeModelRepository(f.workforce)),
+		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, owners.NewWorkSessionAudit(owners.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).WorkSessionEdit),
+		f.reposAbsences.StaffAbsence, f.reposPresence.GroupSupervisor, f.reposPresence.ActiveGroup, owners.WorkSessionStaff(f.repos.Staff, api.MustNewStaffEmployment(testpkg.MustDatabase(f.db)), f.reposMembership.Membership),
+		owners.NewWorkSessionSchedules(owners.NewStaffWorkScheduleRepository(f.workforce)), owners.NewWorkSessionTimeModels(owners.NewWorkTimeModelRepository(f.workforce)),
 		nil,
 		nil,
 		f.db,
-		api.RenderTimeTrackingPDF,
-		api.RenderTimeTrackingWorkbook,
+		owners.RenderTimeTrackingPDF,
+		owners.RenderTimeTrackingWorkbook,
 	)
 }
 
@@ -120,7 +121,7 @@ func TestMonthExportRows_MatchMonthSummary(t *testing.T) {
 		require.NoError(t, workforceCompose.NewTimeTrackingTestRows(f.workforce).Adjustments.Create(f.ctx, adjustment))
 	}
 
-	rows, err := f.svc.GetMonthExportRows(f.ctx, f.today.Year(), int(f.today.Month()))
+	rows, err := testpkg.TenantQuery2(t, f.ctx, f.db, f.svc.GetMonthExportRows, f.today.Year(), int(f.today.Month()))
 	require.NoError(t, err)
 	require.Len(t, rows, 3)
 
@@ -180,12 +181,15 @@ func TestMonthExportRows_ClosedMonthCarriesFrozenValue(t *testing.T) {
 	}
 	monthSvc := timetracking.NewWorkTimeMonthService(
 		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, f.reposAbsences.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, f.db))),
-		api.NewWorkScheduleTargets(api.NewStaffWorkScheduleRepository(f.workforce)), api.NewWorkTimeTargetModels(api.NewWorkTimeModelRepository(f.workforce)), workforceCompose.NewTimeTrackingShifts(f.workforce),
+		owners.NewWorkScheduleTargets(owners.NewStaffWorkScheduleRepository(f.workforce)), owners.NewWorkTimeTargetModels(owners.NewWorkTimeModelRepository(f.workforce)), workforceCompose.NewTimeTrackingShifts(f.workforce),
 		settings, nil,
 		timetracking.WithMonthAdjustments(workforceCompose.NewTimeTrackingTestRows(f.workforce).Adjustments),
 		timetracking.WithMonthSnapshots(timetracking.MonthSnapshotCapability(f.workforce)),
 	)
-	closeSvc := timetracking.NewStaffMonthCloseService(timetracking.MonthSnapshotCapability(f.workforce), monthSvc, api.MonthCloseStaff(f.repos.Staff), settings, nil)
+	closeSvc := timetracking.NewStaffMonthCloseService(timetracking.MonthSnapshotCapability(f.workforce), monthSvc, owners.MonthCloseStaff(f.repos.Staff), settings, nil, timetracking.WithMonthCloseUnitOfWork(testpkg.
+		RunInTenantTransaction,
+	),
+	)
 	svc := f.newOverviewService(settings)
 
 	closeResult, err := closeSvc.CloseMonth(f.ctx, staffID, closedMonth.Year(), int(closedMonth.Month()), "Abschluss")
@@ -196,7 +200,7 @@ func TestMonthExportRows_ClosedMonthCarriesFrozenValue(t *testing.T) {
 	// Retroactive session — the live number moves, the frozen one must not.
 	f.addSession(t, staffID, closedMonth, 4*time.Hour)
 
-	rows, err := svc.GetMonthExportRows(f.ctx, closedMonth.Year(), int(closedMonth.Month()))
+	rows, err := testpkg.TenantQuery2(t, f.ctx, testpkg.SetupTestDB(t), svc.GetMonthExportRows, closedMonth.Year(), int(closedMonth.Month()))
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	row := rows[0]
@@ -220,7 +224,7 @@ func TestMonthExportRows_YearSpansMonths(t *testing.T) {
 
 	f := newOverviewFixture(t, 2)
 
-	rows, err := f.svc.GetMonthExportRows(f.ctx, f.today.Year(), 0)
+	rows, err := testpkg.TenantQuery2(t, f.ctx, f.db, f.svc.GetMonthExportRows, f.today.Year(), 0)
 	require.NoError(t, err)
 	require.Len(t, rows, 2*int(f.today.Month()))
 	// Rows are grouped per staff member, months ascending.
@@ -254,7 +258,7 @@ func TestStaffTimeExport_CSVAndAudit(t *testing.T) {
 	f.cleanupAccessLogs(t)
 	exportSvc := f.newExportService()
 
-	file, err := exportSvc.Export(f.ctx, timetracking.TimeExportRequest{
+	file, err := testpkg.TenantQuery3(t, f.ctx, testpkg.SetupTestDB(t), exportSvc.Export, timetracking.TimeExportRequest{
 		Year:  f.today.Year(),
 		Month: int(f.today.Month()),
 	}, actorID, "admin")
@@ -292,8 +296,8 @@ func TestStaffTimeExport_NoFileWithoutAudit(t *testing.T) {
 	f := newOverviewFixture(t, 1)
 	actorID := f.newActorAccount(t)
 	exportSvc := timetracking.NewStaffTimeExportService(
-		f.svc, f.newWorkSessionService(), api.TimeExportStaff(f.repos.Staff), failingAccessLogRepo{}, nil, nil,
-		api.RenderTimeTrackingWorkbook,
+		f.svc, f.newWorkSessionService(), owners.TimeExportStaff(f.repos.Staff), failingAccessLogRepo{}, nil, nil,
+		owners.RenderTimeTrackingWorkbook,
 	)
 
 	file, err := exportSvc.Export(f.ctx, timetracking.TimeExportRequest{
@@ -314,11 +318,11 @@ func TestStaffTimeExport_DayRowsMatchSingleExport(t *testing.T) {
 	f.cleanupAccessLogs(t)
 	sessionSvc := f.newWorkSessionService()
 	exportSvc := timetracking.NewStaffTimeExportService(
-		f.svc, sessionSvc, api.TimeExportStaff(f.repos.Staff), api.NewTimeTrackingDataAccessAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).DataAccessLog), nil, nil,
-		api.RenderTimeTrackingWorkbook,
+		f.svc, sessionSvc, owners.TimeExportStaff(f.repos.Staff), owners.NewTimeTrackingDataAccessAudit(owners.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).DataAccessLog), nil, nil,
+		owners.RenderTimeTrackingWorkbook,
 	)
 
-	file, err := exportSvc.Export(f.ctx, timetracking.TimeExportRequest{
+	file, err := testpkg.TenantQuery3(t, f.ctx, testpkg.SetupTestDB(t), exportSvc.Export, timetracking.TimeExportRequest{
 		Year:        f.today.Year(),
 		Month:       int(f.today.Month()),
 		Granularity: timetracking.ExportGranularityDay,

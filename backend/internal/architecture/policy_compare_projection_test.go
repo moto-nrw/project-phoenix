@@ -25,11 +25,11 @@ func TestCandidateProjectionRequiresNewPackage(t *testing.T) {
 	}
 	created := map[string]struct{}{"example.test/project/projection": {}}
 
-	if err := comparePolicyStrictness(base, candidate, map[string]struct{}{}, map[string]struct{}{}, created, map[string]struct{}{}, map[string]struct{}{}); err != nil {
+	if err := comparePolicyStrictness(base, candidate, map[string]struct{}{}, map[string]struct{}{}, created, map[string]struct{}{}, map[string]struct{}{}, nil); err != nil {
 		t.Fatalf("candidate projection was rejected: %v", err)
 	}
 
-	err := comparePolicyStrictness(base, candidate, map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{})
+	err := comparePolicyStrictness(base, candidate, map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{}, nil)
 	if err == nil || !strings.Contains(err.Error(), "owner view with kind projection was added") || !strings.Contains(err.Error(), "new tenant-safe read projection grant") {
 		t.Fatalf("existing package bypassed the projection guard: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestStudentProjectionReplacementRejectsOtherChanges(t *testing.T) {
 			candidate.PolicyEpoch++
 			replaceStudentProjection(candidate, 0)
 			tc.change(base, candidate)
-			err := comparePolicyStrictness(base, candidate, nil, nil, nil, nil, nil)
+			err := comparePolicyStrictness(base, candidate, nil, nil, nil, nil, nil, nil)
 			if err == nil || !strings.Contains(err.Error(), "new tenant-safe read projection grant") {
 				t.Fatalf("unapproved grant change passed projection guard: %v", err)
 			}
@@ -104,15 +104,15 @@ func TestStudentProjectionReplacementLifecycle(t *testing.T) {
 	for i := range candidate.ReadProjections {
 		replaceStudentProjection(candidate, i)
 	}
-	if err := comparePolicyStrictness(base, candidate, nil, nil, nil, nil, nil); err != nil {
+	if err := comparePolicyStrictness(base, candidate, nil, nil, nil, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := comparePolicyStrictness(candidate, candidate, nil, nil, nil, nil, nil); err != nil {
+	if err := comparePolicyStrictness(candidate, candidate, nil, nil, nil, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	replay := studentProjectionPolicy(t)
 	replay.PolicyEpoch = candidate.PolicyEpoch + 1
-	if err := comparePolicyStrictness(candidate, replay, nil, nil, nil, nil, nil); err == nil {
+	if err := comparePolicyStrictness(candidate, replay, nil, nil, nil, nil, nil, nil); err == nil {
 		t.Fatal("restoring compatibility grants after cutover was accepted")
 	}
 	// #3427 may remove the third projection before this cutover.
@@ -120,7 +120,7 @@ func TestStudentProjectionReplacementLifecycle(t *testing.T) {
 	base.ReadProjections = base.ReadProjections[:2]
 	candidate.Packages = candidate.Packages[:2]
 	candidate.ReadProjections = candidate.ReadProjections[:2]
-	if err := comparePolicyStrictness(base, candidate, nil, nil, nil, nil, nil); err != nil {
+	if err := comparePolicyStrictness(base, candidate, nil, nil, nil, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -179,7 +179,7 @@ func TestStudentProjectionReplacement(t *testing.T) {
 			candidate := studentProjectionPolicy(t)
 			candidate.PolicyEpoch++
 			replaceStudentProjection(candidate, index)
-			if err := comparePolicyStrictness(base, candidate, nil, nil, nil, nil, nil); err != nil {
+			if err := comparePolicyStrictness(base, candidate, nil, nil, nil, nil, nil, nil); err != nil {
 				t.Fatalf("reviewed student projection replacement rejected: %v", err)
 			}
 		})

@@ -230,6 +230,14 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 	if err := s.guardDeclarationDelete(ctx, a); err != nil {
 		return err
 	}
+	return s.deleteLocked(ctx, a)
+}
+
+// deleteLocked removes an announcement the caller loaded under its row lock,
+// with everything that points at it only weakly. Both the manual delete and
+// the nightly retention go this way.
+func (s *service) deleteLocked(ctx context.Context, a *ParentAnnouncement) error {
+	id := a.ID
 	// Cancel any not-yet-sent e-mails and reminder pushes before removing the
 	// announcement: their outbox rows reference it only by related_entity_id
 	// (no FK), so a delete would otherwise leave pending notifications for an

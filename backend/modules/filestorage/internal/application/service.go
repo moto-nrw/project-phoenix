@@ -356,3 +356,9 @@ func (s *Service) openObject(ctx context.Context, k kind, tenantID int64, docume
 	}
 	return object, nil
 }
+
+// runRead scopes a read-only application operation, without extending its unit
+// into upload object I/O or the separately durable cleanup-intent transitions.
+func (s *Service) runRead(ctx context.Context, operation string, fn func(context.Context, *op) error) error {
+	return s.run(operation, func(o *op) error { return s.write(ctx, o, fn) })
+}

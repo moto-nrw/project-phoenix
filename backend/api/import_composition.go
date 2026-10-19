@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -92,9 +93,9 @@ func newStaffImport(
 ) importModels.RowImporter[importModels.StaffImportRow] {
 	return dataImportRetained.NewImportService(dataImportRetained.NewStaffImportConfig(
 		importPorts.StaffImportDeps{
-			Authorization:       dataImportCompose.NewAuthorization(),
+			Authorization:       NewImportAuthorization(),
 			Transactions:        runtime.Transactions,
-			Invitations:         dataImportCompose.NewStaffInviter(invitations),
+			Invitations:         NewStaffInviter(invitations),
 			FindInvitedPeople:   identity.FindInvitedPersonIDs,
 			FindSchoolAccount:   NewImportSchoolAccountLookup(identity),
 			Roles:               identity,
@@ -146,9 +147,9 @@ func newOpeningBalanceImport(
 // newServeImports builds the import services the server root mounts over
 // the owners it composed (#2708, #4013).
 func newServeImports(
-	audit AuditOwner, identity *identityaccess.Module, groups schoolstructure.GroupListing, rooms facilities.Query,
-	persons peopledirectory.Capability, carePlan careplan.Capability, presence PresenceOwner, organizations organizationtenancy.Capability,
-	membership schoolmembership.Capability, workTime workforceModule.Capability, workforce WorkforcePlanning,
+	audit owners.AuditOwner, identity *identityaccess.Module, groups schoolstructure.GroupListing, rooms facilities.Query,
+	persons peopledirectory.Capability, carePlan careplan.Capability, presence owners.PresenceOwner, organizations organizationtenancy.Capability,
+	membership schoolmembership.Capability, workTime workforceModule.Capability, workforce owners.WorkforcePlanning,
 ) imports {
 	runtime := newImportRuntime(audit.Command, observeDataImport)
 	return imports{

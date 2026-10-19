@@ -7,31 +7,32 @@ import (
 	"slices"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // editDraft collects the persisted request that reopens the public form.
 type editDraft struct {
-	req           *enrollmentModels.Request
+	req           *Request
 	children      []*RequestChild
 	childIDs      []int64
-	guardians     []*enrollment.RequestGuardian
-	school        *enrollment.School
-	links         []*enrollment.RequestChildOfferingRecord
-	phase         *enrollment.Phase
-	schema        *enrollment.FormSchema
-	openOfferings []*enrollmentModels.CareOffering
-	legalTexts    enrollment.LegalTexts
+	guardians     []*enrollmentNative.RequestGuardian
+	school        *enrollmentNative.School
+	links         []*enrollmentNative.RequestChildOfferingRecord
+	phase         *enrollmentNative.Phase
+	schema        *enrollmentNative.FormSchema
+	openOfferings []*offeringContract.CareOfferingRecord
+	legalTexts    enrollmentNative.LegalTexts
 	editMode      string
-	capabilities  enrollment.FormCapabilities
+	capabilities  enrollmentNative.FormCapabilities
 	gradeLevelMax int
 }
 
 // EditDraft loads the persisted request that reopens the public form. It is
 // token-gated like the status page and enforces the edit window up front, so
 // a locked request never leaks a stale editable draft.
-func (s *Intake) EditDraft(ctx context.Context, token string) (*enrollment.EditDraft, error) {
+func (s *Intake) EditDraft(ctx context.Context, token string) (*enrollmentNative.EditDraft, error) {
 	draft, err := s.editDraft(ctx, token)
 	if err != nil {
 		return nil, publicError(err)
@@ -116,7 +117,7 @@ func (s *Intake) loadDraftForm(ctx context.Context, draft *editDraft) error {
 // accept.
 func (s *Intake) loadDraftPhase(ctx context.Context, draft *editDraft) error {
 	draft.editMode = editModeForChildren(draft.children)
-	if draft.editMode == enrollment.EditModeDirectEdit {
+	if draft.editMode == enrollmentNative.EditModeDirectEdit {
 		if err := s.ensureRequestEditable(ctx, draft.req, draft.children); err != nil {
 			return err
 		}
@@ -127,13 +128,13 @@ func (s *Intake) loadDraftPhase(ctx context.Context, draft *editDraft) error {
 	if err != nil {
 		return err
 	}
-	if draft.editMode == enrollment.EditModeChangeRequest && !phase.EnrollmentWindowOpen(time.Now()) {
-		return enrollment.ErrEnrollmentWindowClosed
+	if draft.editMode == enrollmentNative.EditModeChangeRequest && !phase.EnrollmentWindowOpen(time.Now()) {
+		return enrollmentNative.ErrEnrollmentWindowClosed
 	}
 	draft.phase = phase
 	// After a dated change the unscoped read returns every interval, so the
 	// parent would find the superseded and the current booking both ticked.
-	if draft.links, err = enrollment.OfferingSelectionRecordsForChildrenAt(ctx, s.deps.Children, draft.childIDs, s.currentOfferingSelectionDate(phase)); err != nil {
+	if draft.links, err = enrollmentNative.OfferingSelectionRecordsForChildrenAt(ctx, s.deps.Children, draft.childIDs, s.currentOfferingSelectionDate(phase)); err != nil {
 		return fmt.Errorf("edit draft: list child offerings: %w", err)
 	}
 	// The edit paths re-run the eligibility gates for an enforced draft, so
@@ -147,7 +148,7 @@ func (s *Intake) loadDraftPhase(ctx context.Context, draft *editDraft) error {
 	return nil
 }
 
-func (s *Intake) schemaForEditableRequest(ctx context.Context, req *enrollmentModels.Request) (*enrollment.FormSchema, error) {
+func (s *Intake) schemaForEditableRequest(ctx context.Context, req *Request) (*enrollmentNative.FormSchema, error) {
 	if req != nil && req.SchemaID != nil {
 		return s.intakeSchema(ctx, *req.SchemaID)
 	}
@@ -158,7 +159,7 @@ func (s *Intake) schemaForEditableRequest(ctx context.Context, req *enrollmentMo
 // booked offering that was deactivated since; a direct edit cannot reopen on
 // a booking the form no longer offers.
 func (s *Intake) loadDraftOfferings(ctx context.Context, draft *editDraft) error {
-	draft.openOfferings = []*enrollmentModels.CareOffering{}
+	draft.openOfferings = []*offeringContract.CareOfferingRecord{}
 	if !draft.capabilities.CareOfferingsEnabled {
 		return nil
 	}
@@ -173,8 +174,8 @@ func (s *Intake) loadDraftOfferings(ctx context.Context, draft *editDraft) error
 		if _, ok := openByID[link.CareOfferingID]; ok {
 			continue
 		}
-		if draft.editMode != enrollment.EditModeChangeRequest {
-			return enrollment.ErrEditNotAllowed
+		if draft.editMode != enrollmentNative.EditModeChangeRequest {
+			return enrollmentNative.ErrEditNotAllowed
 		}
 		missing[link.CareOfferingID] = struct{}{}
 	}
@@ -193,12 +194,12 @@ func (s *Intake) loadDraftOfferings(ctx context.Context, draft *editDraft) error
 		delete(missing, offering.ID)
 	}
 	if len(missing) > 0 {
-		return enrollment.ErrEditNotAllowed
+		return enrollmentNative.ErrEditNotAllowed
 	}
 	return nil
 }
 
-func (d *editDraft) public() (*enrollment.EditDraft, error) {
+func (d *editDraft) public() (*enrollmentNative.EditDraft, error) {
 	request, err := requestInput(d.req)
 	if err != nil {
 		return nil, err
@@ -207,11 +208,11 @@ func (d *editDraft) public() (*enrollment.EditDraft, error) {
 	if err != nil {
 		return nil, err
 	}
-	linksByChild := make(map[int64][]*enrollment.RequestChildOfferingRecord, len(d.children))
+	linksByChild := make(map[int64][]*enrollmentNative.RequestChildOfferingRecord, len(d.children))
 	for _, link := range d.links {
 		linksByChild[link.RequestChildID] = append(linksByChild[link.RequestChildID], link)
 	}
-	return &enrollment.EditDraft{
+	return &enrollmentNative.EditDraft{
 		Request: request, Children: children, Guardians: d.guardians, OfferingsByChild: linksByChild,
 		Phase: d.phase, School: d.school, Schema: d.schema, OpenOfferings: publicCareOfferings(d.openOfferings),
 		LegalTexts: d.legalTexts, EditMode: d.editMode,

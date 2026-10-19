@@ -91,7 +91,7 @@ func TestParseClientIP_ReturnsNilOnEmptyRequest(t *testing.T) {
 func parseClientIPThroughXFFMiddleware(req *http.Request) net.IP {
 	var ip net.IP
 	router := chi.NewRouter()
-	router.Use(chimiddleware.ClientIPFromXFF())
+	router.Use(chimiddleware.ClientIPFromXFFTrustedProxies(1))
 	router.Get("/mfa", func(w http.ResponseWriter, r *http.Request) {
 		ip = parseClientIP(r)
 		w.WriteHeader(http.StatusNoContent)

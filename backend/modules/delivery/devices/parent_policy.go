@@ -3,8 +3,8 @@ package devices
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/locales"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/application/emailbranding"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/application/locales"
 )
 
 // ParentDeliveryPolicy exposes the canonical language, branding and notification

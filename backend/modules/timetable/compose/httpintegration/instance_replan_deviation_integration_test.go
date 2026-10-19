@@ -14,8 +14,9 @@ import (
 	"testing"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -30,7 +31,7 @@ import (
 func applyDeviation(t *testing.T, s *scenarioSetup, instanceID, absentStaffID, subStaffID int64) {
 	t.Helper()
 	_, err := s.db.NewUpdate().
-		Model((*scheduleModels.InstanceStaff)(nil)).
+		Model((*fixtures.InstanceStaff)(nil)).
 		ModelTableExpr(`schedule.instance_staff AS "instance_staff"`).
 		Set("is_absent = ?", true).
 		Where(`"instance_staff".instance_id = ?`, instanceID).
@@ -39,7 +40,11 @@ func applyDeviation(t *testing.T, s *scenarioSetup, instanceID, absentStaffID, s
 		Exec(s.ctx)
 	require.NoError(t, err)
 
-	sub := &scheduleModels.InstanceStaff{InstanceID: instanceID, StaffID: subStaffID, IsSubstitute: true}
+	sub := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.InstanceID = instanceID
+		fixtureRow.StaffID = subStaffID
+		fixtureRow.IsSubstitute = true
+	})
 	sub.SetTenantID(s.tenantID)
 	_, err = s.db.NewInsert().Model(sub).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 	require.NoError(t, err)
@@ -70,7 +75,7 @@ func TestInstance_ReplanWeek_DropsOrphanedSubstituteWhenAbsentStaffRemoved(t *te
 	t.Parallel()
 
 	date := calendar.NewDate(2026, time.April, 20) // Mon
-	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
+	s := makeScenario(t, activityContract.WeekdayMonday, date)
 	defer s.runCleanup(t)
 
 	subStaffID := seedDeviatedOccurrence(t, s, date)
@@ -106,7 +111,7 @@ func TestInstance_ReplanWeek_ReapplySubstituteWhenAbsenceRestored(t *testing.T) 
 	t.Parallel()
 
 	date := calendar.NewDate(2026, time.April, 20) // Mon
-	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
+	s := makeScenario(t, activityContract.WeekdayMonday, date)
 	defer s.runCleanup(t)
 
 	subStaffID := seedDeviatedOccurrence(t, s, date)
@@ -143,14 +148,14 @@ func TestInstance_ReplanWeek_CapsRecreatedSubstitutesToSurvivingAbsences(t *test
 	t.Parallel()
 
 	date := calendar.NewDate(2026, time.April, 20) // Mon
-	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
+	s := makeScenario(t, activityContract.WeekdayMonday, date)
 	defer s.runCleanup(t)
 
 	// Second planned supervisor B so the occurrence has TWO absent-able positions.
 	staffB := testpkg.CreateTestStaffForTenant(t, s.db, s.tenantID, "Second", fmt.Sprintf("Planned-%d", time.Now().UnixNano()))
-	supB := &activitiesModels.SupervisorPlanned{StaffID: staffB.ID, GroupID: s.template.ID, ValidFrom: activitiesModels.Date(date.AddDays(-30))}
+	supB := &activityContract.SupervisorPlanned{StaffID: staffB.ID, GroupID: s.template.ID, ValidFrom: activityContract.Date(date.AddDays(-30))}
 	supB.SetTenantID(s.tenantID)
-	_, err := s.db.NewInsert().Model(supB).ModelTableExpr(`activities.supervisors`).Exec(s.ctx)
+	_, err := s.db.NewInsert().Model(activitySupervisorPlannedFixture(supB)).ModelTableExpr(`activities.supervisors`).Exec(s.ctx)
 	require.NoError(t, err)
 
 	subX := testpkg.CreateTestStaffForTenant(t, s.db, s.tenantID, "SubX", fmt.Sprintf("X-%d", time.Now().UnixNano()))
@@ -170,7 +175,7 @@ func TestInstance_ReplanWeek_CapsRecreatedSubstitutesToSurvivingAbsences(t *test
 	applyDeviation(t, s, instanceID, staffB.ID, subY.ID)
 
 	// Remove ONLY staff B from the template; A's position stays.
-	_, err = s.db.NewDelete().Model((*activitiesModels.SupervisorPlanned)(nil)).
+	_, err = s.db.NewDelete().Model(activitySupervisorPlannedFixture((*activityContract.SupervisorPlanned)(nil))).
 		ModelTableExpr(`activities.supervisors`).
 		Where("id = ?", supB.ID).Where("tenant_id = ?", s.tenantID).Exec(s.ctx)
 	require.NoError(t, err)
@@ -208,23 +213,28 @@ func TestInstance_ReplanWeek_DoesNotMoveDeletedSlotDeviationToSurvivor(t *testin
 	t.Parallel()
 
 	date := calendar.NewDate(2026, time.April, 20) // Mon
-	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
+	s := makeScenario(t, activityContract.WeekdayMonday, date)
 	defer s.runCleanup(t)
 
 	// Second slot on the SAME weekday at a different clock time (10:00 vs the
 	// scenario's 08:00), so the two occurrences disambiguate by start_time.
 	tf2Start := time.Date(2000, 1, 1, 10, 0, 0, 0, time.Local)
 	tf2End := time.Date(2000, 1, 1, 11, 0, 0, 0, time.Local)
-	tf2 := &scheduleModels.Timeframe{StartTime: tf2Start, EndTime: &tf2End, IsActive: true, Description: fmt.Sprintf("Slot2-%d", time.Now().UnixNano())}
+	tf2 := fixtures.NewTimeframe(func(fixtureRow *fixtures.Timeframe) {
+		fixtureRow.StartTime = tf2Start
+		fixtureRow.EndTime = &tf2End
+		fixtureRow.IsActive = true
+		fixtureRow.Description = fmt.Sprintf("Slot2-%d", time.Now().UnixNano())
+	})
 	tf2.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(tf2).ModelTableExpr(`schedule.timeframes`).Exec(s.ctx)
 	require.NoError(t, err)
 	s.extraCleanups = append(s.extraCleanups, func() {
 	})
 
-	sched2 := &activitiesModels.Schedule{Weekday: activitiesModels.WeekdayMonday, TimeframeID: &tf2.ID, ActivityGroupID: s.template.ID, WeekPattern: 0}
+	sched2 := &activityContract.Schedule{Weekday: activityContract.WeekdayMonday, TimeframeID: &tf2.ID, ActivityGroupID: s.template.ID, WeekPattern: 0}
 	sched2.SetTenantID(s.tenantID)
-	_, err = s.db.NewInsert().Model(sched2).ModelTableExpr(`activities.schedules`).Exec(s.ctx)
+	_, err = s.db.NewInsert().Model(activityScheduleFixture(sched2)).ModelTableExpr(`activities.schedules`).Exec(s.ctx)
 	require.NoError(t, err)
 
 	// Materialize both slots.
@@ -252,7 +262,7 @@ func TestInstance_ReplanWeek_DoesNotMoveDeletedSlotDeviationToSurvivor(t *testin
 	applyDeviation(t, s, slot2.ID, s.staffID, subStaff.ID)
 
 	// Delete slot2's schedule so re-plan regenerates ONLY slot1.
-	_, err = s.db.NewDelete().Model((*activitiesModels.Schedule)(nil)).
+	_, err = s.db.NewDelete().Model(activityScheduleFixture((*activityContract.Schedule)(nil))).
 		ModelTableExpr(`activities.schedules`).
 		Where("id = ?", sched2.ID).Where("tenant_id = ?", s.tenantID).Exec(s.ctx)
 	require.NoError(t, err)
@@ -288,13 +298,13 @@ func TestInstance_ReplanWeek_PreservesRequiredStaffPin(t *testing.T) {
 	t.Parallel()
 
 	date := calendar.NewDate(2026, time.April, 20) // Mon
-	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
+	s := makeScenario(t, activityContract.WeekdayMonday, date)
 	defer s.runCleanup(t)
 
 	// Give the template its own override so the copy-vs-inherit distinction
 	// is actually observable on the materialized row.
 	_, err := s.db.NewUpdate().
-		Model((*activitiesModels.Group)(nil)).
+		Model(activityGroupFixture((*activityContract.Group)(nil))).
 		ModelTableExpr(`activities.groups AS "group"`).
 		Set("required_staff = ?", 3).
 		Where(`"group".id = ?`, s.template.ID).
@@ -312,7 +322,7 @@ func TestInstance_ReplanWeek_PreservesRequiredStaffPin(t *testing.T) {
 	// Pin this single occurrence to 5 — the persisted state of a
 	// "Nur diesen Termin" edit of Benötigtes Personal.
 	_, err = s.db.NewUpdate().
-		Model((*scheduleModels.ActivityInstance)(nil)).
+		Model((*fixtures.ActivityInstance)(nil)).
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Set("required_staff = ?", 5).
 		Where(`"activity_instance".id = ?`, instances[0].ID).
@@ -332,7 +342,7 @@ func TestInstance_ReplanWeek_PreservesRequiredStaffPin(t *testing.T) {
 	// A second re-plan after clearing the pin must leave the row NULL again —
 	// nothing stale in the snapshot path re-pins it.
 	_, err = s.db.NewUpdate().
-		Model((*scheduleModels.ActivityInstance)(nil)).
+		Model((*fixtures.ActivityInstance)(nil)).
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Set("required_staff = NULL").
 		Where(`"activity_instance".id = ?`, regen[0].ID).

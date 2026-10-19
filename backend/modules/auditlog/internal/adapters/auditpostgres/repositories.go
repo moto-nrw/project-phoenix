@@ -87,7 +87,7 @@ func NewRepositories(reads, appends Runtime) *Repositories {
 }
 
 // NewAmbientRuntime resolves the Audit handoff the caller put on the context:
-// its transaction when there is one, the root database otherwise. Command
+// its transaction, failing closed outside a unit of work. Command
 // roots and test graphs read through it.
 func NewAmbientRuntime(db *bun.DB) Runtime {
 	if db == nil {
@@ -105,6 +105,6 @@ func NewAmbientRuntime(db *bun.DB) Runtime {
 				}
 			}
 		}
-		return db, tenantID
+		return nil, tenantID
 	}
 }

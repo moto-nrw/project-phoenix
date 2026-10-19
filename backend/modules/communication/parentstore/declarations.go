@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentaudience"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
+	parentaudience "github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/contract"
 )
 
 // Erklärungen (#3430): the declaration half of the announcement repository.

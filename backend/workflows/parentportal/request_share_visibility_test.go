@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -22,8 +23,8 @@ func TestRequestShareVisibilityRequiresTheLedgerAndTheFamilyProtection(t *testin
 
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	shares := api.BindParentRequestShareRecords(repos.ParentRequestShare)
-	protection := api.BindParentFamilyProtectionReads(repos.FamilyProtection)
+	shares := owners.BindParentRequestShareRecords(repos.ParentRequestShare)
+	protection := owners.BindParentFamilyProtectionReads(repos.FamilyProtection)
 	const message = "parent: request share visibility needs the sharing ledger and the family protection"
 
 	_, err := parentportalcompose.NewRequestShareVisibility(nil, protection)
@@ -45,13 +46,13 @@ func TestRequestShareVisibilityAnswersLikeThePortal(t *testing.T) {
 	recipient := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), author.TenantID)
 
-	shares := api.BindParentRequestShareRecords(repos.ParentRequestShare)
-	protection := api.BindParentFamilyProtectionReads(repos.FamilyProtection)
+	shares := owners.BindParentRequestShareRecords(repos.ParentRequestShare)
+	protection := owners.BindParentFamilyProtectionReads(repos.FamilyProtection)
 	portal := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges: api.ParentGuardianChanges(), DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy: api.NewParentGuardianPolicy(), Fingerprints: api.SecurityFingerprints{},
-		Declarations: api.ParentDeclarationPolicy(), Locales: api.ParentPortalLocales(),
-		Runtime: api.ParentPortalRuntime{}, CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		GuardianChanges: owners.ParentGuardianChanges(), DeparturePolicy: owners.ParentDeparturePolicy(),
+		GuardianPolicy: owners.NewParentGuardianPolicy(), Fingerprints: owners.SecurityFingerprints{},
+		Declarations: owners.ParentDeclarationPolicy(), Locales: owners.ParentPortalLocales(),
+		Runtime: owners.ParentPortalRuntime{}, CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 		FamilyProtectionEvents: protection, ParentRequestShares: shares, Logger: slog.Default(),
 	})
 	visibility, err := parentportalcompose.NewRequestShareVisibility(shares, protection)
@@ -65,7 +66,7 @@ func TestRequestShareVisibilityAnswersLikeThePortal(t *testing.T) {
 	}
 	request.TenantID = author.TenantID
 	require.NoError(t, api.CreateParentDataRequestFixture(reposCare.CarePlan(), ctx, request))
-	require.NoError(t, repos.ParentRequestShare.AppendParentRequestShare(ctx, &peopledirectory.ParentRequestShareRecord{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.ParentRequestShare.AppendParentRequestShare, &peopledirectory.ParentRequestShareRecord{
 		TenantID:  author.TenantID,
 		StudentID: author.StudentID, RequestType: parentService.RequestShareMasterData, RequestID: request.ID,
 		AuthorAccountID: author.AccountID, RecipientAccountIDs: []int64{recipient.AccountID},
@@ -73,9 +74,9 @@ func TestRequestShareVisibilityAnswersLikeThePortal(t *testing.T) {
 
 	answers := func() []int64 {
 		t.Helper()
-		want, err := portal.SharedRecipientAccountIDs(ctx, author.StudentID, parentService.RequestShareMasterData, request.ID)
+		want, err := testpkg.TenantQuery3(t, ctx, db, portal.SharedRecipientAccountIDs, author.StudentID, parentService.RequestShareMasterData, request.ID)
 		require.NoError(t, err)
-		got, err := visibility.SharedRecipientAccountIDs(ctx, author.StudentID, parentService.RequestShareMasterData, request.ID)
+		got, err := testpkg.TenantQuery3(t, ctx, db, visibility.SharedRecipientAccountIDs, author.StudentID, parentService.RequestShareMasterData, request.ID)
 		require.NoError(t, err)
 		assert.Equal(t, want, got)
 		return got
@@ -86,13 +87,13 @@ func TestRequestShareVisibilityAnswersLikeThePortal(t *testing.T) {
 		StudentID: author.StudentID, Enabled: true, Reason: "Schutzfall", ActorAccountID: author.AccountID,
 	}
 	protectionOn.TenantID = author.TenantID
-	require.NoError(t, repos.CreateFamilyProtectionFixture(ctx, protectionOn))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.CreateFamilyProtectionFixture, protectionOn))
 	assert.Empty(t, answers())
 
 	protectionOff := &peopledirectory.FamilyProtectionFixture{
 		StudentID: author.StudentID, Enabled: false, Reason: "Schutz aufgehoben", ActorAccountID: author.AccountID,
 	}
 	protectionOff.TenantID = author.TenantID
-	require.NoError(t, repos.CreateFamilyProtectionFixture(ctx, protectionOff))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.CreateFamilyProtectionFixture, protectionOff))
 	assert.Empty(t, answers(), "disabling protection must not revive an old share")
 }

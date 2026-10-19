@@ -7,7 +7,7 @@ import (
 )
 
 func (s *Service) ListRoomOccupancy(ctx context.Context, ids []int64) (result []ports.RoomOccupancy, err error) {
-	err = s.run("list_room_occupancy", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "list_room_occupancy", func(ctx context.Context) (ports.Stats, error) {
 		var stats ports.Stats
 		result, stats, err = s.store.ListRoomOccupancy(ctx, ids)
 		return stats, err

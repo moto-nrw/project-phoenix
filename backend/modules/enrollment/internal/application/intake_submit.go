@@ -7,16 +7,17 @@ import (
 	"strings"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // Submit stores a submission: in one transaction the request, its children,
 // co-guardians, offering choices and bookings and the confirmation mails.
 // Either everything lands or nothing does. The phase carries the window, the
 // form schema and the overflow mode.
-func (s *Intake) Submit(ctx context.Context, req enrollment.SubmitRequest) (*enrollment.SubmitResult, error) {
+func (s *Intake) Submit(ctx context.Context, req enrollmentNative.SubmitRequest) (*enrollmentNative.SubmitResult, error) {
 	decoded, err := decodeSubmitRequest(req)
 	if err != nil {
 		return nil, err
@@ -31,16 +32,16 @@ func (s *Intake) Submit(ctx context.Context, req enrollment.SubmitRequest) (*enr
 // submissionPlan is everything a submission resolves before its write
 // transaction.
 type submissionPlan struct {
-	phase            *enrollment.Phase
+	phase            *enrollmentNative.Phase
 	now              time.Time
-	capabilities     enrollment.FormCapabilities
+	capabilities     enrollmentNative.FormCapabilities
 	duplicatePolicy  string
-	dupKeys          []enrollment.DuplicateChildKey
-	openByID         map[int64]*enrollmentModels.CareOffering
+	dupKeys          []enrollmentNative.DuplicateChildKey
+	openByID         map[int64]*offeringContract.CareOfferingRecord
 	selections       [][]selection.Selection
 	capacityChildren []SubmitChild
-	schema           *enrollment.FormSchema
-	legalBlocks      []enrollment.LegalBlock
+	schema           *enrollmentNative.FormSchema
+	legalBlocks      []enrollmentNative.LegalBlock
 	submissionSource string
 	sourceMetadata   map[string]any
 	statusToken      string
@@ -56,10 +57,10 @@ func (s *Intake) submit(ctx context.Context, req SubmitRequest) (*submitOutcome,
 	}
 	if strings.TrimSpace(req.LateInviteToken) != "" {
 		req.AllowClosedPhase = true
-		req.SubmissionSource = enrollmentModels.RequestSourceLateInvite
+		req.SubmissionSource = enrollmentNative.RequestSourceLateInvite
 	}
 	plan := &submissionPlan{
-		submissionSource: enrollment.NormalizedSubmissionSource(req.SubmissionSource),
+		submissionSource: enrollmentNative.NormalizedSubmissionSource(req.SubmissionSource),
 		sourceMetadata:   cloneSourceMetadata(req.SourceMetadata),
 	}
 	if err := s.planSubmissionCatalog(ctx, &req, plan); err != nil {
@@ -96,11 +97,11 @@ func (s *Intake) planSubmissionCatalog(ctx context.Context, req *SubmitRequest, 
 	// transaction, so another school's phase would load cleanly. Refuse it
 	// with the not-found shape before any decision consumes it (#1663).
 	if phase.TenantID != req.TenantID {
-		return fmt.Errorf("%w: phase %d not found", enrollment.ErrInvalidSubmission, req.PhaseID)
+		return fmt.Errorf("%w: phase %d not found", enrollmentNative.ErrInvalidSubmission, req.PhaseID)
 	}
 	plan.phase, plan.now = phase, time.Now()
 	if !req.AllowClosedPhase && !phase.EnrollmentWindowOpen(plan.now) {
-		return enrollment.ErrEnrollmentWindowClosed
+		return enrollmentNative.ErrEnrollmentWindowClosed
 	}
 	if plan.capabilities, err = s.formCapabilities(ctx); err != nil {
 		return fmt.Errorf("submit: resolve form capabilities: %w", err)
@@ -109,7 +110,7 @@ func (s *Intake) planSubmissionCatalog(ctx context.Context, req *SubmitRequest, 
 		return fmt.Errorf("submit: resolve duplicate handling: %w", err)
 	}
 	plan.dupKeys = duplicateChildKeys(req.Children)
-	openOfferings := []*enrollmentModels.CareOffering{}
+	openOfferings := []*offeringContract.CareOfferingRecord{}
 	if plan.capabilities.CareOfferingsEnabled {
 		if openOfferings, err = s.deps.Offerings.ListActiveByPhase(ctx, phase.ID); err != nil {
 			return fmt.Errorf("submit: load phase offerings: %w", err)
@@ -129,17 +130,17 @@ func (s *Intake) planSubmissionCatalog(ctx context.Context, req *SubmitRequest, 
 
 // selectionModeFor is the phase's care-offering selection mode, optional
 // while care offerings are off.
-func selectionModeFor(phase *enrollment.Phase, capabilities enrollment.FormCapabilities) string {
+func selectionModeFor(phase *enrollmentNative.Phase, capabilities enrollmentNative.FormCapabilities) string {
 	if !capabilities.CareOfferingsEnabled {
-		return enrollment.PhaseCareOfferingSelectionOptional
+		return enrollmentNative.PhaseCareOfferingSelectionOptional
 	}
 	return phase.CareOfferingSelectionMode
 }
 
-func duplicateChildKeys(children []SubmitChild) []enrollment.DuplicateChildKey {
-	keys := make([]enrollment.DuplicateChildKey, 0, len(children))
+func duplicateChildKeys(children []SubmitChild) []enrollmentNative.DuplicateChildKey {
+	keys := make([]enrollmentNative.DuplicateChildKey, 0, len(children))
 	for _, c := range children {
-		keys = append(keys, enrollment.DuplicateChildKey{FirstName: c.FirstName, LastName: c.LastName})
+		keys = append(keys, enrollmentNative.DuplicateChildKey{FirstName: c.FirstName, LastName: c.LastName})
 	}
 	return keys
 }
@@ -185,7 +186,7 @@ func (s *Intake) planSubmissionContract(ctx context.Context, req *SubmitRequest,
 
 // validateSubmittedFields runs the required-field, companion-note and
 // schedule checks of the form.
-func validateSubmittedFields(schema *enrollment.FormSchema, req SubmitRequest, openByID map[int64]*enrollmentModels.CareOffering, existingChildren ...[]*RequestChild) error {
+func validateSubmittedFields(schema *enrollmentNative.FormSchema, req SubmitRequest, openByID map[int64]*offeringContract.CareOfferingRecord, existingChildren ...[]*RequestChild) error {
 	if err := validateRequiredCustomFields(schema, req, openByID); err != nil {
 		return err
 	}
@@ -198,7 +199,7 @@ func validateSubmittedFields(schema *enrollment.FormSchema, req SubmitRequest, o
 // sanitizeSubmittedAnswers drops the answers of hidden and undeclared fields
 // and the schedule entries on days the child cannot schedule. Conditions read
 // the raw answers, like the client and the required-field check.
-func sanitizeSubmittedAnswers(schema *enrollment.FormSchema, req *SubmitRequest, openByID map[int64]*enrollmentModels.CareOffering) {
+func sanitizeSubmittedAnswers(schema *enrollmentNative.FormSchema, req *SubmitRequest, openByID map[int64]*offeringContract.CareOfferingRecord) {
 	byKey := buildFieldsByKey(schema)
 	rawGuardian := req.CustomData
 	for i := range req.Children {
@@ -217,7 +218,7 @@ func (s *Intake) planStatusToken(ctx context.Context, plan *submissionPlan) erro
 	}
 	plan.statusToken = token
 	plan.statusExpiresAt = time.Now().Add(s.resolveStatusTokenExpiry(ctx))
-	plan.statusURL = enrollment.StatusURL(s.deps.ParentsURL, token)
+	plan.statusURL = enrollmentNative.StatusURL(s.deps.ParentsURL, token)
 	return nil
 }
 
@@ -226,7 +227,7 @@ func (s *Intake) writeSubmission(ctx context.Context, req *SubmitRequest, plan *
 	// Serialize concurrent submits of one (phase, guardian email), so two
 	// parallel requests cannot both pass the duplicate check.
 	emailLC := lowerTrim(req.GuardianEmail)
-	if err := s.deps.Requests.AcquireSubmissionDedupLock(ctx, plan.phase.ID, enrollment.SubmissionDedupLockKey(emailLC)); err != nil {
+	if err := s.deps.Requests.AcquireSubmissionDedupLock(ctx, plan.phase.ID, enrollmentNative.SubmissionDedupLockKey(emailLC)); err != nil {
 		return fmt.Errorf("submit: acquire dedup lock: %w", err)
 	}
 	lateInvite, err := s.submissionLateInvite(ctx, req, plan)
@@ -266,7 +267,7 @@ func (s *Intake) writeSubmission(ctx context.Context, req *SubmitRequest, plan *
 
 // submissionLateInvite resolves and locks the late invite of a submission
 // and records it in the source metadata.
-func (s *Intake) submissionLateInvite(ctx context.Context, req *SubmitRequest, plan *submissionPlan) (*enrollment.LateInvite, error) {
+func (s *Intake) submissionLateInvite(ctx context.Context, req *SubmitRequest, plan *submissionPlan) (*enrollmentNative.LateInvite, error) {
 	if strings.TrimSpace(req.LateInviteToken) == "" {
 		return nil, nil
 	}
@@ -281,7 +282,7 @@ func (s *Intake) submissionLateInvite(ctx context.Context, req *SubmitRequest, p
 // checkSubmissionDuplicates applies the duplicate policy under the dedup
 // lock. Rejected and withdrawn rows do not count, so a parent can re-apply
 // after a denial.
-func (s *Intake) checkSubmissionDuplicates(ctx context.Context, phaseID int64, guardianEmail string, dupKeys []enrollment.DuplicateChildKey, policy, errPrefix string) ([]enrollment.SubmissionWarning, error) {
+func (s *Intake) checkSubmissionDuplicates(ctx context.Context, phaseID int64, guardianEmail string, dupKeys []enrollmentNative.DuplicateChildKey, policy, errPrefix string) ([]enrollmentNative.SubmissionWarning, error) {
 	dupes, err := s.deps.Requests.ActiveDuplicateChildren(ctx, phaseID, guardianEmail, dupKeys, 0)
 	if err != nil {
 		return nil, fmt.Errorf("%s: duplicate check: %w", errPrefix, err)
@@ -291,9 +292,9 @@ func (s *Intake) checkSubmissionDuplicates(ctx context.Context, phaseID int64, g
 	}
 	switch policy {
 	case duplicateHandlingBlock:
-		return nil, enrollment.ErrDuplicateEnrollment
+		return nil, enrollmentNative.ErrDuplicateEnrollment
 	case duplicateHandlingWarn:
-		return []enrollment.SubmissionWarning{{Code: enrollment.WarningCodeDuplicateEnrollment}}, nil
+		return []enrollmentNative.SubmissionWarning{{Code: enrollmentNative.WarningCodeDuplicateEnrollment}}, nil
 	case duplicateHandlingIgnore:
 		return nil, nil
 	default:
@@ -301,7 +302,7 @@ func (s *Intake) checkSubmissionDuplicates(ctx context.Context, phaseID int64, g
 	}
 }
 
-func (s *Intake) createSubmittedRequest(ctx context.Context, req *SubmitRequest, plan *submissionPlan, lateInvite *enrollment.LateInvite) (*enrollmentModels.Request, error) {
+func (s *Intake) createSubmittedRequest(ctx context.Context, req *SubmitRequest, plan *submissionPlan, lateInvite *enrollmentNative.LateInvite) (*Request, error) {
 	var schemaID *int64
 	if plan.schema != nil {
 		id := plan.schema.ID
@@ -312,14 +313,14 @@ func (s *Intake) createSubmittedRequest(ctx context.Context, req *SubmitRequest,
 		return nil, fmt.Errorf("submit: create request: %w", err)
 	}
 	statusExpiresAt := plan.statusExpiresAt
-	request := &enrollmentModels.Request{
+	request := &Request{
 		SchemaID: schemaID, PhaseID: plan.phase.ID, GuardianAccountID: req.GuardianAccountID,
 		GuardianFirstName: strings.TrimSpace(req.GuardianFirstName), GuardianLastName: strings.TrimSpace(req.GuardianLastName),
 		GuardianEmail: lowerTrim(req.GuardianEmail), GuardianPhone: req.GuardianPhone,
 		ConsentFlags: req.ConsentFlags, CustomData: req.CustomData,
 		SubmissionSource: plan.submissionSource, SourceMetadata: plan.sourceMetadata,
 		StatusToken: plan.statusToken, StatusTokenExpires: &statusExpiresAt, SubmittedAt: time.Now(),
-		LegalBlocksSnapshot: []enrollmentModels.LegalBlocksSnapshotEntry{snapshotEntry},
+		LegalBlocksSnapshot: []LegalBlocksSnapshotEntry{snapshotEntry},
 	}
 	if err := createDecodedRequest(ctx, s.deps.Requests, request); err != nil {
 		return nil, fmt.Errorf("submit: create request: %w", err)
@@ -340,7 +341,7 @@ func createRequestGuardians(ctx context.Context, owner IntakeGuardians, requestI
 		return nil
 	}
 	for i, g := range guardians {
-		row := &enrollment.RequestGuardian{
+		row := &enrollmentNative.RequestGuardian{
 			RequestID: requestID, FirstName: g.FirstName, LastName: g.LastName, Email: g.Email, Phone: g.Phone, SortOrder: i,
 		}
 		if profileIDs != nil {
@@ -353,7 +354,7 @@ func createRequestGuardians(ctx context.Context, owner IntakeGuardians, requestI
 	return nil
 }
 
-func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest, plan *submissionPlan, request *enrollmentModels.Request, overrides map[int]string, submitter reEnrollmentSubmitter) ([]*RequestChild, error) {
+func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest, plan *submissionPlan, request *Request, overrides map[int]string, submitter reEnrollmentSubmitter) ([]*RequestChild, error) {
 	created := make([]*RequestChild, 0, len(req.Children))
 	for i, child := range req.Children {
 		row := newSubmittedChild(request.ID, i, child, overrides)
@@ -387,14 +388,14 @@ func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest
 // newSubmittedChild is the stored row of a submitted child; a capacity
 // override replaces the submitted status.
 func newSubmittedChild(requestID int64, index int, child SubmitChild, overrides map[int]string) *RequestChild {
-	status := enrollmentModels.ChildStatusSubmitted
+	status := enrollmentNative.ChildStatusSubmitted
 	if override, ok := overrides[index]; ok {
 		status = override
 	}
 	return &RequestChild{
 		RequestID: requestID, FirstName: strings.TrimSpace(child.FirstName), LastName: strings.TrimSpace(child.LastName),
 		DateOfBirth: child.DateOfBirth, TargetGradeLevel: child.TargetGradeLevel, TargetSchoolClass: child.TargetSchoolClass,
-		CustomData: child.CustomData, Status: status, ActivationMode: enrollmentModels.ChildActivationScheduled, SortOrder: index,
+		CustomData: child.CustomData, Status: status, ActivationMode: enrollmentNative.ChildActivationScheduled, SortOrder: index,
 	}
 }
 
@@ -407,7 +408,7 @@ func (s *Intake) notifySubmission(ctx context.Context, req *SubmitRequest, plan 
 	if capacityDecided {
 		if err := notifyDecisions(ctx, s.deps.Notifications, decisionGeneration{
 			Request: outcome.Request, Children: outcome.Children, Phase: plan.phase,
-			ImmediateChildIDs: childIDsForStatus(outcome.Children, enrollmentModels.ChildStatusWaitlisted), ParentsURL: s.deps.ParentsURL,
+			ImmediateChildIDs: childIDsForStatus(outcome.Children, enrollmentNative.ChildStatusWaitlisted), ParentsURL: s.deps.ParentsURL,
 		}); err != nil {
 			return fmt.Errorf("submit: notify capacity decisions: %w", err)
 		}

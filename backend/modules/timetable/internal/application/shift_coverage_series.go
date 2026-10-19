@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -24,7 +24,7 @@ func (d *conflictDetection) resolveSeriesEffectiveCoverageDays(
 	coverageDays map[calendar.Date]effectiveShiftCoverageDay,
 ) (map[calendar.Date]effectiveShiftCoverageDay, []int64, error) {
 	activityGroupID := *probe.ReplanActivityGroupID
-	from, to := scheduleModels.Date(dates[0]), scheduleModels.Date(dates[len(dates)-1])
+	from, to := calendar.Date(dates[0]), calendar.Date(dates[len(dates)-1])
 	instances, err := d.deps.Instances.FindByActivityGroupAndDateRange(ctx, activityGroupID, from, to)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load concrete series occurrences: %w", err)

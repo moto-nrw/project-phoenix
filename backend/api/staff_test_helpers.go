@@ -5,6 +5,8 @@ package api
 import (
 	"log/slog"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -39,7 +41,7 @@ func NewStaffTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) 
 	if err != nil {
 		return StaffTestModule{}, WorkforceTestModule{}, err
 	}
-	people, err := NewPeopleDirectory(db)
+	people, err := owners.NewPeopleDirectory(db)
 	if err != nil {
 		return StaffTestModule{}, WorkforceTestModule{}, err
 	}

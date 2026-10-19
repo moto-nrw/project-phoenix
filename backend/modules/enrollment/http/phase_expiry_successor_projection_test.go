@@ -14,8 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/uptrace/bun"
@@ -51,7 +49,7 @@ func TestPhaseExpiryProjection_ListSnapshots_RequiresEffectiveSuccessorBooking(t
 		)
 	}))
 	sourceChild := makeChild(sourceRequest.ID, "Expiry", "Successor")
-	sourceChild.Status = enrollmentModels.ChildStatusApproved
+	sourceChild.Status = capability.ChildStatusApproved
 	sourceChild.CreatedStudentID = &student.ID
 	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, tenantID, func(ctx context.Context, tx bun.Tx) error {
 		return childRepo.InsertChild(ctx, sourceChild)
@@ -76,7 +74,7 @@ func TestPhaseExpiryProjection_ListSnapshots_RequiresEffectiveSuccessorBooking(t
 	successor.ServiceStartDate = capability.Date(calendar.NewDate(2027, 2, 2))
 	successor.ServiceEndDate = capability.Date(calendar.NewDate(2027, 7, 31))
 	successor.RolloverSourcePhaseID = &source.ID
-	rolloverMode := enrollmentModels.PhaseRolloverModeOptIn
+	rolloverMode := capability.PhaseRolloverModeOptIn
 	successor.RolloverMode = &rolloverMode
 	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, tenantID, func(ctx context.Context, tx bun.Tx) error {
 		return phaseRepo.InsertPhase(ctx, successor)
@@ -113,7 +111,7 @@ func TestPhaseExpiryProjection_ListSnapshots_RequiresEffectiveSuccessorBooking(t
 		return requestRepo.InsertRequest(ctx, targetRequest)
 	}))
 	targetChild := makeChild(targetRequest.ID, "Expiry", "Successor")
-	targetChild.Status = enrollmentModels.ChildStatusPendingRenewal
+	targetChild.Status = capability.ChildStatusPendingRenewal
 	targetChild.CreatedStudentID = &student.ID
 	targetChild.RolloverSourceChildID = &sourceChild.ID
 	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, tenantID, func(ctx context.Context, tx bun.Tx) error {
@@ -124,7 +122,7 @@ func TestPhaseExpiryProjection_ListSnapshots_RequiresEffectiveSuccessorBooking(t
 		return requestRepo.InsertRequest(ctx, unrelatedRequest)
 	}))
 	unrelatedRejectedChild := makeChild(unrelatedRequest.ID, "Expiry", "Successor")
-	unrelatedRejectedChild.Status = enrollmentModels.ChildStatusRejected
+	unrelatedRejectedChild.Status = capability.ChildStatusRejected
 	unrelatedRejectedChild.CreatedStudentID = &student.ID
 	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, tenantID, func(ctx context.Context, tx bun.Tx) error {
 		return childRepo.InsertChild(ctx, unrelatedRejectedChild)
@@ -136,21 +134,21 @@ func TestPhaseExpiryProjection_ListSnapshots_RequiresEffectiveSuccessorBooking(t
 		"an unrelated rejection for the same student must not override the open rollover candidate")
 
 	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, tenantID, func(ctx context.Context, tx bun.Tx) error {
-		return api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus(ctx, targetChild.ID, enrollmentModels.ChildStatusRejected, nil, 0)
+		return api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus(ctx, targetChild.ID, capability.ChildStatusRejected, nil, 0)
 	}))
 	rejectedSuccessor := listSnapshots()
 	require.Len(t, rejectedSuccessor, 1)
 	assert.Equal(t, 0, rejectedSuccessor[0].UnresolvedChildren)
 
 	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, tenantID, func(ctx context.Context, tx bun.Tx) error {
-		return api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus(ctx, targetChild.ID, enrollmentModels.ChildStatusWithdrawn, nil, 0)
+		return api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus(ctx, targetChild.ID, capability.ChildStatusWithdrawn, nil, 0)
 	}))
 	withdrawnSuccessor := listSnapshots()
 	require.Len(t, withdrawnSuccessor, 1)
 	assert.Equal(t, 0, withdrawnSuccessor[0].UnresolvedChildren)
 
 	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, tenantID, func(ctx context.Context, tx bun.Tx) error {
-		return api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus(ctx, targetChild.ID, enrollmentModels.ChildStatusApproved, nil, 0)
+		return api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus(ctx, targetChild.ID, capability.ChildStatusApproved, nil, 0)
 	}))
 	approvedWithoutOffering := listSnapshots()
 	require.Len(t, approvedWithoutOffering, 1)
@@ -227,22 +225,10 @@ func TestPhaseExpiryProjection_ListSnapshots_RequiresEffectiveSuccessorBooking(t
 		"an approved rollover child must complete the warning despite a replacement student ID")
 
 	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, tenantID, func(ctx context.Context, tx bun.Tx) error {
-		if updateErr := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus(
-			ctx,
-			targetChild.ID,
-			enrollmentModels.ChildStatusPendingRenewal,
-			nil,
-			0,
-		); updateErr != nil {
+		if updateErr := testpkg.TenantCommand4(t, ctx, db, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus, targetChild.ID, capability.ChildStatusPendingRenewal, nil, 0); updateErr != nil {
 			return updateErr
 		}
-		if updateErr := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus(
-			ctx,
-			unrelatedRejectedChild.ID,
-			enrollmentModels.ChildStatusRejected,
-			nil,
-			0,
-		); updateErr != nil {
+		if updateErr := testpkg.TenantCommand4(t, ctx, db, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus, unrelatedRejectedChild.ID, capability.ChildStatusRejected, nil, 0); updateErr != nil {
 			return updateErr
 		}
 		if _, updateErr := tx.NewUpdate().
@@ -268,7 +254,7 @@ func TestPhaseExpiryProjection_ListSnapshots_RequiresEffectiveSuccessorBooking(t
 		"a pending legacy successor must take precedence over an unrelated rejection")
 
 	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, tenantID, func(ctx context.Context, tx bun.Tx) error {
-		return api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus(ctx, targetChild.ID, enrollmentModels.ChildStatusApproved, nil, 0)
+		return api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus(ctx, targetChild.ID, capability.ChildStatusApproved, nil, 0)
 	}))
 	temporalFallback = listSnapshots()
 	require.Len(t, temporalFallback, 1)

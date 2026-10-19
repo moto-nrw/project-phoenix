@@ -221,18 +221,6 @@ func NewRoomHistorySettings(settings roomHistorySettingsReader, logger *slog.Log
 	}
 }
 
-// StaffSickNoteRetentionSettings resolves the staff sick note retention
-// window of the school in context.
-type StaffSickNoteRetentionSettings struct {
-	Settings interface {
-		ResolveInt(ctx context.Context, key string) (int, error)
-	}
-}
-
-func (s StaffSickNoteRetentionSettings) StaffSickNoteRetentionDays(ctx context.Context) (int, error) {
-	return s.Settings.ResolveInt(ctx, configModels.KeyGDPRStaffSickNoteRetentionDays)
-}
-
 // SchoolSetupSettings resolves the two settings the school setup steps
 // depend on in the request's tenant.
 type SchoolSetupSettings struct {

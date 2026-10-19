@@ -97,17 +97,12 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 	if dependencies.DB == nil || dependencies.Observe == nil || dependencies.StudentDirectory == nil {
 		return nil, errors.New("people directory compose: all dependencies are required")
 	}
-	database := func(ctx context.Context) (bun.IDB, int64, error) {
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return nil, 0, errors.New("people directory postgres: transaction is required")
-		}
-		tx, ok := transaction.(bun.Tx)
-		if !ok {
-			return nil, 0, fmt.Errorf("people directory postgres: unsupported transaction %T", transaction)
-		}
-		return tx, tenant.FromContext(ctx), nil
+	database := func(ctx context.Context) (bun.IDB, postgres.TenantScope, error) {
+		id, scopeErr := tenant.TenantFromContext(ctx)
+		raw, ok := tenant.TransactionFromContext(ctx)
+		return postgres.ResolveDatabase(raw, ok, id.Int64(), scopeErr, tenant.IsAdminTx(ctx))
 	}
+
 	observe := func(observation Observation) {
 		observation.Err = application.MapError(observation.Err)
 		dependencies.Observe(observation)
@@ -152,6 +147,10 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 
 type transaction struct{}
 
+func (transaction) RequireTransaction(ctx context.Context) error {
+	return tenant.RequireTransaction(ctx)
+}
+
 // TenantID is the tenant the caller's request is scoped to.
 func (transaction) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
 
@@ -162,20 +161,11 @@ func (transaction) RegisterAfterCommit(ctx context.Context, callback func()) {
 }
 
 func (transaction) RunWrite(ctx context.Context, callback func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return callback(ctx)
-	}
-	return tenant.WithinCurrentTenant(ctx, callback)
+	return tenant.NewTransactionRunner().RunInTx(ctx, callback)
 }
 
 func (transaction) RunRead(ctx context.Context, callback func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return callback(ctx)
-	}
-	if _, err := tenant.TenantFromContext(ctx); err == nil {
-		return tenant.WithinCurrentTenant(ctx, callback)
-	}
-	return tenant.WithinAdmin(ctx, callback)
+	return tenant.NewTransactionRunner().RunInTx(ctx, callback)
 }
 
 func (transaction) RunSavepoint(ctx context.Context, callback func(context.Context) error) error {

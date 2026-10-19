@@ -2,9 +2,10 @@ package compose
 
 import (
 	"context"
-	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
@@ -21,34 +22,11 @@ type PickupExceptionLister interface {
 // the roster does not list yet), Care Plan names the automatic excusals
 // whose rows an approval may claim again.
 type PartialAbsencePreview struct {
-	reads      PresenceReads
-	enrolled   func(context.Context, int64) (bool, error)
-	exceptions PickupExceptionLister
+	*application.PartialAbsencePreview
 }
 
 // NewPartialAbsencePreview binds the preview: enrolled answers whether the
 // child is still enrolled, exceptions lists the child's pickup exceptions.
 func NewPartialAbsencePreview(reads PresenceReads, enrolled func(context.Context, int64) (bool, error), exceptions PickupExceptionLister) PartialAbsencePreview {
-	return PartialAbsencePreview{reads: reads, enrolled: enrolled, exceptions: exceptions}
-}
-
-// FindPartialAbsenceBlocks lists the blocks of the ISO day that start at or
-// after the clock and that the child is expected in or absent from without
-// a manual or status-day decision.
-func (p PartialAbsencePreview) FindPartialAbsenceBlocks(ctx context.Context, studentID int64, date string, from time.Time) ([]scheduleModels.PartialAbsenceBlock, error) {
-	enrolled, err := p.enrolled(ctx, studentID)
-	if err != nil {
-		return nil, err
-	}
-	exceptions, err := p.exceptions.ListPickupExceptions(ctx, ports.PickupExceptionFilter{StudentIDs: []int64{studentID}, Date: date})
-	if err != nil {
-		return nil, err
-	}
-	autoIDs := make([]int64, 0, len(exceptions))
-	for _, exception := range exceptions {
-		if exception.ExcusedAuto {
-			autoIDs = append(autoIDs, exception.ID)
-		}
-	}
-	return p.reads.ListPartialAbsenceBlocks(ctx, studentID, date, from, enrolled, autoIDs)
+	return PartialAbsencePreview{application.NewPartialAbsencePreview(reads, enrolled, exceptions, tenant.NewTransactionRunner().RunInTx)}
 }

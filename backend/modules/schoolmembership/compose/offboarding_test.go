@@ -185,7 +185,7 @@ func TestOffboardingMembershipRetirementIsTenantScopedAndDetachesPlanning(t *tes
 	retained, err := membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: []int64{staff.ID}, IncludeDeleted: true})
 	require.NoError(t, err)
 	require.Len(t, retained, 1)
-	require.Nil(t, retained[0].WorkTimeModelID)
+	require.Equal(t, &modelID, retained[0].WorkTimeModelID, "the retired membership keeps its template for a Wiederaufnahme (ADR 0021)")
 	groups, err = membership.ListGroupAssignments(ctx, schoolmembership.GroupAssignmentFilter{TeacherIDs: []int64{teacher.ID}})
 	require.NoError(t, err)
 	require.Empty(t, groups)

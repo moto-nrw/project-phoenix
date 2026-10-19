@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	device "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/adapters/deviceauth"
 )
 
 // ContextDevice returns exactly the native principal facts the Root bindings need.

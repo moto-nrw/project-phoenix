@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/auditlog"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
 )
 
 // PeopleDirectory is the People Directory surface the portal writes and reads

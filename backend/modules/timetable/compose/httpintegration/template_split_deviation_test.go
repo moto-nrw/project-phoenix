@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +21,7 @@ func TestTemplateSplit_PreservesDeviationsOnSuccessor(t *testing.T) {
 
 	effective := futureMonday(2)
 	before := effective.AddDays(-7)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, before)
+	s := makeScenario(t, activityContract.WeekdayMonday, before)
 	defer s.runCleanup(t)
 
 	secondStaff := testpkg.CreateTestStaffForTenant(
@@ -29,13 +30,13 @@ func TestTemplateSplit_PreservesDeviationsOnSuccessor(t *testing.T) {
 	substitute := testpkg.CreateTestStaffForTenant(
 		t, s.db, s.tenantID, "Sub", fmt.Sprintf("Stitute-%d", time.Now().UnixNano()),
 	)
-	secondSupervisor := &activitiesModels.SupervisorPlanned{
+	secondSupervisor := &activityContract.SupervisorPlanned{
 		StaffID:   secondStaff.ID,
 		GroupID:   s.template.ID,
-		ValidFrom: activitiesModels.Date(before.AddDays(-30)),
+		ValidFrom: activityContract.Date(before.AddDays(-30)),
 	}
 	secondSupervisor.SetTenantID(s.tenantID)
-	_, err := s.db.NewInsert().Model(secondSupervisor).ModelTableExpr(`activities.supervisors`).Exec(s.ctx)
+	_, err := s.db.NewInsert().Model(activitySupervisorPlannedFixture(secondSupervisor)).ModelTableExpr(`activities.supervisors`).Exec(s.ctx)
 	require.NoError(t, err)
 	s.extraCleanups = append(s.extraCleanups, func() {
 	})
@@ -53,7 +54,7 @@ func TestTemplateSplit_PreservesDeviationsOnSuccessor(t *testing.T) {
 
 	beforeReason := "Fortbildung"
 	_, err = s.db.NewUpdate().
-		Model((*scheduleModels.InstanceStaff)(nil)).
+		Model((*fixtures.InstanceStaff)(nil)).
 		ModelTableExpr(`schedule.instance_staff AS "instance_staff"`).
 		Set("is_absent = ?", true).
 		Set("absence_reason = ?", beforeReason).
@@ -69,7 +70,7 @@ func TestTemplateSplit_PreservesDeviationsOnSuccessor(t *testing.T) {
 	}
 	for staffID, reason := range reasons {
 		_, err = s.db.NewUpdate().
-			Model((*scheduleModels.InstanceStaff)(nil)).
+			Model((*fixtures.InstanceStaff)(nil)).
 			ModelTableExpr(`schedule.instance_staff AS "instance_staff"`).
 			Set("is_absent = ?", true).
 			Set("absence_reason = ?", reason).
@@ -80,19 +81,20 @@ func TestTemplateSplit_PreservesDeviationsOnSuccessor(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	substituteRow := &scheduleModels.InstanceStaff{
-		InstanceID:   targetInstance.ID,
-		StaffID:      substitute.ID,
-		IsSubstitute: true,
-		IsPrimary:    true,
-	}
+	substituteRow := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.InstanceID = targetInstance.ID
+		fixtureRow.StaffID = substitute.ID
+		fixtureRow.IsSubstitute = true
+		fixtureRow.IsPrimary = true
+	})
+
 	substituteRow.SetTenantID(s.tenantID)
 	_, err = s.db.NewInsert().Model(substituteRow).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 	require.NoError(t, err)
 
 	ackNote := "Eine Position bleibt bewusst offen"
 	_, err = s.db.NewUpdate().
-		Model((*scheduleModels.ActivityInstance)(nil)).
+		Model((*fixtures.ActivityInstance)(nil)).
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Set("understaffed_ack = ?", true).
 		Set("understaffed_note = ?", ackNote).
@@ -160,7 +162,7 @@ func TestTemplateSplit_DropsDeviationWhenWeekdayNoLongerExists(t *testing.T) {
 
 	effective := futureMonday(2)
 	tuesday := effective.AddDays(1)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
+	s := makeScenario(t, activityContract.WeekdayMonday, effective)
 	defer s.runCleanup(t)
 
 	_, err := s.materialization.MaterializeForTenant(
@@ -172,7 +174,7 @@ func TestTemplateSplit_DropsDeviationWhenWeekdayNoLongerExists(t *testing.T) {
 	old := oldInstances[0]
 
 	_, err = s.db.NewUpdate().
-		Model((*scheduleModels.InstanceStaff)(nil)).
+		Model((*fixtures.InstanceStaff)(nil)).
 		ModelTableExpr(`schedule.instance_staff AS "instance_staff"`).
 		Set("is_absent = ?", true).
 		Where(`"instance_staff".instance_id = ?`, old.ID).
@@ -182,7 +184,7 @@ func TestTemplateSplit_DropsDeviationWhenWeekdayNoLongerExists(t *testing.T) {
 	require.NoError(t, err)
 
 	in := baseSplitInput(s, effective, fmt.Sprintf("Tuesday-%d", time.Now().UnixNano()))
-	in.Weekdays = []int{activitiesModels.WeekdayTuesday}
+	in.Weekdays = []int{activityContract.WeekdayTuesday}
 	in.MaterializeFrom = &effective
 	in.MaterializeTo = &tuesday
 	result, err := s.timetableData.Templates.SplitTemplate(s.ctx, in)
@@ -197,9 +199,9 @@ func TestTemplateSplit_DropsDeviationWhenWeekdayNoLongerExists(t *testing.T) {
 	assert.False(t, rows[0].IsSubstitute)
 }
 
-func loadInstanceStaffRows(t *testing.T, db *bun.DB, ctx context.Context, instanceID int64) []*scheduleModels.InstanceStaff {
+func loadInstanceStaffRows(t *testing.T, db *bun.DB, ctx context.Context, instanceID int64) []*fixtures.InstanceStaff {
 	t.Helper()
-	var rows []*scheduleModels.InstanceStaff
+	var rows []*fixtures.InstanceStaff
 	err := db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`schedule.instance_staff AS "instance_staff"`).

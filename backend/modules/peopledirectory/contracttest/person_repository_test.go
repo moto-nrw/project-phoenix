@@ -54,7 +54,7 @@ func TestPersonRepository_Create(t *testing.T) {
 			LastName:  "Person",
 		}
 
-		err := repo.Create(ctx, person)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, person)
 		require.NoError(t, err)
 		createdIDs = append(createdIDs, person.ID)
 
@@ -71,7 +71,7 @@ func TestPersonRepository_Create(t *testing.T) {
 			Birthday:  &birthday,
 		}
 
-		err := repo.Create(ctx, person)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, person)
 		require.NoError(t, err)
 		createdIDs = append(createdIDs, person.ID)
 
@@ -81,7 +81,7 @@ func TestPersonRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create with nil person should fail", func(t *testing.T) {
-		err := repo.Create(ctx, nil)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be nil")
 	})
@@ -92,7 +92,7 @@ func TestPersonRepository_Create(t *testing.T) {
 			LastName:  "Test",
 		}
 
-		err := repo.Create(ctx, person)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, person)
 		assert.Error(t, err)
 	})
 
@@ -102,7 +102,7 @@ func TestPersonRepository_Create(t *testing.T) {
 			LastName:  "",
 		}
 
-		err := repo.Create(ctx, person)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, person)
 		assert.Error(t, err)
 	})
 }
@@ -119,7 +119,7 @@ func TestPersonRepository_FindByID(t *testing.T) {
 	person := testpkg.CreateTestPerson(t, db, "FindByID", "Test")
 
 	t.Run("find existing person", func(t *testing.T) {
-		found, err := repo.FindByID(ctx, person.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(person.ID))
 		require.NoError(t, err)
 		require.NotNil(t, found)
 
@@ -129,7 +129,7 @@ func TestPersonRepository_FindByID(t *testing.T) {
 	})
 
 	t.Run("find non-existent person", func(t *testing.T) {
-		found, err := repo.FindByID(ctx, 999999999)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, 999999999)
 		// Base repository returns error with "no rows" for non-existent records
 		if err != nil {
 			assert.Contains(t, err.Error(), "no rows")
@@ -149,25 +149,25 @@ func TestPersonRepository_Update(t *testing.T) {
 
 	// Create test person
 	personFixture := testpkg.CreateTestPerson(t, db, "Update", "Original")
-	person, err := repo.FindByID(ctx, personFixture.ID)
+	person, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(personFixture.ID))
 	require.NoError(t, err)
 
 	t.Run("update person name", func(t *testing.T) {
 		person.FirstName = "Updated"
 		person.LastName = "Name"
 
-		err := repo.Update(ctx, person)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Update, person)
 		require.NoError(t, err)
 
 		// Verify update
-		found, err := repo.FindByID(ctx, person.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(person.ID))
 		require.NoError(t, err)
 		assert.Equal(t, "Updated", found.FirstName)
 		assert.Equal(t, "Name", found.LastName)
 	})
 
 	t.Run("update with nil person should fail", func(t *testing.T) {
-		err := repo.Update(ctx, nil)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Update, nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be nil")
 	})
@@ -186,11 +186,11 @@ func TestPersonRepository_Delete(t *testing.T) {
 	// No defer cleanup - we're testing deletion
 
 	t.Run("delete existing person", func(t *testing.T) {
-		err := repo.Delete(ctx, person.ID)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Delete, any(person.ID))
 		require.NoError(t, err)
 
 		// Verify deletion
-		found, err := repo.FindByID(ctx, person.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(person.ID))
 		if err == nil {
 			assert.Nil(t, found)
 		}
@@ -215,7 +215,7 @@ func TestPersonRepository_List(t *testing.T) {
 	testpkg.CreateTestPerson(t, db, "ListBeta"+uniquePrefix, "Test")
 
 	t.Run("list with no filters", func(t *testing.T) {
-		persons, err := repo.List(ctx, nil)
+		persons, err := testpkg.TenantQuery1(t, ctx, db, repo.List, nil)
 		require.NoError(t, err)
 		assert.NotEmpty(t, persons)
 	})
@@ -225,7 +225,7 @@ func TestPersonRepository_List(t *testing.T) {
 		filters := map[string]interface{}{
 			"first_name": person1.FirstName,
 		}
-		persons, err := repo.List(ctx, filters)
+		persons, err := testpkg.TenantQuery1(t, ctx, db, repo.List, filters)
 		require.NoError(t, err)
 		require.Len(t, persons, 1)
 		assert.Equal(t, person1.ID, persons[0].ID)
@@ -236,7 +236,7 @@ func TestPersonRepository_List(t *testing.T) {
 		filters := map[string]interface{}{
 			"first_name_like": "ListAlpha" + uniquePrefix,
 		}
-		persons, err := repo.List(ctx, filters)
+		persons, err := testpkg.TenantQuery1(t, ctx, db, repo.List, filters)
 		require.NoError(t, err)
 		assert.Len(t, persons, 1)
 	})
@@ -257,7 +257,7 @@ func TestPersonRepository_FindByIDs(t *testing.T) {
 
 	t.Run("find multiple persons by IDs", func(t *testing.T) {
 		ids := []int64{person1.ID, person2.ID, person3.ID}
-		persons, err := repo.FindByIDs(ctx, ids)
+		persons, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByIDs, ids)
 		require.NoError(t, err)
 
 		assert.Len(t, persons, 3)
@@ -268,7 +268,7 @@ func TestPersonRepository_FindByIDs(t *testing.T) {
 
 	t.Run("find with partial IDs", func(t *testing.T) {
 		ids := []int64{person1.ID, 999999999}
-		persons, err := repo.FindByIDs(ctx, ids)
+		persons, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByIDs, ids)
 		require.NoError(t, err)
 
 		assert.Len(t, persons, 1)
@@ -276,7 +276,7 @@ func TestPersonRepository_FindByIDs(t *testing.T) {
 	})
 
 	t.Run("find with empty IDs returns empty map", func(t *testing.T) {
-		persons, err := repo.FindByIDs(ctx, []int64{})
+		persons, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByIDs, []int64{})
 		require.NoError(t, err)
 		assert.Empty(t, persons)
 	})
@@ -299,18 +299,18 @@ func TestPersonRepository_LinkToAccount(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "linkaccount")
 
 	t.Run("link person to account", func(t *testing.T) {
-		err := repo.LinkToAccount(ctx, person.ID, account.ID)
+		err := testpkg.TenantCommand2(t, ctx, db, repo.LinkToAccount, person.ID, account.ID)
 		require.NoError(t, err)
 
 		// Verify link via FindByAccountID
-		found, err := repo.FindByAccountID(ctx, account.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByAccountID, account.ID)
 		require.NoError(t, err)
 		require.NotNil(t, found)
 		assert.Equal(t, person.ID, found.ID)
 	})
 
 	t.Run("link non-existent person should fail", func(t *testing.T) {
-		err := repo.LinkToAccount(ctx, 999999999, account.ID)
+		err := testpkg.TenantCommand2(t, ctx, db, repo.LinkToAccount, 999999999, account.ID)
 		assert.Error(t, err)
 	})
 }
@@ -327,17 +327,17 @@ func TestPersonRepository_UnlinkFromAccount(t *testing.T) {
 	person, account := testpkg.CreateTestPersonWithAccount(t, db, "Unlink", "Account")
 
 	t.Run("unlink person from account", func(t *testing.T) {
-		err := repo.UnlinkFromAccount(ctx, person.ID)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.UnlinkFromAccount, person.ID)
 		require.NoError(t, err)
 
 		// Verify unlink
-		found, err := repo.FindByAccountID(ctx, account.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByAccountID, account.ID)
 		require.NoError(t, err)
 		assert.Nil(t, found)
 	})
 
 	t.Run("unlink non-existent person should fail", func(t *testing.T) {
-		err := repo.UnlinkFromAccount(ctx, 999999999)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.UnlinkFromAccount, 999999999)
 		assert.Error(t, err)
 	})
 }
@@ -354,14 +354,14 @@ func TestPersonRepository_FindByAccountID(t *testing.T) {
 	person, account := testpkg.CreateTestPersonWithAccount(t, db, "FindByAccount", "Test")
 
 	t.Run("find person by account ID", func(t *testing.T) {
-		found, err := repo.FindByAccountID(ctx, account.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByAccountID, account.ID)
 		require.NoError(t, err)
 		require.NotNil(t, found)
 		assert.Equal(t, person.ID, found.ID)
 	})
 
 	t.Run("find by non-existent account ID returns nil", func(t *testing.T) {
-		found, err := repo.FindByAccountID(ctx, 999999999)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByAccountID, 999999999)
 		require.NoError(t, err)
 		assert.Nil(t, found)
 	})
@@ -384,18 +384,18 @@ func TestPersonRepository_LinkToRFIDCard(t *testing.T) {
 	rfidCard := testpkg.CreateTestRFIDCard(t, db, "LINK12345678")
 
 	t.Run("link person to RFID card", func(t *testing.T) {
-		err := repo.LinkToRFIDCard(ctx, person.ID, rfidCard.ID)
+		err := testpkg.TenantCommand2(t, ctx, db, repo.LinkToRFIDCard, person.ID, rfidCard.ID)
 		require.NoError(t, err)
 
 		// Verify link via FindByTagID
-		found, err := repo.FindByTagID(ctx, rfidCard.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByTagID, rfidCard.ID)
 		require.NoError(t, err)
 		require.NotNil(t, found)
 		assert.Equal(t, person.ID, found.ID)
 	})
 
 	t.Run("link non-existent person should fail", func(t *testing.T) {
-		err := repo.LinkToRFIDCard(ctx, 999999999, rfidCard.ID)
+		err := testpkg.TenantCommand2(t, ctx, db, repo.LinkToRFIDCard, 999999999, rfidCard.ID)
 		assert.Error(t, err)
 	})
 }
@@ -413,21 +413,21 @@ func TestPersonRepository_UnlinkFromRFIDCard(t *testing.T) {
 	rfidCard := testpkg.CreateTestRFIDCard(t, db, "UNLINK1234567")
 
 	// Link first
-	err := repo.LinkToRFIDCard(ctx, person.ID, rfidCard.ID)
+	err := testpkg.TenantCommand2(t, ctx, db, repo.LinkToRFIDCard, person.ID, rfidCard.ID)
 	require.NoError(t, err)
 
 	t.Run("unlink person from RFID card", func(t *testing.T) {
-		err := repo.UnlinkFromRFIDCard(ctx, person.ID)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.UnlinkFromRFIDCard, person.ID)
 		require.NoError(t, err)
 
 		// Verify unlink
-		found, err := repo.FindByTagID(ctx, rfidCard.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByTagID, rfidCard.ID)
 		require.NoError(t, err)
 		assert.Nil(t, found)
 	})
 
 	t.Run("unlink non-existent person should fail", func(t *testing.T) {
-		err := repo.UnlinkFromRFIDCard(ctx, 999999999)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.UnlinkFromRFIDCard, 999999999)
 		assert.Error(t, err)
 	})
 }
@@ -445,11 +445,11 @@ func TestPersonRepository_FindByTagID(t *testing.T) {
 	rfidCard := testpkg.CreateTestRFIDCard(t, db, "FINDTAG12345")
 
 	// Link card to person
-	err := repo.LinkToRFIDCard(ctx, person.ID, rfidCard.ID)
+	err := testpkg.TenantCommand2(t, ctx, db, repo.LinkToRFIDCard, person.ID, rfidCard.ID)
 	require.NoError(t, err)
 
 	t.Run("find person by tag ID", func(t *testing.T) {
-		found, err := repo.FindByTagID(ctx, rfidCard.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByTagID, rfidCard.ID)
 		require.NoError(t, err)
 		require.NotNil(t, found)
 		assert.Equal(t, person.ID, found.ID)
@@ -457,14 +457,14 @@ func TestPersonRepository_FindByTagID(t *testing.T) {
 
 	t.Run("find by tag ID with different case", func(t *testing.T) {
 		// Tag IDs are normalized to uppercase
-		_, err := repo.FindByTagID(ctx, "findtag12345")
+		_, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByTagID, "findtag12345")
 		// May or may not match depending on normalization
 		require.NoError(t, err)
 		// Result depends on card ID format
 	})
 
 	t.Run("find by non-existent tag ID returns nil", func(t *testing.T) {
-		found, err := repo.FindByTagID(ctx, "NONEXISTENT")
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByTagID, "NONEXISTENT")
 		require.NoError(t, err)
 		assert.Nil(t, found)
 	})
@@ -486,7 +486,7 @@ func TestPersonRepository_FindWithAccount(t *testing.T) {
 		// Create person with account
 		person, account := testpkg.CreateTestPersonWithAccount(t, db, "WithAccount", "Test")
 
-		found, err := repo.FindWithAccount(ctx, person.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindWithAccount, person.ID)
 		require.NoError(t, err)
 		require.NotNil(t, found)
 
@@ -515,10 +515,10 @@ func TestPersonRepository_FindWithAccount(t *testing.T) {
 		account.IsPasswordOTP = true
 		err := db.NewUpdate().Model(account).ModelTableExpr(`auth.accounts AS "account"`).
 			Column("username", "avatar", "last_login", "active", "is_password_otp").
-			WherePK().Returning("*").Scan(ctx)
+			WherePK().Returning("last_login, updated_at").Scan(ctx)
 		require.NoError(t, err)
 
-		found, err := repo.FindWithAccount(ctx, person.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindWithAccount, person.ID)
 		require.NoError(t, err)
 		require.NotNil(t, found.Account)
 		previousJSON, err := json.Marshal(account)
@@ -532,7 +532,7 @@ func TestPersonRepository_FindWithAccount(t *testing.T) {
 		// Create person without account
 		person := testpkg.CreateTestPerson(t, db, "NoAccount", "Test")
 
-		found, err := repo.FindWithAccount(ctx, person.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindWithAccount, person.ID)
 		require.NoError(t, err)
 		require.NotNil(t, found)
 
@@ -561,7 +561,7 @@ func TestPersonRepository_ListWithNullableFilters(t *testing.T) {
 		filters := map[string]interface{}{
 			"has_account": true,
 		}
-		persons, err := repo.List(ctx, filters)
+		persons, err := testpkg.TenantQuery1(t, ctx, db, repo.List, filters)
 		require.NoError(t, err)
 
 		// Should include personWithAccount
@@ -579,7 +579,7 @@ func TestPersonRepository_ListWithNullableFilters(t *testing.T) {
 		filters := map[string]interface{}{
 			"has_account": false,
 		}
-		persons, err := repo.List(ctx, filters)
+		persons, err := testpkg.TenantQuery1(t, ctx, db, repo.List, filters)
 		require.NoError(t, err)
 
 		// Should include personWithoutAccount
@@ -598,13 +598,13 @@ func TestPersonRepository_ListWithNullableFilters(t *testing.T) {
 		personWithCard := testpkg.CreateTestPerson(t, db, "WithTag", "Test")
 		rfidCard := testpkg.CreateTestRFIDCard(t, db, "WITHTAG12345")
 
-		err := repo.LinkToRFIDCard(ctx, personWithCard.ID, rfidCard.ID)
+		err := testpkg.TenantCommand2(t, ctx, db, repo.LinkToRFIDCard, personWithCard.ID, rfidCard.ID)
 		require.NoError(t, err)
 
 		filters := map[string]interface{}{
 			"has_tag": true,
 		}
-		persons, err := repo.List(ctx, filters)
+		persons, err := testpkg.TenantQuery1(t, ctx, db, repo.List, filters)
 		require.NoError(t, err)
 
 		// Should include personWithCard
@@ -637,10 +637,10 @@ func TestPersonRepository_EdgeCases(t *testing.T) {
 			LastName:  "Über",
 		}
 
-		err := repo.Create(ctx, person)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, person)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, person.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(person.ID))
 		require.NoError(t, err)
 		assert.Equal(t, "Müller", found.FirstName)
 		assert.Equal(t, "Über", found.LastName)
@@ -653,10 +653,10 @@ func TestPersonRepository_EdgeCases(t *testing.T) {
 			LastName:  "Test",
 		}
 
-		err := repo.Create(ctx, person)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, person)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, person.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(person.ID))
 		require.NoError(t, err)
 		assert.Equal(t, longName, found.FirstName)
 	})

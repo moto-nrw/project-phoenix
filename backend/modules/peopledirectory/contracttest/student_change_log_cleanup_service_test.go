@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -93,7 +93,7 @@ func TestStudentChangeLogCleanup_DeletesOldEdits(t *testing.T) {
 		nil,
 	)
 
-	result, err := svc.CleanupExpiredChangeLog(ctx)
+	result, err := testpkg.TenantQuery0(t, ctx, db, svc.CleanupExpiredChangeLog)
 	require.NoError(t, err)
 	assert.True(t, result.Success)
 	assert.Equal(t, 2, result.EditsDeleted, "two expired edits deleted")
@@ -122,7 +122,7 @@ func TestStudentChangeLogCleanup_NoOpWhenNothingExpired(t *testing.T) {
 		nil,
 	)
 
-	result, err := svc.CleanupExpiredChangeLog(ctx)
+	result, err := testpkg.TenantQuery0(t, ctx, db, svc.CleanupExpiredChangeLog)
 	require.NoError(t, err)
 	assert.True(t, result.Success)
 	assert.Equal(t, 0, result.EditsDeleted)

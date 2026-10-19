@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"testing"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -23,14 +25,16 @@ type failingCareWithdrawalReconciler struct{}
 
 func pendingWithdrawalForStudent(
 	ctx context.Context,
-	repo api.CareWithdrawalTestRows,
+	repo owners.CareWithdrawalTestRows,
 	studentID int64,
 ) (*careplan.WithdrawalCompletion, error) {
-	rows, _, err := repo.ListPending(ctx, careplan.WithdrawalListFilter{StudentID: studentID, Page: 1, PageSize: 1})
-	if err != nil || len(rows) == 0 {
-		return nil, err
-	}
-	return rows[0], nil
+	return fixtureEnrollmentQuery(ctx, func(txCtx context.Context) (*careplan.WithdrawalCompletion, error) {
+		rows, _, err := repo.ListPending(txCtx, careplan.WithdrawalListFilter{StudentID: studentID, Page: 1, PageSize: 1})
+		if err != nil || len(rows) == 0 {
+			return nil, err
+		}
+		return rows[0], nil
+	})
 }
 
 func (failingCareWithdrawalReconciler) ReconcileAuthoritativeBookingChange(
@@ -69,7 +73,7 @@ func newCompleteWithdrawalFixture(t *testing.T) *completeWithdrawalFixture {
 	requestID, childID := submitOneChild(t, env, "complete-withdrawal@example.com", "Lina", "Abmeldung")
 	care := createWithdrawalOffering(t, env, "Ganztag", true)
 	lunch := createWithdrawalOffering(t, env, "Mittagessen", false)
-	outcome, err := env.decision.Decide(ctx, enrollmentTest.DecideInput{
+	outcome, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentTest.DecideInput{
 		RequestID: requestID, ChildID: childID, Status: enrollmentTest.DecisionApproved, ReviewedBy: env.creatorID,
 	})
 	require.NoError(t, err)
@@ -84,8 +88,8 @@ func newCompleteWithdrawalFixture(t *testing.T) *completeWithdrawalFixture {
 	return fixture
 }
 
-func createWithdrawalOffering(t *testing.T, env *decisionTestEnv, name string, countsAsCare bool) *enrollmentModels.CareOffering {
-	return createAdjustmentCareOfferingWith(t, env, name, func(offering *enrollmentModels.CareOffering) {
+func createWithdrawalOffering(t *testing.T, env *decisionTestEnv, name string, countsAsCare bool) *offeringContract.CareOfferingRecord {
+	return createAdjustmentCareOfferingWith(t, env, name, func(offering *offeringContract.CareOfferingRecord) {
 		offering.CountsAsCare = countsAsCare
 		offering.CountsAsCareSet = true
 	})
@@ -111,10 +115,12 @@ func (f *completeWithdrawalFixture) withoutCareInput() enrollmentTest.UpdateChil
 func (f *completeWithdrawalFixture) assertUnconfirmedChangeRollsBack() {
 	err := f.apply(f.env.decision, f.withoutCareInput())
 	require.ErrorIs(f.t, err, enrollmentTest.ErrCompleteWithdrawalConfirmationRequired)
-	links, err := f.env.reposEnrollment.Enrollment().RequestChildOfferingHistory(f.ctx, f.childID)
+	links, err := testpkg.TenantQuery1(f.t, f.ctx, f.env.db, f.env.reposEnrollment.Enrollment().RequestChildOfferingHistory, f.childID)
 	require.NoError(f.t, err)
 	require.Len(f.t, links, 1, "the warning response must roll the booking mutation back")
-	pending, err := pendingWithdrawalForStudent(f.ctx, f.env.reposPeople.CareWithdrawal, f.studentID)
+	pending, err := testpkg.TenantQuery0(f.t, f.ctx, f.env.db, func(txCtx context.Context) (*careplan.WithdrawalCompletion, error) {
+		return pendingWithdrawalForStudent(txCtx, f.env.reposPeople.CareWithdrawal, f.studentID)
+	})
 	require.NoError(f.t, err)
 	assert.Nil(f.t, pending)
 }
@@ -127,7 +133,7 @@ func (f *completeWithdrawalFixture) assertTaskFailureRollsBack() {
 	input.CompleteWithdrawalConfirmed = true
 	err := f.apply(failing, input)
 	require.ErrorContains(f.t, err, "forced durable completion failure")
-	links, err := f.env.reposEnrollment.Enrollment().RequestChildOfferingHistory(f.ctx, f.childID)
+	links, err := testpkg.TenantQuery1(f.t, f.ctx, f.env.db, f.env.reposEnrollment.Enrollment().RequestChildOfferingHistory, f.childID)
 	require.NoError(f.t, err)
 	require.Len(f.t, links, 1, "a failed durable task must roll the booking mutation back")
 	assert.Equal(f.t, f.careID, links[0].CareOfferingID)
@@ -137,11 +143,13 @@ func (f *completeWithdrawalFixture) completeWithdrawal() *careplan.WithdrawalCom
 	input := f.withoutCareInput()
 	input.CompleteWithdrawalConfirmed = true
 	require.NoError(f.t, f.apply(f.env.decision, input))
-	links, err := f.env.reposEnrollment.Enrollment().RequestChildOfferingHistory(f.ctx, f.childID)
+	links, err := testpkg.TenantQuery1(f.t, f.ctx, f.env.db, f.env.reposEnrollment.Enrollment().RequestChildOfferingHistory, f.childID)
 	require.NoError(f.t, err)
 	require.Len(f.t, links, 1)
 	assert.Equal(f.t, f.lunchID, links[0].CareOfferingID)
-	pending, err := pendingWithdrawalForStudent(f.ctx, f.env.reposPeople.CareWithdrawal, f.studentID)
+	pending, err := testpkg.TenantQuery0(f.t, f.ctx, f.env.db, func(txCtx context.Context) (*careplan.WithdrawalCompletion, error) {
+		return pendingWithdrawalForStudent(txCtx, f.env.reposPeople.CareWithdrawal, f.studentID)
+	})
 	require.NoError(f.t, err)
 	require.NotNil(f.t, pending)
 	assert.Equal(f.t, decisionTestToday, pending.FirstBookinglessDay)
@@ -152,7 +160,7 @@ func (f *completeWithdrawalFixture) completeWithdrawal() *careplan.WithdrawalCom
 }
 
 func (f *completeWithdrawalFixture) assertCompletionAudit() {
-	rows, err := api.NewTestAuditPersistence(testpkg.MustDatabase(f.env.db), nil).EnrollmentOfferingAdjustment.ListByRequestChildID(f.ctx, f.childID)
+	rows, err := testpkg.TenantQuery1(f.t, f.ctx, f.env.db, owners.NewTestAuditPersistence(testpkg.MustDatabase(f.env.db), nil).EnrollmentOfferingAdjustment.ListByRequestChildID, f.childID)
 	require.NoError(f.t, err)
 	require.Len(f.t, rows, 2)
 	assert.True(f.t, rows[0].CompleteWithdrawalConfirmed)
@@ -222,7 +230,7 @@ func newNonAuthoritativeWithdrawalFixture(t *testing.T) *nonAuthoritativeWithdra
 	email := fmt.Sprintf("non-authoritative-withdrawal-%d@example.com", testpkg.UniqueSuffix())
 	requestID, childID := submitOneChild(t, env, email, "Toni", "Optional")
 	care := createWithdrawalOffering(t, env, "Ganztag", true)
-	outcome, err := env.decision.Decide(ctx, enrollmentTest.DecideInput{
+	outcome, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentTest.DecideInput{
 		RequestID: requestID, ChildID: childID, Status: enrollmentTest.DecisionApproved, ReviewedBy: env.creatorID,
 	})
 	require.NoError(t, err)
@@ -279,7 +287,7 @@ func newWithdrawalRaceFixture(t *testing.T) *withdrawalRaceFixture {
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-10))
 	completionWaiting := make(chan struct{})
 	recurrenceGate := func(ctx context.Context) error {
-		return api.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, env.db)).LockRecurrenceWrites(ctx)
+		return owners.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, env.db)).LockRecurrenceWrites(ctx)
 	}
 	lifecycle := newTestCareLifecycle(env.db, api.CareLifecycleTestConfig{
 		LockCareBookingWrites: func(ctx context.Context) error {
@@ -306,7 +314,7 @@ func (f *withdrawalRaceFixture) seedRaceStudent() {
 	})
 	require.NoError(f.t, err)
 	f.studentID, f.careID = *outcome.Child.CreatedStudentID, care.ID
-	student, err := f.env.reposPeople.Student.FindByID(f.ctx, f.studentID)
+	student, err := testpkg.TenantQuery1(f.t, f.ctx, f.env.db, f.env.reposPeople.Student.FindByID, any(f.studentID))
 	require.NoError(f.t, err)
 	f.originalEnd = student.EnrolledUntil
 	f.input = enrollmentTest.UpdateChildOfferingsInput{
@@ -333,7 +341,9 @@ func (f *withdrawalRaceFixture) prepareWithdrawalRace() (
 	f.input.Offerings = nil
 	f.input.CompleteWithdrawalConfirmed = true
 	require.NoError(f.t, f.applyInTenantTx())
-	pending, err := pendingWithdrawalForStudent(f.ctx, f.env.reposPeople.CareWithdrawal, f.studentID)
+	pending, err := testpkg.TenantQuery0(f.t, f.ctx, f.env.db, func(txCtx context.Context) (*careplan.WithdrawalCompletion, error) {
+		return pendingWithdrawalForStudent(txCtx, f.env.reposPeople.CareWithdrawal, f.studentID)
+	})
 	require.NoError(f.t, err)
 	require.NotNil(f.t, pending)
 	exitInput := careplan.CareExitInput{
@@ -366,10 +376,12 @@ func (f *withdrawalRaceFixture) runRebookingRace(
 }
 
 func (f *withdrawalRaceFixture) assertRebookingWon() {
-	student, err := f.env.reposPeople.Student.FindByID(f.ctx, f.studentID)
+	student, err := testpkg.TenantQuery1(f.t, f.ctx, f.env.db, f.env.reposPeople.Student.FindByID, any(f.studentID))
 	require.NoError(f.t, err)
 	assert.Equal(f.t, f.originalEnd, student.EnrolledUntil, "the stale exit must not land after care was rebooked")
-	pending, err := pendingWithdrawalForStudent(f.ctx, f.env.reposPeople.CareWithdrawal, f.studentID)
+	pending, err := testpkg.TenantQuery0(f.t, f.ctx, f.env.db, func(txCtx context.Context) (*careplan.WithdrawalCompletion, error) {
+		return pendingWithdrawalForStudent(txCtx, f.env.reposPeople.CareWithdrawal, f.studentID)
+	})
 	require.NoError(f.t, err)
 	assert.Nil(f.t, pending)
 }

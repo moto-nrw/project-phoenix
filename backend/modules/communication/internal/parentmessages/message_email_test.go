@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -51,6 +52,7 @@ func (s *stubMessagePreferences) FilterNotOptedOut(_ context.Context, notificati
 }
 
 type emailFixture struct {
+	db     *bun.DB
 	svc    *messaging.Service
 	outbox *api.CapturingOutbox
 	chain  testpkg.ParentChain
@@ -63,11 +65,11 @@ func newEmailFixture(t *testing.T, preferences communication.NotificationPrefere
 	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	reposAccounts := api.NewAccountSuiteRepositories(testpkg.NewDatabase(t, db))
-	organizations, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
+	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	outbox := api.NewCapturingOutbox()
 	svc := messaging.NewService(messaging.Config{
-		UserContext: api.StaffStudentReads{},
+		UserContext: owners.StaffStudentReads{},
 		Session:     api.CommunicationSession{},
 		ThreadRepo:  messaging.NewThreadRepository(reposMessages.ParentMessageThread),
 		MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
@@ -79,7 +81,7 @@ func newEmailFixture(t *testing.T, preferences communication.NotificationPrefere
 		Logger:           slog.Default(),
 		Preferences:      preferences,
 		Outbox:           api.BindCommunicationCapturingOutbox(outbox),
-		GuardianProfiles: api.BindParentMessageGuardianProfiles(reposPeople.GuardianProfile),
+		GuardianProfiles: owners.BindParentMessageGuardianProfiles(reposPeople.GuardianProfile),
 		Schools:          schoolNames{schools: organizations},
 		ParentsURL:       testParentsURL,
 	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
@@ -87,7 +89,7 @@ func newEmailFixture(t *testing.T, preferences communication.NotificationPrefere
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 
-	return &emailFixture{svc: svc, outbox: outbox, chain: chain, staff: staffAccount.ID}
+	return &emailFixture{db: db, svc: svc, outbox: outbox, chain: chain, staff: staffAccount.ID}
 }
 
 // renderedMail is what the delivery worker would send for a captured request.
@@ -130,8 +132,7 @@ func TestStartThread_SendsGuardianEmail(t *testing.T) {
 	f := newEmailFixture(t, nil)
 	db := testpkg.SetupTestDB(t)
 
-	_, err := f.svc.StartThread(adminCtx(t, f.staff), f.chain.StudentID, f.chain.AccountID,
-		"Guten Tag, Felix hat heute seine Jacke vergessen. Bitte melden Sie sich kurz bei uns.")
+	_, err := testpkg.TenantQuery3(t, adminCtx(t, f.staff), f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Guten Tag, Felix hat heute seine Jacke vergessen. Bitte melden Sie sich kurz bei uns.")
 	require.NoError(t, err)
 
 	rows := f.outbox.Requests()
@@ -162,7 +163,7 @@ func TestStartThread_LocalizesGuardianEmail(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	_, err = f.svc.StartThread(adminCtx(t, f.staff), f.chain.StudentID, f.chain.AccountID, "Please reply")
+	_, err = testpkg.TenantQuery3(t, adminCtx(t, f.staff), f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Please reply")
 	require.NoError(t, err)
 	rows := f.outbox.Requests()
 	require.Len(t, rows, 1)
@@ -183,12 +184,12 @@ func TestPostMessage_QueuesAnotherDataMinimalEmail(t *testing.T) {
 	f := newEmailFixture(t, nil)
 	ctx := adminCtx(t, f.staff)
 
-	detail, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Erste Nachricht")
+	detail, err := testpkg.TenantQuery3(t, ctx, f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Erste Nachricht")
 	require.NoError(t, err)
 	before := len(f.outbox.Requests())
 
 	sensitive := "Gesundheitsinformation, die nicht in eine E-Mail gehoert"
-	_, err = f.svc.PostMessage(ctx, detail.ThreadID, sensitive, detail.Messages[0].ID)
+	_, err = testpkg.TenantQuery3(t, ctx, f.db, f.svc.PostMessage, detail.ThreadID, sensitive, detail.Messages[0].ID)
 	require.NoError(t, err)
 
 	rows := f.outbox.Requests()[before:]
@@ -205,7 +206,7 @@ func TestStartThread_RespectsGuardianOptOut(t *testing.T) {
 	preferences := &stubMessagePreferences{declined: true}
 	f := newEmailFixture(t, preferences)
 
-	_, err := f.svc.StartThread(adminCtx(t, f.staff), f.chain.StudentID, f.chain.AccountID, "Guten Tag")
+	_, err := testpkg.TenantQuery3(t, adminCtx(t, f.staff), f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Guten Tag")
 	require.NoError(t, err)
 
 	assert.Empty(t, f.outbox.Requests(), "kein Versand nach Widerspruch")

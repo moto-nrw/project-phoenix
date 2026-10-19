@@ -22,7 +22,7 @@ func calendarFeedHash(accountID int64, candidate int) string {
 func TestNativeStaffFeedConcurrentCreationKeepsOneWinner(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	feeds, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	feeds, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	account := testpkg.CreateTestAccount(t, db, "feed-race")
 	ctx := testpkg.Ctx(t)
@@ -62,7 +62,7 @@ func TestNativeStaffFeedConcurrentCreationKeepsOneWinner(t *testing.T) {
 func TestNativeStaffFeedScopeRotationAndAmbientRollback(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	feeds, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	feeds, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	account := testpkg.CreateTestAccount(t, db, "feed-scope")
 	ctx := testpkg.Ctx(t)

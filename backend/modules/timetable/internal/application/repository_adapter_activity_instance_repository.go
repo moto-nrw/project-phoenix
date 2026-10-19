@@ -7,11 +7,13 @@ import (
 	"slices"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 )
 
 const legacyActivityInstanceDateColumn = "date"
@@ -38,15 +40,15 @@ type timetableActivityInstanceRepository struct {
 // NewActivityInstanceRepository serves the retained activity instance
 // repository over the Timetable owner and Student Presence, which runs the
 // blocks since #2762; reads are the joined presence reads over the database.
-func NewActivityInstanceRepository(reads PresenceReads, capability timetable.ActivityInstanceCapability, presence ActivityInstanceSessions) scheduleModels.ActivityInstanceRepository {
+func NewActivityInstanceRepository(reads PresenceReads, capability timetable.ActivityInstanceCapability, presence ActivityInstanceSessions) ports.ActivityInstanceRecords {
 	return newTimetableActivityInstanceRepository(reads, capability, presence)
 }
 
 // ActivityInstanceRepositories are the retained activity instance adapter
 // and its idempotency half, one adapter behind both repositories.
 type ActivityInstanceRepositories struct {
-	ActivityInstance    scheduleModels.ActivityInstanceRepository
-	InstanceIdempotency scheduleModels.InstanceIdempotencyRepository
+	ActivityInstance    ports.ActivityInstanceRecords
+	InstanceIdempotency ports.InstanceIdempotencyRecords
 }
 
 // NewActivityInstanceRepositories serves both repositories from one adapter.
@@ -157,7 +159,7 @@ func (r timetableActivityInstanceRepository) createUnlessPresent(ctx context.Con
 	return false, nil
 }
 
-func (r timetableActivityInstanceRepository) FindByID(ctx context.Context, id any) (*scheduleModels.ActivityInstance, error) {
+func (r timetableActivityInstanceRepository) FindByID(ctx context.Context, id int64) (*scheduleModels.ActivityInstance, error) {
 	instanceID, ok := LegacyGroupID(id)
 	if !ok {
 		return nil, WrapDatabaseError("find by id", fmt.Errorf("invalid activity instance id %T", id))
@@ -189,7 +191,7 @@ func (r timetableActivityInstanceRepository) Update(ctx context.Context, value *
 	return r.reload(ctx, value, updated.ID, "update")
 }
 
-func (r timetableActivityInstanceRepository) Delete(ctx context.Context, id any) error {
+func (r timetableActivityInstanceRepository) Delete(ctx context.Context, id int64) error {
 	instanceID, ok := LegacyGroupID(id)
 	if !ok {
 		return WrapDatabaseError("delete", fmt.Errorf("invalid activity instance id %T", id))
@@ -200,24 +202,12 @@ func (r timetableActivityInstanceRepository) Delete(ctx context.Context, id any)
 	return nil
 }
 
-func (r timetableActivityInstanceRepository) List(ctx context.Context, options *ActivityInstanceQueryOptions) ([]*scheduleModels.ActivityInstance, error) {
-	filter, err := ActivityInstanceListOptions(options)
-	if err != nil {
-		return nil, WrapDatabaseError("list with options", err)
-	}
-	return r.list(ctx, ports.LegacyInstanceFilter{
-		IDs: filter.IDs, Date: filter.Date, Dates: filter.Dates, ActivityGroupIDs: filter.ActivityGroupIDs,
-		ActiveGroupIDs: filter.ActiveGroupIDs, Status: filter.Status, IsSpontaneous: filter.IsSpontaneous,
-		IdempotencyKey: filter.IdempotencyKey, Limit: filter.Limit, Offset: filter.Offset,
-	}, "list with options")
-}
-
-func (r timetableActivityInstanceRepository) FindByTenantAndDate(ctx context.Context, date ActivityInstanceDate) ([]*scheduleModels.ActivityInstance, error) {
+func (r timetableActivityInstanceRepository) FindByTenantAndDate(ctx context.Context, date calendar.Date) ([]*scheduleModels.ActivityInstance, error) {
 	text := date.String()
 	return r.list(ctx, ports.LegacyInstanceFilter{Date: &text, OrderByDateAndTime: true}, "find by tenant and date")
 }
 
-func (r timetableActivityInstanceRepository) FindPlannedTemplateBackedFrom(ctx context.Context, from ActivityInstanceDate) ([]*scheduleModels.ActivityInstance, error) {
+func (r timetableActivityInstanceRepository) FindPlannedTemplateBackedFrom(ctx context.Context, from calendar.Date) ([]*scheduleModels.ActivityInstance, error) {
 	text := from.String()
 	return r.list(ctx, ports.LegacyInstanceFilter{
 		FromDate: &text, MaterializedPlanned: true, OrderByDateAndTime: true,
@@ -232,7 +222,7 @@ func (r timetableActivityInstanceRepository) MaxID(ctx context.Context) (int64, 
 	return value, nil
 }
 
-func (r timetableActivityInstanceRepository) FindByTenantAndDateRange(ctx context.Context, from, to ActivityInstanceDate) ([]*scheduleModels.ActivityInstance, error) {
+func (r timetableActivityInstanceRepository) FindByTenantAndDateRange(ctx context.Context, from, to calendar.Date) ([]*scheduleModels.ActivityInstance, error) {
 	fromText, toText := from.String(), to.String()
 	return r.list(ctx, ports.LegacyInstanceFilter{
 		FromDate: &fromText, ToDate: &toText, OrderByDateAndTime: true,
@@ -246,14 +236,14 @@ func (r timetableActivityInstanceRepository) FindByIDs(ctx context.Context, ids 
 	return r.list(ctx, ports.LegacyInstanceFilter{IDs: ids, OrderByDateAndTime: true}, "find by ids")
 }
 
-func (r timetableActivityInstanceRepository) FindByActivityGroupAndDate(ctx context.Context, groupID int64, date ActivityInstanceDate) ([]*scheduleModels.ActivityInstance, error) {
+func (r timetableActivityInstanceRepository) FindByActivityGroupAndDate(ctx context.Context, groupID int64, date calendar.Date) ([]*scheduleModels.ActivityInstance, error) {
 	text := date.String()
 	return r.list(ctx, ports.LegacyInstanceFilter{
 		ActivityGroupID: &groupID, Date: &text, OrderByDateAndTime: true,
 	}, "find by activity group and date")
 }
 
-func (r timetableActivityInstanceRepository) FindByActivityGroupAndDateRange(ctx context.Context, groupID int64, from, to ActivityInstanceDate) ([]*scheduleModels.ActivityInstance, error) {
+func (r timetableActivityInstanceRepository) FindByActivityGroupAndDateRange(ctx context.Context, groupID int64, from, to calendar.Date) ([]*scheduleModels.ActivityInstance, error) {
 	fromText, toText := from.String(), to.String()
 	return r.list(ctx, ports.LegacyInstanceFilter{
 		ActivityGroupID: &groupID, FromDate: &fromText, ToDate: &toText, OrderByDateAndTime: true,
@@ -286,7 +276,7 @@ func (r timetableActivityInstanceRepository) CompleteActiveByActiveGroupIDs(ctx 
 	return rows, nil
 }
 
-func (r timetableActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx context.Context, from ActivityInstanceDate, to *ActivityInstanceDate, groupID *int64, preserveDeviations bool) (int64, error) {
+func (r timetableActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx context.Context, from calendar.Date, to *calendar.Date, groupID *int64, preserveDeviations bool) (int64, error) {
 	rows, err := r.timetable.DeletePlannedActivityInstances(ctx, from.String(), publicOptionalInstanceDate(to), groupID, preserveDeviations)
 	if err != nil {
 		return 0, WrapDatabaseError("delete planned non-spontaneous in window", err)
@@ -302,7 +292,7 @@ func (r timetableActivityInstanceRepository) DeletePlannedMaterializedWeekendIns
 	return rows, nil
 }
 
-func (r timetableActivityInstanceRepository) PropagateListKindToFutureInstances(ctx context.Context, groupID int64, previousKind, newKind *string, after ActivityInstanceDate) (int64, error) {
+func (r timetableActivityInstanceRepository) PropagateListKindToFutureInstances(ctx context.Context, groupID int64, previousKind, newKind *string, after calendar.Date) (int64, error) {
 	rows, err := r.timetable.PropagateActivityInstanceListKind(ctx, groupID, previousKind, newKind, after.String())
 	if err != nil {
 		return 0, WrapDatabaseError("propagate list kind to future instances", err)
@@ -396,19 +386,7 @@ func planningColumns(columns []string) []string {
 	return result
 }
 
-func (r timetableActivityInstanceRepository) CountWithOptions(ctx context.Context, options *ActivityInstanceQueryOptions) (int, error) {
-	before, err := ActivityInstanceBefore(options)
-	if err != nil {
-		return 0, WrapDatabaseError("count with options", err)
-	}
-	count, err := r.timetable.CountActivityInstances(ctx, before)
-	if err != nil {
-		return 0, WrapDatabaseError("count with options", err)
-	}
-	return count, nil
-}
-
-func (r timetableActivityInstanceRepository) OldestBefore(ctx context.Context, column string, cutoff *ActivityInstanceDate) (*ActivityInstanceDate, error) {
+func (r timetableActivityInstanceRepository) OldestBefore(ctx context.Context, column string, cutoff *calendar.Date) (*calendar.Date, error) {
 	if column != legacyActivityInstanceDateColumn {
 		return nil, WrapDatabaseError("oldest before", fmt.Errorf("unsupported activity instance date column %q", column))
 	}
@@ -426,7 +404,7 @@ func (r timetableActivityInstanceRepository) OldestBefore(ctx context.Context, c
 	return &result, nil
 }
 
-func (r timetableActivityInstanceRepository) DeleteOlderThan(ctx context.Context, column string, cutoff ActivityInstanceDate) (int64, error) {
+func (r timetableActivityInstanceRepository) DeleteOlderThan(ctx context.Context, column string, cutoff calendar.Date) (int64, error) {
 	if column != legacyActivityInstanceDateColumn {
 		return 0, WrapDatabaseError("delete older than", fmt.Errorf("unsupported activity instance date column %q", column))
 	}
@@ -465,7 +443,7 @@ func publicActivityInstanceInput(value *scheduleModels.ActivityInstance) timetab
 	}
 }
 
-func publicOptionalInstanceDate(value *ActivityInstanceDate) *string {
+func publicOptionalInstanceDate(value *calendar.Date) *string {
 	if value == nil {
 		return nil
 	}
@@ -478,4 +456,9 @@ func legacyActivityInstanceError(operation string, err error) error {
 		return WrapNotFoundDatabaseError(operation)
 	}
 	return WrapDatabaseError(operation, err)
+}
+
+// ListInstances reads exactly the bounded instance selection requested by a consumer.
+func (r timetableActivityInstanceRepository) ListInstances(ctx context.Context, filter ports.LegacyInstanceFilter) ([]*scheduleModels.ActivityInstance, error) {
+	return r.list(ctx, filter, "list with options")
 }

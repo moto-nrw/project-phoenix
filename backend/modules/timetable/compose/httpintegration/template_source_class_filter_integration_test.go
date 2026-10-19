@@ -14,10 +14,11 @@ import (
 	"testing"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -37,15 +38,15 @@ func createClassSourcedTemplate(
 
 	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  fmt.Sprintf("Randstunde-%s-%d", label, time.Now().UnixNano()),
-		Type:                  activitiesModels.GroupTypeCare,
-		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		Type:                  activityContract.GroupTypeCare,
+		Weekdays:              []int{activityContract.WeekdayMonday},
 		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:                s.roomID,
 		CategoryID:            s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{offering.ID},
 		SourceSchoolClasses:   schoolClasses,
 		RosterValidFrom:       rosterValidFrom,
@@ -68,7 +69,7 @@ func sourcedStudentIDsOn(
 	date calendar.Date,
 ) []int64 {
 	t.Helper()
-	var rows []activitiesModels.StudentEnrollment
+	var rows []StudentEnrollment
 	require.NoError(t, s.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
@@ -104,7 +105,7 @@ func selectedWeekdaysOn(
 	date calendar.Date,
 ) []int {
 	t.Helper()
-	var rows []activitiesModels.StudentEnrollment
+	var rows []StudentEnrollment
 	require.NoError(t, s.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
@@ -157,7 +158,7 @@ func TestTemplateSourceClassFilter_SeedsOnlyTheFilteredClass(t *testing.T) {
 	t.Parallel()
 
 	monday := futureMonday(1)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1a")
@@ -182,7 +183,7 @@ func TestTemplateSourceClassFilter_MatchesCaseInsensitively(t *testing.T) {
 	t.Parallel()
 
 	monday := futureMonday(1)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], " 1B ")
@@ -199,7 +200,7 @@ func TestTemplateSourceClassFilter_LaterApprovalJoinsTheTermin(t *testing.T) {
 	t.Parallel()
 
 	monday := futureMonday(1)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1b")
@@ -223,7 +224,7 @@ func TestTemplateSourceClassFilter_ClassChangeMovesTheChild(t *testing.T) {
 	t.Parallel()
 
 	monday := futureMonday(1)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1a")
@@ -248,7 +249,7 @@ func TestTemplateSourceClassFilter_ClassChangeMovesTheChild(t *testing.T) {
 
 	// The already-started row is capped, not deleted: attendance history for
 	// the days the child really was in the 1a Randstunde stays intact.
-	var capped []activitiesModels.StudentEnrollment
+	var capped []StudentEnrollment
 	require.NoError(t, s.db.NewSelect().
 		Model(&capped).
 		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
@@ -267,7 +268,7 @@ func TestTemplateSourceClassFilter_ReconcilesMaterializedFutureOccurrences(t *te
 	t.Parallel()
 
 	monday := futureMonday(1)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1b")
@@ -297,7 +298,7 @@ func TestTemplateSourceClassFilter_UpdateSwitchesFromGradeToClass(t *testing.T) 
 	t.Parallel()
 
 	monday := futureMonday(1)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1a")
@@ -307,15 +308,15 @@ func TestTemplateSourceClassFilter_UpdateSwitchesFromGradeToClass(t *testing.T) 
 	name := fmt.Sprintf("Randstunde-Jahrgang-%d", time.Now().UnixNano())
 	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
-		Type:                  activitiesModels.GroupTypeCare,
-		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		Type:                  activityContract.GroupTypeCare,
+		Weekdays:              []int{activityContract.WeekdayMonday},
 		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:                s.roomID,
 		CategoryID:            s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{offering.ID},
 		SourceGradeLevels:     []int{1},
 		RosterValidFrom:       rosterFrom,
@@ -328,16 +329,16 @@ func TestTemplateSourceClassFilter_UpdateSwitchesFromGradeToClass(t *testing.T) 
 		TemplateID: result.TemplateID,
 		Fields: timetable.TemplateFields{
 			Name:                  name,
-			Type:                  activitiesModels.GroupTypeCare,
+			Type:                  activityContract.GroupTypeCare,
 			CategoryID:            s.categoryID,
 			RoomID:                s.roomID,
 			MaxParticipants:       20,
 			CalendarPeriodID:      &s.period.ID,
-			TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+			TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 			SourceCareOfferingIDs: []int64{offering.ID},
 			SourceSchoolClasses:   []string{"1b"},
 		},
-		Weekdays:         []int{activitiesModels.WeekdayMonday},
+		Weekdays:         []int{activityContract.WeekdayMonday},
 		TimeframeID:      result.TimeframeID,
 		CalendarPeriodID: &s.period.ID,
 		RosterValidFrom:  rosterFrom,
@@ -357,21 +358,21 @@ func TestTemplateSourceClassFilter_RejectsCombinedFilters(t *testing.T) {
 	t.Parallel()
 
 	monday := futureMonday(1)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 
 	_, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  fmt.Sprintf("Randstunde-Konflikt-%d", time.Now().UnixNano()),
-		Type:                  activitiesModels.GroupTypeCare,
-		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		Type:                  activityContract.GroupTypeCare,
+		Weekdays:              []int{activityContract.WeekdayMonday},
 		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:                s.roomID,
 		CategoryID:            s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{offering.ID},
 		SourceGradeLevels:     []int{1},
 		SourceSchoolClasses:   []string{"1b"},
@@ -465,7 +466,7 @@ func TestTemplateSourceClassFilter_HonoursBookedWeekdays(t *testing.T) {
 
 	monday := futureMonday(1)
 	friday := monday.AddDays(4)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 
 	offering := createMultiDayCareOffering(t, s, []string{"mon", "fri"})
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1b")
@@ -476,15 +477,15 @@ func TestTemplateSourceClassFilter_HonoursBookedWeekdays(t *testing.T) {
 
 	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  fmt.Sprintf("Randstunde-MoFr-%d", time.Now().UnixNano()),
-		Type:                  activitiesModels.GroupTypeCare,
-		Weekdays:              []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayFriday},
+		Type:                  activityContract.GroupTypeCare,
+		Weekdays:              []int{activityContract.WeekdayMonday, activityContract.WeekdayFriday},
 		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:                s.roomID,
 		CategoryID:            s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{offering.ID},
 		SourceSchoolClasses:   []string{"1b"},
 		RosterValidFrom:       monday.AddDays(-30),
@@ -511,7 +512,7 @@ func TestTemplateSourceClassFilter_DeregistrationLimitsTheAssignment(t *testing.
 	t.Parallel()
 
 	monday := futureMonday(2)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1b")
@@ -541,22 +542,22 @@ func TestTemplateSourceClassFilter_OfferingDayChangeReshapesTheRoster(t *testing
 	t.Parallel()
 
 	monday := futureMonday(1)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 
 	offering := createMultiDayCareOffering(t, s, []string{"mon", "fri"})
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1b")
 
 	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  fmt.Sprintf("Randstunde-Angebotswechsel-%d", time.Now().UnixNano()),
-		Type:                  activitiesModels.GroupTypeCare,
-		Weekdays:              []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayFriday},
+		Type:                  activityContract.GroupTypeCare,
+		Weekdays:              []int{activityContract.WeekdayMonday, activityContract.WeekdayFriday},
 		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:                s.roomID,
 		CategoryID:            s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{offering.ID},
 		SourceSchoolClasses:   []string{"1b"},
 		RosterValidFrom:       monday.AddDays(-30),
@@ -566,7 +567,7 @@ func TestTemplateSourceClassFilter_OfferingDayChangeReshapesTheRoster(t *testing
 
 	today := calendar.Date(classSourceResyncDate)
 	require.ElementsMatch(t,
-		[]int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayFriday},
+		[]int{activityContract.WeekdayMonday, activityContract.WeekdayFriday},
 		selectedWeekdaysOn(t, s, result.TemplateID, s.students[0], today))
 
 	// Das Angebot bietet den Freitag nicht mehr an.
@@ -582,11 +583,11 @@ func TestTemplateSourceClassFilter_OfferingDayChangeReshapesTheRoster(t *testing
 
 	// Der Freitag verschwindet ab heute; die bereits verplanten Tage davor
 	// behalten ihre Besetzung — die Zuordnung wird begrenzt, nicht umgeschrieben.
-	assert.Equal(t, []int{activitiesModels.WeekdayMonday},
+	assert.Equal(t, []int{activityContract.WeekdayMonday},
 		selectedWeekdaysOn(t, s, result.TemplateID, s.students[0], monday),
 		"der Freitag muss aus der zukünftigen Zuordnung verschwinden, sobald das Angebot ihn nicht mehr anbietet")
 	assert.ElementsMatch(t,
-		[]int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayFriday},
+		[]int{activityContract.WeekdayMonday, activityContract.WeekdayFriday},
 		selectedWeekdaysOn(t, s, result.TemplateID, s.students[0], today.AddDays(-1)),
 		"die Historie vor der Änderung bleibt unangetastet")
 }

@@ -1,6 +1,6 @@
 package parentportal
 
-import "github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
+import "github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging"
 
 func messagingToAppAnnouncementDeclarationSettings(v AnnouncementDeclarationSettings) messaging.AnnouncementDeclarationSettings {
 	return messaging.AnnouncementDeclarationSettings{

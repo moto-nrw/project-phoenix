@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -210,7 +212,7 @@ func newStaffOffboardingWorkflow(hub *realtime.Hub, identity *identityaccess.Mod
 	offboarding.Broadcaster, offboarding.Logger = hub, logger
 	offboarding.Authorize = func(ctx context.Context) (staffoffboarding.Actor, error) {
 		name, _ := ctx.Value(staffOffboardingActorNameKey{}).(string)
-		return offboardingcompose.Authorize(ctx, hooks.ResolveEditorStaffID, name)
+		return owners.AuthorizeStaffOffboarding(ctx, hooks.ResolveEditorStaffID, name)
 	}
 	workflow, err := NewStaffOffboardingWorkflow(offboarding)
 	if err != nil {

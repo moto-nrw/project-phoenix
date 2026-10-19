@@ -35,15 +35,10 @@ import (
 //
 // Form: a budget per composition package, keyed by its backend-relative
 // directory. A package without aliases has no entry.
-var moduleComposeAliasBudgets = map[string]int{
-	"modules/communication/composition":     4,
-	"modules/delivery/compose/email":        23,
-	"modules/schoolstructure/compose":       2,
-	"modules/timetable/compose/httpadapter": 1,
-}
+var moduleComposeAliasBudgets = map[string]int{}
 
 // moduleComposeAliasBudgetTotal is the sum of moduleComposeAliasBudgets.
-const moduleComposeAliasBudgetTotal = 30
+const moduleComposeAliasBudgetTotal = 0
 
 const backendModulePath = "github.com/moto-nrw/project-phoenix/"
 

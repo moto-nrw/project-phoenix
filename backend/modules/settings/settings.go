@@ -50,6 +50,8 @@ const (
 	KeyGDPRAttendanceRetentionDays           = configModel.KeyGDPRAttendanceRetentionDays
 	KeyGDPRStaffSickNoteRetentionDays        = configModel.KeyGDPRStaffSickNoteRetentionDays
 	KeyGDPRStudentRetentionDays              = configModel.KeyGDPRStudentRetentionDays
+	KeyGDPRTimetableRetentionDays            = configModel.KeyGDPRTimetableRetentionDays
+	KeyGDPRGuardianRetentionDays             = configModel.KeyGDPRGuardianRetentionDays
 	KeyGDPRTimeTrackingRetentionDays         = configModel.KeyGDPRTimeTrackingRetentionDays
 	KeyGuardianParentCanRemove               = configModel.KeyGuardianParentCanRemove
 	KeyGuardianParentInviteMode              = configModel.KeyGuardianParentInviteMode

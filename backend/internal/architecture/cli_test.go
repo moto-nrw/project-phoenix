@@ -781,13 +781,13 @@ func TestCanonicalArchitectureRatchetMatchesCommittedBaseline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("canonical architecture ratchet failed: %v\n%s", err, output)
 	}
-	if !strings.Contains(output, "backend architecture ratchet passed:") || !strings.Contains(output, "legacy violation(s) remain") {
+	if !strings.Contains(output, "backend architecture ratchet passed:") || !strings.Contains(output, "0 legacy violation(s) remain") {
 		t.Fatalf("canonical check did not report the shrinking ratchet result:\n%s", output)
 	}
 
 	output, err = runArchitecture(t, "check", "--baseline", "")
-	if err == nil || !strings.Contains(output, "|imports.forbidden|") {
-		t.Fatalf("canonical check did not evaluate real import edges: %v\n%s", err, output)
+	if err != nil || strings.Contains(output, "|imports.forbidden|") {
+		t.Fatalf("baseline-free canonical check did not pass with zero violations: %v\n%s", err, output)
 	}
 	for _, forbidden := range []string{"|packages.unclassified|", "|packages.stale|", "|external.unclassified|", "|external.stale|", "|policy.rules-overlap|"} {
 		if strings.Contains(output, forbidden) {

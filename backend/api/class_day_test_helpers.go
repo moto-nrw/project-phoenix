@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
@@ -33,12 +35,12 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	}
 	activeSettings := NewActiveTestSettings(db, unit, clocks...)
 	activeCaller := NewActiveTestCaller(db, unit, clocks...)
-	activeTimetable := NewActiveTestTimetable(db, unit, clocks...)
+	activeTimetable, _ := NewActiveTestTimetable(db, unit, clocks...)
 	care, _, err := NewCareLifecycleTestModule(db, unit)
 	if err != nil {
 		return ClassDayTestModule{}, err
 	}
-	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
+	command, err := auditCompose.NewCommand(owners.NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return ClassDayTestModule{}, err
 	}
@@ -49,15 +51,15 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	rCare := NewEnrollmentCarePlanRows(db)
 	rAudit := NewEnrollmentAuditRows(db, command)
 	rMembership := NewSchoolMembershipSuiteRepositories(db)
-	reports := NewEnrollmentReports(EnrollmentReportSources{
+	reports := owners.NewEnrollmentReports(owners.EnrollmentReportSources{
 		Owner: r.Enrollment(), Offerings: enrollmentCompose.NewCareOfferingRecords(rCare.CarePlan), AccessLog: rAudit.DataAccessLog,
-		Students: r.Student, Persons: r.Person, Groups: schoolStructureCompose.NewGroupNames(NewSchoolStructureSuiteRepositories(db).Group), StudentGuardians: r.StudentGuardian,
-		Companions: NewStudentCompanionRepository(rCare.CarePlan), ClassListEntries: NewClassListEntryRosterReader(rMembership.Membership),
+		Students: r.Student, Persons: r.Person, Groups: schoolStructureCompose.NewGroupNames(owners.NewSchoolStructureSuiteRepositories(db).Group), StudentGuardians: r.StudentGuardian,
+		Companions: owners.NewStudentCompanionRepository(rCare.CarePlan), ClassListEntries: owners.NewClassListEntryRosterReader(rMembership.Membership),
 		PickupSchedules: active.PickupSchedule, CareParticipation: care.CareLifecycle, Settings: activeSettings.Settings,
 	})
 	classDay := NewClassDay(classdayCompose.ClassDayDependencies{
 		Caller: activeCaller, PickupTimes: active.PickupSchedule, ArrivalTimes: active.ArrivalSchedule, CareDays: active.CareDay,
-		Companions: NewStudentCompanionRepository(rCare.CarePlan), ClassArrivalExceptions: active.ArrivalSchedule,
+		Companions: owners.NewStudentCompanionRepository(rCare.CarePlan), ClassArrivalExceptions: active.ArrivalSchedule,
 		BlockStarts: activeTimetable.TimetableOperations,
 	}, reports, rCare.StudentStatusDay, r.Student, r.Person, r.StudentGuardian, rAudit.DataAccessLog, activeSettings.Settings,
 		deliveryCompose.NewRealtimeHub(slog.Default()), slog.Default())

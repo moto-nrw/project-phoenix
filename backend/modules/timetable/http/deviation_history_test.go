@@ -27,6 +27,7 @@ func historyRouter(s *devSetup) chi.Router {
 			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), tenantID)))
 		})
 	})
+	r.Use(testpkg.TenantTxMiddleware(s.db))
 	r.Get("/deviations/history", s.res.getDeviationHistory)
 	return r
 }

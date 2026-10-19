@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -18,16 +18,16 @@ func TestPublicSettingsContractDistinguishesOverrideFromRegistryDefault(t *testi
 	var resolver settings.Resolver = module.Settings
 	ctx := testpkg.Ctx(t)
 	key := settings.KeyParentNotesEnabled
-	fallback, err := resolver.ResolveBool(ctx, key)
+	fallback, err := testpkg.TenantQuery1(t, ctx, db, resolver.ResolveBool, key)
 	require.NoError(t, err)
-	overridden, err := resolver.HasTenantOverride(ctx, key)
+	overridden, err := testpkg.TenantQuery1(t, ctx, db, resolver.HasTenantOverride, key)
 	require.NoError(t, err)
 	require.False(t, overridden)
 	require.NoError(t, module.Settings.SetValue(ctx, key, !fallback, nil, nil))
-	actual, err := resolver.ResolveBool(ctx, key)
+	actual, err := testpkg.TenantQuery1(t, ctx, db, resolver.ResolveBool, key)
 	require.NoError(t, err)
 	require.Equal(t, !fallback, actual)
-	overridden, err = resolver.HasTenantOverride(ctx, key)
+	overridden, err = testpkg.TenantQuery1(t, ctx, db, resolver.HasTenantOverride, key)
 	require.NoError(t, err)
 	require.True(t, overridden)
 	otherTenant, _ := testpkg.CreateTestTenant(t, db)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -17,7 +18,7 @@ import (
 func init() {
 	requestreviewcompose.ComposeReviewDecorations = func(t *testing.T, db *bun.DB, people requestreviewcompose.ReviewPeople, allowed func(context.Context) bool) (requestreviewcompose.ReviewDecorations, error) {
 		t.Helper()
-		groups, err := api.NewSchoolStructure(testpkg.NewDatabase(t, db))
+		groups, err := owners.NewSchoolStructure(testpkg.NewDatabase(t, db))
 		require.NoError(t, err)
 		students, err := requestreviewcompose.NewStudentDirectory(people, groups)
 		if err != nil {

@@ -753,7 +753,7 @@ jobs:
       - name: Check seed coverage ratchet
         if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
-        run: go test ./seed/api/ -run TestSeedCoverageRatchet -v
+        run: go test ./internal/devtools/seedapi/ -run TestSeedCoverageRatchet -v
 
       - name: Postgres activity and socket queues
         if: failure()

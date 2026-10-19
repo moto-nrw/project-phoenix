@@ -7,9 +7,11 @@ import (
 	"context"
 	"encoding/json"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	mail "github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	mail "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 )
 
 type communicationCapturingOutbox func(context.Context, communication.MailEnqueueInput) error
@@ -46,5 +48,5 @@ func BindCommunicationCapturingOutbox(source interface {
 // RenderCommunicationMailFixture exercises the production Root binding so the
 // fixture still observes the actual final transport message and content map.
 func RenderCommunicationMailFixture(ctx context.Context, render communication.MailRenderer, kind string, payload map[string]any) (*mail.Message, error) {
-	return BindCommunicationMailRenderer(render)(ctx, &deliveryCompose.MailIntent{Kind: kind, Payload: payload})
+	return owners.BindCommunicationMailRenderer(render)(ctx, &deliveryCompose.MailIntent{Kind: kind, Payload: payload})
 }

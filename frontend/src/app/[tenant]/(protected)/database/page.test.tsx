@@ -417,6 +417,22 @@ describe("DatabasePage", () => {
     });
   });
 
+  it("puts the intro text with the Alle Kinder link on a surface", () => {
+    render(<DatabasePage />);
+
+    // Auf dem gemusterten Grund steht kein Text (BAUARTEN-SPEC, Teil 3).
+    const allChildrenLink = screen.getByRole("link", { name: "Alle Kinder" });
+    expect(allChildrenLink).toHaveAttribute(
+      "href",
+      "/test-tenant/students/search",
+    );
+    const surface = allChildrenLink.closest("section");
+    expect(surface).not.toBeNull();
+    expect(surface).toHaveTextContent(
+      /Hier legen Sie Kinder, Personal, Räume und Gruppen an/,
+    );
+  });
+
   it("keeps the tenant slug on the Exporte link in path routing", async () => {
     render(<DatabasePage />);
 

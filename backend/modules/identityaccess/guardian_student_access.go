@@ -31,6 +31,9 @@ type GuardianStudentAccessGrant struct {
 // so it also serves the administrative transactions that write across
 // schools.
 type GuardianStudentAccess interface {
+	// LockLiveGuardianAccount takes a shared account-row lock until the caller's
+	// transaction ends and reports whether the account has not been erased.
+	LockLiveGuardianAccount(context.Context, int64) (bool, error)
 	// GrantGuardianStudentAccess records the access of a new relationship.
 	GrantGuardianStudentAccess(context.Context, GuardianStudentAccessGrant) error
 	// SetGuardianStudentPermissions replaces the permissions of one

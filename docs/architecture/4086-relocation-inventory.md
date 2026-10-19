@@ -1,5 +1,20 @@
 # 4086 relocation inventory
 
+## Final cluster round 5 (current follow-up)
+
+Initial base after PR #4338; integrated development `10591926424937be480dd39ce3c54a44d97cad9a` after PR #4340, including PR #4337. Two scoped carriers are dissolved: the canonical SQLSTATE detector moves from `models/base` into Transaction Runtime with one narrowed file-literal repair and the same four sites; Delivery owns native subscription records, its internal persistence port and owner test fixture, deleting `models/delivery`. `database/repositories/base` stays absent.
+
+Conventional carriers: **5 → 3**, namely `models/activities`, `models/schedule` and `services/scheduler`. Foreign compose aliases: **23 → 0**. Exact keys: **1 → 1**. Legacy-prefixed files and projection locations/grants stay unchanged. Scheduler's 66-file internal relocation was verified, then reverted because the new exact side-effect notice subset guard rejects even its one-to-one path-key rename. The authorized follow-up probe confirmed the same rejection with 117/117 identical operations, reasons and fingerprints after path normalization. No allowance or checker behavior is added.
+
+[Exact blocker and current evidence](final-legacy-cluster.md#exact-remaining-blocker). The whole package-layout exit is not established. All sections below are historical snapshots.
+
+## Final cluster round 4 (historical)
+
+Development `dd92c93a8af3c4cc3d74d51769eb04d4922c85b8` → candidate: 15 → 1 exact keys, eight → five conventional production carriers, 30 → 23 foreign compose aliases. The dead generic CRUD/model API is deleted after production dead-code proof; `database/repositories/base` disappears. The live canonical unique-violation detector stays in `models/base` because the unchanged helper-consolidation guard pins that path. `models/enrollment` is dissolved into native values and existing Enrollment internal application. `services/parentmessaging` moves to Communication internal application with unchanged owner/application roles.
+
+The [current final-cluster report](final-legacy-cluster.md#exact-remaining-boundaries) records the exact five remaining carriers and the 33 path-bound projection-grant blocker. This does not establish the whole package-layout exit. All older tables below are historical snapshots.
+
+
 Current final-cluster outcome: **5 of 13 remaining carriers removed; 8 retained**. See the current update below and [the final-cluster report](final-legacy-cluster.md). The older figures are preserved as historical evidence.
 
 ## Historical relocation snapshot

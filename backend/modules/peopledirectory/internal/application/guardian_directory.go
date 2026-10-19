@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
@@ -347,9 +349,8 @@ func mapGuardianError(err error) error {
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianLinkNotFound, err)
 	case peoplePorts.IsConstraintViolation(err): // a child link still references the profile
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianLinkConflict, err)
-	case strings.Contains(err.Error(), "not found"):
-		// The legacy service reports missing rows through wrapped messages
-		// ("guardian profile not found: ...", "student not found: ...").
+	case errors.Is(err, peopledirectory.ErrGuardianNotFound) || errors.Is(err, peopledirectory.ErrGuardianPhoneNotFound) || errors.Is(err, peopledirectory.ErrGuardianLinkNotFound) || errors.Is(err, peopledirectory.ErrStudentNotFound) || errors.Is(err, transactionruntime.ErrNoRows) || errors.Is(err, userscontract.ErrStudentNotFound):
+		// Lookup failures retain their existing text and expose an identity.
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianNotFound, err)
 	default:
 		return err
@@ -360,7 +361,7 @@ func mapGuardianPhoneError(err error) error {
 	if err == nil {
 		return nil
 	}
-	if strings.Contains(err.Error(), "phone number not found") {
+	if errors.Is(err, peopledirectory.ErrGuardianPhoneNotFound) {
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianPhoneNotFound, err)
 	}
 	return mapGuardianError(err)
@@ -370,7 +371,7 @@ func mapGuardianLinkError(err error) error {
 	if err == nil {
 		return nil
 	}
-	if strings.Contains(err.Error(), "relationship not found") {
+	if errors.Is(err, peopledirectory.ErrGuardianLinkNotFound) {
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianLinkNotFound, err)
 	}
 	return mapGuardianError(err)

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -103,7 +105,7 @@ func (s *staffAbsenceService) createDirectVacation(ctx context.Context, staffID,
 		return nil, err
 	}
 	if req.HalfDay && dateStart != dateEnd {
-		return nil, fmt.Errorf("invalid vacation absence: half-day entries must cover exactly one date")
+		return nil, &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid vacation absence: half-day entries must cover exactly one date")}
 	}
 	if err := s.lockStaffAbsenceWrites(ctx, staffID); err != nil {
 		return nil, err
@@ -113,11 +115,11 @@ func (s *staffAbsenceService) createDirectVacation(ctx context.Context, staffID,
 		return nil, fmt.Errorf("failed to check existing absences: %w", err)
 	}
 	if len(filterBlockingAbsences(existing)) > 0 {
-		return nil, fmt.Errorf("dates overlap with an existing absence")
+		return nil, &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceDatesOverlap, Cause: fmt.Errorf("dates overlap with an existing absence")}
 	}
 	workingDays := countWorkingDays(dateStart, dateEnd, req.HalfDay, req.HalfDay)
 	if workingDays <= 0 {
-		return nil, fmt.Errorf("vacation range contains no working days")
+		return nil, workforce.ErrAbsenceNoWorkingDays
 	}
 
 	now := time.Now()

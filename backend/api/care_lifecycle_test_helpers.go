@@ -5,13 +5,19 @@ package api
 import (
 	"context"
 
+	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
+
+	carePlanHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
+
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -24,11 +30,11 @@ type CareLifecycleTestModule struct {
 }
 
 func NewCareLifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (CareLifecycleTestModule, peoplePorts.StudentAuditService, error) {
-	settings, err := NewSettingsTestModule(db, unit)
+	settings, err := owners.NewSettingsTestModule(db, unit)
 	if err != nil {
 		return CareLifecycleTestModule{}, nil, err
 	}
-	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
+	command, err := auditCompose.NewCommand(owners.NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return CareLifecycleTestModule{}, nil, err
 	}
@@ -37,7 +43,7 @@ func NewCareLifecycleTestModule(db transactionruntime.Database, unit tenant.Unit
 		return CareLifecycleTestModule{}, nil, err
 	}
 	audit := peopleCompose.NewStudentAuditService(requestTokenReads.AuditActor, NewStudentAudit(db))
-	recurrenceLock, err := newTimetableTestRecurrenceLock(db)
+	recurrenceLock, err := owners.NewTimetableTestRecurrenceLock(db)
 	if err != nil {
 		return CareLifecycleTestModule{}, nil, err
 	}
@@ -59,10 +65,11 @@ func NewCareLifecycleTestModule(db transactionruntime.Database, unit tenant.Unit
 // caller's staff identity or leave an audit repository out.
 func NewStudentDocumentsTestModule(
 	db transactionruntime.Database, records careplan.Capability, students peoplePorts.StudentRepository,
-	userContext securityruntime.StudentAccessUserContext,
+	userContext securitycontract.StudentAccessUserContext,
 	edits auditModels.StudentFieldEditRepository, accessLog auditModels.DataAccessLogRepository,
 ) (careplan.StudentDocuments, error) {
-	deps, err := StudentDocumentDependencies(records, students, userContext, edits, accessLog)
+	health, legal, fallback := carePlanHTTP.StudentDocumentPermissions()
+	deps, err := owners.StudentDocumentDependencies(records, students, userContext, edits, accessLog, carePlanCompose.StudentDocumentPermissions{Health: health, Legal: legal, Default: fallback})
 	if err != nil {
 		return nil, err
 	}

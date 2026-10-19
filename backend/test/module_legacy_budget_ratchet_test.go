@@ -121,7 +121,7 @@ const moduleLegacyBudgetTotal = 0
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
-const moduleLegacyFileBudgetTotal = 2897
+const moduleLegacyFileBudgetTotal = 0
 
 // moduleLegacyFileBudgets maps every legacy_*.go file outside a legacy tree
 // to its LOC, first measured on 2026-10-15 on top of development c49b81c3a9:
@@ -134,91 +134,77 @@ const moduleLegacyFileBudgetTotal = 2897
 // name out of modules/timetable/internal/application/legacy_repository_options.go
 // into modules/timetable/ports/legacy_repository_options.go. Both halves keep
 // counting, and their sum stays below the old entry.
-var moduleLegacyFileBudgets = map[string]int{
-	"modules/peopledirectory/compose/legacy_repository_runtime.go":            98,
-	"modules/presenceprojection/legacy_rows.go":                               353,
-	"modules/schoolstructure/compose/legacy_group_catalog.go":                 71,
-	"modules/schoolstructure/compose/legacy_group_contract.go":                67,
-	"modules/schoolstructure/compose/legacy_group_management_test_helpers.go": 167,
-	"modules/schoolstructure/compose/legacy_repository_runtime.go":            53,
-	"modules/timetable/compose/legacy_activity_service.go":                    527,
-	"modules/timetable/compose/legacy_category_operations.go":                 98,
-	"modules/timetable/compose/legacy_enrollment_operations.go":               570,
-	"modules/timetable/compose/legacy_errors.go":                              121,
-	"modules/timetable/compose/legacy_group_update.go":                        47,
-	"modules/timetable/compose/legacy_interface.go":                           84,
-	"modules/timetable/compose/legacy_schedule_operations.go":                 118,
-	"modules/timetable/compose/legacy_supervisor_operations.go":               523,
-}
+var moduleLegacyFileBudgets = map[string]int{}
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
-// like every entry; raised by ADR 0063 and ADR 0066.
-const moduleComposeBudgetTotal = 31282
+// like every entry; raised by ADR 0063 and by ADR 0073 (the parent
+// announcement retention of modules/communication/composition), and by
+// ADR 0075 (the meal ordering rules).
+const moduleComposeBudgetTotal = 20149
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
 // packages, 90627 LOC. #4084 carries the reduction to construction only;
 // modules/timetable/compose is the largest by far. Shrink-only — a new owner
 // composition starts small and is no reason to raise the total; split code
-// keeps its LOC counted. ADR 0066 raised modules/mealplan/compose and
+// keeps its LOC counted. ADR 0075 raised modules/mealplan/compose and
 // workflows/parentportal/compose for the meal ordering rules.
 var moduleComposeBudgets = map[string]int{
-	"modules/appointments/compose":                    528,
-	"modules/auditlog/compose":                        251,
-	"modules/careplan/compose":                        2536,
-	"modules/careplan/requestfeed/compose":            68,
-	"modules/classday/compose":                        461,
-	"modules/communication/composition":               1453,
-	"modules/dataimport/compose":                      253,
+	"modules/appointments/compose":         67,
+	"modules/auditlog/compose":             183,
+	"modules/careplan/compose":             2460,
+	"modules/careplan/requestfeed/compose": 68,
+	"modules/classday/compose":             461,
+	// Raised by ADR 0073: the parent announcement retention.
+	"modules/communication/composition":               1267,
+	"modules/dataimport/compose":                      202,
 	"modules/dataimport/compose/imports":              29,
-	"modules/delivery/compose":                        774,
-	"modules/delivery/compose/email":                  36,
-	"modules/devicefleet/compose":                     362,
-	"modules/devicefleet/compose/repositoryadapter":   292,
+	"modules/delivery/compose":                        759,
+	"modules/devicefleet/compose":                     353,
+	"modules/devicefleet/compose/repositoryadapter":   10,
 	"modules/devicescan/compose":                      1228,
 	"modules/emergencysnapshot/compose":               13,
-	"modules/enrollment/compose":                      715,
-	"modules/exporttransfer/compose":                  323,
+	"modules/enrollment/compose":                      714,
+	"modules/exporttransfer/compose":                  234,
 	"modules/facilities/compose":                      222,
-	"modules/facilities/compose/repositoryadapter":    222,
-	"modules/feedback/compose":                        196,
-	"modules/filestorage/compose":                     361,
+	"modules/facilities/compose/repositoryadapter":    11,
+	"modules/feedback/compose":                        86,
+	"modules/filestorage/compose":                     341,
 	"modules/grouplive/compose":                       14,
 	"modules/guardianlinkview/compose":                8,
-	"modules/identityaccess/compose":                  1754,
-	"modules/mealplan/compose":                        353, // raised by ADR 0066
-	"modules/organizationtenancy/compose":             479,
+	"modules/identityaccess/compose":                  1729,
+	"modules/mealplan/compose":                        89, // raised by ADR 0075
+	"modules/organizationtenancy/compose":             474,
 	"modules/parentrequestfeedprojection/compose":     11,
-	"modules/peopledirectory/compose":                 2576,
+	"modules/peopledirectory/compose":                 1168,
 	"modules/presenceprojection/compose":              7,
 	"modules/requestreview/compose":                   988,
-	"modules/schedulerruntime/compose":                83,
-	"modules/schoolcalendar/compose":                  562,
-	"modules/schoolcalendar/portal/compose":           155,
-	"modules/schoolmembership/compose":                343,
-	"modules/schoolsetup/compose":                     92,
-	"modules/schoolstructure/compose":                 901,
-	"modules/settings/compose":                        558,
+	"modules/schedulerruntime/compose":                45,
+	"modules/schoolcalendar/compose":                  165,
+	"modules/schoolcalendar/portal/compose":           119,
+	"modules/schoolmembership/compose":                185,
+	"modules/schoolsetup/compose":                     56,
+	"modules/schoolstructure/compose":                 594,
+	"modules/settings/compose":                        380,
 	"modules/studentdirectoryview/compose":            9,
-	"modules/studentpresence/compose":                 621,
+	"modules/studentpresence/compose":                 613,
 	"modules/studentpresence/compose/presenceservice": 873,
 	"modules/supervisiondashboard/compose":            11,
-	"modules/timetable/compose":                       4120,
-	"modules/timetable/compose/httpadapter":           3562,
+	"modules/timetable/compose":                       1365,
 	"modules/timetableblockdisplay/compose":           9,
 	"modules/timetableenrollmentprovenance/compose":   10,
-	"modules/timetableprojection/compose":             11,
-	"modules/transactionruntime/compose":              172,
-	"modules/workforce/compose":                       1170,
-	"workflows/gradetransition/compose":               145,
+	"modules/timetableprojection/compose":             7,
+	"modules/transactionruntime/compose":              137,
+	"modules/workforce/compose":                       1164,
+	"workflows/gradetransition/compose":               49,
 	"workflows/openroommove/compose":                  81,
-	"workflows/parentportal/compose":                  475, // raised by ADR 0066
+	"workflows/parentportal/compose":                  475, // raised by ADR 0075
 	"workflows/reminderdelivery/compose":              30,
 	"workflows/sessionend/compose":                    221,
 	"workflows/shiftplansync/compose":                 166,
 	"workflows/staffclock/compose":                    36,
-	"workflows/staffoffboarding/compose":              134,
-	"workflows/studentdeletion/compose":               219,
+	"workflows/staffoffboarding/compose":              79,
+	"workflows/studentdeletion/compose":               74,
 }
 
 // moduleLegacyBudgets maps a legacy tree to its production LOC on 2026-09-18.

@@ -3,7 +3,7 @@ package test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/auth/userpass/userpasstest"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime/userpasstest"
 )
 
 // UseCheapArgon2Params makes Argon2id hashing cheap for the calling test

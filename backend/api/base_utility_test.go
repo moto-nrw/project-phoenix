@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/go-chi/chi/v5"
@@ -294,11 +296,11 @@ func setupCaregiverCompositionModule(t *testing.T, graph *goldenRuntime) *caregi
 	t.Helper()
 	sessionAuth, err := newSessionTokenAuth()
 	require.NoError(t, err)
-	_, transport, _, _, settings, _, services, schedules, _, active, _, _, _, _, provisioning, _, _, _, deviceFleet, _, settingsWrites, _, _, err := composeTestRoot(graph.db, slog.Default(), currentTestServiceConfig())
+	_, _, _, _, _, hub, _, _, settings, _, services, schedules, _, active, _, _, _, _, provisioning, _, _, _, deviceFleet, _, settingsWrites, _, _, err := composeTestRoot(graph.db, slog.Default(), currentTestServiceConfig())
 	require.NoError(t, err)
 	auth := newAccountResource(graph.db, nil, nil, services.CaregiverCapability, settings.Service)
 	operator, err := newOperatorRouter(graph.db, slog.Default(), sessionAuth, authRateLimiters{}, devicefleetCompose.NewIoTService(deviceFleet), nil,
-		settings.Service, transport.Hub, active, settingsWrites, nil, provisioning, services.CaregiverCapability, schedules.Lifecycle, nil)
+		settings.Service, hub, active, settingsWrites, nil, provisioning, services.CaregiverCapability, schedules.Lifecycle, nil)
 	require.NoError(t, err)
 	return &caregiverComposition{
 		authWired:        auth != nil,
@@ -312,7 +314,7 @@ func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
 	db := testpkg.SetupTestDB(t)
 	module, hub, err := NewSettingsCallbacksTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), newStudentPhotoTestUnlinker())
 	require.NoError(t, err)
-	repos, err := NewEnrollmentTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	repos, err := NewEnrollmentTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	homeLayouts, ok := module.Settings.(interface {
 		HomeLayout(context.Context, int64, int64, []string) (any, error)
@@ -330,10 +332,10 @@ func setupOperatorInvitationRoute(t *testing.T, graph *goldenRuntime) chi.Router
 	// enabled. The golden graph's router remains unchanged.
 	sessionAuth, err := newSessionTokenAuth()
 	require.NoError(t, err)
-	_, transport, _, _, settings, _, services, schedules, _, active, _, _, _, _, provisioning, _, _, _, deviceFleet, _, settingsWrites, _, _, err := composeTestRoot(graph.db, slog.Default(), currentTestServiceConfig())
+	_, _, _, _, _, hub, _, _, settings, _, services, schedules, _, active, _, _, _, _, provisioning, _, _, _, deviceFleet, _, settingsWrites, _, _, err := composeTestRoot(graph.db, slog.Default(), currentTestServiceConfig())
 	require.NoError(t, err)
 	operator, err := newOperatorRouter(graph.db, slog.Default(), sessionAuth, buildAuthRateLimiters(nil, "5", demoLoopbackExempt()),
-		devicefleetCompose.NewIoTService(deviceFleet), nil, settings.Service, transport.Hub, active, settingsWrites, nil, provisioning,
+		devicefleetCompose.NewIoTService(deviceFleet), nil, settings.Service, hub, active, settingsWrites, nil, provisioning,
 		services.CaregiverCapability, schedules.Lifecycle, nil)
 	require.NoError(t, err)
 	router := chi.NewRouter()
@@ -345,7 +347,7 @@ func TestSyncClientIPToRemoteAddrUsesChiClientIP(t *testing.T) {
 	t.Parallel()
 
 	router := chi.NewRouter()
-	router.Use(chimiddleware.ClientIPFromXFF())
+	router.Use(chimiddleware.ClientIPFromXFFTrustedProxies(1))
 	router.Use(syncClientIPToRemoteAddr)
 	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "203.0.113.10", r.RemoteAddr)
@@ -752,7 +754,7 @@ func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
 func TestRegisterRoutes_UsersRoutesRunThroughProtectedGroup(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	people, err := NewPeopleDirectory(testpkg.NewDatabase(t, db))
+	people, err := owners.NewPeopleDirectory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
@@ -804,7 +806,7 @@ type settingsCallbackRoute struct {
 func checkTimetableConflictWiring(t *testing.T, graph *goldenRuntime) {
 	t.Parallel()
 
-	_, _, _, _, settings, _, services, schedules, requests, _, _, lifecycle, planning, materialization, _, _, _, _, _, _, _, _, _, err := composeTestRoot(graph.db, slog.Default(), currentTestServiceConfig())
+	_, _, _, _, _, _, _, _, settings, _, services, schedules, requests, _, _, lifecycle, planning, materialization, _, _, _, _, _, _, _, _, _, err := composeTestRoot(graph.db, slog.Default(), currentTestServiceConfig())
 	require.NoError(t, err)
 	timetable := newTimetableResource(nil, nil, materialization, lifecycle, planning, nil, services.Users, schedules, nil, settings.Service,
 		requests.CareOfferings, ClassDayViews{}, nil, nil, slog.Default())

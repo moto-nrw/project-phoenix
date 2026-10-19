@@ -4,47 +4,32 @@ import (
 	"context"
 	"fmt"
 
-	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
+	realtime "github.com/moto-nrw/project-phoenix/realtime"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/emergencysnapshot"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/planexport"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
-	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	observabilityCompose "github.com/moto-nrw/project-phoenix/observability/compose"
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
-	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
-	reminderPorts "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 )
@@ -60,25 +45,25 @@ type StructureServices struct {
 // buildGroupManagement binds School Structure's group management over the
 // People Directory, School Membership and Facilities directories; its group
 // events wake the open views.
-func buildGroupManagement(db transactionruntime.Database, transport MailTransport, structure StructureRows, people PeopleRows, substitutions GroupSubstitutionRepository, audit AuditOwner) schoolstructure.GroupManagement {
+func buildGroupManagement(db transactionruntime.Database, hub *realtime.Hub, structure owners.StructureRows, people owners.PeopleRows, substitutions owners.GroupSubstitutions, audit owners.AuditOwner) schoolstructure.GroupManagement {
 	return education.NewGroupManagement(
 		structure.Groups, structure.GroupTeachers, structure.ClassTeachers, structure.GroupRooms, structure.GroupTeacherDirectory,
 		structure.StaffChecks, people.Students, substitutions, education.NewLegacyRepositoryRuntime(db.Pool()),
-		education.GroupServiceOptions{Broadcaster: NewGroupEvents(transport.Hub, nil), Audit: NewEducationClassAssignmentAudit(audit.Persistence.StaffMasterDataChange)},
+		education.GroupServiceOptions{Broadcaster: NewGroupEvents(hub, nil), Audit: NewEducationClassAssignmentAudit(audit.Persistence.StaffMasterDataChange)},
 	)
 }
 
 // buildSubstitutions binds the substitution module; the shift-plan-sync
 // workflow serves its schedule port.
 func buildSubstitutions(
-	db transactionruntime.Database, env RootEnvironment, transport MailTransport, structure StructureRows, people PeopleRows,
-	substitutions GroupSubstitutionRepository, workTime workforce.Capability, callerContext identityaccess.CallerContext,
+	db transactionruntime.Database, env owners.RootEnvironment, hub *realtime.Hub, structure owners.StructureRows, people owners.PeopleRows,
+	substitutions owners.GroupSubstitutions, workTime workforce.Capability, callerContext identityaccess.CallerContext,
 	sessions *presenceCompose.SessionRecords, supervisions studentpresence.SupervisionRecords, active studentpresence.Presence,
-	deviations timetable.StaffDeviations, owner TimetableOwner, audit AuditOwner, settings settingsCompose.SettingsService,
+	deviations timetable.StaffDeviations, owner owners.TimetableOwner, audit owners.AuditOwner, settings settingsCompose.SettingsService,
 ) (education.SubstitutionModule, error) {
 	repos := owner.Repositories
 	schedule, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
-		Deviations: deviations, Staff: NewPlanStaffDirectory(people.Staff), Broadcaster: transport.Hub,
+		Deviations: deviations, Staff: owners.NewPlanStaffDirectory(people.Staff), Broadcaster: hub,
 		Logger:            env.Logger.With("service", "schedule-substitution"),
 		ActivityInstances: arrivalTimetable.NewTimetableInstanceReads(repos.ActivityInstance),
 		InstanceStaff:     arrivalTimetable.NewTimetableInstanceStaffReads(repos.InstanceStaff),
@@ -95,159 +80,16 @@ func buildSubstitutions(
 		ActiveGroups: sessions, ActiveSupervisors: supervisions,
 		ActiveSupervisorCreator: active,
 		Audit:                   NewEducationSubstitutionAudit(audit.Persistence.SubstitutionChange),
-		Runtime:                 education.NewLegacyRepositoryRuntime(db.Pool()), Broadcaster: NewGroupEvents(transport.Hub, logger),
+		Runtime:                 education.NewLegacyRepositoryRuntime(db.Pool()), Broadcaster: NewGroupEvents(hub, logger),
 		Logger: logger, Schedule: schedule,
 		CanSeeAll: substitutionOverviewScope(settings), Now: env.Now,
 	}), nil
 }
 
-// PresenceReports are Student Presence's cleanup, absence overview, student
-// history and Statistik report (#2606).
-type PresenceReports struct {
-	ActiveCleanup   studentpresence.PresenceCleanup
-	AbsenceOverview studentpresence.StatusDayOverviews
-	StudentHistory  studentpresence.StudentHistory
-	Statistics      studentpresence.StatisticsReports
-}
-
-// buildPresenceReports binds the presence cleanup, the absence overview, the
-// student history and the statistics.
-func buildPresenceReports(
-	db transactionruntime.Database, env RootEnvironment, presence PresenceOwner, carePlanRows CarePlanRows, carePlan careplan.Capability,
-	users peoplePorts.PersonDirectory, owner TimetableOwner, rooms facilitiesModule.Catalog, calendar schoolcalendar.Days,
-	people PeopleRows, audit AuditOwner, settings settingsCompose.SettingsService,
-) PresenceReports {
-	_, sessionSupervisors := presenceCompose.SessionRepositories(presence.SessionRecords)
-	return PresenceReports{
-		ActiveCleanup: presenceservice.NewPresenceCleanup(
-			presence.Presence, sessionSupervisors, NewDeletionAudit(audit.Persistence.DataDeletion),
-			settingsCompose.PresenceSettings(settings), env.Today,
-		),
-		AbsenceOverview: presenceservice.NewStatusDayOverviews(carePlanRows.StatusDays, StatusDayOverviewPeople(users)),
-		StudentHistory: presenceservice.NewStudentHistory(presence.Presence, historyRoomNames(rooms),
-			NewDataAccessAudit(audit.Persistence.DataAccessLog), NewHistorySlots(owner.Repositories.InstanceStudent)),
-		Statistics: newStatisticsReports(db, carePlan, calendar, people.Students, rooms, env.Logger, env.Now)(audit.Persistence.DataAccessLog, settings),
-	}
-}
-
-// buildCalendarApp binds the staff and parent personal calendars over the
-// facts, the outbox and the notification router.
-func buildCalendarApp(
-	db transactionruntime.Database, env RootEnvironment, people PeopleRows, structure StructureRows, portal carePlanCompose.ParentPortalRepositories,
-	owner TimetableOwner, rooms facilitiesModule.Catalog, workTime workforce.Capability, organizations organizationtenancy.Query,
-	identity *identityaccess.Module, caller identityaccess.CallerContext, appointments appointmentsModule.Capability,
-	calendar schoolcalendar.Days, delivery DeliveryRuntime, notifications DeliveryNotifications, settings settingsCompose.BatchSettingsService,
-	persons peopledirectory.GuardianPortalContacts,
-) calendarCompose.Application {
-	repos, links := owner.Repositories, env.Links
-	cfg := NewCalendarFacts(people.Staff, people.Students, NewCalendarGuardianDirectory(people.GuardianProfiles, persons), people.StudentGuardians,
-		carePlanCompose.NewParentChildLinks(portal.ParentChild), structure.Groups)
-	cfg = BindCalendarScheduleFacts(cfg, repos.InstanceStaff, repos.ActivityInstance, facilitiesCompose.NewRoomRecords(rooms),
-		newWorkforceShiftRows(workTime), newWorkforceShiftTypeRows(workTime))
-	cfg = BindCalendarFeedFacts(cfg, organizations, identity, identity, people.Persons)
-	cfg = BindCalendarCaller(cfg, caller)
-	cfg.Appointments = appointments
-	cfg.Runtime, cfg.CalendarRenderer = calendarCompose.NewTenantRuntime(db.Pool()), calendarCompose.NewCalendarRenderer(calendar)
-	cfg.Outbox, cfg.PushOutbox = newCalendarOutbox(delivery.Outbox), deliveryCompose.NewDurablePushOutbox(delivery.Runtime.Module)
-	cfg.Settings, cfg.CalDAVPolicy = settings, NewCalendarCalDAVPolicy(settings)
-	cfg.StaffFeedTombstoneRepo = schoolCalendarCompose.NewFeedHistory(db.Pool())
-	cfg.ParentsURL, cfg.FrontendURL, cfg.CalDAVURL = links.ParentsURL, links.FrontendURL, links.PublicAPIURL
-	cfg.Notifier, cfg.ReminderNotifier = newCalendarNotifier(notifications.Notifier), newCalendarReminderNotifier(notifications.Notifier)
-	cfg.Preferences, cfg.Logger = notifications.Preferences, env.Logger.With("service", "calendar")
-	return NewCalendarPortal(cfg)
-}
-
-// buildCalendarAppointmentRenderer renders the four appointment mail kinds
-// of the calendars with one renderer.
-func buildCalendarAppointmentRenderer(db transactionruntime.Database, transport MailTransport, people PeopleRows) deliveryCompose.MailRenderer {
-	return deliveryCompose.MailRendererFunc(NewCalendarAppointmentRenderer(transport.DefaultFrom, calendarCompose.NewTenantRuntime(db.Pool()), people.StudentGuardians))
-}
-
-// buildReminders binds the reminder evaluation's readers to the owners and
-// the reminder commands to the calendars and the parent announcements.
-func buildReminders(
-	db transactionruntime.Database, env RootEnvironment, caller CareRequestStaff, settings settingsCompose.SettingsService,
-	schedules CarePlanSchedules, active studentpresence.Presence, supervisions studentpresence.SupervisionRecords,
-	timetableOwner timetable.Capability, rooms facilitiesModule.Catalog, people PeopleRows, calendarApp calendarCompose.Application,
-	announcements communication.ParentAnnouncementCapability, delivery DeliveryRuntime,
-) reminder.Module {
-	presence := NewLoggedStudentPresence(db, env.Logger)
-	return reminder.Module{
-		Query: reminderCompose.NewQuery(reminderPorts.QueryDependencies{
-			Clock:        ReminderClock(),
-			CurrentStaff: ReminderStaffIdentity(caller),
-			Settings:     ReminderSettings{settings},
-			Attendance:   presence,
-			Pickup:       ReminderPickupReader{Source: schedules.Pickups},
-			Instance:     ReminderTimetableReader{Source: timetableOwner},
-			Room:         ReminderRoomReader{Source: rooms},
-			Student:      ReminderStudentReader{Source: people.Students},
-			Person:       ReminderPersonReader{Source: people.Persons},
-			Supervision:  ReminderSupervisionReader{Source: active, Presence: presence},
-			Visits:       ReminderVisitReader{Source: presence},
-			Logger:       env.Logger.With("service", "reminders"),
-
-			// Bulk readers for ComputeBatch. They answer the three genuinely
-			// per-person facts for the whole tenant in one query each, which is what
-			// keeps the per-minute cost flat in the number of staff.
-			BulkSupervision:   ReminderBulkSupervisionReader{Source: supervisions},
-			BulkInstanceStaff: ReminderTimetableReader{Source: timetableOwner},
-		}),
-		Command:                   reminderCompose.NewCommand(reminderCommandRuntime(db), reminderDeliveryDependencies(db, delivery.Runtime, calendarApp)),
-		ParentAnnouncementCommand: announcements,
-	}
-}
-
-// buildProvisioning binds Organisation & Tenancy's operator
-// provisioning (#3253) over the owners it provisions and the device fleet.
-func buildProvisioning(
-	db transactionruntime.Database, env RootEnvironment, organizations organizationtenancy.Capability, identity *identityaccess.Module,
-	persons peopledirectory.Capability, membership schoolmembership.Capability, people PeopleRows, devices devicefleet.Capability,
-	sessions *presenceCompose.SessionRecords, supervisions studentpresence.SupervisionRecords, owner TimetableOwner,
-	operatorAuditLog operatorAuditEntries, settings settingsCompose.SettingsService,
-) (organizationtenancy.Provisioning, error) {
-	adapters, err := NewOperatorProvisioningAdapters(
-		operatorPersonStudentMembership(db), devices, persons, membership, people.Persons, people.Staff, identity,
-		sessions, supervisions, arrivalTimetable.NewActivityCategorySeeder(owner.Repositories.ActivityCategory), operatorAuditLog,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("compose operator provisioning: %w", fmt.Errorf("compose operator provisioning adapters: %w", err))
-	}
-	provisioning, err := newOperatorProvisioning(organizations, identity, NewOperatorAccountDirectory(identity, persons, membership, organizations),
-		adapters, settings, env.Logger.With("service", "platform"))
-	if err != nil {
-		return nil, fmt.Errorf("compose operator provisioning: %w", err)
-	}
-	return provisioning, nil
-}
-
-// DeliveryDevices are Delivery's push subscriptions and the PWA standalone
-// usage (#2189).
-type DeliveryDevices struct {
-	PushSubscriptions deliveryCompose.PushSubscriptionService
-	PWAUsage          deliveryCompose.PWAUsageService
-}
-
-// buildDeliveryDevices binds the push subscriptions and the PWA standalone
-// usage over the root's unit of work.
-func buildDeliveryDevices(db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, transport MailTransport, identity *identityaccess.Module, provisioning organizationtenancy.Provisioning, settings settingsCompose.SettingsService) (DeliveryDevices, error) {
-	push, err := deliveryCompose.NewTenantPushSubscriptionService(unit, db.Pool(), deliveryCompose.NewPushSubscriptionRepository(db.Pool()), identity,
-		transport.VAPID, env.Logger.With("service", "push_subscriptions"))
-	if err != nil {
-		return DeliveryDevices{}, err
-	}
-	usage, err := deliveryCompose.NewTenantPWAUsageService(unit, db.Pool(), observabilityCompose.NewPWAStandaloneUsageRepository(db.Pool()),
-		pwaUsageCounts{provisioning: provisioning}, identity, settings, env.Logger.With("service", "pwa_usage"))
-	if err != nil {
-		return DeliveryDevices{}, err
-	}
-	return DeliveryDevices{PushSubscriptions: push, PWAUsage: usage}, nil
-}
-
 // buildEmergencySnapshot binds the Notfallliste (#2704): the owner facades
 // are its tenant-safe reads, the retained student and guardian repositories,
 // the presence-mode read and the renderer its compatibility bindings.
-func buildEmergencySnapshot(env RootEnvironment, presence PresenceOwner, active studentpresence.Presence, people PeopleRows, persons peopledirectory.Capability, rooms facilitiesModule.Catalog, renderer *lists.RendererService) (emergencysnapshot.Query, error) {
+func buildEmergencySnapshot(env owners.RootEnvironment, presence owners.PresenceOwner, active studentpresence.Presence, people owners.PeopleRows, persons peopledirectory.Capability, rooms facilitiesModule.Catalog, renderer *lists.RendererService) (emergencysnapshot.Query, error) {
 	emergency, err := newEmergencySnapshot(emergencySnapshotSources{
 		Presence: presence.Presence, PresenceMode: active, Students: people.Students, Persons: persons,
 		Contacts: people.StudentGuardians, Rooms: rooms, Renderer: renderer, Now: env.Now,
@@ -257,22 +99,6 @@ func buildEmergencySnapshot(env RootEnvironment, presence PresenceOwner, active 
 		return nil, fmt.Errorf("compose emergency snapshot projection: %w", err)
 	}
 	return emergency, nil
-}
-
-// buildPlanExport binds the printable weekly plans (#2079, #2706): a pure
-// projection over the reads the two planning screens use. It renders, it
-// never writes.
-func buildPlanExport(env RootEnvironment, shifts *workforceCompose.ShiftPlanning, workTime workforce.Capability, owner TimetableOwner, rooms facilitiesModule.Catalog, people PeopleRows, timetableOwner timetable.Capability, calendar schoolcalendar.Days, renderer *lists.RendererService) planexport.Service {
-	repos := owner.Repositories
-	return newPlanExport(planExportSources{
-		Overview: shifts.Overview, ShiftTypes: workTime,
-		Instances:     arrivalTimetable.NewTimetableInstanceReads(repos.ActivityInstance),
-		InstanceStaff: arrivalTimetable.NewTimetableInstanceStaffReads(repos.InstanceStaff),
-		Students:      repos.InstanceStudent, Rooms: rooms, Staff: planExportStaffNames{staff: people.Staff},
-		ActivityGroups: arrivalTimetable.NewTimetableGroupReads(repos.ActivityGroup), PlanningTracks: timetableOwner,
-		ClosingDays: planExportClosingDays{calendar: calendar}, Holidays: planExportHolidays{calendar: calendar},
-		Renderer: renderer, Logger: env.Logger.With("service", "plan_export"),
-	})
 }
 
 // ClassDayViews are the school portal's class-day capability, the day
@@ -285,21 +111,21 @@ type ClassDayViews struct {
 
 // buildClassDayViews binds the class day and the slot lists.
 func buildClassDayViews(
-	db transactionruntime.Database, env RootEnvironment, transport MailTransport, caller *CallerRows, reports enrollmentOwner.Reports,
-	carePlanRows CarePlanRows, schedules CarePlanSchedules, carePlan careplan.Capability, people PeopleRows, audit AuditOwner,
-	settings settingsCompose.BatchSettingsService, operations timetable.OperationCapability, presence PresenceOwner,
+	db transactionruntime.Database, env owners.RootEnvironment, hub *realtime.Hub, caller *owners.CallerRows, reports enrollmentOwner.Reports,
+	carePlanRows owners.CarePlanRows, schedules owners.CarePlanSchedules, carePlan careplan.Capability, people owners.PeopleRows, audit owners.AuditOwner,
+	settings settingsCompose.BatchSettingsService, operations timetable.OperationCapability, presence owners.PresenceOwner,
 	persons peopledirectory.Capability, groups schoolstructure.Query, rooms facilitiesModule.Catalog, renderer *lists.RendererService,
 ) (ClassDayViews, error) {
-	classDayReads, err := arrivalTimetable.NewPresenceReads(db.Pool())
+	classDayReads, err := arrivalTimetable.NewPresenceReads(owners.NewTimetablePresenceProjection(db))
 	if err != nil {
 		return ClassDayViews{}, fmt.Errorf("compose class day timetable reads: %w", err)
 	}
 	classDay := NewClassDay(classdayCompose.ClassDayDependencies{
 		Caller: caller, PickupTimes: schedules.Pickups, ArrivalTimes: schedules.Arrivals, CareDays: schedules.CareDay,
-		Companions: NewStudentCompanionRepository(carePlan), ClassArrivalExceptions: schedules.Arrivals,
+		Companions: owners.NewStudentCompanionRepository(carePlan), ClassArrivalExceptions: schedules.Arrivals,
 		BlockStarts: operations,
 	}, reports, carePlanRows.StatusDays, people.Students, people.Persons, people.StudentGuardians,
-		audit.Persistence.DataAccessLog, settings, transport.Hub, env.Logger.With("service", "class-day-arrival-exceptions"))
+		audit.Persistence.DataAccessLog, settings, hub, env.Logger.With("service", "class-day-arrival-exceptions"))
 	slotLists := classdayCompose.NewSlotLists(classdayCompose.SlotListDependencies{
 		Timetable: NewClassDayTimetableRows(classDayReads), Presence: presence.Presence, CarePlan: carePlan,
 		Students: persons, Persons: persons, Groups: groups, Rooms: rooms, CareDays: schedules.CareDay,
@@ -312,9 +138,9 @@ func buildClassDayViews(
 
 // buildGroupLive binds the live group view (#2253).
 func buildGroupLive(
-	env RootEnvironment, presence PresenceOwner, users peoplePorts.PersonDirectory, structure StructureServices,
-	caller *CallerRows, active studentpresence.Presence, settings settingsCompose.BatchSettingsService, schedules CarePlanSchedules,
-	lifecycle TimetableLifecycle, requests CarePlanRequests,
+	env owners.RootEnvironment, presence owners.PresenceOwner, users peoplePorts.PersonDirectory, structure StructureServices,
+	caller *owners.CallerRows, active studentpresence.Presence, settings settingsCompose.BatchSettingsService, schedules owners.CarePlanSchedules,
+	lifecycle owners.TimetableLifecycle, requests owners.CarePlanRequests,
 ) (grouplive.Query, error) {
 	live, err := newGroupLive(groupLiveSources{
 		Presence: presence.Presence, People: GroupRosterPeople(users), Education: structure.Education,
@@ -332,14 +158,14 @@ func buildGroupLive(
 
 // buildSupervisionDashboard binds the supervision dashboard projection.
 func buildSupervisionDashboard(
-	env RootEnvironment, settings settingsCompose.BatchSettingsService, caller *CallerRows, active studentpresence.Presence,
-	presence PresenceOwner, rooms facilitiesModule.Catalog, timetableOwner timetable.Capability, yard FacilitiesYard,
-	structure StructureServices, lifecycle TimetableLifecycle, schedules CarePlanSchedules,
+	env owners.RootEnvironment, settings settingsCompose.BatchSettingsService, caller *owners.CallerRows, active studentpresence.Presence,
+	presence owners.PresenceOwner, rooms facilitiesModule.Catalog, timetableOwner timetable.Capability, yard FacilitiesYard,
+	structure StructureServices, lifecycle owners.TimetableLifecycle, schedules owners.CarePlanSchedules,
 ) (supervisiondashboard.Query, error) {
 	supervision := SupervisionCaller{caller}
 	dashboard, err := newSupervisionDashboard(supervisiondashboard.Dependencies{
 		Access:   newSupervisionAccess(settings, supervision),
-		Sessions: newSupervisionSessions(active, OpenRoomSessionPresence{Presence: presence.Presence, Activities: timetableOwner}, supervision),
+		Sessions: newSupervisionSessions(active, owners.OpenRoomSessionPresence{Presence: presence.Presence, Activities: timetableOwner}, supervision),
 		Rooms:    OpenRoomDirectory{Rooms: rooms}, Yard: newSupervisionYard(yard.Schulhof),
 		Groups:   newSupervisionGroups(structure.Education, supervision),
 		Schedule: newSupervisionSchedule(lifecycle.Operations),
@@ -351,11 +177,6 @@ func buildSupervisionDashboard(
 		return nil, fmt.Errorf("compose supervision dashboard projection: %w", err)
 	}
 	return dashboard, nil
-}
-
-// deliveryModuleOf is Delivery's module of a runtime.
-func deliveryModuleOf(delivery DeliveryRuntime) *deliveryModule.Module {
-	return delivery.Runtime.Module
 }
 
 // substitutionOverviewScope asks Workforce, which owns

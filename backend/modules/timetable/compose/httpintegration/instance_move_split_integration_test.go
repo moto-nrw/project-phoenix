@@ -5,8 +5,10 @@ import (
 	"testing"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +28,7 @@ func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.
 
 	effective := futureMonday(2)
 	singleDate := effective.AddDays(-7)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, singleDate)
+	s := makeScenario(t, activityContract.WeekdayMonday, singleDate)
 	defer s.runCleanup(t)
 
 	materialized, err := s.svc.MaterializeForTenant(s.ctx, singleDate, singleDate, timetable.MaterializationSourceManual)
@@ -49,8 +51,8 @@ func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.
 	assert.Equal(t, single.ID, updatedSingle.ID)
 	exceptions := loadExceptions(t, s, s.template.ID)
 	require.Len(t, exceptions, 1)
-	assert.Equal(t, scheduleModels.Date(singleDate), exceptions[0].ExceptionDate)
-	assert.Equal(t, scheduleModels.ActivityExceptionCancelled, exceptions[0].ExceptionType)
+	assert.Equal(t, calendar.Date(singleDate), exceptions[0].ExceptionDate)
+	assert.Equal(t, fixtures.ActivityExceptionCancelled(), exceptions[0].ExceptionType)
 
 	// "Ab jetzt dauerhaft": split at the next Monday.
 	in := baseSplitInput(s, effective, fmt.Sprintf("Split-Single-Following-%d", time.Now().UnixNano()))
@@ -75,7 +77,7 @@ func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.
 			TargetGradeLevel:  successor.TargetGradeLevel,
 			TargetSchoolClass: successor.TargetSchoolClass,
 		},
-		Weekdays:        []int{activitiesModels.WeekdayMonday},
+		Weekdays:        []int{activityContract.WeekdayMonday},
 		TimeframeID:     s.timeframe.ID,
 		WeekPattern:     s.schedule.WeekPattern,
 		RosterValidFrom: singleDate.AddDays(-30),
@@ -88,7 +90,7 @@ func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.
 	successorSchedules := loadSplitSchedules(t, s, res.NewTemplateID)
 	require.Len(t, successorSchedules, 1)
 	require.NotNil(t, successorSchedules[0].ValidFrom)
-	assert.Equal(t, activitiesModels.Date(effective), *successorSchedules[0].ValidFrom)
+	assert.Equal(t, activityContract.Date(effective), *successorSchedules[0].ValidFrom)
 
 	// The frontend follows a full-series PUT with a successor-scoped re-plan.
 	// Materialization still examines every template, making this the exact

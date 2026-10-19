@@ -16,7 +16,7 @@ import (
 
 func newAccountSessionAccess(t *testing.T, db *bun.DB) identityaccess.AccountSessionAccess {
 	t.Helper()
-	module, err := identityCompose.New(identityCompose.Dependencies{DB: db, Observe: func(identityCompose.Observation) {}})
+	module, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityCompose.Observation) {}})
 	require.NoError(t, err)
 	return module
 }
@@ -254,7 +254,7 @@ func TestAccountSessionCapInAdminTransactionSpansSchools(t *testing.T) {
 	other := newAccountSession(account.ID, "tenant", newFamilyID(), 0)
 	other.TenantID = otherTenant
 	other.Expiry = time.Now().Add(24 * time.Hour)
-	_, err := access.CreateAccountSession(ctx, other)
+	_, err := access.CreateAccountSession(testpkg.ContextForTenant(ctx, otherTenant), other)
 	require.NoError(t, err)
 
 	evicted, err := access.EnforceAccountSessionCap(testpkg.TenantContext(otherTenant), account.ID, "tenant", 5)
@@ -289,7 +289,7 @@ func TestAccountSessionRevocations(t *testing.T) {
 	require.NoError(t, err)
 	foreign := newAccountSession(account.ID, "tenant", newFamilyID(), 0)
 	foreign.TenantID = otherTenant
-	foreign, err = access.CreateAccountSession(ctx, foreign)
+	foreign, err = access.CreateAccountSession(testpkg.ContextForTenant(ctx, otherTenant), foreign)
 	require.NoError(t, err)
 
 	family, err := access.RevokeAccountSessionFamily(ctx, familyA)
@@ -671,7 +671,7 @@ func TestAccountSessionObservationsCountRows(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	account := testpkg.CreateTestAccount(t, db, "session-observations")
 	var observations []identityCompose.Observation
-	access, err := identityCompose.New(identityCompose.Dependencies{DB: db, Observe: func(observation identityCompose.Observation) {
+	access, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(observation identityCompose.Observation) {
 		observations = append(observations, observation)
 	}})
 	require.NoError(t, err)

@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	rootOwners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
@@ -44,8 +45,8 @@ type deletionFixture struct {
 // companionLinks is the Care Plan record store behind the "läuft mit" edges,
 // through the repository contract the retained student services read, so the
 // deletion tests read links without driving the companion capability itself.
-func companionLinks(db *bun.DB) api.CompanionRepository {
-	return api.NewStudentCompanionRepository(api.NewRepositoryTestFactory(testpkg.MustDatabase(db)).CarePlan())
+func companionLinks(db *bun.DB) rootOwners.CompanionRepository {
+	return rootOwners.NewStudentCompanionRepository(api.NewRepositoryTestFactory(testpkg.MustDatabase(db)).CarePlan())
 }
 
 // linkCompanions stages one Monday link between two children.
@@ -73,20 +74,20 @@ func clearCompanionNote(t *testing.T, db *bun.DB, studentID int64) {
 // owners and replaces only the HTTP principal with a fixed actor.
 func newDeletionFixture(t *testing.T, db *bun.DB) *deletionFixture {
 	t.Helper()
-	timetableOwner := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))
+	timetableOwner := rootOwners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	people, err := api.NewPeopleDirectory(testpkg.MustDatabase(db))
+	people, err := rootOwners.NewPeopleDirectory(testpkg.MustDatabase(db))
 	require.NoError(t, err)
 	actor := testpkg.CreateTestAccount(t, db, "student-delete-actor@example.com")
 	feedback := &testpkg.FeedbackEntryCounterMock{}
-	owners, err := api.NewStudentDeletionOwners(testpkg.NewDatabase(t, db))
+	owners, err := rootOwners.NewStudentDeletionOwners(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	deps, err := studentdeletioncompose.Assemble(studentdeletioncompose.Dependencies{
+	deps, err := rootOwners.Assemble(studentdeletioncompose.Dependencies{
 		DB: db, Owners: owners, Directory: people, CarePlan: repos.CarePlan(), Timetable: timetableOwner, Feedback: feedback,
 		IsVerifiedStaff:       func(context.Context) (bool, error) { return true, nil },
-		LockCareBookingWrites: api.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, db)).LockRecurrenceWrites,
-	})
+		LockCareBookingWrites: rootOwners.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, db)).LockRecurrenceWrites,
+	}, rootOwners.NewStudentActivityEnrollments())
 	require.NoError(t, err)
 	deps.Authorize = func(ctx context.Context) (studentdeletion.Actor, error) {
 		return studentdeletion.Actor{TenantID: tenant.FromContext(ctx), AccountID: actor.ID}, nil
@@ -899,7 +900,7 @@ func TestStudentDeletionWorkflow_AuthorizationAndTenantIsolation(t *testing.T) {
 	})
 
 	t.Run("the composed gate requires the tenant principal with users:delete", func(t *testing.T) {
-		_, err := studentdeletioncompose.Authorize(ctx, func(context.Context) (bool, error) { return true, nil })
+		_, err := rootOwners.AuthorizeStudentDeletion(ctx, func(context.Context) (bool, error) { return true, nil })
 		require.ErrorIs(t, err, studentdeletion.ErrUnauthorized, "no principal in context")
 	})
 

@@ -69,8 +69,8 @@ import {
 import type { Icon as PhosphorIcon, IconProps } from "@phosphor-icons/react";
 import type { MotoDuotoneTone } from "~/lib/location-helper";
 
-export type MotoConceptKind = "core" | "status" | "function";
-export type MotoConceptSection =
+type MotoConceptKind = "core" | "status" | "function";
+type MotoConceptSection =
   | "people"
   | "presence"
   | "planning"

@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/userpass/userpasstest"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecordstest"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime/userpasstest"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/sessionrecordstest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -3041,7 +3041,7 @@ func CreateTestEnrollmentRequestAwaitingGuardian(tb testing.TB, db *bun.DB, phas
 		StatusToken:       statusToken,
 		SubmittedAt:       time.Now(),
 	}
-	if err := enrollmentOwner.New().InsertRequest(ctx, request); err != nil {
+	if err := TenantCommand1(tb, ctx, db, enrollmentOwner.New().InsertRequest, request); err != nil {
 		tb.Fatalf("create test enrollment request: %v", err)
 	}
 	return request
@@ -3060,7 +3060,7 @@ func createTestEnrollmentPhase(tb testing.TB, db *bun.DB, periodID *int64, today
 		CalendarPeriodID:          periodID,
 		IsActive:                  true,
 	}
-	err := enrollmentOwner.New().InsertPhase(ctx, phase)
+	err := TenantCommand1(tb, ctx, db, enrollmentOwner.New().InsertPhase, phase)
 	if err != nil {
 		tb.Fatalf("create test enrollment phase: %v", err)
 	}

@@ -15,6 +15,9 @@ var (
 	// ErrGuardianEmailTaken wraps the unique violation of the per-school,
 	// case-insensitive e-mail index; the database error stays in the chain.
 	ErrGuardianEmailTaken = errors.New("guardian e-mail is already used in this school")
+	// ErrGuardianAccountUnavailable reports an account erased before its
+	// guardian-profile link could be committed.
+	ErrGuardianAccountUnavailable = errors.New("guardian account is unavailable")
 	// ErrTenantRequired refuses a row write outside a tenant transaction.
 	ErrTenantRequired = errors.New("people directory: tenant is required to write guardian rows")
 	// ErrGuardianLinkOwnersUnbound refuses a link write in a graph that did

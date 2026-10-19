@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -20,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -34,13 +34,13 @@ func TestParentInvitationOutboxIsAtomicWithApproval(t *testing.T) {
 			db := testpkg.SetupTestDB(t)
 			ctx := testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db)
 			database := testpkg.NewDatabase(t, db)
-			repos, err := api.NewEnrollmentTestRepositories(database, api.NewTestAuditStore(database))
+			repos, err := api.NewEnrollmentTestRepositories(database, owners.NewTestAuditStore(database))
 			require.NoError(t, err)
 			careRows := api.NewEnrollmentCarePlanRows(database)
 			schoolRows := api.NewOrganizationTestRows(database)
 			timetableRows := api.NewEnrollmentTimetableRows(database)
 			_, reviewer := testpkg.CreateTestStaffWithAccount(t, db, "Parent", "Reviewer")
-			phase := createOfferingGuardPhase(t, repos, ctx, enrollmentModels.PhaseCareOfferingSelectionOptional)
+			phase := createOfferingGuardPhase(t, repos, ctx, capability.PhaseCareOfferingSelectionOptional)
 			schema, err := NewTestFormSchemas(repos.Enrollment()).CreateSchema(ctx, "Atomic parent invitation", []capability.FormField{
 				{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
 			}, reviewer.ID)
@@ -50,12 +50,12 @@ func TestParentInvitationOutboxIsAtomicWithApproval(t *testing.T) {
 			request, child := createOfferingGuardChild(t, repos, ctx, phase.ID)
 			guardianAccess, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 			require.NoError(t, err)
-			students, err := api.NewPeopleDirectory(database)
+			students, err := owners.NewPeopleDirectory(database)
 			require.NoError(t, err)
 			bookings := newBookingMaterialization(t, db, api.WithBookingCatalog(newCareOfferingCatalog(t, db).Catalog), api.WithBookingSettings(offeringGuardSettings(false))).Bookings
 			decisions := newParentInvitationDecisions(repos, careRows, timetableRows, guardianAccess, students, bookings)
 			decision := enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(decisions))
-			requests := enrollmentAPI.NewRequestService(api.NewEnrollmentIntake(api.EnrollmentIntakeSources{
+			requests := newFixtureRequestRoot(owners.NewEnrollmentIntake(owners.EnrollmentIntakeSources{
 				Requests: repos.Enrollment(), Children: repos.Enrollment(), Guardians: repos.Enrollment(),
 				CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(careRows.CarePlan), Catalog: repos.Enrollment(),
 				SchoolRepo: capabilitySchools{schools: schoolRows.School}, RateLimitRepo: repos.Enrollment(),
@@ -65,7 +65,7 @@ func TestParentInvitationOutboxIsAtomicWithApproval(t *testing.T) {
 			delivery, err := api.NewDeliveryTestModule(database, testpkg.TenantRuntime(t, db))
 			require.NoError(t, err)
 			invitations, err := api.NewGuardianInvitationServiceForTests(database, testpkg.TenantRuntime(t, db), api.GuardianInvitationTestConfig{
-				Outbox: api.OutboxEnqueuer{Module: delivery.Delivery, Outbox: delivery.EmailOutbox},
+				Outbox: owners.OutboxEnqueuer{Runtime: delivery.Runtime, Outbox: delivery.EmailOutbox},
 			})
 			require.NoError(t, err)
 			resource := enrollmentAPI.NewResource(nil, nil, requests, nil, nil, decision, nil, nil, nil, nil,
@@ -116,8 +116,8 @@ func TestParentInvitationOutboxIsAtomicWithApproval(t *testing.T) {
 	}
 }
 
-func newParentInvitationDecisions(repos api.EnrollmentTestRepositories, reposCare api.TimetableCarePlanRows, reposTimetable api.TimetableTestRepositories, guardianAccess TestDecisionGuardianAccess, studentEnrollment api.EnrollmentDecisionPeople, bookings TestDecisionBookings) *TestDecisions {
-	return api.NewEnrollmentDecisions(enrollmentCompose.DecisionDependencies{
+func newParentInvitationDecisions(repos api.EnrollmentTestRepositories, reposCare owners.TimetableCarePlanRows, reposTimetable owners.TimetableTestRepositories, guardianAccess TestDecisionGuardianAccess, studentEnrollment owners.EnrollmentDecisionPeople, bookings TestDecisionBookings) *TestDecisions {
+	return owners.NewEnrollmentDecisions(enrollmentCompose.DecisionDependencies{
 		Requests:       repos.Enrollment(),
 		Children:       repos.Enrollment(),
 		Guardians:      repos.Enrollment(),
@@ -128,14 +128,14 @@ func newParentInvitationDecisions(repos api.EnrollmentTestRepositories, reposCar
 		Notifications:  NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: parentInvitationSettings()}, discardingOutbox{}, nil),
 		Bookings:       bookings,
 		GuardianAccess: guardianAccess,
-		People: api.EnrollmentDecisionPeopleDirectory(
+		People: owners.EnrollmentDecisionPeopleDirectory(
 			repos.Person, repos.Staff, repos.Student, repos.StudentGuardian, repos.GuardianProfile, repos.GuardianPhoneNumber, studentEnrollment,
 		),
 		StudentEnrollment: studentEnrollment,
 		PickupSchedules:   reposTimetable.EnrollmentPickupSchedules(),
 		ArrivalSchedules:  reposTimetable.EnrollmentArrivalSchedules(),
-		ParentsURL:        api.EnrollmentDecisionParentsURL("http://parents.localhost:3000", ""),
-		Settings:          api.EnrollmentDecisionSettingValues(parentInvitationSettings()),
+		ParentsURL:        owners.EnrollmentDecisionParentsURL("http://parents.localhost:3000", ""),
+		Settings:          owners.EnrollmentDecisionSettingValues(parentInvitationSettings()),
 		Logger:            slog.Default(),
 	})
 }

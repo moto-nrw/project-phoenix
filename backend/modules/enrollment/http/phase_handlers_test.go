@@ -305,7 +305,7 @@ func TestCreatePhaseHandler_DuplicateNameReturns409(t *testing.T) {
 func TestCreatePhaseHandler_DuplicateNameCarriesCodeWithoutSQLDetail(t *testing.T) {
 	t.Parallel()
 
-	wrapped := fmt.Errorf("%w: %v", capability.ErrPhaseDuplicateName,
+	wrapped := fmt.Errorf("%w: %w", capability.ErrPhaseDuplicateName,
 		errors.New(`ERROR: duplicate key value violates unique constraint "enrollment_phases_unique_name" (SQLSTATE 23505)`))
 	mock := &mockPhaseService{createErr: wrapped}
 	router := buildPhaseRouter(mock)

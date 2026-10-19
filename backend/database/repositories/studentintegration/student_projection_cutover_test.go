@@ -24,6 +24,12 @@ func TestStudentDirectoryUsesLiveMembershipIdentity(t *testing.T) {
 	require.NoError(t, err)
 	_, err = directory.FindStudentRecord(ctx, student.ID)
 	require.ErrorIs(t, err, peopledirectory.ErrStudentNotFound)
+	// The independent profile and membership sequences may otherwise produce
+	// the same value in a fresh clone, hiding an accidental ID equality join.
+	var reservedMembershipID int64
+	for reservedMembershipID <= student.ID {
+		require.NoError(t, db.NewRaw(`SELECT nextval('users.student_school_memberships_id_seq')`).Scan(ctx, &reservedMembershipID))
+	}
 	memberID, err := membership.Enroll(ctx, schoolmembership.StudentEnrollment{StudentID: student.ID, SchoolClass: "2a", Status: "active"})
 	require.NoError(t, err)
 	require.NotEqual(t, student.ID, memberID, "membership identity must not be assumed to equal the public profile ID")
@@ -53,20 +59,20 @@ func TestStudentOwnersWorkWithoutRollbackView(t *testing.T) {
 	record, err := directory.CreateStudent(ctx, peopledirectory.StudentWrite{Record: peopledirectory.StudentRecord{PersonID: person.ID, SchoolClass: "1a", Status: "active"}})
 	require.NoError(t, err)
 	repo := api.NewUnboundStudentRepository(testpkg.NewDatabase(t, db))
-	rows, err := repo.List(ctx, map[string]any{"id": record.ID})
+	rows, err := testpkg.TenantQuery1(t, ctx, db, repo.List, map[string]any{"id": record.ID})
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
-	count, err := repo.CountWithOptions(ctx, nil)
+	count, err := testpkg.TenantQuery1(t, ctx, db, repo.CountWithOptions, nil)
 	require.NoError(t, err)
 	require.Positive(t, count)
 	record.SchoolClass = "2a"
 	_, err = directory.UpdateStudent(ctx, peopledirectory.StudentWrite{Record: record})
 	require.NoError(t, err)
-	stored, err := repo.FindByID(ctx, record.ID)
+	stored, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(record.ID))
 	require.NoError(t, err)
 	require.Equal(t, "2a", stored.SchoolClass)
 	require.NoError(t, directory.DeleteStudentRecord(ctx, record.ID))
-	_, err = repo.FindByID(ctx, record.ID)
+	_, err = testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(record.ID))
 	require.Error(t, err)
 }
 

@@ -62,9 +62,9 @@
     "sources": [
       "backend/api/operator_booking_authority_test.go",
       "backend/api/booking_consistency_audit_test.go",
-      "backend/api/plan_export_internal_test.go",
-      "backend/api/plan_export_isolation_test.go",
-      "backend/api/delivery_staff_recipients_test.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/plan_export_internal_test.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/plan_export_isolation_test.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/delivery_staff_recipients_test.go",
       "backend/modules/settings/inbound/operator/settings_integration_test.go",
       "backend/modules/careplan/http/booking_authority_impact_test.go",
       "backend/modules/workforce/on_duty_test.go",

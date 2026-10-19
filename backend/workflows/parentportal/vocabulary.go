@@ -6,8 +6,8 @@ package parentportal
 // package that owns it.
 
 import (
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging"
 )
 
 type (

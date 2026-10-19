@@ -36,11 +36,11 @@ func TestResolveManyForTenantsUsesOneCrossTenantQuery(t *testing.T) {
 		Value:      json.RawMessage(`"tenant-b"`),
 	}
 	valueB.SetTenantID(tenantB)
-	require.NoError(t, repository.Upsert(testpkg.ContextForTenant(context.Background(), tenantA), valueA))
-	require.NoError(t, repository.Upsert(testpkg.ContextForTenant(context.Background(), tenantB), valueB))
+	require.NoError(t, testpkg.TenantCommand1(t, testpkg.ContextForTenant(context.Background(), tenantA), db, repository.Upsert, valueA))
+	require.NoError(t, testpkg.TenantCommand1(t, testpkg.ContextForTenant(context.Background(), tenantB), db, repository.Upsert, valueB))
 	t.Cleanup(func() {
-		_ = repository.Delete(testpkg.ContextForTenant(context.Background(), tenantA), tenantA, valueA.SettingKey)
-		_ = repository.Delete(testpkg.ContextForTenant(context.Background(), tenantB), tenantB, valueB.SettingKey)
+		_ = testpkg.TenantCommand2(t, testpkg.ContextForTenant(context.Background(), tenantA), db, repository.Delete, tenantA, valueA.SettingKey)
+		_ = testpkg.TenantCommand2(t, testpkg.ContextForTenant(context.Background(), tenantB), db, repository.Delete, tenantB, valueB.SettingKey)
 	})
 
 	selectCount := testpkg.CaptureSettingValueSelects(db)

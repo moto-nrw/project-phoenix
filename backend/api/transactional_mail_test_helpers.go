@@ -7,23 +7,25 @@ import (
 	"log/slog"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // fixtureMailOutbox drives each committed fixture intent through the actual
 // leased worker without introducing a persistent test service graph.
-type fixtureMailOutbox func(context.Context, DurableMail) error
+type fixtureMailOutbox func(context.Context, owners.DurableMail) error
 
-func (enqueue fixtureMailOutbox) EnqueueTransactionalMail(ctx context.Context, mail DurableMail) error {
+func (enqueue fixtureMailOutbox) EnqueueTransactionalMail(ctx context.Context, mail owners.DurableMail) error {
 	return enqueue(ctx, mail)
 }
 
-func newAuthFixtureOutbox(outbox OutboxEnqueuer, runtime *deliveryCompose.Runtime, mailer email.Mailer, logger *slog.Logger, identity func() *identityaccess.Module) DurableMailOutbox {
-	return fixtureMailOutbox(func(ctx context.Context, mail DurableMail) error {
-		queued, err := outbox.enqueueTransactionalMail(ctx, mail)
+func newAuthFixtureOutbox(outbox owners.OutboxEnqueuer, runtime *deliveryCompose.Runtime, mailer email.Mailer, logger *slog.Logger, identity func() *identityaccess.Module) owners.DurableMailOutbox {
+	return fixtureMailOutbox(func(ctx context.Context, mail owners.DurableMail) error {
+		queued, err := outbox.EnqueueMailIntent(ctx, mail)
 		if err != nil {
 			return err
 		}
@@ -32,7 +34,7 @@ func newAuthFixtureOutbox(outbox OutboxEnqueuer, runtime *deliveryCompose.Runtim
 			defer cancel()
 			provider := &deliveryCompose.MailPushProvider{
 				Registry: deliveryCompose.NewEmailTemplateRegistry(map[string]deliveryCompose.MailRenderer{
-					transactionalMailKind: transactionalMailRenderer{identity: identity(), logger: logger},
+					owners.TransactionalMailKind: owners.TransactionalMailRenderer{Identity: identity(), Logger: logger},
 				}), Mailer: mailer, Logger: logger, Tenants: deliveryCompose.NewTenantTransactions(nil),
 			}
 			if err := deliveryCompose.DrainEmailForTest(sendCtx, runtime, provider, mail.TenantID, queued.ID); err != nil {
@@ -54,13 +56,13 @@ func identityaccessFixtureContext(ctx context.Context) context.Context {
 
 // Default fixtures expose the committed transport and own their global rows.
 // Transactional-outbox tests opt out and retain entries for their assertions.
-type fixtureMFAMail func() (mfaMailer, *deliveryCompose.Runtime, *slog.Logger)
+type fixtureMFAMail func() (owners.MFAMailer, *deliveryCompose.Runtime, *slog.Logger)
 
-func (fixture fixtureMFAMail) capture() (mfaMailer, *int64, *deliveryCompose.Runtime, *slog.Logger) {
+func (fixture fixtureMFAMail) capture() (owners.MFAMailer, *int64, *deliveryCompose.Runtime, *slog.Logger) {
 	source, runtime, logger := fixture()
 	var id int64
-	enqueue := source.enqueue
-	source.enqueue = func(ctx context.Context, mail DurableMail) (int64, error) {
+	enqueue := source.Enqueue
+	source.Enqueue = func(ctx context.Context, mail owners.DurableMail) (int64, error) {
 		queued, err := enqueue(ctx, mail)
 		id = queued
 		return queued, err
@@ -90,7 +92,7 @@ func (fixture fixtureMFAMail) NotifyTrustedDeviceAdded(ctx context.Context, mess
 	}
 	tenant.RegisterAfterCommit(ctx, func() {
 		sendCtx := identityaccessFixtureContext(ctx)
-		if err := source.deliver(sendCtx, *id); err != nil {
+		if err := source.Deliver(sendCtx, *id); err != nil {
 			logger.Error("fixture MFA notice failed", "error", err.Error())
 		}
 		if err := deliveryCompose.DeleteSystemEmailForTest(sendCtx, runtime, *id); err != nil {

@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -25,7 +26,7 @@ import (
 const nonexistentCallerRowID int64 = 999999999
 
 // setupCallerRows composes the caller context over db.
-func setupCallerRows(t *testing.T, db *bun.DB) *api.CallerRows {
+func setupCallerRows(t *testing.T, db *bun.DB) *owners.CallerRows {
 	t.Helper()
 	module, err := api.NewUserContextTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
@@ -80,7 +81,7 @@ func TestCallerContext_Person(t *testing.T) {
 	t.Run("retrieves current person with valid token", func(t *testing.T) {
 		person, account := testpkg.CreateTestPersonWithAccount(t, db, "CurrentPerson", "Test")
 
-		result, err := caller.Person(callerCtx(t, account.ID))
+		result, err := testpkg.TenantQuery0(t, callerCtx(t, account.ID), db, caller.Person)
 
 		require.NoError(t, err)
 		assert.Equal(t, person.ID, result.ID)
@@ -100,7 +101,7 @@ func TestCallerContext_StaffID(t *testing.T) {
 	t.Run("retrieves current staff with valid token", func(t *testing.T) {
 		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "CurrentStaff", "Test")
 
-		result, err := caller.StaffID(callerCtx(t, account.ID))
+		result, err := testpkg.TenantQuery0(t, callerCtx(t, account.ID), db, caller.StaffID)
 
 		require.NoError(t, err)
 		assert.Equal(t, staff.ID, result)
@@ -118,7 +119,7 @@ func TestCallerContext_StaffID(t *testing.T) {
 		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "CustomRole", "Staff")
 
 		ctx := callerTenantCtx(account.ID, testpkg.Tenant(t), "betreuung-plus")
-		result, err := caller.StaffID(ctx)
+		result, err := testpkg.TenantQuery0(t, ctx, db, caller.StaffID)
 
 		require.NoError(t, err)
 		assert.Equal(t, staff.ID, result)
@@ -133,7 +134,7 @@ func TestCallerContext_TeacherID(t *testing.T) {
 	t.Run("retrieves current teacher with valid token", func(t *testing.T) {
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "CurrentTeacher", "Test")
 
-		result, err := caller.TeacherID(callerCtx(t, account.ID))
+		result, err := testpkg.TenantQuery0(t, callerCtx(t, account.ID), db, caller.TeacherID)
 
 		require.NoError(t, err)
 		assert.Equal(t, teacher.ID, result)
@@ -142,7 +143,7 @@ func TestCallerContext_TeacherID(t *testing.T) {
 	t.Run("retrieves current teacher for explicit teacher-only role", func(t *testing.T) {
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "RoleScoped", "Teacher")
 
-		result, err := caller.TeacherID(callerTenantCtx(account.ID, testpkg.Tenant(t), "teacher"))
+		result, err := testpkg.TenantQuery0(t, callerTenantCtx(account.ID, testpkg.Tenant(t), "teacher"), db, caller.TeacherID)
 
 		require.NoError(t, err)
 		assert.Equal(t, teacher.ID, result)
@@ -169,7 +170,7 @@ func TestCallerRows_GetMyGroups(t *testing.T) {
 	t.Run("returns empty slice for non-staff user", func(t *testing.T) {
 		_, account := testpkg.CreateTestPersonWithAccount(t, db, "NonStaff", "User")
 
-		groups, err := rows.GetMyGroups(callerCtx(t, account.ID))
+		groups, err := testpkg.TenantQuery0(t, callerCtx(t, account.ID), db, rows.GetMyGroups)
 
 		require.NoError(t, err)
 		assert.Empty(t, groups)
@@ -192,7 +193,7 @@ func TestCallerContext_Navigation(t *testing.T) {
 		today := testpkg.TodayDate()
 		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, staff.ID, today, today.AddDays(1))
 
-		result, err := caller.Navigation(callerCtx(t, account.ID))
+		result, err := testpkg.TenantQuery0(t, callerCtx(t, account.ID), db, caller.Navigation)
 
 		require.NoError(t, err)
 		assert.Equal(t, staff.ID, result.StaffID)
@@ -205,7 +206,7 @@ func TestCallerContext_Navigation(t *testing.T) {
 	t.Run("keeps current staff null for a non-staff account", func(t *testing.T) {
 		_, account := testpkg.CreateTestPersonWithAccount(t, db, "Navigation", "NonStaff")
 
-		result, err := caller.Navigation(callerCtx(t, account.ID))
+		result, err := testpkg.TenantQuery0(t, callerCtx(t, account.ID), db, caller.Navigation)
 
 		require.NoError(t, err)
 		assert.Zero(t, result.StaffID)
@@ -222,7 +223,7 @@ func TestCallerContext_MyActivityGroupIDs(t *testing.T) {
 	t.Run("returns empty slice for non-staff user", func(t *testing.T) {
 		_, account := testpkg.CreateTestPersonWithAccount(t, db, "NonStaff", "Activity")
 
-		groups, err := caller.MyActivityGroupIDs(callerCtx(t, account.ID))
+		groups, err := testpkg.TenantQuery0(t, callerCtx(t, account.ID), db, caller.MyActivityGroupIDs)
 
 		require.NoError(t, err)
 		assert.Empty(t, groups)
@@ -231,7 +232,7 @@ func TestCallerContext_MyActivityGroupIDs(t *testing.T) {
 	t.Run("returns groups for staff member", func(t *testing.T) {
 		_, account := testpkg.CreateTestStaffWithAccount(t, db, "Staff", "Activity")
 
-		_, err := caller.MyActivityGroupIDs(callerCtx(t, account.ID))
+		_, err := testpkg.TenantQuery0(t, callerCtx(t, account.ID), db, caller.MyActivityGroupIDs)
 
 		// May be empty if no supervisions, just verify no error.
 		require.NoError(t, err)
@@ -246,7 +247,7 @@ func TestCallerContext_MyActiveSessionIDs(t *testing.T) {
 	t.Run("returns empty slice for non-staff user", func(t *testing.T) {
 		_, account := testpkg.CreateTestPersonWithAccount(t, db, "NonStaff", "Active")
 
-		groups, err := caller.MyActiveSessionIDs(callerCtx(t, account.ID))
+		groups, err := testpkg.TenantQuery0(t, callerCtx(t, account.ID), db, caller.MyActiveSessionIDs)
 
 		require.NoError(t, err)
 		assert.Empty(t, groups)
@@ -261,7 +262,7 @@ func TestCallerRows_GetMySupervisedGroups(t *testing.T) {
 	t.Run("returns empty slice for non-staff user", func(t *testing.T) {
 		_, account := testpkg.CreateTestPersonWithAccount(t, db, "NonStaff", "Supervised")
 
-		groups, err := rows.GetMySupervisedGroups(callerCtx(t, account.ID))
+		groups, err := testpkg.TenantQuery0(t, callerCtx(t, account.ID), db, rows.GetMySupervisedGroups)
 
 		require.NoError(t, err)
 		assert.Empty(t, groups)
@@ -270,7 +271,7 @@ func TestCallerRows_GetMySupervisedGroups(t *testing.T) {
 	t.Run("returns supervised groups for staff", func(t *testing.T) {
 		_, account := testpkg.CreateTestStaffWithAccount(t, db, "Staff", "Supervised")
 
-		_, err := rows.GetMySupervisedGroups(callerCtx(t, account.ID))
+		_, err := testpkg.TenantQuery0(t, callerCtx(t, account.ID), db, rows.GetMySupervisedGroups)
 
 		// May be empty if no supervisions, just verify no error.
 		require.NoError(t, err)
@@ -289,7 +290,7 @@ func TestCallerContext_Profile(t *testing.T) {
 	t.Run("retrieves profile for authenticated user", func(t *testing.T) {
 		person, account := testpkg.CreateTestPersonWithAccount(t, db, "Profile", "Test")
 
-		result, err := caller.Profile(callerCtx(t, account.ID))
+		result, err := testpkg.TenantQuery0(t, callerCtx(t, account.ID), db, caller.Profile)
 
 		require.NoError(t, err)
 		require.NotNil(t, result.Person)
@@ -300,7 +301,7 @@ func TestCallerContext_Profile(t *testing.T) {
 	t.Run("returns profile with fallback data for account without person", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "nolink@example.com")
 
-		result, err := caller.Profile(callerCtx(t, account.ID))
+		result, err := testpkg.TenantQuery0(t, callerCtx(t, account.ID), db, caller.Profile)
 
 		require.NoError(t, err)
 		assert.Equal(t, account.Email, result.Account.Email)
@@ -317,7 +318,7 @@ func TestCallerContext_Profile(t *testing.T) {
 
 		// A tenant the account has no profile row in.
 		otherTenantID, _ := testpkg.CreateTestTenant(t, db)
-		result, err := caller.Profile(callerTenantCtx(account.ID, otherTenantID))
+		result, err := testpkg.TenantQuery0(t, callerTenantCtx(account.ID, otherTenantID), db, caller.Profile)
 
 		require.NoError(t, err)
 		assert.Equal(t, avatarPath, result.Account.Avatar)
@@ -457,7 +458,7 @@ func TestMergeActiveSessions(t *testing.T) {
 	t.Run("handles empty results gracefully", func(t *testing.T) {
 		_, account := testpkg.CreateTestStaffWithAccount(t, db, "Merge", "Test")
 
-		groups, err := caller.MyActiveSessionIDs(callerCtx(t, account.ID))
+		groups, err := testpkg.TenantQuery0(t, callerCtx(t, account.ID), db, caller.MyActiveSessionIDs)
 
 		require.NoError(t, err)
 		// Should return an empty slice, not nil.
@@ -499,7 +500,7 @@ func TestCallerContext_GroupStudentIDs(t *testing.T) {
 		// A visit so there's a student in the group.
 		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
 
-		students, err := caller.GroupStudentIDs(callerCtx(t, account.ID), activeGroup.ID)
+		students, err := testpkg.TenantQuery1(t, callerCtx(t, account.ID), db, caller.GroupStudentIDs, activeGroup.ID)
 
 		require.NoError(t, err)
 		require.NotNil(t, students)
@@ -559,7 +560,7 @@ func TestCallerContext_GroupVisits(t *testing.T) {
 		require.NoError(t, err, "prerequisite: staff should be findable by person_id")
 		require.Equal(t, staff.ID, staffID, "prerequisite: staff ID should match")
 
-		visits, err := caller.GroupVisits(ctx, activeGroup.ID)
+		visits, err := testpkg.TenantQuery1(t, ctx, db, caller.GroupVisits, activeGroup.ID)
 
 		require.NoError(t, err)
 		require.NotNil(t, visits)
@@ -585,7 +586,7 @@ func TestCallerRows_GetMyGroups_TeacherGroups(t *testing.T) {
 		educationGroup := testpkg.CreateTestEducationGroup(t, db, "Teacher Class")
 		testpkg.CreateTestGroupTeacher(t, db, educationGroup.ID, teacher.ID)
 
-		groups, err := rows.GetMyGroups(callerCtx(t, account.ID))
+		groups, err := testpkg.TenantQuery0(t, callerCtx(t, account.ID), db, rows.GetMyGroups)
 
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(groups), 1, "Teacher should have at least 1 group")
@@ -598,7 +599,7 @@ func TestCallerRows_GetMyGroups_TeacherGroups(t *testing.T) {
 		today := testpkg.TodayDate()
 		testpkg.CreateTestGroupSubstitution(t, db, educationGroup.ID, nil, staff.ID, today, today.AddDays(1))
 
-		groups, err := rows.GetMyGroups(callerCtx(t, account.ID))
+		groups, err := testpkg.TenantQuery0(t, callerCtx(t, account.ID), db, rows.GetMyGroups)
 
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(groups), 1, "Substitute should have at least 1 group")
@@ -609,7 +610,7 @@ func TestCallerRows_GetMyGroups_TeacherGroups(t *testing.T) {
 		educationGroup := testpkg.CreateTestEducationGroup(t, db, "Teacher Role Class")
 		testpkg.CreateTestGroupTeacher(t, db, educationGroup.ID, teacher.ID)
 
-		groups, err := rows.GetMyGroups(callerTenantCtx(account.ID, testpkg.Tenant(t), "teacher"))
+		groups, err := testpkg.TenantQuery0(t, callerTenantCtx(account.ID, testpkg.Tenant(t), "teacher"), db, rows.GetMyGroups)
 
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(groups), 1, "Teacher-only role should have at least 1 group")
@@ -625,7 +626,7 @@ func TestParentRequestReviews_UsesRealTeacherGroupAssignments(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	reviews := setupCallerRows(t, db).Caller().ParentRequestReviews
 	require.NotNil(t, reviews)
-	settingsModule, err := api.NewSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	settingsModule, err := owners.NewSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	settings := settingsModule.Settings
 
@@ -651,7 +652,7 @@ func TestParentRequestReviews_UsesRealTeacherGroupAssignments(t *testing.T) {
 	// substitution; neither the expired substitution nor a foreign group,
 	// and never school-wide (a student without a group stays out).
 	setSettings(true, parentAbsenceReviewScopeInherit)
-	wide, ids, err := reviews.ReviewScope(callerCtx(t, account.ID), permissions)
+	wide, ids, err := testpkg.TenantQueryPair1(t, callerCtx(t, account.ID), db, reviews.ReviewScope, permissions)
 	require.NoError(t, err)
 	assert.False(t, wide)
 	assert.ElementsMatch(t, []int64{ownGroup.ID, activeSubstitutionGroup.ID}, ids)
@@ -659,7 +660,7 @@ func TestParentRequestReviews_UsesRealTeacherGroupAssignments(t *testing.T) {
 	assert.NotContains(t, ids, otherGroup.ID)
 
 	setSettings(false, parentAbsenceReviewScopeInherit)
-	wide, ids, err = reviews.ReviewScope(callerCtx(t, account.ID), permissions)
+	wide, ids, err = testpkg.TenantQueryPair1(t, callerCtx(t, account.ID), db, reviews.ReviewScope, permissions)
 	require.NoError(t, err)
 	assert.False(t, wide)
 	assert.NotContains(t, ids, ownGroup.ID)
@@ -667,17 +668,17 @@ func TestParentRequestReviews_UsesRealTeacherGroupAssignments(t *testing.T) {
 	// The absence-only selection uses the same live group/substitution
 	// resolver, without granting access to the other request kinds.
 	setSettings(false, parentAbsenceReviewScopeGroupLeaders)
-	wide, ids, err = reviews.AbsenceReviewScope(callerCtx(t, account.ID), permissions)
+	wide, ids, err = testpkg.TenantQueryPair1(t, callerCtx(t, account.ID), db, reviews.AbsenceReviewScope, permissions)
 	require.NoError(t, err)
 	assert.False(t, wide)
 	assert.ElementsMatch(t, []int64{ownGroup.ID, activeSubstitutionGroup.ID}, ids)
-	wide, ids, err = reviews.ReviewScope(callerCtx(t, account.ID), permissions)
+	wide, ids, err = testpkg.TenantQueryPair1(t, callerCtx(t, account.ID), db, reviews.ReviewScope, permissions)
 	require.NoError(t, err)
 	assert.False(t, wide)
 	assert.Empty(t, ids)
 
 	setSettings(false, parentAbsenceReviewScopeAllStaff)
-	wide, ids, err = reviews.AbsenceReviewScope(callerCtx(t, account.ID), permissions)
+	wide, ids, err = testpkg.TenantQueryPair1(t, callerCtx(t, account.ID), db, reviews.AbsenceReviewScope, permissions)
 	require.NoError(t, err)
 	assert.True(t, wide)
 	assert.Empty(t, ids)

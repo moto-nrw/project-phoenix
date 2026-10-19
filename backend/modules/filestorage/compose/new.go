@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/filestorage"
-	apiDocuments "github.com/moto-nrw/project-phoenix/modules/filestorage/documents"
+	apiDocuments "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/documents"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
@@ -166,29 +166,7 @@ func observer(observe func(Observation)) func(Observation) {
 	}
 }
 
-func databaseRuntime(db *bun.DB) postgres.Database {
-	return func(ctx context.Context) (bun.IDB, int64, error) {
-		tenantID, err := tenant.TenantFromContext(ctx)
-		if err != nil {
-			return nil, 0, fmt.Errorf("file storage postgres: tenant is required: %w", err)
-		}
-		transaction, hasTransaction := tenant.TransactionFromContext(ctx)
-		if !hasTransaction {
-			return db, tenantID.Int64(), nil
-		}
-		switch tx := transaction.(type) {
-		case bun.Tx:
-			return tx, tenantID.Int64(), nil
-		case *bun.Tx:
-			if tx != nil {
-				return tx, tenantID.Int64(), nil
-			}
-			return db, tenantID.Int64(), nil
-		default:
-			return nil, 0, fmt.Errorf("file storage postgres: unsupported transaction %T", transaction)
-		}
-	}
-}
+func databaseRuntime(db *bun.DB) postgres.Database { return tenant.CurrentTenantTransaction[bun.IDB] }
 
 // --- tenant runtime ------------------------------------------------------------
 

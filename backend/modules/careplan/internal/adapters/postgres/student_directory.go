@@ -14,9 +14,10 @@ import (
 // transaction, so the projection runs inside Care Plan's statement or unit of
 // work and keeps its statement budget.
 type StudentDirectory interface {
+	AllSchoolsStudentRows(db bun.IDB) *bun.SelectQuery
 	// StudentRows is the directory row source, aliased "student", that Care Plan
-	// embeds in its own statements. It executes no statement. Zero tenant is
-	// reserved for operator and admin reads.
+	// embeds in its own statements. It requires a school and executes no SQL.
+	// Correlated reads use AllSchoolsStudentRows with their outer school predicate.
 	StudentRows(db bun.IDB, tenantID int64) *bun.SelectQuery
 	// StudentDisplayRows is the display row of every student, alumni
 	// included, embedded the same way.

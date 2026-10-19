@@ -717,9 +717,12 @@ func applyAppointmentWindow(query *bun.SelectQuery, from, to domain.Date) *bun.S
 	)`, from, to, to, from)
 }
 
-func withTenant[Q interface{ Where(string, ...any) Q }](query Q, alias string, tenantID int64) Q {
+func withTenant[Q interface {
+	Where(string, ...any) Q
+	Err(error) Q
+}](query Q, alias string, tenantID int64) Q {
 	if tenantID <= 0 {
-		return query
+		return query.Err(errors.New("tenant is required"))
 	}
 	return query.Where(`"`+alias+`".tenant_id = ?`, tenantID)
 }

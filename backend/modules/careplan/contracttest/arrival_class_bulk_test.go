@@ -10,6 +10,7 @@ import (
 	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -24,13 +25,13 @@ func nativeClassArrivalPlans(t *testing.T) careplanCompose.ArrivalClassPlans {
 	t.Helper()
 	classes, err := arrivalTimetable.NewClassArrivals(testpkg.SetupTestDB(t), func(arrivalTimetable.Observation) {})
 	require.NoError(t, err)
-	return api.ClassArrivalPlans(classes)
+	return owners.ClassArrivalPlans(classes)
 }
 
 func nativeArrivalSchedules(t *testing.T, records careplanCompose.ArrivalScheduleRecords, baselines careplan.ArrivalBaselineReader, classes careplanCompose.ArrivalClassPlans, exceptions careplan.ClassArrivalExceptions) careplan.ArrivalScheduleService {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	rules, deps, err := api.ArrivalScheduleBinding(api.MustNewPeopleDirectory(testpkg.MustDatabase(db)), classes, exceptions, nil)
+	rules, deps, err := owners.ArrivalScheduleBinding(owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)), classes, exceptions, nil)
 	require.NoError(t, err)
 	service, err := careplanCompose.NewArrivalSchedules(db, records, baselines, rules, deps)
 	require.NoError(t, err)

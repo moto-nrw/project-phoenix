@@ -35,7 +35,7 @@ func CreateTestUnstampedEnrollmentApplicant(tb testing.TB, db *bun.DB, tenantID 
 		CareOfferingSelectionMode: "optional",
 	}
 	phase.TenantID = tenantID
-	require.NoError(tb, owner.InsertPhase(ctx, phase))
+	require.NoError(tb, TenantCommand1(tb, ctx, db, owner.InsertPhase, phase))
 
 	request := &enrollmentOwner.Request{
 		PhaseID:           phase.ID,
@@ -46,9 +46,9 @@ func CreateTestUnstampedEnrollmentApplicant(tb testing.TB, db *bun.DB, tenantID 
 		StatusToken:       fmt.Sprintf("tok-%d", time.Now().UnixNano()),
 		SubmittedAt:       time.Now(),
 	}
-	require.NoError(tb, owner.InsertRequest(ctx, request))
+	require.NoError(tb, TenantCommand1(tb, ctx, db, owner.InsertRequest, request))
 
-	require.NoError(tb, owner.InsertChild(ctx, &enrollmentOwner.RequestChild{
+	require.NoError(tb, TenantCommand1(tb, ctx, db, owner.InsertChild, &enrollmentOwner.RequestChild{
 		RequestID:   request.ID,
 		FirstName:   "Felix",
 		LastName:    "Schneider",

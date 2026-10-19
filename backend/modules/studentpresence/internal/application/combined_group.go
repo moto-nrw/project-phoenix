@@ -9,7 +9,7 @@ import (
 )
 
 func (s *Service) ListCombinedGroups(ctx context.Context, filter ports.CombinedGroupFilter) (result []ports.CombinedGroup, err error) {
-	err = s.run("list_combined_groups", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "list_combined_groups", func(ctx context.Context) (ports.Stats, error) {
 		if filter.Limit < 0 || filter.Offset < 0 || filter.ID != nil && *filter.ID <= 0 {
 			return ports.Stats{}, errors.New("student presence: invalid combination list options")
 		}
@@ -32,7 +32,7 @@ func (s *Service) EndCombination(ctx context.Context, id int64, at time.Time) er
 }
 
 func (s *Service) GetCombinedGroup(ctx context.Context, id int64) (result ports.CombinedGroup, err error) {
-	err = s.run("get_combined_group", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "get_combined_group", func(ctx context.Context) (ports.Stats, error) {
 		if id <= 0 {
 			return ports.Stats{}, errors.New("student presence: invalid combination ID")
 		}

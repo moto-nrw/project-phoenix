@@ -1130,3 +1130,7 @@ func TestShiftService_ListPropagatesShiftTypeResolveError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to resolve shift types")
 	assert.Contains(t, err.Error(), "shift types unavailable")
 }
+
+func (m *shiftMockStaffRepo) ListMembershipsWithPerson(ctx context.Context) ([]*workforce.PlanStaff, error) {
+	return m.ListAllWithPerson(ctx)
+}

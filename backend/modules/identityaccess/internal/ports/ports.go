@@ -237,14 +237,16 @@ type Transaction interface {
 	// in context.
 	RunWrite(context.Context, func(context.Context) error) error
 	// RunRead joins the caller's transaction, else opens a tenant
-	// transaction, else an admin transaction for tenantless readers.
+	// transaction. A missing school is an error.
 	RunRead(context.Context, func(context.Context) error) error
 	// RunPlatform joins the caller's transaction when one is active and
-	// otherwise runs on the root connection. Operator rows are platform-wide
+	// otherwise opens an explicit administrative transaction. Operator rows are platform-wide
 	// and carry no tenant, so no tenant transaction is opened for them; the
 	// operator flows open their own administrative transaction where several
 	// writes must commit together.
 	RunPlatform(context.Context, func(context.Context) error) error
+	// RunAdmin is the explicit operator/cross-school worker boundary.
+	RunAdmin(context.Context, func(context.Context) error) error
 }
 
 type Observation struct {
@@ -271,6 +273,10 @@ type AccountLoginStore interface {
 	HasActiveAccountTenant(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error)
 	// FindLoginAccountByEmail matches case-insensitively.
 	FindLoginAccountByEmail(ctx context.Context, email string) (domain.LoginAccount, bool, domain.OperationStats, error)
+	// LockLoginAccountByEmail is the email lookup with an exclusive row lock.
+	// It requires the caller's transaction and serializes writes that name an
+	// address with account retention.
+	LockLoginAccountByEmail(ctx context.Context, email string) (domain.LoginAccount, bool, domain.OperationStats, error)
 	FindLoginAccount(ctx context.Context, id int64, forUpdate bool) (domain.LoginAccount, bool, domain.OperationStats, error)
 	// RecordAccountLogin stamps the last login; on the login path it also
 	// takes the account row lock the session cap serializes on.

@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -20,7 +19,7 @@ import (
 // currentSnapshot is the request as stored now, with the bookings in force
 // today rather than at the service start: an approved dated change must not
 // be written back over by a stale selection.
-func (s *ChangeRequests) currentSnapshot(ctx context.Context, req *enrollmentModels.Request, children []*RequestChild) (map[string]any, error) {
+func (s *ChangeRequests) currentSnapshot(ctx context.Context, req *Request, children []*RequestChild) (map[string]any, error) {
 	guardians, err := s.deps.Guardians.RequestGuardians(ctx, []int64{req.ID})
 	if err != nil {
 		return nil, fmt.Errorf("change request: list guardians: %w", err)
@@ -107,7 +106,7 @@ func submitChildSnapshot(child SubmitChild) map[string]any {
 	return row
 }
 
-func persistedSnapshot(req *enrollmentModels.Request, children []*RequestChild, guardians []*enrollment.RequestGuardian, linksByChild map[int64][]*enrollment.RequestChildOfferingRecord) map[string]any {
+func persistedSnapshot(req *Request, children []*RequestChild, guardians []*enrollment.RequestGuardian, linksByChild map[int64][]*enrollment.RequestChildOfferingRecord) map[string]any {
 	submit := SubmitRequest{
 		TenantID: req.TenantID, PhaseID: req.PhaseID, GuardianFirstName: req.GuardianFirstName,
 		GuardianLastName: req.GuardianLastName, GuardianEmail: req.GuardianEmail, GuardianPhone: req.GuardianPhone,

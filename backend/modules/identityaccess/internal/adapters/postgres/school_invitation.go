@@ -48,10 +48,7 @@ func (r schoolInvitationRow) toDomain() domain.SchoolInvitation {
 }
 
 func invitationTenantFilter[Q tenantFilterable[Q]](scope TenantScope, query Q) Q {
-	if scope.TenantID > 0 {
-		return query.Where(`"invitation_token".tenant_id = ?`, scope.TenantID)
-	}
-	return query
+	return scopeTenantQuery(scope, query, `"invitation_token".tenant_id = ?`)
 }
 
 func (s *Store) InsertSchoolInvitation(ctx context.Context, invitation domain.SchoolInvitation) (domain.SchoolInvitation, domain.OperationStats, error) {

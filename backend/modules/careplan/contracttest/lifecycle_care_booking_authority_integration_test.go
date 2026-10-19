@@ -10,7 +10,7 @@ import (
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentFixture "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
@@ -29,7 +29,7 @@ func bookingAuthorityService(t *testing.T, db *bun.DB, authoritative bool) carep
 
 func lockedBookingAuthorityService(t *testing.T, db *bun.DB) careplan.CareLifecycle {
 	t.Helper()
-	return newBookingAuthorityLifecycle(t, db, true, api.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, db)).LockRecurrenceWrites)
+	return newBookingAuthorityLifecycle(t, db, true, owners.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, db)).LockRecurrenceWrites)
 }
 
 func newBookingAuthorityLifecycle(t *testing.T, db *bun.DB, authoritative bool, lock func(context.Context) error) careplan.CareLifecycle {
@@ -108,7 +108,7 @@ func createCareBookingOffering(
 		CareOverflowMode: "waitlist", CareOfferingSelectionMode: "optional", IsActive: true,
 	}
 	phase.TenantID = scope.TenantID
-	err := enrollmentFixture.New().InsertPhase(testpkg.WithTenantRuntime(t, scope.Context(), db), phase)
+	err := testpkg.TenantCommand1(t, testpkg.WithTenantRuntime(t, scope.Context(), db), testpkg.SetupTestDB(t), enrollmentFixture.New().InsertPhase, phase)
 	require.NoError(t, err)
 	offering := &testpkg.CareOffering{
 		PhaseID: phase.ID, Name: fmt.Sprintf("Betreuung-%d-%s", studentID, key),
@@ -135,14 +135,14 @@ func createCareBookingSource(
 	request.TenantID = scope.TenantID
 	owner := enrollmentFixture.New()
 	ctx := testpkg.WithTenantRuntime(t, scope.Context(), db)
-	require.NoError(t, owner.InsertRequest(ctx, request))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), owner.InsertRequest, request))
 	child := &enrollmentFixture.RequestChild{
 		RequestID: request.ID, FirstName: "Test", LastName: "Kind",
-		DateOfBirth: enrollmentFixture.Date(calendar.TodayDate().AddDays(-2500)), Status: enrollmentModels.ChildStatusApproved,
+		DateOfBirth: enrollmentFixture.Date(calendar.TodayDate().AddDays(-2500)), Status: enrollmentFixture.ChildStatusApproved,
 		CreatedStudentID: &studentID,
 	}
 	child.TenantID = scope.TenantID
-	require.NoError(t, owner.InsertChild(ctx, child))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), owner.InsertChild, child))
 	return child
 }
 
@@ -262,7 +262,7 @@ func TestBookingAuthorityExcludesUnapprovedBookingForExistingStudent(t *testing.
 	_, err := db.NewUpdate().TableExpr("enrollment.request_children").
 		Set("created_student_id = NULL").
 		Set("matched_student_id = ?", student.ID).
-		Set("status = ?", enrollmentModels.ChildStatusSubmitted).
+		Set("status = ?", enrollmentFixture.ChildStatusSubmitted).
 		Where("id = ?", child.ID).
 		Exec(scope.Context())
 	require.NoError(t, err)
@@ -470,7 +470,7 @@ func assertFiniteRebookingHistory(t *testing.T, oldOffset, newOffset int) {
 }
 
 func requirePendingCompletion(
-	t *testing.T, repo api.CareWithdrawalTestRows, ctx context.Context, studentID int64,
+	t *testing.T, repo owners.CareWithdrawalTestRows, ctx context.Context, studentID int64,
 ) *careplan.WithdrawalCompletion {
 	t.Helper()
 	rows, total, err := repo.ListPending(ctx, careplan.WithdrawalListFilter{StudentID: studentID, Page: 1, PageSize: 1})

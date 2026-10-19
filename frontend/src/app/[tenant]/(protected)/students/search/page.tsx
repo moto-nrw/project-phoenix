@@ -3301,12 +3301,15 @@ function SearchPageContent() {
           )}
 
           {/* Student Grid. Bottom padding reserves room for the mobile sticky
-          bar / tablet floating FAB; desktop has neither. */}
+          bar / tablet floating FAB; desktop has neither. The active mobile bar
+          is taller (mode line + switcher, plus the bulk row in "Mehrere"). */}
           <div
             className={
               checkinModeAvailable
-                ? schoolCheckin.isActive && schoolCheckin.selectionActive
-                  ? "pb-32 md:pb-24 lg:pb-0"
+                ? schoolCheckin.isActive
+                  ? schoolCheckin.selectionActive
+                    ? "pb-44 md:pb-24 lg:pb-0"
+                    : "pb-36 md:pb-24 lg:pb-0"
                   : "pb-24 lg:pb-0"
                 : undefined
             }

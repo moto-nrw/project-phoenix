@@ -205,20 +205,13 @@ func (s *substitutionModule) assignAdditionalSupervision(
 		return nil, ErrSelfAssignment
 	}
 
-	var result AssignmentResult
-	err = s.deps.Runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		created, target, createErr := s.assignAdditionalSupervisionLocked(txCtx, caller, access, broad, request)
-		if createErr == nil {
-			result = AssignmentResult{
-				ID: created.ID, Type: TargetAdditionalSupervision, ActiveGroupID: created.GroupID,
-				Target: StaffRef{ID: target.StaffID, FullName: target.FullName},
-			}
-		}
-		return createErr
-	})
+	created, target, err := s.assignAdditionalSupervisionLocked(ctx, caller, access, broad, request)
 	if err != nil {
 		return nil, err
 	}
+	result := AssignmentResult{ID: created.ID, Type: TargetAdditionalSupervision, ActiveGroupID: created.GroupID,
+		Target: StaffRef{ID: target.StaffID, FullName: target.FullName}}
+
 	if s.deps.Broadcaster != nil {
 		s.deps.Broadcaster.QueueGroupAccessChanged(ctx, "additional_supervision_assign")
 	}

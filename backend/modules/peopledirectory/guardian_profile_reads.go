@@ -12,6 +12,7 @@ type GuardianProfileSnapshot struct {
 	TenantID               int64                           `json:"tenant_id"`
 	CreatedAt              time.Time                       `json:"created_at"`
 	UpdatedAt              time.Time                       `json:"updated_at"`
+	ChildlessSince         *time.Time                      `json:"-"`
 	FirstName              string                          `json:"first_name"`
 	LastName               string                          `json:"last_name"`
 	Email                  *string                         `json:"email,omitempty"`

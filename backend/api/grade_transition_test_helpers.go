@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -29,7 +31,7 @@ type GradeTransitionTestModule struct {
 type OfferingResync func(ctx context.Context, effectiveFrom timezone.Date) error
 
 func NewGradeTransitionTestModule(db transactionruntime.Database, resync OfferingResync, clocks ...func() time.Time) (GradeTransitionTestModule, error) {
-	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
+	command, err := auditCompose.NewCommand(owners.NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}
@@ -37,11 +39,11 @@ func NewGradeTransitionTestModule(db transactionruntime.Database, resync Offerin
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}
-	people, err := NewPeopleDirectory(db)
+	people, err := owners.NewPeopleDirectory(db)
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}
-	membership, err := NewSchoolMembership(db)
+	membership, err := owners.NewSchoolMembership(db)
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}
@@ -49,7 +51,7 @@ func NewGradeTransitionTestModule(db transactionruntime.Database, resync Offerin
 		resync = func(context.Context, timezone.Date) error { return nil }
 	}
 	clock := OptionalClock(clocks)
-	recurrenceLock, err := newTimetableTestRecurrenceLock(db)
+	recurrenceLock, err := owners.NewTimetableTestRecurrenceLock(db)
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}
@@ -57,7 +59,7 @@ func NewGradeTransitionTestModule(db transactionruntime.Database, resync Offerin
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}
-	workflow, err := gradetransitioncompose.New(gradetransitioncompose.Dependencies{
+	workflow, err := owners.NewGradeTransition(gradetransitioncompose.Dependencies{
 		DB: db.Pool(), Structure: structure, Presence: presence, Directory: people, Membership: membership,
 		Rosters:               tt.RosterMaintenance(slog.Default(), clock),
 		LockRecurrenceWrites:  recurrenceLock.LockRecurrenceWrites,

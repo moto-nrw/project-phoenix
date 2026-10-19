@@ -8,6 +8,7 @@ import Link from "~/components/ui/navigation-link";
 import { redirect } from "next/navigation";
 import { CollectionGrid } from "~/components/ui/collection-grid";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { Skeleton } from "~/components/ui/skeleton";
 import { TileCard } from "~/components/ui/tile-card";
@@ -294,18 +295,21 @@ function DatabaseContent() {
     >
       {/* Die Grenze zu „Alle Kinder" steht auf der Seite selbst, nicht nur
           in der Hilfe (ADR 0008, #2826): hier wird angelegt und gepflegt,
-          der laufende Tag liegt im Tagesbetrieb. */}
-      <p className="max-w-2xl text-sm leading-6 text-gray-600">
-        Hier legen Sie Kinder, Personal, Räume und Gruppen an und pflegen ihre
-        Daten. Wer heute da ist, sehen Sie unter{" "}
-        <Link
-          href={tenantPath("/students/search")}
-          className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-2 hover:decoration-gray-900"
-        >
-          Alle Kinder
-        </Link>
-        .
-      </p>
+          der laufende Tag liegt im Tagesbetrieb. Der Text steht auf einer
+          Fläche, nicht auf dem gemusterten Grund (BAUARTEN-SPEC, Teil 3). */}
+      <SectionCard>
+        <p className="max-w-2xl text-sm leading-6 text-gray-600">
+          Hier legen Sie Kinder, Personal, Räume und Gruppen an und pflegen ihre
+          Daten. Wer heute da ist, sehen Sie unter{" "}
+          <Link
+            href={tenantPath("/students/search")}
+            className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-2 hover:decoration-gray-900"
+          >
+            Alle Kinder
+          </Link>
+          .
+        </p>
+      </SectionCard>
 
       <LoadErrorAlert error={countsLoadError} />
 

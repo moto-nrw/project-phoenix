@@ -13,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,8 +33,8 @@ const testNewPassword = "NewStr0ng!Pass" //nolint:gosec // pragma: allowlist sec
 const recoveryGrace = 5 * time.Minute
 
 // setupAuthService creates an Auth Service with real database connection
-func authTestFactoryConfig(rateLimitEnabled bool) api.ServiceConfig {
-	return api.ServiceConfig{
+func authTestFactoryConfig(rateLimitEnabled bool) owners.ServiceConfig {
+	return owners.ServiceConfig{
 		JWTSecret:        "test-jwt-secret-for-unit-tests-minimum-32-chars",
 		JWTExpiry:        15 * time.Minute,
 		JWTRefreshExpiry: 24 * time.Hour,

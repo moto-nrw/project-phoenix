@@ -5,9 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // Care Plan owns the offering change requests (#3561). The guardian portal's
@@ -36,7 +37,7 @@ func NewOfferingChangeRecords(carePlan CarePlanOfferingChanges, noRows error) *O
 
 // FindByID loads one offering change request by the portal's untyped id. A
 // miss answers the retained repository's not-found shape.
-func (r *OfferingChangeRecords) FindByID(ctx context.Context, rawID any) (*enrollmentModels.OfferingChangeRequest, error) {
+func (r *OfferingChangeRecords) FindByID(ctx context.Context, rawID any) (*OfferingChangeRequest, error) {
 	const op = "find by id"
 	id, err := untypedID(rawID)
 	if err != nil {
@@ -49,7 +50,7 @@ func (r *OfferingChangeRecords) FindByID(ctx context.Context, rawID any) (*enrol
 	case err != nil:
 		return nil, &offeringRecordError{op: op, err: err}
 	}
-	row := new(enrollmentModels.OfferingChangeRequest)
+	row := new(OfferingChangeRequest)
 	if err := applyOfferingChangeToRow(row, value); err != nil {
 		return nil, &offeringRecordError{op: op, err: err}
 	}
@@ -58,12 +59,12 @@ func (r *OfferingChangeRecords) FindByID(ctx context.Context, rawID any) (*enrol
 
 // OfferingChangeIdentity keeps the retained lookup and payload decoding on
 // the read path while exposing only the facts request sharing needs.
-func (r *OfferingChangeRecords) OfferingChangeIdentity(ctx context.Context, id int64) (*enrollment.OfferingChangeIdentity, error) {
+func (r *OfferingChangeRecords) OfferingChangeIdentity(ctx context.Context, id int64) (*enrollmentNative.OfferingChangeIdentity, error) {
 	row, err := r.FindByID(ctx, id)
 	if err != nil || row == nil {
 		return nil, err
 	}
-	return &enrollment.OfferingChangeIdentity{StudentID: row.StudentID, SubmittedBy: row.SubmittedBy}, nil
+	return &enrollmentNative.OfferingChangeIdentity{StudentID: row.StudentID, SubmittedBy: row.SubmittedBy}, nil
 }
 
 // offeringRecordError is the retained repository error shape, "database
@@ -110,7 +111,7 @@ func untypedID(id any) (int64, error) {
 	}
 }
 
-func applyOfferingChangeToRow(target *enrollmentModels.OfferingChangeRequest, value careplan.OfferingChangeRequest) error {
+func applyOfferingChangeToRow(target *OfferingChangeRequest, value careplan.OfferingChangeRequest) error {
 	target.ID, target.TenantID, target.CreatedAt, target.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
 	target.StudentID, target.RequestChildID, target.SubmittedBy = value.StudentID, value.RequestChildID, value.SubmittedBy
 	target.CompleteWithdrawalConfirmed = value.CompleteWithdrawalConfirmed
@@ -119,7 +120,7 @@ func applyOfferingChangeToRow(target *enrollmentModels.OfferingChangeRequest, va
 	if err := unmarshalOptional(value.Payload, &target.Payload); err != nil {
 		return fmt.Errorf("decode offering change payload: %w", err)
 	}
-	target.EffectiveFrom = enrollmentModels.OfferingChangeDate(value.EffectiveFrom)
+	target.EffectiveFrom = offeringContract.OfferingChangeDate(value.EffectiveFrom)
 	target.ParentNote, target.Status, target.DecisionReason = value.ParentNote, value.Status, value.DecisionReason
 	if err := unmarshalOptional(value.DecisionSnapshot, &target.DecisionSnapshot); err != nil {
 		return fmt.Errorf("decode offering change decision snapshot: %w", err)

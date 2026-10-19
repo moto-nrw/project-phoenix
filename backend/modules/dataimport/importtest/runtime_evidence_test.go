@@ -83,16 +83,17 @@ func TestDataImportRuntimeEvidence(t *testing.T) {
 			require.Equal(t, 16, counter.Total())
 			require.EqualValues(t, 1, writes)
 		} else {
-			// Each of the ten guardian links is one unit of work over three
+			// Each of the ten guardian links first clears childless_since for
+			// guardian retention, then is one unit of work over three
 			// owners since #2756: a savepoint, the People Directory
 			// relationship, the Care Plan pickup permission and the Identity &
-			// Access portal access (5 statements where the old table took 1).
+			// Access portal access (6 statements where the old table took 1).
 			// Since #3567 each of the ten new children takes the class-write
 			// gate and Kinderkontingent lock before reading the limit. The
 			// locks are also required without a Kinderkontingent, so a
 			// concurrent quota change cannot pass a previously read unlimited
 			// limit (three statements per child).
-			require.LessOrEqual(t, counter.Total(), 314)
+			require.LessOrEqual(t, counter.Total(), 324)
 			// BUN labels RawQuery as SELECT, including the three owner INSERTs
 			// and, since #2756, the three owner INSERTs of each guardian link
 			// (ten rows the counter used to see as one INSERT each).

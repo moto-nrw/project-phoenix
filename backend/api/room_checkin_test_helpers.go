@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
@@ -42,7 +44,7 @@ func NewCheckinTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	moduleDevices := NewActiveTestDevices(db, unit, clocks...)
 	modulePresence := NewActiveTestPresence(db, unit, clocks...)
 	modulePeople := NewActiveTestPeople(db, unit, clocks...)
-	moduleTimetable := NewActiveTestTimetable(db, unit, clocks...)
+	_, activityService := NewActiveTestTimetable(db, unit, clocks...)
 	moduleEducation := NewActiveTestEducation(db, unit, clocks...)
 	moduleSettings := NewActiveTestSettings(db, unit, clocks...)
 	rooms, err := facilitiesCompose.NewUnobserved(db.Pool())
@@ -50,14 +52,14 @@ func NewCheckinTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		return CheckinTestModule{}, err
 	}
 	logger := slog.Default()
-	rosters := MustNewUnobservedTimetable(db)
+	rosters := owners.MustNewUnobservedTimetable(db)
 	scan := devicescanCompose.New(devicescanCompose.Dependencies{Principal: DeviceScanPrincipal,
 		Fleet:      moduleDevices.IoT.Fleet(),
-		Presence:   NewLoggedStudentPresence(db, logger),
+		Presence:   owners.NewLoggedStudentPresence(db, logger),
 		Rooms:      rooms,
 		Active:     modulePresence.Active,
 		Users:      NewDeviceScanPeople(modulePeople.Users),
-		Activities: DeviceActivityCatalog(moduleTimetable.Activities),
+		Activities: DeviceActivityCatalog(activityService),
 		Rosters:    rosters,
 		Education:  moduleEducation.Education,
 		Pickups:    module.PickupSchedule,

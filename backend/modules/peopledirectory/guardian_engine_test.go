@@ -62,6 +62,11 @@ func (e *recordingEngine) DeleteGuardianProfile(context.Context, int64) error {
 	return nil
 }
 
+func (e *recordingEngine) DeleteChildlessGuardiansBefore(context.Context, time.Time, peopledirectory.OpenGuardianInvitations) (int, error) {
+	e.calls++
+	return 0, nil
+}
+
 func (e *recordingEngine) LinkGuardianProfileToAccount(context.Context, int64, int64) error {
 	e.calls++
 	return nil

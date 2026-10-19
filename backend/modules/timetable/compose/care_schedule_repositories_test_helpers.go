@@ -5,20 +5,19 @@ package compose
 import (
 	"context"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // CareScheduleRepositories are the retained repositories served by Care Plan.
 type CareScheduleRepositories struct {
-	StudentArrivalSchedule    scheduleModels.StudentArrivalScheduleRepository
-	StudentArrivalException   scheduleModels.StudentArrivalExceptionRepository
-	StudentArrivalNote        scheduleModels.StudentArrivalNoteRepository
-	StudentPickupSchedule     scheduleModels.StudentPickupScheduleRepository
-	StudentPickupException    scheduleModels.StudentPickupExceptionRepository
-	StudentPickupNote         scheduleModels.StudentPickupNoteRepository
-	CareScheduleChangeRequest scheduleModels.CareScheduleChangeRequestRepository
+	StudentArrivalSchedule    ports.StudentArrivalScheduleRecords
+	StudentArrivalException   ports.StudentArrivalExceptionRecords
+	StudentArrivalNote        ports.StudentArrivalNoteRecords
+	StudentPickupSchedule     ports.StudentPickupScheduleRecords
+	StudentPickupException    ports.StudentPickupExceptionRecords
+	StudentPickupNote         ports.StudentPickupNoteRecords
+	CareScheduleChangeRequest ports.CareScheduleChangeRequestRecords
 }
 
 // NewCareScheduleRepositories builds the retained repositories over Care Plan records.

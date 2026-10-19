@@ -1,9 +1,7 @@
 package compose
 
 import (
-	"context"
 	"errors"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/auditlog"
 	"github.com/moto-nrw/project-phoenix/modules/auditlog/internal/adapters/postgres"
@@ -15,24 +13,6 @@ func NewCorrectionQueries(db *bun.DB, observe func(auditlog.Observation)) (audit
 	if db == nil || observe == nil {
 		return nil, errors.New("audit correction queries: database and observer are required")
 	}
-	store := postgres.NewCorrections(func(ctx context.Context) (bun.IDB, int64, error) {
-		tenantID, err := tenant.TenantFromContext(ctx)
-		if err != nil {
-			return nil, 0, fmt.Errorf("audit correction queries: tenant is required: %w", err)
-		}
-		transaction, found := tenant.TransactionFromContext(ctx)
-		if !found {
-			return db, tenantID.Int64(), nil
-		}
-		switch tx := transaction.(type) {
-		case bun.Tx:
-			return tx, tenantID.Int64(), nil
-		case *bun.Tx:
-			if tx != nil {
-				return tx, tenantID.Int64(), nil
-			}
-		}
-		return nil, 0, fmt.Errorf("audit correction queries: unsupported transaction %T", transaction)
-	}, observe)
+	store := postgres.NewCorrections(postgres.NewCorrectionRuntime(db, tenant.TenantFromContext, tenant.TransactionFromContext), observe)
 	return store, nil
 }

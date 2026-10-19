@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,24 +14,24 @@ import (
 )
 
 // newProjectedOperatorAccountDirectory uses the serving owner projection.
-func newProjectedOperatorAccountDirectory(t *testing.T, db *bun.DB) OperatorAccountDirectory {
+func newProjectedOperatorAccountDirectory(t *testing.T, db *bun.DB) owners.OperatorAccountDirectory {
 	t.Helper()
-	schools, err := NewOrganizationTenancy(testpkg.NewDatabase(t, db))
+	schools, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	persons, err := NewPeopleDirectory(testpkg.NewDatabase(t, db))
+	persons, err := owners.NewPeopleDirectory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	membership, err := NewSchoolMembership(testpkg.NewDatabase(t, db))
+	membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	identity, err := NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	return NewOperatorAccountDirectory(identity, persons, membership, schools)
+	return owners.NewOperatorAccountDirectory(identity, persons, membership, schools)
 }
 
 func TestOperatorAccountDirectory_ListAccountsByTenantID(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	ctx := context.Background()
+	ctx := testpkg.WithTenantRuntime(t, context.Background(), db)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -81,7 +83,7 @@ func TestOperatorAccountDirectory_ListAccountsByTenantID_IncludesPendingInvitati
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	ctx := context.Background()
+	ctx := testpkg.WithTenantRuntime(t, context.Background(), db)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -197,7 +199,7 @@ func TestOperatorAccountDirectory_ListAllAccounts(t *testing.T) {
 }
 
 // containsAccount reports whether the result list includes an entry for the given email.
-func containsAccount(accounts []OrgAccountInfo, email string) bool {
+func containsAccount(accounts []owners.OrgAccountInfo, email string) bool {
 	for _, a := range accounts {
 		if a.Email == email {
 			return true

@@ -33,7 +33,9 @@ func (rs *Resource) renderError(w http.ResponseWriter, r *http.Request, err erro
 		return
 	}
 	status := http.StatusInternalServerError
-	if failure, ok := err.(*devicefleet.AdministrationError); ok { //nolint:errorlint // preserve the historic outer-wrapper dispatch
+	var failure *devicefleet.AdministrationError
+	// Keep the historical outer-wrapper dispatch, not a nested refusal.
+	if errors.As(err, &failure) && errors.Is(failure, err) {
 		switch {
 		case errors.Is(failure.Err, devicefleet.ErrAdministrationDeviceNotFound):
 			status = http.StatusNotFound

@@ -25,7 +25,7 @@ func TestStaffRepository_ListAccountIDsByStaffIDs(t *testing.T) {
 		testpkg.MapAccountToTenant(t, db, account.ID, testpkg.Tenant(t))
 		withoutAccount := testpkg.CreateTestStaff(t, db, "Accountless", "Staff")
 
-		result, err := repo.ListAccountIDsByStaffIDs(ctx, []int64{withAccount.ID, withoutAccount.ID})
+		result, err := testpkg.TenantQuery1(t, ctx, db, repo.ListAccountIDsByStaffIDs, []int64{withAccount.ID, withoutAccount.ID})
 		require.NoError(t, err)
 
 		assert.Equal(t, account.ID, result[withAccount.ID])
@@ -47,7 +47,7 @@ func TestStaffRepository_ListAccountIDsByStaffIDs(t *testing.T) {
 			Exec(ctx)
 		require.NoError(t, err)
 
-		result, err := repo.ListAccountIDsByStaffIDs(ctx, []int64{staff.ID})
+		result, err := testpkg.TenantQuery1(t, ctx, db, repo.ListAccountIDsByStaffIDs, []int64{staff.ID})
 		require.NoError(t, err)
 
 		_, present := result[staff.ID]
@@ -74,13 +74,13 @@ func TestStaffRepository_ListAccountIDsByStaffIDs(t *testing.T) {
 			Exec(ctx)
 		require.NoError(t, err)
 
-		result, err := repo.ListAccountIDsByStaffIDs(ctx, []int64{inactiveAccountStaff.ID, inactiveMappingStaff.ID})
+		result, err := testpkg.TenantQuery1(t, ctx, db, repo.ListAccountIDsByStaffIDs, []int64{inactiveAccountStaff.ID, inactiveMappingStaff.ID})
 		require.NoError(t, err)
 		assert.Empty(t, result)
 	})
 
 	t.Run("empty input short-circuits", func(t *testing.T) {
-		result, err := repo.ListAccountIDsByStaffIDs(ctx, nil)
+		result, err := testpkg.TenantQuery1(t, ctx, db, repo.ListAccountIDsByStaffIDs, nil)
 		require.NoError(t, err)
 		assert.Empty(t, result)
 	})
@@ -91,7 +91,7 @@ func TestStaffRepository_ListAccountIDsByStaffIDs(t *testing.T) {
 
 		foreignStaff := testpkg.CreateTestStaffForTenant(t, db, otherTenant, "Foreign", "Staff")
 
-		result, err := repo.ListAccountIDsByStaffIDs(ctx, []int64{foreignStaff.ID})
+		result, err := testpkg.TenantQuery1(t, ctx, db, repo.ListAccountIDsByStaffIDs, []int64{foreignStaff.ID})
 		require.NoError(t, err)
 
 		_, present := result[foreignStaff.ID]
@@ -135,7 +135,7 @@ func TestStaffRepository_ListAllStaffAccountIDs(t *testing.T) {
 			Exec(ctx)
 		require.NoError(t, err)
 
-		result, err := repo.ListAllStaffAccountIDs(ctx)
+		result, err := testpkg.TenantQuery0(t, ctx, db, repo.ListAllStaffAccountIDs)
 		require.NoError(t, err)
 
 		assert.Equal(t, mappedAccount.ID, result[mapped.ID])
@@ -161,7 +161,7 @@ func TestStaffRepository_ListAllStaffAccountIDs(t *testing.T) {
 			Exec(ctx)
 		require.NoError(t, err)
 
-		result, err := repo.ListAllStaffAccountIDs(ctx)
+		result, err := testpkg.TenantQuery0(t, ctx, db, repo.ListAllStaffAccountIDs)
 		require.NoError(t, err)
 
 		_, present := result[staff.ID]
@@ -174,7 +174,7 @@ func TestStaffRepository_ListAllStaffAccountIDs(t *testing.T) {
 
 		foreign := testpkg.CreateTestStaffForTenant(t, db, otherTenant, "Foreign", "Colleague")
 
-		result, err := repo.ListAllStaffAccountIDs(ctx)
+		result, err := testpkg.TenantQuery0(t, ctx, db, repo.ListAllStaffAccountIDs)
 		require.NoError(t, err)
 
 		_, present := result[foreign.ID]

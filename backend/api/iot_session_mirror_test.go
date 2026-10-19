@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -16,9 +17,9 @@ import (
 
 func TestSessionStartMirrorsTenantAndWallClock(t *testing.T) {
 	t.Parallel()
-	db, active, activeTimetable, activePresence, activePeople := setupIoTActiveModule(t)
+	db, active, _, activityService, activePresence, activePeople := setupIoTActiveModule(t)
 	_, timetable := setupIoTTimetableModule(t)
-	mirror, instances, err := timetable.KioskSessionMirror(testpkg.NewDatabase(t, db), activeTimetable.Activities)
+	mirror, instances, err := timetable.KioskSessionMirror(testpkg.NewDatabase(t, db), activityService)
 	require.NoError(t, err)
 	_, auth := setupIoTSettingsModule(t)
 	activity := testpkg.CreateTestActivityGroup(t, db, "Mirror Activity")
@@ -45,26 +46,29 @@ func TestSessionStartMirrorsTenantAndWallClock(t *testing.T) {
 	payload := testutil.ParseJSONResponse(t, response.Body.Bytes())["data"].(map[string]any)
 	groupID := int64(payload["active_group_id"].(float64))
 	ctx := testpkg.TenantContext(testpkg.Tenant(t))
-	instance, err := instances.FindByActiveGroupID(ctx, groupID)
-	require.NoError(t, err)
-	require.NotNil(t, instance, "a successful start persists its timetable mirror")
-	assert.Equal(t, testpkg.Tenant(t), instance.GetTenantID())
-	assert.Equal(t, "active", string(instance.Status))
-	assert.True(t, instance.IsSpontaneous)
-	assert.Equal(t, activity.Name, instance.Title)
-	assert.Equal(t, room.ID, instance.RoomID)
-	require.NotNil(t, instance.StartedAt)
-	berlin, err := time.LoadLocation("Europe/Berlin")
-	require.NoError(t, err)
-	local := instance.StartedAt.In(berlin)
-	assert.Equal(t, local.Format(time.DateOnly), instance.Date.String())
-	minutes := min(local.Hour()*60+local.Minute(), 23*60+30)
-	assert.Equal(t, minutes, instance.StartTime.Hour()*60+instance.StartTime.Minute())
-	assert.Equal(t, min(minutes+60, 23*60+59), instance.EndTime.Hour()*60+instance.EndTime.Minute())
-	assert.Equal(t, 0, instance.StartTime.Second())
-	rows, err := timetable.TimetableData.Data.ListBlockStaff(ctx, instance.ID)
-	require.NoError(t, err)
-	require.Len(t, rows, 1)
-	assert.Equal(t, staff.ID, rows[0].StaffID)
-	assert.Equal(t, testpkg.Tenant(t), rows[0].TenantID)
+	require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(ctx context.Context) error {
+		instance, err := instances.FindByActiveGroupID(ctx, groupID)
+		require.NoError(t, err)
+		require.NotNil(t, instance, "a successful start persists its timetable mirror")
+		assert.Equal(t, testpkg.Tenant(t), instance.GetTenantID())
+		assert.Equal(t, "active", string(instance.Status))
+		assert.True(t, instance.IsSpontaneous)
+		assert.Equal(t, activity.Name, instance.Title)
+		assert.Equal(t, room.ID, instance.RoomID)
+		require.NotNil(t, instance.StartedAt)
+		berlin, err := time.LoadLocation("Europe/Berlin")
+		require.NoError(t, err)
+		local := instance.StartedAt.In(berlin)
+		assert.Equal(t, local.Format(time.DateOnly), instance.Date.String())
+		minutes := min(local.Hour()*60+local.Minute(), 23*60+30)
+		assert.Equal(t, minutes, instance.StartTime.Hour()*60+instance.StartTime.Minute())
+		assert.Equal(t, min(minutes+60, 23*60+59), instance.EndTime.Hour()*60+instance.EndTime.Minute())
+		assert.Equal(t, 0, instance.StartTime.Second())
+		rows, err := timetable.TimetableData.Data.ListBlockStaff(ctx, instance.ID)
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		assert.Equal(t, staff.ID, rows[0].StaffID)
+		assert.Equal(t, testpkg.Tenant(t), rows[0].TenantID)
+		return nil
+	}))
 }

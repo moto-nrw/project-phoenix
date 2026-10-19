@@ -15,6 +15,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	parentRepo "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/parentpostgres"
 	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -150,7 +151,7 @@ func backfill(t *testing.T, db *bun.DB, accountID int64, email string) int {
 }
 
 func staticParentRuntime(db *bun.DB) parentRepo.Runtime {
-	return parentRepo.RuntimeFunc(func(context.Context) bun.IDB { return db })
+	return parentRepo.RuntimeFunc(careplanCompose.TenantAmbientDatabase(db))
 }
 
 // readGuardianAccountID returns the guardian_account_id column for one

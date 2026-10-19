@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // InstanceStatusSlots serves the status-day slot writes in plain YYYY-MM-DD
@@ -18,5 +18,5 @@ func NewInstanceStatusSlots(rows ports.StatusSlotRows) InstanceStatusSlots {
 
 // ApplyStatusDay marks the student's slots of the day with the status day.
 func (s InstanceStatusSlots) ApplyStatusDay(ctx context.Context, studentID int64, date string, statusDayID int64, substatus string) (int, error) {
-	return s.StatusSlotRows.ApplyStatusDay(ctx, studentID, scheduleModels.Date(date), statusDayID, substatus)
+	return s.StatusSlotRows.ApplyStatusDay(ctx, studentID, calendar.Date(date), statusDayID, substatus)
 }

@@ -13,7 +13,7 @@ const (
 )
 
 func (s *Service) ListPrivacyConsents(ctx context.Context, studentID int64) (rows []ports.PrivacyConsent, err error) {
-	err = s.run("list_privacy_consents", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "list_privacy_consents", func(ctx context.Context) (ports.Stats, error) {
 		if studentID <= 0 {
 			return ports.Stats{}, ports.ErrInvalidPrivacyConsent
 		}
@@ -40,7 +40,7 @@ func (s *Service) RecordPrivacyConsent(ctx context.Context, row *ports.PrivacyCo
 }
 
 func (s *Service) ListAcceptedRetentionSettings(ctx context.Context) (rows []ports.StudentRetentionSetting, err error) {
-	err = s.run("list_accepted_retention_settings", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "list_accepted_retention_settings", func(ctx context.Context) (ports.Stats, error) {
 		var stats ports.Stats
 		rows, stats, err = s.store.ListAcceptedRetentionSettings(ctx)
 		return stats, err

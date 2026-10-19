@@ -11,6 +11,7 @@ import (
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -62,7 +63,7 @@ func init() {
 		if err != nil {
 			return timetableAPI.TimetableRows{}, err
 		}
-		rooms, err := api.NewTimetableRoomRows(testpkg.MustDatabase(db))
+		rooms, err := owners.NewTimetableRoomRows(testpkg.MustDatabase(db))
 		if err != nil {
 			return timetableAPI.TimetableRows{}, err
 		}
@@ -97,7 +98,7 @@ func init() {
 			timetablePorts.OperationCaller
 		}{
 			OperationPeople: api.TimetableTestStaffAccountPeople{PersonID: personID, StaffID: staffID},
-			OperationCaller: api.TimetableOperationCaller{RequestSession: session},
+			OperationCaller: owners.TimetableOperationCaller{RequestSession: session},
 		}
 	}
 	root.ErrCareOfferingInvalid = api.TimetableHTTPTestCareOfferingInvalid

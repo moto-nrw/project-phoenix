@@ -15,7 +15,7 @@ import (
 
 func newGuardianAccess(t *testing.T, db *bun.DB) identityaccess.GuardianAccess {
 	t.Helper()
-	module, err := identityCompose.New(identityCompose.Dependencies{DB: db, Observe: func(identityCompose.Observation) {}})
+	module, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityCompose.Observation) {}})
 	require.NoError(t, err)
 	return module
 }
@@ -25,7 +25,7 @@ func TestGuardianAccessObservationsCountOnlyWrittenRows(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	account := testpkg.CreateTestAccount(t, db, "guardian-observations")
 	var observations []identityCompose.Observation
-	access, err := identityCompose.New(identityCompose.Dependencies{DB: db, Observe: func(observation identityCompose.Observation) {
+	access, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(observation identityCompose.Observation) {
 		observations = append(observations, observation)
 	}})
 	require.NoError(t, err)
@@ -92,6 +92,24 @@ func TestGuardianGrantUsesOffboardingAccountLockOrder(t *testing.T) {
 	require.True(t, found)
 	require.Equal(t, "active", mapping.Status, "the serialized later grant reactivates this tenant only")
 	require.Len(t, guardianRoleAssignments(t, db, account.ID, tenantID), 1)
+}
+
+func TestGuardianGrantRefusesAnErasedAccount(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	access := newGuardianAccess(t, db)
+	account := testpkg.CreateTestAccount(t, db, "erased-guardian")
+	ctx := testpkg.Ctx(t)
+
+	_, err := db.NewUpdate().TableExpr(`auth.accounts`).
+		Set("personal_data_erased_at = NOW()").
+		Where("id = ?", account.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	_, err = access.GrantGuardianTenantAccess(ctx, account.ID)
+	require.ErrorIs(t, err, identityaccess.ErrAccountNotFound)
+	require.Empty(t, guardianRoleAssignments(t, db, account.ID, testpkg.Tenant(t)))
 }
 
 type tenantAccessRow struct {

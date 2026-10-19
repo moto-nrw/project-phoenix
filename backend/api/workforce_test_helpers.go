@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
@@ -38,16 +40,16 @@ type WorkforceTestModule struct {
 // NewWorkforceTestModule composes the Workforce owner over db and returns it
 // with the People Directory's person directory it reads staff through.
 func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (WorkforceTestModule, peoplePorts.PersonDirectory, error) {
-	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
+	command, err := auditCompose.NewCommand(owners.NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return WorkforceTestModule{}, nil, err
 	}
-	members := MustNewMembershipTestRepositories(db)
+	members := owners.MustNewMembershipTestRepositories(db)
 	repos, err := NewWorkforceTestRepositoriesWithMembers(db, members, clocks...)
 	if err != nil {
 		return WorkforceTestModule{}, nil, err
 	}
-	ttRows, err := NewTimetableTestRepositoriesWithMembers(db, members, clocks...)
+	ttRows, err := owners.NewTimetableTestRepositoriesWithMembers(db, members, clocks...)
 	if err != nil {
 		return WorkforceTestModule{}, nil, err
 	}
@@ -56,7 +58,7 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return WorkforceTestModule{}, nil, err
 	}
-	rooms, err := NewTimetableRoomRows(db)
+	rooms, err := owners.NewTimetableRoomRows(db)
 	if err != nil {
 		return WorkforceTestModule{}, nil, err
 	}
@@ -64,12 +66,12 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return WorkforceTestModule{}, nil, err
 	}
-	membership, err := NewSchoolMembership(db)
+	membership, err := owners.NewSchoolMembership(db)
 	if err != nil {
 		return WorkforceTestModule{}, nil, err
 	}
-	audits := NewTestAuditPersistence(db, command)
-	settings, err := NewSettingsTestModule(db, unit)
+	audits := owners.NewTestAuditPersistence(db, command)
+	settings, err := owners.NewSettingsTestModule(db, unit)
 	if err != nil {
 		return WorkforceTestModule{}, nil, err
 	}
@@ -81,9 +83,9 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	settingsService := settings.Settings
 	realtimeHub := deliveryCompose.NewRealtimeHub(logger)
 	usersService := peopleCompose.NewPersonDirectory(peoplePorts.PersonDirectoryDependencies{
-		PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
-		StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
-		PersonRepo:       members.Person, RFIDRepo: NewPeopleIdentityAccess(db, nil), AccountExists: identityaccessCompose.AccountExists(identityAccess), StudentRepo: members.Student,
+		PersonDirectory:  peopleCompose.NewPersonWrites(owners.MustNewPeopleDirectory(db)),
+		StudentDirectory: peopleCompose.NewStudentDirectory(owners.MustNewPeopleDirectory(db)),
+		PersonRepo:       members.Person, RFIDRepo: owners.NewPeopleIdentityAccess(db, nil), AccountExists: identityaccessCompose.AccountExists(identityAccess), StudentRepo: members.Student,
 		TeacherRepo:    members.Teacher,
 		StaffDirectory: peopleCompose.NewStaffDirectory(peoplePorts.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: members.Person, Staff: members.Staff, Teachers: members.Teacher, LehrkraftRoles: identityAccess, MayManageStaff: StaffAdministrationPermitted}),
 	})
@@ -97,7 +99,7 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return WorkforceTestModule{}, nil, err
 	}
-	nonWorkingDayService := schoolCalendarCompose.NonWorkingDays{Calendar: calendar}
+	nonWorkingDayService := schoolCalendarCompose.NewNonWorkingDays(calendar)
 	today := timezone.CalendarDateClock(OptionalClock(clocks))
 	timetable, _, _, err := NewTimetableTestModule(db, unit, clocks...)
 	if err != nil {
@@ -107,9 +109,9 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	// Workforce planning composition and the timetable test module, bound
 	// the way the service graph binds it (#3418).
 	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
-		Workforce: repos.StaffAbsenceType, Staff: NewPlanStaffDirectory(members.Staff), CalendarPeriods: schoolCalendar.SchoolCalendar(), ShiftMoveAudit: NewShiftMoveAudit(NewTimetableDeviationAudit(db).DeviationEvent),
+		Workforce: repos.StaffAbsenceType, Staff: owners.NewPlanStaffDirectory(members.Staff), CalendarPeriods: schoolCalendar.SchoolCalendar(), ShiftMoveAudit: owners.NewShiftMoveAudit(NewTimetableDeviationAudit(db).DeviationEvent),
 		Instances: timetableCompose.NewTimetableInstanceReads(ttRows.ActivityInstance), InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(ttRows.InstanceStaff),
-		Rooms: facilitiesCompose.NewRoomNameDirectory(rooms.Room.Records), ActivityGroups: timetableCompose.NewTimetableGroupReads(ttRows.ActivityGroup),
+		Rooms: facilitiesCompose.NewRoomNameDirectory(rooms.Room), ActivityGroups: timetableCompose.NewTimetableGroupReads(ttRows.ActivityGroup),
 		WorkSchedules: repos.Workforce, WorkModels: repos.Workforce, Holidays: nonWorkingDayService,
 		DB: db.Pool(), Broadcaster: realtimeHub, Logger: logger, Today: today,
 	})
@@ -125,12 +127,12 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		return WorkforceTestModule{}, nil, err
 	}
 	timeTracking, err := newTimeTrackingTestModule(db, repos.WorkSessionTestRepositories, members.Staff, presence, settingsService, timeTrackingTestGraph{
-		Audits: timeTrackingAudits{
-			WorkSessionEdit: NewTestAuditPersistence(db, nil).WorkSessionEdit, TimeTrackingDeletion: audits.TimeTrackingDeletion,
+		Audits: owners.TimeTrackingAudits{
+			WorkSessionEdit: owners.NewTestAuditPersistence(db, nil).WorkSessionEdit, TimeTrackingDeletion: audits.TimeTrackingDeletion,
 			DataAccessLog: audits.DataAccessLog, TimeTrackingAuditLog: audits.TimeTrackingAuditLog,
 		},
 		People: usersService, Holidays: nonWorkingDayService,
-		Events:        timeTrackingEvents(realtimeHub),
+		Events:        owners.TimeTrackingEvents(realtimeHub),
 		ShiftPlanSync: shiftPlanSyncer,
 		Logger:        logger, Today: today,
 	})
@@ -163,11 +165,11 @@ type StaffAdminDependencies struct {
 // People Directory's staff and person rows, the School Membership owner and
 // the audit trails and runtime in deps.
 func NewStaffAdmin(db transactionruntime.Database, staff peoplePorts.StaffRepository, persons peoplePorts.PersonRepository, membership schoolmembership.Capability, deps StaffAdminDependencies) (*workforce.StaffAdmin, error) {
-	people, err := NewPeopleDirectory(db)
+	people, err := owners.NewPeopleDirectory(db)
 	if err != nil {
 		return nil, err
 	}
-	return composeStaffAdmin(workforceCompose.StaffAdminDependencies{
+	return owners.ComposeStaffAdmin(workforceCompose.StaffAdminDependencies{
 		DB: db.Pool(), Observe: deps.Observe, Logger: deps.Logger, Now: deps.Now,
 	}, staff, persons, people, membership, deps.MasterDataAudit, deps.PersonnelNumber, deps.DataAccessLog)
 }

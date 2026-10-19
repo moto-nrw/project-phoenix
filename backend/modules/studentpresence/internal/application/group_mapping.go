@@ -25,7 +25,7 @@ func (s *Service) RemoveGroupFromCombination(ctx context.Context, combinedID, gr
 }
 
 func (s *Service) ListGroupMappings(ctx context.Context, filter ports.GroupMappingFilter) (result []ports.GroupMapping, err error) {
-	err = s.run("list_group_mappings", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "list_group_mappings", func(ctx context.Context) (ports.Stats, error) {
 		if filter.CombinedGroupID != nil && *filter.CombinedGroupID <= 0 || filter.ActiveGroupID != nil && *filter.ActiveGroupID <= 0 {
 			return ports.Stats{}, errors.New("student presence: invalid group mapping filter")
 		}

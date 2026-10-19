@@ -5,8 +5,10 @@ import (
 	"log/slog"
 	"testing"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -47,14 +49,14 @@ func TestAbsenceMailOutboxIsAtomicWithDecision(t *testing.T) {
 			testpkg.OwnTenant(t)
 			db, ctx, outbox := mailTransactionFixture(t)
 			database := testpkg.NewDatabase(t, db)
-			members := MustNewMembershipTestRepositories(database)
+			members := owners.MustNewMembershipTestRepositories(database)
 			rows, err := NewWorkSessionTestRepositoriesWithMembers(database, members)
 			require.NoError(t, err)
-			timetable, err := NewTimetableTestRepositoriesWithMembers(database, members)
+			timetable, err := owners.NewTimetableTestRepositoriesWithMembers(database, members)
 			require.NoError(t, err)
 			presence, err := NewTimetablePresenceRows(database, timetable, members)
 			require.NoError(t, err)
-			settings, err := NewSettingsTestModule(database, testpkg.TenantRuntime(t, db))
+			settings, err := owners.NewSettingsTestModule(database, testpkg.TenantRuntime(t, db))
 			require.NoError(t, err)
 			people, err := NewRFIDTestPeople(database)
 			require.NoError(t, err)
@@ -64,11 +66,11 @@ func TestAbsenceMailOutboxIsAtomicWithDecision(t *testing.T) {
 				requester: workforceCompose.AbsenceEmailContact{StaffID: requester.ID, FirstName: "Absence", LastName: "Requester", Email: requesterAccount.Email},
 				approver:  workforceCompose.AbsenceEmailContact{StaffID: approver.ID, FirstName: "Absence", LastName: "Approver", Email: approverAccount.Email},
 			}
-			audits := NewTestAuditPersistence(database, nil)
+			audits := owners.NewTestAuditPersistence(database, nil)
 			service, err := newTimeTrackingTestModule(database, rows, members.Staff, presence, settings.Settings, timeTrackingTestGraph{
-				Audits: timeTrackingAudits{WorkSessionEdit: audits.WorkSessionEdit, TimeTrackingDeletion: audits.TimeTrackingDeletion, DataAccessLog: audits.DataAccessLog, TimeTrackingAuditLog: audits.TimeTrackingAuditLog},
-				Events: timeTrackingEvents(deliveryCompose.NewRealtimeHub(slog.Default())), People: people, Holidays: noHolidays{}, ShiftPlanSync: noSickCascade{}, Logger: slog.Default(),
-			}, &workforceCompose.AbsenceEmailDeps{Settings: absenceMailEnabled{}, Dispatcher: absenceEmailDispatcher{durable: outbox, from: email.NewEmail("moto", "no-reply@example.test")},
+				Audits: owners.TimeTrackingAudits{WorkSessionEdit: audits.WorkSessionEdit, TimeTrackingDeletion: audits.TimeTrackingDeletion, DataAccessLog: audits.DataAccessLog, TimeTrackingAuditLog: audits.TimeTrackingAuditLog},
+				Events: owners.TimeTrackingEvents(deliveryCompose.NewRealtimeHub(slog.Default())), People: people, Holidays: noHolidays{}, ShiftPlanSync: noSickCascade{}, Logger: slog.Default(),
+			}, &workforceCompose.AbsenceEmailDeps{Settings: absenceMailEnabled{}, Dispatcher: owners.AbsenceEmailDispatcher{Durable: outbox, From: email.NewEmail("moto", "no-reply@example.test")},
 				StaffRepo: contacts, SchoolRepo: absenceMailSchool{}, FrontendURL: "http://localhost:3000", Logger: slog.Default(),
 			})
 			require.NoError(t, err)

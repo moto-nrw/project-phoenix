@@ -8,16 +8,18 @@ import (
 	"testing"
 	"time"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -43,7 +45,7 @@ func newCareOfferingFixtures(carePlan careplan.Capability) careOfferingFixtures 
 	return careOfferingFixtures{carePlan: carePlan}
 }
 
-func (r careOfferingFixtures) Create(ctx context.Context, offering *enrollmentModels.CareOffering) error {
+func (r careOfferingFixtures) Create(ctx context.Context, offering *offeringContract.CareOfferingRecord) error {
 	if offering == nil {
 		return errors.New("CareOffering cannot be nil or zero value")
 	}
@@ -61,7 +63,7 @@ func (r careOfferingFixtures) Create(ctx context.Context, offering *enrollmentMo
 	return applyCareOfferingFixture(offering, created)
 }
 
-func (r careOfferingFixtures) Update(ctx context.Context, offering *enrollmentModels.CareOffering) error {
+func (r careOfferingFixtures) Update(ctx context.Context, offering *offeringContract.CareOfferingRecord) error {
 	if offering == nil {
 		return errors.New("CareOffering cannot be nil or zero value")
 	}
@@ -87,41 +89,41 @@ func (r careOfferingFixtures) CountByPhaseID(ctx context.Context, phaseID int64)
 	return r.carePlan.CountCareOfferingsByPhase(ctx, phaseID)
 }
 
-func (r careOfferingFixtures) ListByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error) {
+func (r careOfferingFixtures) ListByPhase(ctx context.Context, phaseID int64) ([]*offeringContract.CareOfferingRecord, error) {
 	return enrollmentCompose.NewCareOfferingRecords(r.carePlan).ListByPhase(ctx, phaseID)
 }
 
-func (r careOfferingFixtures) ListByIDs(ctx context.Context, ids []int64) ([]*enrollmentModels.CareOffering, error) {
+func (r careOfferingFixtures) ListByIDs(ctx context.Context, ids []int64) ([]*offeringContract.CareOfferingRecord, error) {
 	return enrollmentCompose.NewCareOfferingRecords(r.carePlan).ListByIDs(ctx, ids)
 }
 
-func (r careOfferingFixtures) ListByIDsForUpdate(ctx context.Context, ids []int64) ([]*enrollmentModels.CareOffering, error) {
+func (r careOfferingFixtures) ListByIDsForUpdate(ctx context.Context, ids []int64) ([]*offeringContract.CareOfferingRecord, error) {
 	return enrollmentCompose.NewCareOfferingRecords(r.carePlan).ListByIDsForUpdate(ctx, ids)
 }
 
-func (r careOfferingFixtures) ListActiveByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error) {
+func (r careOfferingFixtures) ListActiveByPhase(ctx context.Context, phaseID int64) ([]*offeringContract.CareOfferingRecord, error) {
 	return enrollmentCompose.NewCareOfferingRecords(r.carePlan).ListActiveByPhase(ctx, phaseID)
 }
 
-func (r careOfferingFixtures) FindByID(ctx context.Context, id int64) (*enrollmentModels.CareOffering, error) {
+func (r careOfferingFixtures) FindByID(ctx context.Context, id int64) (*offeringContract.CareOfferingRecord, error) {
 	value, err := r.carePlan.FindCareOffering(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find care offering: %w", err)
 	}
-	offering := new(enrollmentModels.CareOffering)
+	offering := new(offeringContract.CareOfferingRecord)
 	return offering, applyCareOfferingFixture(offering, value)
 }
 
 // careOfferingReads are the offering reads the flows run through Care
 // Plan's offerings in enrollment rows; doubles embed them to fail one read.
 type careOfferingReads interface {
-	ListByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error)
-	ListActiveByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error)
-	ListByIDs(ctx context.Context, ids []int64) ([]*enrollmentModels.CareOffering, error)
-	ListByIDsForUpdate(ctx context.Context, ids []int64) ([]*enrollmentModels.CareOffering, error)
+	ListByPhase(ctx context.Context, phaseID int64) ([]*offeringContract.CareOfferingRecord, error)
+	ListActiveByPhase(ctx context.Context, phaseID int64) ([]*offeringContract.CareOfferingRecord, error)
+	ListByIDs(ctx context.Context, ids []int64) ([]*offeringContract.CareOfferingRecord, error)
+	ListByIDsForUpdate(ctx context.Context, ids []int64) ([]*offeringContract.CareOfferingRecord, error)
 }
 
-func careOfferingFixtureFields(offering *enrollmentModels.CareOffering) (careplan.CareOfferingFields, error) {
+func careOfferingFixtureFields(offering *offeringContract.CareOfferingRecord) (careplan.CareOfferingFields, error) {
 	availabilityRule, err := json.Marshal(offering.AvailabilityRule)
 	if err != nil {
 		return careplan.CareOfferingFields{}, err
@@ -138,7 +140,7 @@ func careOfferingFixtureFields(offering *enrollmentModels.CareOffering) (carepla
 	}, nil
 }
 
-func applyCareOfferingFixture(target *enrollmentModels.CareOffering, value careplan.CareOffering) error {
+func applyCareOfferingFixture(target *offeringContract.CareOfferingRecord, value careplan.CareOffering) error {
 	target.ID, target.CreatedAt, target.UpdatedAt, target.TenantID = value.ID, value.CreatedAt, value.UpdatedAt, value.TenantID
 	target.PhaseID, target.ActivityGroupID = value.PhaseID, value.ActivityGroupID
 	target.Name, target.Description = value.Name, value.Description
@@ -166,25 +168,25 @@ func requestTestBookingCommands() api.EnrollmentCareBookingCommands {
 }
 
 // recordCareBookingsFunc is a booking writer double.
-type recordCareBookingsFunc func(context.Context, int64, []capability.CareBookingInput) error
+type recordCareBookingsFunc func(context.Context, int64, []enrollmentNative.CareBookingInput) error
 
-func (f recordCareBookingsFunc) RecordCareBookings(ctx context.Context, childID int64, bookings []capability.CareBookingInput) error {
+func (f recordCareBookingsFunc) RecordCareBookings(ctx context.Context, childID int64, bookings []enrollmentNative.CareBookingInput) error {
 	return f(ctx, childID, bookings)
 }
 
-func testRepositories(t *testing.T, db *bun.DB) (*api.EnrollmentFlowTestRepositories, api.TimetableCarePlanRows, *api.EnrollmentFlowAuditRows, api.TimetableTestRepositories, api.TimetableSchoolCalendar, *api.OrganizationTestRows) {
+func testRepositories(t *testing.T, db *bun.DB) (*owners.EnrollmentFlowTestRepositories, owners.TimetableCarePlanRows, *owners.EnrollmentFlowAuditRows, owners.TimetableTestRepositories, api.TimetableSchoolCalendar, *api.OrganizationTestRows) {
 	t.Helper()
 	return flowRepositories(t, db)
 }
 
 // flowRepositories composes the repositories the enrollment flow suites run
 // on over the suite's database.
-func flowRepositories(t testing.TB, db *bun.DB) (*api.EnrollmentFlowTestRepositories, api.TimetableCarePlanRows, *api.EnrollmentFlowAuditRows, api.TimetableTestRepositories, api.TimetableSchoolCalendar, *api.OrganizationTestRows) {
+func flowRepositories(t testing.TB, db *bun.DB) (*owners.EnrollmentFlowTestRepositories, owners.TimetableCarePlanRows, *owners.EnrollmentFlowAuditRows, owners.TimetableTestRepositories, api.TimetableSchoolCalendar, *api.OrganizationTestRows) {
 	t.Helper()
-	repos, err := api.NewEnrollmentFlowTestRepositories(testpkg.NewDatabase(t, db))
+	repos, err := owners.NewEnrollmentFlowTestRepositories(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	reposCare := api.NewEnrollmentFlowCarePlanRows(testpkg.NewDatabase(t, db))
-	reposAudit := api.NewEnrollmentFlowAuditRows(testpkg.NewDatabase(t, db))
+	reposCare := owners.NewEnrollmentFlowCarePlanRows(testpkg.NewDatabase(t, db))
+	reposAudit := owners.NewEnrollmentFlowAuditRows(testpkg.NewDatabase(t, db))
 	reposTimetable := api.NewEnrollmentFlowTimetableRows(testpkg.NewDatabase(t, db))
 	reposCalendar := api.MustNewTimetableSchoolCalendar(testpkg.NewDatabase(t, db))
 	reposSchools := api.NewOrganizationTestRows(testpkg.NewDatabase(t, db))
@@ -199,8 +201,8 @@ func testGuardianAccess(db *bun.DB) TestDecisionGuardianAccess {
 	return module
 }
 
-func testStudentEnrollment(db *bun.DB) api.EnrollmentDecisionPeople {
-	module, err := api.NewPeopleDirectory(testpkg.MustDatabase(db))
+func testStudentEnrollment(db *bun.DB) owners.EnrollmentDecisionPeople {
+	module, err := owners.NewPeopleDirectory(testpkg.MustDatabase(db))
 	if err != nil {
 		panic(err)
 	}
@@ -397,7 +399,7 @@ func registerSourcedInstanceCleanup(t *testing.T, env *decisionTestEnv, instance
 
 func pendingWithdrawalForStudent(
 	ctx context.Context,
-	repo api.CareWithdrawalTestRows,
+	repo owners.CareWithdrawalTestRows,
 	studentID int64,
 ) (*careplan.WithdrawalCompletion, error) {
 	rows, _, err := repo.ListPending(ctx, careplan.WithdrawalListFilter{StudentID: studentID, Page: 1, PageSize: 1})
@@ -439,14 +441,14 @@ func createSourcedTemplate(
 	return group
 }
 
-func createSourceOffering(t *testing.T, env *decisionTestEnv, name string, activityGroupID *int64) *enrollmentModels.CareOffering {
+func createSourceOffering(t *testing.T, env *decisionTestEnv, name string, activityGroupID *int64) *offeringContract.CareOfferingRecord {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	offering := &enrollmentModels.CareOffering{
+	offering := &offeringContract.CareOfferingRecord{
 		PhaseID:         env.sourcePhase.ID,
 		ActivityGroupID: activityGroupID,
 		Name:            uniqueSchemaName(name + "-" + t.Name()),
-		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode:  offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:   []string{"mon"},
 		PickupTimes:     carePickupTimes("mon"),
 		IsActive:        true,
@@ -475,7 +477,7 @@ func submitApprovedAdjustmentChild(
 	t *testing.T,
 	env *decisionTestEnv,
 	email, lastName string,
-	offerings []*enrollmentModels.CareOffering,
+	offerings []*offeringContract.CareOfferingRecord,
 ) (requestID, childID, studentID int64) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
@@ -516,10 +518,10 @@ func submitApprovedAdjustmentChild(
 	require.NoError(t, err)
 	require.Len(t, submitted.Children, 1)
 
-	outcome, err := env.decision.Decide(ctx, enrollmentAPI.DecideInput{
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
 		RequestID:  submitted.Request.ID,
 		ChildID:    submitted.Children[0].ID,
-		Status:     capability.DecisionApproved,
+		Status:     enrollmentNative.DecisionApproved,
 		ReviewedBy: env.creatorID,
 	})
 	require.NoError(t, err)
@@ -534,8 +536,8 @@ type offeringChangeFixture struct {
 	requestID    int64
 	childID      int64
 	studentID    int64
-	oldOffering  *enrollmentModels.CareOffering
-	newOffering  *enrollmentModels.CareOffering
+	oldOffering  *offeringContract.CareOfferingRecord
+	newOffering  *offeringContract.CareOfferingRecord
 	oldGroupID   int64
 	newGroupID   int64
 	switchDate   calendar.Date
@@ -550,17 +552,17 @@ func setupOfferingChangeFixture(
 	t.Helper()
 	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "OfferChangeOld"+label)
 	newGroup := testpkg.CreateTestActivityGroup(t, env.db, "OfferChangeNew"+label)
-	oldOffering := createAdjustmentCareOfferingWith(t, env, "Bisher "+label, func(o *enrollmentModels.CareOffering) {
+	oldOffering := createAdjustmentCareOfferingWith(t, env, "Bisher "+label, func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &oldGroup.ID
 		o.SortOrder = 201
 	})
-	newOffering := createAdjustmentCareOfferingWith(t, env, "Neu "+label, func(o *enrollmentModels.CareOffering) {
+	newOffering := createAdjustmentCareOfferingWith(t, env, "Neu "+label, func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &newGroup.ID
 		o.SortOrder = 202
 	})
 	requestID, childID, studentID := submitApprovedAdjustmentChild(
 		t, env, "offer-change-"+label+"@example.com", "OfferChange"+label,
-		[]*enrollmentModels.CareOffering{oldOffering},
+		[]*offeringContract.CareOfferingRecord{oldOffering},
 	)
 	return &offeringChangeFixture{
 		requestID:    requestID,

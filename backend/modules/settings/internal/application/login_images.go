@@ -42,33 +42,31 @@ func (s *settingsService) ClearLoginImageURL(ctx context.Context, tenantID int64
 }
 
 // updateSchoolSetting updates the loginImageUrl in the school's settings JSONB.
-// Uses WithAdminTx because platform.schools requires the phoenix_admin role.
+// The school owner holds the atomic update boundary for its privileged row.
 // Pass nil imageURL to remove the key.
 func (s *settingsService) updateSchoolSetting(ctx context.Context, tenantID int64, imageURL *string) (oldURL string, err error) {
 	if s.runtime == nil || s.schoolStore == nil {
 		return "", config.ErrRuntimeUnavailable
 	}
-	err = s.runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
-		return s.schoolStore.UpdateSettings(adminCtx, tenantID, func(raw string) (string, error) {
-			settings, unmarshalErr := unmarshalSchoolSettings(raw)
-			if unmarshalErr != nil {
-				return "", unmarshalErr
-			}
+	err = s.schoolStore.UpdateSettings(ctx, tenantID, func(raw string) (string, error) {
+		settings, unmarshalErr := unmarshalSchoolSettings(raw)
+		if unmarshalErr != nil {
+			return "", unmarshalErr
+		}
 
-			oldURL, _ = settings[loginImageKey].(string)
+		oldURL, _ = settings[loginImageKey].(string)
 
-			if imageURL != nil {
-				settings[loginImageKey] = *imageURL
-			} else {
-				delete(settings, loginImageKey)
-			}
+		if imageURL != nil {
+			settings[loginImageKey] = *imageURL
+		} else {
+			delete(settings, loginImageKey)
+		}
 
-			settingsJSON, marshalErr := json.Marshal(settings)
-			if marshalErr != nil {
-				return "", fmt.Errorf("marshal settings: %w", marshalErr)
-			}
-			return string(settingsJSON), nil
-		})
+		settingsJSON, marshalErr := json.Marshal(settings)
+		if marshalErr != nil {
+			return "", fmt.Errorf("marshal settings: %w", marshalErr)
+		}
+		return string(settingsJSON), nil
 	})
 	return oldURL, err
 }

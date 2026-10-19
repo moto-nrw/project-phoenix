@@ -21,17 +21,17 @@ func NewGuardianStudentAccess(db *bun.DB, observe func(Observation)) (identityac
 	if db == nil || observe == nil {
 		return nil, errors.New("identity access guardian student access: database and observer are required")
 	}
-	return guardianStudentAccess{store: newStore(db), observe: observe}, nil
+	return application.NewGuardianStudentAccessCommands(guardianStudentAccess{GuardianStudentAccessStore: newStore(db), observe: observe}, newCommandTransactions(nil)), nil
 }
 
 type guardianStudentAccess struct {
-	store   *postgres.Store
+	postgres.GuardianStudentAccessStore
 	observe func(Observation)
 }
 
 func (a guardianStudentAccess) GrantGuardianStudentAccess(ctx context.Context, grant identityaccess.GuardianStudentAccessGrant) error {
 	started := time.Now()
-	stats, err := a.store.GrantGuardianStudentAccess(ctx, postgres.GuardianStudentAccessRecord(grant))
+	stats, err := a.GuardianStudentAccessStore.GrantGuardianStudentAccess(ctx, postgres.GuardianStudentAccessRecord(grant))
 	err = application.MapError(err)
 	a.observe(Observation{Operation: "grant_guardian_student_access", Duration: time.Since(started), Stats: stats, Err: err})
 	return err
@@ -39,7 +39,7 @@ func (a guardianStudentAccess) GrantGuardianStudentAccess(ctx context.Context, g
 
 func (a guardianStudentAccess) SetGuardianStudentPermissions(ctx context.Context, tenantID, relationshipID int64, permissions json.RawMessage) (bool, error) {
 	started := time.Now()
-	found, stats, err := a.store.SetGuardianStudentPermissions(ctx, tenantID, relationshipID, permissions)
+	found, stats, err := a.GuardianStudentAccessStore.SetGuardianStudentPermissions(ctx, tenantID, relationshipID, permissions)
 	err = application.MapError(err)
 	a.observe(Observation{Operation: "set_guardian_student_permissions", Duration: time.Since(started), Stats: stats, Err: err})
 	return found, err

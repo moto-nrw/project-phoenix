@@ -47,10 +47,15 @@ type StaffDirectory interface {
 	FindPersonNames(ctx context.Context, accountIDs []int64) (map[int64]PersonName, error)
 	CreatePerson(ctx context.Context, person PersonRecord) (int64, error)
 	LinkPersonToAccount(ctx context.Context, personID, accountID int64) error
+	UnlinkPersonFromAccount(ctx context.Context, personID int64) error
 	LinkPersonToRFIDCard(ctx context.Context, personID int64, tagID string) error
 	IsStudentPerson(ctx context.Context, personID int64) (bool, error)
+	// FindStaffByPerson returns the live membership, or a retired one when no
+	// live membership exists, at the school in context.
 	FindStaffByPerson(ctx context.Context, personID int64) (StaffMember, bool, error)
-	CreateStaff(ctx context.Context, tenantID, personID int64) (int64, error)
+	// CreateStaff starts a new membership. When retiredStaffID is set, it copies
+	// the employment profile of that retired membership.
+	CreateStaff(ctx context.Context, tenantID, personID int64, retiredStaffID *int64) (int64, error)
 	FindCaregiverProfile(ctx context.Context, staffID int64) (CaregiverProfile, bool, error)
 	CreateCaregiverProfile(ctx context.Context, tenantID, staffID int64, position string) (int64, error)
 	// HasLiveCaregiverProfile reports whether the account's live person at the
@@ -121,6 +126,9 @@ const (
 type GuardianDirectory interface {
 	FindGuardianProfileByEmail(ctx context.Context, email string) (GuardianProfile, bool, error)
 	FindGuardianProfile(ctx context.Context, id int64) (GuardianProfile, bool, error)
+	// LockGuardianProfile locks the profile for the caller's transaction and
+	// reports whether it exists in that tenant.
+	LockGuardianProfile(ctx context.Context, id int64) (bool, error)
 	FindGuardianProfiles(ctx context.Context, ids []int64) (map[int64]GuardianProfile, error)
 	CreateGuardianProfile(ctx context.Context, profile GuardianProfile) (int64, error)
 	DeleteGuardianProfile(ctx context.Context, id int64) error

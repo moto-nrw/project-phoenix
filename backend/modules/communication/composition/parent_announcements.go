@@ -55,7 +55,7 @@ func NewParentAnnouncementsWithAttachments(cfg ParentAnnouncementConfig, attachm
 	}
 	var deliveries staff.DeliveryRecorder
 	if cfg.Deliveries != nil {
-		deliveries = parentAnnouncementDeliveryAdapter{recorder: cfg.Deliveries}
+		deliveries = parentAnnouncementDeliveryAdapter{ParentAnnouncementDeliveryRecorder: cfg.Deliveries}
 	}
 	return &parentAnnouncements{service: staff.NewService(staff.ServiceConfig{
 		Repo: staff.NewRepository(cfg.Repo), Settings: cfg.Settings, Outbox: cfg.Outbox, PushOutbox: cfg.PushOutbox, Notifier: deliveryPorts.NewNotificationSender(cfg.Notifier),
@@ -70,11 +70,11 @@ func NewParentAnnouncementRenderer(cfg ParentAnnouncementEmailConfig) communicat
 }
 
 type parentAnnouncementDeliveryAdapter struct {
-	recorder ParentAnnouncementDeliveryRecorder
+	ParentAnnouncementDeliveryRecorder
 }
 
 func (a parentAnnouncementDeliveryAdapter) ReplaceForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64, rows []staff.EmailDelivery) error {
-	if a.recorder == nil {
+	if a.ParentAnnouncementDeliveryRecorder == nil {
 		return nil
 	}
 	values := make([]communication.ParentAnnouncementEmailDelivery, 0, len(rows))
@@ -84,21 +84,14 @@ func (a parentAnnouncementDeliveryAdapter) ReplaceForEntity(ctx context.Context,
 			RecipientEmail: row.RecipientEmail, Reachability: row.Reachability,
 		})
 	}
-	return a.recorder.ReplaceForEntity(ctx, tenantID, relatedType, relatedID, values)
-}
-
-func (a parentAnnouncementDeliveryAdapter) DeleteForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64) (int64, error) {
-	if a.recorder == nil {
-		return 0, nil
-	}
-	return a.recorder.DeleteForEntity(ctx, tenantID, relatedType, relatedID)
+	return a.ParentAnnouncementDeliveryRecorder.ReplaceForEntity(ctx, tenantID, relatedType, relatedID, values)
 }
 
 func (a parentAnnouncementDeliveryAdapter) ListForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64) ([]staff.EmailDeliveryStatus, error) {
-	if a.recorder == nil {
+	if a.ParentAnnouncementDeliveryRecorder == nil {
 		return nil, nil
 	}
-	rows, err := a.recorder.ListForEntity(ctx, tenantID, relatedType, relatedID)
+	rows, err := a.ParentAnnouncementDeliveryRecorder.ListForEntity(ctx, tenantID, relatedType, relatedID)
 	if err != nil {
 		return nil, err
 	}
@@ -114,21 +107,11 @@ func (a parentAnnouncementDeliveryAdapter) ListForEntity(ctx context.Context, te
 	return result, nil
 }
 
-func (a parentAnnouncementDeliveryAdapter) AttachOutbox(ctx context.Context, tenantID, deliveryID, outboxID int64) error {
-	if a.recorder == nil {
-		return nil
-	}
-	return a.recorder.AttachOutbox(ctx, tenantID, deliveryID, outboxID)
-}
-
-func (a parentAnnouncementDeliveryAdapter) ClaimFailedDelivery(ctx context.Context, tenantID, deliveryID int64) (bool, error) {
-	if a.recorder == nil {
-		return false, nil
-	}
-	return a.recorder.ClaimFailedDelivery(ctx, tenantID, deliveryID)
-}
-
 type parentAnnouncements struct{ service staff.Service }
+
+func (p *parentAnnouncements) DeleteExpiredParentAnnouncements(ctx context.Context, retentionDays int) (int, error) {
+	return p.service.DeleteExpiredParentAnnouncements(ctx, retentionDays)
+}
 
 func (p *parentAnnouncements) ListParentAnnouncements(ctx context.Context, includeInactive bool) ([]communication.ParentAnnouncement, error) {
 	rows, err := p.service.List(ctx, includeInactive)

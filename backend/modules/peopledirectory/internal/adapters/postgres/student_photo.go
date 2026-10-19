@@ -32,20 +32,20 @@ func (s *StudentStore) readPhoto(ctx context.Context, studentID int64, lock stri
 }
 
 func (s *StudentStore) LockPhotoFeature(ctx context.Context) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return domain.OperationStats{}, errors.New("people directory postgres: tenant is required to lock the photo feature")
 	}
-	if tenantID > 0x7fffffff {
+	if scope.TenantID > 0x7fffffff {
 		return domain.OperationStats{}, fmt.Errorf(
-			"people directory postgres: tenant %d exceeds the advisory-lock object id range", tenantID)
+			"people directory postgres: tenant %d exceeds the advisory-lock object id range", scope.TenantID)
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	_, err = db.NewRaw("SELECT pg_advisory_xact_lock(?, ?)", studentPhotoFeatureLockClass, int32(tenantID)).Exec(ctx)
+	_, err = db.NewRaw("SELECT pg_advisory_xact_lock(?, ?)", studentPhotoFeatureLockClass, int32(scope.TenantID)).Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return stats, fmt.Errorf("people directory postgres: lock photo feature: %w", err)
@@ -54,11 +54,11 @@ func (s *StudentStore) LockPhotoFeature(ctx context.Context) (domain.OperationSt
 }
 
 func (s *StudentStore) SavePhoto(ctx context.Context, photo domain.StudentPhoto) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return domain.OperationStats{}, errors.New("people directory postgres: tenant is required to write a student photo")
 	}
 	stats := domain.OperationStats{Queries: 1}
@@ -69,7 +69,7 @@ func (s *StudentStore) SavePhoto(ctx context.Context, photo domain.StudentPhoto)
 		Set("photo_consent_given_by = ?", photo.PhotoConsentGivenBy).
 		Set("updated_at = NOW()").
 		Where(`"student".id = ?`, photo.StudentID).
-		Where(`"student".tenant_id = ?`, tenantID).
+		Where(`"student".tenant_id = ?`, scope.TenantID).
 		Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
@@ -89,11 +89,11 @@ func (s *StudentStore) SavePhoto(ctx context.Context, photo domain.StudentPhoto)
 // inside the statement so a concurrent photo write waits for this purge rather
 // than reattaching a file it is about to lose.
 func (s *StudentStore) PurgePhotos(ctx context.Context) ([]string, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return nil, domain.OperationStats{}, errors.New("people directory postgres: tenant is required to purge student photos")
 	}
 	const purgePhotos = `
@@ -114,7 +114,7 @@ func (s *StudentStore) PurgePhotos(ctx context.Context) ([]string, domain.Operat
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	err = db.NewRaw(purgePhotos, tenantID).Scan(ctx, &rows)
+	err = db.NewRaw(purgePhotos, scope.TenantID).Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return nil, stats, fmt.Errorf("people directory postgres: purge student photos: %w", err)

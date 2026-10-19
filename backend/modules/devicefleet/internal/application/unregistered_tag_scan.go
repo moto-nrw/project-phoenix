@@ -27,7 +27,7 @@ func (s *Service) RecordUnregisteredTagScan(ctx context.Context, input domain.Re
 // FindUnregisteredTagScan reads one scan with its device identity.
 func (s *Service) FindUnregisteredTagScan(ctx context.Context, id int64) (domain.UnregisteredTagScan, error) {
 	var found domain.UnregisteredTagScan
-	err := s.run(ctx, "find_unregistered_tag_scan", func(ctx context.Context, stats *domain.OperationStats) error {
+	err := s.runInTenant(ctx, "find_unregistered_tag_scan", func(ctx context.Context, stats *domain.OperationStats) error {
 		scan, err := s.findUnregisteredTagScan(ctx, id, stats)
 		found = scan
 		return err
@@ -39,7 +39,7 @@ func (s *Service) FindUnregisteredTagScan(ctx context.Context, id int64) (domain
 // with their device identities.
 func (s *Service) ListUnregisteredTagScans(ctx context.Context, filter domain.UnregisteredTagScanFilter) ([]domain.UnregisteredTagScan, error) {
 	var scans []domain.UnregisteredTagScan
-	err := s.run(ctx, "list_unregistered_tag_scans", func(ctx context.Context, stats *domain.OperationStats) error {
+	err := s.runInTenant(ctx, "list_unregistered_tag_scans", func(ctx context.Context, stats *domain.OperationStats) error {
 		stored, queryStats, err := s.deps.Scans.List(ctx, filter)
 		stats.Add(queryStats)
 		if err != nil {

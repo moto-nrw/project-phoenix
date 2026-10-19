@@ -10,6 +10,7 @@ import (
 	announcement "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements"
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -40,7 +41,7 @@ func buildNoticeService(t *testing.T, settings *settingsDouble) (announcement.Se
 	svc := announcement.NewService(announcement.ServiceConfig{
 		Repo:       announcement.NewRepository(reposMessages.ParentAnnouncement),
 		Settings:   configModel.NewParentAnnouncementValues(settings),
-		Notifier:   noticeNotificationCallback(api.BindCommunicationNotificationSender(api.NewCommunicationTestNotifier(settings, slog.Default()))),
+		Notifier:   noticeNotificationCallback(owners.BindCommunicationNotificationSender(api.NewCommunicationTestNotifier(settings, slog.Default()))),
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
 	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
@@ -56,7 +57,7 @@ func TestPublishCareCancellation_PublishesSystemRowForBookedChildren(t *testing.
 	var result *announcement.CareCancellationResult
 	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, ctx, db), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var err error
-		result, err = svc.PublishCareCancellation(txCtx, announcement.CareCancellationInput{
+		result, err = testpkg.TenantQuery1(t, txCtx, db, svc.PublishCareCancellation, announcement.CareCancellationInput{
 			StudentIDs: []int64{chain.StudentID, chain.StudentID},
 			Title:      "Fußball-AG am Dienstag entfällt",
 			Body:       "Die Fußball-AG am Dienstag von 14:00 bis 15:30 fällt aus.",
@@ -100,7 +101,7 @@ func TestPublishCareCancellation_RejectsEmptyText(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		_, err := svc.PublishCareCancellation(txCtx, announcement.CareCancellationInput{
+		_, err := testpkg.TenantQuery1(t, txCtx, db, svc.PublishCareCancellation, announcement.CareCancellationInput{
 			StudentIDs: []int64{chain.StudentID},
 			Title:      "   ",
 			Body:       "Heute keine Betreuung.",
@@ -121,7 +122,7 @@ func TestCareCancellationReachFor_CountsLinkedGuardians(t *testing.T) {
 	var reach *announcement.CareCancellationReach
 	require.NoError(t, tenant.WithTenantTx(testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var err error
-		reach, err = svc.CareCancellationReachFor(txCtx, []int64{chain.StudentID, orphan.ID})
+		reach, err = testpkg.TenantQuery1(t, txCtx, db, svc.CareCancellationReachFor, []int64{chain.StudentID, orphan.ID})
 		return err
 	}))
 	require.NotNil(t, reach)

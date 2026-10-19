@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/uptrace/bun"
 )
 
 // Identity-owned reads behind tenant, parent and school login, refresh,
@@ -41,18 +40,33 @@ const loginAccountColumns = `"account".id, "account".email, "account".username, 
 // FindLoginAccountByEmail matches case-insensitively, as the retained
 // repository did.
 func (s *Store) FindLoginAccountByEmail(ctx context.Context, email string) (domain.LoginAccount, bool, domain.OperationStats, error) {
+	return s.findLoginAccountByEmail(ctx, email, false)
+}
+
+// LockLoginAccountByEmail serializes an invitation for an existing address
+// with the account-retention workflow, which locks the same account row
+// before its final eligibility check.
+func (s *Store) LockLoginAccountByEmail(ctx context.Context, email string) (domain.LoginAccount, bool, domain.OperationStats, error) {
+	return s.findLoginAccountByEmail(ctx, email, true)
+}
+
+func (s *Store) findLoginAccountByEmail(ctx context.Context, email string, forUpdate bool) (domain.LoginAccount, bool, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return domain.LoginAccount{}, false, domain.OperationStats{}, err
 	}
 	var rows []loginAccountRow
 	started := time.Now()
-	err = db.NewSelect().
+	query := db.NewSelect().
 		TableExpr(`auth.accounts AS "account"`).
 		ColumnExpr(loginAccountColumns).
 		Where(`LOWER("account".email) = LOWER(?)`, email).
-		Limit(1).
-		Scan(ctx, &rows)
+		Where(`"account".personal_data_erased_at IS NULL`).
+		Limit(1)
+	if forUpdate {
+		query = query.For("UPDATE")
+	}
+	err = query.Scan(ctx, &rows)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(rows))}
 	if err != nil {
 		return domain.LoginAccount{}, false, stats, fmt.Errorf("identity access postgres: find login account by email: %w", err)
@@ -72,7 +86,8 @@ func (s *Store) FindLoginAccount(ctx context.Context, id int64, forUpdate bool) 
 	query := db.NewSelect().
 		TableExpr(`auth.accounts AS "account"`).
 		ColumnExpr(loginAccountColumns).
-		Where(`"account".id = ?`, id)
+		Where(`"account".id = ?`, id).
+		Where(`"account".personal_data_erased_at IS NULL`)
 	if forUpdate {
 		query = query.For("UPDATE")
 	}
@@ -119,13 +134,13 @@ func (s *Store) ListActiveTenantIDs(ctx context.Context, accountID int64) ([]int
 	}
 	var ids []int64
 	started := time.Now()
-	err = db.NewSelect().
+	query := db.NewSelect().
 		TableExpr(`auth.account_tenants AS "account_tenant"`).
 		ColumnExpr(`"account_tenant".tenant_id`).
 		Where(`"account_tenant".account_id = ?`, accountID).
 		Where(`"account_tenant".status = ?`, "active").
-		OrderExpr(`"account_tenant".created_at ASC`).
-		Scan(ctx, &ids)
+		OrderExpr(`"account_tenant".created_at ASC`)
+	err = query.Scan(ctx, &ids)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(ids))}
 	if err != nil {
 		return nil, stats, fmt.Errorf("identity access postgres: list active tenant mappings: %w", err)
@@ -167,12 +182,13 @@ type roleAssignmentRow struct {
 }
 
 // ListAccountRolesAtTenant returns the roles the account holds at the school.
-// A tenant of zero falls back to the caller's tenant scope and, without one,
-// to every assignment of the account, matching the retained repository's
-// defense-in-depth filter. forShare pins the assignment rows with
+// The school is required explicitly. forShare pins the assignment rows with
 // `FOR SHARE OF "account_role"`; Postgres refuses a bare FOR SHARE on the
 // joined role side.
 func (s *Store) ListAccountRolesAtTenant(ctx context.Context, accountID, tenantID int64, forShare bool) ([]domain.RoleAssignment, domain.OperationStats, error) {
+	if tenantID <= 0 {
+		return nil, domain.OperationStats{}, domain.ErrTenantRequired
+	}
 	db, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -183,7 +199,8 @@ func (s *Store) ListAccountRolesAtTenant(ctx context.Context, accountID, tenantI
 		ColumnExpr(`"role".id AS role_id, "role".name, "role".is_system, "role".tenant_id`).
 		Join(`JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
 		Where(`"account_role".account_id = ?`, accountID)
-	query = withAssignmentTenant(s.scope(ctx), query, tenantID)
+	query = query.Where(`"account_role".tenant_id = ?`, tenantID)
+	query = scopeTenantQuery(s.scope(ctx), query, `"account_role".tenant_id = ?`)
 	if forShare {
 		query = query.For(`SHARE OF "account_role"`)
 	}
@@ -200,21 +217,14 @@ func (s *Store) ListAccountRolesAtTenant(ctx context.Context, accountID, tenantI
 	return roles, stats, nil
 }
 
-func withAssignmentTenant(scope TenantScope, query *bun.SelectQuery, tenantID int64) *bun.SelectQuery {
-	if tenantID > 0 {
-		return query.Where(`"account_role".tenant_id = ?`, tenantID)
-	}
-	if scope.TenantID > 0 {
-		return query.Where(`"account_role".tenant_id = ?`, scope.TenantID)
-	}
-	return query
-}
-
 // ListAccountPermissionsAtTenant returns the distinct effective permission
 // names granted directly (granted = true) or through the roles the account
 // holds at the school. The union is joined as a derived table so the
 // evaluator resolves every table this read touches.
 func (s *Store) ListAccountPermissionsAtTenant(ctx context.Context, accountID, tenantID int64) ([]string, domain.OperationStats, error) {
+	if tenantID <= 0 {
+		return nil, domain.OperationStats{}, domain.ErrTenantRequired
+	}
 	db, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -228,14 +238,10 @@ func (s *Store) ListAccountPermissionsAtTenant(ctx context.Context, accountID, t
 		TableExpr(`auth.role_permissions AS "role_permission"`).
 		Join(`JOIN auth.account_roles AS "ar" ON "ar".role_id = "role_permission".role_id`).
 		Where(`"ar".account_id = ?`, accountID)
-	effectiveTenant := tenantID
-	if effectiveTenant <= 0 {
-		effectiveTenant = s.scope(ctx).TenantID
-	}
-	if effectiveTenant > 0 {
-		direct = direct.Where(`"account_permission".tenant_id = ?`, effectiveTenant)
-		fromRoles = fromRoles.Where(`"ar".tenant_id = ?`, effectiveTenant)
-	}
+	direct = direct.Where(`"account_permission".tenant_id = ?`, tenantID)
+	direct = scopeTenantQuery(s.scope(ctx), direct, `"account_permission".tenant_id = ?`)
+	fromRoles = fromRoles.Where(`"ar".tenant_id = ?`, tenantID)
+	fromRoles = scopeTenantQuery(s.scope(ctx), fromRoles, `"ar".tenant_id = ?`)
 	var names []string
 	started := time.Now()
 	err = db.NewSelect().

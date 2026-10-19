@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	"github.com/stretchr/testify/require"
 )

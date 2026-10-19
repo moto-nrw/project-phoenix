@@ -12,10 +12,6 @@ import (
 // #3957): the school would otherwise promise a history the nightly cleanup
 // has already deleted. The school writes the first, the moto team the second.
 
-func isAttendanceWindowKey(key string) bool {
-	return key == config.KeyAttendanceVisibleDays || key == config.KeyGDPRAttendanceRetentionDays
-}
-
 // lockAttendanceWindows serializes both write directions until commit, like
 // lockOverviewScopeDependents: two writers starting from a valid pair would
 // otherwise each read the other's old value and commit an inverted pair.

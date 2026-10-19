@@ -9,10 +9,12 @@ import (
 	"strings"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
@@ -50,7 +52,7 @@ type AuthTestModule struct {
 // NewAuthTestSettings are the tenant settings the composed module reads,
 // over db and unit.
 func NewAuthTestSettings(db transactionruntime.Database, unit tenant.UnitOfWork) settingsCompose.SettingsService {
-	settings, err := NewSettingsTestModule(db, unit)
+	settings, err := owners.NewSettingsTestModule(db, unit)
 	if err != nil {
 		panic(fmt.Sprintf("auth test settings: %v", err))
 	}
@@ -93,7 +95,7 @@ type AuthTestOption func(*authTestSettings, *authTestMail)
 
 // authTestMail is the mail transport the composed module sends through.
 type authTestMail struct {
-	outbox DurableMailOutbox
+	outbox owners.DurableMailOutbox
 	mailer email.Mailer
 }
 
@@ -138,7 +140,7 @@ func WithAuthTestMailer(mailer email.Mailer) AuthTestOption {
 
 // WithAuthTestTransactionalOutbox lets transaction tests drive the real
 // enqueuer without automatically running the fixture worker after commit.
-func WithAuthTestTransactionalOutbox(outbox DurableMailOutbox) AuthTestOption {
+func WithAuthTestTransactionalOutbox(outbox owners.DurableMailOutbox) AuthTestOption {
 	return func(_ *authTestSettings, mail *authTestMail) { mail.outbox = outbox }
 }
 
@@ -191,16 +193,16 @@ var authTestRelyingParty = identityaccessCompose.PasskeyDependencies{
 }
 
 func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, options ...AuthTestOption) (AuthTestModule, error) {
-	settings, err := NewSettingsTestModule(db, unit)
+	settings, err := owners.NewSettingsTestModule(db, unit)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
 	logger := slog.Default()
-	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
+	command, err := auditCompose.NewCommand(owners.NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	members, err := NewMembershipTestRepositories(db)
+	members, err := owners.NewMembershipTestRepositories(db)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
@@ -209,7 +211,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	organizations, err := NewOrganizationTenancy(db)
+	organizations, err := owners.NewOrganizationTenancy(db)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
@@ -217,15 +219,19 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	// appends to the operator ledger (#3331), so the module needs it bound.
 	audits := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()})
 	audits = audits.WithRoutedWrites(command)
-	operatorAuditLog := NewOperatorAuditLogFromEntries(audits.OperatorAuditLog)
+	operatorAuditLog := owners.NewOperatorAuditLogFromEntries(audits.OperatorAuditLog)
 	cfg := CurrentServiceConfig()
 	settingsOverrides := authTestSettings{rateLimitEnabled: cfg.RateLimitEnabled, demoMaxActiveSchools: 300}
-	mail := authTestMail{mailer: email.NewMockMailer()}
+	fallbackMailer, err := deliveryCompose.NewMailTransport(email.MailerConfig{AppEnv: "test"})
+	if err != nil {
+		return AuthTestModule{}, err
+	}
+	mail := authTestMail{mailer: fallbackMailer}
 	for _, option := range options {
 		option(&settingsOverrides, &mail)
 	}
 	mailer := mail.mailer
-	dispatcher := email.NewDispatcher(mailer, logger)
+	dispatcher := deliveryCompose.NewMailDispatcher(mailer, logger)
 	defaultFrom := email.NewEmail(cfg.EmailFromName, cfg.EmailFromAddress)
 	if defaultFrom.Address == "" {
 		defaultFrom = email.NewEmail("moto", "no-reply@moto.local")
@@ -256,63 +262,63 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 		return AuthTestModule{}, err
 	}
 	var identityAccess *identityaccess.Module
-	durable := newAuthFixtureOutbox(OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox, Module: deliveryModule.Delivery}, deliveryModule.Runtime, mailer, logger, func() *identityaccess.Module { return identityAccess })
+	durable := newAuthFixtureOutbox(owners.OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox, Runtime: deliveryModule.Runtime}, deliveryModule.Runtime, mailer, logger, func() *identityaccess.Module { return identityAccess })
 	if mail.outbox != nil {
 		durable = mail.outbox
 	}
-	identity := deliveryCompose.NewTenantMailIdentity(SchoolContactDirectory{Schools: organizations}, func(ctx context.Context, tenantID int64) (string, error) {
+	identity := deliveryCompose.NewTenantMailIdentity(owners.SchoolContactDirectory{Schools: organizations}, func(ctx context.Context, tenantID int64) (string, error) {
 		return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 	}, logger)
-	sessionRepos := SessionRepositoriesOf(r, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool()))
+	sessionRepos := owners.SessionRepositoriesOf(r, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool()))
 	if settingsOverrides.staffCreateErr != nil {
-		sessionRepos.Lifecycle.Membership = failingStaffMembership{lifecycleMembership: r.Membership, err: settingsOverrides.staffCreateErr}
+		sessionRepos.Lifecycle.Membership = failingStaffMembership{LifecycleMembership: r.Membership, err: settingsOverrides.staffCreateErr}
 	}
 	// The operator flows are composed here too: the operator second factor
 	// and both portals' passkey ceremonies (#3331) mint their sessions
 	// through them, so a test module without them would compose a module
 	// production never builds.
-	operatorOrganizations, err := NewOrganizationTenancy(db)
+	operatorOrganizations, err := owners.NewOrganizationTenancy(db)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	operatorPersons, err := NewPeopleDirectory(db)
+	operatorPersons, err := owners.NewPeopleDirectory(db)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	operatorMembership, err := NewSchoolMembership(db)
+	operatorMembership, err := owners.NewSchoolMembership(db)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	operators, err := NewOperatorDependencies(OperatorRepositoriesOf(r, operatorAuditLog), operatorOrganizations, operatorPersons, operatorMembership, logger)
+	operators, err := owners.NewOperatorDependencies(owners.OperatorRepositoriesOf(r, operatorAuditLog), operatorOrganizations, operatorPersons, operatorMembership, logger)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	mfaMail, err := newMFAMailer(db, deliveryModule.Runtime, mailer, defaultFrom, frontendURL, logger, settingsOverrides.mfaBackoff)
+	mfaMail, err := owners.NewMFAMailer(db, deliveryModule.Runtime, mailer, defaultFrom, frontendURL, logger, settingsOverrides.mfaBackoff)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	mfa, err := newMFADependencies(codec, settings.Settings, mfaMail, operatorAuditLog, mfaTestSecret(), &authTestRelyingParty, logger)
+	mfa, err := owners.NewMFADependencies(codec, settings.Settings, mfaMail, operatorAuditLog, mfaTestSecret(), &authTestRelyingParty, logger)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
 	if mail.outbox == nil {
-		source := mfa.Mail.(mfaMailer)
-		mfa.Mail = fixtureMFAMail(func() (mfaMailer, *deliveryCompose.Runtime, *slog.Logger) {
+		source := mfa.Mail.(owners.MFAMailer)
+		mfa.Mail = fixtureMFAMail(func() (owners.MFAMailer, *deliveryCompose.Runtime, *slog.Logger) {
 			return source, deliveryModule.Runtime, logger
 		})
 	}
 	mfa.DecorateRecords, mfa.Capability = settingsOverrides.mfaRecords, settingsOverrides.mfaCapability
-	guardianMail, enrollmentClaims, err := guardianInvitationDependencies(settings.Settings, organizations, OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox},
+	guardianMail, enrollmentClaims, err := owners.GuardianInvitationDependencies(settings.Settings, organizations, owners.OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox},
 		parentPortal.ParentEnrollmentRequest, parentsURL, time.Duration(inviteHours)*time.Hour, logger)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	lifecycle, err := lifecycleDependencies(sessionRepos.Lifecycle, command, CaregiverProfiles{Persons: operatorPersons, Membership: operatorMembership},
+	lifecycle, err := owners.LifecycleDependencies(sessionRepos.Lifecycle, command, owners.CaregiverProfiles{Persons: operatorPersons, Membership: operatorMembership},
 		guardianMail, enrollmentClaims, logger)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	demo, err := demoDependencies(&DemoAccessWiring{
+	demo, err := owners.DemoDependencies(&owners.DemoAccessWiring{
 		Dispatcher: dispatcher, DefaultFrom: defaultFrom, Durable: durable, FrontendURL: frontendURL,
 		Logger: logger, Backoff: settingsOverrides.resetBackoff, MaxActiveSchools: settingsOverrides.demoMaxActiveSchools,
 		OperatorWithoutSecondFactor: settingsOverrides.demoOperatorWithoutSecondFactor,
@@ -321,20 +327,20 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	identityAccess, err = NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{
+	identityAccess, err = owners.NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{
 		DB: db.Pool(), Observe: func(identityaccessCompose.Observation) {},
 		MFA: mfa, Lifecycle: lifecycle, Operators: operators, Demo: demo, TenantRuntime: unit,
-		Resets: passwordResetDependencies(&PasswordResetWiring{
+		Resets: owners.PasswordResetDependencies(&owners.PasswordResetWiring{
 			Dispatcher: dispatcher, DefaultFrom: defaultFrom, Durable: durable,
 			StaffURL: frontendURL, ParentsURL: parentsURL, SchoolURL: schoolURL,
 			Expiry: time.Duration(resetMinutes) * time.Minute, RateLimitEnabled: settingsOverrides.rateLimitEnabled,
 			Backoff: settingsOverrides.resetBackoff,
 		}, logger),
-		Invitations: invitationDependencies(&InvitationWiring{
+		Invitations: owners.InvitationDependencies(&owners.InvitationWiring{
 			Dispatcher: dispatcher, DefaultFrom: defaultFrom, Durable: durable, StaffURL: frontendURL, SchoolURL: schoolURL,
 			MailIdentity: identity, Expiry: time.Duration(inviteHours) * time.Hour,
 			Backoff: settingsOverrides.resetBackoff, Settings: settings.Settings,
-			Outbox:       OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox},
+			Outbox:       owners.OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox},
 			WelcomeDelay: identityaccess.StaffWelcomeDelay,
 		}, codec, logger),
 	}, sessionRepos, codec, settings.Settings, command, logger)
@@ -373,7 +379,7 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, unit tenant.UnitOfWork
 	if err != nil {
 		return nil, err
 	}
-	organizations, err := NewOrganizationTenancy(db)
+	organizations, err := owners.NewOrganizationTenancy(db)
 	if err != nil {
 		return nil, err
 	}
@@ -382,20 +388,20 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, unit tenant.UnitOfWork
 		return nil, err
 	}
 	audits := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()})
-	mfa, err := newMFADependencies(codec, nil, mfaMailer{
-		frontendURL: cfg.FrontendURL, logger: logger,
-	}, NewOperatorAuditLogFromEntries(audits.OperatorAuditLog), mfaTestSecret(), nil, logger)
+	mfa, err := owners.NewMFADependencies(codec, nil, owners.MFAMailer{
+		FrontendURL: cfg.FrontendURL, Logger: logger,
+	}, owners.NewOperatorAuditLogFromEntries(audits.OperatorAuditLog), mfaTestSecret(), nil, logger)
 	if err != nil {
 		return nil, err
 	}
-	sessionRepos := SessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool()))
-	lifecycle, err := lifecycleDependencies(sessionRepos.Lifecycle, audit, caregivers, unsentGuardianMail{}, nil, logger)
+	sessionRepos := owners.SessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool()))
+	lifecycle, err := owners.LifecycleDependencies(sessionRepos.Lifecycle, audit, caregivers, owners.UnsentGuardianMail{}, nil, logger)
 	if err != nil {
 		return nil, err
 	}
-	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{
+	module, err := owners.NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{
 		DB: db.Pool(), Observe: func(identityaccessCompose.Observation) {}, MFA: mfa, Lifecycle: lifecycle, TenantRuntime: unit,
-		Resets: passwordResetDependencies(&PasswordResetWiring{
+		Resets: owners.PasswordResetDependencies(&owners.PasswordResetWiring{
 			StaffURL: cfg.FrontendURL, ParentsURL: cfg.ParentsURL, SchoolURL: cfg.SchoolURL,
 			Expiry: cfg.PasswordResetExpiry, RateLimitEnabled: cfg.RateLimitEnabled,
 		}, logger),
@@ -423,7 +429,7 @@ type IdentityAccessTestConfig struct {
 // failingStaffMembership fails every staff insert; the caregiver profile
 // insert is the real owner command.
 type failingStaffMembership struct {
-	lifecycleMembership
+	owners.LifecycleMembership
 	err error
 }
 
@@ -435,24 +441,3 @@ func (d failingStaffMembership) CreateStaff(context.Context, schoolmembership.Cr
 // trusted-device HMAC key from: the process configuration, exactly as the
 // production root reads it, so no key is stored in source.
 func mfaTestSecret() string { return CurrentServiceConfig().JWTSecret }
-
-// unsentGuardianMail serves a root composed without the guardian mail — a
-// CLI or a fixture that only reads. The flows still run; nothing is sent.
-type unsentGuardianMail struct{}
-
-func (unsentGuardianMail) InvitationExpiry(context.Context) time.Duration {
-	return identityaccess.GuardianInvitationExpiryFallback
-}
-
-func (unsentGuardianMail) SchoolName(context.Context, int64) string { return "" }
-
-func (unsentGuardianMail) EnqueueInvitationEmail(context.Context, identityaccess.GuardianInvitation, identityPorts.GuardianProfile, string) (int64, bool) {
-	return 0, false
-}
-
-func (unsentGuardianMail) EnqueueExistingAccountEmail(context.Context, identityPorts.GuardianProfile, string) (int64, bool) {
-	return 0, false
-}
-
-func (unsentGuardianMail) EnqueueWelcomeEmail(context.Context, identityPorts.GuardianProfile, int64, string, int64) {
-}

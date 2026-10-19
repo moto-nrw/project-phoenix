@@ -151,7 +151,7 @@ func (s *Service) LockStudentClassWrites(ctx context.Context, exclusive bool) er
 		return err
 	}
 
-	err := s.runWrite(ctx, "lock_student_class_writes", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err := s.observeRun(ctx, "lock_student_class_writes", func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }, func(txCtx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.LockStudentClassWrites(txCtx, exclusive)
 		stats.Add(queryStats)
 		return err

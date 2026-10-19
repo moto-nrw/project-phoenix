@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -63,7 +65,7 @@ func (p exportTransferPort) Status(ctx context.Context) (timeTrackingHTTP.Export
 func (p exportTransferPort) Transfer(ctx context.Context, request timeTrackingHTTP.ExportTransferRequest) (timeTrackingHTTP.ExportTransferOutcome, error) {
 	outcome, err := p.module.Transfer(ctx, exportTransferModule.Request{
 		Kind: request.Kind, Format: request.Format, Filename: request.Filename, Data: request.Data,
-		ActorAccountID: request.ActorAccountID, ActorName: request.ActorName,
+		ActorAccountID: request.ActorAccountID, ActorName: request.ActorName, PrepareFile: request.PrepareFile,
 	})
 	if err != nil {
 		return timeTrackingHTTP.ExportTransferOutcome{}, err
@@ -80,7 +82,7 @@ func newTimeTrackingResource(
 	shifts workforceModule.StaffShiftPlanning, assignments workforceModule.StaffAssignmentQuery,
 	calendar schoolcalendar.Calendar, settings settingsCompose.SettingsService,
 ) *timeTrackingHTTP.Resource {
-	capabilities := NewWorkforceAdminCapabilities(users, documents, timeTracking)
+	capabilities := owners.NewWorkforceAdminCapabilities(users, documents, timeTracking)
 	return timeTrackingHTTP.NewResource(timeTrackingHTTP.Dependencies{
 		WorkSessions:     capabilities.WorkSessions,
 		StaffAbsences:    capabilities.StaffAbsences,
@@ -106,7 +108,7 @@ func newTimeTrackingResource(
 // adapted capabilities; schedules is the Workforce query the schedule views
 // read from and the Sonderarbeitszeiten are written through; notifyChanged
 // invalidates the time-account views after such a write.
-func newStaffAdminResource(capabilities WorkforceAdminCapabilities, schedules workforceModule.Capability, notifyChanged func(context.Context), exportTransfer *exportTransferModule.Module, db transactionruntime.Database, logger *slog.Logger) *timeTrackingHTTP.StaffAdminResource {
+func newStaffAdminResource(capabilities owners.WorkforceAdminCapabilities, schedules workforceModule.Capability, notifyChanged func(context.Context), exportTransfer *exportTransferModule.Module, db transactionruntime.Database, logger *slog.Logger) *timeTrackingHTTP.StaffAdminResource {
 	cleanup, err := workforceCompose.NewDocumentCleanup(db.Pool(), nil)
 	if err != nil {
 		panic(err)

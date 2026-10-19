@@ -23,6 +23,7 @@ var retentionWindowKeys = []string{
 	"enrollment.rejected_retention_days",
 	"gdpr.status_day_retention_days",
 	"gdpr.attendance_retention_days",
+	"gdpr.guardian_retention_days",
 	"gdpr.parent_message_retention_days",
 	"gdpr.withdrawn_enrollment_retention_days",
 	"gdpr.staff_sick_note_retention_days",

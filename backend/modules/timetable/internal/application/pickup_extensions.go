@@ -83,7 +83,7 @@ type OpenPickupExtension struct {
 // choices. A task without a matching block remains resolvable with "no
 // block"; only a child already covered until pickup drops the task.
 func (s *Service) ListOpenPickupExtensions(ctx context.Context, studentID int64) (result []OpenPickupExtension, err error) {
-	err = s.run("list_open_pickup_extensions", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_open_pickup_extensions", func(ctx context.Context, stats *domain.OperationStats) error {
 		tasks, queryStats, listErr := s.store.ListPickupExtensionTasks(ctx, studentID, s.pickupExtensionToday())
 		stats.Add(queryStats)
 		if listErr != nil {
@@ -110,7 +110,7 @@ func (s *Service) ListOpenPickupExtensions(ctx context.Context, studentID int64)
 // the resolve command. The command still locks and re-reads the task to keep
 // its write-side validation race-safe.
 func (s *Service) FindPickupExtensionStudent(ctx context.Context, taskID int64) (studentID int64, err error) {
-	err = s.run("find_pickup_extension_student", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_pickup_extension_student", func(ctx context.Context, stats *domain.OperationStats) error {
 		task, found, queryStats, queryErr := s.store.FindPickupExtensionTask(ctx, taskID)
 		stats.Add(queryStats)
 		if queryErr != nil {

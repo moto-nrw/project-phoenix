@@ -19,7 +19,12 @@ import (
 func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.Duration) (int, error) {
 	// Find sessions with no activity since the threshold
 	cutoffTime := time.Now().Add(-threshold)
-	sessions, err := s.GroupRepo.FindActiveSessionsOlderThan(ctx, cutoffTime)
+	var sessions []*ports.ActiveGroup
+	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		var readErr error
+		sessions, readErr = s.GroupRepo.FindActiveSessionsOlderThan(txCtx, cutoffTime)
+		return readErr
+	})
 	if err != nil {
 		return 0, &ActiveError{Op: "CleanupAbandonedSessions", Err: err}
 	}

@@ -6,6 +6,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -17,12 +18,12 @@ import (
 // Database resolves the connection of the current request.
 type Database func(context.Context) (bun.IDB, error)
 
-// TenantScope is the tenant filter of the current request: the tenant the
-// runtime scoped the caller to (zero for tenantless callers) and whether the
-// caller holds an administrative transaction.
+// TenantScope names a required school or explicit administrative cross-school
+// scope. AdminTransaction records privilege independently of the school ID.
 type TenantScope struct {
 	TenantID         int64
 	AdminTransaction bool
+	AcrossSchools    bool
 }
 
 // Scope resolves the tenant scope of the current request.
@@ -66,7 +67,8 @@ func (s *Store) FindAccount(ctx context.Context, id int64) (domain.Account, bool
 	}
 	var rows []accountRow
 	started := time.Now()
-	err = db.NewRaw(`SELECT id, email FROM auth.accounts WHERE id = ?`, id).Scan(ctx, &rows)
+	err = db.NewRaw(`SELECT id, email FROM auth.accounts
+		WHERE id = ? AND personal_data_erased_at IS NULL`, id).Scan(ctx, &rows)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return domain.Account{}, false, stats, fmt.Errorf("identity access postgres: find account: %w", err)
@@ -86,7 +88,9 @@ func (s *Store) FindAccountByEmail(ctx context.Context, email string) (domain.Ac
 	}
 	var rows []accountRow
 	started := time.Now()
-	err = db.NewRaw(`SELECT id, email FROM auth.accounts WHERE LOWER(email) = ? ORDER BY id LIMIT 1`, email).Scan(ctx, &rows)
+	err = db.NewRaw(`SELECT id, email FROM auth.accounts
+		WHERE LOWER(email) = ? AND personal_data_erased_at IS NULL
+		ORDER BY id LIMIT 1`, email).Scan(ctx, &rows)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return domain.Account{}, false, stats, fmt.Errorf("identity access postgres: find account by email: %w", err)
@@ -109,7 +113,8 @@ func (s *Store) FindAccountsByEmails(ctx context.Context, emails []string) (map[
 	}
 	var rows []accountRow
 	started := time.Now()
-	err = db.NewRaw(`SELECT id, email FROM auth.accounts WHERE LOWER(email) IN (?)`, bun.List(emails)).Scan(ctx, &rows)
+	err = db.NewRaw(`SELECT id, email FROM auth.accounts
+		WHERE LOWER(email) IN (?) AND personal_data_erased_at IS NULL`, bun.List(emails)).Scan(ctx, &rows)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return nil, stats, fmt.Errorf("identity access postgres: find accounts by email: %w", err)
@@ -118,6 +123,22 @@ func (s *Store) FindAccountsByEmails(ctx context.Context, emails []string) (map[
 		accounts[strings.ToLower(row.Email)] = domain.Account{ID: row.ID, Email: row.Email}
 	}
 	return accounts, stats, nil
+}
+
+// LockLiveGuardianAccount takes a shared row lock so guardian-profile linking
+// serializes with account retention's exclusive account lock.
+func (s *Store) LockLiveGuardianAccount(ctx context.Context, accountID int64) (bool, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return false, err
+	}
+	var accountIDs []int64
+	err = db.NewRaw(`SELECT id FROM auth.accounts
+		WHERE id = ? AND personal_data_erased_at IS NULL FOR KEY SHARE`, accountID).Scan(ctx, &accountIDs)
+	if err != nil {
+		return false, fmt.Errorf("identity access postgres: lock live guardian account: %w", err)
+	}
+	return len(accountIDs) == 1, nil
 }
 
 // EnsureActiveTenantMapping is an upsert on the (account, tenant) key: a
@@ -132,11 +153,16 @@ func (s *Store) EnsureActiveTenantMapping(ctx context.Context, accountID, tenant
 	// that same lock before the upsert, otherwise its mapping lock can cycle
 	// with offboarding and the role insert's account foreign-key lock.
 	started := time.Now()
-	var lockedID int64
-	err = db.NewRaw("SELECT id FROM auth.accounts WHERE id = ? FOR UPDATE", accountID).Scan(ctx, &lockedID)
+	var lockedIDs []int64
+	err = db.NewRaw(`SELECT id FROM auth.accounts
+		WHERE id = ? AND personal_data_erased_at IS NULL
+		FOR UPDATE`, accountID).Scan(ctx, &lockedIDs)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return stats, fmt.Errorf("identity access postgres: lock account for guardian grant: %w", err)
+	}
+	if len(lockedIDs) == 0 {
+		return stats, domain.ErrAccountNotFound
 	}
 	now := time.Now()
 	row := accountTenantRow{AccountID: accountID, TenantID: tenantID, Status: "active", ActivatedAt: now, CreatedAt: now, UpdatedAt: now}
@@ -208,4 +234,57 @@ func (s *Store) AssignAccountRole(ctx context.Context, accountID, roleID, tenant
 	}
 	stats.Rows, _ = result.RowsAffected()
 	return stats.Rows > 0, stats, nil
+}
+
+// Validate rejects an absent school unless the caller explicitly selected
+// a cross-school administrative unit of work. Zero is never a query scope.
+func (s TenantScope) Validate() error {
+	if s.AcrossSchools {
+		if !s.AdminTransaction {
+			return domain.ErrTenantRequired
+		}
+		return nil
+	}
+	if s.TenantID <= 0 {
+		return domain.ErrTenantRequired
+	}
+	return nil
+}
+
+func scopeTenantQuery[Q interface {
+	Where(string, ...any) Q
+	Err(error) Q
+}](scope TenantScope, query Q, predicate string) Q {
+	if err := scope.Validate(); err != nil {
+		return query.Err(err)
+	}
+	if scope.AcrossSchools {
+		return query
+	}
+	return query.Where(predicate, scope.TenantID)
+}
+
+// ResolveDatabase validates explicit scope and requires the caller's SQL unit.
+func ResolveDatabase(raw any, present bool, scope TenantScope) (bun.IDB, error) {
+	if err := scope.Validate(); err != nil {
+		return nil, err
+	}
+	if !present {
+		return nil, errors.New("identity access postgres: transaction is required")
+	}
+	switch tx := raw.(type) {
+	case bun.Tx:
+		return tx, nil
+	case *bun.Tx:
+		if tx != nil {
+			return *tx, nil
+		}
+	}
+	return nil, fmt.Errorf("identity access postgres: unsupported transaction %T", raw)
+}
+
+// ScopeFor preserves privilege independently of the validated context school.
+// Only an actual administrative transaction can name a cross-school scope.
+func ScopeFor(schoolID int64, admin bool) TenantScope {
+	return TenantScope{TenantID: schoolID, AdminTransaction: admin, AcrossSchools: admin && schoolID == 0}
 }

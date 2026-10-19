@@ -100,7 +100,7 @@ func TestServiceRepositoryRatchet(t *testing.T) {
 // backend/services/, skipping test files and line comments.
 func scanServiceQueryConstruction(backendRoot string) (map[string]int, error) {
 	counts := make(map[string]int)
-	servicesDir := filepath.Join(backendRoot, "services")
+	servicesDir := filepath.Join(backendRoot, "modules", "schedulerruntime", "internal", "application")
 
 	err := filepath.WalkDir(servicesDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {

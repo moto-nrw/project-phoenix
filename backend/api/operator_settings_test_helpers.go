@@ -5,6 +5,8 @@ package api
 import (
 	"log/slog"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
@@ -39,7 +41,7 @@ func NewOperatorSettingsTestModule(db transactionruntime.Database, unit tenant.U
 	if err != nil {
 		return OperatorSettingsTestModule{}, nil, err
 	}
-	schools, err := NewOrganizationTenancy(db)
+	schools, err := owners.NewOrganizationTenancy(db)
 	if err != nil {
 		return OperatorSettingsTestModule{}, nil, err
 	}
@@ -93,12 +95,12 @@ func (m OperatorSettingsTestModule) OperatorSchoolSettingsWith(opts OperatorScho
 // root binds them, with the Care Plan lifecycle they drive.
 func newOperatorSettingSideEffects(db transactionruntime.Database, unit tenant.UnitOfWork) ([]settingsCompose.SettingSideEffect, careplan.CareLifecycle, error) {
 	facilities := NewActiveTestFacilities(db, unit)
-	timetableRows := NewActiveTestTimetable(db, unit)
+	_, activityService := NewActiveTestTimetable(db, unit)
 	care, _, err := NewCareLifecycleTestModule(db, unit)
 	if err != nil {
 		return nil, nil, err
 	}
-	wc := facilitiesCompose.NewWCService(facilities.Facilities, FacilitiesActivityCatalog(timetableRows.Activities), slog.Default())
+	wc := facilitiesCompose.NewWCService(facilities.Facilities, FacilitiesActivityCatalog(activityService), slog.Default())
 	schulhof, wcSwitch := facilitiesCompose.SettingHandlers(facilities.SchulhofService, wc)
 	return []settingsCompose.SettingSideEffect{
 		{Key: configModels.KeyCheckoutSchulhofEnabled, Handle: schulhof},

@@ -126,6 +126,17 @@ liegt eine Ebene tiefer.
   dahinter filtert stillgelegte Sätze aber weg. Der Zweig ist toter Code. Die
   Wiederaufnahme braucht einen Lesezugriff, der sie bewusst mitnimmt;
   `StaffFilter.IncludeDeleted` kann das bereits, dieser Port nutzt es nicht.
+- Das Arbeitszeitmodell war doch durch etwas getragen: `work_time_model_id`
+  verweist mit `ON DELETE RESTRICT` auf die Vorlage, und die Löschprüfung
+  zählt nur aktive Beschäftigungen. Bliebe die Bindung einfach stehen,
+  scheiterte das Löschen einer Vorlage am Fremdschlüssel. Deshalb löst das
+  Löschen einer Vorlage die Bindungen früherer Beschäftigungen mit
+  ([#3400](https://github.com/moto-nrw/project-phoenix/issues/3400)); eine
+  aktive Beschäftigung blockiert es weiterhin.
+- Mit dem stehenden Kontolink darf das Löschen eines Personensatzes im
+  Operator-Portal das Konto einer früheren Beschäftigung nicht mehr
+  stilllegen. Es löst nur den Link, weil das Konto an einer anderen Schule
+  oder im Elternportal weiter gelten kann.
 - Der Einladen-Dialog braucht eine schulseitige Vorschau zu einer Adresse.
   Die bestehende Einladungsvorschau gehört zur Annahmeseite und beantwortet
   eine andere Frage.

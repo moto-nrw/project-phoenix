@@ -4,13 +4,14 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func (s *Store) ListClassArrivalExceptionRecords(ctx context.Context, classes []string, from, to string) ([]domain.ClassArrivalException, domain.OperationStats, error) {
 	rows := make([]*schedule.ClassArrivalException, 0)
-	query, err := s.classArrivalExceptionQuery(ctx, classes, schedule.Date(from), schedule.Date(to), &rows)
+	query, err := s.classArrivalExceptionQuery(ctx, classes, calendar.Date(from), calendar.Date(to), &rows)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -32,7 +33,7 @@ func classArrivalExceptionValue(row *schedule.ClassArrivalException) domain.Clas
 }
 
 func (s *Store) SaveClassArrivalException(ctx context.Context, input domain.ClassArrivalException) (domain.ClassArrivalException, domain.OperationStats, error) {
-	row := &schedule.ClassArrivalException{SchoolClass: input.SchoolClass, Date: schedule.Date(input.Date),
+	row := &schedule.ClassArrivalException{SchoolClass: input.SchoolClass, Date: calendar.Date(input.Date),
 		ArrivalTime: input.ArrivalTime, Reason: input.Reason, CreatedBy: input.CreatedBy, Origin: input.Origin}
 	query, err := s.classArrivalExceptionUpsertQuery(ctx, row)
 	if err != nil {
@@ -53,7 +54,7 @@ func (s *Store) SaveClassArrivalException(ctx context.Context, input domain.Clas
 }
 
 func (s *Store) RemoveClassArrivalException(ctx context.Context, class, date string) (bool, domain.OperationStats, error) {
-	query, err := s.classArrivalExceptionDeleteQuery(ctx, class, schedule.Date(date))
+	query, err := s.classArrivalExceptionDeleteQuery(ctx, class, calendar.Date(date))
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}

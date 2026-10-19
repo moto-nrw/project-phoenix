@@ -3,6 +3,7 @@
 package domain
 
 import (
+	"context"
 	"errors"
 	"strings"
 )
@@ -51,10 +52,13 @@ func (s TargetState) Ready() bool { return s.Enabled && len(s.MissingSettings) =
 // Request is one transfer: which export, which file, on whose behalf. The
 // bytes are produced elsewhere — this capability never builds a file.
 type Request struct {
-	Kind           string
-	Format         string
-	Filename       string
-	Data           []byte
+	Kind     string
+	Format   string
+	Filename string
+	Data     []byte
+	// PrepareFile builds the file and records its access audit in the intent
+	// transaction. When set, it supplies Filename and Data before commit.
+	PrepareFile    func(context.Context) (filename string, data []byte, err error)
 	ActorAccountID int64
 	ActorName      string
 }

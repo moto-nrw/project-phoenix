@@ -5,7 +5,6 @@ package compose
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres"
@@ -69,28 +68,11 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 	case dependencies.ClassListStudents != nil || dependencies.ClassListTrail != nil:
 		return nil, errors.New("school membership compose: the class list entries need a student directory and an audit trail")
 	}
-	store := postgres.New(func(ctx context.Context) (bun.IDB, int64, error) {
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return nil, 0, errors.New("school membership postgres: transaction is required")
-		}
-		switch tx := transaction.(type) {
-		case bun.Tx:
-			return tx, tenant.FromContext(ctx), nil
-		case *bun.Tx:
-			if tx != nil {
-				return tx, tenant.FromContext(ctx), nil
-			}
-		}
-		return nil, 0, fmt.Errorf("school membership postgres: unsupported transaction %T", transaction)
-	})
+	store := postgres.New(postgres.NewContextDatabase(tenant.TenantFromContext, tenant.TransactionFromContext, tenant.IsAdminTx))
 	var quota ports.ChildQuota
 	if dependencies.ChildQuota != nil {
 		quota = dependencies.ChildQuota
 	}
-	service := application.New(store, staffEmployment{port: dependencies.Employment}, quota, postgres.BerlinToday, application.TenantTransaction{}, func(observation Observation) {
-		observation.Err = application.MapError(observation.Err)
-		dependencies.Observe(observation)
-	}, classList)
+	service := application.New(store, application.NewStaffEmployment(dependencies.Employment), quota, postgres.BerlinToday, application.TenantTransaction{}, application.NewObserver(dependencies.Observe), classList)
 	return service, nil
 }

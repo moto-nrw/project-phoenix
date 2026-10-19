@@ -20,19 +20,19 @@ func TestSubmittedOfferingChoicesAreImmutableAndRetryable(t *testing.T) {
 	module := enrollmentCompose.New()
 	ctx := testpkg.Ctx(t)
 	choices := []enrollment.SubmittedOfferingChoice{{CareOfferingID: offering.ID, SelectedDays: []string{"mon", "wed"}, Notes: new("original")}}
-	require.NoError(t, module.RecordSubmittedOfferingChoices(ctx, childID, choices))
-	first, err := module.SubmittedOfferingChoices(ctx, []int64{childID})
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, db, module.RecordSubmittedOfferingChoices, childID, choices))
+	first, err := testpkg.TenantQuery1(t, ctx, db, module.SubmittedOfferingChoices, []int64{childID})
 	require.NoError(t, err)
 	require.Len(t, first, 1)
 	require.Equal(t, []string{"mon", "wed"}, first[0].SelectedDays)
 	require.Equal(t, "original", *first[0].Notes)
-	require.NoError(t, module.RecordSubmittedOfferingChoices(ctx, childID, choices))
-	retry, err := module.SubmittedOfferingChoices(ctx, []int64{childID})
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, db, module.RecordSubmittedOfferingChoices, childID, choices))
+	retry, err := testpkg.TenantQuery1(t, ctx, db, module.SubmittedOfferingChoices, []int64{childID})
 	require.NoError(t, err)
 	require.Equal(t, first, retry)
 	choices[0].SelectedDays = []string{"fri"}
-	require.ErrorIs(t, module.RecordSubmittedOfferingChoices(ctx, childID, choices), enrollment.ErrSubmittedOfferingChoiceConflict)
-	after, err := module.SubmittedOfferingChoices(ctx, []int64{childID})
+	require.ErrorIs(t, testpkg.TenantCommand2(t, ctx, db, module.RecordSubmittedOfferingChoices, childID, choices), enrollment.ErrSubmittedOfferingChoiceConflict)
+	after, err := testpkg.TenantQuery1(t, ctx, db, module.SubmittedOfferingChoices, []int64{childID})
 	require.NoError(t, err)
 	require.Equal(t, first, after, "effective-care changes cannot rewrite the submitted choice")
 }
@@ -46,10 +46,10 @@ func TestSubmittedOfferingChoiceBatchRollsBackAndRetries(t *testing.T) {
 	module := enrollmentCompose.New()
 	ctx := testpkg.Ctx(t)
 	original := enrollment.SubmittedOfferingChoice{CareOfferingID: second.ID, Notes: new("submitted")}
-	require.NoError(t, module.RecordSubmittedOfferingChoices(ctx, childID, []enrollment.SubmittedOfferingChoice{original}))
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, db, module.RecordSubmittedOfferingChoices, childID, []enrollment.SubmittedOfferingChoice{original}))
 	batch := []enrollment.SubmittedOfferingChoice{{CareOfferingID: first.ID}, {CareOfferingID: second.ID, Notes: new("changed")}}
-	require.ErrorIs(t, module.RecordSubmittedOfferingChoices(ctx, childID, batch), enrollment.ErrSubmittedOfferingChoiceConflict)
-	rows, err := module.SubmittedOfferingChoices(ctx, []int64{childID})
+	require.ErrorIs(t, testpkg.TenantCommand2(t, ctx, db, module.RecordSubmittedOfferingChoices, childID, batch), enrollment.ErrSubmittedOfferingChoiceConflict)
+	rows, err := testpkg.TenantQuery1(t, ctx, db, module.SubmittedOfferingChoices, []int64{childID})
 	require.NoError(t, err)
 	require.Len(t, rows, 1, "a conflict after the first insert must roll back that insert")
 	require.Equal(t, second.ID, rows[0].CareOfferingID)
@@ -62,11 +62,11 @@ func TestSubmittedOfferingChoiceBatchRollsBackAndRetries(t *testing.T) {
 		return injected
 	})
 	require.ErrorIs(t, err, injected)
-	rows, err = module.SubmittedOfferingChoices(ctx, []int64{childID})
+	rows, err = testpkg.TenantQuery1(t, ctx, db, module.SubmittedOfferingChoices, []int64{childID})
 	require.NoError(t, err)
 	require.Len(t, rows, 1, "the owner command must join the workflow transaction")
-	require.NoError(t, module.RecordSubmittedOfferingChoices(ctx, childID, batch))
-	rows, err = module.SubmittedOfferingChoices(ctx, []int64{childID})
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, db, module.RecordSubmittedOfferingChoices, childID, batch))
+	rows, err = testpkg.TenantQuery1(t, ctx, db, module.SubmittedOfferingChoices, []int64{childID})
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 }
@@ -86,19 +86,19 @@ func TestSubmittedOfferingChoicesEnforceTwoTenantIsolation(t *testing.T) {
 			phaseID, _, childID := testpkg.CreateAuditAdjustmentChain(t, db)
 			offering := testpkg.CreateTestCareOffering(t, db, phaseID, "Isolated choice")
 			ctx := testpkg.Ctx(t)
-			require.NoError(t, module.RecordSubmittedOfferingChoices(ctx, childID, []enrollment.SubmittedOfferingChoice{{CareOfferingID: offering.ID}}))
+			require.NoError(t, testpkg.TenantCommand2(t, ctx, db, module.RecordSubmittedOfferingChoices, childID, []enrollment.SubmittedOfferingChoice{{CareOfferingID: offering.ID}}))
 			schools = append(schools, school{ctx: testpkg.ContextForTenant(testpkg.Ctx(t), testpkg.Tenant(t)), childID: childID, offeringID: offering.ID})
 		})
 	}
 	for i, own := range schools {
 		foreign := schools[1-i]
-		rows, err := module.SubmittedOfferingChoices(own.ctx, []int64{own.childID, foreign.childID})
+		rows, err := testpkg.TenantQuery1(t, own.ctx, db, module.SubmittedOfferingChoices, []int64{own.childID, foreign.childID})
 		require.NoError(t, err)
 		require.Len(t, rows, 1)
 		require.Equal(t, own.childID, rows[0].RequestChildID)
-		err = module.RecordSubmittedOfferingChoices(own.ctx, foreign.childID, []enrollment.SubmittedOfferingChoice{{CareOfferingID: own.offeringID}})
+		err = testpkg.TenantCommand2(t, own.ctx, db, module.RecordSubmittedOfferingChoices, foreign.childID, []enrollment.SubmittedOfferingChoice{{CareOfferingID: own.offeringID}})
 		require.Error(t, err, "tenant-safe child FK must reject foreign children")
-		err = module.RecordSubmittedOfferingChoices(own.ctx, own.childID, []enrollment.SubmittedOfferingChoice{{CareOfferingID: foreign.offeringID}})
+		err = testpkg.TenantCommand2(t, own.ctx, db, module.RecordSubmittedOfferingChoices, own.childID, []enrollment.SubmittedOfferingChoice{{CareOfferingID: foreign.offeringID}})
 		require.Error(t, err, "tenant-safe offering FK must reject foreign offerings")
 	}
 }

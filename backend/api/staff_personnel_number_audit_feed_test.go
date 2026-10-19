@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -22,7 +24,7 @@ func TestUpdatePersonnelNumber_AppearsInAuditFeed(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	repos := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	reposMembership := NewSchoolMembershipSuiteRepositories(testpkg.NewDatabase(t, db))
-	audits := NewTestAuditPersistence(testpkg.MustDatabase(db), nil)
+	audits := owners.NewTestAuditPersistence(testpkg.MustDatabase(db), nil)
 	svc, err := NewStaffAdmin(testpkg.MustDatabase(db), repos.Staff, repos.Person, reposMembership.SchoolMembership(), StaffAdminDependencies{
 		MasterDataAudit: audits.StaffMasterDataChange, PersonnelNumber: audits.PersonnelNumberChange, DataAccessLog: audits.DataAccessLog,
 	})
@@ -34,7 +36,7 @@ func TestUpdatePersonnelNumber_AppearsInAuditFeed(t *testing.T) {
 	_, err = svc.UpdatePersonnelNumber(ctx, staff.ID, &value, actor.ID, "Feed-Test")
 	require.NoError(t, err)
 
-	entries, err := NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingAuditLog.ListEntries(ctx, auditModels.TimeTrackingAuditLogFilter{
+	entries, err := testpkg.TenantQuery1(t, ctx, db, owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingAuditLog.ListEntries, auditModels.TimeTrackingAuditLogFilter{
 		StaffID: staff.ID,
 		Sources: []string{testpkg.AuditLogSourcePersonnelNumber},
 	})

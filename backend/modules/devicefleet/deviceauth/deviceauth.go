@@ -12,8 +12,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	device "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/adapters/deviceauth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -137,12 +137,12 @@ func (d fleetDirectory) FindByAPIKey(ctx context.Context, apiKey string) (*devic
 }
 
 func (d fleetDirectory) RecordLastSeen(ctx context.Context, deviceID int64, seenAt time.Time) error {
-	return d.fleet.UpdateDeviceLastSeen(ctx, deviceID, seenAt)
+	// Each heartbeat has its own school unit, never a completed request transaction.
+	return d.fleet.UpdateDeviceLastSeen(tenant.ContextWithoutTransaction(ctx), deviceID, seenAt)
 }
 
-// schoolLookup classifies the school read for the adapter. It runs before
-// the tenant transaction middleware, so the repository falls back to the raw
-// connection; platform.schools is not behind RLS.
+// schoolLookup classifies the pre-tenant school-directory capability.
+// Its owner supplies the explicit discovery unit before tenant middleware.
 type schoolLookup struct {
 	schools SchoolDirectory
 	errors  SchoolErrors

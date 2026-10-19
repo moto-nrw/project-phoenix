@@ -7,6 +7,8 @@ import (
 	"errors"
 	"log/slog"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -43,7 +45,7 @@ func NewCareOfferingCatalogTestModule(db transactionruntime.Database, unit tenan
 	}
 	settings := options.Settings
 	if settings == nil {
-		module, err := NewSettingsTestModule(db, unit)
+		module, err := owners.NewSettingsTestModule(db, unit)
 		if err != nil {
 			return CareOfferingCatalogTestModule{}, err
 		}
@@ -58,8 +60,8 @@ func NewCareOfferingCatalogTestModule(db transactionruntime.Database, unit tenan
 
 // newTestCareOfferingCatalog binds the catalog to the owners of a test
 // repository set, with the Care Plan and School Calendar owners over db.
-func newTestCareOfferingCatalog(db transactionruntime.Database, r TimetableTestRepositories, settings careOfferingSettingsReads, options CareOfferingCatalogTestOptions) (careplan.CareOfferingCatalogCapability, error) {
-	care, err := NewTimetableCarePlanRows(db, r, MustNewMembershipTestRepositories(db))
+func newTestCareOfferingCatalog(db transactionruntime.Database, r owners.TimetableTestRepositories, settings owners.CareOfferingSettingsReads, options CareOfferingCatalogTestOptions) (careplan.CareOfferingCatalogCapability, error) {
+	care, err := owners.NewTimetableCarePlanRows(db, r, owners.MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return nil, err
 	}
@@ -158,13 +160,13 @@ func newCareOfferingCatalog(inputs careOfferingCatalogInputs) (careplan.CareOffe
 	}
 	return careplanCompose.NewCareOfferingCatalog(careplanCompose.CareOfferingCatalogDependencies{
 		Records:                inputs.Records,
-		Phases:                 careOfferingCatalogPhases{phases: inputs.Phases},
-		Timetable:              careOfferingCatalogTimetable{timetable: inputs.Timetable},
-		Calendar:               careOfferingCatalogCalendar{calendar: inputs.Calendar},
-		Bookings:               careOfferingCatalogBookings{bookings: inputs.Bookings},
-		Settings:               careOfferingCatalogSettings{settings: inputs.Settings},
-		Translations:           careOfferingCatalogTranslations{},
-		SourceRules:            careOfferingSourceRules{},
+		Phases:                 owners.CareOfferingCatalogPhases{Phases: inputs.Phases},
+		Timetable:              owners.CareOfferingCatalogTimetable{Timetable: inputs.Timetable},
+		Calendar:               owners.CareOfferingCatalogCalendar{Calendar: inputs.Calendar},
+		Bookings:               owners.CareOfferingCatalogBookings{Bookings: inputs.Bookings},
+		Settings:               owners.CareOfferingCatalogSettings{Settings: inputs.Settings},
+		Translations:           owners.CareOfferingCatalogTranslations{},
+		SourceRules:            owners.CareOfferingSourceRules{},
 		SourcedTemplates:       inputs.SourcedTemplates,
 		Pickup:                 inputs.Pickup,
 		LockTemplateRecurrence: inputs.LockRecurrence,

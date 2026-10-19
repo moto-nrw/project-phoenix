@@ -85,6 +85,10 @@ const (
 	// (users.student_school_memberships.enrolled_until). After it the
 	// nightly run deletes the child through the student deletion workflow.
 	KeyGDPRStudentRetentionDays = "gdpr.student_retention_days"
+	// Retention window (days) for a parent contact without a child
+	// (users.guardian_profiles, #4043), counted from
+	// users.guardian_profiles.childless_since.
+	KeyGDPRGuardianRetentionDays = "gdpr.guardian_retention_days"
 )
 
 // Attendance log / Raumverlauf (student attendance history) settings.

@@ -1,9 +1,12 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
+
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -28,21 +31,24 @@ func TestActivityInstancesOfTheDayCarryTheirSessionStatus(t *testing.T) {
 		Title: "Overdue started", IsSpontaneous: true, StartHHMM: "10:15",
 	})
 	testpkg.SetActivityInstanceLifecycle(t, ctx, db, started.ID, "active")
-	repos, err := NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	repos, err := owners.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 
-	rows, err := repos.ActivityInstance.FindByTenantAndDate(ctx, dayISO)
+	require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(ctx context.Context) error {
+		rows, err := repos.ActivityInstance.FindByTenantAndDate(ctx, dayISO)
 
-	require.NoError(t, err)
-	statuses := make(map[int64]string, len(rows))
-	for _, row := range rows {
-		statuses[row.ID] = row.Status
-		if row.ID == planned.ID {
-			assert.Equal(t, room.ID, row.RoomID)
-			assert.Equal(t, 10, row.StartTime.Hour())
-			assert.Equal(t, day.String(), row.Date.String())
+		require.NoError(t, err)
+		statuses := make(map[int64]string, len(rows))
+		for _, row := range rows {
+			statuses[row.ID] = row.Status
+			if row.ID == planned.ID {
+				assert.Equal(t, room.ID, row.RoomID)
+				assert.Equal(t, 10, row.StartTime.Hour())
+				assert.Equal(t, day.String(), row.Date.String())
+			}
 		}
-	}
-	assert.Equal(t, "planned", statuses[planned.ID])
-	assert.Equal(t, "active", statuses[started.ID])
+		assert.Equal(t, "planned", statuses[planned.ID])
+		assert.Equal(t, "active", statuses[started.ID])
+		return nil
+	}))
 }

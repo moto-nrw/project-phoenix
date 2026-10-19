@@ -3609,6 +3609,7 @@ function endCareTopic(): HelpTopic {
       "Bei `Anderer Grund` tragen Sie zusätzlich eine kurze Erklärung ein.",
       "Beendete Kinder finden Sie über das Menü mit den drei Punkten unter `Beendete Betreuungen`.",
       "Nach der Löschfrist löscht moto das Kind mit allen Angaben. Die Frist sehen Sie unter `Einstellungen` und `Datenschutz`.",
+      "Erziehungsberechtigte ohne weiteres Kind an der Schule löscht moto nach einer eigenen Frist. Auch sie steht unter `Datenschutz`.",
     ],
     differences: [
       "Ist schon ein Ende geplant, heißt der Knopf `Ende ändern`. Daneben steht `Ende stornieren`.",

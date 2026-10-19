@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	rootowners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -49,7 +50,7 @@ func newTransitionFixture(t *testing.T, db *bun.DB) *transitionFixture {
 	f.actorID = actor.ID
 	structure, presence, err := api.NewGradeTransitionOwners(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	deps, err := gradetransitioncompose.Assemble(gradetransitioncompose.Dependencies{
+	deps, err := rootowners.AssembleGradeTransition(gradetransitioncompose.Dependencies{
 		DB: db, Structure: structure, Presence: presence, Directory: f.people, Membership: f.membership,
 		Rosters:              owners.Rosters,
 		LockRecurrenceWrites: owners.LockRecurrenceWrites,

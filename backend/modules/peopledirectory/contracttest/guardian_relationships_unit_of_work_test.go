@@ -42,6 +42,10 @@ func (o *sqlGuardianOwners) conn(ctx context.Context) bun.IDB {
 	return o.db
 }
 
+func (o *sqlGuardianOwners) LockLiveGuardianAccount(context.Context, int64) (bool, error) {
+	return true, nil
+}
+
 func (o *sqlGuardianOwners) CreateGuardianPickupPermission(ctx context.Context, tenantID, relationshipID int64, canPickup bool, notes *string) error {
 	if o.failPickupCreate {
 		return errInjectedOwnerFailure
@@ -152,7 +156,7 @@ func TestGuardianRelationshipLinkRollsBackAfterEveryOwnerCommand(t *testing.T) {
 		relationships, pickups, accesses = linkHalves(t, db, student.ID, guardian.ID)
 		require.Equal(t, []int{1, 1, 1}, []int{relationships, pickups, accesses})
 	}
-	links, err := store.FindByStudentID(ctx, student.ID)
+	links, err := testpkg.TenantQuery1(t, ctx, db, store.FindByStudentID, student.ID)
 	require.NoError(t, err)
 	require.Len(t, links, 1)
 	require.True(t, links[0].CanPickup)
@@ -170,7 +174,7 @@ func TestGuardianRelationshipUpdateRollsBackAfterEveryOwnerCommand(t *testing.T)
 	store := newRelationshipStore(db, &sqlGuardianOwners{db: db})
 	link := newLink(student.ID, guardian.ID)
 	require.NoError(t, store.Create(ctx, link))
-	before, err := store.FindByID(ctx, link.ID)
+	before, err := testpkg.TenantQuery1(t, ctx, db, store.FindByID, any(link.ID))
 	require.NoError(t, err)
 
 	for _, owners := range []*sqlGuardianOwners{
@@ -187,7 +191,7 @@ func TestGuardianRelationshipUpdateRollsBackAfterEveryOwnerCommand(t *testing.T)
 			require.ErrorIs(t, newRelationshipStore(db, owners).Update(ctx, &changed), errInjectedOwnerFailure)
 			return nil
 		}))
-		after, err := store.FindByID(ctx, link.ID)
+		after, err := testpkg.TenantQuery1(t, ctx, db, store.FindByID, any(link.ID))
 		require.NoError(t, err)
 		require.Equal(t, before.RelationshipType, after.RelationshipType, "%+v", owners)
 		require.Equal(t, before.IsEmergencyContact, after.IsEmergencyContact)
@@ -200,7 +204,7 @@ func TestGuardianRelationshipUpdateRollsBackAfterEveryOwnerCommand(t *testing.T)
 	changed.CanPickup = false
 	changed.Permissions = []byte(`{"parent_portal.access": false}`)
 	require.NoError(t, store.Update(ctx, &changed))
-	after, err := store.FindByID(ctx, link.ID)
+	after, err := testpkg.TenantQuery1(t, ctx, db, store.FindByID, any(link.ID))
 	require.NoError(t, err)
 	require.False(t, after.CanPickup)
 	require.Equal(t, false, testpkg.GuardianPermissionValueJSON(after.Permissions, "parent_portal.access"))
@@ -225,13 +229,13 @@ func TestGuardianRelationshipPromotionDemotesThePreviousPrimary(t *testing.T) {
 	updated, err := store.UpdateColumns(ctx, secondLink, "is_primary")
 	require.NoError(t, err)
 	require.EqualValues(t, 1, updated)
-	primaries, err := store.List(ctx, map[string]any{"student_id": student.ID, "is_primary": true})
+	primaries, err := testpkg.TenantQuery1(t, ctx, db, store.List, map[string]any{"student_id": student.ID, "is_primary": true})
 	require.NoError(t, err)
 	require.Len(t, primaries, 1)
 	require.Equal(t, secondLink.ID, primaries[0].ID)
 
 	require.NoError(t, store.SetPrimary(ctx, firstLink.ID, true))
-	primaries, err = store.List(ctx, map[string]any{"student_id": student.ID, "is_primary": true})
+	primaries, err = testpkg.TenantQuery1(t, ctx, db, store.List, map[string]any{"student_id": student.ID, "is_primary": true})
 	require.NoError(t, err)
 	require.Len(t, primaries, 1)
 	require.Equal(t, firstLink.ID, primaries[0].ID)
@@ -260,7 +264,7 @@ func TestGuardianRelationshipRelinkLeavesThePrimaryAlone(t *testing.T) {
 	inserted, err := store.LinkIfNotExists(ctx, newLink(student.ID, primary.ID))
 	require.NoError(t, err)
 	require.False(t, inserted)
-	primaries, err := store.List(ctx, map[string]any{"student_id": student.ID, "is_primary": true})
+	primaries, err := testpkg.TenantQuery1(t, ctx, db, store.List, map[string]any{"student_id": student.ID, "is_primary": true})
 	require.NoError(t, err)
 	require.Len(t, primaries, 1, "the child keeps its primary guardian")
 	require.Equal(t, primaryLink.ID, primaries[0].ID)
@@ -271,7 +275,7 @@ func TestGuardianRelationshipRelinkLeavesThePrimaryAlone(t *testing.T) {
 	inserted, err = store.LinkIfNotExists(ctx, relink)
 	require.NoError(t, err)
 	require.False(t, inserted)
-	primaries, err = store.List(ctx, map[string]any{"student_id": student.ID, "is_primary": true})
+	primaries, err = testpkg.TenantQuery1(t, ctx, db, store.List, map[string]any{"student_id": student.ID, "is_primary": true})
 	require.NoError(t, err)
 	require.Len(t, primaries, 1)
 	require.Equal(t, primaryLink.ID, primaries[0].ID)
@@ -282,7 +286,7 @@ func TestGuardianRelationshipRelinkLeavesThePrimaryAlone(t *testing.T) {
 	inserted, err = store.LinkIfNotExists(ctx, newPair)
 	require.NoError(t, err)
 	require.True(t, inserted)
-	primaries, err = store.List(ctx, map[string]any{"student_id": student.ID, "is_primary": true})
+	primaries, err = testpkg.TenantQuery1(t, ctx, db, store.List, map[string]any{"student_id": student.ID, "is_primary": true})
 	require.NoError(t, err)
 	require.Len(t, primaries, 1)
 	require.Equal(t, newPair.ID, primaries[0].ID)
@@ -314,7 +318,7 @@ func TestGuardianRelationshipStoreStaysInsideTheTenant(t *testing.T) {
 		require.NoError(t, store.Delete(ctx, link.ID))
 		return nil
 	}))
-	links, err := store.FindByStudentID(ctx, student.ID)
+	links, err := testpkg.TenantQuery1(t, ctx, db, store.FindByStudentID, student.ID)
 	require.NoError(t, err)
 	require.Len(t, links, 1, "the other school's delete matched nothing")
 	require.Equal(t, "parent", links[0].RelationshipType)
@@ -346,7 +350,7 @@ func TestGuardianRelationshipLinkWithoutRoleNeedsTheDefaultRolePolicy(t *testing
 	created, err := bound.LinkIfNotExists(ctx, link())
 	require.NoError(t, err)
 	require.True(t, created)
-	links, err := bound.FindByStudentID(ctx, student.ID)
+	links, err := testpkg.TenantQuery1(t, ctx, db, bound.FindByStudentID, student.ID)
 	require.NoError(t, err)
 	require.Len(t, links, 1)
 	stored := links[0]

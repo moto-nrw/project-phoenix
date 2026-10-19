@@ -43,7 +43,7 @@ func setOverviewScope(tb testing.TB, db *bun.DB, tenantID int64, scope string) {
 		Value:      json.RawMessage(`"` + scope + `"`),
 	}
 	value.SetTenantID(tenantID)
-	require.NoError(tb, repository.Upsert(testpkg.ContextForTenant(context.Background(), tenantID), value))
+	require.NoError(tb, testpkg.TenantCommand1(tb, testpkg.ContextForTenant(context.Background(), tenantID), testpkg.SetupTestDB(tb), repository.Upsert, value))
 }
 
 // TestOperationalOverviewScopeIsTenantScoped is the core cross-tenant claim:
@@ -68,7 +68,7 @@ func TestOperationalOverviewScopeIsTenantScoped(t *testing.T) {
 	assertScope := func(tb testing.TB, tenantID int64, wantScope string, wantOverview bool) {
 		tb.Helper()
 		err := testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-			scope, err := settings.ResolveString(ctx, configModel.KeyOperationalOverviewScope)
+			scope, err := testpkg.TenantQuery1(t, ctx, db, settings.ResolveString, configModel.KeyOperationalOverviewScope)
 			require.NoError(tb, err)
 			assert.Equal(tb, wantScope, scope)
 

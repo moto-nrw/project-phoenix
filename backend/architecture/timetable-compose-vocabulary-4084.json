@@ -29,7 +29,7 @@
   "runtime_evidence": {
     "source": "PR #4149 CI on 2026-10-16 and local reproduction at 167e6a8b04: migration validation reports two unclaimed removals. This correction adds evidence only, with no runtime code change.",
     "sources": [
-      "backend/modules/timetable/internal/domain/list_options.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/modules/timetable/internal/domain/list_options.go",
       "backend/modules/timetable/internal/domain/store_errors.go",
       "backend/modules/timetable/internal/domain/ids.go",
       "backend/modules/timetable/internal/application/instance_create.go",

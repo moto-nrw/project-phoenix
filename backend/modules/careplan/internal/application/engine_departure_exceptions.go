@@ -10,7 +10,9 @@ import (
 
 func (e *ExceptionQueryService) ListDepartureExceptions(ctx context.Context, f careplan.StudentScheduleFilter) ([]careplan.DepartureException, error) {
 	started := time.Now()
-	value, stats, err := e.statusQueries.ListDepartureExceptions(ctx, f)
+	value, stats, err := scopedRecordRead(ctx, func(txCtx context.Context) ([]careplan.DepartureException, domain.OperationStats, error) {
+		return e.statusQueries.ListDepartureExceptions(txCtx, f)
+	})
 
 	err = MapError(err)
 	e.observeRequest("list_departure_exceptions", started, stats, err)

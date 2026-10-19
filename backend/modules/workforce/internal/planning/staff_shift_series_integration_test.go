@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -38,7 +39,7 @@ func setupSeriesTest(t *testing.T) *seriesTestEnv {
 	scope := testpkg.NewTenantScope(t, db)
 	staff := testpkg.CreateTestStaffForTenant(t, db, scope.TenantID, "Serie", fmt.Sprintf("Dienstplan-%d", scope.TenantID))
 	calendarOwner := api.MustNewSchoolCalendar(testpkg.NewDatabase(t, db))
-	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
+	workTime := owners.MustNewWorkforce(testpkg.NewDatabase(t, db))
 	repoFactoryPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	repoFactoryCalendar := api.NewSchoolCalendarSuiteRepositories(testpkg.NewDatabase(t, db))
 	// The same composition the root builds, with the materializer's calendar
@@ -51,12 +52,12 @@ func setupSeriesTest(t *testing.T) *seriesTestEnv {
 	exceptionRows := planning.NewShiftSeriesExceptionRows(workTime)
 	shiftTypes := planning.NewShiftTypeService(planning.NewShiftTypeRows(workTime), slog.Default())
 	lockStaffShifts := workforceCompose.NewStaffShiftLock(db)
-	shifts := planning.NewStaffShiftService(shiftRows, api.NewPlanStaffDirectory(repoFactoryPeople.Staff), shiftTypes, lockStaffShifts, slog.Default(),
+	shifts := planning.NewStaffShiftService(shiftRows, owners.NewPlanStaffDirectory(repoFactoryPeople.Staff), shiftTypes, lockStaffShifts, slog.Default(),
 		planning.WithStaffShiftSeriesExceptions(exceptionRows),
-		planning.WithStaffShiftDeviationEvents(api.NewShiftMoveAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DeviationEvent)),
+		planning.WithStaffShiftDeviationEvents(owners.NewShiftMoveAudit(owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DeviationEvent)),
 	)
 	series := planning.NewStaffShiftSeriesService(
-		seriesRows, exceptionRows, shiftRows, api.NewPlanStaffDirectory(repoFactoryPeople.Staff), planning.SchoolCalendarPeriods(calendarOwner),
+		seriesRows, exceptionRows, shiftRows, owners.NewPlanStaffDirectory(repoFactoryPeople.Staff), planning.SchoolCalendarPeriods(calendarOwner),
 		shiftTypes, lockStaffShifts, slog.Default(), shifts,
 		planning.WithStaffShiftSeriesToday(today),
 	)
@@ -819,20 +820,20 @@ func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
 
 	queryCounter := testpkg.NewQueryCounter()
 	countedDB := env.db.WithQueryHook(queryCounter)
-	rooms := api.MustNewUnobservedRooms(testpkg.NewDatabase(t, countedDB))
-	countedDependenciesWorkforce := api.MustNewWorkforce(testpkg.NewDatabase(t, countedDB))
+	rooms := owners.MustNewUnobservedRooms(testpkg.NewDatabase(t, countedDB))
+	countedDependenciesWorkforce := owners.MustNewWorkforce(testpkg.NewDatabase(t, countedDB))
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, countedDB))
 	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(countedDB))
 	countedShifts := planning.NewShiftRows(countedDependenciesWorkforce)
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
-		Shifts: countedShifts, ShiftWeeks: countedShifts,
+		Shifts:    countedShifts,
 		Instances: timetableRepos.InstanceReads(), InstanceStaff: timetableRepos.InstanceStaffReads(),
-		Rooms: api.NewTimetableRoomNames(rooms), Staff: api.NewPlanStaffDirectory(repos.Staff),
-		WorkSchedules: countedDependenciesWorkforce, WorkModels: countedDependenciesWorkforce,
+		Rooms: owners.NewTimetableRoomNames(rooms), Staff: owners.NewPlanStaffDirectory(repos.Staff),
+		PlanningProfiles: countedDependenciesWorkforce, WorkSchedules: countedDependenciesWorkforce, WorkModels: countedDependenciesWorkforce,
 	})
 
 	weekFrom := today.AddDays(1)
-	overview, err := service.GetOverview(env.scope.Context(), weekFrom, weekFrom.AddDays(6))
+	overview, err := testpkg.MeasuredTenantQuery2(t, env.scope.Context(), countedDB, queryCounter, service.GetOverview, weekFrom, weekFrom.AddDays(6))
 	require.NoError(t, err)
 	// A shift-only week (no timetable assignments) resolves in 5 fixed
 	// batched reads — below the 7 of a fully populated active week, because

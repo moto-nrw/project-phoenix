@@ -7,7 +7,7 @@ const registry = JSON.parse(
 );
 const locales = JSON.parse(
   await readFile(
-    new URL("../../backend/localization/locales.json", import.meta.url),
+    new URL("../../backend/modules/delivery/internal/adapters/localization/locales.json", import.meta.url),
     "utf8",
   ),
 );

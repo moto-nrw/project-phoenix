@@ -28,7 +28,7 @@ func NewOperatorMFA(service *Service, store ports.OperatorMFAStore) *OperatorMFA
 }
 
 func (m *OperatorMFA) run(ctx context.Context, operation string, fn func(context.Context, *domain.OperationStats) error) error {
-	return m.service.run(ctx, m.service.tx.RunPlatform, operation, fn)
+	return m.service.run(ctx, m.service.tx.RunAdmin, operation, fn)
 }
 
 func (m *OperatorMFA) FindCredential(ctx context.Context, operatorID int64) (result domain.OperatorMFACredential, err error) {

@@ -4,18 +4,19 @@ import (
 	"context"
 	"testing"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
 	provider "github.com/SherClockHolmes/webpush-go"
-	"github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSendPushRejectsUntrustedEndpoint(t *testing.T) {
 	t.Parallel()
-	sender := New(delivery.WebPushConfig{Subscriber: "mailto:push@example.test", PublicKey: "public", PrivateKey: "private"}, nil)
+	sender := New(deliveryContract.WebPushConfig{Subscriber: "mailto:push@example.test", PublicKey: "public", PrivateKey: "private"}, nil)
 
-	_, err := sender.SendPush(context.Background(), delivery.ClaimedIntent{
-		PushRecipient: delivery.PushRecipient{Endpoint: "https://127.0.0.1/internal"},
+	_, err := sender.SendPush(context.Background(), deliveryContract.ClaimedIntent{
+		PushRecipient: deliveryContract.PushRecipient{Endpoint: "https://127.0.0.1/internal"},
 	})
 
 	require.Error(t, err)

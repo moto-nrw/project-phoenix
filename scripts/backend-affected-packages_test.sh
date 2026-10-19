@@ -315,7 +315,7 @@ for pattern in \
 done
 for pattern in \
   'backend/templates/email/**' \
-  'backend/localization/locales.json' \
+  'backend/modules/delivery/internal/adapters/localization/locales.json' \
   'backend/services/listexport/assets/**'; do
   assert_workflow_filter backend-tests "$pattern" present
   assert_workflow_filter backend-production "$pattern" present

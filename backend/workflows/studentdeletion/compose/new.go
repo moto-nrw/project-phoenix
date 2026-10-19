@@ -4,16 +4,10 @@ package compose
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/timetableprojection"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	"github.com/uptrace/bun"
 )
@@ -74,146 +68,7 @@ type AuditLog interface {
 	Append(context.Context, any) error
 }
 
-// Authorize applies the tenant-portal permission boundary: a tenant principal
-// of the current tenant holding users:delete who is an administrator or a
-// verified staff member. The HTTP adapter additionally checks that the target
-// row exists before it reaches the workflow.
-func Authorize(ctx context.Context, isVerifiedStaff func(context.Context) (bool, error)) (studentdeletion.Actor, error) {
-	principal, err := permissions.PrincipalFromContext(ctx)
-	if err != nil || principal.Scope() != permissions.ScopeTenant ||
-		principal.TenantID() != tenant.FromContext(ctx) || !principal.HasPermission(permissions.UsersDelete) {
-		return studentdeletion.Actor{}, studentdeletion.ErrUnauthorized
-	}
-	if !principal.HasAdminScope() {
-		staff, err := isVerifiedStaff(ctx)
-		if err != nil || !staff {
-			return studentdeletion.Actor{}, studentdeletion.ErrUnauthorized
-		}
-	}
-	return studentdeletion.Actor{TenantID: principal.TenantID(), AccountID: principal.AccountID()}, nil
-}
-
-func ambientTransaction(ctx context.Context) (bun.IDB, int64) {
-	value, ok := tenant.TransactionFromContext(ctx)
-	if !ok {
-		return nil, 0
-	}
-	tx, ok := value.(bun.Tx)
-	if !ok {
-		return nil, 0
-	}
-	return tx, tenant.FromContext(ctx)
-}
-
-// New constructs only the required owner capabilities, without a factory.
-func New(deps Dependencies) (*studentdeletion.Workflow, error) {
-	assembled, err := Assemble(deps)
-	if err != nil {
-		return nil, err
-	}
-	return studentdeletion.New(assembled)
-}
-
-// Assemble binds the workflow ports without constructing the workflow, so a
-// test can wrap one owner command and still run every other owner for real.
-func Assemble(deps Dependencies) (studentdeletion.Dependencies, error) {
-	for name, missing := range map[string]bool{
-		"database": deps.DB == nil, "people directory": deps.Directory == nil, "care plan": deps.CarePlan == nil,
-		"timetable": deps.Timetable == nil, "feedback": deps.Feedback == nil,
-		"staff verification": deps.IsVerifiedStaff == nil, "care booking lock": deps.LockCareBookingWrites == nil,
-		"school structure": deps.Owners.Structure == nil, "conversations": deps.Owners.Conversations == nil,
-		"enrollment": deps.Owners.Enrollment == nil, "attendance": deps.Owners.Attendance == nil,
-		"visits": deps.Owners.Visits == nil, "consents": deps.Owners.Consents == nil,
-		"appointments": deps.Owners.Appointments == nil, "guardian invitations": deps.Owners.GuardianInvitations == nil,
-		"audit": deps.Audit == nil && deps.Owners.Audit == nil, "deletion records": deps.Owners.DeletionRecords == nil,
-		"audit references": deps.Owners.AuditReferences == nil,
-	} {
-		if missing {
-			return studentdeletion.Dependencies{}, fmt.Errorf("student deletion composition: %s is required", name)
-		}
-	}
-	logger := deps.Logger
-	if logger == nil {
-		logger = slog.Default()
-	}
-	today := deps.Today
-	if today == nil {
-		today = func() string { return calendar.TodayDate().String() }
-	}
-	now := deps.Now
-	if now == nil {
-		now = time.Now
-	}
-	return studentdeletion.Dependencies{
-		UnitOfWork: tenant.NewTransactionRunner().RunInTx,
-		Authorize: func(ctx context.Context) (studentdeletion.Actor, error) {
-			return Authorize(ctx, deps.IsVerifiedStaff)
-		},
-		Today: today, Now: now,
-		Directory: deps.Directory, CarePlan: deps.CarePlan, Timetable: deps.Timetable, Structure: deps.Owners.Structure,
-		Conversations: deps.Owners.Conversations, Enrollment: deps.Owners.Enrollment,
-		CountAttendance: deps.Owners.Attendance,
-		CountVisits:     deps.Owners.Visits,
-		CountConsents:   deps.Owners.Consents,
-		CountActivityEnrollments: func(ctx context.Context, studentID int64) (int, error) {
-			db, tenantID := ambientTransaction(ctx)
-			if db == nil {
-				return 0, errors.New("student deletion: activity enrollment count requires a tenant transaction")
-			}
-			return timetableprojection.CountStudentEnrollments(ctx, db, tenantID, studentID)
-		},
-		CountAppointments:        deps.Owners.Appointments,
-		CountFeedback:            deps.Feedback.CountForStudent,
-		CountAuditReferences:     deps.Owners.AuditReferences,
-		CountGuardianInvitations: deps.Owners.GuardianInvitations,
-		LockCareBookingWrites:    deps.LockCareBookingWrites,
-		AppendAudit:              appendDeletionAudit(deps.Audit, deps.Owners),
-		PhotoRemoved: func(ctx context.Context, _ studentdeletion.Actor, path string) error {
-			if deps.UnlinkPhoto != nil {
-				return deps.UnlinkPhoto(ctx, path)
-			}
-			return nil
-		},
-		CompanionsChanged: func(ctx context.Context, actor studentdeletion.Actor, studentID int64) {
-			if deps.Broadcaster == nil {
-				return
-			}
-			// After the OUTER commit: an earlier subscriber would refetch the row.
-			tenant.RegisterAfterCommit(ctx, func() {
-				source := "manual"
-				event := realtime.NewEvent(realtime.EventStudentCompanionsChanged, "", realtime.EventData{Source: &source})
-				if err := deps.Broadcaster.BroadcastToTenant(actor.TenantID, event); err != nil {
-					logger.Warn("failed to broadcast student companions change",
-						"tenant_id", actor.TenantID,
-						"student_id", studentID,
-						"error", err.Error(),
-					)
-				}
-			})
-		},
-		Observe: func(event studentdeletion.Observation) {
-			logger.Debug("student deletion operation",
-				"operation", event.Operation,
-				"duration", event.Duration,
-				"student_id", event.Result.StudentID,
-				"error", event.Err,
-			)
-		},
-	}, nil
-}
-
-// appendDeletionAudit appends the deletion's audit records through audit,
-// or the Owners' command without one.
-func appendDeletionAudit(audit AuditLog, owners Owners) func(context.Context, studentdeletion.Actor, studentdeletion.Result) error {
-	if audit == nil {
-		audit = owners.Audit
-	}
-	return func(ctx context.Context, actor studentdeletion.Actor, result studentdeletion.Result) error {
-		for _, record := range owners.DeletionRecords(actor, result) {
-			if err := audit.Append(ctx, record); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
+// New constructs the workflow over the ports already bound by the root.
+func New(deps studentdeletion.Dependencies) (*studentdeletion.Workflow, error) {
+	return studentdeletion.New(deps)
 }

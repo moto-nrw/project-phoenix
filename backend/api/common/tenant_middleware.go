@@ -3,6 +3,7 @@ package common
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -240,7 +241,10 @@ func runRequestTransaction(
 		return nil
 	})
 
-	_, requestRollback := err.(*requestRollbackError)
+	var rollback *requestRollbackError
+	// Only the marker itself is expected. A wrapper or joined rollback
+	// failure must still replace the buffered response with a 500.
+	requestRollback := errors.As(err, &rollback) && errors.Is(rollback, err)
 	if err != nil && !requestRollback {
 		sw.reset()
 		RenderStatus(sw, r, http.StatusInternalServerError, "")

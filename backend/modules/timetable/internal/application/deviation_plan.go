@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -94,7 +94,7 @@ func (s *staffDeviations) loadDeviationReadSet(
 	if err != nil {
 		return nil, timetable.DeviationInternal("load staff failed", err)
 	}
-	rows, err := s.deps.InstanceStaff.FindByStaffIDsAndDate(ctx, staffIDs, scheduleModel.Date(date))
+	rows, err := s.deps.InstanceStaff.FindByStaffIDsAndDate(ctx, staffIDs, calendar.Date(date))
 	if err != nil {
 		return nil, timetable.DeviationInternal("load staff assignments failed", err)
 	}

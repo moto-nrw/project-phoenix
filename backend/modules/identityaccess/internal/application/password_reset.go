@@ -79,7 +79,7 @@ func NewPasswordReset(auth *AccountAuthentication, deps PasswordResetDependencie
 // account exists. The rate limit counts only requests that would send.
 func (r *PasswordReset) InitiatePasswordReset(ctx context.Context, email string, scope domain.PasswordResetScope) (*domain.PasswordResetToken, error) {
 	email = strings.TrimSpace(strings.ToLower(email))
-	account, found, _, err := r.logins.FindLoginAccountByEmail(ctx, email)
+	account, found, _, err := findLoginAccountByEmail(ctx, r.runtime, r.logins, email)
 	if err != nil {
 		// The answer stays neutral, but a failing lookup is an incident, not
 		// an unknown address: it must be visible in the logs.
@@ -152,6 +152,9 @@ func (r *PasswordReset) portalEligible(ctx context.Context, accountID int64, sco
 // checkRateLimit rejects a request while the window already holds the
 // threshold, and again after counting when this request crossed it.
 func (r *PasswordReset) checkRateLimit(ctx context.Context, email string) error {
+	return globalIdentityRead(ctx, r.runtime, func(txCtx context.Context) error { return r.checkRateLimitInTransaction(txCtx, email) })
+}
+func (r *PasswordReset) checkRateLimitInTransaction(ctx context.Context, email string) error {
 	if !r.rateLimitEnabled {
 		return nil
 	}
@@ -176,7 +179,13 @@ func (r *PasswordReset) checkRateLimit(ctx context.Context, email string) error 
 // password change, the spent link and the revocation of every session at
 // the account's schools commit together.
 func (r *PasswordReset) ResetPassword(ctx context.Context, token, newPassword string) error {
-	link, found, _, err := r.store.FindRedeemablePasswordResetToken(ctx, token, r.now())
+	var link domain.PasswordResetToken
+	var found bool
+	err := globalIdentityRead(ctx, r.runtime, func(txCtx context.Context) error {
+		var lookupErr error
+		link, found, _, lookupErr = r.store.FindRedeemablePasswordResetToken(txCtx, token, r.now())
+		return lookupErr
+	})
 	if err != nil || !found {
 		return failed("reset password", domain.ErrInvalidToken)
 	}
@@ -190,8 +199,12 @@ func (r *PasswordReset) ResetPassword(ctx context.Context, token, newPassword st
 	// The flow runs before authentication, so it holds the administrative
 	// transaction: the session revocation touches RLS-guarded auth.tokens.
 	err = r.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		if _, _, setErr := r.store.SetAccountPassword(txCtx, link.AccountID, hash); setErr != nil {
+		updated, _, setErr := r.store.SetAccountPassword(txCtx, link.AccountID, hash)
+		if setErr != nil {
 			return setErr
+		}
+		if !updated {
+			return domain.ErrInvalidToken
 		}
 		redeemed, _, redeemErr := r.store.RedeemPasswordResetToken(txCtx, link.ID)
 		if redeemErr != nil {
@@ -213,11 +226,19 @@ func (r *PasswordReset) ResetPassword(ctx context.Context, token, newPassword st
 
 // RecordPasswordResetDelivery stores the outcome of mailing a link.
 func (r *PasswordReset) RecordPasswordResetDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) error {
-	return recordPasswordResetDelivery(ctx, r.store, id, delivery)
+	return recordPasswordResetDelivery(ctx, r.runtime, r.store, id, delivery)
 }
 
 // DeleteSpentPasswordResetTokens removes expired and used links.
-func (r *PasswordReset) DeleteSpentPasswordResetTokens(ctx context.Context) (int, error) {
+func (r *PasswordReset) DeleteSpentPasswordResetTokens(ctx context.Context) (value0 int, err error) {
+	err = r.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+		value0, err = r.inUnitDeleteSpentPasswordResetTokens(txCtx)
+		return err
+	})
+	return
+}
+
+func (r *PasswordReset) inUnitDeleteSpentPasswordResetTokens(ctx context.Context) (int, error) {
 	deleted, _, err := r.store.DeleteSpentPasswordResetTokens(ctx, r.now())
 	if err != nil {
 		return 0, failed("cleanup expired password reset tokens", err)
@@ -226,7 +247,15 @@ func (r *PasswordReset) DeleteSpentPasswordResetTokens(ctx context.Context) (int
 }
 
 // DeleteStalePasswordResetWindows removes rate-limit windows older than a day.
-func (r *PasswordReset) DeleteStalePasswordResetWindows(ctx context.Context) (int, error) {
+func (r *PasswordReset) DeleteStalePasswordResetWindows(ctx context.Context) (value0 int, err error) {
+	err = r.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+		value0, err = r.inUnitDeleteStalePasswordResetWindows(txCtx)
+		return err
+	})
+	return
+}
+
+func (r *PasswordReset) inUnitDeleteStalePasswordResetWindows(ctx context.Context) (int, error) {
 	deleted, _, err := r.store.DeleteStalePasswordResetWindows(ctx, r.now().Add(-staleResetWindowAge))
 	if err != nil {
 		return 0, failed("cleanup password reset rate limits", err)

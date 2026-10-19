@@ -111,6 +111,7 @@ type adjustmentFreezeReader interface {
 }
 
 type staffBalanceAdjustmentService struct {
+	runInTx        func(context.Context, func(context.Context) error) error
 	todayFunc      func() calendar.Date
 	adjustmentRepo StaffBalanceAdjustmentRepository
 	monthService   WorkTimeMonthService
@@ -140,6 +141,9 @@ func NewStaffBalanceAdjustmentService(
 	}
 	for _, opt := range opts {
 		opt(service)
+	}
+	if service.runInTx != nil {
+		return &adjustmentCommands{service, service}
 	}
 	return service
 }
@@ -485,11 +489,6 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 	return adjustment, nil
 }
 
-// CreateOpeningBalance writes the go-live opening booking (#2132): a signed
-// rebaseline that turns the closing balance as of effectiveDate into
-// balanceMinutes. Unlike ResetBalance there is no lower bound and no
-// reduction-capacity check — a migrated account legitimately starts negative
-// when the staff member owed hours in the previous system.
 func (s *staffBalanceAdjustmentService) CreateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate calendar.Date, balanceMinutes int, note string) (*StaffBalanceAdjustment, error) {
 	delta, err := s.validateOpeningBalance(ctx, staffID, decidedBy, effectiveDate, balanceMinutes, note, true)
 	if err != nil {
@@ -522,10 +521,6 @@ func (s *staffBalanceAdjustmentService) CreateOpeningBalance(ctx context.Context
 	return adjustment, nil
 }
 
-// ValidateOpeningBalance runs the read-only booking guards used by
-// CreateOpeningBalance. It deliberately does not take the transaction-scoped
-// staff lock: bulk imports validate every uploaded row before their sorted
-// creation pass, and file-order locks here could deadlock concurrent imports.
 func (s *staffBalanceAdjustmentService) ValidateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate calendar.Date, balanceMinutes int, note string) error {
 	_, err := s.validateOpeningBalance(ctx, staffID, decidedBy, effectiveDate, balanceMinutes, note, false)
 	return err
@@ -665,4 +660,9 @@ func (s *staffBalanceAdjustmentService) getLogger() *slog.Logger {
 		return slog.Default()
 	}
 	return s.logger
+}
+
+type adjustmentCommands struct {
+	StaffBalanceAdjustmentService
+	commands *staffBalanceAdjustmentService
 }

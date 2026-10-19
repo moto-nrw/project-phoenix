@@ -6,9 +6,10 @@ import (
 	"maps"
 	"slices"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -17,8 +18,8 @@ import (
 type proposal struct {
 	request    SubmitRequest
 	selections [][]selection.Selection
-	phase      *enrollment.Phase
-	offerings  map[int64]*enrollmentModels.CareOffering
+	phase      *enrollmentNative.Phase
+	offerings  map[int64]*offeringContract.CareOfferingRecord
 }
 
 // proposalOptions tune prepareProposed to its two callers. Creation locks the
@@ -32,7 +33,7 @@ type proposalOptions struct {
 // prepareProposed validates a proposal the way a submission is validated —
 // capabilities, offerings, classes, eligibility, guardians, consents and form
 // fields — and returns it normalized. Creation and approval both run it.
-func (s *ChangeRequests) prepareProposed(ctx context.Context, req *enrollmentModels.Request, children []*RequestChild, incoming SubmitRequest, capabilities enrollment.FormCapabilities, allowStoredHiddenOfferings, lockTakenOverChildren bool) (*proposal, error) {
+func (s *ChangeRequests) prepareProposed(ctx context.Context, req *Request, children []*RequestChild, incoming SubmitRequest, capabilities enrollmentNative.FormCapabilities, allowStoredHiddenOfferings, lockTakenOverChildren bool) (*proposal, error) {
 	opts := proposalOptions{allowStoredHiddenOfferings: allowStoredHiddenOfferings, lockTakenOverChildren: lockTakenOverChildren}
 	editReq, err := s.bindProposal(ctx, req, children, incoming, opts)
 	if err != nil {
@@ -49,7 +50,7 @@ func (s *ChangeRequests) prepareProposed(ctx context.Context, req *enrollmentMod
 		return nil, err
 	}
 	if err != nil || phase == nil || !phase.IsActive {
-		return nil, enrollment.ErrEnrollmentDisabled
+		return nil, enrollmentNative.ErrEnrollmentDisabled
 	}
 	prepared := &proposal{phase: phase}
 	capabilities, err = s.materializeProposal(ctx, &editReq, children, capabilities, opts, prepared)
@@ -66,7 +67,7 @@ func (s *ChangeRequests) prepareProposed(ctx context.Context, req *enrollmentMod
 // bindProposal binds the incoming payload to the stored request, pins the
 // children's identities and, on creation, keeps every child taken over into
 // care exactly as stored.
-func (s *ChangeRequests) bindProposal(ctx context.Context, req *enrollmentModels.Request, children []*RequestChild, incoming SubmitRequest, opts proposalOptions) (SubmitRequest, error) {
+func (s *ChangeRequests) bindProposal(ctx context.Context, req *Request, children []*RequestChild, incoming SubmitRequest, opts proposalOptions) (SubmitRequest, error) {
 	editReq := incoming
 	editReq.TenantID, editReq.PhaseID = req.TenantID, req.PhaseID
 	editReq.GuardianEmail, editReq.GuardianAccountID = req.GuardianEmail, req.GuardianAccountID
@@ -77,7 +78,7 @@ func (s *ChangeRequests) bindProposal(ctx context.Context, req *enrollmentModels
 		editReq.CustomData = map[string]any{}
 	}
 	if len(editReq.Children) != len(children) {
-		return editReq, fmt.Errorf("%w: child count changes are not supported for change requests", enrollment.ErrChangeRequestInvalidData)
+		return editReq, fmt.Errorf("%w: child count changes are not supported for change requests", enrollmentNative.ErrChangeRequestInvalidData)
 	}
 	if err := validateChangeRequestChildIdentity(children, editReq.Children); err != nil {
 		return editReq, err
@@ -92,7 +93,7 @@ func (s *ChangeRequests) bindProposal(ctx context.Context, req *enrollmentModels
 
 // keepTakenOverChildren refuses a proposal that changes a child already taken
 // over into care and pins those children to their stored data.
-func (s *ChangeRequests) keepTakenOverChildren(ctx context.Context, req *enrollmentModels.Request, children []*RequestChild, editReq *SubmitRequest) error {
+func (s *ChangeRequests) keepTakenOverChildren(ctx context.Context, req *Request, children []*RequestChild, editReq *SubmitRequest) error {
 	persisted, err := s.currentSnapshot(ctx, req, children)
 	if err != nil {
 		return err
@@ -122,10 +123,10 @@ func clearHiddenProposalOfferings(editReq *SubmitRequest) {
 // materializeProposal loads the catalog each child may book — the open
 // offerings plus the ones it holds now — and materializes the picks, or,
 // with care offerings off, restores the bookings in force.
-func (s *ChangeRequests) materializeProposal(ctx context.Context, editReq *SubmitRequest, children []*RequestChild, capabilities enrollment.FormCapabilities, opts proposalOptions, prepared *proposal) (enrollment.FormCapabilities, error) {
-	prepared.offerings = map[int64]*enrollmentModels.CareOffering{}
-	var catalogs []map[int64]*enrollmentModels.CareOffering
-	openOfferings := []*enrollmentModels.CareOffering{}
+func (s *ChangeRequests) materializeProposal(ctx context.Context, editReq *SubmitRequest, children []*RequestChild, capabilities enrollmentNative.FormCapabilities, opts proposalOptions, prepared *proposal) (enrollmentNative.FormCapabilities, error) {
+	prepared.offerings = map[int64]*offeringContract.CareOfferingRecord{}
+	var catalogs []map[int64]*offeringContract.CareOfferingRecord
+	openOfferings := []*offeringContract.CareOfferingRecord{}
 	if capabilities.CareOfferingsEnabled {
 		var err error
 		if openOfferings, err = s.deps.Offerings.ListActiveByPhase(ctx, prepared.phase.ID); err != nil {
@@ -159,7 +160,7 @@ func (s *ChangeRequests) restoreProposalOfferings(ctx context.Context, editReq *
 	for _, child := range children {
 		childIDs = append(childIDs, child.ID)
 	}
-	existingLinks, err := enrollment.OfferingSelectionRecordsForChildrenAt(ctx, s.deps.Children, childIDs, s.intake.currentOfferingSelectionDate(prepared.phase))
+	existingLinks, err := enrollmentNative.OfferingSelectionRecordsForChildrenAt(ctx, s.deps.Children, childIDs, s.intake.currentOfferingSelectionDate(prepared.phase))
 	if err != nil {
 		return fmt.Errorf("change request: preserve child offerings: %w", err)
 	}
@@ -170,7 +171,7 @@ func (s *ChangeRequests) restoreProposalOfferings(ctx context.Context, editReq *
 
 // validateProposal checks the proposal like a submission and sanitizes its
 // answers over the stored ones.
-func (s *ChangeRequests) validateProposal(ctx context.Context, req *enrollmentModels.Request, editReq *SubmitRequest, children []*RequestChild, capabilities enrollment.FormCapabilities, opts proposalOptions, prepared *proposal) error {
+func (s *ChangeRequests) validateProposal(ctx context.Context, req *Request, editReq *SubmitRequest, children []*RequestChild, capabilities enrollmentNative.FormCapabilities, opts proposalOptions, prepared *proposal) error {
 	schema, err := s.schemaForRequest(ctx, req)
 	if err != nil {
 		return err
@@ -208,7 +209,7 @@ func (s *ChangeRequests) validateProposal(ctx context.Context, req *enrollmentMo
 // proper subset of the offered ones — and the enrolled-status gate of the
 // children whose identity the proposal rewrites (#1663). Trusted-source and
 // rollover-generated requests keep the exemption their creation had.
-func (s *ChangeRequests) validateProposalEligibility(ctx context.Context, req *enrollmentModels.Request, editReq SubmitRequest, children []*RequestChild, phase *enrollment.Phase, opts proposalOptions) error {
+func (s *ChangeRequests) validateProposalEligibility(ctx context.Context, req *Request, editReq SubmitRequest, children []*RequestChild, phase *enrollmentNative.Phase, opts proposalOptions) error {
 	if isTrustedEnrollmentSource(req.SubmissionSource) || hasRolloverGeneratedChild(children) {
 		return nil
 	}
@@ -226,7 +227,7 @@ func (s *ChangeRequests) validateProposalEligibility(ctx context.Context, req *e
 // to the children whose submitted identity the proposal rewrites. An
 // unchanged child is skipped: its own approval may have created the matching
 // student, and probing it would refuse every later change request (#1663).
-func (s *ChangeRequests) validateChangedChildIdentityEligibility(ctx context.Context, phase *enrollment.Phase, editReq SubmitRequest, children []*RequestChild) error {
+func (s *ChangeRequests) validateChangedChildIdentityEligibility(ctx context.Context, phase *enrollmentNative.Phase, editReq SubmitRequest, children []*RequestChild) error {
 	for i := range editReq.Children {
 		if i < len(children) && sameSubmittedIdentity(children[i], editReq.Children[i]) {
 			continue
@@ -238,7 +239,7 @@ func (s *ChangeRequests) validateChangedChildIdentityEligibility(ctx context.Con
 	return nil
 }
 
-func mergeProposalAnswers(schema *enrollment.FormSchema, editReq *SubmitRequest, storedGuardianData map[string]any, children []*RequestChild, offerings map[int64]*enrollmentModels.CareOffering, skipTakenOver bool) {
+func mergeProposalAnswers(schema *enrollmentNative.FormSchema, editReq *SubmitRequest, storedGuardianData map[string]any, children []*RequestChild, offerings map[int64]*offeringContract.CareOfferingRecord, skipTakenOver bool) {
 	byKey := buildFieldsByKey(schema)
 	rawGuardian := editReq.CustomData
 	existingCustomData := existingChildCustomDataBySubmittedIdentity(children, editReq.Children)
@@ -259,7 +260,7 @@ func mergeProposalAnswers(schema *enrollment.FormSchema, editReq *SubmitRequest,
 // changeRequestOfferingCatalogs returns each child's catalog — the open
 // offerings plus the ones it holds on the given day, even if deactivated —
 // and all of them combined.
-func (s *ChangeRequests) changeRequestOfferingCatalogs(ctx context.Context, children []*RequestChild, openByID map[int64]*enrollmentModels.CareOffering, onDate calendar.Date) ([]map[int64]*enrollmentModels.CareOffering, map[int64]*enrollmentModels.CareOffering, error) {
+func (s *ChangeRequests) changeRequestOfferingCatalogs(ctx context.Context, children []*RequestChild, openByID map[int64]*offeringContract.CareOfferingRecord, onDate calendar.Date) ([]map[int64]*offeringContract.CareOfferingRecord, map[int64]*offeringContract.CareOfferingRecord, error) {
 	childIDs := make([]int64, 0, len(children))
 	childIndexByID := make(map[int64]int, len(children))
 	for i, child := range children {
@@ -269,7 +270,7 @@ func (s *ChangeRequests) changeRequestOfferingCatalogs(ctx context.Context, chil
 		childIDs = append(childIDs, child.ID)
 		childIndexByID[child.ID] = i
 	}
-	links, err := enrollment.OfferingSelectionRecordsForChildrenAt(ctx, s.deps.Children, childIDs, onDate)
+	links, err := enrollmentNative.OfferingSelectionRecordsForChildrenAt(ctx, s.deps.Children, childIDs, onDate)
 	if err != nil {
 		return nil, nil, fmt.Errorf("change request: load current child offerings: %w", err)
 	}
@@ -278,7 +279,7 @@ func (s *ChangeRequests) changeRequestOfferingCatalogs(ctx context.Context, chil
 	if err != nil {
 		return nil, nil, err
 	}
-	catalogs := make([]map[int64]*enrollmentModels.CareOffering, len(children))
+	catalogs := make([]map[int64]*offeringContract.CareOfferingRecord, len(children))
 	for i := range children {
 		catalog := maps.Clone(openByID)
 		for id := range currentByChild[i] {
@@ -293,7 +294,7 @@ func (s *ChangeRequests) changeRequestOfferingCatalogs(ctx context.Context, chil
 
 // heldOfferingsByChild groups the held offerings by child index and collects
 // the held offerings the open catalog lacks.
-func heldOfferingsByChild(links []*enrollment.RequestChildOfferingRecord, childIndexByID map[int64]int, childCount int, openByID map[int64]*enrollmentModels.CareOffering) ([]map[int64]bool, map[int64]bool) {
+func heldOfferingsByChild(links []*enrollmentNative.RequestChildOfferingRecord, childIndexByID map[int64]int, childCount int, openByID map[int64]*offeringContract.CareOfferingRecord) ([]map[int64]bool, map[int64]bool) {
 	currentIDs := make(map[int64]bool)
 	currentByChild := make([]map[int64]bool, childCount)
 	for _, link := range links {
@@ -317,10 +318,10 @@ func heldOfferingsByChild(links []*enrollment.RequestChildOfferingRecord, childI
 
 // combinedOfferingCatalog adds the currently held, inactive offerings to the
 // open ones.
-func (s *ChangeRequests) combinedOfferingCatalog(ctx context.Context, openByID map[int64]*enrollmentModels.CareOffering, currentIDs map[int64]bool) (map[int64]*enrollmentModels.CareOffering, error) {
+func (s *ChangeRequests) combinedOfferingCatalog(ctx context.Context, openByID map[int64]*offeringContract.CareOfferingRecord, currentIDs map[int64]bool) (map[int64]*offeringContract.CareOfferingRecord, error) {
 	combined := maps.Clone(openByID)
 	if combined == nil {
-		combined = map[int64]*enrollmentModels.CareOffering{}
+		combined = map[int64]*offeringContract.CareOfferingRecord{}
 	}
 	if len(currentIDs) == 0 {
 		return combined, nil
@@ -339,13 +340,13 @@ func (s *ChangeRequests) combinedOfferingCatalog(ctx context.Context, openByID m
 
 // materializeChangeRequestChildren validates each child's picks against its
 // own catalog. On creation, children taken over into care are skipped.
-func materializeChangeRequestChildren(children []SubmitChild, existing []*RequestChild, catalogs []map[int64]*enrollmentModels.CareOffering, selectionMode string, skipTakenOver bool) ([][]selection.Selection, error) {
+func materializeChangeRequestChildren(children []SubmitChild, existing []*RequestChild, catalogs []map[int64]*offeringContract.CareOfferingRecord, selectionMode string, skipTakenOver bool) ([][]selection.Selection, error) {
 	out := make([][]selection.Selection, len(children))
 	for i := range children {
 		if skipTakenOver && i < len(existing) && childTakenOver(existing[i]) {
 			continue
 		}
-		catalog := map[int64]*enrollmentModels.CareOffering{}
+		catalog := map[int64]*offeringContract.CareOfferingRecord{}
 		if i < len(catalogs) && catalogs[i] != nil {
 			catalog = catalogs[i]
 		}
@@ -354,7 +355,7 @@ func materializeChangeRequestChildren(children []SubmitChild, existing []*Reques
 			return nil, err
 		}
 		if i < len(existing) && existing[i] == nil {
-			return nil, fmt.Errorf("%w: child %d missing existing row", enrollment.ErrChangeRequestInvalidData, i)
+			return nil, fmt.Errorf("%w: child %d missing existing row", enrollmentNative.ErrChangeRequestInvalidData, i)
 		}
 		out[i] = selections
 	}
@@ -372,7 +373,7 @@ func mutableChangeRequestChildren(submitted []SubmitChild, existing []*RequestCh
 	return mutable
 }
 
-func normalizeChangeRequestChildren(req *SubmitRequest, existing []*RequestChild, capabilities enrollment.FormCapabilities, skipTakenOver bool) error {
+func normalizeChangeRequestChildren(req *SubmitRequest, existing []*RequestChild, capabilities enrollmentNative.FormCapabilities, skipTakenOver bool) error {
 	for i := range req.Children {
 		if skipTakenOver && i < len(existing) && childTakenOver(existing[i]) {
 			continue
@@ -386,7 +387,7 @@ func normalizeChangeRequestChildren(req *SubmitRequest, existing []*RequestChild
 	return nil
 }
 
-func (s *ChangeRequests) normalizeChangeRequestSchoolClasses(ctx context.Context, phase *enrollment.Phase, req *SubmitRequest, existing []*RequestChild, skipTakenOver bool) error {
+func (s *ChangeRequests) normalizeChangeRequestSchoolClasses(ctx context.Context, phase *enrollmentNative.Phase, req *SubmitRequest, existing []*RequestChild, skipTakenOver bool) error {
 	for i := range req.Children {
 		if skipTakenOver && i < len(existing) && childTakenOver(existing[i]) {
 			continue
@@ -426,7 +427,7 @@ func applyPreservedOfferingSelections(children []SubmitChild, selections [][]sel
 	}
 }
 
-func (s *ChangeRequests) schemaForRequest(ctx context.Context, req *enrollmentModels.Request) (*enrollment.FormSchema, error) {
+func (s *ChangeRequests) schemaForRequest(ctx context.Context, req *Request) (*enrollmentNative.FormSchema, error) {
 	if req.SchemaID == nil {
 		return nil, nil
 	}
@@ -437,7 +438,7 @@ func (s *ChangeRequests) schemaForRequest(ctx context.Context, req *enrollmentMo
 	return schema, nil
 }
 
-func (s *ChangeRequests) legalBlocksForRequest(ctx context.Context, schema *enrollment.FormSchema) ([]enrollment.LegalBlock, error) {
+func (s *ChangeRequests) legalBlocksForRequest(ctx context.Context, schema *enrollmentNative.FormSchema) ([]enrollmentNative.LegalBlock, error) {
 	texts, err := s.intake.legalTexts(ctx)
 	if err != nil {
 		return nil, err
@@ -447,14 +448,14 @@ func (s *ChangeRequests) legalBlocksForRequest(ctx context.Context, schema *enro
 
 func validateChangeRequestChildIdentity(existing []*RequestChild, incoming []SubmitChild) error {
 	if len(existing) != len(incoming) {
-		return fmt.Errorf("%w: child count changes are not supported for change requests", enrollment.ErrChangeRequestInvalidData)
+		return fmt.Errorf("%w: child count changes are not supported for change requests", enrollmentNative.ErrChangeRequestInvalidData)
 	}
 	for i, child := range existing {
 		if incoming[i].ID <= 0 {
-			return fmt.Errorf("%w: child %d id is required", enrollment.ErrChangeRequestInvalidData, i)
+			return fmt.Errorf("%w: child %d id is required", enrollmentNative.ErrChangeRequestInvalidData, i)
 		}
 		if incoming[i].ID != child.ID {
-			return fmt.Errorf("%w: child order or identity changes are not supported for change requests", enrollment.ErrChangeRequestInvalidData)
+			return fmt.Errorf("%w: child order or identity changes are not supported for change requests", enrollmentNative.ErrChangeRequestInvalidData)
 		}
 	}
 	return nil

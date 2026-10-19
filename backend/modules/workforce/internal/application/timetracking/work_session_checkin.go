@@ -11,18 +11,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// CheckIn creates a new work session for the staff member.
-// Status must be explicitly chosen. Empty values are rejected so the caller
-// (HTTP handler or internal worker) cannot accidentally fall back to "present".
 func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*WorkSession, error) {
 	return s.checkIn(ctx, staffID, status, source, reason, true)
 }
 
-// CheckInOn is the day-pinned entry point of the kiosk, kept symmetric with
-// CheckOutOn. The pinned day no longer selects anything: the open-block guard
-// in checkIn scans every day (a block opened before Berlin midnight is still
-// open after it), and a session that is created fresh is filed on the day its
-// own stamp falls on — see checkIn.
 func (s *workSessionService) CheckInOn(ctx context.Context, staffID int64, _ calendar.Date, status, source, reason string) (*WorkSession, error) {
 	return s.checkIn(ctx, staffID, status, source, reason, true)
 }
@@ -40,10 +32,10 @@ func (s *workSessionService) CheckInOn(ctx context.Context, staffID int64, _ cal
 // from the date column.
 func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status, source, reason string, enforceDeviationGate bool) (*WorkSession, error) {
 	if status != WorkSessionStatusPresent && status != WorkSessionStatusHomeOffice {
-		return nil, fmt.Errorf("status must be 'present' or 'home_office'")
+		return nil, workforce.ErrSessionStatusInvalid
 	}
 	if source != WorkSessionSourceApp && source != WorkSessionSourceNFC {
-		return nil, fmt.Errorf("source must be 'app' or 'nfc'")
+		return nil, workforce.ErrSessionSourceInvalid
 	}
 	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, err
@@ -84,7 +76,7 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status,
 		}
 		expired, stale := ExpireStaleOpenBlock(sibling, now)
 		if !stale {
-			return nil, fmt.Errorf("already checked in")
+			return nil, workforce.ErrAlreadyCheckedIn
 		}
 		if err := s.closeStaleOpenBlock(ctx, sibling, *expired.CheckOutTime); err != nil {
 			return nil, err
@@ -224,8 +216,6 @@ func (s *workSessionService) plannedDayWindow(ctx context.Context, staffID int64
 	return start, end, ok, nil
 }
 
-// EnsureCheckedIn ensures a staff member is checked in, creating a session if needed.
-// `source` is forwarded to CheckIn so the channel is recorded faithfully.
 func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*WorkSession, error) {
 	// Check if already checked in. Across all days, like the check-in guard:
 	// a block that crossed Berlin midnight is still running, and starting a

@@ -21,7 +21,6 @@ const (
 	opHashPassword            = "hash password"
 )
 
-// CreateParentAccount creates a new parent account with a hashed password.
 func (l *AccountLifecycle) CreateParentAccount(ctx context.Context, email, username, password string) (domain.ParentAccount, error) {
 	username = strings.TrimSpace(username)
 
@@ -63,12 +62,10 @@ func (l *AccountLifecycle) findParentAccount(ctx context.Context, op string, id 
 	return account, nil
 }
 
-// GetParentAccountByID retrieves a parent account by ID.
 func (l *AccountLifecycle) GetParentAccountByID(ctx context.Context, id int64) (domain.ParentAccount, error) {
 	return l.findParentAccount(ctx, opGetParentAccount, id)
 }
 
-// GetParentAccountByEmail retrieves a parent account by email.
 func (l *AccountLifecycle) GetParentAccountByEmail(ctx context.Context, email string) (domain.ParentAccount, error) {
 	account, found, _, err := l.store.FindParentAccountByEmail(ctx, strings.TrimSpace(strings.ToLower(email)))
 	if err != nil {
@@ -80,8 +77,6 @@ func (l *AccountLifecycle) GetParentAccountByEmail(ctx context.Context, email st
 	return account, nil
 }
 
-// UpdateParentAccount writes e-mail, username and active flag. An empty
-// password hash keeps the stored one.
 func (l *AccountLifecycle) UpdateParentAccount(ctx context.Context, account domain.ParentAccount) error {
 	existing, err := l.findParentAccount(ctx, opUpdateParentAccount, account.ID)
 	if err != nil {
@@ -116,17 +111,14 @@ func (l *AccountLifecycle) setParentAccountActive(ctx context.Context, op string
 	return nil
 }
 
-// ActivateParentAccount activates a parent account.
 func (l *AccountLifecycle) ActivateParentAccount(ctx context.Context, id int64) error {
 	return l.setParentAccountActive(ctx, opActivateParentAccount, id, true)
 }
 
-// DeactivateParentAccount deactivates a parent account.
 func (l *AccountLifecycle) DeactivateParentAccount(ctx context.Context, id int64) error {
 	return l.setParentAccountActive(ctx, opDeactivateParentAccount, id, false)
 }
 
-// ListParentAccounts retrieves the parent accounts matching the filter.
 func (l *AccountLifecycle) ListParentAccounts(ctx context.Context, filter domain.ParentAccountFilter) ([]domain.ParentAccount, error) {
 	accounts, _, err := l.store.ListParentAccounts(ctx, filter)
 	if err != nil {

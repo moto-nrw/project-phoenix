@@ -13,6 +13,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -49,8 +50,8 @@ type cutoffServiceDeps struct {
 func newCutoffServiceDeps(t *testing.T) cutoffServiceDeps {
 	t.Helper()
 	var base parentportalcompose.Dependencies
-	pinToday := api.WithCareRequestToday(func() calendar.Date { return cutoffToday })
-	_, db, repos := buildPickupChangeServiceWithRequestOptions(t, []api.CareRequestOption{pinToday}, func(cfg *parentportalcompose.Dependencies) {
+	pinToday := owners.WithCareRequestToday(func() calendar.Date { return cutoffToday })
+	_, db, repos := buildPickupChangeServiceWithRequestOptions(t, []owners.CareRequestOption{pinToday}, func(cfg *parentportalcompose.Dependencies) {
 		base = *cfg
 	})
 	return cutoffServiceDeps{db: db, repos: repos, base: base}
@@ -59,10 +60,10 @@ func newCutoffServiceDeps(t *testing.T) cutoffServiceDeps {
 func (d cutoffServiceDeps) service(t *testing.T, settings parentService.SettingsService, now func() time.Time) *parentService.Portal {
 	t.Helper()
 	cfg := d.base
-	cfg.CareExceptions = api.NewParentCareExceptions(d.repos.CarePlan())
+	cfg.CareExceptions = owners.NewParentCareExceptions(d.repos.CarePlan())
 	cfg.Settings = settings
 	cfg.MealPlan = availableMealPlan(false)
-	cfg.StudentUpdates = api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster())
+	cfg.StudentUpdates = owners.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster())
 	cfg.Now = now
 	return parentportalcompose.New(cfg)
 }

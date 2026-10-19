@@ -72,7 +72,7 @@
     "source": "Local runs on the #2727 branch on 2026-09-27 against the local postgres-test server.",
     "sources": [
       "backend/modules/peopledirectory/internal/adapters/peoplepostgres/runtime.go",
-      "backend/modules/peopledirectory/compose/legacy_repository_runtime.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/modules/peopledirectory/compose/legacy_repository_runtime.go",
       "backend/modules/peopledirectory/compose/retained_repository_suites_test_helpers.go",
       "backend/api/people_repository_test_helpers.go",
       "backend/test/people_repository_vocabulary.go"

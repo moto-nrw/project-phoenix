@@ -11,10 +11,10 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -68,7 +68,7 @@ func TestDecisionService_RestoreWithdrawn_HappyPath(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, children, 2)
 	for _, child := range children {
-		assert.Equal(t, enrollmentModels.ChildStatusSubmitted, child.Status)
+		assert.Equal(t, capability.ChildStatusSubmitted, child.Status)
 		assert.Nil(t, child.ReviewedAt, "restored child must look un-reviewed")
 		assert.Nil(t, child.ReviewedBy)
 		assert.Nil(t, child.StatusReason)
@@ -99,7 +99,7 @@ func TestDecisionService_RestoreWithdrawn_TerminalSiblingUntouched(t *testing.T)
 
 	// Admin rejects the first child (terminal), then the parent withdraws
 	// the whole request — the withdraw skips the rejected child.
-	_, err := env.decision.Decide(ctx, enrollmentAPI.DecideInput{
+	_, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
 		RequestID:  reqID,
 		ChildID:    rejectedChildID,
 		Status:     capability.DecisionRejected,
@@ -118,13 +118,13 @@ func TestDecisionService_RestoreWithdrawn_TerminalSiblingUntouched(t *testing.T)
 	require.Len(t, children, 2)
 	for _, child := range children {
 		if child.ID == rejectedChildID {
-			assert.Equal(t, enrollmentModels.ChildStatusRejected, child.Status,
+			assert.Equal(t, capability.ChildStatusRejected, child.Status,
 				"pre-withdraw terminal child must stay untouched")
 			require.NotNil(t, child.ReviewedBy)
 			assert.Equal(t, env.creatorID, *child.ReviewedBy)
 			continue
 		}
-		assert.Equal(t, enrollmentModels.ChildStatusSubmitted, child.Status)
+		assert.Equal(t, capability.ChildStatusSubmitted, child.Status)
 		assert.Nil(t, child.ReviewedAt)
 	}
 
@@ -192,10 +192,10 @@ func TestDecisionService_RestoreWithdrawn_PhaseInactive(t *testing.T) {
 	require.NoError(t, env.requestSvc.Withdraw(ctx, result.Request.StatusToken, 0))
 
 	env.sourcePhase.IsActive = false
-	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().UpdatePhase, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
 	t.Cleanup(func() {
 		env.sourcePhase.IsActive = true
-		_ = env.repos.Enrollment().UpdatePhase(testpkg.Ctx(t), enrollmentAPI.OwnerPhaseForTest(env.sourcePhase))
+		_ = testpkg.TenantCommand1(t, testpkg.Ctx(t), env.db, env.repos.Enrollment().UpdatePhase, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase))
 	})
 
 	_, err := env.decision.RestoreWithdrawn(ctx, reqID, env.creatorID)
@@ -206,7 +206,7 @@ func TestDecisionService_RestoreWithdrawn_PhaseInactive(t *testing.T) {
 	children, listErr := enrollmentAPI.ReadOwnerRequestChildrenForTest(ctx, env.repos.Enrollment(), reqID)
 	require.NoError(t, listErr)
 	for _, child := range children {
-		assert.Equal(t, enrollmentModels.ChildStatusWithdrawn, child.Status)
+		assert.Equal(t, capability.ChildStatusWithdrawn, child.Status)
 	}
 }
 
@@ -222,7 +222,7 @@ func newRestoreDecisionServiceForRequestEnv(t *testing.T, env *requestTestEnv) e
 		Children:     repoFactory.Enrollment(),
 		Phases:       repoFactory.Enrollment(),
 		Offerings:    enrollmentCompose.NewCareOfferingRecords(repoFactoryCare.CarePlan),
-		Restorations: api.EnrollmentDecisionRestorations(repoFactoryAudit.EnrollmentRestorationAudit),
+		Restorations: owners.EnrollmentDecisionRestorations(repoFactoryAudit.EnrollmentRestorationAudit),
 		Logger:       slog.Default(),
 	}, nil)
 }
@@ -233,7 +233,7 @@ func TestDecisionService_RestoreWithdrawn_WaitlistsOverCapacityChildren(t *testi
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
+	setPhaseOverflowMode(t, env, capability.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 1)
 
 	// Family A takes the only slot, then withdraws.
@@ -242,7 +242,7 @@ func TestDecisionService_RestoreWithdrawn_WaitlistsOverCapacityChildren(t *testi
 	first.Children[0].OfferingIDs = []int64{offering.ID}
 	resA, err := env.svc.Submit(ctx, first)
 	require.NoError(t, err)
-	require.Equal(t, enrollmentModels.ChildStatusSubmitted, resA.Children[0].Status)
+	require.Equal(t, capability.ChildStatusSubmitted, resA.Children[0].Status)
 	require.NoError(t, env.svc.Withdraw(ctx, resA.Request.StatusToken, 0))
 
 	// Family B claims the freed slot in the meantime.
@@ -252,7 +252,7 @@ func TestDecisionService_RestoreWithdrawn_WaitlistsOverCapacityChildren(t *testi
 	second.Children[0].OfferingIDs = []int64{offering.ID}
 	resB, err := env.svc.Submit(ctx, second)
 	require.NoError(t, err)
-	require.Equal(t, enrollmentModels.ChildStatusSubmitted, resB.Children[0].Status)
+	require.Equal(t, capability.ChildStatusSubmitted, resB.Children[0].Status)
 
 	decision := newRestoreDecisionServiceForRequestEnv(t, env)
 	outcome, err := decision.RestoreWithdrawn(ctx, resA.Request.ID, env.creatorID)
@@ -265,7 +265,7 @@ func TestDecisionService_RestoreWithdrawn_WaitlistsOverCapacityChildren(t *testi
 	children, err := enrollmentAPI.ReadOwnerRequestChildrenForTest(ctx, repoFactory.Enrollment(), resA.Request.ID)
 	require.NoError(t, err)
 	require.Len(t, children, 1)
-	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, children[0].Status)
+	assert.Equal(t, capability.ChildStatusWaitlisted, children[0].Status)
 	assert.Nil(t, children[0].ReviewedAt)
 	assert.Nil(t, children[0].ReviewedBy)
 
@@ -273,7 +273,7 @@ func TestDecisionService_RestoreWithdrawn_WaitlistsOverCapacityChildren(t *testi
 	othersChildren, err := enrollmentAPI.ReadOwnerRequestChildrenForTest(ctx, repoFactory.Enrollment(), resB.Request.ID)
 	require.NoError(t, err)
 	require.Len(t, othersChildren, 1)
-	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, othersChildren[0].Status)
+	assert.Equal(t, capability.ChildStatusSubmitted, othersChildren[0].Status)
 }
 
 func TestDecisionService_RestoreWithdrawn_FreeSlotComesBackSubmitted(t *testing.T) {
@@ -282,7 +282,7 @@ func TestDecisionService_RestoreWithdrawn_FreeSlotComesBackSubmitted(t *testing.
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
+	setPhaseOverflowMode(t, env, capability.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 1)
 
 	first := validSubmission(t, env.phaseID)
@@ -303,7 +303,7 @@ func TestDecisionService_RestoreWithdrawn_FreeSlotComesBackSubmitted(t *testing.
 	children, err := enrollmentAPI.ReadOwnerRequestChildrenForTest(ctx, api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, env.db)).Enrollment(), resA.Request.ID)
 	require.NoError(t, err)
 	require.Len(t, children, 1)
-	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, children[0].Status)
+	assert.Equal(t, capability.ChildStatusSubmitted, children[0].Status)
 }
 
 // setOfferingInterval stamps a dated validity interval on a child's
@@ -332,7 +332,7 @@ func TestDecisionService_RestoreWithdrawn_DisjointIntervalNotWaitlisted(t *testi
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
+	setPhaseOverflowMode(t, env, capability.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 1)
 	splitDate := calendar.NewDate(2027, 2, 1)
 
@@ -364,7 +364,7 @@ func TestDecisionService_RestoreWithdrawn_DisjointIntervalNotWaitlisted(t *testi
 	children, err := enrollmentAPI.ReadOwnerRequestChildrenForTest(ctx, api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, env.db)).Enrollment(), resA.Request.ID)
 	require.NoError(t, err)
 	require.Len(t, children, 1)
-	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, children[0].Status)
+	assert.Equal(t, capability.ChildStatusSubmitted, children[0].Status)
 }
 
 // TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity pins
@@ -379,7 +379,7 @@ func TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity(t *t
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
+	setPhaseOverflowMode(t, env, capability.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 2)
 	overlapFrom := calendar.NewDate(2027, 1, 1)
 	overlapUntil := calendar.NewDate(2027, 3, 1)
@@ -407,7 +407,7 @@ func TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity(t *t
 	// either interval fits alone but the overlap cannot.
 	one := 1
 	offering.Capacity = &one
-	require.NoError(t, newCareOfferingFixtures(api.NewEnrollmentFlowCarePlanRows(testpkg.NewDatabase(t, env.db)).CarePlan).Update(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(owners.NewEnrollmentFlowCarePlanRows(testpkg.NewDatabase(t, env.db)).CarePlan).Update(ctx, offering))
 
 	decision := newRestoreDecisionServiceForRequestEnv(t, env)
 	outcome, err := decision.RestoreWithdrawn(ctx, res.Request.ID, env.creatorID)
@@ -424,8 +424,8 @@ func TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity(t *t
 		statuses[child.Status]++
 	}
 	assert.Equal(t, map[string]int{
-		enrollmentModels.ChildStatusSubmitted:  1,
-		enrollmentModels.ChildStatusWaitlisted: 1,
+		capability.ChildStatusSubmitted:  1,
+		capability.ChildStatusWaitlisted: 1,
 	}, statuses)
 }
 
@@ -435,7 +435,7 @@ func TestDecisionService_RestoreWithdrawn_RejectModeFailsWhenFull(t *testing.T) 
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowReject)
+	setPhaseOverflowMode(t, env, capability.PhaseCareOverflowReject)
 	offering := setupCareOfferingForCapacity(t, env, 1)
 
 	first := validSubmission(t, env.phaseID)
@@ -462,7 +462,7 @@ func TestDecisionService_RestoreWithdrawn_RejectModeFailsWhenFull(t *testing.T) 
 	children, listErr := enrollmentAPI.ReadOwnerRequestChildrenForTest(ctx, api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, env.db)).Enrollment(), resA.Request.ID)
 	require.NoError(t, listErr)
 	require.Len(t, children, 1)
-	assert.Equal(t, enrollmentModels.ChildStatusWithdrawn, children[0].Status)
+	assert.Equal(t, capability.ChildStatusWithdrawn, children[0].Status)
 }
 
 func TestDecisionService_RestoreWithdrawn_BlockedByActiveDuplicate(t *testing.T) {
@@ -487,7 +487,7 @@ func TestDecisionService_RestoreWithdrawn_BlockedByActiveDuplicate(t *testing.T)
 	children, listErr := enrollmentAPI.ReadOwnerRequestChildrenForTest(ctx, env.repos.Enrollment(), first.Request.ID)
 	require.NoError(t, listErr)
 	for _, child := range children {
-		assert.Equal(t, enrollmentModels.ChildStatusWithdrawn, child.Status)
+		assert.Equal(t, capability.ChildStatusWithdrawn, child.Status)
 	}
 	req, findErr := enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), first.Request.ID)
 	require.NoError(t, findErr)

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/application/authorize"
 )
 
 // Role presets of a student-guardian relationship.

@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -70,7 +70,7 @@ func TestExistingStudentApprovalGrantsAccountBeforeClassRosterResync(t *testing.
 	decision := newDecisionServiceForTestWithBookings(nil, env.rolloverTestEnv, bookings, nil, nil, nil, nil)
 	err = testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
 		txDB = tx
-		_, err := decision.Decide(txCtx, enrollmentAPI.DecideInput{RequestID: requestID, ChildID: childID, Status: capability.DecisionApproved, ReviewedBy: env.creatorID})
+		_, err := decision.Decide(txCtx, enrollmentAPI.DecideInput{RequestID: requestID, ChildID: childID, Status: enrollmentNative.DecisionApproved, ReviewedBy: env.creatorID})
 		return err
 	})
 	require.True(t, checked, "the changed class must reach roster resynchronization")
@@ -136,11 +136,11 @@ func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *test
 			Exec(ctx)
 	}()
 
-	offering := &enrollmentModels.CareOffering{
+	offering := &offeringContract.CareOfferingRecord{
 		PhaseID:         env.sourcePhase.ID,
 		ActivityGroupID: &group.ID,
 		Name:            "Fixed Tue Thu",
-		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode:  offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:   []string{"tue", "thu"},
 		IsActive:        true,
 	}
@@ -201,7 +201,7 @@ func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *test
 		txDB = tx
 		_, decisionErr := failing.Decide(txCtx, enrollmentAPI.DecideInput{
 			RequestID: submitted.Request.ID, ChildID: submitted.Children[0].ID,
-			Status: capability.DecisionApproved, ReviewedBy: env.creatorID,
+			Status: enrollmentNative.DecisionApproved, ReviewedBy: env.creatorID,
 		})
 		return decisionErr
 	})
@@ -218,7 +218,7 @@ func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *test
 		outcome, decisionErr = env.decision.Decide(txCtx, enrollmentAPI.DecideInput{
 			RequestID:  submitted.Request.ID,
 			ChildID:    submitted.Children[0].ID,
-			Status:     capability.DecisionApproved,
+			Status:     enrollmentNative.DecisionApproved,
 			ReviewedBy: env.creatorID,
 		})
 		return decisionErr
@@ -243,7 +243,7 @@ func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *test
 	err = testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		again, retryErr := env.decision.Decide(txCtx, enrollmentAPI.DecideInput{
 			RequestID: submitted.Request.ID, ChildID: submitted.Children[0].ID,
-			Status: capability.DecisionApproved, ReviewedBy: env.creatorID,
+			Status: enrollmentNative.DecisionApproved, ReviewedBy: env.creatorID,
 		})
 		if retryErr == nil {
 			require.Equal(t, outcome.Child.CreatedStudentID, again.Child.CreatedStudentID)

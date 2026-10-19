@@ -20,11 +20,12 @@ import (
 	"testing"
 	"time"
 
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -48,7 +49,7 @@ func buildPlannedConflictSetup(t *testing.T) *plannedConflictSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	repos, err := api.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	repos, err := owners.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	suffix := time.Now().UnixNano()
 
@@ -279,7 +280,7 @@ func TestDetectPlannedConflicts_CancelledIgnored(t *testing.T) {
 	s := buildPlannedConflictSetup(t)
 	inst := seedConflictInstance(t, s, testpkg.ActivityInstanceOpts{
 		Title:  "PC-Abgesagt",
-		Status: scheduleModels.InstanceStatusCancelled,
+		Status: fixtures.InstanceStatusCancelled(),
 	})
 	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffID, testpkg.InstanceStaffOpts{})
 
@@ -324,22 +325,22 @@ func (planningOnlyPresence) QueryGroupSupervisions(context.Context, studentprese
 
 // newConflictDetection composes the Timetable owner's conflict detection and
 // staffing capability over the retained repositories, the way the root does.
-func newConflictDetection(t *testing.T, db *bun.DB, repos api.TimetableTestRepositories) timetable.ConflictDetectionCapability {
+func newConflictDetection(t *testing.T, db *bun.DB, repos owners.TimetableTestRepositories) timetable.ConflictDetectionCapability {
 	t.Helper()
-	members := api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db))
+	members := owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db))
 	presence, err := api.NewTimetablePresenceRows(testpkg.NewDatabase(t, db), repos, members)
 	require.NoError(t, err)
-	detection, err := api.NewTimetableConflictDetection(timetablePorts.ConflictDetectionDependencies{
-		Instances:         repos.ActivityInstance,
-		InstanceStaff:     repos.InstanceStaff,
-		InstanceStudents:  repos.InstanceStudent,
-		Exceptions:        repos.ActivityException,
+	detection, err := owners.NewTimetableConflictDetection(timetablePorts.ConflictDetectionDependencies{
+		Instances:         fixtures.IntoConflictInstances(fixtures.FromActivityInstanceRecords(repos.ActivityInstance)),
+		InstanceStaff:     fixtures.IntoConflictInstanceStaff(fixtures.FromInstanceStaffRecords(repos.InstanceStaff)),
+		InstanceStudents:  fixtures.IntoConflictInstanceStudents(fixtures.FromInstanceStudentRecords(repos.InstanceStudent)),
+		Exceptions:        fixtures.IntoConflictExceptions(fixtures.FromActivityExceptionRecords(repos.ActivityException)),
 		Schedules:         repos.ActivitySchedule,
-		Staff:             api.NewTimetableStaff(members.Staff),
-		CalendarPeriods:   repos.CalendarPeriod,
-		ArrivalExceptions: repos.StudentArrivalException,
+		Staff:             owners.NewTimetableStaff(members.Staff),
+		CalendarPeriods:   fixtures.IntoConflictCalendarPeriods(fixtures.FromCalendarPeriodRecords(repos.CalendarPeriod)),
+		ArrivalExceptions: fixtures.IntoConflictArrivalExceptions(fixtures.FromStudentArrivalExceptionRecords(repos.StudentArrivalException)),
 		Sessions:          presence.ActiveGroup,
-		Shifts:            repos.StaffShift,
+		Shifts:            fixtures.IntoConflictShifts(fixtures.FromWorkforceShiftRows(repos.StaffShift)),
 		Presence:          planningOnlyPresence{},
 	}, nil)
 	require.NoError(t, err)

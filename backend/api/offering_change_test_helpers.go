@@ -7,6 +7,8 @@ import (
 	"errors"
 	"log/slog"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -46,7 +48,7 @@ func NewOfferingChangeTestModule(db transactionruntime.Database, options Offerin
 	if options.Settings == nil || options.Bookings == nil {
 		return nil, errors.New("offering change test module: settings and bookings are required")
 	}
-	auditCommand, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
+	auditCommand, err := auditCompose.NewCommand(owners.NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return nil, err
 	}
@@ -55,22 +57,22 @@ func NewOfferingChangeTestModule(db transactionruntime.Database, options Offerin
 		return nil, err
 	}
 	reposTimetable := NewEnrollmentTimetableRows(db)
-	studentPeople, err := NewStudentPeopleRows(db, MustNewMembershipTestRepositories(db))
+	studentPeople, err := NewStudentPeopleRows(db, owners.MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return nil, err
 	}
-	deps, err := offeringChangeOwners(
+	deps, err := owners.OfferingChangeOwners(
 		students.CarePlan, options.Catalog, repos.Enrollment(), repos.Student, studentPeople.CareWithdrawal, options.Settings,
 		offeringChangeTestScope(options.Scope), requestTokenReads.Permissions, nil, nil,
 	)
 	if err != nil {
 		return nil, err
 	}
-	deps.Planning = ManualPlanningReader{Query: PlanningQuery{DB: db}, CourseGroups: reposTimetable.Timetable}
+	deps.Planning = owners.ManualPlanningReader{Query: owners.PlanningQuery{DB: db}, CourseGroups: reposTimetable.Timetable}
 	deps.Bookings = options.Bookings
 	deps.Today = options.Today
 	deps.Logger = slog.Default()
-	return newOfferingChanges(deps)
+	return owners.ComposeOfferingChanges(deps)
 }
 
 // offeringChangeTestScope is the suite's review scope, or the one an admin

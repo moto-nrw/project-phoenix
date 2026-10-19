@@ -13,8 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -41,7 +39,7 @@ func TestRolloverService_AutoApprove_SkipsChildrenAboveTheKinderkontingent(t *te
 		Where("id = ?", testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
 
-	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
+	req := validRolloverRequest(env, capability.PhaseRolloverModeOptOut, true)
 	req.RolloverAutoApprove = true
 	req.RolloverDeadline = time.Now().Add(-time.Hour)
 	req.Name = "child-quota-auto-approve-target"
@@ -61,8 +59,8 @@ func TestRolloverService_AutoApprove_SkipsChildrenAboveTheKinderkontingent(t *te
 	assert.Equal(t, 1, summary.AutoApproveChildQuotaHeld, "the uncounted child is skipped")
 	assert.Equal(t, 0, summary.AutoApproveErrors, "a full Kinderkontingent is no error")
 
-	rows, err := env.repos.Enrollment().ChildrenByPhaseStatuses(ctx, result.Phase.ID, []string{
-		enrollmentModels.ChildStatusApproved, enrollmentModels.ChildStatusSubmitted, enrollmentModels.ChildStatusAutoRenewed,
+	rows, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{
+		capability.ChildStatusApproved, capability.ChildStatusSubmitted, capability.ChildStatusAutoRenewed,
 	})
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
@@ -70,12 +68,12 @@ func TestRolloverService_AutoApprove_SkipsChildrenAboveTheKinderkontingent(t *te
 		require.NotNil(t, row.RolloverSourceChildID)
 		switch *row.RolloverSourceChildID {
 		case countedSource.ID:
-			assert.Equal(t, enrollmentModels.ChildStatusApproved, row.Status)
+			assert.Equal(t, capability.ChildStatusApproved, row.Status)
 			assert.Nil(t, row.ReviewReason)
 		case heldSource.ID:
-			assert.Equal(t, enrollmentModels.ChildStatusSubmitted, row.Status, "the held renewal stays open for a manual decision")
+			assert.Equal(t, capability.ChildStatusSubmitted, row.Status, "the held renewal stays open for a manual decision")
 			require.NotNil(t, row.ReviewReason)
-			assert.Equal(t, enrollmentModels.ReviewReasonChildQuotaReached, *row.ReviewReason)
+			assert.Equal(t, capability.ReviewReasonChildQuotaReached, *row.ReviewReason)
 			assert.Nil(t, row.CreatedStudentID, "the held renewal links no student")
 		default:
 			t.Fatalf("unexpected rolled row from source %d", *row.RolloverSourceChildID)
@@ -103,7 +101,7 @@ func TestRolloverService_AutoApprove_SkipsChildrenAboveTheKinderkontingent(t *te
 	assert.Zero(t, summary.AutoRenewedToApproved)
 	held, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), heldRow(t, rows, heldSource.ID))
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, held.Status)
+	assert.Equal(t, capability.ChildStatusSubmitted, held.Status)
 }
 
 func heldRow(t *testing.T, rows []*capability.RequestChild, sourceID int64) int64 {

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
@@ -495,7 +494,7 @@ func (s *Service) createSpecialRoomSession(ctx context.Context, room facilities.
 		activity, err = s.wcActivity(ctx)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "failed to find WC activity", slog.String("error", err.Error()))
-			if strings.Contains(err.Error(), "staff context") {
+			if errors.Is(err, devicescan.ErrWCNeedsStaff) {
 				return nil, devicescan.InternalWithCode(devicescan.MessageWCNeedsStaff, devicescan.CodeWCNeedsStaff)
 			}
 			return nil, devicescan.InternalWithCode(devicescan.MessageWCNotConfigured, devicescan.CodeWCNotConfigured)

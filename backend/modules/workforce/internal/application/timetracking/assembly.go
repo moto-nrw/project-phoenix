@@ -138,7 +138,7 @@ func NewClock(deps Dependencies) (*Clock, error) {
 	ledger := deps.ledger(months, snapshots, logger)
 	// Monatsabschluss (#1417): freezes a month's closing balance so a
 	// retroactive correction can no longer rewrite every later Übertrag.
-	closing := NewStaffMonthCloseService(snapshots, months, deps.MonthCloseStaff, deps.Settings, logger, WithMonthCloseEvents(deps.Events))
+	closing := NewStaffMonthCloseService(snapshots, months, deps.MonthCloseStaff, deps.Settings, logger, WithMonthCloseEvents(deps.Events), WithMonthCloseUnitOfWork(runTimeTrackingUnit))
 	overview := deps.overview(snapshots, logger)
 	// Cross-staff payroll/evidence export (#1417 2b): rows via the overview's
 	// prefetch (month) and the single-staff export cells (day); every download
@@ -164,7 +164,7 @@ func (c *Clock) Sessions() WorkSessionService {
 func (c *Clock) WithAbsences(syncer ShiftPlanSyncer) *Services {
 	deps, services := c.deps, c.services
 	services.Absences = NewStaffAbsenceService(deps.Absences, deps.Sessions, deps.VacationQuotas, deps.AbsenceAudits, deps.Settings, services.Months,
-		deps.absenceOptions(deps.AbsenceTypes, deps.MonthSnapshots, loggerOrDefault(deps.Logger), syncer)...)
+		append(deps.absenceOptions(deps.AbsenceTypes, deps.MonthSnapshots, loggerOrDefault(deps.Logger), syncer), WithAbsenceUnitOfWork(runTimeTrackingUnit))...)
 	return &services
 }
 
@@ -202,6 +202,7 @@ func (deps Dependencies) sessionsAndMonths(absenceTypes AbsenceTypeReader, snaps
 // month service.
 func (deps Dependencies) ledger(months WorkTimeMonthService, snapshots MonthSnapshots, logger *slog.Logger) StaffBalanceAdjustmentService {
 	options := []StaffBalanceAdjustmentOption{
+		WithAdjustmentUnitOfWork(runTimeTrackingUnit),
 		WithAdjustmentEvents(deps.Events),
 		// A booking inside a closed month (#1417) could not move its frozen
 		// closing balance, so the ledger rejects it.

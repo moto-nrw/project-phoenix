@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

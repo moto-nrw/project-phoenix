@@ -5,6 +5,8 @@ package api
 import (
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	importPorts "github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
@@ -56,7 +58,7 @@ func NewImportTestModuleWithOptions(db transactionruntime.Database, unit tenant.
 // with the People Directory, guardian provider bound, and the School
 // Membership the import writes through, for suites that mount its routes.
 func NewImportTestModuleWithOwners(db transactionruntime.Database, unit tenant.UnitOfWork, options ImportTestOptions) (ImportTestModule, peopledirectory.Capability, schoolmembership.Capability, error) {
-	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
+	command, err := auditCompose.NewCommand(owners.NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return ImportTestModule{}, nil, nil, err
 	}
@@ -72,11 +74,11 @@ func NewImportTestModuleWithOwners(db transactionruntime.Database, unit tenant.U
 	if err != nil {
 		return ImportTestModule{}, nil, nil, err
 	}
-	membership, err := NewSchoolMembership(db)
+	membership, err := owners.NewSchoolMembership(db)
 	if err != nil {
 		return ImportTestModule{}, nil, nil, err
 	}
-	workTime, err := NewWorkforce(db, membership)
+	workTime, err := owners.NewWorkforce(db, membership)
 	if err != nil {
 		return ImportTestModule{}, nil, nil, err
 	}
@@ -91,7 +93,7 @@ func NewImportTestModuleWithOwners(db transactionruntime.Database, unit tenant.U
 
 	observations := &[]importModels.ImportObservation{}
 	persons := guardians.PeopleDirectory
-	groups, err := NewSchoolStructure(db)
+	groups, err := owners.NewSchoolStructure(db)
 	if err != nil {
 		return ImportTestModule{}, nil, nil, err
 	}
@@ -99,7 +101,7 @@ func NewImportTestModuleWithOwners(db transactionruntime.Database, unit tenant.U
 	if err != nil {
 		return ImportTestModule{}, nil, nil, err
 	}
-	organizations, err := NewOrganizationTenancy(db)
+	organizations, err := owners.NewOrganizationTenancy(db)
 	if err != nil {
 		return ImportTestModule{}, nil, nil, err
 	}

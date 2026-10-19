@@ -14,7 +14,7 @@ import (
 // --- staff shifts ---
 
 func (s *Service) FindStaffShift(ctx context.Context, id int64) (result domain.StaffShift, err error) {
-	err = s.run("find_staff_shift", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_staff_shift", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.FindStaffShift(ctx, id)
@@ -31,7 +31,7 @@ func (s *Service) ListStaffShifts(ctx context.Context, filter domain.StaffShiftF
 	if validationErr := filter.Validate(); validationErr != nil {
 		return nil, validationErr
 	}
-	err = s.run("list_staff_shifts", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_staff_shifts", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListStaffShifts(ctx, filter)
 		stats.Add(queryStats)
@@ -47,7 +47,7 @@ func (s *Service) UsedStaffShiftWeeks(ctx context.Context, from, to string) (res
 	if validationErr := domain.ValidateDate(to, "to"); validationErr != nil {
 		return nil, validationErr
 	}
-	err = s.run("used_staff_shift_weeks", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "used_staff_shift_weeks", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.UsedStaffShiftWeeks(ctx, from, to)
 		stats.Add(queryStats)
@@ -60,7 +60,7 @@ func (s *Service) CreateStaffShift(ctx context.Context, shift domain.StaffShift)
 	if validationErr := domain.ValidateStaffShift(shift); validationErr != nil {
 		return domain.StaffShift{}, validationErr
 	}
-	err = s.run("create_staff_shift", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_staff_shift", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			if shift.Date >= s.clock.Today() {
 				if err := s.lockStaffAssignment(txCtx, shift.StaffID); err != nil {
@@ -87,7 +87,7 @@ func (s *Service) CreateStaffShifts(ctx context.Context, shifts []domain.StaffSh
 	if len(shifts) == 0 {
 		return []domain.StaffShift{}, nil
 	}
-	err = s.run("create_staff_shifts", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_staff_shifts", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			ids := make([]int64, 0, len(shifts))
 			for _, shift := range shifts {
@@ -111,7 +111,7 @@ func (s *Service) UpdateStaffShift(ctx context.Context, shift domain.StaffShift)
 	if validationErr := domain.ValidateStaffShift(shift); validationErr != nil {
 		return domain.StaffShift{}, validationErr
 	}
-	err = s.run("update_staff_shift", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "update_staff_shift", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			if shift.Date >= s.clock.Today() {
 				if err := s.lockStaffAssignment(txCtx, shift.StaffID); err != nil {
@@ -132,7 +132,7 @@ func (s *Service) UpdateStaffShift(ctx context.Context, shift domain.StaffShift)
 }
 
 func (s *Service) SetStaffShiftSickAbsence(ctx context.Context, shiftID int64, absenceID *int64) (result int64, err error) {
-	err = s.run("set_staff_shift_sick_absence", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "set_staff_shift_sick_absence", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.SetStaffShiftSickAbsence(txCtx, shiftID, absenceID)
@@ -144,7 +144,7 @@ func (s *Service) SetStaffShiftSickAbsence(ctx context.Context, shiftID int64, a
 }
 
 func (s *Service) DeleteStaffShift(ctx context.Context, id int64) error {
-	return s.run("delete_staff_shift", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "delete_staff_shift", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			writeStats, err := s.store.DeleteStaffShift(txCtx, id)
 			stats.Add(writeStats)
@@ -157,7 +157,7 @@ func (s *Service) DeleteUpcomingStaffShifts(ctx context.Context, staffID int64, 
 	if validationErr := domain.ValidateDate(from, "from"); validationErr != nil {
 		return 0, validationErr
 	}
-	err = s.run("delete_upcoming_staff_shifts", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "delete_upcoming_staff_shifts", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.DeleteUpcomingStaffShifts(txCtx, staffID, from)
@@ -172,7 +172,7 @@ func (s *Service) DeleteRegenerableSeriesShifts(ctx context.Context, seriesID in
 	if validationErr := domain.ValidateDate(from, "from"); validationErr != nil {
 		return 0, validationErr
 	}
-	err = s.run("delete_regenerable_series_shifts", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "delete_regenerable_series_shifts", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.DeleteRegenerableSeriesShifts(txCtx, seriesID, from)
@@ -187,7 +187,7 @@ func (s *Service) RepointDetachedSeriesShifts(ctx context.Context, fromSeriesID,
 	if validationErr := domain.ValidateDate(from, "from"); validationErr != nil {
 		return 0, validationErr
 	}
-	err = s.run("repoint_detached_series_shifts", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "repoint_detached_series_shifts", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.RepointDetachedSeriesShifts(txCtx, fromSeriesID, toSeriesID, from)
@@ -201,7 +201,7 @@ func (s *Service) RepointDetachedSeriesShifts(ctx context.Context, fromSeriesID,
 // --- shift series ---
 
 func (s *Service) FindStaffShiftSeries(ctx context.Context, id int64) (result domain.StaffShiftSeries, err error) {
-	err = s.run("find_staff_shift_series", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_staff_shift_series", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.FindStaffShiftSeries(ctx, id)
@@ -221,7 +221,7 @@ func (s *Service) FindOverlappingSeriesInLineage(ctx context.Context, rootID, ex
 	if validationErr := domain.ValidateDate(from, "from"); validationErr != nil {
 		return domain.StaffShiftSeries{}, validationErr
 	}
-	err = s.run("find_overlapping_series_in_lineage", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_overlapping_series_in_lineage", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.FindOverlappingSeriesInLineage(ctx, rootID, excludeID, from)
@@ -238,7 +238,7 @@ func (s *Service) CreateStaffShiftSeries(ctx context.Context, series domain.Staf
 	if validationErr := domain.ValidateStaffShiftSeries(series); validationErr != nil {
 		return domain.StaffShiftSeries{}, validationErr
 	}
-	err = s.run("create_staff_shift_series", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_staff_shift_series", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			if series.ValidUntil == "" || series.ValidUntil > s.clock.Today() {
 				if err := s.lockStaffAssignment(txCtx, series.StaffID); err != nil {
@@ -258,7 +258,7 @@ func (s *Service) UpdateStaffShiftSeries(ctx context.Context, series domain.Staf
 	if validationErr := domain.ValidateStaffShiftSeries(series); validationErr != nil {
 		return domain.StaffShiftSeries{}, validationErr
 	}
-	err = s.run("update_staff_shift_series", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "update_staff_shift_series", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			if series.ValidUntil == "" || series.ValidUntil > s.clock.Today() {
 				if err := s.lockStaffAssignment(txCtx, series.StaffID); err != nil {
@@ -279,7 +279,7 @@ func (s *Service) UpdateStaffShiftSeries(ctx context.Context, series domain.Staf
 }
 
 func (s *Service) DeleteStaffShiftSeries(ctx context.Context, id int64) error {
-	return s.run("delete_staff_shift_series", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "delete_staff_shift_series", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			writeStats, err := s.store.DeleteStaffShiftSeries(txCtx, id)
 			stats.Add(writeStats)
@@ -295,7 +295,7 @@ func (s *Service) CapStaffShiftSeries(ctx context.Context, id int64, until strin
 	if validationErr := domain.ValidateDate(until, "until"); validationErr != nil {
 		return validationErr
 	}
-	return s.run("cap_staff_shift_series", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "cap_staff_shift_series", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			writeStats, err := s.store.CapStaffShiftSeries(txCtx, id, until)
 			stats.Add(writeStats)
@@ -311,7 +311,7 @@ func (s *Service) CapStaffShiftSeriesForStaff(ctx context.Context, staffID int64
 	if validationErr := domain.ValidateDate(until, "until"); validationErr != nil {
 		return 0, validationErr
 	}
-	err = s.run("cap_staff_shift_series_for_staff", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "cap_staff_shift_series_for_staff", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.CapStaffShiftSeriesForStaff(txCtx, staffID, until)
@@ -328,7 +328,7 @@ func (s *Service) RecordSeriesException(ctx context.Context, exception domain.St
 	if validationErr := domain.ValidateStaffShiftSeriesException(exception); validationErr != nil {
 		return validationErr
 	}
-	return s.run("record_series_exception", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "record_series_exception", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			writeStats, err := s.store.RecordSeriesException(txCtx, exception)
 			stats.Add(writeStats)
@@ -338,7 +338,7 @@ func (s *Service) RecordSeriesException(ctx context.Context, exception domain.St
 }
 
 func (s *Service) SeriesExceptionDates(ctx context.Context, seriesID int64) (result []string, err error) {
-	err = s.run("series_exception_dates", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "series_exception_dates", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.SeriesExceptionDates(ctx, seriesID)
 		stats.Add(queryStats)
@@ -351,7 +351,7 @@ func (s *Service) RepointSeriesExceptions(ctx context.Context, fromSeriesID, toS
 	if validationErr := domain.ValidateDate(from, "from"); validationErr != nil {
 		return 0, validationErr
 	}
-	err = s.run("repoint_series_exceptions", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "repoint_series_exceptions", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.RepointSeriesExceptions(txCtx, fromSeriesID, toSeriesID, from)
@@ -365,7 +365,7 @@ func (s *Service) RepointSeriesExceptions(ctx context.Context, fromSeriesID, toS
 // --- shift types ---
 
 func (s *Service) ListShiftTypes(ctx context.Context) (result []domain.ShiftType, err error) {
-	err = s.run("list_shift_types", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_shift_types", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListShiftTypes(ctx)
 		stats.Add(queryStats)
@@ -375,7 +375,7 @@ func (s *Service) ListShiftTypes(ctx context.Context) (result []domain.ShiftType
 }
 
 func (s *Service) FindShiftType(ctx context.Context, id int64) (result domain.ShiftType, err error) {
-	err = s.run("find_shift_type", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_shift_type", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.FindShiftType(ctx, id)
@@ -393,7 +393,7 @@ func (s *Service) CreateShiftType(ctx context.Context, shiftType domain.ShiftTyp
 	if validationErr != nil {
 		return domain.ShiftType{}, validationErr
 	}
-	err = s.run("create_shift_type", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_shift_type", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.CreateShiftType(txCtx, normalized)
@@ -409,7 +409,7 @@ func (s *Service) CreateShiftTypeIfAbsent(ctx context.Context, shiftType domain.
 	if validationErr != nil {
 		return domain.ShiftType{}, false, validationErr
 	}
-	err = s.run("create_shift_type_if_absent", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_shift_type_if_absent", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, created, writeStats, err = s.store.CreateShiftTypeIfAbsent(txCtx, normalized)
@@ -425,7 +425,7 @@ func (s *Service) UpdateShiftType(ctx context.Context, shiftType domain.ShiftTyp
 	if validationErr != nil {
 		return domain.ShiftType{}, validationErr
 	}
-	err = s.run("update_shift_type", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "update_shift_type", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var found bool
 			var writeStats domain.OperationStats
@@ -441,7 +441,7 @@ func (s *Service) UpdateShiftType(ctx context.Context, shiftType domain.ShiftTyp
 }
 
 func (s *Service) DeleteShiftType(ctx context.Context, id int64) error {
-	return s.run("delete_shift_type", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "delete_shift_type", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			writeStats, err := s.store.DeleteShiftType(txCtx, id)
 			stats.Add(writeStats)

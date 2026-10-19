@@ -45,7 +45,7 @@
   "runtime_evidence": {
     "source": "Local verification on 2026-10-16 of this #4076 slice. No production or staging requests and no benchmark run.",
     "sources": [
-      "backend/api/presence_events.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/presence_events.go",
       "backend/api/presence_events_mock_test.go"
     ],
     "workload": "Affected Go suites through scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development against the local postgres-test server with per-test tenants.",

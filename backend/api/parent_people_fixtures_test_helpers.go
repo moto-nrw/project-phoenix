@@ -6,6 +6,10 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -17,7 +21,15 @@ func (f *PeopleRepositorySuiteFactory) CreateGuardianLinkFixture(ctx context.Con
 	return f.StudentGuardian.(peopledirectory.GuardianLinkFixtureWriter).CreateGuardianLinkFixture(ctx, value)
 }
 func (f *PeopleRepositorySuiteFactory) CreateGuardianPhoneFixture(ctx context.Context, value *peopledirectory.GuardianPhoneFixture) error {
-	return f.GuardianPhoneNumber.(peopledirectory.GuardianPhoneFixtureWriter).CreateGuardianPhoneFixture(ctx, value)
+	return tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		if value == nil {
+			return f.GuardianPhoneNumber.Create(txCtx, nil)
+		}
+		phone := peopledirectory.GuardianProfilePhoneSnapshot(*value)
+		err := f.GuardianPhoneNumber.Create(txCtx, &phone)
+		*value = peopledirectory.GuardianPhoneFixture(phone)
+		return err
+	})
 }
 func (f *PeopleRepositorySuiteFactory) CreateFamilyProtectionFixture(ctx context.Context, value *peopledirectory.FamilyProtectionFixture) error {
 	return f.FamilyProtection.(peopledirectory.FamilyProtectionFixtureWriter).CreateFamilyProtectionFixture(ctx, value)
@@ -70,7 +82,7 @@ func NewParentGuardianProfileReadFixture(find func(context.Context, int64) (*peo
 					}
 				}
 			}
-			return parentGuardianProfile(profile), err
+			return owners.ParentGuardianProfile(profile), err
 		},
 		FindByID:                      func(context.Context, int64) (*parentportal.GuardianProfile, error) { return nil, nil },
 		FindByIDs:                     func(context.Context, []int64) (map[int64]*parentportal.GuardianProfile, error) { return nil, nil },

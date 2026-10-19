@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 )
 
 type timetableRecurrenceRuleRepository struct {
@@ -29,7 +29,7 @@ func (r timetableRecurrenceRuleRepository) Create(ctx context.Context, value *sc
 	return nil
 }
 
-func (r timetableRecurrenceRuleRepository) FindByID(ctx context.Context, id any) (*scheduleModels.RecurrenceRule, error) {
+func (r timetableRecurrenceRuleRepository) FindByID(ctx context.Context, id int64) (*scheduleModels.RecurrenceRule, error) {
 	ruleID, ok := LegacyGroupID(id)
 	if !ok {
 		return nil, WrapDatabaseError("find by id", fmt.Errorf("invalid recurrence rule id %T", id))
@@ -56,7 +56,7 @@ func (r timetableRecurrenceRuleRepository) Update(ctx context.Context, value *sc
 	return nil
 }
 
-func (r timetableRecurrenceRuleRepository) Delete(ctx context.Context, id any) error {
+func (r timetableRecurrenceRuleRepository) Delete(ctx context.Context, id int64) error {
 	ruleID, ok := LegacyGroupID(id)
 	if !ok {
 		return WrapDatabaseError("delete", fmt.Errorf("invalid recurrence rule id %T", id))
@@ -65,15 +65,6 @@ func (r timetableRecurrenceRuleRepository) Delete(ctx context.Context, id any) e
 		return WrapDatabaseError("delete", err)
 	}
 	return nil
-}
-
-func (r timetableRecurrenceRuleRepository) List(ctx context.Context, options *RecurrenceRuleQueryOptions) ([]*scheduleModels.RecurrenceRule, error) {
-	frequency, frequencies, sortBy, descending, limit, offset, err := RecurrenceRuleListOptions(options)
-	if err != nil {
-		return nil, WrapDatabaseError("list", err)
-	}
-	return r.list(ctx, timetable.RecurrenceRuleFilter{Frequency: frequency, Frequencies: frequencies,
-		SortBy: sortBy, SortDescending: descending, Limit: limit, Offset: offset}, "list")
 }
 
 func (r timetableRecurrenceRuleRepository) FindByDateRange(ctx context.Context, startDate, _ time.Time) ([]*scheduleModels.RecurrenceRule, error) {
@@ -114,4 +105,8 @@ func legacyRecurrenceRuleError(operation string, err error) error {
 		return WrapNotFoundDatabaseError(operation)
 	}
 	return WrapDatabaseError(operation, err)
+}
+
+func (r timetableRecurrenceRuleRepository) ListRecurrences(ctx context.Context, filter timetable.RecurrenceRuleFilter) ([]*scheduleModels.RecurrenceRule, error) {
+	return r.list(ctx, filter, "list")
 }

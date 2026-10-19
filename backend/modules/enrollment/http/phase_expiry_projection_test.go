@@ -11,7 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	testutil "github.com/moto-nrw/project-phoenix/api/testutil"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -33,7 +33,7 @@ func TestPhaseExpiryProjection_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 	request := makeOwnerRequest(0, uniqueToken("expiry-whole-cohort"), "cohort@example.test")
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		if err := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertPhase(ctx, phase); err != nil {
+		if err := testpkg.TenantCommand1(t, ctx, db, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertPhase, phase); err != nil {
 			return err
 		}
 		request.PhaseID = phase.ID
@@ -63,9 +63,9 @@ func TestPhaseExpiryProjection_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 			{student: fridayStudent, day: "fri"},
 		} {
 			child := makeChild(request.ID, fixture.day, "Child")
-			child.Status = enrollmentModels.ChildStatusApproved
+			child.Status = capability.ChildStatusApproved
 			child.CreatedStudentID = &fixture.student.ID
-			if err := childRepo.InsertChild(ctx, child); err != nil {
+			if err := testpkg.TenantCommand1(t, ctx, db, childRepo.InsertChild, child); err != nil {
 				return err
 			}
 			offering := makeOffering(phase.ID, uniqueOfferingName("cohort-"+fixture.day))
@@ -184,7 +184,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 		return err
 	}))
 	child := makeChild(request.ID, "Expiry", "Student")
-	child.Status = enrollmentModels.ChildStatusApproved
+	child.Status = capability.ChildStatusApproved
 	child.CreatedStudentID = &student.ID
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertChild(ctx, child)
@@ -263,7 +263,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	}))
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus(ctx, child.ID, enrollmentModels.ChildStatusSubmitted, nil, 0)
+		return api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus(ctx, child.ID, capability.ChildStatusSubmitted, nil, 0)
 	}))
 	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var listErr error
@@ -277,7 +277,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	require.NoError(t, err)
 	assert.Empty(t, snapshots, "a non-approved request child must not trigger a warning")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus(ctx, child.ID, enrollmentModels.ChildStatusApproved, nil, 0)
+		return api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus(ctx, child.ID, capability.ChildStatusApproved, nil, 0)
 	}))
 	offering.IsActive = false
 	secondOffering.IsActive = false
@@ -369,7 +369,7 @@ func (d phaseExpiryCareOfferingDirectory) ListCareOfferings(ctx context.Context)
 func newPhaseExpiryProjection(t *testing.T, db *bun.DB) *TestPhaseExpirySnapshots {
 	t.Helper()
 	owner := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
-	students, err := api.NewPeopleDirectory(testpkg.MustDatabase(db))
+	students, err := owners.NewPeopleDirectory(testpkg.MustDatabase(db))
 	require.NoError(t, err)
 	return NewTestPhaseExpirySnapshots(owner, expiryStudentDirectory{students}, phaseExpiryCareOfferingDirectory{testutil.NewTestCarePlan(t, db, testpkg.StudentDirectory{})}, owner)
 }

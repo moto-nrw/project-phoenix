@@ -5,11 +5,13 @@ import (
 	"testing"
 	"time"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -30,7 +32,7 @@ func bookingModeArrivalBaseline(t *testing.T, env *decisionTestEnv, authoritativ
 	if err != nil {
 		panic(err)
 	}
-	baselines, err := newArrivalBaselinesFixture(env.repos.CarePlan(), api.MustNewPeopleDirectory(testpkg.MustDatabase(env.db)), classArrivalQueries, approvedOfferingTestProjection(env.reposEnrollment, env.reposPeople), func(context.Context) (bool, error) { return authoritative, nil })
+	baselines, err := newArrivalBaselinesFixture(env.repos.CarePlan(), owners.MustNewPeopleDirectory(testpkg.MustDatabase(env.db)), classArrivalQueries, approvedOfferingTestProjection(env.reposEnrollment, env.reposPeople), func(context.Context) (bool, error) { return authoritative, nil })
 	if err != nil {
 		panic(err)
 	}
@@ -73,7 +75,7 @@ func bookingModePickupService(env *decisionTestEnv, authoritative bool) careplan
 
 func assertLegacyPickupRestored(t *testing.T, env *decisionTestEnv, studentID int64, date calendar.Date) {
 	t.Helper()
-	restored, err := bookingModePickupService(env, false).GetEffectivePickupTimeForDate(testpkg.Ctx(t), studentID, date)
+	restored, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), testpkg.SetupTestDB(t), bookingModePickupService(env, false).GetEffectivePickupTimeForDate, studentID, date)
 	require.NoError(t, err)
 	require.NotNil(t, restored)
 	require.NotNil(t, restored.PickupTime)
@@ -81,12 +83,12 @@ func assertLegacyPickupRestored(t *testing.T, env *decisionTestEnv, studentID in
 		"turning booking authority off must restore the preserved weekly plan")
 }
 
-func createArrivalOffering(t *testing.T, env *decisionTestEnv, name string, days []string) *enrollmentModels.CareOffering {
+func createArrivalOffering(t *testing.T, env *decisionTestEnv, name string, days []string) *offeringContract.CareOfferingRecord {
 	t.Helper()
-	offering := &enrollmentModels.CareOffering{
+	offering := &offeringContract.CareOfferingRecord{
 		PhaseID:        env.sourcePhase.ID,
 		Name:           uniqueSchemaName(name + "-" + t.Name()),
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:  days,
 		IsActive:       true,
 		CountsAsCare:   true,
@@ -127,7 +129,7 @@ func TestArrivalProjection_BookingModeLimitsCareDaysToBookedWeekdays(t *testing.
 
 	monday := nextWeekday(decisionTestToday, time.Monday)
 	baseline := bookingModeArrivalBaseline(t, env, true)
-	projection, err := baseline.Project(ctx, []int64{studentID}, monday, monday.AddDays(1))
+	projection, err := testpkg.TenantQuery3(t, ctx, testpkg.SetupTestDB(t), baseline.Project, []int64{studentID}, monday, monday.AddDays(1))
 	require.NoError(t, err)
 
 	t.Run("the booked weekday carries the class time", func(t *testing.T) {
@@ -182,7 +184,7 @@ func TestArrivalProjection_StaleRowOnUnbookedDayIsIgnored(t *testing.T) {
 	thursday := monday.AddDays(3)
 
 	baseline := bookingModeArrivalBaseline(t, env, true)
-	projection, err := baseline.Project(ctx, []int64{studentID}, monday, thursday)
+	projection, err := testpkg.TenantQuery3(t, ctx, testpkg.SetupTestDB(t), baseline.Project, []int64{studentID}, monday, thursday)
 	require.NoError(t, err)
 
 	assert.NotNil(t, projection.ForDate(studentID, monday), "the booked day still plans")
@@ -217,7 +219,7 @@ func TestArrivalProjection_BookingEndStopsTheArrival(t *testing.T) {
 	require.NoError(t, err)
 
 	baseline := bookingModeArrivalBaseline(t, env, true)
-	projection, projectErr := baseline.Project(ctx, []int64{studentID}, firstMonday, secondMonday)
+	projection, projectErr := testpkg.TenantQuery3(t, ctx, testpkg.SetupTestDB(t), baseline.Project, []int64{studentID}, firstMonday, secondMonday)
 	require.NoError(t, projectErr)
 
 	t.Run("before the end date the arrival still stands", func(t *testing.T) {
@@ -257,11 +259,11 @@ func TestArrivalProjection_StaleRowNoLongerMarksTheChildExpected(t *testing.T) {
 	monday := nextWeekday(decisionTestToday, time.Monday)
 	thursday := monday.AddDays(3)
 
-	booked, err := careDays.ResolveForDate(ctx, []int64{studentID}, monday)
+	booked, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), careDays.ResolveForDate, []int64{studentID}, monday)
 	require.NoError(t, err)
 	assert.True(t, booked[studentID].Expected(), "the booked day still expects the child")
 
-	stale, err := careDays.ResolveForDate(ctx, []int64{studentID}, thursday)
+	stale, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), careDays.ResolveForDate, []int64{studentID}, thursday)
 	require.NoError(t, err)
 	assert.False(t, stale[studentID].Expected(),
 		"a stale arrival row on an unbooked weekday must not keep a deregistered child expected")
@@ -286,11 +288,11 @@ func TestPickupProjection_StaleRowCannotAddAuthoritativeCareDay(t *testing.T) {
 	pickups := bookingModePickupService(env, true)
 
 	tuesday := nextWeekday(decisionTestToday, time.Tuesday)
-	effective, err := pickups.GetEffectivePickupTimeForDate(ctx, studentID, tuesday)
+	effective, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), pickups.GetEffectivePickupTimeForDate, studentID, tuesday)
 	require.NoError(t, err)
 	assert.Nil(t, effective, "an unbooked pickup row must not escape as an effective time")
 
-	week, err := pickups.GetStudentPickupSchedules(ctx, studentID)
+	week, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), pickups.GetStudentPickupSchedules, studentID)
 	require.NoError(t, err)
 	require.Len(t, week, 1, "the weekly views must keep the booked day and hide the stale row")
 	assert.Equal(t, timetable.WeekdayMonday, week[0].Weekday)

@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
@@ -29,19 +31,19 @@ type StatisticsTestModule struct {
 }
 
 func NewStatisticsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (StatisticsTestModule, error) {
-	settings, err := NewSettingsTestModule(db, unit)
+	settings, err := owners.NewSettingsTestModule(db, unit)
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
-	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
+	command, err := auditCompose.NewCommand(owners.NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
-	r, err := NewStatisticsTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db), clocks...)
+	r, err := NewStatisticsTestRepositoriesWithMembers(db, owners.MustNewMembershipTestRepositories(db), clocks...)
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
-	groups, err := NewSchoolStructure(db)
+	groups, err := owners.NewSchoolStructure(db)
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
@@ -49,17 +51,17 @@ func NewStatisticsTestModule(db transactionruntime.Database, unit tenant.UnitOfW
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
-	students := OverlappingRosterGroupNames{StudentRepository: MustNewMembershipTestRepositories(db).Student, Groups: groups}
+	students := owners.OverlappingRosterGroupNames{StudentRepository: owners.MustNewMembershipTestRepositories(db).Student, Groups: groups}
 	calendar, err := NewSchoolCalendarWithAdministration(db, settings.Settings, func(context.Context) error { return nil }, nil)
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
-	service := NewStatistics(slog.Default(), presenceCompose.StatisticsDependencies{
+	service := owners.NewStatistics(slog.Default(), presenceCompose.StatisticsDependencies{
 		DB:         db.Pool(),
-		StatusDays: StatisticsStatusDays{Query: r.CarePlan}, Courses: NewCourseStatistics(db),
-		Holidays:    schoolCalendarCompose.TenantHolidays{Calendar: calendar},
-		ClosingDays: schoolCalendarCompose.TenantClosingDays{Calendar: calendar}, Periods: StatisticsReportPeriods{Periods: calendar}, Students: StatisticsReportStudents{Students: students}, Rooms: StatisticsReportRooms{Rooms: rooms},
-		AccessLog: StatisticsAuditLog{Log: NewTestAuditPersistence(db, command).DataAccessLog}, Retention: settingsModule.NewStatisticsRetention(settings.Settings), Logger: slog.Default(), Now: OptionalClock(clocks),
+		StatusDays: owners.StatisticsStatusDays{Query: r.CarePlan}, Courses: owners.NewCourseStatistics(db),
+		Holidays:    schoolCalendarCompose.NewTenantHolidays(calendar),
+		ClosingDays: schoolCalendarCompose.NewTenantClosingDays(calendar), Periods: owners.StatisticsReportPeriods{Periods: calendar}, Students: owners.StatisticsReportStudents{Students: students}, Rooms: owners.StatisticsReportRooms{Rooms: rooms},
+		AccessLog: owners.StatisticsAuditLog{Log: owners.NewTestAuditPersistence(db, command).DataAccessLog}, Retention: settingsModule.NewStatisticsRetention(settings.Settings), Logger: slog.Default(), Now: OptionalClock(clocks),
 	})
 	createClosingDay := func(ctx context.Context, start, end timezone.Date, reason string) error {
 		_, err := calendar.CreateClosingDay(ctx, schoolcalendar.CreateClosingDay{ClosingDayFields: schoolcalendar.ClosingDayFields{

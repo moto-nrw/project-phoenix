@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -12,10 +13,10 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func setupClassTeacherService(t *testing.T, db *bun.DB) (Service, *api.SchoolStructureSuiteRepositories, *api.PeopleRepositorySuiteFactory) {
+func setupClassTeacherService(t *testing.T, db *bun.DB) (Service, *owners.SchoolStructureSuiteRepositories, *api.PeopleRepositorySuiteFactory) {
 	t.Helper()
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	reposStructure := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposStructure := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	// Same wiring the service factory uses: assignment rewrites must land in
 	// the Stammdaten audit trail.
 	return api.NewEducationSuiteService(repos, testpkg.NewDatabase(t, db)), reposStructure, repos
@@ -34,9 +35,9 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 	t.Run("assigns and reads classes", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTSvc", "Assign")
 
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"2b", "1a"}, actor.ID))
+		require.NoError(t, testpkg.TenantCommand3(t, ctx, db, svc.SetStaffSchoolClasses, staff.ID, []string{"2b", "1a"}, actor.ID))
 
-		classes, err := svc.GetStaffSchoolClasses(ctx, staff.ID)
+		classes, err := testpkg.TenantQuery1(t, ctx, db, svc.GetStaffSchoolClasses, staff.ID)
 		require.NoError(t, err)
 		assert.Equal(t, []string{"1a", "2b"}, classes)
 	})
@@ -44,9 +45,9 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 	t.Run("dedupes case-insensitively and trims", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTSvc", "Dedupe")
 
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a", " 1A ", "2b"}, actor.ID))
+		require.NoError(t, testpkg.TenantCommand3(t, ctx, db, svc.SetStaffSchoolClasses, staff.ID, []string{"1a", " 1A ", "2b"}, actor.ID))
 
-		classes, err := svc.GetStaffSchoolClasses(ctx, staff.ID)
+		classes, err := testpkg.TenantQuery1(t, ctx, db, svc.GetStaffSchoolClasses, staff.ID)
 		require.NoError(t, err)
 		assert.Equal(t, []string{"1a", "2b"}, classes)
 	})
@@ -54,11 +55,11 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 	t.Run("resubmitting the same set keeps existing rows", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTSvc", "Resubmit")
 
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a", "2b"}, actor.ID))
+		require.NoError(t, testpkg.TenantCommand3(t, ctx, db, svc.SetStaffSchoolClasses, staff.ID, []string{"1a", "2b"}, actor.ID))
 		before, err := repos.ClassTeacher.FindByStaff(ctx, staff.ID)
 		require.NoError(t, err)
 
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"2b", "1a"}, actor.ID))
+		require.NoError(t, testpkg.TenantCommand3(t, ctx, db, svc.SetStaffSchoolClasses, staff.ID, []string{"2b", "1a"}, actor.ID))
 		after, err := repos.ClassTeacher.FindByStaff(ctx, staff.ID)
 		require.NoError(t, err)
 
@@ -71,12 +72,12 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 	t.Run("case-only edit updates the stored display form in place", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTSvc", "CaseEdit")
 
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a"}, actor.ID))
+		require.NoError(t, testpkg.TenantCommand3(t, ctx, db, svc.SetStaffSchoolClasses, staff.ID, []string{"1a"}, actor.ID))
 		before, err := repos.ClassTeacher.FindByStaff(ctx, staff.ID)
 		require.NoError(t, err)
 		require.Len(t, before, 1)
 
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1A"}, actor.ID))
+		require.NoError(t, testpkg.TenantCommand3(t, ctx, db, svc.SetStaffSchoolClasses, staff.ID, []string{"1A"}, actor.ID))
 		after, err := repos.ClassTeacher.FindByStaff(ctx, staff.ID)
 		require.NoError(t, err)
 		require.Len(t, after, 1)
@@ -87,10 +88,10 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 	t.Run("replaces the set with a diff", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTSvc", "Replace")
 
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a", "2b"}, actor.ID))
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"2b", "3c"}, actor.ID))
+		require.NoError(t, testpkg.TenantCommand3(t, ctx, db, svc.SetStaffSchoolClasses, staff.ID, []string{"1a", "2b"}, actor.ID))
+		require.NoError(t, testpkg.TenantCommand3(t, ctx, db, svc.SetStaffSchoolClasses, staff.ID, []string{"2b", "3c"}, actor.ID))
 
-		classes, err := svc.GetStaffSchoolClasses(ctx, staff.ID)
+		classes, err := testpkg.TenantQuery1(t, ctx, db, svc.GetStaffSchoolClasses, staff.ID)
 		require.NoError(t, err)
 		assert.Equal(t, []string{"2b", "3c"}, classes)
 	})
@@ -98,10 +99,10 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 	t.Run("clears assignments with an empty set", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTSvc", "Clear")
 
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a"}, actor.ID))
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{}, actor.ID))
+		require.NoError(t, testpkg.TenantCommand3(t, ctx, db, svc.SetStaffSchoolClasses, staff.ID, []string{"1a"}, actor.ID))
+		require.NoError(t, testpkg.TenantCommand3(t, ctx, db, svc.SetStaffSchoolClasses, staff.ID, []string{}, actor.ID))
 
-		classes, err := svc.GetStaffSchoolClasses(ctx, staff.ID)
+		classes, err := testpkg.TenantQuery1(t, ctx, db, svc.GetStaffSchoolClasses, staff.ID)
 		require.NoError(t, err)
 		assert.Empty(t, classes)
 	})
@@ -124,19 +125,19 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 			return int(count)
 		}
 
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a"}, actor.ID))
+		require.NoError(t, testpkg.TenantCommand3(t, ctx, db, svc.SetStaffSchoolClasses, staff.ID, []string{"1a"}, actor.ID))
 		assert.Equal(t, 1, auditCount(), "the initial assignment is a change")
 
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a"}, actor.ID))
+		require.NoError(t, testpkg.TenantCommand3(t, ctx, db, svc.SetStaffSchoolClasses, staff.ID, []string{"1a"}, actor.ID))
 		assert.Equal(t, 1, auditCount(), "a no-op resubmit must not write a row")
 
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"2b"}, actor.ID))
+		require.NoError(t, testpkg.TenantCommand3(t, ctx, db, svc.SetStaffSchoolClasses, staff.ID, []string{"2b"}, actor.ID))
 		assert.Equal(t, 2, auditCount(), "a replace is a change")
 
 		// A case-only rename mutates the same rows the audit snapshot is
 		// derived from — the trail must still record it (the exact casing
 		// decides how a grade transition matches this teacher).
-		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"2B"}, actor.ID))
+		require.NoError(t, testpkg.TenantCommand3(t, ctx, db, svc.SetStaffSchoolClasses, staff.ID, []string{"2B"}, actor.ID))
 		assert.Equal(t, 3, auditCount(), "a case-only rename is a change and must be audited")
 
 		var row struct {
@@ -161,7 +162,7 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 	t.Run("rejects blank class names", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTSvc", "Blank")
 
-		err := svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a", "   "}, actor.ID)
+		err := testpkg.TenantCommand3(t, ctx, db, svc.SetStaffSchoolClasses, staff.ID, []string{"1a", "   "}, actor.ID)
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, ErrEmptySchoolClass))
 	})
@@ -171,13 +172,13 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 		ghostID := ghost.ID
 		// Deleting the staff row is the ARRANGE step: both calls must report
 		// ErrStaffNotFound for an ID that no longer exists (#2419).
-		require.NoError(t, reposPeople.Staff.Delete(ctx, ghostID))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, reposPeople.Staff.Delete, any(ghostID)))
 
-		err := svc.SetStaffSchoolClasses(ctx, ghostID, []string{"1a"}, actor.ID)
+		err := testpkg.TenantCommand3(t, ctx, db, svc.SetStaffSchoolClasses, ghostID, []string{"1a"}, actor.ID)
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, ErrStaffNotFound))
 
-		_, err = svc.GetStaffSchoolClasses(ctx, ghostID)
+		_, err = testpkg.TenantQuery1(t, ctx, db, svc.GetStaffSchoolClasses, ghostID)
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, ErrStaffNotFound))
 	})

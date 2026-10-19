@@ -49,7 +49,7 @@ const logger = createLogger({ component: "RoomDetailContent" });
 // per-student-visit rows to one row per active.groups session — no student
 // IDs or names by design. Per-child detail lives behind
 // /students/{id}/attendance-history under its own GDPR gates.
-export interface RoomHistoryEntry {
+interface RoomHistoryEntry {
   sessionId: string;
   startedAt: string; // RFC3339
   endedAt: string | null; // RFC3339 or null while session is open

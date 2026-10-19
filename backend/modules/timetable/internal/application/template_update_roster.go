@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -79,10 +80,10 @@ type rosterWindow struct {
 
 func (s *TemplateService) createTemplateEnrollments(ctx context.Context, templateID, tenantID int64, window rosterWindow, rows []resolvedRosterRow) error {
 	for _, row := range rows {
-		enrollment := &activitiesModel.StudentEnrollment{
+		enrollment := &activityContract.StudentEnrollment{
 			StudentID:        row.PersonID,
 			ActivityGroupID:  templateID,
-			ValidFrom:        activitiesModel.Date(window.from),
+			ValidFrom:        activityContract.Date(window.from),
 			ValidUntil:       activityDatePtr(window.until),
 			CalendarPeriodID: window.periodID,
 			Weekday:          weekdayScopePtr(row.Weekday),
@@ -97,11 +98,11 @@ func (s *TemplateService) createTemplateEnrollments(ctx context.Context, templat
 
 func (s *TemplateService) createTemplateSupervisors(ctx context.Context, templateID, tenantID int64, window rosterWindow, rows []resolvedRosterRow) error {
 	for _, row := range rows {
-		supervisor := &activitiesModel.SupervisorPlanned{
+		supervisor := &activityContract.SupervisorPlanned{
 			StaffID:          row.PersonID,
 			GroupID:          templateID,
 			IsPrimary:        row.IsPrimary,
-			ValidFrom:        activitiesModel.Date(window.from),
+			ValidFrom:        activityContract.Date(window.from),
 			ValidUntil:       activityDatePtr(window.until),
 			CalendarPeriodID: window.periodID,
 			Weekday:          weekdayScopePtr(row.Weekday),
@@ -160,13 +161,13 @@ func (s *TemplateService) retireTemplateEnrollments(
 
 func (s *TemplateService) retireUnprotectedTemplateEnrollments(
 	ctx context.Context,
-	rows []*activitiesModel.StudentEnrollment,
+	rows []*activityContract.StudentEnrollment,
 	calendarPeriodID *int64,
 	replacementFrom calendar.Date,
 	replacementUntil *calendar.Date,
 	previousCalendarPeriodID *int64,
-) ([]*activitiesModel.StudentEnrollment, []int64, error) {
-	protected := make([]*activitiesModel.StudentEnrollment, 0)
+) ([]*activityContract.StudentEnrollment, []int64, error) {
+	protected := make([]*activityContract.StudentEnrollment, 0)
 	retiredStudentIDs := make([]int64, 0)
 	retiredSeen := make(map[int64]bool)
 	for _, row := range rows {
@@ -189,7 +190,7 @@ func (s *TemplateService) retireUnprotectedTemplateEnrollments(
 
 func (s *TemplateService) applyEnrollmentRetirement(
 	ctx context.Context,
-	row *activitiesModel.StudentEnrollment,
+	row *activityContract.StudentEnrollment,
 	action rosterRetirementAction,
 	replacementFrom calendar.Date,
 ) error {
@@ -199,7 +200,7 @@ func (s *TemplateService) applyEnrollmentRetirement(
 			return &ports.ScheduleError{Op: "update template: delete future enrollment", Err: err}
 		}
 	case rosterRetirementClose:
-		if err := s.deps.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, activitiesModel.Date(replacementFrom)); err != nil {
+		if err := s.deps.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, activityContract.Date(replacementFrom)); err != nil {
 			return &ports.ScheduleError{Op: "update template: close enrollment", Err: err}
 		}
 	}
@@ -208,7 +209,7 @@ func (s *TemplateService) applyEnrollmentRetirement(
 
 func (s *TemplateService) rebaseProtectedTemplateEnrollments(
 	ctx context.Context,
-	protected []*activitiesModel.StudentEnrollment,
+	protected []*activityContract.StudentEnrollment,
 	calendarPeriodID *int64,
 	weekdays []int,
 ) (map[int64]protectedStudentCoverage, error) {
@@ -223,7 +224,7 @@ func (s *TemplateService) rebaseProtectedTemplateEnrollments(
 	return buildProtectedStudentCoverage(
 		protected,
 		weekdays,
-		func(row *activitiesModel.StudentEnrollment) bool {
+		func(row *activityContract.StudentEnrollment) bool {
 			return rosterPeriodApplies(row.CalendarPeriodID, calendarPeriodID)
 		},
 	), nil
@@ -231,7 +232,7 @@ func (s *TemplateService) rebaseProtectedTemplateEnrollments(
 
 func (s *TemplateService) rebaseProtectedEnrollmentPeriod(
 	ctx context.Context,
-	row *activitiesModel.StudentEnrollment,
+	row *activityContract.StudentEnrollment,
 	calendarPeriodID *int64,
 ) error {
 	if row.CalendarPeriodID == nil || calendarPeriodID == nil ||
@@ -246,7 +247,7 @@ func (s *TemplateService) rebaseProtectedEnrollmentPeriod(
 }
 
 func classifyEnrollmentRetirement(
-	row *activitiesModel.StudentEnrollment,
+	row *activityContract.StudentEnrollment,
 	calendarPeriodID *int64,
 	replacementFrom calendar.Date,
 	replacementUntil *calendar.Date,
@@ -293,7 +294,7 @@ func (s *TemplateService) retireTemplateSupervisors(
 				return &ports.ScheduleError{Op: "update template: delete future supervisor", Err: err}
 			}
 		case rosterRetirementClose:
-			if err := s.deps.ActivitySupervisorRepo.SetValidUntilByID(ctx, row.ID, activitiesModel.Date(replacementFrom)); err != nil {
+			if err := s.deps.ActivitySupervisorRepo.SetValidUntilByID(ctx, row.ID, activityContract.Date(replacementFrom)); err != nil {
 				return &ports.ScheduleError{Op: "update template: close supervisor", Err: err}
 			}
 		}
@@ -302,7 +303,7 @@ func (s *TemplateService) retireTemplateSupervisors(
 }
 
 func classifySupervisorRetirement(
-	row *activitiesModel.SupervisorPlanned,
+	row *activityContract.SupervisorPlanned,
 	calendarPeriodID *int64,
 	replacementFrom calendar.Date,
 	replacementUntil *calendar.Date,
@@ -379,7 +380,7 @@ func rosterPeriodApplies(rowPeriodID, targetPeriodID *int64) bool {
 	return targetPeriodID != nil && *rowPeriodID == *targetPeriodID
 }
 
-func commonScheduleValidityEnvelope(schedules []*activitiesModel.Schedule) (*calendar.Date, *calendar.Date, error) {
+func commonScheduleValidityEnvelope(schedules []*activityContract.Schedule) (*calendar.Date, *calendar.Date, error) {
 	if len(schedules) == 0 {
 		return nil, nil, nil
 	}
@@ -426,15 +427,15 @@ func cloneOptionalDate(date *calendar.Date) *calendar.Date {
 	return &cloned
 }
 
-func activityDatePtr(date *calendar.Date) *activitiesModel.Date {
+func activityDatePtr(date *calendar.Date) *activityContract.Date {
 	if date == nil {
 		return nil
 	}
-	value := activitiesModel.Date(*date)
+	value := activityContract.Date(*date)
 	return &value
 }
 
-func timezoneDatePtr(date *activitiesModel.Date) *calendar.Date {
+func timezoneDatePtr(date *activityContract.Date) *calendar.Date {
 	if date == nil {
 		return nil
 	}

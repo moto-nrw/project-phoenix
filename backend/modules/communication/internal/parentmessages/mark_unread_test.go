@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -33,16 +34,16 @@ func assertTeamUnread(t *testing.T, f *fixture, accountID int64, expected int) {
 	t.Helper()
 	ctx := adminCtx(t, accountID)
 
-	count, err := f.svc.UnreadMessageCount(ctx)
+	count, err := testpkg.TenantQuery0(t, ctx, f.db, f.svc.UnreadMessageCount)
 	require.NoError(t, err)
 	assert.Equal(t, expected, count, "badge for account %d", accountID)
 
-	inbox, err := f.svc.ListInbox(ctx, false)
+	inbox, err := testpkg.TenantQuery1(t, ctx, f.db, f.svc.ListInbox, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1)
 	assert.Equal(t, expected, inbox[0].UnreadCount, "inbox row for account %d", accountID)
 
-	onlyUnread, err := f.svc.ListInbox(ctx, true)
+	onlyUnread, err := testpkg.TenantQuery1(t, ctx, f.db, f.svc.ListInbox, true)
 	require.NoError(t, err)
 	if expected == 0 {
 		assert.Empty(t, onlyUnread, "unread filter for account %d", accountID)
@@ -51,7 +52,7 @@ func assertTeamUnread(t *testing.T, f *fixture, accountID int64, expected int) {
 		assert.Equal(t, expected, onlyUnread[0].UnreadCount)
 	}
 
-	threads, err := f.svc.ListStudentThreads(ctx, f.chain.StudentID)
+	threads, err := testpkg.TenantQuery1(t, ctx, f.db, f.svc.ListStudentThreads, f.chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, threads, 1)
 	assert.Equal(t, expected, threads[0].UnreadCount, "student card for account %d", accountID)
@@ -61,10 +62,10 @@ func assertTeamUnread(t *testing.T, f *fixture, accountID int64, expected int) {
 // fixture's staff account (A) has read.
 func startReadThread(t *testing.T, f *fixture) int64 {
 	t.Helper()
-	started, err := f.svc.StartThread(adminCtx(t, f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")
+	started, err := testpkg.TenantQuery3(t, adminCtx(t, f.staffAccount), f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Frage")
-	_, err = f.svc.GetThread(adminCtx(t, f.staffAccount), started.ThreadID)
+	_, err = testpkg.TenantQuery1(t, adminCtx(t, f.staffAccount), f.db, f.svc.GetThread, started.ThreadID)
 	require.NoError(t, err)
 	return started.ThreadID
 }
@@ -80,7 +81,7 @@ func TestMarkUnread_IsTeamWideUntilOpened(t *testing.T) {
 	assertTeamUnread(t, f, colleague.ID, 1)
 
 	f.bc.Reset()
-	require.NoError(t, f.svc.MarkUnread(adminCtx(t, f.staffAccount), threadID))
+	require.NoError(t, testpkg.TenantCommand1(t, adminCtx(t, f.staffAccount), f.db, f.svc.MarkUnread, threadID))
 	calls := f.bc.CallsByMethod("parent")
 	require.Len(t, calls, 1, "marking wakes the staff tabs")
 	assert.Equal(t, realtime.EventParentMessageUnreadChanged, calls[0].Event.Type,
@@ -91,14 +92,14 @@ func TestMarkUnread_IsTeamWideUntilOpened(t *testing.T) {
 	assertTeamUnread(t, f, colleague.ID, 1)
 
 	f.bc.Reset()
-	_, err := f.svc.GetThread(adminCtx(t, colleague.ID), threadID)
+	_, err := testpkg.TenantQuery1(t, adminCtx(t, colleague.ID), f.db, f.svc.GetThread, threadID)
 	require.NoError(t, err)
 	assert.Equal(t, 1, parentEventCount(f.bc, realtime.EventParentMessageUnreadChanged), "a cleared mark wakes the other staff tabs")
 	assertTeamUnread(t, f, f.staffAccount, 0)
 	assertTeamUnread(t, f, colleague.ID, 0)
 
 	f.bc.Reset()
-	_, err = f.svc.GetThread(adminCtx(t, colleague.ID), threadID)
+	_, err = testpkg.TenantQuery1(t, adminCtx(t, colleague.ID), f.db, f.svc.GetThread, threadID)
 	require.NoError(t, err)
 	assert.Zero(t, parentEventCount(f.bc, realtime.EventParentMessageUnreadChanged), "opening an unmarked thread broadcasts no mark change")
 }
@@ -109,14 +110,14 @@ func TestMarkUnread_ClearedByReply(t *testing.T) {
 	f := newFixture(t, true)
 	_, colleague := testpkg.CreateTestStaffWithAccount(t, f.db, "Miriam", "Klein")
 	threadID := startReadThread(t, f)
-	require.NoError(t, f.svc.MarkUnread(adminCtx(t, f.staffAccount), threadID))
+	require.NoError(t, testpkg.TenantCommand1(t, adminCtx(t, f.staffAccount), f.db, f.svc.MarkUnread, threadID))
 
-	detail, err := f.svc.GetThread(adminCtx(t, colleague.ID), threadID)
+	detail, err := testpkg.TenantQuery1(t, adminCtx(t, colleague.ID), f.db, f.svc.GetThread, threadID)
 	require.NoError(t, err)
-	require.NoError(t, f.svc.MarkUnread(adminCtx(t, colleague.ID), threadID))
+	require.NoError(t, testpkg.TenantCommand1(t, adminCtx(t, colleague.ID), f.db, f.svc.MarkUnread, threadID))
 	assertTeamUnread(t, f, f.staffAccount, 1)
 
-	_, err = f.svc.PostMessage(adminCtx(t, colleague.ID), threadID, "Antwort", detail.Messages[len(detail.Messages)-1].ID)
+	_, err = testpkg.TenantQuery3(t, adminCtx(t, colleague.ID), f.db, f.svc.PostMessage, threadID, "Antwort", detail.Messages[len(detail.Messages)-1].ID)
 	require.NoError(t, err)
 	assertTeamUnread(t, f, f.staffAccount, 0)
 	assertTeamUnread(t, f, colleague.ID, 0)
@@ -128,13 +129,13 @@ func TestMarkUnread_AfterTeamReplyStillUnreadForEveryone(t *testing.T) {
 	f := newFixture(t, true)
 	_, colleague := testpkg.CreateTestStaffWithAccount(t, f.db, "Miriam", "Klein")
 	threadID := startReadThread(t, f)
-	detail, err := f.svc.GetThread(adminCtx(t, f.staffAccount), threadID)
+	detail, err := testpkg.TenantQuery1(t, adminCtx(t, f.staffAccount), f.db, f.svc.GetThread, threadID)
 	require.NoError(t, err)
-	_, err = f.svc.PostMessage(adminCtx(t, f.staffAccount), threadID, "Antwort", detail.Messages[len(detail.Messages)-1].ID)
+	_, err = testpkg.TenantQuery3(t, adminCtx(t, f.staffAccount), f.db, f.svc.PostMessage, threadID, "Antwort", detail.Messages[len(detail.Messages)-1].ID)
 	require.NoError(t, err)
 	assertTeamUnread(t, f, colleague.ID, 0)
 
-	require.NoError(t, f.svc.MarkUnread(adminCtx(t, f.staffAccount), threadID))
+	require.NoError(t, testpkg.TenantCommand1(t, adminCtx(t, f.staffAccount), f.db, f.svc.MarkUnread, threadID))
 	assertTeamUnread(t, f, f.staffAccount, 1)
 	assertTeamUnread(t, f, colleague.ID, 1)
 }
@@ -145,7 +146,7 @@ func TestMarkUnread_NewGuardianMessageCountsRealNumber(t *testing.T) {
 	f := newFixture(t, true)
 	_, colleague := testpkg.CreateTestStaffWithAccount(t, f.db, "Miriam", "Klein")
 	threadID := startReadThread(t, f)
-	require.NoError(t, f.svc.MarkUnread(adminCtx(t, f.staffAccount), threadID))
+	require.NoError(t, testpkg.TenantCommand1(t, adminCtx(t, f.staffAccount), f.db, f.svc.MarkUnread, threadID))
 
 	createGuardianMessage(t, f.db, f.chain, threadID, "Noch eine Frage")
 	assertTeamUnread(t, f, f.staffAccount, 1)
@@ -164,15 +165,15 @@ func TestMarkUnread_RepeatKeepsSameVisibleState(t *testing.T) {
 	repos := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, f.db))
 	ctx := adminCtx(t, f.staffAccount)
 
-	require.NoError(t, f.svc.MarkUnread(ctx, threadID))
-	first, err := messaging.NewThreadRepository(repos.ParentMessageThread).FindByID(ctx, threadID)
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, f.db, f.svc.MarkUnread, threadID))
+	first, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), messaging.NewThreadRepository(repos.ParentMessageThread).FindByID, threadID)
 	require.NoError(t, err)
 	require.NotNil(t, first.StaffMarkedUnreadAt)
 	require.NotNil(t, first.StaffMarkedUnreadByAccountID)
 	assert.Equal(t, f.staffAccount, *first.StaffMarkedUnreadByAccountID)
 
-	require.NoError(t, f.svc.MarkUnread(ctx, threadID))
-	second, err := messaging.NewThreadRepository(repos.ParentMessageThread).FindByID(ctx, threadID)
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, f.db, f.svc.MarkUnread, threadID))
+	second, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), messaging.NewThreadRepository(repos.ParentMessageThread).FindByID, threadID)
 	require.NoError(t, err)
 	require.NotNil(t, second.StaffMarkedUnreadAt)
 	assert.False(t, second.StaffMarkedUnreadAt.Before(*first.StaffMarkedUnreadAt), "a repeated mark never moves backward")
@@ -192,14 +193,14 @@ func TestMarkUnread_RepeatDuringOpenSurvives(t *testing.T) {
 	repos := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, f.db))
 	ctx := adminCtx(t, f.staffAccount)
 
-	require.NoError(t, f.svc.MarkUnread(ctx, threadID))
-	loadedByOpen, err := messaging.NewThreadRepository(repos.ParentMessageThread).FindByID(ctx, threadID)
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, f.db, f.svc.MarkUnread, threadID))
+	loadedByOpen, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), messaging.NewThreadRepository(repos.ParentMessageThread).FindByID, threadID)
 	require.NoError(t, err)
 	require.NotNil(t, loadedByOpen.StaffMarkedUnreadAt)
 
-	require.NoError(t, f.svc.MarkUnread(ctx, threadID))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, f.db, f.svc.MarkUnread, threadID))
 
-	cleared, err := messaging.NewReadRepository(repos.ParentMessageRead).ClearStaffUnreadMark(ctx, loadedByOpen.TenantID, threadID, *loadedByOpen.StaffMarkedUnreadAt)
+	cleared, err := testpkg.TenantQuery3(t, ctx, testpkg.SetupTestDB(t), messaging.NewReadRepository(repos.ParentMessageRead).ClearStaffUnreadMark, loadedByOpen.TenantID, threadID, *loadedByOpen.StaffMarkedUnreadAt)
 	require.NoError(t, err)
 	assert.False(t, cleared, "the open only removes the mark it loaded")
 	assertTeamUnread(t, f, f.staffAccount, 1)
@@ -216,18 +217,18 @@ func TestClearStaffUnreadMark_KeepsNewerMark(t *testing.T) {
 	repos := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, f.db))
 	ctx := adminCtx(t, f.staffAccount)
 
-	require.NoError(t, f.svc.MarkUnread(ctx, threadID))
-	marked, err := messaging.NewThreadRepository(repos.ParentMessageThread).FindByID(ctx, threadID)
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, f.db, f.svc.MarkUnread, threadID))
+	marked, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), messaging.NewThreadRepository(repos.ParentMessageThread).FindByID, threadID)
 	require.NoError(t, err)
 	require.NotNil(t, marked.StaffMarkedUnreadAt)
 
 	loadedBeforeMark := marked.StaffMarkedUnreadAt.Add(-time.Millisecond)
-	cleared, err := messaging.NewReadRepository(repos.ParentMessageRead).ClearStaffUnreadMark(ctx, marked.TenantID, threadID, loadedBeforeMark)
+	cleared, err := testpkg.TenantQuery3(t, ctx, testpkg.SetupTestDB(t), messaging.NewReadRepository(repos.ParentMessageRead).ClearStaffUnreadMark, marked.TenantID, threadID, loadedBeforeMark)
 	require.NoError(t, err)
 	assert.False(t, cleared, "a mark newer than the loaded state must survive")
 	assertTeamUnread(t, f, f.staffAccount, 1)
 
-	cleared, err = messaging.NewReadRepository(repos.ParentMessageRead).ClearStaffUnreadMark(ctx, marked.TenantID, threadID, *marked.StaffMarkedUnreadAt)
+	cleared, err = testpkg.TenantQuery3(t, ctx, testpkg.SetupTestDB(t), messaging.NewReadRepository(repos.ParentMessageRead).ClearStaffUnreadMark, marked.TenantID, threadID, *marked.StaffMarkedUnreadAt)
 	require.NoError(t, err)
 	assert.True(t, cleared)
 	assertTeamUnread(t, f, f.staffAccount, 0)
@@ -242,21 +243,24 @@ func TestMarkUnread_KeepsParentReadReceipt(t *testing.T) {
 	repos := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, f.db))
 	staffCtx := adminCtx(t, f.staffAccount)
 	guardianCtx := adminCtx(t, f.chain.AccountID)
-	started, err := f.svc.StartThread(staffCtx, f.chain.StudentID, f.chain.AccountID, "Hallo")
+	started, err := testpkg.TenantQuery3(t, staffCtx, f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 	threadID := started.ThreadID
 	// Append the guardian question the way the parent side does, so the thread
 	// preview (last sender) carries it and the list receipt can apply.
 	question := createGuardianMessage(t, f.db, f.chain, threadID, "Frage")
-	require.NoError(t, messaging.NewThreadRepository(repos.ParentMessageThread).TouchLastMessage(staffCtx, threadID, question.CreatedAt, question.ID, question.SenderKind, question.Body))
-	_, err = f.svc.GetThread(staffCtx, threadID)
+	require.NoError(t, testpkg.TenantCommand5(t, staffCtx, testpkg.SetupTestDB(t), messaging.NewThreadRepository(repos.ParentMessageThread).TouchLastMessage, threadID, question.CreatedAt, question.ID, question.SenderKind, question.Body))
+	_, err = testpkg.TenantQuery1(t, staffCtx, f.db, f.svc.GetThread, threadID)
 	require.NoError(t, err)
 
 	receipts := func() (bool, bool) {
 		t.Helper()
-		messages, err := messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)).ListByThread(guardianCtx, threadID, 0)
+		messages, err := testpkg.TenantQuery2(t, guardianCtx, testpkg.SetupTestDB(t), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)).ListByThread, threadID, 0)
 		require.NoError(t, err)
-		messaging.DecorateReadReceipts(guardianCtx, messaging.NewReadRepository(repos.ParentMessageRead), nil, threadID, f.chain.AccountID, messages)
+		require.NoError(t, testpkg.WithinTenantContext(t, guardianCtx, f.db, f.chain.TenantID, func(txCtx context.Context) error {
+			messaging.DecorateReadReceipts(txCtx, messaging.NewReadRepository(repos.ParentMessageRead), nil, threadID, f.chain.AccountID, messages)
+			return nil
+		}))
 		var guardianMessage *messaging.ParentMessage
 		for _, message := range messages {
 			if message.SenderKind == messaging.ParentMessageSenderGuardian {
@@ -264,7 +268,7 @@ func TestMarkUnread_KeepsParentReadReceipt(t *testing.T) {
 			}
 		}
 		require.NotNil(t, guardianMessage)
-		threads, err := repos.ParentMessageRead.PortalListThreadsForGuardianStudent(guardianCtx, f.chain.AccountID, f.chain.StudentID)
+		threads, err := testpkg.TenantQuery2(t, guardianCtx, f.db, repos.ParentMessageRead.PortalListThreadsForGuardianStudent, f.chain.AccountID, f.chain.StudentID)
 		require.NoError(t, err)
 		require.Len(t, threads, 1)
 		return guardianMessage.ReadByStaff, threads[0].LastMessageReadByStaff
@@ -274,7 +278,7 @@ func TestMarkUnread_KeepsParentReadReceipt(t *testing.T) {
 	require.True(t, readByStaff)
 	require.True(t, lastReadByStaff)
 
-	require.NoError(t, f.svc.MarkUnread(adminCtx(t, f.staffAccount), threadID))
+	require.NoError(t, testpkg.TenantCommand1(t, adminCtx(t, f.staffAccount), f.db, f.svc.MarkUnread, threadID))
 	readByStaff, lastReadByStaff = receipts()
 	assert.True(t, readByStaff, "read_by_staff must survive the mark")
 	assert.True(t, lastReadByStaff, "last_message_read_by_staff must survive the mark")
@@ -290,17 +294,17 @@ func TestMarkUnread_Authorization(t *testing.T) {
 	t.Cleanup(func() {
 		_, _ = f.db.ExecContext(context.Background(), `DELETE FROM auth.accounts WHERE id = ?`, outsider.ID)
 	})
-	err := f.svc.MarkUnread(claimsCtx(t, outsider.ID, []string{"users:read"}), threadID)
+	err := testpkg.TenantCommand1(t, claimsCtx(t, outsider.ID, []string{"users:read"}), f.db, f.svc.MarkUnread, threadID)
 	require.ErrorIs(t, err, messaging.ErrForbidden)
 
-	err = f.svc.MarkUnread(adminCtx(t, f.staffAccount), 999999999)
+	err = testpkg.TenantCommand1(t, adminCtx(t, f.staffAccount), f.db, f.svc.MarkUnread, 999999999)
 	require.ErrorIs(t, err, messaging.ErrThreadNotFound)
 
 	_, err = f.db.ExecContext(context.Background(), `
 		UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL
 	`, "alumnus", f.chain.StudentID)
 	require.NoError(t, err)
-	err = f.svc.MarkUnread(adminCtx(t, f.staffAccount), threadID)
+	err = testpkg.TenantCommand1(t, adminCtx(t, f.staffAccount), f.db, f.svc.MarkUnread, threadID)
 	require.ErrorIs(t, err, messaging.ErrForbidden, "a former child is forbidden")
 }
 
@@ -312,7 +316,7 @@ func TestMarkUnread_OtherSchoolIsNotFound(t *testing.T) {
 
 	t.Run("other school", func(t *testing.T) {
 		testpkg.OwnTenant(t)
-		err := f.svc.MarkUnread(adminCtx(t, f.staffAccount), threadID)
+		err := testpkg.TenantCommand1(t, adminCtx(t, f.staffAccount), f.db, f.svc.MarkUnread, threadID)
 		require.ErrorIs(t, err, messaging.ErrThreadNotFound)
 	})
 }
@@ -322,13 +326,13 @@ func TestMarkUnread_DisabledSchoolShowsNoUnread(t *testing.T) {
 
 	f := newFixture(t, true)
 	threadID := startReadThread(t, f)
-	require.NoError(t, f.svc.MarkUnread(adminCtx(t, f.staffAccount), threadID))
+	require.NoError(t, testpkg.TenantCommand1(t, adminCtx(t, f.staffAccount), f.db, f.svc.MarkUnread, threadID))
 
 	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, f.db))
 	reposAccounts := api.NewAccountSuiteRepositories(testpkg.NewDatabase(t, f.db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, f.db))
 	disabled := messaging.NewService(messaging.Config{
-		UserContext: api.StaffStudentReads{},
+		UserContext: owners.StaffStudentReads{},
 		Session:     api.CommunicationSession{},
 		ThreadRepo:  messaging.NewThreadRepository(reposMessages.ParentMessageThread), MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)), ReadRepo: messaging.NewReadRepository(reposMessages.ParentMessageRead),
 		Persons:     newPersons(reposPeople, reposAccounts, f.db),
@@ -337,14 +341,14 @@ func TestMarkUnread_DisabledSchoolShowsNoUnread(t *testing.T) {
 	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	ctx := adminCtx(t, f.staffAccount)
 
-	count, err := disabled.UnreadMessageCount(ctx)
+	count, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), disabled.UnreadMessageCount)
 	require.NoError(t, err)
 	assert.Zero(t, count)
-	inbox, err := disabled.ListInbox(ctx, false)
+	inbox, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), disabled.ListInbox, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1)
 	assert.Zero(t, inbox[0].UnreadCount)
-	onlyUnread, err := disabled.ListInbox(ctx, true)
+	onlyUnread, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), disabled.ListInbox, true)
 	require.NoError(t, err)
 	assert.Empty(t, onlyUnread)
 }

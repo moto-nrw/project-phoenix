@@ -26,7 +26,7 @@ func TestListPendingFallsBackToRequestedWhenPickupPlanReadFails(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	reads := &failingReviewPickupRead{err: errors.New("pickup plan unavailable")}
-	query := NewScheduleReviews(ScheduleReviewDependencies{
+	query := NewScheduleReviews(ScheduleReviewDependencies{RunInTx: func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) },
 		Requests: pendingPickupReview{}, Schedules: reads,
 		People: pendingPickupReview{},
 		Scope: func(context.Context) (careplan.ReviewScope, error) {

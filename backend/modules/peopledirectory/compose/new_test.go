@@ -64,6 +64,13 @@ func (o testGuardianLinkOwners) queryDB(ctx context.Context) bun.IDB {
 	return o.db
 }
 
+func (o testGuardianLinkOwners) LockLiveGuardianAccount(ctx context.Context, accountID int64) (bool, error) {
+	var ids []int64
+	err := o.queryDB(ctx).NewRaw(`SELECT id FROM auth.accounts
+		WHERE id = ? AND personal_data_erased_at IS NULL FOR KEY SHARE`, accountID).Scan(ctx, &ids)
+	return len(ids) == 1, err
+}
+
 func (o testGuardianLinkOwners) CreateGuardianPickupPermission(ctx context.Context, tenantID, relationshipID int64, canPickup bool, notes *string) error {
 	_, err := o.queryDB(ctx).NewRaw(`INSERT INTO users.student_guardian_pickup_permissions (tenant_id, relationship_id, can_pickup, pickup_notes)
 		VALUES (?, ?, ?, ?)`, tenantID, relationshipID, canPickup, notes).Exec(ctx)
@@ -417,4 +424,25 @@ func TestModuleRestoreTagKeepsABraceletGivenInTheMeantime(t *testing.T) {
 	assert.Equal(t, person.ID, holder.ID)
 	_, err = module.FindPersonByTag(ctx, oldCard.ID)
 	require.ErrorIs(t, err, peopledirectory.ErrPersonNotFound, "the ledgered bracelet stays free")
+}
+
+func TestDirectoryReadRequiresTenantAndEnforcesRLS(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	own := testpkg.CreateTestPerson(t, db, "Tenant", "Own")
+	otherCtx, otherTenant := otherTenantContext(t, db)
+	foreign := testpkg.CreateTestPersonForTenant(t, db, otherTenant, "Tenant", "Foreign")
+	ctx := testpkg.Ctx(t)
+	for _, side := range []struct {
+		ctx     context.Context
+		visible int64
+	}{{ctx, own.ID}, {otherCtx, foreign.ID}} {
+		people, err := module.ListPersonsByID(side.ctx, []int64{own.ID, foreign.ID})
+		require.NoError(t, err)
+		require.Len(t, people, 1)
+		require.Equal(t, side.visible, people[0].ID)
+	}
+	_, err := module.ListPersonsByID(tenant.ContextWithoutTenant(ctx), []int64{own.ID, foreign.ID})
+	require.ErrorIs(t, err, tenant.ErrTenantRequired)
 }

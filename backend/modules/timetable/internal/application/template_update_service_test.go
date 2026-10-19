@@ -5,7 +5,8 @@ import (
 	"testing"
 	"time"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -20,28 +21,28 @@ func TestCommonScheduleValidityEnvelope(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		schedules []*activitiesModel.Schedule
+		schedules []*activityContract.Schedule
 		wantFrom  *calendar.Date
 		wantUntil *calendar.Date
 	}{
 		{name: "no schedules is an open envelope"},
 		{
 			name:      "open start and end",
-			schedules: []*activitiesModel.Schedule{{}, {}},
+			schedules: []*activityContract.Schedule{{}, {}},
 		},
 		{
 			name:      "start bounded successor",
-			schedules: []*activitiesModel.Schedule{{ValidFrom: activityDatePtr(&validFrom)}, {ValidFrom: activityDatePtr(&validFrom)}},
+			schedules: []*activityContract.Schedule{{ValidFrom: activityDatePtr(&validFrom)}, {ValidFrom: activityDatePtr(&validFrom)}},
 			wantFrom:  &validFrom,
 		},
 		{
 			name:      "end bounded predecessor",
-			schedules: []*activitiesModel.Schedule{{ValidUntil: activityDatePtr(&validUntil)}, {ValidUntil: activityDatePtr(&validUntil)}},
+			schedules: []*activityContract.Schedule{{ValidUntil: activityDatePtr(&validUntil)}, {ValidUntil: activityDatePtr(&validUntil)}},
 			wantUntil: &validUntil,
 		},
 		{
 			name: "fully bounded segment",
-			schedules: []*activitiesModel.Schedule{
+			schedules: []*activityContract.Schedule{
 				{ValidFrom: activityDatePtr(&validFrom), ValidUntil: activityDatePtr(&validUntil)},
 				{ValidFrom: activityDatePtr(&validFrom), ValidUntil: activityDatePtr(&validUntil)},
 			},
@@ -75,23 +76,23 @@ func TestCommonScheduleValidityEnvelopeRejectsInconsistentRows(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		schedules []*activitiesModel.Schedule
+		schedules []*activityContract.Schedule
 	}{
 		{
 			name:      "different start",
-			schedules: []*activitiesModel.Schedule{{ValidFrom: activityDatePtr(&validFrom)}, {}},
+			schedules: []*activityContract.Schedule{{ValidFrom: activityDatePtr(&validFrom)}, {}},
 		},
 		{
 			name:      "different end",
-			schedules: []*activitiesModel.Schedule{{ValidUntil: activityDatePtr(&validUntil)}, {}},
+			schedules: []*activityContract.Schedule{{ValidUntil: activityDatePtr(&validUntil)}, {}},
 		},
 		{
 			name:      "nil row",
-			schedules: []*activitiesModel.Schedule{{}, nil},
+			schedules: []*activityContract.Schedule{{}, nil},
 		},
 		{
 			name: "inverted envelope",
-			schedules: []*activitiesModel.Schedule{{
+			schedules: []*activityContract.Schedule{{
 				ValidFrom:  activityDatePtr(&invertedFrom),
 				ValidUntil: activityDatePtr(&validUntil),
 			}},

@@ -2,6 +2,7 @@ package settings
 
 import (
 	"context"
+	"fmt"
 
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
@@ -13,9 +14,12 @@ func RetentionWindowKeys() []string {
 		configModel.KeyGDPRStatusDayRetentionDays,
 		configModel.KeyGDPRAttendanceRetentionDays,
 		configModel.KeyGDPRParentMessageRetentionDays,
+		configModel.KeyGDPRStaffMessageRetentionDays,
+		configModel.KeyGDPRTimetableRetentionDays,
 		configModel.KeyGDPRWithdrawnEnrollmentRetentionDays,
 		configModel.KeyGDPRStaffSickNoteRetentionDays,
 		configModel.KeyGDPRStudentRetentionDays,
+		configModel.KeyGDPRGuardianRetentionDays,
 		configModel.KeyGDPRTimeTrackingRetentionDays,
 	}
 }
@@ -34,4 +38,52 @@ func StaffRetentionWindow(source StatisticsRetentionSource) func(context.Context
 	return func(ctx context.Context) (int, error) {
 		return source.ResolveInt(ctx, configModel.KeyGDPRTimeTrackingRetentionDays)
 	}
+}
+
+// RetentionWindow is one retention window of the school in context that a
+// nightly step reads: the content a school creates itself follows the window
+// of the data kind it belongs to (#4045).
+type RetentionWindow struct {
+	source StatisticsRetentionSource
+	key    string
+}
+
+// ParentAnnouncementRetentionWindow is the window of the parent
+// announcements: the school's parent message window.
+func ParentAnnouncementRetentionWindow(source StatisticsRetentionSource) RetentionWindow {
+	return RetentionWindow{source: source, key: configModel.KeyGDPRParentMessageRetentionDays}
+}
+
+// StaffNoticeRetentionWindow is the window of the staff notices: the
+// school's team chat window.
+func StaffNoticeRetentionWindow(source StatisticsRetentionSource) RetentionWindow {
+	return RetentionWindow{source: source, key: configModel.KeyGDPRStaffMessageRetentionDays}
+}
+
+// AppointmentRetentionWindow is the window of the ended appointments: the
+// school's timetable window.
+func AppointmentRetentionWindow(source StatisticsRetentionSource) RetentionWindow {
+	return RetentionWindow{source: source, key: configModel.KeyGDPRTimetableRetentionDays}
+}
+
+// GradeTransitionRetentionWindow is the window of the grade transitions,
+// whose history names children: the school's window for children after
+// their last care day.
+func GradeTransitionRetentionWindow(source StatisticsRetentionSource) RetentionWindow {
+	return RetentionWindow{source: source, key: configModel.KeyGDPRStudentRetentionDays}
+}
+
+// Days resolves the window.
+func (w RetentionWindow) Days(ctx context.Context) (int, error) {
+	days, err := w.source.ResolveInt(ctx, w.key)
+	if err != nil {
+		return 0, w.SettingError(err)
+	}
+	return days, nil
+}
+
+// SettingError names the setting behind a window the deletion refused or
+// could not read.
+func (w RetentionWindow) SettingError(err error) error {
+	return fmt.Errorf("resolve %s: %w", w.key, err)
 }

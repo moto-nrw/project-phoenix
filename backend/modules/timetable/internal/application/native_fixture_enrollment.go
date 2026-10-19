@@ -5,26 +5,27 @@ package application
 import (
 	"context"
 
-	models "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 type nativeFixtureEnrollment struct {
-	fixtureRecord[timetable.StudentEnrollment, models.StudentEnrollment]
-	rows models.StudentEnrollmentRepository
+	fixtureRecord[timetable.StudentEnrollment, activityContract.StudentEnrollment]
+	rows ports.ActivityEnrollmentRecords
 }
 
-func NativeEnrollmentRecords(rows models.StudentEnrollmentRepository) ports.NativeEnrollmentRecords {
-	return nativeFixtureEnrollment{fixtureRecord: fixtureRecord[timetable.StudentEnrollment, models.StudentEnrollment]{rows: rows, encode: encodeFixtureEnrollment, decode: decodeFixtureEnrollment}, rows: rows}
+func NativeEnrollmentRecords(rows ports.ActivityEnrollmentRecords) ports.NativeEnrollmentRecords {
+	return nativeFixtureEnrollment{fixtureRecord: fixtureRecord[timetable.StudentEnrollment, activityContract.StudentEnrollment]{rows: rows, find: fixtureFind(rows.FindByID), encode: encodeFixtureEnrollment, decode: decodeFixtureEnrollment}, rows: rows}
 }
-func encodeFixtureEnrollment(value *timetable.StudentEnrollment) (*models.StudentEnrollment, error) {
+func encodeFixtureEnrollment(value *timetable.StudentEnrollment) (*activityContract.StudentEnrollment, error) {
 	if value == nil {
 		return nil, nil
 	}
 	return legacyStudentEnrollment(*value), nil
 }
-func decodeFixtureEnrollment(value *models.StudentEnrollment) *timetable.StudentEnrollment {
+func decodeFixtureEnrollment(value *activityContract.StudentEnrollment) *timetable.StudentEnrollment {
 	if value == nil {
 		return nil
 	}
@@ -32,6 +33,6 @@ func decodeFixtureEnrollment(value *models.StudentEnrollment) *timetable.Student
 	return &timetable.StudentEnrollment{ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt, StudentID: input.StudentID, ActivityGroupID: input.ActivityGroupID, ValidFrom: input.ValidFrom, ValidUntil: input.ValidUntil, CalendarPeriodID: input.CalendarPeriodID, EnrollmentRequestChildID: input.EnrollmentRequestChildID, SelectedWeekdays: input.SelectedWeekdays, AttendanceStatus: input.AttendanceStatus, Weekday: input.Weekday}
 }
 func (r nativeFixtureEnrollment) FindActiveByStudentIDs(ctx context.Context, ids []int64, date string) ([]*timetable.StudentEnrollment, error) {
-	rows, err := r.rows.FindActiveByStudentIDs(ctx, ids, models.Date(date))
+	rows, err := r.rows.FindActiveByStudentIDs(ctx, ids, activityContract.Date(date))
 	return fixtureNativeRows(rows, decodeFixtureEnrollment), err
 }

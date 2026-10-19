@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -34,9 +35,6 @@ func (d *timetableData) LockSpontaneousStartRoom(ctx context.Context, roomID int
 	return d.acquireSpontaneousLock(ctx, fmt.Sprintf("timetable:spontaneous-start-room:%d:%d", tenant.FromContext(ctx), roomID))
 }
 
-// ResolveSpontaneousActivity returns the requested activity or the activity
-// named after the title; a missing one is created in the "Spontan" category
-// under a name lock, so two starts with the same title share it.
 func (d *timetableData) ResolveSpontaneousActivity(ctx context.Context, title string, requestedID *int64, createdBy int64) (*int64, error) {
 	if requestedID != nil {
 		return requestedID, nil
@@ -54,13 +52,13 @@ func (d *timetableData) ResolveSpontaneousActivity(ctx context.Context, title st
 	if err != nil {
 		return nil, err
 	}
-	group := &activitiesModels.Group{
+	group := &activityContract.Group{
 		Name:            title,
 		CategoryID:      category.ID,
 		MaxParticipants: 0,
 		IsOpen:          true,
 		CreatedBy:       &createdBy,
-		Type:            activitiesModels.GroupTypeActivity,
+		Type:            activityContract.GroupTypeActivity,
 		IsTemplate:      false,
 	}
 	group.SetTenantID(tenant.FromContext(ctx))
@@ -72,7 +70,7 @@ func (d *timetableData) ResolveSpontaneousActivity(ctx context.Context, title st
 
 // ensureSpontaneousActivityCategory returns the "Spontan" category, creating
 // it on first use; an archived one blocks the start until it is restored.
-func (d *timetableData) ensureSpontaneousActivityCategory(ctx context.Context) (*activitiesModels.Category, error) {
+func (d *timetableData) ensureSpontaneousActivityCategory(ctx context.Context) (*activityContract.Category, error) {
 	if err := d.acquireSpontaneousLock(ctx, fmt.Sprintf("timetable:spontaneous-activity-category:%d", tenant.FromContext(ctx))); err != nil {
 		return nil, err
 	}
@@ -84,7 +82,7 @@ func (d *timetableData) ensureSpontaneousActivityCategory(ctx context.Context) (
 	} else if err != nil && !domain.IsRecordNotFound(err) {
 		return nil, err
 	}
-	category := &activitiesModels.Category{
+	category := &activityContract.Category{
 		Name:        spontaneousCategoryName,
 		Description: "Automatisch angelegte Aktivitäten aus spontanen Web-Starts",
 		Color:       "#83CD2D",

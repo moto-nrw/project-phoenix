@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -63,7 +64,7 @@ func newStudentsRoute(t *testing.T, authoritative *bool, clocks ...func() time.T
 	liveEducation := api.NewActiveTestEducation(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
 	livePeople := api.BindStudentTestPeople(api.NewActiveTestPeople(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...), svc)
 	livePresence := api.NewActiveTestPresence(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
-	liveTimetable := api.NewActiveTestTimetable(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	liveTimetable, _ := api.NewActiveTestTimetable(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
 	liveSettings := api.NewActiveTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
 	liveCaller := api.NewActiveTestCaller(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
 	liveDevices := api.NewActiveTestDevices(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
@@ -78,7 +79,7 @@ func newStudentsRoute(t *testing.T, authoritative *bool, clocks ...func() time.T
 		settingsService: liveSettings.Settings, broadcaster: broadcaster, clock: firstClock(clocks), newPickupAdjustments: svc.NewPickupAdjustments, module: svc, router: router}
 }
 
-type tenantScopedCaller struct{ *api.CallerRows }
+type tenantScopedCaller struct{ *owners.CallerRows }
 
 func (c tenantScopedCaller) HasCurrentStaff(ctx context.Context) (bool, error) {
 	if _, ok := testpkg.TransactionFromContext(ctx); !ok {

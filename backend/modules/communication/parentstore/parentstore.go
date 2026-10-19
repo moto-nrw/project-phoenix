@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentinbox"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -21,19 +20,18 @@ import (
 // because they resolve the same two context values; if that resolution ever
 // grows a rule, it has to change in both places.
 //
-// It does not require a transaction: producers and scheduler loops read
-// conversation state outside a request transaction, exactly as the
-// repositories this replaces did. RLS still applies; the returned school only
-// adds the defense-in-depth tenant_id filter and is zero for administrative and
-// cross-tenant work.
+// Missing transactions fail before SQL; roots and workflows supply the unit.
 func resolve(ctx context.Context, db *bun.DB) (bun.IDB, int64, error) {
 	if db == nil {
 		return nil, 0, errors.New("communication parent store: database is required")
 	}
 	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 && !tenant.IsAdminTx(ctx) {
+		return nil, 0, tenant.ErrTenantRequired
+	}
 	transaction, ok := tenant.TransactionFromContext(ctx)
 	if !ok {
-		return db, tenantID, nil
+		return nil, 0, errors.New("communication parentstore: transaction is required")
 	}
 	switch tx := transaction.(type) {
 	case bun.Tx:
@@ -43,7 +41,7 @@ func resolve(ctx context.Context, db *bun.DB) (bun.IDB, int64, error) {
 			return tx, tenantID, nil
 		}
 	}
-	return db, tenantID, nil
+	return nil, 0, errors.New("communication parentstore: transaction is required")
 }
 
 // GuardianLinkRows is the student-guardian relationship row source the
@@ -54,9 +52,17 @@ type GuardianLinkRows interface {
 }
 
 func postgresDatabase(db *bun.DB) parentpostgres.Database {
-	return func(ctx context.Context) (bun.IDB, int64, error) { return resolve(ctx, db) }
+	return func(ctx context.Context) (bun.IDB, parentpostgres.TenantScope, error) {
+		connection, schoolID, err := resolve(ctx, db)
+		scope := parentpostgres.ScopeFor(schoolID, tenant.IsAdminTx(ctx))
+		if err != nil {
+			return nil, scope, err
+		}
+		return connection, scope, scope.Validate()
+	}
 }
 
-func inboxDatabase(db *bun.DB) parentinbox.Database {
+// ProjectionDatabase exposes this store's existing ambient runtime for root binding.
+func ProjectionDatabase(db *bun.DB) func(context.Context) (bun.IDB, int64, error) {
 	return func(ctx context.Context) (bun.IDB, int64, error) { return resolve(ctx, db) }
 }

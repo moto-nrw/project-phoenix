@@ -5,6 +5,8 @@ import (
 	"context"
 	"slices"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
@@ -16,8 +18,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
@@ -52,14 +53,14 @@ func createSourcedTemplate(
 	return group
 }
 
-func createSourceOffering(t *testing.T, env *decisionTestEnv, name string, activityGroupID *int64) *enrollmentModels.CareOffering {
+func createSourceOffering(t *testing.T, env *decisionTestEnv, name string, activityGroupID *int64) *offeringContract.CareOfferingRecord {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	offering := &enrollmentModels.CareOffering{
+	offering := &offeringContract.CareOfferingRecord{
 		PhaseID:         env.sourcePhase.ID,
 		ActivityGroupID: activityGroupID,
 		Name:            uniqueSchemaName(name + "-" + t.Name()),
-		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode:  offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:   []string{"mon"},
 		PickupTimes:     carePickupTimes("mon"),
 		IsActive:        true,
@@ -86,7 +87,7 @@ func submitAndApproveOfferingChild(
 ) (studentID, requestChildID int64) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	submitted, err := env.requestSvc.Submit(ctx, enrollmentTest.SubmitRequest{
+	submitted, err := testpkg.TenantQuery1(t, ctx, env.db, env.requestSvc.Submit, enrollmentTest.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
@@ -108,7 +109,7 @@ func submitAndApproveOfferingChild(
 	var outcome *enrollmentTest.DecideOutcome
 	err = testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		var decideErr error
-		outcome, decideErr = env.decision.Decide(txCtx, enrollmentTest.DecideInput{
+		outcome, decideErr = testpkg.TenantQuery1(t, txCtx, env.db, env.decision.Decide, enrollmentTest.DecideInput{
 			RequestID:  submitted.Request.ID,
 			ChildID:    submitted.Children[0].ID,
 			Status:     enrollmentTest.DecisionApproved,
@@ -799,7 +800,7 @@ func TestSyncApprovedChildData_ClassChangeResyncsSourcedTemplates(t *testing.T) 
 	require.NoError(t, updateOwnerChildForTest(ctx, env.reposEnrollment.Enrollment(), child))
 
 	applier := changeRequestApplierForTest(t, env)
-	_, err = applier.SyncApprovedChildData(ctx, enrollmentTest.ApprovedChildSync{
+	_, err = testpkg.TenantQuery1(t, ctx, env.db, applier.SyncApprovedChildData, enrollmentTest.ApprovedChildSync{
 		RequestID:      child.RequestID,
 		ChildID:        childID,
 		ActorAccountID: env.creatorID,
@@ -839,7 +840,7 @@ func TestDecide_ExistingStudentClassChangeResyncsSourcedTemplates(t *testing.T) 
 	// Matching pins the child to the already-created student, the way an
 	// existing_students phase does at submission time.
 	grade := int16(3)
-	submitted, err := env.requestSvc.Submit(ctx, enrollmentTest.SubmitRequest{
+	submitted, err := testpkg.TenantQuery1(t, ctx, env.db, env.requestSvc.Submit, enrollmentTest.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
@@ -859,7 +860,7 @@ func TestDecide_ExistingStudentClassChangeResyncsSourcedTemplates(t *testing.T) 
 	require.Len(t, submitted.Children, 1)
 	matchChildToExistingStudent(t, env, submitted.Children[0].ID, studentID)
 
-	_, err = env.decision.Decide(ctx, enrollmentTest.DecideInput{
+	_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentTest.DecideInput{
 		RequestID:  submitted.Request.ID,
 		ChildID:    submitted.Children[0].ID,
 		Status:     enrollmentTest.DecisionApproved,
@@ -994,12 +995,12 @@ func TestValidateTemplateOfferingSource_RejectsNewUnknownToleratesStored(t *test
 	validator := env.offeringCatalog
 
 	missing := int64(999999999)
-	err := validator.ValidateTemplateOfferingSource(ctx, []int64{offering.ID, missing}, nil, nil)
+	err := testpkg.TenantCommand3(t, ctx, testpkg.SetupTestDB(t), validator.ValidateTemplateOfferingSource, []int64{offering.ID, missing}, nil, nil)
 	require.Error(t, err, "a new unknown id must not be accepted")
 	require.ErrorIs(t, err, timetable.ErrOfferingSourceInvalid)
 	require.ErrorContains(t, err, "not found")
 
-	require.NoError(t, validator.ValidateTemplateOfferingSource(ctx, []int64{offering.ID, missing}, []int64{missing}, nil),
+	require.NoError(t, testpkg.TenantCommand3(t, ctx, testpkg.SetupTestDB(t), validator.ValidateTemplateOfferingSource, []int64{offering.ID, missing}, []int64{missing}, nil),
 		"a stored dangling id must keep the template editable")
 }
 
@@ -1085,7 +1086,7 @@ func TestResync_UnionAcrossOfferings_PlansSharedChildOnce(t *testing.T) {
 
 	// One child holds BOTH offerings (same request), one child only offering B.
 	grade := int16(2)
-	submitted, err := env.requestSvc.Submit(ctx, enrollmentTest.SubmitRequest{
+	submitted, err := testpkg.TenantQuery1(t, ctx, env.db, env.requestSvc.Submit, enrollmentTest.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
@@ -1104,7 +1105,7 @@ func TestResync_UnionAcrossOfferings_PlansSharedChildOnce(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, submitted.Children, 1)
-	outcome, err := env.decision.Decide(ctx, enrollmentTest.DecideInput{
+	outcome, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentTest.DecideInput{
 		RequestID:  submitted.Request.ID,
 		ChildID:    submitted.Children[0].ID,
 		Status:     enrollmentTest.DecisionApproved,
@@ -1191,10 +1192,10 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
-	offeringA := &enrollmentModels.CareOffering{
+	offeringA := &offeringContract.CareOfferingRecord{
 		PhaseID:        env.sourcePhase.ID,
 		Name:           uniqueSchemaName("DriftBreitQuelleA-" + t.Name()),
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
 		IsActive:       true,
 	}
@@ -1215,7 +1216,7 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 	// One child holds BOTH offerings; the approval fan-out seeds the union
 	// row shaped by A (first in the array): Mo–Fr.
 	grade := int16(2)
-	submitted, err := env.requestSvc.Submit(ctx, enrollmentTest.SubmitRequest{
+	submitted, err := testpkg.TenantQuery1(t, ctx, env.db, env.requestSvc.Submit, enrollmentTest.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
@@ -1234,7 +1235,7 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, submitted.Children, 1)
-	outcome, err := env.decision.Decide(ctx, enrollmentTest.DecideInput{
+	outcome, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentTest.DecideInput{
 		RequestID:  submitted.Request.ID,
 		ChildID:    submitted.Children[0].ID,
 		Status:     enrollmentTest.DecisionApproved,
@@ -1343,7 +1344,7 @@ func TestUpdateChildOfferings_UndatedCorrectionKeepsPhaseStartOnMultiSource(t *t
 
 	// Undated correction: the selection was wrong from the start, switch the
 	// child from offering A to B (both feed the same template).
-	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
+	_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentTest.UpdateChildOfferingsInput{
 		RequestID:      child.RequestID,
 		ChildID:        childID,
 		ActorAccountID: env.creatorID,
@@ -1436,7 +1437,7 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 		Today:                  func() calendar.Date { return offeringResyncToday },
 	})
 
-	require.NoError(t, phaseSvc.DeletePhase(ctx, env.sourcePhase.ID))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), phaseSvc.DeletePhase, env.sourcePhase.ID))
 
 	assert.Empty(t, loadTemplateEnrollments(t, env, template.ID),
 		"the not-yet-effective sourced rows must be retired with the phase")
@@ -1753,7 +1754,7 @@ func TestDecide_FanOutCapsRowAtLinkEnd(t *testing.T) {
 	template := createSourcedTemplate(t, env, "LinkFensterTermin", offering.ID, []int{2}, period.ID)
 
 	grade := int16(2)
-	submitted, err := env.requestSvc.Submit(ctx, enrollmentTest.SubmitRequest{
+	submitted, err := testpkg.TenantQuery1(t, ctx, env.db, env.requestSvc.Submit, enrollmentTest.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
@@ -1778,7 +1779,7 @@ func TestDecide_FanOutCapsRowAtLinkEnd(t *testing.T) {
 	switchDate := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(60)
 	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(switchDate), nil))
 
-	outcome, err := env.decision.Decide(ctx, enrollmentTest.DecideInput{
+	outcome, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentTest.DecideInput{
 		RequestID:  submitted.Request.ID,
 		ChildID:    childID,
 		Status:     enrollmentTest.DecisionApproved,
@@ -1862,7 +1863,7 @@ func TestUpdateChildOfferings_DatedSwitchReconcilesMaterializedOccurrences(t *te
 	registerSourcedInstanceCleanup(t, env, planned.ID)
 	testpkg.CreateTestInstanceStudent(t, env.db, planned.ID, studentID, "expected")
 
-	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
+	_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentTest.UpdateChildOfferingsInput{
 		RequestID:      child.RequestID,
 		ChildID:        childID,
 		ActorAccountID: env.creatorID,
@@ -1911,7 +1912,7 @@ func TestUpdateChildOfferings_DatedKeepRespectsSegmentEnd(t *testing.T) {
 	// The switch keeps the same offering with unchanged days, so the existing
 	// row is retained rather than capped and re-seeded.
 	switchDate := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(30)
-	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
+	_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentTest.UpdateChildOfferingsInput{
 		RequestID:      child.RequestID,
 		ChildID:        childID,
 		ActorAccountID: env.creatorID,
@@ -1956,7 +1957,7 @@ func TestResyncTemplateOfferingRoster_LegacyChildGainsNonOverlappingSourceDays(t
 
 	// The child holds BOTH offerings.
 	grade := int16(2)
-	submitted, err := env.requestSvc.Submit(ctx, enrollmentTest.SubmitRequest{
+	submitted, err := testpkg.TenantQuery1(t, ctx, env.db, env.requestSvc.Submit, enrollmentTest.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
@@ -1976,7 +1977,7 @@ func TestResyncTemplateOfferingRoster_LegacyChildGainsNonOverlappingSourceDays(t
 	require.NoError(t, err)
 	require.Len(t, submitted.Children, 1)
 	childID := submitted.Children[0].ID
-	outcome, err := env.decision.Decide(ctx, enrollmentTest.DecideInput{
+	outcome, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentTest.DecideInput{
 		RequestID:  submitted.Request.ID,
 		ChildID:    childID,
 		Status:     enrollmentTest.DecisionApproved,
@@ -2109,7 +2110,7 @@ func TestCareOfferingUpdate_ResyncsSourcedTemplates(t *testing.T) {
 
 	sourcedResyncer, ok := env.bookings.(enrollmentTest.SourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the offering-update resync")
-	svc := enrollmentTest.NewCareOfferingRows(testCareOfferingCatalog(t, env.db,
+	svc := newScopedOfferingRows(testCareOfferingCatalog(t, env.db,
 		api.WithCareOfferingToday(func() calendar.Date { return offeringResyncToday }),
 		api.WithCareOfferingRosterResync(sourcedResyncer),
 		api.WithCareOfferingPickupResync(&pickupResyncer{}),
@@ -2117,7 +2118,7 @@ func TestCareOfferingUpdate_ResyncsSourcedTemplates(t *testing.T) {
 
 	offering.AvailableDays = []string{"tue"}
 	offering.PickupTimes = carePickupTimes("tue")
-	require.NoError(t, svc.Update(ctx, offering))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Update, offering))
 
 	rows = loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1, "the pre-edit Monday row is replaced, not kept alongside")
@@ -2185,11 +2186,11 @@ func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing
 
 	latePhase := &enrollmentTest.Phase{
 		Name:             uniqueSchemaName("late-phase-" + t.Name()),
-		Kind:             enrollmentModels.PhaseKindSchoolYear,
+		Kind:             enrollmentTest.PhaseKindSchoolYear,
 		ServiceStartDate: enrollmentTest.Date(calendar.NewDate(2027, 9, 1)),
 		ServiceEndDate:   enrollmentTest.Date(calendar.NewDate(2028, 7, 31)),
 		IsActive:         true,
-		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+		CareOverflowMode: enrollmentTest.PhaseCareOverflowWaitlist,
 	}
 	latePhase.TenantID = testpkg.Tenant(t)
 	require.NoError(t, insertOwnerPhaseForTest(ctx, env.reposEnrollment.Enrollment(), latePhase))
@@ -2202,14 +2203,14 @@ func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing
 
 	sourcedResyncer, ok := env.bookings.(enrollmentTest.SourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the offering-update resync")
-	svc := enrollmentTest.NewCareOfferingRows(testCareOfferingCatalog(t, env.db,
+	svc := newScopedOfferingRows(testCareOfferingCatalog(t, env.db,
 		api.WithCareOfferingToday(func() calendar.Date { return offeringResyncToday }),
 		api.WithCareOfferingRosterResync(sourcedResyncer),
 		api.WithCareOfferingPickupResync(&pickupResyncer{}),
 	))
 
 	offering.PhaseID = latePhase.ID
-	err := svc.Update(ctx, offering)
+	err := testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Update, offering)
 	require.ErrorIs(t, err, enrollmentTest.ErrCareOfferingInvalid,
 		"an edit invalidating a sourced template must be rejected as client-correctable")
 	require.ErrorIs(t, err, timetable.ErrOfferingSourceInvalid)
@@ -2305,15 +2306,15 @@ func TestSourcedRosterRows_AppearInTemplateListReads(t *testing.T) {
 	))
 
 	ctx := testpkg.Ctx(t)
-	repo := api.MustNewUnobservedTimetable(testpkg.MustDatabase(env.db))
+	repo := owners.MustNewUnobservedTimetable(testpkg.MustDatabase(env.db))
 
-	rows, err := repo.ListTemplateRows(ctx, &template.ID)
+	rows, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), repo.ListTemplateRows, &template.ID)
 	require.NoError(t, err)
 	require.NotEmpty(t, rows, "the sourced template must appear in the list read")
 	assert.Equal(t, 1, rows[0].EnrollmentCount, "the phase-bounded sourced row must count")
 	assert.Contains(t, rows[0].StudentIDs, studentID)
 
-	roster, err := repo.ListTemplateWeekdayRoster(ctx, &template.ID, &period.ID)
+	roster, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), repo.ListTemplateWeekdayRoster, &template.ID, &period.ID)
 	require.NoError(t, err)
 	foundProtected := false
 	for _, row := range roster {

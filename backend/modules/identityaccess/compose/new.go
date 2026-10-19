@@ -5,7 +5,6 @@ package compose
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/uptrace/bun"
 
@@ -79,7 +78,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	}
 	dependencies, attach := bindTenantRuntime(dependencies)
 	store := newStore(dependencies.DB)
-	service := application.New(store, store, store, transaction{}, tenant.FromContext, func(observation Observation) {
+	service := application.New(store, store, store, newCommandTransactions(attach), tenant.FromContext, func(observation Observation) {
 		observation.Err = application.MapError(observation.Err)
 		dependencies.Observe(observation)
 	})
@@ -140,8 +139,8 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		Passkeys: operatorPasskeys, AccountPasskeys: accountPasskeys, AccountRoleQueries: application.NewAccountRoleQueries(service, store, postgres.NewRoleStore(store)),
 		Auth: auth, OperatorAuth: operatorAuth, AccountAccess: accountAccess, Lifecycle: lifecycle, Roles: roles,
 		Resets: resets, Invitations: invitations, Provisioning: provisioning, Administration: administration,
-		MFAFlows: flows, OperatorProvisioning: operatorProvisioning, SignInRetention: application.NewSignInDataRetention(store, invitationLogger(dependencies.Invitations)),
-		InvitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations)),
+		MFAFlows: flows, OperatorProvisioning: operatorProvisioning, SignInRetention: application.NewSignInDataRetention(store, invitationLogger(dependencies.Invitations), newCommandTransactions(attach).RunAdmin), AccountRetention: application.NewAccountRetention(store, attach, tenant.RegisterAfterCommit, invitationLogger(dependencies.Invitations)),
+		InvitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations), newCommandTransactions(attach).RunPlatform),
 		Runtime:               attach, WithRecoveryProof: rotation.WithRecoveryProof,
 	})
 	return identityaccess.NewDemoModule(e, demoAccess), nil
@@ -154,7 +153,7 @@ func NewGuardianInvitationReads(db *bun.DB) (identityaccess.GuardianInvitationRe
 	if db == nil {
 		return nil, errors.New("identity access compose: the guardian invitation reads need the database")
 	}
-	return application.NewGuardianInvitationReads(newStore(db)), nil
+	return application.NewGuardianInvitationReads(newStore(db), newCommandTransactions(nil).RunRead), nil
 }
 
 // bindTenantRuntime is the runtime the module opens its transactions under:
@@ -180,31 +179,9 @@ func newPasskeyRecords(service *application.Service, store *postgres.Store) (*ap
 	return application.NewOperatorPasskey(service, store), application.NewAccountPasskey(service, store)
 }
 
-type transaction struct{}
-
-func (transaction) RunWrite(ctx context.Context, callback func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return callback(ctx)
+func newCommandTransactions(attach func(context.Context) context.Context) application.CommandTransactions {
+	if attach == nil {
+		attach = func(ctx context.Context) context.Context { return ctx }
 	}
-	if _, err := tenant.TenantFromContext(ctx); err != nil {
-		return fmt.Errorf("%w: %w", identityaccess.ErrTenantRequired, err)
-	}
-	return tenant.WithinCurrentTenant(ctx, callback)
-}
-
-func (transaction) RunRead(ctx context.Context, callback func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return callback(ctx)
-	}
-	if _, err := tenant.TenantFromContext(ctx); err == nil {
-		return tenant.WithinCurrentTenant(ctx, callback)
-	}
-	return tenant.WithinAdmin(ctx, callback)
-}
-
-// RunPlatform never opens a transaction: the operator flows open their own
-// administrative transaction where several statements must commit together
-// and run single statements on the root connection otherwise.
-func (transaction) RunPlatform(ctx context.Context, callback func(context.Context) error) error {
-	return callback(ctx)
+	return application.NewCommandTransactions(attach, tenant.TransactionFromContext, tenant.FromContext, tenant.WithinCurrentTenant, tenant.WithinAdmin)
 }

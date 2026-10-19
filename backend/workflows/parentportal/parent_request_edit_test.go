@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -29,30 +30,30 @@ func buildEditableMasterDataService(t *testing.T) (*parentService.Portal, api.Pa
 	reposCare := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	events := repos.ParentRequestEvent
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges:     api.ParentGuardianChanges(),
-		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.NewParentGuardianPolicy(),
-		Fingerprints:        api.SecurityFingerprints{},
-		Declarations:        api.ParentDeclarationPolicy(),
-		Locales:             api.ParentPortalLocales(),
-		Runtime:             api.ParentPortalRuntime{},
-		CarePlan:            api.NewParentCarePlanCommands(reposCare.CarePlan(), nil),
-		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
+		CarePlan:            owners.NewParentCarePlanCommands(reposCare.CarePlan(), nil),
+		People:              owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           reposCare.ParentChildReads(),
-		StudentRepo:         api.NewParentStudentReads(repos.Student),
-		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
-		PersonRepo:          api.NewParentPersonReads(repos.Person),
-		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber),
-		ChangeRequestRepo:   api.NewParentDataRequestReads(reposCare.CarePlan()),
-		ParentRequestEvents: api.NewParentRequestEvents(events),
+		StudentRepo:         owners.NewParentStudentReads(repos.Student),
+		GuardianProfileRepo: owners.NewParentGuardianProfileReads(repos.GuardianProfile),
+		PersonRepo:          owners.NewParentPersonReads(repos.Person),
+		GuardianPhoneRepo:   owners.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber),
+		ChangeRequestRepo:   owners.NewParentDataRequestReads(reposCare.CarePlan()),
+		ParentRequestEvents: owners.NewParentRequestEvents(events),
 		Settings:            masterDataSettings(false, true, false),
-		StudentUpdates:      api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
+		StudentUpdates:      owners.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Logger:              slog.Default(),
 
-		DataRequests: api.NewParentDataRequestCommands(reposCare.CarePlan()),
+		DataRequests: owners.NewParentDataRequestCommands(reposCare.CarePlan()),
 
-		CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 	return svc, api.NewParentRequestEventFixtureReads(events), db
 }
@@ -236,7 +237,7 @@ func TestEditMasterDataRequestRefusesUnchangedValue(t *testing.T) {
 		}, nil)
 	require.NoError(t, err)
 
-	person, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Person.FindByID(ctx, chain.PersonID)
+	person, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Person.FindByID, any(chain.PersonID))
 	require.NoError(t, err)
 	live, err := json.Marshal(person.FirstName)
 	require.NoError(t, err)

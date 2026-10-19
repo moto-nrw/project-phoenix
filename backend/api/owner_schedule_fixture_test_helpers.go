@@ -5,6 +5,8 @@ package api
 import (
 	"context"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -18,7 +20,7 @@ func NewCalendarPeriodFixture() *schoolcalendar.CalendarPeriod {
 	return &schoolcalendar.CalendarPeriod{PeriodType: schoolcalendar.PeriodTypeCustom}
 }
 func CreateCalendarPeriodTestRecord(ctx context.Context, db transactionruntime.Database, row *schoolcalendar.CalendarPeriod) error {
-	owner, err := NewSchoolCalendar(db)
+	owner, err := owners.NewSchoolCalendar(db)
 	if err != nil {
 		return err
 	}

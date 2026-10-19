@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
@@ -16,7 +16,7 @@ import (
 // change request repository over the Care Plan records (#3351).
 type CareScheduleRequestRows struct{ rows ports.CarePlanRows }
 
-var _ scheduleModels.CareScheduleChangeRequestRepository = CareScheduleRequestRows{}
+var _ ports.CareScheduleChangeRequestRecords = CareScheduleRequestRows{}
 
 // NewCareScheduleRequestRows binds the request rows to the records.
 func NewCareScheduleRequestRows(rows ports.CarePlanRows) CareScheduleRequestRows {
@@ -42,7 +42,8 @@ func (r CareScheduleRequestRows) Create(ctx context.Context, row *scheduleModels
 	return err
 }
 
-func (r CareScheduleRequestRows) FindByID(ctx context.Context, raw any) (*scheduleModels.CareScheduleChangeRequest, error) {
+func (r CareScheduleRequestRows) FindByID(ctx context.Context, nativeRecordID int64) (*scheduleModels.CareScheduleChangeRequest, error) {
+	var raw any = nativeRecordID
 	id, err := legacyScheduleID(raw)
 	if err != nil {
 		return nil, err
@@ -55,30 +56,6 @@ func (r CareScheduleRequestRows) FindByID(ctx context.Context, raw any) (*schedu
 		return nil, err
 	}
 	return careScheduleRequestFromPublic(value)
-}
-
-func (r CareScheduleRequestRows) GetPendingForStudentAndKind(ctx context.Context, studentID int64, kind string) (*scheduleModels.CareScheduleChangeRequest, error) {
-	values, err := r.list(ctx, ports.CareScheduleRequestFilter{StudentID: studentID, RequestKinds: []string{kind}, Statuses: []string{scheduleModels.CareRequestStatusPending}})
-	if err != nil || len(values) == 0 {
-		return nil, err
-	}
-	return values[0], nil
-}
-
-func (r CareScheduleRequestRows) list(ctx context.Context, filter ports.CareScheduleRequestFilter) ([]*scheduleModels.CareScheduleChangeRequest, error) {
-	values, err := r.rows.Records.ListCareScheduleRequests(ctx, filter)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*scheduleModels.CareScheduleChangeRequest, 0, len(values))
-	for _, value := range values {
-		row, convertErr := careScheduleRequestFromPublic(value)
-		if convertErr != nil {
-			return nil, convertErr
-		}
-		result = append(result, row)
-	}
-	return result, nil
 }
 
 func (r CareScheduleRequestRows) Decide(ctx context.Context, id int64, status string, reason *string, reviewedBy *int64, applied bool) error {

@@ -61,7 +61,7 @@ func TestStudentBirthdaysExcludeEndedCare(t *testing.T) {
 	setEnrolledUntil(t, db, lastDay.ID, today)
 	setEnrolledUntil(t, db, departed.ID, today.AddDays(-1))
 
-	entries, err := repos.Student.FindBirthdaysOn(ctx, []peopleBirthday.BirthdayMonthDay{
+	entries, err := testpkg.TenantQuery1(t, ctx, db, repos.Student.FindBirthdaysOn, []peopleBirthday.BirthdayMonthDay{
 		{Month: today.Month(), Day: today.Day()},
 	})
 	require.NoError(t, err)

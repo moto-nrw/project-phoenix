@@ -50,3 +50,20 @@ func TestDemoReadsWebCheckoutOfPhysicalSchoolStay(t *testing.T) {
 	assert.False(t, visits[0].Active)
 	assert.WithinDuration(t, departure, visits[0].ChangedAt, time.Microsecond)
 }
+
+// The queue smoke invokes this expiry before it claims any prospect order.
+// A superuser fixture would hide a forbidden SET LOCAL ROLE phoenix_admin.
+func TestDemoQueueExpiryUsesTheRestrictedLogin(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	demo := testpkg.DemoRoleDatabase(t, db)
+	var member bool
+	require.NoError(t, demo.NewRaw("SELECT pg_has_role(current_user, 'phoenix_admin', 'MEMBER')").Scan(t.Context(), &member))
+	require.False(t, member)
+	database := testpkg.NewDemoDatabase(t, demo)
+	runtime, err := NewDemoRuntime(database, time.Now)
+	require.NoError(t, err)
+	_, _, err = runtime.ExpireDemoAccesses(t.Context())
+	require.NoError(t, err)
+	testpkg.AssertRestrictedDemoUnit(t, demo)
+}

@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -33,14 +33,14 @@ func TestOfferingChangeRequestService_Create_RequiresAndAuditsCompleteWithdrawal
 		Selections:    nil,
 	}
 
-	_, err := svc.SubmitOfferingChange(offeringChangeAdminContext(t), input)
+	_, err := testpkg.TenantQuery1(t, offeringChangeAdminContext(t), testpkg.SetupTestDB(t), svc.SubmitOfferingChange, input)
 	require.ErrorIs(t, err, careplan.ErrCompleteWithdrawalConfirmationRequired)
 	pending, err := pendingOfferingChangeForStudent(testpkg.Ctx(t), env.repos.CarePlan(), fx.studentID)
 	require.NoError(t, err)
 	assert.Nil(t, pending, "the first unconfirmed attempt must not store a request")
 
 	input.CompleteWithdrawalConfirmed = true
-	row, err := svc.SubmitOfferingChange(offeringChangeAdminContext(t), input)
+	row, err := testpkg.TenantQuery1(t, offeringChangeAdminContext(t), testpkg.SetupTestDB(t), svc.SubmitOfferingChange, input)
 	require.NoError(t, err)
 	assert.True(t, row.CompleteWithdrawalConfirmed)
 	assert.Equal(t, env.creatorID, *row.WithdrawalConfirmedBy)
@@ -59,12 +59,12 @@ func TestDirectOfferingAdjustment_PreviewRejectsCompleteWithdrawalWhenBookingsAr
 	direct, ok := svc.(careplan.DirectOfferingAdjustments)
 	require.True(t, ok)
 	fx := setupOfferingChangeFixture(t, env, "DirectPreviewNonAuthoritativeWithdrawal")
-	env.sourcePhase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
-	require.NoError(t, env.reposEnrollment.Enrollment().UpdatePhase(ctx, ownerPhaseForTest(env.sourcePhase)))
+	env.sourcePhase.CareOfferingSelectionMode = enrollmentTest.PhaseCareOfferingSelectionAtLeastOne
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), env.reposEnrollment.Enrollment().UpdatePhase, ownerPhaseForTest(env.sourcePhase)))
 	fx.oldOffering.IsRequired = true
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, fx.oldOffering))
 
-	_, err := direct.PreviewDirectOfferingAdjustment(ctx, careplan.DirectOfferingAdjustmentInput{
+	_, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), direct.PreviewDirectOfferingAdjustment, careplan.DirectOfferingAdjustmentInput{
 		StudentID: fx.studentID, EffectiveFrom: fx.switchDate, Selections: []careplan.OfferingChangeSelection{},
 	})
 	require.ErrorIs(t, err, careplan.ErrOfferingChangeInvalid)
@@ -80,7 +80,7 @@ func TestOfferingChangeRequestService_Decide_RequiresStaffWithdrawalConfirmation
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "StaffCompleteWithdrawal")
-	row, err := svc.SubmitOfferingChange(ctx, careplan.CreateOfferingChangeInput{
+	row, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.SubmitOfferingChange, careplan.CreateOfferingChangeInput{
 		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
 		CompleteWithdrawalConfirmed: true,
 	})
@@ -89,11 +89,11 @@ func TestOfferingChangeRequestService_Decide_RequiresStaffWithdrawalConfirmation
 	decision := careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID, ActorRole: "admin",
 	}
-	err = svc.Decide(ctx, decision)
+	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, decision)
 	require.ErrorIs(t, err, careplan.ErrCompleteWithdrawalConfirmationRequired)
 	stillPending, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, stillPending.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusPending, stillPending.Status)
 	pendingCompletions, _, err := env.reposPeople.CareWithdrawal.ListPending(ctx, careplan.WithdrawalListFilter{
 		StudentID: fx.studentID, Page: 1, PageSize: 10,
 	})
@@ -101,10 +101,10 @@ func TestOfferingChangeRequestService_Decide_RequiresStaffWithdrawalConfirmation
 	assert.Empty(t, pendingCompletions, "a failed approval must not create its completion task")
 
 	decision.CompleteWithdrawalConfirmed = true
-	require.NoError(t, svc.Decide(ctx, decision))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, decision))
 	decided, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusApproved, decided.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusApproved, decided.Status)
 	pendingCompletions, _, err = env.reposPeople.CareWithdrawal.ListPending(ctx, careplan.WithdrawalListFilter{
 		StudentID: fx.studentID, Page: 1, PageSize: 10,
 	})
@@ -122,13 +122,13 @@ func TestOfferingChangeRequestService_Reject_DoesNotCreateWithdrawalCompletion(t
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "RejectCompleteWithdrawal")
-	row, err := svc.SubmitOfferingChange(ctx, careplan.CreateOfferingChangeInput{
+	row, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.SubmitOfferingChange, careplan.CreateOfferingChangeInput{
 		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
 		CompleteWithdrawalConfirmed: true,
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, svc.Decide(ctx, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, Approve: false, Reason: "Nicht freigegeben",
 		ReviewedBy: env.creatorID, ActorRole: "admin",
 	}))
@@ -155,7 +155,7 @@ func TestOfferingChangeRequestService_Decide_ReportsAppliedWithdrawalResult(t *t
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "WithdrawalStateDrift")
-	row, err := svc.SubmitOfferingChange(ctx, careplan.CreateOfferingChangeInput{
+	row, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.SubmitOfferingChange, careplan.CreateOfferingChangeInput{
 		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
 		CompleteWithdrawalConfirmed: true,
 	})
@@ -169,7 +169,7 @@ func TestOfferingChangeRequestService_Decide_ReportsAppliedWithdrawalResult(t *t
 		Set("payload = ?::jsonb", payload).Where("id = ?", row.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	require.NoError(t, svc.Decide(ctx, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID, ActorRole: "admin",
 	}))
 	decided, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
@@ -198,7 +198,7 @@ func TestOfferingChangeRequestService_Decide_RequiresConfirmationAfterTargetBeco
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "WithdrawalInverseDrift")
-	row, err := svc.SubmitOfferingChange(ctx, careplan.CreateOfferingChangeInput{
+	row, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.SubmitOfferingChange, careplan.CreateOfferingChangeInput{
 		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
 		Selections: []careplan.OfferingChangeSelection{{
 			OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"},
@@ -210,17 +210,17 @@ func TestOfferingChangeRequestService_Decide_RequiresConfirmationAfterTargetBeco
 	_, err = env.db.NewUpdate().TableExpr("enrollment.offering_change_requests").
 		Set(`payload = '{"offerings":[]}'::jsonb`).Where("id = ?", row.ID).Exec(ctx)
 	require.NoError(t, err)
-	preview, err := svc.PreviewDecision(ctx, row.ID, nil, nil)
+	preview, err := testpkg.TenantQuery3(t, ctx, testpkg.SetupTestDB(t), svc.PreviewDecision, row.ID, nil, nil)
 	require.NoError(t, err, "the required-care preview must allow staff to reach the confirmation step")
 	require.NotEmpty(t, preview.Selections)
 	decision := careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID, ActorRole: "admin",
 	}
-	err = svc.Decide(ctx, decision)
+	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, decision)
 	require.ErrorIs(t, err, careplan.ErrCompleteWithdrawalConfirmationRequired)
 	stillPending, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, stillPending.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusPending, stillPending.Status)
 
 	decision.CompleteWithdrawalConfirmed = true
 	require.NoError(t, svc.Decide(ctx, decision))
@@ -239,12 +239,12 @@ func TestOfferingChangeRequestService_GetForStudent_DropsOldWithdrawalAfterCareR
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "WithdrawalStatusResume")
-	row, err := svc.SubmitOfferingChange(ctx, careplan.CreateOfferingChangeInput{
+	row, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.SubmitOfferingChange, careplan.CreateOfferingChangeInput{
 		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
 		CompleteWithdrawalConfirmed: true,
 	})
 	require.NoError(t, err)
-	require.NoError(t, svc.Decide(ctx, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID, ActorRole: "admin",
 		CompleteWithdrawalConfirmed: true,
 	}))
@@ -299,7 +299,7 @@ func TestOfferingChangeRequestService_ListPending_MarksFullWithdrawal(t *testing
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "FullWithdrawal")
 
-	row, err := svc.SubmitOfferingChange(offeringChangeAdminContext(t), careplan.CreateOfferingChangeInput{
+	row, err := testpkg.TenantQuery1(t, offeringChangeAdminContext(t), testpkg.SetupTestDB(t), svc.SubmitOfferingChange, careplan.CreateOfferingChangeInput{
 		StudentID:     fx.studentID,
 		AccountID:     env.creatorID,
 		EffectiveFrom: fx.switchDate,
@@ -321,12 +321,12 @@ func TestOfferingChangeRequestService_ListPending_MarksRequiredCareWithdrawal(t 
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "RequiredFullWithdrawal")
-	env.sourcePhase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
-	require.NoError(t, env.reposEnrollment.Enrollment().UpdatePhase(ctx, ownerPhaseForTest(env.sourcePhase)))
+	env.sourcePhase.CareOfferingSelectionMode = enrollmentTest.PhaseCareOfferingSelectionAtLeastOne
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), env.reposEnrollment.Enrollment().UpdatePhase, ownerPhaseForTest(env.sourcePhase)))
 	fx.oldOffering.IsRequired = true
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, fx.oldOffering))
 
-	row, err := svc.SubmitOfferingChange(ctx, careplan.CreateOfferingChangeInput{
+	row, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.SubmitOfferingChange, careplan.CreateOfferingChangeInput{
 		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
 		CompleteWithdrawalConfirmed: true,
 	})
@@ -346,10 +346,10 @@ func TestOfferingChangeRequestService_ListPending_KeepsUntouchedBookingsOutOfThe
 	// A second child that holds both offerings, so dropping one leaves one.
 	_, _, studentID := submitApprovedAdjustmentChild(
 		t, env, "offer-change-keeps-other@example.com", "OfferChangeKeepsOther",
-		[]*enrollmentModels.CareOffering{fx.oldOffering, fx.newOffering},
+		[]*offeringContract.CareOfferingRecord{fx.oldOffering, fx.newOffering},
 	)
 
-	row, err := svc.SubmitOfferingChange(offeringChangeAdminContext(t), careplan.CreateOfferingChangeInput{
+	row, err := testpkg.TenantQuery1(t, offeringChangeAdminContext(t), testpkg.SetupTestDB(t), svc.SubmitOfferingChange, careplan.CreateOfferingChangeInput{
 		StudentID:     studentID,
 		AccountID:     env.creatorID,
 		EffectiveFrom: fx.switchDate,

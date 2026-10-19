@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -27,7 +28,7 @@ func classArrivalBaseline(t *testing.T, repos *api.RepositoryTestFactory) carepl
 	if err != nil {
 		panic(err)
 	}
-	baselines, err := api.NewArrivalBaselines(repos.CarePlan(), api.MustNewPeopleDirectory(testpkg.MustDatabase(testpkg.SetupTestDB(t))), classArrivalQueries, approvedOfferingProjection(t), func(context.Context) (bool, error) { return false, nil })
+	baselines, err := owners.NewArrivalBaselines(repos.CarePlan(), owners.MustNewPeopleDirectory(testpkg.MustDatabase(testpkg.SetupTestDB(t))), classArrivalQueries, approvedOfferingProjection(t), func(context.Context) (bool, error) { return false, nil })
 	if err != nil {
 		panic(err)
 	}

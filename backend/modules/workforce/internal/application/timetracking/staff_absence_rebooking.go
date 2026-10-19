@@ -70,11 +70,6 @@ type rebookedAbsence struct {
 	after  *StaffAbsence
 }
 
-// RebookAbsences changes the type of stored absences (#3258). The rows keep
-// their dates, their entry date and their status; the Stundenkonto, the
-// allowances and every view follow from the new type because all of them are
-// computed on read. A closed month blocks the change, since its frozen
-// closing balance would no longer match.
 func (s *staffAbsenceService) RebookAbsences(ctx context.Context, req RebookAbsencesRequest) (*AbsenceRebookingResult, error) {
 	reason := strings.TrimSpace(req.Reason)
 	ids, err := validateRebookingRequest(req, reason)
@@ -86,7 +81,7 @@ func (s *staffAbsenceService) RebookAbsences(ctx context.Context, req RebookAbse
 		return nil, err
 	}
 	if !slices.Contains(ValidAbsenceTypes, baseType) {
-		return nil, fmt.Errorf("invalid absence type")
+		return nil, &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid absence type")}
 	}
 	if baseType == AbsenceTypeSick {
 		return nil, rebookingBlocked(workforce.RebookingIntoSickReportCode, workforce.RebookingValues{}, "In eine Krankmeldung lässt sich nicht umbuchen. Löschen Sie den Eintrag und tragen Sie die Krankmeldung neu ein.")
@@ -154,12 +149,12 @@ func (s *staffAbsenceService) RebookAbsences(ctx context.Context, req RebookAbse
 
 func validateRebookingRequest(req RebookAbsencesRequest, reason string) ([]int64, error) {
 	if req.StaffID <= 0 || req.ActorAccountID <= 0 {
-		return nil, fmt.Errorf("invalid rebooking: staff and actor are required")
+		return nil, &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid rebooking: staff and actor are required")}
 	}
 	ids := make([]int64, 0, len(req.AbsenceIDs))
 	for _, id := range req.AbsenceIDs {
 		if id <= 0 {
-			return nil, fmt.Errorf("invalid rebooking: absence id must be positive")
+			return nil, &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid rebooking: absence id must be positive")}
 		}
 		if !slices.Contains(ids, id) {
 			ids = append(ids, id)
@@ -186,12 +181,12 @@ func (s *staffAbsenceService) loadRebookedAbsences(ctx context.Context, staffID 
 		absence, err := s.absenceRepo.FindByID(ctx, id)
 		if err != nil {
 			if isRecordNotFound(err) {
-				return nil, fmt.Errorf("absence not found")
+				return nil, workforce.ErrAbsenceNotFound
 			}
 			return nil, err
 		}
 		if absence == nil || absence.StaffID != staffID {
-			return nil, fmt.Errorf("absence not found")
+			return nil, workforce.ErrAbsenceNotFound
 		}
 		day := absence.DateStart.Format("02.01.2006")
 		switch {
@@ -448,7 +443,7 @@ func (s *staffAbsenceService) writeRebookedAbsences(ctx context.Context, actorAc
 		after := entry.after
 		after.UpdatedAt = now
 		if err := after.Validate(); err != nil {
-			return fmt.Errorf("invalid absence data: %w", err)
+			return &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid absence data: %w", err)}
 		}
 		if err := s.absenceRepo.Update(ctx, after); err != nil {
 			return fmt.Errorf("failed to rebook absence: %w", err)

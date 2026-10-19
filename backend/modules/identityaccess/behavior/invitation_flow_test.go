@@ -105,7 +105,7 @@ func TestInvitationIsRedeemableOnce(t *testing.T) {
 	member, err := testpkg.ActiveAccountTenantExists(context.Background(), env.db, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.True(t, member, "the invitee can sign in at the school")
-	person, err := env.repos.Person.FindByAccountID(ctx, account.ID)
+	person, err := testpkg.TenantQuery1(t, ctx, db, env.repos.Person.FindByAccountID, account.ID)
 	require.NoError(t, err)
 	require.NotNil(t, person, "accepting provisions the identity the role needs")
 	assert.Equal(t, "Ada", person.FirstName)
@@ -163,6 +163,50 @@ func TestCreateInvitationInvalidatesThePreviousInvitationOfTheSchool(t *testing.
 	_, err = env.service.CreateSchoolInvitation(ctx, request)
 	require.NoError(t, err)
 	assert.False(t, env.storedInvitation(t, elsewhere.ID).IsUsed(), "another school's invitation is not spent")
+}
+
+// Account retention locks an unused account before it decides whether an
+// invitation keeps it. Creating an invitation must take that same lock, so
+// one of the two transactions sees the other's final state.
+func TestCreateInvitationWaitsForUnusedAccountLock(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	env := newInvitationEnv(t, db)
+	ctx := testpkg.Ctx(t)
+	creator := testpkg.CreateTestAccount(t, db, "invite-lock-creator")
+	role := testpkg.CreateTestRole(t, db, "invite-lock-role")
+	unused := testpkg.CreateTestAccount(t, db, "invite-lock-unused")
+	testpkg.UnclaimTestAccount(t, db, unused.ID)
+	// The account is deliberately tenant-less for this test, so the leftover
+	// gate cannot assign it to the test tenant. Remove that global fixture
+	// directly once the lock scenario is done.
+	t.Cleanup(func() {
+		_, cleanupErr := db.Exec("DELETE FROM auth.accounts WHERE id = ?", unused.ID)
+		require.NoError(t, cleanupErr)
+	})
+
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	_, err = tx.ExecContext(ctx, `SELECT id FROM auth.accounts WHERE id = ? FOR UPDATE`, unused.ID)
+	require.NoError(t, err)
+
+	created := make(chan error, 1)
+	go func() {
+		_, createErr := env.service.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
+			Email: unused.Email, RoleID: role.ID, CreatedBy: creator.ID,
+			ActorPermissions: []string{usersManagePermission},
+		})
+		created <- createErr
+	}()
+
+	select {
+	case createErr := <-created:
+		t.Fatalf("invitation creation did not wait for the account lock: %v", createErr)
+	case <-time.After(500 * time.Millisecond):
+	}
+	require.NoError(t, tx.Commit())
+	require.NoError(t, <-created)
 }
 
 // The inviting account may not hand out a role beyond its own authority, and

@@ -16,7 +16,7 @@ func TestRFIDLookupNormalizesAndIsolatesTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	card := testpkg.CreateTestRFIDCard(t, db, "ABCD1234")
 	var observations []identityCompose.Observation
-	access, err := identityCompose.New(identityCompose.Dependencies{DB: db, Observe: func(observation identityCompose.Observation) {
+	access, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(observation identityCompose.Observation) {
 		observations = append(observations, observation)
 	}})
 	require.NoError(t, err)

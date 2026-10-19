@@ -11,8 +11,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging"
 )
 
 // Dependencies are the collaborators of the guardian portal. Runtime is

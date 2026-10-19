@@ -2,6 +2,7 @@ package schoolmembership
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -49,11 +50,28 @@ type CaregiverMembership interface {
 	ListStaff(context.Context, StaffFilter) ([]Staff, error)
 }
 
-// ActiveCaregivers lists the active caregivers of the school tenantID (every
-// school when tenantID is 0), optionally of one account only. The order is
-// the caller's.
+// ActiveCaregivers lists the active caregivers of one required school,
+// optionally of one account only. The order is the caller's.
 func ActiveCaregivers(ctx context.Context, membership CaregiverMembership, directory CaregiverDirectory, tenantID int64, accountID *int64) ([]ActiveCaregiver, error) {
-	candidates, accountIDsByTenant, err := caregiverCandidates(ctx, membership, directory, tenantID, accountID)
+	if tenantID <= 0 {
+		return nil, errors.New("caregiver directory: tenant is required")
+	}
+	return activeCaregivers(ctx, membership, directory, caregiverScope{schoolID: tenantID}, accountID)
+}
+
+// CrossSchoolActiveCaregivers is the explicit cross-school projection. Roots
+// bind it only while holding their privileged account/operator transaction.
+func CrossSchoolActiveCaregivers(ctx context.Context, membership CaregiverMembership, directory CaregiverDirectory, accountID *int64) ([]ActiveCaregiver, error) {
+	return activeCaregivers(ctx, membership, directory, caregiverScope{acrossSchools: true}, accountID)
+}
+
+type caregiverScope struct {
+	schoolID      int64
+	acrossSchools bool
+}
+
+func activeCaregivers(ctx context.Context, membership CaregiverMembership, directory CaregiverDirectory, scope caregiverScope, accountID *int64) ([]ActiveCaregiver, error) {
+	candidates, accountIDsByTenant, err := caregiverCandidates(ctx, membership, directory, scope, accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +105,7 @@ type caregiverCandidate struct {
 // caregiverCandidates lists the live teachers of the school with their staff
 // member and an account-holding person, and the candidate accounts per
 // school.
-func caregiverCandidates(ctx context.Context, membership CaregiverMembership, directory CaregiverDirectory, tenantID int64, accountID *int64) ([]caregiverCandidate, map[int64][]int64, error) {
+func caregiverCandidates(ctx context.Context, membership CaregiverMembership, directory CaregiverDirectory, scope caregiverScope, accountID *int64) ([]caregiverCandidate, map[int64][]int64, error) {
 	teachers, err := membership.ListTeachers(ctx, TeacherFilter{})
 	if err != nil || len(teachers) == 0 {
 		return nil, nil, err
@@ -113,7 +131,7 @@ func caregiverCandidates(ctx context.Context, membership CaregiverMembership, di
 	candidates := make([]caregiverCandidate, 0, len(teachers))
 	accountIDsByTenant := make(map[int64][]int64)
 	for _, teacher := range teachers {
-		candidate, ok := teacherCaregiverCandidate(teacher, staffByID, persons, tenantID, accountID)
+		candidate, ok := teacherCaregiverCandidate(teacher, staffByID, persons, scope, accountID)
 		if !ok {
 			continue
 		}
@@ -126,19 +144,19 @@ func caregiverCandidates(ctx context.Context, membership CaregiverMembership, di
 // teacherCaregiverCandidate joins one teacher to its staff member and
 // person, or reports that the teacher is no candidate of the school (or the
 // account).
-func teacherCaregiverCandidate(teacher Teacher, staffByID map[int64]Staff, persons map[int64]CaregiverPerson, tenantID int64, accountID *int64) (caregiverCandidate, bool) {
+func teacherCaregiverCandidate(teacher Teacher, staffByID map[int64]Staff, persons map[int64]CaregiverPerson, scope caregiverScope, accountID *int64) (caregiverCandidate, bool) {
 	staff, found := staffByID[teacher.StaffID]
 	if !found {
 		return caregiverCandidate{}, false
 	}
-	if tenantID > 0 && (teacher.TenantID != tenantID || staff.TenantID != tenantID) {
+	if teacher.TenantID != staff.TenantID || (!scope.acrossSchools && teacher.TenantID != scope.schoolID) {
 		return caregiverCandidate{}, false
 	}
 	person, found := persons[staff.PersonID]
 	if !found || person.AccountID == nil {
 		return caregiverCandidate{}, false
 	}
-	if tenantID > 0 && person.TenantID != tenantID {
+	if person.TenantID != teacher.TenantID {
 		return caregiverCandidate{}, false
 	}
 	if accountID != nil && *person.AccountID != *accountID {

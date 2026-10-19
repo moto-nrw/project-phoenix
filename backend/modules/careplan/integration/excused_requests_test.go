@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -50,7 +51,7 @@ func newExcusedFixture(t *testing.T) *excusedFixture {
 
 func newExcusedRequests(t *testing.T, repos *api.PeopleRepositorySuiteFactory, capability careplan.Capability) careplan.ExcusedAbsenceRequests {
 	t.Helper()
-	requests, err := api.NewExcusedAbsenceRequests(api.ExcusedRequestWiring{
+	requests, err := owners.NewExcusedAbsenceRequests(owners.ExcusedRequestWiring{
 		CarePlan: capability, Students: repos.Student, Persons: repos.Person,
 		Scope: careplantest.SchoolWideReviewScope, Today: func() careplan.Date { return excusedToday },
 	})

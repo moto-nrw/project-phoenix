@@ -8,12 +8,12 @@ import (
 
 	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
-	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -203,7 +203,7 @@ func TestTimetableRead_StudentWeekAppliesTheBookingMode(t *testing.T) {
 		assert.Equal(t, "11:45", booked.Time.Format("15:04"))
 		// The week carries the time only; the source stays with Care Plan's
 		// projection the week is built from.
-		projection, err := bookingModeArrivalBaseline(t, env, true).Project(ctx, []int64{studentID}, monday, thursday)
+		projection, err := testpkg.TenantQuery3(t, ctx, testpkg.SetupTestDB(t), bookingModeArrivalBaseline(t, env, true).Project, []int64{studentID}, monday, thursday)
 		require.NoError(t, err)
 		source := projection.ForDate(studentID, monday)
 		require.NotNil(t, source)

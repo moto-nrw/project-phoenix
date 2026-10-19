@@ -208,10 +208,10 @@ func (rs *Resource) listForOperator(ctx context.Context, query scanQuery) ([]sca
 
 func (rs *Resource) resolve(ctx context.Context, id, operatorID int64, note *string) (scanResponse, error) {
 	if id <= 0 {
-		return scanResponse{}, errors.New("scan ID is required")
+		return scanResponse{}, devicefleet.ErrTagScanIDRequired
 	}
 	if operatorID <= 0 {
-		return scanResponse{}, errors.New("operator ID is required")
+		return scanResponse{}, devicefleet.ErrTagScanOperatorIDRequired
 	}
 	var result scanResponse
 	err := rs.withinAdmin(ctx, func(adminCtx context.Context) error {
@@ -397,30 +397,18 @@ func (e tagScanRefusal) Unwrap() error      { return e.err }
 func (e tagScanRefusal) ErrorField() string { return "" }
 
 func (e tagScanRefusal) ErrorCode() string {
-	for err := e.err; err != nil; err = errors.Unwrap(err) {
-		switch err.Error() {
-		case "unregistered tag scan not found":
-			return codeTagScanNotFound
-		case "unregistered tag scan already resolved":
-			return codeTagScanAlreadyResolved
-		}
+	switch {
+	case errors.Is(e.err, devicefleet.ErrUnregisteredTagScanNotFound):
+		return codeTagScanNotFound
+	case errors.Is(e.err, devicefleet.ErrUnregisteredTagScanResolved):
+		return codeTagScanAlreadyResolved
+	default:
+		return codeInvalidInput
 	}
-	return codeInvalidInput
 }
 
-// resolveIsClientError reports whether err, or an error it wraps, is one of
-// the refusals of the Device Fleet resolution.
 func resolveIsClientError(err error) bool {
-	for err != nil {
-		switch err.Error() {
-		case "operator ID is required",
-			"scan ID is required",
-			"unregistered tag scan not found",
-			"unregistered tag scan already resolved",
-			"invalid unregistered tag scan":
-			return true
-		}
-		err = errors.Unwrap(err)
-	}
-	return false
+	return errors.Is(err, devicefleet.ErrTagScanOperatorIDRequired) || errors.Is(err, devicefleet.ErrTagScanIDRequired) ||
+		errors.Is(err, devicefleet.ErrUnregisteredTagScanNotFound) || errors.Is(err, devicefleet.ErrUnregisteredTagScanResolved) ||
+		errors.Is(err, devicefleet.ErrInvalidUnregisteredTagScan)
 }

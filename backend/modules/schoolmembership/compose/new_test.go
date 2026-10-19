@@ -621,3 +621,24 @@ func TestModuleFiltersStaffListingsByTenant(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+
+func TestMembershipReadRequiresTenantAndEnforcesRLS(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	own := testpkg.CreateTestStaff(t, db, "Membership", "Own")
+	otherCtx, otherTenant := otherTenantContext(t, db)
+	foreign := testpkg.CreateTestStaffForTenant(t, db, otherTenant, "Membership", "Foreign")
+	ctx := testpkg.Ctx(t)
+	for _, side := range []struct {
+		ctx     context.Context
+		visible int64
+	}{{ctx, own.ID}, {otherCtx, foreign.ID}} {
+		staff, err := module.ListStaff(side.ctx, schoolmembership.StaffFilter{IDs: []int64{own.ID, foreign.ID}})
+		require.NoError(t, err)
+		require.Len(t, staff, 1)
+		require.Equal(t, side.visible, staff[0].ID)
+	}
+	_, err := module.ListStaff(tenant.ContextWithoutTenant(ctx), schoolmembership.StaffFilter{IDs: []int64{own.ID, foreign.ID}})
+	require.ErrorIs(t, err, tenant.ErrTenantRequired)
+}

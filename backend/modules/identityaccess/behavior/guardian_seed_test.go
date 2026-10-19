@@ -15,7 +15,7 @@ import (
 func TestGuardianSeedPreservesExistingInactiveAccount(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("seed-reuse-%d@test.local", testpkg.Tenant(t)), "Existing-seed-test-9!")
@@ -47,7 +47,7 @@ func TestGuardianSeedPreservesExistingInactiveAccount(t *testing.T) {
 func TestGuardianSeedRejectsMalformedEmail(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	email := fmt.Sprintf("not-an-email-%d", testpkg.Tenant(t))

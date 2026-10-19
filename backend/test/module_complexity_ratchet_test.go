@@ -56,13 +56,21 @@ const moduleComplexityThreshold = 15
 // The entries record the debt as it was on that day; every one of them may
 // only shrink or disappear.
 //
+// Re-measured on 2026-10-19 at 148e5aeb86 for the gocognit 1.2.1 → 1.3.0
+// upgrade (ADR 0072). The new version scores else nesting, parenthesized
+// logical operators and recursion differently; no code changed. Thirteen
+// entries rose, three functions entered at 16, and two entries fell: the
+// register's sum went from 5,460 to 5,527 over 228 entries. This is a tool
+// rebaseline, not new debt; ADR 0072 records why the functions were not
+// refactored instead. Every entry keeps falling from here.
+//
 // Sorted by key, with a blank line between owner modules so gofmt aligns each
 // block on its own and removing an entry reflows only that module's block.
 var moduleComplexityAllowlist = map[string]int{
 	"modules/careplan/carerequests/weekly.go:weeklyEntries":                                                      39,
 	"modules/careplan/internal/adapters/postgres/offering_bookings.go:(*Store).RecordCareOfferingBookings":       16,
 	"modules/careplan/internal/adapters/postgres/offering_bookings.go:(*Store).replaceCareOfferingBookings":      17,
-	"modules/careplan/internal/adapters/postgres/status_days.go:(*statusDayStore).ArchiveStudentStatusFlags":     23,
+	"modules/careplan/internal/adapters/postgres/status_days.go:(*statusDayStore).ArchiveStudentStatusFlags":     22,
 	"modules/careplan/internal/adapters/postgres/status_days.go:(*statusDayStore).CountEffectiveStudentAbsences": 16,
 	"modules/careplan/internal/adapters/postgres/withdrawal_completions.go:(*DirectoryStore).ListWithdrawals":    20,
 	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Correct":                       18,
@@ -70,17 +78,17 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListPending":                   21,
 	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingFacts":           28,
 	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingReviews":         56,
-	"modules/careplan/internal/application/offering_review_pending.go:materializeOfferingReview":                 24,
+	"modules/careplan/internal/application/offering_review_pending.go:materializeOfferingReview":                 23,
 	"modules/careplan/internal/application/offering_reviews.go:(*OfferingReviews).ListHistory":                   21,
 	"modules/careplan/internal/application/offering_reviews.go:(*OfferingReviews).ListPending":                   17,
 	"modules/careplan/internal/application/review_weekly_plan.go:(reviewPlanFacts).pickupWeek":                   25,
-	"modules/careplan/internal/application/schedule_reviews.go:(*ScheduleReviews).ListPending":                   30,
+	"modules/careplan/internal/application/schedule_reviews.go:(*ScheduleReviews).ListPending":                   35,
 	"modules/careplan/internal/application/schedule_reviews.go:(*ScheduleReviews).plan":                          23,
 	// Moved in by PR #3408 (#3350) from services/users and
 	// database/repositories/users; the scores crossed the boundary unchanged.
 	"modules/careplan/offeringrequests/diff.go:CorrectionDiff": 21,
 
-	"modules/communication/internal/parentmessages/events.go:(*EventEmitter).EmitChildEvent":     43,
+	"modules/communication/internal/parentmessages/events.go:(*EventEmitter).EmitChildEvent":     38,
 	"modules/communication/internal/staffannouncements/letter.go:(*service).ResendFailedEmails":  37,
 	"modules/communication/internal/staffannouncements/letter.go:(*service).queueLetterMailsAs":  22,
 	"modules/communication/internal/staffannouncements/poll.go:(*service).enqueueReminderEmails": 25,
@@ -88,20 +96,21 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/communication/internal/staffannouncements/poll.go:normalizePollOptions":             18,
 	"modules/communication/internal/staffannouncements/reminder.go:(*service).SendDueReminders":  29,
 	"modules/communication/internal/staffannouncements/reminder.go:(*service).UpdateReminder":    16,
+	"modules/communication/internal/staffannouncements/reminder.go:(*service).deliverReminder":   16,
 	"modules/communication/internal/staffannouncements/service.go:normalizeDelivery":             17,
 
-	"modules/dataimport/compose/opening_references.go:NewOpeningReferences": 21,
-	"modules/dataimport/fileformat/helpers.go:MapStudentRow":                27,
-	"modules/dataimport/fileformat/template_writer.go:(Decoder).Template":   19,
+	"modules/dataimport/compose/opening_references.go:NewOpeningReferences":                 21,
+	"modules/dataimport/internal/adapters/fileformat/helpers.go:MapStudentRow":              27,
+	"modules/dataimport/internal/adapters/fileformat/template_writer.go:(Decoder).Template": 19,
 
-	"modules/delivery/application/notifications/preferences.go:(*preferenceService).FilterOptedInByType":   20,
-	"modules/delivery/application/notifications/preferences.go:(*preferenceService).GetForParent":          27,
-	"modules/delivery/application/notifications/service.go:(*router).NotifyBatch":                          24,
-	"modules/delivery/application/notifications/service.go:(*router).NotifyDurably":                        20,
-	"modules/delivery/application/notifications/service.go:(*router).NotifySynchronously":                  26,
-	"modules/delivery/application/notifications/service.go:validate":                                       36,
-	"modules/delivery/application/notifications/webpush_channel.go:(*webPushChannel).DeliverDurably":       23,
-	"modules/delivery/application/notifications/webpush_channel.go:(*webPushChannel).sendAllSynchronously": 16,
+	"modules/delivery/internal/notifications/preferences.go:(*preferenceService).FilterOptedInByType":   20,
+	"modules/delivery/internal/notifications/preferences.go:(*preferenceService).GetForParent":          27,
+	"modules/delivery/internal/notifications/service.go:(*router).NotifyBatch":                          24,
+	"modules/delivery/internal/notifications/service.go:(*router).NotifyDurably":                        20,
+	"modules/delivery/internal/notifications/service.go:(*router).NotifySynchronously":                  26,
+	"modules/delivery/internal/notifications/service.go:validate":                                       36,
+	"modules/delivery/internal/notifications/webpush_channel.go:(*webPushChannel).DeliverDurably":       23,
+	"modules/delivery/internal/notifications/webpush_channel.go:(*webPushChannel).sendAllSynchronously": 16,
 
 	"modules/devicefleet/internal/application/dashboard.go:(*Service).ResolveDashboard": 17,
 	"modules/devicefleet/internal/application/display.go:(*Service).UpdateDisplay":      18,
@@ -156,28 +165,27 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/identityaccess/internal/application/operator_passkey_flow.go:(*OperatorPasskeyFlows).verifyLogin":                  22,
 	"modules/identityaccess/internal/application/operator_provisioning.go:(*OperatorProvisioning).InitiateOperatorEmailChange":  25,
 	"modules/identityaccess/internal/application/permission_administration.go:(*RoleAdministration).ReplaceRolePermissions":     31,
-	"modules/identityaccess/internal/application/role_administration.go:(*RoleAdministration).AssignRoleToAccount":              51,
-	"modules/identityaccess/internal/application/school_identity.go:(*AccountLifecycle).resolveIdentityPerson":                  18,
-	"modules/identityaccess/internal/application/school_invitation.go:(*SchoolInvitation).AcceptInvitation":                     34,
+	"modules/identityaccess/internal/application/role_administration.go:(*RoleAdministration).AssignRoleToAccount":              47,
+	"modules/identityaccess/internal/application/school_invitation.go:(*SchoolInvitation).AcceptInvitation":                     35,
 	"modules/identityaccess/internal/application/school_invitation.go:(*SchoolInvitation).grantAccess":                          17,
 	"modules/identityaccess/internal/application/school_login.go:(*AccountAuthentication).findSchoolPortalTenantForAccount":     21,
-	"modules/identityaccess/internal/application/school_login.go:(*AccountAuthentication).loginSchoolWithMFAGate":               32,
+	"modules/identityaccess/internal/application/school_login.go:(*AccountAuthentication).loginSchoolWithMFAGate":               34,
 	"modules/identityaccess/internal/application/school_login.go:(*AccountAuthentication).schoolMintGuard":                      20,
 	"modules/identityaccess/internal/application/session_cleanup.go:(*AccountAuthentication).reconcileRevokedSessions":          25,
-	"modules/identityaccess/internal/application/session_refresh.go:(*AccountAuthentication).resolveRefreshHandoff":             20,
+	"modules/identityaccess/internal/application/session_refresh.go:(*AccountAuthentication).resolveRefreshHandoff":             21,
 	"modules/identityaccess/internal/application/session_revocation.go:(*AccountAuthentication).ScheduleAccountWideRevoke":      21,
 	"modules/identityaccess/internal/application/session_revocation.go:(*AccountAuthentication).finishScheduledAccountWideWipe": 39,
 	"modules/identityaccess/internal/application/session_revocation.go:(*AccountAuthentication).wipeAccountWideIndependently":   16,
-	"modules/identityaccess/internal/application/session_validation.go:(*AccountAuthentication).ValidateSessionTokens":          27,
+	"modules/identityaccess/internal/application/session_validation.go:(*AccountAuthentication).ValidateSessionTokens":          28,
 	"modules/identityaccess/internal/application/staff_offboarding.go:(*AccountLifecycle).ExecuteStaffOffboarding":              32,
 	"modules/identityaccess/internal/application/staff_offboarding.go:(*AccountLifecycle).staffOffboardingSnapshot":             18,
 	"modules/identityaccess/internal/application/staff_preview.go:(*AccountLifecycle).ListStaffPreviewCandidates":               24,
-	"modules/identityaccess/internal/application/staff_preview.go:(*AccountLifecycle).StartStaffPreview":                        36,
+	"modules/identityaccess/internal/application/staff_preview.go:(*AccountLifecycle).StartStaffPreview":                        37,
 	"modules/identityaccess/internal/domain/operator_account_access.go:UnambiguousPersonIdentity":                               17,
 	"modules/identityaccess/sessiontoken/token_test_helpers.go:ParseStructToMap":                                                17,
 
 	"modules/organizationtenancy/internal/application/provisioning_devices.go:(*Provisioning).listDevices":     27,
-	"modules/organizationtenancy/internal/application/provisioning_people.go:(*Provisioning).SoftDeletePerson": 19,
+	"modules/organizationtenancy/internal/application/provisioning_people.go:(*Provisioning).SoftDeletePerson": 16,
 	"modules/organizationtenancy/internal/application/provisioning_schools.go:(*Provisioning).schoolChangeSet": 23,
 	"modules/organizationtenancy/internal/application/school.go:(*Service).changeSchoolDeletion":               18,
 
@@ -196,7 +204,7 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/planexport/service.go:(*service).nonWorkingDays":              28,
 
 	"modules/requestreview/compose/corrections.go:(correctionLog).History": 19,
-	"modules/requestreview/query.go:(*ListQuery).validate":                 21,
+	"modules/requestreview/query.go:(*ListQuery).validate":                 23,
 
 	"modules/schoolcalendar/internal/adapters/postgres/store.go:(*Store).ListDateframes":                          18,
 	"modules/schoolcalendar/internal/domain/ical.go:formatRRULE":                                                  22,
@@ -219,13 +227,13 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/schoolmembership/internal/adapters/postgres/store.go:(*Store).ListGuests":                         18,
 	"modules/schoolmembership/internal/adapters/postgres/store.go:(*Store).ListTeachers":                       17,
 	"modules/schoolmembership/internal/adapters/postgres/teaching_assignment.go:(*Store).ListGroupAssignments": 16,
-	"modules/schoolmembership/internal/application/offboarding.go:(*Service).RetireStaff":                      22,
+	"modules/schoolmembership/internal/application/offboarding.go:(*Service).RetireStaff":                      17,
 	"modules/schoolmembership/internal/application/offboarding.go:(*Service).retirementSnapshot":               24,
 
 	"modules/schoolstructure/internal/adapters/postgres/transition_store.go:(*Store).ListTransitions": 16,
 	"modules/schoolstructure/internal/application/transition.go:(*Service).UpdateTransition":          32,
 
-	"modules/studentpresence/internal/adapters/postgres/live_groups.go:(*Store).QueryGroupSupervisions": 18,
+	"modules/studentpresence/internal/adapters/postgres/live_groups.go:(*Store).QueryGroupSupervisions": 19,
 	"modules/studentpresence/internal/adapters/postgres/live_groups.go:(*Store).QueryLiveGroups":        19,
 	"modules/studentpresence/internal/application/live_groups.go:(*Service).QueryGroupSupervisions":     26,
 	"modules/studentpresence/internal/application/live_groups.go:(*Service).QueryLiveGroups":            21,
@@ -233,10 +241,12 @@ var moduleComplexityAllowlist = map[string]int{
 
 	"modules/supervisiondashboard/supervisiondashboard.go:(*service).loadPresenceSections": 17,
 
-	"modules/timetable/compose/legacy_supervisor_operations.go:buildReplacementSupervisorIDs":              22,
-	"modules/timetable/internal/application/activity_instances.go:(*Service).lockOperationalInstanceStaff": 20,
-	"modules/timetable/internal/application/pickup_extensions.go:(*Service).pickupExtensionBlocks":         23,
-	"modules/timetable/internal/application/recurrence_events.go:(*Service).GenerateRecurrenceEvents":      21,
+	"modules/timetable/internal/application/activity_supervisor_operations.go:buildReplacementSupervisorIDs": 22,
+	"modules/timetable/internal/application/activity_instances.go:(*Service).lockOperationalInstanceStaff":   20,
+	"modules/timetable/internal/application/pickup_extensions.go:(*Service).ensurePickupWeekdayEnrollment":   16,
+	"modules/timetable/internal/application/pickup_extensions.go:(*Service).pickupExtensionBlocks":           23,
+	"modules/timetable/internal/application/recurrence_events.go:(*Service).GenerateRecurrenceEvents":        21,
+	"modules/timetable/record_validation.go:validStudentEnrollment":                                          16,
 
 	// Moved in by #3996 from modules/workforce/legacy/absence_repositories.go;
 	// the scores crossed the boundary unchanged.
@@ -261,9 +271,9 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/workforce/internal/application/timetracking/staff_absence_rebooking.go:(*staffAbsenceService).RebookAbsences":                      21,
 	"modules/workforce/internal/application/timetracking/staff_absence_rebooking.go:(*staffAbsenceService).previewVacationRebooking":            20,
 	"modules/workforce/internal/application/timetracking/staff_absence_rebooking.go:(*staffAbsenceService).validateRebookedAbsence":             19,
-	"modules/workforce/internal/application/timetracking/staff_absence_creation.go:(*staffAbsenceService).CreateAbsenceFor":                     18,
+	"modules/workforce/internal/application/timetracking/staff_absence_creation.go:(*staffAbsenceService).CreateAbsenceFor":                     19,
 	"modules/workforce/internal/application/timetracking/staff_absence_comp_time.go:(*staffAbsenceService).PreviewCompTimeBalance":              17,
-	"modules/workforce/internal/application/timetracking/staff_absence_mutations.go:(*staffAbsenceService).UpdateAbsence":                       31,
+	"modules/workforce/internal/application/timetracking/staff_absence_mutations.go:(*staffAbsenceService).UpdateAbsence":                       33,
 	"modules/workforce/internal/application/timetracking/staff_absence_quota.go:(*staffAbsenceService).ensureVacationFits":                      16,
 	"modules/workforce/internal/application/timetracking/staff_balance_adjustment_service.go:(*staffBalanceAdjustmentService).DeleteAdjustment": 19,
 	"modules/workforce/internal/application/timetracking/staff_balance_adjustment_service.go:(*staffBalanceAdjustmentService).ResetBalance":     23,
@@ -278,7 +288,7 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/workforce/internal/application/timetracking/work_session_maintenance.go:(*workSessionService).AutoCheckoutDueSessions":             53,
 	"modules/workforce/internal/application/timetracking/work_session_updates.go:(*workSessionService).UpdateSession":                           18,
 	"modules/workforce/internal/application/timetracking/work_time_month_service.go:(*workTimeMonthService).GetDailyProjection":                 17,
-	"modules/workforce/internal/application/timetracking/work_time_month_service.go:(*workTimeMonthService).getOpeningBalanceOnDate":            20,
+	"modules/workforce/internal/application/timetracking/work_time_month_service.go:(*workTimeMonthService).getOpeningBalanceOnDate":            21,
 	"modules/workforce/internal/application/timetracking/work_time_month_service.go:walkCreditedAbsenceDays":                                    19,
 
 	"workflows/gradetransition/apply.go:(*Workflow).executeApply":                           20,
@@ -292,13 +302,13 @@ var moduleComplexityAllowlist = map[string]int{
 
 	"workflows/openroommove/internal/application/command.go:(*command).move": 16,
 
-	"workflows/parentportal/care/parent_care_schedule_service.go:(*Service).CreateCareScheduleRequest": 19,
-	"workflows/parentportal/care/parent_care_schedule_service.go:(*Service).buildCareScheduleView":     20,
-	"workflows/parentportal/care/parent_today_status_service.go:(*Service).GetChildTodayStatus":        20,
-	"workflows/parentportal/messaging/parent_announcement_service.go:(*Service).RespondToAnnouncement": 35,
-	"workflows/parentportal/messaging/parent_announcement_service.go:(*Service).announcementTenants":   16,
-	"workflows/parentportal/messaging/parent_announcement_service.go:(*Service).stampAnnouncement":     28,
-	"workflows/parentportal/messaging/parent_messaging_service.go:(*Service).PostChildMessage":         24,
+	"workflows/parentportal/internal/care/parent_care_schedule_service.go:(*Service).CreateCareScheduleRequest": 21,
+	"workflows/parentportal/internal/care/parent_care_schedule_service.go:(*Service).buildCareScheduleView":     20,
+	"workflows/parentportal/internal/care/parent_today_status_service.go:(*Service).GetChildTodayStatus":        20,
+	"workflows/parentportal/internal/messaging/parent_announcement_service.go:(*Service).RespondToAnnouncement": 35,
+	"workflows/parentportal/internal/messaging/parent_announcement_service.go:(*Service).announcementTenants":   16,
+	"workflows/parentportal/internal/messaging/parent_announcement_service.go:(*Service).stampAnnouncement":     28,
+	"workflows/parentportal/internal/messaging/parent_messaging_service.go:(*Service).PostChildMessage":         24,
 
 	"workflows/reminderdelivery/internal/application/batch.go:(*service).ComputeBatch":    20,
 	"workflows/reminderdelivery/internal/application/batch.go:(*service).loadBatchConfig": 20,
@@ -307,9 +317,7 @@ var moduleComplexityAllowlist = map[string]int{
 
 	"workflows/sessionend/internal/application/command.go:(*command).EndSession": 19,
 
-	"workflows/staffoffboarding/offboarding.go:(*Workflow).snapshot": 17,
-
-	"workflows/studentdeletion/compose/new.go:Assemble":                         16,
+	"workflows/staffoffboarding/offboarding.go:(*Workflow).snapshot":            17,
 	"workflows/studentdeletion/deletion.go:(*Workflow).checkCompanionStranding": 19,
 	"workflows/studentdeletion/deletion.go:(*Workflow).loadCounts":              17,
 	"workflows/studentdeletion/deletion.go:(*Workflow).lockCompanionGraph":      19,

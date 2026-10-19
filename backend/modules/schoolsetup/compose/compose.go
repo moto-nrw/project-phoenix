@@ -6,13 +6,13 @@ package compose
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolsetup"
-	"github.com/moto-nrw/project-phoenix/modules/schoolsetup/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/schoolsetupview"
 	"github.com/moto-nrw/project-phoenix/tenant"
+
+	"github.com/moto-nrw/project-phoenix/modules/schoolsetup"
+	"github.com/moto-nrw/project-phoenix/modules/schoolsetup/internal/adapters/schoolsetupview"
+	"github.com/moto-nrw/project-phoenix/modules/schoolsetup/internal/application"
 	"github.com/uptrace/bun"
 )
 
@@ -31,7 +31,7 @@ func New(deps Dependencies) (schoolsetup.Service, error) {
 	}
 	store := deps.Store
 	projection := schoolsetupview.New(ambientTx)
-	return application.New(store, progress{projection: projection}, deps.Settings, time.Now)
+	return application.New(store, application.NewProgress(projection), deps.Settings, time.Now)
 }
 
 // NewStaffOnboarding returns the first steps of care workers (#3748): the
@@ -39,54 +39,18 @@ func New(deps Dependencies) (schoolsetup.Service, error) {
 // the school has a group or a child yet.
 func NewStaffOnboarding(store schoolsetup.StaffStore) (schoolsetup.StaffOnboardingService, error) {
 	projection := schoolsetupview.New(ambientTx)
-	return application.NewStaffOnboarding(store, progress{projection: projection}, time.Now)
+	return application.NewStaffOnboarding(store, application.NewProgress(projection), time.Now)
 }
 
 // ambientTx resolves the request's tenant transaction. The wizard never runs
 // outside one: the store relies on RLS and the projection's tenant_safe
 // invariant requires it (ADR 0043).
 func ambientTx(ctx context.Context) (bun.IDB, error) {
-	transaction, ok := tenant.TransactionFromContext(ctx)
-	if !ok {
-		return nil, errors.New("school setup: tenant transaction is required")
-	}
-	switch tx := transaction.(type) {
-	case bun.Tx:
-		return tx, nil
-	case *bun.Tx:
-		if tx != nil {
-			return tx, nil
-		}
-	}
-	return nil, fmt.Errorf("school setup: unsupported transaction %T", transaction)
+	return schoolsetupview.AmbientTx(tenant.TransactionFromContext(ctx))
 }
 
 // AmbientRuntime hands the store the request's tenant transaction. Without
-// one it panics: a store call outside the tenant transaction is a
-// composition bug, not a request error.
+// one it returns a missing-transaction error.
 type AmbientRuntime struct{}
 
-func (AmbientRuntime) DB(ctx context.Context) bun.IDB {
-	db, err := ambientTx(ctx)
-	if err != nil {
-		panic(err)
-	}
-	return db
-}
-
-// progress adapts the projection to the service's port.
-type progress struct{ projection *schoolsetupview.Projection }
-
-func (p progress) Facts(ctx context.Context, tenantID int64) (schoolsetup.Facts, error) {
-	facts, err := p.projection.Progress(ctx, tenantID)
-	if err != nil {
-		return schoolsetup.Facts{}, err
-	}
-	return schoolsetup.Facts{
-		StaffInvited:    facts.StaffInvited,
-		RoomCreated:     facts.RoomCreated,
-		GroupCreated:    facts.GroupCreated,
-		StudentEnrolled: facts.StudentEnrolled,
-		GuardianInvited: facts.GuardianInvited,
-	}, nil
-}
+func (AmbientRuntime) DB(ctx context.Context) (bun.IDB, error) { return ambientTx(ctx) }

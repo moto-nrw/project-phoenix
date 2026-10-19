@@ -5,6 +5,8 @@ package api
 import (
 	"context"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
@@ -17,8 +19,8 @@ type StaffMessagingTestRepositories struct {
 	Read    communication.StaffReadRecords
 }
 
-func NewStaffMessagingTestRepositories(db transactionruntime.Database, members MembershipTestRepositories) (StaffMessagingTestRepositories, error) {
-	membership, err := NewSchoolMembership(db)
+func NewStaffMessagingTestRepositories(db transactionruntime.Database, members owners.MembershipTestRepositories) (StaffMessagingTestRepositories, error) {
+	membership, err := owners.NewSchoolMembership(db)
 	if err != nil {
 
 		return StaffMessagingTestRepositories{}, err
@@ -41,8 +43,8 @@ func NewStaffMessagingTestRepositories(db transactionruntime.Database, members M
 	return StaffMessagingTestRepositories{
 		Thread:  staffStore.NewStaffMessageThreadRepository(db.Pool()),
 		Message: staffStore.NewStaffMessageRepository(db.Pool()),
-		Read: staffStore.NewStaffMessageReadRepository(db.Pool(), NewCommunicationStaffColleagues(db,
-			parentStore.CurrentTenantStaffAccounts(ParentStaffMembers{Membership: membership}.List, personAccounts),
-			StaffMessageIdentity(NewPeopleIdentityAccess(db, nil)))),
+		Read: staffStore.NewStaffMessageReadRepository(db.Pool(), owners.NewCommunicationStaffColleagues(db,
+			parentStore.CurrentTenantStaffAccounts(owners.ParentStaffMembers{Membership: membership}.List, personAccounts),
+			owners.StaffMessageIdentity(owners.NewPeopleIdentityAccess(db, nil))), owners.NewStaffMessageInbox(db)),
 	}, nil
 }

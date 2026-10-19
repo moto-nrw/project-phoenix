@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -55,11 +56,11 @@ func (f *overviewFixture) newDatevExportService(values settingstest.Values) time
 	return timetracking.NewStaffTimeExportService(
 		f.svc,
 		f.newWorkSessionService(),
-		api.TimeExportStaff(f.repos.Staff),
-		api.NewTimeTrackingDataAccessAudit(api.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).DataAccessLog),
+		owners.TimeExportStaff(f.repos.Staff),
+		owners.NewTimeTrackingDataAccessAudit(owners.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).DataAccessLog),
 		api.NewPayrollExportSettings(settingstest.New(values), f.countPersonnelNumbers),
 		nil,
-		api.RenderTimeTrackingWorkbook,
+		owners.RenderTimeTrackingWorkbook,
 	)
 }
 
@@ -146,14 +147,14 @@ func TestDatevExport_GoldenFiles(t *testing.T) {
 	f.cleanupAccessLogs(t)
 	svc := f.newDatevExportService(datevFullConfig())
 
-	lodas, err := svc.Export(f.ctx, datevRequest(timetracking.ExportFormatDatevLodas), actorID, "admin")
+	lodas, err := testpkg.TenantQuery3(t, f.ctx, testpkg.SetupTestDB(t), svc.Export, datevRequest(timetracking.ExportFormatDatevLodas), actorID, "admin")
 	require.NoError(t, err)
 	assert.Equal(t, "datev_lodas_2026-06.txt", lodas.Filename)
 	assert.Equal(t, "text/plain; charset=windows-1252", lodas.ContentType)
 	assert.True(t, bytes.Contains(lodas.Data, []byte("\r\n")), "LODAS requires CR/LF")
 	checkDatevGolden(t, "datev_lodas.golden", lodas.Data)
 
-	lug, err := svc.Export(f.ctx, datevRequest(timetracking.ExportFormatDatevLug), actorID, "admin")
+	lug, err := testpkg.TenantQuery3(t, f.ctx, testpkg.SetupTestDB(t), svc.Export, datevRequest(timetracking.ExportFormatDatevLug), actorID, "admin")
 	require.NoError(t, err)
 	assert.Equal(t, "datev_lug_2026-06.txt", lug.Filename)
 	checkDatevGolden(t, "datev_lug.golden", lug.Data)
@@ -173,7 +174,7 @@ func TestDatevExport_PinsAgainstMonthSummary(t *testing.T) {
 	summary, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff[0], 2026, 6)
 	require.NoError(t, err)
 
-	file, err := svc.Export(f.ctx, datevRequest(timetracking.ExportFormatDatevLug), actorID, "admin")
+	file, err := testpkg.TenantQuery3(t, f.ctx, testpkg.SetupTestDB(t), svc.Export, datevRequest(timetracking.ExportFormatDatevLug), actorID, "admin")
 	require.NoError(t, err)
 
 	// Parse the LuG lines: Personalnummer;;;Lohnart;Stunden;Tage;...
@@ -223,7 +224,7 @@ func TestDatevExport_RefusesStaffWithoutPersonnelNumber(t *testing.T) {
 	f.cleanupAccessLogs(t)
 	svc := f.newDatevExportService(datevFullConfig())
 
-	report, err := svc.DatevReport(f.ctx, datevRequest(timetracking.ExportFormatDatevLug))
+	report, err := testpkg.TenantQuery1(t, f.ctx, testpkg.SetupTestDB(t), svc.DatevReport, datevRequest(timetracking.ExportFormatDatevLug))
 	require.NoError(t, err)
 	assert.Equal(t, 1, report.StaffExported)
 	require.Len(t, report.StaffSkipped, 1)
@@ -231,7 +232,7 @@ func TestDatevExport_RefusesStaffWithoutPersonnelNumber(t *testing.T) {
 	assert.Empty(t, report.UnconfiguredCategories)
 	assert.True(t, report.OpenMonth, "June was never closed — the report must say so")
 
-	file, err := svc.Export(f.ctx, datevRequest(timetracking.ExportFormatDatevLug), actorID, "admin")
+	file, err := testpkg.TenantQuery3(t, f.ctx, testpkg.SetupTestDB(t), svc.Export, datevRequest(timetracking.ExportFormatDatevLug), actorID, "admin")
 	require.ErrorIs(t, err, timetracking.ErrPayrollConfigIncomplete)
 	assert.Nil(t, file)
 
@@ -253,7 +254,7 @@ func TestDatevExport_RefusesIncompleteConfiguration(t *testing.T) {
 	svc := f.newDatevExportService(config)
 	_, err := svc.Export(f.ctx, datevRequest(timetracking.ExportFormatDatevLodas), actorID, "admin")
 	require.ErrorIs(t, err, timetracking.ErrPayrollConfigIncomplete)
-	_, err = svc.Export(f.ctx, datevRequest(timetracking.ExportFormatDatevLug), actorID, "admin")
+	_, err = testpkg.TenantQuery3(t, f.ctx, testpkg.SetupTestDB(t), svc.Export, datevRequest(timetracking.ExportFormatDatevLug), actorID, "admin")
 	require.NoError(t, err, "Lohn und Gehalt does not need the LODAS header")
 
 	// No configured category at all → refused for both.
@@ -269,7 +270,7 @@ func TestDatevExport_RefusesIncompleteConfiguration(t *testing.T) {
 	config = datevFullConfig()
 	config.EinheitKrank = ""
 	svc = f.newDatevExportService(config)
-	report, err := svc.DatevReport(f.ctx, datevRequest(timetracking.ExportFormatDatevLug))
+	report, err := testpkg.TenantQuery1(t, f.ctx, testpkg.SetupTestDB(t), svc.DatevReport, datevRequest(timetracking.ExportFormatDatevLug))
 	require.NoError(t, err)
 	assert.Contains(t, report.UnconfiguredCategories, "Krank")
 }
@@ -297,7 +298,7 @@ func TestDatevExport_RequiresSingleMonth(t *testing.T) {
 func TestDatevReport_RejectsNonDatevFormats(t *testing.T) {
 	t.Parallel()
 
-	svc := timetracking.NewStaffTimeExportService(nil, nil, nil, nil, nil, nil, api.RenderTimeTrackingWorkbook)
+	svc := timetracking.NewStaffTimeExportService(nil, nil, nil, nil, nil, nil, owners.RenderTimeTrackingWorkbook)
 
 	for _, format := range []string{"", timetracking.ExportFormatCSV, timetracking.ExportFormatXLSX} {
 		_, err := svc.DatevReport(context.Background(), timetracking.TimeExportRequest{
@@ -316,9 +317,9 @@ func TestDatevExport_NoFileWithoutAudit(t *testing.T) {
 	f := newDatevFixture(t)
 	actorID := f.newActorAccount(t)
 	svc := timetracking.NewStaffTimeExportService(
-		f.svc, f.newWorkSessionService(), api.TimeExportStaff(f.repos.Staff), failingAccessLogRepo{},
+		f.svc, f.newWorkSessionService(), owners.TimeExportStaff(f.repos.Staff), failingAccessLogRepo{},
 		api.NewPayrollExportSettings(settingstest.New(datevFullConfig()), f.countPersonnelNumbers), nil,
-		api.RenderTimeTrackingWorkbook,
+		owners.RenderTimeTrackingWorkbook,
 	)
 
 	file, err := svc.Export(f.ctx, datevRequest(timetracking.ExportFormatDatevLodas), actorID, "admin")

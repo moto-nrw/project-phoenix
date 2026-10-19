@@ -21,8 +21,9 @@ import (
 	"testing"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -32,9 +33,9 @@ import (
 
 // loadExceptions returns all activity_exceptions rows for the template,
 // registering them for cleanup.
-func loadExceptions(t *testing.T, s *scenarioSetup, groupID int64) []*scheduleModels.ActivityException {
+func loadExceptions(t *testing.T, s *scenarioSetup, groupID int64) []*fixtures.ActivityException {
 	t.Helper()
-	var rows []*scheduleModels.ActivityException
+	var rows []*fixtures.ActivityException
 	err := s.db.NewSelect().Model(&rows).
 		ModelTableExpr(`schedule.activity_exceptions AS "activity_exception"`).
 		Where(`"activity_exception".activity_group_id = ?`, groupID).
@@ -66,7 +67,7 @@ func TestUpdatePlanned_DateMove_WritesExceptionAndBlocksRematerialization(t *tes
 	t.Parallel()
 
 	origDate := calendar.NewDate(2026, time.April, 20) // Mon
-	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
+	s := makeScenario(t, activityContract.WeekdayMonday, origDate)
 	defer s.runCleanup(t)
 
 	r0, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetable.MaterializationSourceManual)
@@ -83,8 +84,8 @@ func TestUpdatePlanned_DateMove_WritesExceptionAndBlocksRematerialization(t *tes
 
 	excs := loadExceptions(t, s, s.template.ID)
 	require.Len(t, excs, 1, "date move must consume the original slot")
-	assert.Equal(t, scheduleModels.Date(origDate), excs[0].ExceptionDate)
-	assert.Equal(t, scheduleModels.ActivityExceptionCancelled, excs[0].ExceptionType)
+	assert.Equal(t, calendar.Date(origDate), excs[0].ExceptionDate)
+	assert.Equal(t, fixtures.ActivityExceptionCancelled(), excs[0].ExceptionType)
 	require.NotNil(t, excs[0].Reason)
 	assert.NotEmpty(t, *excs[0].Reason)
 
@@ -100,7 +101,7 @@ func TestDeletePlanned_WritesExceptionAndBlocksRematerialization(t *testing.T) {
 	t.Parallel()
 
 	origDate := calendar.NewDate(2026, time.April, 20) // Mon
-	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
+	s := makeScenario(t, activityContract.WeekdayMonday, origDate)
 	defer s.runCleanup(t)
 
 	r0, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetable.MaterializationSourceManual)
@@ -114,8 +115,8 @@ func TestDeletePlanned_WritesExceptionAndBlocksRematerialization(t *testing.T) {
 
 	excs := loadExceptions(t, s, s.template.ID)
 	require.Len(t, excs, 1, "delete must consume the original slot")
-	assert.Equal(t, scheduleModels.Date(origDate), excs[0].ExceptionDate)
-	assert.Equal(t, scheduleModels.ActivityExceptionCancelled, excs[0].ExceptionType)
+	assert.Equal(t, calendar.Date(origDate), excs[0].ExceptionDate)
+	assert.Equal(t, fixtures.ActivityExceptionCancelled(), excs[0].ExceptionType)
 
 	r1, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
@@ -128,7 +129,7 @@ func TestUpdatePlanned_StartTimeOnlyMove_WritesException(t *testing.T) {
 	t.Parallel()
 
 	origDate := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
+	s := makeScenario(t, activityContract.WeekdayMonday, origDate)
 	defer s.runCleanup(t)
 
 	r0, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetable.MaterializationSourceManual)
@@ -144,8 +145,8 @@ func TestUpdatePlanned_StartTimeOnlyMove_WritesException(t *testing.T) {
 
 	excs := loadExceptions(t, s, s.template.ID)
 	require.Len(t, excs, 1, "start-time move vacates the original slot key too")
-	assert.Equal(t, scheduleModels.Date(origDate), excs[0].ExceptionDate)
-	assert.Equal(t, scheduleModels.ActivityExceptionCancelled, excs[0].ExceptionType)
+	assert.Equal(t, calendar.Date(origDate), excs[0].ExceptionDate)
+	assert.Equal(t, fixtures.ActivityExceptionCancelled(), excs[0].ExceptionType)
 
 	// The exception consumes the (template, date): re-materialization must
 	// not re-create the original start time next to the moved instance.
@@ -162,7 +163,7 @@ func TestUpdatePlanned_NoDateOrTimeChange_WritesNothing(t *testing.T) {
 	t.Parallel()
 
 	origDate := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
+	s := makeScenario(t, activityContract.WeekdayMonday, origDate)
 	defer s.runCleanup(t)
 
 	r0, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetable.MaterializationSourceManual)
@@ -187,11 +188,11 @@ func TestUpdatePlanned_SpontaneousMove_WritesNothing(t *testing.T) {
 	t.Parallel()
 
 	origDate := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
+	s := makeScenario(t, activityContract.WeekdayMonday, origDate)
 	defer s.runCleanup(t)
 
 	// Spontaneous instance: no template binding before (or after) the edit.
-	spontaneousID := splitInsertInstance(t, s, nil, origDate, scheduleModels.InstanceStatusPlanned, true, 9)
+	spontaneousID := splitInsertInstance(t, s, nil, origDate, fixtures.InstanceStatusPlanned(), true, 9)
 	inst := testpkg.ActivityInstanceByID(t, s.ctx, s.db, spontaneousID)
 
 	_, err := s.instance.UpdatePlanned(s.ctx, spontaneousID, moveInput(s, inst, origDate.AddDays(1), 0), nil)

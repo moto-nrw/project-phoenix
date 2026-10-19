@@ -363,7 +363,11 @@ func TestStaffDocumentsAPI_OffboardingCleanupLeaseRetriesFileFailure(t *testing.
 	require.NoError(t, os.WriteFile(filepath.Join(filePath, "block-removal"), []byte("test"), 0600))
 	runtime := testpkg.ConfigRuntime(c.tc.db)
 	require.NoError(t, testpkg.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
-		if _, err := runtime.DB(txCtx).ExecContext(txCtx, "UPDATE users.staff_school_memberships SET deleted_at = NOW() WHERE id = ?", c.staffID); err != nil {
+		database, err := runtime.DB(txCtx)
+		if err != nil {
+			return err
+		}
+		if _, err := database.ExecContext(txCtx, "UPDATE users.staff_school_memberships SET deleted_at = NOW() WHERE id = ?", c.staffID); err != nil {
 			return err
 		}
 		return c.tc.resource.QueueOffboardedStaffDocumentCleanup(txCtx, c.staffID)

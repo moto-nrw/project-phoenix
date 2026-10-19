@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
+	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -78,7 +78,7 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 	// the production runtime.
 	var checkpointMaterialization timetableModule.MaterializationCapability
 	var checkpointOutbox *deliveryModule.Worker
-	_, _, _, _, _, _, _, _, _, _, _, _, _, checkpointMaterialization, _, _, _, _, _, _, _, checkpointOutbox, _, err = composeTestRoot(api.db, slog.Default(), currentTestServiceConfig())
+	_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, checkpointMaterialization, _, _, _, _, _, _, _, checkpointOutbox, _, err = composeTestRoot(api.db, slog.Default(), currentTestServiceConfig())
 	require.NoError(t, err)
 	db := testpkg.SetupTestDB(t)
 	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Checkpoint", "Staff")

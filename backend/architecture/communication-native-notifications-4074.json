@@ -46,13 +46,13 @@
   "runtime_evidence": {
     "source": "Assigned localhost5547 test database, pinned Go toolchain, owned /tmp/gocache-4073 freshly cleared after verified PR4286 merge. Base b0da736d25465606efba6f2e807d7aec79e5e5b2.",
     "sources": [
-      "backend/api/communication_delivery.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/communication_delivery.go",
       "backend/api/communication_delivery_test.go",
       "backend/modules/communication/internal/application/notification_delivery.go",
       "backend/modules/delivery/devices/notification_commands.go",
       "backend/modules/delivery/devices/parent_policy.go",
-      "backend/modules/delivery/application/notifications/native_commands.go",
-      "backend/modules/delivery/application/locales/parent_copy.go"
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/modules/delivery/application/notifications/native_commands.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/121b0ee5130db5ec6b289965f495acdca6285744/backend/modules/delivery/application/locales/parent_copy.go"
     ],
     "workload": "Existing actual Communication/Delivery/API behavior and localized copy suites, native boundary probes and full nonfast structural gates.",
     "thresholds": "Twelve exact imports absent; same dispatch, consent, transactions, copy, error identity and selector semantics. No grant, alias or increased budget.",

@@ -32,7 +32,11 @@ func (r *ClassListEntryChangeRepository) Create(ctx context.Context, change *aud
 // ListByEntryID returns the trail of one entry, newest first.
 func (r *ClassListEntryChangeRepository) ListByEntryID(ctx context.Context, entryID int64) ([]*auditModels.ClassListEntryChange, error) {
 	var changes []*auditModels.ClassListEntryChange
-	err := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB1, databaseErr1 := runtimeDB(ctx, r.runtime)
+	if databaseErr1 != nil {
+		return *new([]*auditModels.ClassListEntryChange), databaseErr1
+	}
+	err := ambientDB1.NewSelect().
 		Model(&changes).
 		ModelTableExpr(`audit.class_list_entry_changes AS "class_list_entry_change"`).
 		Where(`"class_list_entry_change".entry_id = ?`, entryID).

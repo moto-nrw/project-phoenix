@@ -3,7 +3,7 @@ package parentportal
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
 )
 
 // StudentSnapshot is defined from the workflow's genuine native DTO.

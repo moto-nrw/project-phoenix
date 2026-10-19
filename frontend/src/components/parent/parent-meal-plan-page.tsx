@@ -9,7 +9,14 @@ import {
   useState,
 } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { ChevronLeft, ChevronRight, Utensils } from "lucide-react";
+import {
+  Ban,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Minus,
+  Utensils,
+} from "lucide-react";
 
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -946,6 +953,15 @@ function ParticipationWeek({
                     : "gray";
               const absence =
                 displayedSource === "sick" || displayedSource === "absent";
+              // Kein Icon für „Anmeldung nicht geladen“: Das ist ein Ladefehler,
+              // kein Teilnahmezustand, und darf nicht wie „nicht angemeldet“ aussehen.
+              const statusIcon = day
+                ? absence
+                  ? Ban
+                  : displayedParticipation
+                    ? Check
+                    : Minus
+                : undefined;
 
               return (
                 <li
@@ -1001,7 +1017,11 @@ function ParticipationWeek({
                       <Skeleton className="h-6 w-40 rounded-full" />
                     ) : (
                       <div className="flex flex-wrap items-center gap-2">
-                        <StatusBadge label={statusLabel} tone={statusTone} />
+                        <StatusBadge
+                          label={statusLabel}
+                          tone={statusTone}
+                          icon={statusIcon}
+                        />
                         {day?.changeable &&
                         !absence &&
                         !editingRegularDays &&
@@ -1013,7 +1033,7 @@ function ParticipationWeek({
                             type="button"
                             variant="ghost"
                             size="compact"
-                            className="ml-auto min-h-11 text-sm underline decoration-gray-300 underline-offset-4 hover:decoration-gray-600"
+                            className="-mr-2.5 ml-auto min-h-11 text-sm underline decoration-gray-300 underline-offset-4 hover:decoration-gray-600"
                             aria-label={t("editDayRegistration", {
                               date: fullDate(date),
                             })}

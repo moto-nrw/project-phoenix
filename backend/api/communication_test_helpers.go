@@ -6,6 +6,10 @@ import (
 	"context"
 	"log/slog"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -32,9 +36,9 @@ func NewParentEventEmitter(
 	},
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
-) *communicationCompose.ParentEventEmitter {
+) eventContract.Emitter {
 	return communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
-		Runtime: NewCommunicationEventRuntime(db.Pool() != nil, runtime), ThreadRepo: threadRepo, MessageRepo: messageRepo,
+		Runtime: owners.NewCommunicationEventRuntime(db.Pool() != nil, runtime), ThreadRepo: threadRepo, MessageRepo: messageRepo,
 		Settings: settingsValues.NewParentEventValues(settings), Broadcaster: broadcaster, Logger: logger,
 	})
 }
@@ -48,7 +52,7 @@ func NewParentConversationCore(
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
 ) parentportal.ConversationCore {
-	return BindParentConversationCore(communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
+	return owners.BindParentConversationCore(communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
 		ThreadRepo: threadRepo, MessageRepo: messageRepo, ReadRepo: readRepo, Broadcaster: broadcaster, Logger: logger,
 	}))
 }
@@ -57,8 +61,8 @@ func NewParentConversationCore(
 // the owner's native public facade, preserving nil/empty and the original error.
 func ParentConversationMessagesFixture(ctx context.Context, source communication.PortalMessageReads, threadID int64, limit int) ([]*parentportal.ParentMessage, error) {
 	rows, err := source.PortalListByThread(ctx, threadID, limit)
-	return parentMessagingSlice(rows, func(row *communication.PortalParentMessage) *parentportal.ParentMessage {
-		return parentMessagingPointer(row, parentMessagingFromOwnerParentMessage)
+	return owners.ParentMessagingSlice(rows, func(row *communication.PortalParentMessage) *parentportal.ParentMessage {
+		return owners.ParentMessagingPointer(row, owners.ParentMessagingFromOwnerParentMessage)
 	}), err
 }
 

@@ -3,18 +3,19 @@ package application
 import (
 	"context"
 
-	activities "github.com/moto-nrw/project-phoenix/models/activities"
-	schedule "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // SessionRecords exposes native values over the same joined rows and commands.
 type SessionRecords struct {
-	Instances schedule.ActivityInstanceRepository
-	Staff     schedule.InstanceStaffRepository
-	Groups    activities.GroupRepository
+	Instances ports.ActivityInstanceRecords
+	Staff     ports.InstanceStaffRecords
+	Groups    ports.ActivityGroupRecords
 }
 
 func (r SessionRecords) ListTemplateGroups(ctx context.Context) ([]timetable.Group, error) {
@@ -41,7 +42,7 @@ func (r SessionRecords) FindSessionInstance(ctx context.Context, activeGroupID i
 }
 
 func (r SessionRecords) ListSessionInstances(ctx context.Context, date calendar.Date) ([]timetable.ScheduledInstance, error) {
-	rows, err := r.Instances.FindByTenantAndDate(ctx, schedule.Date(date))
+	rows, err := r.Instances.FindByTenantAndDate(ctx, calendar.Date(date))
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +59,7 @@ func (r SessionRecords) ListSessionInstances(ctx context.Context, date calendar.
 // spontaneous, active instance whatever the input says about either.
 func (r SessionRecords) CreateMirroredSessionInstance(ctx context.Context, input timetable.ScheduledInstance) (int64, error) {
 	row := &schedule.ActivityInstance{
-		Date: schedule.Date(input.Date), ActivityGroupID: input.ActivityGroupID, CalendarPeriodID: input.CalendarPeriodID, Title: input.Title, Description: input.Description,
+		Date: calendar.Date(input.Date), ActivityGroupID: input.ActivityGroupID, CalendarPeriodID: input.CalendarPeriodID, Title: input.Title, Description: input.Description,
 		StartTime: calendar.NormalizeWallClock(input.StartTime), EndTime: calendar.NormalizeWallClock(input.EndTime), RoomID: input.RoomID,
 		Status: schedule.InstanceStatusActive, ActiveGroupID: input.ActiveGroupID, IsSpontaneous: true,
 		CreatedBy: input.CreatedBy, StartedBy: input.StartedBy, StartedAt: input.StartedAt,

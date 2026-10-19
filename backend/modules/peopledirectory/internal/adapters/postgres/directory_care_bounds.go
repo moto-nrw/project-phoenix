@@ -13,7 +13,7 @@ func (s *studentDirectoryReads) ListCareEnds(
 	ctx context.Context,
 	ids []int64,
 ) (map[int64]string, directoryStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, directoryStats{}, err
 	}
@@ -21,10 +21,10 @@ func (s *studentDirectoryReads) ListCareEnds(
 		ID            int64          `bun:"id"`
 		EnrolledUntil *calendar.Date `bun:"enrolled_until"`
 	}
-	query := withStudentTenant(s.rows.StudentRows(db, 0).
+	query := withStudentTenant(s.studentRows(db, scope).
 		ColumnExpr(`"student".id, "student".enrolled_until`).
 		Where(`"student".id IN (?)`, bun.List(ids)).
-		Where(`"student".enrolled_until IS NOT NULL`), tenantID)
+		Where(`"student".enrolled_until IS NOT NULL`), scope)
 
 	stats := directoryStats{Queries: 1}
 	started := time.Now()

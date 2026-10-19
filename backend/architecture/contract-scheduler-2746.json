@@ -12,7 +12,7 @@
     "#2711",
     "#2726"
   ],
-  "owner_and_capability": "Scheduler Runtime \u2014 the Worker application in services/scheduler (scheduler-runtime/application), contract step for #2746: the scheduler opens its transactions through a consumer-owned TenantRuntime port bound by modules/schedulerruntime/jobruntime, reads its settings keys as its own constants behind a registry guard of the root, publishes the overdue events through Delivery's realtimeevents, and reaches the retained repositories and services only through ports the root binds",
+  "owner_and_capability": "Scheduler Runtime — the Worker application in services/scheduler (scheduler-runtime/application), contract step for #2746: the scheduler opens its transactions through a consumer-owned TenantRuntime port bound by modules/schedulerruntime/jobruntime, reads its settings keys as its own constants behind a registry guard of the root, publishes the overdue events through Delivery's realtimeevents, and reaches the retained repositories and services only through ports the root binds",
   "affected_packages": [
     "api",
     "database/repositories",
@@ -76,9 +76,9 @@
   "runtime_evidence": {
     "source": "Local runs on the #2746 branch on 2026-10-02 against the local postgres-test server.",
     "sources": [
-      "backend/api/scheduler_ports.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/scheduler_ports.go",
       "backend/realtime/events.go",
-      "backend/modules/schedulerruntime/jobruntime/runtime.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/modules/schedulerruntime/jobruntime/runtime.go",
       "backend/modules/settings/compose/tenant_snapshots.go",
       "https://github.com/moto-nrw/project-phoenix/blob/a4b10d5cdf06c707909c14f386807d6a56295f3c/backend/services/scheduler/setting_keys.go",
       "https://github.com/moto-nrw/project-phoenix/blob/a4b10d5cdf06c707909c14f386807d6a56295f3c/backend/services/scheduler/tenant_runtime.go",

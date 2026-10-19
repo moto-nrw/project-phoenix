@@ -36,7 +36,7 @@ func TestGuardianPhoneNumberRepository_Create(t *testing.T) {
 			Priority:          1,
 		}
 
-		err := repo.Create(ctx, phone)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, phone)
 		require.NoError(t, err)
 		assert.NotZero(t, phone.ID)
 
@@ -56,7 +56,7 @@ func TestGuardianPhoneNumberRepository_Create(t *testing.T) {
 			Priority:          2,
 		}
 
-		err := repo.Create(ctx, phone)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, phone)
 		require.NoError(t, err)
 		assert.NotZero(t, phone.ID)
 		assert.Equal(t, &label, phone.Label)
@@ -70,7 +70,7 @@ func TestGuardianPhoneNumberRepository_Create(t *testing.T) {
 			PhoneType:         peopleValues.PhoneTypeMobile,
 		}
 
-		err := repo.Create(ctx, phone)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, phone)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "validation failed")
 	})
@@ -84,7 +84,7 @@ func TestGuardianPhoneNumberRepository_Create(t *testing.T) {
 			PhoneType:         peopleValues.PhoneTypeMobile,
 		}
 
-		err := repo.Create(ctx, phone)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, phone)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "validation failed")
 	})
@@ -112,10 +112,10 @@ func TestGuardianPhoneNumberRepository_FindByID(t *testing.T) {
 			IsPrimary:         true,
 			Priority:          1,
 		}
-		err := repo.Create(ctx, phone)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, phone)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, phone.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, phone.ID)
 		require.NoError(t, err)
 		assert.Equal(t, phone.ID, found.ID)
 		assert.Equal(t, phone.PhoneNumber, found.PhoneNumber)
@@ -123,7 +123,7 @@ func TestGuardianPhoneNumberRepository_FindByID(t *testing.T) {
 	})
 
 	t.Run("returns error for non-existent phone", func(t *testing.T) {
-		_, err := repo.FindByID(ctx, int64(999999))
+		_, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, int64(999999))
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
@@ -152,7 +152,7 @@ func TestGuardianPhoneNumberRepository_FindByGuardianID(t *testing.T) {
 			IsPrimary:         true,
 			Priority:          1,
 		}
-		err := repo.Create(ctx, phone1)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, phone1)
 		require.NoError(t, err)
 
 		phone2 := &peopleValues.GuardianProfilePhoneSnapshot{
@@ -162,10 +162,10 @@ func TestGuardianPhoneNumberRepository_FindByGuardianID(t *testing.T) {
 			IsPrimary:         false,
 			Priority:          2,
 		}
-		err = repo.Create(ctx, phone2)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Create, phone2)
 		require.NoError(t, err)
 
-		phones, err := repo.FindByGuardianID(ctx, guardian.ID)
+		phones, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByGuardianID, guardian.ID)
 		require.NoError(t, err)
 		assert.Len(t, phones, 2)
 
@@ -177,13 +177,13 @@ func TestGuardianPhoneNumberRepository_FindByGuardianID(t *testing.T) {
 	t.Run("returns empty slice for guardian with no phones", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "no-phones")
 
-		phones, err := repo.FindByGuardianID(ctx, guardian.ID)
+		phones, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByGuardianID, guardian.ID)
 		require.NoError(t, err)
 		assert.Empty(t, phones)
 	})
 
 	t.Run("returns empty slice for non-existent guardian", func(t *testing.T) {
-		phones, err := repo.FindByGuardianID(ctx, int64(999999))
+		phones, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByGuardianID, int64(999999))
 		require.NoError(t, err)
 		assert.Empty(t, phones)
 	})
@@ -215,7 +215,7 @@ func TestGuardianPhoneNumberRepository_Update(t *testing.T) {
 			IsPrimary:         false,
 			Priority:          1,
 		}
-		err := repo.Create(ctx, phone)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, phone)
 		require.NoError(t, err)
 
 		// Update fields
@@ -225,11 +225,11 @@ func TestGuardianPhoneNumberRepository_Update(t *testing.T) {
 		phone.Label = &label
 		phone.IsPrimary = true
 
-		err = repo.Update(ctx, phone)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Update, phone)
 		require.NoError(t, err)
 
 		// Verify update
-		updated, err := repo.FindByID(ctx, phone.ID)
+		updated, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, phone.ID)
 		require.NoError(t, err)
 		assert.Equal(t, "+49 30 999000", updated.PhoneNumber)
 		assert.Equal(t, peopleValues.PhoneTypeWork, updated.PhoneType)
@@ -247,7 +247,7 @@ func TestGuardianPhoneNumberRepository_Update(t *testing.T) {
 		}
 		phone.ID = 999999 // Non-existent ID
 
-		err := repo.Update(ctx, phone)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Update, phone)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
@@ -274,20 +274,20 @@ func TestGuardianPhoneNumberRepository_Delete(t *testing.T) {
 			PhoneType:         peopleValues.PhoneTypeMobile,
 			Priority:          1,
 		}
-		err := repo.Create(ctx, phone)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, phone)
 		require.NoError(t, err)
 
-		err = repo.Delete(ctx, phone.ID)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Delete, phone.ID)
 		require.NoError(t, err)
 
 		// Verify deletion
-		_, err = repo.FindByID(ctx, phone.ID)
+		_, err = testpkg.TenantQuery1(t, ctx, db, repo.FindByID, phone.ID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
 
 	t.Run("returns error for non-existent phone", func(t *testing.T) {
-		err := repo.Delete(ctx, int64(999999))
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Delete, int64(999999))
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
@@ -316,7 +316,7 @@ func TestGuardianPhoneNumberRepository_SetPrimary(t *testing.T) {
 			IsPrimary:         true,
 			Priority:          1,
 		}
-		err := repo.Create(ctx, phone1)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, phone1)
 		require.NoError(t, err)
 
 		// Create second phone as non-primary
@@ -327,20 +327,20 @@ func TestGuardianPhoneNumberRepository_SetPrimary(t *testing.T) {
 			IsPrimary:         false,
 			Priority:          2,
 		}
-		err = repo.Create(ctx, phone2)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Create, phone2)
 		require.NoError(t, err)
 
 		// Set phone2 as primary
-		err = repo.SetPrimary(ctx, phone2.ID, guardian.ID)
+		err = testpkg.TenantCommand2(t, ctx, db, repo.SetPrimary, phone2.ID, guardian.ID)
 		require.NoError(t, err)
 
 		// Verify phone2 is now primary
-		updated2, err := repo.FindByID(ctx, phone2.ID)
+		updated2, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, phone2.ID)
 		require.NoError(t, err)
 		assert.True(t, updated2.IsPrimary)
 
 		// Verify phone1 is no longer primary
-		updated1, err := repo.FindByID(ctx, phone1.ID)
+		updated1, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, phone1.ID)
 		require.NoError(t, err)
 		assert.False(t, updated1.IsPrimary)
 	})
@@ -348,7 +348,7 @@ func TestGuardianPhoneNumberRepository_SetPrimary(t *testing.T) {
 	t.Run("returns error for non-existent phone", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "set-primary-error")
 
-		err := repo.SetPrimary(ctx, int64(999999), guardian.ID)
+		err := testpkg.TenantCommand2(t, ctx, db, repo.SetPrimary, int64(999999), guardian.ID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
@@ -376,14 +376,14 @@ func TestGuardianPhoneNumberRepository_UnsetAllPrimary(t *testing.T) {
 			IsPrimary:         true,
 			Priority:          1,
 		}
-		err := repo.Create(ctx, phone)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, phone)
 		require.NoError(t, err)
 
-		err = repo.UnsetAllPrimary(ctx, guardian.ID)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.UnsetAllPrimary, guardian.ID)
 		require.NoError(t, err)
 
 		// Verify no phone is primary anymore
-		phones, err := repo.FindByGuardianID(ctx, guardian.ID)
+		phones, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByGuardianID, guardian.ID)
 		require.NoError(t, err)
 		for _, p := range phones {
 			assert.False(t, p.IsPrimary, "phone %d should no longer be primary", p.ID)
@@ -393,7 +393,7 @@ func TestGuardianPhoneNumberRepository_UnsetAllPrimary(t *testing.T) {
 	t.Run("succeeds even with no phones", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "unset-empty")
 
-		err := repo.UnsetAllPrimary(ctx, guardian.ID)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.UnsetAllPrimary, guardian.ID)
 		require.NoError(t, err)
 	})
 }
@@ -422,11 +422,11 @@ func TestGuardianPhoneNumberRepository_CountByGuardianID(t *testing.T) {
 				IsPrimary:         i == 0,
 				Priority:          i + 1,
 			}
-			err := repo.Create(ctx, phone)
+			err := testpkg.TenantCommand1(t, ctx, db, repo.Create, phone)
 			require.NoError(t, err)
 		}
 
-		count, err := repo.CountByGuardianID(ctx, guardian.ID)
+		count, err := testpkg.TenantQuery1(t, ctx, db, repo.CountByGuardianID, guardian.ID)
 		require.NoError(t, err)
 		assert.Equal(t, 3, count)
 	})
@@ -434,7 +434,7 @@ func TestGuardianPhoneNumberRepository_CountByGuardianID(t *testing.T) {
 	t.Run("returns zero for guardian with no phones", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "count-zero")
 
-		count, err := repo.CountByGuardianID(ctx, guardian.ID)
+		count, err := testpkg.TenantQuery1(t, ctx, db, repo.CountByGuardianID, guardian.ID)
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})
@@ -455,7 +455,7 @@ func TestGuardianPhoneNumberRepository_GetNextPriority(t *testing.T) {
 	t.Run("returns 1 for guardian with no phones", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "next-priority-empty")
 
-		priority, err := repo.GetNextPriority(ctx, guardian.ID)
+		priority, err := testpkg.TenantQuery1(t, ctx, db, repo.GetNextPriority, guardian.ID)
 		require.NoError(t, err)
 		assert.Equal(t, 1, priority)
 	})
@@ -471,10 +471,10 @@ func TestGuardianPhoneNumberRepository_GetNextPriority(t *testing.T) {
 			IsPrimary:         true,
 			Priority:          3,
 		}
-		err := repo.Create(ctx, phone)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, phone)
 		require.NoError(t, err)
 
-		priority, err := repo.GetNextPriority(ctx, guardian.ID)
+		priority, err := testpkg.TenantQuery1(t, ctx, db, repo.GetNextPriority, guardian.ID)
 		require.NoError(t, err)
 		assert.Equal(t, 4, priority) // Should be max(3) + 1 = 4
 	})

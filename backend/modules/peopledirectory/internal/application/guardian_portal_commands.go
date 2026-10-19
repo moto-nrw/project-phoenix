@@ -161,6 +161,14 @@ func (s *GuardianService) LinkContact(ctx context.Context, link domain.GuardianL
 // permission and portal access.
 func (s *GuardianService) writeLink(ctx context.Context, link domain.GuardianLinkRecord, stats *domain.OperationStats) (int64, error) {
 	tenantID := s.tx.TenantID(ctx)
+	found, clearStats, err := s.store.ClearChildlessSince(ctx, link.GuardianProfileID)
+	stats.Add(clearStats)
+	if err != nil {
+		return 0, err
+	}
+	if !found {
+		return 0, domain.ErrGuardianNotFound
+	}
 	linkID, writeStats, err := s.store.InsertLinkIfAbsent(ctx, link)
 	stats.Add(writeStats)
 	if err != nil || linkID == 0 {

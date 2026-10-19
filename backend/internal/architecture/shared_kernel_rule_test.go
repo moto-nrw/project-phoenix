@@ -66,13 +66,13 @@ func sharedKernelPolicies(t *testing.T) (*Policy, *Policy) {
 func TestSharedKernelRulePassesOnlyInAReviewedEpoch(t *testing.T) {
 	t.Parallel()
 	base, candidate := sharedKernelPolicies(t)
-	if err := comparePolicyStrictness(base, candidate, noCreated(), noCreated(), noCreated(), noCreated(), noCreated()); err != nil {
+	if err := comparePolicyStrictness(base, candidate, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil); err != nil {
 		t.Fatalf("reviewed shared-kernel epoch was rejected: %v", err)
 	}
 
 	unreviewed := *candidate
 	unreviewed.PolicyEpoch = base.PolicyEpoch
-	err := comparePolicyStrictness(base, &unreviewed, noCreated(), noCreated(), noCreated(), noCreated(), noCreated())
+	err := comparePolicyStrictness(base, &unreviewed, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil)
 	if err == nil || !strings.Contains(err.Error(), "rule "+sharedKernelRuleID+" ") {
 		t.Fatalf("the shared-kernel rule passed without an epoch increase: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestSharedKernelEpochGrantsNothingElse(t *testing.T) {
 		base, candidate := sharedKernelPolicies(t)
 		widened := *candidate
 		widened.Rules = append(slices.Clone(candidate.Rules), extra)
-		err := comparePolicyStrictness(base, &widened, noCreated(), noCreated(), noCreated(), noCreated(), noCreated())
+		err := comparePolicyStrictness(base, &widened, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil)
 		if err == nil || !strings.Contains(err.Error(), "rule "+extra.ID+" ") {
 			t.Fatalf("%s: the reviewed epoch admitted a rule outside the shared-kernel shape: %v", extra.ID, err)
 		}

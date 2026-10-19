@@ -6,6 +6,8 @@ import (
 	"context"
 	"log/slog"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -16,15 +18,15 @@ import (
 // the attendance sync bridge without constructing the legacy repository
 // factory: the instance and participant rows.
 func NewAttendanceSyncTestRepositories(db transactionruntime.Database, capability timetable.Capability) TimetableOwnerRows {
-	presence := NewUnloggedStudentPresence(db)
+	presence := owners.NewUnloggedStudentPresence(db)
 	return timetableCompose.NewNativeMirrorRows(timetableCompose.OwnerRows{
-		Instances:    timetableCompose.NewActivityInstanceRepository(db.Pool(), capability, presence),
-		Participants: timetableCompose.NewInstanceStudentRepository(db.Pool(), capability, presence, NewPartialAbsencePreview(db)),
+		Instances:    timetableCompose.NewActivityInstanceRepository(owners.MustPresenceReads(db), capability, presence),
+		Participants: timetableCompose.NewInstanceStudentRepository(owners.MustPresenceReads(db), capability, presence, owners.NewPartialAbsencePreview(db)),
 	})
 }
 
 func NewAttendanceSyncTestMirror(rows TimetableOwnerRows, logger *slog.Logger) (studentpresence.AttendanceSyncer, error) {
-	return newNativeAttendanceMirror(rows, logger)
+	return owners.NewNativeAttendanceMirror(rows, logger)
 }
 func NewAttendanceMirrorParticipant() *timetable.ScheduledParticipant {
 	return &timetable.ScheduledParticipant{}

@@ -7,9 +7,9 @@ import (
 	"slices"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -35,7 +35,8 @@ func NewTimetableData(deps ports.TimetableDataDependencies) (timetable.Timetable
 		deps.Rooms == nil || deps.RoomOccupancy == nil || deps.DeviationEvents == nil || deps.ConflictAcks == nil {
 		return nil, errors.New("timetable data: required dependency is nil")
 	}
-	return &timetableData{ConflictAckCapability: deps.ConflictAcks, DeviationEventReader: deps.DeviationEvents, deps: deps}, nil
+	records := &timetableData{ConflictAckCapability: deps.ConflictAcks, DeviationEventReader: deps.DeviationEvents, deps: deps}
+	return &timetableCommands{records, records}, nil
 }
 
 func (d *timetableData) FindScheduledInstance(ctx context.Context, id int64) (timetable.ScheduledInstance, error) {
@@ -53,17 +54,13 @@ func (d *timetableData) FindScheduledInstance(ctx context.Context, id int64) (ti
 }
 
 func (d *timetableData) ListScheduledInstances(ctx context.Context, from, to calendar.Date) ([]timetable.ScheduledInstance, error) {
-	rows, err := d.deps.Instances.FindByTenantAndDateRange(ctx, scheduleModels.Date(from), scheduleModels.Date(to))
+	rows, err := d.deps.Instances.FindByTenantAndDateRange(ctx, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return nil, err
 	}
 	return scheduledInstancesOf(rows), nil
 }
 
-// ListScheduledInstanceRows loads the rows of the listed blocks with one
-// batched read per kind plus one cutoff read per distinct date, instead of
-// three reads per block (#2940). Participant rows keep the created_at order
-// of the single-block read.
 func (d *timetableData) ListScheduledInstanceRows(ctx context.Context, instances []timetable.ScheduledInstance) (*timetable.ScheduledInstanceRows, error) {
 	rows := &timetable.ScheduledInstanceRows{
 		Staff:        make(map[int64][]timetable.InstanceStaff, len(instances)),
@@ -141,7 +138,7 @@ func (d *timetableData) partialAbsenceCutoffs(ctx context.Context, studentIDs []
 	if len(studentIDs) == 0 {
 		return map[int64]time.Time{}, nil
 	}
-	rows, err := d.deps.PickupExceptions.FindByStudentIDsAndDate(ctx, studentIDs, scheduleModels.Date(date))
+	rows, err := d.deps.PickupExceptions.FindByStudentIDsAndDate(ctx, studentIDs, calendar.Date(date))
 	if err != nil {
 		return nil, err
 	}
@@ -174,11 +171,6 @@ func (d *timetableData) ListBlockParticipants(ctx context.Context, instanceID in
 	return scheduledParticipantsOf(rows), nil
 }
 
-// ListCareDayCandidates returns the rows whose care-day verdict can still
-// change something: still 'expected', plus rows a broad day status (sick,
-// excused, class trip) flipped to 'absent' and still owns. The status day
-// is written before anything knows whether the child was booked, so an
-// unbooked child can already sit there as absent (#1747).
 func (d *timetableData) ListCareDayCandidates(ctx context.Context, instanceIDs []int64) ([]timetable.ScheduledParticipant, error) {
 	rows, err := d.deps.Participants.FindNotScheduledCandidatesByInstanceIDs(ctx, instanceIDs)
 	if err != nil {
@@ -256,4 +248,9 @@ func instanceStaffOf(row *scheduleModels.InstanceStaff) timetable.InstanceStaff 
 		IsPrimary: row.IsPrimary, IsSubstitute: row.IsSubstitute, IsAbsent: row.IsAbsent,
 		AbsenceReason: row.AbsenceReason, SickAbsenceID: row.SickAbsenceID,
 	}
+}
+
+type timetableCommands struct {
+	timetable.TimetableDataCapability
+	commands *timetableData
 }

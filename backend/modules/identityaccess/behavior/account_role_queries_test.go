@@ -15,7 +15,7 @@ import (
 func TestAccountRoleQueriesScopeAndSystemRoles(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "role-facts")
@@ -75,7 +75,7 @@ func TestAccountRoleQueriesScopeAndSystemRoles(t *testing.T) {
 func TestAccountRoleQueriesDatabaseFailures(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	require.NoError(t, db.Close())
 	_, _, err = identity.FindSystemRoleID(context.Background(), "user")

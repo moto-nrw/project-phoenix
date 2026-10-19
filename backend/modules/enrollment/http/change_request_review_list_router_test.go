@@ -18,7 +18,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -50,7 +50,7 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
 	ctx := testpkg.Ctx(t)
-	repos, repoErr := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, db), api.NewTestAuditStore(testpkg.NewDatabase(t, db)))
+	repos, repoErr := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, db), owners.NewTestAuditStore(testpkg.NewDatabase(t, db)))
 	reposCare := api.NewEnrollmentCarePlanRows(testpkg.NewDatabase(t, db))
 	reposSchools := api.NewOrganizationTestRows(testpkg.NewDatabase(t, db))
 	require.NoError(t, repoErr)
@@ -79,22 +79,22 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 
 	phase := &capability.Phase{
 		Name:             "review-list-" + t.Name(),
-		Kind:             enrollmentModels.PhaseKindSchoolYear,
+		Kind:             capability.PhaseKindSchoolYear,
 		ServiceStartDate: capability.Date(calendar.NewDate(2026, 9, 1)),
 		ServiceEndDate:   capability.Date(calendar.NewDate(2027, 7, 31)),
 		IsActive:         true,
 		FormSchemaID:     &schema.ID,
-		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+		CareOverflowMode: capability.PhaseCareOverflowWaitlist,
 	}
 	phase.TenantID = tenantID
-	require.NoError(t, repos.Enrollment().InsertPhase(ctx, phase))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.Enrollment().InsertPhase, phase))
 
-	requestSvc := enrollmentAPI.NewRequestService(api.NewEnrollmentIntake(api.EnrollmentIntakeSources{
+	requestSvc := newFixtureRequestRoot(owners.NewEnrollmentIntake(owners.EnrollmentIntakeSources{
 		Requests:         repos.Enrollment(),
 		Children:         repos.Enrollment(),
 		Guardians:        repos.Enrollment(),
 		CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan),
-		Capacity:         api.NewEnrollmentOfferingCapacity(enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan), repos.Enrollment(), settings),
+		Capacity:         owners.NewEnrollmentOfferingCapacity(enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan), repos.Enrollment(), settings),
 		Catalog:          repos.Enrollment(),
 		SchoolRepo:       capabilitySchools{schools: reposSchools.School},
 		Notifications:    NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: reposSchools.School}),
@@ -105,13 +105,13 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 		ParentsURL:       "http://parents.localhost:3000",
 		Logger:           slog.Default(),
 	}))
-	changeRequestSvc := enrollmentAPI.NewChangeRequestService(api.NewEnrollmentChangeRequests(api.EnrollmentChangeRequestSources{
+	changeRequestSvc := enrollmentAPI.NewChangeRequestService(owners.NewEnrollmentChangeRequests(owners.EnrollmentChangeRequestSources{
 		Requests:            repos.Enrollment(),
 		Children:            repos.Enrollment(),
 		Guardians:           repos.Enrollment(),
 		LateInviteRepo:      repos.Enrollment(),
 		CareOfferingRepo:    enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan),
-		Capacity:            api.NewEnrollmentOfferingCapacity(enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan), repos.Enrollment(), settings),
+		Capacity:            owners.NewEnrollmentOfferingCapacity(enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan), repos.Enrollment(), settings),
 		Catalog:             repos.Enrollment(),
 		Notifications:       NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: reposSchools.School}),
 		GuardianProfileRepo: repos.GuardianProfile,

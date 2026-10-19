@@ -6,11 +6,12 @@ import (
 	"slices"
 	"time"
 
+	directoryPorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/uptrace/bun"
 )
 
@@ -27,16 +28,16 @@ type TargetStudent struct {
 }
 
 func New(tb TB, db *bun.DB) timetable.Capability {
-	return newModule(tb, db, timetableCompose.StudentDirectoryFunc(func(context.Context) ([]timetableCompose.TargetStudent, error) {
-		return []timetableCompose.TargetStudent{}, nil
+	return newModule(tb, db, directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) {
+		return []directoryPorts.TargetStudent{}, nil
 	}))
 }
 
-func newModule(tb TB, db *bun.DB, students timetableCompose.StudentDirectory, rooms ...timetable.RoomDirectory) timetable.Capability {
+func newModule(tb TB, db *bun.DB, students directoryPorts.StudentDirectory, rooms ...timetable.RoomDirectory) timetable.Capability {
 	return newModuleWithSessions(tb, db, students, NoSessions{}, rooms...)
 }
 
-func newModuleWithSessions(tb TB, db *bun.DB, students timetableCompose.StudentDirectory, sessions timetable.SessionFacts, rooms ...timetable.RoomDirectory) timetable.Capability {
+func newModuleWithSessions(tb TB, db *bun.DB, students directoryPorts.StudentDirectory, sessions timetable.SessionFacts, rooms ...timetable.RoomDirectory) timetable.Capability {
 	tb.Helper()
 	roomDirectory := testRooms()
 	if len(rooms) > 0 {
@@ -121,8 +122,8 @@ func (s *FixedSessions) RunningSessionsByInstance(context.Context, []int64) (map
 
 // NewWithSessions composes the owner over the given session facts.
 func NewWithSessions(tb TB, db *bun.DB, sessions timetable.SessionFacts) timetable.Capability {
-	return newModuleWithSessions(tb, db, timetableCompose.StudentDirectoryFunc(func(context.Context) ([]timetableCompose.TargetStudent, error) {
-		return []timetableCompose.TargetStudent{}, nil
+	return newModuleWithSessions(tb, db, directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) {
+		return []directoryPorts.TargetStudent{}, nil
 	}), sessions)
 }
 
@@ -133,9 +134,9 @@ type LegacyRows struct {
 	reads timetableCompose.PresenceReads
 }
 
-func NewLegacyRows(tb TB, db *bun.DB) LegacyRows {
+func NewLegacyRows(tb TB, projection directoryPorts.PresenceProjection) LegacyRows {
 	tb.Helper()
-	reads, err := timetableCompose.NewPresenceReads(db)
+	reads, err := timetableCompose.NewPresenceReads(projection)
 	if err != nil {
 		tb.Fatalf("compose timetable presence reads: %v", err)
 	}
@@ -182,14 +183,14 @@ type LegacyParticipant struct {
 // InstancesOn lists the blocks of the ISO day with their execution, ordered
 // by start time.
 func (r LegacyRows) InstancesOn(ctx context.Context, date string) ([]LegacyInstance, error) {
-	return r.instances(ctx, timetablePorts.LegacyInstanceFilter{Date: &date, OrderByDateAndTime: true})
+	return r.instances(ctx, directoryPorts.LegacyInstanceFilter{Date: &date, OrderByDateAndTime: true})
 }
 
 // InstancesBetween lists the blocks of the ISO days from through to with
 // their execution, ordered by date and start time: the tenant's date-range
 // read the composition root binds for the plan exports.
 func (r LegacyRows) InstancesBetween(ctx context.Context, from, to string) ([]LegacyInstance, error) {
-	return r.instances(ctx, timetablePorts.LegacyInstanceFilter{FromDate: &from, ToDate: &to, OrderByDateAndTime: true})
+	return r.instances(ctx, directoryPorts.LegacyInstanceFilter{FromDate: &from, ToDate: &to, OrderByDateAndTime: true})
 }
 
 // InstancesByID lists the given blocks with their execution, ordered by date
@@ -198,10 +199,10 @@ func (r LegacyRows) InstancesByID(ctx context.Context, ids []int64) ([]LegacyIns
 	if len(ids) == 0 {
 		return []LegacyInstance{}, nil
 	}
-	return r.instances(ctx, timetablePorts.LegacyInstanceFilter{IDs: ids, OrderByDateAndTime: true})
+	return r.instances(ctx, directoryPorts.LegacyInstanceFilter{IDs: ids, OrderByDateAndTime: true})
 }
 
-func (r LegacyRows) instances(ctx context.Context, filter timetablePorts.LegacyInstanceFilter) ([]LegacyInstance, error) {
+func (r LegacyRows) instances(ctx context.Context, filter directoryPorts.LegacyInstanceFilter) ([]LegacyInstance, error) {
 	rows, err := r.reads.ListLegacyInstances(ctx, filter)
 	if err != nil {
 		return nil, err
@@ -221,7 +222,7 @@ func (r LegacyRows) instances(ctx context.Context, filter timetablePorts.LegacyI
 // Roster lists the participants of the blocks with their attendance, ordered
 // by block and participant.
 func (r LegacyRows) Roster(ctx context.Context, instanceIDs []int64) ([]LegacyParticipant, error) {
-	rows, err := r.reads.ListLegacyParticipants(ctx, timetablePorts.LegacyParticipantFilter{InstanceIDs: instanceIDs, OrderByInstanceStudent: true})
+	rows, err := r.reads.ListLegacyParticipants(ctx, directoryPorts.LegacyParticipantFilter{InstanceIDs: instanceIDs, OrderByInstanceStudent: true})
 	if err != nil {
 		return nil, err
 	}

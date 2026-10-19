@@ -9,7 +9,7 @@ import (
 )
 
 func (s *Service) FindActivitySession(ctx context.Context, instanceID int64) (result ports.ActivitySession, err error) {
-	err = s.run("find_activity_session", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "find_activity_session", func(ctx context.Context) (ports.Stats, error) {
 		if instanceID <= 0 {
 			return ports.Stats{}, errors.New("student presence: invalid instance ID")
 		}
@@ -27,7 +27,7 @@ func (s *Service) FindActivitySession(ctx context.Context, instanceID int64) (re
 }
 
 func (s *Service) ListActivitySessions(ctx context.Context, filter ports.ActivitySessionFilter) (result []ports.ActivitySession, err error) {
-	err = s.run("list_activity_sessions", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "list_activity_sessions", func(ctx context.Context) (ports.Stats, error) {
 		if !validIDs(filter.InstanceIDs) || !validIDs(filter.ActiveGroupIDs) || !validActivitySessionStatus(filter.Status, true) {
 			return ports.Stats{}, errors.New("student presence: invalid activity session filter")
 		}
@@ -42,7 +42,7 @@ func (s *Service) ListActivitySessions(ctx context.Context, filter ports.Activit
 // and which of the participants are marked as not booked. Timetable asks it
 // before offering a block to a later pickup.
 func (s *Service) SessionExecution(ctx context.Context, filter ports.SessionExecutionFilter) (result ports.SessionExecution, err error) {
-	err = s.run("session_execution", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "session_execution", func(ctx context.Context) (ports.Stats, error) {
 		if !validIDs(filter.InstanceIDs) || !validIDs(filter.ParticipantIDs) {
 			return ports.Stats{}, errors.New("student presence: invalid session execution filter")
 		}

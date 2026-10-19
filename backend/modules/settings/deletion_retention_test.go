@@ -24,9 +24,36 @@ func TestDeletionRetentionWindowsReadTheirSettings(t *testing.T) {
 		configModel.KeyGDPRStatusDayRetentionDays,
 		configModel.KeyGDPRAttendanceRetentionDays,
 		configModel.KeyGDPRParentMessageRetentionDays,
+		configModel.KeyGDPRStaffMessageRetentionDays,
+		configModel.KeyGDPRTimetableRetentionDays,
 		configModel.KeyGDPRWithdrawnEnrollmentRetentionDays,
 		configModel.KeyGDPRStaffSickNoteRetentionDays,
 		configModel.KeyGDPRStudentRetentionDays,
+		configModel.KeyGDPRGuardianRetentionDays,
 		configModel.KeyGDPRTimeTrackingRetentionDays,
 	}, RetentionWindowKeys())
+}
+
+func TestSchoolContentFollowsTheWindowOfItsDataKind(t *testing.T) {
+	t.Parallel()
+	source := retentionSource{
+		configModel.KeyGDPRParentMessageRetentionDays: 100,
+		configModel.KeyGDPRStaffMessageRetentionDays:  200,
+		configModel.KeyGDPRTimetableRetentionDays:     300,
+		configModel.KeyGDPRStudentRetentionDays:       400,
+	}
+	for window, want := range map[string]struct {
+		window RetentionWindow
+		days   int
+	}{
+		"parent announcements": {ParentAnnouncementRetentionWindow(source), 100},
+		"staff notices":        {StaffNoticeRetentionWindow(source), 200},
+		"appointments":         {AppointmentRetentionWindow(source), 300},
+		"grade transitions":    {GradeTransitionRetentionWindow(source), 400},
+	} {
+		days, err := want.window.Days(t.Context())
+		require.NoError(t, err, window)
+		assert.Equal(t, want.days, days, window)
+	}
+	assert.ErrorContains(t, StaffNoticeRetentionWindow(source).SettingError(assert.AnError), configModel.KeyGDPRStaffMessageRetentionDays)
 }

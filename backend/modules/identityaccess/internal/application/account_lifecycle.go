@@ -138,6 +138,13 @@ func (d StaffDirectory) LinkPersonToAccount(ctx context.Context, personID, accou
 	return d.Source.LinkPersonToAccount(ctx, personID, accountID)
 }
 
+func (d StaffDirectory) MoveAccountLink(ctx context.Context, fromPersonID, toPersonID, accountID int64) error {
+	if err := d.Source.UnlinkPersonFromAccount(ctx, fromPersonID); err != nil {
+		return err
+	}
+	return d.Source.LinkPersonToAccount(ctx, toPersonID, accountID)
+}
+
 func (d StaffDirectory) LinkPersonToRFIDCard(ctx context.Context, personID int64, tagID string) error {
 	return d.Source.LinkPersonToRFIDCard(ctx, personID, tagID)
 }
@@ -151,8 +158,8 @@ func (d StaffDirectory) FindStaffByPerson(ctx context.Context, personID int64) (
 	return domain.StaffMember(staff), found, err
 }
 
-func (d StaffDirectory) CreateStaff(ctx context.Context, tenantID, personID int64) (int64, error) {
-	return d.Source.CreateStaff(ctx, tenantID, personID)
+func (d StaffDirectory) CreateStaff(ctx context.Context, tenantID, personID int64, retiredStaffID *int64) (int64, error) {
+	return d.Source.CreateStaff(ctx, tenantID, personID, retiredStaffID)
 }
 
 func (d StaffDirectory) FindCaregiverProfile(ctx context.Context, staffID int64) (domain.CaregiverProfile, bool, error) {
@@ -216,6 +223,21 @@ func (d GuardianDirectory) FindGuardianProfileByEmail(ctx context.Context, email
 func (d GuardianDirectory) FindGuardianProfile(ctx context.Context, id int64) (domain.GuardianProfile, bool, error) {
 	profile, found, err := d.Source.FindGuardianProfile(ctx, id)
 	return domain.GuardianProfile(profile), found, err
+}
+
+func (d GuardianDirectory) LockGuardianProfile(ctx context.Context, id int64) (domain.GuardianProfile, bool, error) {
+	locked, err := d.Source.LockGuardianProfile(ctx, id)
+	if err != nil {
+		return domain.GuardianProfile{}, false, fmt.Errorf("lock guardian profile: %w", err)
+	}
+	if !locked {
+		return domain.GuardianProfile{}, false, nil
+	}
+	profile, found, err := d.Source.FindGuardianProfile(ctx, id)
+	if err != nil {
+		return domain.GuardianProfile{}, false, fmt.Errorf("read locked guardian profile: %w", err)
+	}
+	return domain.GuardianProfile(profile), found, nil
 }
 
 func (d GuardianDirectory) FindGuardianProfiles(ctx context.Context, ids []int64) (map[int64]domain.GuardianProfile, error) {

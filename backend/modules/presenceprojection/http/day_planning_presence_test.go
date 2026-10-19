@@ -123,7 +123,7 @@ func TestListStudents_ExpectedChildReadsSchoolBeforeFirstCheckIn(t *testing.T) {
 	assert.Equal(t, "Schule", filtered[waiting.ID].Location)
 
 	// The dashboard counts through the same rule.
-	count, err := tc.resource.CountAtSchoolToday(testpkg.Ctx(t), []int64{
+	count, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), tc.db, tc.resource.CountAtSchoolToday, []int64{
 		waiting.ID, checkedOut.ID, pickupPassed.ID, noPlan.ID, notComing.ID,
 	})
 	require.NoError(t, err)

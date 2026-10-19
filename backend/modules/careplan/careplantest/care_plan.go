@@ -140,6 +140,7 @@ func (emptyStatusSlots) ReleaseStatusDay(context.Context, int64) (int, error) { 
 // caller passes it.
 type StudentDirectory interface {
 	carePlanCompose.StudentDirectory
+	AllSchoolsStudentModelRows(db bun.IDB, model any) *bun.SelectQuery
 	StudentModelRows(db bun.IDB, tenantID int64, model any) *bun.SelectQuery
 }
 

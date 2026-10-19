@@ -350,7 +350,7 @@ func TestStaffScheduleOverview_BatchesAndProjectsEffectiveDailyAssignments(t *te
 	assert.Empty(t, substitute.UncoveredIntervals)
 	assert.Equal(t, CoverageStatusCovered, got.Assignments[2].CoverageStatus)
 
-	assert.Equal(t, 2, shifts.calls)
+	assert.Equal(t, 1, shifts.calls)
 	assert.Equal(t, 1, instances.calls)
 	assert.Equal(t, 1, assignmentRows.calls)
 	assert.Equal(t, 1, rooms.calls)
@@ -368,7 +368,7 @@ func TestStaffScheduleOverview_UsesTenantShiftWeeksPerISOWeek(t *testing.T) {
 	}}
 	instances.rows[0].ID = 41
 	instances.rows[1].ID = 42
-	shifts := &fakeShiftReader{usedWeeks: []calendar.Date{monday}}
+	shifts := &fakeShiftReader{rows: []*StaffShift{{Date: monday.AddDays(5), StaffID: 99}}}
 	staff := fakeStaff(1, "Ada", "Lovelace")
 	staff.ID = 1
 	service := NewStaffScheduleOverviewService(StaffScheduleOverviewDependencies{
@@ -425,4 +425,8 @@ func TestStaffScheduleOverview_PropagatesReadErrors(t *testing.T) {
 	})
 	_, err := service.GetOverview(context.Background(), calendar.NewDate(2026, time.July, 6), calendar.NewDate(2026, time.July, 10))
 	require.ErrorIs(t, err, want)
+}
+
+func (f *fakeStaffReader) ListMembershipsWithPerson(ctx context.Context) ([]*workforce.PlanStaff, error) {
+	return f.ListAllWithPerson(ctx)
 }

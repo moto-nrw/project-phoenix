@@ -29,7 +29,7 @@ func createPickupChangeWithCutoff(
 	t *testing.T, f *careFixture, date calendar.Date, cutoff careplan.SameDayCutoff,
 ) (*carerequests.Request, error) {
 	t.Helper()
-	return f.svc.CreatePickupChange(f.staffCtx(f.staffAccount), carerequests.PickupChangeCreateInput{
+	return testpkg.TenantQuery1(t, f.staffCtx(f.staffAccount), f.db, f.svc.CreatePickupChange, carerequests.PickupChangeCreateInput{
 		StudentID:         f.chain.StudentID,
 		GuardianAccountID: f.chain.AccountID,
 		Date:              date,
@@ -63,8 +63,7 @@ func TestCreatePickupChangeHonoursSameDayCutoff(t *testing.T) {
 		_, err := createPickupChangeWithCutoff(t, f, cutoffFixtureToday, cutoffAt(t, 11, 1))
 		require.ErrorIs(t, err, careplan.ErrPickupChangeCutoffPassed)
 
-		pending, err := f.svc.ListPickupChangeRequests(
-			f.staffCtx(f.staffAccount), f.chain.StudentID, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+		pending, err := testpkg.TenantQuery2(t, f.staffCtx(f.staffAccount), f.db, f.svc.ListPickupChangeRequests, f.chain.StudentID, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
 		require.NoError(t, err)
 		assert.Empty(t, pending, "a refused request leaves no row behind")
 	})
@@ -94,7 +93,7 @@ func TestEditPickupChangeHonoursSameDayCutoff(t *testing.T) {
 
 	edit := func(t *testing.T, f *careFixture, req *carerequests.Request, date calendar.Date, cutoff careplan.SameDayCutoff) error {
 		t.Helper()
-		_, err := f.svc.EditRequest(f.staffCtx(f.staffAccount), carerequests.EditInput{
+		_, err := testpkg.TenantQuery1(t, f.staffCtx(f.staffAccount), f.db, f.svc.EditRequest, carerequests.EditInput{
 			RequestID:         req.ID,
 			StudentID:         f.chain.StudentID,
 			GuardianAccountID: f.chain.AccountID,
@@ -159,7 +158,7 @@ func TestStaffDecidesTodaysPickupChangeAfterCutoff(t *testing.T) {
 	req, err := createPickupChangeWithCutoff(t, f, cutoffFixtureToday, cutoffAt(t, 10, 30))
 	require.NoError(t, err)
 
-	decided, err := f.svc.Decide(f.staffCtx(f.staffAccount), carerequests.DecideInput{
+	decided, err := testpkg.TenantQuery1(t, f.staffCtx(f.staffAccount), f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID:  req.ID,
 		Approve:    true,
 		ReviewedBy: f.staffAccount,

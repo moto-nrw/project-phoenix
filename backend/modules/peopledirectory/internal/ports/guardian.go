@@ -3,6 +3,7 @@ package ports
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 )
@@ -21,6 +22,10 @@ type GuardianStore interface {
 	ListByAccounts(context.Context, []int64) ([]domain.Guardian, domain.OperationStats, error)
 	// ListByIDs returns the profiles for the ids.
 	ListByIDs(context.Context, []int64) ([]domain.Guardian, domain.OperationStats, error)
+	// ClearChildlessSince clears the retention marker as part of a new
+	// relationship write, so a later unlink starts its retention window anew.
+	// found is false when no profile remains in the caller's school.
+	ClearChildlessSince(context.Context, int64) (found bool, stats domain.OperationStats, err error)
 	// CountLinks counts the links per guardian profile.
 	CountLinks(context.Context, []int64) (map[int64]int, domain.OperationStats, error)
 	// ListAccountLinksByStudents returns the links of the children whose
@@ -34,6 +39,9 @@ type GuardianStore interface {
 // relationship (#2756): Care Plan's pickup permission and Identity & Access's
 // portal access. A link is written as all three halves in one unit of work.
 type GuardianLinkOwners interface {
+	// LockLiveGuardianAccount takes Identity & Access's shared account-row
+	// lock and reports whether the account remains usable for a guardian link.
+	LockLiveGuardianAccount(ctx context.Context, accountID int64) (bool, error)
 	CreateGuardianPickupPermission(ctx context.Context, tenantID, relationshipID int64, canPickup bool, notes *string) error
 	ChangeGuardianPickupPermission(ctx context.Context, tenantID, relationshipID int64, canPickup *bool, setNotes bool, notes *string) (bool, error)
 	GrantGuardianStudentAccess(ctx context.Context, tenantID, relationshipID int64, accountID *int64, permissions json.RawMessage) error
@@ -91,6 +99,17 @@ type GuardianLifecycleWrites interface {
 	// binding when accountID is nil.
 	SetGuardianAccount(ctx context.Context, guardianID int64, accountID *int64) (bool, domain.OperationStats, error)
 	DeleteGuardian(ctx context.Context, guardianID int64) (bool, domain.OperationStats, error)
+	// MarkChildlessGuardians keeps users.guardian_profiles.childless_since
+	// in step for the tenant (#4043): it clears the mark of profiles with a
+	// relationship and marks the profiles without one.
+	MarkChildlessGuardians(ctx context.Context) (domain.OperationStats, error)
+	// LockChildlessGuardiansBefore locks the tenant's profiles that have
+	// been without a child since before cutoff (#4043), skipping rows a
+	// concurrent transaction holds, and returns their IDs in order.
+	LockChildlessGuardiansBefore(ctx context.Context, cutoff time.Time) ([]int64, domain.OperationStats, error)
+	// DeleteChildlessGuardians deletes those of the profiles that are still
+	// without a child since before cutoff and reports how many went.
+	DeleteChildlessGuardians(ctx context.Context, guardianIDs []int64, cutoff time.Time) (int, domain.OperationStats, error)
 	SetLinkRole(ctx context.Context, linkID int64, role string) (bool, domain.OperationStats, error)
 	DeleteLink(ctx context.Context, linkID int64) (domain.OperationStats, error)
 }

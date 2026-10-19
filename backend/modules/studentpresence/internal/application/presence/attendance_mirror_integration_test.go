@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -42,7 +43,7 @@ import (
 type attendanceSyncSetup struct {
 	syncer studentpresence.AttendanceSyncer
 	api.TimetableOwnerRows
-	statusRepo  *api.StudentStatusDayRepository
+	statusRepo  *owners.StudentStatusDayRepository
 	groupRepo   studentpresence.SessionRecords
 	db          *bun.DB
 	ctx         context.Context
@@ -80,7 +81,7 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
-	timetableRepos := api.NewAttendanceSyncTestRepositories(testpkg.MustDatabase(db), api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)))
+	timetableRepos := api.NewAttendanceSyncTestRepositories(testpkg.MustDatabase(db), owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)))
 	instanceStudentRepo := timetableRepos.Participants
 
 	// Register parent cleanup first because t.Cleanup executes LIFO: the

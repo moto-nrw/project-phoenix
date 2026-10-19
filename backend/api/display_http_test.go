@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	displayHTTP "github.com/moto-nrw/project-phoenix/api/display"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -56,8 +58,8 @@ func (s displaySettings) Enable(ctx context.Context) error {
 func (s displaySettings) Reset(ctx context.Context) error {
 	return s.service.ResetValue(ctx, settings.KeyDisplayEnabled, nil, nil)
 }
-func (s displaySettings) TenantFacts(schools DisplaySchoolDirectory) devicefleetCompose.TenantFacts {
-	return NewDisplayTenantFacts(schools, s.service)
+func (s displaySettings) TenantFacts(schools owners.DisplaySchoolDirectory) devicefleetCompose.TenantFacts {
+	return owners.NewDisplayTenantFacts(schools, s.service)
 }
 
 // Retain the existing fixture call sites and assertions without a mutable hook.
@@ -79,9 +81,9 @@ func newDisplayComposition(t *testing.T, database testpkg.Database) (devicefleet
 	require.NoError(t, err)
 	rooms, err := NewFacilities(database)
 	require.NoError(t, err)
-	carePlan, err := NewCarePlan(database, MustNewPeopleDirectory(database), repos.InstanceStudent)
+	carePlan, err := owners.NewCarePlan(database, owners.MustNewPeopleDirectory(database), repos.InstanceStudent)
 	require.NoError(t, err)
-	return devicefleetCompose.Dependencies{Rooms: rooms}, devicefleetCompose.DashboardDependencies{ActiveGroups: MustNewTimetablePresenceRows(database).ActiveGroup, Templates: FleetTemplateReader(repos.NativeRecords()), Instances: FleetInstanceReader(repos.NativeRecords())}, carePlan, approvedOfferings
+	return devicefleetCompose.Dependencies{Rooms: rooms}, devicefleetCompose.DashboardDependencies{ActiveGroups: MustNewTimetablePresenceRows(database).ActiveGroup, Templates: owners.FleetTemplateReader(repos.NativeRecords()), Instances: owners.FleetInstanceReader(repos.NativeRecords())}, carePlan, approvedOfferings
 }
 
 // enableDisplayFeature turns on the opt-in display.enabled setting (issue
@@ -112,7 +114,7 @@ func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http
 	dependencies.Tenants = settings.TenantFacts(displaySchools{db: db})
 	dependencies.Now = firstClock(clocks)
 	dependencies.Observe = func(devicefleetCompose.Observation) {}
-	dependencies.APIKeys = DeviceAPIKeys{}
+	dependencies.APIKeys = owners.DeviceAPIKeys{}
 	fleet, err := devicefleetCompose.New(dependencies)
 	require.NoError(t, err)
 	return testpkg.TenantRuntimeMiddleware(t, db)(NewDisplayHTTPRouter(fleet, settings.FeatureEnabled))
