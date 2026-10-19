@@ -28,6 +28,7 @@ func orderingRules(settings ports.OrderingSettings) (domain.OrderingRules, error
 		Sick:          domain.SickMode(settings.SickAfterDeadline),
 		Rhythm:        domain.Rhythm(settings.OrderRhythm),
 		Detail:        domain.Detail(settings.OrderDetail),
+		CatererNames:  settings.CatererNames,
 	}
 	if rules.Model == domain.ModelAnnual && settings.AnnualDeadline != "" {
 		date, err := domain.ParseDate(settings.AnnualDeadline)

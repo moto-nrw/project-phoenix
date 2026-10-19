@@ -230,6 +230,8 @@ const (
 	CodeIdentityAccountInactive                          = "identity.account_inactive"
 	CodeIdentityAccountNotFound                          = "identity.account_not_found"
 	CodeIdentityAccountNotInSchool                       = "identity.account_not_in_school"
+	CodeIdentityCatererAddressTaken                      = "identity.caterer_address_taken"
+	CodeIdentityCatererWithoutSchool                     = "identity.caterer_without_school"
 	CodeIdentityCurrentPasswordWrong                     = "identity.current_password_wrong"
 	CodeIdentityDemoAccessExpired                        = "identity.demo_access_expired"
 	CodeIdentityDemoAccessInvalid                        = "identity.demo_access_invalid"
@@ -322,11 +324,14 @@ const (
 	CodeMealsInvalidDishes                               = "meals.invalid_dishes"
 	CodeMealsInvalidMealDate                             = "meals.invalid_meal_date"
 	CodeMealsInvalidParticipation                        = "meals.invalid_participation"
+	CodeMealsNotSupplied                                 = "meals.not_supplied"
+	CodeMealsOrderNotFound                               = "meals.order_not_found"
 	CodeMealsParticipationCutoffPassed                   = "meals.participation_cutoff_passed"
 	CodeMealsParticipationOutOfRange                     = "meals.participation_out_of_range"
 	CodeMealsPlanDisabled                                = "meals.plan_disabled"
 	CodeMealsPlanWeekOutOfRange                          = "meals.plan_week_out_of_range"
 	CodeMealsRegistrationDisabled                        = "meals.registration_disabled"
+	CodeMealsSupplyActive                                = "meals.supply_active"
 	CodePickupBulkExceptionConfirmationRequired          = "pickup.bulk_exception_confirmation_required"
 	CodePickupFutureManualReset                          = "pickup.future_manual_reset"
 	CodePickupInvalid                                    = "pickup.invalid"
@@ -902,6 +907,8 @@ var errorClassByCode = map[string]string{
 	"identity.account_inactive":                            "permission",
 	"identity.account_not_found":                           "business_rejection",
 	"identity.account_not_in_school":                       "business_rejection",
+	"identity.caterer_address_taken":                       "business_rejection",
+	"identity.caterer_without_school":                      "permission",
 	"identity.current_password_wrong":                      "input",
 	"identity.demo_access_expired":                         "business_rejection",
 	"identity.demo_access_invalid":                         "input",
@@ -994,11 +1001,14 @@ var errorClassByCode = map[string]string{
 	"meals.invalid_dishes":                                 "input",
 	"meals.invalid_meal_date":                              "input",
 	"meals.invalid_participation":                          "input",
+	"meals.not_supplied":                                   "permission",
+	"meals.order_not_found":                                "input",
 	"meals.participation_cutoff_passed":                    "business_rejection",
 	"meals.participation_out_of_range":                     "input",
 	"meals.plan_disabled":                                  "permission",
 	"meals.plan_week_out_of_range":                         "input",
 	"meals.registration_disabled":                          "permission",
+	"meals.supply_active":                                  "business_rejection",
 	"pickup.bulk_exception_confirmation_required":          "input",
 	"pickup.future_manual_reset":                           "business_rejection",
 	"pickup.invalid":                                       "input",

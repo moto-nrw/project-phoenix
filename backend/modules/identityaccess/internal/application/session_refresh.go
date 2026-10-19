@@ -587,3 +587,18 @@ func (s *AccountAuthentication) auditLogout(ctx context.Context, revoked domain.
 func (s *AccountAuthentication) validateTenantAccess(ctx context.Context, claims domain.RefreshClaims) error {
 	return globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error { return s.validateTenantAccessInTransaction(txCtx, claims) })
 }
+
+// isCatererAccount reports whether the account belongs to a caterer, read
+// through the global identity read: a caterer has no school to read in.
+func (s *AccountAuthentication) isCatererAccount(ctx context.Context, accountID int64) (bool, error) {
+	if s.caterers == nil {
+		return false, nil
+	}
+	var isCaterer bool
+	err := globalIdentityRead(ctx, s.runtime, func(readCtx context.Context) error {
+		var err error
+		_, isCaterer, _, err = s.caterers.FindCatererOfAccount(readCtx, accountID)
+		return err
+	})
+	return isCaterer, err
+}

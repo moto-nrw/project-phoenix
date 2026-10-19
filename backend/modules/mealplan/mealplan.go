@@ -217,6 +217,11 @@ type engine interface {
 	DailyParticipants(context.Context, string) (DailyList, error)
 	Orders(ctx context.Context, from, to string) (OrderWeek, error)
 	SettleOrders(context.Context) error
+	StartSupply(ctx context.Context, catererID int64, deliveryAddress string, accountID int64) error
+	EndSupply(ctx context.Context, accountID int64) (bool, error)
+	CurrentSupply(context.Context) (Supply, bool, error)
+	CatererOrders(ctx context.Context, catererID int64, from, to string) (OrderWeek, error)
+	ConfirmOrder(ctx context.Context, catererID, orderID, accountID int64) error
 }
 
 type Module struct{ engine engine }

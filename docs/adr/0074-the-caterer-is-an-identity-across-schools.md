@@ -108,3 +108,22 @@ what the caterer adds:
    the caterer flows beside the engine, as the demo access is, with the
    delivery of their invitation mail, and handing the authentication the
    caterer store for the refresh.
+3. `modulePassthroughOwnerBudgets["modules/mealplan"]` rises from 15 to 18,
+   and `modulePassthroughOwnerBudgetTotal` from 2,977 to 2,980: the supply's
+   end and read and the caterer's confirmation each run one statement in
+   the Meal Plan's unit of work. The supply methods already speak the public
+   types, so no engine method forwards them; the caterer portal hands the
+   invitation, its revocation and the sign-in through without a method of
+   its own.
+4. `moduleComposeBudgets` gains `workflows/catererportal/compose` with 36
+   lines, and `moduleComposeBudgetTotal` rises by the same 36: binding the
+   caterer portal to each school's tenant transaction.
+
+## Policy
+
+Policy epoch 86 → 87 registers the data-less workflow owner `caterer-portal`
+with its five new packages (ADR 0013 path, #3130) and the rules its code
+uses: its public contract and ports speak the public Identity & Access and
+Meal Plan contracts, its composition binds the tenant runtime, and its HTTP
+transport renders through `api/common`. It owns no data and widens no
+existing owner.

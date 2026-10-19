@@ -2426,7 +2426,9 @@
         "tenant_access_not_found": "Dieses Konto hat keinen Zugang zu dieser Schule mehr. Bitte laden Sie die Seite neu.",
         "account_not_in_school": "Dieses Konto gehört nicht zu dieser Schule. Bitte laden Sie die Seite neu.",
         "lehrkraft_role_immutable": "Ein Lehrkraft-Konto behält seine Rolle. Für eine andere Rolle braucht die Person ein neues Konto.",
-        "access_name_required": "Für diese Schule fehlt der Name der Person. Bitte geben Sie Vor- und Nachnamen ein."
+        "access_name_required": "Für diese Schule fehlt der Name der Person. Bitte geben Sie Vor- und Nachnamen ein.",
+        "caterer_address_taken": "Diese E-Mail-Adresse gehört schon zu einem anderen moto-Konto. Bitte nehmen Sie eine andere Adresse.",
+        "caterer_without_school": "Sie beliefern zurzeit keine Schule über moto. Bitte fragen Sie die Schule."
       },
       "import": {
         "file_columns_missing": "In der Datei fehlen Spalten: {columns}. Bitte nutzen Sie die Vorlage.",
@@ -2487,7 +2489,10 @@
         "participation_out_of_range": "{object} konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
         "plan_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
         "plan_week_out_of_range": "{object} konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
-        "registration_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson."
+        "registration_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+        "not_supplied": "Sie beliefern diese Schule nicht mehr. Bitte fragen Sie die Schule.",
+        "order_not_found": "Diese Bestellung gibt es nicht. Bitte laden Sie die Seite neu.",
+        "supply_active": "{object} geht gerade nicht. Ein Caterer beliefert die Schule noch. Beenden Sie zuerst diese Belieferung."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",

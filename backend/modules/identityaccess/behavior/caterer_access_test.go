@@ -309,3 +309,35 @@ func TestCatererSessionsAreLoggedAndEndWithTheLastSchool(t *testing.T) {
 	_, _, err = module.RefreshTokenWithAudit(context.Background(), refresh, "", "", "")
 	require.Error(t, err, "without a school the session cannot be renewed")
 }
+
+// ADR 0074: the caterer portal's reset serves caterer accounts only, and the
+// new password signs the caterer in.
+func TestCatererPasswordResetServesCaterersOnly(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := setupAuthFactory(t, db)
+	caterers := module.Caterers()
+	school := testpkg.Tenant(t)
+	staff := testpkg.CreateTestAccount(t, db, "caterer-reset-staff")
+	email := fmt.Sprintf("kueche-reset-%d@example.com", time.Now().UnixNano())
+	acceptance, err := accept(t, db, caterers, school, invite(t, db, caterers, school, staff.ID, email), identityaccess.CatererRegistration{Password: catererPassword, ConfirmPassword: catererPassword})
+	require.NoError(t, err)
+	forgetCaterer(t, db, acceptance)
+
+	staffLink, err := module.InitiatePasswordReset(context.Background(), staff.Email, identityaccess.PasswordResetScopeCaterer)
+	require.NoError(t, err, "another account answers like a caterer")
+	assert.Nil(t, staffLink)
+
+	link, err := module.InitiatePasswordReset(context.Background(), email, identityaccess.PasswordResetScopeCaterer)
+	require.NoError(t, err)
+	require.NotNil(t, link)
+	const renewed = "Neues-Kuechenpass-2026!"
+	require.NoError(t, module.ResetPassword(context.Background(), link.Token, renewed))
+	_, _, err = caterers.LoginCatererWithAudit(context.Background(), email, renewed, "", "")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = db.NewRaw(`DELETE FROM platform.email_outbox WHERE tenant_id IS NULL AND related_entity_type = 'password_reset' AND related_entity_id = ?`, link.ID).Exec(context.Background())
+		_, _ = db.NewRaw(`DELETE FROM auth.password_reset_tokens WHERE account_id = ?`, acceptance.AccountID).Exec(context.Background())
+		_, _ = db.NewRaw(`DELETE FROM audit.auth_events WHERE account_id = ?`, acceptance.AccountID).Exec(context.Background())
+	})
+}

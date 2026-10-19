@@ -4175,6 +4175,36 @@
       "class": "input",
       "parameters": [],
       "legacy": "billing.invalid_key_day"
+    },
+    {
+      "code": "identity.caterer_address_taken",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.caterer_address_taken"
+    },
+    {
+      "code": "identity.caterer_without_school",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "identity.caterer_without_school"
+    },
+    {
+      "code": "meals.not_supplied",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "meals.not_supplied"
+    },
+    {
+      "code": "meals.order_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "meals.order_not_found"
+    },
+    {
+      "code": "meals.supply_active",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "meals.supply_active"
     }
   ]
 }

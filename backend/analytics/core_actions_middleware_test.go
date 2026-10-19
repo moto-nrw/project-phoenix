@@ -418,7 +418,7 @@ func TestCoreActionTableEntriesAreWellFormed(t *testing.T) {
 			assert.Equal(t, "data_exported", action.Event, "%v", key)
 		}
 		if action.Surface != "" {
-			assert.Contains(t, []string{SurfaceOGS, SurfaceParents, SurfaceSchool, SurfacePublic}, action.Surface, "%v", key)
+			assert.Contains(t, []string{SurfaceOGS, SurfaceParents, SurfaceSchool, SurfaceCaterer, SurfacePublic}, action.Surface, "%v", key)
 		}
 	}
 }

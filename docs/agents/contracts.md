@@ -165,6 +165,7 @@ host-only). The proxy redirects cross-host paths to their canonical subdomain.
 | Operator | `{NEXT_PUBLIC_OPERATOR_HOSTNAME}` | `operator.session-token` | `/api/operator/auth` | `platform` | `POST /operator/auth/login` |
 | Parents | `{NEXT_PUBLIC_PARENTS_HOSTNAME}` | `parent.session-token` | `/api/parent/auth` | `parent` | `POST /parent/auth/login` |
 | School (moto schule) | `{NEXT_PUBLIC_SCHOOL_HOSTNAME}` | `school.session-token`, SameSite=Strict | `/api/school/auth` | `school` | `POST /school/auth/login` |
+| Caterer | `{NEXT_PUBLIC_CATERER_HOSTNAME}` | `caterer.session-token` | `/api/caterer/auth` | `caterer` | `POST /caterer/auth/login` |
 
 ### Login, refresh, and MFA
 
@@ -180,7 +181,15 @@ Backend paths in this section are relative to `backend/`:
   active mapping and pins that school's `tenant_id`. `SchoolMiddleware`
   accepts only `scope=school`; `common.ProtectedSchoolGroup` includes tenant
   transactions. Unlike parent scope, school scope is tenant-bound.
-- `TenantMiddleware` rejects both parent and school scopes.
+- Caterer login requires a caterer account (`auth.caterer_accounts`) that
+  supplies at least one school; any other account answers like a wrong
+  password. The session row is pinned to a supplied school; refresh re-pins
+  it when that school ends the supply and fails once none is left. The token
+  carries no school: `CatererMiddleware` accepts only `scope=caterer`, and the
+  caterer portal (`workflows/catererportal`) opens each supplied school's
+  tenant transaction itself (ADR 0074). The `caterer scope matrix` contract in
+  `TestFullProductionRouterGolden` checks both directions.
+- `TenantMiddleware` rejects parent, school and caterer scopes.
   `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.
 - MFA can insert a challenge between credentials and session. Inspect
   `modules/identityaccess/account_mfa.go`, `modules/identityaccess/inbound/account/mfa_handlers.go`, `modules/identityaccess/inbound/operator/mfa.go`,

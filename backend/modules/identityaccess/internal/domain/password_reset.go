@@ -14,6 +14,9 @@ const (
 	PasswordResetScopeStaff  PasswordResetScope = "staff"
 	PasswordResetScopeParent PasswordResetScope = "parent"
 	PasswordResetScopeSchool PasswordResetScope = "school"
+	// PasswordResetScopeCaterer serves caterer accounts only; the link lands
+	// on the caterer portal (ADR 0074).
+	PasswordResetScopeCaterer PasswordResetScope = "caterer"
 )
 
 // PasswordResetRateLimitThreshold is the number of reset requests per e-mail

@@ -1167,6 +1167,16 @@ export const ERROR_CATALOG = {
         "Dieser Scan ist schon erledigt. Bitte laden Sie die Seite neu.",
       "billing.invalid_key_day":
         "Der Stichtag muss zwischen dem 1. und dem 28. des Monats liegen. Bitte wählen Sie einen dieser Tage.",
+      "identity.caterer_address_taken":
+        "Diese E-Mail-Adresse gehört schon zu einem anderen moto-Konto. Bitte nehmen Sie eine andere Adresse.",
+      "identity.caterer_without_school":
+        "Sie beliefern zurzeit keine Schule über moto. Bitte fragen Sie die Schule.",
+      "meals.not_supplied":
+        "Sie beliefern diese Schule nicht mehr. Bitte fragen Sie die Schule.",
+      "meals.order_not_found":
+        "Diese Bestellung gibt es nicht. Bitte laden Sie die Seite neu.",
+      "meals.supply_active":
+        "{object} geht gerade nicht. Ein Caterer beliefert die Schule noch. Beenden Sie zuerst diese Belieferung.",
     },
   },
   en: {
@@ -1443,6 +1453,16 @@ export const ERROR_CATALOG = {
         "The status of this change request has changed. Please reload the page.",
       "identity.operator_self_deactivation":
         "You cannot deactivate your own account. Ask another team member to do this.",
+      "identity.caterer_address_taken":
+        "This email address already belongs to another moto account. Please use a different address.",
+      "identity.caterer_without_school":
+        "You do not supply any school through moto at the moment. Please ask the school.",
+      "meals.not_supplied":
+        "You no longer supply this school. Please ask the school.",
+      "meals.order_not_found":
+        "This order does not exist. Please reload the page.",
+      "meals.supply_active":
+        "{object} is not possible right now. A caterer still supplies the school. Please end that supply first.",
     },
   },
   ru: {
@@ -1711,6 +1731,16 @@ export const ERROR_CATALOG = {
         "Статус этого запроса на изменение изменился. Обновите страницу.",
       "identity.operator_self_deactivation":
         "Вы не можете деактивировать свою учётную запись. Попросите об этом другого участника команды.",
+      "identity.caterer_address_taken":
+        "Этот адрес электронной почты уже принадлежит другой учётной записи moto. Пожалуйста, укажите другой адрес.",
+      "identity.caterer_without_school":
+        "Сейчас вы не снабжаете ни одну школу через moto. Пожалуйста, обратитесь в школу.",
+      "meals.not_supplied":
+        "Вы больше не снабжаете эту школу. Пожалуйста, обратитесь в школу.",
+      "meals.order_not_found":
+        "Такого заказа нет. Пожалуйста, обновите страницу.",
+      "meals.supply_active":
+        "{object} сейчас невозможно. Школу ещё снабжает поставщик питания. Сначала завершите эти поставки.",
     },
   },
   sq: {
@@ -1993,6 +2023,16 @@ export const ERROR_CATALOG = {
         "Gjendja e kësaj kërkese për ndryshim ka ndryshuar. Ju lutemi ringarkoni faqen.",
       "identity.operator_self_deactivation":
         "Nuk mund ta çaktivizoni llogarinë tuaj. Kërkojini një personi tjetër nga ekipi ta bëjë këtë.",
+      "identity.caterer_address_taken":
+        "Kjo adresë email i përket tashmë një llogarie tjetër moto. Ju lutemi përdorni një adresë tjetër.",
+      "identity.caterer_without_school":
+        "Aktualisht nuk furnizoni asnjë shkollë përmes moto. Ju lutemi pyesni shkollën.",
+      "meals.not_supplied":
+        "Ju nuk e furnizoni më këtë shkollë. Ju lutemi pyesni shkollën.",
+      "meals.order_not_found":
+        "Kjo porosi nuk ekziston. Ju lutemi ringarkoni faqen.",
+      "meals.supply_active":
+        "{object} nuk është e mundur tani. Një furnizues ushqimi e furnizon ende shkollën. Përfundoni fillimisht atë furnizim.",
     },
   },
   pl: {
@@ -2263,6 +2303,16 @@ export const ERROR_CATALOG = {
         "Stan tej prośby o zmianę się zmienił. Odśwież stronę.",
       "identity.operator_self_deactivation":
         "Nie możesz dezaktywować własnego konta. Poproś o to inną osobę z zespołu.",
+      "identity.caterer_address_taken":
+        "Ten adres e-mail należy już do innego konta moto. Proszę użyć innego adresu.",
+      "identity.caterer_without_school":
+        "Obecnie nie zaopatrujesz żadnej szkoły przez moto. Proszę zapytać szkołę.",
+      "meals.not_supplied":
+        "Nie zaopatrujesz już tej szkoły. Proszę zapytać szkołę.",
+      "meals.order_not_found":
+        "To zamówienie nie istnieje. Proszę odświeżyć stronę.",
+      "meals.supply_active":
+        "{object} nie jest teraz możliwe. Szkołę nadal zaopatruje firma cateringowa. Najpierw zakończ to zaopatrzenie.",
     },
   },
   tr: {
@@ -2538,6 +2588,16 @@ export const ERROR_CATALOG = {
         "Bu değişiklik talebinin durumu değişti. Lütfen sayfayı yenileyin.",
       "identity.operator_self_deactivation":
         "Kendi hesabınızı devre dışı bırakamazsınız. Bunu ekipten başka bir kişiden isteyin.",
+      "identity.caterer_address_taken":
+        "Bu e-posta adresi zaten başka bir moto hesabına ait. Lütfen başka bir adres kullanın.",
+      "identity.caterer_without_school":
+        "Şu anda moto üzerinden hiçbir okula yemek sağlamıyorsunuz. Lütfen okula danışın.",
+      "meals.not_supplied":
+        "Artık bu okula yemek sağlamıyorsunuz. Lütfen okula danışın.",
+      "meals.order_not_found":
+        "Bu sipariş mevcut değil. Lütfen sayfayı yeniden yükleyin.",
+      "meals.supply_active":
+        "{object} şu anda mümkün değil. Okula hâlâ bir yemek firması yemek sağlıyor. Önce bu tedariki sonlandırın.",
     },
   },
   uk: {
@@ -2804,6 +2864,16 @@ export const ERROR_CATALOG = {
         "Статус цього запиту на зміну змінився. Оновіть сторінку.",
       "identity.operator_self_deactivation":
         "Ви не можете деактивувати власний обліковий запис. Попросіть іншу людину з команди зробити це.",
+      "identity.caterer_address_taken":
+        "Ця адреса електронної пошти вже належить іншому обліковому запису moto. Будь ласка, вкажіть іншу адресу.",
+      "identity.caterer_without_school":
+        "Зараз ви не постачаєте жодну школу через moto. Будь ласка, зверніться до школи.",
+      "meals.not_supplied":
+        "Ви більше не постачаєте цю школу. Будь ласка, зверніться до школи.",
+      "meals.order_not_found":
+        "Такого замовлення немає. Будь ласка, оновіть сторінку.",
+      "meals.supply_active":
+        "{object} зараз неможливо. Школу ще постачає постачальник харчування. Спочатку завершіть ці постачання.",
     },
   },
 } as const;

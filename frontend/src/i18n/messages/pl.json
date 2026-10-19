@@ -2426,7 +2426,9 @@
         "tenant_access_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "account_not_in_school": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "lehrkraft_role_immutable": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-        "access_name_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
+        "access_name_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "caterer_address_taken": "Ten adres e-mail należy już do innego konta moto. Proszę użyć innego adresu.",
+        "caterer_without_school": "Obecnie nie zaopatrujesz żadnej szkoły przez moto. Proszę zapytać szkołę."
       },
       "import": {
         "file_columns_missing": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
@@ -2487,7 +2489,10 @@
         "participation_out_of_range": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "plan_disabled": "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
         "plan_week_out_of_range": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
-        "registration_disabled": "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową."
+        "registration_disabled": "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+        "not_supplied": "Nie zaopatrujesz już tej szkoły. Proszę zapytać szkołę.",
+        "order_not_found": "To zamówienie nie istnieje. Proszę odświeżyć stronę.",
+        "supply_active": "{object} nie jest teraz możliwe. Szkołę nadal zaopatruje firma cateringowa. Najpierw zakończ to zaopatrzenie."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",

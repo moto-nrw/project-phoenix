@@ -347,6 +347,8 @@ func TestFullProductionRouterGolden(t *testing.T) {
 			t.Run("IoT error codes", func(t *testing.T) { checkIoTErrorCodes(t, api) })
 			t.Run("phase response query budget", func(t *testing.T) { checkPhaseResponseQueryBudget(t, api) })
 			t.Run("rate limited operator invitations", func(t *testing.T) { checkOperatorInvitationMount(t, api) })
+			t.Run("caterer portal", func(t *testing.T) { checkCatererPortal(t, api) })
+			t.Run("caterer scope matrix", func(t *testing.T) { checkCatererScopeMatrix(t, api) })
 		})
 		return nil
 	})

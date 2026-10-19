@@ -192,6 +192,20 @@ func TestModuleRoutesSchoolChangesAroundTheDeadlines(t *testing.T) {
 
 func (e *recordingEngine) SettleOrders(context.Context) error { return nil }
 
+func (e *recordingEngine) StartSupply(context.Context, int64, string, int64) error { return nil }
+
+func (e *recordingEngine) EndSupply(context.Context, int64) (bool, error) { return false, nil }
+
+func (e *recordingEngine) CurrentSupply(context.Context) (mealplan.Supply, bool, error) {
+	return mealplan.Supply{}, false, nil
+}
+
+func (e *recordingEngine) CatererOrders(context.Context, int64, string, string) (mealplan.OrderWeek, error) {
+	return mealplan.OrderWeek{}, nil
+}
+
+func (e *recordingEngine) ConfirmOrder(context.Context, int64, int64, int64) error { return nil }
+
 func (e *recordingEngine) Orders(context.Context, string, string) (mealplan.OrderWeek, error) {
 	return mealplan.OrderWeek{}, nil
 }

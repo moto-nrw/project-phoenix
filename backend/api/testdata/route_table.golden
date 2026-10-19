@@ -36,6 +36,8 @@ DELETE /api/guardians/{id}/phone-numbers/{phoneId}
 DELETE /api/iot/*/{id}
 DELETE /api/iot/staff/{staffId}/rfid
 DELETE /api/me/profile/avatar
+DELETE /api/meal-caterer/invitations/{invitationId}
+DELETE /api/meal-caterer/supply
 DELETE /api/meal-plan/participation/{studentId}/days/{date}
 DELETE /api/meal-plan/{date}
 DELETE /api/notifications/preferences/
@@ -288,6 +290,7 @@ GET /api/me/profile
 GET /api/me/profile/avatar/{filename}
 GET /api/me/staff
 GET /api/me/teacher
+GET /api/meal-caterer/
 GET /api/meal-plan/
 GET /api/meal-plan/orders
 GET /api/meal-plan/orders/month/export
@@ -504,6 +507,9 @@ GET /auth/roles/{roleId}/permissions/
 GET /auth/staff-preview/candidates
 GET /auth/tenant/resolve
 GET /auth/tenants
+GET /caterer/invitations/{schoolId}/{token}
+GET /caterer/schools
+GET /caterer/schools/{schoolId}/orders
 GET /health
 GET /internal/metrics
 GET /operator/accounts
@@ -741,6 +747,7 @@ POST /api/iot/staff-clock
 POST /api/iot/staff-clock/state
 POST /api/iot/staff/{staffId}/rfid
 POST /api/me/profile/avatar
+POST /api/meal-caterer/invitations
 POST /api/messages/mark-all-read
 POST /api/messages/threads
 POST /api/messages/threads/open
@@ -915,6 +922,11 @@ POST /auth/session/validate
 POST /auth/staff-preview
 POST /auth/staff-preview/end
 POST /auth/switch-tenant
+POST /caterer/auth/login
+POST /caterer/auth/password-reset
+POST /caterer/auth/password-reset/confirm
+POST /caterer/invitations/{schoolId}/{token}/accept
+POST /caterer/schools/{schoolId}/orders/{orderId}/confirm
 POST /internal/metrics
 POST /operator/accounts/{accountId}/tenants
 POST /operator/accounts/{accountId}/tenants/

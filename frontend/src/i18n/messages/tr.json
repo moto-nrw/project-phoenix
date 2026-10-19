@@ -2426,7 +2426,9 @@
         "tenant_access_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "account_not_in_school": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "lehrkraft_role_immutable": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "access_name_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
+        "access_name_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "caterer_address_taken": "Bu e-posta adresi zaten başka bir moto hesabına ait. Lütfen başka bir adres kullanın.",
+        "caterer_without_school": "Şu anda moto üzerinden hiçbir okula yemek sağlamıyorsunuz. Lütfen okula danışın."
       },
       "import": {
         "file_columns_missing": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
@@ -2487,7 +2489,10 @@
         "participation_out_of_range": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "plan_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
         "plan_week_out_of_range": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "registration_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın."
+        "registration_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+        "not_supplied": "Artık bu okula yemek sağlamıyorsunuz. Lütfen okula danışın.",
+        "order_not_found": "Bu sipariş mevcut değil. Lütfen sayfayı yeniden yükleyin.",
+        "supply_active": "{object} şu anda mümkün değil. Okula hâlâ bir yemek firması yemek sağlıyor. Önce bu tedariki sonlandırın."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",

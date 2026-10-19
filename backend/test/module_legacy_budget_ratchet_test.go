@@ -139,8 +139,9 @@ var moduleLegacyFileBudgets = map[string]int{}
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063 and by ADR 0073 (the parent
 // announcement retention of modules/communication/composition), and by
-// ADR 0075 (the meal ordering rules) and ADR 0074 (the caterer flows).
-const moduleComposeBudgetTotal = 20193
+// ADR 0075 (the meal ordering rules) and ADR 0074 (the caterer flows and
+// the caterer portal).
+const moduleComposeBudgetTotal = 20229
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -196,6 +197,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/timetableprojection/compose":             7,
 	"modules/transactionruntime/compose":              137,
 	"modules/workforce/compose":                       1164,
+	"workflows/catererportal/compose":                 36, // added by ADR 0074
 	"workflows/gradetransition/compose":               49,
 	"workflows/openroommove/compose":                  81,
 	"workflows/parentportal/compose":                  475, // raised by ADR 0075

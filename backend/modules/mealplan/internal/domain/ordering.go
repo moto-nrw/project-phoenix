@@ -109,6 +109,8 @@ type OrderingRules struct {
 	Sick           SickMode
 	Rhythm         Rhythm
 	Detail         Detail
+	// CatererNames lets the caterer see the children's names (ADR 0074).
+	CatererNames bool
 }
 
 // DefaultOrderingRules are the rules of a school that changed nothing: one

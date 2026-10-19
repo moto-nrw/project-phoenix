@@ -151,6 +151,7 @@ var mealOrderingKeys = []string{
 	configModels.KeyMealCancellationCutoffTime, configModels.KeyMealAnnualRegistrationDeadline,
 	configModels.KeyMealAnnualChanges, configModels.KeyMealSickAfterDeadline,
 	configModels.KeyMealOrderRhythm, configModels.KeyMealOrderDetail,
+	configModels.KeyMealCatererNamesEnabled,
 }
 
 func mealOrderingSettings(ctx context.Context, settings settingsCompose.BatchSettingsService) (mealplanCompose.OrderingSettings, error) {
@@ -183,6 +184,9 @@ func mealOrderingSettings(ctx context.Context, settings settingsCompose.BatchSet
 	text(configModels.KeyMealSickAfterDeadline, &result.SickAfterDeadline)
 	text(configModels.KeyMealOrderRhythm, &result.OrderRhythm)
 	text(configModels.KeyMealOrderDetail, &result.OrderDetail)
+	if err == nil {
+		result.CatererNames, err = snapshot.Bool(configModels.KeyMealCatererNamesEnabled)
+	}
 	return result, err
 }
 

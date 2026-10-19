@@ -9,19 +9,21 @@ import (
 )
 
 func NewPublicModule(service *Service) *mealplan.Module {
-	return mealplan.NewModule(engine{service: service})
+	return mealplan.NewModule(engine{Service: service})
 }
 
-type engine struct{ service *Service }
+// engine is the module's engine. The supply methods of Service already speak
+// the public types, so the engine takes them as they are.
+type engine struct{ *Service }
 
-func (e engine) Available(ctx context.Context) (bool, error) { return e.service.Available(ctx) }
+func (e engine) Available(ctx context.Context) (bool, error) { return e.Service.Available(ctx) }
 
 func (e engine) Week(ctx context.Context, monday string) ([]mealplan.Entry, error) {
 	parsed, err := domain.ParseDate(monday)
 	if err != nil {
 		return nil, err
 	}
-	entries, err := e.service.Week(ctx, parsed)
+	entries, err := e.Service.Week(ctx, parsed)
 	if err != nil {
 		return nil, mapPublicError(err)
 	}
@@ -41,7 +43,7 @@ func (e engine) Replace(ctx context.Context, date string, dishes []mealplan.Dish
 	for _, dish := range dishes {
 		values = append(values, domain.Dish{Dish: dish.Dish, Note: dish.Note})
 	}
-	return mapPublicError(e.service.Replace(ctx, parsed, values))
+	return mapPublicError(e.Service.Replace(ctx, parsed, values))
 }
 
 func (e engine) Clear(ctx context.Context, date string) error {
@@ -49,11 +51,11 @@ func (e engine) Clear(ctx context.Context, date string) error {
 	if err != nil {
 		return err
 	}
-	return mapPublicError(e.service.Clear(ctx, parsed))
+	return mapPublicError(e.Service.Clear(ctx, parsed))
 }
 
 func (e engine) RegistrationAvailable(ctx context.Context) (bool, error) {
-	available, err := e.service.RegistrationAvailable(ctx)
+	available, err := e.Service.RegistrationAvailable(ctx)
 	return available, mapPublicError(err)
 }
 
@@ -66,7 +68,7 @@ func (e engine) Participation(ctx context.Context, studentID int64, from, to str
 	if err != nil {
 		return mealplan.ParticipationPlan{}, err
 	}
-	plan, err := e.service.Participation(ctx, studentID, start, end)
+	plan, err := e.Service.Participation(ctx, studentID, start, end)
 	if err != nil {
 		return mealplan.ParticipationPlan{}, mapPublicError(err)
 	}
@@ -78,7 +80,7 @@ func (e engine) ReplaceParticipationSchedule(ctx context.Context, studentID, acc
 	for _, weekday := range weekdays {
 		values = append(values, domain.Weekday(weekday))
 	}
-	from, err := e.service.ReplaceParticipationSchedule(ctx, studentID, accountID, values, domain.Date(effectiveFrom))
+	from, err := e.Service.ReplaceParticipationSchedule(ctx, studentID, accountID, values, domain.Date(effectiveFrom))
 	return mealplan.Date(from.String()), mapPublicError(err)
 }
 
@@ -87,7 +89,7 @@ func (e engine) SetParticipationDay(ctx context.Context, studentID, accountID in
 	if err != nil {
 		return err
 	}
-	return mapPublicError(e.service.SetParticipationDay(ctx, studentID, accountID, parsed, participating, bySchool))
+	return mapPublicError(e.Service.SetParticipationDay(ctx, studentID, accountID, parsed, participating, bySchool))
 }
 
 func (e engine) SetParticipationWeek(ctx context.Context, studentID, accountID int64, monday string, participating bool) (mealplan.WeekChange, error) {
@@ -95,7 +97,7 @@ func (e engine) SetParticipationWeek(ctx context.Context, studentID, accountID i
 	if err != nil {
 		return mealplan.WeekChange{}, err
 	}
-	changed, locked, err := e.service.SetParticipationWeek(ctx, studentID, accountID, parsed, participating)
+	changed, locked, err := e.Service.SetParticipationWeek(ctx, studentID, accountID, parsed, participating)
 	if err != nil {
 		return mealplan.WeekChange{}, mapPublicError(err)
 	}
@@ -115,7 +117,7 @@ func (e engine) ClearParticipationDay(ctx context.Context, studentID, accountID 
 	if err != nil {
 		return err
 	}
-	return mapPublicError(e.service.ClearParticipationDay(ctx, studentID, accountID, parsed, bySchool))
+	return mapPublicError(e.Service.ClearParticipationDay(ctx, studentID, accountID, parsed, bySchool))
 }
 
 func (e engine) DailyParticipants(ctx context.Context, date string) (mealplan.DailyList, error) {
@@ -123,7 +125,7 @@ func (e engine) DailyParticipants(ctx context.Context, date string) (mealplan.Da
 	if err != nil {
 		return mealplan.DailyList{}, err
 	}
-	list, err := e.service.DailyParticipants(ctx, parsed)
+	list, err := e.Service.DailyParticipants(ctx, parsed)
 	if err != nil {
 		return mealplan.DailyList{}, mapPublicError(err)
 	}
@@ -138,19 +140,23 @@ func (e engine) DailyParticipants(ctx context.Context, date string) (mealplan.Da
 }
 
 func (e engine) SettleOrders(ctx context.Context) error {
-	return mapPublicError(e.service.SettleOrders(ctx))
+	return mapPublicError(e.Service.SettleOrders(ctx))
 }
 
 func (e engine) Orders(ctx context.Context, from, to string) (mealplan.OrderWeek, error) {
-	view, err := e.service.Orders(ctx, domain.Date(from), domain.Date(to))
+	view, err := e.Service.Orders(ctx, domain.Date(from), domain.Date(to))
 	if err != nil {
 		return mealplan.OrderWeek{}, mapPublicError(err)
 	}
+	return publicOrderWeek(view), nil
+}
+
+func publicOrderWeek(view domain.OrderView) mealplan.OrderWeek {
 	week := mealplan.OrderWeek{Rhythm: string(view.Rules.Rhythm), Detail: string(view.Rules.Detail), Days: make([]mealplan.OrderDay, 0, len(view.Days))}
 	for _, day := range view.Days {
 		week.Days = append(week.Days, publicOrderDay(day, view.Names))
 	}
-	return week, nil
+	return week
 }
 
 func publicOrderDay(day domain.OrderDay, names map[int64]domain.DailyCandidate) mealplan.OrderDay {
@@ -207,6 +213,9 @@ var publicErrors = []struct{ from, to error }{
 	{ErrNotEnrolled, mealplan.ErrChildNotEnrolled},
 	{ErrInvalidCutoff, mealplan.ErrInvalidParticipation},
 	{ErrTooFarAhead, mealplan.ErrInvalidParticipation},
+	{ErrSupplyActive, mealplan.ErrSupplyActive},
+	{ErrNotSupplied, mealplan.ErrNotSupplied},
+	{ErrOrderNotFound, mealplan.ErrOrderNotFound},
 }
 
 func mapPublicError(err error) error {

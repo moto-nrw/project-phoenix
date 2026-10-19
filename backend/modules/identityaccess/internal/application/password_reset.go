@@ -144,6 +144,8 @@ func (r *PasswordReset) portalEligible(ctx context.Context, accountID int64, sco
 	case domain.PasswordResetScopeSchool:
 		eligible, _, err := r.auth.FindSchoolPortalTenant(ctx, accountID)
 		return eligible, err
+	case domain.PasswordResetScopeCaterer:
+		return r.auth.isCatererAccount(ctx, accountID)
 	default:
 		return true, nil
 	}

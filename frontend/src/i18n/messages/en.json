@@ -2426,7 +2426,9 @@
         "tenant_access_not_found": "{object} could not be changed. Please check its current status.",
         "account_not_in_school": "{object} could not be changed. Please check its current status.",
         "lehrkraft_role_immutable": "{object} could not be changed. Please check its current status.",
-        "access_name_required": "{object} could not be saved. Please check your entries."
+        "access_name_required": "{object} could not be saved. Please check your entries.",
+        "caterer_address_taken": "This email address already belongs to another moto account. Please use a different address.",
+        "caterer_without_school": "You do not supply any school through moto at the moment. Please ask the school."
       },
       "import": {
         "file_columns_missing": "{object} could not be saved. Please check your entries.",
@@ -2487,7 +2489,10 @@
         "participation_out_of_range": "{object} could not be saved. Please check your entries.",
         "plan_disabled": "{object} is not available here at the moment. Please ask your contact person.",
         "plan_week_out_of_range": "{object} could not be saved. Please check your entries.",
-        "registration_disabled": "{object} is not available here at the moment. Please ask your contact person."
+        "registration_disabled": "{object} is not available here at the moment. Please ask your contact person.",
+        "not_supplied": "You no longer supply this school. Please ask the school.",
+        "order_not_found": "This order does not exist. Please reload the page.",
+        "supply_active": "{object} is not possible right now. A caterer still supplies the school. Please end that supply first."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "{object} could not be saved. Please check your entries.",

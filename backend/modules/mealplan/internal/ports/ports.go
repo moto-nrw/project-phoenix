@@ -20,6 +20,17 @@ type Store interface {
 	// InsertRegistrationChanges appends to the registration log.
 	InsertRegistrationChanges(context.Context, []domain.RegistrationChange) (domain.OperationStats, error)
 	OrderStore
+	SupplyStore
+}
+
+// SupplyStore holds the school's supply by its caterer (ADR 0074).
+type SupplyStore interface {
+	// FindActiveSupply locks the running supply for the unit of work.
+	FindActiveSupply(context.Context) (domain.Supply, bool, domain.OperationStats, error)
+	InsertSupply(ctx context.Context, catererID int64, deliveryAddress string, accountID int64, startedAt time.Time) (domain.OperationStats, error)
+	EndSupply(ctx context.Context, accountID int64, endedAt time.Time) (bool, domain.OperationStats, error)
+	// ConfirmOrder confirms a fixed order once; false: no such order.
+	ConfirmOrder(ctx context.Context, orderID, accountID int64, confirmedAt time.Time) (bool, domain.OperationStats, error)
 }
 
 // OrderStore holds the school's orders (#3873). LockOrders serializes every
@@ -68,6 +79,8 @@ type OrderingSettings struct {
 	SickAfterDeadline    string
 	OrderRhythm          string
 	OrderDetail          string
+	// CatererNames is gdpr.meal_caterer_names_enabled (ADR 0074).
+	CatererNames bool
 }
 
 type Transaction interface {

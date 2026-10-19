@@ -2426,7 +2426,9 @@
         "tenant_access_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "account_not_in_school": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "lehrkraft_role_immutable": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "access_name_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
+        "access_name_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "caterer_address_taken": "Kjo adresë email i përket tashmë një llogarie tjetër moto. Ju lutemi përdorni një adresë tjetër.",
+        "caterer_without_school": "Aktualisht nuk furnizoni asnjë shkollë përmes moto. Ju lutemi pyesni shkollën."
       },
       "import": {
         "file_columns_missing": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
@@ -2487,7 +2489,10 @@
         "participation_out_of_range": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "plan_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
         "plan_week_out_of_range": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "registration_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit."
+        "registration_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+        "not_supplied": "Ju nuk e furnizoni më këtë shkollë. Ju lutemi pyesni shkollën.",
+        "order_not_found": "Kjo porosi nuk ekziston. Ju lutemi ringarkoni faqen.",
+        "supply_active": "{object} nuk është e mundur tani. Një furnizues ushqimi e furnizon ende shkollën. Përfundoni fillimisht atë furnizim."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",

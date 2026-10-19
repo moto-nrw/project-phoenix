@@ -556,6 +556,7 @@ func composeServeRoot(
 			mountCalendarRoutes(router, tenant, logger, calendarApp)
 			return mountDeliveryRoutes(router, tenant, logger, fileStore, hub, caller, identity)
 		},
+		func() error { return mountCatererPortal(router, tenant, limiters, identity, mealPlan, organizations) },
 		func() error {
 			operator, err := newOperatorRouter(db, logger, sessionAuth, limiters, iot, organizations, settings.Service, hub,
 				active, settingsWrites, identity, provisioning, services.CaregiverCapability, schedules.Lifecycle, communication)

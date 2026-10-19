@@ -73,7 +73,7 @@ func coreActionAnalytics(tracker analytics.Tracker, sessionAuth *sessiontoken.To
 // rule.
 func analyticsActor(claims sessiontoken.AppClaims) (analytics.Actor, bool) {
 	return analytics.ActorOf(analytics.SessionFacts{
-		Platform: claims.IsPlatformScope(), Parent: claims.IsParentScope(), School: claims.IsSchoolScope(),
+		Platform: claims.IsPlatformScope(), Parent: claims.IsParentScope(), School: claims.IsSchoolScope(), Caterer: claims.IsCatererScope(),
 		TenantID: claims.TenantID, ReadOnlyPreview: claims.IsReadOnlyPreview(), Admin: claims.IsAdmin, AccountID: int64(claims.ID),
 	})
 }
