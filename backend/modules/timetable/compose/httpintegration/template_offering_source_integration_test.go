@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -1080,7 +1081,7 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 func templatesSourcingOffering(t *testing.T, s *scenarioSetup, offeringID int64) []timetable.Group {
 	t.Helper()
 	isTemplate := true
-	sourced, err := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, s.db)).ListGroups(s.ctx, timetable.GroupFilter{
+	sourced, err := owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, s.db)).ListGroups(s.ctx, timetable.GroupFilter{
 		IsTemplate: &isTemplate, ActiveOnly: true, SourceOfferingIDs: []int64{offeringID}, OrderByID: true,
 	})
 	require.NoError(t, err)

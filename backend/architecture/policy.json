@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 83,
+  "policy_epoch": 84,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -3547,6 +3547,13 @@
       "path": "modules/timetable/internal/domain/schedulerecords",
       "owner": "timetable-activities",
       "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "roots/owners",
+      "owner": "root-composition",
+      "role": "compose",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     }
@@ -12610,7 +12617,8 @@
       ],
       "source_owner": "root-composition",
       "target_owner_kind": "domain",
-      "target_role": "http"
+      "target_role": "http",
+      "source_package": "api"
     },
     {
       "id": "root-composition.reach.domain.public",
@@ -12685,7 +12693,8 @@
       ],
       "source_owner": "root-composition",
       "target_owner_kind": "platform",
-      "target_role": "http"
+      "target_role": "http",
+      "source_package": "api"
     },
     {
       "id": "root-composition.reach.internal-test.audit-platform.port",
@@ -12752,7 +12761,8 @@
       ],
       "source_owner": "root-composition",
       "target_owner_kind": "projection",
-      "target_role": "http"
+      "target_role": "http",
+      "source_package": "api"
     },
     {
       "id": "root-composition.reach.projection.public",
@@ -12797,7 +12807,8 @@
       ],
       "source_owner": "root-composition",
       "target_owner_kind": "workflow",
-      "target_role": "http"
+      "target_role": "http",
+      "source_package": "api"
     },
     {
       "id": "root-composition.reach.workflow.port",
@@ -15591,6 +15602,30 @@
       "source_package": "modules/timetable/fixturetest",
       "target_owner": "school-calendar",
       "target_role": "public"
+    },
+    {
+      "id": "root-composition.reach.compose.self-compose",
+      "description": "ADR 0053 point 2: the typed roots compose their own owner builders.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "root-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.reach.cli.middleware",
+      "description": "ADR 0056: the commands root configures HTTP log redaction.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "cli",
+      "source_package": "cmd",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "middleware"
     }
   ],
   "relocations": [

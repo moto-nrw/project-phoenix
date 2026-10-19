@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -25,7 +27,7 @@ type SettingsWrites struct {
 // WC checkout switches), Care Plan (the booking authority) and the photo
 // lifecycle (the feature toggle), and the tenant operations over them.
 func buildSettingsWrites(
-	env RootEnvironment, settings SettingsOwner, payroll settingsCompose.PayrollStatusGetter, yard FacilitiesYard,
+	env owners.RootEnvironment, settings owners.SettingsOwner, payroll settingsCompose.PayrollStatusGetter, yard FacilitiesYard,
 	authority careplan.BookingAuthority, photos StudentPhotoFeatureToggle, hub *realtime.Hub,
 ) (SettingsWrites, error) {
 	schulhof, wc := facilitiesCompose.SettingHandlers(yard.Schulhof, yard.WC)
@@ -40,7 +42,7 @@ func buildSettingsWrites(
 	}
 	return SettingsWrites{
 		SideEffects: registry,
-		Tenant:      settingsCompose.NewTenantOperations(settings.Service, payroll, settings.Rows, registry.Dispatch, settingsChangedNotifier(hub)),
+		Tenant:      settingsCompose.NewTenantOperations(settings.Service, payroll, settings.Rows, registry.Dispatch, owners.SettingsChangedNotifier(hub)),
 	}, nil
 }
 

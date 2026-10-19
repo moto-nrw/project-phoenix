@@ -9,6 +9,7 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 )
 
 // RFIDTestModule is the Device Scan side of the RFID graph: the feedback
@@ -32,7 +33,7 @@ func NewRFIDTestModule(db transactionruntime.Database) (RFIDTestModule, error) {
 // NewRFIDTestPeople composes the People Directory's person directory with the
 // RFID card reads the RFID graph looks identities up through.
 func NewRFIDTestPeople(db transactionruntime.Database) (peoplePorts.PersonDirectory, error) {
-	members, err := NewMembershipTestRepositories(db)
+	members, err := owners.NewMembershipTestRepositories(db)
 	if err != nil {
 		return nil, err
 	}
@@ -41,10 +42,10 @@ func NewRFIDTestPeople(db transactionruntime.Database) (peoplePorts.PersonDirect
 		return nil, err
 	}
 	return peopleCompose.NewPersonDirectory(peoplePorts.PersonDirectoryDependencies{
-		PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
-		StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
+		PersonDirectory:  peopleCompose.NewPersonWrites(owners.MustNewPeopleDirectory(db)),
+		StudentDirectory: peopleCompose.NewStudentDirectory(owners.MustNewPeopleDirectory(db)),
 		PersonRepo:       members.Person, TeacherRepo: members.Teacher,
 		StaffDirectory: peopleCompose.NewStaffDirectory(peoplePorts.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: members.Person, Staff: members.Staff, Teachers: members.Teacher, MayManageStaff: StaffAdministrationPermitted}),
-		AccountExists:  identityaccessCompose.AccountExists(accounts), StudentRepo: NewUnboundStudentRepository(db), RFIDRepo: NewPeopleIdentityAccess(db, nil),
+		AccountExists:  identityaccessCompose.AccountExists(accounts), StudentRepo: NewUnboundStudentRepository(db), RFIDRepo: owners.NewPeopleIdentityAccess(db, nil),
 	}), nil
 }

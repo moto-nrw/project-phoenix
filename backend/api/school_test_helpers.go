@@ -6,6 +6,8 @@ import (
 	"context"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	notificationsHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 
@@ -54,12 +56,12 @@ func NewSchoolTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 // owner the serving root binds. Every read runs under runtime, as the request
 // middleware provides it.
 func SchoolDeletionLookupForTests(db transactionruntime.Database, runtime tenant.UnitOfWork) (func(context.Context, int64) (found, deleted bool, err error), error) {
-	schools, err := NewOrganizationTenancy(db)
+	schools, err := owners.NewOrganizationTenancy(db)
 	if err != nil {
 		return nil, err
 	}
 	return func(ctx context.Context, id int64) (bool, bool, error) {
-		school, found, err := lookupSchool(tenant.WithUnitOfWork(ctx, runtime), schools, id)
+		school, found, err := owners.LookupSchool(tenant.WithUnitOfWork(ctx, runtime), schools, id)
 		return found, found && school.IsDeleted(), err
 	}, nil
 }

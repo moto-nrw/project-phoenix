@@ -10,7 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"

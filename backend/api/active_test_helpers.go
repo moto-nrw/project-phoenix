@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
@@ -104,7 +106,7 @@ func (m ActivePeople) AttendancePeople() AttendanceRoutePeople {
 
 // NewActiveTestAttendanceStaff is the attendance routes' staff port over the
 // caller rows of the active graph.
-func NewActiveTestAttendanceStaff(caller *CallerRows) peopleCompose.AttendanceRouteStaff {
+func NewActiveTestAttendanceStaff(caller *owners.CallerRows) peopleCompose.AttendanceRouteStaff {
 	return peopleCompose.NewAttendanceRouteStaff(caller)
 }
 
@@ -138,15 +140,15 @@ type ActiveSessionEnd struct {
 }
 
 func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (
-	ActiveTestModule, ActiveTimetable, ActiveSettings, ActivePresence, ActiveEducation, ActivePeople, *CallerRows,
+	ActiveTestModule, ActiveTimetable, ActiveSettings, ActivePresence, ActiveEducation, ActivePeople, *owners.CallerRows,
 	ActiveDeviceScan, DeviceTestModule, ActiveFacilities, ActiveSupervision, ActiveSessionEnd, activityContract.ActivityService, error,
 ) {
-	fail := func(err error) (ActiveTestModule, ActiveTimetable, ActiveSettings, ActivePresence, ActiveEducation, ActivePeople, *CallerRows,
+	fail := func(err error) (ActiveTestModule, ActiveTimetable, ActiveSettings, ActivePresence, ActiveEducation, ActivePeople, *owners.CallerRows,
 		ActiveDeviceScan, DeviceTestModule, ActiveFacilities, ActiveSupervision, ActiveSessionEnd, activityContract.ActivityService, error) {
 		return ActiveTestModule{}, ActiveTimetable{}, ActiveSettings{}, ActivePresence{}, ActiveEducation{}, ActivePeople{}, nil,
 			ActiveDeviceScan{}, DeviceTestModule{}, ActiveFacilities{}, ActiveSupervision{}, ActiveSessionEnd{}, nil, err
 	}
-	members := MustNewMembershipTestRepositories(db)
+	members := owners.MustNewMembershipTestRepositories(db)
 	r, err := NewActiveTestRepositories(db, members, clocks...)
 	if err != nil {
 		return fail(err)
@@ -165,7 +167,7 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return fail(err)
 	}
-	settings, err := NewSettingsTestModule(db, unit)
+	settings, err := owners.NewSettingsTestModule(db, unit)
 	if err != nil {
 		return fail(err)
 	}
@@ -177,7 +179,7 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return fail(err)
 	}
-	organizations, err := NewOrganizationTenancy(db)
+	organizations, err := owners.NewOrganizationTenancy(db)
 	if err != nil {
 		return fail(err)
 	}
@@ -187,11 +189,11 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	}
 	logger := slog.Default()
 	hub := deliveryCompose.NewRealtimeHub(logger)
-	students, err := NewPeopleDirectory(db)
+	students, err := owners.NewPeopleDirectory(db)
 	if err != nil {
 		return fail(err)
 	}
-	carePlan, err := NewCarePlan(db, students, rt.InstanceStudent)
+	carePlan, err := owners.NewCarePlan(db, students, rt.InstanceStudent)
 	if err != nil {
 		return fail(err)
 	}
@@ -205,7 +207,7 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return fail(err)
 	}
-	arrival, err := NewArrivalBaselines(carePlan, students, classArrivalQueries, approvedOfferings, func(ctx context.Context) (bool, error) {
+	arrival, err := owners.NewArrivalBaselines(carePlan, students, classArrivalQueries, approvedOfferings, func(ctx context.Context) (bool, error) {
 		return settings.Settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 	})
 	if err != nil {
@@ -220,15 +222,15 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return fail(err)
 	}
-	bridge, err := NewTimetableEndedSessionCompletion(rt.OwnerRows(), careDay)
+	bridge, err := owners.NewTimetableEndedSessionCompletion(rt.OwnerRows(), careDay)
 	if err != nil {
 		return fail(err)
 	}
-	attendanceMirror, err := NewTimetableAttendanceMirror(rt.OwnerRows(), logger)
+	attendanceMirror, err := owners.NewTimetableAttendanceMirror(rt.OwnerRows(), logger)
 	if err != nil {
 		return fail(err)
 	}
-	displayGroups, err := NewSchoolStructure(db)
+	displayGroups, err := owners.NewSchoolStructure(db)
 	if err != nil {
 		return fail(err)
 	}
@@ -239,26 +241,26 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(r.ActiveGroup)
 	presenceDeps := presenceservice.PresenceDependencies{
 		PrincipalReader: AttendancePrincipal,
-		StudentDisplay:  StudentDisplayProjection{Students: students, Groups: displayGroups},
-		SchoolPresence:  NewLoggedStudentPresence(db, logger),
+		StudentDisplay:  owners.StudentDisplayProjection{Students: students, Groups: displayGroups},
+		SchoolPresence:  owners.NewLoggedStudentPresence(db, logger),
 		YardRoomColor:   facilitiesModule.YardRoomColor(rooms),
 		GroupRepo:       sessionGroups, SessionStartLock: r.SessionStartLock, SupervisorRepo: sessionSupervisors,
-		StudentStatusRepo: rCare.StudentStatusDay, CrossTenantRepo: r.CrossTenant, Schools: NewActiveSchoolQuery(organizations),
-		StudentRepo: PresenceStudents(db, members.Student), StaffRepo: NewAttendanceStaffDirectory(members.Staff), RoomRepo: facilitiesCompose.NewAttendanceRooms(rRooms.Room),
-		ActivityGroupRepo: NewSessionActivities(rt.GroupReads()), ActivityCatRepo: arrivalTimetable.NewCategoryCount(rt.ActivityCategory), EducationGroupRepo: NewAttendanceEducationGroups(NewSchoolStructureSuiteRepositories(db).Group, members.Student), DeviceRepo: NewSessionDeviceDirectory(devices, settings.Settings, logger),
-		StaffNames: NewAttendanceStaffNames(members.Staff, dataUsers), DB: db.Pool(), Broadcaster: NewPresenceEvents(hub, logger), WorkSessionService: presenceAutoCheckIn{checkIn: work.AutoCheckIn},
+		StudentStatusRepo: rCare.StudentStatusDay, CrossTenantRepo: r.CrossTenant, Schools: owners.NewActiveSchoolQuery(organizations),
+		StudentRepo: owners.PresenceStudents(db, members.Student), StaffRepo: owners.NewAttendanceStaffDirectory(members.Staff), RoomRepo: facilitiesCompose.NewAttendanceRooms(rRooms.Room),
+		ActivityGroupRepo: owners.NewSessionActivities(rt.GroupReads()), ActivityCatRepo: arrivalTimetable.NewCategoryCount(rt.ActivityCategory), EducationGroupRepo: owners.NewAttendanceEducationGroups(owners.NewSchoolStructureSuiteRepositories(db).Group, members.Student), DeviceRepo: owners.NewSessionDeviceDirectory(devices, settings.Settings, logger),
+		StaffNames: owners.NewAttendanceStaffNames(members.Staff, dataUsers), DB: db.Pool(), Broadcaster: owners.NewPresenceEvents(hub, logger), WorkSessionService: owners.PresenceAutoCheckIn{CheckIn: work.AutoCheckIn},
 		AttendanceSyncer:         attendanceMirror,
 		TimetableBridgeCompleter: bridge, Logger: logger, Now: OptionalClock(clocks),
 	}
 	presence := presenceservice.NewPresence(presenceDeps, presenceservice.WithPresenceSettings(settingsCompose.PresenceSettings(settings.Settings)))
-	yard := facilitiesCompose.NewSchulhofService(dataFacilities, FacilitiesActivityCatalog(dataActivityService), facilitiesCompose.NewOpenGroupCatalog(FacilitiesGroupSupervisions(NewLoggedStudentPresence(db, logger)), FacilitiesRoomSessions(NewLoggedStudentPresence(db, logger)), FacilitiesGroupVisits(NewLoggedStudentPresence(db, logger))), logger)
+	yard := facilitiesCompose.NewSchulhofService(dataFacilities, FacilitiesActivityCatalog(dataActivityService), facilitiesCompose.NewOpenGroupCatalog(FacilitiesGroupSupervisions(owners.NewLoggedStudentPresence(db, logger)), FacilitiesRoomSessions(owners.NewLoggedStudentPresence(db, logger)), FacilitiesGroupVisits(owners.NewLoggedStudentPresence(db, logger))), logger)
 	autoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
-		DB: db.Pool(), Records: carePlan, Baselines: pickup, Blocks: NewLoggedStudentPresence(db, logger), Preview: NewPickupExcusalTimetable(rt.Timetable, NewPartialAbsencePreview(db)),
+		DB: db.Pool(), Records: carePlan, Baselines: pickup, Blocks: owners.NewLoggedStudentPresence(db, logger), Preview: owners.NewPickupExcusalTimetable(rt.Timetable, owners.NewPartialAbsencePreview(db)),
 	})
 	if err != nil {
 		return fail(err)
 	}
-	pickupStudents, err := PickupPlanStudents(students)
+	pickupStudents, err := owners.PickupPlanStudents(students)
 	if err != nil {
 		return fail(err)
 	}
@@ -266,11 +268,11 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return fail(err)
 	}
-	classExceptions, err := NewClassArrivalExceptions(classArrivalQueries, students)
+	classExceptions, err := owners.NewClassArrivalExceptions(classArrivalQueries, students)
 	if err != nil {
 		return fail(err)
 	}
-	arrivalRules, arrivalDeps, err := ArrivalScheduleBinding(students, ClassArrivalPlans(classArrivalQueries), classExceptions, logger)
+	arrivalRules, arrivalDeps, err := owners.ArrivalScheduleBinding(students, owners.ClassArrivalPlans(classArrivalQueries), classExceptions, logger)
 	if err != nil {
 		return fail(err)
 	}
@@ -278,28 +280,28 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return fail(err)
 	}
-	membership, err := NewSchoolMembership(db)
+	membership, err := owners.NewSchoolMembership(db)
 	if err != nil {
 		return fail(err)
 	}
 	operationRows := rt.OwnerRows()
 	operationRows.Locks = arrivalTimetable.NewRetainedActivityRecoveryRepository(db.Pool(), rt.InstanceStudent)
-	operations, err := NewTimetableOperations(timetablePorts.OperationDependencies{
-		Lifecycle: arrivalTimetable.NewOperationLifecycle(tt.Instance), Sessions: r.ActiveGroup,
-		Supervisions: r.GroupSupervisor, Visits: NewLoggedStudentPresence(db, logger),
-		People:         TimetableOperationPeople{OperationPeople: newTimetableOperationPeople(dataUsers), Membership: membership},
+	operations, err := owners.NewTimetableOperations(timetablePorts.OperationDependencies{
+		Session: TimetableRequestSession{}, Lifecycle: arrivalTimetable.NewOperationLifecycle(tt.Instance), Sessions: r.ActiveGroup,
+		Supervisions: r.GroupSupervisor, Visits: owners.NewLoggedStudentPresence(db, logger),
+		People:         owners.TimetableOperationPeople{OperationPeople: owners.NewTimetableOperationPeople(dataUsers), Membership: membership},
 		PlanningTracks: rt.Timetable, Logger: logger, Now: OptionalClock(clocks),
-	}, operationRows, presence, settings.Settings, careDay, arrivals, pickups, hub)
+	}, operationRows, presence, settings.Settings, careDay, arrivals, pickups, hub, WithAttendanceStaff)
 	if err != nil {
 		return fail(err)
 	}
-	timetableOwner, err := NewUnobservedTimetable(db, students, rooms)
+	timetableOwner, err := owners.NewUnobservedTimetable(db, students, rooms)
 	if err != nil {
 		return fail(err)
 	}
 	caller := SupervisionCaller{CallerRows: groupCaller}
 	dashboard, err := newSupervisionDashboard(supervisiondashboard.Dependencies{Access: newSupervisionAccess(settings.Settings, caller),
-		Sessions: newSupervisionSessions(presence, OpenRoomSessionPresence{Presence: NewLoggedStudentPresence(db, logger), Activities: timetableOwner}, caller),
+		Sessions: newSupervisionSessions(presence, owners.OpenRoomSessionPresence{Presence: owners.NewLoggedStudentPresence(db, logger), Activities: timetableOwner}, caller),
 		Rooms:    OpenRoomDirectory{Rooms: rooms}, Groups: newSupervisionGroups(groups.Education, caller),
 		Yard: newSupervisionYard(yard), Schedule: newSupervisionSchedule(operations), Presence: newSupervisionPresence(presence, presence),
 		Planning: newSupervisionPlanning(pickups, arrivals), Settings: newSupervisionSettings(settings.Settings), Calendar: supervisionCalendar{}, Now: OptionalClock(clocks)})
@@ -307,14 +309,14 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		return fail(fmt.Errorf("compose supervision dashboard projection: %w", err))
 	}
 	sessionEnd, err := sessionEndCompose.New(sessionEndCompose.Dependencies{
-		Presence: NewLoggedStudentPresence(db, logger), Sessions: NewLoggedStudentPresence(db, logger), Timetable: timetableOwner, Completion: bridge, Students: students, Rooms: rooms,
+		Presence: owners.NewLoggedStudentPresence(db, logger), Sessions: owners.NewLoggedStudentPresence(db, logger), Timetable: timetableOwner, Completion: bridge, Students: students, Rooms: rooms,
 		Broadcaster: hub, Observe: func(sessionEndCompose.Observation) {}, Now: OptionalClock(clocks),
 	})
 	if err != nil {
 		return fail(err)
 	}
 	scan := ActiveDeviceScan{
-		SessionLifecycle: devicescanCompose.NewSessionLifecycle(presence, devicescanCompose.NewSupervisionQuery(NewLoggedStudentPresence(db, logger)), NewDeviceScanPeople(dataUsers), dataDevices.IoT, nil, logger, DeviceScanPrincipal),
+		SessionLifecycle: devicescanCompose.NewSessionLifecycle(presence, devicescanCompose.NewSupervisionQuery(owners.NewLoggedStudentPresence(db, logger)), NewDeviceScanPeople(dataUsers), dataDevices.IoT, nil, logger, DeviceScanPrincipal),
 		RoomAvailability: data.RoomAvailability, Configuration: data.Configuration, Directory: data.Directory, TagAssignments: data.TagAssignments,
 	}
 	return ActiveTestModule{PickupSchedule: pickups, ArrivalSchedule: arrivals, CareDay: careDay},
@@ -374,7 +376,7 @@ func NewActiveTestPeople(db transactionruntime.Database, unit tenant.UnitOfWork,
 }
 
 // NewActiveTestCaller composes the active graph and returns its CallerRows part.
-func NewActiveTestCaller(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) *CallerRows {
+func NewActiveTestCaller(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) *owners.CallerRows {
 	_, _, _, _, _, _, part, _, _, _, _, _, _, err := buildActiveTestModule(db, unit, clocks...)
 	mustActiveTestModule(err)
 	return part

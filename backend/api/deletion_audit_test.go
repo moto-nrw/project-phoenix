@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/stretchr/testify/require"
@@ -38,7 +40,7 @@ func TestDeletionAuditPreservesSubjectEvidenceAndFailure(t *testing.T) {
 		}
 		writeErr := errors.New("audit unavailable")
 		calls := 0
-		writer := NewDeletionAudit(deletionEventWriter{write: func(gotCtx context.Context, got *audit.DataDeletion) error {
+		writer := owners.NewDeletionAudit(deletionEventWriter{write: func(gotCtx context.Context, got *audit.DataDeletion) error {
 			calls++
 			require.Equal(t, ctx, gotCtx)
 			require.Equal(t, entry.TenantID, got.TenantID)
@@ -55,5 +57,5 @@ func TestDeletionAuditPreservesSubjectEvidenceAndFailure(t *testing.T) {
 		require.ErrorIs(t, writer.Create(ctx, entry), writeErr)
 		require.Equal(t, 1, calls)
 	}
-	require.Nil(t, NewDeletionAudit(nil))
+	require.Nil(t, owners.NewDeletionAudit(nil))
 }

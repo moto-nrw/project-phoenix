@@ -16363,8 +16363,8 @@
     {
       "id": "worker",
       "kind": "embedded-worker",
-      "file": "api/server.go",
-      "declaration": "newWorker",
+      "file": "roots/owners/worker.go",
+      "declaration": "NewWorker",
       "smoke_test": "test/composition_inventory_test.go#TestWorkerJobRegistryInventory",
       "tables": []
     },
@@ -16428,6 +16428,14 @@
     "test/e2e/timetable/flow_a_happy_path_test.go#TestFlowA_PlanToReport"
   ],
   "test_roots": [
+    {
+      "id": "roots-owners-tests",
+      "kind": "test-binary",
+      "file": "roots/owners/main_test.go",
+      "declaration": "TestMain",
+      "smoke_test": "test/composition_inventory_test.go#TestCompositionInventory",
+      "tables": []
+    },
     {
       "id": "api-tests",
       "kind": "test-binary",

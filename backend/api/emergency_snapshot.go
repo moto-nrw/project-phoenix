@@ -14,6 +14,8 @@ import (
 	"log/slog"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/emergencysnapshot"
 	emergencysnapshotCompose "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/compose"
@@ -184,7 +186,7 @@ func (s emergencySnapshotStudentRecords) ByIDs(ctx context.Context, studentIDs [
 			ID:          id,
 			PersonID:    row.PersonID,
 			SchoolClass: row.SchoolClass,
-			HealthInfo:  stringValue(row.HealthInfo),
+			HealthInfo:  owners.StringValue(row.HealthInfo),
 		}
 	}
 	return result, nil
@@ -222,9 +224,9 @@ func (c emergencySnapshotGuardianContacts) EmergencyContacts(ctx context.Context
 	for _, row := range rows {
 		result = append(result, emergencysnapshot.Contact{
 			StudentID: row.StudentID,
-			FirstName: stringValue(row.FirstName),
-			LastName:  stringValue(row.LastName),
-			Phone:     stringValue(row.PhoneNumber),
+			FirstName: owners.StringValue(row.FirstName),
+			LastName:  owners.StringValue(row.LastName),
+			Phone:     owners.StringValue(row.PhoneNumber),
 		})
 	}
 	return result, nil

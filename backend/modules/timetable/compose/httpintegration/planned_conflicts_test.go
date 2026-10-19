@@ -24,6 +24,7 @@ import (
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -48,7 +49,7 @@ func buildPlannedConflictSetup(t *testing.T) *plannedConflictSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	repos, err := api.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	repos, err := owners.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	suffix := time.Now().UnixNano()
 
@@ -324,18 +325,18 @@ func (planningOnlyPresence) QueryGroupSupervisions(context.Context, studentprese
 
 // newConflictDetection composes the Timetable owner's conflict detection and
 // staffing capability over the retained repositories, the way the root does.
-func newConflictDetection(t *testing.T, db *bun.DB, repos api.TimetableTestRepositories) timetable.ConflictDetectionCapability {
+func newConflictDetection(t *testing.T, db *bun.DB, repos owners.TimetableTestRepositories) timetable.ConflictDetectionCapability {
 	t.Helper()
-	members := api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db))
+	members := owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db))
 	presence, err := api.NewTimetablePresenceRows(testpkg.NewDatabase(t, db), repos, members)
 	require.NoError(t, err)
-	detection, err := api.NewTimetableConflictDetection(timetablePorts.ConflictDetectionDependencies{
+	detection, err := owners.NewTimetableConflictDetection(timetablePorts.ConflictDetectionDependencies{
 		Instances:         fixtures.IntoConflictInstances(fixtures.FromActivityInstanceRecords(repos.ActivityInstance)),
 		InstanceStaff:     fixtures.IntoConflictInstanceStaff(fixtures.FromInstanceStaffRecords(repos.InstanceStaff)),
 		InstanceStudents:  fixtures.IntoConflictInstanceStudents(fixtures.FromInstanceStudentRecords(repos.InstanceStudent)),
 		Exceptions:        fixtures.IntoConflictExceptions(fixtures.FromActivityExceptionRecords(repos.ActivityException)),
 		Schedules:         repos.ActivitySchedule,
-		Staff:             api.NewTimetableStaff(members.Staff),
+		Staff:             owners.NewTimetableStaff(members.Staff),
 		CalendarPeriods:   fixtures.IntoConflictCalendarPeriods(fixtures.FromCalendarPeriodRecords(repos.CalendarPeriod)),
 		ArrivalExceptions: fixtures.IntoConflictArrivalExceptions(fixtures.FromStudentArrivalExceptionRecords(repos.StudentArrivalException)),
 		Sessions:          presence.ActiveGroup,

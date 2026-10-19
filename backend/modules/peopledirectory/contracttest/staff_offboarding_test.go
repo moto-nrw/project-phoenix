@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -41,9 +42,9 @@ type offboardingScenario struct {
 	db          *bun.DB
 	repos       *api.RepositoryTestFactory
 	reposPeople *api.PeopleRepositorySuiteFactory
-	timetable   api.TimetableRepositories
+	timetable   owners.TimetableRepositories
 	workTime    workforce.Capability
-	rows        api.TimetableTestRepositories
+	rows        owners.TimetableTestRepositories
 	authSvc     offboardingIdentity
 	svc         *offboardingTestRunner
 	deps        offboardingcompose.Dependencies
@@ -60,7 +61,7 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 		db = databases[0]
 	}
 
-	rows, err := api.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	rows, err := owners.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
@@ -68,13 +69,13 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	authService, err := api.IdentityAccessForTests(api.IdentityAccessTestConfig{
 		FrontendURL: "http://localhost:3000", PasswordResetExpiry: time.Hour,
 	}, testpkg.TenantRuntime(t, db),
-		testpkg.NewAuditCommand(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).AuthEvent.Create),
+		testpkg.NewAuditCommand(owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).AuthEvent.Create),
 		testpkg.NewDatabase(t, db), nil)
 	require.NoError(t, err)
 
 	actorAccount := testpkg.CreateTestAccount(t, db, "offboarding-audit-actor@example.org")
 	deps, err := api.NewStaffOffboardingOwners(testpkg.NewDatabase(t, db), peopleCompose.MustNewReads(db, testpkg.StudentDirectory{}),
-		api.MembershipStaffEmployment(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))), nil)
+		owners.MembershipStaffEmployment(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))), nil)
 	require.NoError(t, err)
 	deps.Access = api.StaffOffboardingAccess(authService)
 	deps.Authorize = func(ctx context.Context) (staffoffboarding.Actor, error) {
@@ -91,7 +92,7 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 		repos:       repos,
 		reposPeople: reposPeople,
 		timetable:   api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)),
-		workTime:    api.MustNewWorkforce(testpkg.NewDatabase(t, db)),
+		workTime:    owners.MustNewWorkforce(testpkg.NewDatabase(t, db)),
 		rows:        rows,
 		authSvc:     authService,
 		svc:         svc,
@@ -247,7 +248,7 @@ func TestOffboardStaff_ConcurrentPlanningCannotAttachAfterRetirement(t *testing.
 func assertConcurrentPlanningRejected(t *testing.T, operation string) {
 	t.Helper()
 	sc := newOffboardingScenario(t, testpkg.SetupIsolatedTestDB(t))
-	planner := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, sc.db))
+	planner := owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, sc.db))
 	staff := testpkg.CreateTestStaff(t, sc.db, "Concurrent", "Timetable")
 	room := testpkg.CreateTestRoom(t, sc.db, "Concurrent timetable")
 	date := testpkg.TodayDate().AddDays(1)
@@ -1191,7 +1192,7 @@ func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
 		Scan(context.Background(), &workTimeModelID))
 	assert.Nil(t, workTimeModelID, "work_time_model_id must be cleared on offboarding")
 
-	require.NoError(t, api.NewWorkTimeModelRepository(sc.workTime).Delete(sc.ctx, model.ID),
+	require.NoError(t, owners.NewWorkTimeModelRepository(sc.workTime).Delete(sc.ctx, model.ID),
 		"work-time-model deletion must succeed once the offboarded staff no longer references it")
 }
 

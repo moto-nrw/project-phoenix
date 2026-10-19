@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"testing"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/stretchr/testify/require"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -20,7 +22,7 @@ func TestServiceGraphRetainsCarePlanForBookingConsistencyAudit(t *testing.T) {
 	_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), testServiceConfig())
 	require.NoError(t, err)
 
-	bookings, err := NewBookingConsistencyAudit(testpkg.NewDatabase(t, db), MustNewPeopleDirectory(testpkg.NewDatabase(t, db)), repos.CarePlan())
+	bookings, err := owners.NewBookingConsistencyAudit(testpkg.NewDatabase(t, db), owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)), repos.CarePlan())
 	require.NoError(t, err)
 	audit := reflect.ValueOf(bookings)
 	auditDate := reflect.New(audit.Type().In(1)).Elem()

@@ -45,7 +45,7 @@
     "sources": [
       "backend/modules/communication/mail_values.go",
       "backend/modules/communication/internal/application/mail_delivery.go",
-      "backend/api/communication_mail.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/communication_mail.go",
       "backend/api/operator_audit_log.go",
       "backend/modules/delivery/application/emailoutbox/outbox.go",
       "backend/modules/delivery/application/emailoutbox/native_enqueue_test.go",

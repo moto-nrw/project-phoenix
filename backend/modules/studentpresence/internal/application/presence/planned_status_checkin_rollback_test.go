@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -106,26 +107,26 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	testpkg.OwnTenant(t)
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repos, err := api.NewActiveTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	repos, err := api.NewActiveTestRepositories(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
-	reposCare := api.NewActiveTestCarePlanRows(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
-	reposPeople := api.NewActiveTestPeopleRows(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
-	reposRooms := api.NewActiveTestRoomRows(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
-	reposTimetable := api.NewActiveTestTimetableRows(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	reposCare := api.NewActiveTestCarePlanRows(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	reposPeople := api.NewActiveTestPeopleRows(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	reposRooms := api.NewActiveTestRoomRows(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	reposTimetable := api.NewActiveTestTimetableRows(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	deviceFault := activeService.NewCheckinDeviceFault(api.NewSessionDeviceDirectory(devices, nil, nil))
+	deviceFault := activeService.NewCheckinDeviceFault(owners.NewSessionDeviceDirectory(devices, nil, nil))
 	groupFault := &checkinAttributionFault{ActiveGroupRepository: sessionGroups(repos.ActiveGroup)}
 	presence := testSchoolPresence(t, db)
 	statuses := &plannedStatusFault{StudentStatusDayRepository: reposCare.StudentStatusDay}
-	students := &plannedStudentFault{PresenceStudents: api.PresenceStudents(testpkg.MustDatabase(db), reposPeople.Student)}
+	students := &plannedStudentFault{PresenceStudents: owners.PresenceStudents(testpkg.MustDatabase(db), reposPeople.Student)}
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := activeService.NewService(activeService.ServiceDependencies{PrincipalReader: api.AttendancePrincipal,
 		SchoolPresence: presence, StudentRepo: students, StudentStatusRepo: statuses,
-		StaffRepo:          api.NewAttendanceStaffDirectory(reposPeople.Staff),
-		EducationGroupRepo: api.NewAttendanceEducationGroups(api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).Group, reposPeople.Student), GroupRepo: groupFault, DeviceRepo: deviceFault,
-		RoomRepo: api.NewAttendanceRooms(reposRooms.Room), ActivityGroupRepo: api.NewSessionActivities(reposTimetable.GroupReads()),
-		DB: db, Broadcaster: api.NewPresenceEvents(broadcaster, nil),
+		StaffRepo:          owners.NewAttendanceStaffDirectory(reposPeople.Staff),
+		EducationGroupRepo: owners.NewAttendanceEducationGroups(owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).Group, reposPeople.Student), GroupRepo: groupFault, DeviceRepo: deviceFault,
+		RoomRepo: api.NewAttendanceRooms(reposRooms.Room), ActivityGroupRepo: owners.NewSessionActivities(reposTimetable.GroupReads()),
+		DB: db, Broadcaster: owners.NewPresenceEvents(broadcaster, nil),
 	})
 	activeService.ConfigureForTest(svc, activeService.WithTenantRuntime(testpkg.TenantRuntime(t, db)))
 	var settingsErr error

@@ -12,6 +12,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -21,15 +22,15 @@ import (
 // resolution, as the portal composition does in production.
 func childResolver(db *bun.DB, repos *api.RepositoryTestFactory, reposPeople *api.PeopleRepositorySuiteFactory) parentportal.ChildResolver {
 	return parentportal.NewChildFlows(parentportal.ChildConfig{
-		GuardianPolicy: api.NewParentGuardianPolicy(),
+		GuardianPolicy: owners.NewParentGuardianPolicy(),
 
-		Runtime:   api.ParentPortalRuntime{},
-		ChildRepo: repos.ParentChildReads(), StudentRepo: api.NewParentStudentReads(reposPeople.Student),
+		Runtime:   owners.ParentPortalRuntime{},
+		ChildRepo: repos.ParentChildReads(), StudentRepo: owners.NewParentStudentReads(reposPeople.Student),
 		RequestSharing: unusedRequestSharer{},
 
-		DeparturePolicy: api.ParentDeparturePolicy(),
+		DeparturePolicy: owners.ParentDeparturePolicy(),
 
-		CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 }
 

@@ -23,6 +23,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -125,7 +126,7 @@ func TestCareLifecycle_ConfirmAuditsOnlyCareEnd(t *testing.T) {
 		Reason:      careplan.CareExitReasonMovedAway,
 	})
 
-	edits, err := api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentFieldEdit.GetByStudentID(ctx, student.ID)
+	edits, err := owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentFieldEdit.GetByStudentID(ctx, student.ID)
 	require.NoError(t, err)
 	require.Len(t, edits, 1)
 	assert.Equal(t, peopledirectory.StudentFieldCareEnd, edits[0].FieldName)

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
@@ -21,7 +22,7 @@ import (
 func newCompanionTestService(db *bun.DB) careplan.StudentCompanions {
 	factory := api.NewRepositoryTestFactory(testpkg.MustDatabase(db))
 	factoryPeople := api.NewPeopleRepositorySuiteFactory(testpkg.MustDatabase(db))
-	return api.MustNewStudentCompanions(factory.CarePlan(), factoryPeople.Student, api.MustNewPeopleDirectory(testpkg.MustDatabase(db)), nil)
+	return api.MustNewStudentCompanions(factory.CarePlan(), factoryPeople.Student, owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)), nil)
 }
 
 // studentPlans is the child repository the departure-plan helper writes
@@ -230,7 +231,7 @@ func TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit(t *test
 	factoryPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	trail := api.NewStudentAudit(testpkg.NewDatabase(t, db))
 	audit := api.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, trail)
-	service := api.MustNewStudentCompanions(factory.CarePlan(), factoryPeople.Student, api.MustNewPeopleDirectory(testpkg.MustDatabase(db)), audit)
+	service := api.MustNewStudentCompanions(factory.CarePlan(), factoryPeople.Student, owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)), audit)
 
 	subject := testpkg.CreateTestStudent(t, db, "AuditSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "AuditCompanion", "Companion", "1a")

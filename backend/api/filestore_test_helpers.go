@@ -5,6 +5,8 @@ package api
 import (
 	"log/slog"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
@@ -30,12 +32,12 @@ type UploadsBackend = filestorageCompose.ObjectBackend
 // staff uploads. These are the staff file and attachment routes; parent
 // attachment access is composed and exercised by the parent-portal suite.
 func NewFileStoreTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, objects UploadsBackend) (*filestorageModule.Module, settingsCompose.SettingsService, error) {
-	settings, err := NewSettingsTestModule(db, unit)
+	settings, err := owners.NewSettingsTestModule(db, unit)
 	if err != nil {
 		return nil, nil, err
 	}
 	command, err := auditCompose.NewCommand(
-		NewTestAuditStore(db),
+		owners.NewTestAuditStore(db),
 		func(auditCompose.AppendObservation) {},
 	)
 	if err != nil {
@@ -48,7 +50,7 @@ func NewFileStoreTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return nil, nil, err
 	}
-	persons, err := NewPeopleDirectory(db)
+	persons, err := owners.NewPeopleDirectory(db)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -59,9 +61,9 @@ func NewFileStoreTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		return nil, nil, err
 	}
 	announcements, err := communicationCompose.NewParentAnnouncementsWithAttachments(communicationCompose.ParentAnnouncementConfig{
-		Repo: parentStore.NewParentAnnouncementRepository(db.Pool(), newParentAnnouncementAudience(db, ParentAnnouncementApplicants(enrollmentAudience.New()))), Settings: settingsValues.NewParentAnnouncementValues(settings.Settings), Logger: slog.Default(),
-		Fingerprints: SecurityFingerprints{},
-	}, purger, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
+		Repo: parentStore.NewParentAnnouncementRepository(db.Pool(), owners.NewParentAnnouncementAudience(db, owners.ParentAnnouncementApplicants(enrollmentAudience.New()))), Settings: settingsValues.NewParentAnnouncementValues(settings.Settings), Logger: slog.Default(),
+		Fingerprints: owners.SecurityFingerprints{},
+	}, purger, owners.CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -70,8 +72,8 @@ func NewFileStoreTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		Objects:       objects,
 		Identity:      identity,
 		People:        persons,
-		Settings:      FileStorageSettings{Service: settings.Settings},
-		Events:        FileStorageEvents{Repo: newFileEventTestRepository(db, command)},
+		Settings:      owners.FileStorageSettings{Service: settings.Settings},
+		Events:        owners.FileStorageEvents{Repo: newFileEventTestRepository(db, command)},
 		HasPermission: securityruntime.HasPermission,
 		Announcements: announcements,
 		Observe:       func(filestorageCompose.Observation) {},

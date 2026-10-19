@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,8 +14,8 @@ import (
 
 const testServiceJWTSecret = "test-secret-must-be-at-least-32-chars-long-for-real"
 
-func testServiceConfig() ServiceConfig {
-	return ServiceConfig{
+func testServiceConfig() owners.ServiceConfig {
+	return owners.ServiceConfig{
 		JWTSecret:        testServiceJWTSecret,
 		JWTExpiry:        15 * time.Minute,
 		JWTRefreshExpiry: 24 * time.Hour,
@@ -221,10 +223,10 @@ func TestServiceGraph_PortalURLs_Required(t *testing.T) {
 
 	for _, tc := range []struct {
 		name, want string
-		clear      func(*ServiceConfig)
+		clear      func(*owners.ServiceConfig)
 	}{
-		{"parents", "PARENTS_URL", func(cfg *ServiceConfig) { cfg.ParentsURL = "" }},
-		{"school", "SCHOOL_URL", func(cfg *ServiceConfig) { cfg.SchoolURL = "" }},
+		{"parents", "PARENTS_URL", func(cfg *owners.ServiceConfig) { cfg.ParentsURL = "" }},
+		{"school", "SCHOOL_URL", func(cfg *owners.ServiceConfig) { cfg.SchoolURL = "" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := testServiceConfig()

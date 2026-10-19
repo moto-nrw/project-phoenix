@@ -38,7 +38,7 @@
       "backend/modules/careplan/internal/application/parent_request_identity.go",
       "backend/modules/careplan/internal/application/request_reads.go",
       "backend/modules/careplan/compose/request_reads.go",
-      "backend/api/parent_care_request_identity.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/parent_care_request_identity.go",
       "backend/api/parent_care_request_identity_test.go",
       "backend/workflows/parentportal/messaging/parent_request_sharing_service.go",
       "https://github.com/moto-nrw/project-phoenix/blob/a52dccfc01e977e18c112d164949b819eda552f3/backend/modules/timetable/internal/application/care_plan_request_rows.go"

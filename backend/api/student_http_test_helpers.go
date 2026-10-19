@@ -5,6 +5,8 @@ package api
 import (
 	"context"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -30,7 +32,7 @@ type StudentHTTPTestRows = StudentTestRepositories
 // It returns the Care Plan rows with the Enrollment graph beside them.
 func NewStudentHTTPTestRows(db transactionruntime.Database, command auditModels.Command) (StudentHTTPTestRows, EnrollmentTestRepositories, error) {
 	if command == nil {
-		command = NewTestAuditStore(db)
+		command = owners.NewTestAuditStore(db)
 	}
 	return NewStudentTestRepositories(db, command)
 }
@@ -38,14 +40,14 @@ func NewStudentHTTPTestRows(db transactionruntime.Database, command auditModels.
 // NewStudentHTTPTestPeople is the People Directory owner over the test
 // database.
 func NewStudentHTTPTestPeople(db transactionruntime.Database) peopledirectory.Capability {
-	return MustNewPeopleDirectory(db)
+	return owners.MustNewPeopleDirectory(db)
 }
 
 // NewStudentHTTPTestCompanions composes Care Plan's companion graph over the
 // suite's rows. audit may be nil only for suites that never widen a
 // companion's plan.
 func NewStudentHTTPTestCompanions(rows StudentHTTPTestRows, students peoplePorts.StudentRepository, people peopledirectory.Capability, audit peoplePorts.StudentChangeRecorder) careplan.StudentCompanions {
-	var recorder StudentChangeAudit
+	var recorder owners.StudentChangeAudit
 	if audit != nil {
 		recorder = audit
 	}
@@ -54,7 +56,7 @@ func NewStudentHTTPTestCompanions(rows StudentHTTPTestRows, students peoplePorts
 
 // StudentHTTPTestConsents is the consent projection and trail the student
 // routes read and append to.
-type StudentHTTPTestConsents = *StudentConsents
+type StudentHTTPTestConsents = *owners.StudentConsents
 
 // NewStudentHTTPTestConsents binds the consent projection and the Audit
 // Platform trail over the test database.
@@ -71,7 +73,7 @@ func NewStudentHTTPTestPickupReviewBlocks(db transactionruntime.Database) carePl
 // NewStudentHTTPTestMembership is the School Membership owner over the test
 // database.
 func NewStudentHTTPTestMembership(db transactionruntime.Database) (schoolmembership.Capability, error) {
-	return NewSchoolMembership(db)
+	return owners.NewSchoolMembership(db)
 }
 
 // StudentHTTPTestCareLifecycle tunes the Care Plan lifecycle a student route
@@ -122,13 +124,13 @@ func MustNewStudentHTTPTestEnrollment(db transactionruntime.Database) Enrollment
 // MustNewStudentHTTPTestPeopleRows are the People Directory rows of the
 // student route suites over db; a composition failure panics.
 func MustNewStudentHTTPTestPeopleRows(db transactionruntime.Database) StudentPeopleRows {
-	rows, err := NewStudentPeopleRows(db, MustNewMembershipTestRepositories(db))
+	rows, err := NewStudentPeopleRows(db, owners.MustNewMembershipTestRepositories(db))
 	if err != nil {
 		panic(err)
 	}
 	return rows
 }
 
-func PendingStudentHTTPTestCareWithdrawals(ctx context.Context, rows CareWithdrawalTestRows, studentID int64) ([]*careplan.WithdrawalCompletion, int, error) {
+func PendingStudentHTTPTestCareWithdrawals(ctx context.Context, rows owners.CareWithdrawalTestRows, studentID int64) ([]*careplan.WithdrawalCompletion, int, error) {
 	return rows.ListPending(ctx, careplan.WithdrawalListFilter{StudentID: studentID, Page: 1, PageSize: 1})
 }

@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/json"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -70,7 +72,7 @@ func NewParentGuardianProfileReadFixture(find func(context.Context, int64) (*peo
 					}
 				}
 			}
-			return parentGuardianProfile(profile), err
+			return owners.ParentGuardianProfile(profile), err
 		},
 		FindByID:                      func(context.Context, int64) (*parentportal.GuardianProfile, error) { return nil, nil },
 		FindByIDs:                     func(context.Context, []int64) (map[int64]*parentportal.GuardianProfile, error) { return nil, nil },

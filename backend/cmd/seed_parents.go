@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/api"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"

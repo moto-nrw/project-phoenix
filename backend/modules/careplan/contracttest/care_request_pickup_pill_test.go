@@ -15,6 +15,7 @@ import (
 	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
@@ -61,7 +62,7 @@ func newPickupPillFixture(t *testing.T) (*careFixture, *recordingParentEvents) {
 	t.Helper()
 	events := &recordingParentEvents{}
 	f := newCareFixtureWithEmitter(t, communicationtest.NewEmitterWithDecisions(events, nil),
-		api.WithCareRequestToday(func() calendar.Date { return calendar.NewDate(2026, 9, 9) }))
+		owners.WithCareRequestToday(func() calendar.Date { return calendar.NewDate(2026, 9, 9) }))
 	// The approve path re-checks that the submitting guardian still has the
 	// child; the fixture's chain is that guardian.
 	events.guardians = []eventContract.PortalGuardian{{AccountID: f.chain.AccountID}}

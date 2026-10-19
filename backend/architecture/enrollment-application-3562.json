@@ -43,7 +43,7 @@
     "sources": [
       "https://github.com/moto-nrw/project-phoenix/pull/3675",
       "backend/modules/enrollment/internal/application/captcha_test.go",
-      "backend/api/enrollment_application_composition_test.go"
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/enrollment_application_composition_test.go"
     ],
     "workload": "Affected Go package suites against the local PostgreSQL test database in the original PR run, plus focused captcha unit tests and source-level architecture checks after the tenant-settings correction.",
     "thresholds": "No new forbidden import or composition target; six listed legacy keys retired; the affected behavior suites retain their existing contracts and scripts/backend-architecture.sh check passes.",

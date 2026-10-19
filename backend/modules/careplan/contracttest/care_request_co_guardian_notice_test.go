@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	communicationtest "github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -93,13 +94,13 @@ func TestCareDecisionTellsTheOtherGuardian(t *testing.T) {
 func careServiceWithCoGuardianEmitter(t *testing.T, f *careFixture, sharedWith []int64) carerequests.Service {
 	t.Helper()
 	emitter := f.emitter(t, messagingOnSettings{}, testpkg.NewRecordingBroadcaster())
-	return api.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+	return owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		f.reposCare.CarePlan(), f.persons,
 		f.schedules.Arrivals, f.schedules.Pickups, newPickupChangePresence(t, f.db), f.autoExcusal,
 		f.reposCare.CarePlan(),
 		f.caller, emitter, nil,
 		testpkg.RequestReviewPolicy[*peopleValues.StudentState]{UserContext: f.caller}, testpkg.PermissionsFromContext,
 		nil, slog.Default(), f.services.StudentAudit,
-		api.WithRequestShareVisibility(staticShareVisibility{recipients: sharedWith}),
+		owners.WithRequestShareVisibility(staticShareVisibility{recipients: sharedWith}),
 	)
 }

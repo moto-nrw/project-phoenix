@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
@@ -32,7 +33,7 @@ func TestVisitRevisionRollsBackAfterSlotWriteAndRetries(t *testing.T) {
 	testpkg.OwnTenant(t)
 	db := testpkg.SetupTestDB(t)
 	module := testSchoolPresence(t, db)
-	timetableRepos := api.NewAttendanceSyncTestRepositories(testpkg.MustDatabase(db), api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)))
+	timetableRepos := api.NewAttendanceSyncTestRepositories(testpkg.MustDatabase(db), owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)))
 	rows := &failingSlotRevision{}
 	syncer := newAttendanceMirror(t, rows.bind(api.TimetableOwnerRows{Instances: timetableRepos.Instances, Participants: timetableRepos.Participants}), slog.Default())
 	svc, broadcaster := newServiceWithPresenceSync(t, db, module, syncer)

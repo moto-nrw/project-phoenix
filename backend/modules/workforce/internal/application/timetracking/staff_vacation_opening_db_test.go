@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -46,7 +47,7 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Urlaub", "Uebernahme")
 	admin := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Urlaub", "Leitung")
-	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
+	workTime := owners.MustNewWorkforce(testpkg.NewDatabase(t, db))
 	reposAbsences := api.NewStaffAbsenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -71,7 +72,7 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 		timetracking.WithAbsenceShiftPlanSyncer(noSickCascade{}),
 		// Wired exactly like services/factory.go does.
 		timetracking.WithVacationOpenings(workforceCompose.NewTimeTrackingTestRows(workTime).VacationOpenings),
-		timetracking.WithAbsenceDeletionAudit(api.NewTimeTrackingDeletionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingDeletion)),
+		timetracking.WithAbsenceDeletionAudit(owners.NewTimeTrackingDeletionAudit(owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingDeletion)),
 	)
 
 	return &vacationOpeningFixture{

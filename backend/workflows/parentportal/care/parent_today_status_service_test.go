@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -30,22 +31,22 @@ func buildTodayStatusService(t *testing.T) (*parentportal.ChildFlows, *bun.DB) {
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	return parentportal.NewChildFlows(parentportal.ChildConfig{
-		GuardianPolicy: api.NewParentGuardianPolicy(),
+		GuardianPolicy: owners.NewParentGuardianPolicy(),
 
-		Runtime:        api.ParentPortalRuntime{},
+		Runtime:        owners.ParentPortalRuntime{},
 		RequestSharing: unconfiguredRequestSharer{},
 		ChildRepo:      repos.ParentChildReads(),
 		Attendance:     parentAttendance(t, db),
 		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    api.NewParentStudentReads(reposPeople.Student),
+		StudentRepo:    owners.NewParentStudentReads(reposPeople.Student),
 		Logger:         slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 13, 0, 0, 0, time.UTC)
 		},
 
-		DeparturePolicy: api.ParentDeparturePolicy(),
+		DeparturePolicy: owners.ParentDeparturePolicy(),
 
-		CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	}), db
 }
 
@@ -56,34 +57,34 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (*parentportal.ChildFlows
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	arrivalRules, arrivalDeps, err := api.ArrivalScheduleBinding(api.MustNewPeopleDirectory(testpkg.MustDatabase(db)), nil, nil, slog.Default())
+	arrivalRules, arrivalDeps, err := owners.ArrivalScheduleBinding(owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)), nil, nil, slog.Default())
 	require.NoError(t, err)
 	arrivals, err := careplanCompose.NewArrivalSchedules(db, repos.CarePlan(), nil, arrivalRules, arrivalDeps)
 	require.NoError(t, err)
-	pickupStudents, err := api.PickupPlanStudents(api.MustNewPeopleDirectory(testpkg.MustDatabase(db)))
+	pickupStudents, err := owners.PickupPlanStudents(owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)))
 	require.NoError(t, err)
 	pickups, err := careplanCompose.NewPickupSchedules(db, repos.CarePlan(), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), // Auto-excusal (#2360) is not what these cases assert.
 		nil, pickupStudents, slog.Default())
 	require.NoError(t, err)
 	return parentportal.NewChildFlows(parentportal.ChildConfig{
-		GuardianPolicy: api.NewParentGuardianPolicy(),
+		GuardianPolicy: owners.NewParentGuardianPolicy(),
 
-		Runtime:          api.ParentPortalRuntime{},
+		Runtime:          owners.ParentPortalRuntime{},
 		RequestSharing:   unconfiguredRequestSharer{},
 		ChildRepo:        repos.ParentChildReads(),
 		Attendance:       parentAttendance(t, db),
 		StatusDayRepo:    repos.StudentStatusDay,
-		StudentRepo:      api.NewParentStudentReads(reposPeople.Student),
-		ArrivalSchedules: api.NewParentArrivalSchedules(arrivals),
-		PickupSchedules:  api.NewParentPickupSchedules(pickups),
+		StudentRepo:      owners.NewParentStudentReads(reposPeople.Student),
+		ArrivalSchedules: owners.NewParentArrivalSchedules(arrivals),
+		PickupSchedules:  owners.NewParentPickupSchedules(pickups),
 		Logger:           slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 13, 0, 0, 0, time.UTC)
 		},
 
-		DeparturePolicy: api.ParentDeparturePolicy(),
+		DeparturePolicy: owners.ParentDeparturePolicy(),
 
-		CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	}), db
 }
 
@@ -386,7 +387,7 @@ func parentAttendance(t *testing.T, db *bun.DB) parentportal.AttendanceReader {
 	t.Helper()
 	module, err := api.NewCheckinTestPresence(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	return api.BindParentAttendance(module)
+	return owners.BindParentAttendance(module)
 }
 
 func approvedOfferingProjection(t *testing.T) *api.ApprovedOfferingTestProjection {

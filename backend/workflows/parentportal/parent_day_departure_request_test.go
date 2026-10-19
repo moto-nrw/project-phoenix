@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -27,7 +28,7 @@ const dayDepartureRequestToday = calendar.Date("2026-08-24")
 func buildDayDepartureRequestService(t *testing.T, departureModeRequests bool) (*parentService.Portal, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	return buildPickupChangeServiceWithRequestOptions(t,
-		[]api.CareRequestOption{api.WithCareRequestToday(func() calendar.Date { return dayDepartureRequestToday })},
+		[]owners.CareRequestOption{owners.WithCareRequestToday(func() calendar.Date { return dayDepartureRequestToday })},
 		withDepartureModeRequests(departureModeRequests),
 		func(cfg *parentportalcompose.Dependencies) {
 			cfg.Now = func() time.Time { return dayDepartureRequestToday.BerlinMidnight().Add(12 * time.Hour) }

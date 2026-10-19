@@ -11,6 +11,7 @@ import (
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,7 @@ import (
 // Identity & Access owners.
 func newRepositories(t *testing.T, db *bun.DB) api.StaffMessagingTestRepositories {
 	t.Helper()
-	repos, err := api.NewStaffMessagingTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	repos, err := api.NewStaffMessagingTestRepositories(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	return repos
 }
@@ -59,7 +60,7 @@ func newServiceWithEnabled(t *testing.T, db *bun.DB, enabled bool, retentionDays
 	// must go through the same path production uses. FindByAccountID only
 	// touches the person repository, so the other sources stay empty on purpose.
 	persons := api.NewTestPersonDirectory(testpkg.NewDatabase(t, db), api.TestPersonDirectorySources{
-		Persons: api.NewPersonRepository(testpkg.NewDatabase(t, db)),
+		Persons: owners.NewPersonRepository(testpkg.NewDatabase(t, db)),
 	})
 
 	repos := newRepositories(t, db)
@@ -68,7 +69,7 @@ func newServiceWithEnabled(t *testing.T, db *bun.DB, enabled bool, retentionDays
 		Session:     api.CommunicationSession{},
 		MessageRepo: staffmessaging.NewMessageRepository(repos.Message),
 		ReadRepo:    staffmessaging.NewReadRepository(repos.Read),
-		Persons:     api.BindStaffSenderNames(persons),
+		Persons:     owners.BindStaffSenderNames(persons),
 		Settings:    configModels.NewStaffMessagingValues(settings),
 	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 }

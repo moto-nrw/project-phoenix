@@ -36,7 +36,7 @@
       "backend/modules/communication/declaration_rules.go",
       "backend/modules/communication/declaration_policy.go",
       "https://github.com/moto-nrw/project-phoenix/blob/dd92c93a8af3c4cc3d74d51769eb04d4922c85b8/backend/services/parentmessaging/declarations.go",
-      "backend/api/parent_portal_platform.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/parent_portal_platform.go",
       "backend/workflows/parentportal/messaging/declaration_policy.go",
       "backend/workflows/parentportal/messaging/parent_declaration_feed.go",
       "backend/workflows/parentportal/messaging/parent_declaration_service.go"

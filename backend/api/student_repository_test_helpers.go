@@ -8,6 +8,7 @@ import (
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -21,28 +22,28 @@ import (
 // NewStudentAuditRows and NewStudentMessageRows.
 type StudentTestRepositories struct {
 	CarePlan              careplan.Capability
-	ExcusedAbsenceRequest *ExcusedAbsenceRequestRepository
+	ExcusedAbsenceRequest *owners.ExcusedAbsenceRequestRepository
 }
 
 // NewStudentTestRepositoriesWithMembers composes the student suites' Care
 // Plan rows and returns them with the Enrollment graph over members they run
 // beside.
-func NewStudentTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories) (StudentTestRepositories, EnrollmentTestRepositories, error) {
+func NewStudentTestRepositoriesWithMembers(db transactionruntime.Database, members owners.MembershipTestRepositories) (StudentTestRepositories, EnrollmentTestRepositories, error) {
 	enrollment, err := NewEnrollmentTestRepositoriesWithMembers(db, members)
 	if err != nil {
 		return StudentTestRepositories{}, EnrollmentTestRepositories{}, err
 	}
-	tt, err := NewTimetableTestRepositoriesWithMembers(db, members)
+	tt, err := owners.NewTimetableTestRepositoriesWithMembers(db, members)
 	if err != nil {
 		return StudentTestRepositories{}, EnrollmentTestRepositories{}, err
 	}
-	care, err := NewCarePlan(db, members.People, tt.InstanceStudent)
+	care, err := owners.NewCarePlan(db, members.People, tt.InstanceStudent)
 	if err != nil {
 		return StudentTestRepositories{}, EnrollmentTestRepositories{}, err
 	}
 	return StudentTestRepositories{
 		CarePlan:              care,
-		ExcusedAbsenceRequest: NewExcusedAbsenceRequestRepository(care),
+		ExcusedAbsenceRequest: owners.NewExcusedAbsenceRequestRepository(care),
 	}, enrollment, nil
 }
 
@@ -52,12 +53,12 @@ type StudentPeopleRows struct {
 	ParentRequestShare peoplePorts.ParentRequestShareRecords
 	ParentRequestEvent owner0.ParentRequestEvents
 	FamilyProtection   peoplePorts.FamilyProtectionRecords
-	CareWithdrawal     CareWithdrawalTestRows
+	CareWithdrawal     owners.CareWithdrawalTestRows
 }
 
 // NewStudentPeopleRows composes the People Directory rows over db, with the
 // care-withdrawal completions over the care lifecycle of members.
-func NewStudentPeopleRows(db transactionruntime.Database, members MembershipTestRepositories) (StudentPeopleRows, error) {
+func NewStudentPeopleRows(db transactionruntime.Database, members owners.MembershipTestRepositories) (StudentPeopleRows, error) {
 	lifecycle, err := NewCareLifecycleTestRepositoriesWithMembers(db, members)
 	if err != nil {
 		return StudentPeopleRows{}, err
@@ -86,7 +87,7 @@ type StudentAuditRows struct {
 // NewStudentAuditRows composes the trails over db with their writes routed
 // through command, the composition that owns Audit persistence (ADR 0049).
 func NewStudentAuditRows(db transactionruntime.Database, command auditModels.Command) StudentAuditRows {
-	audits := NewTestAuditPersistence(db, command)
+	audits := owners.NewTestAuditPersistence(db, command)
 	return StudentAuditRows{
 		EnrollmentOfferingAdjustment: audits.EnrollmentOfferingAdjustment,
 		EnrollmentRestorationAudit:   audits.EnrollmentRestorationAudit,
@@ -109,7 +110,7 @@ type StudentMessageRows struct {
 // NewStudentMessageRows composes the parent message rows over db.
 func NewStudentMessageRows(db transactionruntime.Database) StudentMessageRows {
 	return StudentMessageRows{
-		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db.Pool(), newParentGuardianLister(db, NewPeopleIdentityAccess(db, nil).FindActiveSchoolMemberships)),
+		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db.Pool(), owners.NewParentGuardianLister(db, owners.NewPeopleIdentityAccess(db, nil).FindActiveSchoolMemberships)),
 		ParentMessage:       parentStore.NewParentMessageRepository(db.Pool()),
 	}
 }

@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -22,7 +24,7 @@ func TestNativeStaffRecordsUseTheSameParticipantScopedStoresAndClock(t *testing.
 	_, second := testpkg.CreateTestStaffWithAccount(t, db, "Ben", "Tal")
 	_, outsider := testpkg.CreateTestStaffWithAccount(t, db, "Clara", "See")
 	database := testpkg.NewDatabase(t, db)
-	repos, err := NewStaffMessagingTestRepositories(database, MustNewMembershipTestRepositories(database))
+	repos, err := NewStaffMessagingTestRepositories(database, owners.MustNewMembershipTestRepositories(database))
 	require.NoError(t, err)
 	ctx := testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db)
 	require.NoError(t, tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(tx context.Context, _ bun.Tx) error {

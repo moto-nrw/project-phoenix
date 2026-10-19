@@ -5,6 +5,7 @@ package api
 import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 )
 
 var (
@@ -18,6 +19,6 @@ var (
 
 // AccountRoleGrantPolicy returns Security Runtime's role grant decision the
 // root binds to the account routes.
-func AccountRoleGrantPolicy() RoleGrantPolicy {
-	return RoleGrantPolicy{}
+func AccountRoleGrantPolicy() owners.RoleGrantPolicy {
+	return owners.RoleGrantPolicy{}
 }

@@ -5,6 +5,8 @@ package api
 import (
 	"fmt"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -19,18 +21,18 @@ import (
 // NewEnrollmentAuditRows, NewOrganizationTestRows and
 // NewSchoolMembershipSuiteRepositories over the same database (#4080).
 type EnrollmentTestRepositories struct {
-	MembershipTestRepositories
+	owners.MembershipTestRepositories
 	StudentGuardian     peoplePorts.StudentGuardianRepository
 	GuardianProfile     peoplePorts.GuardianProfileRepository
 	GuardianPhoneNumber peoplePorts.GuardianPhoneNumberRepository
 }
 
 // Enrollment is the Enrollment booking projection the suites read and write.
-func (r EnrollmentTestRepositories) Enrollment() EnrollmentBookingProjection {
-	return NewEnrollmentBookingProjection(newEnrollmentBookings(enrollmentCompose.New()))
+func (r EnrollmentTestRepositories) Enrollment() owners.EnrollmentBookingProjection {
+	return owners.NewEnrollmentBookingProjection(owners.ComposeEnrollmentBookings(enrollmentCompose.New()))
 }
 
-func NewEnrollmentTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories) (EnrollmentTestRepositories, error) {
+func NewEnrollmentTestRepositoriesWithMembers(db transactionruntime.Database, members owners.MembershipTestRepositories) (EnrollmentTestRepositories, error) {
 	return EnrollmentTestRepositories{
 		MembershipTestRepositories: members,
 		StudentGuardian:            members.StudentGuardian, GuardianProfile: members.GuardianProfile,
@@ -40,8 +42,8 @@ func NewEnrollmentTestRepositoriesWithMembers(db transactionruntime.Database, me
 
 // NewEnrollmentTimetableRows are the Timetable rows of the enrollment
 // suites, with the deviation protocol bound to the Audit Platform.
-func NewEnrollmentTimetableRows(db transactionruntime.Database) TimetableTestRepositories {
-	tt, err := NewTimetableTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
+func NewEnrollmentTimetableRows(db transactionruntime.Database) owners.TimetableTestRepositories {
+	tt, err := owners.NewTimetableTestRepositoriesWithMembers(db, owners.MustNewMembershipTestRepositories(db))
 	if err != nil {
 		panic(fmt.Sprintf("enrollment test rows: compose timetable: %v", err))
 	}
@@ -49,8 +51,8 @@ func NewEnrollmentTimetableRows(db transactionruntime.Database) TimetableTestRep
 }
 
 // NewEnrollmentCarePlanRows are the Care Plan rows of the enrollment suites.
-func NewEnrollmentCarePlanRows(db transactionruntime.Database) TimetableCarePlanRows {
-	return NewEnrollmentFlowCarePlanRows(db)
+func NewEnrollmentCarePlanRows(db transactionruntime.Database) owners.TimetableCarePlanRows {
+	return owners.NewEnrollmentFlowCarePlanRows(db)
 }
 
 // EnrollmentAuditRows are the Audit Platform access log the enrollment
@@ -62,5 +64,5 @@ type EnrollmentAuditRows struct {
 // NewEnrollmentAuditRows composes the access log over the test database with
 // its writes routed through command.
 func NewEnrollmentAuditRows(db transactionruntime.Database, command auditModels.Command) *EnrollmentAuditRows {
-	return &EnrollmentAuditRows{DataAccessLog: NewTestAuditPersistence(db, command).DataAccessLog}
+	return &EnrollmentAuditRows{DataAccessLog: owners.NewTestAuditPersistence(db, command).DataAccessLog}
 }

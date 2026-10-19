@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -145,7 +146,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		announcer:     &fakeOpsAnnouncer{},
 	}
 	dependencies := deps.dependencies()
-	service, err := compose.NewOperations(dependencies, api.TimetableOperationCaller{RequestSession: dependencies.Session})
+	service, err := compose.NewOperations(dependencies, owners.TimetableOperationCaller{RequestSession: dependencies.Session})
 	if err != nil {
 		panic(err)
 	}

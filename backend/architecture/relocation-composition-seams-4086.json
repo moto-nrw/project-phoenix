@@ -39,7 +39,7 @@
     "source": "PR #4322 CI run 39099793580 passes the architecture check, lint and backend tests but rejects six unclaimed debt removals. Local validate-ticket --all against the same development base reproduces debt retirements: 6; covered: 0. The correction records the two prepared seams, not additional contract work.",
     "sources": [
       "https://github.com/moto-nrw/project-phoenix/actions/runs/39099793580/job/117593556487",
-      "backend/api/device_fleet_settings.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/device_fleet_settings.go",
       "backend/api/device_scan_people.go",
       "backend/api/people_bindings.go",
       "backend/api/student_http_withdrawals_test_helpers.go",

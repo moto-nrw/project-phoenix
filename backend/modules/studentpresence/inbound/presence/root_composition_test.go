@@ -5,6 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -13,7 +14,7 @@ import (
 // The typed root's test compositions these suites build: each opens the
 // package's test database and composes the module through the root (#4005).
 
-func setupActiveModule(t *testing.T) (*bun.DB, api.ActiveSettings, api.ActivePresence, api.ActivePeople, api.ActiveEducation, *api.CallerRows, api.ActiveTestModule) {
+func setupActiveModule(t *testing.T) (*bun.DB, api.ActiveSettings, api.ActivePresence, api.ActivePeople, api.ActiveEducation, *owners.CallerRows, api.ActiveTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	module, err := api.NewActiveTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
@@ -31,7 +32,7 @@ func setupActiveModule(t *testing.T) (*bun.DB, api.ActiveSettings, api.ActivePre
 func init() {
 	presence.ComposeTrackingSettings = func(t *testing.T, db *bun.DB) presence.TrackingSettings {
 		t.Helper()
-		module, err := api.NewSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+		module, err := owners.NewSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 		require.NoError(t, err)
 		return module.Settings
 	}

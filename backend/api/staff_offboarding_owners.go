@@ -3,6 +3,8 @@ package api
 import (
 	"log/slog"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -36,7 +38,7 @@ func NewStaffOffboardingOwners(db transactionruntime.Database, people staffoffbo
 	if err != nil {
 		return offboardingcompose.Dependencies{}, err
 	}
-	audit, err := newWorkflowAuditCommand(db, logger, "offboarding audit append failed")
+	audit, err := owners.NewWorkflowAuditCommand(db, logger, "offboarding audit append failed")
 	if err != nil {
 		return offboardingcompose.Dependencies{}, err
 	}

@@ -5,6 +5,8 @@ package api
 import (
 	"context"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
@@ -45,13 +47,13 @@ func (r studentDataRequestRepository) Create(ctx context.Context, row *careplan.
 }
 
 func (r studentDataRequestRepository) FindByID(ctx context.Context, raw any) (*careplan.StudentDataChangeRequest, error) {
-	id, err := legacyScheduleID(raw)
+	id, err := owners.LegacyScheduleID(raw)
 	if err != nil {
 		return nil, err
 	}
 	value, err := r.capability.FindStudentDataRequest(ctx, id, false)
 	if errors.Is(err, careplan.ErrStudentDataRequestNotFound) {
-		return nil, retainedNotFound("find by id")
+		return nil, owners.RetainedNotFound("find by id")
 	}
 	if err != nil {
 		return nil, err

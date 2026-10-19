@@ -11,6 +11,7 @@ import (
 	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -31,7 +32,7 @@ func bookingModeArrivalBaseline(t *testing.T, env *decisionTestEnv, authoritativ
 	if err != nil {
 		panic(err)
 	}
-	baselines, err := newArrivalBaselinesFixture(env.repos.CarePlan(), api.MustNewPeopleDirectory(testpkg.MustDatabase(env.db)), classArrivalQueries, approvedOfferingTestProjection(env.reposEnrollment, env.reposPeople), func(context.Context) (bool, error) { return authoritative, nil })
+	baselines, err := newArrivalBaselinesFixture(env.repos.CarePlan(), owners.MustNewPeopleDirectory(testpkg.MustDatabase(env.db)), classArrivalQueries, approvedOfferingTestProjection(env.reposEnrollment, env.reposPeople), func(context.Context) (bool, error) { return authoritative, nil })
 	if err != nil {
 		panic(err)
 	}

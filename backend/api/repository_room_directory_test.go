@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -37,7 +39,7 @@ func TestFactoryResolvesRoomsThroughTheOwner(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
-	factory := NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
+	factory := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	factoryPresence := NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	devices, err := NewDeviceRepository(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)

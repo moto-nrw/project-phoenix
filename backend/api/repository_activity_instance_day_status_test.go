@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +31,7 @@ func TestActivityInstancesOfTheDayCarryTheirSessionStatus(t *testing.T) {
 		Title: "Overdue started", IsSpontaneous: true, StartHHMM: "10:15",
 	})
 	testpkg.SetActivityInstanceLifecycle(t, ctx, db, started.ID, "active")
-	repos, err := NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	repos, err := owners.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 
 	require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(ctx context.Context) error {

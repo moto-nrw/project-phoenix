@@ -121,12 +121,6 @@ func checkRuntimeRejectsMissingDependencies(t *testing.T) {
 	})
 }
 
-func TestStaffMessageCleanupSkipsMissingRuntime(t *testing.T) {
-	t.Parallel()
-
-	require.Nil(t, staffMessageCleanup(nil))
-}
-
 func TestRuntimeServeReturnsListenFailure(t *testing.T) {
 	t.Parallel()
 

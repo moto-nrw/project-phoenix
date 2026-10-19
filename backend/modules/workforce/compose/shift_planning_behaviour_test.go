@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -88,16 +89,16 @@ func buildPlanningWorkforce(t *testing.T, db *bun.DB) workforce.Capability {
 // retained staff repository in ctx's tenant.
 func planningDependencies(t *testing.T, ctx context.Context, db *bun.DB, capability workforce.Capability, staffID int64) compose.ShiftPlanningDependencies {
 	t.Helper()
-	ownersRooms := api.MustNewUnobservedRooms(testpkg.NewDatabase(t, db))
+	ownersRooms := owners.MustNewUnobservedRooms(testpkg.NewDatabase(t, db))
 	calendarOwner := api.MustNewSchoolCalendar(testpkg.NewDatabase(t, db))
-	staffByID, err := api.NewPlanStaffDirectory(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Staff).FindWithPersonByIDs(ctx, []int64{staffID})
+	staffByID, err := owners.NewPlanStaffDirectory(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Staff).FindWithPersonByIDs(ctx, []int64{staffID})
 	require.NoError(t, err)
 	staff := staffByID[staffID]
 	require.NotNil(t, staff)
 	return compose.ShiftPlanningDependencies{
 		Workforce: capability, Staff: planningStaffDirectory{staff: staff},
 		CalendarPeriods: calendarOwner, Instances: planningTimetable{},
-		InstanceStaff: planningInstanceStaff{}, Rooms: api.NewTimetableRoomNames(ownersRooms), ActivityGroups: planningGroups{},
+		InstanceStaff: planningInstanceStaff{}, Rooms: owners.NewTimetableRoomNames(ownersRooms), ActivityGroups: planningGroups{},
 		DB: db,
 	}
 }

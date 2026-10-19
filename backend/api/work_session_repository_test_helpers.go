@@ -5,6 +5,8 @@ package api
 import (
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
@@ -20,9 +22,9 @@ type WorkSessionTestRepositories struct {
 	StaffAbsence workforceCompose.StaffAbsenceRepository
 }
 
-func NewWorkSessionTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories, clocks ...func() time.Time) (WorkSessionTestRepositories, error) {
+func NewWorkSessionTestRepositoriesWithMembers(db transactionruntime.Database, members owners.MembershipTestRepositories, clocks ...func() time.Time) (WorkSessionTestRepositories, error) {
 	people := members.People
-	membership, err := NewSchoolMembership(db)
+	membership, err := owners.NewSchoolMembership(db)
 	if err != nil {
 		return WorkSessionTestRepositories{}, err
 	}
@@ -30,12 +32,12 @@ func NewWorkSessionTestRepositoriesWithMembers(db transactionruntime.Database, m
 	if len(clocks) > 0 {
 		now = clocks[0]
 	}
-	workTime, err := NewWorkforceWithClock(db, membership, now)
+	workTime, err := owners.NewWorkforceWithClock(db, membership, now)
 	if err != nil {
 		return WorkSessionTestRepositories{}, err
 	}
 	return WorkSessionTestRepositories{
 		Workforce:    workTime,
-		StaffAbsence: NewStaffAbsenceRepository(workTime, membership, people),
+		StaffAbsence: owners.NewStaffAbsenceRepository(workTime, membership, people),
 	}, nil
 }

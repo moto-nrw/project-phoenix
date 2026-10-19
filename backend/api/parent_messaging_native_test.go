@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,7 +37,7 @@ func TestParentConversationBindingCopiesMutationsAfterOriginalError(t *testing.T
 		v.Payload["normalized"] = json.RawMessage(`true`)
 		return cause
 	}}
-	port := BindParentConversationCore(source)
+	port := owners.BindParentConversationCore(source)
 	exerciseParentConversationBinding(t, ctx, port.AppendMessage, cause, created)
 }
 func exerciseParentConversationBinding[T any](t *testing.T, ctx context.Context, appendMessage func(context.Context, *T) error, cause error, created time.Time) {

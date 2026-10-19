@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -23,7 +24,7 @@ import (
 // Directory (#2661), then the school projections on top.
 func newSchoolProjectionFactory(t *testing.T, db *bun.DB) *api.RepositoryTestFactory {
 	t.Helper()
-	capability, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
+	capability, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	return api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).WithSchoolProjections(capability)
 }

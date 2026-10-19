@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -658,7 +659,7 @@ func TestGroupHandoverRechecksOwnershipAfterGroupLock(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	testpkg.Tenant(t)
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	reposStructure := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposStructure := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	group := testpkg.CreateTestEducationGroup(t, db, "OwnershipRace")
 	owner, accountID := activeTeacher(t, db, "Owner", "Race")
 	target, _ := activeTeacher(t, db, "Target", "Race")

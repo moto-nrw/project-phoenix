@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -19,8 +20,8 @@ import (
 // overviewRepositories composes the retained readers and the Dienstplan row
 // adapter over the same handle, so a query counter attached to db observes
 // every read the projection makes.
-func overviewRepositories(db *bun.DB) (*api.PeopleRepositorySuiteFactory, api.TimetableRepositories, *planning.ShiftRows, workforce.Capability) {
-	workTime := api.MustNewWorkforce(testpkg.MustDatabase(db))
+func overviewRepositories(db *bun.DB) (*api.PeopleRepositorySuiteFactory, owners.TimetableRepositories, *planning.ShiftRows, workforce.Capability) {
+	workTime := owners.MustNewWorkforce(testpkg.MustDatabase(db))
 	return api.NewPeopleRepositorySuiteFactory(testpkg.MustDatabase(db)), api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)),
 		planning.NewShiftRows(workTime), workTime
 }
@@ -92,7 +93,7 @@ func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testi
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
 		Shifts: shiftRows, Instances: timetableRepos.InstanceReads(),
 		InstanceStaff: timetableRepos.InstanceStaffReads(),
-		Rooms:         api.NewTimetableRoomNames(api.MustNewUnobservedRooms(testpkg.MustDatabase(countedDB))), Staff: api.NewPlanStaffDirectory(repos.Staff),
+		Rooms:         owners.NewTimetableRoomNames(owners.MustNewUnobservedRooms(testpkg.MustDatabase(countedDB))), Staff: owners.NewPlanStaffDirectory(repos.Staff),
 		PlanningProfiles: ownerWorkforce, WorkSchedules: ownerWorkforce, WorkModels: ownerWorkforce,
 	})
 
@@ -181,7 +182,7 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 
 	modelStaff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Summary", "ModelFallback")
 	createOverviewShift(t, db, tenantID, modelStaff.ID, monday, "09:00", "10:00", 0)
-	models := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
+	models := owners.MustNewWorkforce(testpkg.NewDatabase(t, db))
 	workModel, err := models.CreateWorkTimeModel(testpkg.TenantContext(tenantID), workforce.CreateWorkTimeModel{WorkTimeModelFields: workforce.WorkTimeModelFields{
 		Name:               fmt.Sprintf("Summary fallback %d", time.Now().UnixNano()),
 		RotationLength:     1,
@@ -212,7 +213,7 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
 		Shifts: shiftRows, Instances: timetableRepos.InstanceReads(),
 		InstanceStaff: timetableRepos.InstanceStaffReads(),
-		Rooms:         api.NewTimetableRoomNames(api.MustNewUnobservedRooms(testpkg.MustDatabase(countedDB))), Staff: api.NewPlanStaffDirectory(repos.Staff),
+		Rooms:         owners.NewTimetableRoomNames(owners.MustNewUnobservedRooms(testpkg.MustDatabase(countedDB))), Staff: owners.NewPlanStaffDirectory(repos.Staff),
 		PlanningProfiles: ownerWorkforce, WorkSchedules: ownerWorkforce, WorkModels: ownerWorkforce,
 	})
 
@@ -296,7 +297,7 @@ func TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport(t *te
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
 		Shifts: shiftRows, Instances: timetableRepos.InstanceReads(),
 		InstanceStaff: timetableRepos.InstanceStaffReads(),
-		Rooms:         api.NewTimetableRoomNames(api.MustNewUnobservedRooms(testpkg.MustDatabase(db))), Staff: api.NewPlanStaffDirectory(repos.Staff),
+		Rooms:         owners.NewTimetableRoomNames(owners.MustNewUnobservedRooms(testpkg.MustDatabase(db))), Staff: owners.NewPlanStaffDirectory(repos.Staff),
 		PlanningProfiles: ownerWorkforce, WorkSchedules: ownerWorkforce, WorkModels: ownerWorkforce,
 	})
 

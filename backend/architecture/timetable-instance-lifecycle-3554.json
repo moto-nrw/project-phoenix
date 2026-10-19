@@ -58,7 +58,7 @@
     "sources": [
       "backend/modules/timetable/instance_lifecycle.go",
       "backend/modules/timetable/internal/application/instance_lifecycle.go",
-      "backend/api/timetable_lifecycle_composition.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/timetable_lifecycle_composition.go",
       "backend/test/query_budgets.go"
     ],
     "workload": "No load run. Go suites through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",

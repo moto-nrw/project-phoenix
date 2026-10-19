@@ -40,7 +40,7 @@
   "tests": [
     "scripts/test-changed.sh origin/development without --fast: the full backend suite, including the presence, check-in, transit, attendance-history, status-day, statistics and Workforce time-tracking behaviour tests, the two-tenant RLS isolation tests and the query-budget tests.",
     "The moved suites: modules/studentpresence/internal/adapters/postgres (the session, supervision, attendance, staff-absence and projection repository tests), modules/studentpresence/internal/application/presence (the moved service tests) and modules/studentpresence/internal/ports (the row tests), each with its assertions and two-tenant coverage unchanged.",
-    "backend/api/iot/pyreportal_error_strings_test.go with the legacy path removed from extraGuardSources and the three locally defined PyrePortal strings still in the guard corpus.",
+    "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/iot/pyreportal_error_strings_test.go with the legacy path removed from extraGuardSources and the three locally defined PyrePortal strings still in the guard corpus.",
     "go test ./test/ -run 'TestModule|TestPolicyTemporaryRules': the module ratchets, with the modules/studentpresence/legacy budget entry deleted and 35 complexity entries removed.",
     "go test ./internal/architecture: the policy loader, the comparison and internal/architecture/studentpresence_cutover_test.go.",
     "scripts/backend-architecture.sh check in pull-request mode against the merge base."
