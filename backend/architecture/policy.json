@@ -2284,7 +2284,7 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "modules/schedulerruntime/internal/application",
+      "path": "services/scheduler",
       "owner": "scheduler-runtime",
       "role": "application",
       "internal_test_role": "module-internal-test",
