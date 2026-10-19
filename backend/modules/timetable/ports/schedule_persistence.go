@@ -215,7 +215,6 @@ type CareScheduleChangeRequestRecords interface {
 	Create(ctx context.Context, req *schedulerecords.CareScheduleChangeRequest) error
 	// FindByID takes `any` to match the embedded generic base.Repository.
 	FindByID(ctx context.Context, id int64) (*schedulerecords.CareScheduleChangeRequest, error)
-	GetPendingForStudentAndKind(ctx context.Context, studentID int64, requestKind string) (*schedulerecords.CareScheduleChangeRequest, error)
 
 	// Decide moves a pending row to approved/rejected/withdrawn, stamping
 	// decision_reason, reviewed_by, reviewed_at and (for approvals)
@@ -238,11 +237,6 @@ type ClosingDayRecords interface {
 	// FindByTenantID finds all closing days for the current tenant,
 	// ordered by start_date.
 	FindByTenantID(ctx context.Context) ([]*schedulerecords.ClosingDay, error)
-
-	// FindOverlappingRange returns all closing days of the current tenant
-	// whose [start_date, end_date] range overlaps [from, to] (inclusive on
-	// both ends), ordered by start_date.
-	FindOverlappingRange(ctx context.Context, from, to calendar.Date) ([]*schedulerecords.ClosingDay, error)
 }
 
 type DateframeRecords interface {

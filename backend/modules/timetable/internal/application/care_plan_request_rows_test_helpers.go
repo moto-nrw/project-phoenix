@@ -58,30 +58,6 @@ func (r CareScheduleRequestRows) FindByID(ctx context.Context, nativeRecordID in
 	return careScheduleRequestFromPublic(value)
 }
 
-func (r CareScheduleRequestRows) GetPendingForStudentAndKind(ctx context.Context, studentID int64, kind string) (*scheduleModels.CareScheduleChangeRequest, error) {
-	values, err := r.list(ctx, ports.CareScheduleRequestFilter{StudentID: studentID, RequestKinds: []string{kind}, Statuses: []string{scheduleModels.CareRequestStatusPending}})
-	if err != nil || len(values) == 0 {
-		return nil, err
-	}
-	return values[0], nil
-}
-
-func (r CareScheduleRequestRows) list(ctx context.Context, filter ports.CareScheduleRequestFilter) ([]*scheduleModels.CareScheduleChangeRequest, error) {
-	values, err := r.rows.Records.ListCareScheduleRequests(ctx, filter)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*scheduleModels.CareScheduleChangeRequest, 0, len(values))
-	for _, value := range values {
-		row, convertErr := careScheduleRequestFromPublic(value)
-		if convertErr != nil {
-			return nil, convertErr
-		}
-		result = append(result, row)
-	}
-	return result, nil
-}
-
 func (r CareScheduleRequestRows) Decide(ctx context.Context, id int64, status string, reason *string, reviewedBy *int64, applied bool) error {
 	return mapCareScheduleRequestError(r.rows.Records.DecideCareScheduleRequest(ctx, ports.CareScheduleRequestDecision{ID: id, Status: status, Reason: reason, ReviewedBy: reviewedBy, Applied: applied}))
 }
