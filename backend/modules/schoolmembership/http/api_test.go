@@ -59,6 +59,9 @@ func (f *fakeMembership) ListStaff(_ context.Context, filter schoolmembership.St
 		if len(wanted) > 0 && !wanted[staff.ID] {
 			continue
 		}
+		if staff.IsDeleted() && !filter.IncludeDeleted {
+			continue
+		}
 		result = append(result, staff)
 	}
 	sortByID(result)

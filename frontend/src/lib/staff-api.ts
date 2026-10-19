@@ -117,6 +117,27 @@ export interface StaffDocumentDirectoryEntry {
   lastName: string;
 }
 
+/**
+ * A former employment at this school, the Ehemalige filter of the staff list
+ * (ADR 0021, #3403). Dates are calendar days ("YYYY-MM-DD"): the days the
+ * person was entered in moto and left.
+ */
+export interface FormerStaff {
+  id: string;
+  firstName: string;
+  lastName: string;
+  startedOn: string;
+  endedOn: string;
+}
+
+export interface BackendFormerStaff {
+  id: number;
+  first_name: string;
+  last_name: string;
+  started_on: string;
+  ended_on: string;
+}
+
 /** Active group with supervisors and room info */
 interface ActiveGroupInfo {
   supervisors?: Array<{
@@ -396,6 +417,18 @@ class StaffService {
     }
     return ((await response.json()) as { data: StaffDocumentDirectoryEntry[] })
       .data;
+  }
+
+  // Former employments of this school, for the Ehemalige filter (#3403).
+  async getFormerStaff(): Promise<FormerStaff[]> {
+    const response = await sessionFetch("/api/staff/former");
+    if (!response.ok) {
+      throw await apiErrorFromResponse(
+        response,
+        `Failed to fetch former staff: ${response.statusText}`,
+      );
+    }
+    return ((await response.json()) as { data: FormerStaff[] }).data;
   }
 
   // Get all staff members with their current supervision status.

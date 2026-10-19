@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"testing"
+	"time"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
@@ -33,6 +34,12 @@ type staffCompositionContext struct {
 	// createAccountGuest records a guest profile for a staff member with a
 	// moto account. It returns the staff ID.
 	createAccountGuest func(firstName, lastName string) int64
+	// retire marks a staff membership as left on the given day, the state
+	// the staff offboarding leaves behind.
+	retire func(staffID int64, leftAt time.Time)
+	// countQueries counts the statements of requests marked with the
+	// returned counter's Context; parallel tests share the database.
+	countQueries func() *testpkg.QueryCounter
 }
 
 func setupStaffCompositionRoute(t *testing.T) *staffCompositionContext {
@@ -64,6 +71,12 @@ func setupStaffCompositionRoute(t *testing.T) *staffCompositionContext {
 			require.NoError(t, err)
 			return staff.ID
 		},
+		retire: func(staffID int64, leftAt time.Time) {
+			_, err := db.NewRaw(`UPDATE users.staff_school_memberships SET deleted_at = ? WHERE id = ?`, leftAt, staffID).
+				Exec(context.Background())
+			require.NoError(t, err)
+		},
+		countQueries: func() *testpkg.QueryCounter { return testpkg.CaptureQueriesForContext(t, db) },
 	}
 }
 
