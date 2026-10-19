@@ -52,22 +52,30 @@ func (s *service) ParentAppointmentICS(ctx context.Context, accountID, appointme
 		return "", "", err
 	}
 	var filename, content string
-	err = s.withinParentTenants(ctx, children, func(txCtx context.Context, _ int64, tenantChildren []*ports.ChildSummary) (bool, error) {
-		// A soft-deleted appointment is downloadable only as a feed tombstone.
-		appointment, _, err := s.parentVisibleAppointment(txCtx, appointmentID, tenantChildren)
-		if err != nil || appointment == nil {
-			return false, err
+	for tenantID, tenantChildren := range groupChildrenByTenant(children) {
+		if err := s.cfg.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+			var err error
+			filename, content, err = s.parentTenantAppointmentICS(txCtx, appointmentID, tenantChildren)
+			return err
+		}); err != nil {
+			return "", "", err
 		}
-		filename, content, err = s.renderAppointmentICS(txCtx, appointment)
-		return content != "", err
-	})
-	if err != nil {
-		return "", "", err
-	}
-	if content != "" {
-		return filename, content, nil
+		if content != "" {
+			return filename, content, nil
+		}
 	}
 	return "", "", ErrNotFound
+}
+
+// parentTenantAppointmentICS renders the appointment inside one tenant when it
+// is addressed to the parent there; otherwise it returns empty content.
+func (s *service) parentTenantAppointmentICS(ctx context.Context, appointmentID int64, tenantChildren []*ports.ChildSummary) (string, string, error) {
+	// A soft-deleted appointment is downloadable only as a feed tombstone.
+	appointment, _, err := s.parentVisibleAppointment(ctx, appointmentID, tenantChildren)
+	if err != nil || appointment == nil {
+		return "", "", err
+	}
+	return s.renderAppointmentICS(ctx, appointment)
 }
 
 func (s *service) renderAppointmentICS(ctx context.Context, appointment *appointmentcap.Appointment) (string, string, error) {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
 )
 
 func (s *service) RespondToStaffInvitation(ctx context.Context, recipientID int64, status string) error {
@@ -40,80 +39,6 @@ func (s *service) RespondToStaffInvitation(ctx context.Context, recipientID int6
 		return fmt.Errorf("%w: appointment is cancelled", ErrInvalidRequest)
 	}
 	return s.cfg.Appointments.UpdateAppointmentRecipientResponse(ctx, recipientID, status)
-}
-
-func (s *service) RespondToParentInvitation(ctx context.Context, accountID, recipientID int64, status string) error {
-	if accountID <= 0 {
-		return fmt.Errorf("%w: account id is required", ErrForbidden)
-	}
-	if status != appointmentcap.ResponseStatusAccepted && status != appointmentcap.ResponseStatusDeclined {
-		return fmt.Errorf("%w: response status must be accepted or declined", ErrInvalidRequest)
-	}
-
-	children, err := s.parentChildren(ctx, accountID)
-	if err != nil {
-		return err
-	}
-	// recipientID is globally unique (calendar.appointment_recipients.id is a
-	// BIGSERIAL PRIMARY KEY, not per-tenant), so it exists in exactly one
-	// tenant. Scanning the parent's tenants is safe: RLS inside each
-	// WithTenantTx returns the row only in its owning tenant, and allowedProfiles
-	// then confirms it belongs to THIS parent there. There is no cross-tenant ID
-	// collision — a foreign recipient id simply resolves to nil or fails the
-	// allowedProfiles check.
-	var updated bool
-	err = s.withinParentTenants(ctx, children, func(txCtx context.Context, _ int64, tenantChildren []*ports.ChildSummary) (bool, error) {
-		var err error
-		updated, err = s.respondAsGuardianInTenant(txCtx, recipientID, status, tenantChildren)
-		return updated, err
-	})
-	if err != nil {
-		return err
-	}
-	if updated {
-		return nil
-	}
-	return ErrNotFound
-}
-
-// respondAsGuardianInTenant records the RSVP when the recipient belongs to one
-// of the tenant's guardian profiles through a visible child. It reports false
-// (and no error) when the recipient is not this parent's in the tenant.
-func (s *service) respondAsGuardianInTenant(ctx context.Context, recipientID int64, status string, tenantChildren []*ports.ChildSummary) (bool, error) {
-	allowedProfiles := int64Set(distinctGuardianProfileIDs(tenantChildren))
-	allowedStudentIDs := int64Set(distinctChildStudentIDs(tenantChildren))
-	recipient, err := s.cfg.Appointments.FindAppointmentRecipient(ctx, recipientID)
-	if err != nil {
-		return false, err
-	}
-	if recipient == nil || recipient.GuardianProfileID == nil {
-		return false, nil
-	}
-	if _, ok := allowedProfiles[*recipient.GuardianProfileID]; !ok {
-		return false, nil
-	}
-	visible, err := s.recipientHasVisibleStudent(ctx, recipient.ID, allowedStudentIDs)
-	if err != nil || !visible {
-		return false, err
-	}
-	if recipient.Status == appointmentcap.ResponseStatusInfo {
-		return false, fmt.Errorf("%w: informational appointments cannot be answered", ErrInvalidRequest)
-	}
-	appointment, err := s.findAppointment(ctx, recipient.AppointmentID)
-	if err != nil {
-		return false, err
-	}
-	// A soft-deleted appointment is unanswerable — treat as not found.
-	if appointment == nil || appointment.DeletedAt != nil {
-		return false, nil
-	}
-	if appointment.CancelledAt != nil {
-		return false, fmt.Errorf("%w: appointment is cancelled", ErrInvalidRequest)
-	}
-	if err := s.cfg.Appointments.UpdateAppointmentRecipientResponse(ctx, recipientID, status); err != nil {
-		return false, err
-	}
-	return true, nil
 }
 
 func staffRecipientStatus(recipients []*appointmentcap.AppointmentRecipient, staffID int64) (*string, *int64) {

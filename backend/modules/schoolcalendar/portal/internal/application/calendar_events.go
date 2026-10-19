@@ -6,7 +6,6 @@ import (
 	"sort"
 
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
 )
 
 func (s *service) ListMyStaffEvents(ctx context.Context, from, to appointmentcap.Date) ([]Event, error) {
@@ -39,61 +38,6 @@ func (s *service) ListMyStaffEvents(ctx context.Context, from, to appointmentcap
 	events = append(events, shiftEvents...)
 	sortEvents(events)
 	return events, nil
-}
-
-func (s *service) ListMyParentEvents(ctx context.Context, accountID int64, from, to appointmentcap.Date) ([]Event, error) {
-	if accountID <= 0 {
-		return nil, fmt.Errorf("%w: account id is required", ErrForbidden)
-	}
-	if err := validateWindow(from, to); err != nil {
-		return nil, err
-	}
-
-	children, err := s.parentChildren(ctx, accountID)
-	if err != nil {
-		return nil, err
-	}
-	events := []Event{}
-	if err := s.withinParentTenants(ctx, children, func(txCtx context.Context, tenantID int64, tenantChildren []*ports.ChildSummary) (bool, error) {
-		tenantEvents, err := s.parentTenantEvents(txCtx, tenantID, tenantChildren, from, to)
-		if err != nil {
-			return false, err
-		}
-		events = append(events, tenantEvents...)
-		return false, nil
-	}); err != nil {
-		return nil, err
-	}
-	sortEvents(events)
-	return events, nil
-}
-
-// parentTenantEvents lists the appointment events of one tenant that are
-// addressed to the parent through the tenant's children, labelled with the
-// tenant and school.
-func (s *service) parentTenantEvents(ctx context.Context, tenantID int64, tenantChildren []*ports.ChildSummary, from, to appointmentcap.Date) ([]Event, error) {
-	guardianProfileIDs := distinctGuardianProfileIDs(tenantChildren)
-	studentIDs := distinctChildStudentIDs(tenantChildren)
-	appointments, err := s.listAppointmentsVisibleToGuardians(ctx, guardianProfileIDs, studentIDs, toCalendarDate(from), toCalendarDate(to))
-	if err != nil {
-		return nil, err
-	}
-	appointmentEvents, err := s.expandGuardianAppointmentEvents(ctx, appointments, guardianProfileIDs, studentIDs, from, to)
-	if err != nil {
-		return nil, err
-	}
-	schoolName := ""
-	tenantIDString := formatID(tenantID)
-	if len(tenantChildren) > 0 {
-		schoolName = tenantChildren[0].SchoolName
-	}
-	for i := range appointmentEvents {
-		appointmentEvents[i].TenantID = &tenantIDString
-		if schoolName != "" {
-			appointmentEvents[i].SchoolName = &schoolName
-		}
-	}
-	return appointmentEvents, nil
 }
 
 func validateWindow(from, to appointmentcap.Date) error {
