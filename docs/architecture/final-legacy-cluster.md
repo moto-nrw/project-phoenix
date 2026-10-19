@@ -720,4 +720,3 @@ Reconstructed from immutable development d8708d82c7c8e18774acc3ee800014649560d66
 | `modules/facilities/compose/legacy` | `root-composition` / `api` | production | `ActivityGroupName`, `HistoryProjection`, `NewAttendanceRooms`, `OccupancyProjection`, `OpenGroupCatalog`, `RoomOccupancyFact`, `RoomSessionFact`, `SettingHandlers` |
 | `modules/timetable/compose/httpadapter` | `root-composition` / `api` | production | `NewResource`, `NewSchedulesResource`, `TimeframeChangeGuard` |
 | `services/parentmessaging` | `care-plan` / `modules/careplan/contracttest` | external_test | `ChildEvent`, `Emitter`, `NewEmitterWithDecisions`, `PortalGuardian`, `TenantSettingsResolver` |
-
