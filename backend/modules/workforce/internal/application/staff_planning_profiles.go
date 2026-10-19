@@ -7,24 +7,23 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 )
 
-func (s *Service) StaffPlanningProfiles(ctx context.Context, staffIDs []int64, from, to string) (result []domain.StaffPlanningProfile, err error) {
-	if err = domain.ValidateDate(from, "from"); err != nil {
-		return nil, err
+// StaffPlanningProfiles owns validation, the RLS unit, observation and public
+// mapping together. The engine exposes this complete query by embedding it.
+func (s *Service) StaffPlanningProfiles(ctx context.Context, staffIDs []int64, from, to string) ([]workforce.StaffPlanningProfile, error) {
+	if err := domain.ValidateDate(from, "from"); err != nil {
+		return nil, MapError(err)
 	}
-	if err = domain.ValidateDate(to, "to"); err != nil {
-		return nil, err
+	if err := domain.ValidateDate(to, "to"); err != nil {
+		return nil, MapError(err)
 	}
-	err = s.run(ctx, "staff_planning_profiles", func(ctx context.Context, stats *domain.OperationStats) error {
+	var values []domain.StaffPlanningProfile
+	err := s.run(ctx, "staff_planning_profiles", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
-		result, queryStats, err = s.store.StaffPlanningProfiles(ctx, staffIDs, from, to)
+		var queryErr error
+		values, queryStats, queryErr = s.store.StaffPlanningProfiles(ctx, staffIDs, from, to)
 		stats.Add(queryStats)
-		return err
+		return queryErr
 	})
-	return result, err
-}
-
-func (e Engine) StaffPlanningProfiles(ctx context.Context, staffIDs []int64, from, to string) ([]workforce.StaffPlanningProfile, error) {
-	values, err := e.service.StaffPlanningProfiles(ctx, staffIDs, from, to)
 	if err != nil {
 		return nil, MapError(err)
 	}
