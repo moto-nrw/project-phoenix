@@ -194,7 +194,7 @@ func observePeopleDirectory(observation peopleCompose.Observation) {
 
 // buildServeMealPlan composes the Meal Plan over its settings and the
 // participants of the day.
-func buildServeMealPlan(db transactionruntime.Database, settings *mealplanCompose.Settings, students StudentRootReads, calendarRecords *schoolcalendar.Records) (*mealplanModule.Module, error) {
+func buildServeMealPlan(db transactionruntime.Database, settings *mealplanCompose.Settings, students StudentRootReads, names studentNames, calendarRecords *schoolcalendar.Records) (*mealplanModule.Module, error) {
 	if calendarRecords == nil {
 		return nil, errors.New("meal plan: the school calendar is required")
 	}
@@ -206,8 +206,30 @@ func buildServeMealPlan(db transactionruntime.Database, settings *mealplanCompos
 		},
 		Now:          time.Now,
 		Participants: mealPlanParticipantFinder(students, time.Now),
+		StudentNames: mealPlanStudentNames(names),
 		Calendar:     mealPlanCalendar(calendarRecords),
 	})
+}
+
+// studentNames is the People Directory's lookup of children by ID.
+type studentNames interface {
+	ListStudentNamesByID(context.Context, []int64) ([]peopledirectory.StudentName, error)
+}
+
+// mealPlanStudentNames names the children of past orders (#3873); their
+// class comes from the order itself.
+func mealPlanStudentNames(names studentNames) mealplanCompose.StudentNameFinder {
+	return func(ctx context.Context, ids []int64) ([]mealplanCompose.ParticipantCandidate, error) {
+		rows, err := names.ListStudentNamesByID(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		result := make([]mealplanCompose.ParticipantCandidate, 0, len(rows))
+		for _, row := range rows {
+			result = append(result, mealplanCompose.ParticipantCandidate{StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName})
+		}
+		return result, nil
+	}
 }
 
 // mealPlanCalendar binds the School Calendar for the Meal Plan: closing days

@@ -35,6 +35,9 @@ type ParticipantCandidate struct {
 
 type ParticipantFinder func(context.Context, string) ([]ParticipantCandidate, error)
 
+// StudentNameFinder names children by ID, enrolled or not, for past orders.
+type StudentNameFinder func(context.Context, []int64) ([]ParticipantCandidate, error)
+
 // CalendarFinder reads the school calendar for the inclusive window
 // [from, to]: the closed days (closing days, public holidays) and the days of
 // school holiday periods, both as YYYY-MM-DD sets.
@@ -50,11 +53,12 @@ type Dependencies struct {
 	Observe      func(Observation)
 	Now          func() time.Time
 	Participants ParticipantFinder
+	StudentNames StudentNameFinder
 	Calendar     CalendarFinder
 }
 
 func New(dependencies Dependencies) (*mealplan.Module, error) {
-	if dependencies.DB == nil || dependencies.Settings == nil || dependencies.Observe == nil || dependencies.Now == nil || dependencies.Participants == nil || dependencies.Calendar == nil {
+	if dependencies.DB == nil || dependencies.Settings == nil || dependencies.Observe == nil || dependencies.Now == nil || dependencies.Participants == nil || dependencies.StudentNames == nil || dependencies.Calendar == nil {
 		return nil, errors.New("meal plan compose: all dependencies are required")
 	}
 	store := postgres.New(func(ctx context.Context) (bun.IDB, int64, error) {
@@ -72,11 +76,24 @@ func New(dependencies Dependencies) (*mealplan.Module, error) {
 		}
 		return tx, tenantID.Int64(), nil
 	})
-	service := application.New(store, participantDirectory{find: dependencies.Participants}, schoolCalendar{find: dependencies.Calendar}, dependencies.Settings, TransactionFunc(tenant.NewTransactionRunner().RunInTx), dependencies.Observe, dependencies.Now)
+	service := application.New(store, participantDirectory{find: dependencies.Participants, names: dependencies.StudentNames}, schoolCalendar{find: dependencies.Calendar}, dependencies.Settings, TransactionFunc(tenant.NewTransactionRunner().RunInTx), dependencies.Observe, dependencies.Now)
 	return mealplan.NewModule(engine{service: service}), nil
 }
 
-type participantDirectory struct{ find ParticipantFinder }
+type participantDirectory struct {
+	find  ParticipantFinder
+	names StudentNameFinder
+}
+
+func (d participantDirectory) FindStudentNames(ctx context.Context, ids []int64) (map[int64]domain.DailyCandidate, domain.OperationStats, error) {
+	started := time.Now()
+	rows, err := d.names(ctx, ids)
+	names := make(map[int64]domain.DailyCandidate, len(rows))
+	for _, row := range rows {
+		names[row.StudentID] = domain.DailyCandidate(row)
+	}
+	return names, domain.OperationStats{Queries: 1, Rows: int64(len(rows)), StatementDuration: time.Since(started)}, err
+}
 
 func (d participantDirectory) FindDailyCandidates(ctx context.Context, date domain.Date) ([]domain.DailyCandidate, domain.OperationStats, error) {
 	started := time.Now()
@@ -252,6 +269,42 @@ func (e engine) DailyParticipants(ctx context.Context, date string) (mealplan.Da
 		result.Others = append(result.Others, mealplan.DailyParticipant(other))
 	}
 	return result, nil
+}
+
+func (e engine) Orders(ctx context.Context, from, to string) (mealplan.OrderWeek, error) {
+	view, err := e.service.Orders(ctx, domain.Date(from), domain.Date(to))
+	if err != nil {
+		return mealplan.OrderWeek{}, mapError(err)
+	}
+	week := mealplan.OrderWeek{Rhythm: string(view.Rules.Rhythm), Detail: string(view.Rules.Detail), Days: make([]mealplan.OrderDay, 0, len(view.Days))}
+	for _, day := range view.Days {
+		week.Days = append(week.Days, publicOrderDay(day, view.Names))
+	}
+	return week, nil
+}
+
+func publicOrderDay(day domain.OrderDay, names map[int64]domain.DailyCandidate) mealplan.OrderDay {
+	child := func(studentID int64, schoolClass string) mealplan.OrderChild {
+		name := names[studentID]
+		return mealplan.OrderChild{StudentID: studentID, FirstName: name.FirstName, LastName: name.LastName, SchoolClass: schoolClass}
+	}
+	result := mealplan.OrderDay{Date: mealplan.Date(day.Date.String()), Closed: day.Closed, Deadline: day.Deadline, Status: mealplan.OrderOpen, Total: len(day.Children)}
+	if day.Order != nil {
+		result.Status, result.OrderID, result.ConfirmedAt = mealplan.OrderOrdered, day.Order.ID, day.Order.ConfirmedAt
+		if day.Order.ConfirmedAt != nil {
+			result.Status = mealplan.OrderConfirmed
+		}
+	}
+	for _, count := range domain.CountByClass(day.Children) {
+		result.Classes = append(result.Classes, mealplan.ClassCount(count))
+	}
+	for _, eating := range day.Eating {
+		result.Children = append(result.Children, mealplan.OrderChild(eating))
+	}
+	for _, change := range day.Changes {
+		result.Changes = append(result.Changes, mealplan.OrderChange{Sequence: change.Sequence, Date: result.Date, Child: child(change.StudentID, change.SchoolClass), Delta: change.Delta, DetectedAt: change.DetectedAt})
+	}
+	return result
 }
 
 func publicParticipationPlan(plan domain.ParticipationPlan) mealplan.ParticipationPlan {

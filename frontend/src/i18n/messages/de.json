@@ -266,6 +266,26 @@
     "cancelWeekLocked": "Diese Tage waren schon bestellt und bleiben angemeldet: {days}.",
     "errorObjectWeekCancel": "die Abmeldung für die Woche"
   },
+  "mealOrders": {
+    "title": "Bestellung",
+    "description": "Was zur Frist bestellt ist und was sich danach geändert hat. Namen stehen in der Tagesliste.",
+    "day": "Tag",
+    "status": "Stand",
+    "meals": "Essen",
+    "byClass": "Je Klasse",
+    "changes": "Nachmeldungen",
+    "closed": "OGS geschlossen",
+    "openUntil": "Offen bis {date}",
+    "ordered": "Bestellt",
+    "confirmed": "Vom Caterer bestätigt",
+    "caption": "Bestellung dieser Woche",
+    "monthGroup": "Monatsübersicht herunterladen",
+    "monthPdf": "Monat als PDF",
+    "monthExcel": "Monat als Excel",
+    "downloadLoading": "Wird erstellt…",
+    "errorObject": "die Bestellung",
+    "errorObjectMonth": "die Monatsübersicht"
+  },
   "mealParticipantList": {
     "title": "Tagesliste für die Küche",
     "description": "Die Liste zeigt alle Kinder, die an diesem Tag zum Mittagessen angemeldet sind.",

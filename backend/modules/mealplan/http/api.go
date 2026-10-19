@@ -32,12 +32,13 @@ type ExportFile struct {
 }
 
 type Runtime struct {
-	Protected       func(chi.Router, func(chi.Router, Middleware))
-	Permission      func(Access) Middleware
-	Success         func(http.ResponseWriter, *http.Request, int, any, string)
-	InvalidRequest  func(http.ResponseWriter, *http.Request, error)
-	ModuleFailure   func(http.ResponseWriter, *http.Request, error, string)
-	ExportDailyList func(mealplanModule.DailyList, string) (ExportFile, error)
+	Protected      func(chi.Router, func(chi.Router, Middleware))
+	Permission     func(Access) Middleware
+	Success        func(http.ResponseWriter, *http.Request, int, any, string)
+	InvalidRequest func(http.ResponseWriter, *http.Request, error)
+	ModuleFailure  func(http.ResponseWriter, *http.Request, error, string)
+	// RenderList renders a list export as PDF or XLSX.
+	RenderList func(mealplanModule.ListExport, string) (ExportFile, error)
 	// CurrentAccountID is the staff account of the request, recorded on a
 	// school's change.
 	CurrentAccountID func(context.Context) int64
@@ -49,7 +50,7 @@ type Resource struct {
 }
 
 func NewResource(module *mealplanModule.Module, runtime Runtime) *Resource {
-	if module == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.Success == nil || runtime.InvalidRequest == nil || runtime.ModuleFailure == nil || runtime.ExportDailyList == nil || runtime.CurrentAccountID == nil {
+	if module == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.Success == nil || runtime.InvalidRequest == nil || runtime.ModuleFailure == nil || runtime.RenderList == nil || runtime.CurrentAccountID == nil {
 		panic("meal plan HTTP: all dependencies are required")
 	}
 	return &Resource{module: module, runtime: runtime}
@@ -64,6 +65,8 @@ func (rs *Resource) Router() chi.Router {
 		protected.With(rs.runtime.Permission(AccessWrite), withTx).Delete("/{date}", rs.deleteDay)
 		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/participants", rs.getParticipants)
 		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/participants/export", rs.exportParticipants)
+		protected.With(rs.runtime.Permission(AccessRead), withTx).Get("/orders", rs.getOrders)
+		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/orders/month/export", rs.exportMonth)
 		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/participation/{studentId}", rs.getChildParticipation)
 		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Put("/participation/{studentId}/days/{date}", rs.setChildDay)
 		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Delete("/participation/{studentId}/days/{date}", rs.clearChildDay)
@@ -204,16 +207,17 @@ func (rs *Resource) exportParticipants(w http.ResponseWriter, r *http.Request) {
 		rs.runtime.InvalidRequest(w, r, fmt.Errorf("unsupported format %q", format))
 		return
 	}
-	file, err := rs.runtime.ExportDailyList(list, format)
+	export, err := list.Export()
 	if err != nil {
 		rs.runtime.ModuleFailure(w, r, err, "failed to export meal participation list")
 		return
 	}
-	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
-	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(file.Data)
+	file, err := rs.runtime.RenderList(export, format)
+	if err != nil {
+		rs.runtime.ModuleFailure(w, r, err, "failed to export meal participation list")
+		return
+	}
+	writeFile(w, file)
 }
 
 func (rs *Resource) dailyList(w http.ResponseWriter, r *http.Request) (mealplanModule.DailyList, bool) {

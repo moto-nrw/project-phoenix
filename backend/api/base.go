@@ -257,18 +257,14 @@ func newMealPlanResource(module *mealplanModule.Module, renderer SimpleListRende
 		ModuleFailure: func(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
 			renderMealPlanFailure(w, r, err, internalMessage)
 		},
-		ExportDailyList: func(list mealplanModule.DailyList, format string) (mealplanAPI.ExportFile, error) {
-			return renderMealParticipationExport(renderer, list, format)
+		RenderList: func(export mealplanModule.ListExport, format string) (mealplanAPI.ExportFile, error) {
+			return renderMealList(renderer, export, format)
 		},
 		CurrentAccountID: func(ctx context.Context) int64 { return int64(sessiontoken.ClaimsFromCtx(ctx).ID) },
 	})
 }
 
-func renderMealParticipationExport(renderer SimpleListRenderer, list mealplanModule.DailyList, format string) (mealplanAPI.ExportFile, error) {
-	export, err := list.Export()
-	if err != nil {
-		return mealplanAPI.ExportFile{}, err
-	}
+func renderMealList(renderer SimpleListRenderer, export mealplanModule.ListExport, format string) (mealplanAPI.ExportFile, error) {
 	columns := make([]SimpleListColumn, 0, len(export.Columns))
 	for _, column := range export.Columns {
 		columns = append(columns, SimpleListColumn{ID: column.ID, Label: column.Label})

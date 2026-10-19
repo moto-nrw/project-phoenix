@@ -22,11 +22,11 @@ func TestDailyListExportLaysOutTheTagesliste(t *testing.T) {
 
 	export, err := list.Export()
 	require.NoError(t, err)
-	assert.Equal(t, mealplan.DailyListExport{
+	assert.Equal(t, mealplan.ListExport{
 		Title:    "Mittagessen – Tagesliste",
 		Subtitle: "Tagesliste für den 19.10.2026",
 		Filters:  []string{"Frist: 16.10.2026, 09:30 Uhr", "2 Kinder"},
-		Columns:  []mealplan.DailyListExportColumn{{ID: "student_name", Label: "Kind"}, {ID: "student_class", Label: "Klasse"}},
+		Columns:  []mealplan.ListExportColumn{{ID: "student_name", Label: "Kind"}, {ID: "student_class", Label: "Klasse"}},
 		Lines:    [][]string{{"Meier, Mia", "2a"}, {"Bauer, Ben", "3b"}},
 		Footer:   "Vertraulich behandeln und nach dem Küchendienst sicher entsorgen.",
 		Filename: "mittagessen-2026-10-19",

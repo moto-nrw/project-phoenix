@@ -15,7 +15,9 @@ fall.
 registration and cancellation deadlines, behaviour of late sick notes), lets
 parents cancel a whole week, and lets the school calendar close days and
 suspend the weekly pattern in the holidays. The school's list of a day also
-names the children who do not eat, so staff can register them late. The parent portal reaches the Meal Plan only
+names the children who do not eat, so staff can register them late. The
+orders of a day or a week are fixed at the deadline and later changes are
+numbered; school, caterer and exports read them through one engine method. The parent portal reaches the Meal Plan only
 through its public module, and the public module reaches the application
 layer only through the engine in `modules/mealplan/compose`. Every new
 operation therefore needs one engine method that parses the dates, calls the
@@ -32,25 +34,30 @@ Before raising anything, the change was cut down:
   more than the two loops it replaces, so it was dropped.
 - The calendar adapter only forwards the window and the timing; the
   conversion of the day sets lives in the domain (`NewCalendarDays`).
+- The orders reach the public module through one engine method. Naming and
+  sorting the children happens in the application layer, so the engine only
+  copies fields; a child is converted as a whole struct.
 
 What remains in this change:
 
 - `modules/mealplan/compose`: the week engine method, the date conversion of
   its result, the new fields of the participation plan and the settings value
-  (27 lines), the school calendar dependency with its adapter (14 lines), and
-  the children of a day who do not eat (3 lines): 44 lines.
+  (27 lines), the school calendar dependency with its adapter (14 lines), the
+  children of a day who do not eat (3 lines), and the orders with their
+  names lookup (53 lines): 97 lines.
 - `workflows/parentportal/compose`: the week binding method and the new fields
   of the participation plan: 25 lines.
 
 ## Decision
 
-1. `moduleComposeBudgets["modules/mealplan/compose"]` rises from 242 to 286.
+1. `moduleComposeBudgets["modules/mealplan/compose"]` rises from 242 to 339.
 2. `moduleComposeBudgets["workflows/parentportal/compose"]` rises from 450 to
    475.
-3. `moduleComposeBudgetTotal` rises by the same 69 lines, from 31,146 to
-   31,215.
-4. `modulePassthroughOwnerBudgets["modules/mealplan"]` falls from 15 to 13 and
-   the total with it: the rule methods replaced two delegations.
+3. `moduleComposeBudgetTotal` rises by the same 122 lines, from 31,146 to
+   31,268.
+4. `modulePassthroughOwnerBudgets["modules/mealplan"]` falls from 15 to 14 and
+   the total with it: the rule methods replaced two delegations, and the
+   engine method of the orders adds one.
 5. The raise covers exactly the methods named above. Every other number keeps
    falling under ADR 0057 point 5.
 

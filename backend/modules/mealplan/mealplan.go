@@ -207,6 +207,7 @@ type engine interface {
 	SetParticipationWeek(context.Context, int64, int64, string, bool) (WeekChange, error)
 	ClearParticipationDay(ctx context.Context, studentID, accountID int64, date string, bySchool bool) error
 	DailyParticipants(context.Context, string) (DailyList, error)
+	Orders(ctx context.Context, from, to string) (OrderWeek, error)
 }
 
 type Module struct{ engine engine }
@@ -378,4 +379,79 @@ func trimOptional(value *string) *string {
 		return nil
 	}
 	return &trimmed
+}
+
+// OrderStatus is where a day's order stands (#3873).
+type OrderStatus string
+
+const (
+	// OrderOpen: the deadline lies ahead; the numbers are a preview.
+	OrderOpen OrderStatus = "open"
+	// OrderOrdered: the order is fixed.
+	OrderOrdered OrderStatus = "ordered"
+	// OrderConfirmed: the caterer confirmed the fixed order.
+	OrderConfirmed OrderStatus = "confirmed"
+)
+
+// OrderFormatVersion is the version of the order as other systems read it.
+const OrderFormatVersion = 1
+
+// OrderChild is a child in an order.
+type OrderChild struct {
+	StudentID   int64
+	FirstName   string
+	LastName    string
+	SchoolClass string
+}
+
+// OrderChange is a change after the deadline, numbered per school: one child
+// more (+1) or less (-1) on a day. It never says why.
+type OrderChange struct {
+	Sequence   int
+	Date       Date
+	Child      OrderChild
+	Delta      int
+	DetectedAt time.Time
+}
+
+// ClassCount is the number of meals of one class.
+type ClassCount struct {
+	SchoolClass string
+	Count       int
+}
+
+// OrderDay is one weekday of the orders. Children are the children who eat
+// with every change applied; an open day shows the registration as it stands.
+type OrderDay struct {
+	Date        Date
+	Closed      bool
+	Deadline    time.Time
+	Status      OrderStatus
+	OrderID     int64
+	ConfirmedAt *time.Time
+	Total       int
+	Classes     []ClassCount
+	Children    []OrderChild
+	Changes     []OrderChange
+}
+
+// OrderWeek is the orders of a window with the school's rhythm and detail.
+type OrderWeek struct {
+	Rhythm string
+	Detail string
+	Days   []OrderDay
+}
+
+// maxOrderWindowDays bounds one read of the orders: a month and a few days.
+const maxOrderWindowDays = 42
+
+// Orders returns the school's orders of [from, to]. Reading fixes every due
+// order and numbers every change since, so all readers see the same state.
+func (m *Module) Orders(ctx context.Context, from, to Date) (OrderWeek, error) {
+	start, startErr := calendar.ParseDate(string(from))
+	end, endErr := calendar.ParseDate(string(to))
+	if startErr != nil || endErr != nil || end.Before(start) || start.DaysUntil(end) > maxOrderWindowDays {
+		return OrderWeek{}, ErrInvalidParticipation
+	}
+	return m.engine.Orders(ctx, start.String(), end.String())
 }

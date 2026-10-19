@@ -289,6 +289,8 @@ GET /api/me/profile/avatar/{filename}
 GET /api/me/staff
 GET /api/me/teacher
 GET /api/meal-plan/
+GET /api/meal-plan/orders
+GET /api/meal-plan/orders/month/export
 GET /api/meal-plan/participants
 GET /api/meal-plan/participants/export
 GET /api/meal-plan/participation/{studentId}

@@ -6,12 +6,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// DailyListExport is the kitchen's Tagesliste as an export renders it.
-type DailyListExport struct {
+// ListExport is a list of the meal plan as an export renders it: the
+// kitchen's Tagesliste or the monthly overview per child.
+type ListExport struct {
 	Title    string
 	Subtitle string
 	Filters  []string
-	Columns  []DailyListExportColumn
+	Columns  []ListExportColumn
 	// Lines hold one value per column: the child as "Last, First" and its
 	// class.
 	Lines [][]string
@@ -21,27 +22,27 @@ type DailyListExport struct {
 	Filename string
 }
 
-// DailyListExportColumn is one column of the Tagesliste.
-type DailyListExportColumn struct {
+// ListExportColumn is one column of a list export.
+type ListExportColumn struct {
 	ID    string
 	Label string
 }
 
 // Export lays out the Tagesliste of the day.
-func (l DailyList) Export() (DailyListExport, error) {
+func (l DailyList) Export() (ListExport, error) {
 	date, err := l.Date.German()
 	if err != nil {
-		return DailyListExport{}, err
+		return ListExport{}, err
 	}
 	lines := make([][]string, 0, len(l.Participants))
 	for _, participant := range l.Participants {
 		lines = append(lines, []string{participant.LastName + ", " + participant.FirstName, participant.SchoolClass})
 	}
-	return DailyListExport{
+	return ListExport{
 		Title:    "Mittagessen – Tagesliste",
 		Subtitle: "Tagesliste für den " + date,
 		Filters:  []string{"Frist: " + l.Deadline.In(calendar.Berlin).Format("02.01.2006, 15:04") + " Uhr", fmt.Sprintf("%d Kinder", len(lines))},
-		Columns:  []DailyListExportColumn{{ID: "student_name", Label: "Kind"}, {ID: "student_class", Label: "Klasse"}},
+		Columns:  []ListExportColumn{{ID: "student_name", Label: "Kind"}, {ID: "student_class", Label: "Klasse"}},
 		Lines:    lines,
 		Footer:   "Vertraulich behandeln und nach dem Küchendienst sicher entsorgen.",
 		Filename: "mittagessen-" + string(l.Date),

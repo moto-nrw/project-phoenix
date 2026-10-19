@@ -266,6 +266,26 @@
     "cancelWeekLocked": "These days were already ordered and stay registered: {days}.",
     "errorObjectWeekCancel": "the cancellation for the week"
   },
+  "mealOrders": {
+    "title": "Order",
+    "description": "What was ordered at the deadline and what changed afterwards. Names are in the day list.",
+    "day": "Day",
+    "status": "Status",
+    "meals": "Meals",
+    "byClass": "By class",
+    "changes": "Late changes",
+    "closed": "OGS closed",
+    "openUntil": "Open until {date}",
+    "ordered": "Ordered",
+    "confirmed": "Confirmed by the caterer",
+    "caption": "Order of this week",
+    "monthGroup": "Download monthly overview",
+    "monthPdf": "Month as PDF",
+    "monthExcel": "Month as Excel",
+    "downloadLoading": "Creating…",
+    "errorObject": "the order",
+    "errorObjectMonth": "the monthly overview"
+  },
   "mealParticipantList": {
     "title": "Daily list for the kitchen",
     "description": "The list shows all children registered for lunch on this day.",

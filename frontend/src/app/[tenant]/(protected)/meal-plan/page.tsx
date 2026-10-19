@@ -47,6 +47,7 @@ import { useNavigationGuard } from "~/lib/hooks/use-navigation-guard";
 import { useMealRegistrationEnabled } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { MealParticipantList } from "~/components/meal-plan/meal-participant-list";
+import { MealOrderWeek } from "~/components/meal-plan/meal-order-week";
 
 const logger = createLogger({ component: "MealPlanPage" });
 
@@ -146,6 +147,11 @@ export default function MealPlanPage() {
   // admin-OR-permission gate.
   const canEdit = isAdmin(session) || hasPermission(session, "meals:manage");
   const mealRegistrationEnabled = useMealRegistrationEnabled();
+  // Die Bestellung der Woche braucht nur die Zahlen (#3873).
+  const canReadOrders =
+    status === "authenticated" &&
+    mealRegistrationEnabled &&
+    (isAdmin(session) || hasPermission(session, "meals:read"));
   const canReadParticipants =
     status === "authenticated" &&
     mealRegistrationEnabled &&
@@ -786,6 +792,13 @@ export default function MealPlanPage() {
           })}
         </div>
       </SectionCard>
+
+      {canReadOrders ? (
+        <MealOrderWeek
+          mondayISO={mondayISO}
+          canExportMonth={canReadParticipants}
+        />
+      ) : null}
 
       {canReadParticipants ? <MealParticipantList /> : null}
 

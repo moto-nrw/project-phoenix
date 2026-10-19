@@ -219,6 +219,8 @@ var queryBudgets = map[string]queryBudget{
 	// Every read is a bulk load by ID set; the count must not move with the
 	// roster.
 	"modules.classday.slot_list.build": {max: 16},
+	// modules/mealplan — a week of orders reads each weekday in bulk (#3873).
+	"modules.mealplan.orders.read_week": {max: 28},
 	// modules/timetable — group and target lookups stay one bulk query as IDs grow.
 	"modules.timetable.groups.list":              {max: 1, exact: true},
 	"modules.timetable.group_targets.list":       {max: 1, exact: true},

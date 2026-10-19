@@ -314,7 +314,7 @@ func composeWorkerRoot(db transactionruntime.Database, env RootEnvironment, hub 
 		func() error { operatorAuditLog = NewOperatorAuditLog(db); return nil },
 		func() (err error) { mealPlanSettings, err = buildMealPlanSettings(settings.Service); return },
 		func() (err error) {
-			mealPlan, err = buildServeMealPlan(db, mealPlanSettings, NewStudentRootReads(people.Students), calendar)
+			mealPlan, err = buildServeMealPlan(db, mealPlanSettings, NewStudentRootReads(people.Students), persons, calendar)
 			return
 		},
 		func() (err error) { feedbackSettings, err = buildFeedbackSettings(settings.Service); return },

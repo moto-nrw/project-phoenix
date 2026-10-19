@@ -260,3 +260,100 @@ export function workWeekDates(mondayISO: string): string[] {
     return toISODate(d);
   });
 }
+
+/** Where a day's order stands (#3873). */
+export type MealOrderStatus = "open" | "ordered" | "confirmed";
+
+export interface MealOrderDay {
+  date: string;
+  closed: boolean;
+  // RFC 3339 instant: the deadline of the day or of its order.
+  deadline: string;
+  status: MealOrderStatus;
+  confirmedAt: string | null;
+  total: number;
+  classes: { schoolClass: string; count: number }[];
+  changes: { sequence: number; schoolClass: string; delta: number }[];
+}
+
+export interface MealOrders {
+  rhythm: "daily" | "weekly";
+  detail: "total" | "by_class";
+  days: MealOrderDay[];
+}
+
+/** The school's orders of [from, to]; reading fixes every due order. */
+export async function getMealOrders(
+  from: string,
+  to: string,
+): Promise<MealOrders> {
+  const response = await sessionFetch(
+    `/api/meal-plan/orders?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    { credentials: "include" },
+  );
+  if (!response.ok) {
+    throw await apiErrorFromResponse(response, "meal orders load failed");
+  }
+  const json = (await response.json()) as {
+    data?: {
+      rhythm: "daily" | "weekly";
+      detail: "total" | "by_class";
+      days: Array<{
+        date: string;
+        closed: boolean;
+        deadline: string;
+        status: MealOrderStatus;
+        confirmed_at?: string;
+        total: number;
+        classes: { school_class: string; count: number }[];
+        changes: { sequence: number; school_class: string; delta: number }[];
+      }>;
+    };
+  };
+  const data = json.data;
+  if (!data) throw new Error("Meal orders response is missing data");
+  return {
+    rhythm: data.rhythm,
+    detail: data.detail,
+    days: data.days.map((day) => ({
+      date: day.date,
+      closed: day.closed,
+      deadline: day.deadline,
+      status: day.status,
+      confirmedAt: day.confirmed_at ?? null,
+      total: day.total,
+      classes: day.classes.map((count) => ({
+        schoolClass: count.school_class,
+        count: count.count,
+      })),
+      changes: day.changes.map((change) => ({
+        sequence: change.sequence,
+        schoolClass: change.school_class,
+        delta: change.delta,
+      })),
+    })),
+  };
+}
+
+/** Downloads the ordered meals per child of a month ("YYYY-MM"). */
+export async function downloadMealMonth(
+  month: string,
+  format: "pdf" | "xlsx",
+): Promise<void> {
+  const response = await sessionFetch(
+    `/api/meal-plan/orders/month/export?month=${encodeURIComponent(month)}&format=${format}`,
+    { credentials: "include" },
+  );
+  if (!response.ok) {
+    throw await apiErrorFromResponse(response, "meal month export failed");
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `mittagessen-${month}.${format}`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}

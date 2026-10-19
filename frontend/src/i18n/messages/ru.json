@@ -266,6 +266,26 @@
     "cancelWeekLocked": "Эти дни уже заказаны и остаются в записи: {days}.",
     "errorObjectWeekCancel": "отмену на неделю"
   },
+  "mealOrders": {
+    "title": "Заказ",
+    "description": "Что заказано к сроку и что изменилось после. Имена — в списке дня.",
+    "day": "День",
+    "status": "Статус",
+    "meals": "Обеды",
+    "byClass": "По классам",
+    "changes": "Изменения после срока",
+    "closed": "Продлёнка закрыта",
+    "openUntil": "Открыто до {date}",
+    "ordered": "Заказано",
+    "confirmed": "Подтверждено поставщиком",
+    "caption": "Заказ на эту неделю",
+    "monthGroup": "Скачать обзор за месяц",
+    "monthPdf": "Месяц в PDF",
+    "monthExcel": "Месяц в Excel",
+    "downloadLoading": "Создаётся…",
+    "errorObject": "заказ",
+    "errorObjectMonth": "обзор за месяц"
+  },
   "mealParticipantList": {
     "title": "Список на день для кухни",
     "description": "В списке указаны все дети, записанные на обед в этот день.",

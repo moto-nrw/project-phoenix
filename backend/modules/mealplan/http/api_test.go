@@ -62,7 +62,7 @@ func TestStaffRoutesKeepProtectedPermissionBoundaries(t *testing.T) {
 		Success:        routetest.RespondSuccess,
 		InvalidRequest: routetest.RespondInvalidRequest,
 		ModuleFailure:  routetest.ErrorResponder(resolveModuleFailure),
-		ExportDailyList: func(mealplanModule.DailyList, string) (mealplanHTTP.ExportFile, error) {
+		RenderList: func(mealplanModule.ListExport, string) (mealplanHTTP.ExportFile, error) {
 			return mealplanHTTP.ExportFile{}, nil
 		},
 		CurrentAccountID: func(context.Context) int64 { return 9 },
@@ -75,6 +75,7 @@ func TestStaffRoutesKeepProtectedPermissionBoundaries(t *testing.T) {
 	// #3873: the school's changes need the permission of the lists with
 	// names, like the lists themselves.
 	want := []mealplanHTTP.Access{mealplanHTTP.AccessRead, mealplanHTTP.AccessWrite, mealplanHTTP.AccessWrite, mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipants,
+		mealplanHTTP.AccessRead, mealplanHTTP.AccessParticipants,
 		mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipants}
 	if !reflect.DeepEqual(accesses, want) {
 		t.Fatalf("permission boundaries = %v, want %v", accesses, want)
@@ -132,7 +133,7 @@ func resource(available bool) *mealplanHTTP.Resource {
 		Success:        routetest.RespondSuccess,
 		InvalidRequest: routetest.RespondInvalidRequest,
 		ModuleFailure:  routetest.ErrorResponder(resolveModuleFailure),
-		ExportDailyList: func(mealplanModule.DailyList, string) (mealplanHTTP.ExportFile, error) {
+		RenderList: func(mealplanModule.ListExport, string) (mealplanHTTP.ExportFile, error) {
 			return mealplanHTTP.ExportFile{}, nil
 		},
 		CurrentAccountID: func(context.Context) int64 { return 9 },
@@ -219,7 +220,7 @@ func TestStaffDayChangeIsTheSchools(t *testing.T) {
 		Permission: func(mealplanHTTP.Access) mealplanHTTP.Middleware { return routetest.IdentityMiddleware },
 		Success:    routetest.RespondSuccess, InvalidRequest: routetest.RespondInvalidRequest,
 		ModuleFailure: routetest.ErrorResponder(resolveModuleFailure),
-		ExportDailyList: func(mealplanModule.DailyList, string) (mealplanHTTP.ExportFile, error) {
+		RenderList: func(mealplanModule.ListExport, string) (mealplanHTTP.ExportFile, error) {
 			return mealplanHTTP.ExportFile{}, nil
 		},
 		CurrentAccountID: func(context.Context) int64 { return 9 },
@@ -235,4 +236,38 @@ func TestStaffDayChangeIsTheSchools(t *testing.T) {
 	assert.Equal(t, 400, missing.Code)
 	badStudent := routetest.ExecuteRequest(router, routetest.NewRequest("PUT", "/participation/abc/days/2026-09-10", strings.NewReader(`{"participating":true}`)))
 	assert.Equal(t, 400, badStudent.Code)
+}
+
+func (e engine) Orders(_ context.Context, from, _ string) (mealplanModule.OrderWeek, error) {
+	confirmed := time.Date(2026, 9, 7, 9, 30, 0, 0, time.UTC)
+	return mealplanModule.OrderWeek{Rhythm: "daily", Detail: "by_class", Days: []mealplanModule.OrderDay{{
+		Date: mealplanModule.Date(from), Deadline: time.Date(2026, 9, 7, 7, 0, 0, 0, time.UTC), Status: mealplanModule.OrderConfirmed, OrderID: 12, ConfirmedAt: &confirmed, Total: 1,
+		Classes:  []mealplanModule.ClassCount{{SchoolClass: "2a", Count: 1}},
+		Children: []mealplanModule.OrderChild{{StudentID: 42, FirstName: "Mia", LastName: "Muster", SchoolClass: "2a"}},
+		Changes:  []mealplanModule.OrderChange{{Sequence: 3, Date: mealplanModule.Date(from), Child: mealplanModule.OrderChild{StudentID: 43, FirstName: "Ben", SchoolClass: "3b"}, Delta: -1, DetectedAt: time.Date(2026, 9, 7, 8, 0, 0, 0, time.UTC)}},
+	}}}, nil
+}
+
+// #3873: the school's order view carries numbers and classes, never a name.
+func TestStaffOrdersResponseContract(t *testing.T) {
+	t.Parallel()
+	response := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest("GET", "/orders?from=2026-09-07&to=2026-09-07", nil))
+	if response.Code != 200 {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	assert.JSONEq(t, `{"status":"success","data":{"format_version":1,"rhythm":"daily","detail":"by_class","days":[{"date":"2026-09-07","closed":false,"deadline":"2026-09-07T07:00:00Z","status":"confirmed","order_id":"12","confirmed_at":"2026-09-07T09:30:00Z","total":1,"classes":[{"school_class":"2a","count":1}],"changes":[{"sequence":3,"school_class":"3b","delta":-1,"detected_at":"2026-09-07T08:00:00Z"}]}]},"message":"Meal orders retrieved successfully"}`, response.Body.String())
+	assert.NotContains(t, response.Body.String(), "Mia")
+
+	bad := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest("GET", "/orders?from=7.9.2026&to=2026-09-07", nil))
+	assert.Equal(t, 400, bad.Code)
+}
+
+func TestStaffMonthExportRefusesBadInput(t *testing.T) {
+	t.Parallel()
+	for _, query := range []string{"month=2026-13&format=pdf", "month=2026-09&format=docx"} {
+		response := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest("GET", "/orders/month/export?"+query, nil))
+		assert.Equal(t, 400, response.Code, query)
+	}
+	ok := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest("GET", "/orders/month/export?month=2026-09&format=xlsx", nil))
+	assert.Equal(t, 200, ok.Code)
 }

@@ -360,8 +360,8 @@ func (s *Store) FindDailyParticipation(ctx context.Context, studentIDs []int64, 
 	stats.Rows += int64(len(overrides))
 	for _, override := range overrides {
 		state := states[override.StudentID]
-		participating := override.Participating
-		state.Override = &participating
+		participating, changedBy := override.Participating, override.ChangedBy
+		state.Override, state.OverrideBy = &participating, &changedBy
 		states[override.StudentID] = state
 	}
 

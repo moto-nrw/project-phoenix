@@ -10,7 +10,8 @@ import { DEFAULT_LOCALE } from "~/i18n/locales";
 // by their shell instead of shipping the complete parent message catalog.
 //
 // Besides the shell itself it carries the namespaces of staff-facing shared
-// components: settings cards, the meal participant list and its date picker,
+// components: settings cards, the meal participant list and order week and
+// their date picker,
 // plus the consent summary shown in student master data. Without these subsets
 // every label there renders as its message key.
 const SHELL_MESSAGES = {
@@ -23,6 +24,7 @@ const SHELL_MESSAGES = {
   parentCalendarSubscribe: deMessages.parentCalendarSubscribe,
   staffCalendarSubscribe: deMessages.staffCalendarSubscribe,
   mealParticipantList: deMessages.mealParticipantList,
+  mealOrders: deMessages.mealOrders,
   parentChild: {
     consents: deMessages.parentChild.consents,
   },

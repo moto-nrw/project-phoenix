@@ -80,7 +80,14 @@ func (s *Service) ReplaceParticipationSchedule(ctx context.Context, studentID, a
 		default:
 			effectiveFrom = rules.NextEffectiveDate(now)
 		}
-		return s.store.InsertParticipationSchedule(txCtx, studentID, accountID, effectiveFrom, weekdays)
+		// A new pattern can change every day it reaches.
+		today := domain.DateFromInstant(now)
+		_, stats, err := s.lockedWindow(txCtx, rules, today, today.AddDays(orderReachDays), s.now())
+		if err != nil {
+			return stats, err
+		}
+		writeStats, err := s.store.InsertParticipationSchedule(txCtx, studentID, accountID, effectiveFrom, weekdays)
+		return addStats(stats, writeStats), err
 	})
 	return effectiveFrom, err
 }
@@ -116,6 +123,11 @@ func (s *Service) SetParticipationDay(ctx context.Context, studentID, accountID 
 		if days.Closed[date] {
 			return stats, ErrCutoffPassed
 		}
+		_, orderStats, err := s.lockedWindow(txCtx, rules, date, date, s.now())
+		stats = addStats(stats, orderStats)
+		if err != nil {
+			return stats, err
+		}
 		writeStats, err := s.store.UpsertParticipationOverride(txCtx, studentID, accountID, date, participating)
 		return addStats(stats, writeStats), err
 	})
@@ -148,6 +160,11 @@ func (s *Service) SetParticipationWeek(ctx context.Context, studentID, accountID
 		}
 		if len(changed) == 0 && len(locked) > 0 {
 			return stats, ErrCutoffPassed
+		}
+		_, orderStats, err := s.lockedWindow(txCtx, rules, monday, monday.AddDays(4), s.now())
+		stats = addStats(stats, orderStats)
+		if err != nil {
+			return stats, err
 		}
 		writeStats, err := s.store.UpsertParticipationOverrides(txCtx, studentID, accountID, changed, participating)
 		return addStats(stats, writeStats), err
@@ -190,6 +207,11 @@ func (s *Service) ClearParticipationDay(ctx context.Context, studentID, _ int64,
 			if err := mayChangeDay(rules, s.now(), date, day.Regular, bySchool); err != nil {
 				return stats, err
 			}
+		}
+		_, orderStats, err := s.lockedWindow(txCtx, rules, date, date, s.now())
+		stats = addStats(stats, orderStats)
+		if err != nil {
+			return stats, err
 		}
 		deleteStats, err := s.store.DeleteParticipationOverride(txCtx, studentID, date)
 		return addStats(stats, deleteStats), err

@@ -17,6 +17,17 @@ type Store interface {
 	UpsertParticipationOverrides(context.Context, int64, int64, []domain.Date, bool) (domain.OperationStats, error)
 	DeleteParticipationOverride(context.Context, int64, domain.Date) (domain.OperationStats, error)
 	FindDailyParticipation(context.Context, []int64, domain.Date, time.Time) (map[int64]domain.DailyParticipation, domain.OperationStats, error)
+	OrderStore
+}
+
+// OrderStore holds the school's orders (#3873). LockOrders serializes every
+// fixing and numbering of a school for the rest of the unit of work.
+type OrderStore interface {
+	LockOrders(context.Context) (domain.OperationStats, error)
+	FindOrders(ctx context.Context, from, to domain.Date) (domain.OrderState, domain.OperationStats, error)
+	InsertOrder(ctx context.Context, order domain.NewOrder, frozenAt time.Time) (int64, domain.OperationStats, error)
+	// InsertOrderChanges numbers the changes after the school's last one.
+	InsertOrderChanges(ctx context.Context, changes []domain.OrderChange, detectedAt time.Time) ([]domain.OrderChange, domain.OperationStats, error)
 }
 
 // Calendar is the school calendar of the tenant in the caller's unit of
@@ -28,6 +39,8 @@ type Calendar interface {
 
 type Directory interface {
 	FindDailyCandidates(context.Context, domain.Date) ([]domain.DailyCandidate, domain.OperationStats, error)
+	// FindStudentNames names the children of past orders, enrolled or not.
+	FindStudentNames(context.Context, []int64) (map[int64]domain.DailyCandidate, domain.OperationStats, error)
 }
 
 type Settings interface {

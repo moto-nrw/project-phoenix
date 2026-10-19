@@ -266,6 +266,26 @@
     "cancelWeekLocked": "Këto ditë ishin porositur tashmë dhe mbeten të regjistruara: {days}.",
     "errorObjectWeekCancel": "anulimin për javën"
   },
+  "mealOrders": {
+    "title": "Porosia",
+    "description": "Çfarë u porosit deri në afat dhe çfarë ndryshoi më pas. Emrat janë në listën e ditës.",
+    "day": "Dita",
+    "status": "Gjendja",
+    "meals": "Drekat",
+    "byClass": "Sipas klasës",
+    "changes": "Ndryshime pas afatit",
+    "closed": "OGS e mbyllur",
+    "openUntil": "E hapur deri më {date}",
+    "ordered": "E porositur",
+    "confirmed": "E konfirmuar nga furnizuesi",
+    "caption": "Porosia e kësaj jave",
+    "monthGroup": "Shkarko përmbledhjen e muajit",
+    "monthPdf": "Muaji si PDF",
+    "monthExcel": "Muaji si Excel",
+    "downloadLoading": "Po krijohet…",
+    "errorObject": "porosinë",
+    "errorObjectMonth": "përmbledhjen e muajit"
+  },
   "mealParticipantList": {
     "title": "Lista ditore për kuzhinën",
     "description": "Lista tregon të gjithë fëmijët e regjistruar për drekë në këtë ditë.",

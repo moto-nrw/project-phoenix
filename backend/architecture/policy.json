@@ -4106,6 +4106,22 @@
       "write_owner": "meal-plan"
     },
     {
+      "name": "schedule.meal_order_changes",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_order_days",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_order_lines",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_orders",
+      "write_owner": "meal-plan"
+    },
+    {
       "name": "schedule.meal_participation_overrides",
       "write_owner": "meal-plan"
     },

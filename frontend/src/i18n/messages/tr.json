@@ -266,6 +266,26 @@
     "cancelWeekLocked": "Bu günler zaten sipariş edilmişti ve kayıtlı kalıyor: {days}.",
     "errorObjectWeekCancel": "haftalık iptal"
   },
+  "mealOrders": {
+    "title": "Sipariş",
+    "description": "Son tarihte ne sipariş edildi ve sonra ne değişti. İsimler gün listesinde.",
+    "day": "Gün",
+    "status": "Durum",
+    "meals": "Yemek",
+    "byClass": "Sınıfa göre",
+    "changes": "Sonradan değişiklikler",
+    "closed": "OGS kapalı",
+    "openUntil": "{date} tarihine kadar açık",
+    "ordered": "Sipariş edildi",
+    "confirmed": "Yemek firması onayladı",
+    "caption": "Bu haftanın siparişi",
+    "monthGroup": "Aylık özeti indir",
+    "monthPdf": "Ay PDF olarak",
+    "monthExcel": "Ay Excel olarak",
+    "downloadLoading": "Oluşturuluyor…",
+    "errorObject": "sipariş",
+    "errorObjectMonth": "aylık özet"
+  },
   "mealParticipantList": {
     "title": "Mutfak için günlük liste",
     "description": "Liste, o gün öğle yemeğine kayıtlı tüm çocukları gösterir.",
