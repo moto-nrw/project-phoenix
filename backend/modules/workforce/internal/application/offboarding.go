@@ -29,51 +29,95 @@ func (s *Service) ExecuteStaffOffboarding(ctx context.Context, staffID, actorID 
 			if preview.Counts == (domain.OffboardingCounts{}) {
 				return nil
 			}
-			if preview.Revision != revision {
-				return domain.ErrOffboardingConflict
+			removal := offboardingRemoval{
+				staffID: staffID, actorID: actorID, from: from,
+				snapshot: snapshot, appendDeletion: appendDeletion,
 			}
-			if preview.Blocked {
-				return domain.ErrOffboardingInUse
-			}
-			for _, absence := range snapshot.Absences {
-				if err := appendDeletion(txCtx, absence, actorID); err != nil {
-					return fmt.Errorf("archive absence before offboarding: %w", err)
-				}
-			}
-			var changed domain.OperationStats
-			result.Substitutions, changed, err = s.store.DeleteGroupSubstitutionsForStaff(txCtx, staffID, from)
-			stats.Add(changed)
-			if err != nil {
-				return err
-			}
-			result.Shifts, changed, err = s.store.DeleteUpcomingStaffShifts(txCtx, staffID, from)
-			stats.Add(changed)
-			if err != nil {
-				return err
-			}
-			for _, series := range snapshot.Series {
-				changed, err = s.store.CapStaffShiftSeries(txCtx, series.ID, from)
-				stats.Add(changed)
-				if err != nil {
-					return err
-				}
-				result.Series += changed.Rows
-			}
-			result.Absences, changed, err = s.store.DeleteNonHistoricalStaffAbsences(txCtx, staffID, from)
-			stats.Add(changed)
-			if err != nil {
-				return err
-			}
-			if result != preview.Counts {
-				return domain.ErrOffboardingConflict
-			}
-			return nil
+			return s.removeOffboardedRows(txCtx, removal, preview, revision, stats, &result)
 		})
 	})
 	if err != nil {
 		return domain.OffboardingCounts{}, err
 	}
 	return result, nil
+}
+
+// offboardingRemoval is the locked snapshot an offboarding removes, with the
+// callback that archives each absence first.
+type offboardingRemoval struct {
+	staffID, actorID int64
+	from             string
+	snapshot         domain.OffboardingSnapshot
+	appendDeletion   func(context.Context, domain.StaffAbsence, int64) error
+}
+
+// removeOffboardedRows checks the preview revision, archives the absences and
+// removes the snapshot's rows, recording the counts in result. A count that
+// differs from the preview is a conflict.
+func (s *Service) removeOffboardedRows(
+	ctx context.Context,
+	removal offboardingRemoval,
+	preview domain.OffboardingPreview,
+	revision string,
+	stats *domain.OperationStats,
+	result *domain.OffboardingCounts,
+) error {
+	if err := checkOffboardingPreview(preview, revision); err != nil {
+		return err
+	}
+	for _, absence := range removal.snapshot.Absences {
+		if err := removal.appendDeletion(ctx, absence, removal.actorID); err != nil {
+			return fmt.Errorf("archive absence before offboarding: %w", err)
+		}
+	}
+	if err := s.deleteOffboardedRows(ctx, removal.staffID, removal.from, removal.snapshot.Series, stats, result); err != nil {
+		return err
+	}
+	if *result != preview.Counts {
+		return domain.ErrOffboardingConflict
+	}
+	return nil
+}
+
+// checkOffboardingPreview rejects an execution whose preview revision is stale
+// or whose rows are still in use.
+func checkOffboardingPreview(preview domain.OffboardingPreview, revision string) error {
+	if preview.Revision != revision {
+		return domain.ErrOffboardingConflict
+	}
+	if preview.Blocked {
+		return domain.ErrOffboardingInUse
+	}
+	return nil
+}
+
+// deleteOffboardedRows removes the staff member's substitutions, upcoming
+// shifts and non-historical absences from from on and caps their series,
+// recording the affected row counts in result.
+func (s *Service) deleteOffboardedRows(ctx context.Context, staffID int64, from string, series []domain.StaffShiftSeries, stats *domain.OperationStats, result *domain.OffboardingCounts) error {
+	var changed domain.OperationStats
+	var err error
+	result.Substitutions, changed, err = s.store.DeleteGroupSubstitutionsForStaff(ctx, staffID, from)
+	stats.Add(changed)
+	if err != nil {
+		return err
+	}
+	result.Shifts, changed, err = s.store.DeleteUpcomingStaffShifts(ctx, staffID, from)
+	stats.Add(changed)
+	if err != nil {
+		return err
+	}
+	for _, row := range series {
+		changed, err = s.store.CapStaffShiftSeries(ctx, row.ID, from)
+		stats.Add(changed)
+		if err != nil {
+			return err
+		}
+		result.Series += changed.Rows
+	}
+	result.Absences, changed, err = s.store.DeleteNonHistoricalStaffAbsences(ctx, staffID, from)
+	stats.Add(changed)
+	return err
 }
 
 func (s *Service) LockStaffOffboarding(ctx context.Context, staffID int64) error {
