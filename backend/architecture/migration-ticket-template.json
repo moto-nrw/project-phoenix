@@ -82,5 +82,5 @@
   "rollback_and_cleanup": "Revert caller wiring; remove the old adapter after the observation window.",
   "exit_criterion": "All callers use one provider and the listed ratchet keys are absent.",
   "ticket_kind": "migration",
-  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020"
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3021"
 }

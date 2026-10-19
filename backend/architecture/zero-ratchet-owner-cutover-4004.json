@@ -106,5 +106,5 @@
   "rollback_and_cleanup": "Revert this whole code/import/policy/evidence cutover together. No data or environment rollback is required. Reverting only the zero-baseline test or baseline would leave stale or uncovered debt.",
   "exit_criterion": "The final 4004 import tuple is retired with evidence; the ordinary check and baseline-free check both pass with zero legacy violations. Literal 4084/4086 exits remain open for the documented blockers.",
   "ticket_kind": "migration",
-  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020"
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3021"
 }
