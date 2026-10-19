@@ -5,17 +5,16 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// whereInList narrows a listing to the rows whose column is in ids. A nil list
-// leaves the query unchanged; an empty list matches nothing, which the false
-// result reports so the caller can answer without a statement.
-func whereInList(query *bun.SelectQuery, condition string, ids []int64) (*bun.SelectQuery, bool) {
-	if ids == nil {
-		return query, true
+// matchesNothing reports an ID filter that is set but empty: a nil list leaves
+// the listing unfiltered, an empty one matches no row, so the caller can
+// answer without a statement.
+func matchesNothing(ids ...[]int64) bool {
+	for _, list := range ids {
+		if list != nil && len(list) == 0 {
+			return true
+		}
 	}
-	if len(ids) == 0 {
-		return query, false
-	}
-	return query.Where(condition, bun.List(ids)), true
+	return false
 }
 
 // teacherListQuery applies a teacher filter; false means it matches nothing.
@@ -23,13 +22,14 @@ func teacherListQuery(query *bun.SelectQuery, filter domain.TeacherFilter) (*bun
 	if !filter.IncludeDeleted {
 		query = query.Where(`"teacher".deleted_at IS NULL`)
 	}
-	query, ok := whereInList(query, `"teacher".id IN (?)`, filter.IDs)
-	if !ok {
+	if matchesNothing(filter.IDs, filter.StaffIDs) {
 		return query, false
 	}
-	query, ok = whereInList(query, `"teacher".staff_id IN (?)`, filter.StaffIDs)
-	if !ok {
-		return query, false
+	if filter.IDs != nil {
+		query = query.Where(`"teacher".id IN (?)`, bun.List(filter.IDs))
+	}
+	if filter.StaffIDs != nil {
+		query = query.Where(`"teacher".staff_id IN (?)`, bun.List(filter.StaffIDs))
 	}
 	if filter.Specialization != "" {
 		query = query.Where(`LOWER("teacher".specialization) = LOWER(?)`, filter.Specialization)
@@ -52,13 +52,14 @@ func teacherListQuery(query *bun.SelectQuery, filter domain.TeacherFilter) (*bun
 
 // guestListQuery applies a guest filter; false means it matches nothing.
 func guestListQuery(query *bun.SelectQuery, filter domain.GuestFilter) (*bun.SelectQuery, bool, error) {
-	query, ok := whereInList(query, `"guest".id IN (?)`, filter.IDs)
-	if !ok {
+	if matchesNothing(filter.IDs, filter.StaffIDs) {
 		return query, false, nil
 	}
-	query, ok = whereInList(query, `"guest".staff_id IN (?)`, filter.StaffIDs)
-	if !ok {
-		return query, false, nil
+	if filter.IDs != nil {
+		query = query.Where(`"guest".id IN (?)`, bun.List(filter.IDs))
+	}
+	if filter.StaffIDs != nil {
+		query = query.Where(`"guest".staff_id IN (?)`, bun.List(filter.StaffIDs))
 	}
 	if filter.ActiveOn != "" {
 		activeOn, err := optionalDate(filter.ActiveOn, "active-on date")
@@ -87,22 +88,19 @@ func guestListQuery(query *bun.SelectQuery, filter domain.GuestFilter) (*bun.Sel
 // groupAssignmentListQuery applies a group assignment filter; false means it
 // matches nothing.
 func groupAssignmentListQuery(query *bun.SelectQuery, filter domain.GroupAssignmentFilter) (*bun.SelectQuery, bool) {
-	query, ok := whereInList(query, `"group_assignment".id IN (?)`, filter.IDs)
-	if !ok {
+	if matchesNothing(filter.IDs, filter.GroupIDs, filter.TeacherIDs, filter.TeacherStaffIDs) {
 		return query, false
 	}
-	query, ok = whereInList(query, `"group_assignment".group_id IN (?)`, filter.GroupIDs)
-	if !ok {
-		return query, false
+	if filter.IDs != nil {
+		query = query.Where(`"group_assignment".id IN (?)`, bun.List(filter.IDs))
 	}
-	query, ok = whereInList(query, `"group_assignment".teacher_id IN (?)`, filter.TeacherIDs)
-	if !ok {
-		return query, false
+	if filter.GroupIDs != nil {
+		query = query.Where(`"group_assignment".group_id IN (?)`, bun.List(filter.GroupIDs))
+	}
+	if filter.TeacherIDs != nil {
+		query = query.Where(`"group_assignment".teacher_id IN (?)`, bun.List(filter.TeacherIDs))
 	}
 	if filter.TeacherStaffIDs != nil {
-		if len(filter.TeacherStaffIDs) == 0 {
-			return query, false
-		}
 		query = query.
 			Join(`INNER JOIN users.teachers AS "teacher" ON "teacher".id = "group_assignment".teacher_id`).
 			Where(`"teacher".staff_id IN (?)`, bun.List(filter.TeacherStaffIDs))

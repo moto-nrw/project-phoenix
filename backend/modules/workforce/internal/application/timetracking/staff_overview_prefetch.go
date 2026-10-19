@@ -35,7 +35,10 @@ func (s *staffOverviewService) buildPrefetch(
 	if err := s.prefetchCreditRows(ctx, prefetch, staffIDs); err != nil {
 		return nil, err
 	}
-	if err := s.prefetchSchedules(ctx, prefetch, staffIDs, modelIDs); err != nil {
+	if prefetch.schedules, prefetch.scheduleHist, err = s.prefetchSchedules(ctx, staffIDs, prefetch.from, prefetch.to); err != nil {
+		return nil, err
+	}
+	if prefetch.workTimeModels, err = s.prefetchWorkTimeModels(ctx, modelIDs); err != nil {
 		return nil, err
 	}
 	if err := s.prefetchDayTargets(ctx, prefetch, staffIDs); err != nil {
@@ -128,32 +131,37 @@ func (s *staffOverviewService) prefetchCreditRows(ctx context.Context, prefetch 
 	return nil
 }
 
-// prefetchSchedules loads the schedule targets of the window, the schedule
-// history and the assigned work-time models.
-func (s *staffOverviewService) prefetchSchedules(ctx context.Context, prefetch *monthPrefetch, staffIDs, modelIDs []int64) error {
-	scheduleTargets, err := s.scheduleRepo.TargetsByStaff(ctx, staffIDs, prefetch.from, prefetch.to)
+// prefetchSchedules loads the schedule targets of the window and the
+// schedule history.
+func (s *staffOverviewService) prefetchSchedules(ctx context.Context, staffIDs []int64, from, to calendar.Date) (map[int64]WorkScheduleTargets, map[int64]bool, error) {
+	scheduleTargets, err := s.scheduleRepo.TargetsByStaff(ctx, staffIDs, from, to)
 	if err != nil {
-		return fmt.Errorf("failed to prefetch work schedules: %w", err)
+		return nil, nil, fmt.Errorf("failed to prefetch work schedules: %w", err)
 	}
-	prefetch.schedules = scheduleTargets
 	// Not derivable from the range-filtered schedules above: the question is
 	// whether a staff member EVER had a schedule version, which is what
 	// decides if the assigned work-time model may stand in.
-	if prefetch.scheduleHist, err = s.scheduleRepo.FindStaffIDsWithScheduleHistory(ctx, staffIDs); err != nil {
-		return fmt.Errorf("failed to prefetch schedule history: %w", err)
+	scheduleHist, err := s.scheduleRepo.FindStaffIDsWithScheduleHistory(ctx, staffIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to prefetch schedule history: %w", err)
 	}
-	prefetch.workTimeModels = make(map[int64]*WorkTimeTargetModel, len(modelIDs))
+	return scheduleTargets, scheduleHist, nil
+}
+
+// prefetchWorkTimeModels loads the assigned work-time models by ID.
+func (s *staffOverviewService) prefetchWorkTimeModels(ctx context.Context, modelIDs []int64) (map[int64]*WorkTimeTargetModel, error) {
+	workTimeModels := make(map[int64]*WorkTimeTargetModel, len(modelIDs))
 	if len(modelIDs) == 0 {
-		return nil
+		return workTimeModels, nil
 	}
 	models, err := s.workModelRepo.FindByIDs(ctx, modelIDs)
 	if err != nil {
-		return fmt.Errorf("failed to prefetch work time models: %w", err)
+		return nil, fmt.Errorf("failed to prefetch work time models: %w", err)
 	}
 	for _, model := range models {
-		prefetch.workTimeModels[model.ID] = model
+		workTimeModels[model.ID] = model
 	}
-	return nil
+	return workTimeModels, nil
 }
 
 // prefetchDayTargets loads the day-level Soll inputs over the prefetch window:
