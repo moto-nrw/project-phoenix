@@ -325,6 +325,25 @@ func TestGuardianLinkCommandsInsertOnceAndPatchOnlySuppliedColumns(t *testing.T)
 	assert.Zero(t, affected, "a vanished relationship reports zero rows")
 }
 
+func TestGuardianLinkReportsADeletedContact(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Deleted", "Contact", "1a")
+	guardian := testpkg.CreateTestGuardianProfileForTenant(t, db, tenantID, "Deleted", "Contact", "portal-deleted-contact")
+	_, err := db.NewRaw(`DELETE FROM users.guardian_profiles WHERE id = ?`, guardian.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	linkID, inserted, err := module.LinkGuardianContact(ctx, peopledirectory.GuardianContactLink{
+		StudentID: student.ID, GuardianProfileID: guardian.ID, RelationshipType: "parent",
+	})
+	require.ErrorIs(t, err, peopledirectory.ErrGuardianNotFound)
+	assert.Zero(t, linkID)
+	assert.False(t, inserted)
+}
+
 func TestGuardianPortalLocaleOnlyTouchesTheTenantInContext(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

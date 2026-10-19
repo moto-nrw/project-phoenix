@@ -24,7 +24,8 @@ type GuardianStore interface {
 	ListByIDs(context.Context, []int64) ([]domain.Guardian, domain.OperationStats, error)
 	// ClearChildlessSince clears the retention marker as part of a new
 	// relationship write, so a later unlink starts its retention window anew.
-	ClearChildlessSince(context.Context, int64) (domain.OperationStats, error)
+	// found is false when no profile remains in the caller's school.
+	ClearChildlessSince(context.Context, int64) (found bool, stats domain.OperationStats, err error)
 	// CountLinks counts the links per guardian profile.
 	CountLinks(context.Context, []int64) (map[int64]int, domain.OperationStats, error)
 	// ListAccountLinksByStudents returns the links of the children whose
