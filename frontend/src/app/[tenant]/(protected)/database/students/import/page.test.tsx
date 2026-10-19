@@ -170,6 +170,14 @@ describe("StudentImportPage", () => {
     cleanup();
   });
 
+  it("führt zurück zu den Kinderdaten", () => {
+    render(<StudentImportPage />);
+
+    expect(
+      screen.getByRole("link", { name: "Zurück zu den Kinderdaten" }),
+    ).toHaveAttribute("href", expect.stringMatching(/\/database\/students$/));
+  });
+
   it("renders the page with instruction section", () => {
     render(<StudentImportPage />);
 

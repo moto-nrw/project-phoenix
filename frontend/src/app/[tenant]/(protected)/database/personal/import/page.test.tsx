@@ -197,6 +197,14 @@ describe("StaffImportPage", () => {
     cleanup();
   });
 
+  it("führt zurück zum Personal", () => {
+    render(<StaffImportPage />);
+
+    expect(
+      screen.getByRole("link", { name: "Zurück zum Personal" }),
+    ).toHaveAttribute("href", expect.stringMatching(/\/database\/personal$/));
+  });
+
   it("renders the instruction section", () => {
     render(<StaffImportPage />);
 

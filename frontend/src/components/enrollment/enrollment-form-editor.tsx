@@ -15,7 +15,6 @@ import {
   type SetStateAction,
 } from "react";
 import {
-  ArrowLeft,
   Check,
   ChevronDown,
   Eye,
@@ -51,6 +50,7 @@ import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
 import { Textarea } from "~/components/ui/textarea";
+import { BackAction } from "~/components/ui/back-link";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
@@ -1138,17 +1138,11 @@ export function EnrollmentFormEditor({
       <div ref={builderRef} className="flex flex-col space-y-5">
         <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
           <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
-            <Button
-              type="button"
-              variant="ghost"
-              size="compact"
+            <BackAction
               onClick={requestBackToOverview}
               disabled={saving || hasPendingLegalDocumentUpload}
-              className="inline-flex items-center gap-2"
-            >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              Zurück zur Übersicht
-            </Button>
+              label="Zurück zur Übersicht"
+            />
           </div>
           <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
             <div className="space-y-6 p-5 sm:p-6">
@@ -1701,16 +1695,7 @@ function FormTemplateDetail({
         <div className="grid flex-1 gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
           <div>
             <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                onClick={onBack}
-                className="inline-flex items-center gap-2"
-              >
-                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                Zurück zur Übersicht
-              </Button>
+              <BackAction onClick={onBack} label="Zurück zur Übersicht" />
             </div>
             <div className="space-y-5 p-5 sm:p-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

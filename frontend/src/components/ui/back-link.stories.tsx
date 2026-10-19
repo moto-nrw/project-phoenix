@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
-import { BackLink } from "./back-link";
+import { BackAction, BackLink } from "./back-link";
 
 const meta = {
   title: "components/ui/BackLink",
@@ -19,4 +19,13 @@ export const Default: Story = {
     href: "/rooms",
     label: "Zurück zu den Räumen",
   },
+};
+
+/** Ansicht ohne eigene Adresse: derselbe Rückweg als Knopf. */
+export const Action: Story = {
+  args: {
+    href: "",
+    label: "Zurück zur Übersicht",
+  },
+  render: ({ label }) => <BackAction onClick={() => {}} label={label} />,
 };

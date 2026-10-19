@@ -155,7 +155,9 @@ describe("EnrollmentEditPage", () => {
     expect(await screen.findByRole("heading")).toHaveTextContent(
       "Edit enrollment",
     );
-    expect(screen.getByText("Back to status")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Back to status" }),
+    ).toHaveAttribute("href", "/parents/anmeldung/status/tok");
     expect(
       screen.getByRole("button", { name: "Save changes" }),
     ).toHaveAttribute("data-grade-level-max", "13");
@@ -182,6 +184,9 @@ describe("EnrollmentEditPage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Enrollment cannot be edited",
     );
+    expect(
+      screen.getByRole("link", { name: "Back to status" }),
+    ).toHaveAttribute("href", "/parents/anmeldung/status/tok");
     expect(
       screen.queryByRole("button", { name: "Save changes" }),
     ).not.toBeInTheDocument();

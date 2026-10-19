@@ -121,6 +121,17 @@ describe("Klassenliste: Zähler bei Ladefehler (#2517)", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("führt zurück zu den Kinderdaten", () => {
+    swr.set("class-list-entries", slot([entry]));
+    swr.set("class-list-roster-students", slot([]));
+
+    renderPage();
+
+    expect(
+      screen.getByRole("link", { name: "Zurück zu den Kinderdaten" }),
+    ).toHaveAttribute("href", expect.stringMatching(/\/database\/students$/));
+  });
+
   it("counts entries and roster students once both loaded", () => {
     swr.set("class-list-entries", slot([entry]));
     swr.set(

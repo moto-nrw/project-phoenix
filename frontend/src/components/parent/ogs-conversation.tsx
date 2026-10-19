@@ -270,10 +270,9 @@ export function OgsConversation({
       ref={containerRef}
       className="flex min-h-[20rem] w-full flex-col gap-3 overflow-hidden"
     >
-      {showBack ? <BackBar /> : null}
-
       <section className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border shadow-sm">
         <div className="border-b border-gray-100 px-4 py-3 sm:px-5">
+          {showBack ? <BackBar /> : null}
           {loading ? (
             <div
               className="flex min-h-7 items-center justify-between gap-3"
@@ -667,8 +666,15 @@ function ConversationComposerSkeleton() {
   );
 }
 
-// Rückweg zum Posteingang der Elternnachrichten, auf jeder Breite.
+// Rückweg zum Posteingang der Elternnachrichten, auf jeder Breite. Er sitzt
+// in der Kopfkarte über dem Titel, wie auf jeder anderen Unterseite.
 function BackBar() {
   const tm = useTranslations("parentMessages");
-  return <BackLink href={parentPath("/parents/messages")} label={tm("back")} />;
+  return (
+    <BackLink
+      href={parentPath("/parents/messages")}
+      label={tm("back")}
+      className="mb-2"
+    />
+  );
 }

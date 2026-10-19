@@ -74,6 +74,7 @@ export function ChildPage({
 }>) {
   const t = useTranslations("parentChild");
   const navT = useTranslations("parentNav");
+  const backT = useTranslations("parentChildDetail");
   const [children, setChildren] = useState<Child[]>([]);
   const [selectionToday, setSelectionToday] = useState<
     Readonly<Record<string, ChildToday>>
@@ -193,9 +194,7 @@ export function ChildPage({
         <ParentPageHeader
           title={navT(children.length > 1 ? "childrenMultiple" : "childSingle")}
           backHref={parentPath("/parents/children")}
-          backLabel={navT(
-            children.length > 1 ? "childrenMultiple" : "childSingle",
-          )}
+          backLabel={backT(children.length > 1 ? "back" : "backSingle")}
         />
         <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600 shadow-sm backdrop-blur-md">
           {t("notFound")}
@@ -225,7 +224,7 @@ export function ChildPage({
         backHref={
           children.length > 1 ? parentPath("/parents/children") : undefined
         }
-        backLabel={children.length > 1 ? navT("childrenMultiple") : undefined}
+        backLabel={children.length > 1 ? backT("back") : undefined}
       />
       {/* key: ein Kindwechsel setzt alle Abschnitte zurueck, damit nie Daten
           des vorigen Kindes unter dem neuen Namen stehen. */}

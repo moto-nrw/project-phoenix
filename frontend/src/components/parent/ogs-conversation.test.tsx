@@ -46,6 +46,25 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+describe("OgsConversation back link", () => {
+  it("names the inbox and sits in the head card above the title", async () => {
+    mockGetConversation.mockResolvedValueOnce(thread);
+
+    render(<OgsConversation studentId="42" showBack />);
+
+    const title = await screen.findByRole("heading", {
+      level: 1,
+      name: "OGS-Team der Schule am Berg",
+    });
+    const back = screen.getByRole("link", { name: "Zurück zu Nachrichten" });
+    expect(back).toHaveAttribute("href", "/parents/messages");
+    expect(back.closest("section")).toBe(title.closest("section"));
+    expect(
+      back.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+});
+
 // #2518: Lade- und Sendefehler laufen über den gemeinsamen Fehlerweg, mit
 // Katalogtext und Wiederholen, nie mit dem Satz vom Server.
 describe("OgsConversation errors", () => {
