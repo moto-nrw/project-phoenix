@@ -203,7 +203,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063 and by ADR 0064 (3,011 to 3,091), and by ADR 0072 (one each
 // for modules/communication and modules/schoolcalendar).
-const modulePassthroughOwnerBudgetTotal = 3021
+const modulePassthroughOwnerBudgetTotal = 2976
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -217,7 +217,7 @@ const modulePassthroughOwnerBudgetTotal = 3021
 var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/appointments": 65,
 	"modules/auditlog":     1,
-	"modules/careplan":     293,
+	"modules/careplan":     289,
 	"modules/classday":     18,
 	// Raised by ADR 0072: the composition forwards the parent announcement
 	// retention to its service.
@@ -231,10 +231,10 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/facilities":          18,
 	"modules/feedback":            14,
 	"modules/filestorage":         27,
-	"modules/identityaccess":      587,
+	"modules/identityaccess":      556,
 	"modules/mealplan":            15,
 	"modules/organizationtenancy": 60,
-	"modules/peopledirectory":     307,
+	"modules/peopledirectory":     303,
 	"modules/requestreview":       17,
 	"modules/schedulerruntime":    4,
 	// Raised by ADR 0072: the feed cleanup keeps only the staff feed tombstones.
@@ -244,7 +244,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/schoolstructure":  70,
 	"modules/settings":         19,
 	"modules/studentpresence":  240,
-	"modules/timetable":        488,
+	"modules/timetable":        482,
 	"modules/workforce":        393,
 	"workflows/openroommove":   1,
 	"workflows/parentportal":   19,

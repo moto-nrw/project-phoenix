@@ -96,7 +96,10 @@ func TestNativeMFAIgnoresErasedAccounts(t *testing.T) {
 	belongs, err := records.AccountBelongsToTenant(ctx, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
 	require.False(t, belongs)
-	require.NoError(t, records.LockAccountForOverrideWrite(ctx, account.ID))
+	require.ErrorContains(t, records.LockAccountForOverrideWrite(ctx, account.ID), "transaction is required")
+	require.NoError(t, testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
+		return records.LockAccountForOverrideWrite(txCtx, account.ID)
+	}))
 	_, err = records.IncrementMFAAttempts(ctx, account.ID, 5, time.Minute)
 	require.Error(t, err)
 	require.NoError(t, records.ResetMFAAttempts(ctx, account.ID))

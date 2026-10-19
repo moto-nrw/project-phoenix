@@ -517,5 +517,5 @@ func (p *Projection) GuardianReadCursor(ctx context.Context, threadID int64) (*c
 // permissions, read through the guardian-link projection (#2756). The inbox
 // correlates it with the thread's school itself.
 func (p *Projection) guardianLinks(db bun.IDB) *bun.SelectQuery {
-	return p.links.GuardianLinkRows(db, 0)
+	return p.links.AllSchoolsGuardianLinkRows(db)
 }

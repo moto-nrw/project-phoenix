@@ -103,6 +103,7 @@ func newMFACore(
 		return application.MFAFlows{}, errors.New("identity access compose: every mfa dependency is required")
 	}
 	runtime := mfaRuntime(sessions)
+	records = application.NewAccountMFACommands(records, runtime)
 	trail := application.MFAAuditTrail{Events: application.AuthAudit{Source: sessions.Audit}, Operator: deps.OperatorAudit}
 	secret := domain.DeriveMFASecret(deps.JWTSecret)
 	if deps.DecorateRecords != nil {

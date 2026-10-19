@@ -81,7 +81,7 @@ func linkContactOnlyGuardian(t *testing.T, db *bun.DB, studentID int64, emailSee
 		EmergencyPriority: 2,
 	}
 	link.TenantID = testpkg.Tenant(t)
-	require.NoError(t, repos.CreateGuardianLinkFixture(ctx, link))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.CreateGuardianLinkFixture, link))
 	cleanup := func() {
 		bg := testpkg.WithPackageTenantRuntime(context.Background())
 		_, _ = db.NewDelete().TableExpr("users.guardian_phone_numbers").Where("guardian_profile_id = ?", profile.ID).Exec(bg)
@@ -418,7 +418,7 @@ func TestUpdateGuardianContact_RejectsCrossFamilySharedProfile(t *testing.T) {
 		EmergencyPriority: 2,
 	}
 	otherLink.TenantID = testpkg.Tenant(t)
-	require.NoError(t, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CreateGuardianLinkFixture(testpkg.Ctx(t), otherLink))
+	require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), db, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CreateGuardianLinkFixture, otherLink))
 
 	_, err := svc.UpdateGuardianContact(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, contactID, parentService.GuardianContactInput{
 		FirstName: "Helga",
@@ -647,7 +647,7 @@ func TestUpdateGuardianRelationship_WritesPickupAuditRow(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	rows, err := owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
+	rows, err := testpkg.TenantQuery1(t, testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID), db, owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianChange.ListByStudentID, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 1, "exactly one audit row for the single flag change")
 	assert.Equal(t, "pickup", rows[0].ChangeType)
@@ -665,7 +665,7 @@ func TestUpdateGuardianRelationship_WritesPickupAuditRow(t *testing.T) {
 		CanPickup: &canPickup,
 	})
 	require.NoError(t, err)
-	rows, err = owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
+	rows, err = testpkg.TenantQuery1(t, testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID), db, owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianChange.ListByStudentID, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 1, "unchanged value must not write a new audit row")
 }
@@ -693,7 +693,7 @@ func TestUpdateGuardianContact_WritesContactAuditRows(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	rows, err := owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
+	rows, err := testpkg.TenantQuery1(t, testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID), db, owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianChange.ListByStudentID, chain.StudentID)
 	require.NoError(t, err)
 	require.NotEmpty(t, rows, "a fresh contact edit must write audit rows")
 
@@ -726,7 +726,7 @@ func TestUpdateGuardianContact_WritesContactAuditRows(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	rows, err = owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
+	rows, err = testpkg.TenantQuery1(t, testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID), db, owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianChange.ListByStudentID, chain.StudentID)
 	require.NoError(t, err)
 	assert.Len(t, rows, before, "an unchanged contact re-save must not write new audit rows")
 }
@@ -864,7 +864,7 @@ func relationshipFlags(t *testing.T, db *bun.DB, studentID, profileID int64) (ca
 func assertExactlyOnePrimaryPhone(t *testing.T, db *bun.DB, profileID int64) {
 	t.Helper()
 	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianPhoneNumber
-	phones, err := repo.FindByGuardianID(testpkg.Ctx(t), profileID)
+	phones, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repo.FindByGuardianID, profileID)
 	require.NoError(t, err)
 	require.NotEmpty(t, phones)
 	primaryCount := 0
@@ -886,10 +886,10 @@ func linkRoleGuardian(t *testing.T, db *bun.DB, studentID int64, emailSeed, role
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	profileFixture := testpkg.CreateTestGuardianProfile(t, db, emailSeed)
-	profile, err := repos.GuardianProfile.FindByID(ctx, profileFixture.ID)
+	profile, err := testpkg.TenantQuery1(t, ctx, db, repos.GuardianProfile.FindByID, profileFixture.ID)
 	require.NoError(t, err)
 	profile.AddressStreet = ptr("Amtsstr. 5")
-	require.NoError(t, repos.GuardianProfile.Update(ctx, profile))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.GuardianProfile.Update, profile))
 
 	phone := &peopledirectory.GuardianPhoneFixture{
 		GuardianProfileID: profile.ID,
@@ -899,7 +899,7 @@ func linkRoleGuardian(t *testing.T, db *bun.DB, studentID int64, emailSeed, role
 		Priority:          1,
 	}
 	phone.TenantID = testpkg.Tenant(t)
-	require.NoError(t, repos.CreateGuardianPhoneFixture(ctx, phone))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.CreateGuardianPhoneFixture, phone))
 
 	link := &peopledirectory.GuardianLinkFixture{
 		StudentID:         studentID,
@@ -909,7 +909,7 @@ func linkRoleGuardian(t *testing.T, db *bun.DB, studentID int64, emailSeed, role
 		EmergencyPriority: 2,
 	}
 	link.TenantID = testpkg.Tenant(t)
-	require.NoError(t, repos.CreateGuardianLinkFixture(ctx, link))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.CreateGuardianLinkFixture, link))
 
 	cleanup := func() {
 		bg := testpkg.WithPackageTenantRuntime(context.Background())
@@ -1247,7 +1247,7 @@ func TestUpdateGuardianContact_LabelOnlyPhoneEditWritesAuditRow(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	rows, err := owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
+	rows, err := testpkg.TenantQuery1(t, testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID), db, owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianChange.ListByStudentID, chain.StudentID)
 	require.NoError(t, err)
 	phoneRows := 0
 	for _, r := range rows {

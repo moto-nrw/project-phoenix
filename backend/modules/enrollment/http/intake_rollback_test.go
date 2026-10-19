@@ -161,7 +161,7 @@ func TestPublicIntakeRollsBackAfterEveryRequestInviteGuardianAndChildWrite(t *te
 			require.Equal(t, failAfter, writes.writes)
 			assertIntakeCounts(t, env.db, env.phaseID, 0, 0)
 			if created != nil {
-				unused, err := writes.UsableLateInvite(ctx, created.Invite.TokenHash, env.phaseID, time.Now(), false)
+				unused, err := testpkg.TenantQuery4(t, ctx, testpkg.SetupTestDB(t), writes.UsableLateInvite, created.Invite.TokenHash, env.phaseID, time.Now(), false)
 				require.NoError(t, err)
 				require.Nil(t, unused.UsedAt)
 				require.Nil(t, unused.UsedRequestID)
@@ -177,7 +177,7 @@ func TestPublicIntakeRollsBackAfterEveryRequestInviteGuardianAndChildWrite(t *te
 				require.ErrorIs(t, err, enrollmentNative.ErrDuplicateEnrollment)
 			} else {
 				require.ErrorIs(t, err, enrollmentNative.ErrLateInviteInvalid)
-				used, lookupErr := writes.LateInviteByUsedRequestID(ctx, result.Request.ID)
+				used, lookupErr := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), writes.LateInviteByUsedRequestID, result.Request.ID)
 				require.NoError(t, lookupErr)
 				require.Equal(t, created.Invite.ID, used.ID)
 			}

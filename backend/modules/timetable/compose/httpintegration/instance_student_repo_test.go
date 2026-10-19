@@ -1457,7 +1457,7 @@ func TestInstanceStudentRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
 	repo := instanceStudentRepository(t, db)
 
 	t.Run("EmptySlice returns empty map without touching DB", func(t *testing.T) {
-		m, err := repo.CountNonAbsentByInstanceIDs(ctx, []int64{})
+		m, err := testpkg.TenantQuery1(t, ctx, db, repo.CountNonAbsentByInstanceIDs, []int64{})
 		require.NoError(t, err)
 		assert.Empty(t, m)
 	})
@@ -1486,7 +1486,7 @@ func TestInstanceStudentRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
 	// instEmpty: nothing assigned → must NOT appear in map
 
 	t.Run("GroupsByInstance", func(t *testing.T) {
-		m, err := repo.CountNonAbsentByInstanceIDs(ctx, []int64{instA.ID, instB.ID, instEmpty.ID})
+		m, err := testpkg.TenantQuery1(t, ctx, db, repo.CountNonAbsentByInstanceIDs, []int64{instA.ID, instB.ID, instEmpty.ID})
 		require.NoError(t, err)
 		assert.Equal(t, 2, m[instA.ID])
 		assert.Equal(t, 1, m[instB.ID])
@@ -1496,7 +1496,7 @@ func TestInstanceStudentRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
 
 	t.Run("TenantIsolation excludes other tenant rows", func(t *testing.T) {
 		otherTenantCtx := testpkg.TenantContext(999)
-		m, err := repo.CountNonAbsentByInstanceIDs(otherTenantCtx, []int64{instA.ID, instB.ID})
+		m, err := testpkg.TenantQuery1(t, otherTenantCtx, db, repo.CountNonAbsentByInstanceIDs, []int64{instA.ID, instB.ID})
 		require.NoError(t, err)
 		assert.Empty(t, m)
 	})

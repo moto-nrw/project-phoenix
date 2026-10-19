@@ -19,13 +19,10 @@ type RootEnvironment struct {
 	Config ServiceConfig
 	// Now is the clock of the services; nil uses the real one. Today is its
 	// calendar day.
-	Now   func() time.Time
-	Today func() timezone.Date
-	Links ServiceLinks
-	// AllowAuditRootWrites lets the Audit trails append without a tenant
-	// transaction; only test roots set it.
-	AllowAuditRootWrites bool
-	Observe              RootObservers
+	Now     func() time.Time
+	Today   func() timezone.Date
+	Links   ServiceLinks
+	Observe RootObservers
 }
 
 // ServiceLinks are the validated bases the mails and the CalDAV feed link to

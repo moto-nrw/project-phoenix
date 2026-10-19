@@ -11,7 +11,7 @@ import (
 // ListDisplays returns every info-point screen of the caller's tenant.
 func (s *Service) ListDisplays(ctx context.Context) ([]domain.Display, error) {
 	var displays []domain.Display
-	err := s.run(ctx, "list_displays", func(ctx context.Context, stats *domain.OperationStats) error {
+	err := s.runInTenant(ctx, "list_displays", func(ctx context.Context, stats *domain.OperationStats) error {
 		found, queryStats, err := s.deps.Displays.List(ctx)
 		stats.Add(queryStats)
 		displays = found

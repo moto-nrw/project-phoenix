@@ -1,9 +1,12 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"reflect"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/tenant"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
@@ -27,6 +30,9 @@ func TestServiceGraphRetainsCarePlanForBookingConsistencyAudit(t *testing.T) {
 	audit := reflect.ValueOf(bookings)
 	auditDate := reflect.New(audit.Type().In(1)).Elem()
 	auditDate.SetString("2030-09-01")
-	result := audit.Call([]reflect.Value{reflect.ValueOf(testpkg.Ctx(t)), auditDate})
-	require.Nil(t, result[1].Interface())
+	require.NoError(t, tenant.NewTransactionRunner().RunInTx(testpkg.Ctx(t), func(ctx context.Context) error {
+		result := audit.Call([]reflect.Value{reflect.ValueOf(ctx), auditDate})
+		require.Nil(t, result[1].Interface())
+		return nil
+	}))
 }

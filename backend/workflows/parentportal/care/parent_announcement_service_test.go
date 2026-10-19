@@ -78,17 +78,16 @@ func seedPublishedAnnouncement(
 		CreatedBy:               createdBy,
 	}
 	a.TenantID = tenantID
-	require.NoError(t, repo.Create(ctx, a))
-	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID,
-		[]*communication.ParentAnnouncementTargetFixture{{TargetType: "school_all"}}))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), repo.Create, a))
+	require.NoError(t, testpkg.TenantCommand3(t, ctx, testpkg.SetupTestDB(t), repo.ReplaceTargets, tenantID, a.ID, []*communication.ParentAnnouncementTargetFixture{{TargetType: "school_all"}}))
 	now := time.Now().Add(-time.Minute)
-	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
-	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, testpkg.SetupTestDB(t), repo.SetPublished, a.ID, &now))
+	t.Cleanup(func() { _ = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), repo.Delete, a.ID) })
 	// Re-read so PublishedAt reflects the DB-persisted value (Postgres truncates
 	// TIMESTAMPTZ to microseconds). Callers echo this exact instant back to
 	// MarkRead/Acknowledge; using the in-memory nanosecond `now` would flakily
 	// miss the service's Equal() version guard and surface as ErrAnnouncementStale.
-	persisted, err := repo.FindByID(ctx, a.ID)
+	persisted, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), repo.FindByID, a.ID)
 	require.NoError(t, err)
 	require.NotNil(t, persisted)
 	require.NotNil(t, persisted.PublishedAt)

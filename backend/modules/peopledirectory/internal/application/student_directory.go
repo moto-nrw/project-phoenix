@@ -54,7 +54,12 @@ func (s *StudentService) FindRecord(ctx context.Context, id int64, lock string) 
 	run := s.tx.RunRead
 	operation := "find_student_record"
 	if lock != "" {
-		run, operation = s.tx.RunWrite, "lock_student_record"
+		run, operation = func(ctx context.Context, fn func(context.Context) error) error {
+			if err := s.tx.RequireTransaction(ctx); err != nil {
+				return err
+			}
+			return fn(ctx)
+		}, "lock_student_record"
 	}
 	err = s.run(ctx, operation, run, func(txCtx context.Context, stats *domain.OperationStats) error {
 		// A caller that locks the row is about to write it, so the shared

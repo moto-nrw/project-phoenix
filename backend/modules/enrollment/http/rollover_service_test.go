@@ -232,9 +232,7 @@ func seedApprovedChild(t *testing.T, env *rolloverTestEnv, phaseID int64, guardi
 	// creates Person/Student/etc., which is more than the rollover
 	// tests need. Status alone is what triggers the rollover scan.
 	child := res.Children[0]
-	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(
-		ctx, child.ID, capability.ChildStatusApproved, nil, env.creatorID,
-	))
+	require.NoError(t, testpkg.TenantCommand4(t, ctx, env.db, env.repos.Enrollment().UpdateChildStatus, child.ID, capability.ChildStatusApproved, nil, env.creatorID))
 	updated, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), child.ID)
 	require.NoError(t, err)
 	return updated
@@ -291,15 +289,12 @@ func TestRolloverService_CreatePhaseFromSource_RejectsMissingGradeSettingsServic
 	ctx := testpkg.Ctx(t)
 
 	service := rolloverServiceWithSettings(env, nil)
-	result, err := service.CreatePhaseFromSource(
-		ctx,
-		validRolloverRequest(env, capability.PhaseRolloverModeOptOut, true),
-	)
+	result, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), service.CreatePhaseFromSource, validRolloverRequest(env, capability.PhaseRolloverModeOptOut, true))
 
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.ErrorContains(t, err, "enrollment.grade_level_max")
-	exists, lookupErr := env.repos.Enrollment().HasRolloverSuccessor(ctx, env.sourcePhase.ID)
+	exists, lookupErr := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Enrollment().HasRolloverSuccessor, env.sourcePhase.ID)
 	require.NoError(t, lookupErr)
 	assert.False(t, exists, "configuration failure must not create a follow-up phase")
 }
@@ -320,7 +315,7 @@ func TestRolloverService_CreatePhaseFromSource_RejectsGradeSettingReadFailure(t 
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.ErrorContains(t, err, "settings unavailable")
-	exists, lookupErr := env.repos.Enrollment().HasRolloverSuccessor(ctx, env.sourcePhase.ID)
+	exists, lookupErr := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Enrollment().HasRolloverSuccessor, env.sourcePhase.ID)
 	require.NoError(t, lookupErr)
 	assert.False(t, exists, "settings read failure must not create a follow-up phase")
 }
@@ -343,7 +338,7 @@ func TestRolloverService_CreatePhaseFromSource_RejectsOutOfRangeGradeSetting(t *
 			require.Error(t, err)
 			assert.Nil(t, result)
 			assert.ErrorContains(t, err, "outside 1..13")
-			exists, lookupErr := env.repos.Enrollment().HasRolloverSuccessor(ctx, env.sourcePhase.ID)
+			exists, lookupErr := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Enrollment().HasRolloverSuccessor, env.sourcePhase.ID)
 			require.NoError(t, lookupErr)
 			assert.False(t, exists, "invalid cap must not create a follow-up phase")
 		})
@@ -377,10 +372,7 @@ func TestRolloverService_CreatePhaseFromSource_OptOutHappyPath(t *testing.T) {
 	assert.Equal(t, capability.PhaseRolloverModeOptOut, *result.Phase.RolloverMode)
 
 	// The carried child sits in auto_renewed (opt_out semantics).
-	children, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
-		ctx, result.Phase.ID,
-		[]string{capability.ChildStatusAutoRenewed},
-	)
+	children, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{capability.ChildStatusAutoRenewed})
 	require.NoError(t, err)
 	require.Len(t, children, 1)
 	assert.Equal(t, "Lina", children[0].FirstName)
@@ -410,7 +402,7 @@ func TestRolloverService_CreatePhaseFromSource_CarriesEligibilityForward(t *test
 	// rollover re-validates the copied config.
 	env.sourcePhase.AvailableSchoolClasses = []string{"2a", "2b"}
 	env.sourcePhase.EligibleSchoolClasses = []string{"2a", "2b"}
-	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().UpdatePhase, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
 	// A class-restricted successor now requires concrete-class collection to be
 	// active — the rollover enforces the same collectability invariant as the
 	// admin create/update paths (#1663). collect_grade_level is already on in
@@ -443,10 +435,7 @@ func TestRolloverService_CreatePhaseFromSource_OptInLandsInPendingRenewal(t *tes
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.RolledCount)
 
-	children, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
-		ctx, result.Phase.ID,
-		[]string{capability.ChildStatusPendingRenewal},
-	)
+	children, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{capability.ChildStatusPendingRenewal})
 	require.NoError(t, err)
 	require.Len(t, children, 1)
 	assert.Equal(t, int16(3), *children[0].TargetGradeLevel)
@@ -468,10 +457,7 @@ func TestRolloverService_CreatePhaseFromSource_GradeAboveMaxGoesToReview(t *test
 	assert.Equal(t, 1, result.ReviewCount)
 	assert.Equal(t, 1, result.ReviewByReason[capability.ReviewReasonGradeAboveMax])
 
-	review, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
-		ctx, result.Phase.ID,
-		[]string{capability.ChildStatusPendingAdminReview},
-	)
+	review, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{capability.ChildStatusPendingAdminReview})
 	require.NoError(t, err)
 	require.Len(t, review, 1)
 	require.NotNil(t, review[0].ReviewReason)
@@ -512,9 +498,7 @@ func TestRolloverService_CreatePhaseFromSource_NoGradeLevelGoesToReview(t *testi
 		Where("id = ?", res.Children[0].ID).
 		Exec(ctx)
 	require.NoError(t, err, "manual NULL of target_grade_level for legacy-data simulation")
-	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(
-		ctx, res.Children[0].ID, capability.ChildStatusApproved, nil, env.creatorID,
-	))
+	require.NoError(t, testpkg.TenantCommand4(t, ctx, env.db, env.repos.Enrollment().UpdateChildStatus, res.Children[0].ID, capability.ChildStatusApproved, nil, env.creatorID))
 
 	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, validRolloverRequest(env, capability.PhaseRolloverModeOptOut, true))
 	require.NoError(t, err)
@@ -536,10 +520,7 @@ func TestRolloverService_CreatePhaseFromSource_BumpsGradeFalseKeepsGrade(t *test
 	require.NoError(t, err)
 	require.Equal(t, 1, result.RolledCount)
 
-	children, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
-		ctx, result.Phase.ID,
-		[]string{capability.ChildStatusAutoRenewed},
-	)
+	children, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{capability.ChildStatusAutoRenewed})
 	require.NoError(t, err)
 	require.Len(t, children, 1)
 	assert.Equal(t, int16(2), *children[0].TargetGradeLevel, "half-year rollover must not bump grade")
@@ -569,9 +550,7 @@ func TestRolloverService_CreatePhaseFromSource_SkipsNonApproved(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(
-		ctx, res.Children[0].ID, capability.ChildStatusWithdrawn, nil, env.creatorID,
-	))
+	require.NoError(t, testpkg.TenantCommand4(t, ctx, env.db, env.repos.Enrollment().UpdateChildStatus, res.Children[0].ID, capability.ChildStatusWithdrawn, nil, env.creatorID))
 
 	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, validRolloverRequest(env, capability.PhaseRolloverModeOptOut, true))
 	require.NoError(t, err)
@@ -813,10 +792,7 @@ func TestRolloverService_RunDeadlineWorker_TransitionsStatuses(t *testing.T) {
 		"every pending_renewal in the past-deadline phase must transition")
 
 	// All pending_renewal rows in that phase must now be withdrawn.
-	remainingPending, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
-		ctx, optInResult.Phase.ID,
-		[]string{capability.ChildStatusPendingRenewal},
-	)
+	remainingPending, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, optInResult.Phase.ID, []string{capability.ChildStatusPendingRenewal})
 	require.NoError(t, err)
 	assert.Empty(t, remainingPending)
 }
@@ -959,10 +935,7 @@ func TestRequestService_ConfirmRenewal_TransitionsPendingRenewalToSubmitted(t *t
 
 	// Find the new request's status token so the parent endpoint can
 	// authenticate.
-	children, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
-		ctx, result.Phase.ID,
-		[]string{capability.ChildStatusPendingRenewal},
-	)
+	children, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{capability.ChildStatusPendingRenewal})
 	require.NoError(t, err)
 	require.Len(t, children, 1)
 	parentReq, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), children[0].RequestID)
@@ -989,10 +962,7 @@ func TestRequestService_ConfirmRenewal_IsIdempotent(t *testing.T) {
 
 	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, validRolloverRequest(env, capability.PhaseRolloverModeOptIn, true))
 	require.NoError(t, err)
-	children, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
-		ctx, result.Phase.ID,
-		[]string{capability.ChildStatusPendingRenewal},
-	)
+	children, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{capability.ChildStatusPendingRenewal})
 	require.NoError(t, err)
 	parentReq, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), children[0].RequestID)
 	require.NoError(t, err)
@@ -1025,10 +995,7 @@ func TestRolloverService_RunDeadlineWorker_LeavesAdminReviewAlone(t *testing.T) 
 	_, err = env.rolloverSvc.RunDeadlineWorker(ctx, time.Now())
 	require.NoError(t, err)
 
-	reviewRows, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
-		ctx, result.Phase.ID,
-		[]string{capability.ChildStatusPendingAdminReview},
-	)
+	reviewRows, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{capability.ChildStatusPendingAdminReview})
 	require.NoError(t, err)
 	assert.Len(t, reviewRows, 1, "admin-review rows must survive the deadline worker")
 }

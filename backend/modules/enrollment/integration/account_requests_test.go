@@ -48,11 +48,11 @@ func TestAccountRequestsOwnershipFallbackScopeAndFailure(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
-	_, err := module.AccountRequests(context.Background(), account.ID, account.Email)
+	_, err := module.AccountRequests(testpkg.Ctx(t), account.ID, account.Email)
 	require.ErrorContains(t, err, "transaction is required")
 	counter := testpkg.CaptureQueriesForContext(t, db)
 	err = tenant.WithAdminTx(testpkg.Ctx(t), db, func(ctx context.Context, _ bun.Tx) error {
-		rows, err := module.AccountRequests(counter.Context(ctx), account.ID, account.Email)
+		rows, err := testpkg.TenantQuery2(t, counter.Context(ctx), db, module.AccountRequests, account.ID, account.Email)
 		require.NoError(t, err)
 		require.Len(t, rows, 4, "linked and unclaimed matching requests from both schools, never another account's claimed request")
 		require.Len(t, counter.Operation("SELECT"), 2, "request and child rows are batch loaded")
@@ -64,7 +64,7 @@ func TestAccountRequestsOwnershipFallbackScopeAndFailure(t *testing.T) {
 	require.NoError(t, err)
 	ctx := testpkg.ContextForTenant(testpkg.Ctx(t), schoolIDs[0])
 	err = testpkg.WithTenantTx(t, ctx, db, schoolIDs[0], func(txCtx context.Context, _ bun.Tx) error {
-		rows, err := module.AccountRequests(txCtx, account.ID, account.Email)
+		rows, err := testpkg.TenantQuery2(t, txCtx, db, module.AccountRequests, account.ID, account.Email)
 		require.NoError(t, err)
 		require.Len(t, rows, 2)
 		for _, row := range rows {
@@ -76,21 +76,21 @@ func TestAccountRequestsOwnershipFallbackScopeAndFailure(t *testing.T) {
 	err = tenant.WithAdminTx(testpkg.Ctx(t), db, func(ctx context.Context, tx bun.Tx) error {
 		_, err := tx.NewRaw("SELECT 1 / 0").Exec(ctx)
 		require.Error(t, err)
-		_, audienceErr := module.PendingAnnouncementApplicants(testpkg.ContextForTenant(ctx, schoolIDs[0]))
+		_, audienceErr := testpkg.TenantQuery0(t, testpkg.ContextForTenant(ctx, schoolIDs[0]), db, module.PendingAnnouncementApplicants)
 		require.ErrorContains(t, audienceErr, "list pending announcement applicants")
-		_, err = module.AccountRequests(ctx, account.ID, account.Email)
+		_, err = testpkg.TenantQuery2(t, ctx, db, module.AccountRequests, account.ID, account.Email)
 		require.ErrorContains(t, err, "parent: list enrollment requests")
 		return err
 	})
 	require.Error(t, err)
 	err = tenant.WithAdminTx(testpkg.Ctx(t), db, func(ctx context.Context, _ bun.Tx) error {
-		rows, err := module.AccountRequests(ctx, account.ID, account.Email)
+		rows, err := testpkg.TenantQuery2(t, ctx, db, module.AccountRequests, account.ID, account.Email)
 		require.NoError(t, err)
 		require.Len(t, rows, 4, "retry succeeds after transaction rollback")
 		return nil
 	})
 	require.NoError(t, err)
-	applicants, err := module.PendingAnnouncementApplicants(ctx)
+	applicants, err := testpkg.TenantQuery0(t, ctx, db, module.PendingAnnouncementApplicants)
 	require.NoError(t, err)
 	require.Len(t, applicants, 3)
 	err = testpkg.WithTenantTx(t, ctx, db, schoolIDs[0], func(txCtx context.Context, tx bun.Tx) error {
@@ -103,28 +103,28 @@ func TestAccountRequestsOwnershipFallbackScopeAndFailure(t *testing.T) {
 		return err
 	})
 	require.NoError(t, err)
-	applicants, err = module.PendingAnnouncementApplicants(ctx)
+	applicants, err = testpkg.TenantQuery0(t, ctx, db, module.PendingAnnouncementApplicants)
 	require.NoError(t, err)
 	require.Len(t, applicants, 1, "withdrawn requests and decided children are excluded")
 	require.Equal(t, &account.ID, applicants[0].GuardianAccountID)
-	applicants, err = module.PendingAnnouncementApplicants(testpkg.ContextForTenant(testpkg.Ctx(t), schoolIDs[1]))
+	applicants, err = testpkg.TenantQuery0(t, testpkg.ContextForTenant(testpkg.Ctx(t), schoolIDs[1]), db, module.PendingAnnouncementApplicants)
 	require.NoError(t, err)
 	require.Len(t, applicants, 3, "the other school's pending audience remains unchanged")
 	err = tenant.WithAdminTx(testpkg.Ctx(t), db, func(adminCtx context.Context, _ bun.Tx) error {
-		rows, err := module.PendingAnnouncementApplicantsForSchools(adminCtx, schoolIDs)
+		rows, err := testpkg.TenantQuery1(t, adminCtx, db, module.PendingAnnouncementApplicantsForSchools, schoolIDs)
 		require.NoError(t, err)
 		require.Len(t, rows, 4)
-		rows, err = module.PendingAnnouncementApplicantsForSchools(adminCtx, schoolIDs[:1])
+		rows, err = testpkg.TenantQuery1(t, adminCtx, db, module.PendingAnnouncementApplicantsForSchools, schoolIDs[:1])
 		require.NoError(t, err)
 		require.Len(t, rows, 1)
 		require.Equal(t, schoolIDs[0], rows[0].TenantID)
-		rows, err = module.PendingAnnouncementApplicantsForSchools(adminCtx, nil)
+		rows, err = testpkg.TenantQuery1(t, adminCtx, db, module.PendingAnnouncementApplicantsForSchools, nil)
 		require.NoError(t, err)
 		require.Empty(t, rows, "empty school scope must not widen cross-school discovery")
 		return nil
 	})
 	require.NoError(t, err)
-	applicants, err = module.PendingAnnouncementApplicantsForSchools(ctx, schoolIDs)
+	applicants, err = testpkg.TenantQuery1(t, ctx, db, module.PendingAnnouncementApplicantsForSchools, schoolIDs)
 	require.NoError(t, err)
 	require.Len(t, applicants, 1, "tenant RLS still narrows a multi-school filter")
 }

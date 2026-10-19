@@ -96,14 +96,14 @@ func (s *studentDirectoryReads) ListDirectory(
 	ctx context.Context,
 	filter directoryFilter,
 ) ([]directory.StudentRecord, directoryStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, directoryStats{}, err
 	}
 	rows := []directoryRecordRow{}
 	query := applyStudentDirectoryFilter(
-		withStudentTenant(s.rows.StudentRows(db, 0).
-			ColumnExpr(studentRecordColumns), tenantID),
+		withStudentTenant(s.studentRows(db, scope).
+			ColumnExpr(studentRecordColumns), scope),
 		filter,
 	)
 	// Without a total order PostgreSQL may hand the same child back on two
@@ -134,12 +134,12 @@ func (s *studentDirectoryReads) CountDirectory(
 	ctx context.Context,
 	filter directoryFilter,
 ) (int, directoryStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, directoryStats{}, err
 	}
 	query := applyStudentDirectoryFilter(
-		withStudentTenant(s.rows.StudentRows(db, 0), tenantID),
+		withStudentTenant(s.studentRows(db, scope), scope),
 		filter,
 	)
 	stats := directoryStats{Queries: 1}
@@ -154,12 +154,12 @@ func (s *studentDirectoryReads) CountDirectory(
 }
 
 func (s *studentDirectoryReads) ListDirectoryIDs(ctx context.Context) ([]int64, directoryStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, directoryStats{}, err
 	}
 	ids := []int64{}
-	query := withStudentTenant(s.rows.StudentRows(db, 0), tenantID).
+	query := withStudentTenant(s.studentRows(db, scope), scope).
 		ColumnExpr(`"student".id`).
 		Where(`"student".status != ?`, directory.StudentStatusAlumnus).
 		OrderExpr(`"student".id ASC`)
@@ -226,13 +226,13 @@ func (s *studentDirectoryReads) FindRecord(
 	studentID int64,
 	lock string,
 ) (directory.StudentRecord, bool, directoryStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return directory.StudentRecord{}, false, directoryStats{}, err
 	}
 	rows := []directoryRecordRow{}
-	query := withStudentTenant(s.rows.StudentRows(db, 0).
-		ColumnExpr(studentRecordColumns).Where(`"student".id = ?`, studentID), tenantID)
+	query := withStudentTenant(s.studentRows(db, scope).
+		ColumnExpr(studentRecordColumns).Where(`"student".id = ?`, studentID), scope)
 	if lock != "" {
 		query = query.For(lock)
 	}
@@ -262,13 +262,13 @@ func (s *studentDirectoryReads) ListRecordsByIDs(
 	ctx context.Context,
 	ids []int64,
 ) ([]directory.StudentRecord, directoryStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, directoryStats{}, err
 	}
 	rows := []directoryRecordRow{}
-	query := withStudentTenant(s.rows.StudentRows(db, 0).
-		ColumnExpr(studentRecordColumns).Where(`"student".id IN (?)`, bun.List(ids)), tenantID).
+	query := withStudentTenant(s.studentRows(db, scope).
+		ColumnExpr(studentRecordColumns).Where(`"student".id IN (?)`, bun.List(ids)), scope).
 		OrderExpr(`"student".id ASC`)
 	stats := directoryStats{Queries: 1}
 	started := time.Now()

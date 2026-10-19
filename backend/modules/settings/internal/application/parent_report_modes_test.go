@@ -13,7 +13,7 @@ import (
 
 func parentReportFields(t *testing.T, ctx context.Context, settings configModel.SettingsService) map[string]*configModel.ResolvedSetting {
 	t.Helper()
-	schema, err := settings.GetSchema(ctx, []string{"admin:*"})
+	schema, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), settings.GetSchema, []string{"admin:*"})
 	require.NoError(t, err)
 	fields := map[string]*configModel.ResolvedSetting{}
 	for _, tab := range schema.Tabs {
@@ -40,7 +40,7 @@ func TestParentReportModeLegacyProfilesAndIndependentWrites(t *testing.T) {
 						configModel.KeyParentSickRequiresApproval:    sickApproval,
 						configModel.KeyParentExcusedRequiresApproval: excusedApproval,
 					} {
-						require.NoError(t, settings.SetValue(ctx, key, value, nil, nil))
+						require.NoError(t, testpkg.TenantCommand4(t, ctx, testpkg.SetupTestDB(t), settings.SetValue, key, any(value), nil, nil))
 					}
 					fields := parentReportFields(t, ctx, settings)
 					require.NotContains(t, fields, configModel.KeyParentSickNoteEnabled)
@@ -67,15 +67,15 @@ func TestParentReportModeLegacyProfilesAndIndependentWrites(t *testing.T) {
 					const key = configModel.KeyParentSickReportsEnabled
 					otherMode := fields[configModel.KeyParentExcusedReportsEnabled].Value
 					for _, mode := range []string{"off", "immediate", "approval", "off"} {
-						require.NoError(t, settings.SetValue(ctx, key, mode, nil, []string{"config:manage"}))
+						require.NoError(t, testpkg.TenantCommand4(t, ctx, testpkg.SetupTestDB(t), settings.SetValue, key, any(mode), nil, []string{"config:manage"}))
 						fields = parentReportFields(t, ctx, settings)
 						require.Equal(t, mode, fields[key].Value)
 						require.Equal(t, otherMode, fields[configModel.KeyParentExcusedReportsEnabled].Value)
-						approval, err := settings.ResolveBool(ctx, configModel.KeyParentExcusedRequiresApproval)
+						approval, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), settings.ResolveBool, configModel.KeyParentExcusedRequiresApproval)
 						require.NoError(t, err)
 						require.Equal(t, excusedApproval, approval)
 					}
-					require.NoError(t, settings.ResetValue(ctx, key, nil, []string{"config:manage"}))
+					require.NoError(t, testpkg.TenantCommand3(t, ctx, testpkg.SetupTestDB(t), settings.ResetValue, key, nil, []string{"config:manage"}))
 					fields = parentReportFields(t, ctx, settings)
 					require.True(t, fields[key].IsDefault)
 					require.Equal(t, "approval", fields[key].Value)
@@ -90,11 +90,14 @@ func TestParentReportModesConcurrentEnablesAndRollback(t *testing.T) {
 	t.Parallel()
 	ctx := testpkg.Ctx(t)
 	settings := attendanceScopeSettings(t)
-	require.NoError(t, settings.SetValue(ctx, configModel.KeyParentSickNoteEnabled, false, nil, nil))
+	require.NoError(t, testpkg.TenantCommand4(t, ctx, testpkg.SetupTestDB(t), settings.SetValue, configModel.KeyParentSickNoteEnabled, false, nil, nil))
 	start := make(chan struct{})
 	results := make(chan error, 2)
 	for _, key := range []string{configModel.KeyParentSickReportsEnabled, configModel.KeyParentExcusedReportsEnabled} {
-		go func() { <-start; results <- settings.SetValue(ctx, key, "immediate", nil, nil) }()
+		go func() {
+			<-start
+			results <- testpkg.TenantCommand4(t, ctx, testpkg.SetupTestDB(t), settings.SetValue, key, "immediate", nil, nil)
+		}()
 	}
 	close(start)
 	for range 2 {
@@ -106,7 +109,7 @@ func TestParentReportModesConcurrentEnablesAndRollback(t *testing.T) {
 	runtime := testpkg.SettingsRuntime(t, testpkg.SetupTestDB(t))
 	abort := errors.New("rollback")
 	err := runtime.WithinTenant(ctx, testpkg.Tenant(t), func(txCtx context.Context) error {
-		if err := settings.SetValue(txCtx, configModel.KeyParentSickReportsEnabled, "approval", nil, nil); err != nil {
+		if err := testpkg.TenantCommand4(t, txCtx, testpkg.SetupTestDB(t), settings.SetValue, configModel.KeyParentSickReportsEnabled, "approval", nil, nil); err != nil {
 			return err
 		}
 		return abort
@@ -114,6 +117,6 @@ func TestParentReportModesConcurrentEnablesAndRollback(t *testing.T) {
 	require.ErrorIs(t, err, abort)
 	fields = parentReportFields(t, ctx, settings)
 	require.Equal(t, "immediate", fields[configModel.KeyParentSickReportsEnabled].Value)
-	require.Error(t, settings.SetValue(ctx, configModel.KeyParentSickReportsEnabled, "unknown", nil, nil))
-	require.Error(t, settings.SetValue(ctx, configModel.KeyParentSickReportsEnabled, "approval", nil, []string{"config:read"}))
+	require.Error(t, testpkg.TenantCommand4(t, ctx, testpkg.SetupTestDB(t), settings.SetValue, configModel.KeyParentSickReportsEnabled, "unknown", nil, nil))
+	require.Error(t, testpkg.TenantCommand4(t, ctx, testpkg.SetupTestDB(t), settings.SetValue, configModel.KeyParentSickReportsEnabled, "approval", nil, []string{"config:read"}))
 }

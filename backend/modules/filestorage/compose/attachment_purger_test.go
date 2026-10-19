@@ -113,7 +113,7 @@ func TestAttachmentPurgerAnswersFromTheAttachmentsAlone(t *testing.T) {
 	assert.Equal(t, []filestorage.AttachmentDigest{{
 		AttachmentID: attachmentID, Filename: "Elternbrief.pdf", ContentType: "application/pdf", SizeBytes: 5, SHA256: "%PDF-",
 	}}, digests)
-	require.NoError(t, purger.QueueAttachmentCleanupForAnnouncement(ctx, announcement.ID))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, purger.QueueAttachmentCleanupForAnnouncement, announcement.ID))
 	queued, err := db.NewSelect().TableExpr("documents.announcement_attachment_cleanup").
 		Where("tenant_id = ?", testpkg.Tenant(t)).Where("owner_id = ?", announcement.ID).Where("filename_stored = ?", storedName).Count(ctx)
 	require.NoError(t, err)

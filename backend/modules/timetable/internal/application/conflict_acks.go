@@ -7,7 +7,7 @@ import (
 )
 
 func (s *Service) ListConflictAcks(ctx context.Context, accountID int64) (result []string, err error) {
-	err = s.run("list_conflict_acks", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_conflict_acks", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListConflictAckFingerprints(ctx, accountID)
 		stats.Add(queryStats)
 		result = values

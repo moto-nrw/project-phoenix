@@ -237,7 +237,7 @@ func TestEditMasterDataRequestRefusesUnchangedValue(t *testing.T) {
 		}, nil)
 	require.NoError(t, err)
 
-	person, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Person.FindByID(ctx, chain.PersonID)
+	person, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Person.FindByID, any(chain.PersonID))
 	require.NoError(t, err)
 	live, err := json.Marshal(person.FirstName)
 	require.NoError(t, err)

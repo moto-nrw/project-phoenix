@@ -9,13 +9,10 @@ import (
 // cleanup. Matched-only links deliberately do not establish the created-student
 // ownership used by that workflow.
 func (m *Module) CreatedStudentRequestChildIDs(ctx context.Context, studentIDs []int64) ([]int64, error) {
-	var ids []int64
-	err := m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		var err error
-		ids, err = m.engine.CreatedStudentRequestChildIDs(txCtx, studentIDs)
-		return err
-	})
-	return ids, err
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	return m.engine.CreatedStudentRequestChildIDs(ctx, studentIDs)
 }
 
 // CountStudentReferencesForDeletion counts request children that retain a
@@ -24,11 +21,10 @@ func (m *Module) CreatedStudentRequestChildIDs(ctx context.Context, studentIDs [
 // rejected, or withdrawn reference before the student goes. A child
 // referencing the student through both links counts once.
 func (m *Module) CountStudentReferencesForDeletion(ctx context.Context, studentID int64) (approved, total int, err error) {
-	err = m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		approved, total, err = m.engine.CountStudentReferencesForDeletion(txCtx, studentID)
-		return err
-	})
-	return approved, total, err
+	if err = m.transactions.RequireTransaction(ctx); err != nil {
+		return 0, 0, err
+	}
+	return m.engine.CountStudentReferencesForDeletion(ctx, studentID)
 }
 
 // DeleteApprovedEnrollmentsOfStudent deletes the approved enrollment children

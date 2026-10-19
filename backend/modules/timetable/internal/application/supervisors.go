@@ -7,7 +7,7 @@ import (
 )
 
 func (s *Service) FindPlannedSupervisor(ctx context.Context, id int64) (result domain.PlannedSupervisor, err error) {
-	err = s.run("find_planned_supervisor", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_planned_supervisor", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, findErr := s.store.FindPlannedSupervisor(ctx, id)
 		stats.Add(queryStats)
 		if findErr != nil {
@@ -23,7 +23,7 @@ func (s *Service) FindPlannedSupervisor(ctx context.Context, id int64) (result d
 }
 
 func (s *Service) ListPlannedSupervisors(ctx context.Context, filter domain.PlannedSupervisorFilter) (result []domain.PlannedSupervisor, err error) {
-	err = s.run("list_planned_supervisors", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_planned_supervisors", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListPlannedSupervisors(ctx, filter)
 		stats.Add(queryStats)
 		result = values
@@ -33,7 +33,7 @@ func (s *Service) ListPlannedSupervisors(ctx context.Context, filter domain.Plan
 }
 
 func (s *Service) ListPlannedSupervisionBlockers(ctx context.Context, staffID int64) (result []domain.PlannedSupervisionBlocker, err error) {
-	err = s.run("list_planned_supervision_blockers", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_planned_supervision_blockers", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListPlannedSupervisionBlockers(ctx, staffID)
 		stats.Add(queryStats)
 		result = values
@@ -103,7 +103,7 @@ func (s *Service) SetPrimaryPlannedSupervisor(ctx context.Context, id int64) err
 }
 
 func (s *Service) LockPlannedSupervisors(ctx context.Context) error {
-	return s.run("lock_planned_supervisors", func(stats *domain.OperationStats) error {
+	return s.observeOperation(ctx, "lock_planned_supervisors", func(ctx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.LockPlannedSupervisors(ctx)
 		stats.Add(queryStats)
 		return err

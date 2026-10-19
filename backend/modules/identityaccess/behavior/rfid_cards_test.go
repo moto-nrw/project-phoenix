@@ -16,7 +16,7 @@ import (
 func TestRFIDCardsRegistrationAndIsolation(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	cards, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	cards, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	tag := fmt.Sprintf("ABCD%016X", testpkg.UniqueTestTenantID(t))
@@ -71,7 +71,7 @@ func TestRFIDCardsRegistrationAndIsolation(t *testing.T) {
 func TestRFIDCardsDatabaseFailure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	cards, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	cards, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.ContextWithTenantRuntime(testpkg.TenantContext(testpkg.Tenant(t)), testpkg.TenantRuntime(t, db))
 	require.NoError(t, db.Close())

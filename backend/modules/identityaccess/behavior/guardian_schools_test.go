@@ -15,7 +15,7 @@ import (
 func TestGuardianSchoolsEligibilityAndTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	account := testpkg.CreateTestAccount(t, db, "guardian-schools")
 	ctx := testpkg.Ctx(t)
@@ -69,7 +69,7 @@ func TestGuardianSchoolsEligibilityAndTransaction(t *testing.T) {
 func TestGuardianSchoolsDatabaseFailure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	require.NoError(t, db.Close())
 	_, err = identity.ListGuardianSchoolIDs(context.Background(), 1)

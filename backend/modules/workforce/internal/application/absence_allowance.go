@@ -46,7 +46,7 @@ func (s *Service) findAllowanceType(ctx context.Context, absenceTypeID int64) (d
 // because an older rest decides how much of each later year is still open.
 func (s *Service) loadAllowanceAccounts(ctx context.Context, staffID int64, absenceType domain.StaffAbsenceType, firstYear, lastYear int) (allowanceAccounts, error) {
 	accounts := allowanceAccounts{absenceType: absenceType}
-	err := s.run("staff_absence_type_entitlements", func(stats *domain.OperationStats) error {
+	err := s.run(ctx, "staff_absence_type_entitlements", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		var err error
 		accounts.entitlements, queryStats, err = s.store.StaffAbsenceTypeEntitlements(ctx, staffID, absenceType.ID)
@@ -264,7 +264,7 @@ func (s *Service) SetAllowance(ctx context.Context, input domain.SetAbsenceTypeA
 		return domain.AbsenceTypeAllowanceSummary{}, err
 	}
 	var result domain.AbsenceTypeAllowanceSummary
-	err = s.run("set_staff_absence_type_allowance", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "set_staff_absence_type_allowance", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			if err := s.LockStaffAbsenceWrites(txCtx, input.StaffID); err != nil {
 				return fmt.Errorf("lock staff allowance writes: %w", err)

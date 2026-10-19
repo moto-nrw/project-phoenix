@@ -20,7 +20,7 @@ import (
 func TestSchoolAccountListingsScopeAndInvitationSuppression(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	query, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	query, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	home := testpkg.Tenant(t)
@@ -67,7 +67,7 @@ func TestOperatorAccountListingCaregiverEnrichment(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Ada", "Listing")
-	query, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	query, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	persons, err := api.NewPeopleDirectory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)

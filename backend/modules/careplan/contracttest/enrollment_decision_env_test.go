@@ -247,7 +247,7 @@ func setupEnrollmentTestEnv(t *testing.T, decisionSettings owners.EnrollmentDeci
 		FormSchemaID:     &schema.ID,
 	}
 	sourcePhase.TenantID = testpkg.Tenant(t)
-	require.NoError(t, repoFactoryEnrollment.Enrollment().InsertPhase(ctx, sourcePhase))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repoFactoryEnrollment.Enrollment().InsertPhase, sourcePhase))
 
 	catalog := testCareOfferingCatalog(t, db, api.WithCareOfferingSettings(settings))
 	bookings := composeBookings(t, db, catalog, decisionSettings, nil, nil)
@@ -267,7 +267,7 @@ func setupEnrollmentTestEnv(t *testing.T, decisionSettings owners.EnrollmentDeci
 		sourcePhase:     sourcePhase,
 		creatorID:       account.ID,
 		decisions:       decisions,
-		decision:        enrollmentTest.NewPublicDecisions(decisions),
+		decision:        enrollmentTest.WithDecisionUnit(enrollmentTest.NewPublicDecisions(decisions), fixtureEnrollmentCommand),
 		bookings:        bookings,
 	}
 	return env, func() { cleanupEnrollmentTestEnv(db, testpkg.Tenant(t), sourcePhase.ID, account.ID) }
@@ -333,7 +333,7 @@ func newDecisionServiceForTestWithCareWithdrawal(
 		})
 	}
 	bookings := composeBookings(env.tb, env.db, env.offeringCatalog, settings, lockTemplateRecurrence, careWithdrawal)
-	return enrollmentTest.NewPublicDecisions(composeDecisions(env.tb, env.db, env.reposEnrollment, env.repos, env.reposPeople, env.reposSchedules, bookings, settings, lockTemplateRecurrence, careWithdrawal))
+	return enrollmentTest.WithDecisionUnit(enrollmentTest.NewPublicDecisions(composeDecisions(env.tb, env.db, env.reposEnrollment, env.repos, env.reposPeople, env.reposSchedules, bookings, settings, lockTemplateRecurrence, careWithdrawal)), fixtureEnrollmentCommand)
 }
 
 // newBookingsForTest composes Care Plan's booking materialization (#3560)
@@ -567,7 +567,7 @@ func testNotifications(modes enrollmentTest.NotificationModePin, settings interf
 func updateSourcePhase(t *testing.T, env *decisionTestEnv) {
 	t.Helper()
 	phase := *env.sourcePhase
-	require.NoError(t, env.reposEnrollment.Enrollment().UpdatePhase(testpkg.Ctx(t), &phase))
+	require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), env.db, env.reposEnrollment.Enrollment().UpdatePhase, &phase))
 }
 
 func setSourcePhaseServiceStartDate(t *testing.T, env *decisionTestEnv, serviceStartDate calendar.Date) {
@@ -599,7 +599,7 @@ func consentFlags(t *testing.T) json.RawMessage {
 func submitOneChild(t *testing.T, env *decisionTestEnv, guardianEmail, childFirst, childLast string) (requestID, childID int64) {
 	t.Helper()
 	grade := int16(2)
-	res, err := env.requestSvc.Submit(testpkg.Ctx(t), enrollmentTest.SubmitRequest{
+	res, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), env.db, env.requestSvc.Submit, enrollmentTest.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
@@ -623,7 +623,7 @@ func submitOneChild(t *testing.T, env *decisionTestEnv, guardianEmail, childFirs
 // re-enrollment branch instead of creating a second Person + Student.
 func matchChildToExistingStudent(t *testing.T, env *decisionTestEnv, childID, studentID int64) {
 	t.Helper()
-	require.NoError(t, env.reposEnrollment.Enrollment().UpdateMatchedStudent(testpkg.Ctx(t), childID, &studentID))
+	require.NoError(t, testpkg.TenantCommand2(t, testpkg.Ctx(t), env.db, env.reposEnrollment.Enrollment().UpdateMatchedStudent, childID, &studentID))
 }
 
 // liftTakeoverStamp clears created_student_id on the request's children and
@@ -635,7 +635,7 @@ func matchChildToExistingStudent(t *testing.T, env *decisionTestEnv, childID, st
 func liftTakeoverStamp(t *testing.T, env *decisionTestEnv, requestID int64) func() {
 	t.Helper()
 	ctx := testpkg.TenantContext(env.sourcePhase.TenantID)
-	children, err := env.reposEnrollment.Enrollment().ChildrenForRequest(ctx, requestID, false)
+	children, err := testpkg.TenantQuery2(t, ctx, env.db, env.reposEnrollment.Enrollment().ChildrenForRequest, requestID, false)
 	require.NoError(t, err)
 	stamps := make(map[int64]int64, len(children))
 	for _, child := range children {

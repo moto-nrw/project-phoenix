@@ -26,11 +26,11 @@ func TestChangeRequestTablesAreRowLevelSecured(t *testing.T) {
 			ctx := testpkg.Ctx(t)
 			phase := testpkg.CreateTestEnrollmentPhase(t, db)
 			request := &enrollment.Request{PhaseID: phase.ID, GuardianFirstName: "First", GuardianLastName: "Last", GuardianEmail: "guardian@example.test", StatusToken: "rls-" + name + t.Name()}
-			require.NoError(t, owner.InsertRequest(ctx, request))
+			require.NoError(t, testpkg.TenantCommand1(t, ctx, db, owner.InsertRequest, request))
 			row := &enrollment.ChangeRequest{RequestID: request.ID}
-			require.NoError(t, owner.InsertChangeRequest(ctx, row))
+			require.NoError(t, testpkg.TenantCommand1(t, ctx, db, owner.InsertChangeRequest, row))
 			message := &enrollment.ChangeRequestMessage{ChangeRequestID: row.ID, AuthorType: "parent", Body: name}
-			require.NoError(t, owner.InsertChangeRequestMessage(ctx, message))
+			require.NoError(t, testpkg.TenantCommand1(t, ctx, db, owner.InsertChangeRequestMessage, message))
 			tenants = append(tenants, testpkg.Tenant(t))
 			changeIDs = append(changeIDs, row.ID)
 			messageIDs = append(messageIDs, message.ID)
@@ -69,10 +69,10 @@ func TestChangeRequestTablesAreRowLevelSecured(t *testing.T) {
 	}
 	for index, tenantID := range tenants {
 		ctx := testpkg.ContextForTenant(testpkg.Ctx(t), tenantID)
-		stored, err := owner.ChangeRequestByID(ctx, changeIDs[index])
+		stored, err := testpkg.TenantQuery1(t, ctx, db, owner.ChangeRequestByID, changeIDs[index])
 		require.NoError(t, err)
 		require.Equal(t, "pending_review", stored.Status)
-		messages, err := owner.ChangeRequestMessages(ctx, []int64{changeIDs[index]}, true)
+		messages, err := testpkg.TenantQuery2(t, ctx, db, owner.ChangeRequestMessages, []int64{changeIDs[index]}, true)
 		require.NoError(t, err)
 		require.Len(t, messages, 1)
 		require.NotEqual(t, "must not change", messages[0].Body)
@@ -89,16 +89,16 @@ func TestChangeRequestReadsPreserveStoreFailures(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	phase := testpkg.CreateTestEnrollmentPhase(t, db)
 	request := &enrollment.Request{PhaseID: phase.ID, GuardianFirstName: "First", GuardianLastName: "Last", GuardianEmail: "guardian@example.test", StatusToken: "failure-" + t.Name()}
-	require.NoError(t, owner.InsertRequest(ctx, request))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, owner.InsertRequest, request))
 	row := &enrollment.ChangeRequest{RequestID: request.ID}
-	require.NoError(t, owner.InsertChangeRequest(ctx, row))
-	require.NoError(t, owner.InsertChangeRequestMessage(ctx, &enrollment.ChangeRequestMessage{ChangeRequestID: row.ID, AuthorType: "parent", Body: "hello"}))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, owner.InsertChangeRequest, row))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, owner.InsertChangeRequestMessage, &enrollment.ChangeRequestMessage{ChangeRequestID: row.ID, AuthorType: "parent", Body: "hello"}))
 
 	// Without a tenant there is no transaction to bind to; the owner refuses
 	// instead of reading from an unscoped pool.
-	_, err := owner.ChangeRequestByID(context.Background(), row.ID)
+	_, err := testpkg.TenantQuery1(t, context.Background(), db, owner.ChangeRequestByID, row.ID)
 	require.Error(t, err)
-	_, err = owner.ChangeRequestMessages(context.Background(), []int64{row.ID}, true)
+	_, err = testpkg.TenantQuery2(t, context.Background(), db, owner.ChangeRequestMessages, []int64{row.ID}, true)
 	require.Error(t, err)
 
 	reads := []struct {
@@ -107,27 +107,27 @@ func TestChangeRequestReadsPreserveStoreFailures(t *testing.T) {
 		read   func(context.Context) error
 	}{
 		{"by id", "failed to find enrollment change request", func(ctx context.Context) error {
-			_, err := owner.ChangeRequestByID(ctx, row.ID)
+			_, err := testpkg.TenantQuery1(t, ctx, db, owner.ChangeRequestByID, row.ID)
 			return err
 		}},
 		{"for request", "failed to list enrollment change requests by request", func(ctx context.Context) error {
-			_, err := owner.ChangeRequestsForRequest(ctx, request.ID)
+			_, err := testpkg.TenantQuery1(t, ctx, db, owner.ChangeRequestsForRequest, request.ID)
 			return err
 		}},
 		{"admin list", "failed to list enrollment change requests", func(ctx context.Context) error {
-			_, err := owner.ListChangeRequests(ctx, enrollment.ChangeRequestListFilters{RequestID: request.ID})
+			_, err := testpkg.TenantQuery1(t, ctx, db, owner.ListChangeRequests, enrollment.ChangeRequestListFilters{RequestID: request.ID})
 			return err
 		}},
 		{"review list", "failed to list enrollment change requests for review", func(ctx context.Context) error {
-			_, err := owner.ChangeRequestsForReview(ctx, enrollment.ChangeRequestReviewFilters{Statuses: []string{"pending_review"}, Limit: 5})
+			_, err := testpkg.TenantQuery1(t, ctx, db, owner.ChangeRequestsForReview, enrollment.ChangeRequestReviewFilters{Statuses: []string{"pending_review"}, Limit: 5})
 			return err
 		}},
 		{"review count", "failed to count enrollment change requests for review", func(ctx context.Context) error {
-			_, err := owner.CountChangeRequestsForReview(ctx, []string{"pending_review"})
+			_, err := testpkg.TenantQuery1(t, ctx, db, owner.CountChangeRequestsForReview, []string{"pending_review"})
 			return err
 		}},
 		{"messages", "failed to list enrollment change request messages", func(ctx context.Context) error {
-			_, err := owner.ChangeRequestMessages(ctx, []int64{row.ID}, true)
+			_, err := testpkg.TenantQuery2(t, ctx, db, owner.ChangeRequestMessages, []int64{row.ID}, true)
 			return err
 		}},
 	}
@@ -146,10 +146,10 @@ func TestChangeRequestReadsPreserveStoreFailures(t *testing.T) {
 	}
 
 	// The failures above left the rows and the healthy path untouched.
-	stored, err := owner.ChangeRequestByID(ctx, row.ID)
+	stored, err := testpkg.TenantQuery1(t, ctx, db, owner.ChangeRequestByID, row.ID)
 	require.NoError(t, err)
 	require.Equal(t, row.ID, stored.ID)
-	messages, err := owner.ChangeRequestMessages(ctx, []int64{row.ID}, true)
+	messages, err := testpkg.TenantQuery2(t, ctx, db, owner.ChangeRequestMessages, []int64{row.ID}, true)
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 }

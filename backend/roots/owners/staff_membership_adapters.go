@@ -67,6 +67,9 @@ func NewStaffMembershipDeps(persons staffPersonRows, identity staffIdentityQuery
 type StaffMembershipRepository struct {
 	Membership schoolmembership.Capability
 	Deps       *staffMembershipDeps
+
+	// membershipOnly omits employment fields in name-only consumer views.
+	membershipOnly bool
 }
 
 // membershipNotFound rebuilds the not-found error shape the legacy
@@ -270,7 +273,7 @@ func (r StaffMembershipRepository) hydrateStaffPersons(ctx context.Context, memb
 }
 
 func (r StaffMembershipRepository) ListAllWithPerson(ctx context.Context) ([]*peopleValues.Staff, error) {
-	values, err := r.Membership.ListStaff(ctx, schoolmembership.StaffFilter{})
+	values, err := r.Membership.ListStaff(ctx, schoolmembership.StaffFilter{MembershipOnly: r.membershipOnly})
 	if err != nil {
 		return nil, membershipError("list all with person", err)
 	}
@@ -326,7 +329,7 @@ func (r StaffMembershipRepository) FindWithPersonByIDs(ctx context.Context, ids 
 	// Offboarded staff stay resolvable here: the legacy query scanned a plain
 	// result struct without the soft-delete filter, and the historical
 	// projections (audit log, exports) rely on that.
-	values, err := r.Membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: ids, IncludeDeleted: true})
+	values, err := r.Membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: ids, IncludeDeleted: true, MembershipOnly: r.membershipOnly})
 	if err != nil {
 		return nil, membershipError("find with person by IDs", err)
 	}

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
@@ -28,7 +29,7 @@ func TestListHistory_DecidedRequestsWithReviewerAndSummary(t *testing.T) {
 		map[string]any{"weekday": 1, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"},
 	))
 	staffCtx := f.staffCtx(f.staffAccount)
-	_, err := f.svc.Decide(staffCtx, carerequests.DecideInput{
+	_, err := testpkg.TenantQuery1(t, staffCtx, f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID: first.ID, Approve: false, Reason: "passt nicht", ReviewedBy: f.staffAccount,
 	})
 	require.NoError(t, err)
@@ -96,12 +97,9 @@ func TestListHistory_IncludesPickupChangeWithPayloadSummary(t *testing.T) {
 	date := calendar.NewDate(2026, 8, 24).AddDays(1)
 	pickupTime := time.Date(0, 1, 1, 15, 30, 0, 0, time.UTC)
 
-	req, err := f.svc.CreatePickupChangeRequest(
-		f.staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID,
-		date, pickupTime, "Heute später",
-	)
+	req, err := testpkg.TenantQuery5(t, f.staffCtx(f.chain.AccountID), f.db, f.svc.CreatePickupChangeRequest, f.chain.StudentID, f.chain.AccountID, date, pickupTime, "Heute später")
 	require.NoError(t, err)
-	_, err = f.svc.Decide(f.staffCtx(f.staffAccount), carerequests.DecideInput{
+	_, err = testpkg.TenantQuery1(t, f.staffCtx(f.staffAccount), f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID: req.ID, Approve: false, Reason: "Nicht möglich", ReviewedBy: f.staffAccount,
 	})
 	require.NoError(t, err)

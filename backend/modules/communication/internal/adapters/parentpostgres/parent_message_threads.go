@@ -81,12 +81,12 @@ func (s *ThreadStore) Create(ctx context.Context, thread *domain.ParentMessageTh
 	if thread == nil {
 		return errors.New("create parent message thread: thread is required")
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
 	if thread.TenantID == 0 {
-		thread.TenantID = tenantID
+		thread.TenantID = scope.TenantID
 	}
 	row := threadRow(thread)
 	if _, err := db.NewInsert().
@@ -107,7 +107,7 @@ func (s *ThreadStore) Update(ctx context.Context, thread *domain.ParentMessageTh
 	if thread == nil || thread.ID <= 0 {
 		return errors.New("update parent message thread: thread id is required")
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
@@ -115,7 +115,7 @@ func (s *ThreadStore) Update(ctx context.Context, thread *domain.ParentMessageTh
 		Model(threadRow(thread)).
 		ModelTableExpr(parentThreadTableExpr).
 		WherePK()
-	query = withTenant(query, parentThreadAlias, tenantID)
+	query = withTenant(query, parentThreadAlias, scope)
 	result, err := query.Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("update parent message thread: %w", err)
@@ -125,7 +125,7 @@ func (s *ThreadStore) Update(ctx context.Context, thread *domain.ParentMessageTh
 
 // FindByID returns the thread within the current tenant, or nil when absent.
 func (s *ThreadStore) FindByID(ctx context.Context, id int64) (*domain.ParentMessageThread, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +135,7 @@ func (s *ThreadStore) FindByID(ctx context.Context, id int64) (*domain.ParentMes
 		ModelTableExpr(parentThreadTableExpr).
 		Where(`"parent_message_thread".id = ?`, id).
 		Limit(1)
-	query = withTenant(query, parentThreadAlias, tenantID)
+	query = withTenant(query, parentThreadAlias, scope)
 	if err := query.Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -148,7 +148,7 @@ func (s *ThreadStore) FindByID(ctx context.Context, id int64) (*domain.ParentMes
 // FindByStudentGuardian returns the single conversation for a (student,
 // guardian) pair in the current tenant, or nil when none exists yet.
 func (s *ThreadStore) FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64) (*domain.ParentMessageThread, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func (s *ThreadStore) FindByStudentGuardian(ctx context.Context, studentID, guar
 		Where(`"parent_message_thread".student_id = ?`, studentID).
 		Where(`"parent_message_thread".guardian_account_id = ?`, guardianAccountID).
 		Limit(1)
-	query = withTenant(query, parentThreadAlias, tenantID)
+	query = withTenant(query, parentThreadAlias, scope)
 	if err := query.Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -206,7 +206,7 @@ func (s *ThreadStore) GetOrCreate(ctx context.Context, tenantID, studentID, guar
 // LockForMessageAppend serializes inserts into one thread within the caller's
 // transaction, keeping message order aligned with commit order.
 func (s *ThreadStore) LockForMessageAppend(ctx context.Context, threadID int64) error {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
@@ -216,7 +216,7 @@ func (s *ThreadStore) LockForMessageAppend(ctx context.Context, threadID int64) 
 		ColumnExpr(`"parent_message_thread".id`).
 		Where(`"parent_message_thread".id = ?`, threadID).
 		For("UPDATE")
-	query = withTenant(query, parentThreadAlias, tenantID)
+	query = withTenant(query, parentThreadAlias, scope)
 	if err := query.Scan(ctx, &id); err != nil {
 		return fmt.Errorf("lock parent message thread for append: %w", err)
 	}
@@ -229,7 +229,7 @@ func (s *ThreadStore) LockForMessageAppend(ctx context.Context, threadID int64) 
 // those fields, including when two messages share a timestamp and the higher id
 // wins.
 func (s *ThreadStore) TouchLastMessage(ctx context.Context, threadID int64, at time.Time, messageID int64, senderKind, body string) error {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
@@ -247,7 +247,7 @@ func (s *ThreadStore) TouchLastMessage(ctx context.Context, threadID int64, at t
 			OR ("parent_message_thread".last_message_at = ?
 				AND ("parent_message_thread".last_message_id IS NULL
 					OR "parent_message_thread".last_message_id < ?)))`, at, at, messageID)
-	query = withTenant(query, parentThreadAlias, tenantID)
+	query = withTenant(query, parentThreadAlias, scope)
 	if _, err := query.Exec(ctx); err != nil {
 		return fmt.Errorf("touch parent message thread last message: %w", err)
 	}
@@ -261,7 +261,7 @@ func (s *ThreadStore) ClaimStaffMessageNotification(ctx context.Context, threadI
 	if cooldown <= 0 {
 		return false, errors.New("staff message notification cooldown must be positive")
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -272,7 +272,7 @@ func (s *ThreadStore) ClaimStaffMessageNotification(ctx context.Context, threadI
 		Where(`"parent_message_thread".id = ?`, threadID).
 		Where(`("parent_message_thread".last_staff_message_notification_at IS NULL
 			OR "parent_message_thread".last_staff_message_notification_at < clock_timestamp() - (? * INTERVAL '1 microsecond'))`, cooldown.Microseconds())
-	query = withTenant(query, parentThreadAlias, tenantID)
+	query = withTenant(query, parentThreadAlias, scope)
 	result, err := query.Exec(ctx)
 	if err != nil {
 		return false, fmt.Errorf("claim staff parent-message notification: %w", err)

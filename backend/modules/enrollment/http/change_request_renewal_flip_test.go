@@ -18,9 +18,7 @@ import (
 // the shortcut the rollover would otherwise take via renewalInitialStatus.
 func setChildStatus(t *testing.T, env *requestTestEnv, childID int64, status string) {
 	t.Helper()
-	require.NoError(t, api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, env.db)).Enrollment().UpdateChildStatus(
-		testpkg.TenantContext(env.phase.TenantID), childID, status, nil, env.creatorID,
-	))
+	require.NoError(t, testpkg.TenantCommand4(t, testpkg.TenantContext(env.phase.TenantID), testpkg.SetupTestDB(t), api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, env.db)).Enrollment().UpdateChildStatus, childID, status, nil, env.creatorID))
 }
 
 // A parent-initiated change request on a renewal request IS the parent's
@@ -63,7 +61,7 @@ func TestChangeRequestService_Create_FlipsPendingRenewalToSubmitted(t *testing.T
 	assert.Equal(t, enrollmentNative.ChildStatusSubmitted, row["status"])
 
 	// And the approval must go through without a snapshot conflict.
-	_, err = svc.Approve(ctx, created.ChangeRequest.ID, enrollmentAPI.ReviewChangeRequestInput{
+	_, err = testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), svc.Approve, created.ChangeRequest.ID, enrollmentAPI.ReviewChangeRequestInput{
 		Note:           "Freigegeben.",
 		ActorAccountID: env.creatorID,
 		ActorRole:      "admin",

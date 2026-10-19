@@ -169,7 +169,7 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 	storedRequest, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, repos.Enrollment(), request.ID)
 	require.NoError(t, err)
 	assert.Equal(t, request.ID, storedRequest.ID)
-	storedChild, err := repos.Enrollment().ChildByID(ctx, child.ID)
+	storedChild, err := testpkg.TenantQuery1(t, ctx, db, repos.Enrollment().ChildByID, child.ID)
 	require.NoError(t, err)
 	assert.Equal(t, capability.ChildStatusUnderReview, storedChild.Status)
 	assert.Equal(t, 1, tableCount(t, db, "platform.email_outbox", "id = ? AND status = 'pending'", outboxRow.ID))
@@ -242,11 +242,11 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 			CreatedBy:         creator.ID,
 			Reason:            testpkg.StrPtr("Contains enrollment PII"),
 		}
-		if err := repos.Enrollment().InsertLateInvite(ctx, linkedInvite); err != nil {
+		if err := testpkg.TenantCommand1(t, ctx, db, repos.Enrollment().InsertLateInvite, linkedInvite); err != nil {
 			return err
 		}
 		linkedInviteID = linkedInvite.ID
-		if err := repos.Enrollment().MarkLateInviteUsed(ctx, linkedInvite.ID, request.ID, time.Now()); err != nil {
+		if err := testpkg.TenantCommand3(t, ctx, db, repos.Enrollment().MarkLateInviteUsed, linkedInvite.ID, request.ID, time.Now()); err != nil {
 			return err
 		}
 
@@ -257,7 +257,7 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 			ExpiresAt:     time.Now().Add(24 * time.Hour),
 			CreatedBy:     creator.ID,
 		}
-		if err := repos.Enrollment().InsertLateInvite(ctx, unrelatedInvite); err != nil {
+		if err := testpkg.TenantCommand1(t, ctx, db, repos.Enrollment().InsertLateInvite, unrelatedInvite); err != nil {
 			return err
 		}
 		unrelatedInviteID = unrelatedInvite.ID

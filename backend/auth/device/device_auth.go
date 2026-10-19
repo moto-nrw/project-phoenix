@@ -212,7 +212,7 @@ func (a *Authenticator) authenticateDeviceOnly(ctx context.Context, c credential
 	slog.Info("device-only authentication successful",
 		slog.String("device_id", device.DeviceID),
 	)
-	a.deps.LastSeen.updateDeviceLastSeen(ctx, a.deps.Devices, device)
+	a.deps.LastSeen.updateDeviceLastSeen(tenantCtx, a.deps.Devices, device)
 	return tenantCtx, nil
 }
 
@@ -234,7 +234,7 @@ func (a *Authenticator) authenticateDevice(ctx context.Context, c credentials) (
 	slog.Debug("device authentication successful",
 		slog.String("device_id", device.DeviceID),
 	)
-	a.deps.LastSeen.updateDeviceLastSeen(ctx, a.deps.Devices, device)
+	a.deps.LastSeen.updateDeviceLastSeen(tenantCtx, a.deps.Devices, device)
 	return tenantCtx, nil
 }
 
@@ -411,6 +411,7 @@ type lastSeenDebounceState struct {
 	latestSeen    time.Time
 	flushTimer    *time.Timer
 	writeInFlight bool
+	flushContext  context.Context
 }
 
 // LastSeenDebouncer coalesces last_seen writes per device so a chatty kiosk
@@ -429,6 +430,8 @@ func (d *LastSeenDebouncer) updateDeviceLastSeen(ctx context.Context, devices De
 	state := d.getOrCreateLastSeenState(device.ID)
 	state.mu.Lock()
 	state.latestSeen = now
+	// Deferred heartbeats retain the authenticated school/runtime, not the request cancellation.
+	state.flushContext = context.WithoutCancel(ctx)
 
 	shouldWriteNow := !state.writeInFlight && (state.lastPersisted.IsZero() || (now.Sub(state.lastPersisted) >= lastSeenDebounceWindow && state.flushTimer == nil))
 	if shouldWriteNow {
@@ -483,6 +486,10 @@ func (d *LastSeenDebouncer) persistLastSeen(ctx context.Context, devices DeviceD
 func (d *LastSeenDebouncer) flushDeferredLastSeen(devices DeviceDirectory, id int64, state *lastSeenDebounceState) {
 	state.mu.Lock()
 	latestSeen := state.latestSeen
+	flushCtx := state.flushContext
+	if flushCtx == nil {
+		flushCtx = context.Background()
+	}
 	lastPersisted := state.lastPersisted
 	state.flushTimer = nil
 	if state.writeInFlight || latestSeen.IsZero() || !latestSeen.After(lastPersisted) {
@@ -492,11 +499,16 @@ func (d *LastSeenDebouncer) flushDeferredLastSeen(devices DeviceDirectory, id in
 	state.writeInFlight = true
 	state.mu.Unlock()
 
-	d.persistLastSeen(context.Background(), devices, id, latestSeen, state)
+	d.persistLastSeen(flushCtx, devices, id, latestSeen, state)
 }
 
 func (d *LastSeenDebouncer) scheduleDeferredFlushLocked(devices DeviceDirectory, id int64, state *lastSeenDebounceState, now time.Time) {
-	if state.writeInFlight || state.flushTimer != nil || state.lastPersisted.IsZero() || !state.latestSeen.After(state.lastPersisted) {
+	if state.lastPersisted.IsZero() || !state.latestSeen.After(state.lastPersisted) {
+		// Do not retain request values when there is no deferred write.
+		state.flushContext = nil
+		return
+	}
+	if state.writeInFlight || state.flushTimer != nil {
 		return
 	}
 

@@ -32,29 +32,29 @@ func TestLetterChildStatuses_DerivesFulfilmentFromAcknowledgement(t *testing.T) 
 		}))
 
 	// Before anyone confirms, the child is reached but open.
-	children, err := repo.LetterChildStatuses(ctx, chain.TenantID, letter.ID)
+	children, err := testpkg.TenantQuery2(t, ctx, db, repo.LetterChildStatuses, chain.TenantID, letter.ID)
 	require.NoError(t, err)
 	found := api.ParentStoreChildByID(children, chain.StudentID)
 	require.NotNil(t, found, "the linked child must appear in the letter audience")
 	assert.False(t, found.AcknowledgedAt != nil, "no acknowledgement yet, so the child is open")
 
 	// A plain READ must not fulfil the letter — only an explicit confirmation does.
-	readApplied, err := repo.MarkRead(ctx, chain.TenantID, letter.ID, chain.AccountID, *letter.PublishedAt)
+	readApplied, err := testpkg.TenantQuery4(t, ctx, db, repo.MarkRead, chain.TenantID, letter.ID, chain.AccountID, *letter.PublishedAt)
 	require.NoError(t, err)
 	require.True(t, readApplied)
 
-	children, err = repo.LetterChildStatuses(ctx, chain.TenantID, letter.ID)
+	children, err = testpkg.TenantQuery2(t, ctx, db, repo.LetterChildStatuses, chain.TenantID, letter.ID)
 	require.NoError(t, err)
 	found = api.ParentStoreChildByID(children, chain.StudentID)
 	require.NotNil(t, found)
 	assert.False(t, found.AcknowledgedAt != nil, "reading is not confirming")
 
 	// The acknowledgement fulfils it, and the query names the person.
-	ackApplied, err := repo.MarkAcknowledged(ctx, chain.TenantID, letter.ID, chain.AccountID, *letter.PublishedAt)
+	ackApplied, err := testpkg.TenantQuery4(t, ctx, db, repo.MarkAcknowledged, chain.TenantID, letter.ID, chain.AccountID, *letter.PublishedAt)
 	require.NoError(t, err)
 	require.True(t, ackApplied)
 
-	children, err = repo.LetterChildStatuses(ctx, chain.TenantID, letter.ID)
+	children, err = testpkg.TenantQuery2(t, ctx, db, repo.LetterChildStatuses, chain.TenantID, letter.ID)
 	require.NoError(t, err)
 	found = api.ParentStoreChildByID(children, chain.StudentID)
 	require.NotNil(t, found)
@@ -82,15 +82,15 @@ func TestLetterChildStatuses_TenantIsolation(t *testing.T) {
 			{TargetType: userModels.AnnouncementTargetSchoolAll},
 		}))
 
-	own, err := repo.LetterChildStatuses(ctx, chain.TenantID, letter.ID)
+	own, err := testpkg.TenantQuery2(t, ctx, db, repo.LetterChildStatuses, chain.TenantID, letter.ID)
 	require.NoError(t, err)
 	require.NotEmpty(t, own, "precondition: the letter reaches at least one child")
 
-	foreign, err := repo.LetterChildStatuses(ctx, chain.TenantID+9999, letter.ID)
+	foreign, err := testpkg.TenantQuery2(t, ctx, db, repo.LetterChildStatuses, chain.TenantID+9999, letter.ID)
 	require.NoError(t, err)
 	assert.Empty(t, foreign, "a foreign tenant must resolve no children for this letter")
 
-	recipients, err := repo.ResolveDeliveryRecipients(ctx, chain.TenantID+9999, letter.ID)
+	recipients, err := testpkg.TenantQuery2(t, ctx, db, repo.ResolveDeliveryRecipients, chain.TenantID+9999, letter.ID)
 	require.NoError(t, err)
 	assert.Empty(t, recipients, "a foreign tenant must resolve no recipients for this letter")
 }
@@ -114,7 +114,7 @@ func TestResolveDeliveryRecipients_IncludesGuardiansWithoutPortalAccess(t *testi
 			{TargetType: userModels.AnnouncementTargetSchoolAll},
 		}))
 
-	before, err := repo.ResolveDeliveryRecipients(ctx, chain.TenantID, letter.ID)
+	before, err := testpkg.TenantQuery2(t, ctx, db, repo.ResolveDeliveryRecipients, chain.TenantID, letter.ID)
 	require.NoError(t, err)
 	require.NotEmpty(t, before, "precondition: the linked guardian resolves")
 	linked := api.ParentStoreRecipientByProfile(before, chain.GuardianProfileID)
@@ -129,7 +129,7 @@ func TestResolveDeliveryRecipients_IncludesGuardiansWithoutPortalAccess(t *testi
 		chain.StudentID, chain.GuardianProfileID)
 	require.NoError(t, err)
 
-	after, err := repo.ResolveDeliveryRecipients(ctx, chain.TenantID, letter.ID)
+	after, err := testpkg.TenantQuery2(t, ctx, db, repo.ResolveDeliveryRecipients, chain.TenantID, letter.ID)
 	require.NoError(t, err)
 	stillThere := api.ParentStoreRecipientByProfile(after, chain.GuardianProfileID)
 	require.NotNil(t, stillThere, "a guardian without portal access must stay visible in the matrix")
@@ -137,7 +137,7 @@ func TestResolveDeliveryRecipients_IncludesGuardiansWithoutPortalAccess(t *testi
 
 	// The classic e-mail audience, by contrast, drops them — that asymmetry is
 	// the whole reason this second resolution exists.
-	emails, err := repo.ResolveAudienceEmails(ctx, chain.TenantID, letter.ID)
+	emails, err := testpkg.TenantQuery2(t, ctx, db, repo.ResolveAudienceEmails, chain.TenantID, letter.ID)
 	require.NoError(t, err)
 	for _, e := range emails {
 		assert.NotEqual(t, chain.Email, e.Email,
@@ -165,7 +165,7 @@ func TestLetterChildStatuses_KeepsChildrenNobodyCanConfirmFor(t *testing.T) {
 			{TargetType: userModels.AnnouncementTargetSchoolAll},
 		}))
 
-	before, err := repo.LetterChildStatuses(ctx, chain.TenantID, letter.ID)
+	before, err := testpkg.TenantQuery2(t, ctx, db, repo.LetterChildStatuses, chain.TenantID, letter.ID)
 	require.NoError(t, err)
 	linked := api.ParentStoreChildByID(before, chain.StudentID)
 	require.NotNil(t, linked, "precondition: the linked child is reached")
@@ -179,7 +179,7 @@ func TestLetterChildStatuses_KeepsChildrenNobodyCanConfirmFor(t *testing.T) {
 		WHERE r.tenant_id = a.tenant_id AND r.id = a.relationship_id AND r.student_id = ?`, chain.StudentID)
 	require.NoError(t, err)
 
-	after, err := repo.LetterChildStatuses(ctx, chain.TenantID, letter.ID)
+	after, err := testpkg.TenantQuery2(t, ctx, db, repo.LetterChildStatuses, chain.TenantID, letter.ID)
 	require.NoError(t, err)
 	still := api.ParentStoreChildByID(after, chain.StudentID)
 	require.NotNil(t, still, "a child without a portal-capable guardian must stay visible")

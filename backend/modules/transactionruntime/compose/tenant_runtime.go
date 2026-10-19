@@ -21,23 +21,23 @@ import (
 // It hands context to repositories and Audit; pool waits reach the observer.
 func NewTenantRuntime(db *bun.DB) (tenant.UnitOfWork, error) {
 	unitOfWork, err := postgres.NewPostgresUnitOfWork(db, tenant.ObservePoolWait)
-	return bindTenantRuntime(unitOfWork, err, postgres.IsRetryableTransactionError)
+	return bindTenantRuntime(unitOfWork, err, postgres.IsRetryableTransactionError, unitOfWork.WithinAdmin)
 }
 
-// NewDemoTenantRuntime keeps the demo's RLS without switching database role;
-// commands are not replayed and pool waits are not observed.
+// NewDemoTenantRuntime retains phoenix_demo for school and global queue/expiry
+// units. It never assumes phoenix_admin and does not replay commands.
 func NewDemoTenantRuntime(db *bun.DB) (tenant.UnitOfWork, error) {
 	unitOfWork, err := postgres.NewDemoPostgresUnitOfWork(db, func(context.Context, time.Duration) {})
-	return bindTenantRuntime(unitOfWork, err, func(error) bool { return false })
+	return bindTenantRuntime(unitOfWork, err, func(error) bool { return false }, unitOfWork.WithinDemo)
 }
 
-func bindTenantRuntime(unitOfWork *postgres.PostgresUnitOfWork, err error, retryable func(error) bool) (tenant.UnitOfWork, error) {
+func bindTenantRuntime(unitOfWork *postgres.PostgresUnitOfWork, err error, retryable func(error) bool, global func(context.Context, func(context.Context, any) error) error) (tenant.UnitOfWork, error) {
 	if err != nil {
 		return tenant.UnitOfWork{}, err
 	}
 	runtime, err := tenant.NewUnitOfWork(
 		unitOfWork.WithinTenant,
-		unitOfWork.WithinAdmin,
+		global,
 		tenant.SavepointFunc(unitOfWork),
 		retryable,
 		unitOfWork.AcquireLock,

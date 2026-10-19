@@ -46,7 +46,6 @@ type SetVacationOpeningRequest struct {
 	Note          string
 }
 
-// GetVacationOpening returns the takeover row for a staff/year, or nil.
 func (s *staffAbsenceService) GetVacationOpening(ctx context.Context, staffID int64, year int) (*StaffVacationOpening, error) {
 	if staffID <= 0 {
 		return nil, fmt.Errorf("%w: staff id is required", ErrVacationOpeningInvalid)
@@ -86,7 +85,6 @@ func validateSetVacationOpening(staffID, decidedBy int64, req SetVacationOpening
 	}
 }
 
-// SetVacationOpening books the vacation takeover for the Stichtag's year.
 func (s *staffAbsenceService) SetVacationOpening(ctx context.Context, staffID, decidedBy int64, req SetVacationOpeningRequest) (*StaffVacationOpening, error) {
 	if s.openingRepo == nil {
 		return nil, fmt.Errorf("vacation opening repository is not configured")
@@ -150,11 +148,6 @@ func (s *staffAbsenceService) SetVacationOpening(ctx context.Context, staffID, d
 	return opening, nil
 }
 
-// ValidateVacationOpeningAbsencesBefore exposes the read-only half of the
-// opening guard for import previews. It deliberately takes no lock: imports
-// validate rows in file order before their sorted creation pass, and retaining
-// per-staff locks here could deadlock concurrent previews or imports. The
-// actual SetVacationOpening path still locks through insertion.
 func (s *staffAbsenceService) ValidateVacationOpeningAbsencesBefore(ctx context.Context, staffID int64, effectiveDate calendar.Date) error {
 	return s.rejectVacationAbsencesBefore(ctx, staffID, effectiveDate)
 }
@@ -182,8 +175,6 @@ func (s *staffAbsenceService) rejectVacationBeforeOpening(ctx context.Context, a
 	return nil
 }
 
-// DeleteVacationOpening removes a takeover row and writes an append-only
-// tombstone (audit.time_tracking_deletions) in the same tenant transaction.
 func (s *staffAbsenceService) DeleteVacationOpening(ctx context.Context, staffID, deletedBy int64, year int) error {
 	if s.openingRepo == nil {
 		return fmt.Errorf("vacation opening repository is not configured")

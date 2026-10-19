@@ -7,7 +7,7 @@ import (
 )
 
 func (s *Service) FindTimeframe(ctx context.Context, id int64) (result domain.Timeframe, err error) {
-	err = s.run("find_timeframe", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_timeframe", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, findErr := s.store.FindTimeframe(ctx, id)
 		stats.Add(queryStats)
 		if findErr != nil {
@@ -23,7 +23,7 @@ func (s *Service) FindTimeframe(ctx context.Context, id int64) (result domain.Ti
 }
 
 func (s *Service) ListTimeframes(ctx context.Context, filter domain.TimeframeFilter) (result []domain.Timeframe, err error) {
-	err = s.run("list_timeframes", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_timeframes", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListTimeframes(ctx, filter)
 		stats.Add(queryStats)
 		result = values

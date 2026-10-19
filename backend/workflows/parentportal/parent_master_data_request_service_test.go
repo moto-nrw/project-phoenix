@@ -67,7 +67,7 @@ func TestSubmitMasterDataChangeRequest_CreatesPending(t *testing.T) {
 	assert.Equal(t, parentService.DataChangeStatusPending, rows[0].Status)
 
 	// The live person record is NOT changed by a Track B submission.
-	person, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Person.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.PersonID)
+	person, err := testpkg.TenantQuery1(t, testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID), db, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Person.FindByID, any(chain.PersonID))
 	require.NoError(t, err)
 	assert.Equal(t, "Felix", person.FirstName)
 }
@@ -101,7 +101,7 @@ func TestSubmitMasterDataChangeRequest_SchoolClassRemainsPending(t *testing.T) {
 	assert.JSONEq(t, `"1a"`, string(rows[0].OldValue))
 	assert.JSONEq(t, `"2b"`, string(rows[0].NewValue))
 
-	student, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
+	student, err := testpkg.TenantQuery1(t, testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID), db, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student.FindByID, any(chain.StudentID))
 	require.NoError(t, err)
 	assert.Equal(t, "1a", student.SchoolClass)
 }
@@ -337,12 +337,12 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 	// Every created row must have its OWN request_created pill (found by its id),
 	// so the decision path (keyed on the decided row's id) can always resolve it.
 	err = testpkg.WithTenantTx(t, testpkg.WithPackageTenantRuntime(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		thread, gErr := reposMessages.ParentMessageThread.GetOrCreate(txCtx, chain.TenantID, chain.StudentID, chain.AccountID)
+		thread, gErr := testpkg.TenantQuery3(t, txCtx, db, reposMessages.ParentMessageThread.GetOrCreate, chain.TenantID, chain.StudentID, chain.AccountID)
 		if gErr != nil {
 			return gErr
 		}
 		for _, row := range rows {
-			pill, fErr := communicationtest.NewParentMessageRepository(db).FindEventByRef(txCtx, thread.ID, "request_created", "users.student_data_change_requests", row.ID)
+			pill, fErr := testpkg.TenantQuery4(t, txCtx, db, communicationtest.NewParentMessageRepository(db).FindEventByRef, thread.ID, "request_created", "users.student_data_change_requests", row.ID)
 			if fErr != nil {
 				return fErr
 			}

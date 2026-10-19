@@ -62,17 +62,10 @@ func ambientTx(ctx context.Context) (bun.IDB, error) {
 }
 
 // AmbientRuntime hands the store the request's tenant transaction. Without
-// one it panics: a store call outside the tenant transaction is a
-// composition bug, not a request error.
+// one it returns a missing-transaction error.
 type AmbientRuntime struct{}
 
-func (AmbientRuntime) DB(ctx context.Context) bun.IDB {
-	db, err := ambientTx(ctx)
-	if err != nil {
-		panic(err)
-	}
-	return db
-}
+func (AmbientRuntime) DB(ctx context.Context) (bun.IDB, error) { return ambientTx(ctx) }
 
 // progress adapts the projection to the service's port.
 type progress struct{ projection *schoolsetupview.Projection }

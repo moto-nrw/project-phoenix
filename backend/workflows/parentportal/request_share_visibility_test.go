@@ -66,7 +66,7 @@ func TestRequestShareVisibilityAnswersLikeThePortal(t *testing.T) {
 	}
 	request.TenantID = author.TenantID
 	require.NoError(t, api.CreateParentDataRequestFixture(reposCare.CarePlan(), ctx, request))
-	require.NoError(t, repos.ParentRequestShare.AppendParentRequestShare(ctx, &peopledirectory.ParentRequestShareRecord{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.ParentRequestShare.AppendParentRequestShare, &peopledirectory.ParentRequestShareRecord{
 		TenantID:  author.TenantID,
 		StudentID: author.StudentID, RequestType: parentService.RequestShareMasterData, RequestID: request.ID,
 		AuthorAccountID: author.AccountID, RecipientAccountIDs: []int64{recipient.AccountID},
@@ -74,9 +74,9 @@ func TestRequestShareVisibilityAnswersLikeThePortal(t *testing.T) {
 
 	answers := func() []int64 {
 		t.Helper()
-		want, err := portal.SharedRecipientAccountIDs(ctx, author.StudentID, parentService.RequestShareMasterData, request.ID)
+		want, err := testpkg.TenantQuery3(t, ctx, db, portal.SharedRecipientAccountIDs, author.StudentID, parentService.RequestShareMasterData, request.ID)
 		require.NoError(t, err)
-		got, err := visibility.SharedRecipientAccountIDs(ctx, author.StudentID, parentService.RequestShareMasterData, request.ID)
+		got, err := testpkg.TenantQuery3(t, ctx, db, visibility.SharedRecipientAccountIDs, author.StudentID, parentService.RequestShareMasterData, request.ID)
 		require.NoError(t, err)
 		assert.Equal(t, want, got)
 		return got
@@ -87,13 +87,13 @@ func TestRequestShareVisibilityAnswersLikeThePortal(t *testing.T) {
 		StudentID: author.StudentID, Enabled: true, Reason: "Schutzfall", ActorAccountID: author.AccountID,
 	}
 	protectionOn.TenantID = author.TenantID
-	require.NoError(t, repos.CreateFamilyProtectionFixture(ctx, protectionOn))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.CreateFamilyProtectionFixture, protectionOn))
 	assert.Empty(t, answers())
 
 	protectionOff := &peopledirectory.FamilyProtectionFixture{
 		StudentID: author.StudentID, Enabled: false, Reason: "Schutz aufgehoben", ActorAccountID: author.AccountID,
 	}
 	protectionOff.TenantID = author.TenantID
-	require.NoError(t, repos.CreateFamilyProtectionFixture(ctx, protectionOff))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.CreateFamilyProtectionFixture, protectionOff))
 	assert.Empty(t, answers(), "disabling protection must not revive an old share")
 }

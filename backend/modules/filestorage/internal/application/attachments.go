@@ -25,7 +25,7 @@ import (
 // AuthorizeAttachmentUpload answers "may this caller attach a file to this
 // announcement" WITHOUT writing anything.
 func (s *Service) AuthorizeAttachmentUpload(ctx context.Context, announcementID int64) error {
-	return s.run("authorize_attachment_upload", func(o *op) error {
+	return s.runRead(ctx, "authorize_attachment_upload", func(ctx context.Context, o *op) error {
 		return s.write(ctx, o, func(txCtx context.Context, o *op) error {
 			return s.checkAttachmentUpload(txCtx, o, announcementID, false)
 		})
@@ -201,7 +201,7 @@ func (s *Service) createAttachment(ctx context.Context, o *op, announcementID in
 // Höchstzahl ist ausdrücklich KEINE solche Absage: der Entwurf bleibt
 // änderbar, nur eine weitere Datei passt nicht mehr dazu.
 func (s *Service) ListAttachments(ctx context.Context, announcementID int64) (attachments []domain.Document, editable bool, err error) {
-	err = s.run("list_attachments", func(o *op) error {
+	err = s.runRead(ctx, "list_attachments", func(ctx context.Context, o *op) error {
 		if announcementID <= 0 {
 			return fmt.Errorf("%w: announcement id is required", domain.ErrInvalid)
 		}
@@ -499,7 +499,7 @@ func (s *Service) QueueAttachmentCleanupForAnnouncement(ctx context.Context, ann
 // CountAttachments reports the live attachments of an announcement in the
 // caller's transaction; the announcement service asks at publish time.
 func (s *Service) CountAttachments(ctx context.Context, announcementID int64) (count int, err error) {
-	err = s.run("count_attachments", func(o *op) error {
+	err = s.runRead(ctx, "count_attachments", func(ctx context.Context, o *op) error {
 		if announcementID <= 0 {
 			return fmt.Errorf("%w: announcement id is required", domain.ErrInvalid)
 		}

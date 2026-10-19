@@ -36,9 +36,9 @@ func TestCrossTenantStudentWrite_RowsAffectedGuard(t *testing.T) {
 
 	t.Run("student update blocked", func(t *testing.T) {
 		repo := api.NewUnboundStudentRepository(testpkg.NewDatabase(t, db))
-		stored, err := repo.FindByID(ctxA, studentA.ID)
+		stored, err := testpkg.TenantQuery1(t, ctxA, db, repo.FindByID, any(studentA.ID))
 		require.NoError(t, err)
-		err = repo.Update(ctxB, stored)
+		err = testpkg.TenantCommand1(t, ctxB, db, repo.Update, stored)
 		require.Error(t, err, "cross-tenant student update must fail")
 		require.ErrorIs(t, err, peopleValues.ErrStudentRowMissing,
 			"another tenant's child must not exist for this writer")
@@ -47,7 +47,7 @@ func TestCrossTenantStudentWrite_RowsAffectedGuard(t *testing.T) {
 	t.Run("student UpdateStatus blocked", func(t *testing.T) {
 		// The lifecycle status is the owner's write (#3349).
 		repo := api.NewUnboundStudentRepository(testpkg.NewDatabase(t, db))
-		err := repo.UpdateStatus(ctxB, studentA.ID, peopleValues.StudentStatusInactive)
+		err := testpkg.TenantCommand2(t, ctxB, db, repo.UpdateStatus, studentA.ID, peopleValues.StudentStatusInactive)
 		require.Error(t, err, "cross-tenant UpdateStatus must fail")
 		require.ErrorIs(t, err, peopleValues.ErrStudentRowMissing,
 			"another tenant's child must not exist for this writer")

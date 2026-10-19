@@ -32,7 +32,7 @@ func New(dependencies Dependencies) (*appointments.Module, error) {
 	service := application.New(store, func(observation Observation) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
-	})
+	}, withinTenant)
 	return appointments.NewModule(engine{service: service}, application.NewRetention(store)), nil
 }
 
@@ -41,7 +41,7 @@ func database(db *bun.DB) postgres.Database {
 		tenantID := tenant.FromContext(ctx)
 		transaction, ok := tenant.TransactionFromContext(ctx)
 		if !ok {
-			return db, tenantID, nil
+			return nil, 0, fmt.Errorf("appointments postgres: transaction is required")
 		}
 		switch tx := transaction.(type) {
 		case bun.Tx:
@@ -50,7 +50,7 @@ func database(db *bun.DB) postgres.Database {
 			if tx != nil {
 				return tx, tenantID, nil
 			}
-			return db, tenantID, nil
+			return nil, 0, fmt.Errorf("appointments postgres: transaction is required")
 		default:
 			return nil, 0, fmt.Errorf("appointments postgres: unsupported transaction %T", transaction)
 		}
@@ -168,163 +168,96 @@ func (e engine) CountAppointmentRecipientStudents(ctx context.Context, studentID
 	return value, mapError(err)
 }
 
-func (e engine) CreateAppointment(ctx context.Context, input appointments.CreateAppointment) (result *appointments.Appointment, targets []*appointments.AppointmentTarget, err error) {
-	err = e.withinTenant(ctx, func(txCtx context.Context) error {
-		value, targetValues, commandErr := e.service.CreateAppointment(txCtx, fieldsToDomain(input.AppointmentFields), targetFieldsToDomain(input.Targets))
-		result = appointmentToPublic(value)
-		targets = targetsToPublic(targetValues)
-		return commandErr
-	})
+func (e engine) CreateAppointment(ctx context.Context, input appointments.CreateAppointment) (*appointments.Appointment, []*appointments.AppointmentTarget, error) {
+	value, targets, err := e.service.CreateAppointment(ctx, fieldsToDomain(input.AppointmentFields), targetFieldsToDomain(input.Targets))
 	if err != nil {
 		return nil, nil, mapError(err)
 	}
-	return result, targets, mapError(err)
+	return appointmentToPublic(value), targetsToPublic(targets), nil
 }
-
-func (e engine) UpdateAppointment(ctx context.Context, input appointments.UpdateAppointment) (result *appointments.Appointment, err error) {
-	err = e.withinTenant(ctx, func(txCtx context.Context) error {
-		value, commandErr := e.service.UpdateAppointment(txCtx, input.ID, fieldsToDomain(input.AppointmentFields))
-		result = appointmentToPublic(value)
-		return commandErr
-	})
+func (e engine) UpdateAppointment(ctx context.Context, input appointments.UpdateAppointment) (*appointments.Appointment, error) {
+	value, err := e.service.UpdateAppointment(ctx, input.ID, fieldsToDomain(input.AppointmentFields))
 	if err != nil {
 		return nil, mapError(err)
 	}
-	return result, mapError(err)
+	return appointmentToPublic(value), nil
 }
-
 func (e engine) DeleteAppointment(ctx context.Context, id int64) error {
-	return mapError(e.withinTenant(ctx, func(txCtx context.Context) error {
-		return e.service.DeleteAppointment(txCtx, id)
-	}))
+	return mapError(e.service.DeleteAppointment(ctx, id))
 }
-
-func (e engine) CancelAppointment(ctx context.Context, id int64) (transitioned bool, err error) {
-	err = e.withinTenant(ctx, func(txCtx context.Context) error {
-		var commandErr error
-		transitioned, commandErr = e.service.CancelAppointment(txCtx, id)
-		return commandErr
-	})
+func (e engine) CancelAppointment(ctx context.Context, id int64) (bool, error) {
+	changed, err := e.service.CancelAppointment(ctx, id)
 	if err != nil {
 		return false, mapError(err)
 	}
-	return transitioned, mapError(err)
+	return changed, nil
 }
-
 func (e engine) SoftDeleteAppointment(ctx context.Context, id int64) error {
-	return mapError(e.withinTenant(ctx, func(txCtx context.Context) error {
-		return e.service.SoftDeleteAppointment(txCtx, id)
-	}))
+	return mapError(e.service.SoftDeleteAppointment(ctx, id))
 }
-
-func (e engine) DeleteFeedTombstonesBefore(ctx context.Context, before time.Time) (rows int, err error) {
-	err = e.withinTenant(ctx, func(txCtx context.Context) error {
-		var commandErr error
-		rows, commandErr = e.service.DeleteFeedTombstonesBefore(txCtx, before)
-		return commandErr
-	})
+func (e engine) DeleteFeedTombstonesBefore(ctx context.Context, before time.Time) (int, error) {
+	count, err := e.service.DeleteFeedTombstonesBefore(ctx, before)
 	if err != nil {
 		return 0, mapError(err)
 	}
-	return rows, mapError(err)
+	return count, nil
 }
-
-func (e engine) ReplaceAppointmentTargets(ctx context.Context, appointmentID int64, values []appointments.AppointmentTargetFields) (result []*appointments.AppointmentTarget, err error) {
-	err = e.withinTenant(ctx, func(txCtx context.Context) error {
-		targets, commandErr := e.service.ReplaceAppointmentTargets(txCtx, appointmentID, targetFieldsToDomain(values))
-		result = targetsToPublic(targets)
-		return commandErr
-	})
+func (e engine) ReplaceAppointmentTargets(ctx context.Context, appointmentID int64, fields []appointments.AppointmentTargetFields) ([]*appointments.AppointmentTarget, error) {
+	values, err := e.service.ReplaceAppointmentTargets(ctx, appointmentID, targetFieldsToDomain(fields))
 	if err != nil {
 		return nil, mapError(err)
 	}
-	return result, mapError(err)
+	return targetsToPublic(values), nil
 }
-
 func (e engine) CreateRecurrenceRule(ctx context.Context, rule *appointments.RecurrenceRule) error {
-	err := e.withinTenant(ctx, func(txCtx context.Context) error {
-		value, commandErr := e.service.CreateRecurrenceRule(txCtx, recurrenceRuleToDomain(rule))
-		if commandErr == nil {
-			*rule = *recurrenceRuleToPublic(value)
-		}
-		return commandErr
-	})
+	value, err := e.service.CreateRecurrenceRule(ctx, recurrenceRuleToDomain(rule))
+	if err == nil {
+		*rule = *recurrenceRuleToPublic(value)
+	}
 	return mapError(err)
 }
-
 func (e engine) DeleteRecurrenceRule(ctx context.Context, appointmentID int64) error {
-	return mapError(e.withinTenant(ctx, func(txCtx context.Context) error {
-		return e.service.DeleteRecurrenceRule(txCtx, appointmentID)
-	}))
+	return mapError(e.service.DeleteRecurrenceRule(ctx, appointmentID))
 }
-
 func (e engine) CreateOccurrenceOverride(ctx context.Context, override *appointments.AppointmentOccurrenceOverride) error {
-	err := e.withinTenant(ctx, func(txCtx context.Context) error {
-		value, commandErr := e.service.CreateOccurrenceOverride(txCtx, occurrenceOverrideToDomain(override))
-		if commandErr == nil {
-			*override = *occurrenceOverrideToPublic(value)
-		}
-		return commandErr
-	})
+	value, err := e.service.CreateOccurrenceOverride(ctx, occurrenceOverrideToDomain(override))
+	if err == nil {
+		*override = *occurrenceOverrideToPublic(value)
+	}
 	return mapError(err)
 }
-
 func (e engine) DeleteOccurrenceOverrides(ctx context.Context, appointmentID int64) error {
-	return mapError(e.withinTenant(ctx, func(txCtx context.Context) error {
-		return e.service.DeleteOccurrenceOverrides(txCtx, appointmentID)
-	}))
+	return mapError(e.service.DeleteOccurrenceOverrides(ctx, appointmentID))
 }
-
-func (e engine) CancelAppointmentOccurrence(ctx context.Context, appointmentID int64, occurrenceDate appointments.Date) (transitioned bool, err error) {
-	err = e.withinTenant(ctx, func(txCtx context.Context) error {
-		var commandErr error
-		transitioned, commandErr = e.service.CancelAppointmentOccurrence(txCtx, appointmentID, domain.Date(occurrenceDate))
-		return commandErr
-	})
+func (e engine) CancelAppointmentOccurrence(ctx context.Context, appointmentID int64, date appointments.Date) (bool, error) {
+	changed, err := e.service.CancelAppointmentOccurrence(ctx, appointmentID, domain.Date(date))
 	if err != nil {
 		return false, mapError(err)
 	}
-	return transitioned, nil
+	return changed, nil
 }
-
-func (e engine) CreateAppointmentRecipients(ctx context.Context, appointmentID int64, fields []appointments.AppointmentRecipientFields) (recipients []*appointments.AppointmentRecipient, links []*appointments.AppointmentRecipientStudent, err error) {
-	err = e.withinTenant(ctx, func(txCtx context.Context) error {
-		values, linkValues, commandErr := e.service.CreateAppointmentRecipients(txCtx, appointmentID, recipientFieldsToDomain(fields))
-		recipients = appointmentRecipientsToPublic(values)
-		links = appointmentRecipientStudentsToPublic(linkValues)
-		return commandErr
-	})
+func (e engine) CreateAppointmentRecipients(ctx context.Context, appointmentID int64, fields []appointments.AppointmentRecipientFields) ([]*appointments.AppointmentRecipient, []*appointments.AppointmentRecipientStudent, error) {
+	values, links, err := e.service.CreateAppointmentRecipients(ctx, appointmentID, recipientFieldsToDomain(fields))
 	if err != nil {
 		return nil, nil, mapError(err)
 	}
-	return recipients, links, nil
+	return appointmentRecipientsToPublic(values), appointmentRecipientStudentsToPublic(links), nil
 }
-
 func (e engine) UpdateAppointmentRecipientResponse(ctx context.Context, recipientID int64, status string) error {
-	return mapError(e.withinTenant(ctx, func(txCtx context.Context) error {
-		return e.service.UpdateAppointmentRecipientResponse(txCtx, recipientID, status)
-	}))
+	return mapError(e.service.UpdateAppointmentRecipientResponse(ctx, recipientID, status))
 }
-
-func (e engine) ClaimReminderPushDelivery(ctx context.Context, appointmentID int64, revision int, occurrenceDate appointments.Date, guardianProfileID int64) (claimed bool, err error) {
-	err = e.withinTenant(ctx, func(txCtx context.Context) error {
-		var commandErr error
-		claimed, commandErr = e.service.ClaimReminderPushDelivery(txCtx, appointmentID, revision, domain.Date(occurrenceDate), guardianProfileID)
-		return commandErr
-	})
+func (e engine) ClaimReminderPushDelivery(ctx context.Context, appointmentID int64, revision int, date appointments.Date, guardianID int64) (bool, error) {
+	claimed, err := e.service.ClaimReminderPushDelivery(ctx, appointmentID, revision, domain.Date(date), guardianID)
 	if err != nil {
 		return false, mapError(err)
 	}
 	return claimed, nil
 }
-
-func (e engine) ReleaseReminderPushDelivery(ctx context.Context, appointmentID int64, revision int, occurrenceDate appointments.Date, guardianProfileID int64) error {
-	return mapError(e.withinTenant(ctx, func(txCtx context.Context) error {
-		return e.service.ReleaseReminderPushDelivery(txCtx, appointmentID, revision, domain.Date(occurrenceDate), guardianProfileID)
-	}))
+func (e engine) ReleaseReminderPushDelivery(ctx context.Context, appointmentID int64, revision int, date appointments.Date, guardianID int64) error {
+	return mapError(e.service.ReleaseReminderPushDelivery(ctx, appointmentID, revision, domain.Date(date), guardianID))
 }
 
-func (e engine) withinTenant(ctx context.Context, command func(context.Context) error) error {
+func withinTenant(ctx context.Context, command func(context.Context) error) error {
 	if _, ok := tenant.TransactionFromContext(ctx); ok {
 		return command(ctx)
 	}

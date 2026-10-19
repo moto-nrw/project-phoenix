@@ -57,7 +57,11 @@ func (r *MessageableGuardianRepository) ListGuardiansForStudent(ctx context.Cont
 		users.MessageableGuardian
 		SchoolID int64 `bun:"school_id"`
 	}
-	query := r.links.GuardianLinkRows(r.runtime.DB(ctx), 0).
+	ambientDB1, databaseErr1 := r.runtime.DB(ctx)
+	if databaseErr1 != nil {
+		return *new([]*users.MessageableGuardian), databaseErr1
+	}
+	query := guardianLinkRows(ctx, r.runtime, r.links, ambientDB1).
 		ColumnExpr("student_guardian.tenant_id AS school_id").
 		ColumnExpr("gp.account_id AS account_id").
 		ColumnExpr("btrim(COALESCE(gp.first_name,'') || ' ' || COALESCE(gp.last_name,'')) AS name").

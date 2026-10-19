@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// UpdateAbsence updates an existing absence record
 func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, req UpdateAbsenceRequest) (*StaffAbsenceResponse, error) {
 	if err := s.lockStaffAbsenceWrites(ctx, staffID); err != nil {
 		return nil, err
@@ -234,24 +233,14 @@ func (s *staffAbsenceService) checkOverlapExcludingSelf(ctx context.Context, sta
 	return nil
 }
 
-// DeleteAbsence deletes an absence record (self-service; the caller is the
-// absence's owner and the acting person).
 func (s *staffAbsenceService) DeleteAbsence(ctx context.Context, staffID int64, absenceID int64) error {
 	return s.DeleteOwnAbsence(ctx, staffID, nil, absenceID)
 }
 
-// DeleteOwnAbsence is the self-service delete path. Manager-created comp-time
-// absences remain read-only for the affected staff member.
 func (s *staffAbsenceService) DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) error {
 	return s.deleteAbsenceFor(ctx, staffID, staffID, actorAccountID, absenceID, false)
 }
 
-// DeleteAbsenceFor deletes subjectStaffID's absence on actorStaffID's behalf
-// (#1843 admin delete). Deleting a sick report first reverses its plan
-// cascade — reactivates the shifts it cancelled and clears the block
-// absences it stamped — in the same tenant tx, so a failed reversal aborts
-// the delete. CancelAbsence needs no such hook: it only accepts
-// requested/approved vacation-flow rows, never a reported sick absence.
 func (s *staffAbsenceService) DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error {
 	return s.deleteAbsenceFor(ctx, subjectStaffID, actorStaffID, actorAccountID, absenceID, true)
 }

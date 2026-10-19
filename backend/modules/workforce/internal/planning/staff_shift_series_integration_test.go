@@ -826,14 +826,14 @@ func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
 	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(countedDB))
 	countedShifts := planning.NewShiftRows(countedDependenciesWorkforce)
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
-		Shifts: countedShifts, ShiftWeeks: countedShifts,
+		Shifts:    countedShifts,
 		Instances: timetableRepos.InstanceReads(), InstanceStaff: timetableRepos.InstanceStaffReads(),
 		Rooms: owners.NewTimetableRoomNames(rooms), Staff: owners.NewPlanStaffDirectory(repos.Staff),
-		WorkSchedules: countedDependenciesWorkforce, WorkModels: countedDependenciesWorkforce,
+		PlanningProfiles: countedDependenciesWorkforce, WorkSchedules: countedDependenciesWorkforce, WorkModels: countedDependenciesWorkforce,
 	})
 
 	weekFrom := today.AddDays(1)
-	overview, err := service.GetOverview(env.scope.Context(), weekFrom, weekFrom.AddDays(6))
+	overview, err := testpkg.MeasuredTenantQuery2(t, env.scope.Context(), countedDB, queryCounter, service.GetOverview, weekFrom, weekFrom.AddDays(6))
 	require.NoError(t, err)
 	// A shift-only week (no timetable assignments) resolves in 5 fixed
 	// batched reads — below the 7 of a fully populated active week, because

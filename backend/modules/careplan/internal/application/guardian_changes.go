@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -18,6 +20,16 @@ type GuardianAbsences struct {
 }
 
 func (s *GuardianAbsences) ReportGuardianAbsence(ctx context.Context, report careplan.GuardianAbsenceReport) ([]careplan.StudentStatusDay, error) {
+	var result []careplan.StudentStatusDay
+	err := tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		var err error
+		result, err = s.reportGuardianAbsence(txCtx, report)
+		return err
+	})
+	return result, err
+}
+
+func (s *GuardianAbsences) reportGuardianAbsence(ctx context.Context, report careplan.GuardianAbsenceReport) ([]careplan.StudentStatusDay, error) {
 	if len(report.Dates) == 0 {
 		return nil, errors.New("guardian absence: at least one date is required")
 	}

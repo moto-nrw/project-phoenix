@@ -48,6 +48,7 @@ func newPeriodsTestServer(t *testing.T) chi.Router {
 			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), tenantID)))
 		})
 	})
+	r.Use(testpkg.TenantTxMiddleware(db))
 	r.Post("/periods", res.createPeriod)
 	r.Post("/periods/bootstrap", res.bootstrapPeriods)
 	return r

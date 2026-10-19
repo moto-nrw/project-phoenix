@@ -92,7 +92,7 @@ func (s *Service) LockStudentAttendance(ctx context.Context, id int64) error {
 }
 
 func (s *Service) HasAttendance(ctx context.Context, filter ports.AttendanceFilter) (result bool, err error) {
-	err = s.run("has_attendance", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "has_attendance", func(ctx context.Context) (ports.Stats, error) {
 		if !validIDs(filter.IDs) || !validIDs(filter.StudentIDs) || filter.ForUpdate {
 			return ports.Stats{}, errors.New("student presence: invalid attendance query")
 		}
@@ -104,7 +104,7 @@ func (s *Service) HasAttendance(ctx context.Context, filter ports.AttendanceFilt
 }
 
 func (s *Service) CountAttendanceByStaff(ctx context.Context, id int64) (result int, err error) {
-	err = s.run("count_attendance_by_staff", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "count_attendance_by_staff", func(ctx context.Context) (ports.Stats, error) {
 		if id <= 0 {
 			return ports.Stats{}, errors.New("student presence: invalid attendance query")
 		}
@@ -116,7 +116,7 @@ func (s *Service) CountAttendanceByStaff(ctx context.Context, id int64) (result 
 }
 
 func (s *Service) ListOpenAttendanceStudentIDs(ctx context.Context, date string) (result []int64, err error) {
-	err = s.run("list_open_attendance_student_ids", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "list_open_attendance_student_ids", func(ctx context.Context) (ports.Stats, error) {
 		if date == "" {
 			return ports.Stats{}, errors.New("student presence: invalid attendance query")
 		}

@@ -4,7 +4,6 @@ package compose
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -61,27 +60,7 @@ func sessionAttendancePorts(deps Dependencies) ports.AttendanceRulePorts {
 	return ports.AttendanceRulePorts{Roster: roster, CarePlan: carePlan, CareDays: careDays}
 }
 
-func databaseRuntime(db *bun.DB) postgres.Database {
-	return func(ctx context.Context) (bun.IDB, int64, error) {
-		id, err := tenant.TenantFromContext(ctx)
-		if err != nil {
-			return nil, 0, err
-		}
-		value, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return db, id.Int64(), nil
-		}
-		switch tx := value.(type) {
-		case bun.Tx:
-			return tx, id.Int64(), nil
-		case *bun.Tx:
-			if tx != nil {
-				return tx, id.Int64(), nil
-			}
-		}
-		return nil, 0, fmt.Errorf("student presence: unsupported transaction %T", value)
-	}
-}
+func databaseRuntime(db *bun.DB) postgres.Database { return tenant.CurrentTenantTransaction[bun.IDB] }
 
 type transaction struct{}
 

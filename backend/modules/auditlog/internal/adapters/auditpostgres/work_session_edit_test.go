@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -70,20 +71,20 @@ func TestWorkSessionEditRepository_CreateBatch(t *testing.T) {
 			},
 		}
 
-		err = repo.CreateBatch(ctx, edits)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.CreateBatch, edits)
 		require.NoError(t, err)
 		assert.NotZero(t, edits[0].ID)
 
 	})
 
 	t.Run("handles empty batch", func(t *testing.T) {
-		err := repo.CreateBatch(ctx, []*audit.WorkSessionEdit{})
+		err := testpkg.TenantCommand1(t, ctx, db, repo.CreateBatch, []*audit.WorkSessionEdit{})
 		require.NoError(t, err) // Should not error on empty batch
 	})
 
 	t.Run("fails with nil edit in batch", func(t *testing.T) {
 		edits := []*audit.WorkSessionEdit{nil}
-		err := repo.CreateBatch(ctx, edits)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.CreateBatch, edits)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be nil")
 	})
@@ -110,7 +111,7 @@ func TestWorkSessionEditRepository_CreateBatch(t *testing.T) {
 			},
 		}
 
-		err = repo.CreateBatch(ctx, edits)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.CreateBatch, edits)
 		assert.Error(t, err)
 	})
 
@@ -125,7 +126,7 @@ func TestWorkSessionEditRepository_CreateBatch(t *testing.T) {
 			},
 		}
 
-		err := repo.CreateBatch(ctx, edits)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.CreateBatch, edits)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "session ID is required")
 	})
@@ -141,7 +142,7 @@ func TestWorkSessionEditRepository_CreateBatch(t *testing.T) {
 			},
 		}
 
-		err := repo.CreateBatch(ctx, edits)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.CreateBatch, edits)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "staff ID is required")
 	})
@@ -157,7 +158,7 @@ func TestWorkSessionEditRepository_CreateBatch(t *testing.T) {
 			},
 		}
 
-		err := repo.CreateBatch(ctx, edits)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.CreateBatch, edits)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "edited by is required")
 	})
@@ -199,7 +200,7 @@ func TestWorkSessionEditRepository_CreateBatch(t *testing.T) {
 			},
 		}
 
-		err = repo.CreateBatch(ctx, edits)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.CreateBatch, edits)
 		require.NoError(t, err)
 		assert.NotZero(t, edits[0].ID)
 		assert.NotZero(t, edits[1].ID)
@@ -244,10 +245,10 @@ func TestWorkSessionEditRepository_GetBySessionID(t *testing.T) {
 			NewValue:  &newValue,
 		}
 
-		err = repo.CreateBatch(ctx, []*audit.WorkSessionEdit{edit})
+		err = testpkg.TenantCommand1(t, ctx, db, repo.CreateBatch, []*audit.WorkSessionEdit{edit})
 		require.NoError(t, err)
 
-		edits, err := repo.GetBySessionID(ctx, session.ID)
+		edits, err := testpkg.TenantQuery1(t, ctx, db, repo.GetBySessionID, session.ID)
 		require.NoError(t, err)
 		assert.NotEmpty(t, edits)
 
@@ -275,7 +276,7 @@ func TestWorkSessionEditRepository_GetBySessionID(t *testing.T) {
 		err := testpkg.InsertAuditTestWorkSession(ctx, db, session)
 		require.NoError(t, err)
 
-		edits, err := repo.GetBySessionID(ctx, session.ID)
+		edits, err := testpkg.TenantQuery1(t, ctx, db, repo.GetBySessionID, session.ID)
 		require.NoError(t, err)
 		assert.Empty(t, edits)
 	})
@@ -308,7 +309,7 @@ func TestWorkSessionEditRepository_GetBySessionID(t *testing.T) {
 		}
 
 		// Create first edit
-		err = repo.CreateBatch(ctx, []*audit.WorkSessionEdit{edit1})
+		err = testpkg.TenantCommand1(t, ctx, db, repo.CreateBatch, []*audit.WorkSessionEdit{edit1})
 		require.NoError(t, err)
 
 		// Wait a bit to ensure different timestamps
@@ -324,10 +325,10 @@ func TestWorkSessionEditRepository_GetBySessionID(t *testing.T) {
 		}
 
 		// Create second edit
-		err = repo.CreateBatch(ctx, []*audit.WorkSessionEdit{edit2})
+		err = testpkg.TenantCommand1(t, ctx, db, repo.CreateBatch, []*audit.WorkSessionEdit{edit2})
 		require.NoError(t, err)
 
-		edits, err := repo.GetBySessionID(ctx, session.ID)
+		edits, err := testpkg.TenantQuery1(t, ctx, db, repo.GetBySessionID, session.ID)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(edits), 2)
 
@@ -377,10 +378,10 @@ func TestWorkSessionEditRepository_CountBySessionID(t *testing.T) {
 			},
 		}
 
-		err = repo.CreateBatch(ctx, edits)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.CreateBatch, edits)
 		require.NoError(t, err)
 
-		count, err := repo.CountBySessionID(ctx, session.ID)
+		count, err := testpkg.TenantQuery1(t, ctx, db, repo.CountBySessionID, session.ID)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, count, 1)
 	})
@@ -398,7 +399,7 @@ func TestWorkSessionEditRepository_CountBySessionID(t *testing.T) {
 		err := testpkg.InsertAuditTestWorkSession(ctx, db, session)
 		require.NoError(t, err)
 
-		count, err := repo.CountBySessionID(ctx, session.ID)
+		count, err := testpkg.TenantQuery1(t, ctx, db, repo.CountBySessionID, session.ID)
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})
@@ -467,17 +468,17 @@ func TestWorkSessionEditRepository_CountBySessionIDs(t *testing.T) {
 			NewValue:  &newValue,
 		}
 
-		err = repo.CreateBatch(ctx, []*audit.WorkSessionEdit{edit1, edit2})
+		err = testpkg.TenantCommand1(t, ctx, db, repo.CreateBatch, []*audit.WorkSessionEdit{edit1, edit2})
 		require.NoError(t, err)
 
-		counts, err := repo.CountBySessionIDs(ctx, []int64{session1.ID, session2.ID})
+		counts, err := testpkg.TenantQuery1(t, ctx, db, repo.CountBySessionIDs, []int64{session1.ID, session2.ID})
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, counts[session1.ID], 1)
 		assert.GreaterOrEqual(t, counts[session2.ID], 1)
 	})
 
 	t.Run("returns empty map for empty input", func(t *testing.T) {
-		counts, err := repo.CountBySessionIDs(ctx, []int64{})
+		counts, err := testpkg.TenantQuery1(t, ctx, db, repo.CountBySessionIDs, []int64{})
 		require.NoError(t, err)
 		assert.Empty(t, counts)
 	})
@@ -497,7 +498,7 @@ func TestWorkSessionEditRepository_CountBySessionIDs(t *testing.T) {
 		err := testpkg.InsertAuditTestWorkSession(ctx, db, session)
 		require.NoError(t, err)
 
-		counts, err := repo.CountBySessionIDs(ctx, []int64{session.ID})
+		counts, err := testpkg.TenantQuery1(t, ctx, db, repo.CountBySessionIDs, []int64{session.ID})
 		require.NoError(t, err)
 		// Session with no edits should not be in the map (or have zero count)
 		_, exists := counts[session.ID]
@@ -545,15 +546,15 @@ func TestWorkSessionEditRepository_CountManualBySessionIDs(t *testing.T) {
 			FieldName: audit.FieldCheckOutTime,
 			NewValue:  &newValue,
 		}
-		err = repo.CreateBatch(ctx, []*audit.WorkSessionEdit{systemEdit, manualEdit})
+		err = testpkg.TenantCommand1(t, ctx, db, repo.CreateBatch, []*audit.WorkSessionEdit{systemEdit, manualEdit})
 		require.NoError(t, err)
 
-		manualCounts, err := repo.CountManualBySessionIDs(ctx, []int64{session.ID})
+		manualCounts, err := testpkg.TenantQuery1(t, ctx, db, repo.CountManualBySessionIDs, []int64{session.ID})
 		require.NoError(t, err)
 		assert.Equal(t, 1, manualCounts[session.ID],
 			"system edit must not count as a manual correction")
 
-		allCounts, err := repo.CountBySessionIDs(ctx, []int64{session.ID})
+		allCounts, err := testpkg.TenantQuery1(t, ctx, db, repo.CountBySessionIDs, []int64{session.ID})
 		require.NoError(t, err)
 		assert.Equal(t, 2, allCounts[session.ID],
 			"total count still includes system edits for the edit history")
@@ -580,10 +581,10 @@ func TestWorkSessionEditRepository_CountManualBySessionIDs(t *testing.T) {
 			FieldName: audit.FieldCheckOutTime,
 			NewValue:  &newValue,
 		}
-		err = repo.CreateBatch(ctx, []*audit.WorkSessionEdit{systemEdit})
+		err = testpkg.TenantCommand1(t, ctx, db, repo.CreateBatch, []*audit.WorkSessionEdit{systemEdit})
 		require.NoError(t, err)
 
-		counts, err := repo.CountManualBySessionIDs(ctx, []int64{session.ID})
+		counts, err := testpkg.TenantQuery1(t, ctx, db, repo.CountManualBySessionIDs, []int64{session.ID})
 		require.NoError(t, err)
 		_, exists := counts[session.ID]
 		assert.False(t, exists, "auto-checkout-only session must not appear as manually corrected")
@@ -612,15 +613,15 @@ func TestWorkSessionEditRepository_CountManualBySessionIDs(t *testing.T) {
 			FieldName: audit.FieldDeviationReason,
 			Notes:     &reason,
 		}
-		err = repo.CreateBatch(ctx, []*audit.WorkSessionEdit{deviationEdit})
+		err = testpkg.TenantCommand1(t, ctx, db, repo.CreateBatch, []*audit.WorkSessionEdit{deviationEdit})
 		require.NoError(t, err)
 
-		counts, err := repo.CountManualBySessionIDs(ctx, []int64{session.ID})
+		counts, err := testpkg.TenantQuery1(t, ctx, db, repo.CountManualBySessionIDs, []int64{session.ID})
 		require.NoError(t, err)
 		_, exists := counts[session.ID]
 		assert.False(t, exists, "a stamp-time deviation reason must not count as a manual correction")
 
-		allCounts, err := repo.CountBySessionIDs(ctx, []int64{session.ID})
+		allCounts, err := testpkg.TenantQuery1(t, ctx, db, repo.CountBySessionIDs, []int64{session.ID})
 		require.NoError(t, err)
 		assert.Equal(t, 1, allCounts[session.ID],
 			"total count still includes deviation-reason rows for the edit history")
@@ -635,17 +636,17 @@ func TestWorkSessionEditRepository_CountManualBySessionIDs(t *testing.T) {
 			FieldName: audit.FieldCheckOutTime,
 			NewValue:  &newValue,
 		}
-		err = repo.CreateBatch(ctx, []*audit.WorkSessionEdit{timeEdit})
+		err = testpkg.TenantCommand1(t, ctx, db, repo.CreateBatch, []*audit.WorkSessionEdit{timeEdit})
 		require.NoError(t, err)
 
-		counts, err = repo.CountManualBySessionIDs(ctx, []int64{session.ID})
+		counts, err = testpkg.TenantQuery1(t, ctx, db, repo.CountManualBySessionIDs, []int64{session.ID})
 		require.NoError(t, err)
 		assert.Equal(t, 1, counts[session.ID],
 			"the accompanying time-field row keeps a real edit counted")
 	})
 
 	t.Run("returns empty map for empty input", func(t *testing.T) {
-		counts, err := repo.CountManualBySessionIDs(ctx, []int64{})
+		counts, err := testpkg.TenantQuery1(t, ctx, db, repo.CountManualBySessionIDs, []int64{})
 		require.NoError(t, err)
 		assert.Empty(t, counts)
 	})
@@ -653,46 +654,29 @@ func TestWorkSessionEditRepository_CountManualBySessionIDs(t *testing.T) {
 
 func TestWorkSessionEditRepository_WrapsDatabaseErrors(t *testing.T) {
 	t.Parallel()
-
-	db := testpkg.SetupClosableTestDB(t)
-	require.NoError(t, db.Close())
-
+	db := testpkg.SetupTestDB(t)
 	repo := NewWorkSessionEditRepository(NewRuntime(db, auditTestTenantID))
-	ctx := testpkg.Ctx(t)
-	edit := &audit.WorkSessionEdit{
-		SessionID: 1,
-		StaffID:   1,
-		EditedBy:  audit.SystemEditorID,
-		FieldName: audit.FieldCheckOutTime,
+	edit := &audit.WorkSessionEdit{SessionID: 1, StaffID: 1, EditedBy: audit.SystemEditorID, FieldName: audit.FieldCheckOutTime}
+	for _, tc := range []struct {
+		name string
+		call func(context.Context) error
+	}{
+		{"create batch", func(ctx context.Context) error { return repo.CreateBatch(ctx, []*audit.WorkSessionEdit{edit}) }},
+		{"get by session ID", func(ctx context.Context) error { _, err := repo.GetBySessionID(ctx, 1); return err }},
+		{"count by session ID", func(ctx context.Context) error { _, err := repo.CountBySessionID(ctx, 1); return err }},
+		{"count by session IDs", func(ctx context.Context) error { _, err := repo.CountBySessionIDs(ctx, []int64{1}); return err }},
+		{"count manual by session IDs", func(ctx context.Context) error { _, err := repo.CountManualBySessionIDs(ctx, []int64{1}); return err }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := testpkg.WithinTenantContext(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(txCtx context.Context) error {
+				ctx, cancel := context.WithCancel(txCtx)
+				cancel()
+				err := tc.call(ctx)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.name)
+				return nil
+			})
+			require.NoError(t, err)
+		})
 	}
-
-	t.Run("create batch", func(t *testing.T) {
-		err := repo.CreateBatch(ctx, []*audit.WorkSessionEdit{edit})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "create batch")
-	})
-
-	t.Run("get by session ID", func(t *testing.T) {
-		_, err := repo.GetBySessionID(ctx, 1)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "get by session ID")
-	})
-
-	t.Run("count by session ID", func(t *testing.T) {
-		_, err := repo.CountBySessionID(ctx, 1)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "count by session ID")
-	})
-
-	t.Run("count by session IDs", func(t *testing.T) {
-		_, err := repo.CountBySessionIDs(ctx, []int64{1})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "count by session IDs")
-	})
-
-	t.Run("count manual by session IDs", func(t *testing.T) {
-		_, err := repo.CountManualBySessionIDs(ctx, []int64{1})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "count manual by session IDs")
-	})
 }

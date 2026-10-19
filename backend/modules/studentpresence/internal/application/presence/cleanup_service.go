@@ -96,19 +96,22 @@ func (s *cleanupService) CleanupExpiredVisits(ctx context.Context) (*CleanupResu
 		Success:   true,
 	}
 
-	defaultDays, err := s.defaultRetentionDays(ctx)
+	var students []studentpresence.VisitRetentionCount
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+		defaultDays, err := s.defaultRetentionDays(txCtx)
+		if err != nil {
+			return err
+		}
+		students, err = s.presence.ListVisitRetentionCounts(txCtx, defaultDays)
+		if err != nil {
+			return fmt.Errorf("failed to get students with expired visits: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
 		result.Success = false
 		result.CompletedAt = time.Now()
 		return result, err
-	}
-
-	// Every student with expired visits, with or without a consent
-	students, err := s.presence.ListVisitRetentionCounts(ctx, defaultDays)
-	if err != nil {
-		result.Success = false
-		result.CompletedAt = time.Now()
-		return result, fmt.Errorf("failed to get students with expired visits: %w", err)
 	}
 
 	// Process students in batches

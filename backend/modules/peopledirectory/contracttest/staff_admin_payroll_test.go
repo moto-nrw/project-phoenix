@@ -118,7 +118,7 @@ func TestUpdatePersonnelNumber_SetChangeClear(t *testing.T) {
 
 	// Set
 	value := "90001"
-	updated, err := s.svc.UpdatePersonnelNumber(s.ctx, staff.ID, &value, actor.ID, "Ersteinrichtung")
+	updated, err := testpkg.TenantQuery4(t, s.ctx, s.db, s.svc.UpdatePersonnelNumber, staff.ID, &value, actor.ID, "Ersteinrichtung")
 	require.NoError(t, err)
 	require.NotNil(t, updated.PersonnelNumber)
 	assert.Equal(t, "90001", *updated.PersonnelNumber)
@@ -131,13 +131,13 @@ func TestUpdatePersonnelNumber_SetChangeClear(t *testing.T) {
 	assert.Equal(t, "Ersteinrichtung", rows[0].Note)
 
 	// No-op: same value writes no second audit row
-	_, err = s.svc.UpdatePersonnelNumber(s.ctx, staff.ID, &value, actor.ID, "")
+	_, err = testpkg.TenantQuery4(t, s.ctx, s.db, s.svc.UpdatePersonnelNumber, staff.ID, &value, actor.ID, "")
 	require.NoError(t, err)
 	require.Len(t, s.auditRows(t, staff.ID), 1, "a no-op change must not produce an audit row")
 
 	// Change
 	changed := " 90002 " // whitespace is normalized away
-	updated, err = s.svc.UpdatePersonnelNumber(s.ctx, staff.ID, &changed, actor.ID, "Korrektur")
+	updated, err = testpkg.TenantQuery4(t, s.ctx, s.db, s.svc.UpdatePersonnelNumber, staff.ID, &changed, actor.ID, "Korrektur")
 	require.NoError(t, err)
 	assert.Equal(t, "90002", *updated.PersonnelNumber)
 	rows = s.auditRows(t, staff.ID)
@@ -146,7 +146,7 @@ func TestUpdatePersonnelNumber_SetChangeClear(t *testing.T) {
 	assert.Equal(t, "90002", rows[1].NewValue)
 
 	// Clear
-	updated, err = s.svc.UpdatePersonnelNumber(s.ctx, staff.ID, nil, actor.ID, "Austritt")
+	updated, err = testpkg.TenantQuery4(t, s.ctx, s.db, s.svc.UpdatePersonnelNumber, staff.ID, nil, actor.ID, "Austritt")
 	require.NoError(t, err)
 	assert.Nil(t, updated.PersonnelNumber)
 	rows = s.auditRows(t, staff.ID)
@@ -164,10 +164,10 @@ func TestUpdatePersonnelNumber_DuplicateIsConflictAndLeavesNoAudit(t *testing.T)
 	actor := testpkg.CreateTestStaff(t, s.db, "Payroll", "Aktor")
 
 	value := "90010"
-	_, err := s.svc.UpdatePersonnelNumber(s.ctx, first.ID, &value, actor.ID, "")
+	_, err := testpkg.TenantQuery4(t, s.ctx, s.db, s.svc.UpdatePersonnelNumber, first.ID, &value, actor.ID, "")
 	require.NoError(t, err)
 
-	_, err = s.svc.UpdatePersonnelNumber(s.ctx, second.ID, &value, actor.ID, "")
+	_, err = testpkg.TenantQuery4(t, s.ctx, s.db, s.svc.UpdatePersonnelNumber, second.ID, &value, actor.ID, "")
 	require.ErrorIs(t, err, workforce.ErrPersonnelNumberTaken)
 
 	assert.Empty(t, s.auditRows(t, second.ID), "the rolled-back change must not leave an audit row")
@@ -182,7 +182,7 @@ func TestUpdatePersonnelNumber_DuplicateIsConflictAndLeavesNoAudit(t *testing.T)
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	_, err = s.svc.UpdatePersonnelNumber(s.ctx, second.ID, &value, actor.ID, "")
+	_, err = testpkg.TenantQuery4(t, s.ctx, s.db, s.svc.UpdatePersonnelNumber, second.ID, &value, actor.ID, "")
 	require.NoError(t, err, "an offboarded holder must free the number")
 }
 
@@ -207,7 +207,7 @@ func TestUpdatePersonnelNumber_SerializesConcurrentAuditValues(t *testing.T) {
 	firstValue := fmt.Sprintf("7%07d1", personnelNumberSeed)
 	firstDone := make(chan error, 1)
 	go func() {
-		_, err := svc.UpdatePersonnelNumber(s.ctx, staff.ID, &firstValue, actor.ID, "Erste Änderung")
+		_, err := testpkg.TenantQuery4(t, s.ctx, testpkg.SetupTestDB(t), svc.UpdatePersonnelNumber, staff.ID, &firstValue, actor.ID, "Erste Änderung")
 		firstDone <- err
 	}()
 
@@ -223,7 +223,7 @@ func TestUpdatePersonnelNumber_SerializesConcurrentAuditValues(t *testing.T) {
 	secondValue := fmt.Sprintf("7%07d2", personnelNumberSeed)
 	secondDone := make(chan error, 1)
 	go func() {
-		_, err := svc.UpdatePersonnelNumber(s.ctx, staff.ID, &secondValue, actor.ID, "Zweite Änderung")
+		_, err := testpkg.TenantQuery4(t, s.ctx, testpkg.SetupTestDB(t), svc.UpdatePersonnelNumber, staff.ID, &secondValue, actor.ID, "Zweite Änderung")
 		secondDone <- err
 	}()
 
@@ -282,7 +282,7 @@ func TestUpdateStaffWithTeacher_PreservesConcurrentPersonnelNumber(t *testing.T)
 	require.NoError(t, err)
 
 	value := fmt.Sprintf("6%07d1", staff.ID%10_000_000)
-	_, err = s.svc.UpdatePersonnelNumber(s.ctx, staff.ID, &value, actor.ID, "Ersteinrichtung")
+	_, err = testpkg.TenantQuery4(t, s.ctx, s.db, s.svc.UpdatePersonnelNumber, staff.ID, &value, actor.ID, "Ersteinrichtung")
 	require.NoError(t, err)
 
 	staleStaff.StaffNotes = "Aktualisierte Notiz"
@@ -310,7 +310,7 @@ func TestUpdatePersonnelNumber_Validation(t *testing.T) {
 
 	for _, invalid := range []string{"12a", "1 2", "-5", "1234567890"} {
 		v := invalid
-		_, err := s.svc.UpdatePersonnelNumber(s.ctx, staff.ID, &v, actor.ID, "")
+		_, err := testpkg.TenantQuery4(t, s.ctx, s.db, s.svc.UpdatePersonnelNumber, staff.ID, &v, actor.ID, "")
 		require.ErrorIs(t, err, workforce.ErrPersonnelNumberInvalid, "value %q must be rejected", invalid)
 	}
 

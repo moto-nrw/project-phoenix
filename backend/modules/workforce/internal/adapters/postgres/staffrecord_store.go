@@ -104,14 +104,14 @@ type staffDocumentFileCleanupRow struct {
 // --- master data ---
 
 func (s *Store) FindStaffMasterData(ctx context.Context, staffID int64) (domain.StaffMasterData, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffMasterData{}, false, domain.OperationStats{}, err
 	}
 	row := &staffMasterDataRow{}
 	query := withTenant(db.NewSelect().Model(row).
 		ModelTableExpr(tableStaffMasterData+` AS "staff_master_data"`).
-		Where(`"staff_master_data".staff_id = ?`, staffID), aliasStaffMasterData, tenantID)
+		Where(`"staff_master_data".staff_id = ?`, staffID), aliasStaffMasterData, scope)
 	found, stats, err := scanOne(ctx, query, "find staff master data")
 	if err != nil || !found {
 		return domain.StaffMasterData{}, found, stats, err
@@ -120,13 +120,13 @@ func (s *Store) FindStaffMasterData(ctx context.Context, staffID int64) (domain.
 }
 
 func (s *Store) CreateStaffMasterData(ctx context.Context, value domain.StaffMasterData) (domain.StaffMasterData, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffMasterData{}, domain.OperationStats{}, err
 	}
 	row := staffMasterDataFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -140,20 +140,20 @@ func (s *Store) CreateStaffMasterData(ctx context.Context, value domain.StaffMas
 }
 
 func (s *Store) UpdateStaffMasterData(ctx context.Context, value domain.StaffMasterData) (domain.StaffMasterData, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffMasterData{}, false, domain.OperationStats{}, err
 	}
 	row := staffMasterDataFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	query := withTenant(db.NewUpdate().Model(row).
 		ModelTableExpr(tableStaffMasterData+` AS "staff_master_data"`).
 		ExcludeColumn("created_at", "updated_at").
 		Set("updated_at = NOW()").
 		WherePK().
-		Returning("*"), aliasStaffMasterData, tenantID)
+		Returning("*"), aliasStaffMasterData, scope)
 	stats, err := execAffected(ctx, query, "update staff master data")
 	if err != nil {
 		return domain.StaffMasterData{}, false, stats, err
@@ -168,7 +168,7 @@ func (s *Store) UpdateStaffMasterData(ctx context.Context, value domain.StaffMas
 // --- qualifications ---
 
 func (s *Store) ListStaffQualifications(ctx context.Context, staffID int64) ([]domain.StaffQualification, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -176,7 +176,7 @@ func (s *Store) ListStaffQualifications(ctx context.Context, staffID int64) ([]d
 	query := withTenant(db.NewSelect().Model(&rows).
 		ModelTableExpr(tableStaffQualifications+` AS "staff_qualification"`).
 		Where(`"staff_qualification".staff_id = ?`, staffID).
-		Where(`"staff_qualification".deleted_at IS NULL`), aliasStaffQualification, tenantID).
+		Where(`"staff_qualification".deleted_at IS NULL`), aliasStaffQualification, scope).
 		OrderExpr(`"staff_qualification".sort_order ASC, "staff_qualification".id ASC`)
 	stats, err := scanAll(ctx, query, "list staff qualifications")
 	if err != nil {
@@ -190,7 +190,7 @@ func (s *Store) RetireStaffQualifications(ctx context.Context, staffID int64, id
 	if len(ids) == 0 {
 		return domain.OperationStats{}, nil
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -200,12 +200,12 @@ func (s *Store) RetireStaffQualifications(ctx context.Context, staffID int64, id
 		Set("updated_at = NOW()").
 		Where(`"staff_qualification".staff_id = ?`, staffID).
 		Where(`"staff_qualification".id IN (?)`, bun.List(ids)).
-		Where(`"staff_qualification".deleted_at IS NULL`), aliasStaffQualification, tenantID)
+		Where(`"staff_qualification".deleted_at IS NULL`), aliasStaffQualification, scope)
 	return execAffected(ctx, query, "retire staff qualifications")
 }
 
 func (s *Store) UpdateStaffQualification(ctx context.Context, value domain.StaffQualification) (domain.StaffQualification, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffQualification{}, false, domain.OperationStats{}, err
 	}
@@ -217,7 +217,7 @@ func (s *Store) UpdateStaffQualification(ctx context.Context, value domain.Staff
 		WherePK().
 		Where(`"staff_qualification".staff_id = ?`, value.StaffID).
 		Where(`"staff_qualification".deleted_at IS NULL`).
-		Returning("*"), aliasStaffQualification, tenantID)
+		Returning("*"), aliasStaffQualification, scope)
 	stats, err := execAffected(ctx, query, "update staff qualification")
 	if err != nil {
 		return domain.StaffQualification{}, false, stats, err
@@ -233,7 +233,7 @@ func (s *Store) InsertStaffQualifications(ctx context.Context, values []domain.S
 	if len(values) == 0 {
 		return []domain.StaffQualification{}, domain.OperationStats{}, nil
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -241,7 +241,7 @@ func (s *Store) InsertStaffQualifications(ctx context.Context, values []domain.S
 	for _, value := range values {
 		row := staffQualificationFromDomain(value)
 		if row.TenantID == 0 {
-			row.TenantID = tenantID
+			row.TenantID = scope.TenantID
 		}
 		rows = append(rows, *row)
 	}
@@ -259,14 +259,14 @@ func (s *Store) InsertStaffQualifications(ctx context.Context, values []domain.S
 // --- financial data ---
 
 func (s *Store) FindStaffFinancialData(ctx context.Context, staffID int64) (domain.StaffFinancialData, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffFinancialData{}, false, domain.OperationStats{}, err
 	}
 	row := &staffFinancialDataRow{}
 	query := withTenant(db.NewSelect().Model(row).
 		ModelTableExpr(tableStaffFinancialData+` AS "staff_financial_data"`).
-		Where(`"staff_financial_data".staff_id = ?`, staffID), aliasStaffFinancialData, tenantID)
+		Where(`"staff_financial_data".staff_id = ?`, staffID), aliasStaffFinancialData, scope)
 	found, stats, err := scanOne(ctx, query, "find staff financial data")
 	if err != nil || !found {
 		return domain.StaffFinancialData{}, found, stats, err
@@ -275,13 +275,13 @@ func (s *Store) FindStaffFinancialData(ctx context.Context, staffID int64) (doma
 }
 
 func (s *Store) CreateStaffFinancialData(ctx context.Context, value domain.StaffFinancialData) (domain.StaffFinancialData, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffFinancialData{}, domain.OperationStats{}, err
 	}
 	row := staffFinancialDataFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -295,20 +295,20 @@ func (s *Store) CreateStaffFinancialData(ctx context.Context, value domain.Staff
 }
 
 func (s *Store) UpdateStaffFinancialData(ctx context.Context, value domain.StaffFinancialData) (domain.StaffFinancialData, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffFinancialData{}, false, domain.OperationStats{}, err
 	}
 	row := staffFinancialDataFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	query := withTenant(db.NewUpdate().Model(row).
 		ModelTableExpr(tableStaffFinancialData+` AS "staff_financial_data"`).
 		ExcludeColumn("created_at", "updated_at").
 		Set("updated_at = NOW()").
 		WherePK().
-		Returning("*"), aliasStaffFinancialData, tenantID)
+		Returning("*"), aliasStaffFinancialData, scope)
 	stats, err := execAffected(ctx, query, "update staff financial data")
 	if err != nil {
 		return domain.StaffFinancialData{}, false, stats, err
@@ -323,13 +323,13 @@ func (s *Store) UpdateStaffFinancialData(ctx context.Context, value domain.Staff
 // --- documents ---
 
 func (s *Store) CreateStaffDocument(ctx context.Context, value domain.StaffDocument) (domain.StaffDocument, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffDocument{}, domain.OperationStats{}, err
 	}
 	row := staffDocumentFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -343,7 +343,7 @@ func (s *Store) CreateStaffDocument(ctx context.Context, value domain.StaffDocum
 }
 
 func (s *Store) FindStaffDocument(ctx context.Context, staffID, documentID int64, includeDeleted bool) (domain.StaffDocument, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffDocument{}, false, domain.OperationStats{}, err
 	}
@@ -351,7 +351,7 @@ func (s *Store) FindStaffDocument(ctx context.Context, staffID, documentID int64
 	query := withTenant(db.NewSelect().Model(row).
 		ModelTableExpr(tableStaffDocuments+` AS "staff_document"`).
 		Where(`"staff_document".id = ?`, documentID).
-		Where(`"staff_document".staff_id = ?`, staffID), aliasStaffDocument, tenantID)
+		Where(`"staff_document".staff_id = ?`, staffID), aliasStaffDocument, scope)
 	if !includeDeleted {
 		query = query.Where(`"staff_document".deleted_at IS NULL`)
 	}
@@ -363,13 +363,13 @@ func (s *Store) FindStaffDocument(ctx context.Context, staffID, documentID int64
 }
 
 func (s *Store) ListStaffDocuments(ctx context.Context, filter domain.StaffDocumentFilter) ([]domain.StaffDocument, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []staffDocumentRow{}
 	query := withTenant(db.NewSelect().Model(&rows).
-		ModelTableExpr(tableStaffDocuments+` AS "staff_document"`), aliasStaffDocument, tenantID)
+		ModelTableExpr(tableStaffDocuments+` AS "staff_document"`), aliasStaffDocument, scope)
 	if filter.StaffID > 0 {
 		query = query.Where(`"staff_document".staff_id = ?`, filter.StaffID)
 	}
@@ -410,7 +410,7 @@ func (s *Store) ListStaffDocuments(ctx context.Context, filter domain.StaffDocum
 }
 
 func (s *Store) SoftDeleteStaffDocument(ctx context.Context, id, deletedBy int64, at time.Time) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
@@ -420,13 +420,13 @@ func (s *Store) SoftDeleteStaffDocument(ctx context.Context, id, deletedBy int64
 		Set("deleted_by = ?", deletedBy).
 		Set("updated_at = NOW()").
 		Where(`"staff_document".id = ?`, id).
-		Where(`"staff_document".deleted_at IS NULL`), aliasStaffDocument, tenantID)
+		Where(`"staff_document".deleted_at IS NULL`), aliasStaffDocument, scope)
 	stats, err := execAffected(ctx, query, "soft delete staff document")
 	return stats.Rows, stats, err
 }
 
 func (s *Store) MarkStaffDocumentFileDeleted(ctx context.Context, id int64, at time.Time) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -435,14 +435,14 @@ func (s *Store) MarkStaffDocumentFileDeleted(ctx context.Context, id int64, at t
 		Set("file_deleted_at = ?", at).
 		Set("updated_at = NOW()").
 		Where(`"staff_document".id = ?`, id).
-		Where(`"staff_document".file_deleted_at IS NULL`), aliasStaffDocument, tenantID)
+		Where(`"staff_document".file_deleted_at IS NULL`), aliasStaffDocument, scope)
 	return execAffected(ctx, query, "mark staff document file deleted")
 }
 
 // --- file cleanup intents ---
 
 func (s *Store) QueueStaffDocumentFileCleanup(ctx context.Context, value domain.StaffDocumentFileCleanup) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -451,7 +451,7 @@ func (s *Store) QueueStaffDocumentFileCleanup(ctx context.Context, value domain.
 		RetryAfter: value.RetryAfter, CleanedAt: value.CleanedAt,
 	}
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	query := db.NewInsert().Model(row).ModelTableExpr(tableStaffDocumentFileCleanups).On(staffDocumentFileCleanupUnique)
 	return execAffected(ctx, query, "queue staff document file cleanup")
@@ -463,7 +463,7 @@ func (s *Store) QueueStaffDocumentFileCleanup(ctx context.Context, value domain.
 // holds that row lock, and skipping it keeps this pass from deleting the bytes
 // of a document that is about to exist.
 func (s *Store) ListQueuedStaffDocumentFileCleanups(ctx context.Context, staffID int64, now time.Time) ([]domain.StaffDocumentFileCleanup, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -471,7 +471,7 @@ func (s *Store) ListQueuedStaffDocumentFileCleanups(ctx context.Context, staffID
 	query := withTenant(db.NewSelect().Model(&rows).
 		ModelTableExpr(tableStaffDocumentFileCleanups+` AS "staff_document_file_cleanup"`).
 		Where(`"staff_document_file_cleanup".retry_after <= ?`, now).
-		Where(`"staff_document_file_cleanup".cleaned_at IS NULL`), aliasStaffDocumentFileCleanup, tenantID)
+		Where(`"staff_document_file_cleanup".cleaned_at IS NULL`), aliasStaffDocumentFileCleanup, scope)
 	if staffID > 0 {
 		query = query.Where(`"staff_document_file_cleanup".staff_id = ?`, staffID)
 	} else {
@@ -495,7 +495,7 @@ func (s *Store) ListQueuedStaffDocumentFileCleanups(ctx context.Context, staffID
 }
 
 func (s *Store) CompleteStaffDocumentFileCleanup(ctx context.Context, id int64, at time.Time) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -504,12 +504,12 @@ func (s *Store) CompleteStaffDocumentFileCleanup(ctx context.Context, id int64, 
 		Set("cleaned_at = ?", at).
 		Set("updated_at = NOW()").
 		Where(`"staff_document_file_cleanup".id = ?`, id).
-		Where(`"staff_document_file_cleanup".cleaned_at IS NULL`), aliasStaffDocumentFileCleanup, tenantID)
+		Where(`"staff_document_file_cleanup".cleaned_at IS NULL`), aliasStaffDocumentFileCleanup, scope)
 	return execAffected(ctx, query, "complete staff document file cleanup")
 }
 
 func (s *Store) CompleteStaffDocumentFileCleanupByFilename(ctx context.Context, filename string, at time.Time) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -518,12 +518,12 @@ func (s *Store) CompleteStaffDocumentFileCleanupByFilename(ctx context.Context, 
 		Set("cleaned_at = ?", at).
 		Set("updated_at = NOW()").
 		Where(`"staff_document_file_cleanup".filename_stored = ?`, filename).
-		Where(`"staff_document_file_cleanup".cleaned_at IS NULL`), aliasStaffDocumentFileCleanup, tenantID)
+		Where(`"staff_document_file_cleanup".cleaned_at IS NULL`), aliasStaffDocumentFileCleanup, scope)
 	return execAffected(ctx, query, "complete staff document file cleanup by filename")
 }
 
 func (s *Store) ActivateStaffDocumentFileCleanup(ctx context.Context, filename string, at time.Time) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -532,7 +532,7 @@ func (s *Store) ActivateStaffDocumentFileCleanup(ctx context.Context, filename s
 		Set("retry_after = ?", at).
 		Set("updated_at = NOW()").
 		Where(`"staff_document_file_cleanup".filename_stored = ?`, filename).
-		Where(`"staff_document_file_cleanup".cleaned_at IS NULL`), aliasStaffDocumentFileCleanup, tenantID)
+		Where(`"staff_document_file_cleanup".cleaned_at IS NULL`), aliasStaffDocumentFileCleanup, scope)
 	return execAffected(ctx, query, "activate staff document file cleanup")
 }
 

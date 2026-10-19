@@ -21,10 +21,7 @@ type Dependencies struct {
 	Observe func(Observation)
 }
 
-// New composes the School Structure module. Reads run on the caller's
-// ambient tenant transaction when one exists (tenant middleware, scheduler
-// loops) and otherwise on the shared connection, exactly like the legacy
-// repositories' base.GetDB resolution, so RLS visibility is unchanged.
+// New composes School Structure over the caller's authoritative transaction.
 func New(dependencies Dependencies) (*schoolstructure.Module, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("school structure compose: all dependencies are required")
@@ -32,7 +29,7 @@ func New(dependencies Dependencies) (*schoolstructure.Module, error) {
 	store := postgres.New(func(ctx context.Context) (bun.IDB, error) {
 		transaction, ok := tenant.TransactionFromContext(ctx)
 		if !ok {
-			return dependencies.DB, nil
+			return nil, errors.New("school structure postgres: transaction is required")
 		}
 		switch tx := transaction.(type) {
 		case bun.Tx:
@@ -41,7 +38,7 @@ func New(dependencies Dependencies) (*schoolstructure.Module, error) {
 			if tx != nil {
 				return tx, nil
 			}
-			return dependencies.DB, nil
+			return nil, errors.New("school structure postgres: transaction is required")
 		default:
 			return nil, fmt.Errorf("school structure postgres: unsupported transaction %T", transaction)
 		}

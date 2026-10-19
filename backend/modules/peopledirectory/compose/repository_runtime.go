@@ -12,11 +12,11 @@ import (
 // LegacyRepositoryRuntime is the tenant capability consumed by the retained bindings.
 type LegacyRepositoryRuntime interface {
 	runtime.ContextRuntime
-	DB(context.Context) bun.IDB
+	DB(context.Context) (bun.IDB, error)
 	InTenantTx(context.Context, func(context.Context) error) error
 }
 
 // NewLegacyRepositoryRuntime constructs the owner's tenant runtime.
 func NewLegacyRepositoryRuntime(db *bun.DB) LegacyRepositoryRuntime {
-	return runtime.NewDatabase(application.RepositoryRuntime{}, db, tenant.TransactionFromContext, tenant.FromContext, tenant.WithTenantTx[*bun.DB, bun.Tx])
+	return runtime.NewDatabase(application.RepositoryRuntime{}, db, tenant.TransactionFromContext)
 }

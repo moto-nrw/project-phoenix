@@ -31,7 +31,18 @@ const (
 
 // MoveStaffBetweenBlocks moves (or pool-assigns) one staff member onto the
 // target block atomically, inside the caller's tenant tx.
-func (s *InstanceLifecycleService) MoveStaffBetweenBlocks(ctx context.Context, targetID int64, in timetable.MoveStaffInput) (*timetable.MoveStaffResult, error) {
+func (s *InstanceLifecycleService) MoveStaffBetweenBlocks(ctx context.Context, targetID int64, in timetable.MoveStaffInput) (moved *timetable.MoveStaffResult, err error) {
+	if s.hasTx(ctx) {
+		return s.moveStaffBetweenBlocks(ctx, targetID, in)
+	}
+	err = inTenant(ctx, s.deps.Database, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		moved, err = s.moveStaffBetweenBlocks(txCtx, targetID, in)
+		return err
+	})
+	return moved, err
+}
+
+func (s *InstanceLifecycleService) moveStaffBetweenBlocks(ctx context.Context, targetID int64, in timetable.MoveStaffInput) (*timetable.MoveStaffResult, error) {
 	if in.StaffID <= 0 {
 		return nil, timetable.DeviationBadRequest("staff_id must be a positive id").WithCode(timetable.CodeDeviationSelectionInvalid).OnField("staff_id")
 	}

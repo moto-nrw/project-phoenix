@@ -200,7 +200,7 @@ func TestOffboardStaff_CleanupIntentFailureRestoresAccessAndAllOwnerWrites(t *te
 	assignment := testpkg.CreateTestInstanceStaff(t, sc.db, instance.ID, staff.ID, testpkg.InstanceStaffOpts{})
 	failure := errors.New("cleanup intent unavailable")
 	sc.svc.deps.Cleanup = func(context.Context, int64) error { return failure }
-	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin")
+	err := testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin")
 	require.ErrorIs(t, err, failure)
 	_, err = sc.reposPeople.Staff.FindByID(sc.ctx, staff.ID)
 	require.NoError(t, err)
@@ -208,7 +208,7 @@ func TestOffboardStaff_CleanupIntentFailureRestoresAccessAndAllOwnerWrites(t *te
 	require.NoError(t, err)
 	_, err = sc.timetable.InstanceStaff.FindByID(sc.ctx, assignment.ID)
 	require.NoError(t, err)
-	person, err := sc.reposPeople.Person.FindByID(sc.ctx, staff.PersonID)
+	person, err := testpkg.TenantQuery1(t, sc.ctx, testpkg.SetupTestDB(t), sc.reposPeople.Person.FindByID, any(staff.PersonID))
 	require.NoError(t, err)
 	require.NotNil(t, person.AccountID)
 	require.Equal(t, account.ID, *person.AccountID)
@@ -228,8 +228,8 @@ func TestOffboardStaff_CleanupIntentFailureRestoresAccessAndAllOwnerWrites(t *te
 	require.Zero(t, auditRows, "the deletion audit and owner writes must roll back together")
 
 	sc.svc.deps.Cleanup = func(context.Context, int64) error { return nil }
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
+	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
+	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
 	require.NoError(t, sc.db.NewSelect().TableExpr("auth.tokens").ColumnExpr("count(*)").
 		Where("account_id = ?", account.ID).Scan(sc.ctx, &liveTokens))
 	require.Zero(t, liveTokens)
@@ -301,9 +301,12 @@ func assertConcurrentPlanningRejected(t *testing.T, operation string) {
 	require.NoError(t, err)
 	if operation == "move_history" {
 		require.Len(t, rows, 1, "the historical assignment is retained")
-		persisted, err := sc.timetable.ActivityInstance.FindByID(ctx, instance.ID)
-		require.NoError(t, err)
-		require.Equal(t, date.String(), persisted.Date.String(), "history cannot be moved back into an operational assignment")
+		require.NoError(t, tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
+			persisted, err := sc.timetable.ActivityInstance.FindByID(ctx, instance.ID)
+			require.NoError(t, err)
+			require.Equal(t, date.String(), persisted.Date.String(), "history cannot be moved back into an operational assignment")
+			return err
+		}))
 	} else {
 		require.Empty(t, rows)
 	}
@@ -397,7 +400,7 @@ func TestOffboardStaff_WithAttendanceHistory(t *testing.T) {
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM active.attendance WHERE id = ?`, attendance.ID)
 	})
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
+	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
 
 	var attendanceCount int
 	err := sc.db.NewSelect().
@@ -447,7 +450,7 @@ func TestOffboardStaff_RevokesAccountAccess(t *testing.T) {
 	_, _, err := sc.authSvc.LoginWithAudit(context.Background(), emailAddr, credential, "", "", "")
 	require.NoError(t, err, "login must work before offboarding")
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
+	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
 
 	exists, err := testpkg.ActiveAccountTenantExists(sc.ctx, sc.db, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
@@ -511,7 +514,7 @@ func TestOffboardStaff_MultiTenantAccountKeepsOtherSchool(t *testing.T) {
 	testpkg.EnsureTestTenant(t, sc.db, otherTenant)
 	testpkg.MapAccountToTenant(t, sc.db, account.ID, otherTenant)
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
+	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
 
 	var active bool
 	err := sc.db.NewSelect().
@@ -587,7 +590,7 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	require.Error(t, err, "re-invite must be blocked while the mapping is active")
 	require.ErrorIs(t, err, api.ErrAccountAlreadyHasTenantAccess)
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
+	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
 
 	invitation, err := invSvc.CreateSchoolInvitation(sc.ctx, api.SchoolInvitationRequest{
 		Email:     emailAddr,
@@ -650,7 +653,7 @@ func TestOffboardStaff_ActiveSupervisionBlocks(t *testing.T) {
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM active.groups WHERE id = ?`, activeGroup.ID)
 	})
 
-	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin")
+	err := testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin")
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, peoplePorts.ErrStaffInUse), "active supervision must block offboarding")
 
@@ -675,7 +678,7 @@ func TestOffboardStaff_ActiveGroupHandoverBlocks(t *testing.T) {
 		t, sc.db, group.ID, nil, staff.ID, today, today.AddDays(1),
 	)
 
-	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin")
+	err := testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin")
 	require.ErrorIs(t, err, peoplePorts.ErrStaffInUse)
 
 	_, err = sc.reposPeople.GroupSubstitution.FindByID(sc.ctx, handover.ID)
@@ -715,7 +718,7 @@ func TestOffboardStaff_CleansUpAssignments(t *testing.T) {
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.groups WHERE id = ?`, educationGroup.ID)
 	})
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staffID, staffID, "test-admin"))
+	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staffID, staffID, "test-admin"))
 
 	var gtCount int
 	require.NoError(t, sc.db.NewSelect().
@@ -776,7 +779,7 @@ func TestOffboardStaff_BroadcastsGroupAccessChanged(t *testing.T) {
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.groups WHERE id = ?`, group.ID)
 	})
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, teacher.StaffID, teacher.StaffID, "test-admin"))
+	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, teacher.StaffID, teacher.StaffID, "test-admin"))
 
 	event := testpkg.AssertSingleTenantEvent(t, broadcaster, realtime.EventGroupAccessChanged, testpkg.Tenant(t))
 	require.NotNil(t, event.Data.Source)
@@ -802,7 +805,7 @@ func TestOffboardStaff_RollbackBroadcastsNothing(t *testing.T) {
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.groups WHERE id = ?`, group.ID)
 	})
 
-	err := svc.OffboardStaff(sc.ctx, teacher.StaffID, teacher.StaffID, "test-admin")
+	err := testpkg.TenantCommand3(t, sc.ctx, testpkg.SetupTestDB(t), svc.OffboardStaff, teacher.StaffID, teacher.StaffID, "test-admin")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "forced audit failure")
 	assert.False(t, broadcaster.HasEventType(realtime.EventGroupAccessChanged),
@@ -823,7 +826,7 @@ func TestOffboardStaff_EmptyDisplayNameKeepsLegacyAuditAttribution(t *testing.T)
 	t.Parallel()
 	sc := newOffboardingScenario(t)
 	staff := testpkg.CreateTestStaff(t, sc.db, "UnnamedActor", "Offboarding")
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, ""))
+	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, ""))
 	var deletedBy string
 	require.NoError(t, sc.db.NewRaw("SELECT deleted_by FROM audit.data_deletions WHERE staff_id = ? AND tenant_id = ?", staff.ID, testpkg.Tenant(t)).Scan(sc.ctx, &deletedBy))
 	require.Equal(t, "system", deletedBy)
@@ -833,7 +836,7 @@ func TestOffboardStaff_Idempotent(t *testing.T) {
 	t.Parallel()
 
 	sc := newOffboardingScenario(t)
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, 999999, 999999, "test-admin"))
+	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, 999999, 999999, "test-admin"))
 }
 
 // TestOffboardStaff_ExcludedFromListsAndPIN: offboarded staff must vanish from
@@ -846,7 +849,7 @@ func TestOffboardStaff_ExcludedFromListsAndPIN(t *testing.T) {
 	staff, account := testpkg.CreateTestStaffWithAccount(t, sc.db, "Listed", "Staff")
 	testpkg.MapAccountToTenant(t, sc.db, account.ID, testpkg.Tenant(t))
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
+	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
 
 	listed, err := sc.reposPeople.Staff.ListAllWithPerson(sc.ctx)
 	require.NoError(t, err)
@@ -881,7 +884,7 @@ func TestOffboardStaff_ClearsDirectPermissions(t *testing.T) {
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM auth.account_permissions WHERE account_id = ?`, account.ID)
 	})
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
+	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
 
 	var permCount int
 	err := sc.db.NewSelect().
@@ -912,7 +915,7 @@ func TestOffboardStaff_PreservesGuardianAccess(t *testing.T) {
 	guardianRole := testpkg.GetOrCreateTestRole(t, sc.db, "guardian")
 	assignTenantRole(t, sc.db, account.ID, guardianRole.ID)
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
+	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
 
 	countRole := func(roleID int64) int {
 		var n int
@@ -981,7 +984,7 @@ func TestOffboardStaff_RemovesSameDayPlannedInstanceAssignments(t *testing.T) {
 	plannedRow := makeAssignment(plannedInst.ID)
 	completedRow := makeAssignment(completedInst.ID)
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
+	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
 
 	countAssignment := func(id int64) int {
 		var n int
@@ -1031,7 +1034,7 @@ func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
 	pastQuestion := makeAbsence(workforce.AbsenceTypeVacation, workforce.AbsenceStatusQuestion,
 		today.AddDays(-6), today.AddDays(-4))
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, actor.ID, "test-admin"))
+	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, actor.ID, "test-admin"))
 
 	countAbsence := func(id int64) int {
 		var n int
@@ -1091,7 +1094,7 @@ func TestOffboardStaff_AbsenceAuditFailureRollsBackOffboarding(t *testing.T) {
 	require.NoError(t, err)
 
 	sc.svc.deps.Audit = failingOffboardingAudit{}
-	err = sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin")
+	err = testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "forced audit failure")
 
@@ -1129,7 +1132,7 @@ func TestOffboardStaff_RemovesUpcomingStaffShifts(t *testing.T) {
 	sameDay := makeShift(today, 8)
 	future := makeShift(today.AddDays(1), 8)
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
+	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
 
 	countShift := func(id int64) int {
 		var n int
@@ -1179,7 +1182,7 @@ func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM config.work_time_models WHERE id = ?`, model.ID)
 	})
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
+	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
 
 	var workTimeModelID *int64
 	require.NoError(t, sc.db.NewSelect().
@@ -1226,7 +1229,7 @@ func TestOffboardStaff_LocksAccountBeforeRevokingRoles(t *testing.T) {
 
 	blockedCtx, cancel := context.WithTimeout(sc.ctx, 2*time.Second)
 	defer cancel()
-	err = sc.svc.OffboardStaff(blockedCtx, staff.ID, staff.ID, "test-admin")
+	err = testpkg.TenantCommand3(t, blockedCtx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin")
 	require.Error(t, err, "offboarding must block on the account row, not walk past it")
 
 	var roleCount int
@@ -1242,5 +1245,5 @@ func TestOffboardStaff_LocksAccountBeforeRevokingRoles(t *testing.T) {
 
 	// With the lock released the very same offboarding runs to completion —
 	// the block above was contention, not a broken code path.
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
+	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
 }

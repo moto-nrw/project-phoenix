@@ -26,7 +26,7 @@ func NewOperatorPasskey(service *Service, store ports.OperatorPasskeyStore) *Ope
 }
 
 func (p *OperatorPasskey) run(ctx context.Context, operation string, fn func(context.Context, *domain.OperationStats) error) error {
-	return p.service.run(ctx, p.service.tx.RunPlatform, operation, fn)
+	return p.service.run(ctx, p.service.tx.RunAdmin, operation, fn)
 }
 
 func (p *OperatorPasskey) CreateCredential(ctx context.Context, credential domain.OperatorPasskeyCredential) (result domain.OperatorPasskeyCredential, err error) {

@@ -101,7 +101,7 @@ func TestDecideAdminChild_OfferingLookupFailureDoesNotApprove(t *testing.T) {
 	harness := setupOfferingGuardRouterTest(t, enrollmentNative.PhaseCareOfferingSelectionAtLeastOne, effectiveOffering, true, true)
 	rec := executeApprovalDecision(t, harness)
 	require.Equal(t, http.StatusInternalServerError, rec.Code)
-	child, err := harness.repos.Enrollment().ChildByID(harness.ctx, harness.childID)
+	child, err := testpkg.TenantQuery1(t, harness.ctx, testpkg.SetupTestDB(t), harness.repos.Enrollment().ChildByID, harness.childID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentNative.ChildStatusSubmitted, child.Status)
 }
@@ -157,7 +157,7 @@ func createOfferingGuardPhase(t *testing.T, repos api.EnrollmentTestRepositories
 		IsActive:                  true,
 	}
 	phase.TenantID = testpkg.Tenant(t)
-	require.NoError(t, repos.Enrollment().InsertPhase(ctx, phase))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), repos.Enrollment().InsertPhase, phase))
 	return phase
 }
 
@@ -175,7 +175,7 @@ func createOfferingGuardChild(t *testing.T, repos api.EnrollmentTestRepositories
 		StatusToken:       fmt.Sprintf("offering-guard-%d-%d", testpkg.Tenant(t), time.Now().UnixNano()),
 		SubmittedAt:       time.Now(),
 	}
-	require.NoError(t, repos.Enrollment().InsertRequest(ctx, request))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), repos.Enrollment().InsertRequest, request))
 	grade := int16(1)
 	child := &enrollmentNative.RequestChild{
 		RequestID:        request.ID,
@@ -187,7 +187,7 @@ func createOfferingGuardChild(t *testing.T, repos api.EnrollmentTestRepositories
 		Status:           enrollmentNative.ChildStatusSubmitted,
 		ActivationMode:   enrollmentNative.ChildActivationScheduled,
 	}
-	require.NoError(t, repos.Enrollment().InsertChild(ctx, child))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), repos.Enrollment().InsertChild, child))
 	return request, child
 }
 
@@ -209,7 +209,7 @@ func attachOfferingGuardLink(t *testing.T, repos api.EnrollmentTestRepositories,
 				IsActive:                  true,
 			}
 			otherPhase.TenantID = testpkg.Tenant(t)
-			require.NoError(t, repos.Enrollment().InsertPhase(ctx, otherPhase))
+			require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), repos.Enrollment().InsertPhase, otherPhase))
 			phaseID = otherPhase.ID
 		}
 		offering := &offeringContract.CareOfferingRecord{

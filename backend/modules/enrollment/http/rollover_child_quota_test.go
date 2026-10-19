@@ -59,7 +59,7 @@ func TestRolloverService_AutoApprove_SkipsChildrenAboveTheKinderkontingent(t *te
 	assert.Equal(t, 1, summary.AutoApproveChildQuotaHeld, "the uncounted child is skipped")
 	assert.Equal(t, 0, summary.AutoApproveErrors, "a full Kinderkontingent is no error")
 
-	rows, err := env.repos.Enrollment().ChildrenByPhaseStatuses(ctx, result.Phase.ID, []string{
+	rows, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{
 		capability.ChildStatusApproved, capability.ChildStatusSubmitted, capability.ChildStatusAutoRenewed,
 	})
 	require.NoError(t, err)

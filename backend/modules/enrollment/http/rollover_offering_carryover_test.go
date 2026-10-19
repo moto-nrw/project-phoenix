@@ -175,11 +175,10 @@ func TestRolloverService_CreatePhaseFromSource_ClonesCatalogAndRemapsBookings(t 
 	// The rolled child's booking is the selection effective at the END of
 	// the source phase, remapped onto the clones, days carried, validity
 	// reset to the new service period.
-	rolled, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
-		ctx, result.Phase.ID, []string{enrollmentNative.ChildStatusAutoRenewed})
+	rolled, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{enrollmentNative.ChildStatusAutoRenewed})
 	require.NoError(t, err)
 	require.Len(t, rolled, 1)
-	copied, err := env.repos.Enrollment().RequestChildOfferingHistory(ctx, rolled[0].ID)
+	copied, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Enrollment().RequestChildOfferingHistory, rolled[0].ID)
 	require.NoError(t, err)
 	require.Len(t, copied, 2, "only the effective booking is carried, not history rows")
 	copiedByOffering := make(map[int64]*enrollmentNative.RequestChildOffering, len(copied))
@@ -208,7 +207,7 @@ func TestRolloverService_CreatePhaseFromSource_ClonesCatalogAndRemapsBookings(t 
 	sourceOfferings, err := newCareOfferingFixtures(env.reposCare.CarePlan).ListByPhase(ctx, env.sourcePhase.ID)
 	require.NoError(t, err)
 	assert.Len(t, sourceOfferings, 4)
-	sourceHistory, err := env.repos.Enrollment().RequestChildOfferingHistory(ctx, child.ID)
+	sourceHistory, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Enrollment().RequestChildOfferingHistory, child.ID)
 	require.NoError(t, err)
 	require.Len(t, sourceHistory, 3)
 	for _, row := range sourceHistory {
@@ -263,10 +262,10 @@ func TestRolloverService_CreatePhaseFromSource_ClonesLegacyCrossPhaseBooking(t *
 	clones, err := newCareOfferingFixtures(env.reposCare.CarePlan).ListByPhase(ctx, result.Phase.ID)
 	require.NoError(t, err)
 	require.Len(t, clones, 1)
-	rolled, err := env.repos.Enrollment().ChildrenByPhaseStatuses(ctx, result.Phase.ID, []string{enrollmentNative.ChildStatusAutoRenewed})
+	rolled, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{enrollmentNative.ChildStatusAutoRenewed})
 	require.NoError(t, err)
 	require.Len(t, rolled, 1)
-	bookings, err := env.repos.Enrollment().RequestChildOfferingHistory(ctx, rolled[0].ID)
+	bookings, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Enrollment().RequestChildOfferingHistory, rolled[0].ID)
 	require.NoError(t, err)
 	require.Len(t, bookings, 1)
 	assert.Equal(t, clones[0].ID, bookings[0].CareOfferingID)
@@ -296,7 +295,7 @@ func TestRolloverService_CreatePhaseFromSource_RejectsConflictingLegacyGroupRule
 		return createErr
 	})
 	require.ErrorIs(t, err, careplan.ErrCareOfferingGroupRuleConflict)
-	exists, findErr := env.repos.Enrollment().HasRolloverSuccessor(ctx, env.sourcePhase.ID)
+	exists, findErr := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Enrollment().HasRolloverSuccessor, env.sourcePhase.ID)
 	require.NoError(t, findErr)
 	assert.False(t, exists)
 }
@@ -342,7 +341,7 @@ func TestRolloverService_CreatePhaseFromSource_FailsAtomicallyOnInvalidSourceOff
 	assert.ErrorContains(t, err, "rollover: clone offering catalog")
 
 	// Atomic: no follow-up phase, no rolled rows, no parent emails.
-	exists, err := env.repos.Enrollment().HasRolloverSuccessor(ctx, env.sourcePhase.ID)
+	exists, err := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Enrollment().HasRolloverSuccessor, env.sourcePhase.ID)
 	require.NoError(t, err)
 	assert.False(t, exists, "failed rollover must not leave the follow-up phase behind")
 	assert.Empty(t, env.outbox.ByKind("enrollment_rollover_opt_out"),
@@ -431,7 +430,7 @@ func TestRolloverService_CreatePhaseFromSource_FailsWhenBookingHasNoClone(t *tes
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "has no clone in the target phase")
 
-	exists, err := env.repos.Enrollment().HasRolloverSuccessor(ctx, env.sourcePhase.ID)
+	exists, err := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Enrollment().HasRolloverSuccessor, env.sourcePhase.ID)
 	require.NoError(t, err)
 	assert.False(t, exists)
 }
@@ -465,8 +464,7 @@ func TestRolloverService_CreatePhaseFromSource_RolledRequestIsEditableInParentSt
 		validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true))
 	require.NoError(t, err)
 
-	rolled, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
-		ctx, result.Phase.ID, []string{enrollmentNative.ChildStatusAutoRenewed})
+	rolled, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{enrollmentNative.ChildStatusAutoRenewed})
 	require.NoError(t, err)
 	require.Len(t, rolled, 1)
 	newRequest, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), rolled[0].RequestID)
@@ -520,11 +518,10 @@ func TestRolloverService_CreatePhaseFromSource_RepeatedExecutionCreatesNoDuplica
 	_, err = env.rolloverSvc.CreatePhaseFromSource(ctx, secondReq)
 	require.ErrorIs(t, err, enrollmentNative.ErrRolloverSourceAlreadyRolled)
 
-	rolled, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
-		ctx, first.Phase.ID, []string{enrollmentNative.ChildStatusAutoRenewed})
+	rolled, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, first.Phase.ID, []string{enrollmentNative.ChildStatusAutoRenewed})
 	require.NoError(t, err)
 	require.Len(t, rolled, 1, "repeated execution must not duplicate target enrollments")
-	links, err := env.repos.Enrollment().RequestChildOfferingHistory(ctx, rolled[0].ID)
+	links, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Enrollment().RequestChildOfferingHistory, rolled[0].ID)
 	require.NoError(t, err)
 	assert.Len(t, links, 1, "repeated execution must not duplicate bookings")
 	clones, err := newCareOfferingFixtures(env.reposCare.CarePlan).ListByPhase(ctx, first.Phase.ID)
@@ -597,8 +594,7 @@ func TestRolloverService_AutoApprove_MaterializesCarriedDaysIntoLinkedTemplate(t
 	require.NotNil(t, clones[0].ActivityGroupID)
 	assert.Equal(t, group.ID, *clones[0].ActivityGroupID)
 
-	rolled, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
-		ctx, result.Phase.ID, []string{enrollmentNative.ChildStatusAutoRenewed})
+	rolled, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{enrollmentNative.ChildStatusAutoRenewed})
 	require.NoError(t, err)
 	require.Len(t, rolled, 1)
 	rolledChildID := rolled[0].ID

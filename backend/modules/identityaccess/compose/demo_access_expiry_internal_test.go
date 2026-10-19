@@ -42,7 +42,7 @@ func TestDemoAccessExpiryDeletesExpiredAccessesAndNamesOrphanedSchools(t *testin
 	insertDemoAccess(t, db, west, clock.Add(-2*time.Hour))
 	insertDemoAccess(t, db, west, clock.Add(-time.Minute))
 
-	deleted, orphaned, err := expiry.ExpireDemoAccesses(t.Context())
+	deleted, orphaned, err := expiry.ExpireDemoAccesses(testpkg.WithTenantRuntime(t, t.Context(), db))
 	require.NoError(t, err)
 	assert.Equal(t, 4, deleted)
 	assert.Equal(t, []string{sued, west}, orphaned, "a school with a link left is not named; a school named twice is named once")
@@ -51,12 +51,12 @@ func TestDemoAccessExpiryDeletesExpiredAccessesAndNamesOrphanedSchools(t *testin
 	assert.Equal(t, []string{nord}, remaining, "the unexpired access stays")
 
 	// Nothing is due until the clock passes the remaining end.
-	deleted, orphaned, err = expiry.ExpireDemoAccesses(t.Context())
+	deleted, orphaned, err = expiry.ExpireDemoAccesses(testpkg.WithTenantRuntime(t, t.Context(), db))
 	require.NoError(t, err)
 	assert.Zero(t, deleted)
 	assert.Empty(t, orphaned)
 	clock = clock.Add(2 * time.Hour)
-	deleted, orphaned, err = expiry.ExpireDemoAccesses(t.Context())
+	deleted, orphaned, err = expiry.ExpireDemoAccesses(testpkg.WithTenantRuntime(t, t.Context(), db))
 	require.NoError(t, err)
 	assert.Equal(t, 1, deleted)
 	assert.Equal(t, []string{nord}, orphaned)
@@ -78,7 +78,7 @@ func TestDemoAccessExpiryWaitsForAnInProgressDemoRedemption(t *testing.T) {
 	require.NoError(t, testpkg.WithAdminTx(t, t.Context(), db, func(ctx context.Context, _ bun.Tx) error {
 		store := newStore(db)
 		require.NoError(t, store.LockDemoSchool(ctx, slug))
-		blockedCtx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+		blockedCtx, cancel := context.WithTimeout(testpkg.WithTenantRuntime(t, t.Context(), db), 100*time.Millisecond)
 		defer cancel()
 		result := make(chan error, 1)
 		go func() {
@@ -92,7 +92,7 @@ func TestDemoAccessExpiryWaitsForAnInProgressDemoRedemption(t *testing.T) {
 		return store.RecordDemoAccessUse(ctx, accessID, account.ID, 0, usedAt, usedAt.Add(14*24*time.Hour))
 	}))
 
-	deleted, orphaned, err := expiry.ExpireDemoAccesses(t.Context())
+	deleted, orphaned, err := expiry.ExpireDemoAccesses(testpkg.WithTenantRuntime(t, t.Context(), db))
 	require.NoError(t, err)
 	assert.Zero(t, deleted, "the completed redemption extended the access before expiry could delete it")
 	assert.Empty(t, orphaned)

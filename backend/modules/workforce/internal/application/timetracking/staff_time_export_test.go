@@ -121,7 +121,7 @@ func TestMonthExportRows_MatchMonthSummary(t *testing.T) {
 		require.NoError(t, workforceCompose.NewTimeTrackingTestRows(f.workforce).Adjustments.Create(f.ctx, adjustment))
 	}
 
-	rows, err := f.svc.GetMonthExportRows(f.ctx, f.today.Year(), int(f.today.Month()))
+	rows, err := testpkg.TenantQuery2(t, f.ctx, f.db, f.svc.GetMonthExportRows, f.today.Year(), int(f.today.Month()))
 	require.NoError(t, err)
 	require.Len(t, rows, 3)
 
@@ -186,7 +186,10 @@ func TestMonthExportRows_ClosedMonthCarriesFrozenValue(t *testing.T) {
 		timetracking.WithMonthAdjustments(workforceCompose.NewTimeTrackingTestRows(f.workforce).Adjustments),
 		timetracking.WithMonthSnapshots(timetracking.MonthSnapshotCapability(f.workforce)),
 	)
-	closeSvc := timetracking.NewStaffMonthCloseService(timetracking.MonthSnapshotCapability(f.workforce), monthSvc, owners.MonthCloseStaff(f.repos.Staff), settings, nil)
+	closeSvc := timetracking.NewStaffMonthCloseService(timetracking.MonthSnapshotCapability(f.workforce), monthSvc, owners.MonthCloseStaff(f.repos.Staff), settings, nil, timetracking.WithMonthCloseUnitOfWork(testpkg.
+		RunInTenantTransaction,
+	),
+	)
 	svc := f.newOverviewService(settings)
 
 	closeResult, err := closeSvc.CloseMonth(f.ctx, staffID, closedMonth.Year(), int(closedMonth.Month()), "Abschluss")
@@ -197,7 +200,7 @@ func TestMonthExportRows_ClosedMonthCarriesFrozenValue(t *testing.T) {
 	// Retroactive session — the live number moves, the frozen one must not.
 	f.addSession(t, staffID, closedMonth, 4*time.Hour)
 
-	rows, err := svc.GetMonthExportRows(f.ctx, closedMonth.Year(), int(closedMonth.Month()))
+	rows, err := testpkg.TenantQuery2(t, f.ctx, testpkg.SetupTestDB(t), svc.GetMonthExportRows, closedMonth.Year(), int(closedMonth.Month()))
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	row := rows[0]
@@ -221,7 +224,7 @@ func TestMonthExportRows_YearSpansMonths(t *testing.T) {
 
 	f := newOverviewFixture(t, 2)
 
-	rows, err := f.svc.GetMonthExportRows(f.ctx, f.today.Year(), 0)
+	rows, err := testpkg.TenantQuery2(t, f.ctx, f.db, f.svc.GetMonthExportRows, f.today.Year(), 0)
 	require.NoError(t, err)
 	require.Len(t, rows, 2*int(f.today.Month()))
 	// Rows are grouped per staff member, months ascending.
@@ -255,7 +258,7 @@ func TestStaffTimeExport_CSVAndAudit(t *testing.T) {
 	f.cleanupAccessLogs(t)
 	exportSvc := f.newExportService()
 
-	file, err := exportSvc.Export(f.ctx, timetracking.TimeExportRequest{
+	file, err := testpkg.TenantQuery3(t, f.ctx, testpkg.SetupTestDB(t), exportSvc.Export, timetracking.TimeExportRequest{
 		Year:  f.today.Year(),
 		Month: int(f.today.Month()),
 	}, actorID, "admin")
@@ -319,7 +322,7 @@ func TestStaffTimeExport_DayRowsMatchSingleExport(t *testing.T) {
 		owners.RenderTimeTrackingWorkbook,
 	)
 
-	file, err := exportSvc.Export(f.ctx, timetracking.TimeExportRequest{
+	file, err := testpkg.TenantQuery3(t, f.ctx, testpkg.SetupTestDB(t), exportSvc.Export, timetracking.TimeExportRequest{
 		Year:        f.today.Year(),
 		Month:       int(f.today.Month()),
 		Granularity: timetracking.ExportGranularityDay,

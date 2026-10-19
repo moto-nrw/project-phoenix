@@ -7,15 +7,16 @@ import (
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/postgres"
 	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
-// NewTenantTransactions binds provider steps to the intent school's transaction.
-func NewTenantTransactions(db *bun.DB) postgres.IntentTransactions {
-	return postgres.NewTenantTransactions(db)
+// NewTenantTransactions binds provider steps to the intent's explicit scope.
+func NewTenantTransactions(db *bun.DB) delivery.IntentTransactions {
+	return delivery.NewIntentTransactions(func(ctx context.Context, id int64, fn func(context.Context) error) error {
+		return tenant.WithTenantTx(ctx, db, id, func(txCtx context.Context, _ bun.Tx) error { return fn(txCtx) })
+	}, tenant.WithinAdmin)
 }
 
 // DurablePushOutbox serves the notification channels' durable push outbox

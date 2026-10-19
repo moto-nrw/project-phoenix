@@ -67,7 +67,24 @@ func openSettingsOverrides() (transactionruntime.Database, organizationtenancy.Q
 	if err != nil {
 		return transactionruntime.Database{}, nil, nil, err
 	}
-	return db, schools, settingsCompose.NewStoredOverrideReader(db.Pool()), nil
+	runtime := settingsCompose.NewTenantSettingsRuntime(db.Pool(), nil)
+	return db, schools, settingOverrideRoot{settingsCompose.NewStoredOverrideReader(runtime)}, nil
+}
+
+// settingOverrideRoot owns the CLI's explicit per-school read unit. The SQL
+// adapter remains ambient-only, just as it is in the authenticated HTTP root.
+type settingOverrideRoot struct{ storedOverrides }
+
+func (r settingOverrideRoot) StoredOverride(ctx context.Context, schoolID int64, key string) (value json.RawMessage, found bool, err error) {
+	id, err := tenant.NewTenantID(schoolID)
+	if err != nil {
+		return nil, false, err
+	}
+	err = tenant.WithinTenant(ctx, id, func(txCtx context.Context) error {
+		value, found, err = r.storedOverrides.StoredOverride(txCtx, schoolID, key)
+		return err
+	})
+	return value, found, err
 }
 
 func runSettingsOverrides(_ *cobra.Command, _ []string) error {

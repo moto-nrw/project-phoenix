@@ -73,11 +73,11 @@ func seedDeclaration(
 		CreatedBy:        createdBy,
 	}
 	a.TenantID = tenantID
-	require.NoError(t, repo.Create(ctx, a))
-	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID, targets))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), repo.Create, a))
+	require.NoError(t, testpkg.TenantCommand3(t, ctx, testpkg.SetupTestDB(t), repo.ReplaceTargets, tenantID, a.ID, targets))
 	version := freezeTestVersion(t, ctx, repo, a, 1)
 	now := time.Now().Add(-time.Minute)
-	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, testpkg.SetupTestDB(t), repo.SetPublished, a.ID, &now))
 	return a, version
 }
 
@@ -88,7 +88,7 @@ func freezeTestVersion(t *testing.T, ctx context.Context, repo api.ParentAnnounc
 		Body: a.Body + " " + string(rune('A'+number)), Kind: a.Declaration.Kind, PublishedAt: time.Now(),
 	}
 	version.ContentHash = owners.SecurityFingerprints{}.Content(api.ParentDeclarationCanonicalContent(version))
-	require.NoError(t, repo.InsertDeclarationVersion(ctx, version))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), repo.InsertDeclarationVersion, version))
 	return version
 }
 
@@ -115,7 +115,7 @@ func (s *declarationSetup) feedDeclaration(t *testing.T, accountID int64) *paren
 
 func (s *declarationSetup) history(t *testing.T) []*parentportal.DeclarationSubmission {
 	t.Helper()
-	rows, err := s.repo.ListDeclarationSubmissions(s.seedCtx, s.chain.TenantID, s.announcement.ID)
+	rows, err := testpkg.TenantQuery2(t, s.seedCtx, testpkg.SetupTestDB(t), s.repo.ListDeclarationSubmissions, s.chain.TenantID, s.announcement.ID)
 	require.NoError(t, err)
 	return rows
 }
@@ -351,7 +351,7 @@ func TestDeclaration_EndedActivityEnrollmentKeepsHistoryAndRevocation(t *testing
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	children, err := repos.ParentAnnouncement.DeclarationChildren(seedCtx, chain.TenantID, announcement.ID)
+	children, err := testpkg.TenantQuery2(t, seedCtx, db, repos.ParentAnnouncement.DeclarationChildren, chain.TenantID, announcement.ID)
 	require.NoError(t, err)
 	require.Len(t, children, 1, "staff status and export keep the recorded child")
 	assert.Equal(t, chain.StudentID, children[0].StudentID)
@@ -361,7 +361,7 @@ func TestDeclaration_EndedActivityEnrollmentKeepsHistoryAndRevocation(t *testing
 	item := findFeedItem(t, feed, announcement.ID)
 	require.NotNil(t, item.Declaration)
 	require.Len(t, item.Declaration.Children, 1)
-	persisted, err := api.NewParentAnnouncementFixtures(repos.ParentAnnouncement).FindByID(seedCtx, announcement.ID)
+	persisted, err := testpkg.TenantQuery1(t, seedCtx, db, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement).FindByID, announcement.ID)
 	require.NoError(t, err)
 	require.NotNil(t, persisted.PublishedAt)
 	require.NoError(t, svc.MarkAnnouncementRead(ctx, chain.AccountID, announcement.ID, *persisted.PublishedAt))
@@ -382,7 +382,7 @@ func TestDeclaration_EndedActivityEnrollmentKeepsHistoryAndRevocation(t *testing
 		Where("id = ?", chain.PersonID).
 		Exec(context.Background())
 	require.NoError(t, err)
-	children, err = repos.ParentAnnouncement.DeclarationChildren(seedCtx, chain.TenantID, announcement.ID)
+	children, err = testpkg.TenantQuery2(t, seedCtx, db, repos.ParentAnnouncement.DeclarationChildren, chain.TenantID, announcement.ID)
 	require.NoError(t, err)
 	assert.Empty(t, children, "a deleted person must not reappear through declaration history")
 }
@@ -438,7 +438,7 @@ func TestDeclaration_PasswordIsCheckedWhenTheSchoolAsksForIt(t *testing.T) {
 func TestDeclaration_OpenedButUnansweredKeepsTheBadge(t *testing.T) {
 	t.Parallel()
 	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, false), nil)
-	persisted, err := s.repo.FindByID(s.seedCtx, s.announcement.ID)
+	persisted, err := testpkg.TenantQuery1(t, s.seedCtx, testpkg.SetupTestDB(t), s.repo.FindByID, s.announcement.ID)
 	require.NoError(t, err)
 
 	count, err := s.svc.UnreadAnnouncementCount(s.ctx, s.chain.AccountID)

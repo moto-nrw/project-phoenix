@@ -95,10 +95,7 @@ func NewSchoolInvitation(deps SchoolInvitationDependencies) (*SchoolInvitation, 
 	}, nil
 }
 
-// CreateInvitation stores the invitation and its mail in the same transaction.
-// The worker sends only committed entries: staff import may create invitations
-// mid-transaction, and a rolled-back link must never reach an inbox.
-func (s *SchoolInvitation) CreateInvitation(ctx context.Context, request domain.SchoolInvitationRequest) (result domain.SchoolInvitation, err error) {
+func (s *SchoolInvitation) createInvitation(ctx context.Context, request domain.SchoolInvitationRequest) (result domain.SchoolInvitation, err error) {
 	email, role, err := s.validateRequest(ctx, request)
 	if err != nil {
 		return domain.SchoolInvitation{}, err
@@ -298,7 +295,7 @@ func (s *SchoolInvitation) ValidateInvitation(ctx context.Context, token string)
 		if !found {
 			return failed("lookup role", domain.ErrRoleNotFound)
 		}
-		account, hasAccount, _, accountErr := s.logins.FindLoginAccountByEmail(txCtx, invitation.Email)
+		account, hasAccount, _, accountErr := findLoginAccountByEmail(txCtx, s.runtime, s.logins, invitation.Email)
 		if accountErr != nil {
 			return failed(opFetchInvitation, accountErr)
 		}
@@ -344,7 +341,7 @@ func (s *SchoolInvitation) AcceptInvitation(ctx context.Context, token string, r
 			}
 		}
 		invitationCtx := s.runtime.WithTenantID(txCtx, invitation.TenantID)
-		account, hasAccount, _, accountErr := s.logins.FindLoginAccountByEmail(invitationCtx, invitation.Email)
+		account, hasAccount, _, accountErr := findLoginAccountByEmail(invitationCtx, s.runtime, s.logins, invitation.Email)
 		if accountErr != nil {
 			return failed(opAcceptInvitation, accountErr)
 		}
@@ -596,7 +593,8 @@ func (s *SchoolInvitation) ResendInvitation(ctx context.Context, invitationID, a
 
 // ListPendingInvitations returns the redeemable invitations of the school in
 // context.
-func (s *SchoolInvitation) ListPendingInvitations(ctx context.Context) ([]domain.SchoolInvitation, error) {
+
+func (s *SchoolInvitation) inUnitListPendingInvitations(ctx context.Context) ([]domain.SchoolInvitation, error) {
 	invitations, _, err := s.store.ListRedeemableSchoolInvitations(ctx, s.now())
 	if err != nil {
 		return nil, failed("list invitations", err)
@@ -605,7 +603,8 @@ func (s *SchoolInvitation) ListPendingInvitations(ctx context.Context) ([]domain
 }
 
 // RevokeInvitation spends an invitation so it can no longer be accepted.
-func (s *SchoolInvitation) RevokeInvitation(ctx context.Context, invitationID, actorAccountID int64) error {
+
+func (s *SchoolInvitation) inUnitRevokeInvitation(ctx context.Context, invitationID, actorAccountID int64) error {
 	invitation, found, _, err := s.store.FindSchoolInvitation(ctx, invitationID)
 	if err != nil {
 		return failed(opRevokeInvitation, err)
@@ -631,14 +630,15 @@ func (s *SchoolInvitation) RevokeInvitation(ctx context.Context, invitationID, a
 
 // RecordInvitationDelivery stores the outcome of mailing an invitation.
 func (s *SchoolInvitation) RecordInvitationDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) error {
-	return recordSchoolInvitationDelivery(ctx, s.store, id, delivery)
+	return recordSchoolInvitationDelivery(ctx, s.runtime, s.store, id, delivery)
 }
 
 // InvitationDeliverySent reports whether the transport accepted a still
 // redeemable invitation mail. The durable welcome renderer uses this to
 // preserve the invitation-before-welcome order and to cancel a welcome whose
 // invitation was spent or expired while it waited in the outbox.
-func (s *SchoolInvitation) InvitationDeliverySent(ctx context.Context, id int64) (bool, error) {
+
+func (s *SchoolInvitation) inUnitInvitationDeliverySent(ctx context.Context, id int64) (bool, error) {
 	if id <= 0 {
 		return false, failed("find invitation delivery", domain.ErrInvitationNotFound)
 	}

@@ -673,7 +673,7 @@ func TestMaterializeForTenant_ScheduleValidFrom_SkipsNotStartedDates(t *testing.
 func createCalendarPeriodRow(t *testing.T, db *bun.DB, ctx context.Context, period *fixtures.CalendarPeriod) {
 	t.Helper()
 	repo := fixtures.FromCalendarPeriodRecords(api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).CalendarPeriod)
-	require.NoError(t, repo.Create(ctx, period))
+	require.NoError(t, repo.Create(testpkg.WithTenantRuntime(t, ctx, db), period))
 }
 
 // updateCalendarPeriodRow rewrites a period row the same way.

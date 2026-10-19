@@ -57,7 +57,7 @@ func TestPresenceProjection_ActiveGroupStudentDisplay(t *testing.T) {
 	exitTime := time.Now().Add(-5 * time.Minute)
 	testpkg.CreateTestVisit(t, db, data.Student2, data.GroupID, time.Now().Add(-20*time.Minute), &exitTime)
 
-	results, err := repo.GetActiveGroupVisitsWithDisplay(ctx, data.GroupID)
+	results, err := testpkg.TenantQuery1(t, ctx, db, repo.GetActiveGroupVisitsWithDisplay, data.GroupID)
 
 	require.NoError(t, err)
 	require.Len(t, results, 1)

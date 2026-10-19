@@ -7,7 +7,7 @@ import (
 )
 
 func (s *Service) FindInstanceStaff(ctx context.Context, id int64) (result domain.InstanceStaff, err error) {
-	err = s.run("find_instance_staff", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_instance_staff", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, findErr := s.store.FindInstanceStaff(ctx, id)
 		stats.Add(queryStats)
 		if findErr != nil {
@@ -23,7 +23,7 @@ func (s *Service) FindInstanceStaff(ctx context.Context, id int64) (result domai
 }
 
 func (s *Service) ListInstanceStaff(ctx context.Context, filter domain.InstanceStaffFilter) (result []domain.InstanceStaff, err error) {
-	err = s.run("list_instance_staff", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_instance_staff", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListInstanceStaff(ctx, filter)
 		stats.Add(queryStats)
 		result = values
@@ -33,7 +33,7 @@ func (s *Service) ListInstanceStaff(ctx context.Context, filter domain.InstanceS
 }
 
 func (s *Service) CountNonAbsentInstanceStaff(ctx context.Context, instanceIDs []int64) (result map[int64]int, err error) {
-	err = s.run("count_non_absent_instance_staff", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "count_non_absent_instance_staff", func(ctx context.Context, stats *domain.OperationStats) error {
 		counts, queryStats, countErr := s.store.CountNonAbsentInstanceStaff(ctx, instanceIDs)
 		stats.Add(queryStats)
 		result = counts

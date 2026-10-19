@@ -19,7 +19,7 @@ func TestOfferingBookingObservationsIncludeValidationErrorsAndActualQueryRows(t 
 	bookings := []careplan.CareOfferingBooking{{CareOfferingID: offering.ID, ManualSelectedDays: []string{"mon"}}}
 	require.NoError(t, module.RecordCareOfferingBookings(ctx, childID, bookings))
 	require.NoError(t, module.RecordCareOfferingBookings(ctx, childID, bookings))
-	rows, err := module.CareOfferingBookingHistory(ctx, []int64{childID})
+	rows, err := testpkg.TenantQuery1(t, ctx, db, module.CareOfferingBookingHistory, []int64{childID})
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	bookings[0].ManualSelectedDays = []string{"tue"}

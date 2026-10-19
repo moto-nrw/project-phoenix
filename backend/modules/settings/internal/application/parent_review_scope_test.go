@@ -23,7 +23,7 @@ func TestParentAbsenceReviewScopeProjectsAndResetsWithoutChangingLegacyRights(t 
 			}
 			readField := func() *configModel.ResolvedSetting {
 				t.Helper()
-				schema, err := settings.GetSchema(ctx, []string{"admin:*"})
+				schema, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), settings.GetSchema, []string{"admin:*"})
 				require.NoError(t, err)
 				for _, tab := range schema.Tabs {
 					for _, category := range tab.Categories {
@@ -49,7 +49,7 @@ func TestParentAbsenceReviewScopeProjectsAndResetsWithoutChangingLegacyRights(t 
 			for _, option := range field.Options.Static {
 				require.NotEqual(t, configModel.ParentAbsenceReviewScopeInherit, option.Value)
 			}
-			hasOverride, err := settings.HasTenantOverride(ctx, newKey)
+			hasOverride, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), settings.HasTenantOverride, newKey)
 			require.NoError(t, err)
 			require.False(t, hasOverride, "schema reads must not materialize inherited rights")
 			for _, value := range []string{configModel.ParentAbsenceReviewScopeAllStaff, want, configModel.ParentAbsenceReviewScopeInherit} {
@@ -60,10 +60,10 @@ func TestParentAbsenceReviewScopeProjectsAndResetsWithoutChangingLegacyRights(t 
 			field = readField()
 			require.True(t, field.IsDefault)
 			require.Equal(t, want, field.Value)
-			oldValue, err := settings.ResolveBool(ctx, oldKey)
+			oldValue, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), settings.ResolveBool, oldKey)
 			require.NoError(t, err)
 			require.Equal(t, profile == "explicit true", oldValue)
-			hasOverride, err = settings.HasTenantOverride(ctx, oldKey)
+			hasOverride, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), settings.HasTenantOverride, oldKey)
 			require.NoError(t, err)
 			require.Equal(t, profile != "missing", hasOverride)
 		})
@@ -74,7 +74,7 @@ func TestParentAbsenceReviewScopeProjectsAndResetsWithoutChangingLegacyRights(t 
 // schema leaves it out.
 func schemaSetting(t *testing.T, ctx context.Context, settings configModel.SettingsService, key string) *configModel.ResolvedSetting {
 	t.Helper()
-	schema, err := settings.GetSchema(ctx, []string{"admin:*"})
+	schema, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), settings.GetSchema, []string{"admin:*"})
 	require.NoError(t, err)
 	for _, tab := range schema.Tabs {
 		for _, category := range tab.Categories {
@@ -120,7 +120,7 @@ func TestParentRequestReviewScopeProjectsSwitchAndDrivesAbsenceInheritance(t *te
 				require.NotEqual(t, configModel.ParentRequestReviewScopeInherit, option.Value)
 			}
 			require.Equal(t, inherited, schemaSetting(t, ctx, settings, absenceKey).Value)
-			hasOverride, err := settings.HasTenantOverride(ctx, requestKey)
+			hasOverride, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), settings.HasTenantOverride, requestKey)
 			require.NoError(t, err)
 			require.False(t, hasOverride, "schema reads must not materialize inherited rights")
 
@@ -142,7 +142,7 @@ func TestParentRequestReviewScopeProjectsSwitchAndDrivesAbsenceInheritance(t *te
 			field = schemaSetting(t, ctx, settings, requestKey)
 			require.True(t, field.IsDefault)
 			require.Equal(t, inherited, field.Value)
-			switchValue, err := settings.ResolveBool(ctx, switchKey)
+			switchValue, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), settings.ResolveBool, switchKey)
 			require.NoError(t, err)
 			require.Equal(t, profile == "explicit true", switchValue, "the stored switch stays intact")
 		})

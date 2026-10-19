@@ -245,7 +245,7 @@ func TestAccountPasskeyObservationsUseStableOperations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	account := testpkg.CreateTestAccount(t, db, "passkey-"+uuid.Must(uuid.NewV4()).String()+"@example.test")
 	var observations []identityCompose.Observation
-	records, err := identityCompose.New(identityCompose.Dependencies{DB: db, Observe: func(observation identityCompose.Observation) {
+	records, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(observation identityCompose.Observation) {
 		observations = append(observations, observation)
 	}})
 	require.NoError(t, err)

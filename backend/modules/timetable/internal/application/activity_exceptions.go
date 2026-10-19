@@ -7,7 +7,7 @@ import (
 )
 
 func (s *Service) FindActivityException(ctx context.Context, id int64) (result domain.ActivityException, err error) {
-	err = s.run("find_activity_exception", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_activity_exception", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, findErr := s.store.FindActivityException(ctx, id)
 		stats.Add(queryStats)
 		if findErr != nil {
@@ -23,7 +23,7 @@ func (s *Service) FindActivityException(ctx context.Context, id int64) (result d
 }
 
 func (s *Service) ListActivityExceptions(ctx context.Context, filter domain.ActivityExceptionFilter) (result []domain.ActivityException, err error) {
-	err = s.run("list_activity_exceptions", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_activity_exceptions", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListActivityExceptions(ctx, filter)
 		stats.Add(queryStats)
 		result = values
@@ -33,7 +33,7 @@ func (s *Service) ListActivityExceptions(ctx context.Context, filter domain.Acti
 }
 
 func (s *Service) CountActivityExceptions(ctx context.Context, before *string) (result int, err error) {
-	err = s.run("count_activity_exceptions", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "count_activity_exceptions", func(ctx context.Context, stats *domain.OperationStats) error {
 		count, queryStats, countErr := s.store.CountActivityExceptions(ctx, before)
 		stats.Add(queryStats)
 		result = count
@@ -43,7 +43,7 @@ func (s *Service) CountActivityExceptions(ctx context.Context, before *string) (
 }
 
 func (s *Service) OldestActivityExceptionBefore(ctx context.Context, before *string) (result *string, err error) {
-	err = s.run("oldest_activity_exception", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "oldest_activity_exception", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, queryStats, findErr := s.store.OldestActivityExceptionBefore(ctx, before)
 		stats.Add(queryStats)
 		result = value

@@ -23,22 +23,31 @@ const (
 // operators once its fixed window has passed. The hourly token cleanup runs
 // it; it needs no flow dependencies, so every composition serves it.
 type SignInDataRetention struct {
+	run    func(context.Context, func(context.Context) error) error
 	store  ports.SignInDataRetentionStore
 	now    func() time.Time
 	logger *slog.Logger
 }
 
-func NewSignInDataRetention(store ports.SignInDataRetentionStore, logger *slog.Logger) *SignInDataRetention {
+func NewSignInDataRetention(store ports.SignInDataRetentionStore, logger *slog.Logger, run func(context.Context, func(context.Context) error) error) *SignInDataRetention {
 	if store == nil {
 		panic("identity access application: sign-in data retention requires its store")
 	}
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &SignInDataRetention{store: store, now: time.Now, logger: logger}
+	return &SignInDataRetention{store: store, now: time.Now, logger: logger, run: run}
 }
 
-func (r *SignInDataRetention) DeleteExpiredGuardianInvitations(ctx context.Context) (int, error) {
+func (r *SignInDataRetention) DeleteExpiredGuardianInvitations(ctx context.Context) (value0 int, err error) {
+	err = r.run(ctx, func(txCtx context.Context) error {
+		value0, err = r.inUnitDeleteExpiredGuardianInvitations(txCtx)
+		return err
+	})
+	return
+}
+
+func (r *SignInDataRetention) inUnitDeleteExpiredGuardianInvitations(ctx context.Context) (int, error) {
 	deleted, _, err := r.store.DeleteExpiredGuardianInvitations(ctx, r.now().Add(-GuardianInvitationRetention))
 	if err != nil {
 		return 0, failed("delete expired guardian invitations", err)
@@ -51,7 +60,15 @@ func (r *SignInDataRetention) DeleteExpiredGuardianInvitations(ctx context.Conte
 	return deleted, nil
 }
 
-func (r *SignInDataRetention) DeleteExpiredMFAEmailChallenges(ctx context.Context) (int, error) {
+func (r *SignInDataRetention) DeleteExpiredMFAEmailChallenges(ctx context.Context) (value0 int, err error) {
+	err = r.run(ctx, func(txCtx context.Context) error {
+		value0, err = r.inUnitDeleteExpiredMFAEmailChallenges(txCtx)
+		return err
+	})
+	return
+}
+
+func (r *SignInDataRetention) inUnitDeleteExpiredMFAEmailChallenges(ctx context.Context) (int, error) {
 	before := r.now().Add(-SignInChallengeRetention)
 	accounts, _, err := r.store.DeleteExpiredAccountMFAEmailChallenges(ctx, before)
 	if err != nil {
@@ -65,7 +82,15 @@ func (r *SignInDataRetention) DeleteExpiredMFAEmailChallenges(ctx context.Contex
 	return accounts + operators, nil
 }
 
-func (r *SignInDataRetention) DeleteExpiredPasskeySessions(ctx context.Context) (int, error) {
+func (r *SignInDataRetention) DeleteExpiredPasskeySessions(ctx context.Context) (value0 int, err error) {
+	err = r.run(ctx, func(txCtx context.Context) error {
+		value0, err = r.inUnitDeleteExpiredPasskeySessions(txCtx)
+		return err
+	})
+	return
+}
+
+func (r *SignInDataRetention) inUnitDeleteExpiredPasskeySessions(ctx context.Context) (int, error) {
 	before := r.now().Add(-SignInChallengeRetention)
 	accounts, _, err := r.store.DeleteExpiredAccountPasskeySessions(ctx, before)
 	if err != nil {

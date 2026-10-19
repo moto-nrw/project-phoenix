@@ -134,7 +134,12 @@ func seedParentAccounts(ctx context.Context, db transactionruntime.Database, cou
 	}
 	ctx = tenant.WithUnitOfWork(ctx, db.UnitOfWork())
 
-	candidates, err := promotableGuardians(ctx, repos, count)
+	var candidates []parentCandidate
+	err = tenant.WithinAdmin(ctx, func(txCtx context.Context) error {
+		var readErr error
+		candidates, readErr = promotableGuardians(txCtx, repos, count)
+		return readErr
+	})
 	if err != nil {
 		return err
 	}
@@ -193,7 +198,7 @@ func promotableGuardians(ctx context.Context, repos guardianSeedRepositories, co
 		if email == "" {
 			continue
 		}
-		links, err := repos.StudentGuardian.FindByGuardianProfileID(ctx, profile.ID)
+		links, err := repos.StudentGuardian.FindByGuardianProfileID(tenant.WithTenantID(ctx, profile.GetTenantID()), profile.ID)
 		if err != nil {
 			return nil, fmt.Errorf("find student links of guardian %d: %w", profile.ID, err)
 		}

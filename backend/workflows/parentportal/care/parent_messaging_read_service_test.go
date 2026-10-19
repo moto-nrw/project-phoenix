@@ -92,7 +92,7 @@ func seedStaffReply(t *testing.T, db *bun.DB, repos *api.ParentMessagingSuiteRep
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 
 	ctx := testpkg.Ctx(t)
-	thread, err := repos.ParentMessageThread.GetOrCreate(ctx, chain.TenantID, chain.StudentID, chain.AccountID)
+	thread, err := testpkg.TenantQuery3(t, ctx, db, repos.ParentMessageThread.GetOrCreate, chain.TenantID, chain.StudentID, chain.AccountID)
 	require.NoError(t, err)
 	m := &parentportal.ParentMessage{
 		ThreadID:        thread.ID,
@@ -107,7 +107,7 @@ func seedStaffReply(t *testing.T, db *bun.DB, repos *api.ParentMessagingSuiteRep
 	require.NoError(t, err)
 	// AppendMessage also touches the thread's last-activity, so it surfaces in the
 	// guardian's thread list (empty conversations stay hidden).
-	require.NoError(t, parentportal.AppendConversationMessageFixture(ctx, api.NewParentConversationCore(repos.ParentMessageThread, messageStores.Message, repos.ParentMessageRead, nil, nil), m))
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, db, parentportal.AppendConversationMessageFixture, api.NewParentConversationCore(repos.ParentMessageThread, messageStores.Message, repos.ParentMessageRead, nil, nil), m))
 	return thread.ID, staffAccount.ID
 }
 
@@ -199,14 +199,7 @@ func TestListMessageThreads_ReportsWhetherStaffReadTheLastGuardianMessage(t *tes
 
 	message := view.Messages[0]
 	tenantCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
-	advanced, err := repos.ParentMessageRead.MarkReadUpTo(
-		tenantCtx,
-		chain.TenantID,
-		view.ThreadID,
-		staffAccount.ID,
-		message.CreatedAt,
-		message.ID,
-	)
+	advanced, err := testpkg.TenantQuery5(t, tenantCtx, db, repos.ParentMessageRead.MarkReadUpTo, chain.TenantID, view.ThreadID, staffAccount.ID, message.CreatedAt, message.ID)
 	require.NoError(t, err)
 	require.True(t, advanced)
 

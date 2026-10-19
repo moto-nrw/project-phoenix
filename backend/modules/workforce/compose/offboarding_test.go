@@ -30,7 +30,11 @@ func TestOffboardingPreviewLocksConcurrentShiftWriters(t *testing.T) {
 		defer cancel()
 		attempted := false
 		err = testpkg.WithinCurrentTenant(probeCtx, func(writerCtx context.Context) error {
-			if _, err := runtime.DB(writerCtx).ExecContext(writerCtx, "SET LOCAL lock_timeout = '100ms'"); err != nil {
+			database, err := runtime.DB(writerCtx)
+			if err != nil {
+				return err
+			}
+			if _, err := database.ExecContext(writerCtx, "SET LOCAL lock_timeout = '100ms'"); err != nil {
 				return err
 			}
 			attempted = true

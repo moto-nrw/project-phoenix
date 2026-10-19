@@ -15,11 +15,6 @@ import (
 // baseline; ErrArrivalBaselineMissing is the arrival twin.
 var errPickupBaselineMissing = errors.New("load pickup schedules: baseline projection is not configured")
 
-// StudentWeek reads a child's timetable over the window with one read per
-// kind, whatever the window's length: the planned blocks with the child's
-// slot, every block of the tenant (for the walk-ins), the child's visits in
-// running or ended sessions, the regular arrival and pickup through Care
-// Plan's baselines and the dated exceptions.
 func (d *timetableData) StudentWeek(ctx context.Context, studentID int64, from, to calendar.Date) (*timetable.StudentWeek, error) {
 	week := &timetable.StudentWeek{
 		EnrolledByDate:      map[string][]timetable.StudentWeekEntry{},

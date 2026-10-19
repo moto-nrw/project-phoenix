@@ -243,10 +243,16 @@ func TestScheduleListQueryBudgetStaysFlat(t *testing.T) {
 		_, err := module.CreateSchedule(ctx, timetable.ScheduleInput{ActivityGroupID: group.ID, Weekday: weekday})
 		require.NoError(t, err)
 	}
-	counter := testpkg.CaptureQueries(t, db)
-	_, err := module.ListSchedules(ctx, timetable.ScheduleFilter{GroupIDs: []int64{group.ID}})
-	require.NoError(t, err)
-	testpkg.AssertQueryBudget(t, "modules.timetable.schedules.list", counter.Queries())
+	// The owner read runs inside the HTTP/workflow unit of work. The budget
+	// still measures every business query, not connection/role setup.
+	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
+		counter := testpkg.CaptureQueries(t, db)
+		_, err := module.ListSchedules(ctx, timetable.ScheduleFilter{GroupIDs: []int64{group.ID}})
+		require.NoError(t, err)
+		testpkg.AssertQueryBudget(t, "modules.timetable.schedules.list", counter.Queries())
+
+		return nil
+	}))
 }
 
 func assertSchedulesValidUntil(t *testing.T, ctx context.Context, module *timetable.Module, groupID int64, want *string) {

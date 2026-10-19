@@ -174,7 +174,7 @@ func (s *AccountProvisioning) LinkSchoolAccount(ctx context.Context, request dom
 		role = &resolved
 	}
 
-	account, found, _, err := s.logins.FindLoginAccountByEmail(ctx, email)
+	account, found, _, err := findLoginAccountByEmail(ctx, s.runtime, s.logins, email)
 	if err != nil || !found {
 		return domain.ProvisionedAccount{}, failed(opLinkAccount, domain.ErrAccountNotFound)
 	}
@@ -242,7 +242,13 @@ func (s *AccountProvisioning) LinkSchoolAccount(ctx context.Context, request dom
 // already belongs to an account, at any school: both columns are unique
 // platform-wide.
 func (s *AccountProvisioning) ensureCredentialsFree(ctx context.Context, email, username string) error {
-	if _, found, _, err := s.logins.FindLoginAccountByEmail(ctx, email); err != nil {
+	return globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error {
+		return s.ensureCredentialsFreeInTransaction(txCtx, email, username)
+	})
+}
+
+func (s *AccountProvisioning) ensureCredentialsFreeInTransaction(ctx context.Context, email, username string) error {
+	if _, found, _, err := findLoginAccountByEmail(ctx, s.runtime, s.logins, email); err != nil {
 		return failed(opRegisterAccount, err)
 	} else if found {
 		return failed(opRegisterAccount, domain.ErrEmailAlreadyExists)

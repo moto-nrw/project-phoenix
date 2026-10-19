@@ -16,16 +16,6 @@ import (
 // assignment and the operator-led school access. The question "is this
 // personnel?" is answered here, once, for all of them (#2222).
 
-// EnsureSchoolIdentity creates the person, staff and (for caregiver roles)
-// teacher rows the account needs to be usable at the school in ctx.
-//
-// Every step is idempotent: an account that already carries part of the chain
-// keeps it. Returns (nil, nil) for roles that need no staff record, and for an
-// account without a person when the caller passed CreatePerson=false.
-//
-// Callers must run this inside the school's tenant transaction: the
-// directory reads are tenant-filtered, and the whole chain has to commit or
-// roll back as one.
 func (l *AccountLifecycle) EnsureSchoolIdentity(ctx context.Context, in domain.SchoolIdentityInput) (*domain.SchoolIdentity, error) {
 	if !l.roles.RoleNeedsStaffRecord(in.Role) {
 		return nil, nil

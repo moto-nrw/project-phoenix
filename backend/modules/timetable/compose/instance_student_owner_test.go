@@ -143,10 +143,16 @@ func TestInstanceStudentListQueryBudgetStaysFlat(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Owner", fmt.Sprintf("Budget-%d", index), "3a")
 		createOwnedInstanceStudent(t, module, ctx, instance.ID, student.ID)
 	}
-	counter := testpkg.CaptureQueries(t, db)
-	_, err := module.ListInstanceStudents(ctx, timetable.InstanceStudentFilter{InstanceIDs: []int64{instance.ID}})
-	require.NoError(t, err)
-	testpkg.AssertQueryBudget(t, "modules.timetable.instance_students.list", counter.Queries())
+	// The owner read runs inside the HTTP/workflow unit of work. The budget
+	// still measures every business query, not connection/role setup.
+	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
+		counter := testpkg.CaptureQueries(t, db)
+		_, err := module.ListInstanceStudents(ctx, timetable.InstanceStudentFilter{InstanceIDs: []int64{instance.ID}})
+		require.NoError(t, err)
+		testpkg.AssertQueryBudget(t, "modules.timetable.instance_students.list", counter.Queries())
+
+		return nil
+	}))
 }
 
 func createOwnedInstanceStudent(t *testing.T, module *timetable.Module, ctx context.Context, instanceID, studentID int64) timetable.InstanceStudent {

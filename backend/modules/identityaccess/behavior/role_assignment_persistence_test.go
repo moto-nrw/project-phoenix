@@ -35,6 +35,11 @@ func TestNativeRoleAssignmentPersistenceLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, initial)
 
+	err = testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+		return roles.AssignRoleToAccount(adminCtx, account.ID, first.ID)
+	})
+	require.Error(t, err, "an admin transaction cannot substitute for a required assignment school")
+	require.Error(t, roles.AssignRoleToAccount(ctx, account.ID, foreign.ID), "a school cannot assign another school's custom role")
 	require.NoError(t, roles.AssignRoleToAccount(ctx, account.ID, first.ID))
 	require.NoError(t, roles.AssignRoleToAccount(ctx, account.ID, first.ID))
 	require.NoError(t, roles.AssignRoleToAccount(ctx, account.ID, second.ID))

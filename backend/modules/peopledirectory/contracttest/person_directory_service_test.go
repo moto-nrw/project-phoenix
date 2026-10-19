@@ -38,7 +38,7 @@ func TestPersonService_Get(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "Get", "Test")
 
 		// ACT
-		result, err := service.Get(ctx, person.ID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.Get, any(person.ID))
 
 		// ASSERT
 		require.NoError(t, err)
@@ -50,7 +50,7 @@ func TestPersonService_Get(t *testing.T) {
 
 	t.Run("returns error when person not found", func(t *testing.T) {
 		// ACT
-		result, err := service.Get(ctx, int64(99999999))
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.Get, any(int64(99999999)))
 
 		// ASSERT
 		require.Error(t, err)
@@ -60,7 +60,7 @@ func TestPersonService_Get(t *testing.T) {
 
 	t.Run("returns error for invalid ID type", func(t *testing.T) {
 		// ACT
-		result, err := service.Get(ctx, "invalid")
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.Get, "invalid")
 
 		// ASSERT
 		require.Error(t, err)
@@ -73,7 +73,7 @@ func TestPersonService_Get(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "GetInt", "TypeTest")
 
 		// ACT - Pass int (not int64) to test the type switch case
-		result, err := service.Get(ctx, int(person.ID))
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.Get, any(int(person.ID)))
 
 		// ASSERT
 		require.NoError(t, err)
@@ -100,7 +100,7 @@ func TestPersonService_GetByIDs(t *testing.T) {
 		person2 := testpkg.CreateTestPerson(t, db, "Multi2", "Test")
 
 		// ACT
-		result, err := service.GetByIDs(ctx, []int64{person1.ID, person2.ID})
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetByIDs, []int64{person1.ID, person2.ID})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -114,7 +114,7 @@ func TestPersonService_GetByIDs(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "Partial", "Test")
 
 		// ACT
-		result, err := service.GetByIDs(ctx, []int64{person.ID, 99999999})
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetByIDs, []int64{person.ID, 99999999})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -124,7 +124,7 @@ func TestPersonService_GetByIDs(t *testing.T) {
 
 	t.Run("returns empty map for empty input", func(t *testing.T) {
 		// ACT
-		result, err := service.GetByIDs(ctx, []int64{})
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetByIDs, []int64{})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -149,7 +149,7 @@ func TestPersonService_Create(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "ToDelete", "ForCleanup")
 
 		// Verify person was created
-		result, err := service.Get(ctx, person.ID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.Get, any(person.ID))
 		require.NoError(t, err)
 		assert.Equal(t, person.ID, result.ID)
 	})
@@ -162,7 +162,7 @@ func TestPersonService_Create(t *testing.T) {
 		}
 
 		// ACT
-		err := service.Create(ctx, person)
+		err := testpkg.TenantCommand1(t, ctx, db, service.Create, person)
 
 		// ASSERT
 		require.Error(t, err)
@@ -179,7 +179,7 @@ func TestPersonService_Create(t *testing.T) {
 		}
 
 		// ACT
-		err := service.Create(ctx, person)
+		err := testpkg.TenantCommand1(t, ctx, db, service.Create, person)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -196,7 +196,7 @@ func TestPersonService_Create(t *testing.T) {
 		}
 
 		// ACT
-		err := service.Create(ctx, person)
+		err := testpkg.TenantCommand1(t, ctx, db, service.Create, person)
 
 		// ASSERT
 		require.EqualError(t, err, "users.create person: account not found")
@@ -218,20 +218,20 @@ func TestPersonService_Update(t *testing.T) {
 	t.Run("updates person successfully", func(t *testing.T) {
 		// ARRANGE
 		personFixture := testpkg.CreateTestPerson(t, db, "Original", "Name")
-		person, err := service.Get(ctx, personFixture.ID)
+		person, err := testpkg.TenantQuery1(t, ctx, db, service.Get, any(personFixture.ID))
 		require.NoError(t, err)
 
 		person.FirstName = "Updated"
 		person.LastName = "Person"
 
 		// ACT
-		err = service.Update(ctx, person)
+		err = testpkg.TenantCommand1(t, ctx, db, service.Update, person)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify update
-		result, err := service.Get(ctx, person.ID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.Get, any(person.ID))
 		require.NoError(t, err)
 		assert.Equal(t, "Updated", result.FirstName)
 		assert.Equal(t, "Person", result.LastName)
@@ -246,7 +246,7 @@ func TestPersonService_Update(t *testing.T) {
 		person.ID = 99999999 // ID is in embedded base.Model
 
 		// ACT
-		err := service.Update(ctx, person)
+		err := testpkg.TenantCommand1(t, ctx, db, service.Update, person)
 
 		// ASSERT
 		require.Error(t, err)
@@ -272,20 +272,20 @@ func TestPersonService_Delete(t *testing.T) {
 		// No defer cleanup - we're testing deletion
 
 		// ACT
-		err := service.Delete(ctx, person.ID)
+		err := testpkg.TenantCommand1(t, ctx, db, service.Delete, any(person.ID))
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify deletion
-		_, err = service.Get(ctx, person.ID)
+		_, err = testpkg.TenantQuery1(t, ctx, db, service.Get, any(person.ID))
 		require.Error(t, err)
 		// Error indicates person/entity not found
 	})
 
 	t.Run("returns error when person not found", func(t *testing.T) {
 		// ACT
-		err := service.Delete(ctx, int64(99999999))
+		err := testpkg.TenantCommand1(t, ctx, db, service.Delete, any(int64(99999999)))
 
 		// ASSERT
 		require.Error(t, err)
@@ -315,11 +315,11 @@ func TestPersonService_FindByTagID(t *testing.T) {
 		rfidCard := testpkg.CreateTestRFIDCard(t, db, "FINDTAG")
 
 		// Link person to RFID card
-		err := service.LinkToRFIDCard(ctx, person.ID, rfidCard.ID)
+		err := testpkg.TenantCommand2(t, ctx, db, service.LinkToRFIDCard, person.ID, rfidCard.ID)
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.FindByTagID(ctx, rfidCard.ID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.FindByTagID, rfidCard.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -329,7 +329,7 @@ func TestPersonService_FindByTagID(t *testing.T) {
 
 	t.Run("returns error when tag not found", func(t *testing.T) {
 		// ACT
-		result, err := service.FindByTagID(ctx, "NONEXISTENTTAG999")
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.FindByTagID, "NONEXISTENTTAG999")
 
 		// ASSERT
 		require.Error(t, err)
@@ -355,7 +355,7 @@ func TestPersonService_FindByAccountID(t *testing.T) {
 		person, account := testpkg.CreateTestPersonWithAccount(t, db, "Account", "Linked")
 
 		// ACT
-		result, err := service.FindByAccountID(ctx, account.ID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.FindByAccountID, account.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -368,7 +368,7 @@ func TestPersonService_FindByAccountID(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "unlinked-account")
 
 		// ACT
-		result, err := service.FindByAccountID(ctx, account.ID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.FindByAccountID, account.ID)
 
 		// ASSERT
 		require.Error(t, err)
@@ -399,13 +399,13 @@ func TestPersonService_LinkToAccount(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "link-target")
 
 		// ACT
-		err := service.LinkToAccount(ctx, person.ID, account.ID)
+		err := testpkg.TenantCommand2(t, ctx, db, service.LinkToAccount, person.ID, account.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify link
-		result, err := service.FindByAccountID(ctx, account.ID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.FindByAccountID, account.ID)
 		require.NoError(t, err)
 		assert.Equal(t, person.ID, result.ID)
 	})
@@ -415,7 +415,7 @@ func TestPersonService_LinkToAccount(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "LinkInvalid", "Account")
 
 		// ACT
-		err := service.LinkToAccount(ctx, person.ID, 99999999)
+		err := testpkg.TenantCommand2(t, ctx, db, service.LinkToAccount, person.ID, 99999999)
 
 		// ASSERT
 		require.Error(t, err)
@@ -428,7 +428,7 @@ func TestPersonService_LinkToAccount(t *testing.T) {
 		person2 := testpkg.CreateTestPerson(t, db, "Linked2", "Account")
 
 		// ACT
-		err := service.LinkToAccount(ctx, person2.ID, account.ID)
+		err := testpkg.TenantCommand2(t, ctx, db, service.LinkToAccount, person2.ID, account.ID)
 
 		// ASSERT
 		require.Error(t, err)
@@ -453,13 +453,13 @@ func TestPersonService_UnlinkFromAccount(t *testing.T) {
 		person, account := testpkg.CreateTestPersonWithAccount(t, db, "ToUnlink", "Account")
 
 		// ACT
-		err := service.UnlinkFromAccount(ctx, person.ID)
+		err := testpkg.TenantCommand1(t, ctx, db, service.UnlinkFromAccount, person.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify unlink - person should no longer be found by account ID
-		_, err = service.FindByAccountID(ctx, account.ID)
+		_, err = testpkg.TenantQuery1(t, ctx, db, service.FindByAccountID, account.ID)
 		require.Error(t, err)
 	})
 
@@ -468,7 +468,7 @@ func TestPersonService_UnlinkFromAccount(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "NoAccount", "ToUnlink")
 
 		// ACT
-		err := service.UnlinkFromAccount(ctx, person.ID)
+		err := testpkg.TenantCommand1(t, ctx, db, service.UnlinkFromAccount, person.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -476,7 +476,7 @@ func TestPersonService_UnlinkFromAccount(t *testing.T) {
 
 	t.Run("returns error for nonexistent person", func(t *testing.T) {
 		// ACT
-		_ = service.UnlinkFromAccount(ctx, 99999999)
+		_ = testpkg.TenantCommand1(t, ctx, db, service.UnlinkFromAccount, 99999999)
 
 		// ASSERT - repository may or may not return error for nonexistent person
 		// Some repositories silently succeed (UPDATE ... WHERE id = X affects 0 rows)
@@ -502,13 +502,13 @@ func TestPersonService_LinkToRFIDCard(t *testing.T) {
 		rfidCard := testpkg.CreateTestRFIDCard(t, db, "LINKCARD")
 
 		// ACT
-		err := service.LinkToRFIDCard(ctx, person.ID, rfidCard.ID)
+		err := testpkg.TenantCommand2(t, ctx, db, service.LinkToRFIDCard, person.ID, rfidCard.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify link
-		result, err := service.FindByTagID(ctx, rfidCard.ID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.FindByTagID, rfidCard.ID)
 		require.NoError(t, err)
 		assert.Equal(t, person.ID, result.ID)
 	})
@@ -520,13 +520,13 @@ func TestPersonService_LinkToRFIDCard(t *testing.T) {
 		newTagID := "ABCDEF1234567890"
 
 		// ACT
-		err := service.LinkToRFIDCard(ctx, person.ID, newTagID)
+		err := testpkg.TenantCommand2(t, ctx, db, service.LinkToRFIDCard, person.ID, newTagID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify link
-		result, err := service.FindByTagID(ctx, newTagID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.FindByTagID, newTagID)
 		require.NoError(t, err)
 		assert.Equal(t, person.ID, result.ID)
 	})
@@ -538,17 +538,17 @@ func TestPersonService_LinkToRFIDCard(t *testing.T) {
 		rfidCard := testpkg.CreateTestRFIDCard(t, db, "TRANSFER")
 
 		// Link to first person
-		err := service.LinkToRFIDCard(ctx, person1.ID, rfidCard.ID)
+		err := testpkg.TenantCommand2(t, ctx, db, service.LinkToRFIDCard, person1.ID, rfidCard.ID)
 		require.NoError(t, err)
 
 		// ACT - Transfer to second person
-		err = service.LinkToRFIDCard(ctx, person2.ID, rfidCard.ID)
+		err = testpkg.TenantCommand2(t, ctx, db, service.LinkToRFIDCard, person2.ID, rfidCard.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify card is now with second person
-		result, err := service.FindByTagID(ctx, rfidCard.ID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.FindByTagID, rfidCard.ID)
 		require.NoError(t, err)
 		assert.Equal(t, person2.ID, result.ID)
 	})
@@ -576,11 +576,11 @@ func TestPersonService_LinkStudentToRFIDCard(t *testing.T) {
 		rfidCard := testpkg.CreateTestRFIDCard(t, db, "ENROLLEDTAG")
 
 		// ACT
-		err := service.LinkStudentToRFIDCard(ctx, student.ID, rfidCard.ID)
+		err := testpkg.TenantCommand2(t, ctx, db, service.LinkStudentToRFIDCard, student.ID, rfidCard.ID)
 
 		// ASSERT
 		require.NoError(t, err)
-		holder, err := service.FindByTagID(ctx, rfidCard.ID)
+		holder, err := testpkg.TenantQuery1(t, ctx, db, service.FindByTagID, rfidCard.ID)
 		require.NoError(t, err)
 		assert.Equal(t, student.PersonID, holder.ID)
 	})
@@ -598,7 +598,7 @@ func TestPersonService_LinkStudentToRFIDCard(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		err = service.LinkStudentToRFIDCard(ctx, student.ID, rfidCard.ID)
+		err = testpkg.TenantCommand2(t, ctx, db, service.LinkStudentToRFIDCard, student.ID, rfidCard.ID)
 
 		// ASSERT
 		require.EqualError(t, err, "users.link to RFID card: student has graduated")
@@ -622,7 +622,7 @@ func TestPersonService_LinkStudentToRFIDCard(t *testing.T) {
 		require.NoError(t, repos.Student.Delete(ctx, student.ID))
 
 		// ACT
-		err := service.LinkStudentToRFIDCard(ctx, student.ID, rfidCard.ID)
+		err := testpkg.TenantCommand2(t, ctx, db, service.LinkStudentToRFIDCard, student.ID, rfidCard.ID)
 
 		// ASSERT
 		require.EqualError(t, err, "users.link to RFID card: student not found")
@@ -646,17 +646,17 @@ func TestPersonService_UnlinkFromRFIDCard(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "ToUnlink", "RFID")
 		rfidCard := testpkg.CreateTestRFIDCard(t, db, "UNLINKCARD")
 
-		err := service.LinkToRFIDCard(ctx, person.ID, rfidCard.ID)
+		err := testpkg.TenantCommand2(t, ctx, db, service.LinkToRFIDCard, person.ID, rfidCard.ID)
 		require.NoError(t, err)
 
 		// ACT
-		err = service.UnlinkFromRFIDCard(ctx, person.ID)
+		err = testpkg.TenantCommand1(t, ctx, db, service.UnlinkFromRFIDCard, person.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify unlink
-		_, err = service.FindByTagID(ctx, rfidCard.ID)
+		_, err = testpkg.TenantQuery1(t, ctx, db, service.FindByTagID, rfidCard.ID)
 		require.Error(t, err)
 	})
 
@@ -665,7 +665,7 @@ func TestPersonService_UnlinkFromRFIDCard(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "NoCard", "ToUnlink")
 
 		// ACT
-		err := service.UnlinkFromRFIDCard(ctx, person.ID)
+		err := testpkg.TenantCommand1(t, ctx, db, service.UnlinkFromRFIDCard, person.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -673,7 +673,7 @@ func TestPersonService_UnlinkFromRFIDCard(t *testing.T) {
 
 	t.Run("handles nonexistent person gracefully", func(t *testing.T) {
 		// ACT
-		_ = service.UnlinkFromRFIDCard(ctx, 99999999)
+		_ = testpkg.TenantCommand1(t, ctx, db, service.UnlinkFromRFIDCard, 99999999)
 
 		// ASSERT - repository may silently succeed for nonexistent person
 		// This tests the code path
@@ -704,7 +704,7 @@ func TestPersonService_GetStudentsWithGroupsByTeacher(t *testing.T) {
 		testpkg.AssignStudentToGroup(t, db, student.ID, educationGroup.ID)
 
 		// ACT
-		result, err := service.GetStudentsWithGroupsByTeacher(ctx, teacher.ID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentsWithGroupsByTeacher, teacher.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -713,7 +713,7 @@ func TestPersonService_GetStudentsWithGroupsByTeacher(t *testing.T) {
 
 	t.Run("returns error for non-existent teacher", func(t *testing.T) {
 		// ACT
-		result, err := service.GetStudentsWithGroupsByTeacher(ctx, 99999999)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentsWithGroupsByTeacher, 99999999)
 
 		// ASSERT
 		require.Error(t, err)
@@ -744,7 +744,7 @@ func TestPersonService_GetAllStudentsWithGroups(t *testing.T) {
 		studentNoGroup := testpkg.CreateTestStudent(t, db, "NoGroup", "Student", "3b")
 
 		// ACT
-		result, err := service.GetAllStudentsWithGroups(ctx)
+		result, err := testpkg.TenantQuery0(t, ctx, db, service.GetAllStudentsWithGroups)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -780,7 +780,7 @@ func TestPersonService_LinkToRFIDCard_PersonNotFound(t *testing.T) {
 
 	t.Run("returns error for nonexistent person", func(t *testing.T) {
 		// ACT - LinkToRFIDCard takes tagID as string and returns only error
-		err := service.LinkToRFIDCard(ctx, 99999999, "some-tag-id")
+		err := testpkg.TenantCommand2(t, ctx, db, service.LinkToRFIDCard, 99999999, "some-tag-id")
 
 		// ASSERT
 		require.Error(t, err)
@@ -800,11 +800,11 @@ func TestPersonService_LinkToRFIDCard_RFIDNotFound(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "RFID", "Test", "1a")
 
 		// Get the person ID for the student
-		person, err := service.Get(ctx, student.PersonID)
+		person, err := testpkg.TenantQuery1(t, ctx, db, service.Get, any(student.PersonID))
 		require.NoError(t, err)
 
 		// ACT - LinkToRFIDCard takes tagID as string
-		err = service.LinkToRFIDCard(ctx, person.ID, "nonexistent-tag-id")
+		err = testpkg.TenantCommand2(t, ctx, db, service.LinkToRFIDCard, person.ID, "nonexistent-tag-id")
 
 		// ASSERT
 		require.Error(t, err)
@@ -821,7 +821,7 @@ func TestPersonService_Get_NotFound(t *testing.T) {
 
 	t.Run("returns error for nonexistent person", func(t *testing.T) {
 		// ACT
-		result, err := service.Get(ctx, 99999999)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.Get, 99999999)
 
 		// ASSERT
 		require.Error(t, err)
@@ -846,7 +846,7 @@ func TestPersonService_Update_NotFound(t *testing.T) {
 		person.ID = 99999999
 
 		// ACT - Update returns only error
-		err := service.Update(ctx, person)
+		err := testpkg.TenantCommand1(t, ctx, db, service.Update, person)
 
 		// ASSERT
 		require.Error(t, err)
@@ -869,7 +869,7 @@ func TestPersonService_Create_ValidationError(t *testing.T) {
 		}
 
 		// ACT - Create returns only error
-		err := service.Create(ctx, person)
+		err := testpkg.TenantCommand1(t, ctx, db, service.Create, person)
 
 		// ASSERT
 		require.Error(t, err)
@@ -901,14 +901,14 @@ func TestPersonService_Create_WithRFIDCard(t *testing.T) {
 		}
 
 		// ACT
-		err := service.Create(ctx, person)
+		err := testpkg.TenantCommand1(t, ctx, db, service.Create, person)
 
 		// ASSERT
 		require.NoError(t, err)
 		assert.Greater(t, person.ID, int64(0))
 
 		// Verify link
-		found, err := service.FindByTagID(ctx, rfidCard.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, service.FindByTagID, rfidCard.ID)
 		require.NoError(t, err)
 		assert.Equal(t, person.ID, found.ID)
 	})
@@ -923,7 +923,7 @@ func TestPersonService_Create_WithRFIDCard(t *testing.T) {
 		}
 
 		// ACT
-		err := service.Create(ctx, person)
+		err := testpkg.TenantCommand1(t, ctx, db, service.Create, person)
 
 		// ASSERT
 		require.Error(t, err)
@@ -942,7 +942,7 @@ func TestPersonService_Update_WithChangedAccount(t *testing.T) {
 	t.Run("updates person with new valid account", func(t *testing.T) {
 		// ARRANGE - create person without account, then link to new account
 		personFixture := testpkg.CreateTestPerson(t, db, "UpdateAccount", "Test")
-		person, err := service.Get(ctx, personFixture.ID)
+		person, err := testpkg.TenantQuery1(t, ctx, db, service.Get, any(personFixture.ID))
 		require.NoError(t, err)
 		newAccount := testpkg.CreateTestAccount(t, db, "new-account-update")
 
@@ -950,13 +950,13 @@ func TestPersonService_Update_WithChangedAccount(t *testing.T) {
 		person.AccountID = &newAccount.ID
 
 		// ACT
-		err = service.Update(ctx, person)
+		err = testpkg.TenantCommand1(t, ctx, db, service.Update, person)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify link
-		found, err := service.FindByAccountID(ctx, newAccount.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, service.FindByAccountID, newAccount.ID)
 		require.NoError(t, err)
 		assert.Equal(t, person.ID, found.ID)
 	})
@@ -964,14 +964,14 @@ func TestPersonService_Update_WithChangedAccount(t *testing.T) {
 	t.Run("returns error when new account does not exist", func(t *testing.T) {
 		// ARRANGE
 		personFixture := testpkg.CreateTestPerson(t, db, "UpdateInvalidAccount", "Test")
-		person, err := service.Get(ctx, personFixture.ID)
+		person, err := testpkg.TenantQuery1(t, ctx, db, service.Get, any(personFixture.ID))
 		require.NoError(t, err)
 
 		nonExistentAccountID := int64(99999999)
 		person.AccountID = &nonExistentAccountID
 
 		// ACT
-		err = service.Update(ctx, person)
+		err = testpkg.TenantCommand1(t, ctx, db, service.Update, person)
 
 		// ASSERT
 		require.Error(t, err)
@@ -980,20 +980,20 @@ func TestPersonService_Update_WithChangedAccount(t *testing.T) {
 	t.Run("allows update with same account ID", func(t *testing.T) {
 		// ARRANGE - person with existing account
 		personFixture, _ := testpkg.CreateTestPersonWithAccount(t, db, "SameAccount", "Update")
-		person, err := service.Get(ctx, personFixture.ID)
+		person, err := testpkg.TenantQuery1(t, ctx, db, service.Get, any(personFixture.ID))
 		require.NoError(t, err)
 
 		// Update person - keep same account ID
 		person.FirstName = "UpdatedSame"
 
 		// ACT
-		err = service.Update(ctx, person)
+		err = testpkg.TenantCommand1(t, ctx, db, service.Update, person)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify update
-		found, err := service.Get(ctx, person.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, service.Get, any(person.ID))
 		require.NoError(t, err)
 		assert.Equal(t, "UpdatedSame", found.FirstName)
 	})
@@ -1010,20 +1010,20 @@ func TestPersonService_Update_WithChangedRFID(t *testing.T) {
 	t.Run("updates person with new valid RFID card", func(t *testing.T) {
 		// ARRANGE
 		personFixture := testpkg.CreateTestPerson(t, db, "UpdateRFID", "Test")
-		person, err := service.Get(ctx, personFixture.ID)
+		person, err := testpkg.TenantQuery1(t, ctx, db, service.Get, any(personFixture.ID))
 		require.NoError(t, err)
 		newCard := testpkg.CreateTestRFIDCard(t, db, "NEWUPDATECARD")
 
 		person.TagID = &newCard.ID
 
 		// ACT
-		err = service.Update(ctx, person)
+		err = testpkg.TenantCommand1(t, ctx, db, service.Update, person)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify link
-		found, err := service.FindByTagID(ctx, newCard.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, service.FindByTagID, newCard.ID)
 		require.NoError(t, err)
 		assert.Equal(t, person.ID, found.ID)
 	})
@@ -1031,14 +1031,14 @@ func TestPersonService_Update_WithChangedRFID(t *testing.T) {
 	t.Run("returns error when new RFID card does not exist", func(t *testing.T) {
 		// ARRANGE
 		personFixture := testpkg.CreateTestPerson(t, db, "UpdateInvalidRFID", "Test")
-		person, err := service.Get(ctx, personFixture.ID)
+		person, err := testpkg.TenantQuery1(t, ctx, db, service.Get, any(personFixture.ID))
 		require.NoError(t, err)
 
 		nonExistentTagID := "NONEXISTENT888"
 		person.TagID = &nonExistentTagID
 
 		// ACT
-		err = service.Update(ctx, person)
+		err = testpkg.TenantCommand1(t, ctx, db, service.Update, person)
 
 		// ASSERT
 		require.Error(t, err)
@@ -1047,29 +1047,29 @@ func TestPersonService_Update_WithChangedRFID(t *testing.T) {
 	t.Run("allows update with same RFID card", func(t *testing.T) {
 		// ARRANGE
 		personFixture := testpkg.CreateTestPerson(t, db, "SameRFID", "Update")
-		person, err := service.Get(ctx, personFixture.ID)
+		person, err := testpkg.TenantQuery1(t, ctx, db, service.Get, any(personFixture.ID))
 		require.NoError(t, err)
 		card := testpkg.CreateTestRFIDCard(t, db, "SAMERFIDCARD")
 
 		// Link card to person
-		err = service.LinkToRFIDCard(ctx, person.ID, card.ID)
+		err = testpkg.TenantCommand2(t, ctx, db, service.LinkToRFIDCard, person.ID, card.ID)
 		require.NoError(t, err)
 
 		// Refetch person to get TagID set
-		person, err = service.Get(ctx, person.ID)
+		person, err = testpkg.TenantQuery1(t, ctx, db, service.Get, any(person.ID))
 		require.NoError(t, err)
 
 		// Update person - keep same RFID
 		person.FirstName = "UpdatedSameRFID"
 
 		// ACT
-		err = service.Update(ctx, person)
+		err = testpkg.TenantCommand1(t, ctx, db, service.Update, person)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify update
-		found, err := service.Get(ctx, person.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, service.Get, any(person.ID))
 		require.NoError(t, err)
 		assert.Equal(t, "UpdatedSameRFID", found.FirstName)
 	})
@@ -1088,13 +1088,13 @@ func TestPersonService_LinkToAccount_SamePersonRelink(t *testing.T) {
 		person, account := testpkg.CreateTestPersonWithAccount(t, db, "Relink", "Same")
 
 		// ACT - re-link same person to same account (should be no-op, no error)
-		err := service.LinkToAccount(ctx, person.ID, account.ID)
+		err := testpkg.TenantCommand2(t, ctx, db, service.LinkToAccount, person.ID, account.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify link still exists
-		found, err := service.FindByAccountID(ctx, account.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, service.FindByAccountID, account.ID)
 		require.NoError(t, err)
 		assert.Equal(t, person.ID, found.ID)
 	})
@@ -1113,21 +1113,21 @@ func TestPersonService_Delete_WithRelations(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "DeleteWith", "RFID")
 		card := testpkg.CreateTestRFIDCard(t, db, "DELETEWITHCARD")
 
-		err := service.LinkToRFIDCard(ctx, person.ID, card.ID)
+		err := testpkg.TenantCommand2(t, ctx, db, service.LinkToRFIDCard, person.ID, card.ID)
 		require.NoError(t, err)
 
 		// ACT
-		err = service.Delete(ctx, person.ID)
+		err = testpkg.TenantCommand1(t, ctx, db, service.Delete, any(person.ID))
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify person is deleted
-		_, err = service.Get(ctx, person.ID)
+		_, err = testpkg.TenantQuery1(t, ctx, db, service.Get, any(person.ID))
 		require.Error(t, err)
 
 		// Card should no longer be linked
-		_, err = service.FindByTagID(ctx, card.ID)
+		_, err = testpkg.TenantQuery1(t, ctx, db, service.FindByTagID, card.ID)
 		require.Error(t, err)
 	})
 }
@@ -1145,7 +1145,7 @@ func TestPersonService_Get_WithIntID(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "IntID", "Test")
 
 		// ACT - pass int instead of int64
-		result, err := service.Get(ctx, int(person.ID))
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.Get, any(int(person.ID)))
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1328,7 +1328,7 @@ func TestPersonService_UpdateStaffWithTeacher_RefusesCaregiverProfileForLehrkraf
 	// ARRANGE
 	staffFixture, account := testpkg.CreateTestStaffWithAccount(t, db, "Lehr", "Aendern")
 	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, testpkg.Tenant(t))
-	staffRecord, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Staff.FindWithPerson(ctx, staffFixture.ID)
+	staffRecord, err := testpkg.TenantQuery1(t, ctx, db, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Staff.FindWithPerson, staffFixture.ID)
 	require.NoError(t, err)
 
 	// ACT

@@ -50,7 +50,7 @@ func TestRecipientRoleKinds(t *testing.T) {
 	testpkg.AssignLehrkraftSystemRole(t, db, both.ID, testpkg.Tenant(t))
 	assignSystemRole(t, db, both.ID, "admin")
 
-	recipients, err := svc.ListMessageableStaff(asAccount(t, viewer.ID))
+	recipients, err := testpkg.TenantQuery0(t, asAccount(t, viewer.ID), db, svc.ListMessageableStaff)
 	require.NoError(t, err)
 
 	kinds := make(map[int64]string, len(recipients))
@@ -63,13 +63,13 @@ func TestRecipientRoleKinds(t *testing.T) {
 	assert.Equal(t, "admin", kinds[both.ID], "admin wins over lehrkraft for a dual-role account")
 
 	// The same classification travels on the inbox row and the thread detail.
-	opened, err := svc.OpenThread(asAccount(t, viewer.ID), teacher.ID)
+	opened, err := testpkg.TenantQuery1(t, asAccount(t, viewer.ID), db, svc.OpenThread, teacher.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "lehrkraft", opened.CounterpartRoleKind)
 
-	_, err = svc.PostMessage(asAccount(t, teacher.ID), opened.ThreadID, "Hallo aus der Schule")
+	_, err = testpkg.TenantQuery2(t, asAccount(t, teacher.ID), db, svc.PostMessage, opened.ThreadID, "Hallo aus der Schule")
 	require.NoError(t, err)
-	inbox, err := svc.ListInbox(asAccount(t, viewer.ID), false)
+	inbox, err := testpkg.TenantQuery1(t, asAccount(t, viewer.ID), db, svc.ListInbox, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1)
 	assert.Equal(t, "lehrkraft", inbox[0].CounterpartRoleKind)

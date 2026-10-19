@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// GetCurrentSession returns the current active session for a staff member
 func (s *workSessionService) GetCurrentSession(ctx context.Context, staffID int64) (*WorkSession, error) {
 	session, err := s.repo.GetCurrentByStaffID(ctx, staffID)
 	if err != nil {
@@ -27,10 +26,6 @@ func (s *workSessionService) GetCurrentSession(ctx context.Context, staffID int6
 	return session, nil
 }
 
-// GetLatestOpenSession returns the most recent still-running session of a staff
-// member across all days, or nil when none is open. It answers "is this person
-// clocked in right now" without assuming the session was opened today — a night
-// stamp survives the Berlin midnight rollover.
 func (s *workSessionService) GetLatestOpenSession(ctx context.Context, staffID int64) (*WorkSession, error) {
 	session, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
 	if err != nil {
@@ -43,7 +38,6 @@ func (s *workSessionService) GetLatestOpenSession(ctx context.Context, staffID i
 	return session, nil
 }
 
-// GetHistory returns work sessions for a staff member in a date range with weekly aggregation
 func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from, to calendar.Date) (*HistoryResponse, error) {
 	sessions, err := s.repo.GetHistoryByStaffID(ctx, staffID, from, to)
 	if err != nil {
@@ -52,10 +46,6 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 	return s.historyResponse(ctx, staffID, sessions, from, to)
 }
 
-// GetHistoryIntersecting returns blocks that overlap a calendar range. Every
-// consumer that lays minutes out on calendar days uses it: the history tables,
-// the kiosk day state, the balances. GetHistory keeps the stored-date contract
-// for the export, where a block is a single row under its start day.
 func (s *workSessionService) GetHistoryIntersecting(ctx context.Context, staffID int64, from, to calendar.Date) (*HistoryResponse, error) {
 	end := to.AddDays(1).BerlinMidnight()
 	sessions, err := s.repo.ListOverlappingByStaffID(ctx, staffID, from.BerlinMidnight(), &end)
@@ -383,7 +373,6 @@ func summaryKeysOf(targets map[calendar.Date]int) map[summaryWeekKey]int {
 	return targetsByWeek
 }
 
-// GetSessionEdits returns the audit trail for a work session
 func (s *workSessionService) GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error) {
 	// Verify ownership: session must belong to requesting staff
 	session, err := s.repo.FindByID(ctx, sessionID)
@@ -397,10 +386,6 @@ func (s *workSessionService) GetSessionEdits(ctx context.Context, staffID, sessi
 	return s.loadSessionEditsView(ctx, session, sessionID)
 }
 
-// GetSessionEditsForStaff is the admin-facing counterpart. The session must
-// belong to the staff member named in the URL. Without that check an admin
-// could load any session's edits by guessing IDs (within the tenant, RLS
-// still applies). Permission gating happens at the route level.
 func (s *workSessionService) GetSessionEditsForStaff(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error) {
 	session, err := s.repo.FindByID(ctx, sessionID)
 	if err != nil {

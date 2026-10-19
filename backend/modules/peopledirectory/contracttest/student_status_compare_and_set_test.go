@@ -45,8 +45,7 @@ func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "CasPending", "Lifecycle", "1a")
 		testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusPending, nil, nil)
 
-		updated, err := repo.TransitionStatus(ctx, student.ID,
-			peopleValues.StudentStatusPending, peopleValues.StudentStatusActive)
+		updated, err := testpkg.TenantQuery3(t, ctx, db, repo.TransitionStatus, student.ID, peopleValues.StudentStatusPending, peopleValues.StudentStatusActive)
 		require.NoError(t, err)
 		assert.True(t, updated)
 		assert.Equal(t, string(peopleValues.StudentStatusActive), readStatus(t, db, student.ID))
@@ -58,8 +57,7 @@ func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 		// before the update landed.
 		testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusAlumnus, nil, nil)
 
-		updated, err := repo.TransitionStatus(ctx, student.ID,
-			peopleValues.StudentStatusActive, peopleValues.StudentStatusInactive)
+		updated, err := testpkg.TenantQuery3(t, ctx, db, repo.TransitionStatus, student.ID, peopleValues.StudentStatusActive, peopleValues.StudentStatusInactive)
 		require.NoError(t, err)
 		assert.False(t, updated, "a status that moved on must not be overwritten")
 		assert.Equal(t, string(peopleValues.StudentStatusAlumnus), readStatus(t, db, student.ID),
@@ -70,13 +68,11 @@ func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "CasIdempotent", "Lifecycle", "1a")
 		testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusPending, nil, nil)
 
-		first, err := repo.TransitionStatus(ctx, student.ID,
-			peopleValues.StudentStatusPending, peopleValues.StudentStatusActive)
+		first, err := testpkg.TenantQuery3(t, ctx, db, repo.TransitionStatus, student.ID, peopleValues.StudentStatusPending, peopleValues.StudentStatusActive)
 		require.NoError(t, err)
 		require.True(t, first)
 
-		second, err := repo.TransitionStatus(ctx, student.ID,
-			peopleValues.StudentStatusPending, peopleValues.StudentStatusActive)
+		second, err := testpkg.TenantQuery3(t, ctx, db, repo.TransitionStatus, student.ID, peopleValues.StudentStatusPending, peopleValues.StudentStatusActive)
 		require.NoError(t, err)
 		assert.False(t, second)
 	})
@@ -85,8 +81,7 @@ func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "CasTenant", "Lifecycle", "1a")
 		testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusPending, nil, nil)
 
-		updated, err := repo.TransitionStatus(testpkg.TenantContext(2), student.ID,
-			peopleValues.StudentStatusPending, peopleValues.StudentStatusActive)
+		updated, err := testpkg.TenantQuery3(t, testpkg.TenantContext(2), db, repo.TransitionStatus, student.ID, peopleValues.StudentStatusPending, peopleValues.StudentStatusActive)
 		require.NoError(t, err)
 		assert.False(t, updated)
 		assert.Equal(t, string(peopleValues.StudentStatusPending), readStatus(t, db, student.ID))

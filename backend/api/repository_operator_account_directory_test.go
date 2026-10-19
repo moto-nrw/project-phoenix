@@ -31,7 +31,7 @@ func TestOperatorAccountDirectory_ListAccountsByTenantID(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	ctx := context.Background()
+	ctx := testpkg.WithTenantRuntime(t, context.Background(), db)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -83,7 +83,7 @@ func TestOperatorAccountDirectory_ListAccountsByTenantID_IncludesPendingInvitati
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	ctx := context.Background()
+	ctx := testpkg.WithTenantRuntime(t, context.Background(), db)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)

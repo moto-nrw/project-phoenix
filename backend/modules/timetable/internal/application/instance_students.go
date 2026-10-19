@@ -7,7 +7,7 @@ import (
 )
 
 func (s *Service) FindInstanceStudent(ctx context.Context, id int64) (result domain.InstanceStudent, err error) {
-	err = s.run("find_instance_student", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_instance_student", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, findErr := s.store.FindInstanceStudent(ctx, id)
 		stats.Add(queryStats)
 		if findErr != nil {
@@ -23,7 +23,7 @@ func (s *Service) FindInstanceStudent(ctx context.Context, id int64) (result dom
 }
 
 func (s *Service) ListInstanceStudents(ctx context.Context, filter domain.InstanceStudentFilter) (result []domain.InstanceStudent, err error) {
-	err = s.run("list_instance_students", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_instance_students", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListInstanceStudents(ctx, filter)
 		stats.Add(queryStats)
 		result = values
@@ -33,7 +33,7 @@ func (s *Service) ListInstanceStudents(ctx context.Context, filter domain.Instan
 }
 
 func (s *Service) ListPlannedInstanceStudents(ctx context.Context, filter domain.InstanceStudentFilter) (result []domain.PlannedInstanceStudent, err error) {
-	err = s.run("list_planned_instance_students", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_planned_instance_students", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListPlannedInstanceStudents(ctx, filter)
 		stats.Add(queryStats)
 		result = values
@@ -95,7 +95,7 @@ func (s *Service) DeleteInstanceStudentsByInstance(ctx context.Context, instance
 }
 
 func (s *Service) ListStudentInstanceRefsBefore(ctx context.Context, cutoff string) (result []domain.StudentInstanceRef, err error) {
-	err = s.run("list_student_instance_refs_before", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_student_instance_refs_before", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListStudentInstanceRefsBefore(ctx, cutoff)
 		stats.Add(queryStats)
 		result = values
@@ -105,7 +105,7 @@ func (s *Service) ListStudentInstanceRefsBefore(ctx context.Context, cutoff stri
 }
 
 func (s *Service) ListPlannedStudentIDs(ctx context.Context, studentIDs []int64, date string) (result []int64, err error) {
-	err = s.run("list_planned_student_ids", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_planned_student_ids", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListPlannedStudentIDs(ctx, studentIDs, date)
 		stats.Add(queryStats)
 		result = values
@@ -115,7 +115,7 @@ func (s *Service) ListPlannedStudentIDs(ctx context.Context, studentIDs []int64,
 }
 
 func (s *Service) LockInstanceStudentAssignments(ctx context.Context, instanceID int64) error {
-	return s.run("lock_instance_student_assignments", func(stats *domain.OperationStats) error {
+	return s.observeOperation(ctx, "lock_instance_student_assignments", func(ctx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.LockInstanceStudentAssignments(ctx, instanceID)
 		stats.Add(queryStats)
 		return err

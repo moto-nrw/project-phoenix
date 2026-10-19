@@ -45,12 +45,12 @@ func TestScheduleSubstitutionExternalInterfacePartialCoverage(t *testing.T) {
 	require.NotNil(t, result.ScheduleSubstitution)
 	require.Equal(t, 1, result.ScheduleSubstitution.TotalAffected)
 
-	firstRows, err := repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), first.ID)
+	firstRows, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, first.ID)
 	require.NoError(t, err)
 	requireScheduleStaffState(t, firstRows, absent.ID, true, false)
 	requireScheduleStaffState(t, firstRows, replacement.ID, false, true)
 
-	secondRows, err := repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), second.ID)
+	secondRows, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, second.ID)
 	require.NoError(t, err)
 	requireScheduleStaffState(t, secondRows, absent.ID, false, false)
 	for _, row := range secondRows {
@@ -82,7 +82,7 @@ func TestScheduleSubstitutionExternalInterfaceDayWideAbsence(t *testing.T) {
 	require.Equal(t, 2, result.ScheduleSubstitution.TotalAffected)
 
 	for _, instanceID := range []int64{first.ID, second.ID} {
-		rows, findErr := repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), instanceID)
+		rows, findErr := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, instanceID)
 		require.NoError(t, findErr)
 		requireScheduleStaffState(t, rows, absent.ID, true, false)
 	}
@@ -155,7 +155,7 @@ func TestScheduleSubstitutionExternalInterfaceConflictRollsBack(t *testing.T) {
 	})
 	require.ErrorIs(t, err, substitution.ErrConflict)
 
-	firstRows, err := repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), first.ID)
+	firstRows, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, first.ID)
 	require.NoError(t, err)
 	requireScheduleStaffState(t, firstRows, firstAbsent.ID, false, false)
 	for _, row := range firstRows {
@@ -190,7 +190,7 @@ func TestScheduleSubstitutionExternalInterfaceWriteFailureRollsBack(t *testing.T
 	})
 	require.Error(t, err)
 
-	rows, err := repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), instance.ID)
+	rows, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, instance.ID)
 	require.NoError(t, err)
 	requireScheduleStaffState(t, rows, absent.ID, false, false)
 	for _, row := range rows {
@@ -369,7 +369,7 @@ func TestScheduleSubstitutionExternalInterfaceUsesBulkPlanning(t *testing.T) {
 	require.Len(t, result.ScheduleSubstitution.Days, 2)
 	require.Equal(t, 2, result.ScheduleSubstitution.TotalAffected)
 	for _, instanceID := range []int64{first.ID, second.ID} {
-		rows, findErr := repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), instanceID)
+		rows, findErr := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, instanceID)
 		require.NoError(t, findErr)
 		requireScheduleStaffState(t, rows, absent.ID, true, false)
 		requireScheduleStaffState(t, rows, replacement.ID, false, true)
@@ -399,7 +399,7 @@ func TestScheduleSubstitutionExternalInterfaceEndsTypedAppointmentSubstitution(t
 		},
 	})
 	require.NoError(t, err)
-	rows, err := repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), instance.ID)
+	rows, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, instance.ID)
 	require.NoError(t, err)
 	var substitutionID int64
 	for _, row := range rows {
@@ -412,7 +412,7 @@ func TestScheduleSubstitutionExternalInterfaceEndsTypedAppointmentSubstitution(t
 	require.NoError(t, service.End(testpkg.Ctx(t), caller, substitution.EndRequest{
 		Type: substitution.TargetScheduleSubstitution, ID: substitutionID,
 	}))
-	rows, err = repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), instance.ID)
+	rows, err = testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, instance.ID)
 	require.NoError(t, err)
 	requireScheduleStaffState(t, rows, absent.ID, true, false)
 	for _, row := range rows {
@@ -444,7 +444,7 @@ func TestScheduleSubstitutionExternalInterfaceReturnsNarrowOverview(t *testing.T
 	})
 	require.NoError(t, err)
 
-	overview, err := service.Overview(testpkg.Ctx(t), caller, substitution.OverviewQuery{
+	overview, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), db, service.Overview, caller, substitution.OverviewQuery{
 		ScheduleFrom: &date, ScheduleTo: &date, IncludeScheduleTargets: true,
 	})
 	require.NoError(t, err)
@@ -461,7 +461,7 @@ func TestScheduleSubstitutionExternalInterfaceReturnsNarrowOverview(t *testing.T
 	require.Contains(t, overview.ScheduleTargets, substitution.StaffRef{ID: replacement.ID, FullName: "Nils Vertretung"})
 	readOnly := scheduleSubstitutionCaller(t)
 	readOnly.HasPermission = func(required string) bool { return required == "schedules:read" }
-	readOnlyOverview, err := service.Overview(testpkg.Ctx(t), readOnly, substitution.OverviewQuery{
+	readOnlyOverview, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), db, service.Overview, readOnly, substitution.OverviewQuery{
 		ScheduleFrom: &date, ScheduleTo: &date,
 	})
 	require.NoError(t, err)

@@ -13,7 +13,7 @@ import (
 // member left before the cutoff and is not erased yet. It locks the row and
 // skips one a concurrent run holds. found is false when none is due.
 func (s *Store) MarkNextRetiredStaffErased(ctx context.Context, before time.Time, afterID int64) (domain.RetiredStaffErasure, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.RetiredStaffErasure{}, false, domain.OperationStats{}, err
 	}
@@ -24,14 +24,14 @@ func (s *Store) MarkNextRetiredStaffErased(ctx context.Context, before time.Time
 		Where(`"due".deleted_at IS NOT NULL`).
 		Where(`"due".deleted_at < ?`, before).
 		Where(`"due".personal_data_erased_at IS NULL`).
-		OrderExpr(`"due".id ASC`).Limit(1).For("UPDATE SKIP LOCKED"), "due", tenantID)
+		OrderExpr(`"due".id ASC`).Limit(1).For("UPDATE SKIP LOCKED"), "due", scope)
 	var rows []domain.RetiredStaffErasure
 	query := withTenant(db.NewUpdate().Model((*staffRow)(nil)).
 		ModelTableExpr(`users.staff_school_memberships AS "staff"`).
 		Set(`personal_data_erased_at = NOW()`).
 		Set(`updated_at = NOW()`).
 		Where(`"staff".id = (?)`, due).
-		Returning(`"staff".id AS staff_id, "staff".person_id`), "staff", tenantID)
+		Returning(`"staff".id AS staff_id, "staff".person_id`), "staff", scope)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	_, err = query.Exec(ctx, &rows)
@@ -51,41 +51,41 @@ func (s *Store) MarkNextRetiredStaffErased(ctx context.Context, before time.Time
 // keeps the retention deletion log's row count accurate instead of relying on
 // the foreign-key cascade.
 func (s *Store) DeleteGroupAssignmentsByStaff(ctx context.Context, staffID int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	teachers := withTenant(db.NewSelect().Model((*teacherRow)(nil)).
 		ModelTableExpr(`users.teachers AS "teacher"`).
 		ColumnExpr(`"teacher".id`).
-		Where(`"teacher".staff_id = ?`, staffID), "teacher", tenantID)
+		Where(`"teacher".staff_id = ?`, staffID), "teacher", scope)
 	query := withTenant(db.NewDelete().Model((*groupAssignmentRow)(nil)).
 		ModelTableExpr(`education.group_teacher AS "group_assignment"`).
-		Where(`"group_assignment".teacher_id IN (?)`, teachers), "group_assignment", tenantID)
+		Where(`"group_assignment".teacher_id IN (?)`, teachers), "group_assignment", scope)
 	return execDelete(ctx, query, "delete group assignments by staff")
 }
 
 // DeleteTeachersByStaff hard-deletes the teacher records of a staff member,
 // including the one the retirement soft-deleted.
 func (s *Store) DeleteTeachersByStaff(ctx context.Context, staffID int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewDelete().Model((*teacherRow)(nil)).
 		ModelTableExpr(`users.teachers AS "teacher"`).
-		Where(`"teacher".staff_id = ?`, staffID), "teacher", tenantID)
+		Where(`"teacher".staff_id = ?`, staffID), "teacher", scope)
 	return execDelete(ctx, query, "delete teachers by staff")
 }
 
 // DeleteGuestsByStaff deletes the guest profile of a staff member.
 func (s *Store) DeleteGuestsByStaff(ctx context.Context, staffID int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewDelete().Model((*guestRow)(nil)).
 		ModelTableExpr(`users.guests AS "guest"`).
-		Where(`"guest".staff_id = ?`, staffID), "guest", tenantID)
+		Where(`"guest".staff_id = ?`, staffID), "guest", scope)
 	return execDelete(ctx, query, "delete guests by staff")
 }

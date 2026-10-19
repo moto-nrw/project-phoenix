@@ -2,7 +2,6 @@ package audit
 
 import (
 	"context"
-	"fmt"
 
 	auditModel "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/uptrace/bun"
@@ -20,20 +19,16 @@ func ContextHandoff(ctx context.Context) (any, bool, int64) {
 }
 
 // NewHandoffRuntime binds the Audit repositories to the transaction that
-// handoff reads. Outside a transaction it resolves fallback; without one it
-// resolves no database, so every write fails. A transaction of another type
-// is a wiring error.
-func NewHandoffRuntime(handoff Handoff, fallback *bun.DB) Runtime {
+// handoff reads. Missing or unusable transactions resolve no database, so
+// repositories return an error before constructing SQL. The pool is never used.
+func NewHandoffRuntime(handoff Handoff) Runtime {
 	if handoff == nil {
 		panic("audit repository: handoff is required")
 	}
 	return func(ctx context.Context) (bun.IDB, int64) {
 		raw, ok, tenantID := handoff(ctx)
 		if !ok {
-			if fallback == nil {
-				return nil, tenantID
-			}
-			return fallback, tenantID
+			return nil, tenantID
 		}
 		switch tx := raw.(type) {
 		case bun.Tx:
@@ -43,6 +38,6 @@ func NewHandoffRuntime(handoff Handoff, fallback *bun.DB) Runtime {
 				return tx, tenantID
 			}
 		}
-		panic(fmt.Sprintf("audit command: unsupported transaction %T", raw))
+		return nil, tenantID
 	}
 }

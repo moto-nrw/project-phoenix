@@ -58,3 +58,8 @@ func mapRows[T, U any](rows []T, convert func(T) U) []U {
 	}
 	return result
 }
+
+func (m Mapped[C, O, S, P]) AllSchoolsPWAUsage(ctx context.Context, window time.Duration) ([]P, error) {
+	rows, err := m.projection.AllSchoolsPWAUsage(ctx, window)
+	return mapRows(rows, m.rows.PWAUsage), err
+}

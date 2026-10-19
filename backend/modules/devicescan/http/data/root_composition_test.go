@@ -3,6 +3,8 @@ package data_test
 import (
 	"testing"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -37,4 +39,12 @@ func composeRFIDModule(t *testing.T) (*bun.DB, api.RFIDTestModule) {
 	module, err := api.NewRFIDTestModule(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	return db, module
+}
+
+// dataTenantRoot mirrors the IoT mount after the device supplied its school.
+func dataTenantRoot(db *bun.DB, child chi.Router) chi.Router {
+	root := chi.NewRouter()
+	root.Use(testpkg.TenantTxMiddleware(db))
+	root.Mount("/", child)
+	return root
 }

@@ -142,7 +142,7 @@ func listRouter(parentCtx context.Context, res *Resource) chi.Router {
 	return r
 }
 
-func doList(t *testing.T, router chi.Router, path string) *httptest.ResponseRecorder {
+func doList(t *testing.T, router http.Handler, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	w := httptest.NewRecorder()

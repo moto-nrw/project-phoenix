@@ -36,7 +36,7 @@ func TestGroupTeacherRepository_Create(t *testing.T) {
 			TeacherID: teacher.ID,
 		}
 
-		err := repo.Create(ctx, gt)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, gt)
 		require.NoError(t, err)
 		assert.NotZero(t, gt.ID)
 
@@ -65,11 +65,11 @@ func TestGroupTeacherRepository_DeleteByTeacherID(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), affected)
 
-	remaining, err := repo.FindByTeacher(ctx, teacher.ID)
+	remaining, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByTeacher, teacher.ID)
 	require.NoError(t, err)
 	assert.Empty(t, remaining)
 
-	otherRemaining, err := repo.FindByTeacher(ctx, otherTeacher.ID)
+	otherRemaining, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByTeacher, otherTeacher.ID)
 	require.NoError(t, err)
 	assert.Len(t, otherRemaining, 1)
 }
@@ -87,7 +87,7 @@ func TestGroupTeacherRepository_FindByID(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "GTFindByID", "Teacher")
 		gt := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
 
-		found, err := repo.FindByID(ctx, gt.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(gt.ID))
 		require.NoError(t, err)
 		assert.Equal(t, gt.ID, found.ID)
 		assert.Equal(t, group.ID, found.GroupID)
@@ -95,7 +95,7 @@ func TestGroupTeacherRepository_FindByID(t *testing.T) {
 	})
 
 	t.Run("returns error for non-existent assignment", func(t *testing.T) {
-		_, err := repo.FindByID(ctx, int64(999999))
+		_, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(int64(999999)))
 		require.Error(t, err)
 	})
 }
@@ -113,15 +113,15 @@ func TestGroupTeacherRepository_Update(t *testing.T) {
 		group2 := testpkg.CreateTestEducationGroup(t, db, "GTUpdate2")
 		teacher := testpkg.CreateTestTeacher(t, db, "GTUpdate", "Teacher")
 		stored := testpkg.CreateTestGroupTeacher(t, db, group1.ID, teacher.ID)
-		gt, err := repo.FindByID(ctx, stored.ID)
+		gt, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(stored.ID))
 		require.NoError(t, err)
 
 		// Update to different group
 		gt.GroupID = group2.ID
-		err = repo.Update(ctx, gt)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Update, gt)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, gt.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(gt.ID))
 		require.NoError(t, err)
 		assert.Equal(t, group2.ID, found.GroupID)
 	})
@@ -140,10 +140,10 @@ func TestGroupTeacherRepository_Delete(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "GTDelete", "Teacher")
 		gt := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
 
-		err := repo.Delete(ctx, gt.ID)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Delete, any(gt.ID))
 		require.NoError(t, err)
 
-		_, err = repo.FindByID(ctx, gt.ID)
+		_, err = testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(gt.ID))
 		require.Error(t, err)
 	})
 }
@@ -165,7 +165,7 @@ func TestGroupTeacherRepository_List(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "GTList", "Teacher")
 		testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
 
-		assignments, err := repo.List(ctx, nil)
+		assignments, err := testpkg.TenantQuery1(t, ctx, db, repo.List, nil)
 		require.NoError(t, err)
 		assert.NotEmpty(t, assignments)
 	})
@@ -184,7 +184,7 @@ func TestGroupTeacherRepository_FindByGroup(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "GTByGroup", "Teacher")
 		gt := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
 
-		assignments, err := repo.FindByGroup(ctx, group.ID)
+		assignments, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByGroup, group.ID)
 		require.NoError(t, err)
 		assert.NotEmpty(t, assignments)
 
@@ -201,7 +201,7 @@ func TestGroupTeacherRepository_FindByGroup(t *testing.T) {
 	t.Run("returns empty for group with no teachers", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "GTByGroupEmpty")
 
-		assignments, err := repo.FindByGroup(ctx, group.ID)
+		assignments, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByGroup, group.ID)
 		require.NoError(t, err)
 		assert.Empty(t, assignments)
 	})
@@ -220,7 +220,7 @@ func TestGroupTeacherRepository_FindByTeacher(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "GTByTeacher", "Teacher")
 		gt := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
 
-		assignments, err := repo.FindByTeacher(ctx, teacher.ID)
+		assignments, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByTeacher, teacher.ID)
 		require.NoError(t, err)
 		assert.NotEmpty(t, assignments)
 
@@ -237,7 +237,7 @@ func TestGroupTeacherRepository_FindByTeacher(t *testing.T) {
 	t.Run("returns empty for teacher with no groups", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "NoGroups", "Teacher")
 
-		assignments, err := repo.FindByTeacher(ctx, teacher.ID)
+		assignments, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByTeacher, teacher.ID)
 		require.NoError(t, err)
 		assert.Empty(t, assignments)
 	})
@@ -256,7 +256,7 @@ func TestGroupTeacherRepository_Create_Validation(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nil assignment", func(t *testing.T) {
-		err := repo.Create(ctx, nil)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be nil")
 	})
@@ -269,7 +269,7 @@ func TestGroupTeacherRepository_Create_Validation(t *testing.T) {
 			TeacherID: teacher.ID,
 		}
 
-		err := repo.Create(ctx, gt)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, gt)
 		require.Error(t, err)
 	})
 
@@ -281,7 +281,7 @@ func TestGroupTeacherRepository_Create_Validation(t *testing.T) {
 			TeacherID: 0, // Invalid
 		}
 
-		err := repo.Create(ctx, gt)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, gt)
 		require.Error(t, err)
 	})
 }
@@ -295,7 +295,7 @@ func TestGroupTeacherRepository_Update_Validation(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nil assignment", func(t *testing.T) {
-		err := repo.Update(ctx, nil)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Update, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be nil")
 	})
@@ -318,7 +318,7 @@ func TestGroupTeacherRepository_List_WithFilters(t *testing.T) {
 			"group_id": group.ID,
 		}
 
-		assignments, err := repo.List(ctx, filters)
+		assignments, err := testpkg.TenantQuery1(t, ctx, db, repo.List, filters)
 		require.NoError(t, err)
 		assert.NotEmpty(t, assignments)
 
@@ -341,7 +341,7 @@ func TestGroupTeacherRepository_List_WithFilters(t *testing.T) {
 			"teacher_id": teacher.ID,
 		}
 
-		assignments, err := repo.List(ctx, filters)
+		assignments, err := testpkg.TenantQuery1(t, ctx, db, repo.List, filters)
 		require.NoError(t, err)
 		assert.NotEmpty(t, assignments)
 

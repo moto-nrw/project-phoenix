@@ -99,7 +99,7 @@ func TestDecisionService_RestoreWithdrawn_TerminalSiblingUntouched(t *testing.T)
 
 	// Admin rejects the first child (terminal), then the parent withdraws
 	// the whole request — the withdraw skips the rejected child.
-	_, err := env.decision.Decide(ctx, enrollmentAPI.DecideInput{
+	_, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
 		RequestID:  reqID,
 		ChildID:    rejectedChildID,
 		Status:     capability.DecisionRejected,
@@ -192,10 +192,10 @@ func TestDecisionService_RestoreWithdrawn_PhaseInactive(t *testing.T) {
 	require.NoError(t, env.requestSvc.Withdraw(ctx, result.Request.StatusToken, 0))
 
 	env.sourcePhase.IsActive = false
-	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().UpdatePhase, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
 	t.Cleanup(func() {
 		env.sourcePhase.IsActive = true
-		_ = env.repos.Enrollment().UpdatePhase(testpkg.Ctx(t), enrollmentAPI.OwnerPhaseForTest(env.sourcePhase))
+		_ = testpkg.TenantCommand1(t, testpkg.Ctx(t), env.db, env.repos.Enrollment().UpdatePhase, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase))
 	})
 
 	_, err := env.decision.RestoreWithdrawn(ctx, reqID, env.creatorID)

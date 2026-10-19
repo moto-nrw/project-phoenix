@@ -15,6 +15,16 @@ import (
 
 // GetStudentGuardians retrieves all guardians for a student
 func (s *RetainedGuardianService) GetStudentGuardians(ctx context.Context, studentID int64) ([]*peoplePorts.GuardianWithRelationship, error) {
+	var result []*peoplePorts.GuardianWithRelationship
+	err := s.transactions.RunInTx(ctx, func(txCtx context.Context) error {
+		var err error
+		result, err = s.getStudentGuardians(txCtx, studentID)
+		return err
+	})
+	return result, err
+}
+
+func (s *RetainedGuardianService) getStudentGuardians(ctx context.Context, studentID int64) ([]*peoplePorts.GuardianWithRelationship, error) {
 	relationships, err := s.StudentGuardianRepo.FindByStudentID(ctx, studentID)
 	if err != nil {
 		return nil, err

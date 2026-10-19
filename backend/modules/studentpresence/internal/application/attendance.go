@@ -9,7 +9,7 @@ import (
 )
 
 func (s *Service) FindAttendance(ctx context.Context, id int64) (result *ports.Attendance, err error) {
-	err = s.run("find_attendance", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "find_attendance", func(ctx context.Context) (ports.Stats, error) {
 		if id <= 0 {
 			return ports.Stats{}, errors.New("student presence: invalid attendance ID")
 		}
@@ -21,7 +21,7 @@ func (s *Service) FindAttendance(ctx context.Context, id int64) (result *ports.A
 }
 
 func (s *Service) ListAttendance(ctx context.Context, filter ports.AttendanceFilter) (result []*ports.Attendance, err error) {
-	err = s.run("list_attendance", func() (ports.Stats, error) {
+	err = s.runQuery(ctx, filter.ForUpdate, "list_attendance", func(ctx context.Context) (ports.Stats, error) {
 		if !validIDs(filter.IDs) || !validIDs(filter.StudentIDs) || filter.Limit < 0 {
 			return ports.Stats{}, errors.New("student presence: invalid attendance filter")
 		}
@@ -74,7 +74,7 @@ func (s *Service) CloseAttendance(ctx context.Context, checkout ports.Attendance
 }
 
 func (s *Service) ListAttendanceDays(ctx context.Context, from, to ports.Date) (result []ports.AttendanceDay, err error) {
-	err = s.run("list_attendance_days", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "list_attendance_days", func(ctx context.Context) (ports.Stats, error) {
 		if from.IsZero() || to.IsZero() || to.Before(from) {
 			return ports.Stats{}, errors.New("student presence: invalid attendance day range")
 		}
@@ -86,7 +86,7 @@ func (s *Service) ListAttendanceDays(ctx context.Context, from, to ports.Date) (
 }
 
 func (s *Service) RoomUtilization(ctx context.Context, windows []ports.StudentVisitWindow) (result []ports.RoomUtilization, err error) {
-	err = s.run("room_utilization", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "room_utilization", func(ctx context.Context) (ports.Stats, error) {
 		ends := make(map[int64]time.Time, len(windows))
 		for _, window := range windows {
 			if window.StudentID <= 0 || window.StartAt.IsZero() || !window.EndAt.After(window.StartAt) {

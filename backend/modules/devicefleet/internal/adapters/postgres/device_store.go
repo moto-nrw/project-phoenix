@@ -48,26 +48,26 @@ func NewDeviceStore(database Database) *DeviceStore {
 	return &DeviceStore{database: database}
 }
 
-func (s *DeviceStore) selectDevices(db bun.IDB, tenantID int64, model any) *bun.SelectQuery {
+func (s *DeviceStore) selectDevices(db bun.IDB, scope TenantScope, model any) *bun.SelectQuery {
 	query := db.NewSelect().
 		Model(model).
 		ModelTableExpr(deviceTableExpr).
 		ColumnExpr(`"device".*`).
 		Where(deviceNotArchive)
-	if tenantID > 0 {
-		query = query.Where(`"device".tenant_id = ?`, tenantID)
+	if !scope.AcrossSchools {
+		query = query.Where(`"device".tenant_id = ?`, scope.TenantID)
 	}
 	return query
 }
 
 // Create inserts one device and returns the stored row.
 func (s *DeviceStore) Create(ctx context.Context, input domain.CreateDevice) (domain.Device, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.Device{}, domain.OperationStats{}, err
 	}
 	row := deviceRow{
-		TenantID: tenantID, DeviceID: input.DeviceID, DeviceType: input.DeviceType, Name: input.Name,
+		TenantID: scope.TenantID, DeviceID: input.DeviceID, DeviceType: input.DeviceType, Name: input.Name,
 		Status: string(input.Status), APIKey: input.APIKey, LastSeen: input.LastSeen,
 		RegisteredByID: input.RegisteredByID, RoomID: input.RoomID,
 	}
@@ -88,7 +88,7 @@ func (s *DeviceStore) Update(ctx context.Context, input domain.UpdateDevice) (do
 		"device_id", "device_type", "name", "status", "api_key", "last_seen",
 		"registered_by_id", "room_id", "archived_at", "transferred_to_device_id", "updated_at",
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.Device{}, domain.OperationStats{}, err
 	}
@@ -100,8 +100,8 @@ func (s *DeviceStore) Update(ctx context.Context, input domain.UpdateDevice) (do
 		ModelTableExpr(deviceTableExpr).
 		Column(columns...).
 		Where(`"device".id = ?`, input.ID)
-	if tenantID > 0 {
-		query = query.Where(`"device".tenant_id = ?`, tenantID)
+	if !scope.AcrossSchools {
+		query = query.Where(`"device".tenant_id = ?`, scope.TenantID)
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -123,7 +123,7 @@ func (s *DeviceStore) UpdateColumns(ctx context.Context, input domain.UpdateDevi
 	if len(columns) == 0 {
 		return 0, domain.OperationStats{}, errors.New("devicefleet postgres: no columns to update")
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
@@ -132,8 +132,8 @@ func (s *DeviceStore) UpdateColumns(ctx context.Context, input domain.UpdateDevi
 		ModelTableExpr(deviceTableExpr).
 		Column(columns...).
 		Where(`"device".id = ?`, input.ID)
-	if tenantID > 0 {
-		query = query.Where(`"device".tenant_id = ?`, tenantID)
+	if !scope.AcrossSchools {
+		query = query.Where(`"device".tenant_id = ?`, scope.TenantID)
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -153,7 +153,7 @@ func (s *DeviceStore) UpdateColumns(ctx context.Context, input domain.UpdateDevi
 // UpdateStatusByDeviceID sets the status of one live device addressed by its
 // tenant-unique device_id.
 func (s *DeviceStore) UpdateStatusByDeviceID(ctx context.Context, deviceID string, status domain.DeviceStatus) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
@@ -162,8 +162,8 @@ func (s *DeviceStore) UpdateStatusByDeviceID(ctx context.Context, deviceID strin
 		Set("status = ?", string(status)).
 		Where("device_id = ?", deviceID).
 		Where("archived_at IS NULL")
-	if tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
+	if !scope.AcrossSchools {
+		query = query.Where("tenant_id = ?", scope.TenantID)
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -182,15 +182,15 @@ func (s *DeviceStore) UpdateStatusByDeviceID(ctx context.Context, deviceID strin
 
 // Delete removes one device row and reports how many rows matched.
 func (s *DeviceStore) Delete(ctx context.Context, id int64) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
 	query := db.NewDelete().Model((*deviceRow)(nil)).
 		ModelTableExpr(deviceTableExpr).
 		Where(`"device".id = ?`, id)
-	if tenantID > 0 {
-		query = query.Where(`"device".tenant_id = ?`, tenantID)
+	if !scope.AcrossSchools {
+		query = query.Where(`"device".tenant_id = ?`, scope.TenantID)
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -236,12 +236,12 @@ func (s *DeviceStore) findOne(
 	lock string,
 	restrict func(*bun.SelectQuery) *bun.SelectQuery,
 ) (domain.Device, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.Device{}, false, domain.OperationStats{}, err
 	}
 	row := deviceRow{}
-	query := restrict(s.selectDevices(db, tenantID, &row))
+	query := restrict(s.selectDevices(db, scope, &row))
 	if lock != "" {
 		query = query.For(lock)
 	}
@@ -261,12 +261,12 @@ func (s *DeviceStore) findOne(
 
 // List reads every live device matching filter.
 func (s *DeviceStore) List(ctx context.Context, filter domain.DeviceFilter) ([]domain.Device, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	var rows []deviceRow
-	query := applyDeviceFilter(s.selectDevices(db, tenantID, &rows), filter)
+	query := applyDeviceFilter(s.selectDevices(db, scope, &rows), filter)
 	return s.scanList(ctx, query, &rows, "list devices")
 }
 
@@ -275,24 +275,24 @@ func (s *DeviceStore) ListByIDs(ctx context.Context, ids []int64) ([]domain.Devi
 	if len(ids) == 0 {
 		return []domain.Device{}, domain.OperationStats{}, nil
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	var rows []deviceRow
-	query := s.selectDevices(db, tenantID, &rows).Where(`"device".id IN (?)`, bun.List(ids))
+	query := s.selectDevices(db, scope, &rows).Where(`"device".id IN (?)`, bun.List(ids))
 	return s.scanList(ctx, query, &rows, "list devices by id")
 }
 
 // ListOffline reads devices last seen before cutoff, including devices that
 // were never seen and created before it.
 func (s *DeviceStore) ListOffline(ctx context.Context, cutoff time.Time) ([]domain.Device, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	var rows []deviceRow
-	query := s.selectDevices(db, tenantID, &rows).
+	query := s.selectDevices(db, scope, &rows).
 		Where(`"device".last_seen < ? OR ("device".last_seen IS NULL AND "device".created_at < ?)`, cutoff, cutoff)
 	return s.scanList(ctx, query, &rows, "list offline devices")
 }
@@ -320,7 +320,7 @@ func (s *DeviceStore) scanList(
 
 // CountByType counts live devices grouped by device_type, most frequent first.
 func (s *DeviceStore) CountByType(ctx context.Context) (map[string]int, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -334,8 +334,8 @@ func (s *DeviceStore) CountByType(ctx context.Context) (map[string]int, domain.O
 		Column("device_type").
 		ColumnExpr("COUNT(*) AS count").
 		Where(deviceNotArchive)
-	if tenantID > 0 {
-		query = query.Where(`"device".tenant_id = ?`, tenantID)
+	if !scope.AcrossSchools {
+		query = query.Where(`"device".tenant_id = ?`, scope.TenantID)
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -356,7 +356,7 @@ func (s *DeviceStore) CountByType(ctx context.Context) (map[string]int, domain.O
 // without an ambient tenant and then see every tenant, exactly as the retired
 // cross-schema aggregate did.
 func (s *DeviceStore) CountByTenant(ctx context.Context) (map[int64]int, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -370,8 +370,8 @@ func (s *DeviceStore) CountByTenant(ctx context.Context) (map[int64]int, domain.
 		Column("tenant_id").
 		ColumnExpr("COUNT(*) AS count").
 		Where(deviceNotArchive)
-	if tenantID > 0 {
-		query = query.Where(`"device".tenant_id = ?`, tenantID)
+	if !scope.AcrossSchools {
+		query = query.Where(`"device".tenant_id = ?`, scope.TenantID)
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -391,12 +391,12 @@ func (s *DeviceStore) CountByTenant(ctx context.Context) (map[int64]int, domain.
 // ListByTenants reads the live devices of the given tenants. An empty tenant
 // list means every tenant the caller may see.
 func (s *DeviceStore) ListByTenants(ctx context.Context, tenantIDs []int64) ([]domain.Device, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	var rows []deviceRow
-	query := s.selectDevices(db, tenantID, &rows)
+	query := s.selectDevices(db, scope, &rows)
 	if len(tenantIDs) > 0 {
 		query = query.Where(`"device".tenant_id IN (?)`, bun.List(tenantIDs))
 	}

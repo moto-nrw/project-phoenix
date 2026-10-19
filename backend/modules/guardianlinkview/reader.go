@@ -17,3 +17,8 @@ func (Reader) GuardianLinkRows(db bun.IDB, tenantID int64) *bun.SelectQuery {
 func (Reader) GuardianLinkModelRows(db bun.IDB, tenantID int64, model any) *bun.SelectQuery {
 	return ModelQuery(db, tenantID, model)
 }
+
+func (Reader) AllSchoolsGuardianLinkRows(db bun.IDB) *bun.SelectQuery { return AllSchoolsQuery(db) }
+func (Reader) AllSchoolsGuardianLinkModelRows(db bun.IDB, model any) *bun.SelectQuery {
+	return AllSchoolsModelQuery(db, model)
+}

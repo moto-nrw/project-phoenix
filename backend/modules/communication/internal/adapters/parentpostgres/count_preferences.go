@@ -36,7 +36,7 @@ type countPreferenceRow struct {
 // CountScope returns the stored choice of the account in the current school,
 // or "" when the account never chose.
 func (s *CountPreferenceStore) CountScope(ctx context.Context, accountID int64) (string, error) {
-	db, tenantID, err := s.database(ctx)
+	db, dbScope, err := s.database(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -46,7 +46,7 @@ func (s *CountPreferenceStore) CountScope(ctx context.Context, accountID int64) 
 		ModelTableExpr(countPreferenceTableExpr).
 		Column("count_scope").
 		Where(`"count_preference".account_id = ?`, accountID)
-	query = withTenant(query, countPreferenceAlias, tenantID)
+	query = withTenant(query, countPreferenceAlias, dbScope)
 	if err := query.Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", nil
@@ -63,14 +63,14 @@ func (s *CountPreferenceStore) SetCountScope(ctx context.Context, accountID int6
 	if accountID <= 0 {
 		return errors.New("set parent message count preference: account ID is required")
 	}
-	db, tenantID, err := s.database(ctx)
+	db, dbScope, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
-	if tenantID <= 0 {
+	if dbScope.TenantID <= 0 {
 		return errors.New("set parent message count preference: school is required")
 	}
-	row := &countPreferenceRow{TenantID: tenantID, AccountID: accountID, CountScope: scope}
+	row := &countPreferenceRow{TenantID: dbScope.TenantID, AccountID: accountID, CountScope: scope}
 	if _, err := db.NewInsert().
 		Model(row).
 		ModelTableExpr(countPreferenceTable).

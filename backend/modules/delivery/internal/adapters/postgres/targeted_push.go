@@ -16,7 +16,7 @@ import (
 func (s *Store) ClaimPush(ctx context.Context, tenantID, id int64, now, expires time.Time) (domain.Intent, bool, error) {
 	var row intentRow
 	var acquired bool
-	err := s.adminTx(ctx, func(txCtx context.Context, db bun.IDB) error {
+	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
 		err := db.NewRaw(`UPDATE platform.push_outbox
    SET status = 'claimed', lease_token = uuid_generate_v4()::text, lease_expires_at = ?, updated_at = ?
    WHERE tenant_id = ? AND id = ? AND

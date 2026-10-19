@@ -8,10 +8,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/ports"
 )
 
-// Service runs every calendar operation on the caller's ambient transaction
-// (or the shared connection when there is none, exactly like the legacy
-// repositories), records one observation per call and turns "no row"
-// outcomes into the stable domain errors.
+// Service joins the caller's transaction or opens a school unit of work for
+// record operations. Pure holiday/render operations need no database scope.
+// It records one observation per call and preserves the domain errors.
 type Service struct {
 	store          ports.Store
 	observe        ports.Observer
@@ -31,7 +30,7 @@ func New(store ports.Store, observe ports.Observer, administration Administratio
 // --- calendar periods ---
 
 func (s *Service) FindCalendarPeriod(ctx context.Context, id int64) (result domain.CalendarPeriod, err error) {
-	err = s.run("find_calendar_period", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_calendar_period", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.FindCalendarPeriod(ctx, id)
@@ -45,7 +44,7 @@ func (s *Service) FindCalendarPeriod(ctx context.Context, id int64) (result doma
 }
 
 func (s *Service) ListCalendarPeriods(ctx context.Context, filter domain.CalendarPeriodFilter) (result []domain.CalendarPeriod, err error) {
-	err = s.run("list_calendar_periods", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_calendar_periods", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListCalendarPeriods(ctx, filter)
 		stats.Add(queryStats)
@@ -59,7 +58,7 @@ func (s *Service) CreateCalendarPeriod(ctx context.Context, fields domain.Calend
 	if ifAbsent {
 		operation = "create_calendar_period_if_absent"
 	}
-	err = s.run(operation, func(stats *domain.OperationStats) error {
+	err = s.run(ctx, operation, func(ctx context.Context, stats *domain.OperationStats) error {
 		var createStats domain.OperationStats
 		result, created, createStats, err = s.store.CreateCalendarPeriod(ctx, fields, ifAbsent)
 		stats.Add(createStats)
@@ -69,7 +68,7 @@ func (s *Service) CreateCalendarPeriod(ctx context.Context, fields domain.Calend
 }
 
 func (s *Service) UpdateCalendarPeriod(ctx context.Context, id int64, fields domain.CalendarPeriodFields) (result domain.CalendarPeriod, err error) {
-	err = s.run("update_calendar_period", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "update_calendar_period", func(ctx context.Context, stats *domain.OperationStats) error {
 		var updateStats domain.OperationStats
 		result, updateStats, err = s.store.UpdateCalendarPeriod(ctx, id, fields)
 		stats.Add(updateStats)
@@ -79,7 +78,7 @@ func (s *Service) UpdateCalendarPeriod(ctx context.Context, id int64, fields dom
 }
 
 func (s *Service) DeleteCalendarPeriod(ctx context.Context, id int64) error {
-	return s.run("delete_calendar_period", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "delete_calendar_period", func(ctx context.Context, stats *domain.OperationStats) error {
 		deleteStats, err := s.store.DeleteCalendarPeriod(ctx, id)
 		stats.Add(deleteStats)
 		return err
@@ -89,7 +88,7 @@ func (s *Service) DeleteCalendarPeriod(ctx context.Context, id int64) error {
 // --- closing days ---
 
 func (s *Service) FindClosingDay(ctx context.Context, id int64) (result domain.ClosingDay, err error) {
-	err = s.run("find_closing_day", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_closing_day", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.FindClosingDay(ctx, id)
@@ -103,7 +102,7 @@ func (s *Service) FindClosingDay(ctx context.Context, id int64) (result domain.C
 }
 
 func (s *Service) ListClosingDays(ctx context.Context, filter domain.ClosingDayFilter) (result []domain.ClosingDay, err error) {
-	err = s.run("list_closing_days", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_closing_days", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListClosingDays(ctx, filter)
 		stats.Add(queryStats)
@@ -113,7 +112,7 @@ func (s *Service) ListClosingDays(ctx context.Context, filter domain.ClosingDayF
 }
 
 func (s *Service) CreateClosingDay(ctx context.Context, fields domain.ClosingDayFields) (result domain.ClosingDay, err error) {
-	err = s.run("create_closing_day", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_closing_day", func(ctx context.Context, stats *domain.OperationStats) error {
 		var createStats domain.OperationStats
 		result, createStats, err = s.store.CreateClosingDay(ctx, fields)
 		stats.Add(createStats)
@@ -123,7 +122,7 @@ func (s *Service) CreateClosingDay(ctx context.Context, fields domain.ClosingDay
 }
 
 func (s *Service) UpdateClosingDay(ctx context.Context, id int64, fields domain.ClosingDayFields) (result domain.ClosingDay, err error) {
-	err = s.run("update_closing_day", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "update_closing_day", func(ctx context.Context, stats *domain.OperationStats) error {
 		var updateStats domain.OperationStats
 		result, updateStats, err = s.store.UpdateClosingDay(ctx, id, fields)
 		stats.Add(updateStats)
@@ -133,7 +132,7 @@ func (s *Service) UpdateClosingDay(ctx context.Context, id int64, fields domain.
 }
 
 func (s *Service) DeleteClosingDay(ctx context.Context, id int64) error {
-	return s.run("delete_closing_day", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "delete_closing_day", func(ctx context.Context, stats *domain.OperationStats) error {
 		deleteStats, err := s.store.DeleteClosingDay(ctx, id)
 		stats.Add(deleteStats)
 		return err
@@ -143,7 +142,7 @@ func (s *Service) DeleteClosingDay(ctx context.Context, id int64) error {
 // --- dateframes ---
 
 func (s *Service) FindDateframe(ctx context.Context, id int64) (result domain.Dateframe, err error) {
-	err = s.run("find_dateframe", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_dateframe", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.FindDateframe(ctx, id)
@@ -157,7 +156,7 @@ func (s *Service) FindDateframe(ctx context.Context, id int64) (result domain.Da
 }
 
 func (s *Service) ListDateframes(ctx context.Context, filter domain.DateframeFilter) (result []domain.Dateframe, err error) {
-	err = s.run("list_dateframes", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_dateframes", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListDateframes(ctx, filter)
 		stats.Add(queryStats)
@@ -167,7 +166,7 @@ func (s *Service) ListDateframes(ctx context.Context, filter domain.DateframeFil
 }
 
 func (s *Service) CreateDateframe(ctx context.Context, fields domain.DateframeFields) (result domain.Dateframe, err error) {
-	err = s.run("create_dateframe", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_dateframe", func(ctx context.Context, stats *domain.OperationStats) error {
 		var createStats domain.OperationStats
 		result, createStats, err = s.store.CreateDateframe(ctx, fields)
 		stats.Add(createStats)
@@ -177,7 +176,7 @@ func (s *Service) CreateDateframe(ctx context.Context, fields domain.DateframeFi
 }
 
 func (s *Service) UpdateDateframe(ctx context.Context, id int64, fields domain.DateframeFields) (result domain.Dateframe, err error) {
-	err = s.run("update_dateframe", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "update_dateframe", func(ctx context.Context, stats *domain.OperationStats) error {
 		var updateStats domain.OperationStats
 		result, updateStats, err = s.store.UpdateDateframe(ctx, id, fields)
 		stats.Add(updateStats)
@@ -187,7 +186,7 @@ func (s *Service) UpdateDateframe(ctx context.Context, id int64, fields domain.D
 }
 
 func (s *Service) DeleteDateframe(ctx context.Context, id int64) error {
-	return s.run("delete_dateframe", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "delete_dateframe", func(ctx context.Context, stats *domain.OperationStats) error {
 		deleteStats, err := s.store.DeleteDateframe(ctx, id)
 		stats.Add(deleteStats)
 		return err
@@ -201,7 +200,7 @@ func (s *Service) ValidHolidayRegion(region string) bool {
 }
 
 func (s *Service) ListHolidays(_ context.Context, region, from, to string) (result []domain.Holiday, err error) {
-	err = s.run("list_holidays", func(stats *domain.OperationStats) error {
+	err = s.observeOperation("list_holidays", func(ctx context.Context, stats *domain.OperationStats) error {
 		result, err = domain.HolidaysInRange(region, from, to)
 		stats.Rows = int64(len(result))
 		return err
@@ -210,7 +209,7 @@ func (s *Service) ListHolidays(_ context.Context, region, from, to string) (resu
 }
 
 func (s *Service) HolidayDates(_ context.Context, region, from, to string) (result map[string]bool, err error) {
-	err = s.run("holiday_dates", func(stats *domain.OperationStats) error {
+	err = s.observeOperation("holiday_dates", func(ctx context.Context, stats *domain.OperationStats) error {
 		result, err = domain.HolidayDates(region, from, to)
 		stats.Rows = int64(len(result))
 		return err
@@ -219,7 +218,7 @@ func (s *Service) HolidayDates(_ context.Context, region, from, to string) (resu
 }
 
 func (s *Service) RenderCalendar(_ context.Context, name string, events []domain.CalendarEvent) (result string, err error) {
-	err = s.run("render_calendar", func(stats *domain.OperationStats) error {
+	err = s.observeOperation("render_calendar", func(ctx context.Context, stats *domain.OperationStats) error {
 		result = domain.RenderCalendar(name, events)
 		stats.Rows = int64(len(events))
 		return nil
@@ -228,7 +227,7 @@ func (s *Service) RenderCalendar(_ context.Context, name string, events []domain
 }
 
 func (s *Service) RenderCalendarObject(_ context.Context, event domain.CalendarEvent) (result string, err error) {
-	err = s.run("render_calendar_object", func(stats *domain.OperationStats) error {
+	err = s.observeOperation("render_calendar_object", func(ctx context.Context, stats *domain.OperationStats) error {
 		result = domain.RenderCalendarObject(event)
 		stats.Rows = 1
 		return nil
@@ -238,13 +237,19 @@ func (s *Service) RenderCalendarObject(_ context.Context, event domain.CalendarE
 
 // --- plumbing ---
 
-func (s *Service) run(operation string, fn func(*domain.OperationStats) error) (err error) {
+func (s *Service) run(ctx context.Context, operation string, fn func(context.Context, *domain.OperationStats) error) (err error) {
+	return s.administration.Transaction(ctx, func(txCtx context.Context) error {
+		return s.observeOperation(operation, func(_ context.Context, stats *domain.OperationStats) error { return fn(txCtx, stats) })
+	})
+}
+
+func (s *Service) observeOperation(operation string, fn func(context.Context, *domain.OperationStats) error) (err error) {
 	started := time.Now()
 	stats := domain.OperationStats{}
 	defer func() {
 		s.observe(ports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
 	}()
-	err = fn(&stats)
+	err = fn(context.Background(), &stats)
 	if err != nil {
 		stats.Rows = 0
 	}

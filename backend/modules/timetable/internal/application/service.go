@@ -73,7 +73,7 @@ func (s *Service) observedParticipantIDs(ctx context.Context, participantIDs []i
 }
 
 func (s *Service) FindCategory(ctx context.Context, id int64) (result domain.Category, err error) {
-	err = s.run("find_category", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_category", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, findErr := s.store.FindCategory(ctx, id, "")
 		stats.Add(queryStats)
 		if findErr != nil {
@@ -89,7 +89,7 @@ func (s *Service) FindCategory(ctx context.Context, id int64) (result domain.Cat
 }
 
 func (s *Service) FindCategoryForAssignment(ctx context.Context, id int64) (result domain.Category, err error) {
-	err = s.run("find_category_for_assignment", func(stats *domain.OperationStats) error {
+	err = s.observeOperation(ctx, "find_category_for_assignment", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, findErr := s.store.FindCategory(ctx, id, "SHARE")
 		stats.Add(queryStats)
 		if findErr != nil {
@@ -108,7 +108,7 @@ func (s *Service) FindCategoryForAssignment(ctx context.Context, id int64) (resu
 }
 
 func (s *Service) FindCategoryForShare(ctx context.Context, id int64) (result domain.Category, err error) {
-	err = s.run("find_category_for_share", func(stats *domain.OperationStats) error {
+	err = s.observeOperation(ctx, "find_category_for_share", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, findErr := s.store.FindCategory(ctx, id, "SHARE")
 		stats.Add(queryStats)
 		if findErr != nil {
@@ -124,7 +124,7 @@ func (s *Service) FindCategoryForShare(ctx context.Context, id int64) (result do
 }
 
 func (s *Service) FindCategoryByName(ctx context.Context, name string) (result domain.Category, err error) {
-	err = s.run("find_category_by_name", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_category_by_name", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, findErr := s.store.FindCategoryByName(ctx, name, false, "")
 		stats.Add(queryStats)
 		if findErr != nil {
@@ -140,7 +140,7 @@ func (s *Service) FindCategoryByName(ctx context.Context, name string) (result d
 }
 
 func (s *Service) FindCategoryByNameForAssignment(ctx context.Context, name string) (result domain.Category, err error) {
-	err = s.run("find_category_by_name_for_assignment", func(stats *domain.OperationStats) error {
+	err = s.observeOperation(ctx, "find_category_by_name_for_assignment", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, findErr := s.store.FindCategoryByName(ctx, name, true, "SHARE")
 		stats.Add(queryStats)
 		if findErr != nil {
@@ -156,7 +156,7 @@ func (s *Service) FindCategoryByNameForAssignment(ctx context.Context, name stri
 }
 
 func (s *Service) ListCategories(ctx context.Context) (result []domain.Category, err error) {
-	err = s.run("list_categories", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_categories", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListCategories(ctx)
 		stats.Add(queryStats)
 		result = values
@@ -166,7 +166,7 @@ func (s *Service) ListCategories(ctx context.Context) (result []domain.Category,
 }
 
 func (s *Service) CountCategoryUsage(ctx context.Context) (result map[int64]int, err error) {
-	err = s.run("count_category_usage", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "count_category_usage", func(ctx context.Context, stats *domain.OperationStats) error {
 		counts, queryStats, countErr := s.store.CountCategoryUsage(ctx)
 		stats.Add(queryStats)
 		result = counts
@@ -176,7 +176,7 @@ func (s *Service) CountCategoryUsage(ctx context.Context) (result map[int64]int,
 }
 
 func (s *Service) FindGroup(ctx context.Context, id int64) (result domain.Group, err error) {
-	err = s.run("find_group", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_group", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, findErr := s.store.FindGroup(ctx, id, "")
 		stats.Add(queryStats)
 		if findErr != nil {
@@ -192,7 +192,7 @@ func (s *Service) FindGroup(ctx context.Context, id int64) (result domain.Group,
 }
 
 func (s *Service) FindGroupForUpdate(ctx context.Context, id int64) (result domain.Group, err error) {
-	err = s.run("find_group_for_update", func(stats *domain.OperationStats) error {
+	err = s.observeOperation(ctx, "find_group_for_update", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, findErr := s.store.FindGroup(ctx, id, "UPDATE")
 		stats.Add(queryStats)
 		if findErr != nil {
@@ -208,7 +208,7 @@ func (s *Service) FindGroupForUpdate(ctx context.Context, id int64) (result doma
 }
 
 func (s *Service) FindGroupByName(ctx context.Context, name string) (result domain.Group, err error) {
-	err = s.run("find_group_by_name", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_group_by_name", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, findErr := s.store.FindGroupByName(ctx, name)
 		stats.Add(queryStats)
 		if findErr != nil {
@@ -224,7 +224,7 @@ func (s *Service) FindGroupByName(ctx context.Context, name string) (result doma
 }
 
 func (s *Service) ListGroups(ctx context.Context, filter domain.GroupFilter) (result []domain.Group, err error) {
-	err = s.run("list_groups", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_groups", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListGroups(ctx, filter)
 		stats.Add(queryStats)
 		result = values
@@ -234,7 +234,7 @@ func (s *Service) ListGroups(ctx context.Context, filter domain.GroupFilter) (re
 }
 
 func (s *Service) ListCourseGroups(ctx context.Context, filter domain.CourseGroupFilter) (result []domain.CourseGroup, err error) {
-	err = s.run("list_course_groups", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_course_groups", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListCourseGroups(ctx, filter)
 		stats.Add(queryStats)
 		result = values
@@ -244,7 +244,7 @@ func (s *Service) ListCourseGroups(ctx context.Context, filter domain.CourseGrou
 }
 
 func (s *Service) ListTemplateRows(ctx context.Context, templateID *int64) (result []domain.TemplateListRow, err error) {
-	err = s.run("list_template_rows", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_template_rows", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListTemplateRows(ctx, templateID, s.today())
 		stats.Add(queryStats)
 		result = values
@@ -254,7 +254,7 @@ func (s *Service) ListTemplateRows(ctx context.Context, templateID *int64) (resu
 }
 
 func (s *Service) ListTemplateRowsForTemplatePeriod(ctx context.Context, templateID, periodID int64) (result []domain.TemplateListRow, err error) {
-	err = s.run("list_template_rows_for_template_period", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_template_rows_for_template_period", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListTemplateRowsForTemplatePeriod(ctx, templateID, periodID, s.today())
 		stats.Add(queryStats)
 		result = values
@@ -264,7 +264,7 @@ func (s *Service) ListTemplateRowsForTemplatePeriod(ctx context.Context, templat
 }
 
 func (s *Service) ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) (result []domain.TemplateListRow, err error) {
-	err = s.run("list_template_rows_for_period", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_template_rows_for_period", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListTemplateRowsForPeriod(ctx, periodID, s.today())
 		stats.Add(queryStats)
 		result = values
@@ -274,7 +274,7 @@ func (s *Service) ListTemplateRowsForPeriod(ctx context.Context, periodID *int64
 }
 
 func (s *Service) ListTemplateWeekdayRoster(ctx context.Context, templateID, periodID *int64) (result []domain.TemplateWeekdayRosterRow, err error) {
-	err = s.run("list_template_weekday_roster", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_template_weekday_roster", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListTemplateWeekdayRoster(ctx, templateID, periodID, s.today())
 		stats.Add(queryStats)
 		result = values
@@ -288,7 +288,7 @@ func (s *Service) ListTemplateCapacityOccurrences(ctx context.Context, periodID 
 	if err != nil {
 		return nil, err
 	}
-	err = s.run("list_template_capacity_occurrences", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_template_capacity_occurrences", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListTemplateCapacityOccurrences(ctx, periodID, templateIDs, periods, dynamicStudents)
 		stats.Add(queryStats)
 		result = values
@@ -298,7 +298,7 @@ func (s *Service) ListTemplateCapacityOccurrences(ctx context.Context, periodID 
 }
 
 func (s *Service) ListGroupTargets(ctx context.Context, ids []int64) (result map[int64][]domain.GroupTarget, err error) {
-	err = s.run("list_group_targets", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_group_targets", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListGroupTargets(ctx, ids)
 		stats.Add(queryStats)
 		result = values
@@ -308,7 +308,7 @@ func (s *Service) ListGroupTargets(ctx context.Context, ids []int64) (result map
 }
 
 func (s *Service) ListTargetStudentIDs(ctx context.Context, ids []int64) (result map[int64][]int64, err error) {
-	err = s.run("list_target_student_ids", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_target_student_ids", func(ctx context.Context, stats *domain.OperationStats) error {
 		targets, students, listErr := s.loadTargetStudentCandidates(ctx, ids, stats)
 		if listErr != nil {
 			return listErr
@@ -497,7 +497,7 @@ func (s *Service) DeleteCategory(ctx context.Context, id int64) error {
 }
 
 func (s *Service) LockStudentEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil string) error {
-	return s.run("lock_student_enrollments_for_care_exit", func(stats *domain.OperationStats) error {
+	return s.observeOperation(ctx, "lock_student_enrollments_for_care_exit", func(ctx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.LockStudentEnrollmentsForCareExit(ctx, studentIDs, validUntil)
 		stats.Add(queryStats)
 		return err
@@ -554,10 +554,14 @@ func (s *Service) setArchivedAt(ctx context.Context, id int64, value *time.Time,
 	return nil
 }
 
-func (s *Service) run(operation string, callback func(*domain.OperationStats) error) (err error) {
+func (s *Service) run(ctx context.Context, operation string, callback func(context.Context, *domain.OperationStats) error) error {
+	return s.runWrite(ctx, operation, false, callback)
+}
+
+func (s *Service) observeOperation(ctx context.Context, operation string, callback func(context.Context, *domain.OperationStats) error) (err error) {
 	started := time.Now()
 	stats := domain.OperationStats{}
-	err = callback(&stats)
+	err = callback(ctx, &stats)
 	s.observe(internalports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
 	return err
 }

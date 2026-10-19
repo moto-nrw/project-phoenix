@@ -47,9 +47,9 @@ func samplePhaseForAudit() *enrollmentModels.Phase {
 }
 
 func newAuditDecisionService(repo api.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
-	return newTestDecisionService(enrollmentCompose.DecisionDependencies{
+	return enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(newTestDecisions(enrollmentCompose.DecisionDependencies{
 		AccessLog: owners.EnrollmentDecisionAccessLog(repo),
-	}, nil)
+	}, nil)))
 }
 
 func TestRecordPhaseExportAudit_WritesRowWithPhaseWindowAndMetadata(t *testing.T) {

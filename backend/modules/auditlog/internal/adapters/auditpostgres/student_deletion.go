@@ -31,7 +31,11 @@ func (r *StudentDeletionRepository) CountStudentReferences(ctx context.Context, 
 		return 0, fmt.Errorf("tenant context is required")
 	}
 	var count int
-	err := runtimeDB(ctx, r.runtime).NewSelect().ColumnExpr(`
+	ambientDB1, databaseErr1 := runtimeDB(ctx, r.runtime)
+	if databaseErr1 != nil {
+		return *new(int), databaseErr1
+	}
+	err := ambientDB1.NewSelect().ColumnExpr(`
 		(SELECT COUNT(*) FROM audit.enrollment_offering_adjustments WHERE tenant_id = ? AND student_id = ?) +
 		(SELECT COUNT(*) FROM audit.guardian_changes WHERE tenant_id = ? AND student_id = ?) +
 		(SELECT COUNT(*) FROM audit.student_field_edits WHERE tenant_id = ? AND student_id = ?)

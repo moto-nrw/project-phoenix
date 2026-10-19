@@ -22,7 +22,11 @@ func (s *Service) FindOperatorForUpdate(ctx context.Context, id int64) (domain.O
 }
 
 func (s *Service) findOperator(ctx context.Context, operation string, id int64, forUpdate bool) (result domain.Operator, err error) {
-	err = s.run(ctx, s.tx.RunPlatform, operation, func(txCtx context.Context, stats *domain.OperationStats) error {
+	run := s.tx.RunAdmin
+	if forUpdate {
+		run = func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }
+	}
+	err = s.run(ctx, run, operation, func(txCtx context.Context, stats *domain.OperationStats) error {
 		if id <= 0 {
 			return domain.ErrOperatorNotFound
 		}
@@ -41,7 +45,7 @@ func (s *Service) findOperator(ctx context.Context, operation string, id int64, 
 }
 
 func (s *Service) FindOperatorByEmail(ctx context.Context, email string) (result domain.Operator, err error) {
-	err = s.run(ctx, s.tx.RunPlatform, "find_operator_by_email", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.run(ctx, s.tx.RunAdmin, "find_operator_by_email", func(txCtx context.Context, stats *domain.OperationStats) error {
 		normalized := strings.TrimSpace(email)
 		if normalized == "" {
 			return domain.ErrOperatorNotFound
@@ -61,7 +65,7 @@ func (s *Service) FindOperatorByEmail(ctx context.Context, email string) (result
 }
 
 func (s *Service) ListOperators(ctx context.Context) (result []domain.Operator, err error) {
-	err = s.run(ctx, s.tx.RunPlatform, "list_operators", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.run(ctx, s.tx.RunAdmin, "list_operators", func(txCtx context.Context, stats *domain.OperationStats) error {
 		operators, queryStats, listErr := s.operators.ListOperators(txCtx)
 		stats.Add(queryStats)
 		if listErr != nil {
@@ -74,7 +78,7 @@ func (s *Service) ListOperators(ctx context.Context) (result []domain.Operator, 
 }
 
 func (s *Service) CreateOperator(ctx context.Context, operator domain.Operator) (result domain.Operator, err error) {
-	err = s.run(ctx, s.tx.RunPlatform, "create_operator", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.run(ctx, s.tx.RunAdmin, "create_operator", func(txCtx context.Context, stats *domain.OperationStats) error {
 		if validateErr := operator.Validate(); validateErr != nil {
 			return validateErr
 		}
@@ -90,7 +94,7 @@ func (s *Service) CreateOperator(ctx context.Context, operator domain.Operator) 
 }
 
 func (s *Service) UpdateOperator(ctx context.Context, operator domain.Operator) (result domain.Operator, err error) {
-	err = s.run(ctx, s.tx.RunPlatform, "update_operator", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.run(ctx, s.tx.RunAdmin, "update_operator", func(txCtx context.Context, stats *domain.OperationStats) error {
 		if operator.ID <= 0 {
 			return domain.ErrOperatorNotFound
 		}
@@ -112,7 +116,7 @@ func (s *Service) UpdateOperator(ctx context.Context, operator domain.Operator) 
 }
 
 func (s *Service) DeleteOperator(ctx context.Context, id int64) error {
-	return s.run(ctx, s.tx.RunPlatform, "delete_operator", func(txCtx context.Context, stats *domain.OperationStats) error {
+	return s.run(ctx, s.tx.RunAdmin, "delete_operator", func(txCtx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.operators.DeleteOperator(txCtx, id)
 		stats.Add(queryStats)
 		return err
@@ -122,7 +126,7 @@ func (s *Service) DeleteOperator(ctx context.Context, id int64) error {
 // deleteDeactivatedOperators removes the accounts whose database-clock
 // retention window has ended.
 func (s *Service) deleteDeactivatedOperators(ctx context.Context) (result int, err error) {
-	err = s.run(ctx, s.tx.RunPlatform, "delete_deactivated_operators", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.run(ctx, s.tx.RunAdmin, "delete_deactivated_operators", func(txCtx context.Context, stats *domain.OperationStats) error {
 		deleted, queryStats, deleteErr := s.operators.DeleteDeactivatedOperators(txCtx)
 		stats.Add(queryStats)
 		if deleteErr != nil {
@@ -135,7 +139,7 @@ func (s *Service) deleteDeactivatedOperators(ctx context.Context) (result int, e
 }
 
 func (s *Service) RecordOperatorLogin(ctx context.Context, id int64) error {
-	return s.run(ctx, s.tx.RunPlatform, "record_operator_login", func(txCtx context.Context, stats *domain.OperationStats) error {
+	return s.run(ctx, s.tx.RunAdmin, "record_operator_login", func(txCtx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.operators.RecordOperatorLogin(txCtx, id, time.Now())
 		stats.Add(queryStats)
 		return err
@@ -143,7 +147,7 @@ func (s *Service) RecordOperatorLogin(ctx context.Context, id int64) error {
 }
 
 func (s *Service) IncrementOperatorMFAAttempts(ctx context.Context, id int64, threshold int, lockout time.Duration) (result domain.OperatorMFAAttempts, err error) {
-	err = s.run(ctx, s.tx.RunPlatform, "increment_operator_mfa_attempts", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.run(ctx, s.tx.RunAdmin, "increment_operator_mfa_attempts", func(txCtx context.Context, stats *domain.OperationStats) error {
 		attempts, found, queryStats, incrementErr := s.operators.IncrementOperatorMFAAttempts(txCtx, id, threshold, time.Now().Add(lockout))
 		stats.Add(queryStats)
 		if incrementErr != nil {
@@ -159,7 +163,7 @@ func (s *Service) IncrementOperatorMFAAttempts(ctx context.Context, id int64, th
 }
 
 func (s *Service) ResetOperatorMFAAttempts(ctx context.Context, id int64) error {
-	return s.run(ctx, s.tx.RunPlatform, "reset_operator_mfa_attempts", func(txCtx context.Context, stats *domain.OperationStats) error {
+	return s.run(ctx, s.tx.RunAdmin, "reset_operator_mfa_attempts", func(txCtx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.operators.ResetOperatorMFAAttempts(txCtx, id)
 		stats.Add(queryStats)
 		return err
@@ -167,7 +171,7 @@ func (s *Service) ResetOperatorMFAAttempts(ctx context.Context, id int64) error 
 }
 
 func (s *Service) FindOperatorSessionForUpdate(ctx context.Context, token string) (result domain.OperatorSession, err error) {
-	err = s.run(ctx, s.tx.RunPlatform, "find_operator_session_for_update", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.run(ctx, func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }, "find_operator_session_for_update", func(txCtx context.Context, stats *domain.OperationStats) error {
 		if token == "" {
 			return domain.ErrOperatorSessionNotFound
 		}
@@ -186,7 +190,7 @@ func (s *Service) FindOperatorSessionForUpdate(ctx context.Context, token string
 }
 
 func (s *Service) LatestOperatorSessionInFamily(ctx context.Context, familyID string) (result domain.OperatorSession, err error) {
-	err = s.run(ctx, s.tx.RunPlatform, "latest_operator_session_in_family", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.run(ctx, s.tx.RunAdmin, "latest_operator_session_in_family", func(txCtx context.Context, stats *domain.OperationStats) error {
 		if familyID == "" {
 			return domain.ErrOperatorSessionNotFound
 		}
@@ -205,7 +209,7 @@ func (s *Service) LatestOperatorSessionInFamily(ctx context.Context, familyID st
 }
 
 func (s *Service) CreateOperatorSession(ctx context.Context, session domain.OperatorSession) (result domain.OperatorSession, err error) {
-	err = s.run(ctx, s.tx.RunPlatform, "create_operator_session", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.run(ctx, s.tx.RunAdmin, "create_operator_session", func(txCtx context.Context, stats *domain.OperationStats) error {
 		if validateErr := session.Validate(); validateErr != nil {
 			return validateErr
 		}
@@ -225,7 +229,7 @@ func (s *Service) CreateOperatorSession(ctx context.Context, session domain.Oper
 // re-rotated, because a second hand-off is the replay signal the refresh
 // flow revokes the whole family on.
 func (s *Service) MarkOperatorSessionRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error {
-	return s.run(ctx, s.tx.RunPlatform, "mark_operator_session_rotated", func(txCtx context.Context, stats *domain.OperationStats) error {
+	return s.run(ctx, s.tx.RunAdmin, "mark_operator_session_rotated", func(txCtx context.Context, stats *domain.OperationStats) error {
 		rotated, queryStats, err := s.operators.MarkOperatorSessionRotated(txCtx, id, replacementToken, recoveryProofHash, rotatedAt)
 		stats.Add(queryStats)
 		if err != nil {
@@ -239,7 +243,7 @@ func (s *Service) MarkOperatorSessionRotated(ctx context.Context, id int64, repl
 }
 
 func (s *Service) DeleteExpiredRotatedOperatorSessions(ctx context.Context, familyID string, now time.Time) error {
-	return s.run(ctx, s.tx.RunPlatform, "delete_expired_rotated_operator_sessions", func(txCtx context.Context, stats *domain.OperationStats) error {
+	return s.run(ctx, s.tx.RunAdmin, "delete_expired_rotated_operator_sessions", func(txCtx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.operators.DeleteExpiredRotatedOperatorSessions(txCtx, familyID, now)
 		stats.Add(queryStats)
 		return err
@@ -247,7 +251,7 @@ func (s *Service) DeleteExpiredRotatedOperatorSessions(ctx context.Context, fami
 }
 
 func (s *Service) DeleteOperatorSession(ctx context.Context, id int64) error {
-	return s.run(ctx, s.tx.RunPlatform, "delete_operator_session", func(txCtx context.Context, stats *domain.OperationStats) error {
+	return s.run(ctx, s.tx.RunAdmin, "delete_operator_session", func(txCtx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.operators.DeleteOperatorSession(txCtx, id)
 		stats.Add(queryStats)
 		return err
@@ -255,7 +259,7 @@ func (s *Service) DeleteOperatorSession(ctx context.Context, id int64) error {
 }
 
 func (s *Service) RevokeOperatorSessions(ctx context.Context, operatorID int64) (result []domain.OperatorSession, err error) {
-	err = s.run(ctx, s.tx.RunPlatform, "revoke_operator_sessions", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.run(ctx, s.tx.RunAdmin, "revoke_operator_sessions", func(txCtx context.Context, stats *domain.OperationStats) error {
 		deleted, queryStats, deleteErr := s.operators.DeleteOperatorSessionsByOperator(txCtx, operatorID)
 		stats.Add(queryStats)
 		if deleteErr != nil {
@@ -268,7 +272,7 @@ func (s *Service) RevokeOperatorSessions(ctx context.Context, operatorID int64) 
 }
 
 func (s *Service) RevokeOperatorSessionFamily(ctx context.Context, familyID string) (result []domain.OperatorSession, err error) {
-	err = s.run(ctx, s.tx.RunPlatform, "revoke_operator_session_family", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.run(ctx, s.tx.RunAdmin, "revoke_operator_session_family", func(txCtx context.Context, stats *domain.OperationStats) error {
 		deleted, queryStats, deleteErr := s.operators.DeleteOperatorSessionsByFamily(txCtx, familyID)
 		stats.Add(queryStats)
 		if deleteErr != nil {
@@ -281,7 +285,7 @@ func (s *Service) RevokeOperatorSessionFamily(ctx context.Context, familyID stri
 }
 
 func (s *Service) DeleteExpiredOperatorSessions(ctx context.Context, now time.Time) (result int, err error) {
-	err = s.run(ctx, s.tx.RunPlatform, "delete_expired_operator_sessions", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.run(ctx, s.tx.RunAdmin, "delete_expired_operator_sessions", func(txCtx context.Context, stats *domain.OperationStats) error {
 		deleted, queryStats, deleteErr := s.operators.DeleteExpiredOperatorSessions(txCtx, now)
 		stats.Add(queryStats)
 		if deleteErr != nil {

@@ -54,7 +54,7 @@ func databaseRuntime(db *bun.DB) postgres.Database {
 		}
 		transaction, ok := tenant.TransactionFromContext(ctx)
 		if !ok {
-			return db, tenantID.Int64(), nil
+			return nil, 0, errors.New("timetable postgres: transaction is required")
 		}
 		switch tx := transaction.(type) {
 		case bun.Tx:
@@ -63,7 +63,7 @@ func databaseRuntime(db *bun.DB) postgres.Database {
 			if tx != nil {
 				return tx, tenantID.Int64(), nil
 			}
-			return db, tenantID.Int64(), nil
+			return nil, 0, errors.New("timetable postgres: transaction is required")
 		default:
 			return nil, 0, fmt.Errorf("timetable postgres: unsupported transaction %T", transaction)
 		}
@@ -77,6 +77,9 @@ func (transaction) RunWrite(ctx context.Context, retry bool, callback func(conte
 		return callback(ctx)
 	}
 	if !retry {
+		if _, err := tenant.TenantFromContext(ctx); err != nil {
+			return fmt.Errorf("timetable postgres: tenant is required: %w", err)
+		}
 		return tenant.WithinCurrentTenant(ctx, callback)
 	}
 	tenantID, err := tenant.TenantFromContext(ctx)

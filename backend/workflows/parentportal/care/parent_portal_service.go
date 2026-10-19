@@ -406,17 +406,15 @@ func enrollablePhaseSchoolIDs(phases []*EnrollablePhase) []int64 {
 }
 
 // GetEnrollmentSubmitStatus resolves the (account, school) submit
-// facts for the parent enrollment path (#1663). Uses
-// WithAdminTxOrDirect so the parent submit handler's existing admin
-// transaction is reused instead of opening a nested one.
+// facts for the parent enrollment path in the resolved school's RLS scope.
 func (s *Service) GetEnrollmentSubmitStatus(ctx context.Context, accountID, schoolID int64) (*GuardianSubmitStatus, error) {
 	if accountID <= 0 || schoolID <= 0 {
 		return nil, fmt.Errorf("parent: account_id and school_id must be positive")
 	}
 
 	var status *GuardianSubmitStatus
-	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
-		st, stErr := s.EnrollablePhaseRepo.GuardianSubmitStatus(adminCtx, accountID, schoolID)
+	err := s.Runtime.WithinTenant(ctx, schoolID, func(tenantCtx context.Context) error {
+		st, stErr := s.EnrollablePhaseRepo.GuardianSubmitStatus(tenantCtx, accountID, schoolID)
 		if stErr != nil {
 			return stErr
 		}
