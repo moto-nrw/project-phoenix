@@ -12,7 +12,5 @@ func DrainEmailForTest(ctx context.Context, runtime *Runtime, provider Provider,
 	return application.DrainEmailForTest(ctx, runtime.store, providerAdapter{provider: provider}, runtime.observe, tenantID, id)
 }
 func DeleteSystemEmailForTest(ctx context.Context, runtime *Runtime, id int64) error {
-	return runtime.store.WorkerRecords.(interface {
-		DeleteSystemEmailForTest(context.Context, int64) error
-	}).DeleteSystemEmailForTest(ctx, id)
+	return application.DeleteSystemEmailForTest(ctx, runtime.store, id)
 }
