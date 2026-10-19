@@ -140,45 +140,18 @@ func sessionHistoryResponses(sessions []*WorkSession, breaksBySession map[int64]
 // asked about — including ISO weeks with no visible row to explain them — so
 // only the days inside the range are counted (#2402).
 func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, targetsByWeek map[summaryWeekKey]int, from, to calendar.Date) []WeeklySummary {
-	weekMap := make(map[summaryWeekKey]*WeeklySummary)
-	var weekOrder []summaryWeekKey
+	weeks := weeklySummaryAccumulator{weekMap: make(map[summaryWeekKey]*WeeklySummary), targetsByWeek: targetsByWeek}
 	now := time.Now()
 
 	for _, session := range sessions {
 		end := BalanceSessionEnd(session.WorkSession, now)
 		countedWeeks := make(map[summaryWeekKey]struct{})
-		// The first day is derived from the check-in instant, never from the
-		// stored date: an admin Nachtrag files a block under a date it may
-		// choose freely (CreateSessionAsAdmin), so a block stamped 23:00 and
-		// filed on the following day would lose its pre-midnight minutes here
-		// while the balance — which starts at the check-in — still counts them.
-		firstDay, lastDay := calendar.DateFromTime(session.CheckInTime), calendar.DateFromTime(end)
-		if firstDay.Before(from) {
-			firstDay = from
-		}
-		if lastDay.After(to) {
-			lastDay = to
-		}
+		firstDay, lastDay := summarySessionDays(session.CheckInTime, end, from, to)
 		for day, minutes := range netMinutesByDate(session.WorkSession, session.Breaks, end, firstDay, lastDay) {
 			year, week := day.UTCMidnight().ISOWeek()
 			key := summaryWeekKey{Year: year, Week: week}
 
-			summary, exists := weekMap[key]
-			if !exists {
-				var targetMinutes *int
-				if target, ok := targetsByWeek[key]; ok {
-					targetCopy := target
-					targetMinutes = &targetCopy
-				}
-				summary = &WeeklySummary{
-					WeekNumber:    week,
-					Year:          year,
-					TargetMinutes: targetMinutes,
-				}
-				weekMap[key] = summary
-				weekOrder = append(weekOrder, key)
-			}
-
+			summary := weeks.week(key)
 			summary.TotalNetMinutes += minutes
 			if _, counted := countedWeeks[key]; !counted {
 				summary.SessionCount++
@@ -187,7 +160,53 @@ func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, t
 		}
 	}
 
-	return weeklySummaryValues(weekMap, weekOrder)
+	return weeklySummaryValues(weeks.weekMap, weeks.weekOrder)
+}
+
+// summarySessionDays returns the days a block contributes to, clamped to the
+// summary range. The first day is derived from the check-in instant, never
+// from the stored date: an admin Nachtrag files a block under a date it may
+// choose freely (CreateSessionAsAdmin), so a block stamped 23:00 and filed on
+// the following day would lose its pre-midnight minutes here while the
+// balance — which starts at the check-in — still counts them.
+func summarySessionDays(checkIn, end time.Time, from, to calendar.Date) (calendar.Date, calendar.Date) {
+	firstDay, lastDay := calendar.DateFromTime(checkIn), calendar.DateFromTime(end)
+	if firstDay.Before(from) {
+		firstDay = from
+	}
+	if lastDay.After(to) {
+		lastDay = to
+	}
+	return firstDay, lastDay
+}
+
+// weeklySummaryAccumulator collects the weekly summaries in the order their
+// weeks are first encountered.
+type weeklySummaryAccumulator struct {
+	weekMap       map[summaryWeekKey]*WeeklySummary
+	weekOrder     []summaryWeekKey
+	targetsByWeek map[summaryWeekKey]int
+}
+
+// week returns the summary of the week, starting it with the week's target
+// on first use.
+func (w *weeklySummaryAccumulator) week(key summaryWeekKey) *WeeklySummary {
+	if summary, exists := w.weekMap[key]; exists {
+		return summary
+	}
+	var targetMinutes *int
+	if target, ok := w.targetsByWeek[key]; ok {
+		targetCopy := target
+		targetMinutes = &targetCopy
+	}
+	summary := &WeeklySummary{
+		WeekNumber:    key.Week,
+		Year:          key.Year,
+		TargetMinutes: targetMinutes,
+	}
+	w.weekMap[key] = summary
+	w.weekOrder = append(w.weekOrder, key)
+	return summary
 }
 
 // weeklySummaryValues keeps the encountered week order and derives the limit and target deltas.

@@ -243,32 +243,51 @@ func walkCreditedAbsenceDays(
 		if absence.Status != AbsenceStatusReported && absence.Status != AbsenceStatusApproved {
 			continue
 		}
-		startHalf, endHalf := effectiveAbsenceBoundaryHalves(absence)
-		for d := absence.DateStart; !d.After(absence.DateEnd); d = d.AddDays(1) {
-			if d.Before(first) || d.After(through) || credited[d] {
-				continue
-			}
-			credited[d] = true
-			target := targetFor(d)
-			if target <= 0 {
-				continue
-			}
-			fraction := 1.0
-			credit := target
-			if isHalfAbsenceDay(absence, d, startHalf, endHalf) {
-				fraction = 0.5
-				credit = target / 2
-			}
-			if absence.AbsenceType == AbsenceTypeCompTime {
-				// Freizeitausgleich (#1420 5b) credits NOTHING: the day keeps
-				// its Soll, so the balance drops by the day's target. The day
-				// still counts as consumed above, so an overlapping vacation
-				// cannot re-credit it.
-				credit = 0
-			}
-			visit(d, absence, credit, fraction)
-		}
+		walkAbsenceDays(absence, first, through, credited, targetFor, visit)
 	}
+}
+
+// walkAbsenceDays visits the days of one absence that no lower-ID absence has
+// consumed yet, inside [first, through] and with a Soll.
+func walkAbsenceDays(
+	absence *StaffAbsence,
+	first, through calendar.Date,
+	credited map[calendar.Date]bool,
+	targetFor func(calendar.Date) int,
+	visit absenceDayVisitor,
+) {
+	startHalf, endHalf := effectiveAbsenceBoundaryHalves(absence)
+	for d := absence.DateStart; !d.After(absence.DateEnd); d = d.AddDays(1) {
+		if d.Before(first) || d.After(through) || credited[d] {
+			continue
+		}
+		credited[d] = true
+		target := targetFor(d)
+		if target <= 0 {
+			continue
+		}
+		credit, fraction := absenceDayCredit(absence, d, target, startHalf, endHalf)
+		visit(d, absence, credit, fraction)
+	}
+}
+
+// absenceDayCredit prices one consumed absence day with a Soll: the full Soll,
+// or half of it on a half-day boundary.
+func absenceDayCredit(absence *StaffAbsence, d calendar.Date, target int, startHalf, endHalf bool) (int, float64) {
+	fraction := 1.0
+	credit := target
+	if isHalfAbsenceDay(absence, d, startHalf, endHalf) {
+		fraction = 0.5
+		credit = target / 2
+	}
+	if absence.AbsenceType == AbsenceTypeCompTime {
+		// Freizeitausgleich (#1420 5b) credits NOTHING: the day keeps
+		// its Soll, so the balance drops by the day's target. The day
+		// still counts as consumed above, so an overlapping vacation
+		// cannot re-credit it.
+		credit = 0
+	}
+	return credit, fraction
 }
 
 // chainAnchor determines where the live carry computation starts: the
@@ -428,243 +447,6 @@ func (s *workTimeMonthService) GetBalanceAdjustmentMinutes(ctx context.Context, 
 	return total, nil
 }
 
-func (s *workTimeMonthService) getOpeningBalanceOnDate(
-	ctx context.Context,
-	staffID int64,
-	date, today calendar.Date,
-	compTimeAbsences []*StaffAbsence,
-) (int, error) {
-	anchor, err := s.chainAnchor(ctx, monthOf(today))
-	if err != nil {
-		return 0, fmt.Errorf("failed to resolve account start for reduction validation: %w", err)
-	}
-
-	available := 0
-	if date.After(today) {
-		if !today.Before(anchor) {
-			available, err = s.GetClosingBalanceAsOf(ctx, staffID, today)
-			if err != nil {
-				return 0, fmt.Errorf("failed to compute current balance for reduction validation: %w", err)
-			}
-		}
-		futureAdjustments, err := s.GetBalanceAdjustmentMinutes(ctx, staffID, today.AddDays(1), date)
-		if err != nil {
-			return 0, fmt.Errorf("failed to compute adjustments through %s: %w", date.String(), err)
-		}
-		available += futureAdjustments
-		priorCompTime, err := s.getCompTimeDeductionInRange(
-			ctx,
-			staffID,
-			today.AddDays(1),
-			date.AddDays(-1),
-			compTimeAbsences,
-		)
-		if err != nil {
-			return 0, err
-		}
-		return available - priorCompTime, nil
-	}
-
-	if cutoff := date.AddDays(-1); !cutoff.Before(anchor) {
-		boundaries, err := s.frozenMonthBoundaries(ctx, staffID, date, date)
-		if err != nil {
-			return 0, fmt.Errorf("failed to load opening balance on %s: %w", date.String(), err)
-		}
-		if frozen, ok := boundaries[date]; ok {
-			available = frozen
-		} else {
-			available, err = s.GetClosingBalanceAsOf(ctx, staffID, cutoff)
-			if err != nil {
-				return 0, fmt.Errorf("failed to compute opening balance on %s: %w", date.String(), err)
-			}
-		}
-	}
-	sameDayAdjustments, err := s.GetBalanceAdjustmentMinutes(ctx, staffID, date, date)
-	if err != nil {
-		return 0, fmt.Errorf("failed to compute adjustments on %s: %w", date.String(), err)
-	}
-	return available + sameDayAdjustments, nil
-}
-
-func (s *workTimeMonthService) getMonthSummaryThrough(ctx context.Context, staffID int64, key monthKey, through calendar.Date) (*MonthSummary, error) {
-	anchor, err := s.chainAnchor(ctx, key)
-	if err != nil {
-		return nil, err
-	}
-	// The chain starts on the account start date; a month entirely before the
-	// account start is summarized standalone (full month, no carry).
-	startKey, first := monthOf(anchor), anchor
-	if key.before(startKey) {
-		startKey, first = key, key.firstDay()
-	}
-
-	// A frozen earlier month (#1417) short-circuits the chain: its closing
-	// balance IS the opening balance here, so nothing before it is re-summed
-	// and a retroactive correction there can no longer move this month.
-	splice, err := s.spliceChainStart(ctx, staffID, key, anchor)
-	if err != nil {
-		return nil, err
-	}
-	carry := 0
-	// Only an EARLIER frozen month shortens the chain. A splice that carries
-	// nothing but the requested month's own snapshot (used for drift) must
-	// leave the chain running from the account start.
-	if splice != nil && splice.carryFrom != nil {
-		startKey, first = splice.startKey, splice.startKey.firstDay()
-		carry = splice.frozenCarry
-	}
-
-	// Bound how far back the chain reaches so a stale/misconfigured account
-	// start can't make each poll aggregate and query decades of days. A
-	// realistic account never predates the floor; when it does, the setting is
-	// wrong, and we fail loudly instead of clamping — a clamp would drop the
-	// balance of every month before the floor and quietly present a wrong
-	// opening/closing Stundenkonto (#1842).
-	if floorKey := key.addMonths(-maxCarryChainMonths); startKey.before(floorKey) {
-		s.getLogger().Error("account start older than carry-chain bound, rejecting",
-			"account_start", first.String(),
-			"floor", floorKey.firstDay().String(),
-			"max_carry_chain_months", maxCarryChainMonths,
-		)
-		return nil, fmt.Errorf("%w: %s is more than %d months before %d-%02d",
-			ErrAccountStartTooOld, first.String(), maxCarryChainMonths, key.Year, key.Month)
-	}
-
-	aggregates, err := s.computeAggregates(ctx, staffID, first, key, through)
-	if err != nil {
-		return nil, err
-	}
-
-	for k := startKey; k.before(key); k = k.next() {
-		carry += aggregates[k].balance()
-	}
-
-	agg := aggregates[key]
-	summary := &MonthSummary{
-		StaffID:                 staffID,
-		Year:                    key.Year,
-		Month:                   key.Month,
-		CarryInMinutes:          carry,
-		TargetMinutes:           agg.target,
-		TargetMinutesToDate:     agg.targetToDate,
-		ActualMinutes:           agg.actual,
-		CreditedSickMinutes:     agg.creditedSick,
-		CreditedVacationMinutes: agg.creditedVacation,
-		CreditedTrainingMinutes: agg.creditedTraining,
-		CreditedOtherMinutes:    agg.creditedOther,
-		SickDays:                agg.sickDays,
-		VacationDays:            agg.vacationDays,
-		TrainingDays:            agg.trainingDays,
-		BalanceMinutes:          agg.balance(),
-	}
-	if agg.hasShifts {
-		planned := agg.plannedShift
-		summary.PlannedShiftMinutes = &planned
-	}
-	summary.AdjustmentMinutes = agg.adjustment
-	for _, adjustment := range agg.adjustments {
-		summary.Adjustments = append(summary.Adjustments, AdjustmentView{
-			ID:            adjustment.ID,
-			Type:          adjustment.Type,
-			MinutesDelta:  adjustment.MinutesDelta,
-			EffectiveDate: adjustment.EffectiveDate,
-			Note:          adjustment.Note,
-			DecidedBy:     adjustment.DecidedBy,
-			DecidedAt:     adjustment.DecidedAt,
-		})
-	}
-	summary.ClosingBalanceMinutes = summary.CarryInMinutes + summary.BalanceMinutes
-	if splice != nil {
-		if splice.carryFrom != nil {
-			summary.CarryInFrozen = true
-			label := fmt.Sprintf("%04d-%02d", splice.carryFrom.Year, splice.carryFrom.Month)
-			summary.CarryInFrozenFromMonth = &label
-		}
-		if own := splice.ownSnapshot; own != nil {
-			summary.IsClosed = true
-			closedAt, closedBy := own.ClosedAt, own.ClosedBy
-			summary.ClosedAt, summary.ClosedBy = &closedAt, &closedBy
-			summary.CloseReason = own.CloseReason
-			frozen := own.ClosingBalanceMinutes
-			summary.FrozenClosingBalanceMinutes = &frozen
-			summary.DriftMinutes = summary.ClosingBalanceMinutes - frozen
-		}
-	}
-	return summary, nil
-}
-
-// chainSplice is the outcome of the frozen-month lookup for one requested
-// month: where the carry chain starts, what it starts with, and whether the
-// requested month is itself frozen.
-type chainSplice struct {
-	// startKey is the first month the chain must still aggregate.
-	startKey monthKey
-	// frozenCarry is the opening balance for startKey.
-	frozenCarry int
-	// carryFrom names the frozen month that produced frozenCarry; nil when no
-	// earlier month is frozen and the chain runs from the account start.
-	carryFrom *monthKey
-	// ownSnapshot is the requested month's own active snapshot, if it is
-	// closed. It supplies the drift comparison, never the carry.
-	ownSnapshot *MonthSnapshot
-}
-
-// spliceChainStart resolves how the carry chain for `key` must start (#1417).
-// It returns nil when nothing is frozen and the caller should keep the
-// account-anchor chain untouched.
-//
-// One read covers both questions: the newest active snapshot at or before
-// `key` is either `key`'s own (then a second read finds the one before it) or
-// already an earlier month (then it seeds the chain directly).
-//
-// A snapshot before the anchor month is ignored on purpose. The chain never
-// starts before the account start, so such a row — left behind by a later
-// change to the account-start setting — could only corrupt the card. The
-// close path rejects creating one; this is the read-side half of that fence.
-func (s *workTimeMonthService) spliceChainStart(
-	ctx context.Context,
-	staffID int64,
-	key monthKey,
-	anchor calendar.Date,
-) (*chainSplice, error) {
-	if s.snapshotRepo == nil {
-		return nil, nil
-	}
-	anchorKey := monthOf(anchor)
-
-	latest, err := s.snapshotRepo.LatestClosedMonth(ctx, staffID, key.Year, key.Month)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load month balance snapshot: %w", err)
-	}
-	if latest == nil {
-		return nil, nil
-	}
-
-	splice := &chainSplice{startKey: key}
-	seed := latest
-	if latest.Year == key.Year && latest.Month == key.Month {
-		splice.ownSnapshot = latest
-		prev := key.addMonths(-1)
-		seed, err = s.snapshotRepo.LatestClosedMonth(ctx, staffID, prev.Year, prev.Month)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load preceding month balance snapshot: %w", err)
-		}
-	}
-
-	if seed != nil {
-		seedKey := monthKey{Year: seed.Year, Month: seed.Month}
-		if !seedKey.before(anchorKey) && seedKey.before(key) {
-			splice.startKey = seedKey.next()
-			splice.frozenCarry = seed.ClosingBalanceMinutes
-			splice.carryFrom = &seedKey
-		}
-	}
-	if splice.carryFrom == nil && splice.ownSnapshot == nil {
-		return nil, nil
-	}
-	return splice, nil
-}
-
 // excludedByAccountStart reports whether d is inside the account-start month
 // but before the start day. GetMonthSummary begins the anchor month's
 // aggregation on the start date itself (`first = anchor`), so those days carry
@@ -702,14 +484,8 @@ func (s *workTimeMonthService) accountAwareTargets(ctx context.Context, staffID 
 // "Summe Soll" (#1842). Future days carry their Soll but no balance — the card
 // charges Soll only up to today.
 func (s *workTimeMonthService) GetDailyProjection(ctx context.Context, staffID int64, from, to calendar.Date) ([]DailyProjection, error) {
-	if from.IsZero() || to.IsZero() {
-		return nil, fmt.Errorf("%w: from and to are required", ErrInvalidTargetRange)
-	}
-	if to.Before(from) {
-		return nil, fmt.Errorf("%w: to must be on or after from", ErrInvalidTargetRange)
-	}
-	if from.DaysUntil(to) > maxDailyTargetRangeDays {
-		return nil, fmt.Errorf("%w: range must not exceed %d days", ErrInvalidTargetRange, maxDailyTargetRangeDays)
+	if err := validateDailyRange(from, to); err != nil {
+		return nil, err
 	}
 
 	resolver, anchor, err := s.accountAwareTargets(ctx, staffID, from, to)
@@ -730,15 +506,9 @@ func (s *workTimeMonthService) GetDailyProjection(ctx context.Context, staffID i
 		return resolver.TargetFor(d)
 	}
 
-	credits := map[calendar.Date]int{}
-	actual := map[calendar.Date]int{}
-	if !through.Before(from) {
-		if credits, err = s.getDailyAbsenceCredits(ctx, staffID, from, to, through, resolver); err != nil {
-			return nil, err
-		}
-		if actual, err = s.getDailyActualMinutes(ctx, staffID, from, through); err != nil {
-			return nil, err
-		}
+	credits, actual, err := s.projectionDayValues(ctx, staffID, from, to, through, resolver)
+	if err != nil {
+		return nil, err
 	}
 
 	projection := make([]DailyProjection, 0, from.DaysUntil(to)+1)
@@ -756,18 +526,44 @@ func (s *workTimeMonthService) GetDailyProjection(ctx context.Context, staffID i
 	return projection, nil
 }
 
+// validateDailyRange bounds the day-level reads to a closed range of at most
+// maxDailyTargetRangeDays.
+func validateDailyRange(from, to calendar.Date) error {
+	if from.IsZero() || to.IsZero() {
+		return fmt.Errorf("%w: from and to are required", ErrInvalidTargetRange)
+	}
+	if to.Before(from) {
+		return fmt.Errorf("%w: to must be on or after from", ErrInvalidTargetRange)
+	}
+	if from.DaysUntil(to) > maxDailyTargetRangeDays {
+		return fmt.Errorf("%w: range must not exceed %d days", ErrInvalidTargetRange, maxDailyTargetRangeDays)
+	}
+	return nil
+}
+
+// projectionDayValues loads the absence credits and the recorded net work of
+// the priced days; nothing is priced when through lies before from.
+func (s *workTimeMonthService) projectionDayValues(ctx context.Context, staffID int64, from, to, through calendar.Date, resolver *dailyTargetResolver) (map[calendar.Date]int, map[calendar.Date]int, error) {
+	if through.Before(from) {
+		return map[calendar.Date]int{}, map[calendar.Date]int{}, nil
+	}
+	credits, err := s.getDailyAbsenceCredits(ctx, staffID, from, to, through, resolver)
+	if err != nil {
+		return nil, nil, err
+	}
+	actual, err := s.getDailyActualMinutes(ctx, staffID, from, through)
+	if err != nil {
+		return nil, nil, err
+	}
+	return credits, actual, nil
+}
+
 // GetDailyTargets resolves the contractual Soll for every day in [from, to]
 // without loading absence or work-session data. It is the lightweight variant
 // for overview consumers that only chart targets.
 func (s *workTimeMonthService) GetDailyTargets(ctx context.Context, staffID int64, from, to calendar.Date) ([]DailyTarget, error) {
-	if from.IsZero() || to.IsZero() {
-		return nil, fmt.Errorf("%w: from and to are required", ErrInvalidTargetRange)
-	}
-	if to.Before(from) {
-		return nil, fmt.Errorf("%w: to must be on or after from", ErrInvalidTargetRange)
-	}
-	if from.DaysUntil(to) > maxDailyTargetRangeDays {
-		return nil, fmt.Errorf("%w: range must not exceed %d days", ErrInvalidTargetRange, maxDailyTargetRangeDays)
+	if err := validateDailyRange(from, to); err != nil {
+		return nil, err
 	}
 
 	resolver, anchor, err := s.accountAwareTargets(ctx, staffID, from, to)

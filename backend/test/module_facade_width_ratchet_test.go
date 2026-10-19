@@ -96,9 +96,6 @@ var moduleFacadeAllowlist = map[string]int{
 	"modules/workforce/shift.go:ShiftCommand":                                    19,
 	"modules/workforce/staffadmin.go:StaffDocuments":                             16,
 	"modules/workforce/staffrecord.go:StaffRecordCommand":                        13,
-	"modules/workforce/timetracking.go:StaffAbsences":                            22,
-	"modules/workforce/worksession.go:WorkSessionCommand":                        24,
-	"modules/workforce/worksession.go:WorkSessionQuery":                          18,
 }
 
 func TestModuleFacadeWidthRatchet(t *testing.T) {

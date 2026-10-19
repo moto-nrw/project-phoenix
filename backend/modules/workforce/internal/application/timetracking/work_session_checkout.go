@@ -52,17 +52,9 @@ func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day 
 	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, err
 	}
-	// Get the open session of the requested day
-	session, err := s.repo.GetOpenByStaffAndDate(ctx, staffID, day)
+	session, err := s.openSessionForCheckout(ctx, staffID, day)
 	if err != nil {
-		if isRecordNotFound(err) {
-			return nil, workforce.ErrNoActiveSession
-		}
-		return nil, fmt.Errorf(errGetCurrentSession, err)
-	}
-
-	if session == nil {
-		return nil, workforce.ErrNoActiveSession
+		return nil, err
 	}
 
 	now := s.now()
@@ -110,6 +102,22 @@ func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day 
 
 	s.broadcastTimeTrackingChanged(ctx)
 	return updatedSession, nil
+}
+
+// openSessionForCheckout returns the open session of the requested day, or
+// ErrNoActiveSession when there is none.
+func (s *workSessionService) openSessionForCheckout(ctx context.Context, staffID int64, day calendar.Date) (*WorkSession, error) {
+	session, err := s.repo.GetOpenByStaffAndDate(ctx, staffID, day)
+	if err != nil {
+		if isRecordNotFound(err) {
+			return nil, workforce.ErrNoActiveSession
+		}
+		return nil, fmt.Errorf(errGetCurrentSession, err)
+	}
+	if session == nil {
+		return nil, workforce.ErrNoActiveSession
+	}
+	return session, nil
 }
 
 // plannedDeviation describes a stamp that falls outside the tolerance window

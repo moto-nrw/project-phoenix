@@ -111,15 +111,10 @@ func (s *staffAbsenceService) SetVacationOpening(ctx context.Context, staffID, d
 		return nil, err
 	}
 
-	quota, err := s.quotaRepo.GetByStaffAndYear(ctx, staffID, year)
+	takenBefore, err := s.vacationTakenBefore(ctx, staffID, year, req.RemainingDays)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch quota for vacation opening: %w", err)
+		return nil, err
 	}
-	entitled, carryover := defaultEntitledDays, 0.0
-	if quota != nil {
-		entitled, carryover = quota.EntitledDays, quota.CarryoverDays
-	}
-	takenBefore := entitled + carryover - req.RemainingDays
 
 	now := time.Now()
 	opening := &StaffVacationOpening{
@@ -146,6 +141,20 @@ func (s *staffAbsenceService) SetVacationOpening(ctx context.Context, staffID, d
 	}
 	s.broadcastTimeTrackingChanged(ctx)
 	return opening, nil
+}
+
+// vacationTakenBefore derives the days taken before the takeover from the
+// year's entitlement and the entered Resturlaub.
+func (s *staffAbsenceService) vacationTakenBefore(ctx context.Context, staffID int64, year int, remainingDays float64) (float64, error) {
+	quota, err := s.quotaRepo.GetByStaffAndYear(ctx, staffID, year)
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch quota for vacation opening: %w", err)
+	}
+	entitled, carryover := defaultEntitledDays, 0.0
+	if quota != nil {
+		entitled, carryover = quota.EntitledDays, quota.CarryoverDays
+	}
+	return entitled + carryover - remainingDays, nil
 }
 
 func (s *staffAbsenceService) ValidateVacationOpeningAbsencesBefore(ctx context.Context, staffID int64, effectiveDate calendar.Date) error {
