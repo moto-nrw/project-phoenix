@@ -13,13 +13,15 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -44,23 +46,23 @@ func requireChildQuotaRefusal(t *testing.T, rec *httptest.ResponseRecorder, book
 
 func requireChildStillOpen(t *testing.T, harness offeringGuardHarness) {
 	t.Helper()
-	child, err := harness.repos.Enrollment().ChildByID(harness.ctx, harness.childID)
+	child, err := testpkg.TenantQuery1(t, harness.ctx, testpkg.SetupTestDB(t), harness.repos.Enrollment().ChildByID, harness.childID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, child.Status, "the refused enrollment stays open")
+	assert.Equal(t, capability.ChildStatusSubmitted, child.Status, "the refused enrollment stays open")
 	assert.Nil(t, child.CreatedStudentID, "the refused enrollment links no student")
 	assert.Nil(t, child.ReviewedAt, "the refused decision left no trace")
 }
 
 // matchExistingStudent turns the harness child into the re-enrollment of an
 // existing student in the given status.
-func matchExistingStudent(t *testing.T, db *bun.DB, harness offeringGuardHarness, status usersModels.StudentStatus) *testpkg.Student {
+func matchExistingStudent(t *testing.T, db *bun.DB, harness offeringGuardHarness, status string) *testpkg.Student {
 	t.Helper()
 	student := testpkg.CreateTestStudent(t, db, "Wieder", "Angemeldet", "1a")
 	_, err := db.NewUpdate().TableExpr("users.student_school_memberships").
 		Set("status = ?", string(status)).
 		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).Exec(harness.ctx)
 	require.NoError(t, err)
-	require.NoError(t, harness.repos.Enrollment().UpdateMatchedStudent(harness.ctx, harness.childID, &student.ID))
+	require.NoError(t, testpkg.TenantCommand2(t, harness.ctx, testpkg.SetupTestDB(t), harness.repos.Enrollment().UpdateMatchedStudent, harness.childID, &student.ID))
 	return student
 }
 
@@ -75,7 +77,7 @@ func studentStatus(t *testing.T, db *bun.DB, studentID int64) string {
 func TestDecideAdminChild_NewChildRefusedByAFullKinderkontingent(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	harness := setupOfferingGuardRouterTest(t, enrollmentModels.PhaseCareOfferingSelectionOptional, noOffering, false, false)
+	harness := setupOfferingGuardRouterTest(t, capability.PhaseCareOfferingSelectionOptional, noOffering, false, false)
 	testpkg.CreateTestStudent(t, db, "Schon", "Da", "1a")
 	testpkg.SetTestChildQuota(t, db, 1, 1)
 
@@ -93,24 +95,24 @@ func TestDecideAdminChild_NewChildRefusedByAFullKinderkontingent(t *testing.T) {
 func TestDecideAdminChild_RenewalOfAnUncountedChildRefusedByAFullKinderkontingent(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	harness := setupOfferingGuardRouterTest(t, enrollmentModels.PhaseCareOfferingSelectionOptional, noOffering, false, false)
+	harness := setupOfferingGuardRouterTest(t, capability.PhaseCareOfferingSelectionOptional, noOffering, false, false)
 	testpkg.CreateTestStudent(t, db, "Schon", "Da", "1a")
-	returning := matchExistingStudent(t, db, harness, usersModels.StudentStatusInactive)
+	returning := matchExistingStudent(t, db, harness, peopleValues.StudentStatusInactive)
 	testpkg.SetTestChildQuota(t, db, 1, 1)
 
 	rec := executeApprovalDecision(t, harness)
 
 	requireChildQuotaRefusal(t, rec, 1, 1)
 	requireChildStillOpen(t, harness)
-	assert.Equal(t, string(usersModels.StudentStatusInactive), studentStatus(t, db, returning.ID), "the child is not brought back")
+	assert.Equal(t, string(peopleValues.StudentStatusInactive), studentStatus(t, db, returning.ID), "the child is not brought back")
 }
 
 func TestDecideAdminChild_RenewalOfADepartedChildRefusedByAFullKinderkontingent(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	harness := setupOfferingGuardRouterTest(t, enrollmentModels.PhaseCareOfferingSelectionOptional, noOffering, false, false)
+	harness := setupOfferingGuardRouterTest(t, capability.PhaseCareOfferingSelectionOptional, noOffering, false, false)
 	testpkg.CreateTestStudent(t, db, "Schon", "Da", "1a")
-	departed := matchExistingStudent(t, db, harness, usersModels.StudentStatusActive)
+	departed := matchExistingStudent(t, db, harness, peopleValues.StudentStatusActive)
 	_, err := db.NewUpdate().TableExpr("users.student_school_memberships").
 		Set("enrolled_until = ?", calendar.TodayDate().AddDays(-1)).
 		Where("student_profile_id = ? AND deleted_at IS NULL", departed.ID).Exec(harness.ctx)
@@ -126,25 +128,25 @@ func TestDecideAdminChild_RenewalOfADepartedChildRefusedByAFullKinderkontingent(
 func TestDecideAdminChild_RenewalOfACountedChildPassesAFullKinderkontingent(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	harness := setupOfferingGuardRouterTest(t, enrollmentModels.PhaseCareOfferingSelectionOptional, noOffering, false, false)
-	counted := matchExistingStudent(t, db, harness, usersModels.StudentStatusActive)
+	harness := setupOfferingGuardRouterTest(t, capability.PhaseCareOfferingSelectionOptional, noOffering, false, false)
+	counted := matchExistingStudent(t, db, harness, peopleValues.StudentStatusActive)
 	testpkg.SetTestChildQuota(t, db, 1, 1)
 
 	rec := executeApprovalDecision(t, harness)
 
 	require.Equal(t, http.StatusOK, rec.Code, "Body: %s", rec.Body.String())
 	assert.Contains(t, rec.Body.String(), `"status":"approved"`)
-	assert.Equal(t, string(usersModels.StudentStatusActive), studentStatus(t, db, counted.ID))
+	assert.Equal(t, string(peopleValues.StudentStatusActive), studentStatus(t, db, counted.ID))
 }
 
 // The admin area reads why an open enrollment was left to the school.
 func TestGetAdminRequest_ShowsARenewalHeldForTheKinderkontingent(t *testing.T) {
 	t.Parallel()
-	harness := setupOfferingGuardRouterTest(t, enrollmentModels.PhaseCareOfferingSelectionOptional, noOffering, false, false)
+	harness := setupOfferingGuardRouterTest(t, capability.PhaseCareOfferingSelectionOptional, noOffering, false, false)
 	_, err := testpkg.SetupTestDB(t).NewUpdate().TableExpr("enrollment.request_children").
-		Set("status = ?", enrollmentModels.ChildStatusAutoRenewed).Where("id = ?", harness.childID).Exec(harness.ctx)
+		Set("status = ?", capability.ChildStatusAutoRenewed).Where("id = ?", harness.childID).Exec(harness.ctx)
 	require.NoError(t, err)
-	held, err := harness.repos.Enrollment().HoldAutoRenewedChild(harness.ctx, harness.childID, capability.ReviewReasonChildQuotaReached)
+	held, err := testpkg.TenantQuery2(t, harness.ctx, testpkg.SetupTestDB(t), harness.repos.Enrollment().HoldAutoRenewedChild, harness.childID, capability.ReviewReasonChildQuotaReached)
 	require.NoError(t, err)
 	require.True(t, held)
 
@@ -164,7 +166,7 @@ func TestGetAdminRequest_ShowsARenewalHeldForTheKinderkontingent(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	require.Len(t, body.Data.Children, 1)
-	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, body.Data.Children[0].Status)
+	assert.Equal(t, capability.ChildStatusSubmitted, body.Data.Children[0].Status)
 	require.NotNil(t, body.Data.Children[0].ReviewReason)
 	assert.Equal(t, "child_quota_reached", *body.Data.Children[0].ReviewReason)
 }
@@ -173,8 +175,11 @@ func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testin
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repos, err := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, db), api.NewTestAuditStore(testpkg.NewDatabase(t, db)))
+	repos, err := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, db), owners.NewTestAuditStore(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
+	reposCare := api.NewEnrollmentCarePlanRows(testpkg.NewDatabase(t, db))
+	reposSchools := api.NewOrganizationTestRows(testpkg.NewDatabase(t, db))
+	reposTimetable := api.NewEnrollmentTimetableRows(testpkg.NewDatabase(t, db))
 	_, reviewer := testpkg.CreateTestStaffWithAccount(t, db, "Rita", "Pruefung")
 	schema, err := NewTestFormSchemas(repos.Enrollment()).CreateSchema(ctx, "Testformular "+t.Name(), []capability.FormField{
 		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
@@ -182,31 +187,31 @@ func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testin
 	require.NoError(t, err)
 	phase := &capability.Phase{
 		Name:                      "Manuell " + t.Name(),
-		Kind:                      enrollmentModels.PhaseKindSchoolYear,
+		Kind:                      capability.PhaseKindSchoolYear,
 		ServiceStartDate:          capability.Date(calendar.NewDate(2026, 9, 1)),
 		ServiceEndDate:            capability.Date(calendar.NewDate(2027, 7, 31)),
 		IsActive:                  true,
 		FormSchemaID:              &schema.ID,
-		CareOverflowMode:          enrollmentModels.PhaseCareOverflowWaitlist,
-		CareOfferingSelectionMode: enrollmentModels.PhaseCareOfferingSelectionOptional,
+		CareOverflowMode:          capability.PhaseCareOverflowWaitlist,
+		CareOfferingSelectionMode: capability.PhaseCareOfferingSelectionOptional,
 	}
 	phase.TenantID = testpkg.Tenant(t)
-	require.NoError(t, repos.Enrollment().InsertPhase(ctx, phase))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.Enrollment().InsertPhase, phase))
 
 	guardianAccess, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
-	studentEnrollment, err := api.NewPeopleDirectory(testpkg.MustDatabase(db))
+	studentEnrollment, err := owners.NewPeopleDirectory(testpkg.MustDatabase(db))
 	require.NoError(t, err)
 	bookings := newBookingMaterialization(t, db,
 		api.WithBookingCatalog(newCareOfferingCatalog(t, db).Catalog),
 		api.WithBookingSettings(offeringGuardSettings(false)),
 	).Bookings
-	decisions := newOfferingGuardDecisions(repos, false, repos.Enrollment(), guardianAccess, studentEnrollment, bookings)
+	decisions := newOfferingGuardDecisions(repos, reposCare, reposTimetable, false, repos.Enrollment(), guardianAccess, studentEnrollment, bookings)
 	decision := enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(decisions))
-	requests := enrollmentAPI.NewRequestService(api.NewEnrollmentIntake(api.EnrollmentIntakeSources{
+	requests := newFixtureRequestRoot(owners.NewEnrollmentIntake(owners.EnrollmentIntakeSources{
 		Requests: repos.Enrollment(), Children: repos.Enrollment(), Guardians: repos.Enrollment(),
-		CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(repos.CarePlan), Catalog: repos.Enrollment(),
-		SchoolRepo: capabilitySchools{schools: repos.School}, RateLimitRepo: repos.Enrollment(),
+		CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan), Catalog: repos.Enrollment(),
+		SchoolRepo: capabilitySchools{schools: reposSchools.School}, RateLimitRepo: repos.Enrollment(),
 		LateInviteRepo: repos.Enrollment(), OutboxEnqueuer: discardingOutbox{}, Settings: stubTakeoverSettings{},
 		ManualDecider: decisions, FrontendURL: "http://localhost:3000", ParentsURL: "http://parents.localhost:3000",
 		Logger: slog.Default(),

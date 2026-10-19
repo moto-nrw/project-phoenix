@@ -31,7 +31,7 @@ func (s *AccountAuthentication) ValidateSessionTokens(ctx context.Context, acces
 		if portal == "platform" {
 			return s.validateOperatorSession(txCtx, claims, refreshClaims)
 		}
-		account, found, _, err := s.store.FindLoginAccount(txCtx, claims.AccountID, false)
+		account, found, _, err := findLoginAccount(txCtx, s.runtime, s.store, claims.AccountID, false)
 		if err != nil || !found || !account.Active {
 			return domain.ErrInvalidToken
 		}

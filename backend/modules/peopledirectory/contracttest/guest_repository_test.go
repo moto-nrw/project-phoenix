@@ -3,9 +3,10 @@ package contracttest_test
 import (
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -31,13 +32,13 @@ func TestGuestRepository_Create(t *testing.T) {
 	t.Run("creates guest with valid data", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Guest", "Create")
 
-		guest := &userModels.Guest{
+		guest := &peopleValues.Guest{
 			StaffID:           staff.ID,
 			ActivityExpertise: "Music",
 			Organization:      "Test Org",
 		}
 
-		err := repo.Create(ctx, guest)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, guest)
 		require.NoError(t, err)
 		assert.NotZero(t, guest.ID)
 
@@ -46,14 +47,14 @@ func TestGuestRepository_Create(t *testing.T) {
 	t.Run("creates guest with contact info", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Guest", "Contact")
 
-		guest := &userModels.Guest{
+		guest := &peopleValues.Guest{
 			StaffID:           staff.ID,
 			ActivityExpertise: "Art",
 			ContactEmail:      "guest@test.local",
 			ContactPhone:      "+49123456789",
 		}
 
-		err := repo.Create(ctx, guest)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, guest)
 		require.NoError(t, err)
 		assert.NotZero(t, guest.ID)
 
@@ -65,14 +66,14 @@ func TestGuestRepository_Create(t *testing.T) {
 		startDate := calendar.TodayDate()
 		endDate := startDate.AddDays(90)
 
-		guest := &userModels.Guest{
+		guest := &peopleValues.Guest{
 			StaffID:           staff.ID,
 			ActivityExpertise: "Dance",
 			StartDate:         &startDate,
 			EndDate:           &endDate,
 		}
 
-		err := repo.Create(ctx, guest)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, guest)
 		require.NoError(t, err)
 		assert.NotZero(t, guest.ID)
 		assert.NotNil(t, guest.StartDate)
@@ -81,17 +82,17 @@ func TestGuestRepository_Create(t *testing.T) {
 	})
 
 	t.Run("fails with nil guest", func(t *testing.T) {
-		err := repo.Create(ctx, nil)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be nil")
 	})
 
 	t.Run("fails without staff ID", func(t *testing.T) {
-		guest := &userModels.Guest{
+		guest := &peopleValues.Guest{
 			ActivityExpertise: "Music",
 		}
 
-		err := repo.Create(ctx, guest)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, guest)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "staff ID")
 	})
@@ -99,11 +100,11 @@ func TestGuestRepository_Create(t *testing.T) {
 	t.Run("fails without activity expertise", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Guest", "NoExp")
 
-		guest := &userModels.Guest{
+		guest := &peopleValues.Guest{
 			StaffID: staff.ID,
 		}
 
-		err := repo.Create(ctx, guest)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, guest)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "activity expertise")
 	})
@@ -111,13 +112,13 @@ func TestGuestRepository_Create(t *testing.T) {
 	t.Run("fails with invalid email", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Guest", "BadEmail")
 
-		guest := &userModels.Guest{
+		guest := &peopleValues.Guest{
 			StaffID:           staff.ID,
 			ActivityExpertise: "Music",
 			ContactEmail:      "not-an-email",
 		}
 
-		err := repo.Create(ctx, guest)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, guest)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "email")
 	})
@@ -134,14 +135,14 @@ func TestGuestRepository_FindByID(t *testing.T) {
 	t.Run("finds existing guest", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "FindByID")
 
-		found, err := repo.FindByID(ctx, guest.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(guest.ID))
 		require.NoError(t, err)
 		assert.Equal(t, guest.ID, found.ID)
 		assert.Equal(t, guest.ActivityExpertise, found.ActivityExpertise)
 	})
 
 	t.Run("returns error for non-existent guest", func(t *testing.T) {
-		_, err := repo.FindByID(ctx, int64(999999))
+		_, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(int64(999999)))
 		require.Error(t, err)
 	})
 }
@@ -157,14 +158,14 @@ func TestGuestRepository_FindByStaffID(t *testing.T) {
 	t.Run("finds guest by staff ID", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "FindByStaff")
 
-		found, err := repo.FindByStaffID(ctx, guest.StaffID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByStaffID, guest.StaffID)
 		require.NoError(t, err)
 		assert.Equal(t, guest.ID, found.ID)
 		assert.Equal(t, guest.StaffID, found.StaffID)
 	})
 
 	t.Run("returns error for non-existent staff ID", func(t *testing.T) {
-		_, err := repo.FindByStaffID(ctx, int64(999999))
+		_, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByStaffID, int64(999999))
 		require.Error(t, err)
 	})
 }
@@ -179,23 +180,23 @@ func TestGuestRepository_Update(t *testing.T) {
 
 	t.Run("updates guest", func(t *testing.T) {
 		guestFixture := testpkg.CreateTestGuest(t, db, "Update")
-		guest, err := repo.FindByID(ctx, guestFixture.ID)
+		guest, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(guestFixture.ID))
 		require.NoError(t, err)
 
 		guest.ActivityExpertise = "Updated Expertise"
 		guest.Organization = "Updated Org"
 
-		err = repo.Update(ctx, guest)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Update, guest)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, guest.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(guest.ID))
 		require.NoError(t, err)
 		assert.Equal(t, "Updated Expertise", found.ActivityExpertise)
 		assert.Equal(t, "Updated Org", found.Organization)
 	})
 
 	t.Run("fails with nil guest", func(t *testing.T) {
-		err := repo.Update(ctx, nil)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Update, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be nil")
 	})
@@ -212,10 +213,10 @@ func TestGuestRepository_Delete(t *testing.T) {
 	t.Run("deletes existing guest", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "Delete")
 
-		err := repo.Delete(ctx, guest.ID)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Delete, any(guest.ID))
 		require.NoError(t, err)
 
-		_, err = repo.FindByID(ctx, guest.ID)
+		_, err = testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(guest.ID))
 		require.Error(t, err)
 	})
 
@@ -240,14 +241,14 @@ func TestGuestRepository_List(t *testing.T) {
 
 	t.Run("lists guests with organization filter", func(t *testing.T) {
 		guestFixture := testpkg.CreateTestGuest(t, db, "ListOrg")
-		guest, err := repo.FindByID(ctx, guestFixture.ID)
+		guest, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(guestFixture.ID))
 		require.NoError(t, err)
 
 		guest.Organization = "ListTestOrg"
-		err = repo.Update(ctx, guest)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Update, guest)
 		require.NoError(t, err)
 
-		found, err := repo.List(ctx, map[string]interface{}{
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.List, map[string]interface{}{
 			"organization_like": "ListTest",
 		})
 		require.NoError(t, err)
@@ -256,14 +257,14 @@ func TestGuestRepository_List(t *testing.T) {
 
 	t.Run("lists guests with expertise filter", func(t *testing.T) {
 		guestFixture := testpkg.CreateTestGuest(t, db, "ListExp")
-		guest, err := repo.FindByID(ctx, guestFixture.ID)
+		guest, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(guestFixture.ID))
 		require.NoError(t, err)
 
 		guest.ActivityExpertise = "ListTestExpertise"
-		err = repo.Update(ctx, guest)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Update, guest)
 		require.NoError(t, err)
 
-		found, err := repo.List(ctx, map[string]interface{}{
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.List, map[string]interface{}{
 			"expertise_like": "ListTest",
 		})
 		require.NoError(t, err)

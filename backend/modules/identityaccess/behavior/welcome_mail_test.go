@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -26,11 +27,12 @@ import (
 
 // welcomeSchoolSettings gives the school settings that differ from the
 // registry defaults, so the help link has to carry the school's values.
-func welcomeSchoolSettings(t *testing.T, module api.AuthTestModule) {
+func welcomeSchoolSettings(t *testing.T, db *bun.DB) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, module.Settings.SetValue(ctx, "attendance.nfc_enabled", true, nil, nil))
-	require.NoError(t, module.Settings.SetValue(ctx, "operations.presence_mode", "binary", nil, nil))
+	settings := api.NewAuthTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	require.NoError(t, settings.SetValue(ctx, "attendance.nfc_enabled", true, nil, nil))
+	require.NoError(t, settings.SetValue(ctx, "operations.presence_mode", "binary", nil, nil))
 }
 
 const welcomeSettingsQuery = "nfc_enabled=true&presence_mode=binary&group_mode=fixed_groups"
@@ -110,7 +112,7 @@ func TestCreateSchoolInvitationSendsOneWelcomeAndResendDoesNot(t *testing.T) {
 		api.WithAuthTestPasswordResetBackoff(time.Millisecond),
 	)
 	require.NoError(t, err)
-	welcomeSchoolSettings(t, module)
+	welcomeSchoolSettings(t, db)
 	ctx := testpkg.Ctx(t)
 	_, err = db.NewRaw(`UPDATE platform.schools SET name = 'OGS Am Berg' WHERE id = ?`, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
@@ -328,7 +330,7 @@ func TestGuardianInvitationQueuesOneWelcomePerGuardianAndSchool(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	welcomeSchoolSettings(t, module)
+	welcomeSchoolSettings(t, db)
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "welcome-guardian")
 	creator := testpkg.CreateTestAccount(t, db, "welcome-guardian-creator")
@@ -424,14 +426,14 @@ func TestGuardianWelcomeFailureKeepsTheInvitation(t *testing.T) {
 func TestGuardianWelcomeRendersHelpAndParentInfo(t *testing.T) {
 	t.Parallel()
 	outbox := api.NewCapturingOutbox()
-	mailer := api.NewGuardianInvitationMailer(api.GuardianInvitationMailerConfig{
+	mailer := owners.NewGuardianInvitationMailer(owners.GuardianInvitationMailerConfig{
 		Outbox: outbox, FrontendURL: "https://eltern.example.test/",
 	})
-	precedingOutboxID, queued := mailer.EnqueueExistingAccount(context.Background(), api.GuardianMailRecipient{
+	precedingOutboxID, queued := mailer.EnqueueExistingAccount(context.Background(), owners.GuardianMailRecipient{
 		FirstName: " Olga ", LastName: "Muster", Email: " olga@example.test ",
 	}, "OGS Musterschule")
 	require.True(t, queued)
-	require.NoError(t, mailer.EnqueueWelcome(context.Background(), 42, api.GuardianMailRecipient{
+	require.NoError(t, mailer.EnqueueWelcome(context.Background(), 42, owners.GuardianMailRecipient{
 		FirstName: " Olga ", LastName: "Muster", Email: " olga@example.test ",
 	}, "OGS Musterschule", "https://eltern.example.test/help/eltern-konto-einrichten?role=parent", precedingOutboxID))
 
@@ -445,7 +447,7 @@ func TestGuardianWelcomeRendersHelpAndParentInfo(t *testing.T) {
 	assert.Equal(t, "https://eltern.example.test/downloads/moto-elterninfo.pdf", req.Payload["parent_info_url"])
 	assert.Equal(t, precedingOutboxID, req.Payload["preceding_outbox_id"])
 
-	render := api.NewGuardianWelcomeRenderer(api.GuardianInvitationRendererConfig{
+	render := owners.NewGuardianWelcomeRenderer(owners.GuardianInvitationRendererConfig{
 		PrecedingEmailStatus: func(context.Context, int64) (bool, bool, error) { return true, false, nil },
 	})
 	msg, err := render(context.Background(), req.Payload)
@@ -461,13 +463,13 @@ func TestGuardianWelcomeRendersHelpAndParentInfo(t *testing.T) {
 	assert.Contains(t, body, "Zur Hilfe")
 	assert.NotContains(t, body, "Einladung annehmen")
 
-	waiting := api.NewGuardianWelcomeRenderer(api.GuardianInvitationRendererConfig{
+	waiting := owners.NewGuardianWelcomeRenderer(owners.GuardianInvitationRendererConfig{
 		PrecedingEmailStatus: func(context.Context, int64) (bool, bool, error) { return false, false, nil },
 	})
 	_, err = waiting(context.Background(), req.Payload)
 	require.Error(t, err, "the welcome waits for its access email")
 
-	cancelled := api.NewGuardianWelcomeRenderer(api.GuardianInvitationRendererConfig{
+	cancelled := owners.NewGuardianWelcomeRenderer(owners.GuardianInvitationRendererConfig{
 		PrecedingEmailStatus: func(context.Context, int64) (bool, bool, error) { return false, true, nil },
 	})
 	_, err = cancelled(context.Background(), req.Payload)

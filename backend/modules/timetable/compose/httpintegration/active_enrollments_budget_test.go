@@ -19,7 +19,7 @@ import (
 func TestActiveStudentEnrollmentsQueryBudgetStaysFlat(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	module, err := api.NewActivitiesTestModule(testpkg.NewDatabase(t, db))
+	_, activities, _, _, err := api.NewActivitiesTestModule(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Aktiv", "Budget", "2b")
@@ -28,7 +28,7 @@ func TestActiveStudentEnrollmentsQueryBudgetStaysFlat(t *testing.T) {
 		t.Helper()
 		for i := from; i < from+count; i++ {
 			group := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("active-enrollment-budget-%d", i))
-			require.NoError(t, module.Activities.EnrollStudent(ctx, group.ID, student.ID))
+			require.NoError(t, activities.EnrollStudent(ctx, group.ID, student.ID))
 		}
 	}
 
@@ -36,7 +36,7 @@ func TestActiveStudentEnrollmentsQueryBudgetStaysFlat(t *testing.T) {
 	reads := func(expected int) []string {
 		t.Helper()
 		counter.Reset()
-		byStudent, readErr := module.Activities.GetActiveStudentEnrollmentsByStudentIDs(
+		byStudent, readErr := activities.GetActiveStudentEnrollmentsByStudentIDs(
 			ctx, []int64{student.ID}, calendar.TodayDate())
 		require.NoError(t, readErr)
 		require.Len(t, byStudent[student.ID], expected)

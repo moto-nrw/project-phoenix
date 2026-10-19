@@ -285,6 +285,11 @@ func (s *fakeStore) FindLoginAccountByEmail(_ context.Context, email string) (do
 	return domain.LoginAccount{}, false, stats(), nil
 }
 
+func (s *fakeStore) LockLoginAccountByEmail(ctx context.Context, email string) (domain.LoginAccount, bool, domain.OperationStats, error) {
+	s.record("LockLoginAccountByEmail")
+	return s.FindLoginAccountByEmail(ctx, email)
+}
+
 func (s *fakeStore) FindLoginAccount(_ context.Context, id int64, forUpdate bool) (domain.LoginAccount, bool, domain.OperationStats, error) {
 	if forUpdate {
 		s.record("FindLoginAccount(forUpdate)")
@@ -1102,4 +1107,8 @@ func (f *authFixture) seedStaff(accountID, tenantID int64, roleNames ...string) 
 
 func lehrkraftRole() domain.RoleAssignment {
 	return domain.RoleAssignment{RoleID: 7, Name: "lehrkraft", IsSystem: true}
+}
+
+func (fakeTransaction) RunAdmin(ctx context.Context, fn func(context.Context) error) error {
+	return fn(ctx)
 }

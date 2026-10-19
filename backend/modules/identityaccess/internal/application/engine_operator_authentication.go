@@ -140,6 +140,11 @@ var operatorSentinels = []struct {
 	internal error
 	public   error
 }{
+	{domain.ErrOperatorEmailInvalid, identityaccess.ErrOperatorEmailInvalid},
+	{domain.ErrOperatorEmailTooLong, identityaccess.ErrOperatorEmailTooLong},
+	{domain.ErrOperatorPasswordTooWeak, identityaccess.ErrOperatorPasswordTooWeak},
+	{domain.ErrOperatorDisplayNameRequired, identityaccess.ErrOperatorDisplayNameRequired},
+	{domain.ErrOperatorDisplayNameTooLong, identityaccess.ErrOperatorDisplayNameTooLong},
 	{domain.ErrOperatorInvalidCredentials, identityaccess.ErrOperatorInvalidCredentials},
 	{domain.ErrOperatorInactive, identityaccess.ErrOperatorInactive},
 	{domain.ErrOperatorNotFound, identityaccess.ErrOperatorNotFound},
@@ -160,7 +165,7 @@ func operatorError(err error) error {
 		return nil
 	}
 	if invalid, ok := errors.AsType[*domain.InvalidInputError](err); ok {
-		return &identityaccess.InvalidInputError{Err: invalid.Err}
+		return &identityaccess.InvalidInputError{Err: operatorError(invalid.Err)}
 	}
 	for _, sentinel := range operatorSentinels {
 		if !errors.Is(err, sentinel.internal) {

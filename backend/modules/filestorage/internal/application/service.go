@@ -66,6 +66,9 @@ type Service struct {
 // New wires the service. Every persistence, identity and runtime dependency
 // is required so a missing production binding fails at startup.
 func New(deps Dependencies) *Service {
+	if deps.Now == nil {
+		deps.Now = time.Now
+	}
 	if deps.Folders == nil || deps.Files == nil || deps.FileCleanups == nil ||
 		deps.Attachments == nil || deps.AttachmentCleanups == nil ||
 		deps.FileObjects == nil || deps.AttachmentObjects == nil ||
@@ -352,4 +355,10 @@ func (s *Service) openObject(ctx context.Context, k kind, tenantID int64, docume
 		return nil, fmt.Errorf("%w: %w", domain.ErrObjectNotFound, err)
 	}
 	return object, nil
+}
+
+// runRead scopes a read-only application operation, without extending its unit
+// into upload object I/O or the separately durable cleanup-intent transitions.
+func (s *Service) runRead(ctx context.Context, operation string, fn func(context.Context, *op) error) error {
+	return s.run(operation, func(o *op) error { return s.write(ctx, o, fn) })
 }

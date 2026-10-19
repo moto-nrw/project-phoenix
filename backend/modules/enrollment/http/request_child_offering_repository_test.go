@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,8 +15,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	testutil "github.com/moto-nrw/project-phoenix/api/testutil"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -92,7 +93,7 @@ func addGradedChild(
 	child.TargetGradeLevel = grade
 	child.Status = status
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return childRepo.InsertChild(ctx, child)
+		return testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), childRepo.InsertChild, child)
 	}))
 	t.Cleanup(func() {
 		bg := context.Background()
@@ -115,7 +116,7 @@ func requestIDOf(t *testing.T, db *bun.DB, tenantID, childID int64) int64 {
 	childRepo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	var requestID int64
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		child, err := childRepo.ChildByID(ctx, childID)
+		child, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), childRepo.ChildByID, childID)
 		if err != nil {
 			return err
 		}
@@ -174,21 +175,21 @@ func addRolloverSuccessorHolding(
 	var phaseID, childID int64
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		successor := makeOwnerEligibilityPhase(phaseName)
-		if err := phaseRepo.InsertPhase(ctx, successor); err != nil {
+		if err := testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), phaseRepo.InsertPhase, successor); err != nil {
 			return err
 		}
 		phaseID = successor.ID
 		req := makeOwnerRequest(successor.ID, token, "rolled@example.test")
-		if err := requestRepo.InsertRequest(ctx, req); err != nil {
+		if err := testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), requestRepo.InsertRequest, req); err != nil {
 			return err
 		}
 		rolled := makeChild(req.ID, "Rolled", "Kind")
 		rolled.TargetGradeLevel = grade
-		if err := childRepo.InsertChild(ctx, rolled); err != nil {
+		if err := testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), childRepo.InsertChild, rolled); err != nil {
 			return err
 		}
 		childID = rolled.ID
-		return offeringRepo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
+		return offeringRepo.InsertRequestChildOffering(ctx, &enrollmentNative.RequestChildOffering{
 			RequestChildID: rolled.ID, CareOfferingID: careOfferingID,
 		})
 	}))
@@ -213,7 +214,7 @@ func TestOwnerOffering_Create_PersistsAndReturnsID(t *testing.T) {
 	repo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 
 	notes := "Bitte Mo+Mi"
-	row := &owner.RequestChildOffering{
+	row := &enrollmentNative.RequestChildOffering{
 		RequestChildID: childID,
 		CareOfferingID: offeringID,
 		SelectedDays:   []string{"mon", "wed"},
@@ -242,8 +243,8 @@ func TestOwnerOffering_Create_PersistsAndReturnsID(t *testing.T) {
 	}))
 	require.NotNil(t, row.ValidFrom)
 	require.NotNil(t, row.ValidUntil)
-	assert.Equal(t, owner.Date(window.Start), *row.ValidFrom)
-	assert.Equal(t, owner.Date(window.End.AddDays(1)), *row.ValidUntil)
+	assert.Equal(t, enrollmentNative.Date(window.Start), *row.ValidFrom)
+	assert.Equal(t, enrollmentNative.Date(window.End.AddDays(1)), *row.ValidUntil)
 }
 
 func TestOwnerOffering_Create_BoundsPartialValidityWindow(t *testing.T) {
@@ -252,7 +253,7 @@ func TestOwnerOffering_Create_BoundsPartialValidityWindow(t *testing.T) {
 	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
 	repo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	validFrom := calendar.NewDate(2026, 10, 1)
-	row := &owner.RequestChildOffering{
+	row := &enrollmentNative.RequestChildOffering{
 		RequestChildID: childID,
 		CareOfferingID: offeringID,
 		ValidFrom:      offeringDatePointer(validFrom),
@@ -263,7 +264,7 @@ func TestOwnerOffering_Create_BoundsPartialValidityWindow(t *testing.T) {
 	}))
 
 	require.NotNil(t, row.ValidUntil)
-	assert.Equal(t, owner.Date("2027-08-01"), *row.ValidUntil)
+	assert.Equal(t, enrollmentNative.Date("2027-08-01"), *row.ValidUntil)
 }
 
 func TestOwnerOffering_ListByRequestChildID_ReturnsAllForChild(t *testing.T) {
@@ -276,7 +277,7 @@ func TestOwnerOffering_ListByRequestChildID_ReturnsAllForChild(t *testing.T) {
 	offering2Repo := newCareOfferingFixtures(testutil.NewTestCarePlan(t, db, testpkg.StudentDirectory{}))
 	o2 := makeOffering(0, uniqueOfferingName("second"))
 	// We need o2's PhaseID; fetch the first offering's phase via repo.
-	var first *enrollmentModels.CareOffering
+	var first *offeringContract.CareOfferingRecord
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
 		first, fbErr = offering2Repo.FindByID(ctx, offeringID)
@@ -288,7 +289,7 @@ func TestOwnerOffering_ListByRequestChildID_ReturnsAllForChild(t *testing.T) {
 	}))
 
 	for _, oid := range []int64{offeringID, o2.ID} {
-		row := &owner.RequestChildOffering{
+		row := &enrollmentNative.RequestChildOffering{
 			RequestChildID: childID,
 			CareOfferingID: oid,
 			SelectedDays:   nil,
@@ -298,7 +299,7 @@ func TestOwnerOffering_ListByRequestChildID_ReturnsAllForChild(t *testing.T) {
 		}))
 	}
 
-	var list []*owner.RequestChildOffering
+	var list []*enrollmentNative.RequestChildOffering
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
 		list, lErr = repo.RequestChildOfferingHistory(ctx, childID)
@@ -315,7 +316,7 @@ func TestOwnerOffering_ListByRequestChildIDs_BatchLoad(t *testing.T) {
 
 	// Two offering links for the one child.
 	offering2Repo := newCareOfferingFixtures(testutil.NewTestCarePlan(t, db, testpkg.StudentDirectory{}))
-	var first *enrollmentModels.CareOffering
+	var first *offeringContract.CareOfferingRecord
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
 		first, fbErr = offering2Repo.FindByID(ctx, offeringID)
@@ -327,14 +328,14 @@ func TestOwnerOffering_ListByRequestChildIDs_BatchLoad(t *testing.T) {
 	}))
 	for _, oid := range []int64{offeringID, o2.ID} {
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-			return repo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
+			return repo.InsertRequestChildOffering(ctx, &enrollmentNative.RequestChildOffering{
 				RequestChildID: childID,
 				CareOfferingID: oid,
 			})
 		}))
 	}
 
-	var list []*owner.RequestChildOffering
+	var list []*enrollmentNative.RequestChildOffering
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
 		list, lErr = repo.RequestChildOfferingHistoryForChildren(ctx, []int64{childID})
@@ -350,7 +351,7 @@ func TestOwnerOffering_ListByRequestChildIDsAtDate_ExcludesHistoricalIntervals(t
 	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
 	repo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	offeringRepo := newCareOfferingFixtures(testutil.NewTestCarePlan(t, db, testpkg.StudentDirectory{}))
-	var first *enrollmentModels.CareOffering
+	var first *offeringContract.CareOfferingRecord
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
 		first, err = offeringRepo.FindByID(ctx, offeringID)
@@ -362,28 +363,28 @@ func TestOwnerOffering_ListByRequestChildIDsAtDate_ExcludesHistoricalIntervals(t
 	}))
 	onDate := calendar.NewDate(2026, 10, 1)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		if err := repo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
+		if err := repo.InsertRequestChildOffering(ctx, &enrollmentNative.RequestChildOffering{
 			RequestChildID: childID,
 			CareOfferingID: offeringID,
 			ValidUntil:     offeringDatePointer(onDate),
 		}); err != nil {
 			return err
 		}
-		return repo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
+		return repo.InsertRequestChildOffering(ctx, &enrollmentNative.RequestChildOffering{
 			RequestChildID: childID,
 			CareOfferingID: currentOffering.ID,
 			ValidFrom:      offeringDatePointer(onDate),
 		})
 	}))
 
-	var history, active []*owner.RequestChildOffering
+	var history, active []*enrollmentNative.RequestChildOffering
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
 		history, err = repo.RequestChildOfferingHistoryForChildren(ctx, []int64{childID})
 		if err != nil {
 			return err
 		}
-		active, err = repo.RequestChildOfferingsForChildrenAtDate(ctx, []int64{childID}, owner.Date(onDate))
+		active, err = repo.RequestChildOfferingsForChildrenAtDate(ctx, []int64{childID}, enrollmentNative.Date(onDate))
 		return err
 	}))
 	require.Len(t, history, 2, "batch history must retain expired offering intervals")
@@ -396,7 +397,7 @@ func TestOwnerOffering_ListByRequestChildIDs_EmptyInputShortCircuits(t *testing.
 
 	db, _, tenantID, _, _ := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
 	repo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
-	var list []*owner.RequestChildOffering
+	var list []*enrollmentNative.RequestChildOffering
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
 		list, lErr = repo.RequestChildOfferingHistoryForChildren(ctx, nil)
@@ -411,7 +412,7 @@ func TestOwnerOffering_ListByRequestChildID_EmptyResultNoError(t *testing.T) {
 
 	db, _, tenantID, _, _ := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
 	repo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
-	var list []*owner.RequestChildOffering
+	var list []*enrollmentNative.RequestChildOffering
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
 		list, lErr = repo.RequestChildOfferingHistory(ctx, 9_999_999)
@@ -441,11 +442,11 @@ func TestOwnerOffering_CapacityPeak_ExcludesTerminalStatuses(t *testing.T) {
 
 	childRepo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	statuses := []string{
-		enrollmentModels.ChildStatusSubmitted,
-		enrollmentModels.ChildStatusApproved,
-		enrollmentModels.ChildStatusWaitlisted,
-		enrollmentModels.ChildStatusRejected,  // EXCLUDED
-		enrollmentModels.ChildStatusWithdrawn, // EXCLUDED
+		enrollmentNative.ChildStatusSubmitted,
+		enrollmentNative.ChildStatusApproved,
+		enrollmentNative.ChildStatusWaitlisted,
+		enrollmentNative.ChildStatusRejected,  // EXCLUDED
+		enrollmentNative.ChildStatusWithdrawn, // EXCLUDED
 	}
 	for i, status := range statuses {
 		c := makeChild(requestID, "Counter", "Child")
@@ -454,7 +455,7 @@ func TestOwnerOffering_CapacityPeak_ExcludesTerminalStatuses(t *testing.T) {
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 			return childRepo.InsertChild(ctx, c)
 		}))
-		row := &owner.RequestChildOffering{
+		row := &enrollmentNative.RequestChildOffering{
 			RequestChildID: c.ID,
 			CareOfferingID: offeringID,
 		}
@@ -512,8 +513,8 @@ func uniqueToken(prefix string) string {
 	return fmt.Sprintf("%s-%d", prefix, testpkg.UniqueSuffix())
 }
 
-func makeOwnerRequest(phaseID int64, token, email string) *owner.Request {
-	return &owner.Request{
+func makeOwnerRequest(phaseID int64, token, email string) *enrollmentNative.Request {
+	return &enrollmentNative.Request{
 		PhaseID: phaseID, GuardianFirstName: "Anna", GuardianLastName: "Beispiel", GuardianEmail: email,
 		ConsentFlags: []byte("{}"), CustomData: []byte("{}"), StatusToken: token, SubmittedAt: time.Now().UTC(),
 	}
@@ -536,11 +537,11 @@ func uniqueOfferingName(prefix string) string {
 	return fmt.Sprintf("%s-%d", prefix, testpkg.UniqueSuffix())
 }
 
-func makeOffering(phaseID int64, name string) *enrollmentModels.CareOffering {
-	return &enrollmentModels.CareOffering{
+func makeOffering(phaseID int64, name string) *offeringContract.CareOfferingRecord {
+	return &offeringContract.CareOfferingRecord{
 		PhaseID:        phaseID,
 		Name:           name,
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
 		IsActive:       true,
 	}
@@ -553,23 +554,23 @@ func wipeOfferings(db *bun.DB, tenantID, phaseID int64) {
 		Exec(context.Background())
 }
 
-func makeChild(requestID int64, firstName, lastName string) *owner.RequestChild {
-	return &owner.RequestChild{
+func makeChild(requestID int64, firstName, lastName string) *enrollmentNative.RequestChild {
+	return &enrollmentNative.RequestChild{
 		RequestID:      requestID,
 		FirstName:      firstName,
 		LastName:       lastName,
-		DateOfBirth:    owner.Date("2018-04-15"),
-		Status:         enrollmentModels.ChildStatusSubmitted,
-		ActivationMode: enrollmentModels.ChildActivationScheduled,
+		DateOfBirth:    enrollmentNative.Date("2018-04-15"),
+		Status:         enrollmentNative.ChildStatusSubmitted,
+		ActivationMode: enrollmentNative.ChildActivationScheduled,
 		CustomData:     []byte("{}"),
 	}
 }
 
-func makeOwnerEligibilityPhase(name string) *owner.Phase {
-	return &owner.Phase{
-		Name: name, Kind: enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: owner.Date("2026-09-01"), ServiceEndDate: owner.Date("2027-07-31"),
-		IsActive: true, CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+func makeOwnerEligibilityPhase(name string) *enrollmentNative.Phase {
+	return &enrollmentNative.Phase{
+		Name: name, Kind: enrollmentNative.PhaseKindSchoolYear,
+		ServiceStartDate: enrollmentNative.Date("2026-09-01"), ServiceEndDate: enrollmentNative.Date("2027-07-31"),
+		IsActive: true, CareOverflowMode: enrollmentNative.PhaseCareOverflowWaitlist,
 	}
 }
 

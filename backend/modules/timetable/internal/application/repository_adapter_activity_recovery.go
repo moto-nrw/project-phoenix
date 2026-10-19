@@ -4,9 +4,11 @@ import (
 	"context"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 )
 
 // AssignmentRecovery is the Timetable side of a reopen: the planned
@@ -34,7 +36,7 @@ type PresenceRecovery interface {
 // block from its two owners: Timetable locks the participants, Student
 // Presence locks and restores the live group, the visits, the supervisors,
 // the attendance and the session (#2762).
-func RetainedActivityRecovery(assignments scheduleModels.InstanceStudentRepository) (AssignmentRecovery, PresenceRecovery) {
+func RetainedActivityRecovery(assignments ports.InstanceStudentRecords) (AssignmentRecovery, PresenceRecovery) {
 	owner, ok := assignments.(timetableInstanceStudentRepository)
 	if !ok {
 		panic("activity recovery: timetable assignment adapter is required")
@@ -114,8 +116,4 @@ func (p recoveryPresence) RestoreAttendance(ctx context.Context, rows []schedule
 func (p recoveryPresence) ReopenSession(ctx context.Context, instanceID, activeGroupID int64) error {
 	_, err := p.ReopenActivitySession(ctx, instanceID, activeGroupID)
 	return err
-}
-
-func (p recoveryPresence) RestoreGroup(ctx context.Context, activeGroupID int64, now time.Time) error {
-	return p.Module.RestoreGroup(ctx, activeGroupID, now)
 }

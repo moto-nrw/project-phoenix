@@ -3,9 +3,8 @@ package ports
 import (
 	"context"
 	"errors"
-	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"time"
 )
 
 // ErrGuardianEmailInUse marks a guardian e-mail that another profile of the
@@ -57,7 +56,7 @@ type GuardianServiceDependencies struct {
 	// guardians:financial code path is the only one holding a reference to
 	// the bank rows. Both audit writers are mandatory for that path: it
 	// refuses to serve or change an IBAN when it cannot write the trail.
-	GuardianFinancialRepo  users.GuardianFinancialDataRepository
+	GuardianFinancialRepo  GuardianFinancialDataRepository
 	GuardianFinancialAudit GuardianFinancialAudit
 	DataAccessLog          GuardianDataAccessLog
 

@@ -5,16 +5,18 @@ import (
 	"log/slog"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	activitiesModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/activityrecords"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // DataInstances reads blocks from the retained activity instance repository.
 type DataInstances interface {
-	FindByID(ctx context.Context, id any) (*scheduleModels.ActivityInstance, error)
-	FindByTenantAndDateRange(ctx context.Context, from, to scheduleModels.Date) ([]*scheduleModels.ActivityInstance, error)
+	FindByID(ctx context.Context, id int64) (*scheduleModels.ActivityInstance, error)
+	FindByTenantAndDateRange(ctx context.Context, from, to calendar.Date) ([]*scheduleModels.ActivityInstance, error)
 }
 
 // DataParticipants reads and patches the participant rows of blocks.
@@ -23,19 +25,19 @@ type DataParticipants interface {
 	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStudent, error)
 	FindNotScheduledCandidatesByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStudent, error)
 	FindByInstanceAndStudent(ctx context.Context, instanceID, studentID int64) (*scheduleModels.InstanceStudent, error)
-	FindInstancesWithAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, from, to scheduleModels.Date) ([]*scheduleModels.ScheduledInstanceRow, error)
+	FindInstancesWithAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, from, to calendar.Date) ([]*scheduleModels.ScheduledInstanceRow, error)
 	UpdateAttendanceFields(ctx context.Context, id int64, patch scheduleModels.AttendanceFieldPatch) error
 }
 
 // DataPickupExceptions reads the dated pickup exceptions of children.
 type DataPickupExceptions interface {
-	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date scheduleModels.Date) ([]*scheduleModels.StudentPickupException, error)
-	FindByStudentIDAndDateRange(ctx context.Context, studentID int64, from, to scheduleModels.Date) ([]*scheduleModels.StudentPickupException, error)
+	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*scheduleModels.StudentPickupException, error)
+	FindByStudentIDAndDateRange(ctx context.Context, studentID int64, from, to calendar.Date) ([]*scheduleModels.StudentPickupException, error)
 }
 
 // DataArrivalExceptions reads the dated arrival exceptions of a child.
 type DataArrivalExceptions interface {
-	FindByStudentIDAndDateRange(ctx context.Context, studentID int64, from, to scheduleModels.Date) ([]*scheduleModels.StudentArrivalException, error)
+	FindByStudentIDAndDateRange(ctx context.Context, studentID int64, from, to calendar.Date) ([]*scheduleModels.StudentArrivalException, error)
 }
 
 // PickupBaselineProjector is the consumer-owned port to Care Plan's regular
@@ -56,12 +58,12 @@ type DataTemplates interface {
 	ListTemplateRows(ctx context.Context, templateID *int64) ([]activitiesModels.TemplateListRow, error)
 	ListTemplateRowsForTemplatePeriod(ctx context.Context, templateID, periodID int64) ([]activitiesModels.TemplateListRow, error)
 	ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) ([]activitiesModels.TemplateListRow, error)
-	ListTemplateWeekdayRoster(ctx context.Context, templateID, calendarPeriodID *int64) ([]activitiesModels.TemplateWeekdayRosterRow, error)
+	ListTemplateWeekdayRoster(ctx context.Context, templateID, calendarPeriodID *int64) ([]timetable.TemplateWeekdayRosterRow, error)
 	ListTemplateCapacityOccurrences(ctx context.Context, periodID *int64, templateIDs []int64) ([]activitiesModels.TemplateCapacityOccurrence, error)
-	FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*activitiesModels.GroupTarget, error)
+	FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*activityContract.GroupTarget, error)
 	FindTargetStudentIDsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]int64, error)
-	FindByName(ctx context.Context, name string) (*activitiesModels.Group, error)
-	Create(ctx context.Context, group *activitiesModels.Group) error
+	FindByName(ctx context.Context, name string) (*activityContract.Group, error)
+	Create(ctx context.Context, group *activityContract.Group) error
 }
 
 // DataGroups reads the template a block was materialized from through the
@@ -77,8 +79,8 @@ type BlockDisplayMetadata interface {
 
 // DataCategories reads and creates the activity categories.
 type DataCategories interface {
-	FindByNameIncludingArchivedForShare(ctx context.Context, name string) (*activitiesModels.Category, error)
-	Create(ctx context.Context, category *activitiesModels.Category) error
+	FindByNameIncludingArchivedForShare(ctx context.Context, name string) (*activityContract.Category, error)
+	Create(ctx context.Context, category *activityContract.Category) error
 }
 
 // RoomOccupancy reports another open Student Presence session in a room.
@@ -104,6 +106,7 @@ type AdvisoryLocks interface {
 // only and callers that do not render blocks receive no display metadata.
 // Every other collaborator is required.
 type TimetableDataDependencies struct {
+	RunInTx           func(context.Context, func(context.Context) error) error
 	Instances         DataInstances
 	InstanceStaff     OperationInstanceStaff
 	Participants      DataParticipants

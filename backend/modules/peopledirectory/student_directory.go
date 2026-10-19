@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Care-status windows of the staff directory. Running and Ended are the two
@@ -76,10 +77,47 @@ type StudentRecord struct {
 
 func (r StudentRecord) IsAlumnus() bool { return r.Status == StudentStatusAlumnus }
 
+// IsActive reports a child whose care is running: not pending, inactive or
+// graduated.
+func (r StudentRecord) IsActive() bool { return r.Status == StudentStatusActive }
+
+// CareEndedOn reports whether the child's care has ended by day: a last care
+// day is set and day lies after it.
+func (r StudentRecord) CareEndedOn(day calendar.Date) bool {
+	return r.EnrolledUntil != "" && day.After(calendar.Date(r.EnrolledUntil))
+}
+
+// PickupEligibleOn reports a child a pickup plan applies to on day: not
+// graduated and still in care.
+func (r StudentRecord) PickupEligibleOn(day calendar.Date) bool {
+	return !r.IsAlumnus() && !r.CareEndedOn(day)
+}
+
+// StudentClassRecords is the class read HasActiveClass runs over.
+type StudentClassRecords interface {
+	ListStudentRecordsByClass(context.Context, []string, StudentScope) ([]StudentRecord, error)
+}
+
+// HasActiveClass reports whether class still has an enrolled child whose care
+// has not ended by today.
+func HasActiveClass(ctx context.Context, students StudentClassRecords, class string, today calendar.Date) (bool, error) {
+	rows, err := students.ListStudentRecordsByClass(ctx, []string{class}, StudentScopeEnrolled)
+	if err != nil {
+		return false, err
+	}
+	for _, row := range rows {
+		if !row.CareEndedOn(today) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // StudentRosterEntry is a child together with the identity it renders under.
 // Every roster surface needs both, and both are this owner's rows.
 type StudentRosterEntry struct {
-	Record    StudentRecord `json:"student"`
+	Record    *StudentState `json:"student"`
+	GroupName string        `json:"group_name"`
 	FirstName string        `json:"first_name"`
 	LastName  string        `json:"last_name"`
 	TagID     *string       `json:"tag_id,omitempty"`

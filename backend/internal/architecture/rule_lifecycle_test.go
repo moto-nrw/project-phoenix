@@ -122,7 +122,7 @@ func TestRuleIssueDoesNotChangePermission(t *testing.T) {
 	}
 	base.Rules[0].Issue = "https://github.com/moto-nrw/project-phoenix/issues/2725"
 	candidate.Rules[0].Issue = "https://github.com/moto-nrw/project-phoenix/issues/2736"
-	if err := comparePolicyStrictness(base, candidate, nil, nil, nil, nil, nil); err != nil {
+	if err := comparePolicyStrictness(base, candidate, nil, nil, nil, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 }

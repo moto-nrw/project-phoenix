@@ -3,14 +3,13 @@
 package api
 
 import (
-	"context"
 	"log/slog"
+
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -38,35 +37,6 @@ const (
 	EnrollmentFlowStudentExportResource = auditModels.ResourceTypeEnrollmentStudentExport
 )
 
-// NewEnrollmentFlowDelivery composes the Delivery platform over the test
-// database with a provider that accepts every send.
-func NewEnrollmentFlowDelivery(db transactionruntime.Database) (*delivery.Module, error) {
-	runtime, err := deliveryCompose.New(deliveryCompose.Dependencies{
-		DB: db.Pool(), Provider: enrollmentFlowDeliveryProvider{}, People: enrollmentFlowGuardianDirectory{},
-		Observe: func(delivery.Observation) {},
-	})
-	if err != nil {
-		return nil, err
-	}
-	return runtime.Module, nil
-}
-
-type enrollmentFlowDeliveryProvider struct{}
-
-func (enrollmentFlowDeliveryProvider) SendEmail(context.Context, delivery.ClaimedIntent) (delivery.ProviderResult, error) {
-	return delivery.ProviderResult{}, nil
-}
-
-func (enrollmentFlowDeliveryProvider) SendPush(context.Context, delivery.ClaimedIntent) (delivery.ProviderResult, error) {
-	return delivery.ProviderResult{}, nil
-}
-
-type enrollmentFlowGuardianDirectory struct{}
-
-func (enrollmentFlowGuardianDirectory) ResolveGuardianDisplays(context.Context, []int64) ([]delivery.GuardianDisplay, error) {
-	return nil, nil
-}
-
 // NewEnrollmentFlowStudentAudit records student changes with the request's
 // audit actor, the way the root binds the decision flow's student audit.
 func NewEnrollmentFlowStudentAudit(db transactionruntime.Database, actor peoplePorts.RequestAuditActor) peoplePorts.StudentAuditService {
@@ -77,9 +47,9 @@ func NewEnrollmentFlowStudentAudit(db transactionruntime.Database, actor peopleP
 // way the root binds it; extensions also records the pickup extensions the
 // Timetable owner keeps.
 func NewEnrollmentFlowPickupExcusal(db transactionruntime.Database, records careplan.Capability, baselines careplan.PickupBaselineReader, tt timetable.Capability, extensions bool) (careplan.PickupAutoExcusal, error) {
-	adapter := NewPickupExcusalTimetable(tt, NewPartialAbsencePreview(db))
+	adapter := owners.NewPickupExcusalTimetable(tt, owners.NewPartialAbsencePreview(db))
 	deps := careplanCompose.PickupExcusalDependencies{
-		DB: db.Pool(), Records: records, Baselines: baselines, Blocks: NewLoggedStudentPresence(db, slog.Default()), Preview: adapter,
+		DB: db.Pool(), Records: records, Baselines: baselines, Blocks: owners.NewLoggedStudentPresence(db, slog.Default()), Preview: adapter,
 	}
 	if extensions {
 		deps.Extensions = adapter

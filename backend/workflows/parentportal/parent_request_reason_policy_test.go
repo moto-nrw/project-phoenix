@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -23,7 +24,8 @@ func TestChildFeaturesReasonRequiredFollowsPolicy(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
@@ -37,20 +39,20 @@ func TestChildFeaturesReasonRequiredFollowsPolicy(t *testing.T) {
 		{parentportal.ReasonPolicyBoth, true},
 	} {
 		svc := parentportalcompose.New(parentportalcompose.Dependencies{
-			GuardianChanges: api.ParentGuardianChanges(),
-			DeparturePolicy: api.ParentDeparturePolicy(),
-			GuardianPolicy:  api.NewParentGuardianPolicy(),
-			Fingerprints:    api.SecurityFingerprints{},
-			Declarations:    api.ParentDeclarationPolicy(),
-			Locales:         api.ParentPortalLocales(),
-			Runtime:         api.ParentPortalRuntime{},
-			CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
-			People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+			GuardianChanges: owners.ParentGuardianChanges(),
+			DeparturePolicy: owners.ParentDeparturePolicy(),
+			GuardianPolicy:  owners.NewParentGuardianPolicy(),
+			Fingerprints:    owners.SecurityFingerprints{},
+			Declarations:    owners.ParentDeclarationPolicy(),
+			Locales:         owners.ParentPortalLocales(),
+			Runtime:         owners.ParentPortalRuntime{},
+			CarePlan:        owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+			People:          owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 			CareProfiles:    careProfiles(t, db),
 			ChildRepo:       repos.ParentChildReads(),
 			StatusDayRepo:   repos.StudentStatusDay,
-			StudentRepo:     api.NewParentStudentReads(repos.Student),
-			CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
+			StudentRepo:     owners.NewParentStudentReads(reposPeople.Student),
+			CareExceptions:  owners.NewParentCareExceptions(repos.CarePlan()),
 			Settings: parentSettingsStub{
 				stringValues: map[string]string{
 					parentportal.KeyGuardianParentInviteMode:  parentportal.ParentInviteModeDisabled,
@@ -60,9 +62,9 @@ func TestChildFeaturesReasonRequiredFollowsPolicy(t *testing.T) {
 			MealPlan: availableMealPlan(false),
 			Logger:   slog.Default(),
 
-			DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+			DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
 
-			CarePlanPolicy: api.NewParentCarePlanPolicy(),
+			CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 		})
 
 		flags, err := svc.ChildFeatures(ctx, chain.AccountID, chain.StudentID)

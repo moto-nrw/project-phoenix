@@ -5,7 +5,8 @@ import (
 	"errors"
 	"time"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -16,12 +17,14 @@ type templateAdministrationQueries interface {
 	ResolveLivingTemplateSegment(context.Context, int64) (int64, bool, error)
 	ValidateTemplateEducationGroup(context.Context, *int64) error
 	FindOrCreateTimeframe(context.Context, time.Time, time.Time, string) (int64, error)
+	TemplateAssignmentsOn(context.Context, int64, calendar.Date, int64) (timetable.TemplateAssignments, error)
 }
 
 type templateAdministration struct {
 	templateAdministrationQueries
 	templates *TemplateService
 	split     *TemplateSplitService
+	templateEnder
 }
 
 var _ timetable.TemplateAdministration = (*templateAdministration)(nil)
@@ -57,7 +60,7 @@ func NewTemplateAdministration(deps ports.TemplateAdministrationDependencies) (t
 		return nil, err
 	}
 	templates := newTemplateAdministrationService(deps)
-	return &templateAdministration{templateAdministrationQueries: templates, templates: templates, split: split}, nil
+	return &templateAdministration{templateAdministrationQueries: templates, templates: templates, split: split, templateEnder: split}, nil
 }
 
 func (a *templateAdministration) CreateTemplate(ctx context.Context, cmd timetable.CreateTemplateCommand) (*timetable.CreateTemplateResult, error) {
@@ -72,14 +75,6 @@ func (a *templateAdministration) SplitTemplate(ctx context.Context, cmd timetabl
 	return a.split.Split(ctx, templateSplitInput(cmd))
 }
 
-func (a *templateAdministration) EndTemplateFromDate(ctx context.Context, cmd timetable.EndTemplateCommand) (*timetable.EndTemplateResult, error) {
-	return a.split.EndFromDate(ctx, cmd)
-}
-
-func (a *templateAdministration) TemplateAssignmentsOn(ctx context.Context, templateID int64, date calendar.Date, calendarPeriodID int64) (timetable.TemplateAssignments, error) {
-	return a.templates.templateAssignmentsOn(ctx, templateID, date, calendarPeriodID)
-}
-
 func (a *templateAdministration) AlignPlannedInstanceStaff(ctx context.Context, templateID int64, staffIDs []int64, from calendar.Date) error {
 	return a.templates.reconcilePredecessorInstanceStaff(ctx, templateID, staffIDs, from, nil)
 }
@@ -88,7 +83,7 @@ func (a *templateAdministration) AlignPlannedInstanceStaff(ctx context.Context, 
 // materialized occurrence would receive for one date. It intentionally reads
 // the persisted template roster after CreateTemplate has completed, so
 // offering-service start dates and selected weekdays are already authoritative.
-func (s *TemplateService) templateAssignmentsOn(
+func (s *TemplateService) TemplateAssignmentsOn(
 	ctx context.Context,
 	templateID int64,
 	date calendar.Date,
@@ -138,7 +133,7 @@ func (s *TemplateService) templateStudentsOn(ctx context.Context, templateID int
 		}
 		studentIDs = appendUnseen(studentIDs, seenStudents, enrollment.StudentID)
 	}
-	targetRepo, ok := s.deps.ActivityGroupRepo.(activitiesModel.GroupTargetRepository)
+	targetRepo, ok := s.deps.ActivityGroupRepo.(ports.ActivityGroupTargets)
 	if !ok {
 		return studentIDs, nil
 	}
@@ -165,13 +160,13 @@ func appendUnseen(ids []int64, seen map[int64]struct{}, id int64) []int64 {
 // groupTargetModels maps the contract's dynamic targets onto the retained
 // rows. nil stays nil: the template commands tell an omitted target list from
 // an empty one.
-func groupTargetModels(targets []timetable.GroupTargetInput) []*activitiesModel.GroupTarget {
+func groupTargetModels(targets []timetable.GroupTargetInput) []*activityContract.GroupTarget {
 	if targets == nil {
 		return nil
 	}
-	rows := make([]*activitiesModel.GroupTarget, 0, len(targets))
+	rows := make([]*activityContract.GroupTarget, 0, len(targets))
 	for _, target := range targets {
-		rows = append(rows, &activitiesModel.GroupTarget{
+		rows = append(rows, &activityContract.GroupTarget{
 			TargetGroupType:   target.TargetGroupType,
 			TargetGradeLevel:  target.TargetGradeLevel,
 			TargetSchoolClass: target.TargetSchoolClass,
@@ -242,31 +237,8 @@ func templateUpdateInput(cmd timetable.UpdateTemplateCommand) TemplateUpdateInpu
 	}
 }
 
-func templateFieldsUpdate(fields timetable.TemplateFields) activitiesModel.TemplateFieldsUpdate {
-	return activitiesModel.TemplateFieldsUpdate{
-		Name:                    fields.Name,
-		Type:                    fields.Type,
-		CategoryID:              fields.CategoryID,
-		PlanningTrackID:         fields.PlanningTrackID,
-		PlanningTrackIDProvided: fields.PlanningTrackIDProvided,
-		RoomID:                  fields.RoomID,
-		EducationGroupID:        fields.EducationGroupID,
-		MaxParticipants:         fields.MaxParticipants,
-		MaxParticipantsProvided: fields.MaxParticipantsProvided,
-		RequiredStaff:           fields.RequiredStaff,
-		CalendarPeriodID:        fields.CalendarPeriodID,
-		TargetGroupType:         fields.TargetGroupType,
-		TargetGradeLevel:        fields.TargetGradeLevel,
-		TargetSchoolClass:       fields.TargetSchoolClass,
-		ListKind:                fields.ListKind,
-		Notes:                   fields.Notes,
-		SourceCareOfferingIDs:   fields.SourceCareOfferingIDs,
-		SourceGradeLevels:       fields.SourceGradeLevels,
-		SourceSchoolClasses:     fields.SourceSchoolClasses,
-		IncludeClosingDays:      fields.IncludeClosingDays,
-		SeriesLastDay:           fields.SeriesLastDay,
-		SeriesLastDayProvided:   fields.SeriesLastDayProvided,
-	}
+func templateFieldsUpdate(fields timetable.TemplateFields) timetable.TemplateUpdate {
+	return timetable.TemplateUpdate(fields)
 }
 
 func templateSplitInput(cmd timetable.SplitTemplateCommand) TemplateSplitInput {
@@ -337,4 +309,8 @@ func newTemplateAdministrationService(deps ports.TemplateAdministrationDependenc
 		Transactions:           deps.Transactions,
 		Today:                  deps.Today,
 	})
+}
+
+type templateEnder interface {
+	EndTemplateFromDate(context.Context, timetable.EndTemplateCommand) (*timetable.EndTemplateResult, error)
 }

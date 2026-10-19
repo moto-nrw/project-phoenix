@@ -24,7 +24,7 @@ func TestOperatorDeviceRowsQueryBudget(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	provisioning := buildOperatorProvisioning(t, db).OperatorProvisioning
+	provisioning := buildOperatorProvisioning(t, db)
 	counter := testpkg.CaptureQueries(t, db)
 	// The operator dashboard is a cross-tenant read; production runs it in the
 	// administrative transaction the platform-scope request middleware opens,

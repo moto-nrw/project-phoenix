@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -151,9 +152,10 @@ type GuardianLinks struct{}
 // GuardianLinkRows is the link row source, scoped to tenantID when positive.
 func (GuardianLinks) GuardianLinkRows(db bun.IDB, tenantID int64) *bun.SelectQuery {
 	query := StudentGuardianLinks(db)
-	if tenantID > 0 {
-		query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
+	if tenantID <= 0 {
+		return query.Err(errors.New("fixture projection: tenant is required"))
 	}
+	query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
 	return query
 }
 
@@ -161,9 +163,10 @@ func (GuardianLinks) GuardianLinkRows(db bun.IDB, tenantID int64) *bun.SelectQue
 // selection.
 func (GuardianLinks) GuardianLinkModelRows(db bun.IDB, tenantID int64, model any) *bun.SelectQuery {
 	query := db.NewSelect().Model(model).ModelTableExpr(studentGuardianLinkSource)
-	if tenantID > 0 {
-		query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
+	if tenantID <= 0 {
+		return query.Err(errors.New("fixture projection: tenant is required"))
 	}
+	query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
 	return query
 }
 
@@ -281,7 +284,30 @@ func ApplyStudentGuardianRole(link *StudentGuardian, role string) {
 // GuardianPermissionsGrant reports whether a relationship's stored
 // parent-portal permissions grant permission under the Security Runtime's
 // stored-value rule.
-func GuardianPermissionsGrant(permissions map[string]any, permission string) bool {
-	value, exists := permissions[permission]
+func GuardianPermissionsGrant(permissions any, permission string) bool {
+	if raw, ok := permissions.(json.RawMessage); ok {
+		return securityruntime.GuardianPermissionGrantedJSON(raw, permission)
+	}
+	values, ok := permissions.(map[string]any)
+	if !ok {
+		return false
+	}
+	value, exists := values[permission]
 	return exists && securityruntime.GuardianPermissionGranted(value)
+}
+
+// GuardianPermissionValueJSON reads the stored value without interpreting its grant.
+func GuardianPermissionValueJSON(raw json.RawMessage, permission string) any {
+	var values map[string]any
+	if json.Unmarshal(raw, &values) != nil {
+		return nil
+	}
+	return values[permission]
+}
+
+func (GuardianLinks) AllSchoolsGuardianLinkRows(db bun.IDB) *bun.SelectQuery {
+	return StudentGuardianLinks(db)
+}
+func (GuardianLinks) AllSchoolsGuardianLinkModelRows(db bun.IDB, model any) *bun.SelectQuery {
+	return db.NewSelect().Model(model).ModelTableExpr(studentGuardianLinkSource)
 }

@@ -7,9 +7,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
+
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -65,7 +66,7 @@ func TestCalendarServiceIntegration_ReminderPushSurvivesAnEditBeforeDispatch(t *
 	cfg.Preferences = reminderPreferences{}
 	baseRepo := cfg.Appointments
 	cfg.Appointments = &revisingCandidateLock{Capability: baseRepo, db: db, on: 2}
-	service := api.NewCalendarPortal(cfg)
+	service := owners.NewCalendarPortal(cfg)
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Revised")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -78,10 +79,10 @@ func TestCalendarServiceIntegration_ReminderPushSurvivesAnEditBeforeDispatch(t *
 		EndDate:      appointmentDate,
 		StartTime:    wallClock(18, 0),
 		EndTime:      wallClock(19, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		SendEmail:    true,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -134,10 +135,10 @@ func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAcce
 		EndDate:      appointmentDate,
 		StartTime:    wallClock(18, 0),
 		EndTime:      wallClock(19, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		SendEmail:    true,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -153,12 +154,10 @@ func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAcce
 		"without the scope the renderer has nothing to re-check")
 	require.Contains(t, reminder.Payload, "student_ids")
 
-	renderer := api.CalendarEmailDependencies{
-		Runtime:   calendarCompose.NewTenantRuntime(db),
-		Guardians: calendarTestRepositories(t, db).StudentGuardian,
-	}
+	runtime := calendarCompose.NewTenantRuntime(db)
+	guardians := owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)).StudentGuardian
 	render := func() (bool, error) {
-		return api.RenderCalendarMailForTest(testpkg.WithPackageTenantRuntime(context.Background()), renderer, parentChain.TenantID, reminder.Kind, reminder.Payload)
+		return api.RenderCalendarMailForTest(testpkg.WithPackageTenantRuntime(context.Background()), runtime, guardians, parentChain.TenantID, reminder.Kind, reminder.Payload)
 	}
 
 	rendered, err := render()

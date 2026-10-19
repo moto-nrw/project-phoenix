@@ -16,8 +16,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // AdminRequestSummary is the wire shape for admin list-style responses.
@@ -510,14 +508,6 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Post-tx: schedule guardian invitation if the approval pipeline
-	// asked for one. Best-effort — failure here doesn't roll back the
-	// approval (records are already committed). Logging captures the
-	// failure for the admin to chase via "Re-send invitation".
-	if outcome != nil && outcome.PendingInvite != nil && rs.GuardianInvitations.configured() {
-		go rs.dispatchPostDecisionInvite(r.Context(), outcome.PendingInvite)
-	}
-
 	common.Respond(w, r, http.StatusOK, newAdminRequestChild(outcome.Child), "Decision applied")
 }
 
@@ -603,7 +593,7 @@ func (rs *Resource) decideChildWithRetry(r *http.Request, input DecideInput) (*D
 			}
 			outcome = out
 			decisionBodySucceeded = true
-			return nil
+			return rs.enqueueDecisionInvite(ctx, out.PendingInvite)
 		})
 		if err == nil {
 			break
@@ -689,37 +679,11 @@ func actorRoleFromClaims(roles []string) string {
 	return "admin"
 }
 
-// dispatchPostDecisionInvite fires the guardian invitation flow after
-// the approval tx commits. Runs in its own goroutine so the HTTP
-// response isn't blocked on SMTP / outbox writes; the invitation
-// service writes to platform.email_outbox synchronously, then the
-// outbox worker dispatches the email asynchronously on its own tick.
-func (rs *Resource) dispatchPostDecisionInvite(parentCtx context.Context, invite *PendingGuardianInvite) {
-	// Detach from request lifetime so the goroutine isn't cancelled by
-	// the response writer flushing. Re-attach tenant from the parent so
-	// the invitation service's tenant-scoped writes resolve.
-	tenantID, err := tenant.TenantFromContext(parentCtx)
-	if err != nil {
-		slog.Default().Warn("post-decision guardian invitation rejected: missing tenant", slog.String("error", err.Error()))
-		return
+// enqueueDecisionInvite joins the decision transaction so approval and its
+// durable invitation either both commit or both roll back.
+func (rs *Resource) enqueueDecisionInvite(ctx context.Context, invite *PendingGuardianInvite) error {
+	if invite == nil || !rs.GuardianInvitations.configured() {
+		return nil
 	}
-	bgCtx := context.WithoutCancel(parentCtx)
-	bgCtx = tenant.ContextWithoutTransaction(bgCtx)
-	bgCtx = tenant.ContextWithoutAfterCommitHooks(bgCtx)
-	bgCtx, cancel := context.WithTimeout(bgCtx, 30*time.Second)
-	defer cancel()
-	bgCtx = tenant.WithTenant(bgCtx, tenantID)
-
-	// Wrap in a tenant tx so the owner's writes pick up the right RLS
-	// scope. The owner joins an existing tx from the context, so this stays
-	// a single tx.
-	err = withinTenant(bgCtx, tenantID.Int64(), func(txCtx context.Context) error {
-		return rs.GuardianInvitations.Create(txCtx, invite.GuardianProfileID, invite.CreatedBy)
-	})
-	if err != nil {
-		slog.Default().Warn("post-decision guardian invitation failed",
-			slog.Int64("guardian_profile_id", invite.GuardianProfileID),
-			slog.Int64("created_by", invite.CreatedBy),
-			slog.String("error", err.Error()))
-	}
+	return rs.GuardianInvitations.Create(ctx, invite.GuardianProfileID, invite.CreatedBy)
 }

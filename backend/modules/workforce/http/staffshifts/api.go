@@ -56,6 +56,19 @@ type Actor struct {
 	AccountID *int64
 }
 
+// ErrNoStaffActor refuses a caller without a staff record: every plan change
+// is attributed to a staff member, so such a request is unauthorized.
+var ErrNoStaffActor = errors.New("staff record not found")
+
+// NewActor is the acting admin behind staffID; a caller without a staff
+// record (staffID <= 0) is ErrNoStaffActor.
+func NewActor(staffID int64, accountID *int64) (Actor, error) {
+	if staffID <= 0 {
+		return Actor{}, ErrNoStaffActor
+	}
+	return Actor{StaffID: staffID, AccountID: accountID}, nil
+}
+
 // Runtime carries the HTTP-platform behavior this adapter must not own. Every
 // field is required, so missing production wiring fails at startup.
 type Runtime struct {

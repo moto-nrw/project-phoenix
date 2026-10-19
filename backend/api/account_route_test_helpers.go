@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"net/http"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -17,10 +19,12 @@ import (
 // reader's test can pin how it meets a row that no longer matches the
 // registry (#2736: the account-route tests may not name the repository).
 func StoreRawTenantSettingForTests(ctx context.Context, db transactionruntime.Database, tenantID int64, key string, raw json.RawMessage) error {
-	repos := NewSettingsTestRepositories(settingsCompose.NewTenantSettingsRuntime(db.Pool(), nil))
+	unit := db.UnitOfWork()
+	runtime := settingsCompose.NewTenantSettingsRuntime(db.Pool(), &unit)
+	repos := owners.NewSettingsTestRepositories(runtime)
 	value := &configModels.SettingValue{SettingKey: key, Value: raw}
 	value.SetTenantID(tenantID)
-	return repos.Values.Upsert(ctx, value)
+	return runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error { return repos.Values.Upsert(txCtx, value) })
 }
 
 // WithSettingsRequestCacheForTests attaches the request-scoped settings memo

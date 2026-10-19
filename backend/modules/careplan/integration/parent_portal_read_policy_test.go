@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,7 +23,7 @@ func (s parentChildReadRecords) ListByAccount(context.Context, int64) ([]*parent
 func TestParentChildBindingPreservesSharedStoredValuePolicy(t *testing.T) {
 	t.Parallel()
 	var typedNil *bool
-	factory := &api.PeopleRepositorySuiteFactory{}
+	factory := &api.RepositoryTestFactory{}
 	factory.ParentChild = parentChildReadRecords{row: &parentModels.ChildSummary{
 		GuardianPermissions: map[string]interface{}{
 			"true": true, "false": false, "nil": nil, "legacy string": "false", "zero": 0, "typed nil": typedNil,

@@ -6,19 +6,23 @@ import (
 	"testing"
 	"time"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	activitiesModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/activityrecords"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type assignableCategoryRepo struct {
-	activitiesModel.CategoryRepository
-	category *activitiesModel.Category
+	ports.ActivityCategoryRecords
+	category *activityContract.Category
 	err      error
 }
 
-func (r *assignableCategoryRepo) FindByIDForShare(context.Context, int64) (*activitiesModel.Category, error) {
+func (r *assignableCategoryRepo) FindByIDForShare(context.Context, int64) (*activityContract.Category, error) {
 	return r.category, r.err
 }
 
@@ -29,7 +33,7 @@ func TestValidateAssignableCategory(t *testing.T) {
 	t.Run("accepts an active category", func(t *testing.T) {
 		err := validateAssignableCategory(
 			context.Background(),
-			&assignableCategoryRepo{category: &activitiesModel.Category{Name: "Aktiv"}},
+			&assignableCategoryRepo{category: &activityContract.Category{Name: "Aktiv"}},
 			categoryID,
 			"test",
 		)
@@ -40,7 +44,7 @@ func TestValidateAssignableCategory(t *testing.T) {
 		archivedAt := time.Now()
 		err := validateAssignableCategory(
 			context.Background(),
-			&assignableCategoryRepo{category: &activitiesModel.Category{Name: "Archiviert", ArchivedAt: &archivedAt}},
+			&assignableCategoryRepo{category: &activityContract.Category{Name: "Archiviert", ArchivedAt: &archivedAt}},
 			categoryID,
 			"test",
 		)

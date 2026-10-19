@@ -13,14 +13,16 @@ import (
 	"testing"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -59,8 +61,8 @@ func createSourceCareOfferingOnDays(
 		IsActive:                  true,
 	}
 	phase.TenantID = s.tenantID
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db)))
-	require.NoError(t, repos.Enrollment().InsertPhase(s.ctx, phase))
+	repos := api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, s.db))
+	require.NoError(t, testpkg.TenantCommand1(t, s.ctx, testpkg.SetupTestDB(t), repos.Enrollment().InsertPhase, phase))
 
 	offering := testpkg.NewSourceCareOffering(phase.ID, fmt.Sprintf("Frühbetreuung %d", suffix), days, nil)
 	offering.TenantID = s.tenantID
@@ -86,9 +88,9 @@ func registerSourcedTemplateCleanup(t *testing.T, s *scenarioSetup, templateID i
 	})
 }
 
-func loadTemplateGroup(t *testing.T, s *scenarioSetup, templateID int64) *activitiesModels.Group {
+func loadTemplateGroup(t *testing.T, s *scenarioSetup, templateID int64) *activityContract.Group {
 	t.Helper()
-	group, err := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.FindByID(s.ctx, templateID)
+	group, err := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.FindByID(s.ctx, templateID)
 	require.NoError(t, err)
 	require.NotNil(t, group)
 	return group
@@ -130,7 +132,7 @@ func TestTemplateOfferingSource_CreateAndMaterializeCopiesSourcedKids(t *testing
 	t.Parallel()
 
 	monday := futureMonday(1)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
@@ -140,17 +142,17 @@ func TestTemplateOfferingSource_CreateAndMaterializeCopiesSourcedKids(t *testing
 	linkApprovedChildToOffering(t, s, offering, s.students[1], "2b")
 
 	name := fmt.Sprintf("Angebots-Termin-Kids-%d", time.Now().UnixNano())
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
-		Type:                  activitiesModels.GroupTypeCare,
-		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		Type:                  activityContract.GroupTypeCare,
+		Weekdays:              []int{activityContract.WeekdayMonday},
 		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:                s.roomID,
 		CategoryID:            s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{offering.ID},
 		SourceGradeLevels:     []int{1},
 		RosterValidFrom:       monday.AddDays(-30),
@@ -160,7 +162,7 @@ func TestTemplateOfferingSource_CreateAndMaterializeCopiesSourcedKids(t *testing
 	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
 
 	// Enrollments must be seeded before materialization (create-time resync).
-	var enrollments []activitiesModels.StudentEnrollment
+	var enrollments []StudentEnrollment
 	require.NoError(t, s.db.NewSelect().
 		Model(&enrollments).
 		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
@@ -169,7 +171,7 @@ func TestTemplateOfferingSource_CreateAndMaterializeCopiesSourcedKids(t *testing
 	require.Len(t, enrollments, 1, "only the grade-1 child may be seeded")
 	assert.Equal(t, s.students[0], enrollments[0].StudentID)
 
-	mat, err := s.factory.Materialization.MaterializeForTenant(
+	mat, err := s.materialization.MaterializeForTenant(
 		s.ctx, monday, monday, timetable.MaterializationSourceManual,
 	)
 	require.NoError(t, err)
@@ -200,7 +202,7 @@ func TestTemplateOfferingSource_CreateAndMaterializeCopiesSourcedKids(t *testing
 	rows := testpkg.InstanceStudentsWhere(t, s.ctx, s.db, `"instance_student".instance_id = ?`, instances[0].ID)
 	require.Len(t, rows, 1, "materialize must copy the sourced child onto the occurrence")
 	assert.Equal(t, s.students[0], rows[0].StudentID)
-	assert.Equal(t, scheduleModels.AttendanceStatusExpected, rows[0].Status)
+	assert.Equal(t, fixtures.AttendanceStatusExpected(), rows[0].Status)
 }
 
 func TestTemplateOfferingSource_PullForwardWidensSourcedRoster(t *testing.T) {
@@ -208,23 +210,23 @@ func TestTemplateOfferingSource_PullForwardWidensSourcedRoster(t *testing.T) {
 
 	newStart := futureMonday(1)
 	oldStart := newStart.AddDays(7)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, newStart)
+	s := makeScenario(t, activityContract.WeekdayMonday, newStart)
 	defer s.runCleanup(t)
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1a")
 	name := fmt.Sprintf("Angebots-Pull-Forward-%d", time.Now().UnixNano())
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
-		Type:                  activitiesModels.GroupTypeCare,
-		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		Type:                  activityContract.GroupTypeCare,
+		Weekdays:              []int{activityContract.WeekdayMonday},
 		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:                s.roomID,
 		CategoryID:            s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{offering.ID},
 		RosterValidFrom:       oldStart,
 		ScheduleValidFrom:     &oldStart,
@@ -233,19 +235,19 @@ func TestTemplateOfferingSource_PullForwardWidensSourcedRoster(t *testing.T) {
 	require.NoError(t, err)
 	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
 
-	require.NoError(t, s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
 		TemplateID: result.TemplateID,
 		Fields: timetable.TemplateFields{
 			Name:                  name,
-			Type:                  activitiesModels.GroupTypeCare,
+			Type:                  activityContract.GroupTypeCare,
 			CategoryID:            s.categoryID,
 			RoomID:                s.roomID,
 			MaxParticipants:       20,
 			CalendarPeriodID:      &s.period.ID,
-			TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+			TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 			SourceCareOfferingIDs: []int64{offering.ID},
 		},
-		Weekdays:         []int{activitiesModels.WeekdayMonday},
+		Weekdays:         []int{activityContract.WeekdayMonday},
 		TimeframeID:      result.TimeframeID,
 		CalendarPeriodID: &s.period.ID,
 		RosterValidFrom:  oldStart,
@@ -253,7 +255,7 @@ func TestTemplateOfferingSource_PullForwardWidensSourcedRoster(t *testing.T) {
 		GradeLevelMax:    testpkg.MaxSchoolGradeLevel,
 	}))
 
-	var sourced []activitiesModels.StudentEnrollment
+	var sourced []StudentEnrollment
 	require.NoError(t, s.db.NewSelect().
 		Model(&sourced).
 		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
@@ -261,7 +263,7 @@ func TestTemplateOfferingSource_PullForwardWidensSourcedRoster(t *testing.T) {
 		Where(`"student_enrollment".enrollment_request_child_id IS NOT NULL`).
 		Scan(s.ctx))
 	require.Len(t, sourced, 1)
-	assert.Equal(t, activitiesModels.Date(newStart), sourced[0].ValidFrom,
+	assert.Equal(t, activityContract.Date(newStart), sourced[0].ValidFrom,
 		"offering-derived roster must follow the pulled-forward schedule boundary")
 }
 
@@ -269,22 +271,22 @@ func TestTemplateOfferingSource_CreateStoresTheRuleAndIsFoundByOffering(t *testi
 	t.Parallel()
 
 	monday := futureMonday(1)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano()),
-		Type:                  activitiesModels.GroupTypeCare,
-		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		Type:                  activityContract.GroupTypeCare,
+		Weekdays:              []int{activityContract.WeekdayMonday},
 		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:                s.roomID,
 		CategoryID:            s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{offering.ID},
 		SourceGradeLevels:     []int{1, 2},
 		RosterValidFrom:       monday.AddDays(-30),
@@ -309,23 +311,23 @@ func TestTemplateOfferingSource_UpdateRewritesAndClearsTheRule(t *testing.T) {
 	t.Parallel()
 
 	monday := futureMonday(1)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
-		Type:                  activitiesModels.GroupTypeCare,
-		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		Type:                  activityContract.GroupTypeCare,
+		Weekdays:              []int{activityContract.WeekdayMonday},
 		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:                s.roomID,
 		CategoryID:            s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{offering.ID},
 		RosterValidFrom:       monday.AddDays(-30),
 		GradeLevelMax:         testpkg.MaxSchoolGradeLevel,
@@ -337,22 +339,22 @@ func TestTemplateOfferingSource_UpdateRewritesAndClearsTheRule(t *testing.T) {
 		TemplateID: result.TemplateID,
 		Fields: timetable.TemplateFields{
 			Name:                  name,
-			Type:                  activitiesModels.GroupTypeCare,
+			Type:                  activityContract.GroupTypeCare,
 			CategoryID:            s.categoryID,
 			RoomID:                s.roomID,
 			MaxParticipants:       20,
 			CalendarPeriodID:      &s.period.ID,
-			TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+			TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 			SourceCareOfferingIDs: []int64{offering.ID},
 			SourceGradeLevels:     []int{3},
 		},
-		Weekdays:         []int{activitiesModels.WeekdayMonday},
+		Weekdays:         []int{activityContract.WeekdayMonday},
 		TimeframeID:      result.TimeframeID,
 		CalendarPeriodID: &s.period.ID,
 		RosterValidFrom:  monday.AddDays(-30),
 		GradeLevelMax:    testpkg.MaxSchoolGradeLevel,
 	}
-	require.NoError(t, s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, updateInput))
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(s.ctx, updateInput))
 
 	narrowed := loadTemplateGroup(t, s, result.TemplateID)
 	require.NotEmpty(t, narrowed.SourceCareOfferingIDs)
@@ -363,7 +365,7 @@ func TestTemplateOfferingSource_UpdateRewritesAndClearsTheRule(t *testing.T) {
 	// roster; the filter must not survive its source (DB CHECK).
 	updateInput.Fields.SourceCareOfferingIDs = nil
 	updateInput.Fields.SourceGradeLevels = nil
-	require.NoError(t, s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, updateInput))
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(s.ctx, updateInput))
 
 	cleared := loadTemplateGroup(t, s, result.TemplateID)
 	assert.Empty(t, cleared.SourceCareOfferingIDs)
@@ -377,23 +379,23 @@ func TestTemplateOfferingSource_SplitSuccessorInheritsTheRule(t *testing.T) {
 	t.Parallel()
 
 	monday := futureMonday(1)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
-		Type:                  activitiesModels.GroupTypeCare,
-		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		Type:                  activityContract.GroupTypeCare,
+		Weekdays:              []int{activityContract.WeekdayMonday},
 		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:                s.roomID,
 		CategoryID:            s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{offering.ID},
 		SourceGradeLevels:     []int{1, 2},
 		RosterValidFrom:       monday.AddDays(-30),
@@ -405,18 +407,18 @@ func TestTemplateOfferingSource_SplitSuccessorInheritsTheRule(t *testing.T) {
 	// "Dieser und alle folgenden" does not expose the source rule, so the
 	// successor must inherit it — otherwise the segment would silently lose
 	// its Betreuungsangebot feed.
-	split, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
+	split, err := s.timetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
 		TemplateID:       result.TemplateID,
 		EffectiveDate:    monday,
 		Name:             name,
-		Type:             activitiesModels.GroupTypeCare,
-		Weekdays:         []int{activitiesModels.WeekdayMonday},
+		Type:             activityContract.GroupTypeCare,
+		Weekdays:         []int{activityContract.WeekdayMonday},
 		StartTime:        time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		EndTime:          time.Date(2000, 1, 1, 17, 0, 0, 0, time.UTC),
 		RoomID:           s.roomID,
 		CategoryID:       s.categoryID,
 		CalendarPeriodID: &s.period.ID,
-		TargetGroupType:  activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:  activityContract.TargetGroupTypeAngebot,
 		GradeLevelMax:    testpkg.MaxSchoolGradeLevel,
 	})
 	require.NoError(t, err)
@@ -432,23 +434,23 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotDropsTheRule(t *testing.T) {
 	t.Parallel()
 
 	monday := futureMonday(1)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
-		Type:                  activitiesModels.GroupTypeCare,
-		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		Type:                  activityContract.GroupTypeCare,
+		Weekdays:              []int{activityContract.WeekdayMonday},
 		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:                s.roomID,
 		CategoryID:            s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{offering.ID},
 		SourceGradeLevels:     []int{1, 2},
 		RosterValidFrom:       monday.AddDays(-30),
@@ -459,18 +461,18 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotDropsTheRule(t *testing.T) {
 
 	// The DB CHECK ties the source to the 'angebot' Zielgruppe: changing the
 	// Zielgruppe in the split must drop the rule instead of failing the write.
-	split, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
+	split, err := s.timetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
 		TemplateID:       result.TemplateID,
 		EffectiveDate:    monday,
 		Name:             name,
-		Type:             activitiesModels.GroupTypeCare,
-		Weekdays:         []int{activitiesModels.WeekdayMonday},
+		Type:             activityContract.GroupTypeCare,
+		Weekdays:         []int{activityContract.WeekdayMonday},
 		StartTime:        time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		EndTime:          time.Date(2000, 1, 1, 17, 0, 0, 0, time.UTC),
 		RoomID:           s.roomID,
 		CategoryID:       s.categoryID,
 		CalendarPeriodID: &s.period.ID,
-		TargetGroupType:  activitiesModels.TargetGroupTypeNone,
+		TargetGroupType:  activityContract.TargetGroupTypeNone,
 		GradeLevelMax:    testpkg.MaxSchoolGradeLevel,
 	})
 	require.NoError(t, err)
@@ -490,23 +492,23 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotClearsSourcedRoster(t *testi
 	t.Parallel()
 
 	monday := futureMonday(1)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
-		Type:                  activitiesModels.GroupTypeCare,
-		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		Type:                  activityContract.GroupTypeCare,
+		Weekdays:              []int{activityContract.WeekdayMonday},
 		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:                s.roomID,
 		CategoryID:            s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{offering.ID},
 		RosterValidFrom:       monday.AddDays(-30),
 		GradeLevelMax:         testpkg.MaxSchoolGradeLevel,
@@ -518,39 +520,39 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotClearsSourcedRoster(t *testi
 	// decision fan-out writes) and one manual row.
 	enrollments := ownedStudentEnrollmentRepository(t, s.db)
 	childID := createSplitRequestChild(t, s, s.students[0])
-	sourcedUntil := activitiesModels.Date(s.period.EndDate.AddDays(1))
-	sourced := &activitiesModels.StudentEnrollment{
+	sourcedUntil := activityContract.Date(s.period.EndDate.AddDays(1))
+	sourced := &activityContract.StudentEnrollment{
 		StudentID:                s.students[0],
 		ActivityGroupID:          result.TemplateID,
-		ValidFrom:                activitiesModels.Date(s.period.StartDate),
+		ValidFrom:                activityContract.Date(s.period.StartDate),
 		ValidUntil:               &sourcedUntil,
 		CalendarPeriodID:         &s.period.ID,
 		EnrollmentRequestChildID: &childID,
-		SelectedWeekdays:         []int{activitiesModels.WeekdayMonday},
+		SelectedWeekdays:         []int{activityContract.WeekdayMonday},
 	}
 	sourced.SetTenantID(s.tenantID)
 	require.NoError(t, enrollments.Create(s.ctx, sourced))
-	manual := &activitiesModels.StudentEnrollment{
+	manual := &activityContract.StudentEnrollment{
 		StudentID:        s.students[1],
 		ActivityGroupID:  result.TemplateID,
-		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
+		ValidFrom:        activityContract.Date(monday.AddDays(-30)),
 		CalendarPeriodID: &s.period.ID,
 	}
 	manual.SetTenantID(s.tenantID)
 	require.NoError(t, enrollments.Create(s.ctx, manual))
 
-	split, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
+	split, err := s.timetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
 		TemplateID:       result.TemplateID,
 		EffectiveDate:    monday,
 		Name:             name,
-		Type:             activitiesModels.GroupTypeCare,
-		Weekdays:         []int{activitiesModels.WeekdayMonday},
+		Type:             activityContract.GroupTypeCare,
+		Weekdays:         []int{activityContract.WeekdayMonday},
 		StartTime:        time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		EndTime:          time.Date(2000, 1, 1, 17, 0, 0, 0, time.UTC),
 		RoomID:           s.roomID,
 		CategoryID:       s.categoryID,
 		CalendarPeriodID: &s.period.ID,
-		TargetGroupType:  activitiesModels.TargetGroupTypeNone,
+		TargetGroupType:  activityContract.TargetGroupTypeNone,
 		GradeLevelMax:    testpkg.MaxSchoolGradeLevel,
 	})
 	require.NoError(t, err)
@@ -565,7 +567,7 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotClearsSourcedRoster(t *testi
 	// the capped segment, the manual row is capped at the split date.
 	oldRows := loadSplitEnrollments(t, s, result.TemplateID)
 	require.Len(t, oldRows, 2)
-	byStudent := map[int64]*activitiesModels.StudentEnrollment{}
+	byStudent := map[int64]*activityContract.StudentEnrollment{}
 	for _, row := range oldRows {
 		byStudent[row.StudentID] = row
 	}
@@ -573,7 +575,7 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotClearsSourcedRoster(t *testi
 	assert.NotNil(t, byStudent[s.students[0]].EnrollmentRequestChildID)
 	require.NotNil(t, byStudent[s.students[1]])
 	require.NotNil(t, byStudent[s.students[1]].ValidUntil)
-	assert.Equal(t, activitiesModels.Date(monday), *byStudent[s.students[1]].ValidUntil)
+	assert.Equal(t, activityContract.Date(monday), *byStudent[s.students[1]].ValidUntil)
 }
 
 // A split request may change the source rule itself (#2147 review round 14):
@@ -585,23 +587,23 @@ func TestTemplateOfferingSource_SplitAppliesRequestedSourceChange(t *testing.T) 
 	t.Parallel()
 
 	monday := futureMonday(1)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
-		Type:                  activitiesModels.GroupTypeCare,
-		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		Type:                  activityContract.GroupTypeCare,
+		Weekdays:              []int{activityContract.WeekdayMonday},
 		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:                s.roomID,
 		CategoryID:            s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{offering.ID},
 		SourceGradeLevels:     []int{1, 2},
 		RosterValidFrom:       monday.AddDays(-30),
@@ -616,31 +618,31 @@ func TestTemplateOfferingSource_SplitAppliesRequestedSourceChange(t *testing.T) 
 	// test) from the resync a changed rule must trigger.
 	enrollments := ownedStudentEnrollmentRepository(t, s.db)
 	childID := createSplitRequestChild(t, s, s.students[0])
-	sourcedUntil := activitiesModels.Date(s.period.EndDate.AddDays(1))
-	sourced := &activitiesModels.StudentEnrollment{
+	sourcedUntil := activityContract.Date(s.period.EndDate.AddDays(1))
+	sourced := &activityContract.StudentEnrollment{
 		StudentID:                s.students[0],
 		ActivityGroupID:          result.TemplateID,
-		ValidFrom:                activitiesModels.Date(s.period.StartDate),
+		ValidFrom:                activityContract.Date(s.period.StartDate),
 		ValidUntil:               &sourcedUntil,
 		CalendarPeriodID:         &s.period.ID,
 		EnrollmentRequestChildID: &childID,
-		SelectedWeekdays:         []int{activitiesModels.WeekdayMonday},
+		SelectedWeekdays:         []int{activityContract.WeekdayMonday},
 	}
 	sourced.SetTenantID(s.tenantID)
 	require.NoError(t, enrollments.Create(s.ctx, sourced))
 
-	split, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
+	split, err := s.timetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
 		TemplateID:                result.TemplateID,
 		EffectiveDate:             monday,
 		Name:                      name,
-		Type:                      activitiesModels.GroupTypeCare,
-		Weekdays:                  []int{activitiesModels.WeekdayMonday},
+		Type:                      activityContract.GroupTypeCare,
+		Weekdays:                  []int{activityContract.WeekdayMonday},
 		StartTime:                 time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		EndTime:                   time.Date(2000, 1, 1, 17, 0, 0, 0, time.UTC),
 		RoomID:                    s.roomID,
 		CategoryID:                s.categoryID,
 		CalendarPeriodID:          &s.period.ID,
-		TargetGroupType:           activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:           activityContract.TargetGroupTypeAngebot,
 		SourceGradeLevels:         []int{3},
 		SourceGradeLevelsProvided: true,
 		GradeLevelMax:             testpkg.MaxSchoolGradeLevel,
@@ -666,23 +668,23 @@ func TestTemplateOfferingSource_SplitClearsSourceOnExplicitNull(t *testing.T) {
 	t.Parallel()
 
 	monday := futureMonday(1)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
-		Type:                  activitiesModels.GroupTypeCare,
-		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		Type:                  activityContract.GroupTypeCare,
+		Weekdays:              []int{activityContract.WeekdayMonday},
 		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:                s.roomID,
 		CategoryID:            s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{offering.ID},
 		RosterValidFrom:       monday.AddDays(-30),
 		GradeLevelMax:         testpkg.MaxSchoolGradeLevel,
@@ -692,39 +694,39 @@ func TestTemplateOfferingSource_SplitClearsSourceOnExplicitNull(t *testing.T) {
 
 	enrollments := ownedStudentEnrollmentRepository(t, s.db)
 	childID := createSplitRequestChild(t, s, s.students[0])
-	sourcedUntil := activitiesModels.Date(s.period.EndDate.AddDays(1))
-	sourced := &activitiesModels.StudentEnrollment{
+	sourcedUntil := activityContract.Date(s.period.EndDate.AddDays(1))
+	sourced := &activityContract.StudentEnrollment{
 		StudentID:                s.students[0],
 		ActivityGroupID:          result.TemplateID,
-		ValidFrom:                activitiesModels.Date(s.period.StartDate),
+		ValidFrom:                activityContract.Date(s.period.StartDate),
 		ValidUntil:               &sourcedUntil,
 		CalendarPeriodID:         &s.period.ID,
 		EnrollmentRequestChildID: &childID,
-		SelectedWeekdays:         []int{activitiesModels.WeekdayMonday},
+		SelectedWeekdays:         []int{activityContract.WeekdayMonday},
 	}
 	sourced.SetTenantID(s.tenantID)
 	require.NoError(t, enrollments.Create(s.ctx, sourced))
-	manual := &activitiesModels.StudentEnrollment{
+	manual := &activityContract.StudentEnrollment{
 		StudentID:        s.students[1],
 		ActivityGroupID:  result.TemplateID,
-		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
+		ValidFrom:        activityContract.Date(monday.AddDays(-30)),
 		CalendarPeriodID: &s.period.ID,
 	}
 	manual.SetTenantID(s.tenantID)
 	require.NoError(t, enrollments.Create(s.ctx, manual))
 
-	split, err := s.factory.TimetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
+	split, err := s.timetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
 		TemplateID:                    result.TemplateID,
 		EffectiveDate:                 monday,
 		Name:                          name,
-		Type:                          activitiesModels.GroupTypeCare,
-		Weekdays:                      []int{activitiesModels.WeekdayMonday},
+		Type:                          activityContract.GroupTypeCare,
+		Weekdays:                      []int{activityContract.WeekdayMonday},
 		StartTime:                     time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		EndTime:                       time.Date(2000, 1, 1, 17, 0, 0, 0, time.UTC),
 		RoomID:                        s.roomID,
 		CategoryID:                    s.categoryID,
 		CalendarPeriodID:              &s.period.ID,
-		TargetGroupType:               activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:               activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDsProvided: true,
 		GradeLevelMax:                 testpkg.MaxSchoolGradeLevel,
 	})
@@ -748,7 +750,7 @@ func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testi
 	t.Parallel()
 
 	monday := futureMonday(1)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
 	fitting := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
@@ -757,21 +759,21 @@ func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testi
 
 	createInput := timetable.CreateTemplateCommand{
 		Name:                  name,
-		Type:                  activitiesModels.GroupTypeCare,
-		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		Type:                  activityContract.GroupTypeCare,
+		Weekdays:              []int{activityContract.WeekdayMonday},
 		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:                s.roomID,
 		CategoryID:            s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{overhanging.ID},
 		RosterValidFrom:       monday.AddDays(-30),
 		GradeLevelMax:         testpkg.MaxSchoolGradeLevel,
 	}
 
-	_, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, createInput)
+	_, err := s.timetableData.Templates.CreateTemplate(s.ctx, createInput)
 	require.ErrorIs(t, err, timetable.ErrOfferingSourceInvalid)
 
 	// Nothing may survive the rejected create — the whole save is one tx.
@@ -781,23 +783,23 @@ func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testi
 	// Same rule on the edit path: an existing sourced template cannot be
 	// re-pointed at an offering that does not fit its period.
 	createInput.SourceCareOfferingIDs = []int64{fitting.ID}
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, createInput)
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, createInput)
 	require.NoError(t, err)
 	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
 
-	err = s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
+	err = s.timetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
 		TemplateID: result.TemplateID,
 		Fields: timetable.TemplateFields{
 			Name:                  name,
-			Type:                  activitiesModels.GroupTypeCare,
+			Type:                  activityContract.GroupTypeCare,
 			CategoryID:            s.categoryID,
 			RoomID:                s.roomID,
 			MaxParticipants:       20,
 			CalendarPeriodID:      &s.period.ID,
-			TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+			TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 			SourceCareOfferingIDs: []int64{overhanging.ID},
 		},
-		Weekdays:         []int{activitiesModels.WeekdayMonday},
+		Weekdays:         []int{activityContract.WeekdayMonday},
 		TimeframeID:      result.TimeframeID,
 		CalendarPeriodID: &s.period.ID,
 		RosterValidFrom:  monday.AddDays(-30),
@@ -817,24 +819,24 @@ func TestTemplateOfferingSource_RejectsInactiveOffering(t *testing.T) {
 	t.Parallel()
 
 	monday := futureMonday(1)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	_, err := s.db.NewRaw(`UPDATE enrollment.care_offerings SET is_active = FALSE WHERE id = ?`, offering.ID).Exec(s.ctx)
 	require.NoError(t, err)
 
-	_, err = s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	_, err = s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano()),
-		Type:                  activitiesModels.GroupTypeCare,
-		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		Type:                  activityContract.GroupTypeCare,
+		Weekdays:              []int{activityContract.WeekdayMonday},
 		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:                s.roomID,
 		CategoryID:            s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{offering.ID},
 		RosterValidFrom:       monday.AddDays(-30),
 		GradeLevelMax:         testpkg.MaxSchoolGradeLevel,
@@ -853,23 +855,23 @@ func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.
 	t.Parallel()
 
 	monday := futureMonday(1)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
-		Type:                  activitiesModels.GroupTypeCare,
-		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		Type:                  activityContract.GroupTypeCare,
+		Weekdays:              []int{activityContract.WeekdayMonday},
 		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:                s.roomID,
 		CategoryID:            s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{offering.ID},
 		SourceGradeLevels:     []int{1, 2},
 		RosterValidFrom:       monday.AddDays(-30),
@@ -880,31 +882,32 @@ func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.
 
 	// A period starting after the offering's phase begins — the phase no
 	// longer fits, so the successor could never materialize the source.
-	latePeriod := &scheduleModels.CalendarPeriod{
-		Name:            fmt.Sprintf("Spaetzeitraum-%d", time.Now().UnixNano()),
-		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       s.period.StartDate.AddDays(60),
-		EndDate:         s.period.EndDate,
-		WeekCycleLength: 1,
-		IsActive:        true,
-	}
+	latePeriod := fixtures.NewCalendarPeriod(func(fixtureRow *fixtures.CalendarPeriod) {
+		fixtureRow.Name = fmt.Sprintf("Spaetzeitraum-%d", time.Now().UnixNano())
+		fixtureRow.PeriodType = fixtures.PeriodTypeSchoolYear()
+		fixtureRow.StartDate = s.period.StartDate.AddDays(60)
+		fixtureRow.EndDate = s.period.EndDate
+		fixtureRow.WeekCycleLength = 1
+		fixtureRow.IsActive = true
+	})
+
 	latePeriod.SetTenantID(s.tenantID)
-	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).CalendarPeriod.Create(s.ctx, latePeriod))
+	require.NoError(t, fixtures.FromCalendarPeriodRecords(api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, s.db)).CalendarPeriod).Create(s.ctx, latePeriod))
 	s.extraCleanups = append([]func(){func() {
 	}}, s.extraCleanups...)
 
-	_, err = s.factory.TimetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
+	_, err = s.timetableData.Templates.SplitTemplate(s.ctx, timetable.SplitTemplateCommand{
 		TemplateID:       result.TemplateID,
 		EffectiveDate:    monday,
 		Name:             name,
-		Type:             activitiesModels.GroupTypeCare,
-		Weekdays:         []int{activitiesModels.WeekdayMonday},
+		Type:             activityContract.GroupTypeCare,
+		Weekdays:         []int{activityContract.WeekdayMonday},
 		StartTime:        time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		EndTime:          time.Date(2000, 1, 1, 17, 0, 0, 0, time.UTC),
 		RoomID:           s.roomID,
 		CategoryID:       s.categoryID,
 		CalendarPeriodID: &latePeriod.ID,
-		TargetGroupType:  activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:  activityContract.TargetGroupTypeAngebot,
 		GradeLevelMax:    testpkg.MaxSchoolGradeLevel,
 	})
 	require.ErrorIs(t, err, timetable.ErrOfferingSourceInvalid)
@@ -924,23 +927,23 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 	t.Parallel()
 
 	monday := futureMonday(2)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:                  name,
-		Type:                  activitiesModels.GroupTypeCare,
-		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		Type:                  activityContract.GroupTypeCare,
+		Weekdays:              []int{activityContract.WeekdayMonday},
 		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:                s.roomID,
 		CategoryID:            s.categoryID,
 		MaxParticipants:       20,
 		CalendarPeriodID:      &s.period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{offering.ID},
 		RosterValidFrom:       monday.AddDays(-30),
 		GradeLevelMax:         testpkg.MaxSchoolGradeLevel,
@@ -957,7 +960,7 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 		StartTime:        time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:          time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:           s.roomID,
-		Status:           scheduleModels.InstanceStatusPlanned,
+		Status:           fixtures.InstanceStatusPlanned(),
 	}
 	instance.TenantID = s.tenantID
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, instance)
@@ -966,18 +969,18 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 	}}, s.extraCleanups...)
 
 	manualStudentID := s.students[0]
-	require.NoError(t, s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
 		TemplateID: result.TemplateID,
 		Fields: timetable.TemplateFields{
 			Name:             name,
-			Type:             activitiesModels.GroupTypeCare,
+			Type:             activityContract.GroupTypeCare,
 			CategoryID:       s.categoryID,
 			RoomID:           s.roomID,
 			MaxParticipants:  20,
 			CalendarPeriodID: &s.period.ID,
-			TargetGroupType:  activitiesModels.TargetGroupTypeNone,
+			TargetGroupType:  activityContract.TargetGroupTypeNone,
 		},
-		Weekdays:         []int{activitiesModels.WeekdayMonday},
+		Weekdays:         []int{activityContract.WeekdayMonday},
 		TimeframeID:      result.TimeframeID,
 		CalendarPeriodID: &s.period.ID,
 		RosterValidFrom:  monday.AddDays(-30),
@@ -988,7 +991,7 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 	rows := testpkg.InstanceStudentsWhere(t, s.ctx, s.db, `"instance_student".instance_id = ?`, instance.ID)
 	require.Len(t, rows, 1, "the manually re-picked child must land on the pre-existing occurrence")
 	assert.Equal(t, manualStudentID, rows[0].StudentID)
-	assert.Equal(t, scheduleModels.AttendanceStatusExpected, rows[0].Status)
+	assert.Equal(t, fixtures.AttendanceStatusExpected(), rows[0].Status)
 }
 
 // Converting a manual template to an offering-sourced one retires the manual
@@ -999,17 +1002,17 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 	t.Parallel()
 
 	monday := futureMonday(3)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
 	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 	manualStudentID := s.students[0]
 
-	result, err := s.factory.TimetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
 		Name:             name,
-		Type:             activitiesModels.GroupTypeCare,
-		Weekdays:         []int{activitiesModels.WeekdayMonday},
+		Type:             activityContract.GroupTypeCare,
+		Weekdays:         []int{activityContract.WeekdayMonday},
 		StartTime:        time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:          time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:           s.roomID,
@@ -1033,7 +1036,7 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 		StartTime:        time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:          time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:           s.roomID,
-		Status:           scheduleModels.InstanceStatusPlanned,
+		Status:           fixtures.InstanceStatusPlanned(),
 	}
 	instance.TenantID = s.tenantID
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, instance)
@@ -1043,26 +1046,26 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 	instanceStudent := &testpkg.InstanceStudent{
 		InstanceID: instance.ID,
 		StudentID:  manualStudentID,
-		Status:     scheduleModels.AttendanceStatusExpected,
+		Status:     fixtures.AttendanceStatusExpected(),
 	}
 	instanceStudent.TenantID = s.tenantID
 	testpkg.InsertInstanceStudentRow(t, s.ctx, s.db, instanceStudent)
 
 	// The offering has no enrolled children, so the new source covers nobody:
 	// the retired manual child must disappear from the existing occurrence.
-	require.NoError(t, s.factory.TimetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
 		TemplateID: result.TemplateID,
 		Fields: timetable.TemplateFields{
 			Name:                  name,
-			Type:                  activitiesModels.GroupTypeCare,
+			Type:                  activityContract.GroupTypeCare,
 			CategoryID:            s.categoryID,
 			RoomID:                s.roomID,
 			MaxParticipants:       20,
 			CalendarPeriodID:      &s.period.ID,
-			TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+			TargetGroupType:       activityContract.TargetGroupTypeAngebot,
 			SourceCareOfferingIDs: []int64{offering.ID},
 		},
-		Weekdays:         []int{activitiesModels.WeekdayMonday},
+		Weekdays:         []int{activityContract.WeekdayMonday},
 		TimeframeID:      result.TimeframeID,
 		CalendarPeriodID: &s.period.ID,
 		RosterValidFrom:  monday.AddDays(-30),
@@ -1078,7 +1081,7 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 func templatesSourcingOffering(t *testing.T, s *scenarioSetup, offeringID int64) []timetable.Group {
 	t.Helper()
 	isTemplate := true
-	sourced, err := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db)).Capability.ListGroups(s.ctx, timetable.GroupFilter{
+	sourced, err := owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, s.db)).ListGroups(s.ctx, timetable.GroupFilter{
 		IsTemplate: &isTemplate, ActiveOnly: true, SourceOfferingIDs: []int64{offeringID}, OrderByID: true,
 	})
 	require.NoError(t, err)

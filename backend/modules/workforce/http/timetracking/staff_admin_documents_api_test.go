@@ -348,6 +348,8 @@ func TestStaffDocumentsAPI_OffboardingCleanupLeaseRetriesFileFailure(t *testing.
 	queue, err := workforceCompose.NewDocumentCleanup(c.tc.db, func() time.Time { return now })
 	require.NoError(t, err)
 	c.tc.resource.OffboardingCleanup = queue
+	c.tc.resource.documentFiles, err = workforceCompose.NewStaffDocumentFileRecovery(c.tc.resource.StaffDocumentService, queue, c.tc.resource.uploads, c.tc.resource.logger)
+	require.NoError(t, err)
 	rec := c.upload(t, "zeugnis", "retry.pdf", fakePDF, "staff:documents")
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	docID, _ := uploadedDocument(t, rec.Body.Bytes())
@@ -361,7 +363,11 @@ func TestStaffDocumentsAPI_OffboardingCleanupLeaseRetriesFileFailure(t *testing.
 	require.NoError(t, os.WriteFile(filepath.Join(filePath, "block-removal"), []byte("test"), 0600))
 	runtime := testpkg.ConfigRuntime(c.tc.db)
 	require.NoError(t, testpkg.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
-		if _, err := runtime.DB(txCtx).ExecContext(txCtx, "UPDATE users.staff_school_memberships SET deleted_at = NOW() WHERE id = ?", c.staffID); err != nil {
+		database, err := runtime.DB(txCtx)
+		if err != nil {
+			return err
+		}
+		if _, err := database.ExecContext(txCtx, "UPDATE users.staff_school_memberships SET deleted_at = NOW() WHERE id = ?", c.staffID); err != nil {
 			return err
 		}
 		return c.tc.resource.QueueOffboardedStaffDocumentCleanup(txCtx, c.staffID)

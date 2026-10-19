@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"testing"
 
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 
 	"github.com/stretchr/testify/assert"
@@ -14,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -35,17 +36,17 @@ func i64(v int64) *int64 { return &v }
 
 // threadPills loads the (student, guardian) thread and its messages, or nil when
 // no thread exists. Runs inside the tenant tx so RLS admits the rows.
-func threadPills(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, c testpkg.ParentChain) (*messaging.ParentMessageThread, []*messaging.ParentMessage) {
+func threadPills(t *testing.T, db *bun.DB, repos *api.ParentMessagingSuiteRepositories, c testpkg.ParentChain) (*messaging.ParentMessageThread, []*messaging.ParentMessage) {
 	t.Helper()
 	var thread *messaging.ParentMessageThread
 	var msgs []*messaging.ParentMessage
 	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, c.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		th, ferr := messaging.NewThreadRepository(repos.ParentMessageThread).FindByStudentGuardian(txCtx, c.StudentID, c.AccountID)
+		th, ferr := testpkg.TenantQuery2(t, txCtx, testpkg.SetupTestDB(t), messaging.NewThreadRepository(repos.ParentMessageThread).FindByStudentGuardian, c.StudentID, c.AccountID)
 		if ferr != nil || th == nil {
 			return ferr
 		}
 		thread = th
-		ms, merr := messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)).ListByThread(txCtx, th.ID, 100)
+		ms, merr := testpkg.TenantQuery2(t, txCtx, testpkg.SetupTestDB(t), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)).ListByThread, th.ID, 100)
 		msgs = ms
 		return merr
 	})
@@ -73,15 +74,15 @@ func countEventType(msgs []*messaging.ParentMessage, eventType string) int {
 func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	settings := &toggleSettings{enabled: true}
 	bc := testpkg.NewRecordingBroadcaster()
-	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(repos.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)), settings, bc, slog.Default())
+	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(reposMessages.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)), settings, bc, slog.Default())
 
 	// 1) Guardian files a request → request_created pill, thread born.
-	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
+	_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
 		EventType:      messaging.ParentMessageEventRequestCreated,
 		ActorKind:      messaging.ParentMessageSenderGuardian,
 		ActorAccountID: chain.AccountID,
@@ -91,24 +92,24 @@ func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
 		RefTable:       "users.student_data_change_requests",
 		RefID:          i64(101),
 	})
-	thread, msgs := threadPills(t, db, repos, chain)
+	thread, msgs := threadPills(t, db, reposMessages, chain)
 	require.NotNil(t, thread, "a filed request lazily creates the thread")
 	require.Equal(t, 1, countEventType(msgs, messaging.ParentMessageEventRequestCreated))
 
 	// 2) Guardian self-service mirror pill advances the thread preview + wakes SSE.
-	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
+	_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
 		EventType:      "sick_note",
 		ActorKind:      messaging.ParentMessageSenderGuardian,
 		ActorAccountID: chain.AccountID,
 		Body:           "Krankmeldung eingereicht",
 	})
-	_, msgs = threadPills(t, db, repos, chain)
+	_, msgs = threadPills(t, db, reposMessages, chain)
 	require.Len(t, msgs, 2, "the self-service mirror pill lands in the thread")
 
 	// 3) Messaging OFF; a staff decision on the SAME request still writes the
 	//    closing pill onto the existing thread (reconcile), no new thread.
 	settings.enabled = false
-	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
+	_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
 		EventType:      messaging.ParentMessageEventRequestStatus,
 		ActorKind:      messaging.ParentMessageSenderStaff,
 		ActorAccountID: chain.AccountID,
@@ -118,14 +119,14 @@ func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
 		RefTable:       "users.student_data_change_requests",
 		RefID:          i64(101),
 	})
-	_, msgs = threadPills(t, db, repos, chain)
+	_, msgs = threadPills(t, db, reposMessages, chain)
 	assert.Equal(t, 1, countEventType(msgs, messaging.ParentMessageEventRequestStatus),
 		"the closing pill reconciles onto the existing thread even with messaging off")
 
 	// 4) Messaging OFF terminal for a DIFFERENT request with no request_created
 	//    pill to close is dropped — no dangling status pill appears.
 	before := len(msgs)
-	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
+	_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
 		EventType:      messaging.ParentMessageEventRequestStatus,
 		ActorKind:      messaging.ParentMessageSenderStaff,
 		ActorAccountID: chain.AccountID,
@@ -135,7 +136,7 @@ func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
 		RefTable:       "users.student_data_change_requests",
 		RefID:          i64(999),
 	})
-	_, msgs = threadPills(t, db, repos, chain)
+	_, msgs = threadPills(t, db, reposMessages, chain)
 	assert.Len(t, msgs, before, "a terminal event with no matching request_created pill adds nothing")
 }
 
@@ -145,13 +146,13 @@ func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
 func TestEmitChildEvent_DisabledSchoolNeverBornsThread(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(repos.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
+	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(reposMessages.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
 		&toggleSettings{enabled: false}, testpkg.NewRecordingBroadcaster(), slog.Default())
 
-	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
+	_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
 		EventType:      messaging.ParentMessageEventRequestStatus,
 		ActorKind:      messaging.ParentMessageSenderStaff,
 		ActorAccountID: chain.AccountID,
@@ -162,7 +163,7 @@ func TestEmitChildEvent_DisabledSchoolNeverBornsThread(t *testing.T) {
 		RefID:          i64(202),
 	})
 
-	thread, _ := threadPills(t, db, repos, chain)
+	thread, _ := threadPills(t, db, reposMessages, chain)
 	assert.Nil(t, thread, "a disabled school must not gain a thread from a staff decision")
 }
 
@@ -172,20 +173,20 @@ func TestEmitChildEvent_DisabledSchoolNeverBornsThread(t *testing.T) {
 func TestEmitChildEvent_DisabledDropsNonTerminal(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(repos.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
+	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(reposMessages.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
 		&toggleSettings{enabled: false}, testpkg.NewRecordingBroadcaster(), slog.Default())
 
-	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
+	_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
 		EventType:      "sick_note",
 		ActorKind:      messaging.ParentMessageSenderGuardian,
 		ActorAccountID: chain.AccountID,
 		Body:           "Krankmeldung",
 	})
 
-	thread, _ := threadPills(t, db, repos, chain)
+	thread, _ := threadPills(t, db, reposMessages, chain)
 	assert.Nil(t, thread, "a disabled school drops a non-terminal pill without creating a thread")
 }
 
@@ -198,15 +199,15 @@ func TestEmitChildEvent_DisabledDropsNonTerminal(t *testing.T) {
 func TestEmitChildEvent_RevokedGuardianClosesWithoutWaking(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	bc := testpkg.NewRecordingBroadcaster()
-	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(repos.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
+	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(reposMessages.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
 		&toggleSettings{enabled: true}, bc, slog.Default())
 
 	// A request_created pill exists (thread born while the guardian had access).
-	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
+	_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
 		EventType:      messaging.ParentMessageEventRequestCreated,
 		ActorKind:      messaging.ParentMessageSenderGuardian,
 		ActorAccountID: chain.AccountID,
@@ -216,7 +217,7 @@ func TestEmitChildEvent_RevokedGuardianClosesWithoutWaking(t *testing.T) {
 		RefTable:       "users.student_data_change_requests",
 		RefID:          i64(303),
 	})
-	thread, _ := threadPills(t, db, repos, chain)
+	thread, _ := threadPills(t, db, reposMessages, chain)
 	require.NotNil(t, thread)
 
 	// The guardian loses parent_portal.access after submitting.
@@ -230,7 +231,7 @@ func TestEmitChildEvent_RevokedGuardianClosesWithoutWaking(t *testing.T) {
 	bc.Reset()
 	// Staff decides the request: the closing pill must still land, but the
 	// guardian must NOT be woken (broadcast guardian id forced to 0).
-	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
+	_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, eventContract.ChildEvent{
 		EventType:      messaging.ParentMessageEventRequestStatus,
 		ActorKind:      messaging.ParentMessageSenderStaff,
 		ActorAccountID: chain.AccountID,
@@ -241,7 +242,7 @@ func TestEmitChildEvent_RevokedGuardianClosesWithoutWaking(t *testing.T) {
 		RefID:          i64(303),
 	})
 
-	_, msgs := threadPills(t, db, repos, chain)
+	_, msgs := threadPills(t, db, reposMessages, chain)
 	assert.Equal(t, 1, countEventType(msgs, messaging.ParentMessageEventRequestStatus),
 		"the closing pill is still written for the staff timeline")
 	parentCalls := bc.CallsByMethod("parent")

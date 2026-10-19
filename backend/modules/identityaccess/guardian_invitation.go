@@ -65,6 +65,11 @@ func (i GuardianInvitation) ApprovalAllowsRedemption() bool {
 	return i.ApprovalStatus == GuardianInvitationApprovalNotRequired || i.ApprovalStatus == GuardianInvitationApprovalApproved
 }
 
+// IsRejected reports whether the school rejected the invitation request.
+func (i GuardianInvitation) IsRejected() bool {
+	return i.ApprovalStatus == GuardianInvitationApprovalRejected
+}
+
 // GuardianInvitationRequest issues an invitation for a guardian contact that
 // has an address on file and no account yet. The school comes from the
 // tenant in context.
@@ -103,6 +108,16 @@ type GuardianInvitations interface {
 	// AcceptGuardianInvitation returns the account the guardian signs in with.
 	AcceptGuardianInvitation(ctx context.Context, token string, registration GuardianRegistration) (Account, error)
 	ResendGuardianInvitation(ctx context.Context, invitationID, actorAccountID int64) error
+	GuardianInvitationReads
+	// GuardianInvitationSchoolSlug resolves the school of an invitation; it
+	// is best-effort and answers "" when it cannot.
+	GuardianInvitationSchoolSlug(ctx context.Context, token string) string
+}
+
+// GuardianInvitationReads are the invitation lists the People Directory
+// guardian list and the parents portal read. They need the database alone,
+// so a root can compose them before the module (#4080).
+type GuardianInvitationReads interface {
 	// ListGuardianInvitations returns every invitation of the contact.
 	ListGuardianInvitations(ctx context.Context, guardianProfileID int64) ([]GuardianInvitation, error)
 	// ListOpenGuardianInvitations returns the invitations of those contacts
@@ -111,9 +126,6 @@ type GuardianInvitations interface {
 	// ListRedeemableGuardianInvitations returns the invitations of the school
 	// in context whose link can still be spent.
 	ListRedeemableGuardianInvitations(ctx context.Context) ([]GuardianInvitation, error)
-	// GuardianInvitationSchoolSlug resolves the school of an invitation; it
-	// is best-effort and answers "" when it cannot.
-	GuardianInvitationSchoolSlug(ctx context.Context, token string) string
 }
 
 func (m *Module) CreateGuardianInvitation(ctx context.Context, request GuardianInvitationRequest) (GuardianInvitation, error) {

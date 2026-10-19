@@ -5,7 +5,7 @@
   "prerequisites": [
     "#3944"
   ],
-  "owner_and_capability": "Legacy composition — shared test composition (test-support: services/config/configtest) under #2748: the settings double leaves the shared fixture owner. Every consumer of the settings service declares its own narrow port (communication, delivery-platform, people-directory compositions in services, calendar-view and group-live-view through supervisiondashboard.Resolver and grouplive.Resolver), each test package keeps a package-local func-field settingsDouble, and the Settings Platform (settings-platform: services/config) gains Prefetch, one batch read that returns the context carrying the snapshot.",
+  "owner_and_capability": "Legacy composition \u2014 shared test composition (test-support: services/config/configtest) under #2748: the settings double leaves the shared fixture owner. Every consumer of the settings service declares its own narrow port (communication, delivery-platform, people-directory compositions in services, calendar-view and group-live-view through supervisiondashboard.Resolver and grouplive.Resolver), each test package keeps a package-local func-field settingsDouble, and the Settings Platform (settings-platform: services/config) gains Prefetch, one batch read that returns the context carrying the snapshot.",
   "affected_packages": [
     "services/config",
     "services/config/configtest",
@@ -38,9 +38,9 @@
   "runtime_evidence": {
     "source": "Local run on the PR branch. Production changes are type narrowing and a Prefetch method that wraps the existing ResolveMany and WithSettingsSnapshot calls, so the evidence is the unchanged behaviour suites, the new Prefetch tests and the architecture check, not a benchmark rerun.",
     "sources": [
-      "backend/services/config/settings_snapshot.go",
-      "backend/services/config/settings_interface.go",
-      "backend/services/config/settings_prefetch_test.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/a4b10d5cdf06c707909c14f386807d6a56295f3c/backend/services/config/settings_snapshot.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/a4b10d5cdf06c707909c14f386807d6a56295f3c/backend/services/config/settings_interface.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/a4b10d5cdf06c707909c14f386807d6a56295f3c/backend/services/config/settings_prefetch_test.go",
       "backend/modules/supervisiondashboard/ports.go",
       "backend/modules/supervisiondashboard/internal/adapters/nameorder/legacy.go",
       "backend/modules/grouplive/ports.go",

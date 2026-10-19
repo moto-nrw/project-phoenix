@@ -29,11 +29,23 @@ func (s *Service) CleanupOrphanedFiles(ctx context.Context) (removed int, err er
 }
 
 func (s *Service) sweep(ctx context.Context, o *op, k kind, deletedSource, orphanSource string) (int, error) {
+	deleted, deletedErr := s.sweepDeleted(ctx, o, k, deletedSource)
+	orphans, orphanErr := s.sweepIntents(ctx, o, k, orphanSource)
+	return deleted + orphans, errors.Join(deletedErr, orphanErr)
+}
+
+func (s *Service) sweepDeleted(ctx context.Context, o *op, k kind, deletedSource string) (int, error) {
 	removed := 0
 	var sweepErr error
 
-	documents, stats, err := k.store.ListDeletedPendingCleanup(ctx)
-	o.add(stats)
+	var documents []domain.Document
+	err := s.write(ctx, o, func(txCtx context.Context, o *op) error {
+		var stats domain.OperationStats
+		var readErr error
+		documents, stats, readErr = k.store.ListDeletedPendingCleanup(txCtx)
+		o.add(stats)
+		return readErr
+	})
 	if err != nil {
 		sweepErr = errors.Join(sweepErr, fmt.Errorf("list deleted %s: %w", k.name, err))
 	} else {
@@ -65,8 +77,21 @@ func (s *Service) sweep(ctx context.Context, o *op, k kind, deletedSource, orpha
 		s.logBatchFull(len(documents), deletedSource)
 	}
 
-	intents, stats, err := k.cleanups.ListQueued(ctx)
-	o.add(stats)
+	return removed, sweepErr
+}
+
+func (s *Service) sweepIntents(ctx context.Context, o *op, k kind, orphanSource string) (int, error) {
+	removed := 0
+	var sweepErr error
+
+	var intents []domain.CleanupIntent
+	err := s.write(ctx, o, func(txCtx context.Context, o *op) error {
+		var stats domain.OperationStats
+		var readErr error
+		intents, stats, readErr = k.cleanups.ListQueued(txCtx)
+		o.add(stats)
+		return readErr
+	})
 	if err != nil {
 		return removed, errors.Join(sweepErr, fmt.Errorf("list queued %s cleanups: %w", k.name, err))
 	}

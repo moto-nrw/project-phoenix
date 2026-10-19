@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
 )
 
 // GetProvisioningStats returns the platform-wide counts of the operator
@@ -157,9 +156,9 @@ func (p *Provisioning) GetSchoolPWAUsage(ctx context.Context, schoolID int64) (*
 		for _, row := range rows {
 			portal := organizationtenancy.PWAPortalUsage{StandaloneUsers: row.StandaloneUsers, EligibleUsers: row.EligibleUsers}
 			switch row.Portal {
-			case domain.PWAPortalStaff:
+			case organizationtenancy.PWAPortalStaff:
 				usage.Staff = portal
-			case domain.PWAPortalParent:
+			case organizationtenancy.PWAPortalParent:
 				usage.Parent = portal
 			}
 		}
@@ -170,7 +169,7 @@ func (p *Provisioning) GetSchoolPWAUsage(ctx context.Context, schoolID int64) (*
 // ListPWAUsage returns every school's PWA usage buckets within window.
 func (p *Provisioning) ListPWAUsage(ctx context.Context, window time.Duration) ([]organizationtenancy.SchoolPWAUsageRow, error) {
 	return adminValue(ctx, p, func(adminCtx context.Context) ([]organizationtenancy.SchoolPWAUsageRow, error) {
-		rows, err := p.dashboard.PWAUsage(adminCtx, 0, window)
+		rows, err := p.dashboard.AllSchoolsPWAUsage(adminCtx, window)
 		if err != nil {
 			return nil, err
 		}

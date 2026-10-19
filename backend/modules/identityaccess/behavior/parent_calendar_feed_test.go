@@ -16,7 +16,7 @@ import (
 func TestNativeParentFeedConcurrentCreationKeepsOneWinner(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	feeds, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	feeds, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	account := testpkg.CreateTestAccount(t, db, "parent-feed-race")
 	ctx := testpkg.Ctx(t)
@@ -63,7 +63,7 @@ func TestNativeParentFeedConcurrentCreationKeepsOneWinner(t *testing.T) {
 func TestNativeParentFeedRotationUsesAmbientTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	feeds, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	feeds, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	account := testpkg.CreateTestAccount(t, db, "parent-feed-rollback")
 	ctx := testpkg.Ctx(t)
@@ -100,4 +100,32 @@ func TestNativeParentFeedRotationUsesAmbientTransaction(t *testing.T) {
 	missing, err := feeds.EnsureParentCalendarFeedToken(ctx, 0, second)
 	require.NoError(t, err)
 	require.Empty(t, missing)
+}
+
+func TestNativeParentFeedIgnoresErasedAccounts(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	feeds, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	require.NoError(t, err)
+	account := testpkg.CreateTestAccount(t, db, "parent-feed-erased")
+	ctx := testpkg.Ctx(t)
+	first, second := calendarFeedHash(account.ID, 1), calendarFeedHash(account.ID, 2)
+	require.NoError(t, feeds.RotateParentCalendarFeedToken(ctx, account.ID, first))
+	_, err = db.NewRaw(`UPDATE auth.accounts SET personal_data_erased_at = NOW() WHERE id = ?`, account.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	_, found, err := feeds.FindParentCalendarFeedAccount(ctx, account.ID)
+	require.NoError(t, err)
+	require.False(t, found)
+	_, found, err = feeds.FindParentCalendarFeedOwner(ctx, first)
+	require.NoError(t, err)
+	require.False(t, found)
+	ensured, err := feeds.EnsureParentCalendarFeedToken(ctx, account.ID, second)
+	require.NoError(t, err)
+	require.Empty(t, ensured)
+	require.NoError(t, feeds.RotateParentCalendarFeedToken(ctx, account.ID, second))
+
+	var stored string
+	require.NoError(t, db.NewRaw(`SELECT calendar_feed_token FROM auth.accounts WHERE id = ?`, account.ID).Scan(ctx, &stored))
+	require.Equal(t, first, stored)
 }

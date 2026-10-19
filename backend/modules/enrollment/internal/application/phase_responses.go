@@ -68,7 +68,7 @@ func (s *Phases) ResponseOverview(ctx context.Context, phaseID int64) (*enrollme
 	if err != nil {
 		return nil, fmt.Errorf("phase %d response overview: list roster: %w", phaseID, err)
 	}
-	roster = phaseResponseRosterWithAnswers(roster, answers)
+	roster = phaseResponseRosterWithAnswers(activePhaseResponseStudents(roster), answers)
 	ids := make([]int64, 0, len(roster))
 	for _, student := range roster {
 		ids = append(ids, student.ID)
@@ -286,6 +286,18 @@ func phaseResponseClassWithGrade(class string, grade int) string {
 		return class
 	}
 	return class[:index] + strconv.Itoa(grade) + class[index+len(prefix):]
+}
+
+// activePhaseResponseStudents keeps the children asked to re-enroll: only
+// active ones.
+func activePhaseResponseStudents(roster []enrollment.PhaseResponseStudent) []enrollment.PhaseResponseStudent {
+	active := make([]enrollment.PhaseResponseStudent, 0, len(roster))
+	for _, student := range roster {
+		if !student.NotActive {
+			active = append(active, student)
+		}
+	}
+	return active
 }
 
 func phaseResponseRosterWithAnswers(roster []enrollment.PhaseResponseStudent, answers map[int64]phaseResponseLink) []enrollment.PhaseResponseStudent {

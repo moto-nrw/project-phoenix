@@ -1,0 +1,457 @@
+package activitycontract
+
+import (
+	"errors"
+	"strings"
+	"time"
+)
+
+const (
+	minTargetGradeLevel = 1
+	maxTargetGradeLevel = 13
+)
+
+func normalizeSchoolClass(class string) string {
+	return strings.ToLower(strings.TrimSpace(class))
+}
+
+// Group type constants
+const (
+	GroupTypeActivity = "activity"
+	GroupTypeCare     = "care"
+	GroupTypeExternal = "external"
+	// GroupTypeDuty is a staff task without children (UI „Dienst“, #3822):
+	// Busaufsicht, Essensausgabe, Abschließen. It has no roster, no session
+	// and no kiosk entry, and its room is optional.
+	GroupTypeDuty = "duty"
+)
+
+// Target-group ("Zielgruppe") type constants for Betreuungsplan templates.
+// "gruppe" deliberately has no dedicated value column - it reuses
+// EducationGroupID. "angebot" (UI label "Angebot") has two sourcing modes:
+// with SourceCareOfferingIDs set the template declares one or more offerings
+// (plus an optional SourceGradeLevels filter) as its dynamic roster source
+// (#2137, multi-source follow-up); without it the roster comes from the
+// legacy CareOffering.ActivityGroupID bridge (#1651), where the offering
+// points at the template instead.
+const (
+	TargetGroupTypeJahrgang = "jahrgang"
+	TargetGroupTypeKlasse   = "klasse"
+	TargetGroupTypeGruppe   = "gruppe"
+	TargetGroupTypeAngebot  = "angebot"
+	TargetGroupTypeNone     = "none"
+)
+
+// List kind constants classify timetable templates for printable daily lists.
+// Empty means the template is not tied to a dedicated list kind.
+const (
+	ListKindEdgeHours    = "edge_hours"
+	ListKindLearningTime = "learning_time"
+	ListKindActivity     = "activity"
+	ListKindMensa        = "mensa"
+)
+
+func IsValidListKind(kind string) bool {
+	switch kind {
+	case "", ListKindEdgeHours, ListKindLearningTime, ListKindActivity, ListKindMensa:
+		return true
+	default:
+		return false
+	}
+}
+
+// Group represents an activity group
+type Group struct {
+	ID        int64     `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	TenantID  int64     `json:"tenant_id"`
+	Name      string    `json:"name"`
+	// MaxParticipants uses zero in Go and SQL NULL for an unlimited activity.
+	MaxParticipants int `json:"max_participants"`
+	// RequiredStaff is the manual Personalbedarf override for the template
+	// (issue #1839). NULL means "derive from the Betreuungsschlüssel" (#1869);
+	// a set value (>= 0) is inherited by materialized instances at read time
+	// (their own column stays NULL unless individually pinned), so later
+	// template edits keep propagating. Mirrors MaxParticipants plumbing.
+	RequiredStaff    *int       `json:"required_staff,omitempty"`
+	IsOpen           bool       `json:"is_open"`
+	CategoryID       int64      `json:"category_id"`
+	PlanningTrackID  *int64     `json:"planning_track_id,omitempty"`
+	PlannedRoomID    *int64     `json:"planned_room_id,omitempty"`
+	CreatedBy        *int64     `json:"created_by"`
+	Type             string     `json:"type"`
+	EducationGroupID *int64     `json:"education_group_id,omitempty"`
+	ListKind         *string    `json:"list_kind,omitempty"`
+	IsTemplate       bool       `json:"is_template"`
+	IsSystem         bool       `json:"is_system"`
+	ArchivedAt       *time.Time `json:"archived_at,omitempty"`
+	// SeriesRootID identifies all segments produced by recurring-template
+	// splits. The original segment keeps NULL (it is its own root); every
+	// successor points to that original row, including successors split again.
+	SeriesRootID *int64 `json:"-"`
+
+	// CalendarPeriodID pins this template to a calendar period (e.g. "1.
+	// Halbjahr 2026/27"). The materialization service's selectPeriod()
+	// prefers a schedule row's own pin over this one; this is the
+	// template-level fallback and the value read by list responses that
+	// only have the Group row.
+	CalendarPeriodID *int64 `json:"calendar_period_id,omitempty"`
+
+	// Zielgruppe (target-group) fields. TargetGroupType is one of the
+	// TargetGroupType* constants; exactly one of the following holds the
+	// type's value, enforced by Validate():
+	//   jahrgang -> TargetGradeLevel
+	//   klasse   -> TargetSchoolClass
+	//   gruppe   -> EducationGroupID (existing field, no new column)
+	//   angebot  -> SourceCareOfferingIDs (+ optional SourceGradeLevels), or
+	//               none for the legacy CareOffering.ActivityGroupID bridge
+	//   none     -> none (today's default: manually curated roster)
+	TargetGroupType   string  `json:"target_group_type"`
+	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string `json:"target_school_class,omitempty"`
+
+	// Offering-source fields (#2137): an "angebot" template may declare one
+	// or more care offerings as its dynamic roster source plus an optional
+	// grade filter — one Betreuungsangebot can feed several parallel
+	// Regeltermine (one per Jahrgang), and one Regeltermin can union several
+	// offerings (a block holding the bis-14:30 AND bis-16:00 children at
+	// once). The union never plans a child twice: overlapping weekday×date
+	// contributions of later offerings are subtracted in array order by the
+	// roster resync. All source offerings must belong to the same enrollment
+	// phase (enforced by the resync/validation, not the DB). Empty/nil
+	// SourceGradeLevels means "all enrolled children of the offerings". An
+	// "angebot" template WITHOUT a source keeps the legacy behavior (roster
+	// fed via CareOffering.ActivityGroupID).
+	SourceCareOfferingIDs []int64 `json:"source_care_offering_ids,omitempty"`
+	SourceGradeLevels     []int   `json:"source_grade_levels,omitempty"`
+
+	// SourceSchoolClasses narrows the same source to concrete Schulklassen
+	// (#2482): one shared "Randstunde" offering feeding six Regeltermine, one
+	// per Klasse, each on its own weekdays. Free text matched via
+	// schoolclass.Normalize, like activities.groups.target_school_class.
+	// MUTUALLY EXCLUSIVE with SourceGradeLevels — a class already implies its
+	// Jahrgang, so combining the two is either redundant ("1b" + Jahrgang 1)
+	// or empty ("1b" + Jahrgang 2). The DB CHECK enforces the same.
+	SourceSchoolClasses []string `json:"source_school_classes,omitempty"`
+
+	// Notes is the durable Wochennotiz for a recurring template (issue #1837
+	// follow-up). NULL means no series note. It is joined onto every
+	// materialized instance at read time (the instance table has no such
+	// column), so it survives ReplanWeek and series splits and keeps
+	// propagating on later edits. The per-occurrence Tagesnotiz stays on
+	// schedule.activity_instances.notes.
+	Notes *string `json:"notes,omitempty"`
+
+	// IncludeClosingDays opts a recurring series into the school's closing
+	// days (#3594): materialization skips closing days unless this is set,
+	// e.g. for holiday care. Statutory holidays are skipped regardless.
+	IncludeClosingDays bool `json:"-"`
+
+	// SeriesLastDay is the inclusive last day of a recurring series (#3594),
+	// e.g. a holiday-care week; materialization plans nothing after it. NULL
+	// = the series runs until its planning period ends. Unlike a schedule's
+	// valid_until it does not mark a capped split segment.
+	SeriesLastDay *Date `json:"-"`
+
+	// Relations - populated when using the ORM's relations
+	Category    *Category            `json:"category,omitempty"`
+	Supervisors []*SupervisorPlanned `json:"supervisors,omitempty"`
+	Schedules   []*Schedule          `json:"schedules,omitempty"`
+}
+
+// GroupListQuery is the bounded read shape for activity-group listings.
+type GroupListQuery struct {
+	Name       string
+	CategoryID *int64
+	IsSystem   *bool
+	IDs        []int64
+}
+
+// Validate ensures group data is valid
+func (g *Group) Validate() error {
+	if g.Name == "" {
+		return errors.New("group name is required")
+	}
+
+	if g.MaxParticipants < 0 {
+		return errors.New("max participants cannot be negative")
+	}
+
+	if g.CategoryID <= 0 {
+		return errors.New("category ID is required")
+	}
+	// A non-nil pointer to "" means "no list kind" for callers that build a
+	// Group{} literal; canonicalize it to NULL so it satisfies the DB's
+	// `list_kind IS NULL OR list_kind IN (...)` CHECK instead of hitting a
+	// constraint error (IsValidListKind("") stays true for the slot-list
+	// filter, where empty means "any kind").
+	if g.ListKind != nil && *g.ListKind == "" {
+		g.ListKind = nil
+	}
+	if g.ListKind != nil && !IsValidListKind(*g.ListKind) {
+		return errors.New("invalid list kind")
+	}
+
+	if g.RequiredStaff != nil && *g.RequiredStaff < 0 {
+		return errors.New("required staff cannot be negative")
+	}
+
+	if err := g.ValidateTargetGroup(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ValidateTargetGroup enforces that TargetGroupType and its matching value
+// field are consistent - the same type-conditional-invariant style used by
+// ActivityException.Validate() (models/schedule/activity_exception.go).
+// Exported so API handlers can validate the Zielgruppe fields from a request
+// body up front (400) before constructing/persisting a full Group, without
+// duplicating this switch.
+//
+// An empty TargetGroupType (the Go zero value for callers that construct a
+// Group{} literal without ever mentioning Zielgruppe, which is most of the
+// codebase) is canonicalized to TargetGroupTypeNone. This keeps generic
+// repository creates and updates consistent with the DB's non-empty CHECK
+// constraint without forcing callers predating this field to set it.
+func (g *Group) ValidateTargetGroup() error {
+	if !IsValidTargetGroupType(g.TargetGroupType) {
+		return errors.New("invalid target group type")
+	}
+
+	if g.TargetGroupType == "" {
+		g.TargetGroupType = TargetGroupTypeNone
+	}
+
+	if err := g.validateOfferingSource(); err != nil {
+		return err
+	}
+
+	switch g.TargetGroupType {
+	case TargetGroupTypeJahrgang:
+		return g.validateGradeTarget()
+	case TargetGroupTypeKlasse:
+		return g.validateClassTarget()
+	case TargetGroupTypeGruppe:
+		return g.validateEducationGroupTarget()
+	case TargetGroupTypeAngebot, TargetGroupTypeNone:
+		return g.validateValuelessTarget()
+	}
+
+	return nil
+}
+
+// validateOfferingSource mirrors the DB CHECK
+// chk_activities_groups_offering_source plus grade-range sanity: source
+// offerings only on 'angebot' templates, a grade filter only with a source,
+// ids positive and free of duplicates, filter values within the supported
+// grade bounds and free of duplicates. An empty id list is canonicalized to
+// nil ("no source") so it satisfies the DB's non-empty-array CHECK.
+func (g *Group) validateOfferingSource() error {
+	if len(g.SourceCareOfferingIDs) == 0 {
+		g.SourceCareOfferingIDs = nil
+		if len(g.SourceGradeLevels) > 0 {
+			return errors.New("source_grade_levels requires source_care_offering_ids")
+		}
+		if len(g.SourceSchoolClasses) > 0 {
+			return errors.New("source_school_classes requires source_care_offering_ids")
+		}
+		g.SourceGradeLevels = nil
+		g.SourceSchoolClasses = nil
+		return nil
+	}
+	if g.TargetGroupType != TargetGroupTypeAngebot {
+		return errors.New("source_care_offering_ids requires target group type 'angebot'")
+	}
+	if err := validateSourceOfferingIDs(g.SourceCareOfferingIDs); err != nil {
+		return err
+	}
+
+	if err := g.normalizeSourceGradeLevels(); err != nil {
+		return err
+	}
+
+	classes, err := NormalizeSourceSchoolClasses(g.SourceSchoolClasses)
+	if err != nil {
+		return err
+	}
+	g.SourceSchoolClasses = classes
+	if len(g.SourceGradeLevels) > 0 && len(g.SourceSchoolClasses) > 0 {
+		return errors.New("source_school_classes and source_grade_levels cannot be combined")
+	}
+	return nil
+}
+
+// NormalizeSourceSchoolClasses trims the class filter entries, rejects blanks
+// and case-insensitive duplicates, and returns nil for an empty filter (which
+// the DB CHECK requires to be NULL, not an empty array). The stored spelling
+// is the admin's own — matching normalizes at compare time instead, so the
+// editor reads back what the school typed. Exported so the service layer can
+// apply the identical rule to request payloads that never build a Group.
+func NormalizeSourceSchoolClasses(classes []string) ([]string, error) {
+	if len(classes) == 0 {
+		return nil, nil
+	}
+	normalized := make([]string, 0, len(classes))
+	seen := make(map[string]bool, len(classes))
+	for _, class := range classes {
+		trimmed := strings.TrimSpace(class)
+		if trimmed == "" {
+			return nil, errors.New("source_school_classes entries must not be empty")
+		}
+		key := normalizeSchoolClass(trimmed)
+		if seen[key] {
+			return nil, errors.New("source_school_classes must not contain duplicates")
+		}
+		seen[key] = true
+		normalized = append(normalized, trimmed)
+	}
+	return normalized, nil
+}
+
+// MatchesSourceGradeFilter reports whether a child with the given grade level
+// (nil = grade not derivable from the school class) passes this template's
+// offering grade filter. An empty filter admits every child; a set filter
+// never admits a child without grade data — silently planning a child whose
+// grade is unknown into a Jahrgang-scoped Termin would hide data problems.
+func (g *Group) MatchesSourceGradeFilter(gradeLevel *int16) bool {
+	if len(g.SourceGradeLevels) == 0 {
+		return true
+	}
+	if gradeLevel == nil {
+		return false
+	}
+	for _, level := range g.SourceGradeLevels {
+		if level == int(*gradeLevel) {
+			return true
+		}
+	}
+	return false
+}
+
+func (g *Group) validateGradeTarget() error {
+	if g.TargetGradeLevel == nil {
+		return errors.New("jahrgang target group requires target_grade_level")
+	}
+	if *g.TargetGradeLevel < minTargetGradeLevel || *g.TargetGradeLevel > maxTargetGradeLevel {
+		return errors.New("target_grade_level must be between 1 and 13")
+	}
+	if g.TargetSchoolClass != nil {
+		return errors.New("jahrgang target group must not set target_school_class")
+	}
+	return nil
+}
+
+func (g *Group) validateClassTarget() error {
+	if g.TargetSchoolClass == nil || strings.TrimSpace(*g.TargetSchoolClass) == "" {
+		return errors.New("klasse target group requires target_school_class")
+	}
+	trimmedClass := strings.TrimSpace(*g.TargetSchoolClass)
+	g.TargetSchoolClass = &trimmedClass
+	if g.TargetGradeLevel != nil {
+		return errors.New("klasse target group must not set target_grade_level")
+	}
+	return nil
+}
+
+func (g *Group) validateEducationGroupTarget() error {
+	if g.EducationGroupID == nil {
+		return errors.New("gruppe target group requires education_group_id")
+	}
+	if g.TargetGradeLevel != nil || g.TargetSchoolClass != nil {
+		return errors.New("gruppe target group must not set target_grade_level or target_school_class")
+	}
+	return nil
+}
+
+func (g *Group) validateValuelessTarget() error {
+	if g.TargetGradeLevel != nil || g.TargetSchoolClass != nil {
+		return errors.New("target_grade_level and target_school_class must be empty for this target group type")
+	}
+	return nil
+}
+
+// IsValidTargetGroupType reports whether t is a permitted Zielgruppe type.
+// The empty string is accepted as an alias for TargetGroupTypeNone (the Go
+// zero value for callers predating this field).
+func IsValidTargetGroupType(t string) bool {
+	switch t {
+	case "", TargetGroupTypeJahrgang, TargetGroupTypeKlasse, TargetGroupTypeGruppe, TargetGroupTypeAngebot, TargetGroupTypeNone:
+		return true
+	}
+	return false
+}
+
+// IsOwnedBy checks if the group was created by the given staff member
+func (g *Group) IsOwnedBy(staffID int64) bool {
+	return g.CreatedBy != nil && *g.CreatedBy == staffID
+}
+
+// IsSupervisedBy checks if the given staff member is a supervisor of this group
+func (g *Group) IsSupervisedBy(staffID int64) bool {
+	for _, supervisor := range g.Supervisors {
+		if supervisor != nil && supervisor.StaffID == staffID {
+			return true
+		}
+	}
+	return false
+}
+
+// HasParticipantLimit reports whether the group has a numerical capacity cap.
+func (g *Group) HasParticipantLimit() bool {
+	return g.MaxParticipants > 0
+}
+
+// ParticipantLimit returns nil for an unlimited group.
+func (g *Group) ParticipantLimit() *int {
+	return ParticipantLimitPtr(g.MaxParticipants)
+}
+
+// ParticipantLimitPtr converts the Go zero value into the public nil form.
+func ParticipantLimitPtr(limit int) *int {
+	if limit <= 0 {
+		return nil
+	}
+	return &limit
+}
+
+// HasAvailableSpots checks if the group has available spots based on current enrollment count.
+func (g *Group) HasAvailableSpots(currentEnrollmentCount int) bool {
+	return !g.HasParticipantLimit() || g.MaxParticipants > currentEnrollmentCount
+}
+
+func (v *Group) GetTenantID() int64   { return v.TenantID }
+func (v *Group) SetTenantID(id int64) { v.TenantID = id }
+
+func validateSourceOfferingIDs(ids []int64) error {
+	seenIDs := make(map[int64]bool, len(ids))
+	for _, offeringID := range ids {
+		if offeringID <= 0 {
+			return errors.New("source_care_offering_ids entries must be positive")
+		}
+		if seenIDs[offeringID] {
+			return errors.New("source_care_offering_ids must not contain duplicates")
+		}
+		seenIDs[offeringID] = true
+	}
+	return nil
+}
+
+func (g *Group) normalizeSourceGradeLevels() error {
+	seen := make(map[int]bool, len(g.SourceGradeLevels))
+	for _, level := range g.SourceGradeLevels {
+		if level < minTargetGradeLevel || level > maxTargetGradeLevel {
+			return errors.New("source_grade_levels entries must be between 1 and 13")
+		}
+		if seen[level] {
+			return errors.New("source_grade_levels must not contain duplicates")
+		}
+		seen[level] = true
+	}
+	if len(g.SourceGradeLevels) == 0 {
+		g.SourceGradeLevels = nil
+	}
+	return nil
+}

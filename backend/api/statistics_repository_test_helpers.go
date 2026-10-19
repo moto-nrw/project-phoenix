@@ -5,30 +5,27 @@ package api
 import (
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
-// StatisticsTestRepositories are the statistics suites' repositories;
-// AccessLog is filled by NewStatisticsTestRepositories.
+// StatisticsTestRepositories are the statistics suites' Care Plan status
+// days over the Timetable owner's participants.
 type StatisticsTestRepositories struct {
-	Timetable TimetableTestRepositories
-	CarePlan  careplan.StudentStatusDaysQuery
-	AccessLog auditModels.DataAccessLogRepository
+	CarePlan careplan.StudentStatusDaysQuery
 }
 
-func NewStatisticsTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories, clocks ...func() time.Time) (StatisticsTestRepositories, error) {
-	timetable, err := NewTimetableTestRepositoriesWithMembers(db, members, clocks...)
+func NewStatisticsTestRepositoriesWithMembers(db transactionruntime.Database, members owners.MembershipTestRepositories, clocks ...func() time.Time) (StatisticsTestRepositories, error) {
+	timetable, err := owners.NewTimetableTestRepositoriesWithMembers(db, members, clocks...)
 	if err != nil {
 		return StatisticsTestRepositories{}, err
 	}
 	persons := members.People
-	carePlan, err := NewCarePlan(db, persons, timetable.InstanceStudent)
+	carePlan, err := owners.NewCarePlan(db, persons, timetable.InstanceStudent)
 	if err != nil {
 		return StatisticsTestRepositories{}, err
 	}
-	return StatisticsTestRepositories{
-		Timetable: timetable, CarePlan: carePlan,
-	}, nil
+	return StatisticsTestRepositories{CarePlan: carePlan}, nil
 }

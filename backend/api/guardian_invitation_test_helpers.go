@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -21,8 +23,8 @@ import (
 // the enrollment claims an acceptance runs and the token lifetime.
 type GuardianInvitationTestConfig struct {
 	Audit       auditModels.Command
-	Outbox      MailResultOutbox
-	Enrollments GuardianEnrollmentClaims
+	Outbox      owners.MailResultOutbox
+	Enrollments owners.GuardianEnrollmentClaims
 	Expiry      time.Duration
 	Logger      *slog.Logger
 }
@@ -37,7 +39,7 @@ func lifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	}
 	audit := cfg.Audit
 	if audit == nil {
-		command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
+		command, err := auditCompose.NewCommand(owners.NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 		if err != nil {
 			return nil, err
 		}
@@ -47,7 +49,7 @@ func lifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	if err != nil {
 		return nil, err
 	}
-	organizations, err := NewOrganizationTenancy(db)
+	organizations, err := owners.NewOrganizationTenancy(db)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +67,7 @@ func lifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	if outbox == nil {
 		outbox = discardingOutbox{}
 	}
-	claims := GuardianEnrollmentClaims(unclaimedEnrollments{})
+	claims := owners.GuardianEnrollmentClaims(unclaimedEnrollments{})
 	if cfg.Enrollments != nil {
 		claims = cfg.Enrollments
 	}
@@ -74,22 +76,19 @@ func lifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	if err != nil {
 		return nil, err
 	}
-	identityAccess, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db.Pool()}, AccountAuthenticationWiring{
-		Repos: SessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool())), Codec: codec, Audit: audit, Logger: logger,
-		Lifecycle: &LifecycleWiring{
-			Audit: audit, Caregivers: caregivers,
-			GuardianMail: &GuardianInvitationWiring{
-				Schools:     organizations,
-				Outbox:      func() MailResultOutbox { return outbox },
-				Enrollments: claims,
-				ParentsURL:  "http://localhost:3000", FallbackExpiry: expiry, Logger: logger,
-			},
-		},
-	})
+	sessionRepos := owners.SessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool()))
+	guardianMail, enrollmentClaims, err := owners.GuardianInvitationDependencies(nil, organizations, outbox, claims, "http://localhost:3000", expiry, logger)
 	if err != nil {
 		return nil, err
 	}
-	if err := identityAccess.SetTenantRuntime(unit); err != nil {
+	lifecycle, err := owners.LifecycleDependencies(sessionRepos.Lifecycle, audit, caregivers, guardianMail, enrollmentClaims, logger)
+	if err != nil {
+		return nil, err
+	}
+	identityAccess, err := owners.NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{
+		DB: db.Pool(), Observe: func(identityaccessCompose.Observation) {}, Lifecycle: lifecycle, TenantRuntime: unit,
+	}, sessionRepos, codec, nil, audit, logger)
+	if err != nil {
 		return nil, err
 	}
 	return identityAccess, nil

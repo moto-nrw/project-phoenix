@@ -7,15 +7,16 @@ import (
 	"strings"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // ReplaceEditable rewrites the editable payload of a request while every
 // child is still submitted. It keeps the request id, the status token, the
 // guardian account link and the original submitted_at.
-func (s *Intake) ReplaceEditable(ctx context.Context, token string, incoming enrollment.SubmitRequest) (*enrollment.SubmitResult, error) {
+func (s *Intake) ReplaceEditable(ctx context.Context, token string, incoming enrollmentNative.SubmitRequest) (*enrollmentNative.SubmitResult, error) {
 	decoded, err := decodeSubmitRequest(incoming)
 	if err != nil {
 		return nil, err
@@ -29,15 +30,15 @@ func (s *Intake) ReplaceEditable(ctx context.Context, token string, incoming enr
 
 // replacePlan is the state of one replacement edit inside its transaction.
 type replacePlan struct {
-	req             *enrollmentModels.Request
+	req             *Request
 	children        []*RequestChild
-	phase           *enrollment.Phase
+	phase           *enrollmentNative.Phase
 	duplicatePolicy string
-	capabilities    enrollment.FormCapabilities
-	openByID        map[int64]*enrollmentModels.CareOffering
+	capabilities    enrollmentNative.FormCapabilities
+	openByID        map[int64]*offeringContract.CareOfferingRecord
 	selections      [][]selection.Selection
-	schema          *enrollment.FormSchema
-	legalBlocks     []enrollment.LegalBlock
+	schema          *enrollmentNative.FormSchema
+	legalBlocks     []enrollmentNative.LegalBlock
 	// eligibilityEnforced is false for trusted-source and rollover-generated
 	// requests, which bypassed the self-service gates at creation (#1663).
 	eligibilityEnforced bool
@@ -48,7 +49,7 @@ type replacePlan struct {
 func (s *Intake) replaceEditable(ctx context.Context, token string, incoming SubmitRequest) (*submitOutcome, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
-		return nil, enrollment.ErrRequestNotFound
+		return nil, enrollmentNative.ErrRequestNotFound
 	}
 	var tenantID int64
 	if err := s.deps.Runtime.AdminTx(ctx, func(adminCtx context.Context) error {
@@ -71,7 +72,7 @@ func (s *Intake) replaceEditable(ctx context.Context, token string, incoming Sub
 		slog.Int64("request_id", outcome.Request.ID),
 		slog.Int64("tenant_id", tenantID),
 		slog.Int("children", len(outcome.Children)))
-	outcome.StatusURL = enrollment.StatusURL(s.deps.ParentsURL, outcome.Request.StatusToken)
+	outcome.StatusURL = enrollmentNative.StatusURL(s.deps.ParentsURL, outcome.Request.StatusToken)
 	return outcome, nil
 }
 
@@ -107,7 +108,7 @@ func (s *Intake) replaceInTenant(ctx context.Context, token string, tenantID int
 	}
 	if err := notifyDecisions(ctx, s.deps.Notifications, decisionGeneration{
 		Request: plan.req, Children: outcome.Children, Phase: plan.phase,
-		ImmediateChildIDs: childIDsForStatus(outcome.Children, enrollmentModels.ChildStatusWaitlisted), ParentsURL: s.deps.ParentsURL,
+		ImmediateChildIDs: childIDsForStatus(outcome.Children, enrollmentNative.ChildStatusWaitlisted), ParentsURL: s.deps.ParentsURL,
 	}); err != nil {
 		return fmt.Errorf("edit replace: notify capacity decisions: %w", err)
 	}
@@ -157,7 +158,7 @@ func (s *Intake) planReplacementCatalog(ctx context.Context, editReq *SubmitRequ
 	if plan.capabilities, err = s.formCapabilities(ctx); err != nil {
 		return fmt.Errorf("edit replace: resolve form capabilities: %w", err)
 	}
-	openOfferings := []*enrollmentModels.CareOffering{}
+	openOfferings := []*offeringContract.CareOfferingRecord{}
 	if plan.capabilities.CareOfferingsEnabled {
 		if openOfferings, err = s.deps.Offerings.ListActiveByPhase(ctx, phase.ID); err != nil {
 			return fmt.Errorf("edit replace: load phase offerings: %w", err)
@@ -210,7 +211,7 @@ func (s *Intake) planReplacementContract(ctx context.Context, editReq *SubmitReq
 
 // mergeReplacementAnswers sanitizes the edited answers and merges them over
 // the stored ones, so keys the reopened form cannot render survive the edit.
-func mergeReplacementAnswers(schema *enrollment.FormSchema, editReq *SubmitRequest, storedGuardianData map[string]any, children []*RequestChild, openByID map[int64]*enrollmentModels.CareOffering) {
+func mergeReplacementAnswers(schema *enrollmentNative.FormSchema, editReq *SubmitRequest, storedGuardianData map[string]any, children []*RequestChild, openByID map[int64]*offeringContract.CareOfferingRecord) {
 	byKey := buildFieldsByKey(schema)
 	rawGuardian := editReq.CustomData
 	existingCustomData := existingChildCustomDataBySubmittedIdentity(children, editReq.Children)
@@ -231,7 +232,7 @@ func mergeReplacementAnswers(schema *enrollment.FormSchema, editReq *SubmitReque
 func (s *Intake) prepareReplacementWrite(ctx context.Context, editReq *SubmitRequest, plan *replacePlan) error {
 	plan.matchedExisting = matchExistingChildrenBySubmittedIdentity(plan.children, editReq.Children)
 	emailLC := lowerTrim(plan.req.GuardianEmail)
-	if err := s.deps.Requests.AcquireSubmissionDedupLock(ctx, plan.phase.ID, enrollment.SubmissionDedupLockKey(emailLC)); err != nil {
+	if err := s.deps.Requests.AcquireSubmissionDedupLock(ctx, plan.phase.ID, enrollmentNative.SubmissionDedupLockKey(emailLC)); err != nil {
 		return fmt.Errorf("edit replace: acquire dedup lock: %w", err)
 	}
 	existingChildIDs := make([]int64, 0, len(plan.children))
@@ -245,7 +246,7 @@ func (s *Intake) prepareReplacementWrite(ctx context.Context, editReq *SubmitReq
 	}
 	// One point-in-time read serves both uses: preserving a hidden selection
 	// means preserving the one in force now.
-	activeLinks, err := enrollment.OfferingSelectionRecordsForChildrenAt(ctx, s.deps.Children, existingChildIDs, s.currentOfferingSelectionDate(plan.phase))
+	activeLinks, err := enrollmentNative.OfferingSelectionRecordsForChildrenAt(ctx, s.deps.Children, existingChildIDs, s.currentOfferingSelectionDate(plan.phase))
 	if err != nil {
 		return fmt.Errorf("edit replace: load active child offerings: %w", err)
 	}
@@ -260,7 +261,7 @@ func (s *Intake) prepareReplacementWrite(ctx context.Context, editReq *SubmitReq
 }
 
 // preservedClaims counts, per offering, the children already holding it.
-func preservedClaims(links []*enrollment.RequestChildOfferingRecord) map[int64]int {
+func preservedClaims(links []*enrollmentNative.RequestChildOfferingRecord) map[int64]int {
 	claims := make(map[int64]int, len(links))
 	seen := make(map[[2]int64]struct{}, len(links))
 	for _, link := range links {
@@ -279,14 +280,14 @@ func preservedClaims(links []*enrollment.RequestChildOfferingRecord) map[int64]i
 
 func validateRolloverEditIdentity(existing []*RequestChild, incoming []SubmitChild) error {
 	if len(incoming) != len(existing) {
-		return enrollment.ErrEditNotAllowed
+		return enrollmentNative.ErrEditNotAllowed
 	}
 	for i, child := range existing {
 		next := incoming[i]
 		if strings.TrimSpace(next.FirstName) != strings.TrimSpace(child.FirstName) ||
 			strings.TrimSpace(next.LastName) != strings.TrimSpace(child.LastName) ||
 			next.DateOfBirth != child.DateOfBirth {
-			return enrollment.ErrEditNotAllowed
+			return enrollmentNative.ErrEditNotAllowed
 		}
 	}
 	return nil
@@ -295,7 +296,7 @@ func validateRolloverEditIdentity(existing []*RequestChild, incoming []SubmitChi
 // replaceRequestPayload deletes the old co-guardians and children, applies
 // the duplicate policy and writes the edited guardian fields with an
 // appended legal evidence entry.
-func (s *Intake) replaceRequestPayload(ctx context.Context, editReq *SubmitRequest, plan *replacePlan) ([]enrollment.SubmissionWarning, error) {
+func (s *Intake) replaceRequestPayload(ctx context.Context, editReq *SubmitRequest, plan *replacePlan) ([]enrollmentNative.SubmissionWarning, error) {
 	if s.deps.Guardians != nil {
 		if err := s.deps.Guardians.DeleteRequestGuardians(ctx, plan.req.ID); err != nil {
 			return nil, err
@@ -329,17 +330,17 @@ func (s *Intake) replaceRequestPayload(ctx context.Context, editReq *SubmitReque
 
 // checkReplacementDuplicates applies the duplicate policy of an edit. Unlike
 // a submission it refuses an unsupported policy even without a duplicate.
-func (s *Intake) checkReplacementDuplicates(ctx context.Context, plan *replacePlan, dupKeys []enrollment.DuplicateChildKey) ([]enrollment.SubmissionWarning, error) {
+func (s *Intake) checkReplacementDuplicates(ctx context.Context, plan *replacePlan, dupKeys []enrollmentNative.DuplicateChildKey) ([]enrollmentNative.SubmissionWarning, error) {
 	dupes, err := s.deps.Requests.ActiveDuplicateChildren(ctx, plan.phase.ID, plan.req.GuardianEmail, dupKeys, 0)
 	if err != nil {
 		return nil, fmt.Errorf("edit replace: duplicate check: %w", err)
 	}
-	var warnings []enrollment.SubmissionWarning
+	var warnings []enrollmentNative.SubmissionWarning
 	if len(dupes) > 0 && plan.duplicatePolicy == duplicateHandlingBlock {
-		return nil, enrollment.ErrDuplicateEnrollment
+		return nil, enrollmentNative.ErrDuplicateEnrollment
 	}
 	if len(dupes) > 0 && plan.duplicatePolicy == duplicateHandlingWarn {
-		warnings = []enrollment.SubmissionWarning{{Code: enrollment.WarningCodeDuplicateEnrollment}}
+		warnings = []enrollmentNative.SubmissionWarning{{Code: enrollmentNative.WarningCodeDuplicateEnrollment}}
 	}
 	switch plan.duplicatePolicy {
 	case duplicateHandlingBlock, duplicateHandlingWarn, duplicateHandlingIgnore:
@@ -389,7 +390,7 @@ func (s *Intake) replacementStudentPin(ctx context.Context, plan *replacePlan, i
 	if matched := plan.matchedExisting[i]; matched != nil && sameSubmittedIdentity(matched, child) {
 		pin = matched.MatchedStudentID
 	}
-	if plan.phase.Audience == enrollment.PhaseAudienceExistingStudents {
+	if plan.phase.Audience == enrollmentNative.PhaseAudienceExistingStudents {
 		resolved, err := s.resolveMatchedStudentID(ctx, req.TenantID, plan.phase, i, child)
 		if err != nil {
 			return nil, err

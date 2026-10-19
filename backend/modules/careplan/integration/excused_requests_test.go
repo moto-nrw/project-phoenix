@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -31,10 +32,11 @@ var (
 )
 
 type excusedFixture struct {
-	db       *bun.DB
-	repos    *api.RepositoryTestFactory
-	chain    testpkg.ParentChain
-	requests careplan.ExcusedAbsenceRequests
+	db          *bun.DB
+	repos       *api.RepositoryTestFactory
+	reposPeople *api.PeopleRepositorySuiteFactory
+	chain       testpkg.ParentChain
+	requests    careplan.ExcusedAbsenceRequests
 }
 
 // newExcusedFixture composes the workflow over the legacy repository graph
@@ -42,13 +44,14 @@ type excusedFixture struct {
 func newExcusedFixture(t *testing.T) *excusedFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	return &excusedFixture{db: db, repos: repos, chain: testpkg.CreateTestParentGuardianChain(t, db), requests: newExcusedRequests(t, repos, repos.CarePlan())}
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	return &excusedFixture{db: db, repos: repos, reposPeople: reposPeople, chain: testpkg.CreateTestParentGuardianChain(t, db), requests: newExcusedRequests(t, reposPeople, repos.CarePlan())}
 }
 
-func newExcusedRequests(t *testing.T, repos *api.RepositoryTestFactory, capability careplan.Capability) careplan.ExcusedAbsenceRequests {
+func newExcusedRequests(t *testing.T, repos *api.PeopleRepositorySuiteFactory, capability careplan.Capability) careplan.ExcusedAbsenceRequests {
 	t.Helper()
-	requests, err := api.NewExcusedAbsenceRequests(api.ExcusedRequestWiring{
+	requests, err := owners.NewExcusedAbsenceRequests(owners.ExcusedRequestWiring{
 		CarePlan: capability, Students: repos.Student, Persons: repos.Person,
 		Scope: careplantest.SchoolWideReviewScope, Today: func() careplan.Date { return excusedToday },
 	})
@@ -601,7 +604,7 @@ func TestExcusedRequestCreateAndEditRollBackAndRetry(t *testing.T) {
 	t.Parallel()
 	f := newExcusedFixture(t)
 
-	failing := newExcusedRequests(t, f.repos, &failingCarePlan{Capability: f.repos.CarePlan(), failAfterCreate: true})
+	failing := newExcusedRequests(t, f.reposPeople, &failingCarePlan{Capability: f.repos.CarePlan(), failAfterCreate: true})
 	err := f.inTenant(t, func(ctx context.Context) error {
 		_, err := failing.CreateRequest(ctx, f.chain.StudentID, f.chain.AccountID, []careplan.Date{excusedTomorrow}, "Arzttermin")
 		return err
@@ -616,7 +619,7 @@ func TestExcusedRequestCreateAndEditRollBackAndRetry(t *testing.T) {
 	created := f.createPending(t, []careplan.Date{excusedTomorrow}, "Arzttermin")
 	assert.Equal(t, created.ID, f.createPending(t, []careplan.Date{excusedTomorrow}, "Arzttermin").ID, "the retry is idempotent")
 
-	failing = newExcusedRequests(t, f.repos, &failingCarePlan{Capability: f.repos.CarePlan(), failAfterUpdate: true})
+	failing = newExcusedRequests(t, f.reposPeople, &failingCarePlan{Capability: f.repos.CarePlan(), failAfterUpdate: true})
 	edit := careplan.ExcusedRequestEditInput{
 		RequestID: created.ID, StudentID: f.chain.StudentID, GuardianAccountID: f.chain.AccountID,
 		Dates: []careplan.Date{excusedIn3Days}, Note: "verschoben", NoteRequired: true,
@@ -642,7 +645,7 @@ func TestExcusedRequestMarkDoneAndCorrectRollBackAndRetry(t *testing.T) {
 	t.Parallel()
 	f := newExcusedFixture(t)
 	past := f.createPending(t, []careplan.Date{excusedPast}, "Längst vorbei")
-	failing := newExcusedRequests(t, f.repos, &failingCarePlan{Capability: f.repos.CarePlan(), failAfterDecide: true})
+	failing := newExcusedRequests(t, f.reposPeople, &failingCarePlan{Capability: f.repos.CarePlan(), failAfterDecide: true})
 	err := f.inTenant(t, func(ctx context.Context) error {
 		return failing.MarkDone(ctx, past.ID, "", "Tage sind vorbei", f.chain.AccountID)
 	})
@@ -659,7 +662,7 @@ func TestExcusedRequestMarkDoneAndCorrectRollBackAndRetry(t *testing.T) {
 		"after clearing the days": {Capability: f.repos.CarePlan(), failAfterClear: true},
 		"after the redecided row": {Capability: f.repos.CarePlan(), failAfterRedecide: true},
 	} {
-		failing := newExcusedRequests(t, f.repos, plan)
+		failing := newExcusedRequests(t, f.reposPeople, plan)
 		err := f.inTenant(t, func(ctx context.Context) error {
 			return failing.Correct(ctx, approved.ID, false, "", "Doch nicht", f.chain.AccountID)
 		})
@@ -683,7 +686,7 @@ func TestExcusedRequestDecisionRollsBackAfterEachWriteAndRetries(t *testing.T) {
 		"after the first status day": {Capability: f.repos.CarePlan(), failAfterUpsert: true},
 		"after the request row":      {Capability: f.repos.CarePlan(), failAfterDecide: true},
 	} {
-		failing := newExcusedRequests(t, f.repos, plan)
+		failing := newExcusedRequests(t, f.reposPeople, plan)
 		err := f.inTenant(t, func(ctx context.Context) error {
 			_, err := failing.Decide(ctx, careplan.ExcusedRequestDecideInput{RequestID: pending.ID, Approve: true, ReviewedBy: f.chain.AccountID})
 			return err

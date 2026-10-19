@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +27,7 @@ import (
 type vacationOpeningFixture struct {
 	tenantID  int64
 	db        *testpkg.DB
-	repos     *api.RepositoryTestFactory
+	repos     *api.StaffAbsenceSuiteRepositories
 	workforce workforce.Capability
 	ctx       context.Context
 	staff     int64
@@ -46,8 +47,8 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Urlaub", "Uebernahme")
 	admin := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Urlaub", "Leitung")
-	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
+	workTime := owners.MustNewWorkforce(testpkg.NewDatabase(t, db))
+	reposAbsences := api.NewStaffAbsenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	ctx := testpkg.TenantContext(tenantID)
 
 	t.Cleanup(func() {
@@ -62,19 +63,23 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 	})
 
 	svc := timetracking.NewStaffAbsenceService(
-		repos.StaffAbsence, workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(owners.Workforce).VacationQuotas,
-		workforceCompose.NewStaffAbsenceAuditRepository(owners.Workforce), wtmIntSettings{}, nil,
+		reposAbsences.StaffAbsence, workforceCompose.NewTimeTrackingTestRows(workTime).Sessions, workforceCompose.NewTimeTrackingTestRows(workTime).VacationQuotas,
+		workforceCompose.NewStaffAbsenceAuditRepository(workTime), wtmIntSettings{}, nil, timetracking.WithAbsenceUnitOfWork(testpkg.
+			RunInTenantTransaction,
+		),
+
 		timetracking.WithAbsenceToday(func() calendar.Date { return calendar.NewDate(2026, 8, 24) }),
+		timetracking.WithAbsenceShiftPlanSyncer(noSickCascade{}),
 		// Wired exactly like services/factory.go does.
-		timetracking.WithVacationOpenings(workforceCompose.NewTimeTrackingTestRows(owners.Workforce).VacationOpenings),
-		timetracking.WithAbsenceDeletionAudit(api.NewTimeTrackingDeletionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingDeletion)),
+		timetracking.WithVacationOpenings(workforceCompose.NewTimeTrackingTestRows(workTime).VacationOpenings),
+		timetracking.WithAbsenceDeletionAudit(owners.NewTimeTrackingDeletionAudit(owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingDeletion)),
 	)
 
 	return &vacationOpeningFixture{
 		tenantID:  tenantID,
 		db:        db,
-		repos:     repos,
-		workforce: owners.Workforce,
+		repos:     reposAbsences,
+		workforce: workTime,
 		ctx:       ctx,
 		staff:     staff.ID,
 		admin:     admin.ID,

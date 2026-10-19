@@ -6,6 +6,8 @@ package application
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
@@ -66,4 +68,16 @@ func (s *Service) runWrite(ctx context.Context, operation string, body func(cont
 // Reject records a rejection the public facade made before any statement ran.
 func (s *Service) Reject(operation string, err error) {
 	s.deps.Observe(ports.Observation{Operation: operation, Err: err})
+}
+
+// runInTenant establishes RLS for a standalone owner read. Public-token
+// discovery has its own explicit administrative boundary instead.
+func (s *Service) runInTenant(ctx context.Context, operation string, body func(context.Context, *domain.OperationStats) error) error {
+	return s.run(ctx, operation, func(ctx context.Context, stats *domain.OperationStats) error {
+		err := s.deps.Tx.RunWrite(ctx, func(txCtx context.Context) error { return body(txCtx, stats) })
+		if err != nil {
+			return fmt.Errorf("%s: %w", strings.ReplaceAll(operation, "_", " "), err)
+		}
+		return nil
+	})
 }

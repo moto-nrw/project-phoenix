@@ -46,7 +46,11 @@ func (r *attendanceCorrectionRepository) ListByInstanceAndStudent(ctx context.Co
 		return nil, wrapDatabase("list attendance corrections", errors.New("instance_id and student_id are required"))
 	}
 	var rows []*audit.AttendanceCorrection
-	query := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB1, databaseErr1 := runtimeDB(ctx, r.runtime)
+	if databaseErr1 != nil {
+		return *new([]*audit.AttendanceCorrection), databaseErr1
+	}
+	query := ambientDB1.NewSelect().
 		Model(&rows).
 		ModelTableExpr(attendanceCorrectionTableExpr).
 		Where(`"attendance_correction".instance_id = ?`, instanceID).
@@ -54,9 +58,7 @@ func (r *attendanceCorrectionRepository) ListByInstanceAndStudent(ctx context.Co
 		OrderExpr(`"attendance_correction".created_at DESC, "attendance_correction".id DESC`)
 	// Defense in depth on top of RLS: this is an audit trail, and a read that
 	// silently crosses schools would be worse here than anywhere else.
-	if tenantID := runtimeTenantID(ctx, r.runtime); tenantID > 0 {
-		query = query.Where(`"attendance_correction".tenant_id = ?`, tenantID)
-	}
+	query = tenantQuery(ctx, r.runtime, query, "attendance_correction")
 	if err := query.Scan(ctx); err != nil {
 		return nil, wrapDatabase("list attendance corrections", err)
 	}
@@ -75,16 +77,18 @@ func (r *attendanceCorrectionRepository) CountByInstanceAndStudents(ctx context.
 		StudentID int64 `bun:"student_id"`
 		Total     int   `bun:"total"`
 	}
-	query := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB2, databaseErr2 := runtimeDB(ctx, r.runtime)
+	if databaseErr2 != nil {
+		return *new(map[int64]int), databaseErr2
+	}
+	query := ambientDB2.NewSelect().
 		ModelTableExpr(attendanceCorrectionTableExpr).
 		ColumnExpr(`"attendance_correction".student_id AS student_id`).
 		ColumnExpr(`COUNT(*) AS total`).
 		Where(`"attendance_correction".instance_id = ?`, instanceID).
 		Where(`"attendance_correction".student_id IN (?)`, bun.List(studentIDs)).
 		GroupExpr(`"attendance_correction".student_id`)
-	if tenantID := runtimeTenantID(ctx, r.runtime); tenantID > 0 {
-		query = query.Where(`"attendance_correction".tenant_id = ?`, tenantID)
-	}
+	query = tenantQuery(ctx, r.runtime, query, "attendance_correction")
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, wrapDatabase("count attendance corrections", err)
 	}

@@ -42,6 +42,11 @@ type Actor struct {
 	SchoolWideAttendanceEligible bool
 }
 
+// KioskActor is the kiosk the child leaves (#3067). It is trusted like the
+// binary attendance toggle: it authenticated with its key and the school
+// PIN, and the child's card was scanned at it.
+func KioskActor() Actor { return Actor{BypassResourceChecks: true} }
+
 // Move asks to record that the children now use the released room.
 type Move struct {
 	StudentIDs []int64

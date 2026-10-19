@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -16,7 +17,7 @@ import (
 func TestStaffAccountQueriesScopeAndTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	school := testpkg.Tenant(t)
@@ -63,7 +64,13 @@ func TestStaffAccountQueriesScopeAndTransaction(t *testing.T) {
 	require.Empty(t, systemAccounts, "neither a foreign assignment nor a custom role with the same name qualifies")
 	systemAccounts, err = identity.ListAccountIDsWithSystemRoleNames(ctx, ids, []string{" USER "}, other)
 	require.NoError(t, err)
-	require.Equal(t, []int64{account.ID}, systemAccounts)
+	require.Empty(t, systemAccounts, "a school transaction cannot read another school's role assignments")
+	require.NoError(t, testpkg.WithinAdminContext(t, ctx, db, func(adminCtx context.Context) error {
+		foreign, err := identity.ListAccountIDsWithSystemRoleNames(adminCtx, ids, []string{" USER "}, other)
+		require.NoError(t, err)
+		require.Equal(t, []int64{account.ID}, foreign, "the explicit operator/bootstrap boundary can inspect the requested school")
+		return nil
+	}))
 
 	roleGrant := testpkg.CreateTestPermission(t, db, "staff-query-role", "staff-role", "read")
 	directGrant := testpkg.CreateTestPermission(t, db, "staff-query-direct", "staff-direct", "read")
@@ -129,7 +136,7 @@ func TestStaffAccountQueriesScopeAndTransaction(t *testing.T) {
 func TestStaffAccountQueriesDatabaseFailuresAndEmptyInputs(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	require.NoError(t, db.Close())
 	ctx := testpkg.Ctx(t)
@@ -145,10 +152,10 @@ func TestStaffAccountQueriesDatabaseFailuresAndEmptyInputs(t *testing.T) {
 	_, err = identity.ListAccountEmails(ctx, []int64{1})
 	require.ErrorContains(t, err, "database is closed")
 	active, err := identity.ListActiveAccountIDsForTenant(ctx, 0, []int64{1})
-	require.NoError(t, err)
+	require.ErrorIs(t, err, identityaccess.ErrTenantRequired)
 	require.Empty(t, active)
 	names, err := identity.FindEffectivePermissionNamesByAccountIDsForTenant(ctx, []int64{1}, 0)
-	require.NoError(t, err)
+	require.ErrorIs(t, err, identityaccess.ErrTenantRequired)
 	require.Empty(t, names)
 	counts, err := identity.CountRoleNameMatchesByAccountIDs(ctx, []int64{1}, nil)
 	require.NoError(t, err)
@@ -166,7 +173,7 @@ func TestStaffAccountQueriesBatchEmails(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	repo, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 

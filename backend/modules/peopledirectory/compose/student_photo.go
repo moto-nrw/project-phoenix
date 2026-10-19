@@ -5,15 +5,12 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	internalports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
 )
 
 // StudentPhotoConsentSnapshot is the photo slice of a consent change the
 // composition root records in the Audit Platform trail.
-type StudentPhotoConsentSnapshot struct {
-	StudentID           int64
-	PhotoConsentGivenAt *time.Time
-}
+type StudentPhotoConsentSnapshot = internalports.StudentPhotoConsentSnapshot
 
 // StudentPhotoRuntime is everything the photo lifecycle needs beyond the
 // directory's own rows: the tenant feature flag (Settings Platform), the
@@ -24,6 +21,7 @@ type StudentPhotoConsentSnapshot struct {
 type StudentPhotoRuntime interface {
 	PhotoFeatureEnabled(ctx context.Context) (bool, error)
 	ActingAccountID(ctx context.Context) int64
+	QueueUnlinkStoredPhoto(context.Context, string) error
 	UnlinkStoredPhoto(storedURL string)
 	BroadcastPhotoChange(tenantID, studentID int64, source string)
 	RecordPhotoConsent(
@@ -34,60 +32,23 @@ type StudentPhotoRuntime interface {
 	) error
 }
 
-// studentPhotoRuntime adapts the composition root's public-typed seam to the
-// module's internal port.
-type studentPhotoRuntime struct{ resolve func() StudentPhotoRuntime }
+type disabledStudentPhotos struct{}
 
-// bound resolves the runtime the composition root eventually supplies. Until
-// it does, every photo route reports the feature as disabled rather than
-// writing through half a runtime.
-func (a studentPhotoRuntime) bound() StudentPhotoRuntime {
-	if a.resolve == nil {
-		return nil
-	}
-	return a.resolve()
+func (disabledStudentPhotos) PhotoFeatureEnabled(context.Context) (bool, error)    { return false, nil }
+func (disabledStudentPhotos) ActingAccountID(context.Context) int64                { return 0 }
+func (disabledStudentPhotos) QueueUnlinkStoredPhoto(context.Context, string) error { return nil }
+func (disabledStudentPhotos) UnlinkStoredPhoto(string)                             {}
+func (disabledStudentPhotos) BroadcastPhotoChange(int64, int64, string)            {}
+func (disabledStudentPhotos) RecordPhotoConsent(context.Context, StudentPhotoConsentSnapshot, StudentPhotoConsentSnapshot, *int64, time.Time) error {
+	return errStudentPhotoRuntimeUnbound
 }
 
-func (a studentPhotoRuntime) PhotoFeatureEnabled(ctx context.Context) (bool, error) {
-	runtime := a.bound()
-	if runtime == nil {
-		return false, nil
-	}
-	return runtime.PhotoFeatureEnabled(ctx)
-}
-func (a studentPhotoRuntime) ActingAccountID(ctx context.Context) int64 {
-	runtime := a.bound()
-	if runtime == nil {
-		return 0
-	}
-	return runtime.ActingAccountID(ctx)
-}
-func (a studentPhotoRuntime) UnlinkStoredPhoto(storedURL string) {
-	if runtime := a.bound(); runtime != nil {
-		runtime.UnlinkStoredPhoto(storedURL)
-	}
-}
-func (a studentPhotoRuntime) BroadcastPhotoChange(tenantID, studentID int64, source string) {
-	if runtime := a.bound(); runtime != nil {
-		runtime.BroadcastPhotoChange(tenantID, studentID, source)
-	}
-}
+var errStudentPhotoRuntimeUnbound = errors.New("people directory: student photo runtime is not bound")
 
-func (a studentPhotoRuntime) RecordPhotoConsent(
-	ctx context.Context,
-	before, after domain.StudentConsentSnapshot,
-	actorAccountID *int64,
-	changedAt time.Time,
-) error {
-	runtime := a.bound()
+// studentPhotoPort is the root's photo runtime, or the disabled one.
+func studentPhotoPort(runtime StudentPhotoRuntime) internalports.StudentPhotoRuntime {
 	if runtime == nil {
-		return errors.New("people directory: student photo runtime is not bound")
+		return disabledStudentPhotos{}
 	}
-	return runtime.RecordPhotoConsent(
-		ctx,
-		StudentPhotoConsentSnapshot{StudentID: before.StudentID, PhotoConsentGivenAt: before.PhotoConsentGivenAt},
-		StudentPhotoConsentSnapshot{StudentID: after.StudentID, PhotoConsentGivenAt: after.PhotoConsentGivenAt},
-		actorAccountID,
-		changedAt,
-	)
+	return runtime
 }

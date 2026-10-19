@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	activitiesModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/activityrecords"
 )
 
 func (r timetableActivityGroupRepository) ListTemplateRows(ctx context.Context, templateID *int64) ([]activitiesModels.TemplateListRow, error) {
@@ -24,14 +24,14 @@ func (r timetableActivityGroupRepository) ListTemplateRowsForPeriod(ctx context.
 	return r.legacyTemplateRows(ctx, rows, err)
 }
 
-func (r timetableActivityGroupRepository) ListTemplateWeekdayRoster(ctx context.Context, templateID, periodID *int64) ([]activitiesModels.TemplateWeekdayRosterRow, error) {
+func (r timetableActivityGroupRepository) ListTemplateWeekdayRoster(ctx context.Context, templateID, periodID *int64) ([]timetable.TemplateWeekdayRosterRow, error) {
 	rows, err := r.timetable.ListTemplateWeekdayRoster(ctx, templateID, periodID)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]activitiesModels.TemplateWeekdayRosterRow, 0, len(rows))
+	result := make([]timetable.TemplateWeekdayRosterRow, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, activitiesModels.TemplateWeekdayRosterRow{
+		result = append(result, timetable.TemplateWeekdayRosterRow{
 			TemplateID: row.TemplateID, Weekday: row.Weekday, Kind: row.Kind,
 			PersonID: row.PersonID, IsPrimary: row.IsPrimary,
 		})

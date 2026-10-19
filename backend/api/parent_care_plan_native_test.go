@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -14,7 +16,7 @@ import (
 )
 
 type nativeParentExceptionSource struct {
-	ParentCareExceptionSource
+	owners.ParentCareExceptionSource
 	context context.Context
 	filter  careplan.StudentScheduleFilter
 	rows    []careplan.PickupException
@@ -40,7 +42,7 @@ func TestParentCarePlanNativeExceptionReadRetainsOwnerSemantics(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	source := &nativeParentExceptionSource{context: ctx, rows: []careplan.PickupException{{ID: 11, TenantID: 13, CreatedAt: created, UpdatedAt: created.Add(time.Minute), StudentID: 17, ExceptionDate: careplan.Date(day), PickupTime: &clock, Reason: &reason, ExcusedFrom: &clock, ExcusedReason: &reason, ExcusedCreatedBy: &actor, ExcusedOwnsPickupTime: true, Source: careplan.ExceptionSourceGuardian, CreatedBy: actor, CreatedByGuardian: &actor}}, err: cause}
-	port := NewParentCareExceptions(source)
+	port := owners.NewParentCareExceptions(source)
 	rows, err := readParentCareExceptionFixture(t, port.ListPickupExceptions, ctx, day)
 	require.ErrorIs(t, err, cause)
 	require.Len(t, rows, 1)
@@ -78,7 +80,7 @@ func TestParentCarePlanNativeRequestRetainsRawSnapshotsAndEmptyRelations(t *test
 	t.Parallel()
 	raw := json.RawMessage(`{"large":9007199254740993,"nested":{"value":9223372036854775807}}`)
 	source := nativeParentOfferingSource{view: &careplan.OfferingChangeView{Request: &careplan.OfferingChangeRequest{ID: 23, Payload: raw, DecisionSnapshot: json.RawMessage(`{}`)}, Diff: []careplan.OfferingChangeDiffEntry{}, LastDecision: &careplan.OfferingChangeDecision{Requested: []careplan.OfferingChangeRequestedItem{}, AppliedDiff: nil}}}
-	port := NewParentOfferingChangeRequests(source)
+	port := owners.NewParentOfferingChangeRequests(source)
 	view, err := port.GetForStudent(context.Background(), 31)
 	require.NoError(t, err)
 	require.NotNil(t, view)
@@ -94,7 +96,7 @@ func TestParentCarePlanNativeRequestRetainsRawSnapshotsAndEmptyRelations(t *test
 }
 func TestParentCarePlanCutoffBindingKeepsLazyClockAndCanonicalErrors(t *testing.T) {
 	t.Parallel()
-	policy := NewParentCarePlanPolicy()
+	policy := owners.NewParentCarePlanPolicy()
 	now := time.Date(2026, 10, 17, 11, 0, 0, 0, calendar.Berlin)
 	cutoff, err := policy.NewSameDayCutoffAt(" 11:00 ", func() time.Time { return now })
 	require.NoError(t, err)

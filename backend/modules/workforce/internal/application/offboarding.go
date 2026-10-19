@@ -10,7 +10,7 @@ import (
 )
 
 func (s *Service) PreviewStaffOffboarding(ctx context.Context, staffID int64, from string) (result domain.OffboardingPreview, err error) {
-	err = s.run("preview_staff_offboarding", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "preview_staff_offboarding", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			_, result, err = s.offboardingSnapshot(txCtx, staffID, from, stats)
 			return err
@@ -20,7 +20,7 @@ func (s *Service) PreviewStaffOffboarding(ctx context.Context, staffID int64, fr
 }
 
 func (s *Service) ExecuteStaffOffboarding(ctx context.Context, staffID, actorID int64, from, revision string, appendDeletion func(context.Context, domain.StaffAbsence, int64) error) (result domain.OffboardingCounts, err error) {
-	err = s.run("execute_staff_offboarding", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "execute_staff_offboarding", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			snapshot, preview, err := s.offboardingSnapshot(txCtx, staffID, from, stats)
 			if err != nil {

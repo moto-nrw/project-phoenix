@@ -8,19 +8,21 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
-	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -33,52 +35,67 @@ import (
 // masterDataFixture is one child with a guardian who files Stammdaten
 // requests, in the test's own tenant.
 type masterDataFixture struct {
-	db    *bun.DB
-	repos *api.RepositoryTestFactory
-	chain testpkg.ParentChain
+	db            *bun.DB
+	repos         *api.PeopleRepositorySuiteFactory
+	reposCare     *api.RepositoryTestFactory
+	reposMessages *api.ParentMessagingSuiteRepositories
+	chain         testpkg.ParentChain
 }
 
 func newMasterDataFixture(t *testing.T, db *bun.DB) masterDataFixture {
 	t.Helper()
 	return masterDataFixture{
-		db:    db,
-		repos: api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))),
-		chain: testpkg.CreateTestParentGuardianChain(t, db),
+		db:            db,
+		repos:         api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)),
+		reposCare:     api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)),
+		reposMessages: api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db)),
+		chain:         testpkg.CreateTestParentGuardianChain(t, db),
 	}
 }
 
 // decisions composes the decision with a school-wide review scope unless a
 // test narrows it.
-func (f masterDataFixture) decisions(t *testing.T, configure ...func(*api.MasterDataDecisionTestOptions)) *careplanCompose.MasterDataDecisions {
+func (f masterDataFixture) decisions(t *testing.T, configure ...func(*api.MasterDataDecisionTestOptions, *api.MasterDataDecisionTestPeople)) *careplanCompose.MasterDataDecisions {
 	t.Helper()
-	options := api.MasterDataDecisionTestOptions{
-		CarePlan: f.repos.CarePlan(), People: api.MustNewPeopleDirectory(testpkg.MustDatabase(f.db)),
-		Students: f.repos.Student, Persons: f.repos.Person, Logger: slog.Default(),
-	}
+	options, people := f.decisionInputs()
 	for _, apply := range configure {
-		apply(&options)
+		apply(&options, &people)
 	}
-	svc, err := api.NewTestMasterDataDecisions(options)
+	svc, err := api.NewTestMasterDataDecisions(options, people, nil, nil)
 	require.NoError(t, err)
 	return svc
+}
+
+// decisionInputs are the Care Plan and People Directory inputs decisions
+// composes the decision from.
+func (f masterDataFixture) decisionInputs() (api.MasterDataDecisionTestOptions, api.MasterDataDecisionTestPeople) {
+	return api.MasterDataDecisionTestOptions{CarePlan: f.reposCare.CarePlan(), Logger: slog.Default()},
+		api.MasterDataDecisionTestPeople{
+			People:   owners.MustNewPeopleDirectory(testpkg.MustDatabase(f.db)),
+			Students: f.repos.Student, Persons: f.repos.Person,
+		}
 }
 
 // queue is the native open queue and history the decisions are listed from.
 func (f masterDataFixture) queue(t *testing.T, scope careplanCompose.ReviewScopeResolver) careplan.MasterDataReviewQuery {
 	t.Helper()
-	queue, err := requestreviewcompose.NewMasterDataReviews(f.db, testpkg.StudentDirectory{}, api.MustNewPeopleDirectory(testpkg.MustDatabase(f.db)), scope,
-		careplanCompose.Today, func(requestreviewcompose.CareObservation) {})
+	queue, err := api.NewRequestReviewMasterData(testpkg.NewDatabase(t, f.db),
+		testpkg.StudentDirectory{},
+		owners.MustNewPeopleDirectory(testpkg.MustDatabase(f.db)),
+		scope,
+		careplan.Today,
+		ignoreReviewObservation)
 	require.NoError(t, err)
 	return queue
 }
 
-func (f masterDataFixture) insert(t *testing.T, target, field, oldValue, newValue string) *userModels.StudentDataChangeRequest {
+func (f masterDataFixture) insert(t *testing.T, target, field, oldValue, newValue string) *careplan.StudentDataChangeRequest {
 	t.Helper()
-	row := &userModels.StudentDataChangeRequest{
+	row := &careplan.StudentDataChangeRequest{
 		StudentID: f.chain.StudentID, SubmittedBy: f.chain.AccountID, Target: target, FieldKey: field,
-		OldValue: json.RawMessage(oldValue), NewValue: json.RawMessage(newValue), Status: userModels.DataChangeStatusPending,
+		OldValue: json.RawMessage(oldValue), NewValue: json.RawMessage(newValue), Status: peopledirectory.DataChangeStatusPending,
 	}
-	row.SetTenantID(f.chain.TenantID)
+	row.TenantID = f.chain.TenantID
 	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return f.repos.StudentDataChangeRequest.Create(txCtx, row)
 	}))
@@ -97,15 +114,15 @@ func (f masterDataFixture) decide(t *testing.T, svc masterdatarequests.Decisions
 	var item *masterdatarequests.ReviewItem
 	err := f.inTx(t, func(ctx context.Context) error {
 		var decideErr error
-		item, decideErr = svc.Decide(ctx, input)
+		item, decideErr = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, input)
 		return decideErr
 	})
 	return item, err
 }
 
-func (f masterDataFixture) person(t *testing.T) *userModels.Person {
+func (f masterDataFixture) person(t *testing.T) *peopledirectory.DirectoryPersonSnapshot {
 	t.Helper()
-	person, err := f.repos.Person.FindByID(context.Background(), f.chain.PersonID)
+	person, err := testpkg.TenantQuery1(t, testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.TenantID), testpkg.SetupTestDB(t), f.repos.Person.FindByID, any(f.chain.PersonID))
 	require.NoError(t, err)
 	return person
 }
@@ -129,9 +146,11 @@ func noReviewScope(context.Context) (careplanCompose.ReviewScope, error) {
 func TestMasterDataReview_ScopedToWritableChildren(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
-	row := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
+	row := f.insert(t, peopledirectory.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
 
-	denied := f.decisions(t, func(o *api.MasterDataDecisionTestOptions) { o.Scope = noReviewScope })
+	denied := f.decisions(t, func(o *api.MasterDataDecisionTestOptions, _ *api.MasterDataDecisionTestPeople) {
+		o.Scope = noReviewScope
+	})
 	err := f.inTx(t, func(ctx context.Context) error {
 		items, _, listErr := f.queue(t, noReviewScope).ListPending(ctx, careplan.RequestQueueFilter{})
 		require.NoError(t, listErr)
@@ -154,7 +173,7 @@ func TestMasterDataReview_ScopedToWritableChildren(t *testing.T) {
 func TestMasterDataReview_ApproveAppliesNameChange(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
-	row := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
+	row := f.insert(t, peopledirectory.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
 
 	decided, err := f.decide(t, f.decisions(t), masterdatarequests.DecideInput{RequestID: row.ID, Approve: true})
 	require.NoError(t, err)
@@ -168,12 +187,12 @@ func TestMasterDataReview_ApproveAppliesNameChange(t *testing.T) {
 func TestMasterDataReview_DecideRejectsStaleExpectedVersionAfterLock(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
-	row := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
+	row := f.insert(t, peopledirectory.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
 
 	_, err := f.decide(t, f.decisions(t), masterdatarequests.DecideInput{RequestID: row.ID, Approve: true, ExpectedVersion: "stale"})
 	require.ErrorIs(t, err, parentrequests.ErrStale)
 
-	assert.Equal(t, userModels.DataChangeStatusPending, f.status(t, row.ID))
+	assert.Equal(t, peopledirectory.DataChangeStatusPending, f.status(t, row.ID))
 	assert.Equal(t, "Felix", f.person(t).FirstName)
 }
 
@@ -212,8 +231,8 @@ func TestParentRequestCoordinator_RollsBackEarlierDatabaseWrite(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
 	excused, err := api.NewTestExcusedAbsenceRequests(api.ExcusedRequestTestOptions{
-		CarePlan: f.repos.CarePlan(), Students: f.repos.Student, Persons: f.repos.Person, Logger: slog.Default(),
-	})
+		CarePlan: f.reposCare.CarePlan(), Logger: slog.Default(),
+	}, api.ExcusedRequestTestPeople{Students: f.repos.Student, Persons: f.repos.Person}, nil, nil)
 	require.NoError(t, err)
 	coordinator, err := careplanCompose.NewParentRequestCoordinator(careplanCompose.ParentRequestCoordinatorDependencies{
 		Rights: func(context.Context) careplanCompose.ParentRequestRights {
@@ -223,8 +242,8 @@ func TestParentRequestCoordinator_RollsBackEarlierDatabaseWrite(t *testing.T) {
 		Excused:    excused, Care: unusedConflictPort{}, Offering: unusedConflictPort{},
 	})
 	require.NoError(t, err)
-	first := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
-	second := f.insert(t, userModels.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Becker"`)
+	first := f.insert(t, peopledirectory.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
+	second := f.insert(t, peopledirectory.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Becker"`)
 
 	err = f.inTx(t, func(ctx context.Context) error {
 		bulkErr := coordinator.BulkApprove(ctx, parentrequests.BulkApproveInput{
@@ -241,7 +260,7 @@ func TestParentRequestCoordinator_RollsBackEarlierDatabaseWrite(t *testing.T) {
 
 	assert.Equal(t, "Felix", f.person(t).FirstName)
 	for _, requestID := range []int64{first.ID, second.ID} {
-		assert.Equal(t, userModels.DataChangeStatusPending, f.status(t, requestID))
+		assert.Equal(t, peopledirectory.DataChangeStatusPending, f.status(t, requestID))
 	}
 }
 
@@ -249,14 +268,14 @@ func TestMasterDataReview_ApproveAppliesOtherPersonFields(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
 	svc := f.decisions(t)
-	lastName := f.insert(t, userModels.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Müller"`)
-	birthday := f.insert(t, userModels.DataChangeTargetPerson, "birthday", `null`, `"2017-12-24"`)
+	lastName := f.insert(t, peopledirectory.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Müller"`)
+	birthday := f.insert(t, peopledirectory.DataChangeTargetPerson, "birthday", `null`, `"2017-12-24"`)
 
 	require.NoError(t, f.inTx(t, func(ctx context.Context) error {
-		if _, err := svc.Decide(ctx, masterdatarequests.DecideInput{RequestID: lastName.ID, Approve: true}); err != nil {
+		if _, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, masterdatarequests.DecideInput{RequestID: lastName.ID, Approve: true}); err != nil {
 			return err
 		}
-		_, err := svc.Decide(ctx, masterdatarequests.DecideInput{RequestID: birthday.ID, Approve: true})
+		_, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, masterdatarequests.DecideInput{RequestID: birthday.ID, Approve: true})
 		return err
 	}))
 
@@ -270,13 +289,13 @@ func TestMasterDataReview_ApproveAppliesSchoolClass(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
 	audit := api.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, api.NewStudentAudit(testpkg.NewDatabase(t, f.db)))
-	svc := f.decisions(t, func(o *api.MasterDataDecisionTestOptions) { o.Audit = audit })
-	row := f.insert(t, userModels.DataChangeTargetStudent, "school_class", `"1a"`, `"2b"`)
+	svc := f.decisions(t, func(_ *api.MasterDataDecisionTestOptions, p *api.MasterDataDecisionTestPeople) { p.Audit = audit })
+	row := f.insert(t, peopledirectory.DataChangeTargetStudent, "school_class", `"1a"`, `"2b"`)
 
 	_, err := f.decide(t, svc, masterdatarequests.DecideInput{RequestID: row.ID, Approve: true, ReviewedBy: f.chain.AccountID})
 	require.NoError(t, err)
 
-	student, err := f.repos.Student.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.StudentID)
+	student, err := testpkg.TenantQuery1(t, testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.TenantID), testpkg.SetupTestDB(t), f.repos.Student.FindByID, any(f.chain.StudentID))
 	require.NoError(t, err)
 	assert.Equal(t, "2b", student.SchoolClass)
 }
@@ -285,12 +304,12 @@ func TestMasterDataReview_ConcurrentPersonFieldApprovalsDoNotOverwrite(t *testin
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
 	svc := f.decisions(t)
-	firstName := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
-	lastName := f.insert(t, userModels.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Müller"`)
+	firstName := f.insert(t, peopledirectory.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
+	lastName := f.insert(t, peopledirectory.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Müller"`)
 
 	var wg sync.WaitGroup
 	errs := make([]error, 2)
-	for i, row := range []*userModels.StudentDataChangeRequest{firstName, lastName} {
+	for i, row := range []*careplan.StudentDataChangeRequest{firstName, lastName} {
 		wg.Add(1)
 		go func(idx int, requestID int64) {
 			defer wg.Done()
@@ -310,7 +329,7 @@ func TestMasterDataReview_ConcurrentDecisionsKeepStatusAndRecordConsistent(t *te
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
 	svc := f.decisions(t)
-	row := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
+	row := f.insert(t, peopledirectory.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
 
 	var wg sync.WaitGroup
 	errs := make([]error, 2)
@@ -337,12 +356,12 @@ func TestMasterDataReview_ConcurrentDecisionsKeepStatusAndRecordConsistent(t *te
 	require.Equal(t, 1, successes)
 	require.Equal(t, 1, conflicts)
 
-	decided, err := f.repos.StudentDataChangeRequest.FindByID(tenant.WithTenantID(context.Background(), f.chain.TenantID), row.ID)
+	decided, err := f.repos.StudentDataChangeRequest.FindByID(testpkg.WithPackageTenantRuntime(tenant.WithTenantID(context.Background(), f.chain.TenantID)), row.ID)
 	require.NoError(t, err)
 	switch decided.Status {
-	case userModels.DataChangeStatusApproved:
+	case peopledirectory.DataChangeStatusApproved:
 		assert.Equal(t, "Max", f.person(t).FirstName)
-	case userModels.DataChangeStatusRejected:
+	case peopledirectory.DataChangeStatusRejected:
 		assert.Equal(t, "Felix", f.person(t).FirstName)
 	default:
 		t.Fatalf("unexpected final status %q", decided.Status)
@@ -352,8 +371,8 @@ func TestMasterDataReview_ConcurrentDecisionsKeepStatusAndRecordConsistent(t *te
 func TestMasterDataReview_ListPendingEnrichesStudentNames(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
-	f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
-	f.insert(t, userModels.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Müller"`)
+	f.insert(t, peopledirectory.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
+	f.insert(t, peopledirectory.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Müller"`)
 
 	var items []*careplan.MasterDataReviewItem
 	require.NoError(t, f.inTx(t, func(ctx context.Context) error {
@@ -378,7 +397,7 @@ func TestMasterDataReview_ListPendingEmptyAndInvalidRequestID(t *testing.T) {
 		items, _, listErr := f.queue(t, careplantest.SchoolWideReviewScope).ListPending(ctx, careplan.RequestQueueFilter{})
 		require.NoError(t, listErr)
 		assert.Empty(t, items)
-		_, decideErr := svc.Decide(ctx, masterdatarequests.DecideInput{RequestID: 0, Approve: true})
+		_, decideErr := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, masterdatarequests.DecideInput{RequestID: 0, Approve: true})
 		return decideErr
 	})
 	assert.ErrorIs(t, err, masterdatarequests.ErrReviewNotFound)
@@ -392,18 +411,18 @@ func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
 	trail := api.NewStudentAudit(testpkg.NewDatabase(t, f.db))
 	audit := api.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, trail)
-	svc := f.decisions(t, func(o *api.MasterDataDecisionTestOptions) { o.Audit = audit })
-	row := f.insert(t, userModels.DataChangeTargetDeparture, "allowed_departure_modes", `{}`, `{"mon":["bus"],"wed":["pickup"]}`)
+	svc := f.decisions(t, func(_ *api.MasterDataDecisionTestOptions, p *api.MasterDataDecisionTestPeople) { p.Audit = audit })
+	row := f.insert(t, peopledirectory.DataChangeTargetDeparture, "allowed_departure_modes", `{}`, `{"mon":["bus"],"wed":["pickup"]}`)
 
 	_, err := f.decide(t, svc, masterdatarequests.DecideInput{RequestID: row.ID, Approve: true, ReviewedBy: f.chain.AccountID})
 	require.NoError(t, err)
 
-	student, err := f.repos.Student.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.StudentID)
+	student, err := testpkg.TenantQuery1(t, testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.TenantID), testpkg.SetupTestDB(t), f.repos.Student.FindByID, any(f.chain.StudentID))
 	require.NoError(t, err)
-	assert.Equal(t, []userModels.DepartureMode{userModels.DepartureBus}, student.AllowedDepartureModes[userModels.PickupDayMonday])
-	assert.Equal(t, []userModels.DepartureMode{userModels.DeparturePickup}, student.AllowedDepartureModes[userModels.PickupDayWednesday])
+	assert.Equal(t, []peopledirectory.DepartureMode{peopledirectory.DepartureBus}, student.AllowedDepartureModes[peopledirectory.PickupDayMonday])
+	assert.Equal(t, []peopledirectory.DepartureMode{peopledirectory.DeparturePickup}, student.AllowedDepartureModes[peopledirectory.PickupDayWednesday])
 
-	history, err := trail.GetChangeHistory(tenant.WithTenantID(context.Background(), f.chain.TenantID), f.chain.StudentID)
+	history, err := testpkg.TenantQuery1(t, testpkg.WithPackageTenantRuntime(tenant.WithTenantID(context.Background(), f.chain.TenantID)), testpkg.SetupTestDB(t), trail.GetChangeHistory, f.chain.StudentID)
 	require.NoError(t, err)
 	require.NotEmpty(t, history)
 	var departureEditFound bool
@@ -419,11 +438,11 @@ func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
 func TestMasterDataReview_StalePersonApprovalConflicts(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
-	row := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
+	row := f.insert(t, peopledirectory.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
 
 	person := f.person(t)
 	person.FirstName = "StaffEdit"
-	require.NoError(t, f.repos.Person.Update(context.Background(), person))
+	require.NoError(t, testpkg.TenantCommand1(t, testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.TenantID), testpkg.SetupTestDB(t), f.repos.Person.Update, person))
 
 	_, err := f.decide(t, f.decisions(t), masterdatarequests.DecideInput{RequestID: row.ID, Approve: true})
 	assert.ErrorIs(t, err, masterdatarequests.ErrReviewStaleValue)
@@ -434,33 +453,35 @@ func TestMasterDataReview_StaleDepartureApprovalConflicts(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
 	tenantCtx := testpkg.TenantContext(f.chain.TenantID)
-	row := f.insert(t, userModels.DataChangeTargetDeparture, "allowed_departure_modes", `{}`, `{"mon":["bus"]}`)
+	row := f.insert(t, peopledirectory.DataChangeTargetDeparture, "allowed_departure_modes", `{}`, `{"mon":["bus"]}`)
 
-	student, err := f.repos.Student.FindByID(tenantCtx, f.chain.StudentID)
+	student, err := testpkg.TenantQuery1(t, tenantCtx, testpkg.SetupTestDB(t), f.repos.Student.FindByID, any(f.chain.StudentID))
 	require.NoError(t, err)
-	student.AllowedDepartureModes = userModels.AllowedDepartureModes{
-		userModels.PickupDayTuesday: []userModels.DepartureMode{userModels.DeparturePickup},
+	student.AllowedDepartureModes = peopledirectory.AllowedDepartureModes{
+		peopledirectory.PickupDayTuesday: []peopledirectory.DepartureMode{peopledirectory.DeparturePickup},
 	}
-	require.NoError(t, f.repos.Student.Update(tenantCtx, student))
+	require.NoError(t, testpkg.TenantCommand1(t, tenantCtx, testpkg.SetupTestDB(t), f.repos.Student.Update, student))
 
 	_, err = f.decide(t, f.decisions(t), masterdatarequests.DecideInput{RequestID: row.ID, Approve: true})
 	assert.ErrorIs(t, err, masterdatarequests.ErrReviewStaleValue)
 
-	student, err = f.repos.Student.FindByID(tenantCtx, f.chain.StudentID)
+	student, err = testpkg.TenantQuery1(t, tenantCtx, testpkg.SetupTestDB(t), f.repos.Student.FindByID, any(f.chain.StudentID))
 	require.NoError(t, err)
-	assert.Equal(t, []userModels.DepartureMode{userModels.DeparturePickup}, student.AllowedDepartureModes[userModels.PickupDayTuesday])
-	assert.Empty(t, student.AllowedDepartureModes[userModels.PickupDayMonday])
+	assert.Equal(t, []peopledirectory.DepartureMode{peopledirectory.DeparturePickup}, student.AllowedDepartureModes[peopledirectory.PickupDayTuesday])
+	assert.Empty(t, student.AllowedDepartureModes[peopledirectory.PickupDayMonday])
 }
 
 func TestMasterDataReview_ApprovalBroadcastsStudentUpdatedAfterCommit(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	svc := f.decisions(t, func(o *api.MasterDataDecisionTestOptions) { o.Broadcaster = broadcaster })
-	row := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
+	options, people := f.decisionInputs()
+	svc, err := api.NewTestMasterDataDecisions(options, people, nil, broadcaster)
+	require.NoError(t, err)
+	row := f.insert(t, peopledirectory.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
 
 	require.NoError(t, f.inTx(t, func(ctx context.Context) error {
-		_, err := svc.Decide(ctx, masterdatarequests.DecideInput{RequestID: row.ID, Approve: true, ReviewedBy: f.chain.AccountID})
+		_, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, masterdatarequests.DecideInput{RequestID: row.ID, Approve: true, ReviewedBy: f.chain.AccountID})
 		assert.Empty(t, broadcaster.CallsByMethod("tenant"), "broadcast must wait until the transaction commits")
 		return err
 	}))
@@ -472,7 +493,7 @@ func TestMasterDataReview_ApprovalBroadcastsStudentUpdatedAfterCommit(t *testing
 func TestMasterDataReview_RejectLeavesRecordUnchanged(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
-	row := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
+	row := f.insert(t, peopledirectory.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
 
 	_, err := f.decide(t, f.decisions(t), masterdatarequests.DecideInput{RequestID: row.ID, Approve: false, Reason: "Bitte Nachweis"})
 	require.NoError(t, err)
@@ -483,7 +504,7 @@ func TestMasterDataReview_DecideNonPendingRejected(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
 	svc := f.decisions(t)
-	row := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
+	row := f.insert(t, peopledirectory.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
 
 	// First decision approves; the second must fail as not-pending.
 	_, err := f.decide(t, svc, masterdatarequests.DecideInput{RequestID: row.ID, Approve: true})
@@ -502,13 +523,13 @@ func TestMasterDataReview_ApproveInvalidRowsRejected(t *testing.T) {
 		value  string
 		want   error
 	}{
-		{name: "invalid target", target: userModels.DataChangeTargetStudent, field: "health_info", value: `"x"`, want: masterdatarequests.ErrReviewInvalidTarget},
-		{name: "invalid person value", target: userModels.DataChangeTargetPerson, field: "first_name", value: `123`, want: masterdatarequests.ErrReviewInvalidValue},
-		{name: "invalid birthday", target: userModels.DataChangeTargetPerson, field: "birthday", value: `"bad-date"`, want: masterdatarequests.ErrReviewInvalidValue},
-		{name: "invalid departure field", target: userModels.DataChangeTargetDeparture, field: "pickup_status", value: `{}`, want: masterdatarequests.ErrReviewInvalidTarget},
-		{name: "invalid departure value", target: userModels.DataChangeTargetDeparture, field: "allowed_departure_modes", value: `123`, want: masterdatarequests.ErrReviewInvalidValue},
-		{name: "unknown departure mode", target: userModels.DataChangeTargetDeparture, field: "allowed_departure_modes", value: `{"mon":["spaceship"]}`, want: masterdatarequests.ErrReviewInvalidValue},
-		{name: "unsupported accompanied mode", target: userModels.DataChangeTargetDeparture, field: "allowed_departure_modes", value: `{"mon":["accompanied"]}`, want: masterdatarequests.ErrReviewInvalidValue},
+		{name: "invalid target", target: peopledirectory.DataChangeTargetStudent, field: "health_info", value: `"x"`, want: masterdatarequests.ErrReviewInvalidTarget},
+		{name: "invalid person value", target: peopledirectory.DataChangeTargetPerson, field: "first_name", value: `123`, want: masterdatarequests.ErrReviewInvalidValue},
+		{name: "invalid birthday", target: peopledirectory.DataChangeTargetPerson, field: "birthday", value: `"bad-date"`, want: masterdatarequests.ErrReviewInvalidValue},
+		{name: "invalid departure field", target: peopledirectory.DataChangeTargetDeparture, field: "pickup_status", value: `{}`, want: masterdatarequests.ErrReviewInvalidTarget},
+		{name: "invalid departure value", target: peopledirectory.DataChangeTargetDeparture, field: "allowed_departure_modes", value: `123`, want: masterdatarequests.ErrReviewInvalidValue},
+		{name: "unknown departure mode", target: peopledirectory.DataChangeTargetDeparture, field: "allowed_departure_modes", value: `{"mon":["spaceship"]}`, want: masterdatarequests.ErrReviewInvalidValue},
+		{name: "unsupported accompanied mode", target: peopledirectory.DataChangeTargetDeparture, field: "allowed_departure_modes", value: `{"mon":["accompanied"]}`, want: masterdatarequests.ErrReviewInvalidValue},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -527,41 +548,43 @@ func TestMasterDataReview_ApproveInvalidRowsRejected(t *testing.T) {
 func (f masterDataFixture) decisionsWithEmitter(t *testing.T, shares careplanCompose.ShareVisibility) *careplanCompose.MasterDataDecisions {
 	t.Helper()
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	emitter := api.NewParentEventEmitter(testpkg.MustDatabase(f.db), testpkg.TenantRuntime(t, f.db), f.repos.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db),
+	emitter := api.NewParentEventEmitter(testpkg.MustDatabase(f.db), testpkg.TenantRuntime(t, f.db), f.reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db),
 		messagingOnSettings{}, broadcaster, slog.Default())
-	return f.decisions(t, func(o *api.MasterDataDecisionTestOptions) {
-		o.Emitter, o.Broadcaster, o.Shares = emitter, broadcaster, shares
-	})
+	options, people := f.decisionInputs()
+	options.Shares = shares
+	svc, err := api.NewTestMasterDataDecisions(options, people, emitter, broadcaster)
+	require.NoError(t, err)
+	return svc
 }
 
 func TestMasterDataReview_ApproveEmitsDecisionPill(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
-	row := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
+	row := f.insert(t, peopledirectory.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
 
 	_, err := f.decide(t, f.decisionsWithEmitter(t, nil), masterdatarequests.DecideInput{RequestID: row.ID, Approve: true, ReviewedBy: f.chain.AccountID})
 	require.NoError(t, err)
 
-	pill, err := api.ParentStoreLastGuardianEventFixture(func(read func(context.Context) error) error { return f.inTx(t, read) }, f.repos.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, f.chain.AccountID, userModels.ParentMessageEventRequestStatus)
+	pill, err := api.ParentStoreLastGuardianEventFixture(func(read func(context.Context) error) error { return f.inTx(t, read) }, f.reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, f.chain.AccountID, peopledirectory.ParentMessageEventRequestStatus)
 	require.NoError(t, err)
 	require.NotNil(t, pill, "an approved master-data request must drop a decision pill")
-	assert.Equal(t, userModels.ParentMessageRequestStatusDone, pill.RequestStatus)
+	assert.Equal(t, peopledirectory.ParentMessageRequestStatusDone, pill.RequestStatus)
 	assert.Equal(t, "Anfrage bestätigt, Stammdaten übernommen", pill.Body)
-	assert.Equal(t, userModels.ParentMessageSenderStaff, pill.EventActorKind)
+	assert.Equal(t, peopledirectory.ParentMessageSenderStaff, pill.EventActorKind)
 }
 
 func TestMasterDataReview_RejectEmitsPillWithReason(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
-	row := f.insert(t, userModels.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Müller"`)
+	row := f.insert(t, peopledirectory.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Müller"`)
 
 	_, err := f.decide(t, f.decisionsWithEmitter(t, nil), masterdatarequests.DecideInput{RequestID: row.ID, Approve: false, Reason: "Nachweis fehlt", ReviewedBy: f.chain.AccountID})
 	require.NoError(t, err)
 
-	pill, err := api.ParentStoreLastGuardianEventFixture(func(read func(context.Context) error) error { return f.inTx(t, read) }, f.repos.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, f.chain.AccountID, userModels.ParentMessageEventRequestStatus)
+	pill, err := api.ParentStoreLastGuardianEventFixture(func(read func(context.Context) error) error { return f.inTx(t, read) }, f.reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, f.chain.AccountID, peopledirectory.ParentMessageEventRequestStatus)
 	require.NoError(t, err)
 	require.NotNil(t, pill, "a rejected request must drop a decision pill")
-	assert.Equal(t, userModels.ParentMessageRequestStatusRejected, pill.RequestStatus)
+	assert.Equal(t, peopledirectory.ParentMessageRequestStatusRejected, pill.RequestStatus)
 	assert.Equal(t, "Anfrage abgelehnt: Nachweis fehlt", pill.Body)
 	assert.Equal(t, "Schneider", f.person(t).LastName, "the rejection must not touch the live record")
 }
@@ -582,7 +605,7 @@ func TestMasterDataDecisionTellsTheOtherGuardian(t *testing.T) {
 		{
 			name: "shared: the recipient gets the full pill", shared: true,
 			wantBody: "Anfrage bestätigt, Stammdaten übernommen", wantReason: "Passt so",
-			wantRequest: userModels.ParentMessageRequestStatusDone,
+			wantRequest: peopledirectory.ParentMessageRequestStatusDone,
 		},
 	}
 	for _, tc := range cases {
@@ -594,13 +617,13 @@ func TestMasterDataDecisionTellsTheOtherGuardian(t *testing.T) {
 			if tc.shared {
 				sharedWith = []int64{other.AccountID}
 			}
-			row := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
+			row := f.insert(t, peopledirectory.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
 			_, err := f.decide(t, f.decisionsWithEmitter(t, staticShareVisibility{recipients: sharedWith}), masterdatarequests.DecideInput{
 				RequestID: row.ID, Approve: true, Reason: "Passt so", ReviewedBy: f.chain.AccountID,
 			})
 			require.NoError(t, err)
 
-			pill, err := api.ParentStoreLastGuardianEventFixture(func(read func(context.Context) error) error { return f.inTx(t, read) }, f.repos.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, other.AccountID, userModels.ParentMessageEventRequestStatus)
+			pill, err := api.ParentStoreLastGuardianEventFixture(func(read func(context.Context) error) error { return f.inTx(t, read) }, f.reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, other.AccountID, peopledirectory.ParentMessageEventRequestStatus)
 			require.NoError(t, err)
 			require.NotNil(t, pill, "the other guardian must hear that the child's data changed")
 			assert.Equal(t, tc.wantBody, pill.Body)

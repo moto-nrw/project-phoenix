@@ -95,14 +95,16 @@ func TestActiveCaregiversOfASchool(t *testing.T) {
 		FirstName: "Mia", LastName: "Muster", Email: "caregiver@example.org"}, caregivers[0])
 	assert.Equal(t, []string{"user", "teacher"}, directory.roleNames)
 
-	everywhere, err := schoolmembership.ActiveCaregivers(context.Background(), membership, directory, 0, nil)
+	_, err = schoolmembership.ActiveCaregivers(context.Background(), membership, directory, 0, nil)
+	require.Error(t, err, "an absent school is not a request for every school")
+	everywhere, err := schoolmembership.CrossSchoolActiveCaregivers(context.Background(), membership, directory, nil)
 	require.NoError(t, err)
 	ids := []int64{}
 	for _, caregiver := range everywhere {
 		ids = append(ids, caregiver.TeacherID)
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-	assert.Equal(t, []int64{41, 42}, ids, "without a school every school's caregivers count")
+	assert.Equal(t, []int64{41, 42}, ids, "the explicit cross-school projection retains every school's caregivers")
 
 	other := caregiverAccount + 1
 	none, err := schoolmembership.ActiveCaregivers(context.Background(), membership, directory, caregiverSchool, &other)
@@ -177,4 +179,21 @@ func TestGroupTeacherBlockers(t *testing.T) {
 		{AssignmentID: 92, GroupID: 72, GroupName: "Unbekannte Gruppe", TeacherID: 41, TeacherIDs: []int64{41}},
 		{AssignmentID: 91, GroupID: 71, GroupName: "Wölfe", TeacherID: 41, TeacherIDs: []int64{41, 43}},
 	}, blockers)
+}
+
+func TestSortActiveCaregiversUsesTheGermanPickerOrder(t *testing.T) {
+	t.Parallel()
+	caregivers := []schoolmembership.ActiveCaregiver{
+		{StaffID: 15, FirstName: "Zoe", LastName: "Adam"},
+		{StaffID: 14, FirstName: "Özlem", LastName: "Yilmaz"},
+		{StaffID: 13, FirstName: "otto", LastName: "Berg"},
+		{StaffID: 12, FirstName: "Otto", LastName: "Berg"},
+		{StaffID: 11, FirstName: "Otto", LastName: "Adam"},
+	}
+	schoolmembership.SortActiveCaregivers(caregivers)
+	ids := make([]int64, 0, len(caregivers))
+	for _, caregiver := range caregivers {
+		ids = append(ids, caregiver.StaffID)
+	}
+	assert.Equal(t, []int64{11, 12, 13, 14, 15}, ids)
 }

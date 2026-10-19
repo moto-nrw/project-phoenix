@@ -7,10 +7,11 @@ import (
 	"sort"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -176,7 +177,7 @@ func (d *conflictDetection) resolveSeriesCoverageDates(ctx context.Context, acti
 // seriesValidityEnvelope returns the validity bounds every schedule of the
 // series shares. The template writes enforce one common envelope per segment;
 // a row that disagrees is corrupt data and fails the probe.
-func seriesValidityEnvelope(schedules []*activitiesModels.Schedule) (*calendar.Date, *calendar.Date, error) {
+func seriesValidityEnvelope(schedules []*activityContract.Schedule) (*calendar.Date, *calendar.Date, error) {
 	if schedules[0] == nil {
 		return nil, nil, fmt.Errorf("%w: nil schedule row", errInconsistentSeriesValidity)
 	}
@@ -196,7 +197,7 @@ func seriesValidityEnvelope(schedules []*activitiesModels.Schedule) (*calendar.D
 	return validFrom, validUntil, nil
 }
 
-func scheduleDate(date *activitiesModels.Date) *calendar.Date {
+func scheduleDate(date *activityContract.Date) *calendar.Date {
 	if date == nil {
 		return nil
 	}

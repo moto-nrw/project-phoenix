@@ -34,7 +34,7 @@ type PasswordResetStore interface {
 	DeleteSpentPasswordResetTokens(ctx context.Context, now time.Time) (int, domain.OperationStats, error)
 
 	// SetAccountPassword replaces the credential and clears the one-time
-	// password flag; it reports whether the account exists.
+	// password flag; it reports whether the account is live.
 	SetAccountPassword(ctx context.Context, accountID int64, hash string) (bool, domain.OperationStats, error)
 }
 
@@ -43,5 +43,5 @@ type PasswordResetStore interface {
 // resolves the portal host for the scope and records the delivery outcome
 // through the module once the send settles.
 type PasswordResetDelivery interface {
-	DispatchPasswordReset(ctx context.Context, token domain.PasswordResetToken, recipient string, scope domain.PasswordResetScope, expiry time.Duration)
+	DispatchPasswordReset(ctx context.Context, token domain.PasswordResetToken, recipient string, scope domain.PasswordResetScope, expiry time.Duration) error
 }

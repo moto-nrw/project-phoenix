@@ -7,11 +7,13 @@ import (
 	"slices"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 )
 
 // ParticipantPresence is the Student Presence surface the legacy participant
@@ -39,7 +41,7 @@ type timetableInstanceStudentRepository struct {
 // NewInstanceStudentRepository serves the retained participant repository
 // over the Timetable owner and Student Presence; reads are the joined
 // presence reads over the database.
-func NewInstanceStudentRepository(reads PresenceReads, capability timetable.InstanceStudentCapability, presence ParticipantPresence, preview PartialAbsences) scheduleModels.InstanceStudentRepository {
+func NewInstanceStudentRepository(reads PresenceReads, capability timetable.InstanceStudentCapability, presence ParticipantPresence, preview PartialAbsences) ports.InstanceStudentRecords {
 	return newTimetableInstanceStudentRepository(reads, capability, presence, preview)
 }
 
@@ -78,7 +80,7 @@ func (r timetableInstanceStudentRepository) Create(ctx context.Context, value *s
 	return nil
 }
 
-func (r timetableInstanceStudentRepository) FindByID(ctx context.Context, id any) (*scheduleModels.InstanceStudent, error) {
+func (r timetableInstanceStudentRepository) FindByID(ctx context.Context, id int64) (*scheduleModels.InstanceStudent, error) {
 	rowID, ok := LegacyGroupID(id)
 	if !ok {
 		return nil, WrapDatabaseError("find by id", fmt.Errorf("invalid instance student id %T", id))
@@ -175,7 +177,7 @@ func sameLegacyAttendanceInstant(wanted, stored *time.Time) bool {
 	return wanted.Equal(*stored)
 }
 
-func (r timetableInstanceStudentRepository) Delete(ctx context.Context, id any) error {
+func (r timetableInstanceStudentRepository) Delete(ctx context.Context, id int64) error {
 	rowID, ok := LegacyGroupID(id)
 	if !ok {
 		return WrapDatabaseError("delete", fmt.Errorf("invalid instance student id %T", id))
@@ -184,19 +186,6 @@ func (r timetableInstanceStudentRepository) Delete(ctx context.Context, id any) 
 		return WrapDatabaseError("delete", err)
 	}
 	return nil
-}
-
-func (r timetableInstanceStudentRepository) List(ctx context.Context, options *InstanceStudentQueryOptions) ([]*scheduleModels.InstanceStudent, error) {
-	filter, err := InstanceStudentListOptions(options)
-	if err != nil {
-		return nil, WrapDatabaseError("list with options", err)
-	}
-	rows, err := r.list(ctx, timetable.InstanceStudentFilter{IDs: filter.IDs, InstanceIDs: filter.InstanceIDs,
-		StudentIDs: filter.StudentIDs, Limit: filter.Limit, Offset: filter.Offset}, "list with options")
-	if err != nil || filter.Status == nil {
-		return rows, err
-	}
-	return filterLegacyInstanceStudents(rows, func(row *scheduleModels.InstanceStudent) bool { return row.Status == *filter.Status }), nil
 }
 
 func (r timetableInstanceStudentRepository) FindByInstanceID(ctx context.Context, instanceID int64) ([]*scheduleModels.InstanceStudent, error) {
@@ -245,7 +234,7 @@ func (r timetableInstanceStudentRepository) CountNonAbsentByInstanceIDs(ctx cont
 	return result, nil
 }
 
-func (r timetableInstanceStudentRepository) FindPresentInOtherActiveInstances(ctx context.Context, excludedID int64, date InstanceStudentDate, studentIDs []int64) ([]scheduleModels.ParallelPresence, error) {
+func (r timetableInstanceStudentRepository) FindPresentInOtherActiveInstances(ctx context.Context, excludedID int64, date calendar.Date, studentIDs []int64) ([]scheduleModels.ParallelPresence, error) {
 	result, err := r.reads.ListParallelPresence(ctx, excludedID, date.String(), positiveInstanceStudentIDs(studentIDs))
 	if err != nil {
 		return nil, WrapDatabaseError("find present in other active instances", err)
@@ -253,7 +242,7 @@ func (r timetableInstanceStudentRepository) FindPresentInOtherActiveInstances(ct
 	return result, nil
 }
 
-func (r timetableInstanceStudentRepository) FindPartialAbsenceBlocks(ctx context.Context, studentID int64, date InstanceStudentDate, cutoff time.Time) ([]scheduleModels.PartialAbsenceBlock, error) {
+func (r timetableInstanceStudentRepository) FindPartialAbsenceBlocks(ctx context.Context, studentID int64, date calendar.Date, cutoff time.Time) ([]scheduleModels.PartialAbsenceBlock, error) {
 	result, err := r.preview.FindPartialAbsenceBlocks(ctx, studentID, date.String(), cutoff)
 	if err != nil {
 		return nil, WrapDatabaseError("find partial absence blocks", err)
@@ -261,13 +250,13 @@ func (r timetableInstanceStudentRepository) FindPartialAbsenceBlocks(ctx context
 	return result, nil
 }
 
-func (r timetableInstanceStudentRepository) FindByStudentAndDateRange(ctx context.Context, studentID int64, from, to InstanceStudentDate) ([]*scheduleModels.InstanceStudent, error) {
+func (r timetableInstanceStudentRepository) FindByStudentAndDateRange(ctx context.Context, studentID int64, from, to calendar.Date) ([]*scheduleModels.InstanceStudent, error) {
 	fromText, toText := from.String(), to.String()
 	return r.list(ctx, timetable.InstanceStudentFilter{StudentIDs: []int64{studentID}, FromDate: &fromText,
 		ToDate: &toText, OrderByActivityDateTime: true}, "find by student and date range")
 }
 
-func (r timetableInstanceStudentRepository) FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date InstanceStudentDate) ([]*scheduleModels.InstanceStudent, error) {
+func (r timetableInstanceStudentRepository) FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*scheduleModels.InstanceStudent, error) {
 	if len(studentIDs) == 0 {
 		return []*scheduleModels.InstanceStudent{}, nil
 	}
@@ -284,11 +273,11 @@ func (r timetableInstanceStudentRepository) FindByInstanceAndStudent(ctx context
 	return values[0], nil
 }
 
-func (r timetableInstanceStudentRepository) FindCurrentCandidates(ctx context.Context, studentID int64, date InstanceStudentDate, at time.Time) ([]*scheduleModels.InstanceStudent, error) {
+func (r timetableInstanceStudentRepository) FindCurrentCandidates(ctx context.Context, studentID int64, date calendar.Date, at time.Time) ([]*scheduleModels.InstanceStudent, error) {
 	return r.findCurrent(ctx, []int64{studentID}, date, at, "find current student slot candidates")
 }
 
-func (r timetableInstanceStudentRepository) FindCurrentCandidatesByStudentIDs(ctx context.Context, studentIDs []int64, date InstanceStudentDate, at time.Time) ([]*scheduleModels.InstanceStudent, error) {
+func (r timetableInstanceStudentRepository) FindCurrentCandidatesByStudentIDs(ctx context.Context, studentIDs []int64, date calendar.Date, at time.Time) ([]*scheduleModels.InstanceStudent, error) {
 	if len(studentIDs) == 0 {
 		return []*scheduleModels.InstanceStudent{}, nil
 	}
@@ -297,7 +286,7 @@ func (r timetableInstanceStudentRepository) FindCurrentCandidatesByStudentIDs(ct
 
 // findCurrent lists the running blocks of the students; a block that ended
 // is no candidate.
-func (r timetableInstanceStudentRepository) findCurrent(ctx context.Context, studentIDs []int64, date InstanceStudentDate, at time.Time, operation string) ([]*scheduleModels.InstanceStudent, error) {
+func (r timetableInstanceStudentRepository) findCurrent(ctx context.Context, studentIDs []int64, date calendar.Date, at time.Time, operation string) ([]*scheduleModels.InstanceStudent, error) {
 	dateText, clock := date.String(), InstanceStudentWallClock(at)
 	return r.list(ctx, timetable.InstanceStudentFilter{StudentIDs: studentIDs, Date: &dateText, CurrentTime: &clock,
 		OrderByStudentActivityTime: true}, operation)
@@ -472,7 +461,7 @@ func (r timetableInstanceStudentRepository) CloseOpenCheckoutsByActiveGroupIDs(c
 	return rows, nil
 }
 
-func (r timetableInstanceStudentRepository) ListStudentInstanceRefsBefore(ctx context.Context, cutoff InstanceStudentDate) ([]scheduleModels.StudentInstanceRef, error) {
+func (r timetableInstanceStudentRepository) ListStudentInstanceRefsBefore(ctx context.Context, cutoff calendar.Date) ([]scheduleModels.StudentInstanceRef, error) {
 	values, err := r.timetable.ListStudentInstanceRefsBefore(ctx, cutoff.String())
 	if err != nil {
 		return nil, WrapDatabaseError("list student instance refs before", err)
@@ -484,7 +473,7 @@ func (r timetableInstanceStudentRepository) ListStudentInstanceRefsBefore(ctx co
 	return result, nil
 }
 
-func (r timetableInstanceStudentRepository) ApplyStatusDay(ctx context.Context, studentID int64, date InstanceStudentDate, statusDayID int64, substatus string) (int, error) {
+func (r timetableInstanceStudentRepository) ApplyStatusDay(ctx context.Context, studentID int64, date calendar.Date, statusDayID int64, substatus string) (int, error) {
 	rows, err := r.presence.ApplyStatusDay(ctx, studentID, date.String(), statusDayID, substatus)
 	if err != nil {
 		return 0, WrapDatabaseError("apply student status day to slots", err)
@@ -500,7 +489,7 @@ func (r timetableInstanceStudentRepository) ReleaseStatusDay(ctx context.Context
 	return rows, nil
 }
 
-func (r timetableInstanceStudentRepository) ApplyActiveStatusDaysForInstance(ctx context.Context, instanceID int64, date InstanceStudentDate) (int, error) {
+func (r timetableInstanceStudentRepository) ApplyActiveStatusDaysForInstance(ctx context.Context, instanceID int64, date calendar.Date) (int, error) {
 	rows, err := r.presence.ApplyActiveStatusDaysForInstance(ctx, instanceID, date.String())
 	if err != nil {
 		return 0, WrapDatabaseError("apply active status days to instance", err)
@@ -524,7 +513,7 @@ func (r timetableInstanceStudentRepository) ReleasePartialAbsence(ctx context.Co
 	return rows, nil
 }
 
-func (r timetableInstanceStudentRepository) ApplyActivePartialAbsencesForInstance(ctx context.Context, instanceID int64, date InstanceStudentDate) (int, error) {
+func (r timetableInstanceStudentRepository) ApplyActivePartialAbsencesForInstance(ctx context.Context, instanceID int64, date calendar.Date) (int, error) {
 	rows, err := r.presence.ApplyActivePartialAbsencesForInstance(ctx, instanceID, date.String())
 	if err != nil {
 		return 0, WrapDatabaseError("apply active partial absences to instance", err)
@@ -532,7 +521,7 @@ func (r timetableInstanceStudentRepository) ApplyActivePartialAbsencesForInstanc
 	return rows, nil
 }
 
-func (r timetableInstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, from, to InstanceStudentDate) ([]*scheduleModels.ScheduledInstanceRow, error) {
+func (r timetableInstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, from, to calendar.Date) ([]*scheduleModels.ScheduledInstanceRow, error) {
 	if studentID <= 0 {
 		return []*scheduleModels.ScheduledInstanceRow{}, nil
 	}
@@ -543,7 +532,7 @@ func (r timetableInstanceStudentRepository) FindInstancesWithAttendanceByStudent
 	return result, nil
 }
 
-func (r timetableInstanceStudentRepository) HasPlannedSlotsInRange(ctx context.Context, from, to InstanceStudentDate) (bool, error) {
+func (r timetableInstanceStudentRepository) HasPlannedSlotsInRange(ctx context.Context, from, to calendar.Date) (bool, error) {
 	result, err := r.reads.HasPlannedSlotsInRange(ctx, from.String(), to.String())
 	if err != nil {
 		return false, WrapDatabaseError("check planned slots in range", err)
@@ -551,7 +540,7 @@ func (r timetableInstanceStudentRepository) HasPlannedSlotsInRange(ctx context.C
 	return result, nil
 }
 
-func (r timetableInstanceStudentRepository) FindPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date InstanceStudentDate) ([]int64, error) {
+func (r timetableInstanceStudentRepository) FindPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]int64, error) {
 	studentIDs = positiveInstanceStudentIDs(studentIDs)
 	if len(studentIDs) == 0 {
 		return []int64{}, nil
@@ -718,4 +707,13 @@ func legacyInstanceStudentError(operation string, err error) error {
 		return WrapNotFoundDatabaseError(operation)
 	}
 	return WrapDatabaseError(operation, err)
+}
+
+func (r timetableInstanceStudentRepository) ListStudents(ctx context.Context, filter ports.ParticipantListingFilter) ([]*scheduleModels.InstanceStudent, error) {
+	rows, err := r.list(ctx, timetable.InstanceStudentFilter{IDs: filter.IDs, InstanceIDs: filter.InstanceIDs,
+		StudentIDs: filter.StudentIDs, Limit: filter.Limit, Offset: filter.Offset}, "list with options")
+	if err != nil || filter.Status == nil {
+		return rows, err
+	}
+	return filterLegacyInstanceStudents(rows, func(row *scheduleModels.InstanceStudent) bool { return row.Status == *filter.Status }), nil
 }

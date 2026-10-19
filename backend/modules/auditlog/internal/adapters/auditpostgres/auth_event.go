@@ -35,7 +35,11 @@ func (r *AuthEventRepository) Create(ctx context.Context, event *audit.AuthEvent
 // FindByID finds an auth event by ID
 func (r *AuthEventRepository) FindByID(ctx context.Context, id interface{}) (*audit.AuthEvent, error) {
 	var event audit.AuthEvent
-	err := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB1, databaseErr1 := runtimeDB(ctx, r.runtime)
+	if databaseErr1 != nil {
+		return *new(*audit.AuthEvent), databaseErr1
+	}
+	err := ambientDB1.NewSelect().
 		Model(&event).
 		ModelTableExpr(`audit.auth_events AS "auth_event"`).
 		Where("id = ?", id).
@@ -55,7 +59,11 @@ func (r *AuthEventRepository) FindByID(ctx context.Context, id interface{}) (*au
 func (r *AuthEventRepository) FindByAccountID(ctx context.Context, accountID int64, limit int) ([]*audit.AuthEvent, error) {
 	var events []*audit.AuthEvent
 
-	query := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB2, databaseErr2 := runtimeDB(ctx, r.runtime)
+	if databaseErr2 != nil {
+		return *new([]*audit.AuthEvent), databaseErr2
+	}
+	query := ambientDB2.NewSelect().
 		Model(&events).
 		ModelTableExpr(`audit.auth_events AS "auth_event"`).
 		Where(whereAccountIDEquals, accountID).
@@ -77,7 +85,11 @@ func (r *AuthEventRepository) FindByAccountID(ctx context.Context, accountID int
 func (r *AuthEventRepository) List(ctx context.Context, filters map[string]interface{}) ([]*audit.AuthEvent, error) {
 	var events []*audit.AuthEvent
 
-	query := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB3, databaseErr3 := runtimeDB(ctx, r.runtime)
+	if databaseErr3 != nil {
+		return *new([]*audit.AuthEvent), databaseErr3
+	}
+	query := ambientDB3.NewSelect().
 		Model(&events).
 		ModelTableExpr(`audit.auth_events AS "auth_event"`).
 		Order(orderByCreatedAtDesc)
@@ -138,7 +150,11 @@ func (r *AuthEventRepository) StaffPreviewEnded(ctx context.Context, accountID i
 	if previewID == "" {
 		return false, errors.New("preview_id is required")
 	}
-	return runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB4, databaseErr4 := runtimeDB(ctx, r.runtime)
+	if databaseErr4 != nil {
+		return *new(bool), databaseErr4
+	}
+	return ambientDB4.NewSelect().
 		Model((*audit.AuthEvent)(nil)).
 		ModelTableExpr(`audit.auth_events AS "auth_event"`).
 		Where(`"auth_event".`+whereAccountIDEquals, accountID).
@@ -161,7 +177,11 @@ func (r *AuthEventRepository) LockStaffPreview(ctx context.Context, accountID in
 	if previewID == "" {
 		return errors.New("preview_id is required")
 	}
-	_, err := runtimeDB(ctx, r.runtime).ExecContext(ctx,
+	ambientDB5, databaseErr5 := runtimeDB(ctx, r.runtime)
+	if databaseErr5 != nil {
+		return databaseErr5
+	}
+	_, err := ambientDB5.ExecContext(ctx,
 		"SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
 		fmt.Sprintf("staff-preview:%d:%s", accountID, previewID),
 	)
@@ -173,7 +193,11 @@ func (r *AuthEventRepository) LockStaffPreview(ctx context.Context, accountID in
 // revoke is retried for as long as the flag remains.
 func (r *AuthEventRepository) ListPendingAccountWideWipes(ctx context.Context, since time.Time) ([]audit.PendingAccountWideWipe, error) {
 	var rows []audit.PendingAccountWideWipe
-	query := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB6, databaseErr6 := runtimeDB(ctx, r.runtime)
+	if databaseErr6 != nil {
+		return *new([]audit.PendingAccountWideWipe), databaseErr6
+	}
+	query := ambientDB6.NewSelect().
 		ColumnExpr(`DISTINCT ON ("pending".account_id) "pending".id AS event_id`).
 		ColumnExpr(`"pending".tenant_id`).
 		ColumnExpr(`"pending".account_id`).
@@ -204,7 +228,11 @@ func (r *AuthEventRepository) ListPendingAccountWideWipes(ctx context.Context, s
 // transaction; rollback therefore releases the claim without mutating history.
 func (r *AuthEventRepository) ClaimPendingAccountWideWipes(ctx context.Context, accountID int64) ([]audit.PendingAccountWideWipe, error) {
 	var rows []audit.PendingAccountWideWipe
-	err := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB7, databaseErr7 := runtimeDB(ctx, r.runtime)
+	if databaseErr7 != nil {
+		return *new([]audit.PendingAccountWideWipe), databaseErr7
+	}
+	err := ambientDB7.NewSelect().
 		ColumnExpr(`"pending".id AS event_id`).
 		ColumnExpr(`"pending".tenant_id`).
 		ColumnExpr(`"pending".account_id`).

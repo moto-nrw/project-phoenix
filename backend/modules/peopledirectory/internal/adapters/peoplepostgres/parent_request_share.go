@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
@@ -29,7 +29,11 @@ func (r *ParentRequestShareEventRepository) Create(ctx context.Context, event *u
 	if event.RecipientAccountIDs == nil {
 		event.RecipientAccountIDs = []int64{}
 	}
-	if _, err := r.runtime.DB(ctx).NewInsert().Model(event).
+	ambientDB1, databaseErr1 := r.runtime.DB(ctx)
+	if databaseErr1 != nil {
+		return databaseErr1
+	}
+	if _, err := ambientDB1.NewInsert().Model(event).
 		ModelTableExpr(parentRequestShareTable).
 		Value("created_at", "clock_timestamp()").
 		Value("updated_at", "clock_timestamp()").
@@ -43,7 +47,11 @@ func (r *ParentRequestShareEventRepository) Create(ctx context.Context, event *u
 // select the newest immutable event for each request type and request ID.
 func (r *ParentRequestShareEventRepository) CurrentForStudent(ctx context.Context, studentID int64) ([]*userModels.ParentRequestShareEvent, error) {
 	rows := make([]*userModels.ParentRequestShareEvent, 0)
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB2, databaseErr2 := r.runtime.DB(ctx)
+	if databaseErr2 != nil {
+		return *new([]*userModels.ParentRequestShareEvent), databaseErr2
+	}
+	query := ambientDB2.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`users.parent_request_share_events AS "parent_request_share_event"`).
 		Where(`"parent_request_share_event".student_id = ?`, studentID).

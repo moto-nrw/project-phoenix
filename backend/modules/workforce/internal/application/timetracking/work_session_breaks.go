@@ -2,7 +2,6 @@ package timetracking
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -13,9 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// StartBreak starts a new break on the running block, whichever day it was
-// opened on (see openBlockDay).
-// If plannedDurationMinutes is provided (1-240), sets planned_end_time for auto-end
 func (s *workSessionService) StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*WorkSessionBreak, error) {
 	day, err := s.openBlockDay(ctx, staffID)
 	if err != nil {
@@ -24,7 +20,6 @@ func (s *workSessionService) StartBreak(ctx context.Context, staffID int64, plan
 	return s.StartBreakOn(ctx, staffID, day, plannedDurationMinutes)
 }
 
-// StartBreakOn starts a break on the open session of an explicit calendar day.
 func (s *workSessionService) StartBreakOn(ctx context.Context, staffID int64, day calendar.Date, plannedDurationMinutes *int) (*WorkSessionBreak, error) {
 	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, err
@@ -33,12 +28,12 @@ func (s *workSessionService) StartBreakOn(ctx context.Context, staffID int64, da
 	session, err := s.repo.GetOpenByStaffAndDateForUpdate(ctx, staffID, day)
 	if err != nil {
 		if isRecordNotFound(err) {
-			return nil, errors.New(errNoActiveSession)
+			return nil, workforce.ErrNoActiveSession
 		}
 		return nil, fmt.Errorf(errGetCurrentSession, err)
 	}
 	if session == nil {
-		return nil, errors.New(errNoActiveSession)
+		return nil, workforce.ErrNoActiveSession
 	}
 
 	// Check no active break exists
@@ -47,13 +42,13 @@ func (s *workSessionService) StartBreakOn(ctx context.Context, staffID int64, da
 		return nil, fmt.Errorf("failed to check active break: %w", err)
 	}
 	if activeBreak != nil {
-		return nil, errors.New("break already active")
+		return nil, workforce.ErrBreakAlreadyActive
 	}
 
 	// Validate plannedDurationMinutes if provided
 	if plannedDurationMinutes != nil {
 		if *plannedDurationMinutes < 1 || *plannedDurationMinutes > maxPlannedBreakDurationMinutes {
-			return nil, fmt.Errorf("planned_duration_minutes must be between 1 and %d", maxPlannedBreakDurationMinutes)
+			return nil, &workforce.TimeTrackingError{Kind: workforce.ErrPlannedBreakDurationInvalid, Cause: fmt.Errorf("planned_duration_minutes must be between 1 and %d", maxPlannedBreakDurationMinutes)}
 		}
 	}
 
@@ -82,8 +77,6 @@ func (s *workSessionService) StartBreakOn(ctx context.Context, staffID int64, da
 	return brk, nil
 }
 
-// EndBreak ends the active break on the running block, whichever day it was
-// opened on (see openBlockDay).
 func (s *workSessionService) EndBreak(ctx context.Context, staffID int64) (*WorkSession, error) {
 	day, err := s.openBlockDay(ctx, staffID)
 	if err != nil {
@@ -92,7 +85,6 @@ func (s *workSessionService) EndBreak(ctx context.Context, staffID int64) (*Work
 	return s.EndBreakOn(ctx, staffID, day)
 }
 
-// EndBreakOn ends the active break on the open session of an explicit calendar day.
 func (s *workSessionService) EndBreakOn(ctx context.Context, staffID int64, day calendar.Date) (*WorkSession, error) {
 	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, err
@@ -101,12 +93,12 @@ func (s *workSessionService) EndBreakOn(ctx context.Context, staffID int64, day 
 	session, err := s.repo.GetOpenByStaffAndDate(ctx, staffID, day)
 	if err != nil {
 		if isRecordNotFound(err) {
-			return nil, errors.New(errNoActiveSession)
+			return nil, workforce.ErrNoActiveSession
 		}
 		return nil, fmt.Errorf(errGetCurrentSession, err)
 	}
 	if session == nil {
-		return nil, errors.New(errNoActiveSession)
+		return nil, workforce.ErrNoActiveSession
 	}
 
 	// Find active break
@@ -115,7 +107,7 @@ func (s *workSessionService) EndBreakOn(ctx context.Context, staffID int64, day 
 		return nil, fmt.Errorf("failed to get active break: %w", err)
 	}
 	if activeBreak == nil {
-		return nil, fmt.Errorf("no active break found")
+		return nil, workforce.ErrNoActiveBreak
 	}
 
 	// End the break
@@ -140,7 +132,6 @@ func (s *workSessionService) EndBreakOn(ctx context.Context, staffID int64, day 
 	return updatedSession, nil
 }
 
-// GetSessionBreaks returns all breaks for a given session
 func (s *workSessionService) GetSessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionBreak, error) {
 	// Verify ownership: session must belong to requesting staff
 	session, err := s.repo.FindByID(ctx, sessionID)
@@ -148,7 +139,7 @@ func (s *workSessionService) GetSessionBreaks(ctx context.Context, staffID, sess
 		return nil, s.handleSessionNotFoundError(err)
 	}
 	if session.StaffID != staffID {
-		return nil, fmt.Errorf("session does not belong to requesting staff")
+		return nil, workforce.ErrSessionNotOwned
 	}
 
 	breaks, err := s.breakRepo.GetBySessionID(ctx, sessionID)
@@ -183,8 +174,6 @@ func (s *workSessionService) recalcBreakMinutes(ctx context.Context, sessionID i
 	return s.repo.UpdateBreakMinutes(ctx, sessionID, totalMinutes)
 }
 
-// AutoEndExpiredBreaks ends all breaks whose planned_end_time has passed
-// Returns the number of breaks that were ended
 func (s *workSessionService) AutoEndExpiredBreaks(ctx context.Context) (int, error) {
 	now := time.Now()
 

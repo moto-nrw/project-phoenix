@@ -27,11 +27,11 @@
   "runtime_evidence": {
     "source": "Assigned localhost5547 test database; pinned Go toolchain with fresh /tmp/gocache-4073. Immutable base d5dd8772c5398f53ae3b2603a7bc3b0f40e02db4.",
     "sources": [
-      "backend/workflows/parentportal/care/master_data_values.go",
-      "backend/workflows/parentportal/care/parent_master_data_internal_test.go",
-      "backend/workflows/parentportal/care/parent_master_data_request_service.go",
-      "backend/workflows/parentportal/care/parent_master_data_service.go",
-      "backend/workflows/parentportal/care/parent_care_offerings_service_test.go"
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/care/master_data_values.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/care/parent_master_data_internal_test.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/care/parent_master_data_request_service.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/care/parent_master_data_service.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/care/parent_care_offerings_service_test.go"
     ],
     "workload": "Full non-fast60 affected-package suites, including Portal/Care/HTTP, API/router and module/hermetic guards; focused field-state, phone/contact, offering and course tests with -count=1.",
     "thresholds": "Preserve all existing test cases/assertions, exact compared fields, canonical departure policy, pointer/nil and JSON semantics. Retire only the internal-test import, without new aliases, rules or higher budgets.",

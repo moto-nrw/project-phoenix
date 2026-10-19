@@ -8,7 +8,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -45,9 +47,9 @@ func samplePhaseForAudit() *enrollmentModels.Phase {
 }
 
 func newAuditDecisionService(repo api.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
-	return newTestDecisionService(api.EnrollmentDecisionSources{
-		DataAccessLog: repo,
-	})
+	return enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(newTestDecisions(enrollmentCompose.DecisionDependencies{
+		AccessLog: owners.EnrollmentDecisionAccessLog(repo),
+	}, nil)))
 }
 
 func TestRecordPhaseExportAudit_WritesRowWithPhaseWindowAndMetadata(t *testing.T) {

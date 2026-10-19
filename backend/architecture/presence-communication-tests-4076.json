@@ -30,7 +30,7 @@
     "sources": [
       "backend/modules/communication/internal/parentmessages/message_email_test.go",
       "backend/modules/timetable/internal/application/attendance_mirror_unit_internal_test.go",
-      "backend/api/timetable_attendance_mirror_internal_test.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/timetable_attendance_mirror_internal_test.go",
       "backend/modules/studentpresence/internal/application/presence/group_supervisor_repository_test.go"
     ],
     "workload": "Affected Go suites through scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development against the local postgres-test server with per-test tenants.",

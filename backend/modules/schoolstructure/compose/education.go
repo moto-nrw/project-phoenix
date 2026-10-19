@@ -4,9 +4,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups"
 )
 
-type ActiveSupervisorCreator = groups.ActiveSupervisorCreator
 type Actor = groups.Actor
-type ActorResolver = groups.ActorResolver
 type AdditionalSupervisionAssignment = groups.AdditionalSupervisionAssignment
 type Assignment = groups.Assignment
 type AssignmentResult = groups.AssignmentResult
@@ -17,10 +15,8 @@ type ClassAssignmentAudit = groups.ClassAssignmentAudit
 type ClassTeacherStore = groups.ClassTeacherStore
 type EducationError = groups.EducationError
 type EndRequest = groups.EndRequest
-type GraduationPresence = groups.GraduationPresence
 type GroupHandover = groups.GroupHandover
 type GroupHandoverAssignment = groups.GroupHandoverAssignment
-type GroupHandoverStore = groups.GroupHandoverStore
 type GroupRecords = groups.GroupRecords
 type GroupRef = groups.GroupRef
 type GroupStore = groups.GroupStore
@@ -43,7 +39,6 @@ type ScheduleAppointmentOverview = groups.ScheduleAppointmentOverview
 type ScheduleAppointmentStaff = groups.ScheduleAppointmentStaff
 type ScheduleOverview = groups.ScheduleOverview
 type SchedulePresenceChange = groups.SchedulePresenceChange
-type ScheduleSubstitutionAdapter = groups.ScheduleSubstitutionAdapter
 type ScheduleSubstitutionAssignment = groups.ScheduleSubstitutionAssignment
 type ScheduleSubstitutionChange = groups.ScheduleSubstitutionChange
 type ScheduleSubstitutionDayResult = groups.ScheduleSubstitutionDayResult

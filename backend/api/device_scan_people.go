@@ -6,25 +6,25 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // deviceScanUserRows is the slice of the retained people service the kiosk
 // flows read.
 type deviceScanUserRows interface {
-	Get(ctx context.Context, id interface{}) (*userModels.Person, error)
-	FindByTagID(ctx context.Context, tagID string) (*userModels.Person, error)
+	Get(ctx context.Context, id interface{}) (*peopledirectory.DirectoryPersonSnapshot, error)
+	FindByTagID(ctx context.Context, tagID string) (*peopledirectory.DirectoryPersonSnapshot, error)
 	LinkToRFIDCard(ctx context.Context, personID int64, tagID string) error
 	UnlinkFromRFIDCard(ctx context.Context, personID int64) error
-	GetStaffByID(ctx context.Context, id int64) (*userModels.Staff, error)
-	GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error)
-	GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error)
-	GetTeacherByStaffID(ctx context.Context, staffID int64) (*userModels.Teacher, error)
-	ListTeachersWithStaffAndPerson(ctx context.Context) ([]*userModels.Teacher, error)
-	GetStudentByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error)
-	GetStudentByPersonID(ctx context.Context, personID int64) (*userModels.Student, error)
-	GetStudentsWithGroupsByTeacherStaffIDs(ctx context.Context, staffIDs []int64) ([]userModels.StudentWithGroupInfo, error)
-	GetAllStudentsWithGroups(ctx context.Context) ([]userModels.StudentWithGroupInfo, error)
+	GetStaffByID(ctx context.Context, id int64) (*peopledirectory.Staff, error)
+	GetStaffByPersonID(ctx context.Context, personID int64) (*peopledirectory.Staff, error)
+	GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.Staff, error)
+	GetTeacherByStaffID(ctx context.Context, staffID int64) (*peopledirectory.Teacher, error)
+	ListTeachersWithStaffAndPerson(ctx context.Context) ([]*peopledirectory.Teacher, error)
+	GetStudentByIDForUpdate(ctx context.Context, id int64) (*peopledirectory.StudentState, error)
+	GetStudentByPersonID(ctx context.Context, personID int64) (*peopledirectory.StudentState, error)
+	GetStudentsWithGroupsByTeacherStaffIDs(ctx context.Context, staffIDs []int64) ([]peopledirectory.StudentRosterEntry, error)
+	GetAllStudentsWithGroups(ctx context.Context) ([]peopledirectory.StudentRosterEntry, error)
 }
 
 // DeviceScanPeople maps the retained people service onto the device scans'
@@ -112,7 +112,7 @@ func (p DeviceScanPeople) GetStudentByPersonID(ctx context.Context, personID int
 // Students lists the kiosk roster: every child, or those of the teachers'
 // groups, with name, class, group and card.
 func (p DeviceScanPeople) Students(ctx context.Context, teacherIDs []int64) ([]devicescan.DirectoryStudent, error) {
-	var students []userModels.StudentWithGroupInfo
+	var students []peopledirectory.StudentRosterEntry
 	var err error
 	if teacherIDs == nil {
 		students, err = p.Users.GetAllStudentsWithGroups(ctx)
@@ -124,10 +124,10 @@ func (p DeviceScanPeople) Students(ctx context.Context, teacherIDs []int64) ([]d
 	}
 	result := make([]devicescan.DirectoryStudent, 0, len(students))
 	for _, row := range students {
-		if row.Student == nil || row.Person == nil {
+		if row.Record == nil || row.Record.Person == nil {
 			continue
 		}
-		student := row.Student
+		student := row.Record
 		tag := ""
 		if student.Person.TagID != nil {
 			tag = *student.Person.TagID
@@ -141,34 +141,36 @@ func (p DeviceScanPeople) Students(ctx context.Context, teacherIDs []int64) ([]d
 	return result, nil
 }
 
-func scanPerson(person *userModels.Person) *devicescanCompose.ScanPerson {
+func scanPerson(person *peopledirectory.DirectoryPersonSnapshot) *devicescanCompose.ScanPerson {
 	if person == nil {
 		return nil
 	}
 	return &devicescanCompose.ScanPerson{ID: person.ID, FirstName: person.FirstName, LastName: person.LastName, TagID: person.TagID}
 }
 
-func scanStaff(staff *userModels.Staff) *devicescanCompose.ScanStaff {
+func scanStaff(staff *peopledirectory.Staff) *devicescanCompose.ScanStaff {
 	if staff == nil {
 		return nil
 	}
 	return &devicescanCompose.ScanStaff{ID: staff.ID, PersonID: staff.PersonID, Person: scanPerson(staff.Person)}
 }
 
-func scanTeacher(teacher *userModels.Teacher) *devicescanCompose.ScanTeacher {
+func scanTeacher(teacher *peopledirectory.Teacher) *devicescanCompose.ScanTeacher {
 	if teacher == nil {
 		return nil
 	}
 	return &devicescanCompose.ScanTeacher{StaffID: teacher.StaffID, Role: teacher.Role, Specialization: teacher.Specialization, Staff: scanStaff(teacher.Staff)}
 }
 
-func scanStudent(student *userModels.Student) *devicescanCompose.ScanStudent {
+func scanStudent(student *peopledirectory.StudentState) *devicescanCompose.ScanStudent {
 	if student == nil {
 		return nil
 	}
 	return &devicescanCompose.ScanStudent{
 		ID: student.ID, PersonID: student.PersonID, GroupID: student.GroupID, SchoolClass: student.SchoolClass,
-		Alumnus: student.Status == userModels.StudentStatusAlumnus, EnrolledUntil: student.EnrolledUntil,
+		Alumnus: student.IsAlumnus(), EnrolledUntil: student.EnrolledUntil,
 		Person: scanPerson(student.Person),
 	}
 }
+
+func (DeviceScanPeople) IsPersonNotFound(err error) bool { return peoplePorts.IsPersonNotFound(err) }

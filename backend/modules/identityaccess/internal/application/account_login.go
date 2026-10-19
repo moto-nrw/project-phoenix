@@ -194,7 +194,7 @@ func (s *AccountAuthentication) IssueTokensForAuthenticatedAccount(ctx context.C
 // non-password channel proved. A missing account and a failed lookup both
 // read as not found, as they always did at the token issue sites.
 func (s *AccountAuthentication) authenticatedAccount(ctx context.Context, operation string, accountID int64) (domain.LoginAccount, error) {
-	account, found, _, err := s.store.FindLoginAccount(ctx, accountID, false)
+	account, found, _, err := findLoginAccount(ctx, s.runtime, s.store, accountID, false)
 	if err != nil || !found {
 		return domain.LoginAccount{}, failed(operation, domain.ErrAccountNotFound)
 	}
@@ -216,7 +216,7 @@ func (s *AccountAuthentication) authenticatedAccount(ctx context.Context, operat
 // (#3376).
 func (s *AccountAuthentication) validateLoginCredentials(ctx context.Context, email, password, ipAddress, userAgent string) (domain.LoginAccount, error) {
 	email = strings.TrimSpace(strings.ToLower(email))
-	account, found, _, err := s.store.FindLoginAccountByEmail(ctx, email)
+	account, found, _, err := findLoginAccountByEmail(ctx, s.runtime, s.store, email)
 	if err != nil || !found {
 		s.logFailedLogin(ctx, 0, ipAddress, userAgent, "Account not found")
 		return domain.LoginAccount{}, failed("login", domain.ErrAccountNotFound)
@@ -636,7 +636,7 @@ func (s *AccountAuthentication) resolveAccountTenantBySlug(ctx context.Context, 
 
 // resolveAccountTenantDefault picks the first active mapping whose school is
 // alive and active, in mapping order.
-func (s *AccountAuthentication) resolveAccountTenantDefault(ctx context.Context, accountID int64) (int64, int64, error) {
+func (s *AccountAuthentication) resolveAccountTenantDefaultInTransaction(ctx context.Context, accountID int64) (int64, int64, error) {
 	tenantIDs, _, err := s.store.ListActiveTenantIDs(ctx, accountID)
 	if err != nil {
 		s.logger.Warn("failed to resolve account tenant",
@@ -741,4 +741,12 @@ func (s *AccountAuthentication) logAuthEvent(ctx context.Context, accountID int6
 	return s.runtime.WithTenantTx(s.runtime.WithTenantID(ctx, tenantID), tenantID, func(txCtx context.Context) error {
 		return s.audit.RecordAuthEvent(txCtx, event)
 	})
+}
+
+func (s *AccountAuthentication) resolveAccountTenantDefault(ctx context.Context, accountID int64) (schoolID, organizationID int64, err error) {
+	err = globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error {
+		schoolID, organizationID, err = s.resolveAccountTenantDefaultInTransaction(txCtx, accountID)
+		return err
+	})
+	return schoolID, organizationID, err
 }

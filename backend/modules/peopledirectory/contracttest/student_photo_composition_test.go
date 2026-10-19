@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	api "github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -46,11 +47,11 @@ func (d *stubPhotoDirectory) PurgeStudentPhotos(context.Context) ([]string, erro
 
 func (*stubPhotoDirectory) ApplyStudentPhotoConsent(
 	_ context.Context, current peopleModule.StudentPhotoState, _ *bool,
-) peopleModule.StudentPhotoState {
-	return current
+) (peopleModule.StudentPhotoState, error) {
+	return current, nil
 }
 
-func (*stubPhotoDirectory) ScheduleStudentPhotoUnlink(context.Context, string) {}
+func (*stubPhotoDirectory) ScheduleStudentPhotoUnlink(context.Context, string) error { return nil }
 
 type stubPhotoUnlinker struct{ urls []string }
 
@@ -68,12 +69,12 @@ func tenantIDsOf(calls []testpkg.BroadcastCall) []int64 {
 func newPhotoSeam(
 	t *testing.T,
 	directory *stubPhotoDirectory,
-	broadcaster api.PhotoBroadcaster,
+	broadcaster owners.PhotoBroadcaster,
 	unlinker peoplePorts.PhotoUnlinker,
 	logger *slog.Logger,
 ) peoplePorts.StudentPhotoService {
 	t.Helper()
-	return api.NewStudentPhotos(directory, nil, api.StudentPhotoRuntimeDependencies{
+	return api.NewStudentPhotos(directory, api.StudentPhotoRuntimeDependencies{
 		Broadcaster: broadcaster, Unlinker: unlinker, Logger: logger,
 	})
 }
@@ -197,9 +198,9 @@ func TestPhotoRoutesRequireATenantContext(t *testing.T) {
 
 	require.ErrorIs(t,
 		seam.CommitUpload(context.Background(), peoplePorts.CommitUploadRequest{StudentID: 1}),
-		api.ErrPhotoNoTenant)
+		owners.ErrPhotoNoTenant)
 	_, err := seam.CommitDelete(context.Background(), 1)
-	require.ErrorIs(t, err, api.ErrPhotoNoTenant)
+	require.ErrorIs(t, err, owners.ErrPhotoNoTenant)
 	_, err = seam.LookupForRead(context.Background(), 1, "a.jpg")
-	require.ErrorIs(t, err, api.ErrPhotoNoTenant)
+	require.ErrorIs(t, err, owners.ErrPhotoNoTenant)
 }

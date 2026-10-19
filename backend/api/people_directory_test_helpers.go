@@ -5,6 +5,8 @@ package api
 import (
 	"context"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -30,7 +32,7 @@ type TestPersonDirectorySources struct {
 // import that composition. The dated roster read stays unwired; a suite that
 // needs it derives a copy with WithCareParticipation.
 func NewTestPersonDirectory(db transactionruntime.Database, sources TestPersonDirectorySources) peoplePorts.PersonDirectory {
-	people := MustNewPeopleDirectory(db)
+	people := owners.MustNewPeopleDirectory(db)
 	deps := peoplePorts.PersonDirectoryDependencies{
 		PersonDirectory:  peopleCompose.NewPersonWrites(people),
 		StudentDirectory: peopleCompose.NewStudentDirectory(people),

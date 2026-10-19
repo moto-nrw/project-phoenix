@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // The guardian HTTP adapter's runtime (#2663): the identity, invitation and
@@ -133,7 +134,7 @@ type GuardianDirectoryInvitations interface {
 // serves the invitation writes, verifiedStaff tells a verified staff caller.
 // runtime is the People Directory's tenant runtime the invitation writes run
 // in.
-func NewGuardianDirectoryRuntime(f *serviceGraph, renderer *lists.RendererService, invitations GuardianDirectoryInvitations, verifiedStaff func(context.Context) (bool, error), runtime peopleCompose.LegacyRepositoryRuntime) GuardianDirectoryRuntime {
+func NewGuardianDirectoryRuntime(guardians peoplePorts.GuardianService, renderer *lists.RendererService, invitations GuardianDirectoryInvitations, verifiedStaff func(context.Context) (bool, error), runtime peopleCompose.LegacyRepositoryRuntime) GuardianDirectoryRuntime {
 	sendInvitation, inviteGuardian, bulkInvite := guardianInvitationFlows(invitations, runtime)
 	listApprovals, approve, reject := guardianApprovalFlows(invitations, runtime)
 	return GuardianDirectoryRuntime{
@@ -143,7 +144,7 @@ func NewGuardianDirectoryRuntime(f *serviceGraph, renderer *lists.RendererServic
 		},
 		MarkRollback:               runtime.MarkRollback,
 		SendInvitation:             sendInvitation,
-		ListPendingInvitations:     pendingGuardianInvitations(f),
+		ListPendingInvitations:     pendingGuardianInvitations(guardians),
 		InviteGuardianToStudent:    inviteGuardian,
 		BulkInviteGuardians:        bulkInvite,
 		ListPendingApprovals:       listApprovals,
@@ -183,7 +184,7 @@ func guardianInvitationFlows(invitations GuardianDirectoryInvitations, runtime p
 		result, err := invitations.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 			StudentID: input.StudentID, Email: input.Email, FirstName: input.FirstName, LastName: input.LastName,
 			RelationshipType: input.RelationshipType, CreatedBy: input.ActorAccountID,
-			RequireApproval: false, ConfirmRoleUpgrade: input.ConfirmRoleUpgrade,
+			RequireApproval: identityaccess.StaffInviteRequiresApproval, ConfirmRoleUpgrade: input.ConfirmRoleUpgrade,
 		})
 		if err != nil {
 			runtime.MarkRollback(ctx)
@@ -205,9 +206,9 @@ func guardianInvitationFlows(invitations GuardianDirectoryInvitations, runtime p
 }
 
 // pendingGuardianInvitations lists the tenant's open invitations.
-func pendingGuardianInvitations(f *serviceGraph) func(context.Context) ([]PendingGuardianInvitation, error) {
+func pendingGuardianInvitations(guardians peoplePorts.GuardianService) func(context.Context) ([]PendingGuardianInvitation, error) {
 	return func(ctx context.Context) ([]PendingGuardianInvitation, error) {
-		invitations, err := f.Guardian.GetPendingInvitations(ctx)
+		invitations, err := guardians.GetPendingInvitations(ctx)
 		if err != nil {
 			return nil, err
 		}

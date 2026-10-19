@@ -5,9 +5,10 @@ import (
 	"testing"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -33,17 +34,17 @@ func TestStaffRepository_Create(t *testing.T) {
 	t.Run("creates staff member with valid data", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "Staff", "Create")
 
-		staff := &userModels.Staff{
+		staff := &peopleValues.Staff{
 			PersonID: person.ID,
 		}
 
-		err := repo.Create(ctx, staff)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, staff)
 		require.NoError(t, err)
 		assert.NotZero(t, staff.ID)
 		assert.NotZero(t, staff.CreatedAt)
 
 		// Verify in DB
-		found, err := repo.FindByID(ctx, staff.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(staff.ID))
 		require.NoError(t, err)
 		assert.Equal(t, person.ID, found.PersonID)
 
@@ -53,32 +54,32 @@ func TestStaffRepository_Create(t *testing.T) {
 	t.Run("creates staff member with notes", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "Staff", "Notes")
 
-		staff := &userModels.Staff{
+		staff := &peopleValues.Staff{
 			PersonID:   person.ID,
 			StaffNotes: "Initial staff notes",
 		}
 
-		err := repo.Create(ctx, staff)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, staff)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, staff.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(staff.ID))
 		require.NoError(t, err)
 		assert.Equal(t, "Initial staff notes", found.StaffNotes)
 
 	})
 
 	t.Run("fails with nil staff", func(t *testing.T) {
-		err := repo.Create(ctx, nil)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "nil")
 	})
 
 	t.Run("fails with missing person ID", func(t *testing.T) {
-		staff := &userModels.Staff{
+		staff := &peopleValues.Staff{
 			PersonID: 0, // Invalid
 		}
 
-		err := repo.Create(ctx, staff)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, staff)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "person ID")
 	})
@@ -95,14 +96,14 @@ func TestStaffRepository_FindByID(t *testing.T) {
 	t.Run("finds existing staff member", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "FindByID", "Test")
 
-		found, err := repo.FindByID(ctx, staff.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(staff.ID))
 		require.NoError(t, err)
 		assert.Equal(t, staff.ID, found.ID)
 		assert.Equal(t, staff.PersonID, found.PersonID)
 	})
 
 	t.Run("returns error for non-existent staff", func(t *testing.T) {
-		_, err := repo.FindByID(ctx, int64(999999))
+		_, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(int64(999999)))
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no rows")
 	})
@@ -119,14 +120,14 @@ func TestStaffRepository_FindByPersonID(t *testing.T) {
 	t.Run("finds staff by person ID", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "FindByPerson", "Test")
 
-		found, err := repo.FindByPersonID(ctx, staff.PersonID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByPersonID, staff.PersonID)
 		require.NoError(t, err)
 		assert.Equal(t, staff.ID, found.ID)
 		assert.Equal(t, staff.PersonID, found.PersonID)
 	})
 
 	t.Run("returns error for non-existent person ID", func(t *testing.T) {
-		_, err := repo.FindByPersonID(ctx, int64(999999))
+		_, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByPersonID, int64(999999))
 		require.Error(t, err)
 	})
 }
@@ -141,21 +142,21 @@ func TestStaffRepository_Update(t *testing.T) {
 
 	t.Run("updates staff notes", func(t *testing.T) {
 		staffFixture := testpkg.CreateTestStaff(t, db, "Update", "Test")
-		staff, err := repo.FindByID(ctx, staffFixture.ID)
+		staff, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(staffFixture.ID))
 		require.NoError(t, err)
 
 		staff.StaffNotes = "Updated staff notes"
 
-		err = repo.Update(ctx, staff)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Update, staff)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, staff.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(staff.ID))
 		require.NoError(t, err)
 		assert.Equal(t, "Updated staff notes", found.StaffNotes)
 	})
 
 	t.Run("fails with nil staff", func(t *testing.T) {
-		err := repo.Update(ctx, nil)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Update, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "nil")
 	})
@@ -173,11 +174,11 @@ func TestStaffRepository_Delete(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Delete", "Test")
 		personID := staff.PersonID
 
-		err := repo.Delete(ctx, staff.ID)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Delete, any(staff.ID))
 		require.NoError(t, err)
 
 		// Verify staff is deleted
-		_, err = repo.FindByID(ctx, staff.ID)
+		_, err = testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(staff.ID))
 		require.Error(t, err)
 
 		// Cleanup person (staff is already deleted)
@@ -203,7 +204,7 @@ func TestStaffRepository_List(t *testing.T) {
 	t.Run("lists all staff with no filters", func(t *testing.T) {
 		testpkg.CreateTestStaff(t, db, "List", "Test")
 
-		staffMembers, err := repo.List(ctx, nil)
+		staffMembers, err := testpkg.TenantQuery1(t, ctx, db, repo.List, nil)
 		require.NoError(t, err)
 		assert.NotEmpty(t, staffMembers)
 	})
@@ -211,7 +212,7 @@ func TestStaffRepository_List(t *testing.T) {
 	t.Run("lists staff with filter", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "FilterStaff", "Test")
 
-		staffMembers, err := repo.List(ctx, map[string]any{
+		staffMembers, err := testpkg.TenantQuery1(t, ctx, db, repo.List, map[string]any{
 			"person_id": staff.PersonID,
 		})
 		require.NoError(t, err)
@@ -235,7 +236,7 @@ func TestStaffRepository_FindWithPerson(t *testing.T) {
 	t.Run("finds staff with person loaded", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "WithPerson", "Loaded")
 
-		found, err := repo.FindWithPerson(ctx, staff.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindWithPerson, staff.ID)
 		require.NoError(t, err)
 		require.NotNil(t, found.Person)
 		assert.Equal(t, "WithPerson", found.Person.FirstName)
@@ -243,7 +244,7 @@ func TestStaffRepository_FindWithPerson(t *testing.T) {
 	})
 
 	t.Run("returns error for non-existent staff", func(t *testing.T) {
-		_, err := repo.FindWithPerson(ctx, int64(999999))
+		_, err := testpkg.TenantQuery1(t, ctx, db, repo.FindWithPerson, int64(999999))
 		require.Error(t, err)
 	})
 }
@@ -267,7 +268,7 @@ func TestStaffRepository_FindWithPersonByIDs(t *testing.T) {
 			Exec(ctx)
 		require.NoError(t, err)
 
-		found, err := repo.FindWithPersonByIDs(ctx, []int64{activeStaff.ID, deletedStaff.ID})
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindWithPersonByIDs, []int64{activeStaff.ID, deletedStaff.ID})
 		require.NoError(t, err)
 
 		require.Contains(t, found, activeStaff.ID)
@@ -281,7 +282,7 @@ func TestStaffRepository_FindWithPersonByIDs(t *testing.T) {
 	})
 
 	t.Run("returns empty map for empty input", func(t *testing.T) {
-		found, err := repo.FindWithPersonByIDs(ctx, []int64{})
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindWithPersonByIDs, []int64{})
 		require.NoError(t, err)
 		assert.Empty(t, found)
 	})
@@ -300,7 +301,7 @@ func TestStaffRepository_FindByIDs(t *testing.T) {
 		staff2 := testpkg.CreateTestStaff(t, db, "FindByIDs", "Two")
 		unrequested := testpkg.CreateTestStaff(t, db, "FindByIDs", "Ignored")
 
-		found, err := repo.FindByIDs(ctx, []int64{staff1.ID, staff2.ID})
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByIDs, []int64{staff1.ID, staff2.ID})
 		require.NoError(t, err)
 		require.Len(t, found, 2)
 		require.Contains(t, found, staff1.ID)
@@ -311,7 +312,7 @@ func TestStaffRepository_FindByIDs(t *testing.T) {
 	})
 
 	t.Run("returns empty map for empty input", func(t *testing.T) {
-		found, err := repo.FindByIDs(ctx, []int64{})
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByIDs, []int64{})
 		require.NoError(t, err)
 		assert.Empty(t, found)
 	})
@@ -338,7 +339,7 @@ func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 		staff1 := testpkg.CreateTestStaff(t, db, "AllWithPerson1", "Test1")
 		staff2 := testpkg.CreateTestStaff(t, db, "AllWithPerson2", "Test2")
 
-		results, err := repo.ListAllWithPerson(ctx)
+		results, err := testpkg.TenantQuery0(t, ctx, db, repo.ListAllWithPerson)
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 
@@ -393,9 +394,9 @@ func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 			_, _ = db.NewDelete().Table("config.work_time_models").Where("id = ?", modelID).Exec(ctx)
 		}()
 
-		results, err := repo.ListAllWithPerson(ctx)
+		results, err := testpkg.TenantQuery0(t, ctx, db, repo.ListAllWithPerson)
 		require.NoError(t, err)
-		var found *userModels.Staff
+		var found *peopleValues.Staff
 		for _, s := range results {
 			if s.ID == staff.ID {
 				found = s
@@ -413,7 +414,7 @@ func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 		// This test uses the existing database state
 		// The database may have other staff members, so we just verify
 		// that the method returns without error
-		results, err := repo.ListAllWithPerson(ctx)
+		results, err := testpkg.TenantQuery0(t, ctx, db, repo.ListAllWithPerson)
 		require.NoError(t, err)
 		// Results could be empty or have existing records
 		assert.NotNil(t, results, "should return a non-nil slice")
@@ -422,11 +423,11 @@ func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 	t.Run("loads all person fields correctly", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "PersonFields", "Check")
 
-		results, err := repo.ListAllWithPerson(ctx)
+		results, err := testpkg.TenantQuery0(t, ctx, db, repo.ListAllWithPerson)
 		require.NoError(t, err)
 
 		// Find our staff member
-		var found *userModels.Staff
+		var found *peopleValues.Staff
 		for _, s := range results {
 			if s.ID == staff.ID {
 				found = s

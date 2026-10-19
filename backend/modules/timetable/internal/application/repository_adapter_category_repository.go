@@ -5,13 +5,14 @@ import (
 	"errors"
 	"fmt"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 type timetableActivityCategoryRepository struct{ timetable timetable.Capability }
 
-func (r timetableActivityCategoryRepository) Create(ctx context.Context, value *activitiesModels.Category) error {
+func (r timetableActivityCategoryRepository) Create(ctx context.Context, value *activityContract.Category) error {
 	if value == nil {
 		return errors.New("category cannot be nil or zero value")
 	}
@@ -28,7 +29,7 @@ func (r timetableActivityCategoryRepository) Create(ctx context.Context, value *
 	return nil
 }
 
-func (r timetableActivityCategoryRepository) FindByID(ctx context.Context, id any) (*activitiesModels.Category, error) {
+func (r timetableActivityCategoryRepository) FindByID(ctx context.Context, id int64) (*activityContract.Category, error) {
 	categoryID, ok := LegacyGroupID(id)
 	if !ok {
 		return nil, legacyDatabaseError("find by id", fmt.Errorf("invalid category id %T", id))
@@ -40,7 +41,7 @@ func (r timetableActivityCategoryRepository) FindByID(ctx context.Context, id an
 	return legacyCategory(value), nil
 }
 
-func (r timetableActivityCategoryRepository) FindByName(ctx context.Context, name string) (*activitiesModels.Category, error) {
+func (r timetableActivityCategoryRepository) FindByName(ctx context.Context, name string) (*activityContract.Category, error) {
 	value, err := r.timetable.FindCategoryByName(ctx, name)
 	if err != nil {
 		return nil, legacyCategoryError("find by name", err)
@@ -48,7 +49,7 @@ func (r timetableActivityCategoryRepository) FindByName(ctx context.Context, nam
 	return legacyCategory(value), nil
 }
 
-func (r timetableActivityCategoryRepository) FindByNameIncludingArchivedForShare(ctx context.Context, name string) (*activitiesModels.Category, error) {
+func (r timetableActivityCategoryRepository) FindByNameIncludingArchivedForShare(ctx context.Context, name string) (*activityContract.Category, error) {
 	value, err := r.timetable.FindCategoryByNameForAssignment(ctx, name)
 	if err != nil {
 		return nil, legacyCategoryError("find by name", err)
@@ -56,7 +57,7 @@ func (r timetableActivityCategoryRepository) FindByNameIncludingArchivedForShare
 	return legacyCategory(value), nil
 }
 
-func (r timetableActivityCategoryRepository) FindByIDForShare(ctx context.Context, id int64) (*activitiesModels.Category, error) {
+func (r timetableActivityCategoryRepository) FindByIDForShare(ctx context.Context, id int64) (*activityContract.Category, error) {
 	value, err := r.timetable.FindCategoryForShare(ctx, id)
 	if err != nil {
 		return nil, legacyCategoryError("find category by id for share", err)
@@ -64,26 +65,19 @@ func (r timetableActivityCategoryRepository) FindByIDForShare(ctx context.Contex
 	return legacyCategory(value), nil
 }
 
-func (r timetableActivityCategoryRepository) List(ctx context.Context, options *activitiesModels.QueryOptions) ([]*activitiesModels.Category, error) {
-	if options != nil && (len(options.StudentIDs) > 0 || options.Limit != 0 || options.Offset != 0) {
-		return nil, legacyDatabaseError("list", errors.New("category list options are unsupported"))
-	}
-	return r.ListAll(ctx)
-}
-
-func (r timetableActivityCategoryRepository) ListAll(ctx context.Context) ([]*activitiesModels.Category, error) {
+func (r timetableActivityCategoryRepository) ListAll(ctx context.Context) ([]*activityContract.Category, error) {
 	values, err := r.timetable.ListCategories(ctx)
 	if err != nil {
 		return nil, legacyDatabaseError("list all", err)
 	}
-	result := make([]*activitiesModels.Category, 0, len(values))
+	result := make([]*activityContract.Category, 0, len(values))
 	for _, value := range values {
 		result = append(result, legacyCategory(value))
 	}
 	return result, nil
 }
 
-func (r timetableActivityCategoryRepository) Update(ctx context.Context, value *activitiesModels.Category) error {
+func (r timetableActivityCategoryRepository) Update(ctx context.Context, value *activityContract.Category) error {
 	if value == nil {
 		return errors.New("category cannot be nil")
 	}
@@ -100,7 +94,7 @@ func (r timetableActivityCategoryRepository) Update(ctx context.Context, value *
 	return nil
 }
 
-func (r timetableActivityCategoryRepository) UpdateColumns(ctx context.Context, value *activitiesModels.Category, columns ...string) (int64, error) {
+func (r timetableActivityCategoryRepository) UpdateColumns(ctx context.Context, value *activityContract.Category, columns ...string) (int64, error) {
 	if value == nil {
 		return 0, errors.New("category cannot be nil or zero value")
 	}
@@ -126,7 +120,7 @@ func (r timetableActivityCategoryRepository) UpdateColumns(ctx context.Context, 
 	return 1, nil
 }
 
-func (r timetableActivityCategoryRepository) Delete(ctx context.Context, id any) error {
+func (r timetableActivityCategoryRepository) Delete(ctx context.Context, id int64) error {
 	categoryID, ok := LegacyGroupID(id)
 	if !ok {
 		return legacyDatabaseError("delete", fmt.Errorf("invalid category id %T", id))
@@ -137,7 +131,7 @@ func (r timetableActivityCategoryRepository) Delete(ctx context.Context, id any)
 	return nil
 }
 
-func replaceLegacyCategory(result *activitiesModels.Category, value timetable.Category) {
+func replaceLegacyCategory(result *activityContract.Category, value timetable.Category) {
 	*result = *legacyCategory(value)
 }
 

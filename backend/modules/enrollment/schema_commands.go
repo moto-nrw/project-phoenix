@@ -4,75 +4,64 @@ import "context"
 
 // Schemas loads pinned versions in one tenant-scoped query.
 func (m *Module) Schemas(ctx context.Context, ids []int64) ([]*FormSchema, error) {
-	var schemas []*FormSchema
-	err := m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		var queryErr error
-		schemas, queryErr = m.engine.Schemas(txCtx, ids)
-		return queryErr
-	})
-	return schemas, err
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	return m.engine.Schemas(ctx, ids)
 }
 
 func (m *Module) InsertSchemaVersion(ctx context.Context, schema *FormSchema) error {
-	return m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		return m.engine.InsertSchemaVersion(txCtx, schema)
-	})
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return err
+	}
+	return m.engine.InsertSchemaVersion(ctx, schema)
 }
 
 func (m *Module) NextSchemaVersion(ctx context.Context) (int, error) {
-	var result int
-	err := m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		var operationErr error
-		result, operationErr = m.engine.NextSchemaVersion(txCtx)
-		return operationErr
-	})
-	return result, err
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return 0, err
+	}
+	return m.engine.NextSchemaVersion(ctx)
 }
 
 func (m *Module) NextSchemaVersionForName(ctx context.Context, name string) (int, error) {
-	var result int
-	err := m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		var operationErr error
-		result, operationErr = m.engine.NextSchemaVersionForName(txCtx, name)
-		return operationErr
-	})
-	return result, err
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return 0, err
+	}
+	return m.engine.NextSchemaVersionForName(ctx, name)
 }
 
 func (m *Module) SchemaNameExists(ctx context.Context, name string) (bool, error) {
-	var result bool
-	err := m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		var operationErr error
-		result, operationErr = m.engine.SchemaNameExists(txCtx, name)
-		return operationErr
-	})
-	return result, err
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return false, err
+	}
+	return m.engine.SchemaNameExists(ctx, name)
 }
 
 func (m *Module) DeactivateSchemas(ctx context.Context) error {
-	return m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		return m.engine.DeactivateSchemas(txCtx)
-	})
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return err
+	}
+	return m.engine.DeactivateSchemas(ctx)
 }
 
 func (m *Module) SetSchemaActive(ctx context.Context, id int64, active bool) error {
-	return m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		return m.engine.SetSchemaActive(txCtx, id, active)
-	})
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return err
+	}
+	return m.engine.SetSchemaActive(ctx, id, active)
 }
 
 func (m *Module) LockSchemaLineages(ctx context.Context) error {
-	return m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		return m.engine.LockSchemaLineages(txCtx)
-	})
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return err
+	}
+	return m.engine.LockSchemaLineages(ctx)
 }
 
 func (m *Module) SchemaReferencesLegalDocument(ctx context.Context, storedURL, publicURL string) (bool, error) {
-	var result bool
-	err := m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		var operationErr error
-		result, operationErr = m.engine.SchemaReferencesLegalDocument(txCtx, storedURL, publicURL)
-		return operationErr
-	})
-	return result, err
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return false, err
+	}
+	return m.engine.SchemaReferencesLegalDocument(ctx, storedURL, publicURL)
 }

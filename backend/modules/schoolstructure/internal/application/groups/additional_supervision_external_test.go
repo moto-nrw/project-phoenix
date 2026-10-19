@@ -19,11 +19,12 @@ func TestAdditionalSupervisionOffersExternalCaregivers(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	repos, err := api.NewSchoolStructurePeopleSuiteFactory(testpkg.NewDatabase(t, db))
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	now := fixedNow
 	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
-		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
-		ActiveSupervisorCreator: testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor},
+		ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
+		ActiveSupervisorCreator: testpkg.GroupSupervisorCreator{Repository: reposPresence.GroupSupervisor},
 		Now:                     func() time.Time { return now },
 	})
 
@@ -44,7 +45,7 @@ func TestAdditionalSupervisionOffersExternalCaregivers(t *testing.T) {
 	testpkg.CreateTestGroupSupervisor(t, db, owner.StaffID, running.ID, "supervisor")
 	caller := substitutionCaller(t, ownerAccountID, false)
 
-	overview, err := module.Overview(ctx, caller, OverviewQuery{ActiveGroupID: running.ID, IncludeTargets: true})
+	overview, err := testpkg.TenantQuery2(t, ctx, db, module.Overview, caller, OverviewQuery{ActiveGroupID: running.ID, IncludeTargets: true})
 	require.NoError(t, err)
 	require.Len(t, overview.RunningSupervisions, 1)
 	require.Equal(t, []StaffRef{
@@ -58,7 +59,7 @@ func TestAdditionalSupervisionOffersExternalCaregivers(t *testing.T) {
 		require.NotEqual(t, external.ID, target.ID, "a person without an account never takes over a group")
 	}
 
-	created, err := module.Assign(ctx, caller, Assignment{
+	created, err := testpkg.TenantQuery2(t, ctx, db, module.Assign, caller, Assignment{
 		Type: TargetAdditionalSupervision,
 		AdditionalSupervision: &AdditionalSupervisionAssignment{
 			ActiveGroupID: running.ID, TargetStaffID: external.ID,
@@ -68,7 +69,7 @@ func TestAdditionalSupervisionOffersExternalCaregivers(t *testing.T) {
 	require.Equal(t, StaffRef{ID: external.ID, FullName: "Guest Instructor"}, created.Target)
 	require.Equal(t, "additional_supervisor", testpkg.GroupSupervisorRowByID(t, db, created.ID).Role)
 
-	overview, err = module.Overview(ctx, caller, OverviewQuery{ActiveGroupID: running.ID, IncludeTargets: true})
+	overview, err = testpkg.TenantQuery2(t, ctx, db, module.Overview, caller, OverviewQuery{ActiveGroupID: running.ID, IncludeTargets: true})
 	require.NoError(t, err)
 	require.Contains(t, overview.RunningSupervisions[0].Supervisors,
 		StaffRef{ID: external.ID, FullName: "Guest Instructor", IsExternal: true})

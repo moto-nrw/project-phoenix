@@ -53,17 +53,17 @@ type MFAChallengeCodec interface {
 	ParseChallengeToken(token string) (identityaccess.MFAChallengeClaims, error)
 }
 
-// MFAMail sends the two MFA messages. DeliverCode is synchronous and
-// fail-closed: the module activates a code only after the transport accepted
-// it. NotifyTrustedDeviceAdded is fire-and-forget.
+// MFAMail queues MFA messages in the caller's transaction. EnqueueCode returns
+// a continuation that must run after commit; activation remains synchronous
+// and fail-closed until the transport accepts the code. Trusted-device notices
+// are durable but their eventual transport result does not affect login.
 type MFAMail interface {
-	DeliverCode(ctx context.Context, message identityaccess.MFACodeMail) error
-	NotifyTrustedDeviceAdded(ctx context.Context, message identityaccess.TrustedDeviceMail)
+	EnqueueCode(ctx context.Context, message identityaccess.MFACodeMail, challengeID int64, expiresAt time.Time) (func(context.Context) error, error)
+	NotifyTrustedDeviceAdded(ctx context.Context, message identityaccess.TrustedDeviceMail, deviceID int64) error
 }
 
-// OperatorActionLog appends an operator entry outside the caller's outcome,
-// so the request never pays for the insert and a failed append never fails a
-// login.
+// OperatorActionLog appends an operator entry in the caller's transaction.
+// A failed append rolls back the audited change.
 type OperatorActionLog interface {
-	RecordOperatorActionAsync(entry identityaccess.OperatorAuditEntry)
+	RecordOperatorAction(ctx context.Context, entry identityaccess.OperatorAuditEntry) error
 }

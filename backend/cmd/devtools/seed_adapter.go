@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
-	"github.com/moto-nrw/project-phoenix/simulate"
+	seedapi "github.com/moto-nrw/project-phoenix/internal/devtools/seedapi"
+	"github.com/moto-nrw/project-phoenix/internal/devtools/simulate"
 )
 
 type seedCommandAdapter struct{ inner *Adapter }

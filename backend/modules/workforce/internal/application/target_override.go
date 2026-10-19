@@ -18,7 +18,7 @@ func (s *Service) StaffTargetOverrides(ctx context.Context, query domain.TargetO
 	if len(query.StaffIDs) == 0 {
 		return nil, domain.TargetOverrideDays{}, nil
 	}
-	err = s.run("staff_target_overrides", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "staff_target_overrides", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		rows, queryStats, err = s.store.ListStaffTargetOverrides(ctx, query)
 		stats.Add(queryStats)
@@ -72,7 +72,7 @@ func (s *Service) CreateStaffTargetOverride(ctx context.Context, staffID int64, 
 	if validationErr := domain.ValidateStaffTargetOverrideFields(fields); validationErr != nil {
 		return result, validationErr
 	}
-	err = s.run("create_staff_target_override", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_staff_target_override", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			if err := s.guardTargetOverrideWrite(txCtx, staffID, stats, fields); err != nil {
 				return err
@@ -91,7 +91,7 @@ func (s *Service) CreateStaffTargetOverride(ctx context.Context, staffID int64, 
 
 // DeleteStaffTargetOverride removes a Sonderarbeitszeit outside closed months.
 func (s *Service) DeleteStaffTargetOverride(ctx context.Context, staffID, id int64) error {
-	return s.run("delete_staff_target_override", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "delete_staff_target_override", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			current, err := s.lockedTargetOverride(txCtx, staffID, id, stats)
 			if err != nil {

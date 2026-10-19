@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	reviewbindings "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding"
+
 	peoplecompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -29,7 +31,7 @@ func TestDirectoryDecoratesOnlyRequestedChildrenInTheTenant(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, otherTenant)
 	foreign := testpkg.CreateTestStudentForTenant(t, db, otherTenant, "Foreign", "Child", "2a")
 
-	names, err := directory.GroupNames(testpkg.Ctx(t), []int64{grouped.ID, ungrouped.ID, foreign.ID, grouped.ID})
+	names, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, directory.GroupNames, []int64{grouped.ID, ungrouped.ID, foreign.ID, grouped.ID})
 	require.NoError(t, err)
 	require.Equal(t, map[int64]string{grouped.ID: group.Name}, names)
 	names, err = directory.GroupNames(testpkg.Ctx(t), []int64{ungrouped.ID})
@@ -42,14 +44,14 @@ func TestDirectoryDecoratesOnlyRequestedChildrenInTheTenant(t *testing.T) {
 
 func TestDirectoryIsOptionalButConfiguredOwnerFailuresAreNot(t *testing.T) {
 	t.Parallel()
-	directory, err := NewStudentDirectory(nil, nil)
+	directory, err := reviewbindings.NewStudentDirectory(nil, nil)
 	require.NoError(t, err)
 	require.Nil(t, directory)
 
 	db := testpkg.SetupTestDB(t)
 	people, err := peoplecompose.New(peoplecompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peoplecompose.Observation) {}})
 	require.NoError(t, err)
-	_, err = NewStudentDirectory(people, nil)
+	_, err = reviewbindings.NewStudentDirectory(people, nil)
 	require.Error(t, err)
 	directory, err = composeStudentDirectory(t, db, people)
 	require.NoError(t, err)

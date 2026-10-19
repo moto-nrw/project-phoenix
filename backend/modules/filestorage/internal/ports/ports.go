@@ -229,4 +229,5 @@ type Logger interface {
 type CleanupRetentionStore interface {
 	DeleteFinishedFileCleanups(ctx context.Context, window time.Duration) (int, error)
 	DeleteFinishedAttachmentCleanups(ctx context.Context, window time.Duration) (int, error)
+	DeleteRemovedFiles(ctx context.Context, window time.Duration) (int, error)
 }

@@ -5,13 +5,15 @@ import (
 	"errors"
 	"fmt"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	activitiesModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/activityrecords"
 )
 
 type timetableActivitySupervisorRepository struct{ timetable timetable.Capability }
 
-func (r timetableActivitySupervisorRepository) Create(ctx context.Context, supervisor *activitiesModels.SupervisorPlanned) error {
+func (r timetableActivitySupervisorRepository) Create(ctx context.Context, supervisor *activityContract.SupervisorPlanned) error {
 	if supervisor == nil {
 		return errors.New("supervisor cannot be nil or zero value")
 	}
@@ -26,7 +28,7 @@ func (r timetableActivitySupervisorRepository) Create(ctx context.Context, super
 	return nil
 }
 
-func (r timetableActivitySupervisorRepository) FindByID(ctx context.Context, id any) (*activitiesModels.SupervisorPlanned, error) {
+func (r timetableActivitySupervisorRepository) FindByID(ctx context.Context, id int64) (*activityContract.SupervisorPlanned, error) {
 	supervisorID, ok := LegacyGroupID(id)
 	if !ok {
 		return nil, legacyDatabaseError("find by id", fmt.Errorf("invalid planned supervisor id %T", id))
@@ -38,7 +40,7 @@ func (r timetableActivitySupervisorRepository) FindByID(ctx context.Context, id 
 	return legacyPlannedSupervisor(value), nil
 }
 
-func (r timetableActivitySupervisorRepository) Update(ctx context.Context, supervisor *activitiesModels.SupervisorPlanned) error {
+func (r timetableActivitySupervisorRepository) Update(ctx context.Context, supervisor *activityContract.SupervisorPlanned) error {
 	if supervisor == nil {
 		return errors.New("supervisor cannot be nil")
 	}
@@ -53,7 +55,7 @@ func (r timetableActivitySupervisorRepository) Update(ctx context.Context, super
 	return nil
 }
 
-func (r timetableActivitySupervisorRepository) Delete(ctx context.Context, id any) error {
+func (r timetableActivitySupervisorRepository) Delete(ctx context.Context, id int64) error {
 	supervisorID, ok := LegacyGroupID(id)
 	if !ok {
 		return legacyDatabaseError("delete", fmt.Errorf("invalid planned supervisor id %T", id))
@@ -64,18 +66,7 @@ func (r timetableActivitySupervisorRepository) Delete(ctx context.Context, id an
 	return nil
 }
 
-func (r timetableActivitySupervisorRepository) List(ctx context.Context, options *activitiesModels.SupervisorQueryOptions) ([]*activitiesModels.SupervisorPlanned, error) {
-	if options != nil {
-		return nil, legacyDatabaseError("list", errors.New("planned supervisor filters are unsupported"))
-	}
-	values, err := r.timetable.ListPlannedSupervisors(ctx, timetable.PlannedSupervisorFilter{})
-	if err != nil {
-		return nil, legacyPlannedSupervisorError("list", err)
-	}
-	return legacyPlannedSupervisors(values), nil
-}
-
-func (r timetableActivitySupervisorRepository) FindByStaffID(ctx context.Context, staffID int64) ([]*activitiesModels.SupervisorPlanned, error) {
+func (r timetableActivitySupervisorRepository) FindByStaffID(ctx context.Context, staffID int64) ([]*activityContract.SupervisorPlanned, error) {
 	values, err := r.timetable.ListPlannedSupervisors(ctx, timetable.PlannedSupervisorFilter{StaffID: &staffID})
 	if err != nil {
 		return nil, legacyPlannedSupervisorError("find by staff ID", err)
@@ -92,7 +83,7 @@ func (r timetableActivitySupervisorRepository) FindByStaffID(ctx context.Context
 	if err != nil {
 		return nil, legacyPlannedSupervisorError("find groups by supervisor staff ID", err)
 	}
-	groupsByID := make(map[int64]*activitiesModels.Group, len(groups))
+	groupsByID := make(map[int64]*activityContract.Group, len(groups))
 	for _, group := range groups {
 		groupsByID[group.ID] = legacyGroup(group)
 	}
@@ -102,18 +93,18 @@ func (r timetableActivitySupervisorRepository) FindByStaffID(ctx context.Context
 	return result, nil
 }
 
-func (r timetableActivitySupervisorRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*activitiesModels.SupervisorPlanned, error) {
+func (r timetableActivitySupervisorRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*activityContract.SupervisorPlanned, error) {
 	return r.findByGroupIDs(ctx, []int64{groupID}, "find by group ID")
 }
 
-func (r timetableActivitySupervisorRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*activitiesModels.SupervisorPlanned, error) {
+func (r timetableActivitySupervisorRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*activityContract.SupervisorPlanned, error) {
 	if len(groupIDs) == 0 {
-		return []*activitiesModels.SupervisorPlanned{}, nil
+		return []*activityContract.SupervisorPlanned{}, nil
 	}
 	return r.findByGroupIDs(ctx, groupIDs, "find by group IDs")
 }
 
-func (r timetableActivitySupervisorRepository) findByGroupIDs(ctx context.Context, groupIDs []int64, operation string) ([]*activitiesModels.SupervisorPlanned, error) {
+func (r timetableActivitySupervisorRepository) findByGroupIDs(ctx context.Context, groupIDs []int64, operation string) ([]*activityContract.SupervisorPlanned, error) {
 	values, err := r.timetable.ListPlannedSupervisors(ctx, timetable.PlannedSupervisorFilter{GroupIDs: groupIDs})
 	if err != nil {
 		return nil, legacyPlannedSupervisorError(operation, err)
@@ -128,7 +119,7 @@ func (r timetableActivitySupervisorRepository) SetPrimary(ctx context.Context, i
 	return nil
 }
 
-func (r timetableActivitySupervisorRepository) CapActiveByGroup(ctx context.Context, groupID int64, validUntil activitiesModels.SupervisorDate) (int64, error) {
+func (r timetableActivitySupervisorRepository) CapActiveByGroup(ctx context.Context, groupID int64, validUntil activityContract.Date) (int64, error) {
 	rows, err := r.timetable.CapActivePlannedSupervisors(ctx, groupID, validUntil.String())
 	if err != nil {
 		return rows, legacyDatabaseError("cap active supervisors by group", err)
@@ -136,14 +127,14 @@ func (r timetableActivitySupervisorRepository) CapActiveByGroup(ctx context.Cont
 	return rows, nil
 }
 
-func (r timetableActivitySupervisorRepository) SetValidUntilByID(ctx context.Context, id int64, validUntil activitiesModels.SupervisorDate) error {
+func (r timetableActivitySupervisorRepository) SetValidUntilByID(ctx context.Context, id int64, validUntil activityContract.Date) error {
 	if err := r.timetable.SetPlannedSupervisorValidUntil(ctx, id, validUntil.String()); err != nil {
 		return legacyPlannedSupervisorError("set supervisor valid_until", err)
 	}
 	return nil
 }
 
-func (r timetableActivitySupervisorRepository) CloseOpenByGroupAndPeriod(ctx context.Context, groupID int64, periodID *int64, validFrom activitiesModels.SupervisorDate) error {
+func (r timetableActivitySupervisorRepository) CloseOpenByGroupAndPeriod(ctx context.Context, groupID int64, periodID *int64, validFrom activityContract.Date) error {
 	if err := r.timetable.CloseOpenPlannedSupervisors(ctx, groupID, periodID, validFrom.String()); err != nil {
 		return legacyDatabaseError("close open supervisors by group and period", err)
 	}
@@ -162,16 +153,16 @@ func (r timetableActivitySupervisorRepository) ListPlannedSupervisionBlockers(ct
 	return result, nil
 }
 
-func legacyPlannedSupervisors(values []timetable.PlannedSupervisor) []*activitiesModels.SupervisorPlanned {
-	result := make([]*activitiesModels.SupervisorPlanned, 0, len(values))
+func legacyPlannedSupervisors(values []timetable.PlannedSupervisor) []*activityContract.SupervisorPlanned {
+	result := make([]*activityContract.SupervisorPlanned, 0, len(values))
 	for _, value := range values {
 		result = append(result, legacyPlannedSupervisor(value))
 	}
 	return result
 }
 
-func legacyPlannedSupervisor(value timetable.PlannedSupervisor) *activitiesModels.SupervisorPlanned {
-	result := &activitiesModels.SupervisorPlanned{StaffID: value.StaffID, GroupID: value.GroupID, IsPrimary: value.IsPrimary,
+func legacyPlannedSupervisor(value timetable.PlannedSupervisor) *activityContract.SupervisorPlanned {
+	result := &activityContract.SupervisorPlanned{StaffID: value.StaffID, GroupID: value.GroupID, IsPrimary: value.IsPrimary,
 		CalendarPeriodID: value.CalendarPeriodID, Weekday: value.Weekday}
 	result.ID, result.CreatedAt, result.UpdatedAt = value.ID, value.CreatedAt, value.UpdatedAt
 	result.SetTenantID(value.TenantID)
@@ -179,7 +170,7 @@ func legacyPlannedSupervisor(value timetable.PlannedSupervisor) *activitiesModel
 	return result
 }
 
-func publicPlannedSupervisorInput(value *activitiesModels.SupervisorPlanned) timetable.PlannedSupervisorInput {
+func publicPlannedSupervisorInput(value *activityContract.SupervisorPlanned) timetable.PlannedSupervisorInput {
 	validFrom, validUntil := value.ValidityDateStrings()
 	return timetable.PlannedSupervisorInput{StaffID: value.StaffID, GroupID: value.GroupID, IsPrimary: value.IsPrimary,
 		ValidFrom: validFrom, ValidUntil: validUntil, CalendarPeriodID: value.CalendarPeriodID, Weekday: value.Weekday}

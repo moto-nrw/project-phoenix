@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -16,6 +15,7 @@ import (
 // lookup and assignment, the kiosk roster and the records behind a scan,
 // which the root maps from the retained people service.
 type PersonDirectory interface {
+	IsPersonNotFound(error) bool
 	NormalizeTag(tag string) string
 	Get(ctx context.Context, id interface{}) (*ScanPerson, error)
 	FindByTagID(ctx context.Context, tagID string) (*ScanPerson, error)
@@ -65,7 +65,7 @@ type people struct{ PersonDirectory }
 func (p people) FindPersonByTag(ctx context.Context, tag string) (*ports.Person, error) {
 	person, err := p.FindByTagID(ctx, tag)
 	if err != nil {
-		if errors.Is(err, userscontract.ErrPersonNotFound) {
+		if p.IsPersonNotFound(err) {
 			return nil, mapError(err, ports.ErrPersonNotFound)
 		}
 		return nil, err

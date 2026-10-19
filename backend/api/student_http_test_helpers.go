@@ -5,7 +5,7 @@ package api
 import (
 	"context"
 
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -23,15 +23,16 @@ import (
 // the suites import neither the retained repositories nor the retained
 // models and services.
 
-// StudentHTTPTestRows are the retained repositories the student route suites
+// StudentHTTPTestRows are the Care Plan rows the student route suites
 // arrange and assert through.
 type StudentHTTPTestRows = StudentTestRepositories
 
 // NewStudentHTTPTestRows composes the retained repositories over the test
 // database, recording into command; nil records into the test audit store.
-func NewStudentHTTPTestRows(db transactionruntime.Database, command auditModels.Command) (StudentHTTPTestRows, error) {
+// It returns the Care Plan rows with the Enrollment graph beside them.
+func NewStudentHTTPTestRows(db transactionruntime.Database, command auditModels.Command) (StudentHTTPTestRows, EnrollmentTestRepositories, error) {
 	if command == nil {
-		command = NewTestAuditStore(db)
+		command = owners.NewTestAuditStore(db)
 	}
 	return NewStudentTestRepositories(db, command)
 }
@@ -39,23 +40,23 @@ func NewStudentHTTPTestRows(db transactionruntime.Database, command auditModels.
 // NewStudentHTTPTestPeople is the People Directory owner over the test
 // database.
 func NewStudentHTTPTestPeople(db transactionruntime.Database) peopledirectory.Capability {
-	return MustNewPeopleDirectory(db)
+	return owners.MustNewPeopleDirectory(db)
 }
 
 // NewStudentHTTPTestCompanions composes Care Plan's companion graph over the
 // suite's rows. audit may be nil only for suites that never widen a
 // companion's plan.
-func NewStudentHTTPTestCompanions(rows StudentHTTPTestRows, people peopledirectory.Capability, audit peoplePorts.StudentChangeRecorder) careplan.StudentCompanions {
-	var recorder StudentChangeAudit
+func NewStudentHTTPTestCompanions(rows StudentHTTPTestRows, students peoplePorts.StudentRepository, people peopledirectory.Capability, audit peoplePorts.StudentChangeRecorder) careplan.StudentCompanions {
+	var recorder owners.StudentChangeAudit
 	if audit != nil {
 		recorder = audit
 	}
-	return MustNewStudentCompanions(rows.CarePlan, rows.Student, people, recorder)
+	return MustNewStudentCompanions(rows.CarePlan, students, people, recorder)
 }
 
 // StudentHTTPTestConsents is the consent projection and trail the student
 // routes read and append to.
-type StudentHTTPTestConsents = *StudentConsents
+type StudentHTTPTestConsents = *owners.StudentConsents
 
 // NewStudentHTTPTestConsents binds the consent projection and the Audit
 // Platform trail over the test database.
@@ -72,7 +73,7 @@ func NewStudentHTTPTestPickupReviewBlocks(db transactionruntime.Database) carePl
 // NewStudentHTTPTestMembership is the School Membership owner over the test
 // database.
 func NewStudentHTTPTestMembership(db transactionruntime.Database) (schoolmembership.Capability, error) {
-	return NewSchoolMembership(db)
+	return owners.NewSchoolMembership(db)
 }
 
 // StudentHTTPTestCareLifecycle tunes the Care Plan lifecycle a student route
@@ -98,22 +99,38 @@ func NewStudentHTTPTestCareLifecycle(db transactionruntime.Database, config Stud
 	})
 }
 
-// StudentRoutePersons binds the student routes' person port over the
-// module's retained person service.
-func (m StudentTestModule) StudentRoutePersons() peopleCompose.StudentRoutePersons {
-	return peopleCompose.NewStudentRoutePersons(m.Users)
-}
-
-// MustNewStudentHTTPTestRows is NewStudentHTTPTestRows recording into the
-// test audit store; a composition failure is a broken graph and panics.
+// MustNewStudentHTTPTestRows is the Care Plan side of NewStudentHTTPTestRows
+// recording into the test audit store; a composition failure is a broken
+// graph and panics.
 func MustNewStudentHTTPTestRows(db transactionruntime.Database) StudentHTTPTestRows {
-	rows, err := NewStudentHTTPTestRows(db, nil)
+	rows, _, err := NewStudentHTTPTestRows(db, nil)
 	if err != nil {
 		panic(err)
 	}
 	return rows
 }
 
-func PendingStudentHTTPTestCareWithdrawals(ctx context.Context, rows userModels.CareWithdrawalCompletionRepository, studentID int64) ([]*userModels.CareWithdrawalCompletion, int, error) {
-	return rows.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{StudentID: studentID, Page: 1, PageSize: 1})
+// MustNewStudentHTTPTestEnrollment is the Enrollment graph of
+// NewStudentHTTPTestRows recording into the test audit store; a composition
+// failure is a broken graph and panics.
+func MustNewStudentHTTPTestEnrollment(db transactionruntime.Database) EnrollmentTestRepositories {
+	_, enrollment, err := NewStudentHTTPTestRows(db, nil)
+	if err != nil {
+		panic(err)
+	}
+	return enrollment
+}
+
+// MustNewStudentHTTPTestPeopleRows are the People Directory rows of the
+// student route suites over db; a composition failure panics.
+func MustNewStudentHTTPTestPeopleRows(db transactionruntime.Database) StudentPeopleRows {
+	rows, err := NewStudentPeopleRows(db, owners.MustNewMembershipTestRepositories(db))
+	if err != nil {
+		panic(err)
+	}
+	return rows
+}
+
+func PendingStudentHTTPTestCareWithdrawals(ctx context.Context, rows owners.CareWithdrawalTestRows, studentID int64) ([]*careplan.WithdrawalCompletion, int, error) {
+	return rows.ListPending(ctx, careplan.WithdrawalListFilter{StudentID: studentID, Page: 1, PageSize: 1})
 }

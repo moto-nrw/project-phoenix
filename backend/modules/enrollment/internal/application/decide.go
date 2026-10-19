@@ -6,14 +6,13 @@ import (
 	"log/slog"
 	"strings"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// Activation modes of enrollment.default_activation_mode.
+// Activation modes of enrollmentNative.default_activation_mode.
 const (
 	activationModeImmediate = "immediate"
 	activationModeScheduled = "scheduled"
@@ -24,10 +23,10 @@ const (
 // decisionTarget is the locked request of a decision with its locked
 // children, raw and decoded, and the child the decision is about.
 type decisionTarget struct {
-	request  *enrollmentModels.Request
-	children []*enrollment.RequestChild
+	request  *Request
+	children []*enrollmentNative.RequestChild
 	decoded  []*RequestChild
-	raw      *enrollment.RequestChild
+	raw      *enrollmentNative.RequestChild
 	child    *RequestChild
 }
 
@@ -43,7 +42,7 @@ type decisionTarget struct {
 // any new status to an already-terminal child (approved/rejected/
 // withdrawn) returns ErrDecisionAlreadyTerminal - admins must use
 // dedicated revoke/promote flows for those (deferred).
-func (d *Decisions) Decide(ctx context.Context, input enrollment.DecideInput) (*enrollment.DecideOutcome, error) {
+func (d *Decisions) Decide(ctx context.Context, input enrollmentNative.DecideInput) (*enrollmentNative.DecideOutcome, error) {
 	if err := validateDecideInput(input); err != nil {
 		return nil, err
 	}
@@ -53,13 +52,13 @@ func (d *Decisions) Decide(ctx context.Context, input enrollment.DecideInput) (*
 	}
 	// No-op: same status. Don't bump reviewed_at when nothing changes.
 	if target.child.Status == string(input.Status) {
-		return &enrollment.DecideOutcome{Child: target.raw}, nil
+		return &enrollmentNative.DecideOutcome{Child: target.raw}, nil
 	}
 	// Block transitions out of a terminal status before resolving settings or
 	// loading phase data. A retry of an invalid transition must keep its stable
 	// conflict contract even during an unrelated settings outage.
-	if (&enrollment.RequestChild{Status: target.child.Status}).IsTerminal() {
-		return nil, enrollment.ErrDecisionAlreadyTerminal
+	if (&enrollmentNative.RequestChild{Status: target.child.Status}).IsTerminal() {
+		return nil, enrollmentNative.ErrDecisionAlreadyTerminal
 	}
 	autoInviteEnabled, err := d.decisionSettingsPreflight(ctx, input.Status)
 	if err != nil {
@@ -69,12 +68,12 @@ func (d *Decisions) Decide(ctx context.Context, input enrollment.DecideInput) (*
 	if err != nil {
 		return nil, fmt.Errorf("decision: load phase: %w", err)
 	}
-	if input.Status == enrollment.DecisionApproved {
+	if input.Status == enrollmentNative.DecisionApproved {
 		if err := d.validateApprovalOfferingSelection(ctx, target.child, phase); err != nil {
 			return nil, err
 		}
 	}
-	outcome := &enrollment.DecideOutcome{}
+	outcome := &enrollmentNative.DecideOutcome{}
 	invite, err := d.applyDecision(ctx, target, phase, input)
 	if err != nil {
 		return nil, err
@@ -92,15 +91,15 @@ func (d *Decisions) Decide(ctx context.Context, input enrollment.DecideInput) (*
 	return outcome, nil
 }
 
-func validateDecideInput(input enrollment.DecideInput) error {
+func validateDecideInput(input enrollmentNative.DecideInput) error {
 	if input.RequestID <= 0 {
-		return fmt.Errorf("%w: request_id required", enrollment.ErrDecisionInvalidStatus)
+		return fmt.Errorf("%w: request_id required", enrollmentNative.ErrDecisionInvalidStatus)
 	}
 	if input.ChildID <= 0 {
-		return fmt.Errorf("%w: child_id required", enrollment.ErrDecisionInvalidStatus)
+		return fmt.Errorf("%w: child_id required", enrollmentNative.ErrDecisionInvalidStatus)
 	}
 	if !validDecisionStatuses[input.Status] {
-		return fmt.Errorf("%w: %s", enrollment.ErrDecisionInvalidStatus, input.Status)
+		return fmt.Errorf("%w: %s", enrollmentNative.ErrDecisionInvalidStatus, input.Status)
 	}
 	return nil
 }
@@ -112,7 +111,7 @@ func validateDecideInput(input enrollment.DecideInput) error {
 // any status is inspected or changed: decisions for two children in the same
 // request must serialize so the second transaction sees the first one's
 // committed state when deciding whether the digest is complete.
-func (d *Decisions) lockDecisionTarget(ctx context.Context, input enrollment.DecideInput) (*decisionTarget, error) {
+func (d *Decisions) lockDecisionTarget(ctx context.Context, input enrollmentNative.DecideInput) (*decisionTarget, error) {
 	request, err := decodedRequestByID(ctx, d.deps.Requests, input.RequestID, true)
 	if err != nil {
 		if d.deps.Runtime.NotFound(err) {
@@ -153,17 +152,17 @@ func (d *Decisions) loadDecisionChildren(ctx context.Context, target *decisionTa
 
 // decisionSettingsPreflight resolves the settings a decision depends on and
 // reports whether an approval invites the guardian.
-func (d *Decisions) decisionSettingsPreflight(ctx context.Context, status enrollment.DecisionStatus) (bool, error) {
-	if status == enrollment.DecisionWaitlisted {
+func (d *Decisions) decisionSettingsPreflight(ctx context.Context, status enrollmentNative.DecisionStatus) (bool, error) {
+	if status == enrollmentNative.DecisionWaitlisted {
 		enabled, err := d.waitlistEnabled(ctx)
 		if err != nil {
 			return false, fmt.Errorf("decision: resolve waitlist setting: %w", err)
 		}
 		if !enabled {
-			return false, enrollment.ErrWaitlistDisabled
+			return false, enrollmentNative.ErrWaitlistDisabled
 		}
 	}
-	if status != enrollment.DecisionApproved {
+	if status != enrollmentNative.DecisionApproved {
 		return true, nil
 	}
 	enabled, err := d.autoInviteGuardianOnApprove(ctx)
@@ -177,9 +176,9 @@ func (d *Decisions) decisionSettingsPreflight(ctx context.Context, status enroll
 // the downstream records first so any failure rolls back BEFORE the status
 // flips. The status update closes the loop after the records exist; if it
 // fails the records are still rolled back via the surrounding tenant tx.
-func (d *Decisions) applyDecision(ctx context.Context, target *decisionTarget, phase *enrollment.Phase, input enrollment.DecideInput) (*enrollment.PendingGuardianInvite, error) {
-	var invite *enrollment.PendingGuardianInvite
-	approved := input.Status == enrollment.DecisionApproved
+func (d *Decisions) applyDecision(ctx context.Context, target *decisionTarget, phase *enrollmentNative.Phase, input enrollmentNative.DecideInput) (*enrollmentNative.PendingGuardianInvite, error) {
+	var invite *enrollmentNative.PendingGuardianInvite
+	approved := input.Status == enrollmentNative.DecisionApproved
 	if approved {
 		var err error
 		invite, err = d.applyApproval(ctx, target.request, target.child, phase, input.ReviewedBy)
@@ -218,7 +217,7 @@ func (d *Decisions) applyDecision(ctx context.Context, target *decisionTarget, p
 // idempotency keys are built. Status alone is insufficient: a supported
 // rejected -> under_review -> rejected cycle is a new decision even though it
 // ends at the same status vector.
-func (d *Decisions) refreshDecidedChild(ctx context.Context, target *decisionTarget, input enrollment.DecideInput) error {
+func (d *Decisions) refreshDecidedChild(ctx context.Context, target *decisionTarget, input enrollmentNative.DecideInput) error {
 	if err := d.loadDecisionChildren(ctx, target, input.ChildID, false); err != nil {
 		return fmt.Errorf("decision: refresh children after status update: %w", err)
 	}
@@ -233,8 +232,8 @@ func (d *Decisions) refreshDecidedChild(ctx context.Context, target *decisionTar
 // enqueues the parent decision email in the same transaction. An enqueue
 // failure rolls back the decision so a retry can safely enqueue it; the
 // tenant-scoped idempotency key prevents duplicate rows after retries.
-func (d *Decisions) afterDecision(ctx context.Context, target *decisionTarget, phase *enrollment.Phase, input enrollment.DecideInput) error {
-	if input.Status == enrollment.DecisionApproved && !calendar.Date(phase.ServiceStartDate).After(d.todayDate()) {
+func (d *Decisions) afterDecision(ctx context.Context, target *decisionTarget, phase *enrollmentNative.Phase, input enrollmentNative.DecideInput) error {
+	if input.Status == enrollmentNative.DecisionApproved && !calendar.Date(phase.ServiceStartDate).After(d.todayDate()) {
 		if err := d.syncOfferingPickupAfterApproval(ctx, target.child); err != nil {
 			return fmt.Errorf("decision: refresh offering pickup projection: %w", err)
 		}
@@ -244,7 +243,7 @@ func (d *Decisions) afterDecision(ctx context.Context, target *decisionTarget, p
 		slog.Int64("child_id", input.ChildID),
 		slog.String("status", string(input.Status)),
 		slog.Int64("reviewed_by", input.ReviewedBy),
-		slog.Bool("created_records", input.Status == enrollment.DecisionApproved),
+		slog.Bool("created_records", input.Status == enrollmentNative.DecisionApproved),
 	)
 	if input.SuppressParentEmail || !isParentVisibleDecision(input.Status) {
 		return nil
@@ -255,11 +254,11 @@ func (d *Decisions) afterDecision(ctx context.Context, target *decisionTarget, p
 	})
 }
 
-func isParentVisibleDecision(status enrollment.DecisionStatus) bool {
-	return status == enrollment.DecisionApproved || status == enrollment.DecisionRejected || status == enrollment.DecisionWaitlisted
+func isParentVisibleDecision(status enrollmentNative.DecisionStatus) bool {
+	return status == enrollmentNative.DecisionApproved || status == enrollmentNative.DecisionRejected || status == enrollmentNative.DecisionWaitlisted
 }
 
-func (d *Decisions) validateApprovalOfferingSelection(ctx context.Context, child *RequestChild, phase *enrollment.Phase) error {
+func (d *Decisions) validateApprovalOfferingSelection(ctx context.Context, child *RequestChild, phase *enrollmentNative.Phase) error {
 	careOfferingsEnabled, err := d.careOfferingsEnabled(ctx)
 	if err != nil {
 		return fmt.Errorf("decision: resolve care offerings setting: %w", err)
@@ -268,10 +267,10 @@ func (d *Decisions) validateApprovalOfferingSelection(ctx context.Context, child
 		return nil
 	}
 	if phase.CareOfferingSelectionMode == "" ||
-		phase.CareOfferingSelectionMode == enrollment.PhaseCareOfferingSelectionOptional {
+		phase.CareOfferingSelectionMode == enrollmentNative.PhaseCareOfferingSelectionOptional {
 		return nil
 	}
-	links, err := enrollment.OfferingSelectionRecordsAt(ctx, d.deps.Children, child.ID, calendar.Date(phase.ServiceStartDate))
+	links, err := enrollmentNative.OfferingSelectionRecordsAt(ctx, d.deps.Children, child.ID, calendar.Date(phase.ServiceStartDate))
 	if err != nil {
 		return fmt.Errorf("decision: validate child offerings: %w", err)
 	}
@@ -286,11 +285,11 @@ func (d *Decisions) validateApprovalOfferingSelection(ctx context.Context, child
 		}
 	}
 	switch phase.CareOfferingSelectionMode {
-	case enrollment.PhaseCareOfferingSelectionAtLeastOne:
+	case enrollmentNative.PhaseCareOfferingSelectionAtLeastOne:
 		if choosableCount == 0 {
 			return selection.ErrCareOfferingMissing
 		}
-	case enrollment.PhaseCareOfferingSelectionExactlyOne:
+	case enrollmentNative.PhaseCareOfferingSelectionExactlyOne:
 		if choosableCount != 1 {
 			return selection.ErrCareOfferingExactlyOneRequired
 		}
@@ -321,7 +320,7 @@ func (d *Decisions) careOfferingsEnabled(ctx context.Context) (bool, error) {
 	return d.deps.Settings.CareOfferingsEnabled(ctx)
 }
 
-// resolveActivationMode reads enrollment.default_activation_mode for the
+// resolveActivationMode reads enrollmentNative.default_activation_mode for the
 // tenant in context. The setting was registered from the start with a
 // registry default of "scheduled", so a plain resolve (tenant override →
 // registry default) is correct — there is no env-var fallback.
@@ -355,10 +354,10 @@ type approvalActivationPlan struct {
 	StudentStatus string
 }
 
-func (d *Decisions) approvalActivationPlan(ctx context.Context, phase *enrollment.Phase) approvalActivationPlan {
+func (d *Decisions) approvalActivationPlan(ctx context.Context, phase *enrollmentNative.Phase) approvalActivationPlan {
 	if d.resolveActivationMode(ctx) == activationModeImmediate {
 		return approvalActivationPlan{
-			Mode:          enrollmentModels.ChildActivationImmediate,
+			Mode:          enrollmentNative.ChildActivationImmediate,
 			StudentStatus: studentStatusActive,
 		}
 	}
@@ -368,16 +367,16 @@ func (d *Decisions) approvalActivationPlan(ctx context.Context, phase *enrollmen
 		status = studentStatusActive
 	}
 	return approvalActivationPlan{
-		Mode:          enrollmentModels.ChildActivationScheduled,
+		Mode:          enrollmentNative.ChildActivationScheduled,
 		ActivateOn:    &activateOn,
 		StudentStatus: status,
 	}
 }
 
 func (d *Decisions) stampActivationPlan(ctx context.Context, requestChildID int64, plan approvalActivationPlan) error {
-	var date *enrollment.Date
+	var date *enrollmentNative.Date
 	if plan.ActivateOn != nil {
-		value := enrollment.Date(plan.ActivateOn.String())
+		value := enrollmentNative.Date(plan.ActivateOn.String())
 		date = &value
 	}
 	if err := d.deps.Children.UpdateChildActivationPlan(ctx, requestChildID, plan.Mode, date); err != nil {
@@ -388,7 +387,7 @@ func (d *Decisions) stampActivationPlan(ctx context.Context, requestChildID int6
 
 // uniqueCareOfferingIDs returns the distinct positive offering ids of the
 // links in their first-seen order.
-func uniqueCareOfferingIDs(links []*enrollment.RequestChildOfferingRecord) []int64 {
+func uniqueCareOfferingIDs(links []*enrollmentNative.RequestChildOfferingRecord) []int64 {
 	ids := make([]int64, 0, len(links))
 	seen := make(map[int64]bool, len(links))
 	for _, link := range links {

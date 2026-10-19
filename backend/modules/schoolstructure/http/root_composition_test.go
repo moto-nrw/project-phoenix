@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -12,16 +13,19 @@ import (
 // The typed root's test compositions these suites build: each opens the
 // package's test database and composes the module through the root (#4005).
 
-func setupGroupsModule(t *testing.T, publishers ...*testpkg.RecordingBroadcaster) (*bun.DB, api.GroupsTestModule) {
+func setupGroupsModule(t *testing.T, publishers ...*testpkg.RecordingBroadcaster) (*bun.DB, api.GroupsTestModule, api.ActivePresence, api.ActivePeople, *owners.CallerRows) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	var module api.GroupsTestModule
+	var presence api.ActivePresence
+	var people api.ActivePeople
+	var caller *owners.CallerRows
 	var err error
 	if len(publishers) > 0 && publishers[0] != nil {
-		module, err = api.NewGroupsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), publishers[0])
+		module, presence, people, caller, err = api.NewGroupsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), publishers[0])
 	} else {
-		module, err = api.NewGroupsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+		module, presence, people, caller, err = api.NewGroupsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	}
 	require.NoError(t, err)
-	return db, module
+	return db, module, presence, people, caller
 }

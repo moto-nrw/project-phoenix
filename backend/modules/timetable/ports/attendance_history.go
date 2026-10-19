@@ -4,12 +4,13 @@ import (
 	"context"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type AttendanceHistoryRecords interface {
-	FindInstancesWithAttendanceByStudentAndDateRange(context.Context, int64, scheduleModels.Date, scheduleModels.Date) ([]*scheduleModels.ScheduledInstanceRow, error)
-	HasPlannedSlotsInRange(context.Context, scheduleModels.Date, scheduleModels.Date) (bool, error)
+	FindInstancesWithAttendanceByStudentAndDateRange(context.Context, int64, calendar.Date, calendar.Date) ([]*scheduleModels.ScheduledInstanceRow, error)
+	HasPlannedSlotsInRange(context.Context, calendar.Date, calendar.Date) (bool, error)
 }
 
 // AttendanceHistorySlot contains only the timetable facts used in student history.

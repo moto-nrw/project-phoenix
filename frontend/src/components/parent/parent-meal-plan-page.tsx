@@ -9,7 +9,14 @@ import {
   useState,
 } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { ChevronLeft, ChevronRight, Utensils } from "lucide-react";
+import {
+  Ban,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Minus,
+  Utensils,
+} from "lucide-react";
 
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -150,12 +157,12 @@ function MealPlanWeekSkeleton({ loadingLabel }: { loadingLabel: string }) {
         </div>
       </div>
 
-      <div
-        className="hidden grid-cols-5 divide-x divide-gray-200 md:grid"
-        aria-hidden="true"
-      >
+      <div className="hidden grid-cols-5 md:grid" aria-hidden="true">
         {dishWidths.map((width, index) => (
-          <div key={index}>
+          <div
+            key={index}
+            className="border-r border-gray-200 last:border-r-transparent"
+          >
             <div className="space-y-2 border-b border-gray-200 px-4 py-3">
               <Skeleton className="h-4 w-20" />
               <Skeleton className="h-3 w-10" />
@@ -780,6 +787,15 @@ function ParticipationWeek({
                   : displayedParticipation
                     ? "green"
                     : "gray";
+              // Kein Icon für „Anmeldung nicht geladen“: Das ist ein Ladefehler,
+              // kein Teilnahmezustand, und darf nicht wie „nicht angemeldet“ aussehen.
+              const statusIcon = day
+                ? displayedSource === "sick"
+                  ? Ban
+                  : displayedParticipation
+                    ? Check
+                    : Minus
+                : undefined;
 
               return (
                 <li
@@ -831,7 +847,11 @@ function ParticipationWeek({
                       <Skeleton className="h-6 w-40 rounded-full" />
                     ) : (
                       <div className="flex flex-wrap items-center gap-2">
-                        <StatusBadge label={statusLabel} tone={statusTone} />
+                        <StatusBadge
+                          label={statusLabel}
+                          tone={statusTone}
+                          icon={statusIcon}
+                        />
                         {day?.changeable &&
                         day.source !== "sick" &&
                         !editingRegularDays &&
@@ -843,7 +863,7 @@ function ParticipationWeek({
                             type="button"
                             variant="ghost"
                             size="compact"
-                            className="ml-auto min-h-11 text-sm underline decoration-gray-300 underline-offset-4 hover:decoration-gray-600"
+                            className="-mr-2.5 ml-auto min-h-11 text-sm underline decoration-gray-300 underline-offset-4 hover:decoration-gray-600"
                             aria-label={t("editDayRegistration", {
                               date: fullDate(date),
                             })}
@@ -1315,14 +1335,14 @@ export function ParentMealPlanPage() {
 
               {/* Desktop: full five-column week grid. */}
               <div className="hidden md:block">
-                <div className="grid grid-cols-5 divide-x divide-gray-200">
+                <div className="grid grid-cols-5">
                   {weekDates.map((date) => {
                     const dishes = dishesByDate.get(date) ?? [];
                     const isToday = date === today;
                     return (
                       <div
                         key={date}
-                        className={`flex flex-col ${
+                        className={`flex flex-col border-r border-gray-200 last:border-r-transparent ${
                           isToday ? "bg-moto-green/[0.04]" : ""
                         }`}
                       >

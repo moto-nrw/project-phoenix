@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -21,13 +23,15 @@ import (
 func TestIdentityMembershipRuntimeEvidence(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	factory, err := NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory, err := NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db))
+	factoryMessages := NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
+	factoryCare := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	identity, err := NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	organizations, err := NewOrganizationTenancy(testpkg.NewDatabase(t, db))
+	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	staff, err := NewStaffMessagingTestRepositories(testpkg.NewDatabase(t, db), MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	staff, err := NewStaffMessagingTestRepositories(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -117,7 +121,7 @@ func TestIdentityMembershipRuntimeEvidence(t *testing.T) {
 			return len(profiles), err
 		})
 		measure("messageable_guardians", iteration, false, func(txCtx context.Context) (int, error) {
-			guardians, err := factory.ParentMessageThread.ListGuardiansForStudent(txCtx, chain.StudentID)
+			guardians, err := factoryMessages.ParentMessageThread.ListGuardiansForStudent(txCtx, chain.StudentID)
 			return len(guardians), err
 		})
 		measure("messageable_staff", iteration, false, func(txCtx context.Context) (int, error) {
@@ -133,11 +137,11 @@ func TestIdentityMembershipRuntimeEvidence(t *testing.T) {
 			return len(kinds), err
 		})
 		measure("parent_children", iteration, true, func(txCtx context.Context) (int, error) {
-			children, err := factory.ParentChild.ListByAccount(txCtx, chain.AccountID)
+			children, err := factoryCare.ParentChild.ListByAccount(txCtx, chain.AccountID)
 			return len(children), err
 		})
 		measure("parent_submit_status", iteration, true, func(txCtx context.Context) (int, error) {
-			status, err := factory.ParentEnrollablePhase.GuardianSubmitStatus(txCtx, chain.AccountID, chain.TenantID)
+			status, err := factoryCare.ParentEnrollablePhase.GuardianSubmitStatus(txCtx, chain.AccountID, chain.TenantID)
 			if err != nil || status == nil {
 				return 0, err
 			}

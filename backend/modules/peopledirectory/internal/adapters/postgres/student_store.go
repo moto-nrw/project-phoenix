@@ -48,11 +48,11 @@ func NewStudentStore(database Database, students StudentDirectory, classGate fun
 // Lock takes the student row FOR UPDATE. It is the first lock every care-day
 // writer acquires, so the statement stays a bare row lock without joins.
 func (s *StudentStore) Lock(ctx context.Context, id int64) (bool, domain.OperationStats, error) {
-	_, tenantID, err := s.database(ctx)
+	_, scope, err := s.database(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return false, domain.OperationStats{}, errors.New("people directory: tenant is required to lock a student")
 	}
 	_, found, stats, err := s.FindRecord(ctx, id, "UPDATE")

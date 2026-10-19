@@ -5,6 +5,8 @@ package api
 import (
 	"log/slog"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
@@ -12,7 +14,6 @@ import (
 	enrollmentAudience "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
-	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
@@ -25,60 +26,61 @@ import (
 // root resolves it from the uploads directory.
 type UploadsBackend = filestorageCompose.ObjectBackend
 
-// FileStoreTestModule is the narrow File Storage composition the file and
-// attachment route tests drive: the public capability plus the settings
-// service that switches staff uploads.
-type FileStoreTestModule struct {
-	FileStore *filestorageModule.Module
-	Settings  settingsCompose.SettingsService
-}
-
-// NewFileStoreTestModule composes the File Storage module over the test
-// database and the given object store. These are the staff file and
-// attachment routes; parent attachment access is composed and exercised by
-// the parent-portal suite.
-func NewFileStoreTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, objects UploadsBackend) (FileStoreTestModule, error) {
-	settings, err := NewSettingsTestModule(db, unit)
+// NewFileStoreTestModule composes the narrow File Storage composition the
+// file and attachment route tests drive over the test database and the given
+// object store: the public capability plus the settings service that switches
+// staff uploads. These are the staff file and attachment routes; parent
+// attachment access is composed and exercised by the parent-portal suite.
+func NewFileStoreTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, objects UploadsBackend) (*filestorageModule.Module, settingsCompose.SettingsService, error) {
+	settings, err := owners.NewSettingsTestModule(db, unit)
 	if err != nil {
-		return FileStoreTestModule{}, err
+		return nil, nil, err
 	}
 	command, err := auditCompose.NewCommand(
-		NewTestAuditStore(db),
+		owners.NewTestAuditStore(db),
 		func(auditCompose.AppendObservation) {},
 	)
 	if err != nil {
-		return FileStoreTestModule{}, err
+		return nil, nil, err
 	}
 	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{
 		DB:      db.Pool(),
 		Observe: func(identityaccessCompose.Observation) {},
 	})
 	if err != nil {
-		return FileStoreTestModule{}, err
+		return nil, nil, err
 	}
-	persons, err := NewPeopleDirectory(db)
+	persons, err := owners.NewPeopleDirectory(db)
 	if err != nil {
-		return FileStoreTestModule{}, err
+		return nil, nil, err
 	}
-	announcements := communicationCompose.NewParentAnnouncements(communicationCompose.ParentAnnouncementConfig{
-		Repo: parentStore.NewParentAnnouncementRepository(db.Pool(), ParentAnnouncementApplicants(enrollmentAudience.New()), guardianLinkView.NewReader()), Settings: settingsValues.NewParentAnnouncementValues(settings.Settings), Logger: slog.Default(),
-		Fingerprints: SecurityFingerprints{},
-	}, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
+	purger, err := filestorageCompose.NewAttachmentPurger(filestorageCompose.AttachmentPurgerDependencies{
+		DB: db.Pool(), Objects: objects, Observe: func(filestorageCompose.Observation) {},
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	announcements, err := communicationCompose.NewParentAnnouncementsWithAttachments(communicationCompose.ParentAnnouncementConfig{
+		Repo: parentStore.NewParentAnnouncementRepository(db.Pool(), owners.NewParentAnnouncementAudience(db, owners.ParentAnnouncementApplicants(enrollmentAudience.New()))), Settings: settingsValues.NewParentAnnouncementValues(settings.Settings), Logger: slog.Default(),
+		Fingerprints: owners.SecurityFingerprints{},
+	}, purger, owners.CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
+	if err != nil {
+		return nil, nil, err
+	}
 	files, err := filestorageCompose.New(filestorageCompose.Dependencies{
 		DB:            db.Pool(),
 		Objects:       objects,
 		Identity:      identity,
 		People:        persons,
-		Settings:      FileStorageSettings{Service: settings.Settings},
-		Events:        FileStorageEvents{Repo: newFileEventTestRepository(db, command)},
+		Settings:      owners.FileStorageSettings{Service: settings.Settings},
+		Events:        owners.FileStorageEvents{Repo: newFileEventTestRepository(db, command)},
 		HasPermission: securityruntime.HasPermission,
 		Announcements: announcements,
 		Observe:       func(filestorageCompose.Observation) {},
 		Logger:        slog.Default(),
 	})
 	if err != nil {
-		return FileStoreTestModule{}, err
+		return nil, nil, err
 	}
-	announcements.SetAttachmentPurger(files)
-	return FileStoreTestModule{FileStore: files, Settings: settings.Settings}, nil
+	return files, settings.Settings, nil
 }

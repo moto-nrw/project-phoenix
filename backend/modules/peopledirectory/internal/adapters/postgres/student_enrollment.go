@@ -12,13 +12,13 @@ import (
 )
 
 func (s *StudentStore) CreateEnrollment(ctx context.Context, input domain.EnrollmentStudent) (domain.Student, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.Student{}, domain.OperationStats{}, err
 	}
 	stats := domain.OperationStats{}
 	started := time.Now()
-	result, err := s.createEnrollmentStudent(ctx, db, tenantID, input, &stats)
+	result, err := s.createEnrollmentStudent(ctx, db, scope.TenantID, input, &stats)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return domain.Student{}, stats, fmt.Errorf("people directory postgres: create enrollment student: %w", err)

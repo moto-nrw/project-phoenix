@@ -130,7 +130,7 @@ func TestGetClientIP_XForwardedFor_TakesPrecedence_OverRemoteAddr(t *testing.T) 
 func getClientIPThroughXFFMiddleware(req *http.Request) string {
 	var ip string
 	router := chi.NewRouter()
-	router.Use(chimiddleware.ClientIPFromXFF())
+	router.Use(chimiddleware.ClientIPFromXFFTrustedProxies(1))
 	router.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		ip = getClientIP(r)
 		w.WriteHeader(http.StatusNoContent)

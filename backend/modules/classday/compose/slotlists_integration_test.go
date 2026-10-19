@@ -34,6 +34,7 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -75,7 +76,7 @@ type scheduleCarePlan struct{ carePlan careplan.Capability }
 
 func newScheduleCarePlan(db *bun.DB) scheduleCarePlan {
 	database := testpkg.MustDatabase(db)
-	carePlan, err := api.NewUnobservedCarePlan(database, api.NewUnobservedTimetableDependencies(database))
+	carePlan, err := owners.NewUnobservedCarePlan(database, owners.MustNewUnobservedTimetable(database), owners.MustNewPeopleDirectory(database))
 	if err != nil {
 		panic(err)
 	}
@@ -315,7 +316,7 @@ func newTestServiceWithRenderer(db *bun.DB, rooms roomReader, settings api.Class
 	carePlan := carePlanTest.NewCarePlan(slotListTestTB{}, db, testpkg.StudentDirectory{})
 	arrivals := carePlanTest.NewArrivalQueries(slotListTestTB{}, db, carePlan)
 	service := compose.NewSlotLists(compose.SlotListDependencies{
-		Timetable:       slotListTimetableRows{rows: timetabletest.NewLegacyRows(slotListTestTB{}, db)},
+		Timetable:       slotListTimetableRows{rows: timetabletest.NewLegacyRows(slotListTestTB{}, owners.NewTimetablePresenceProjection(testpkg.MustDatabase(db)))},
 		Presence:        newSlotListPresence(db),
 		CarePlan:        carePlan,
 		Students:        people,
@@ -3070,7 +3071,7 @@ type slotListInstanceStudents struct {
 
 func newBoundInstanceStudentRepository(db *bun.DB) slotListInstanceStudents {
 	return slotListInstanceStudents{
-		timetable: timetabletest.New(slotListTestTB{}, db), presence: newSlotListPresence(db), rows: timetabletest.NewLegacyRows(slotListTestTB{}, db),
+		timetable: timetabletest.New(slotListTestTB{}, db), presence: newSlotListPresence(db), rows: timetabletest.NewLegacyRows(slotListTestTB{}, owners.NewTimetablePresenceProjection(testpkg.MustDatabase(db))),
 	}
 }
 

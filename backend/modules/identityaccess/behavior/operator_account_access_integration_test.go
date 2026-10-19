@@ -151,6 +151,26 @@ func TestIntegration_GrantAccountTenantAccess_AddsSchoolWithRole(t *testing.T) {
 	assert.NotNil(t, entryFor(entries, testSchoolID(t)), "existing access must survive")
 }
 
+func TestIntegration_GrantAccountTenantAccess_RefusesErasedAccount(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	service := buildOperatorAccountAccess(t, db)
+	account, cleanupAccount := setupAccessTestAccount(t, db)
+	defer cleanupAccount()
+	operator := testpkg.CreateTestOperator(t, db)
+	adminRoleID := systemRoleID(t, db, "admin")
+
+	_, err := db.NewUpdate().TableExpr(`auth.accounts`).
+		Set("personal_data_erased_at = NOW()").
+		Where("id = ?", account.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	_, err = service.GrantAccountTenantAccess(context.Background(), account.ID, accessTargetTenantID(t),
+		accessGrant{RoleID: adminRoleID}, operator.ID, testClientIP)
+	require.ErrorIs(t, err, identityaccess.ErrAccountNotFound)
+}
+
 // A school's own caregiver-tier role gets the caregiver profile the platform
 // user role gets (#2222). It used to be withheld because the provisioning
 // keyed on auth.roles.is_system, which left such an account in the staff list

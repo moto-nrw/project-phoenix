@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 
+	movebinding "github.com/moto-nrw/project-phoenix/roots/openroommovebinding"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -101,10 +103,11 @@ func newMoveStack(t *testing.T) *moveStack {
 	require.NoError(t, err)
 	s := &moveStack{rooms: rooms, timetable: timetabletest.New(t, db), presence: newRecordingPresence()}
 	s.command, err = compose.New(compose.Dependencies{
-		Rooms:      rooms,
-		Activities: s.timetable,
-		Presence:   s.presence,
-		Observe:    func(compose.Observation) {},
+		Rooms:        rooms,
+		Activities:   s.timetable,
+		RoomSessions: movebinding.NewRoomSessions(s.presence),
+		Moves:        movebinding.NewMoves(s.presence),
+		Observe:      func(compose.Observation) {},
 	})
 	require.NoError(t, err)
 	return s

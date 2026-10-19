@@ -1,7 +1,7 @@
 package application
 
 import (
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activitiesModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/activityrecords"
 )
 
 func legacyDatabaseError(operation string, err error) error {

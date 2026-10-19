@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -23,42 +24,43 @@ import (
 func buildSharingAtCreationServices(t *testing.T) (*parentService.Portal, parentService.RequestSharingService, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposCare := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	excused, err := api.NewTestExcusedAbsenceRequests(api.ExcusedRequestTestOptions{
-		CarePlan: repos.CarePlan(), Students: repos.Student, Persons: repos.Person, Events: repos.ParentRequestEvent, Logger: slog.Default(),
-	})
+		CarePlan: reposCare.CarePlan(), Logger: slog.Default(),
+	}, api.ExcusedRequestTestPeople{Students: repos.Student, Persons: repos.Person, Events: repos.ParentRequestEvent}, nil, nil)
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges:        api.ParentGuardianChanges(),
-		DeparturePolicy:        api.ParentDeparturePolicy(),
-		GuardianPolicy:         api.NewParentGuardianPolicy(),
-		Fingerprints:           api.SecurityFingerprints{},
-		Declarations:           api.ParentDeclarationPolicy(),
-		Locales:                api.ParentPortalLocales(),
-		Runtime:                api.ParentPortalRuntime{},
-		CarePlan:               api.NewParentCarePlanCommands(repos.CarePlan(), nil),
-		People:                 api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		GuardianChanges:        owners.ParentGuardianChanges(),
+		DeparturePolicy:        owners.ParentDeparturePolicy(),
+		GuardianPolicy:         owners.NewParentGuardianPolicy(),
+		Fingerprints:           owners.SecurityFingerprints{},
+		Declarations:           owners.ParentDeclarationPolicy(),
+		Locales:                owners.ParentPortalLocales(),
+		Runtime:                owners.ParentPortalRuntime{},
+		CarePlan:               owners.NewParentCarePlanCommands(reposCare.CarePlan(), nil),
+		People:                 owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:           careProfiles(t, db),
-		ChildRepo:              repos.ParentChildReads(),
-		StatusDayRepo:          repos.StudentStatusDay,
-		StudentRepo:            api.NewParentStudentReads(repos.Student),
-		PersonRepo:             api.NewParentPersonReads(repos.Person),
-		GuardianProfileRepo:    api.NewParentGuardianProfileReads(repos.GuardianProfile),
-		StudentGuardianRepo:    api.NewParentStudentGuardianReads(repos.StudentGuardian),
-		FamilyProtectionEvents: api.BindParentFamilyProtectionReads(repos.FamilyProtection),
-		ParentRequestShares:    api.BindParentRequestShareRecords(repos.ParentRequestShare),
-		ParentRequestEvents:    api.NewParentRequestEvents(repos.ParentRequestEvent),
-		ExcusedRequests:        api.NewParentExcusedAbsenceRequests(excused),
-		ExcusedRequestRepo:     repos.ExcusedAbsenceRequest,
+		ChildRepo:              reposCare.ParentChildReads(),
+		StatusDayRepo:          reposCare.StudentStatusDay,
+		StudentRepo:            owners.NewParentStudentReads(repos.Student),
+		PersonRepo:             owners.NewParentPersonReads(repos.Person),
+		GuardianProfileRepo:    owners.NewParentGuardianProfileReads(repos.GuardianProfile),
+		StudentGuardianRepo:    owners.NewParentStudentGuardianReads(repos.StudentGuardian),
+		FamilyProtectionEvents: owners.BindParentFamilyProtectionReads(repos.FamilyProtection),
+		ParentRequestShares:    owners.BindParentRequestShareRecords(repos.ParentRequestShare),
+		ParentRequestEvents:    owners.NewParentRequestEvents(repos.ParentRequestEvent),
+		ExcusedRequests:        owners.NewParentExcusedAbsenceRequests(excused),
+		ExcusedRequestRepo:     reposCare.ExcusedAbsenceRequest,
 		Settings: excusedApprovalSettings{
 			sickRequiresApproval:    true,
 			excusedRequiresApproval: true,
 		},
 		Logger: slog.Default(),
 
-		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+		DataRequests: owners.NewParentDataRequestCommands(reposCare.CarePlan()),
 
-		CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 	// Portal implements the sharing surface at compile time.
 	var sharing parentService.RequestSharingService = svc

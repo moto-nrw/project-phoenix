@@ -6,9 +6,14 @@ import (
 	"context"
 	"time"
 
+	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+
+	"github.com/moto-nrw/project-phoenix/tenant"
+
+	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	peopleVocabulary "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 func ParentStoreChildByID(children []*communication.PortalAnnouncementLetterChildStatus, studentID int64) *communication.PortalAnnouncementLetterChildStatus {
@@ -30,7 +35,7 @@ func ParentStoreRecipientByProfile(recipients []*communication.PortalAnnouncemen
 
 // ParentStoreReminderAnnouncement creates an announcement carrying a reminder at
 // reminderAt. published decides whether it is live; expiresAt is optional.
-func ParentStoreReminderAnnouncement(t ParentStoreFixtureChecks, ctx context.Context, databaseTimestamp func() time.Time, repo parentstore.ParentAnnouncementRepository, createdBy, tenantID int64, title string, reminderAt time.Time, published bool, expiresAt *time.Time) *communication.PortalParentAnnouncement {
+func ParentStoreReminderAnnouncement(t ParentStoreFixtureChecks, ctx context.Context, databaseTimestamp func() time.Time, repo recordports.ParentAnnouncementRepository, createdBy, tenantID int64, title string, reminderAt time.Time, published bool, expiresAt *time.Time) *communication.PortalParentAnnouncement {
 	t.Helper()
 	text := "Kurz: " + title
 	a := &communication.PortalParentAnnouncement{
@@ -44,14 +49,16 @@ func ParentStoreReminderAnnouncement(t ParentStoreFixtureChecks, ctx context.Con
 		ReminderText: &text,
 	}
 	a.TenantID = tenantID
-	t.NoError(repo.Create(ctx, a))
-	t.NoError(repo.ReplaceTargets(ctx, tenantID, a.ID, []*communication.PortalParentAnnouncementTarget{{TargetType: "school_all"}}))
+	t.NoError(tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error { return repo.Create(txCtx, a) }))
+	t.NoError(tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		return repo.ReplaceTargets(txCtx, tenantID, a.ID, []*communication.PortalParentAnnouncementTarget{{TargetType: "school_all"}})
+	}))
 	if published {
 		publishedAt := databaseTimestamp().Add(-7 * 24 * time.Hour)
-		t.NoError(repo.SetPublished(ctx, a.ID, &publishedAt))
+		t.NoError(tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error { return repo.SetPublished(txCtx, a.ID, &publishedAt) }))
 	}
 	t.Cleanup(func() {
-		_ = repo.Delete(ctx, a.ID)
+		_ = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error { return repo.Delete(txCtx, a.ID) })
 	})
 	return a
 }
@@ -65,7 +72,7 @@ func ParentStoreAnnouncementIDsOf(rows []*communication.PortalParentAnnouncement
 
 // ParentStorePollAnnouncement publishes a poll with two options and returns it plus the
 // option ids in display order.
-func ParentStorePollAnnouncement(t ParentStoreFixtureChecks, ctx context.Context, databaseTimestamp func() time.Time, repo parentstore.ParentAnnouncementRepository, createdBy, tenantID int64, responseType string) (*communication.PortalParentAnnouncement, []int64) {
+func ParentStorePollAnnouncement(t ParentStoreFixtureChecks, ctx context.Context, databaseTimestamp func() time.Time, repo recordports.ParentAnnouncementRepository, createdBy, tenantID int64, responseType string) (*communication.PortalParentAnnouncement, []int64) {
 	t.Helper()
 	a := &communication.PortalParentAnnouncement{
 		Title:        "Umfrage",
@@ -76,34 +83,43 @@ func ParentStorePollAnnouncement(t ParentStoreFixtureChecks, ctx context.Context
 		ResponseType: responseType,
 	}
 	a.TenantID = tenantID
-	t.NoError(repo.Create(ctx, a))
-	t.NoError(repo.ReplaceTargets(ctx, tenantID, a.ID, []*communication.PortalParentAnnouncementTarget{{TargetType: "school_all"}}))
-	t.NoError(repo.ReplaceOptions(ctx, tenantID, a.ID, []*communication.PortalParentAnnouncementOption{{Label: "Ja"}, {Label: "Nein"}}))
-	options, err := repo.ListOptions(ctx, a.ID)
+	t.NoError(tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error { return repo.Create(txCtx, a) }))
+	t.NoError(tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		return repo.ReplaceTargets(txCtx, tenantID, a.ID, []*communication.PortalParentAnnouncementTarget{{TargetType: "school_all"}})
+	}))
+	t.NoError(tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		return repo.ReplaceOptions(txCtx, tenantID, a.ID, []*communication.PortalParentAnnouncementOption{{Label: "Ja"}, {Label: "Nein"}})
+	}))
+	var options []*communication.PortalParentAnnouncementOption
+	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		var err error
+		options, err = repo.ListOptions(txCtx, a.ID)
+		return err
+	})
 	t.NoError(err)
 	t.Len(options, 2)
 	now := databaseTimestamp()
-	t.NoError(repo.SetPublished(ctx, a.ID, &now))
+	t.NoError(tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error { return repo.SetPublished(txCtx, a.ID, &now) }))
 	a.PublishedAt = &now
 	t.Cleanup(func() {
-		_ = repo.Delete(ctx, a.ID)
+		_ = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error { return repo.Delete(txCtx, a.ID) })
 	})
 	return a, []int64{options[0].ID, options[1].ID}
 }
 
 // ParentStorePublishedAnnouncement creates an announcement with the given targets, publishes
 // it, and registers cleanup. created_by is the chain account (a real auth.account).
-func ParentStorePublishedAnnouncement(t ParentStoreFixtureChecks, ctx context.Context, databaseTimestamp func() time.Time, repo parentstore.ParentAnnouncementRepository, createdBy, tenantID int64, title string, targets []*communication.PortalParentAnnouncementTarget) *communication.PortalParentAnnouncement {
+func ParentStorePublishedAnnouncement(t ParentStoreFixtureChecks, ctx context.Context, databaseTimestamp func() time.Time, repo recordports.ParentAnnouncementRepository, createdBy, tenantID int64, title string, targets []*communication.PortalParentAnnouncementTarget) *communication.PortalParentAnnouncement {
 	t.Helper()
 	a := &communication.PortalParentAnnouncement{Title: title, Body: "Testtext", Priority: "info", Active: true, CreatedBy: createdBy}
 	a.TenantID = tenantID
-	t.NoError(repo.Create(ctx, a))
-	t.NoError(repo.ReplaceTargets(ctx, tenantID, a.ID, targets))
+	t.NoError(tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error { return repo.Create(txCtx, a) }))
+	t.NoError(tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error { return repo.ReplaceTargets(txCtx, tenantID, a.ID, targets) }))
 	now := databaseTimestamp()
-	t.NoError(repo.SetPublished(ctx, a.ID, &now))
+	t.NoError(tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error { return repo.SetPublished(txCtx, a.ID, &now) }))
 	a.PublishedAt = &now
 	t.Cleanup(func() {
-		_ = repo.Delete(ctx, a.ID)
+		_ = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error { return repo.Delete(txCtx, a.ID) })
 	})
 	return a
 }
@@ -146,7 +162,7 @@ func ParentStoreRequestCreatedPill(tenantID int64, threadID, studentID, actorAcc
 		Body:            "Anfrage gestellt",
 		Kind:            "event",
 		EventType:       "request_created",
-		EventActorKind:  peopleVocabulary.ParentMessageSenderGuardian,
+		EventActorKind:  owner0.ParentMessageSenderGuardian,
 	}
 	m.CreatedAt, m.UpdatedAt = at, at
 	m.TenantID = tenantID

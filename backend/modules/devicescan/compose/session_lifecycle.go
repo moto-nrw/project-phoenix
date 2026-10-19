@@ -18,8 +18,11 @@ type SessionLifecycle = devicescan.SessionLifecycle
 
 // NewSessionLifecycle binds manual kiosk controls to the retained presence
 // and people services without constructing a legacy service graph.
-func NewSessionLifecycle(active studentpresence.Presence, presence SupervisionQuery, people PersonDirectory, heartbeat application.SessionHeartbeat, mirror application.SessionMirror, logger *slog.Logger) SessionLifecycle {
-	return application.NewSessionLifecycle(lifecycleStore{active: active, presence: presence}, lifecyclePeople{people}, principals{}, heartbeat, mirror, clock{now: time.Now}, logger)
+func NewSessionLifecycle(active studentpresence.Presence, presence SupervisionQuery, people PersonDirectory, heartbeat application.SessionHeartbeat, mirror application.SessionMirror, logger *slog.Logger, principal devicescan.DevicePrincipal) SessionLifecycle {
+	if principal == nil {
+		panic("device scan composition: principal is required")
+	}
+	return application.NewSessionLifecycle(lifecycleStore{active: active, presence: presence}, lifecyclePeople{people}, principal, heartbeat, mirror, clock{now: time.Now}, logger)
 }
 
 type SupervisionQuery interface {

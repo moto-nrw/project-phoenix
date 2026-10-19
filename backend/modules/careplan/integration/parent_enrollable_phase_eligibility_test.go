@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 

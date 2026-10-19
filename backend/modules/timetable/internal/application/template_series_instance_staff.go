@@ -6,8 +6,9 @@ import (
 	"slices"
 	"sort"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -16,9 +17,9 @@ import (
 // against: the template's current and prior supervisor rows and the
 // occurrences' existing staff rows.
 type instanceStaffReconciliation struct {
-	supervisors  []*activitiesModel.SupervisorPlanned
-	byStaff      map[int64][]*activitiesModel.SupervisorPlanned
-	priorByStaff map[int64][]*activitiesModel.SupervisorPlanned
+	supervisors  []*activityContract.SupervisorPlanned
+	byStaff      map[int64][]*activityContract.SupervisorPlanned
+	priorByStaff map[int64][]*activityContract.SupervisorPlanned
 	existing     map[instanceStudentPair]*scheduleModel.InstanceStaff
 	created      int
 	removed      int
@@ -37,7 +38,7 @@ func (s *TemplateService) reconcilePredecessorInstanceStaff(
 	templateID int64,
 	staffIDs []int64,
 	from calendar.Date,
-	priorSupervisors []*activitiesModel.SupervisorPlanned,
+	priorSupervisors []*activityContract.SupervisorPlanned,
 ) error {
 	if templateID <= 0 || len(staffIDs) == 0 {
 		return nil
@@ -74,7 +75,7 @@ func (s *TemplateService) loadInstanceStaffReconciliation(
 	ctx context.Context,
 	templateID int64,
 	instanceIDs []int64,
-	priorSupervisors []*activitiesModel.SupervisorPlanned,
+	priorSupervisors []*activityContract.SupervisorPlanned,
 ) (*instanceStaffReconciliation, error) {
 	supervisors, err := s.deps.ActivitySupervisorRepo.FindByGroupID(ctx, templateID)
 	if err != nil {
@@ -96,8 +97,8 @@ func (s *TemplateService) loadInstanceStaffReconciliation(
 	return pass, nil
 }
 
-func supervisorsByStaff(rows []*activitiesModel.SupervisorPlanned) map[int64][]*activitiesModel.SupervisorPlanned {
-	byStaff := make(map[int64][]*activitiesModel.SupervisorPlanned, len(rows))
+func supervisorsByStaff(rows []*activityContract.SupervisorPlanned) map[int64][]*activityContract.SupervisorPlanned {
+	byStaff := make(map[int64][]*activityContract.SupervisorPlanned, len(rows))
 	for _, sup := range rows {
 		byStaff[sup.StaffID] = append(byStaff[sup.StaffID], sup)
 	}
@@ -185,7 +186,7 @@ func (s *TemplateService) removeOccurrenceStaff(ctx context.Context, key instanc
 
 // supervisorsPlanStaffOn reports whether any of the rows plans its staff
 // member on the occurrence date.
-func supervisorsPlanStaffOn(rows []*activitiesModel.SupervisorPlanned, date calendar.Date, periodID int64, planWeekday int) bool {
+func supervisorsPlanStaffOn(rows []*activityContract.SupervisorPlanned, date calendar.Date, periodID int64, planWeekday int) bool {
 	for _, sup := range rows {
 		if isSupervisorValidOn(sup, date, periodID, planWeekday) {
 			return true
@@ -299,11 +300,11 @@ func int64Set(ids []int64) map[int64]struct{} {
 // segment that overlap the reconciliation window — the rows whose weekday
 // coverage the editor may not duplicate.
 func protectedPredecessorEnrollments(
-	rows []*activitiesModel.StudentEnrollment,
+	rows []*activityContract.StudentEnrollment,
 	rowFrom calendar.Date,
 	rowUntil *calendar.Date,
-) []*activitiesModel.StudentEnrollment {
-	out := make([]*activitiesModel.StudentEnrollment, 0, len(rows))
+) []*activityContract.StudentEnrollment {
+	out := make([]*activityContract.StudentEnrollment, 0, len(rows))
 	for _, row := range rows {
 		if row == nil || !enrollmentIsProtected(row) {
 			continue

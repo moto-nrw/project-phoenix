@@ -4,12 +4,14 @@ import (
 	"context"
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -36,38 +38,39 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday(t *testing.T) {
 	setPersonBirthday(t, db, student.PersonID, birthday)
 
 	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student
-	// The lookup names its tenant explicitly and runs outside tenant scope, but
-	// it still opens a transaction — as it does under the runtime middleware
-	// the parent submit path runs in.
-	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	// The parent submission resolves the school before querying eligibility.
+	ctx := testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), tenantID)
 
 	// Exact match → true.
-	exists, err := repo.ExistsEnrolledByNameAndBirthday(ctx, tenantID, "Milan", "Eligibilitytest", birthday)
+	exists, err := testpkg.TenantQuery4(t, ctx, db, repo.ExistsEnrolledByNameAndBirthday, tenantID, "Milan", "Eligibilitytest", birthday)
 	require.NoError(t, err)
 	assert.True(t, exists)
 
 	// Case-insensitive + surrounding whitespace → still true (matches
 	// how a parent types the same child into the form).
-	exists, err = repo.ExistsEnrolledByNameAndBirthday(ctx, tenantID, "  milan ", "ELIGIBILITYTEST", birthday)
+	exists, err = testpkg.TenantQuery4(t, ctx, db, repo.ExistsEnrolledByNameAndBirthday, tenantID, "  milan ", "ELIGIBILITYTEST", birthday)
 	require.NoError(t, err)
 	assert.True(t, exists)
 
 	// Different birthday → false.
-	exists, err = repo.ExistsEnrolledByNameAndBirthday(ctx, tenantID, "Milan", "Eligibilitytest", calendar.NewDate(2018, 5, 21))
+	exists, err = testpkg.TenantQuery4(t, ctx, db, repo.ExistsEnrolledByNameAndBirthday, tenantID, "Milan", "Eligibilitytest", calendar.NewDate(2018, 5, 21))
 	require.NoError(t, err)
 	assert.False(t, exists)
 
-	// Different tenant → false (explicit tenant scoping, no RLS reliance).
-	exists, err = repo.ExistsEnrolledByNameAndBirthday(ctx, tenantID+1, "Milan", "Eligibilitytest", birthday)
+	// The same identity is absent from a different school under that school's RLS.
+	otherTenant := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, otherTenant)
+	otherCtx := testpkg.ContextForTenant(ctx, otherTenant)
+	exists, err = testpkg.TenantQuery4(t, otherCtx, db, repo.ExistsEnrolledByNameAndBirthday, otherTenant, "Milan", "Eligibilitytest", birthday)
 	require.NoError(t, err)
 	assert.False(t, exists)
 
 	// Inactive student → false: the check targets currently enrolled
 	// children only.
-	_, err = db.NewRaw(`UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL`, userModels.StudentStatusInactive, student.ID).
+	_, err = db.NewRaw(`UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL`, peopleValues.StudentStatusInactive, student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
-	exists, err = repo.ExistsEnrolledByNameAndBirthday(ctx, tenantID, "Milan", "Eligibilitytest", birthday)
+	exists, err = testpkg.TenantQuery4(t, ctx, db, repo.ExistsEnrolledByNameAndBirthday, tenantID, "Milan", "Eligibilitytest", birthday)
 	require.NoError(t, err)
 	assert.False(t, exists)
 }
@@ -89,17 +92,15 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday_Pending(t *testing.T)
 	setPersonBirthday(t, db, student.PersonID, birthday)
 
 	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student
-	// The lookup names its tenant explicitly and runs outside tenant scope, but
-	// it still opens a transaction — as it does under the runtime middleware
-	// the parent submit path runs in.
-	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	// The parent submission resolves the school before querying eligibility.
+	ctx := testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), tenantID)
 
 	// Flip the student to pending (approved-but-not-yet-activated).
-	_, err := db.NewRaw(`UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL`, userModels.StudentStatusPending, student.ID).
+	_, err := db.NewRaw(`UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL`, peopleValues.StudentStatusPending, student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
-	exists, err := repo.ExistsEnrolledByNameAndBirthday(ctx, tenantID, "Pending", "Enrolltest", birthday)
+	exists, err := testpkg.TenantQuery4(t, ctx, db, repo.ExistsEnrolledByNameAndBirthday, tenantID, "Pending", "Enrolltest", birthday)
 	require.NoError(t, err)
 	assert.True(t, exists, "a pending (approved, not-yet-activated) student must count as already enrolled")
 }

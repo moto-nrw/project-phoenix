@@ -5,11 +5,13 @@ import (
 	"log/slog"
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	communicationtest "github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -57,7 +59,7 @@ func TestCareDecisionTellsTheOtherGuardian(t *testing.T) {
 
 		pills, err := api.ParentStoreGuardianMessagesFixture(func(read func(context.Context) error) error {
 			return tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), f.db), f.db, f.chain.TenantID, func(ctx context.Context, _ bun.Tx) error { return read(ctx) })
-		}, f.repos.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, other.AccountID, 100)
+		}, f.reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, other.AccountID, 100)
 		require.NoError(t, err)
 		require.Len(t, pills, 1, "the other guardian hears about the decision exactly once")
 		assert.Contains(t, pills[0].Body, "Betreuungsstand geändert")
@@ -79,7 +81,7 @@ func TestCareDecisionTellsTheOtherGuardian(t *testing.T) {
 
 		pills, err := api.ParentStoreGuardianMessagesFixture(func(read func(context.Context) error) error {
 			return tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), f.db), f.db, f.chain.TenantID, func(ctx context.Context, _ bun.Tx) error { return read(ctx) })
-		}, f.repos.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, other.AccountID, 100)
+		}, f.reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, other.AccountID, 100)
 		require.NoError(t, err)
 		require.Len(t, pills, 1)
 		assert.Equal(t, "Passt so", pills[0].DecisionReason,
@@ -92,13 +94,13 @@ func TestCareDecisionTellsTheOtherGuardian(t *testing.T) {
 func careServiceWithCoGuardianEmitter(t *testing.T, f *careFixture, sharedWith []int64) carerequests.Service {
 	t.Helper()
 	emitter := f.emitter(t, messagingOnSettings{}, testpkg.NewRecordingBroadcaster())
-	return api.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
-		f.repos.CarePlan(), f.sf.PeopleDirectory,
-		f.sf.ArrivalSchedule, f.sf.PickupSchedule, newPickupChangePresence(t, f.db), f.autoExcusal,
-		f.repos.CarePlan(),
-		f.sf.UserContext, emitter, nil,
-		testpkg.RequestReviewPolicy[*usersModels.Student]{UserContext: f.sf.UserContext}, testpkg.PermissionsFromContext,
-		nil, slog.Default(), f.sf.StudentAudit,
-		api.WithRequestShareVisibility(staticShareVisibility{recipients: sharedWith}),
+	return owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+		f.reposCare.CarePlan(), f.persons,
+		f.schedules.Arrivals, f.schedules.Pickups, newPickupChangePresence(t, f.db), f.autoExcusal,
+		f.reposCare.CarePlan(),
+		f.caller, emitter, nil,
+		testpkg.RequestReviewPolicy[*peopleValues.StudentState]{UserContext: f.caller}, testpkg.PermissionsFromContext,
+		nil, slog.Default(), f.services.StudentAudit,
+		owners.WithRequestShareVisibility(staticShareVisibility{recipients: sharedWith}),
 	)
 }

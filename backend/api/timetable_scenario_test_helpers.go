@@ -6,50 +6,47 @@ import (
 	"log/slog"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+// TimetableScenarioTestModule is the Timetable side of the timetable
+// scenario suites: the owner's module and its data cleanup.
 type TimetableScenarioTestModule struct {
 	TimetableTestModule
-	Active           studentpresence.Presence
-	Users            peoplePorts.PersonDirectory
-	UserContext      *CallerRows
-	Settings         settingsCompose.SettingsService
 	TimetableCleanup timetable.TimetableCleanup
-	// People serves the People port of the timetable routes from Users, as
-	// the root binds it.
-	People TimetablePeople
 }
 
-func NewTimetableScenarioTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (TimetableScenarioTestModule, error) {
-	timetable, err := NewTimetableTestModule(db, unit, clocks...)
+// NewTimetableScenarioTestModule composes the Timetable owner over db and
+// returns it with the live graph the scenarios run beside (presence, people,
+// caller context and settings) and the School Calendar the routes read.
+func NewTimetableScenarioTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (TimetableScenarioTestModule, ActiveTestModule, schoolcalendar.Calendar, error) {
+	timetable, calendar, _, err := NewTimetableTestModule(db, unit, clocks...)
 	if err != nil {
-		return TimetableScenarioTestModule{}, err
+		return TimetableScenarioTestModule{}, ActiveTestModule{}, nil, err
 	}
 	live, err := NewActiveTestModule(db, unit, clocks...)
 	if err != nil {
-		return TimetableScenarioTestModule{}, err
+		return TimetableScenarioTestModule{}, ActiveTestModule{}, nil, err
 	}
+	liveSettings := NewActiveTestSettings(db, unit, clocks...)
 	r, err := NewTimetableTestRepositories(db, clocks...)
 	if err != nil {
-		return TimetableScenarioTestModule{}, err
+		return TimetableScenarioTestModule{}, ActiveTestModule{}, nil, err
 	}
-	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
+	command, err := auditCompose.NewCommand(owners.NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
-		return TimetableScenarioTestModule{}, err
+		return TimetableScenarioTestModule{}, ActiveTestModule{}, nil, err
 	}
-	cleanup, err := NewTimetableCleanup(TimetableRetentionInputs{
-		Owner: r.Timetable, Deletions: NewDataDeletionTestRepository(db, command),
-		Deviations: r.DeviationEvent, Settings: live.Settings, Logger: slog.Default(), Clock: OptionalClock(clocks),
-	})
+	cleanup, err := owners.NewTimetableCleanup(r.Timetable, NewDataDeletionTestRepository(db, command),
+		NewTimetableDeviationAudit(db).DeviationEvent, liveSettings.Settings, slog.Default(), OptionalClock(clocks))
 	if err != nil {
-		return TimetableScenarioTestModule{}, err
+		return TimetableScenarioTestModule{}, ActiveTestModule{}, nil, err
 	}
-	return TimetableScenarioTestModule{TimetableTestModule: timetable, Active: live.Active, Users: live.Users, UserContext: live.UserContext, Settings: live.Settings, TimetableCleanup: cleanup, People: NewTimetablePeople(live.Users)}, nil
+	return TimetableScenarioTestModule{TimetableTestModule: timetable, TimetableCleanup: cleanup}, live, calendar, nil
 }

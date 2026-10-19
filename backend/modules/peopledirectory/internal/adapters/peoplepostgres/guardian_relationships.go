@@ -9,9 +9,11 @@ import (
 	"strings"
 	"time"
 
+	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
+	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
@@ -54,7 +56,7 @@ type GuardianRelationshipRepository struct {
 	// defaultRole gives a new relationship that names neither a role nor
 	// permissions the preset its type and flags imply. The authorization
 	// policy owns the presets, so the composition binds it.
-	defaultRole func(*users.StudentGuardian)
+	defaultRole func(*directory.GuardianRelationshipSnapshot)
 }
 
 // GuardianRelationshipOption configures a GuardianRelationshipRepository at
@@ -78,13 +80,13 @@ func WithGuardianRelationshipOwners(pickup GuardianPickupPermissionCommand, acce
 
 // WithGuardianDefaultRole installs the authorization policy's default role
 // preset a link without a role or permissions is written with.
-func WithGuardianDefaultRole(apply func(*users.StudentGuardian)) GuardianRelationshipOption {
+func WithGuardianDefaultRole(apply func(*directory.GuardianRelationshipSnapshot)) GuardianRelationshipOption {
 	return func(r *GuardianRelationshipRepository) { r.defaultRole = apply }
 }
 
-// NewGuardianRelationshipRepository creates the relationship store. Reads work
+// newRawGuardianRelationshipRepository creates the relationship store. Reads work
 // without the owner commands; a write fails closed until they are bound.
-func NewGuardianRelationshipRepository(runtime Runtime, students StudentDirectoryRows, links GuardianLinkRows, options ...GuardianRelationshipOption) ports.StudentGuardianRepository {
+func newRawGuardianRelationshipRepository(runtime Runtime, students StudentDirectoryRows, links GuardianLinkRows, options ...GuardianRelationshipOption) rawStudentGuardianRepository {
 	repository := &GuardianRelationshipRepository{runtime: requireRuntime(runtime), students: requireStudentRows(students), links: requireGuardianLinkRows(links)}
 	for _, option := range options {
 		option(repository)
@@ -107,19 +109,13 @@ func (r *GuardianRelationshipRepository) memberships(ctx context.Context, accoun
 
 // --- unit of work -------------------------------------------------------------
 
-// write runs one multi-owner write as a single unit. Inside a caller's
-// transaction it is a savepoint, so a failing owner command undoes the
-// relationship half as well even when the caller handles the error and
-// commits; without one it opens the tenant transaction of the context.
+// write protects all relationship halves with a savepoint of the caller's
+// unit of work. Missing transactions fail before any owner is changed.
 func (r *GuardianRelationshipRepository) write(ctx context.Context, fn func(context.Context) error) error {
 	if r.pickup == nil || r.access == nil {
 		return errGuardianOwnersUnbound
 	}
-	if r.runtime.InTransaction(ctx) {
-		return r.runtime.WithSavepoint(ctx, fn)
-	}
-	// A transaction of its own rolls back as a whole; no savepoint needed.
-	return r.runtime.RunInTx(ctx, fn)
+	return r.runtime.WithSavepoint(ctx, fn)
 }
 
 // writeTenant is the school a new relationship is written in: the row's own,
@@ -198,7 +194,13 @@ const insertRelationshipIfAbsentSQL = `INSERT INTO users.student_guardian_relati
 // zero when ifAbsent is set and the pair is linked already, together with the
 // portal account the guardian profile names, which the access row binds.
 func (r *GuardianRelationshipRepository) insertRelationship(ctx context.Context, rel *users.StudentGuardian, ifAbsent bool) (int64, *int64, error) {
-	db := r.runtime.DB(ctx)
+	db, err := r.runtime.DB(ctx)
+	if err != nil {
+		return 0, nil, err
+	}
+	if err := clearLinkedGuardianRetentionMark(ctx, db, rel); err != nil {
+		return 0, nil, err
+	}
 	if rel.IsPrimary {
 		demote := func() error { return demoteOtherPrimaries(ctx, db, rel.TenantID, rel.StudentID, 0) }
 		if ifAbsent {
@@ -249,7 +251,11 @@ func (r *GuardianRelationshipRepository) lockRelationship(ctx context.Context, i
 		TenantID  int64 `bun:"tenant_id"`
 		StudentID int64 `bun:"student_id"`
 	}
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB2, databaseErr2 := r.runtime.DB(ctx)
+	if databaseErr2 != nil {
+		return *new(int64), *new(int64), *new(bool), databaseErr2
+	}
+	query := ambientDB2.NewSelect().
 		TableExpr(`users.student_guardian_relationships AS "relationship"`).
 		ColumnExpr(`"relationship".tenant_id, "relationship".student_id`).
 		Where(`"relationship".id = ?`, id).
@@ -318,7 +324,13 @@ func (r *GuardianRelationshipRepository) LinkIfNotExists(ctx context.Context, re
 		if r.defaultRole == nil {
 			return false, errGuardianDefaultRoleUnbound
 		}
-		r.defaultRole(rel)
+		native := NativeGuardianRelationshipValue(rel)
+		r.defaultRole(native)
+		mapped, err := GuardianRelationshipRow(native)
+		if err != nil {
+			return false, err
+		}
+		*rel = *mapped
 	}
 	if err := rel.Validate(); err != nil {
 		return false, err
@@ -442,7 +454,11 @@ func (r *GuardianRelationshipRepository) updateColumns(ctx context.Context, rel 
 		return false, err
 	}
 	rel.TenantID = tenantID
-	db := r.runtime.DB(ctx)
+	ambientDB3, databaseErr3 := r.runtime.DB(ctx)
+	if databaseErr3 != nil {
+		return *new(bool), databaseErr3
+	}
+	db := ambientDB3
 	if err := updateGuardianRelationshipColumns(ctx, db, rel, named, studentID); err != nil {
 		return false, err
 	}
@@ -466,7 +482,11 @@ func (r *GuardianRelationshipRepository) updateColumns(ctx context.Context, rel 
 // Delete unlinks a guardian. The pickup permission and the portal access
 // follow the relationship through their foreign-key cascade.
 func (r *GuardianRelationshipRepository) Delete(ctx context.Context, id any) error {
-	query := r.runtime.DB(ctx).NewDelete().
+	ambientDB4, databaseErr4 := r.runtime.DB(ctx)
+	if databaseErr4 != nil {
+		return databaseErr4
+	}
+	query := ambientDB4.NewDelete().
 		TableExpr(`users.student_guardian_relationships AS "relationship"`).
 		Where(`"relationship".id = ?`, id)
 	query = withTenantFilter(ctx, r.runtime, query, "relationship")
@@ -479,7 +499,7 @@ func (r *GuardianRelationshipRepository) Delete(ctx context.Context, id any) err
 // SetPrimary sets a guardian as the primary guardian for a student, demoting
 // the child's other primary first.
 func (r *GuardianRelationshipRepository) SetPrimary(ctx context.Context, id int64, isPrimary bool) error {
-	err := r.runtime.RunInTx(ctx, func(ctx context.Context) error {
+	err := inExistingTransaction(ctx, r.runtime, func(ctx context.Context) error {
 		tenantID, studentID, found, err := r.lockRelationship(ctx, id)
 		if err != nil {
 			return err
@@ -487,7 +507,11 @@ func (r *GuardianRelationshipRepository) SetPrimary(ctx context.Context, id int6
 		if !found {
 			return assertRowsAffectedCount(0, 1, "set primary student_guardian")
 		}
-		db := r.runtime.DB(ctx)
+		ambientDB5, databaseErr5 := r.runtime.DB(ctx)
+		if databaseErr5 != nil {
+			return databaseErr5
+		}
+		db := ambientDB5
 		if isPrimary {
 			if err := demoteOtherPrimaries(ctx, db, tenantID, studentID, id); err != nil {
 				return err
@@ -520,7 +544,11 @@ func (r *GuardianRelationshipRepository) SetPrimary(ctx context.Context, id int6
 // update expresses. Returns ErrStudentGuardianNotFound when the named guardian
 // is not linked to the child.
 func (r *GuardianRelationshipRepository) SetPayer(ctx context.Context, studentID int64, guardianProfileID *int64) error {
-	db := r.runtime.DB(ctx)
+	ambientDB6, databaseErr6 := r.runtime.DB(ctx)
+	if databaseErr6 != nil {
+		return databaseErr6
+	}
+	db := ambientDB6
 
 	clear := db.NewUpdate().
 		TableExpr(`users.student_guardian_relationships AS "relationship"`).
@@ -586,6 +614,22 @@ func updateGuardianRelationshipColumns(ctx context.Context, db bun.IDB, rel *use
 	}
 	if _, err := query.Exec(ctx); err != nil {
 		return err
+	}
+	return nil
+}
+
+func clearLinkedGuardianRetentionMark(ctx context.Context, db bun.IDB, rel *users.StudentGuardian) error {
+	result, err := db.NewRaw(`UPDATE users.guardian_profiles SET childless_since = NULL
+		WHERE tenant_id = ? AND id = ?`, rel.TenantID, rel.GuardianProfileID).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("clear linked guardian retention mark: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("count linked guardian retention marks: %w", err)
+	}
+	if affected == 0 {
+		return directory.ErrGuardianNotFound
 	}
 	return nil
 }

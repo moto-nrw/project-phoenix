@@ -3,8 +3,6 @@ package compose
 import (
 	"context"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -17,12 +15,12 @@ import (
 // suites build them through the constructors below.
 
 // ActivityInstanceDate is the retained instance date of a calendar day.
-func ActivityInstanceDate(day calendar.Date) scheduleModels.Date {
-	return scheduleModels.Date(day)
+func ActivityInstanceDate(day calendar.Date) calendar.Date {
+	return calendar.Date(day)
 }
 
 // ParseActivityInstanceDate parses a retained instance date.
-func ParseActivityInstanceDate(value string) (scheduleModels.Date, error) {
+func ParseActivityInstanceDate(value string) (calendar.Date, error) {
 	return application.ParseActivityInstanceDate(value)
 }
 
@@ -53,12 +51,12 @@ func ListCalendarShiftTypes(ctx context.Context, rows ports.CalendarShiftTypeRow
 
 // NewActivityCategorySeeder binds the category seeder to the retained
 // category rows.
-func NewActivityCategorySeeder(categories activitiesModels.CategoryRepository) application.ActivityCategorySeeder {
+func NewActivityCategorySeeder(categories ports.ActivityCategoryRecords) application.ActivityCategorySeeder {
 	return application.NewActivityCategorySeeder(categories)
 }
 
 // NewCallerActivityGroups reads the activity groups a caller supervises.
-func NewCallerActivityGroups(groups activitiesModels.GroupRepository) ports.CallerActivityGroups {
+func NewCallerActivityGroups(groups ports.ActivityGroupRecords) ports.CallerActivityGroups {
 	return application.NewCallerActivityGroups(groups)
 }
 
@@ -82,12 +80,6 @@ func NewCarePickupExceptionRows(rows ports.CarePlanRows) ports.CarePickupExcepti
 	return application.NewCarePickupExceptionRows(rows)
 }
 
-// NewCareScheduleRequestRows serves the care schedule change requests from
-// Care Plan.
-func NewCareScheduleRequestRows(rows ports.CarePlanRows) ports.CareScheduleRequestRows {
-	return application.NewCareScheduleRequestRows(rows)
-}
-
 // NewCategoryCount counts the activity categories.
 func NewCategoryCount(records application.CategoryCountRecords) *application.CategoryCount {
 	return application.NewCategoryCount(records)
@@ -99,12 +91,12 @@ func NewEndedSessionCompletion(deps ports.EndedSessionCompletionDependencies) (t
 }
 
 // NewEnrollmentArrivalSchedules binds Enrollment's weekly arrival port.
-func NewEnrollmentArrivalSchedules(repo scheduleModels.StudentArrivalScheduleRepository) application.EnrollmentArrivalSchedules {
+func NewEnrollmentArrivalSchedules(repo ports.StudentArrivalScheduleRecords) application.EnrollmentArrivalSchedules {
 	return application.NewEnrollmentArrivalSchedules(repo)
 }
 
 // NewEnrollmentPickupSchedules binds Enrollment's weekly pickup port.
-func NewEnrollmentPickupSchedules(repo scheduleModels.StudentPickupScheduleRepository) application.EnrollmentPickupSchedules {
+func NewEnrollmentPickupSchedules(repo ports.StudentPickupScheduleRecords) application.EnrollmentPickupSchedules {
 	return application.NewEnrollmentPickupSchedules(repo)
 }
 
@@ -119,17 +111,17 @@ func NewTimetableCleanup(deps ports.TimetableCleanupDependencies) (timetable.Tim
 }
 
 // NewTimetableGroupReads reads the activity groups.
-func NewTimetableGroupReads(groups activitiesModels.GroupRepository) application.TimetableGroupReads {
+func NewTimetableGroupReads(groups ports.ActivityGroupRecords) application.TimetableGroupReads {
 	return application.NewTimetableGroupReads(groups)
 }
 
 // NewTimetableInstanceReads reads the activity instances.
-func NewTimetableInstanceReads(instances scheduleModels.ActivityInstanceRepository) application.TimetableInstanceReads {
+func NewTimetableInstanceReads(instances ports.ActivityInstanceRecords) application.TimetableInstanceReads {
 	return application.NewTimetableInstanceReads(instances)
 }
 
 // NewTimetableInstanceStaffReads reads the instance staff.
-func NewTimetableInstanceStaffReads(staff scheduleModels.InstanceStaffRepository) application.TimetableInstanceStaffReads {
+func NewTimetableInstanceStaffReads(staff ports.InstanceStaffRecords) application.TimetableInstanceStaffReads {
 	return application.NewTimetableInstanceStaffReads(staff)
 }
 

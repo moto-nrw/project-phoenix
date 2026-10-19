@@ -119,11 +119,13 @@ type OfferingBookings struct {
 	engine       offeringBookingEngine
 	transactions interface {
 		RunInTx(context.Context, func(context.Context) error) error
+		RequireTransaction(context.Context) error
 	}
 }
 
 func NewOfferingBookings(engine offeringBookingEngine, transactions interface {
 	RunInTx(context.Context, func(context.Context) error) error
+	RequireTransaction(context.Context) error
 }, observers ...func(OfferingBookingObservation)) *OfferingBookings {
 	if engine == nil || transactions == nil {
 		panic("care offering bookings: engine and transactions are required")
@@ -236,11 +238,10 @@ func (m *OfferingBookings) CareOfferingBookingsForPhase(ctx context.Context, pha
 	if phaseID <= 0 {
 		return nil, fmt.Errorf("phase_id is required")
 	}
-	err = m.transactions.RunInTx(ctx, func(ctx context.Context) error {
-		rows, err = m.engine.CareOfferingBookingsForPhase(ctx, phaseID)
-		return err
-	})
-	return rows, err
+	if err = m.transactions.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	return m.engine.CareOfferingBookingsForPhase(ctx, phaseID)
 }
 
 func (m *OfferingBookings) CareOfferingBookingsForOfferings(ctx context.Context, offeringIDs []int64) (rows []CareOfferingBooking, err error) {
@@ -250,11 +251,10 @@ func (m *OfferingBookings) CareOfferingBookingsForOfferings(ctx context.Context,
 	if len(offeringIDs) == 0 {
 		return []CareOfferingBooking{}, nil
 	}
-	err = m.transactions.RunInTx(ctx, func(ctx context.Context) error {
-		rows, err = m.engine.CareOfferingBookingsForOfferings(ctx, offeringIDs)
-		return err
-	})
-	return rows, err
+	if err = m.transactions.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	return m.engine.CareOfferingBookingsForOfferings(ctx, offeringIDs)
 }
 
 func (m *OfferingBookings) CountCareOfferingBookings(ctx context.Context, childIDs []int64) (count int, err error) {
@@ -264,11 +264,10 @@ func (m *OfferingBookings) CountCareOfferingBookings(ctx context.Context, childI
 	if len(childIDs) == 0 {
 		return 0, nil
 	}
-	err = m.transactions.RunInTx(ctx, func(ctx context.Context) error {
-		count, err = m.engine.CountCareOfferingBookings(ctx, childIDs)
-		return err
-	})
-	return count, err
+	if err = m.transactions.RequireTransaction(ctx); err != nil {
+		return 0, err
+	}
+	return m.engine.CountCareOfferingBookings(ctx, childIDs)
 }
 
 func (m *OfferingBookings) CareOfferingBookingHistory(ctx context.Context, childIDs []int64) (rows []CareOfferingBooking, err error) {
@@ -278,11 +277,10 @@ func (m *OfferingBookings) CareOfferingBookingHistory(ctx context.Context, child
 	if len(childIDs) == 0 {
 		return []CareOfferingBooking{}, nil
 	}
-	err = m.transactions.RunInTx(ctx, func(ctx context.Context) error {
-		rows, err = m.engine.CareOfferingBookingHistory(ctx, childIDs)
-		return err
-	})
-	return rows, err
+	if err = m.transactions.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	return m.engine.CareOfferingBookingHistory(ctx, childIDs)
 }
 
 func (m *OfferingBookings) CareOfferingBookingsAtDates(ctx context.Context, dates map[int64]Date) (rows []CareOfferingBooking, err error) {
@@ -300,9 +298,8 @@ func (m *OfferingBookings) CareOfferingBookingsAtDates(ctx context.Context, date
 			return nil, fmt.Errorf("invalid effective care date: %w", err)
 		}
 	}
-	err = m.transactions.RunInTx(ctx, func(ctx context.Context) error {
-		rows, err = m.engine.CareOfferingBookingsAtDates(ctx, dates)
-		return err
-	})
-	return rows, err
+	if err = m.transactions.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	return m.engine.CareOfferingBookingsAtDates(ctx, dates)
 }

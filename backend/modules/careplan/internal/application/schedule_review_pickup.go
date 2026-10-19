@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -26,7 +25,7 @@ func careReviewSnapshot(raw json.RawMessage) []careplan.CareRequestDiffEntry {
 	return snapshot.Entries()
 }
 
-func (s *ScheduleReviews) pickupDiff(ctx context.Context, row *careplan.CareScheduleChangeRequest, student ports.ReviewStudent, item *careplan.CareScheduleReviewItem) ([]careplan.CareRequestDiffEntry, error) {
+func (s *ScheduleReviews) pickupDiff(ctx context.Context, row *careplan.CareScheduleChangeRequest, student careplan.ReviewStudent, item *careplan.CareScheduleReviewItem) ([]careplan.CareRequestDiffEntry, error) {
 	var payload map[string]any
 	if err := json.Unmarshal(row.Payload, &payload); err != nil {
 		return nil, err
@@ -60,7 +59,7 @@ func (s *ScheduleReviews) pickupDiff(ctx context.Context, row *careplan.CareSche
 	return carerequests.PickupChangeEntries(change, old, terms.PreviousDepartureModes), nil
 }
 
-func (s *ScheduleReviews) previewPickupImpact(ctx context.Context, row *careplan.CareScheduleChangeRequest, student ports.ReviewStudent, date careplan.Date, clock time.Time, item *careplan.CareScheduleReviewItem) {
+func (s *ScheduleReviews) previewPickupImpact(ctx context.Context, row *careplan.CareScheduleChangeRequest, student careplan.ReviewStudent, date careplan.Date, clock time.Time, item *careplan.CareScheduleReviewItem) {
 	if s.deps.Blocks == nil {
 		return
 	}
@@ -76,7 +75,7 @@ func (s *ScheduleReviews) previewPickupImpact(ctx context.Context, row *careplan
 	item.ImpactToken = s.deps.Fingerprint(carerequests.PickupImpactContent(blocks))
 }
 
-func (s *ScheduleReviews) oldReviewPickup(ctx context.Context, student ports.ReviewStudent, date careplan.Date, old string) (string, error) {
+func (s *ScheduleReviews) oldReviewPickup(ctx context.Context, student careplan.ReviewStudent, date careplan.Date, old string) (string, error) {
 	if old != "" {
 		return old, nil
 	}
@@ -94,7 +93,7 @@ func (s *ScheduleReviews) oldReviewPickup(ctx context.Context, student ports.Rev
 
 // weeklyPickup is the weekly pickup time that applies on date: Friday's on a
 // weekend that follows Friday's plan (#3921).
-func (s *ScheduleReviews) weeklyPickup(ctx context.Context, student ports.ReviewStudent, date careplan.Date) (string, error) {
+func (s *ScheduleReviews) weeklyPickup(ctx context.Context, student careplan.ReviewStudent, date careplan.Date) (string, error) {
 	facts, err := s.plan(ctx, student, date, false)
 	if err != nil {
 		return "", err
@@ -110,7 +109,7 @@ func (s *ScheduleReviews) weeklyPickup(ctx context.Context, student ports.Review
 	return times[weekday], nil
 }
 
-func (s *ScheduleReviews) pickupBlocks(ctx context.Context, student ports.ReviewStudent, date careplan.Date, clock time.Time) ([]careplan.CareReviewBlock, error) {
+func (s *ScheduleReviews) pickupBlocks(ctx context.Context, student careplan.ReviewStudent, date careplan.Date, clock time.Time) ([]careplan.CareReviewBlock, error) {
 	result := []careplan.CareReviewBlock{}
 	weekday, err := calendar.PlanWeekday(ctx, calendar.Date(date))
 	if err != nil {
@@ -134,7 +133,7 @@ func (s *ScheduleReviews) pickupBlocks(ctx context.Context, student ports.Review
 	if err != nil {
 		return nil, err
 	}
-	input := ports.PickupReviewImpact{StudentID: student.ID, Date: date, From: clock, Enrolled: !student.Alumnus}
+	input := careplan.PickupReviewImpact{StudentID: student.ID, Date: date, From: clock, Enrolled: !student.Alumnus}
 	for _, exception := range exceptions {
 		if exception.ExcusedAuto {
 			input.AutoExceptionIDs = append(input.AutoExceptionIDs, exception.ID)

@@ -4,10 +4,11 @@ import (
 	"testing"
 	"time"
 
+	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -28,17 +29,17 @@ func TestPickupScheduleService_GetBulkEffectivePickupDaysForDate(t *testing.T) {
 	usual := testpkg.CreateTestStudent(t, db, "Pickup", "Usual", "1a")
 	changed := testpkg.CreateTestStudent(t, db, "Pickup", "Changed", "1a")
 	for _, studentID := range []int64{usual.ID, changed.ID} {
-		require.NoError(t, service.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, service.UpsertStudentPickupSchedule, &careplan.PickupSchedule{
 			StudentID:  studentID,
-			Weekday:    scheduleModels.WeekdayThursday,
+			Weekday:    timetable.WeekdayThursday,
 			PickupTime: time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
 			CreatedBy:  staffID,
 		}))
 	}
-	_, err := service.SetDayDeparture(ctx, changed.ID, testDate, careplan.DepartureModePickup, nil, staffID)
+	_, err := testpkg.TenantQuery5(t, ctx, db, service.SetDayDeparture, changed.ID, testDate, careplan.DepartureModePickup, nil, staffID)
 	require.NoError(t, err)
 
-	results, err := service.GetBulkEffectivePickupDaysForDate(ctx, []int64{usual.ID, changed.ID}, testDate)
+	results, err := testpkg.TenantQuery2(t, ctx, db, service.GetBulkEffectivePickupDaysForDate, []int64{usual.ID, changed.ID}, testDate)
 	require.NoError(t, err)
 
 	require.Contains(t, results, usual.ID)
@@ -49,7 +50,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupDaysForDate(t *testing.T) {
 	require.NotNil(t, results[changed.ID].PickupTime)
 	assert.Equal(t, 15, results[changed.ID].PickupTime.Hour())
 
-	otherDay, err := service.GetBulkEffectivePickupDaysForDate(ctx, []int64{changed.ID}, testDate.AddDays(7))
+	otherDay, err := testpkg.TenantQuery2(t, ctx, db, service.GetBulkEffectivePickupDaysForDate, []int64{changed.ID}, testDate.AddDays(7))
 	require.NoError(t, err)
 	require.Contains(t, otherDay, changed.ID)
 	assert.Empty(t, otherDay[changed.ID].DayDepartureMode, "the Abholart holds for its one day only")

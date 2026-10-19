@@ -52,7 +52,7 @@
       "backend/modules/workforce/internal/application/staffadmin_documents.go",
       "backend/modules/workforce/internal/domain/staffadmin.go",
       "backend/modules/workforce/compose/staffadmin.go",
-      "backend/api/staff_admin_composition.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/staff_admin_composition.go",
       "backend/modules/peopledirectory/internal/application/staff_directory.go"
     ],
     "workload": "No load run. Go suites through scripts/run-go-toolchain.sh and scripts/test-changed.sh against the base, local postgres-test server, per-test tenants, default package parallelism.",

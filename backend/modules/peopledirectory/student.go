@@ -62,6 +62,30 @@ type StudentName struct {
 
 func (s Student) IsAlumnus() bool { return s.Status == StudentStatusAlumnus }
 
+// StudentStillEnrolled reports whether studentID names a child the directory
+// still holds and that has not graduated.
+func StudentStillEnrolled(ctx context.Context, students StudentQuery, studentID int64) (bool, error) {
+	values, err := students.ListStudentsByID(ctx, []int64{studentID})
+	if err != nil {
+		return false, err
+	}
+	for _, student := range values {
+		if student.ID == studentID && !student.IsAlumnus() {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// LiveAbsenceFlags are the live flags an approved absence sets on a child row
+// (People Directory's SetLiveAbsenceFlags): Sick raises the live sick flag,
+// stamped with the approval time, or clears it; ClearExcused clears the live
+// excused flag together with its time.
+type LiveAbsenceFlags struct {
+	Sick         bool
+	ClearExcused bool
+}
+
 // StudentQuery reads the student directory. Reads are scoped to the tenant
 // in context; inside an admin transaction they span every tenant.
 type StudentQuery interface {

@@ -29,7 +29,8 @@ func (s *Store) FindManagedAccount(ctx context.Context, id int64, forUpdate bool
 	query := db.NewSelect().
 		TableExpr(`auth.accounts AS "account"`).
 		ColumnExpr(`"account".id, "account".email, "account".active`).
-		Where(`"account".id = ?`, id)
+		Where(`"account".id = ?`, id).
+		Where(`"account".personal_data_erased_at IS NULL`)
 	if forUpdate {
 		query = query.For("UPDATE")
 	}
@@ -56,6 +57,7 @@ func (s *Store) SetAccountActive(ctx context.Context, id int64, active bool) (do
 		Set("active = ?", active).
 		Set("updated_at = NOW()").
 		Where(`"account".id = ?`, id).
+		Where(`"account".personal_data_erased_at IS NULL`).
 		Exec(ctx)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -14,7 +15,7 @@ import (
 // The typed root's test compositions these suites build: each opens the
 // package's test database and composes the module through the root (#4005).
 
-func setupUserContextModule(t *testing.T) (*bun.DB, api.UserContextTestModule) {
+func setupUserContextModule(t *testing.T) (*bun.DB, *owners.CallerRows) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	module, err := api.NewUserContextTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
@@ -28,6 +29,6 @@ func init() {
 	sse.ComposeSubscriptionResolver = func(t *testing.T) (*bun.DB, sse.SubscriptionResolver, sse.Runtime[realtime.Event, *realtime.Client]) {
 		t.Helper()
 		db, module := setupUserContextModule(t)
-		return db, module.UserContext, api.NewSSEHTTPRuntime()
+		return db, module, api.NewSSEHTTPRuntime()
 	}
 }

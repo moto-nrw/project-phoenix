@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
@@ -23,12 +24,14 @@ import (
 // rebuilds a cancelled shift's covers and the per-staff write lock, while the
 // retained timetable planning services serve the Betreuungsplan staffing.
 type planSyncEnv struct {
-	db        *bun.DB
-	repos     api.TimetableTestRepositories
-	timetable api.TimetableTestModule
-	shifts    workforce.Capability
-	planning  workforce.StaffShiftPlanning
-	lock      func(context.Context, int64) error
+	db    *bun.DB
+	repos owners.TimetableTestRepositories
+	// deviations is the Änderungsprotokoll the suites read back.
+	deviations api.TimetableDeviationAudit
+	timetable  api.TimetableTestModule
+	shifts     workforce.Capability
+	planning   workforce.StaffShiftPlanning
+	lock       func(context.Context, int64) error
 	// cascade and substitution are the workflow's two halves, bound the way
 	// the composition root binds them.
 	cascade      shiftplansync.SickCascade
@@ -51,24 +54,30 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 
 	repos, err := api.NewTimetableTestRepositories(testpkg.NewDatabase(t, db), clocks...)
 	require.NoError(t, err)
-	timetable, err := api.NewTimetableTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	members := owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db))
+	rooms, err := owners.NewTimetableRoomRows(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	membership, err := api.NewSchoolMembership(testpkg.NewDatabase(t, db))
+	schoolCalendar, err := api.NewTimetableSchoolCalendar(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	capability, err := api.NewWorkforce(testpkg.NewDatabase(t, db), membership)
+	deviations := api.NewTimetableDeviationAudit(testpkg.NewDatabase(t, db))
+	timetable, _, realtimeHub, err := api.NewTimetableTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	require.NoError(t, err)
+	membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	capability, err := owners.NewWorkforce(testpkg.NewDatabase(t, db), membership)
 	require.NoError(t, err)
 
 	shiftPlanning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
 		Workforce:       capability,
-		Staff:           api.NewPlanStaffDirectory(repos.Staff),
-		CalendarPeriods: repos.SchoolCalendar(),
-		ShiftMoveAudit:  api.NewShiftMoveAudit(repos.DeviationEvent),
+		Staff:           owners.NewPlanStaffDirectory(members.Staff),
+		CalendarPeriods: schoolCalendar.SchoolCalendar(),
+		ShiftMoveAudit:  owners.NewShiftMoveAudit(deviations.DeviationEvent),
 		Instances:       repos.InstanceReads(),
 		InstanceStaff:   repos.InstanceStaffReads(),
-		Rooms:           api.NewTimetableRoomNames(repos.Facilities),
+		Rooms:           owners.NewTimetableRoomNames(rooms.Facilities),
 		ActivityGroups:  repos.GroupReads(),
 		DB:              db,
-		Broadcaster:     timetable.RealtimeHub,
+		Broadcaster:     realtimeHub,
 		Logger:          logger,
 		Today:           today,
 	})
@@ -78,7 +87,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 
 	broadcaster := cascadeBroadcaster
 	if broadcaster == nil {
-		broadcaster = timetable.RealtimeHub
+		broadcaster = realtimeHub
 	}
 	lock := workforceCompose.NewStaffShiftLock(db)
 	cascade, err := compose.NewSickCascade(compose.SickCascadeDependencies{
@@ -97,7 +106,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 		Deviations:        timetable.TimetableData.Deviations,
 		ActivityInstances: repos.InstanceReads(),
 		InstanceStaff:     repos.InstanceStaffReads(),
-		Staff:             api.NewPlanStaffDirectory(repos.Staff),
+		Staff:             owners.NewPlanStaffDirectory(members.Staff),
 		Broadcaster:       broadcaster,
 		Logger:            logger,
 	})
@@ -106,6 +115,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 	return planSyncEnv{
 		db:           db,
 		repos:        repos,
+		deviations:   deviations,
 		timetable:    timetable,
 		shifts:       capability,
 		planning:     planning,

@@ -48,6 +48,14 @@ func (s *stubPreferences) FilterOptedIn(_ context.Context, notificationType stri
 	return s.optedIn, s.err
 }
 
+// sessionlessRequest is a request without an authenticated account; the push
+// paths under test read none.
+type sessionlessRequest struct{}
+
+func (sessionlessRequest) AccountID(context.Context) int64 { return 0 }
+
+func (sessionlessRequest) Permissions(context.Context) []string { return nil }
+
 func testThread() *ParentMessageThread {
 	thread := &ParentMessageThread{
 		StudentID:         55,
@@ -60,6 +68,7 @@ func testThread() *ParentMessageThread {
 
 func newNotifyService(notifier communication.NotificationSender, prefs communication.NotificationPreferences) *Service {
 	return NewService(Config{
+		Session:     sessionlessRequest{},
 		Logger:      slog.Default(),
 		Notifier:    notifier,
 		Preferences: prefs,
@@ -116,7 +125,7 @@ func TestNotifyGuardianDevice(t *testing.T) {
 		notifier := &captureNotifier{}
 		locale := "en"
 		s := NewService(Config{
-			Logger: slog.Default(), Notifier: notifier,
+			Session: sessionlessRequest{}, Logger: slog.Default(), Notifier: notifier,
 			Preferences:      &stubPreferences{optedIn: []int64{42}},
 			GuardianProfiles: stubGuardianProfiles{profile: &communication.ParentMessageGuardianContact{PortalLocale: &locale}},
 		}, testpkg.TenantTransactionRuntime{}, devices.ParentDeliveryPolicy{})

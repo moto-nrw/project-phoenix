@@ -1,22 +1,18 @@
 package compose
 
 import (
-	"context"
 	"errors"
-	"time"
 
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 )
 
-type MasterDataDirectory = ports.MasterDataDirectory
-type MasterDataFieldChange = ports.MasterDataFieldChange
-type MasterDataFieldFacts = ports.MasterDataFieldFacts
+type MasterDataDirectory = careplan.MasterDataDirectory
+type MasterDataFieldChange = careplan.MasterDataFieldChange
+type MasterDataFieldFacts = careplan.MasterDataFieldFacts
 
 type MasterDataReviewDependencies struct {
 	Requests careplan.StudentDataRequestQuery
@@ -31,33 +27,7 @@ func NewStudentDataRequestQueries(db *bun.DB, directory StudentDirectory, observ
 	if db == nil || directory == nil || observe == nil {
 		return nil, errors.New("care plan student data request queries: database, student directory and observer are required")
 	}
-	return requestQueueQueries{store: postgres.NewRequestStore(postgres.New(carePlanDatabase(db)), directory), observe: observe}, nil
-}
-
-type requestQueueQueries struct {
-	store interface {
-		FindCareScheduleRequest(context.Context, int64, bool) (careplan.CareScheduleChangeRequest, bool, domain.OperationStats, error)
-		ListStudentDataRequests(context.Context, careplan.StudentDataRequestFilter) ([]careplan.StudentDataChangeRequest, domain.OperationStats, error)
-		ListCareScheduleRequests(context.Context, careplan.CareScheduleRequestFilter) ([]careplan.CareScheduleChangeRequest, domain.OperationStats, error)
-	}
-	observe func(Observation)
-}
-
-func (q requestQueueQueries) FindCareScheduleRequest(ctx context.Context, id int64, lock bool) (careplan.CareScheduleChangeRequest, error) {
-	started := time.Now()
-	row, found, stats, err := q.store.FindCareScheduleRequest(ctx, id, lock)
-	if err == nil && !found {
-		err = careplan.ErrCareScheduleRequestNotFound
-	}
-	q.observe(Observation{Operation: "find_care_schedule_request", Duration: time.Since(started), Stats: stats, Err: err})
-	return row, err
-}
-
-func (q requestQueueQueries) ListStudentDataRequests(ctx context.Context, filter careplan.StudentDataRequestFilter) ([]careplan.StudentDataChangeRequest, error) {
-	started := time.Now()
-	rows, stats, err := q.store.ListStudentDataRequests(ctx, filter)
-	q.observe(Observation{Operation: "list_student_data_requests", Duration: time.Since(started), Stats: stats, Err: err})
-	return rows, err
+	return application.NewRequestQueueQueries(postgres.NewRequestStore(postgres.New(carePlanDatabase(db)), directory), observe), nil
 }
 
 // NewCareScheduleRequestQueries binds only the storage reads of the next
@@ -66,14 +36,7 @@ func NewCareScheduleRequestQueries(db *bun.DB, directory StudentDirectory, obser
 	if db == nil || directory == nil || observe == nil {
 		return nil, errors.New("care plan schedule request queries: database, student directory and observer are required")
 	}
-	return requestQueueQueries{store: postgres.NewRequestStore(postgres.New(carePlanDatabase(db)), directory), observe: observe}, nil
-}
-
-func (q requestQueueQueries) ListCareScheduleRequests(ctx context.Context, filter careplan.CareScheduleRequestFilter) ([]careplan.CareScheduleChangeRequest, error) {
-	started := time.Now()
-	rows, stats, err := q.store.ListCareScheduleRequests(ctx, filter)
-	q.observe(Observation{Operation: "list_care_schedule_requests", Duration: time.Since(started), Stats: stats, Err: err})
-	return rows, err
+	return application.NewRequestQueueQueries(postgres.NewRequestStore(postgres.New(carePlanDatabase(db)), directory), observe), nil
 }
 
 func NewMasterDataReviews(deps MasterDataReviewDependencies) (careplan.MasterDataReviewQuery, error) {

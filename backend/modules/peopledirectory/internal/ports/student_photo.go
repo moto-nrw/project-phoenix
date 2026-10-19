@@ -37,10 +37,18 @@ type StudentPhotoRuntime interface {
 	// for; 0 when the caller is not an authenticated account.
 	ActingAccountID(ctx context.Context) int64
 	// UnlinkStoredPhoto deletes a detached file after the commit.
+	QueueUnlinkStoredPhoto(context.Context, string) error
 	UnlinkStoredPhoto(storedURL string)
 	// BroadcastPhotoChange wakes open tabs; source labels the reason.
 	BroadcastPhotoChange(tenantID, studentID int64, source string)
 	// RecordPhotoConsent appends the Audit Platform trail entry for a
 	// consent that changed with the photo.
-	RecordPhotoConsent(ctx context.Context, before, after domain.StudentConsentSnapshot, actorAccountID *int64, changedAt time.Time) error
+	RecordPhotoConsent(ctx context.Context, before, after StudentPhotoConsentSnapshot, actorAccountID *int64, changedAt time.Time) error
+}
+
+// StudentPhotoConsentSnapshot is the photo slice of a consent change the
+// consent trail records.
+type StudentPhotoConsentSnapshot struct {
+	StudentID           int64
+	PhotoConsentGivenAt *time.Time
 }

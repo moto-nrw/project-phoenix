@@ -246,6 +246,8 @@ func TestGuardianLinkCommandsInsertOnceAndPatchOnlySuppliedColumns(t *testing.T)
 	tenantID := testpkg.Tenant(t)
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Lina", "Link", "1a")
 	guardian := testpkg.CreateTestGuardianProfileForTenant(t, db, tenantID, "Lars", "Link", "portal-link")
+	_, err := db.NewRaw(`UPDATE users.guardian_profiles SET childless_since = NOW() - INTERVAL '120 days' WHERE id = ?`, guardian.ID).Exec(ctx)
+	require.NoError(t, err)
 
 	link := peopledirectory.GuardianContactLink{
 		StudentID: student.ID, GuardianProfileID: guardian.ID, RelationshipType: "Relative",
@@ -254,6 +256,7 @@ func TestGuardianLinkCommandsInsertOnceAndPatchOnlySuppliedColumns(t *testing.T)
 	linkID, inserted, err := module.LinkGuardianContact(ctx, link)
 	require.NoError(t, err)
 	require.True(t, inserted)
+	assert.Nil(t, childlessSince(t, db, guardian.ID), "a new child link starts a future childless period anew")
 	stored := readGuardianLink(t, db, student.ID, guardian.ID)
 	assert.Equal(t, stored.ID, linkID, "the new relationship's ID is returned")
 	assert.Equal(t, tenantID, stored.TenantID)
@@ -320,6 +323,25 @@ func TestGuardianLinkCommandsInsertOnceAndPatchOnlySuppliedColumns(t *testing.T)
 	affected, err = module.PatchGuardianLinkPickup(ctx, peopledirectory.GuardianLinkPickupPatch{LinkID: stored.ID, CanPickup: flagPtr(false)})
 	require.NoError(t, err)
 	assert.Zero(t, affected, "a vanished relationship reports zero rows")
+}
+
+func TestGuardianLinkReportsADeletedContact(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Deleted", "Contact", "1a")
+	guardian := testpkg.CreateTestGuardianProfileForTenant(t, db, tenantID, "Deleted", "Contact", "portal-deleted-contact")
+	_, err := db.NewRaw(`DELETE FROM users.guardian_profiles WHERE id = ?`, guardian.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	linkID, inserted, err := module.LinkGuardianContact(ctx, peopledirectory.GuardianContactLink{
+		StudentID: student.ID, GuardianProfileID: guardian.ID, RelationshipType: "parent",
+	})
+	require.ErrorIs(t, err, peopledirectory.ErrGuardianNotFound)
+	assert.Zero(t, linkID)
+	assert.False(t, inserted)
 }
 
 func TestGuardianPortalLocaleOnlyTouchesTheTenantInContext(t *testing.T) {

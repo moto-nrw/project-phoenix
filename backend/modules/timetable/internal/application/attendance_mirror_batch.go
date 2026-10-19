@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -18,18 +18,12 @@ import (
 // events carry no attendance enrichment by design (#848), so they return no
 // snapshots.
 
-// instanceLister is the list read the retained instance repository serves
-// beside its model interface.
-type instanceLister interface {
-	List(ctx context.Context, options *domain.ListOptions) ([]*scheduleModel.ActivityInstance, error)
-}
-
 // MirrorCheckOutAt closes the latest open slot attendance for roomless binary
 // mode. It never changes another slot's status or history.
 func (s *attendanceMirror) MirrorCheckOutAt(ctx context.Context, studentID int64, at time.Time) (err error) {
 	defer s.recoverMirrorPanic(ctx, "roomless attendance checkout mirror panic", "MirrorCheckOutAt panic", &err)
 
-	day := scheduleModel.Date(calendar.DateFromTime(at))
+	day := calendar.DateFromTime(at)
 	rows, err := s.instanceStudentRepo.FindByStudentAndDateRange(ctx, studentID, day, day)
 	if err != nil {
 		s.getLogger().Warn("roomless attendance checkout mirror: slot lookup failed",
@@ -55,8 +49,8 @@ func (s *attendanceMirror) MirrorCheckOutAt(ctx context.Context, studentID int64
 
 // latestOpenRow picks the most recently checked-in present row that is still
 // open.
-func latestOpenRow(rows []*scheduleModel.InstanceStudent) *scheduleModel.InstanceStudent {
-	var latest *scheduleModel.InstanceStudent
+func latestOpenRow(rows []*timetable.ScheduledParticipant) *timetable.ScheduledParticipant {
+	var latest *timetable.ScheduledParticipant
 	for _, row := range rows {
 		if isOpenPresence(row) && (latest == nil || row.CheckedInAt.After(*latest.CheckedInAt)) {
 			latest = row
@@ -65,14 +59,14 @@ func latestOpenRow(rows []*scheduleModel.InstanceStudent) *scheduleModel.Instanc
 	return latest
 }
 
-func isOpenPresence(row *scheduleModel.InstanceStudent) bool {
+func isOpenPresence(row *timetable.ScheduledParticipant) bool {
 	return row.Status == scheduleModel.AttendanceStatusPresent && row.CheckedInAt != nil && row.CheckedOutAt == nil
 }
 
 // latestOpenPresence picks, per student, the most recently checked-in present
 // row that is still open.
-func latestOpenPresence(rows []*scheduleModel.InstanceStudent) map[int64]*scheduleModel.InstanceStudent {
-	latestByStudent := make(map[int64]*scheduleModel.InstanceStudent)
+func latestOpenPresence(rows []*timetable.ScheduledParticipant) map[int64]*timetable.ScheduledParticipant {
+	latestByStudent := make(map[int64]*timetable.ScheduledParticipant)
 	for _, row := range rows {
 		if !isOpenPresence(row) {
 			continue
@@ -97,7 +91,7 @@ func (s *attendanceMirror) MirrorCheckInAtBatch(ctx context.Context, studentIDs 
 	}
 
 	rows, err := s.instanceStudentRepo.FindCurrentCandidatesByStudentIDs(
-		ctx, studentIDs, scheduleModel.DateFromTime(at), at,
+		ctx, studentIDs, calendar.DateFromTime(at), at,
 	)
 	if err != nil {
 		s.getLogger().Warn("roomless attendance batch mirror: candidate lookup failed",
@@ -122,12 +116,12 @@ func (s *attendanceMirror) MirrorCheckInAtBatch(ctx context.Context, studentIDs 
 
 // uniqueCheckinKeys keeps the students with exactly one candidate slot whose
 // state a check-in may replace.
-func (s *attendanceMirror) uniqueCheckinKeys(rows []*scheduleModel.InstanceStudent, students int) []scheduleModel.InstanceStudentKey {
-	byStudent := make(map[int64][]*scheduleModel.InstanceStudent, students)
+func (s *attendanceMirror) uniqueCheckinKeys(rows []*timetable.ScheduledParticipant, students int) []timetable.InstanceStudentKey {
+	byStudent := make(map[int64][]*timetable.ScheduledParticipant, students)
 	for _, row := range rows {
 		byStudent[row.StudentID] = append(byStudent[row.StudentID], row)
 	}
-	keys := make([]scheduleModel.InstanceStudentKey, 0, len(byStudent))
+	keys := make([]timetable.InstanceStudentKey, 0, len(byStudent))
 	for studentID, candidates := range byStudent {
 		if len(candidates) != 1 {
 			s.getLogger().Debug("roomless attendance batch mirror: slot assignment is not unique",
@@ -139,7 +133,7 @@ func (s *attendanceMirror) uniqueCheckinKeys(rows []*scheduleModel.InstanceStude
 		if shouldPreserveAttendanceOnCheckin(candidates[0]) {
 			continue
 		}
-		keys = append(keys, scheduleModel.InstanceStudentKey{
+		keys = append(keys, timetable.InstanceStudentKey{
 			InstanceID: candidates[0].InstanceID,
 			StudentID:  studentID,
 		})
@@ -158,7 +152,7 @@ func (s *attendanceMirror) MirrorCheckOutAtBatch(ctx context.Context, studentIDs
 	}
 
 	day := calendar.DateFromTime(at)
-	rows, err := s.instanceStudentRepo.FindByStudentIDsAndDate(ctx, studentIDs, scheduleModel.Date(day))
+	rows, err := s.instanceStudentRepo.FindByStudentIDsAndDate(ctx, studentIDs, calendar.Date(day))
 	if err != nil {
 		s.getLogger().Warn("roomless attendance batch checkout mirror: slot lookup failed",
 			slog.String("error", err.Error()),
@@ -167,9 +161,9 @@ func (s *attendanceMirror) MirrorCheckOutAtBatch(ctx context.Context, studentIDs
 	}
 
 	latestByStudent := latestOpenPresence(rows)
-	keys := make([]scheduleModel.InstanceStudentKey, 0, len(latestByStudent))
+	keys := make([]timetable.InstanceStudentKey, 0, len(latestByStudent))
 	for studentID, row := range latestByStudent {
-		keys = append(keys, scheduleModel.InstanceStudentKey{InstanceID: row.InstanceID, StudentID: studentID})
+		keys = append(keys, timetable.InstanceStudentKey{InstanceID: row.InstanceID, StudentID: studentID})
 	}
 	if len(keys) == 0 {
 		return nil
@@ -201,13 +195,13 @@ func (s *attendanceMirror) MirrorCheckOutForVisits(ctx context.Context, visits [
 		s.getLogger().Warn("attendance batch mirror: find instances by active_group_id failed", slog.String("error", err.Error()))
 		return fmt.Errorf("visit batch checkout sync: find instances: %w", err)
 	}
-	keys := make([]scheduleModel.InstanceStudentKey, 0, len(visits))
+	keys := make([]timetable.InstanceStudentKey, 0, len(visits))
 	for _, visit := range visits {
 		instance := instanceByGroup[visit.ActiveGroupID]
 		if visit.ActiveGroupID <= 0 || instance == nil {
 			continue // walk-in / no bridged instance — nothing to mirror
 		}
-		keys = append(keys, scheduleModel.InstanceStudentKey{InstanceID: instance.ID, StudentID: visit.StudentID})
+		keys = append(keys, timetable.InstanceStudentKey{InstanceID: instance.ID, StudentID: visit.StudentID})
 	}
 	if len(keys) == 0 {
 		return nil
@@ -237,22 +231,16 @@ func visitActiveGroupIDs(visits []timetable.AttendanceVisit) []int64 {
 
 // instancesByActiveGroup resolves the blocks bridged to the sessions in one
 // read.
-func (s *attendanceMirror) instancesByActiveGroup(ctx context.Context, groupIDs []int64) (map[int64]*scheduleModel.ActivityInstance, error) {
-	lister, ok := s.instanceRepo.(instanceLister)
-	if !ok {
+func (s *attendanceMirror) instancesByActiveGroup(ctx context.Context, groupIDs []int64) (map[int64]*timetable.ScheduledInstance, error) {
+	lister := s.instanceRepo
+	if lister.FindByActiveGroups == nil {
 		return nil, fmt.Errorf("legacy list capability is not configured for %T", s.instanceRepo)
 	}
-	args := make([]any, len(groupIDs))
-	for i, id := range groupIDs {
-		args[i] = id
-	}
-	instances, err := lister.List(ctx, &domain.ListOptions{
-		Filter: domain.NewListFilter().In("active_group_id", args...),
-	})
+	instances, err := lister.FindByActiveGroups(ctx, groupIDs)
 	if err != nil {
 		return nil, err
 	}
-	instanceByGroup := make(map[int64]*scheduleModel.ActivityInstance, len(instances))
+	instanceByGroup := make(map[int64]*timetable.ScheduledInstance, len(instances))
 	for _, instance := range instances {
 		if instance.ActiveGroupID != nil {
 			instanceByGroup[*instance.ActiveGroupID] = instance

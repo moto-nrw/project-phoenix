@@ -73,7 +73,7 @@ func TestActiveGroupsSummaryCarriesTheActivityLimit(t *testing.T) {
 		11: {{StudentID: 103}},
 	}
 	roomData := &dashboardRoomData{
-		roomByID:        map[int64]*ports.SessionRoom{},
+		roomByID:        map[int64]*studentpresence.SessionRoom{},
 		roomStudentsMap: map[int64]map[int64]struct{}{7: {100: {}, 101: {}, 102: {}, 103: {}}},
 	}
 

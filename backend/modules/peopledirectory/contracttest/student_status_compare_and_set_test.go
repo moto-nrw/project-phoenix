@@ -12,9 +12,10 @@ package contracttest_test
 import (
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,11 +45,10 @@ func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "CasPending", "Lifecycle", "1a")
 		testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusPending, nil, nil)
 
-		updated, err := repo.TransitionStatus(ctx, student.ID,
-			userModels.StudentStatusPending, userModels.StudentStatusActive)
+		updated, err := testpkg.TenantQuery3(t, ctx, db, repo.TransitionStatus, student.ID, peopleValues.StudentStatusPending, peopleValues.StudentStatusActive)
 		require.NoError(t, err)
 		assert.True(t, updated)
-		assert.Equal(t, string(userModels.StudentStatusActive), readStatus(t, db, student.ID))
+		assert.Equal(t, string(peopleValues.StudentStatusActive), readStatus(t, db, student.ID))
 	})
 
 	t.Run("skips a graduated row instead of resurrecting it", func(t *testing.T) {
@@ -57,11 +57,10 @@ func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 		// before the update landed.
 		testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusAlumnus, nil, nil)
 
-		updated, err := repo.TransitionStatus(ctx, student.ID,
-			userModels.StudentStatusActive, userModels.StudentStatusInactive)
+		updated, err := testpkg.TenantQuery3(t, ctx, db, repo.TransitionStatus, student.ID, peopleValues.StudentStatusActive, peopleValues.StudentStatusInactive)
 		require.NoError(t, err)
 		assert.False(t, updated, "a status that moved on must not be overwritten")
-		assert.Equal(t, string(userModels.StudentStatusAlumnus), readStatus(t, db, student.ID),
+		assert.Equal(t, string(peopleValues.StudentStatusAlumnus), readStatus(t, db, student.ID),
 			"the graduation must survive the concurrent lifecycle write")
 	})
 
@@ -69,13 +68,11 @@ func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "CasIdempotent", "Lifecycle", "1a")
 		testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusPending, nil, nil)
 
-		first, err := repo.TransitionStatus(ctx, student.ID,
-			userModels.StudentStatusPending, userModels.StudentStatusActive)
+		first, err := testpkg.TenantQuery3(t, ctx, db, repo.TransitionStatus, student.ID, peopleValues.StudentStatusPending, peopleValues.StudentStatusActive)
 		require.NoError(t, err)
 		require.True(t, first)
 
-		second, err := repo.TransitionStatus(ctx, student.ID,
-			userModels.StudentStatusPending, userModels.StudentStatusActive)
+		second, err := testpkg.TenantQuery3(t, ctx, db, repo.TransitionStatus, student.ID, peopleValues.StudentStatusPending, peopleValues.StudentStatusActive)
 		require.NoError(t, err)
 		assert.False(t, second)
 	})
@@ -84,10 +81,9 @@ func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "CasTenant", "Lifecycle", "1a")
 		testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusPending, nil, nil)
 
-		updated, err := repo.TransitionStatus(testpkg.TenantContext(2), student.ID,
-			userModels.StudentStatusPending, userModels.StudentStatusActive)
+		updated, err := testpkg.TenantQuery3(t, testpkg.TenantContext(2), db, repo.TransitionStatus, student.ID, peopleValues.StudentStatusPending, peopleValues.StudentStatusActive)
 		require.NoError(t, err)
 		assert.False(t, updated)
-		assert.Equal(t, string(userModels.StudentStatusPending), readStatus(t, db, student.ID))
+		assert.Equal(t, string(peopleValues.StudentStatusPending), readStatus(t, db, student.ID))
 	})
 }

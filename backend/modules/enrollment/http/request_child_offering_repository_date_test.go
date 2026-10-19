@@ -29,11 +29,7 @@ func TestOwnerOfferingSelectionsAtDate_DoesNotReturnFutureSelection(t *testing.T
 		[]*owner.RequestChildOffering{{CareOfferingID: fx.oldOffering.ID}},
 	))
 
-	links, err := env.repos.Enrollment().RequestChildOfferingsAtDate(
-		ctx,
-		fx.childID,
-		env.sourcePhase.ServiceStartDate,
-	)
+	links, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), env.repos.Enrollment().RequestChildOfferingsAtDate, fx.childID, env.sourcePhase.ServiceStartDate)
 	require.NoError(t, err)
 	require.Empty(t, links)
 }
@@ -54,7 +50,7 @@ func TestOwnerOfferingSelectionsBeforeServiceStart_ReturnsNextInterval(t *testin
 
 	beforeStart := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-10)
 
-	links, err := env.repos.Enrollment().RequestChildOfferingsAtDate(ctx, fx.childID, owner.Date(beforeStart))
+	links, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), env.repos.Enrollment().RequestChildOfferingsAtDate, fx.childID, owner.Date(beforeStart))
 	require.NoError(t, err)
 	require.NotEmpty(t, links,
 		"before the service start the repository reports the upcoming interval, not 'nothing booked'")
@@ -81,7 +77,7 @@ func TestOwnerOfferingSelectionsAtDates_DoesNotReturnHistoricalSelection(t *test
 		[]*owner.RequestChildOffering{{CareOfferingID: fx.newOffering.ID}},
 	))
 
-	links, err := env.repos.Enrollment().RequestChildOfferingsAtDates(ctx, map[int64]owner.Date{
+	links, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Enrollment().RequestChildOfferingsAtDates, map[int64]owner.Date{
 		fx.childID: owner.Date(futureStart),
 	})
 	require.NoError(t, err)

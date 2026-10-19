@@ -7,8 +7,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
+	calModels "github.com/moto-nrw/project-phoenix/modules/appointments"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -29,14 +30,15 @@ type reminderCaptureNotifier struct {
 }
 
 func (n *reminderCaptureNotifier) Notify(_ context.Context, event calendarCompose.Notification) error {
-	if n.err != nil {
-		return n.err
-	}
 	n.events = append(n.events, event)
 	return nil
 }
 
 func (n *reminderCaptureNotifier) NotifySynchronously(ctx context.Context, event calendarCompose.Notification) error {
+	// Transport failure belongs to synchronous delivery, not lifecycle enqueue.
+	if n.err != nil {
+		return n.err
+	}
 	return n.Notify(ctx, event)
 }
 
@@ -161,7 +163,7 @@ func TestCalendarServiceIntegration_AppointmentReminderEmailHonorsOptOut(t *test
 	cfg.ParentsURL = "https://parents.test"
 	cfg.Preferences = optedOutAppointmentPreferences{optedOutType: notificationTypeParentAppointmentReminder}
 	cfg.ReminderNotifier = notifier
-	service := api.NewCalendarPortal(cfg)
+	service := owners.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Consent")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -204,7 +206,7 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmai
 	cfg.Notifier = notifier
 	cfg.ReminderNotifier = notifier
 	cfg.Preferences = reminderPreferences{}
-	service := api.NewCalendarPortal(cfg)
+	service := owners.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -246,7 +248,7 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmai
 	assert.Len(t, notifier.events, 1, "the overlapping scheduler scan must not repeat the push")
 }
 
-func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchFailure(t *testing.T) {
+func TestCalendarServiceIntegration_AppointmentReminderKeepsTransportFailureTerminal(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -259,7 +261,7 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchF
 	cfg.Notifier = notifier
 	cfg.ReminderNotifier = notifier
 	cfg.Preferences = reminderPreferences{}
-	service := api.NewCalendarPortal(cfg)
+	service := owners.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Retry")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -295,10 +297,9 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchF
 
 	notifier.err = nil
 	queued, err = api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
-	require.NoError(t, err)
+	require.ErrorContains(t, err, "temporary notification failure")
 	assert.Zero(t, queued)
-	require.Len(t, notifier.events, 1, "the next scan must retry the unclaimed push")
-	assert.Equal(t, []int64{parentChain.AccountID}, notifier.events[0].Audience.GuardianAccountIDs)
+	assert.Empty(t, notifier.events, "a terminal transport failure must not send again on the next scan")
 }
 
 // E-mail and push are separate channels. An installation without an e-mail
@@ -337,7 +338,7 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutOutbox(t *te
 	cfg.Preferences = reminderPreferences{}
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
-	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), api.NewCalendarPortal(cfg)).
+	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), owners.NewCalendarPortal(cfg)).
 		EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.NoError(t, err)
 	assert.Zero(t, queued, "without an outbox there is no e-mail to queue")
@@ -362,7 +363,7 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterMissingSu
 	cfg.ParentsURL = "https://parents.test"
 	cfg.ReminderNotifier = notifier
 	cfg.Preferences = reminderPreferences{}
-	service := api.NewCalendarPortal(cfg)
+	service := owners.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "NoPush")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -405,7 +406,7 @@ func TestCalendarServiceIntegration_AppointmentLifecycleEmailHonorsOptOut(t *tes
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
 	cfg.Preferences = optedOutAppointmentPreferences{optedOutType: notificationTypeParentAppointment}
-	service := api.NewCalendarPortal(cfg)
+	service := owners.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -631,7 +632,7 @@ func TestCalendarServiceIntegration_ReminderForMovedRecurringOccurrence(t *testi
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
-	repos := calendarTestRepositories(t, db)
+	_, _, _, _, reposAppointments, _, _ := calendarTestRepositories(t, db)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "MovedReminder", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -658,7 +659,7 @@ func TestCalendarServiceIntegration_ReminderForMovedRecurringOccurrence(t *testi
 
 	movedDate := portalDate(2026, 2, 4)
 	movedModelDate := calModels.Date(movedDate)
-	require.NoError(t, repos.Appointments().CreateOccurrenceOverride(ctx, &calModels.AppointmentOccurrenceOverride{
+	require.NoError(t, reposAppointments.Appointments().CreateOccurrenceOverride(ctx, &calModels.AppointmentOccurrenceOverride{
 		AppointmentID:  detail.Appointment.ID,
 		OccurrenceDate: calModels.Date(seriesStart),
 		StartDate:      &movedModelDate,

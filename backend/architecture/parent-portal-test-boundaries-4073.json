@@ -38,7 +38,7 @@
       "backend/api/parent_messaging_test_helpers.go",
       "backend/test/route_claims.go",
       "backend/modules/securityruntime/guardian_role.go",
-      "backend/workflows/parentportal/care/absence_request_privacy_test.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/care/absence_request_privacy_test.go",
       "backend/workflows/parentportal/parent_guardian_service_test.go",
       "backend/workflows/parentportal/parent_service_test.go"
     ],

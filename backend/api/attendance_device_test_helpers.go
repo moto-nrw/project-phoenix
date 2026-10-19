@@ -5,7 +5,7 @@ package api
 import (
 	"context"
 
-	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 )
 
 // The kiosk half of the attendance context. Production builds it in device
@@ -14,10 +14,10 @@ import (
 
 // WithAttendanceDevice binds a verified kiosk device to the attendance context.
 func WithAttendanceDevice(ctx context.Context, deviceID, tenantID int64) context.Context {
-	return devicescanCompose.WithAttendanceDevice(ctx, deviceID, tenantID)
+	return deviceauth.WithAttendanceDevice(ctx, deviceID, tenantID)
 }
 
 // WithIoTAttendanceRequest marks the context as an IoT device request.
 func WithIoTAttendanceRequest(ctx context.Context) context.Context {
-	return devicescanCompose.WithIoTAttendanceRequest(ctx)
+	return deviceauth.WithIoTAttendanceRequest(ctx)
 }

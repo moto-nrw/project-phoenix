@@ -71,7 +71,7 @@ func (s *Service) PreviewPlannedRosterForCareExit(ctx context.Context, studentID
 	if len(studentIDs) == 0 {
 		return rows, nil
 	}
-	err = s.run("preview_planned_roster_for_care_exit", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "preview_planned_roster_for_care_exit", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, err := s.plannedCareExitRoster(ctx, studentIDs, after, stats)
 		if err != nil {
 			return err

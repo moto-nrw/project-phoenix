@@ -248,7 +248,11 @@ func (s *DemoAccessExpiryStore) DeleteExpiredDemoAccesses(ctx context.Context, n
 		SchoolSlug string `bun:"school_slug"`
 		Orphaned   bool   `bun:"orphaned"`
 	}
-	err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+	tx, ok := s.db.(bun.Tx)
+	if !ok {
+		return 0, nil, errors.New("identity access demo expiry: transaction is required")
+	}
+	err := func() error {
 		// Take every school key in the same order as retirement. A redemption
 		// that already holds one key extends its access before expiry can test
 		// it; a redemption that follows an expiry revalidates after this lock.
@@ -270,7 +274,7 @@ func (s *DemoAccessExpiryStore) DeleteExpiredDemoAccesses(ctx context.Context, n
 			NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS remaining
 				WHERE remaining.school_slug = expired.school_slug AND remaining.expires_at > ?) AS orphaned
 		FROM expired ORDER BY school_slug`, now, now).Scan(ctx, &rows)
-	})
+	}()
 	if err != nil {
 		return 0, nil, fmt.Errorf("identity access postgres: delete expired demo accesses: %w", err)
 	}

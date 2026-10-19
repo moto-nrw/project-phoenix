@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	models "github.com/moto-nrw/project-phoenix/models/users"
 	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	models "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 )
 
 // NativeStudentSnapshot converts the owner's existing, already-hydrated read
@@ -57,7 +57,7 @@ func NativeStudentSnapshot(row *models.Student) *directory.StudentSnapshot {
 		value.BusDays, _ = json.Marshal(row.BusDays)
 	}
 	value.DepartureBaseline = studentDepartureSnapshot(row)
-	value.Person = directoryPersonSnapshot(row.Person)
+	value.Person = NativeDirectoryPerson(row.Person)
 	return value
 }
 

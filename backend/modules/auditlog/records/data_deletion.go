@@ -71,6 +71,22 @@ const (
 	DeletionTypeSettledEnrollmentRetention = "settled_enrollment_retention"
 	// Staff sick notes (AU-Bescheinigungen) after the school's window (#3961).
 	DeletionTypeStaffSickNoteRetention = "staff_sick_note_retention"
+	// Daily attendance after the school's window (#3957).
+	DeletionTypeAttendanceRetention = "attendance_retention"
+	// Parent contacts without a child after the school's window (#4043).
+	DeletionTypeGuardianRetention = "guardian_retention"
+	// The content a school creates itself, each after its window (#4045):
+	// parent announcements and staff notices after the school's message
+	// windows, ended appointments after its timetable window and cancelled or
+	// deleted ones after the fixed feed window, grade transitions after its
+	// student window and removed file-storage rows after the fixed window of
+	// the cleanup intents.
+	DeletionTypeParentAnnouncementRetention   = "parent_announcement_retention"
+	DeletionTypeStaffNoticeRetention          = "staff_notice_retention"
+	DeletionTypeAppointmentRetention          = "appointment_retention"
+	DeletionTypeAppointmentTombstoneRetention = "appointment_tombstone_retention"
+	DeletionTypeGradeTransitionRetention      = "grade_transition_retention"
+	DeletionTypeRemovedFileRetention          = "removed_file_retention"
 	// The protocols of #4044 and the setting protocol, each after its fixed
 	// window.
 	DeletionTypeStudentDeletionLogRetention       = "student_deletion_log_retention"
@@ -87,13 +103,39 @@ const (
 	DeletionTypeSettingAuditRetention             = "setting_audit_retention"
 )
 
+// ProtocolRetentionTypes are the protocols of #4044 the Audit Platform
+// deletes itself, each after its fixed window and logged as its own data
+// kind, in the order the nightly cleanup deletes them.
+func ProtocolRetentionTypes() []string {
+	return []string{
+		DeletionTypeStudentDeletionLogRetention,
+		DeletionTypeEnrollmentDeletionLogRetention,
+		DeletionTypeEnrollmentRestorationLogRetention,
+		DeletionTypeTimeTrackingDeletionLogRetention,
+		DeletionTypeStaffMasterDataChangeRetention,
+		DeletionTypePersonnelNumberChangeRetention,
+		DeletionTypeGuardianFinancialChangeRetention,
+		DeletionTypeClassListChangeRetention,
+		DeletionTypeSubstitutionChangeRetention,
+		DeletionTypeFileEventRetention,
+	}
+}
+
 // IsDataKindRetention reports whether deletionType logs a whole data kind
 // without a subject.
 func IsDataKindRetention(deletionType string) bool {
 	switch deletionType {
 	case DeletionTypeUnregisteredTagScanRetention,
 		DeletionTypeStatusDayRetention,
+		DeletionTypeAttendanceRetention,
+		DeletionTypeGuardianRetention,
 		DeletionTypeParentMessageRetention,
+		DeletionTypeParentAnnouncementRetention,
+		DeletionTypeStaffNoticeRetention,
+		DeletionTypeAppointmentRetention,
+		DeletionTypeAppointmentTombstoneRetention,
+		DeletionTypeGradeTransitionRetention,
+		DeletionTypeRemovedFileRetention,
 		DeletionTypeAuthEventRetention,
 		DeletionTypeDataAccessLogRetention,
 		DeletionTypeDeletionLogRetention,

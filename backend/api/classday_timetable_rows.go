@@ -29,8 +29,8 @@ func (r classDayTimetableRows) ListActivityInstancesOn(ctx context.Context, date
 	}
 	result := make([]classdayCompose.SlotBlock, 0, len(instances))
 	for _, instance := range instances {
-		// The Tageslisten are children lists; a duty (#3822) has none.
-		if instance.TemplateType == timetableModule.GroupTypeDuty {
+		// The Tageslisten are children lists.
+		if !timetableModule.GroupTypeHasChildren(instance.TemplateType) {
 			continue
 		}
 		result = append(result, classdayCompose.SlotBlock{

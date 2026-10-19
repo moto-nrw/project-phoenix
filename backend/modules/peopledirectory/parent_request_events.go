@@ -3,6 +3,7 @@ package peopledirectory
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 )
 
@@ -24,4 +25,18 @@ type ParentRequestEventSnapshot struct {
 type ParentRequestEvents interface {
 	AppendParentRequestEvent(context.Context, *ParentRequestEventSnapshot) error
 	ParentRequestEventsForRequest(context.Context, string, int64) ([]*ParentRequestEventSnapshot, error)
+}
+
+// ErrParentRequestEventIncomplete refuses a ledger event that cannot name its
+// request.
+var ErrParentRequestEventIncomplete = errors.New("parent request event: student, request and event type are required")
+
+// ValidateParentRequestEvent checks that a ledger event names the child, the
+// request it belongs to and what happened to it. A missing part returns
+// ErrParentRequestEventIncomplete.
+func ValidateParentRequestEvent(studentID int64, requestType string, requestID int64, eventType string) error {
+	if studentID <= 0 || requestID <= 0 || requestType == "" || eventType == "" {
+		return ErrParentRequestEventIncomplete
+	}
+	return nil
 }

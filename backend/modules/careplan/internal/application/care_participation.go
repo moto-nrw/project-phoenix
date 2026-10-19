@@ -12,10 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// ParticipatingStudentIDs applies the same durable first-bookingless-day
-// boundary to every operational reader. Actual presence always wins: safety
-// information must remain visible even when the expected care has ended.
-func (s *CareLifecycle) ParticipatingStudentIDs(ctx context.Context, studentIDs []int64, on calendar.Date, actuallyPresent map[int64]bool) (map[int64]bool, error) {
+func (s *CareLifecycle) inUnitParticipatingStudentIDs(ctx context.Context, studentIDs []int64, on calendar.Date, actuallyPresent map[int64]bool) (map[int64]bool, error) {
 	if actuallyPresent == nil && on == calendar.TodayDate() {
 		var err error
 		if actuallyPresent, err = s.findOpenPresence(ctx, studentIDs); err != nil {
@@ -29,10 +26,7 @@ func (s *CareLifecycle) ParticipatingStudentIDs(ctx context.Context, studentIDs 
 	return domain.ParticipatingOn(studentIDs, students, boundaries, on, actuallyPresent), nil
 }
 
-// ResolveListParticipation owns the candidate, live-presence and dated care
-// decision for lists and reports. The caller supplies a frozen today so a
-// request crossing midnight cannot combine two calendar days.
-func (s *CareLifecycle) ResolveListParticipation(ctx context.Context, studentIDs []int64, on, today calendar.Date, includePending bool) (*careplan.CareParticipationResolution, error) {
+func (s *CareLifecycle) inUnitResolveListParticipation(ctx context.Context, studentIDs []int64, on, today calendar.Date, includePending bool) (*careplan.CareParticipationResolution, error) {
 	candidates := studentIDs
 	if len(candidates) == 0 {
 		var err error
@@ -62,7 +56,7 @@ func (s *CareLifecycle) ResolveListParticipation(ctx context.Context, studentIDs
 	}, nil
 }
 
-func (s *CareLifecycle) ParticipatingStudentIDsByDate(ctx context.Context, studentIDs []int64, from, to calendar.Date) (map[calendar.Date]map[int64]bool, error) {
+func (s *CareLifecycle) inUnitParticipatingStudentIDsByDate(ctx context.Context, studentIDs []int64, from, to calendar.Date) (map[calendar.Date]map[int64]bool, error) {
 	students, boundaries, err := s.participationFacts(ctx, studentIDs)
 	if err != nil {
 		return nil, err
@@ -119,7 +113,7 @@ func (s *CareLifecycle) participationFacts(ctx context.Context, studentIDs []int
 	return students, domain.ParticipationBoundaries(students, pendingDays), nil
 }
 
-func (s *CareLifecycle) PreviewBookingAuthorityImpact(ctx context.Context, on calendar.Date) (*careplan.BookingAuthorityImpact, error) {
+func (s *CareLifecycle) inUnitPreviewBookingAuthorityImpact(ctx context.Context, on calendar.Date) (*careplan.BookingAuthorityImpact, error) {
 	evaluations, err := s.evaluateCareBookings(ctx, on)
 	if err != nil {
 		return nil, err
@@ -127,11 +121,7 @@ func (s *CareLifecycle) PreviewBookingAuthorityImpact(ctx context.Context, on ca
 	return domain.BuildBookingAuthorityImpact(evaluations, on), nil
 }
 
-// ApplyBookingAuthoritySetting validates and reconciles a mode switch while
-// the caller's tenant transaction is still open. The booking-write lock is
-// the one booking mutations hold, so a preview made before this call cannot
-// bypass the binding recheck.
-func (s *CareLifecycle) ApplyBookingAuthoritySetting(ctx context.Context, on calendar.Date, enabled bool) (*careplan.BookingAuthorityImpact, error) {
+func (s *CareLifecycle) inUnitApplyBookingAuthoritySetting(ctx context.Context, on calendar.Date, enabled bool) (*careplan.BookingAuthorityImpact, error) {
 	if err := s.lockCareBookingWrites(ctx); err != nil {
 		return nil, err
 	}

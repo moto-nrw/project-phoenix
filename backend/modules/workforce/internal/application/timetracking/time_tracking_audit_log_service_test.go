@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -62,8 +63,10 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	// resolve it.
 	admin, adminAccount := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Audit", "Leitung")
 
-	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
+	workTime := owners.MustNewWorkforce(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposAbsences := api.NewStaffAbsenceSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.TenantContext(tenantID)
 
 	t.Cleanup(func() {
@@ -92,7 +95,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 		CreatedBy: staffA.ID,
 	}
 	session.SetTenantID(tenantID)
-	require.NoError(t, workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Sessions.Create(ctx, session))
+	require.NoError(t, workforceCompose.NewTimeTrackingTestRows(workTime).Sessions.Create(ctx, session))
 	oldIn, newIn := "08:00", "08:30"
 	oldOut, newOut := "16:00", "15:00"
 	note := "Korrektur nach Rücksprache"
@@ -107,7 +110,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	for _, e := range edits {
 		e.SetTenantID(tenantID)
 	}
-	require.NoError(t, api.NewWorkSessionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).WorkSessionEdit).CreateBatch(ctx, edits))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, owners.NewWorkSessionAudit(owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).WorkSessionEdit).CreateBatch, edits))
 
 	// Absence + status-transition audit row (actor = ACCOUNT id).
 	absence := &timetracking.StaffAbsence{
@@ -119,7 +122,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 		CreatedBy:   admin.ID,
 	}
 	absence.SetTenantID(tenantID)
-	require.NoError(t, repos.StaffAbsence.Create(ctx, absence))
+	require.NoError(t, reposAbsences.StaffAbsence.Create(ctx, absence))
 	fromStatus := workforce.AbsenceStatusReported
 	absenceAudit := &timetracking.StaffAbsenceAudit{
 		AbsenceID:  absence.ID,
@@ -129,7 +132,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 		Note:       "Attest liegt vor",
 	}
 	absenceAudit.TenantID = tenantID
-	require.NoError(t, workforceCompose.NewStaffAbsenceAuditRepository(owners.Workforce).Create(ctx, absenceAudit))
+	require.NoError(t, workforceCompose.NewStaffAbsenceAuditRepository(workTime).Create(ctx, absenceAudit))
 
 	// Balance adjustment for staffA (stays) and one for staffB (deleted below).
 	makeAdjustment := func(staffID int64, day int) *timetracking.StaffBalanceAdjustment {
@@ -143,7 +146,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 			DecidedAt:     time.Date(2025, time.August, day, 12, 0, 0, 0, time.UTC),
 		}
 		adj.SetTenantID(tenantID)
-		require.NoError(t, workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Adjustments.Create(ctx, adj))
+		require.NoError(t, workforceCompose.NewTimeTrackingTestRows(workTime).Adjustments.Create(ctx, adj))
 		return adj
 	}
 	makeAdjustment(staffA.ID, 10)
@@ -157,20 +160,21 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 		{StaffID: staffA.ID, Year: 2025, Month: 8, ClosingBalanceMinutes: 30, ClosedAt: closedAt, ClosedBy: admin.ID, CloseReason: "Monatsabschluss August", Source: "admin", ReopenedAt: &reopenedAt, ReopenedBy: &admin.ID, ReopenReason: reopenReason},
 		{StaffID: staffB.ID, Year: 2025, Month: 8, ClosingBalanceMinutes: -15, ClosedAt: closedAt, ClosedBy: admin.ID, CloseReason: "Monatsabschluss August", Source: "admin"},
 	} {
-		_, err := timetracking.MonthSnapshotCapability(owners.Workforce).RecordClosedMonth(ctx, *snap)
+		_, err := timetracking.MonthSnapshotCapability(workTime).RecordClosedMonth(ctx, *snap)
 		require.NoError(t, err)
 	}
 
 	// Delete staffB's adjustment through the real service path so the
 	// tombstone write is covered end to end.
-	adjustSvc := timetracking.NewStaffBalanceAdjustmentService(workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Adjustments, nil, wtmIntSettings{accountStart: "2025-01-01"}, nil,
-		timetracking.WithAdjustmentDeletionAudit(api.NewTimeTrackingDeletionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingDeletion)))
+	adjustSvc := timetracking.NewStaffBalanceAdjustmentService(workforceCompose.NewTimeTrackingTestRows(workTime).Adjustments, nil, wtmIntSettings{accountStart: "2025-01-01"}, nil, timetracking.WithAdjustmentUnitOfWork(testpkg.RunInTenantTransaction),
+
+		timetracking.WithAdjustmentDeletionAudit(owners.NewTimeTrackingDeletionAudit(owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingDeletion)))
 	require.NoError(t, adjustSvc.DeleteAdjustment(ctx, staffB.ID, doomed.ID, admin.ID))
 
 	return &auditLogFixture{
 		tenantID: tenantID, staffA: staffA.ID, staffB: staffB.ID, admin: admin.ID,
 		repos: repos, db: db, ctx: ctx,
-		svc: timetracking.NewTimeTrackingAuditLogService(api.NewTimeTrackingAuditReader(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingAuditLog), api.StaffDisplayNames(repos.Staff), nil),
+		svc: timetracking.NewTimeTrackingAuditLogService(owners.NewTimeTrackingAuditReader(owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingAuditLog), owners.StaffDisplayNames(reposPeople.Staff), nil),
 	}
 }
 
@@ -187,7 +191,7 @@ func TestTimeTrackingAuditLog_MergedFeed(t *testing.T) {
 
 	f := newAuditLogFixture(t)
 
-	page, err := f.svc.ListAuditLog(f.ctx, timetracking.AuditLogListRequest{})
+	page, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.ListAuditLog, timetracking.AuditLogListRequest{})
 	require.NoError(t, err)
 	require.NotEmpty(t, page.RetentionCutoff)
 
@@ -265,7 +269,7 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 	f := newAuditLogFixture(t)
 
 	t.Run("staff filter keeps grouped events the person is part of", func(t *testing.T) {
-		page, err := f.svc.ListAuditLog(f.ctx, timetracking.AuditLogListRequest{StaffID: f.staffA})
+		page, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.ListAuditLog, timetracking.AuditLogListRequest{StaffID: f.staffA})
 		require.NoError(t, err)
 		bySource := eventsBySource(page.Events)
 		assert.Len(t, bySource[sourceSessionEdit], 1)
@@ -274,7 +278,7 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 	})
 
 	t.Run("actor filter", func(t *testing.T) {
-		page, err := f.svc.ListAuditLog(f.ctx, timetracking.AuditLogListRequest{ActorStaffID: f.admin})
+		page, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.ListAuditLog, timetracking.AuditLogListRequest{ActorStaffID: f.admin})
 		require.NoError(t, err)
 		require.NotEmpty(t, page.Events)
 		for _, e := range page.Events {
@@ -286,7 +290,7 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 	})
 
 	t.Run("source filter", func(t *testing.T) {
-		page, err := f.svc.ListAuditLog(f.ctx, timetracking.AuditLogListRequest{
+		page, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.ListAuditLog, timetracking.AuditLogListRequest{
 			Sources: []string{sourceAdjustment, sourceDeletion},
 		})
 		require.NoError(t, err)
@@ -296,7 +300,7 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 	t.Run("date range", func(t *testing.T) {
 		from := calendar.NewDate(2025, time.September, 1)
 		to := calendar.NewDate(2025, time.September, 1)
-		page, err := f.svc.ListAuditLog(f.ctx, timetracking.AuditLogListRequest{From: &from, To: &to})
+		page, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.ListAuditLog, timetracking.AuditLogListRequest{From: &from, To: &to})
 		require.NoError(t, err)
 		bySource := eventsBySource(page.Events)
 		assert.Len(t, bySource[sourceMonthClose], 1)
@@ -311,7 +315,7 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 			9001: finalFraction,
 			9002: nextMidnight,
 		} {
-			require.NoError(t, api.NewTimeTrackingDeletionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).TimeTrackingDeletion).Create(f.ctx, &timetracking.TimeTrackingDeletionEvent{
+			require.NoError(t, testpkg.TenantCommand1(t, f.ctx, testpkg.SetupTestDB(t), owners.NewTimeTrackingDeletionAudit(owners.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).TimeTrackingDeletion).Create, &timetracking.TimeTrackingDeletionEvent{
 				StaffID:    f.staffA,
 				Source:     "absence",
 				SourceID:   sourceID,
@@ -322,7 +326,7 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 			}))
 		}
 
-		page, err := f.svc.ListAuditLog(f.ctx, timetracking.AuditLogListRequest{
+		page, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.ListAuditLog, timetracking.AuditLogListRequest{
 			From:    &day,
 			To:      &day,
 			Sources: []string{sourceDeletion},
@@ -343,7 +347,7 @@ func TestTimeTrackingAuditLog_KeysetPagination(t *testing.T) {
 
 	f := newAuditLogFixture(t)
 
-	all, err := f.svc.ListAuditLog(f.ctx, timetracking.AuditLogListRequest{})
+	all, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.ListAuditLog, timetracking.AuditLogListRequest{})
 	require.NoError(t, err)
 	require.Len(t, all.Events, 6)
 	require.Empty(t, all.NextCursor)
@@ -354,7 +358,7 @@ func TestTimeTrackingAuditLog_KeysetPagination(t *testing.T) {
 	cursor := ""
 	var pages int
 	for {
-		page, err := f.svc.ListAuditLog(f.ctx, timetracking.AuditLogListRequest{Limit: 2, Cursor: cursor})
+		page, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.ListAuditLog, timetracking.AuditLogListRequest{Limit: 2, Cursor: cursor})
 		require.NoError(t, err)
 		for _, e := range page.Events {
 			require.False(t, seen[key(e)], "cursor pages must not overlap")

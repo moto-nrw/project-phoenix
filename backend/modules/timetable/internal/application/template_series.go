@@ -4,7 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -26,7 +27,7 @@ import (
 // schedule validity envelope. ValidUntil == nil marks the living segment —
 // the only one PUT /timetable/templates/{id} may edit.
 type templateSeriesSegment struct {
-	Group      *activitiesModel.Group
+	Group      *activityContract.Group
 	Weekdays   []int // distinct schedule weekdays, ascending
 	ValidFrom  *calendar.Date
 	ValidUntil *calendar.Date
@@ -41,8 +42,8 @@ type templateSeriesSegment struct {
 // keep failing loudly.
 func loadTemplateSeriesSegments(
 	ctx context.Context,
-	groupRepo activitiesModel.GroupRepository,
-	scheduleRepo activitiesModel.ScheduleRepository,
+	groupRepo ports.ActivityGroupRecords,
+	scheduleRepo ports.ActivityScheduleRecords,
 	logger *slog.Logger,
 	templateID int64,
 ) ([]templateSeriesSegment, error) {
@@ -63,7 +64,7 @@ func loadTemplateSeriesSegments(
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "load template series: load schedules", Err: err}
 	}
-	schedulesByGroup := make(map[int64][]*activitiesModel.Schedule, len(groups))
+	schedulesByGroup := make(map[int64][]*activityContract.Schedule, len(groups))
 	for _, row := range scheduleRows {
 		schedulesByGroup[row.ActivityGroupID] = append(schedulesByGroup[row.ActivityGroupID], row)
 	}
@@ -88,8 +89,8 @@ func loadTemplateSeriesSegments(
 // cannot be the living segment either; it is skipped like a sibling with an
 // inconsistent envelope.
 func templateSeriesSegmentOf(
-	group *activitiesModel.Group,
-	schedules []*activitiesModel.Schedule,
+	group *activityContract.Group,
+	schedules []*activityContract.Schedule,
 	templateID int64,
 	logger *slog.Logger,
 ) (templateSeriesSegment, bool, error) {

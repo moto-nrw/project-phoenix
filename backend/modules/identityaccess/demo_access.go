@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+// DemoOperatorWithoutSecondFactor is the demo environment's choice for the
+// operator sign-in (#3460): the operator signs in with the password alone,
+// because the demo's mail lock drops the sign-in code.
+const DemoOperatorWithoutSecondFactor = true
+
 // Demo access (#3462): a prospect of the public demo asks for an access,
 // receives an opaque token, and redeems it for a session in the demo school
 // without a password. Only the token's SHA-256 fingerprint is stored; the
@@ -80,6 +85,7 @@ type DemoSchoolEntry struct {
 
 // DemoAccessMessage is what the two demo mails (#3465) say about an access.
 type DemoAccessMessage struct {
+	ExpiresAt    time.Time
 	AccessID     int64
 	Email        string
 	FirstName    string
@@ -91,8 +97,8 @@ type DemoAccessMessage struct {
 
 // DemoAccessMail sends the demo mails without blocking the request.
 type DemoAccessMail interface {
-	SendDemoAccessLink(ctx context.Context, message DemoAccessMessage, entryURL string)
-	SendDemoLead(ctx context.Context, message DemoAccessMessage)
+	SendDemoAccessLink(ctx context.Context, message DemoAccessMessage, entryURL string) error
+	SendDemoLead(ctx context.Context, message DemoAccessMessage) error
 }
 
 // DemoAccessEngine is the composed implementation behind DemoAccess.
@@ -188,8 +194,8 @@ func (d *DemoAccess) ResetDemoAccess(ctx context.Context, token, clientIP string
 
 // NewDemoModule is NewModule with the demo-only capability; access is nil
 // outside the demo environment.
-func NewDemoModule(engine Engine, runtime TenantRuntimeBinding, access *DemoAccess) *Module {
-	module := NewModule(engine, runtime)
+func NewDemoModule(engine Engine, access *DemoAccess) *Module {
+	module := NewModule(engine)
 	module.demoAccess = access
 	return module
 }

@@ -7,8 +7,9 @@ import (
 	"strings"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // The form loads assemble their data inside one tenant transaction: the gated
@@ -21,7 +22,7 @@ type publicBootstrapOptions struct {
 	classifyStages  bool
 	lateInviteToken string
 	lateInviteNow   time.Time
-	legalLoader     func(ctx context.Context) (enrollment.LegalTexts, error)
+	legalLoader     func(ctx context.Context) (enrollmentNative.LegalTexts, error)
 }
 
 // isPublicGateError reports whether err is one of the public enrollment
@@ -29,18 +30,18 @@ type publicBootstrapOptions struct {
 // too: an admin can restrict a phase between the bootstrap's phase load and
 // its legal reload (#1663).
 func isPublicGateError(err error) bool {
-	return errors.Is(err, enrollment.ErrInvalidSubmission) ||
-		errors.Is(err, enrollment.ErrEnrollmentDisabled) ||
-		errors.Is(err, enrollment.ErrEnrollmentWindowClosed) ||
-		errors.Is(err, enrollment.ErrLateInviteInvalid) ||
-		errors.Is(err, enrollment.ErrPhaseAudienceRestricted)
+	return errors.Is(err, enrollmentNative.ErrInvalidSubmission) ||
+		errors.Is(err, enrollmentNative.ErrEnrollmentDisabled) ||
+		errors.Is(err, enrollmentNative.ErrEnrollmentWindowClosed) ||
+		errors.Is(err, enrollmentNative.ErrLateInviteInvalid) ||
+		errors.Is(err, enrollmentNative.ErrPhaseAudienceRestricted)
 }
 
 func (s *Intake) assemblePublicBootstrap(
 	ctx context.Context,
-	phaseLoader func(ctx context.Context) (*enrollment.Phase, error),
+	phaseLoader func(ctx context.Context) (*enrollmentNative.Phase, error),
 	opts publicBootstrapOptions,
-) (*enrollment.PublicFormBootstrapData, error) {
+) (*enrollmentNative.PublicFormBootstrapData, error) {
 	phase, err := phaseLoader(ctx)
 	if err != nil {
 		return nil, err
@@ -48,11 +49,11 @@ func (s *Intake) assemblePublicBootstrap(
 	capabilities, err := s.formCapabilities(ctx)
 	if err != nil {
 		if opts.classifyStages {
-			return nil, &enrollment.BootstrapStageError{Stage: enrollment.BootstrapStageCapabilities, Err: err}
+			return nil, &enrollmentNative.BootstrapStageError{Stage: enrollmentNative.BootstrapStageCapabilities, Err: err}
 		}
 		return nil, err
 	}
-	data := &enrollment.PublicFormBootstrapData{Phase: phase, Capabilities: capabilities, Offerings: []*enrollment.CareOffering{}}
+	data := &enrollmentNative.PublicFormBootstrapData{Phase: phase, Capabilities: capabilities, Offerings: []*enrollmentNative.CareOffering{}}
 	if data.LateInvite, err = s.bootstrapLateInvite(ctx, phase.ID, opts); err != nil {
 		return nil, err
 	}
@@ -61,7 +62,7 @@ func (s *Intake) assemblePublicBootstrap(
 			return nil, err
 		}
 	}
-	offerings := []*enrollmentModels.CareOffering{}
+	offerings := []*offeringContract.CareOfferingRecord{}
 	if capabilities.CareOfferingsEnabled {
 		if offerings, err = validateLoadedAvailabilityRules(s.deps.Offerings.ListActiveByPhase(ctx, phase.ID)); err != nil {
 			return nil, err
@@ -80,7 +81,7 @@ func (s *Intake) assemblePublicBootstrap(
 // bootstrapLateInvite resolves the prefill invite of a form link. An invalid
 // token does not block an otherwise public, open phase; it only grants no
 // prefill or closed-phase override.
-func (s *Intake) bootstrapLateInvite(ctx context.Context, phaseID int64, opts publicBootstrapOptions) (*enrollment.LateInvite, error) {
+func (s *Intake) bootstrapLateInvite(ctx context.Context, phaseID int64, opts publicBootstrapOptions) (*enrollmentNative.LateInvite, error) {
 	token := strings.TrimSpace(opts.lateInviteToken)
 	if s.deps.LateInvites == nil || token == "" {
 		return nil, nil
@@ -89,20 +90,20 @@ func (s *Intake) bootstrapLateInvite(ctx context.Context, phaseID int64, opts pu
 	switch {
 	case err == nil:
 		return invite, nil
-	case errors.Is(err, enrollment.ErrLateInviteNotFound):
+	case errors.Is(err, enrollmentNative.ErrLateInviteNotFound):
 		return nil, nil
 	default:
 		return nil, fmt.Errorf("resolve late invite prefill: %w", err)
 	}
 }
 
-func (s *Intake) bootstrapLegalTexts(ctx context.Context, opts publicBootstrapOptions) (enrollment.LegalTexts, error) {
+func (s *Intake) bootstrapLegalTexts(ctx context.Context, opts publicBootstrapOptions) (enrollmentNative.LegalTexts, error) {
 	texts, err := opts.legalLoader(ctx)
 	if err != nil {
 		if opts.classifyStages && !isPublicGateError(err) {
-			return enrollment.LegalTexts{}, &enrollment.BootstrapStageError{Stage: enrollment.BootstrapStageLegal, Err: err}
+			return enrollmentNative.LegalTexts{}, &enrollmentNative.BootstrapStageError{Stage: enrollmentNative.BootstrapStageLegal, Err: err}
 		}
-		return enrollment.LegalTexts{}, err
+		return enrollmentNative.LegalTexts{}, err
 	}
 	return texts, nil
 }
@@ -110,15 +111,15 @@ func (s *Intake) bootstrapLegalTexts(ctx context.Context, opts publicBootstrapOp
 // LoadPublicFormBootstrap assembles the anonymous public form load.
 // Capability- and legal-resolution failures come back as a
 // BootstrapStageError. Caller must be inside a tenant transaction.
-func (s *Intake) LoadPublicFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollment.PublicFormBootstrapData, error) {
+func (s *Intake) LoadPublicFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentNative.PublicFormBootstrapData, error) {
 	return s.assemblePublicBootstrap(ctx,
-		func(ctx context.Context) (*enrollment.Phase, error) {
+		func(ctx context.Context) (*enrollmentNative.Phase, error) {
 			return s.loadPublicPhaseWithLateInvite(ctx, phaseID, now, lateInviteToken)
 		},
 		publicBootstrapOptions{
 			loadSchema: true, loadLegal: true, classifyStages: true,
 			lateInviteToken: lateInviteToken, lateInviteNow: now,
-			legalLoader: func(ctx context.Context) (enrollment.LegalTexts, error) {
+			legalLoader: func(ctx context.Context) (enrollmentNative.LegalTexts, error) {
 				return s.LegalTextsForPhaseWithLateInvite(ctx, phaseID, lateInviteToken)
 			},
 		})
@@ -127,15 +128,15 @@ func (s *Intake) LoadPublicFormBootstrap(ctx context.Context, phaseID int64, now
 // LoadEnrolleeFormBootstrap mirrors LoadPublicFormBootstrap for the
 // authenticated parents-portal form load, admitting the restricted audiences
 // the caller's access covers. Caller must be inside a tenant transaction.
-func (s *Intake) LoadEnrolleeFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access enrollment.EnrolleeAudienceAccess) (*enrollment.PublicFormBootstrapData, error) {
+func (s *Intake) LoadEnrolleeFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access enrollmentNative.EnrolleeAudienceAccess) (*enrollmentNative.PublicFormBootstrapData, error) {
 	return s.assemblePublicBootstrap(ctx,
-		func(ctx context.Context) (*enrollment.Phase, error) {
+		func(ctx context.Context) (*enrollmentNative.Phase, error) {
 			return s.loadEditablePhaseWithLateInvite(ctx, phaseID, now, lateInviteToken, access)
 		},
 		publicBootstrapOptions{
 			loadSchema: true, loadLegal: true, classifyStages: true,
 			lateInviteToken: lateInviteToken, lateInviteNow: now,
-			legalLoader: func(ctx context.Context) (enrollment.LegalTexts, error) {
+			legalLoader: func(ctx context.Context) (enrollmentNative.LegalTexts, error) {
 				return s.legalTextsForEnrolleePhase(ctx, phaseID, lateInviteToken, access)
 			},
 		})
@@ -143,24 +144,24 @@ func (s *Intake) LoadEnrolleeFormBootstrap(ctx context.Context, phaseID int64, n
 
 // LoadPublicCareOfferings is the offering-only projection of the public form
 // load: phase gate, capabilities and active offerings.
-func (s *Intake) LoadPublicCareOfferings(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollment.PublicFormBootstrapData, error) {
+func (s *Intake) LoadPublicCareOfferings(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentNative.PublicFormBootstrapData, error) {
 	return s.assemblePublicBootstrap(ctx,
-		func(ctx context.Context) (*enrollment.Phase, error) {
+		func(ctx context.Context) (*enrollmentNative.Phase, error) {
 			return s.loadPublicPhaseWithLateInvite(ctx, phaseID, now, lateInviteToken)
 		},
 		publicBootstrapOptions{classifyStages: true})
 }
 
 // LoadManualEnrollmentBootstrap mirrors LoadPublicFormBootstrap for the staff
-// manual enrollment. It does not wrap stage errors.
-func (s *Intake) LoadManualEnrollmentBootstrap(ctx context.Context, phaseID int64) (*enrollment.PublicFormBootstrapData, error) {
+// manual enrollmentNative. It does not wrap stage errors.
+func (s *Intake) LoadManualEnrollmentBootstrap(ctx context.Context, phaseID int64) (*enrollmentNative.PublicFormBootstrapData, error) {
 	return s.assemblePublicBootstrap(ctx,
-		func(ctx context.Context) (*enrollment.Phase, error) {
+		func(ctx context.Context) (*enrollmentNative.Phase, error) {
 			return s.loadPhaseForEditableRequest(ctx, phaseID)
 		},
 		publicBootstrapOptions{
 			loadSchema: true, loadLegal: true,
-			legalLoader: func(ctx context.Context) (enrollment.LegalTexts, error) {
+			legalLoader: func(ctx context.Context) (enrollmentNative.LegalTexts, error) {
 				return s.legalTextsForManualEnrollmentPhase(ctx, phaseID)
 			},
 		})
@@ -169,7 +170,7 @@ func (s *Intake) LoadManualEnrollmentBootstrap(ctx context.Context, phaseID int6
 // validateLoadedAvailabilityRules refuses an offering whose stored
 // availability rule no longer validates, so the parent form never offers a
 // choice the submission would reject.
-func validateLoadedAvailabilityRules(offerings []*enrollmentModels.CareOffering, loadErr error) ([]*enrollmentModels.CareOffering, error) {
+func validateLoadedAvailabilityRules(offerings []*offeringContract.CareOfferingRecord, loadErr error) ([]*offeringContract.CareOfferingRecord, error) {
 	if loadErr != nil {
 		return nil, loadErr
 	}

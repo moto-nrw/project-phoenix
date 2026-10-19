@@ -65,7 +65,7 @@ export interface YearAccount {
   readonly allowances: ReadonlyMap<string, AbsenceTypeAllowanceSummary>;
 }
 
-export type OptionKind = "quota" | "comp_time" | "plain";
+type OptionKind = "quota" | "comp_time" | "plain";
 
 export interface BookingOption {
   readonly value: string;

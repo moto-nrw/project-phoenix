@@ -9,7 +9,7 @@ import (
 )
 
 func (s *Service) FindVisit(ctx context.Context, id int64) (result *ports.Visit, err error) {
-	err = s.run("find_visit", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "find_visit", func(ctx context.Context) (ports.Stats, error) {
 		if id <= 0 {
 			return ports.Stats{}, errors.New("student presence: invalid visit ID")
 		}
@@ -21,7 +21,7 @@ func (s *Service) FindVisit(ctx context.Context, id int64) (result *ports.Visit,
 }
 
 func (s *Service) ListVisits(ctx context.Context, filter ports.VisitFilter) (result []*ports.Visit, err error) {
-	err = s.run("list_visits", func() (ports.Stats, error) {
+	err = s.runQuery(ctx, filter.ForUpdate, "list_visits", func(ctx context.Context) (ports.Stats, error) {
 		// Unknown IDs, including nonpositive legacy sentinels, simply do not
 		// match rows. They must not suppress valid IDs in the same bulk query.
 		if filter.Limit < 0 || filter.Offset < 0 {
@@ -85,7 +85,7 @@ func (s *Service) CloseVisits(ctx context.Context, ids []int64, at time.Time) (r
 }
 
 func (s *Service) ListOpenVisitStudentIDs(ctx context.Context, hostingTenantID int64) (result []int64, err error) {
-	err = s.run("list_open_visit_student_ids", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "list_open_visit_student_ids", func(ctx context.Context) (ports.Stats, error) {
 		var stats ports.Stats
 		result, stats, err = s.store.ListOpenVisitStudentIDs(ctx, hostingTenantID)
 		return stats, err

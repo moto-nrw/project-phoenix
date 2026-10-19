@@ -69,7 +69,7 @@ func validateSubstitutionDate(value, field string) error {
 }
 
 type GroupSubstitutionFilter struct {
-	TenantID          int64
+	TenantID          *int64
 	GroupID           int64
 	GroupIDs          []int64
 	SubstituteStaffID int64
@@ -86,6 +86,9 @@ type GroupSubstitutionFilter struct {
 }
 
 func (f GroupSubstitutionFilter) Validate() error {
+	if f.TenantID != nil && *f.TenantID <= 0 {
+		return invalidSubstitution("tenant ID must be positive")
+	}
 	for _, pair := range []struct{ value, field string }{
 		{f.On, "on"}, {f.OverlapFrom, "overlap_from"}, {f.OverlapTo, "overlap_to"}, {f.EndsOnOrAfter, "ends_on_or_after"},
 	} {

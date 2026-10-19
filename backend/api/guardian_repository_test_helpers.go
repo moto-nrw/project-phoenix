@@ -3,20 +3,18 @@
 package api
 
 import (
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
-// GuardianTestRepositories are the guardian suites' repositories; the audit
-// fields are filled by NewGuardianTestRepositories.
+// GuardianTestRepositories are the guardian suites' People Directory
+// repositories; their financial-change and access trails come from
+// NewTestAuditPersistence.
 type GuardianTestRepositories struct {
-	Phone          peoplePorts.GuardianPhoneNumberRepository
-	Financial      usersModels.GuardianFinancialDataRepository
-	FinancialAudit auditModels.GuardianFinancialChangeCreator
-	AccessLog      auditModels.DataAccessLogRepository
+	Phone     peoplePorts.GuardianPhoneNumberRepository
+	Financial peoplePorts.GuardianFinancialDataRepository
 }
 
 func NewGuardianTestRepositoriesWithoutAudit(db transactionruntime.Database) GuardianTestRepositories {

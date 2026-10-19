@@ -12,8 +12,9 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -23,11 +24,9 @@ import (
 // Directory (#2661), then the school projections on top.
 func newSchoolProjectionFactory(t *testing.T, db *bun.DB) *api.RepositoryTestFactory {
 	t.Helper()
-	factory, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	capability, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	capability, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
-	require.NoError(t, err)
-	return factory.WithSchoolProjections(capability)
+	return api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).WithSchoolProjections(capability)
 }
 
 // ensureGuardianProfile returns the guardian_profile id for the

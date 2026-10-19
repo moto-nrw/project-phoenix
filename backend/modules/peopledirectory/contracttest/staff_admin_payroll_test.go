@@ -7,9 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -25,13 +27,15 @@ import (
 // real configuration.
 
 type payrollScenario struct {
-	db    *bun.DB
-	repos *api.RepositoryTestFactory
-	svc   workforce.StaffRecordAdmin
-	ctx   context.Context
+	db                    *bun.DB
+	repos                 *api.RepositoryTestFactory
+	reposPeople           *api.PeopleRepositorySuiteFactory
+	reposPeopleMembership *api.SchoolMembershipSuiteRepositories
+	svc                   workforce.StaffRecordAdmin
+	ctx                   context.Context
 	// updateStaff runs the staff directory's directory-field update without a
 	// teacher-record change.
-	updateStaff func(context.Context, *userModels.Staff) error
+	updateStaff func(context.Context, *peopleValues.Staff) error
 }
 
 type serializingStaffRepo struct {
@@ -43,7 +47,7 @@ type serializingStaffRepo struct {
 	releaseFirst    chan struct{}
 }
 
-func (r *serializingStaffRepo) FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Staff, error) {
+func (r *serializingStaffRepo) FindByIDForUpdate(ctx context.Context, id int64) (*peopleValues.Staff, error) {
 	call := r.calls.Add(1)
 	if call == 2 {
 		close(r.secondAttempted)
@@ -68,26 +72,27 @@ func newPayrollScenario(t *testing.T) *payrollScenario {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	svc, err := api.NewStaffAdmin(payrollAdminDeps(db, repos, repos.Staff))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposPeopleMembership := api.NewSchoolMembershipSuiteRepositories(testpkg.NewDatabase(t, db))
+	svc, err := api.NewStaffAdmin(testpkg.MustDatabase(db), reposPeople.Staff, reposPeople.Person, reposPeopleMembership.SchoolMembership(), payrollAdminDeps(db))
 	require.NoError(t, err)
 	dir := peopleCompose.NewStaffDirectory(peoplePorts.StaffDirectoryDependencies{
-		Runtime: peopleCompose.NewLegacyRepositoryRuntime(db), Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher,
+		Runtime: peopleCompose.NewLegacyRepositoryRuntime(db), Persons: reposPeople.Person, Staff: reposPeople.Staff, Teachers: reposPeople.Teacher,
 		MayManageStaff: api.StaffAdministrationPermitted,
 	})
 
-	updateStaff := func(ctx context.Context, staff *userModels.Staff) error {
+	updateStaff := func(ctx context.Context, staff *peopleValues.Staff) error {
 		_, _, err := dir.UpdateStaffWithTeacher(ctx, staff, false, "", "", "")
 		return err
 	}
 
-	return &payrollScenario{db: db, repos: repos, svc: svc, ctx: testpkg.Ctx(t), updateStaff: updateStaff}
+	return &payrollScenario{db: db, repos: repos, reposPeople: reposPeople, reposPeopleMembership: reposPeopleMembership, svc: svc, ctx: testpkg.Ctx(t), updateStaff: updateStaff}
 }
 
-func payrollAdminDeps(db *bun.DB, repos *api.RepositoryTestFactory, staff peoplePorts.StaffRepository) api.StaffAdminDependencies {
+func payrollAdminDeps(db *bun.DB) api.StaffAdminDependencies {
 	return api.StaffAdminDependencies{
-		DB: testpkg.MustDatabase(db), Staff: staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
-		MasterDataAudit: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).StaffMasterDataChange, PersonnelNumber: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).PersonnelNumberChange, DataAccessLog: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).DataAccessLog,
+		MasterDataAudit: owners.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).StaffMasterDataChange, PersonnelNumber: owners.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).PersonnelNumberChange, DataAccessLog: owners.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).DataAccessLog,
 	}
 }
 
@@ -113,7 +118,7 @@ func TestUpdatePersonnelNumber_SetChangeClear(t *testing.T) {
 
 	// Set
 	value := "90001"
-	updated, err := s.svc.UpdatePersonnelNumber(s.ctx, staff.ID, &value, actor.ID, "Ersteinrichtung")
+	updated, err := testpkg.TenantQuery4(t, s.ctx, s.db, s.svc.UpdatePersonnelNumber, staff.ID, &value, actor.ID, "Ersteinrichtung")
 	require.NoError(t, err)
 	require.NotNil(t, updated.PersonnelNumber)
 	assert.Equal(t, "90001", *updated.PersonnelNumber)
@@ -126,13 +131,13 @@ func TestUpdatePersonnelNumber_SetChangeClear(t *testing.T) {
 	assert.Equal(t, "Ersteinrichtung", rows[0].Note)
 
 	// No-op: same value writes no second audit row
-	_, err = s.svc.UpdatePersonnelNumber(s.ctx, staff.ID, &value, actor.ID, "")
+	_, err = testpkg.TenantQuery4(t, s.ctx, s.db, s.svc.UpdatePersonnelNumber, staff.ID, &value, actor.ID, "")
 	require.NoError(t, err)
 	require.Len(t, s.auditRows(t, staff.ID), 1, "a no-op change must not produce an audit row")
 
 	// Change
 	changed := " 90002 " // whitespace is normalized away
-	updated, err = s.svc.UpdatePersonnelNumber(s.ctx, staff.ID, &changed, actor.ID, "Korrektur")
+	updated, err = testpkg.TenantQuery4(t, s.ctx, s.db, s.svc.UpdatePersonnelNumber, staff.ID, &changed, actor.ID, "Korrektur")
 	require.NoError(t, err)
 	assert.Equal(t, "90002", *updated.PersonnelNumber)
 	rows = s.auditRows(t, staff.ID)
@@ -141,7 +146,7 @@ func TestUpdatePersonnelNumber_SetChangeClear(t *testing.T) {
 	assert.Equal(t, "90002", rows[1].NewValue)
 
 	// Clear
-	updated, err = s.svc.UpdatePersonnelNumber(s.ctx, staff.ID, nil, actor.ID, "Austritt")
+	updated, err = testpkg.TenantQuery4(t, s.ctx, s.db, s.svc.UpdatePersonnelNumber, staff.ID, nil, actor.ID, "Austritt")
 	require.NoError(t, err)
 	assert.Nil(t, updated.PersonnelNumber)
 	rows = s.auditRows(t, staff.ID)
@@ -159,10 +164,10 @@ func TestUpdatePersonnelNumber_DuplicateIsConflictAndLeavesNoAudit(t *testing.T)
 	actor := testpkg.CreateTestStaff(t, s.db, "Payroll", "Aktor")
 
 	value := "90010"
-	_, err := s.svc.UpdatePersonnelNumber(s.ctx, first.ID, &value, actor.ID, "")
+	_, err := testpkg.TenantQuery4(t, s.ctx, s.db, s.svc.UpdatePersonnelNumber, first.ID, &value, actor.ID, "")
 	require.NoError(t, err)
 
-	_, err = s.svc.UpdatePersonnelNumber(s.ctx, second.ID, &value, actor.ID, "")
+	_, err = testpkg.TenantQuery4(t, s.ctx, s.db, s.svc.UpdatePersonnelNumber, second.ID, &value, actor.ID, "")
 	require.ErrorIs(t, err, workforce.ErrPersonnelNumberTaken)
 
 	assert.Empty(t, s.auditRows(t, second.ID), "the rolled-back change must not leave an audit row")
@@ -170,14 +175,14 @@ func TestUpdatePersonnelNumber_DuplicateIsConflictAndLeavesNoAudit(t *testing.T)
 	// The number can be reassigned after the holder is offboarded (partial
 	// index skips soft-deleted rows).
 	_, err = s.db.NewUpdate().
-		Model((*userModels.Staff)(nil)).
+		Model((*peopleValues.Staff)(nil)).
 		ModelTableExpr(`users.staff_school_memberships AS "staff"`).
 		Set("deleted_at = NOW()").
 		Where(`"staff".id = ?`, first.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	_, err = s.svc.UpdatePersonnelNumber(s.ctx, second.ID, &value, actor.ID, "")
+	_, err = testpkg.TenantQuery4(t, s.ctx, s.db, s.svc.UpdatePersonnelNumber, second.ID, &value, actor.ID, "")
 	require.NoError(t, err, "an offboarded holder must free the number")
 }
 
@@ -189,20 +194,20 @@ func TestUpdatePersonnelNumber_SerializesConcurrentAuditValues(t *testing.T) {
 	actor := testpkg.CreateTestStaff(t, s.db, "Payroll", "Aktor")
 
 	staffRepo := &serializingStaffRepo{
-		StaffRepository: s.repos.Staff,
+		StaffRepository: s.reposPeople.Staff,
 		firstLocked:     make(chan struct{}),
 		secondAttempted: make(chan struct{}),
 		secondRead:      make(chan struct{}),
 		releaseFirst:    make(chan struct{}),
 	}
-	svc, err := api.NewStaffAdmin(payrollAdminDeps(s.db, s.repos, staffRepo))
+	svc, err := api.NewStaffAdmin(testpkg.MustDatabase(s.db), staffRepo, s.reposPeople.Person, s.reposPeopleMembership.SchoolMembership(), payrollAdminDeps(s.db))
 	require.NoError(t, err)
 
 	personnelNumberSeed := staff.ID % 10_000_000
 	firstValue := fmt.Sprintf("7%07d1", personnelNumberSeed)
 	firstDone := make(chan error, 1)
 	go func() {
-		_, err := svc.UpdatePersonnelNumber(s.ctx, staff.ID, &firstValue, actor.ID, "Erste Änderung")
+		_, err := testpkg.TenantQuery4(t, s.ctx, testpkg.SetupTestDB(t), svc.UpdatePersonnelNumber, staff.ID, &firstValue, actor.ID, "Erste Änderung")
 		firstDone <- err
 	}()
 
@@ -218,7 +223,7 @@ func TestUpdatePersonnelNumber_SerializesConcurrentAuditValues(t *testing.T) {
 	secondValue := fmt.Sprintf("7%07d2", personnelNumberSeed)
 	secondDone := make(chan error, 1)
 	go func() {
-		_, err := svc.UpdatePersonnelNumber(s.ctx, staff.ID, &secondValue, actor.ID, "Zweite Änderung")
+		_, err := testpkg.TenantQuery4(t, s.ctx, testpkg.SetupTestDB(t), svc.UpdatePersonnelNumber, staff.ID, &secondValue, actor.ID, "Zweite Änderung")
 		secondDone <- err
 	}()
 
@@ -273,18 +278,18 @@ func TestUpdateStaffWithTeacher_PreservesConcurrentPersonnelNumber(t *testing.T)
 	staff := testpkg.CreateTestStaff(t, s.db, "Payroll", "Stale")
 	actor := testpkg.CreateTestStaff(t, s.db, "Payroll", "Aktor")
 
-	staleStaff, err := s.repos.Staff.FindByID(s.ctx, staff.ID)
+	staleStaff, err := s.reposPeople.Staff.FindByID(s.ctx, staff.ID)
 	require.NoError(t, err)
 
 	value := fmt.Sprintf("6%07d1", staff.ID%10_000_000)
-	_, err = s.svc.UpdatePersonnelNumber(s.ctx, staff.ID, &value, actor.ID, "Ersteinrichtung")
+	_, err = testpkg.TenantQuery4(t, s.ctx, s.db, s.svc.UpdatePersonnelNumber, staff.ID, &value, actor.ID, "Ersteinrichtung")
 	require.NoError(t, err)
 
 	staleStaff.StaffNotes = "Aktualisierte Notiz"
 	err = s.updateStaff(s.ctx, staleStaff)
 	require.NoError(t, err)
 
-	reloaded, err := s.repos.Staff.FindByID(s.ctx, staff.ID)
+	reloaded, err := s.reposPeople.Staff.FindByID(s.ctx, staff.ID)
 	require.NoError(t, err)
 	require.NotNil(t, reloaded.PersonnelNumber)
 	assert.Equal(t, value, *reloaded.PersonnelNumber)
@@ -305,14 +310,14 @@ func TestUpdatePersonnelNumber_Validation(t *testing.T) {
 
 	for _, invalid := range []string{"12a", "1 2", "-5", "1234567890"} {
 		v := invalid
-		_, err := s.svc.UpdatePersonnelNumber(s.ctx, staff.ID, &v, actor.ID, "")
+		_, err := testpkg.TenantQuery4(t, s.ctx, s.db, s.svc.UpdatePersonnelNumber, staff.ID, &v, actor.ID, "")
 		require.ErrorIs(t, err, workforce.ErrPersonnelNumberInvalid, "value %q must be rejected", invalid)
 	}
 
 	// Missing audit wiring refuses the change entirely (fail fast): the
 	// administration cannot be composed without the audit repository.
-	unwired := payrollAdminDeps(s.db, s.repos, s.repos.Staff)
+	unwired := payrollAdminDeps(s.db)
 	unwired.PersonnelNumber = nil
-	_, err := api.NewStaffAdmin(unwired)
+	_, err := api.NewStaffAdmin(testpkg.MustDatabase(s.db), s.reposPeople.Staff, s.reposPeople.Person, s.reposPeopleMembership.SchoolMembership(), unwired)
 	require.Error(t, err, "without the audit repository no change may happen")
 }

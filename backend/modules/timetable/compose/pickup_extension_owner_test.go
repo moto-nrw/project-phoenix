@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	directoryPorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -14,24 +16,24 @@ import (
 )
 
 func buildPickupExtensionModule(t *testing.T, db *bun.DB, observers ...func(Observation)) *timetable.Module {
-	return buildPickupExtensionModuleWithStudents(t, db, StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) {
-		return []TargetStudent{}, nil
+	return buildPickupExtensionModuleWithStudents(t, db, directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) {
+		return []directoryPorts.TargetStudent{}, nil
 	}), observers...)
 }
 
 func buildPickupExtensionModuleWithStudents(
-	t *testing.T, db *bun.DB, students StudentDirectory, observers ...func(Observation),
+	t *testing.T, db *bun.DB, students directoryPorts.StudentDirectory, observers ...func(Observation),
 ) *timetable.Module {
 	return buildPickupExtensionModuleWith(t, db, students, &fixedSessions{}, observers...)
 }
 
 func buildPickupExtensionModuleWithSessions(t *testing.T, db *bun.DB, sessions timetable.SessionFacts, observers ...func(Observation)) *timetable.Module {
-	return buildPickupExtensionModuleWith(t, db, StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) {
-		return []TargetStudent{}, nil
+	return buildPickupExtensionModuleWith(t, db, directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) {
+		return []directoryPorts.TargetStudent{}, nil
 	}), sessions, observers...)
 }
 
-func buildPickupExtensionModuleWith(t *testing.T, db *bun.DB, students StudentDirectory, sessions timetable.SessionFacts, observers ...func(Observation)) *timetable.Module {
+func buildPickupExtensionModuleWith(t *testing.T, db *bun.DB, students directoryPorts.StudentDirectory, sessions timetable.SessionFacts, observers ...func(Observation)) *timetable.Module {
 	t.Helper()
 	observe := func(Observation) {}
 	if len(observers) > 0 {
@@ -681,8 +683,8 @@ func TestModuleExcludesFuturePickupTargetAfterCareEnds(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	suffix := time.Now().UnixNano()
 	child := testpkg.CreateTestStudent(t, db, "Mia", fmt.Sprintf("Target-%d", suffix), "1a")
-	students := StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) {
-		return []TargetStudent{{
+	students := directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) {
+		return []directoryPorts.TargetStudent{{
 			ID: child.ID, SchoolClass: child.SchoolClass, EnrolledUntil: "2099-03-04",
 		}}, nil
 	})
@@ -720,8 +722,8 @@ func TestModuleUsesCurrentPickupDateForTargets(t *testing.T) {
 	suffix := time.Now().UnixNano()
 	child := testpkg.CreateTestStudent(t, db, "Mia", fmt.Sprintf("Current target-%d", suffix), "1a")
 	today := time.Now()
-	students := StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) {
-		return []TargetStudent{{
+	students := directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) {
+		return []directoryPorts.TargetStudent{{
 			ID: child.ID, SchoolClass: child.SchoolClass, EnrolledUntil: today.AddDate(0, 0, -1).Format(time.DateOnly),
 		}}, nil
 	})

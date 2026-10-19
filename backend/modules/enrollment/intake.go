@@ -247,6 +247,10 @@ type CareOffering struct {
 	AutoAddTriggerOfferingIDs []int64
 }
 
+// HasFixedDays reports whether the offering books all its available days
+// instead of letting the family choose.
+func (o *CareOffering) HasFixedDays() bool { return o.DaysOfWeekMode == CareOfferingDaysFixed }
+
 // PublicFormBootstrapData is what a form load assembles in one tenant
 // transaction: the gated phase, its pinned schema, the active care
 // offerings, the raw and the effective form capabilities, the legal texts

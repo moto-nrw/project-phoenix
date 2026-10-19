@@ -6,6 +6,10 @@ import (
 	"context"
 	"time"
 
+	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 
@@ -28,7 +32,7 @@ type ParentAnnouncementFixtures interface {
 
 // NewParentAnnouncementFixtures binds the test construction seam without a
 // second persistence implementation or a foreign row import in the root.
-func NewParentAnnouncementFixtures(repo parentstore.ParentAnnouncementRepository) ParentAnnouncementFixtures {
+func NewParentAnnouncementFixtures(repo recordports.ParentAnnouncementRepository) ParentAnnouncementFixtures {
 	return parentAnnouncementFixtures{parentstore.NewParentAnnouncementFixtures(repo)}
 }
 
@@ -37,22 +41,22 @@ type parentAnnouncementFixtures struct {
 }
 
 func (f parentAnnouncementFixtures) InsertDeclarationVersion(ctx context.Context, value *parentportal.DeclarationVersion) error {
-	row := parentMessagingPointer(value, parentMessagingToOwnerDeclarationVersion)
+	row := owners.ParentMessagingPointer(value, owners.ParentMessagingToOwnerDeclarationVersion)
 	err := f.ParentAnnouncementFixtures.InsertDeclarationVersion(ctx, row)
 	if value != nil && row != nil {
-		*value = parentMessagingFromOwnerDeclarationVersion(*row)
+		*value = owners.ParentMessagingFromOwnerDeclarationVersion(*row)
 	}
 	return err
 }
 func (f parentAnnouncementFixtures) ListDeclarationSubmissions(ctx context.Context, tenantID, id int64) ([]*parentportal.DeclarationSubmission, error) {
 	rows, err := f.ParentAnnouncementFixtures.ListDeclarationSubmissions(ctx, tenantID, id)
-	return parentMessagingSlice(rows, func(row *communication.PortalDeclarationSubmission) *parentportal.DeclarationSubmission {
-		return parentMessagingPointer(row, parentMessagingFromOwnerDeclarationSubmission)
+	return owners.ParentMessagingSlice(rows, func(row *communication.PortalDeclarationSubmission) *parentportal.DeclarationSubmission {
+		return owners.ParentMessagingPointer(row, owners.ParentMessagingFromOwnerDeclarationSubmission)
 	}), err
 }
 func ParentDeclarationCanonicalContent(value *parentportal.DeclarationVersion) []byte {
-	return parentstore.NewPortalDeclarationPolicy().PortalCanonicalContent(parentMessagingToOwnerDeclarationVersion(*value))
+	return parentstore.NewPortalDeclarationPolicy().PortalCanonicalContent(owners.ParentMessagingToOwnerDeclarationVersion(*value))
 }
 func ParentDeclarationCanonicalRecord(value *parentportal.DeclarationSubmission) []byte {
-	return parentstore.NewPortalDeclarationPolicy().PortalCanonicalRecord(parentMessagingToOwnerDeclarationSubmission(*value))
+	return parentstore.NewPortalDeclarationPolicy().PortalCanonicalRecord(owners.ParentMessagingToOwnerDeclarationSubmission(*value))
 }

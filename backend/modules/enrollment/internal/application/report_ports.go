@@ -4,9 +4,11 @@ import (
 	"context"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -14,25 +16,25 @@ import (
 // Enrollment owner reads of the reports.
 type (
 	ReportRequests interface {
-		AdminRequests(context.Context, enrollment.RequestListFilters) ([]*enrollment.Request, error)
+		AdminRequests(context.Context, enrollmentNative.RequestListFilters) ([]*enrollmentNative.Request, error)
 	}
 	ReportChildren interface {
-		RequestChildOfferingsForChildrenAtDate(context.Context, []int64, enrollment.Date) ([]*enrollment.RequestChildOffering, error)
-		ChildrenForRequests(context.Context, []int64) ([]*enrollment.RequestChild, error)
+		RequestChildOfferingsForChildrenAtDate(context.Context, []int64, enrollmentNative.Date) ([]*enrollmentNative.RequestChildOffering, error)
+		ChildrenForRequests(context.Context, []int64) ([]*enrollmentNative.RequestChild, error)
 	}
 	ReportGuardians interface {
-		RequestGuardians(context.Context, []int64) ([]*enrollment.RequestGuardian, error)
+		RequestGuardians(context.Context, []int64) ([]*enrollmentNative.RequestGuardian, error)
 	}
 	ReportSchemas interface {
-		Schemas(context.Context, []int64) ([]*enrollment.FormSchema, error)
+		Schemas(context.Context, []int64) ([]*enrollmentNative.FormSchema, error)
 	}
 	ReportPhases interface {
-		Phase(context.Context, int64) (*enrollment.Phase, error)
-		Phases(context.Context) ([]*enrollment.Phase, error)
+		Phase(context.Context, int64) (*enrollmentNative.Phase, error)
+		Phases(context.Context) ([]*enrollmentNative.Phase, error)
 	}
 	// ReportOfferings lists the care offerings of a phase from Care Plan.
 	ReportOfferings interface {
-		ListByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error)
+		ListByPhase(ctx context.Context, phaseID int64) ([]*offeringContract.CareOfferingRecord, error)
 	}
 )
 
@@ -117,7 +119,7 @@ type (
 	CareParticipation interface {
 		ResolveListParticipation(ctx context.Context, studentIDs []int64, on, today calendar.Date, includePending bool) (*careplan.CareParticipationResolution, error)
 	}
-	// ReportSettings resolves enrollment.care_offerings_enabled so the class
+	// ReportSettings resolves enrollmentNative.care_offerings_enabled so the class
 	// roster matches the form: a leftover active catalog must not constrain
 	// pickup times when offerings are turned off.
 	ReportSettings interface {
@@ -171,7 +173,7 @@ type Reports struct {
 	deps ReportDependencies
 }
 
-var _ enrollment.Reports = (*Reports)(nil)
+var _ enrollmentNative.Reports = (*Reports)(nil)
 
 // NewReports creates the reports.
 func NewReports(deps ReportDependencies) *Reports {

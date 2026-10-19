@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	substitution "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -44,12 +45,12 @@ func TestScheduleSubstitutionExternalInterfacePartialCoverage(t *testing.T) {
 	require.NotNil(t, result.ScheduleSubstitution)
 	require.Equal(t, 1, result.ScheduleSubstitution.TotalAffected)
 
-	firstRows, err := repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), first.ID)
+	firstRows, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, first.ID)
 	require.NoError(t, err)
 	requireScheduleStaffState(t, firstRows, absent.ID, true, false)
 	requireScheduleStaffState(t, firstRows, replacement.ID, false, true)
 
-	secondRows, err := repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), second.ID)
+	secondRows, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, second.ID)
 	require.NoError(t, err)
 	requireScheduleStaffState(t, secondRows, absent.ID, false, false)
 	for _, row := range secondRows {
@@ -81,7 +82,7 @@ func TestScheduleSubstitutionExternalInterfaceDayWideAbsence(t *testing.T) {
 	require.Equal(t, 2, result.ScheduleSubstitution.TotalAffected)
 
 	for _, instanceID := range []int64{first.ID, second.ID} {
-		rows, findErr := repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), instanceID)
+		rows, findErr := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, instanceID)
 		require.NoError(t, findErr)
 		requireScheduleStaffState(t, rows, absent.ID, true, false)
 	}
@@ -115,7 +116,9 @@ func TestScheduleSubstitutionExternalInterfaceActiveAppointmentSyncsOnce(t *test
 	})
 	require.NoError(t, err)
 
-	activeSupervisors, err := repos.GroupSupervisor.FindByActiveGroupID(testpkg.Ctx(t), activeGroup.ID, true)
+	presence, err := api.NewTimetablePresenceRows(testpkg.NewDatabase(t, db), repos, owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	require.NoError(t, err)
+	activeSupervisors, err := presence.GroupSupervisor.FindByActiveGroupID(testpkg.Ctx(t), activeGroup.ID, true)
 	require.NoError(t, err)
 	require.Len(t, activeSupervisors, 1)
 	require.Equal(t, replacement.ID, activeSupervisors[0].StaffID)
@@ -152,7 +155,7 @@ func TestScheduleSubstitutionExternalInterfaceConflictRollsBack(t *testing.T) {
 	})
 	require.ErrorIs(t, err, substitution.ErrConflict)
 
-	firstRows, err := repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), first.ID)
+	firstRows, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, first.ID)
 	require.NoError(t, err)
 	requireScheduleStaffState(t, firstRows, firstAbsent.ID, false, false)
 	for _, row := range firstRows {
@@ -187,7 +190,7 @@ func TestScheduleSubstitutionExternalInterfaceWriteFailureRollsBack(t *testing.T
 	})
 	require.Error(t, err)
 
-	rows, err := repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), instance.ID)
+	rows, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, instance.ID)
 	require.NoError(t, err)
 	requireScheduleStaffState(t, rows, absent.ID, false, false)
 	for _, row := range rows {
@@ -366,7 +369,7 @@ func TestScheduleSubstitutionExternalInterfaceUsesBulkPlanning(t *testing.T) {
 	require.Len(t, result.ScheduleSubstitution.Days, 2)
 	require.Equal(t, 2, result.ScheduleSubstitution.TotalAffected)
 	for _, instanceID := range []int64{first.ID, second.ID} {
-		rows, findErr := repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), instanceID)
+		rows, findErr := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, instanceID)
 		require.NoError(t, findErr)
 		requireScheduleStaffState(t, rows, absent.ID, true, false)
 		requireScheduleStaffState(t, rows, replacement.ID, false, true)
@@ -396,7 +399,7 @@ func TestScheduleSubstitutionExternalInterfaceEndsTypedAppointmentSubstitution(t
 		},
 	})
 	require.NoError(t, err)
-	rows, err := repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), instance.ID)
+	rows, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, instance.ID)
 	require.NoError(t, err)
 	var substitutionID int64
 	for _, row := range rows {
@@ -409,7 +412,7 @@ func TestScheduleSubstitutionExternalInterfaceEndsTypedAppointmentSubstitution(t
 	require.NoError(t, service.End(testpkg.Ctx(t), caller, substitution.EndRequest{
 		Type: substitution.TargetScheduleSubstitution, ID: substitutionID,
 	}))
-	rows, err = repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), instance.ID)
+	rows, err = testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, instance.ID)
 	require.NoError(t, err)
 	requireScheduleStaffState(t, rows, absent.ID, true, false)
 	for _, row := range rows {
@@ -441,7 +444,7 @@ func TestScheduleSubstitutionExternalInterfaceReturnsNarrowOverview(t *testing.T
 	})
 	require.NoError(t, err)
 
-	overview, err := service.Overview(testpkg.Ctx(t), caller, substitution.OverviewQuery{
+	overview, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), db, service.Overview, caller, substitution.OverviewQuery{
 		ScheduleFrom: &date, ScheduleTo: &date, IncludeScheduleTargets: true,
 	})
 	require.NoError(t, err)
@@ -458,7 +461,7 @@ func TestScheduleSubstitutionExternalInterfaceReturnsNarrowOverview(t *testing.T
 	require.Contains(t, overview.ScheduleTargets, substitution.StaffRef{ID: replacement.ID, FullName: "Nils Vertretung"})
 	readOnly := scheduleSubstitutionCaller(t)
 	readOnly.HasPermission = func(required string) bool { return required == "schedules:read" }
-	readOnlyOverview, err := service.Overview(testpkg.Ctx(t), readOnly, substitution.OverviewQuery{
+	readOnlyOverview, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), db, service.Overview, readOnly, substitution.OverviewQuery{
 		ScheduleFrom: &date, ScheduleTo: &date,
 	})
 	require.NoError(t, err)
@@ -500,7 +503,7 @@ func scheduleSubstitutionCaller(t *testing.T) substitution.Caller {
 // newScheduleSubstitutionModule drives the substitution module's schedule half
 // through the composed workflow: the module keeps its own authorization and
 // transaction handling, the workflow performs the deviation writes.
-func newScheduleSubstitutionModule(t *testing.T) (*bun.DB, api.TimetableTestRepositories, substitution.SubstitutionModule) {
+func newScheduleSubstitutionModule(t *testing.T) (*bun.DB, owners.TimetableTestRepositories, substitution.SubstitutionModule) {
 	t.Helper()
 	env := newPlanSyncEnv(t, nil, nil)
 	return env.db, env.repos, api.NewScheduleSubstitutionSuiteModule(env.substitution, testpkg.TenantTransactionRuntime{}, slog.Default())

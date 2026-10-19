@@ -23,7 +23,7 @@ type blockDisplayMetadata struct {
 
 // NewBlockDisplayMetadata serves the planner's BlockMetadata port from the
 // block display projection over db, inside the ambient tenant transaction
-// when there is one.
+// supplied by the application workflow.
 func NewBlockDisplayMetadata(db *bun.DB, project BlockDisplayProjection) ports.BlockDisplayMetadata {
 	if db == nil {
 		panic("timetable block display metadata: database is required")
@@ -49,7 +49,7 @@ func (r blockDisplayMetadata) ListBlockDisplayMetadata(ctx context.Context, inst
 func blockDisplayDatabase(ctx context.Context, db *bun.DB) (bun.IDB, error) {
 	raw, ok := tenant.TransactionFromContext(ctx)
 	if !ok {
-		return db, nil
+		return nil, fmt.Errorf("timetable block display metadata: transaction is required")
 	}
 	switch tx := raw.(type) {
 	case bun.Tx:
@@ -58,7 +58,7 @@ func blockDisplayDatabase(ctx context.Context, db *bun.DB) (bun.IDB, error) {
 		if tx != nil {
 			return tx, nil
 		}
-		return db, nil
+		return nil, fmt.Errorf("timetable block display metadata: transaction is required")
 	default:
 		return nil, fmt.Errorf("timetable block display metadata: unsupported transaction %T", raw)
 	}

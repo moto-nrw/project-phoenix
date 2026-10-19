@@ -7,9 +7,10 @@ import (
 	"log/slog"
 	"time"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -18,8 +19,8 @@ import (
 // start. Conflicts is the owner's start check (#3550), the one the manual
 // start runs too.
 type InstanceAutoStartDependencies struct {
-	InstanceRepo      scheduleModel.ActivityInstanceRepository
-	InstanceStaffRepo scheduleModel.InstanceStaffRepository
+	InstanceRepo      ports.ActivityInstanceRecords
+	InstanceStaffRepo ports.InstanceStaffRecords
 	Lifecycle         timetable.InstanceLifecycle
 	Rooms             ports.LifecycleRooms
 	Conflicts         timetable.StartConflictQuery
@@ -50,7 +51,7 @@ func (s *instanceAutoStart) RunForTenant(ctx context.Context, now time.Time) (*t
 		result.DurationMS = time.Since(startedAt).Milliseconds()
 	}()
 	today := calendar.DateFromTime(now)
-	instances, err := s.InstanceRepo.FindByTenantAndDate(ctx, scheduleModel.Date(today))
+	instances, err := s.InstanceRepo.FindByTenantAndDate(ctx, calendar.Date(today))
 	if err != nil {
 		return result, fmt.Errorf("load today's activity instances: %w", err)
 	}
@@ -60,7 +61,7 @@ func (s *instanceAutoStart) RunForTenant(ctx context.Context, now time.Time) (*t
 	}
 	for _, inst := range instances {
 		result.Checked++
-		if inst.TemplateType == activitiesModel.GroupTypeDuty {
+		if inst.TemplateType == activityContract.GroupTypeDuty {
 			result.SkippedDuty++
 			continue
 		}
@@ -78,7 +79,7 @@ func (s *instanceAutoStart) plannedStaffCounts(ctx context.Context, instances []
 	plannedIDs := make([]int64, 0, len(instances))
 	plannedRoomIDs := make(map[int64]struct{})
 	for _, inst := range instances {
-		if inst.TemplateType == activitiesModel.GroupTypeDuty {
+		if inst.TemplateType == activityContract.GroupTypeDuty {
 			continue
 		}
 		if inst.Status == scheduleModel.InstanceStatusPlanned {

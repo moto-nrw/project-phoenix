@@ -51,7 +51,6 @@ var moduleHTTPComplexityAllowlist = map[string]int{
 	// the scheduled staff-document file cleanup walks the offboarded, deleted
 	// and queued documents and branches per document in the inbound resource
 	// instead of in the Workforce application layer (#4071).
-	"modules/workforce/http/timetracking/staff_admin_document_cleanup.go:(*StaffAdminResource).CleanupOrphanedStaffDocumentFiles": 19,
 }
 
 func TestHandlerComplexityRatchet(t *testing.T) {

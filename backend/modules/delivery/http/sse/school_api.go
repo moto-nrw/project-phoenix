@@ -27,13 +27,6 @@ type SchoolAccessChecker interface {
 	HasSchoolPortalAccess(ctx context.Context, accountID, tenantID int64) (bool, error)
 }
 
-// SetSchoolAccess wires the authorization re-check for the school SSE stream.
-// Without it the school stream refuses to open — a long-lived connection that
-// nobody re-authorizes is exactly what this guard exists to prevent.
-func (rs *Resource[E, C]) SetSchoolAccess(checker SchoolAccessChecker) {
-	rs.schoolAccess = checker
-}
-
 // SchoolRouter returns the SSE router for the school portal ("moto schule",
 // #2208). It mirrors ParentRouter: same streaming loop, but authenticated with
 // SchoolMiddleware (scope=school only) and registered per account, so the

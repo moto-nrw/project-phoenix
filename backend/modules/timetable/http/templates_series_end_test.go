@@ -21,7 +21,7 @@ func TestTemplateSeriesEndDateRoundTrip(t *testing.T) {
 
 	s := buildTemplateModule(t, &mockMaterializationService{})
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Serienende")
 
 	body := func(name string) map[string]any {
@@ -85,7 +85,7 @@ func TestTemplateSeriesEndDateValidation(t *testing.T) {
 
 	s := buildTemplateModule(t, &mockMaterializationService{})
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Serienende-Pruefung")
 
 	for name, endDate := range map[string]string{

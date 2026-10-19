@@ -17,10 +17,7 @@ func newDeviceOpenRoomMover(command openroommove.Command) devicescanCompose.Open
 			result, err := command.MoveToOpenRoom(ctx, openroommove.Move{
 				StudentIDs: []int64{studentID},
 				RoomID:     roomID,
-				// The kiosk is trusted like the binary attendance toggle: it
-				// authenticated with its key and the school PIN, and the
-				// child's card was scanned at it.
-				Actor: openroommove.Actor{BypassResourceChecks: true},
+				Actor:      openroommove.KioskActor(),
 			})
 			if err != nil {
 				return devicescanCompose.OpenRoomMoveReport{}, err

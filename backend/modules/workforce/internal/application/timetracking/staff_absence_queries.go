@@ -10,8 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// ListAbsences returns a staff member's absences for a date range, status, or
-// both. The generic repository filter keeps tenant scoping in one place.
 func (s *staffAbsenceService) ListAbsences(ctx context.Context, staffID int64, filter StaffAbsenceListFilter) ([]*StaffAbsenceResponse, error) {
 	if (filter.From == nil) != (filter.To == nil) {
 		return nil, fmt.Errorf("from and to must be provided together")
@@ -20,7 +18,7 @@ func (s *staffAbsenceService) ListAbsences(ctx context.Context, staffID int64, f
 		return nil, fmt.Errorf("absence list filter is required")
 	}
 	if filter.Status != "" && !slices.Contains(ValidAbsenceStatuses, filter.Status) {
-		return nil, fmt.Errorf("invalid absence status")
+		return nil, &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid absence status")}
 	}
 
 	query := workforce.StaffAbsenceFilter{StaffID: staffID}
@@ -49,8 +47,6 @@ func (s *staffAbsenceService) ListAbsences(ctx context.Context, staffID int64, f
 	return s.withLabels(ctx, responses...), nil
 }
 
-// GetAbsencesForRange preserves the range-only service contract used by staff
-// detail views.
 func (s *staffAbsenceService) GetAbsencesForRange(ctx context.Context, staffID int64, from, to calendar.Date) ([]*StaffAbsenceResponse, error) {
 	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
 	if err != nil {
@@ -65,7 +61,6 @@ func (s *staffAbsenceService) GetAbsencesForRange(ctx context.Context, staffID i
 	return s.withLabels(ctx, responses...), nil
 }
 
-// HasAbsenceOnDate checks if a staff member has an absence on a specific date
 func (s *staffAbsenceService) HasAbsenceOnDate(ctx context.Context, staffID int64, date calendar.Date) (bool, *StaffAbsence, error) {
 	absence, err := s.absenceRepo.GetByStaffAndDate(ctx, staffID, date)
 	if err != nil {

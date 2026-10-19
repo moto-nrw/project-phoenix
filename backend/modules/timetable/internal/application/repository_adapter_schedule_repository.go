@@ -5,15 +5,17 @@ import (
 	"errors"
 	"fmt"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	activitiesModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/activityrecords"
 )
 
 // timetableActivityScheduleRepository preserves the legacy service contract
 // while making the Timetable module the only activities.schedules provider.
 type timetableActivityScheduleRepository struct{ timetable timetable.ScheduleCapability }
 
-func (r timetableActivityScheduleRepository) Create(ctx context.Context, schedule *activitiesModels.Schedule) error {
+func (r timetableActivityScheduleRepository) Create(ctx context.Context, schedule *activityContract.Schedule) error {
 	if schedule == nil {
 		return errors.New("schedule cannot be nil or zero value")
 	}
@@ -28,7 +30,7 @@ func (r timetableActivityScheduleRepository) Create(ctx context.Context, schedul
 	return nil
 }
 
-func (r timetableActivityScheduleRepository) FindByID(ctx context.Context, id any) (*activitiesModels.Schedule, error) {
+func (r timetableActivityScheduleRepository) FindByID(ctx context.Context, id int64) (*activityContract.Schedule, error) {
 	scheduleID, ok := LegacyGroupID(id)
 	if !ok {
 		return nil, legacyDatabaseError("find by id", fmt.Errorf("invalid activity schedule id %T", id))
@@ -40,7 +42,7 @@ func (r timetableActivityScheduleRepository) FindByID(ctx context.Context, id an
 	return legacySchedule(value), nil
 }
 
-func (r timetableActivityScheduleRepository) Update(ctx context.Context, schedule *activitiesModels.Schedule) error {
+func (r timetableActivityScheduleRepository) Update(ctx context.Context, schedule *activityContract.Schedule) error {
 	if schedule == nil {
 		return errors.New("schedule cannot be nil")
 	}
@@ -55,7 +57,7 @@ func (r timetableActivityScheduleRepository) Update(ctx context.Context, schedul
 	return nil
 }
 
-func (r timetableActivityScheduleRepository) Delete(ctx context.Context, id any) error {
+func (r timetableActivityScheduleRepository) Delete(ctx context.Context, id int64) error {
 	scheduleID, ok := LegacyGroupID(id)
 	if !ok {
 		return legacyDatabaseError("delete", fmt.Errorf("invalid activity schedule id %T", id))
@@ -66,7 +68,7 @@ func (r timetableActivityScheduleRepository) Delete(ctx context.Context, id any)
 	return nil
 }
 
-func (r timetableActivityScheduleRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*activitiesModels.Schedule, error) {
+func (r timetableActivityScheduleRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*activityContract.Schedule, error) {
 	values, err := r.timetable.ListSchedules(ctx, timetable.ScheduleFilter{GroupIDs: []int64{groupID}})
 	if err != nil {
 		return nil, legacyActivityScheduleError("find by group ID", err)
@@ -74,9 +76,9 @@ func (r timetableActivityScheduleRepository) FindByGroupID(ctx context.Context, 
 	return legacySchedules(values), nil
 }
 
-func (r timetableActivityScheduleRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*activitiesModels.Schedule, error) {
+func (r timetableActivityScheduleRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*activityContract.Schedule, error) {
 	if len(groupIDs) == 0 {
-		return []*activitiesModels.Schedule{}, nil
+		return []*activityContract.Schedule{}, nil
 	}
 	values, err := r.timetable.ListSchedules(ctx, timetable.ScheduleFilter{GroupIDs: groupIDs})
 	if err != nil {
@@ -114,16 +116,16 @@ func (r timetableActivityScheduleRepository) CapValidUntil(ctx context.Context, 
 	return rows, nil
 }
 
-func legacySchedules(values []timetable.Schedule) []*activitiesModels.Schedule {
-	result := make([]*activitiesModels.Schedule, 0, len(values))
+func legacySchedules(values []timetable.Schedule) []*activityContract.Schedule {
+	result := make([]*activityContract.Schedule, 0, len(values))
 	for _, value := range values {
 		result = append(result, legacySchedule(value))
 	}
 	return result
 }
 
-func legacySchedule(value timetable.Schedule) *activitiesModels.Schedule {
-	result := &activitiesModels.Schedule{
+func legacySchedule(value timetable.Schedule) *activityContract.Schedule {
+	result := &activityContract.Schedule{
 		Weekday: value.Weekday, TimeframeID: value.TimeframeID, ActivityGroupID: value.ActivityGroupID,
 		WeekPattern: value.WeekPattern, CalendarPeriodID: value.CalendarPeriodID,
 	}
@@ -133,7 +135,7 @@ func legacySchedule(value timetable.Schedule) *activitiesModels.Schedule {
 	return result
 }
 
-func publicScheduleInput(value *activitiesModels.Schedule) timetable.ScheduleInput {
+func publicScheduleInput(value *activityContract.Schedule) timetable.ScheduleInput {
 	validUntil, validFrom := value.ValidityDateStrings()
 	return timetable.ScheduleInput{
 		Weekday: value.Weekday, TimeframeID: value.TimeframeID, ActivityGroupID: value.ActivityGroupID,

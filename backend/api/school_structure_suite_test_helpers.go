@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
@@ -16,21 +18,18 @@ import (
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 )
 
 // The composition the retained School Structure repository suites
 // (database/repositories/education) drive (#2742), composed here so the
 // suites import neither the retained repositories nor the service graph.
 
-// SchoolStructureRepositorySuiteDependencies are the owner capabilities the
-// repository factory reads through.
-type SchoolStructureRepositorySuiteDependencies = TimetableDependencies
-
 // NewSchoolStructureRepositorySuiteGraph is the legacy repository factory
-// over the unobserved timetable dependencies, with a second set of those
-// owner capabilities for the suites that write through an owner directly.
-func NewSchoolStructureRepositorySuiteGraph(db transactionruntime.Database) (*PeopleRepositorySuiteFactory, SchoolStructureRepositorySuiteDependencies) {
-	return NewPeopleRepositorySuiteFactory(db), NewUnobservedTimetableDependencies(db)
+// over the unobserved owners; the suites that write through an owner
+// directly compose it with MustNewSchoolMembership or MustNewWorkforce.
+func NewSchoolStructureRepositorySuiteGraph(db transactionruntime.Database) *PeopleRepositorySuiteFactory {
+	return NewPeopleRepositorySuiteFactory(db)
 }
 
 // The retained School Structure service suites (services/education) may
@@ -60,12 +59,23 @@ func NewEducationSuiteService(repos *PeopleRepositorySuiteFactory, db transactio
 	if err != nil {
 		panic(fmt.Sprintf("education suite: compose facilities: %v", err))
 	}
-	service := education.NewService(repos.Group, repos.GroupTeacher, repos.ClassTeacher,
-		NewEducationRooms(rooms), NewEducationTeachers(repos.Teacher),
-		NewEducationStaff(repos.Staff), repos.Student, repos.GroupSubstitution,
+	structure := owners.NewSchoolStructureSuiteRepositories(db)
+	service := education.NewService(structure.Group, structure.GroupTeacher, structure.ClassTeacher,
+		owners.NewEducationRooms(rooms), owners.NewEducationTeachers(repos.Teacher),
+		owners.NewEducationStaff(repos.Staff), repos.Student, repos.GroupSubstitution,
 		education.NewLegacyRepositoryRuntime(db.Pool()), education.GroupServiceOptions{Broadcaster: NewGroupEvents(broadcaster, nil), Audit: NewEducationClassAssignmentAudit(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()}).StaffMasterDataChange)})
 
 	return service
+}
+
+// NewTestGroupHandovers binds the handover writes of the shift-plan-sync
+// workflow to an unobserved Workforce owner on db.
+func NewTestGroupHandovers(db transactionruntime.Database) shiftplansync.GroupHandovers {
+	workTime, err := NewUnobservedWorkforce(db)
+	if err != nil {
+		panic(fmt.Sprintf("group handovers: compose workforce: %v", err))
+	}
+	return shiftplansync.NewGroupHandovers(workTime)
 }
 
 // NewSubstitutionSuiteModule composes the substitution module: the stores,
@@ -73,19 +83,19 @@ func NewEducationSuiteService(repos *PeopleRepositorySuiteFactory, db transactio
 // repositories the way the service graph binds them.
 func NewSubstitutionSuiteModule(repos *PeopleRepositorySuiteFactory, db transactionruntime.Database, deps education.SubstitutionDependencies) education.SubstitutionModule {
 	if deps.Groups == nil {
-		deps.Groups = repos.Group
+		deps.Groups = owners.NewSchoolStructureSuiteRepositories(db).Group
 	}
 	if deps.Substitutions == nil {
-		deps.Substitutions = NewEducationHandovers(repos.GroupSubstitution)
+		deps.Substitutions = NewEducationHandovers(repos.GroupSubstitution, NewTestGroupHandovers(db))
 	}
 	if deps.Teachers == nil {
-		deps.Teachers = NewEducationCaregivers(repos.Teacher)
+		deps.Teachers = owners.NewEducationCaregivers(repos.Teacher)
 	}
 	if deps.Staff == nil {
-		deps.Staff = NewEducationStaff(repos.Staff)
+		deps.Staff = owners.NewEducationStaff(repos.Staff)
 	}
 	if deps.ExternalCaregivers == nil {
-		deps.ExternalCaregivers = NewEducationExternalCaregivers(repos.Staff, repos.Guest)
+		deps.ExternalCaregivers = owners.NewEducationExternalCaregivers(repos.Staff, repos.Guest)
 	}
 	if deps.Audit == nil {
 		deps.Audit = NewEducationSubstitutionAudit(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()}).SubstitutionChange)
@@ -103,35 +113,34 @@ func NewSchoolStructurePeopleSuiteFactory(db transactionruntime.Database) (*Peop
 	return NewPeopleRepositorySuiteFactory(db), nil
 }
 
-// GradeTransitionSuiteOwners are the owner compositions the grade transition
-// workflow suites (services/education, #2711) assemble the workflow over.
+// GradeTransitionSuiteOwners are the Timetable owner's roster maintenance
+// and recurrence gate the grade transition workflow suites
+// (services/education, #2711) assemble the workflow over.
 type GradeTransitionSuiteOwners struct {
-	People               peopledirectory.Capability
-	Membership           schoolmembership.Capability
 	Rosters              timetable.RosterMaintenance
 	LockRecurrenceWrites func(context.Context) error
 }
 
 // NewGradeTransitionSuiteOwners composes the owners the production root binds
-// the workflow to, with the roster maintenance on the given clock.
-func NewGradeTransitionSuiteOwners(db transactionruntime.Database, clock func() time.Time) (GradeTransitionSuiteOwners, error) {
+// the workflow to, with the roster maintenance on the given clock: the
+// Timetable side, the People Directory and the School Membership owner.
+func NewGradeTransitionSuiteOwners(db transactionruntime.Database, clock func() time.Time) (GradeTransitionSuiteOwners, peopledirectory.Capability, schoolmembership.Capability, error) {
 	rows, err := NewTimetableTestRepositories(db, clock)
 	if err != nil {
-		return GradeTransitionSuiteOwners{}, err
+		return GradeTransitionSuiteOwners{}, nil, nil, err
 	}
-	people, err := NewPeopleDirectory(db)
+	people, err := owners.NewPeopleDirectory(db)
 	if err != nil {
-		return GradeTransitionSuiteOwners{}, err
+		return GradeTransitionSuiteOwners{}, nil, nil, err
 	}
-	membership, err := NewSchoolMembership(db)
+	membership, err := owners.NewSchoolMembership(db)
 	if err != nil {
-		return GradeTransitionSuiteOwners{}, err
+		return GradeTransitionSuiteOwners{}, nil, nil, err
 	}
 	return GradeTransitionSuiteOwners{
-		People: people, Membership: membership,
 		Rosters:              rows.RosterMaintenance(slog.Default(), clock),
-		LockRecurrenceWrites: MustNewTimetableRecurrenceLock(db).LockRecurrenceWrites,
-	}, nil
+		LockRecurrenceWrites: owners.MustNewTimetableRecurrenceLock(db).LockRecurrenceWrites,
+	}, people, membership, nil
 }
 
 // NewScheduleSubstitutionSuiteModule constructs only the module's schedule

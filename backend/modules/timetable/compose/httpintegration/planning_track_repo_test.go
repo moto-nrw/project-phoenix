@@ -5,19 +5,20 @@ import (
 	"testing"
 	"time"
 
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	model "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
-func planningTrackRepository(t *testing.T, db *bun.DB) model.PlanningTrackRepository {
+func planningTrackRepository(t *testing.T, db *bun.DB) fixtures.PlanningTrackRecords {
 	t.Helper()
-	factory := api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	return factory.PlanningTrack
+	factory := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
+	return fixtures.FromPlanningTrackRecords(factory.PlanningTrack)
 }
 
 // reorderPlanningTracks stores the order in the scope's tenant transaction,
@@ -38,8 +39,16 @@ func TestPlanningTrackRepositoryTenantCRUDAndOrdering(t *testing.T) {
 	repo := planningTrackRepository(t, db)
 	ctx := scope.Context()
 
-	first := &model.PlanningTrack{Name: "Früh", Color: "#5080D8", SortOrder: 0}
-	second := &model.PlanningTrack{Name: "Mittag", Color: "#F78C10", SortOrder: 1}
+	first := fixtures.NewPlanningTrack(func(fixtureRow *fixtures.PlanningTrack) {
+		fixtureRow.Name = "Früh"
+		fixtureRow.Color = "#5080D8"
+		fixtureRow.SortOrder = 0
+	})
+	second := fixtures.NewPlanningTrack(func(fixtureRow *fixtures.PlanningTrack) {
+		fixtureRow.Name = "Mittag"
+		fixtureRow.Color = "#F78C10"
+		fixtureRow.SortOrder = 1
+	})
 	require.NoError(t, repo.Create(ctx, first))
 	require.NoError(t, repo.Create(ctx, second))
 
@@ -82,8 +91,16 @@ func TestPlanningTrackRepositoryFindByIDs(t *testing.T) {
 	repo := planningTrackRepository(t, db)
 	ctx := scope.Context()
 
-	active := &model.PlanningTrack{Name: "Früh", Color: "#5080D8", SortOrder: 0}
-	archived := &model.PlanningTrack{Name: "Mittag", Color: "#F78C10", SortOrder: 1}
+	active := fixtures.NewPlanningTrack(func(fixtureRow *fixtures.PlanningTrack) {
+		fixtureRow.Name = "Früh"
+		fixtureRow.Color = "#5080D8"
+		fixtureRow.SortOrder = 0
+	})
+	archived := fixtures.NewPlanningTrack(func(fixtureRow *fixtures.PlanningTrack) {
+		fixtureRow.Name = "Mittag"
+		fixtureRow.Color = "#F78C10"
+		fixtureRow.SortOrder = 1
+	})
 	require.NoError(t, repo.Create(ctx, active))
 	require.NoError(t, repo.Create(ctx, archived))
 	archivedAt := time.Now()
@@ -101,7 +118,7 @@ func TestPlanningTrackRepositoryFindByIDs(t *testing.T) {
 	tracks, err := repo.FindByIDs(ctx, []int64{active.ID, archived.ID, archived.ID + 1000})
 	require.NoError(t, err)
 	require.Len(t, tracks, 2)
-	byID := map[int64]*model.PlanningTrack{}
+	byID := map[int64]*fixtures.PlanningTrack{}
 	for _, track := range tracks {
 		byID[track.ID] = track
 	}
@@ -122,8 +139,16 @@ func TestPlanningTrackRepositoryRejectsPartialOrder(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	repo := planningTrackRepository(t, db)
-	first := &model.PlanningTrack{Name: "Früh", Color: "#5080D8", SortOrder: 0}
-	second := &model.PlanningTrack{Name: "Mittag", Color: "#F78C10", SortOrder: 1}
+	first := fixtures.NewPlanningTrack(func(fixtureRow *fixtures.PlanningTrack) {
+		fixtureRow.Name = "Früh"
+		fixtureRow.Color = "#5080D8"
+		fixtureRow.SortOrder = 0
+	})
+	second := fixtures.NewPlanningTrack(func(fixtureRow *fixtures.PlanningTrack) {
+		fixtureRow.Name = "Mittag"
+		fixtureRow.Color = "#F78C10"
+		fixtureRow.SortOrder = 1
+	})
 	require.NoError(t, repo.Create(scope.Context(), first))
 	require.NoError(t, repo.Create(scope.Context(), second))
 

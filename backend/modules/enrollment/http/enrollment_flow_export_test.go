@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -22,7 +24,7 @@ func InsertOwnerChildForTest(ctx context.Context, owner interface {
 	if err != nil {
 		return err
 	}
-	if err := owner.InsertChild(ctx, value); err != nil {
+	if err := fixtureOwnerCommand(ctx, func(txCtx context.Context) error { return owner.InsertChild(txCtx, value) }); err != nil {
 		return err
 	}
 	stored, err := childValue(value)
@@ -37,7 +39,9 @@ func InsertOwnerChildForTest(ctx context.Context, owner interface {
 func ReadOwnerRequestChildrenForTest(ctx context.Context, owner interface {
 	ChildrenForRequest(context.Context, int64, bool) ([]*capability.RequestChild, error)
 }, requestID int64) ([]*RequestChild, error) {
-	values, err := owner.ChildrenForRequest(ctx, requestID, false)
+	values, err := fixtureOwnerQuery(ctx, func(txCtx context.Context) ([]*capability.RequestChild, error) {
+		return owner.ChildrenForRequest(txCtx, requestID, false)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +52,7 @@ func ReadOwnerRequestChildrenForTest(ctx context.Context, owner interface {
 func ReadOwnerChildForTest(ctx context.Context, owner interface {
 	ChildByID(context.Context, int64) (*capability.RequestChild, error)
 }, id int64) (*RequestChild, error) {
-	value, err := owner.ChildByID(ctx, id)
+	value, err := fixtureOwnerQuery(ctx, func(txCtx context.Context) (*capability.RequestChild, error) { return owner.ChildByID(txCtx, id) })
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +67,7 @@ func UpdateOwnerChildForTest(ctx context.Context, owner interface {
 	if err != nil {
 		return err
 	}
-	return owner.UpdateChildData(ctx, value)
+	return fixtureOwnerCommand(ctx, func(txCtx context.Context) error { return owner.UpdateChildData(txCtx, value) })
 }
 
 // InsertOwnerRequestForTest persists a request fixture through the owner and
@@ -75,7 +79,7 @@ func InsertOwnerRequestForTest(ctx context.Context, owner interface {
 	if err != nil {
 		return err
 	}
-	if err := owner.InsertRequest(ctx, value); err != nil {
+	if err := fixtureOwnerCommand(ctx, func(txCtx context.Context) error { return owner.InsertRequest(txCtx, value) }); err != nil {
 		return err
 	}
 	stored, err := requestValue(value)
@@ -90,7 +94,7 @@ func InsertOwnerRequestForTest(ctx context.Context, owner interface {
 func ReadOwnerRequestForTest(ctx context.Context, owner interface {
 	RequestByID(context.Context, int64, bool) (*capability.Request, error)
 }, id int64) (*Request, error) {
-	value, err := owner.RequestByID(ctx, id, false)
+	value, err := fixtureOwnerQuery(ctx, func(txCtx context.Context) (*capability.Request, error) { return owner.RequestByID(txCtx, id, false) })
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +110,7 @@ func UpdateOwnerRequestGuardianForTest(ctx context.Context, owner interface {
 	if err != nil {
 		return err
 	}
-	return owner.UpdateRequestGuardian(ctx, value, includeEmail)
+	return fixtureOwnerCommand(ctx, func(txCtx context.Context) error { return owner.UpdateRequestGuardian(txCtx, value, includeEmail) })
 }
 
 // InsertOwnerPhaseForTest persists a phase fixture and returns generated
@@ -114,7 +118,7 @@ func UpdateOwnerRequestGuardianForTest(ctx context.Context, owner interface {
 func InsertOwnerPhaseForTest(ctx context.Context, owner interface {
 	InsertPhase(context.Context, *capability.Phase) error
 }, phase *capability.Phase) error {
-	return owner.InsertPhase(ctx, phase)
+	return fixtureOwnerCommand(ctx, func(txCtx context.Context) error { return owner.InsertPhase(txCtx, phase) })
 }
 
 // OwnerPhaseForTest copies an owner phase for isolated fixture updates.
@@ -174,10 +178,12 @@ func (a changeRequestApplier) SyncApprovedChildData(ctx context.Context, input S
 	if err != nil {
 		return nil, err
 	}
-	value, err := a.owner.SyncApprovedChildData(ctx, capability.ApprovedChildSync{
-		RequestID: input.RequestID, ChildID: input.ChildID, ActorAccountID: input.ActorAccountID,
-		ReplaceTargetedData: input.ReplaceTargetedData, PreviousSnapshot: snapshot,
-		PreviousRequestGuardians: input.PreviousRequestGuardians,
+	value, err := fixtureOwnerQuery(ctx, func(txCtx context.Context) (*capability.RequestChild, error) {
+		return a.owner.SyncApprovedChildData(txCtx, capability.ApprovedChildSync{
+			RequestID: input.RequestID, ChildID: input.ChildID, ActorAccountID: input.ActorAccountID,
+			ReplaceTargetedData: input.ReplaceTargetedData, PreviousSnapshot: snapshot,
+			PreviousRequestGuardians: input.PreviousRequestGuardians,
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -224,4 +230,17 @@ func fixtureRequestInput(r *Request) (*capability.Request, error) {
 		*field.into = encoded
 	}
 	return value, nil
+}
+
+// These are fixture roots, not owner persistence fallbacks. Tests that inspect
+// the ambient-only contract call the native owner directly.
+func fixtureOwnerCommand(ctx context.Context, call func(context.Context) error) error {
+	return tenant.NewTransactionRunner().RunInTx(ctx, call)
+}
+func fixtureOwnerQuery[T any](ctx context.Context, call func(context.Context) (T, error)) (value T, err error) {
+	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		value, err = call(txCtx)
+		return err
+	})
+	return value, err
 }

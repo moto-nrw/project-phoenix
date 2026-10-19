@@ -5,7 +5,6 @@ package compose
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/internal/careplanning"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -18,7 +17,7 @@ import (
 )
 
 type Observation = ports.Observation
-type AmbientDatabase func(context.Context) bun.IDB
+type AmbientDatabase func(context.Context) (bun.IDB, error)
 type StatusStudentDirectory = postgres.StatusStudentDirectory
 type StatusStudent = postgres.StatusStudent
 type StatusSlotDirectory = postgres.StatusSlotDirectory
@@ -61,31 +60,18 @@ func bindCareLocks(dependencies Dependencies) {
 		if tenantID <= 0 {
 			return errors.New("care plan: tenant is required for exception-day lock")
 		}
-		return postgres.LockExceptionDay(ctx, dependencies.AmbientDB(ctx), tenantID, studentID, date)
+		db, err := dependencies.AmbientDB(ctx)
+		if err != nil {
+			return err
+		}
+		return postgres.LockExceptionDay(ctx, db, tenantID, studentID, date)
 	})
 }
 
 func carePlanDatabase(db *bun.DB) postgres.Database {
 	return func(ctx context.Context) (bun.IDB, int64, error) {
-		tenantID := tenant.FromContext(ctx)
-		if tenantID <= 0 {
-			return nil, 0, errors.New("care plan: tenant is required")
-		}
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return db, tenantID, nil
-		}
-		switch tx := transaction.(type) {
-		case bun.Tx:
-			return tx, tenantID, nil
-		case *bun.Tx:
-			if tx != nil {
-				return tx, tenantID, nil
-			}
-			return db, tenantID, nil
-		default:
-			return nil, 0, fmt.Errorf("care plan postgres: unsupported transaction %T", transaction)
-		}
+		raw, present := tenant.TransactionFromContext(ctx)
+		return postgres.ResolveDatabase(raw, present, tenant.FromContext(ctx))
 	}
 }
 

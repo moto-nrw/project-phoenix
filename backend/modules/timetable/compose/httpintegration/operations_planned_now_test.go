@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -28,18 +29,28 @@ func TestTimetableOperationsPlannedNowFiltersByAssignmentAndWindow(t *testing.T)
 	deps.personService.accountPerson.ID = 410
 	deps.personService.staffByPersonID[410] = &timetable.StaffMember{}
 	deps.personService.staffByPersonID[410].ID = assignedID
-	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
-		instanceWithTimes(instanceID, scheduleModels.InstanceStatusPlanned, now.Add(10*time.Minute), now.Add(time.Hour)),
-		instanceWithTimes(outsideWindowID, scheduleModels.InstanceStatusPlanned, now.Add(20*time.Minute), now.Add(time.Hour)),
+	deps.instanceRepo.byDate = []*fixtures.ActivityInstance{
+		instanceWithTimes(instanceID, fixtures.InstanceStatusPlanned(), now.Add(10*time.Minute), now.Add(time.Hour)),
+		instanceWithTimes(outsideWindowID, fixtures.InstanceStatusPlanned(), now.Add(20*time.Minute), now.Add(time.Hour)),
 	}
-	deps.staffRepo.byInstance[instanceID] = []*scheduleModels.InstanceStaff{
-		{StaffID: assignedID, IsPrimary: true},
-		{StaffID: absentID, IsAbsent: true},
+	deps.staffRepo.byInstance[instanceID] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = assignedID
+		fixtureRow.IsPrimary = true
+	}), fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = absentID
+		fixtureRow.IsAbsent = true
+	}),
 	}
-	deps.staffRepo.byInstance[outsideWindowID] = []*scheduleModels.InstanceStaff{{StaffID: assignedID}}
-	deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{
-		{StudentID: 520, Status: scheduleModels.AttendanceStatusExpected},
-		{StudentID: 521, Status: scheduleModels.AttendanceStatusPresent},
+	deps.staffRepo.byInstance[outsideWindowID] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = assignedID
+	})}
+	deps.studentRepo.byInstance[instanceID] = []*fixtures.InstanceStudent{fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = 520
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	}), fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = 521
+		fixtureRow.Status = fixtures.AttendanceStatusPresent()
+	}),
 	}
 
 	result, err := deps.service.PlannedNow(context.Background(), 610, false, calendar.DateFromTime(now), now, timetable.PlannedNowOptions{})
@@ -69,10 +80,12 @@ func TestTimetableOperationsPlannedNowKeepsSpontaneousAfterEnd(t *testing.T) {
 	deps.personService.accountPerson.ID = 411
 	deps.personService.staffByPersonID[411] = &timetable.StaffMember{}
 	deps.personService.staffByPersonID[411].ID = assignedID
-	inst := instanceWithTimes(instanceID, scheduleModels.InstanceStatusPlanned, now.Add(-time.Hour), now)
+	inst := instanceWithTimes(instanceID, fixtures.InstanceStatusPlanned(), now.Add(-time.Hour), now)
 	inst.IsSpontaneous = true
-	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{inst}
-	deps.staffRepo.byInstance[instanceID] = []*scheduleModels.InstanceStaff{{StaffID: assignedID}}
+	deps.instanceRepo.byDate = []*fixtures.ActivityInstance{inst}
+	deps.staffRepo.byInstance[instanceID] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = assignedID
+	})}
 
 	result, err := deps.service.PlannedNow(context.Background(), 611, false, calendar.DateFromTime(now), now, timetable.PlannedNowOptions{})
 	require.NoError(t, err)
@@ -88,10 +101,12 @@ func TestTimetableOperationsPlannedNowAllowsAdminOverview(t *testing.T) {
 	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
 	deps := newTimetableOpsDeps()
 	deps.settings.scope = overviewScopeAdmins
-	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
-		instanceWithTimes(330, scheduleModels.InstanceStatusPlanned, now.Add(-time.Minute), now.Add(time.Hour)),
+	deps.instanceRepo.byDate = []*fixtures.ActivityInstance{
+		instanceWithTimes(330, fixtures.InstanceStatusPlanned(), now.Add(-time.Minute), now.Add(time.Hour)),
 	}
-	deps.staffRepo.byInstance[330] = []*scheduleModels.InstanceStaff{{StaffID: 220}}
+	deps.staffRepo.byInstance[330] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = 220
+	})}
 
 	result, err := deps.service.PlannedNow(context.Background(), 620, true, calendar.DateFromTime(now), now, timetable.PlannedNowOptions{})
 
@@ -110,12 +125,16 @@ func TestTimetableOperationsPlannedNowIncludesSchulhof(t *testing.T) {
 	deps := newTimetableOpsDeps()
 	deps.settings.scope = overviewScopeAdmins
 	deps.rooms.names[schulhofRoomID] = "Schulhof"
-	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
-		instanceWithRoomAndTimes(330, schulhofRoomID, scheduleModels.InstanceStatusPlanned, now.Add(-time.Minute), now.Add(time.Hour)),
-		instanceWithTimes(331, scheduleModels.InstanceStatusPlanned, now.Add(-time.Minute), now.Add(time.Hour)),
+	deps.instanceRepo.byDate = []*fixtures.ActivityInstance{
+		instanceWithRoomAndTimes(330, schulhofRoomID, fixtures.InstanceStatusPlanned(), now.Add(-time.Minute), now.Add(time.Hour)),
+		instanceWithTimes(331, fixtures.InstanceStatusPlanned(), now.Add(-time.Minute), now.Add(time.Hour)),
 	}
-	deps.staffRepo.byInstance[330] = []*scheduleModels.InstanceStaff{{StaffID: 220}}
-	deps.staffRepo.byInstance[331] = []*scheduleModels.InstanceStaff{{StaffID: 220}}
+	deps.staffRepo.byInstance[330] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = 220
+	})}
+	deps.staffRepo.byInstance[331] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = 220
+	})}
 
 	result, err := deps.service.PlannedNow(context.Background(), 620, true, calendar.DateFromTime(now), now, timetable.PlannedNowOptions{})
 
@@ -133,10 +152,12 @@ func TestTimetableOperationsPlannedNowUsesInstanceDate(t *testing.T) {
 		tomorrowStart := time.Date(2026, time.May, 11, 8, 0, 0, 0, time.UTC)
 		deps := newTimetableOpsDeps()
 		deps.settings.scope = overviewScopeAdmins
-		deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
-			instanceWithTimes(334, scheduleModels.InstanceStatusPlanned, tomorrowStart, tomorrowStart.Add(time.Hour)),
+		deps.instanceRepo.byDate = []*fixtures.ActivityInstance{
+			instanceWithTimes(334, fixtures.InstanceStatusPlanned(), tomorrowStart, tomorrowStart.Add(time.Hour)),
 		}
-		deps.staffRepo.byInstance[334] = []*scheduleModels.InstanceStaff{{StaffID: 224}}
+		deps.staffRepo.byInstance[334] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+			fixtureRow.StaffID = 224
+		})}
 
 		result, err := deps.service.PlannedNow(context.Background(), 625, true, calendar.DateFromTime(tomorrowStart), now, timetable.PlannedNowOptions{})
 
@@ -170,10 +191,12 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		deps.settings.scope = overviewScopeAdmins
 		deps.personService.accountPerson = nil
-		deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
-			instanceWithTimes(336, scheduleModels.InstanceStatusPlanned, now.Add(-time.Minute), now.Add(time.Hour)),
+		deps.instanceRepo.byDate = []*fixtures.ActivityInstance{
+			instanceWithTimes(336, fixtures.InstanceStatusPlanned(), now.Add(-time.Minute), now.Add(time.Hour)),
 		}
-		deps.staffRepo.byInstance[336] = []*scheduleModels.InstanceStaff{{StaffID: 226}}
+		deps.staffRepo.byInstance[336] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+			fixtureRow.StaffID = 226
+		})}
 
 		result, err := deps.service.PlannedNow(context.Background(), 626, true, calendar.DateFromTime(now), now, timetable.PlannedNowOptions{})
 
@@ -206,8 +229,8 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 	t.Run("propagates staff lookup errors", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		wireAssignedStaff(deps, 623, 432, 222, 332)
-		deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
-			instanceWithTimes(332, scheduleModels.InstanceStatusPlanned, now, now.Add(time.Hour)),
+		deps.instanceRepo.byDate = []*fixtures.ActivityInstance{
+			instanceWithTimes(332, fixtures.InstanceStatusPlanned(), now, now.Add(time.Hour)),
 		}
 		deps.staffRepo.err = errors.New("staff query failed")
 
@@ -220,8 +243,8 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 	t.Run("propagates student lookup errors", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		wireAssignedStaff(deps, 624, 433, 223, 333)
-		deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
-			instanceWithTimes(333, scheduleModels.InstanceStatusPlanned, now, now.Add(time.Hour)),
+		deps.instanceRepo.byDate = []*fixtures.ActivityInstance{
+			instanceWithTimes(333, fixtures.InstanceStatusPlanned(), now, now.Add(time.Hour)),
 		}
 		deps.studentRepo.err = errors.New("student query failed")
 
@@ -234,8 +257,8 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 	t.Run("propagates room lookup errors", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		wireAssignedStaff(deps, 629, 435, 228, 339)
-		deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
-			instanceWithTimes(339, scheduleModels.InstanceStatusPlanned, now, now.Add(time.Hour)),
+		deps.instanceRepo.byDate = []*fixtures.ActivityInstance{
+			instanceWithTimes(339, fixtures.InstanceStatusPlanned(), now, now.Add(time.Hour)),
 		}
 		deps.rooms.err = errors.New("room query failed")
 
@@ -253,8 +276,8 @@ func TestTimetableOperationsPlannedNowIncludesStartLeadWindow(t *testing.T) {
 	deps := newTimetableOpsDeps()
 	deps.settings.leadMinutes = 60
 	wireAssignedStaff(deps, 631, 436, 229, 341)
-	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
-		instanceWithTimes(341, scheduleModels.InstanceStatusPlanned, now.Add(45*time.Minute), now.Add(2*time.Hour)),
+	deps.instanceRepo.byDate = []*fixtures.ActivityInstance{
+		instanceWithTimes(341, fixtures.InstanceStatusPlanned(), now.Add(45*time.Minute), now.Add(2*time.Hour)),
 	}
 
 	result, err := deps.service.PlannedNow(context.Background(), 631, false, calendar.DateFromTime(now), now, timetable.PlannedNowOptions{})
@@ -270,16 +293,20 @@ func TestTimetableOperationsPlannedNowSupportsUpcomingOptions(t *testing.T) {
 	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 628, 434, 227, 337)
-	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
-		instanceWithTimes(337, scheduleModels.InstanceStatusPlanned, now.Add(90*time.Minute), now.Add(2*time.Hour)),
-		instanceWithTimes(338, scheduleModels.InstanceStatusPlanned, now.Add(100*time.Minute), now.Add(2*time.Hour)),
+	deps.instanceRepo.byDate = []*fixtures.ActivityInstance{
+		instanceWithTimes(337, fixtures.InstanceStatusPlanned(), now.Add(90*time.Minute), now.Add(2*time.Hour)),
+		instanceWithTimes(338, fixtures.InstanceStatusPlanned(), now.Add(100*time.Minute), now.Add(2*time.Hour)),
 	}
 	for _, inst := range deps.instanceRepo.byDate {
 		deps.instanceRepo.byID[inst.ID] = inst
 	}
-	deps.staffRepo.byInstance[338] = []*scheduleModels.InstanceStaff{{StaffID: 227}}
-	deps.studentRepo.byInstance[337] = []*scheduleModels.InstanceStudent{
-		{StudentID: 527, Status: scheduleModels.AttendanceStatusExpected},
+	deps.staffRepo.byInstance[338] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = 227
+	})}
+	deps.studentRepo.byInstance[337] = []*fixtures.InstanceStudent{fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = 527
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	}),
 	}
 	deps.students.byID[527] = &timetable.OperationStudent{PersonID: 437, SchoolClass: "2a"}
 	deps.personService.people[437] = &timetable.Person{FirstName: "Lina", LastName: "Lang"}
@@ -311,22 +338,24 @@ func TestTimetableOperationsPlannedNowPastScopeSelectsFinishedBlocks(t *testing.
 	now := time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC)
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 632, 438, 231, 360)
-	completed := instanceWithTimes(361, scheduleModels.InstanceStatusCompleted, now.Add(-3*time.Hour), now.Add(-2*time.Hour))
-	expiredSpontaneous := instanceWithTimes(364, scheduleModels.InstanceStatusPlanned, now.Add(-3*time.Hour), now.Add(-2*time.Hour))
+	completed := instanceWithTimes(361, fixtures.InstanceStatusCompleted(), now.Add(-3*time.Hour), now.Add(-2*time.Hour))
+	expiredSpontaneous := instanceWithTimes(364, fixtures.InstanceStatusPlanned(), now.Add(-3*time.Hour), now.Add(-2*time.Hour))
 	expiredSpontaneous.IsSpontaneous = true
-	expiredDuty := instanceWithTimes(366, scheduleModels.InstanceStatusPlanned, now.Add(-3*time.Hour), now.Add(-2*time.Hour))
+	expiredDuty := instanceWithTimes(366, fixtures.InstanceStatusPlanned(), now.Add(-3*time.Hour), now.Add(-2*time.Hour))
 	expiredDuty.TemplateType = timetable.GroupTypeDuty
-	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
-		instanceWithTimes(360, scheduleModels.InstanceStatusPlanned, now.Add(-135*time.Minute), now.Add(-30*time.Minute)),
+	deps.instanceRepo.byDate = []*fixtures.ActivityInstance{
+		instanceWithTimes(360, fixtures.InstanceStatusPlanned(), now.Add(-135*time.Minute), now.Add(-30*time.Minute)),
 		completed,
-		instanceWithTimes(362, scheduleModels.InstanceStatusPlanned, now.Add(-time.Hour), now.Add(time.Hour)),
-		instanceWithTimes(363, scheduleModels.InstanceStatusCancelled, now.Add(-3*time.Hour), now.Add(-2*time.Hour)),
+		instanceWithTimes(362, fixtures.InstanceStatusPlanned(), now.Add(-time.Hour), now.Add(time.Hour)),
+		instanceWithTimes(363, fixtures.InstanceStatusCancelled(), now.Add(-3*time.Hour), now.Add(-2*time.Hour)),
 		expiredSpontaneous,
-		instanceWithTimes(365, scheduleModels.InstanceStatusActive, now.Add(-time.Hour), now.Add(-30*time.Minute)),
+		instanceWithTimes(365, fixtures.InstanceStatusActive(), now.Add(-time.Hour), now.Add(-30*time.Minute)),
 		expiredDuty,
 	}
 	for _, inst := range deps.instanceRepo.byDate {
-		deps.staffRepo.byInstance[inst.ID] = []*scheduleModels.InstanceStaff{{StaffID: 231}}
+		deps.staffRepo.byInstance[inst.ID] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+			fixtureRow.StaffID = 231
+		})}
 	}
 
 	result, err := deps.service.PlannedNow(context.Background(), 632, false, calendar.DateFromTime(now), now, timetable.PlannedNowOptions{Scope: timetable.PlannedNowScopePast})
@@ -349,12 +378,16 @@ func TestTimetableOperationsPlannedNowPastScopeKeepsVisibilityRules(t *testing.T
 	now := time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC)
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 633, 439, 232, 370)
-	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
-		instanceWithTimes(370, scheduleModels.InstanceStatusCompleted, now.Add(-3*time.Hour), now.Add(-2*time.Hour)),
-		instanceWithTimes(371, scheduleModels.InstanceStatusCompleted, now.Add(-3*time.Hour), now.Add(-2*time.Hour)),
+	deps.instanceRepo.byDate = []*fixtures.ActivityInstance{
+		instanceWithTimes(370, fixtures.InstanceStatusCompleted(), now.Add(-3*time.Hour), now.Add(-2*time.Hour)),
+		instanceWithTimes(371, fixtures.InstanceStatusCompleted(), now.Add(-3*time.Hour), now.Add(-2*time.Hour)),
 	}
-	deps.staffRepo.byInstance[370] = []*scheduleModels.InstanceStaff{{StaffID: 232}}
-	deps.staffRepo.byInstance[371] = []*scheduleModels.InstanceStaff{{StaffID: 999}}
+	deps.staffRepo.byInstance[370] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = 232
+	})}
+	deps.staffRepo.byInstance[371] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = 999
+	})}
 
 	result, err := deps.service.PlannedNow(context.Background(), 633, false, calendar.DateFromTime(now), now, timetable.PlannedNowOptions{Scope: timetable.PlannedNowScopePast})
 	require.NoError(t, err)
@@ -392,16 +425,20 @@ func TestTimetableOperationsPlannedNowPastBlocksOpenAsRoster(t *testing.T) {
 			deps.now = func() time.Time { return now }
 			deps.settings.scope = tc.scope
 			wireAssignedStaff(deps, 636, 443, 235, 390)
-			deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
-				instanceWithTimes(390, scheduleModels.InstanceStatusCompleted, now.Add(-3*time.Hour), now.Add(-2*time.Hour)),
-				instanceWithTimes(391, scheduleModels.InstanceStatusCompleted, now.Add(-3*time.Hour), now.Add(-2*time.Hour)),
-				instanceWithTimes(392, scheduleModels.InstanceStatusPlanned, now.Add(-2*time.Hour), now.Add(-time.Hour)),
+			deps.instanceRepo.byDate = []*fixtures.ActivityInstance{
+				instanceWithTimes(390, fixtures.InstanceStatusCompleted(), now.Add(-3*time.Hour), now.Add(-2*time.Hour)),
+				instanceWithTimes(391, fixtures.InstanceStatusCompleted(), now.Add(-3*time.Hour), now.Add(-2*time.Hour)),
+				instanceWithTimes(392, fixtures.InstanceStatusPlanned(), now.Add(-2*time.Hour), now.Add(-time.Hour)),
 			}
 			for _, inst := range deps.instanceRepo.byDate {
 				deps.instanceRepo.byID[inst.ID] = inst
 			}
-			deps.staffRepo.byInstance[391] = []*scheduleModels.InstanceStaff{{StaffID: 999}}
-			deps.staffRepo.byInstance[392] = []*scheduleModels.InstanceStaff{{StaffID: 999}}
+			deps.staffRepo.byInstance[391] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+				fixtureRow.StaffID = 999
+			})}
+			deps.staffRepo.byInstance[392] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+				fixtureRow.StaffID = 999
+			})}
 
 			listed, err := deps.service.PlannedNow(context.Background(), 636, tc.admin, calendar.DateFromTime(now), now, timetable.PlannedNowOptions{Scope: timetable.PlannedNowScopePast})
 			require.NoError(t, err)
@@ -432,18 +469,23 @@ func TestTimetableOperationsPlannedNowDayScopeFollowsOperationalOverview(t *test
 	educationGroupID := int64(66)
 	cancelReason := "Personalausfall"
 
-	own := instanceWithTimes(380, scheduleModels.InstanceStatusPlanned, now.Add(time.Hour), now.Add(2*time.Hour))
-	foreignActive := instanceWithTimes(381, scheduleModels.InstanceStatusActive, now.Add(-30*time.Minute), now.Add(30*time.Minute))
+	own := instanceWithTimes(380, fixtures.InstanceStatusPlanned(), now.Add(time.Hour), now.Add(2*time.Hour))
+	foreignActive := instanceWithTimes(381, fixtures.InstanceStatusActive(), now.Add(-30*time.Minute), now.Add(30*time.Minute))
 	foreignActive.ActiveGroupID = &activeGroupID
 	foreignActive.ActivityGroupID = &activityGroupID
-	foreignCancelled := instanceWithTimes(382, scheduleModels.InstanceStatusCancelled, now.Add(-2*time.Hour), now.Add(-time.Hour))
+	foreignCancelled := instanceWithTimes(382, fixtures.InstanceStatusCancelled(), now.Add(-2*time.Hour), now.Add(-time.Hour))
 	foreignCancelled.CancelReason = &cancelReason
-	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{own, foreignActive, foreignCancelled}
-	deps.staffRepo.byInstance[381] = []*scheduleModels.InstanceStaff{{StaffID: 998, IsSubstitute: true}}
-	deps.staffRepo.byInstance[382] = []*scheduleModels.InstanceStaff{{StaffID: 999}}
+	deps.instanceRepo.byDate = []*fixtures.ActivityInstance{own, foreignActive, foreignCancelled}
+	deps.staffRepo.byInstance[381] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = 998
+		fixtureRow.IsSubstitute = true
+	})}
+	deps.staffRepo.byInstance[382] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = 999
+	})}
 
 	deps.tracks.byID[trackID] = timetable.PlanningTrack{ID: trackID, Name: "Angebote", Color: "#5080D8"}
-	activityGroup := &activitiesModels.Group{PlanningTrackID: &trackID, EducationGroupID: &educationGroupID}
+	activityGroup := &activityContract.Group{PlanningTrackID: &trackID, EducationGroupID: &educationGroupID}
 	activityGroup.ID = activityGroupID
 	deps.activityGroups.byID[activityGroupID] = activityGroup
 	deps.groups.names[educationGroupID] = "Gruppe Sonne"
@@ -495,25 +537,22 @@ func TestTimetableOperationsActiveSessions(t *testing.T) {
 	deps := newTimetableOpsDeps()
 	now := time.Date(2026, time.May, 10, 13, 0, 0, 0, time.UTC)
 
-	running := instanceWithTimes(910, scheduleModels.InstanceStatusActive,
-		time.Date(2026, time.May, 10, 12, 45, 0, 0, time.UTC),
+	running := instanceWithTimes(910, fixtures.InstanceStatusActive(), time.Date(2026, time.May, 10, 12, 45, 0, 0, time.UTC),
 		time.Date(2026, time.May, 10, 13, 45, 0, 0, time.UTC))
 	running.ID = 910
 	running.Title = "GT 1"
 	runningGroup := int64(310)
 	running.ActiveGroupID = &runningGroup
 
-	planned := instanceWithTimes(911, scheduleModels.InstanceStatusPlanned,
-		time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC),
+	planned := instanceWithTimes(911, fixtures.InstanceStatusPlanned(), time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC),
 		time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC))
 	planned.ID = 911
 
-	orphan := instanceWithTimes(912, scheduleModels.InstanceStatusActive,
-		time.Date(2026, time.May, 10, 12, 0, 0, 0, time.UTC),
+	orphan := instanceWithTimes(912, fixtures.InstanceStatusActive(), time.Date(2026, time.May, 10, 12, 0, 0, 0, time.UTC),
 		time.Date(2026, time.May, 10, 13, 0, 0, 0, time.UTC))
 	orphan.ID = 912
 
-	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{running, planned, orphan}
+	deps.instanceRepo.byDate = []*fixtures.ActivityInstance{running, planned, orphan}
 
 	sessions, err := deps.service.ActiveSessions(context.Background(), calendar.DateFromTime(now))
 
@@ -540,17 +579,34 @@ func TestTimetableOperationsPlannedNowCountsChildrenStillThere(t *testing.T) {
 	deps.personService.accountPerson.ID = 412
 	deps.personService.staffByPersonID[412] = &timetable.StaffMember{}
 	deps.personService.staffByPersonID[412].ID = assignedID
-	inst := instanceWithTimes(instanceID, scheduleModels.InstanceStatusPlanned, now.Add(-time.Hour), now.Add(time.Hour))
-	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{inst}
-	deps.staffRepo.byInstance[instanceID] = []*scheduleModels.InstanceStaff{{StaffID: assignedID}}
+	inst := instanceWithTimes(instanceID, fixtures.InstanceStatusPlanned(), now.Add(-time.Hour), now.Add(time.Hour))
+	deps.instanceRepo.byDate = []*fixtures.ActivityInstance{inst}
+	deps.staffRepo.byInstance[instanceID] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = assignedID
+	})}
 	checkedIn := now.Add(-50 * time.Minute)
 	left := now.Add(-10 * time.Minute)
-	deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{
-		{StudentID: 530, Status: scheduleModels.AttendanceStatusExpected},
-		{StudentID: 531, Status: scheduleModels.AttendanceStatusPresent, CheckedInAt: &checkedIn},
-		{StudentID: 532, Status: scheduleModels.AttendanceStatusPresent, CheckedInAt: &checkedIn, CheckedOutAt: &left},
-		{StudentID: 533, Status: scheduleModels.AttendanceStatusPresent, CheckedInAt: &checkedIn, IsUnplanned: true},
-		{StudentID: 534, Status: scheduleModels.AttendanceStatusAbsent},
+	deps.studentRepo.byInstance[instanceID] = []*fixtures.InstanceStudent{fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = 530
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	}), fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = 531
+		fixtureRow.Status = fixtures.AttendanceStatusPresent()
+		fixtureRow.CheckedInAt = &checkedIn
+	}), fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = 532
+		fixtureRow.Status = fixtures.AttendanceStatusPresent()
+		fixtureRow.CheckedInAt = &checkedIn
+		fixtureRow.CheckedOutAt = &left
+	}), fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = 533
+		fixtureRow.Status = fixtures.AttendanceStatusPresent()
+		fixtureRow.CheckedInAt = &checkedIn
+		fixtureRow.IsUnplanned = true
+	}), fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = 534
+		fixtureRow.Status = fixtures.AttendanceStatusAbsent()
+	}),
 	}
 
 	result, err := deps.service.PlannedNow(context.Background(), 612, false, calendar.DateFromTime(now), now, timetable.PlannedNowOptions{})

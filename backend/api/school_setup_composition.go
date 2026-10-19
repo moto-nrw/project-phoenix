@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolsetup"
 	schoolSetupCompose "github.com/moto-nrw/project-phoenix/modules/schoolsetup/compose"
 	schoolSetupHTTP "github.com/moto-nrw/project-phoenix/modules/schoolsetup/http"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 )
 
 // moduleRoute is a tenant route group a module serves itself. The root mounts
@@ -22,6 +23,7 @@ type moduleRoute struct {
 // ADR 0043) at /api/school-setup. The caller supplies the retained settings
 // seams; this adds the tenant HTTP mechanics.
 func newSchoolSetupRoute(deps schoolSetupCompose.Dependencies) (moduleRoute, error) {
+	deps.Store = settingsCompose.NewSchoolSetupRepository[schoolsetup.State](schoolSetupCompose.AmbientRuntime{})
 	service, err := schoolSetupCompose.New(deps)
 	if err != nil {
 		return moduleRoute{}, err
@@ -34,7 +36,7 @@ func newSchoolSetupRoute(deps schoolSetupCompose.Dependencies) (moduleRoute, err
 // /api/staff-onboarding. The routes need no permission: each person only
 // reads and writes their own progress.
 func newStaffOnboardingRoute() (moduleRoute, error) {
-	service, err := schoolSetupCompose.NewStaffOnboarding()
+	service, err := schoolSetupCompose.NewStaffOnboarding(settingsCompose.NewStaffOnboardingRepository[schoolsetup.StaffState](schoolSetupCompose.AmbientRuntime{}))
 	if err != nil {
 		return moduleRoute{}, err
 	}
@@ -49,7 +51,7 @@ func schoolSetupRuntime() schoolSetupHTTP.Runtime {
 		Protected: func(r chi.Router, fn func(chi.Router, schoolSetupHTTP.Middleware)) {
 			ProtectedTenantRoutes(r, fn)
 		},
-		RequireWrite: RequireConfigWrite(),
+		RequireWrite: apiCommon.RequiresAnyPermission(schoolSetupHTTP.WritePermissions()...),
 		Actor: func(ctx context.Context) (int64, int64) {
 			principal, err := apiCommon.CurrentPrincipal(ctx)
 			if err != nil {

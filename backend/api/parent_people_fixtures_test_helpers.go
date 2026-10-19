@@ -6,8 +6,12 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleVocabulary "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -17,7 +21,15 @@ func (f *PeopleRepositorySuiteFactory) CreateGuardianLinkFixture(ctx context.Con
 	return f.StudentGuardian.(peopledirectory.GuardianLinkFixtureWriter).CreateGuardianLinkFixture(ctx, value)
 }
 func (f *PeopleRepositorySuiteFactory) CreateGuardianPhoneFixture(ctx context.Context, value *peopledirectory.GuardianPhoneFixture) error {
-	return f.GuardianPhoneNumber.(peopledirectory.GuardianPhoneFixtureWriter).CreateGuardianPhoneFixture(ctx, value)
+	return tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		if value == nil {
+			return f.GuardianPhoneNumber.Create(txCtx, nil)
+		}
+		phone := peopledirectory.GuardianProfilePhoneSnapshot(*value)
+		err := f.GuardianPhoneNumber.Create(txCtx, &phone)
+		*value = peopledirectory.GuardianPhoneFixture(phone)
+		return err
+	})
 }
 func (f *PeopleRepositorySuiteFactory) CreateFamilyProtectionFixture(ctx context.Context, value *peopledirectory.FamilyProtectionFixture) error {
 	return f.FamilyProtection.(peopledirectory.FamilyProtectionFixtureWriter).CreateFamilyProtectionFixture(ctx, value)
@@ -29,7 +41,7 @@ type ParentRequestEventFixtureReads struct {
 	source peopledirectory.ParentRequestEventFixtureSource
 }
 
-func NewParentRequestEventFixtureReads(source peopleVocabulary.ParentRequestEventRepository) ParentRequestEventFixtureReads {
+func NewParentRequestEventFixtureReads(source peopledirectory.ParentRequestEvents) ParentRequestEventFixtureReads {
 	return ParentRequestEventFixtureReads{source: source.(peopledirectory.ParentRequestEventFixtureSource)}
 }
 func (r ParentRequestEventFixtureReads) ListForRequest(ctx context.Context, kind string, id int64) ([]*ParentRequestEventFixture, error) {
@@ -70,7 +82,7 @@ func NewParentGuardianProfileReadFixture(find func(context.Context, int64) (*peo
 					}
 				}
 			}
-			return parentGuardianProfile(profile), err
+			return owners.ParentGuardianProfile(profile), err
 		},
 		FindByID:                      func(context.Context, int64) (*parentportal.GuardianProfile, error) { return nil, nil },
 		FindByIDs:                     func(context.Context, []int64) (map[int64]*parentportal.GuardianProfile, error) { return nil, nil },
@@ -78,7 +90,7 @@ func NewParentGuardianProfileReadFixture(find func(context.Context, int64) (*peo
 		FindActivePortalProfilesByIDs: func(context.Context, []int64) (map[int64]*parentportal.GuardianProfile, error) { return nil, nil },
 		LockByIDForUpdate:             func(context.Context, int64) error { return nil },
 		Normalize: func(value *parentportal.GuardianProfile) error {
-			row := &peopleVocabulary.GuardianProfile{FirstName: value.FirstName, LastName: value.LastName, Email: value.Email, PreferredContactMethod: value.PreferredContactMethod}
+			row := &peopledirectory.GuardianProfileSnapshot{FirstName: value.FirstName, LastName: value.LastName, Email: value.Email, PreferredContactMethod: value.PreferredContactMethod}
 			err := row.Validate()
 			value.FirstName, value.LastName, value.Email = row.FirstName, row.LastName, row.Email
 			return err

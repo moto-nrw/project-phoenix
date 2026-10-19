@@ -4,7 +4,9 @@ import (
 	"testing"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -27,7 +29,7 @@ func TestListHistory_DecidedRequestsWithReviewerAndSummary(t *testing.T) {
 		map[string]any{"weekday": 1, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"},
 	))
 	staffCtx := f.staffCtx(f.staffAccount)
-	_, err := f.svc.Decide(staffCtx, carerequests.DecideInput{
+	_, err := testpkg.TenantQuery1(t, staffCtx, f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID: first.ID, Approve: false, Reason: "passt nicht", ReviewedBy: f.staffAccount,
 	})
 	require.NoError(t, err)
@@ -37,8 +39,8 @@ func TestListHistory_DecidedRequestsWithReviewerAndSummary(t *testing.T) {
 		map[string]any{"weekday": 2, "arrival": "07:30"},
 	))
 	// Withdrawal is retired (#2267); the status stays valid for historic rows.
-	err = f.repos.CareScheduleChangeRequest.Decide(
-		f.staffCtx(f.chain.AccountID), second.ID, scheduleModels.CareRequestStatusWithdrawn, nil, nil, false,
+	err = careplantest.NewScheduleRecords(f.reposCare.CarePlan()).CareScheduleChangeRequest.Decide(
+		f.staffCtx(f.chain.AccountID), second.ID, carerequests.StatusWithdrawn, nil, nil, false,
 	)
 	require.NoError(t, err)
 
@@ -60,7 +62,7 @@ func TestListHistory_DecidedRequestsWithReviewerAndSummary(t *testing.T) {
 	require.Contains(t, byID, second.ID)
 
 	rejected := byID[first.ID]
-	assert.Equal(t, scheduleModels.CareRequestStatusRejected, rejected.Request.Status)
+	assert.Equal(t, carerequests.StatusRejected, rejected.Request.Status)
 	assert.Equal(t, "Felix", rejected.FirstName)
 	assert.Equal(t, "Schneider", rejected.LastName)
 	assert.Equal(t, "Clara Confirm", rejected.ReviewerName)
@@ -73,7 +75,7 @@ func TestListHistory_DecidedRequestsWithReviewerAndSummary(t *testing.T) {
 	}
 
 	withdrawn := byID[second.ID]
-	assert.Equal(t, scheduleModels.CareRequestStatusWithdrawn, withdrawn.Request.Status)
+	assert.Equal(t, carerequests.StatusWithdrawn, withdrawn.Request.Status)
 	assert.Empty(t, withdrawn.ReviewerName, "withdrawals carry no reviewer")
 
 	// Keyset pagination: page size 1 → disjoint pages.
@@ -95,12 +97,9 @@ func TestListHistory_IncludesPickupChangeWithPayloadSummary(t *testing.T) {
 	date := calendar.NewDate(2026, 8, 24).AddDays(1)
 	pickupTime := time.Date(0, 1, 1, 15, 30, 0, 0, time.UTC)
 
-	req, err := f.svc.CreatePickupChangeRequest(
-		f.staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID,
-		date, pickupTime, "Heute später",
-	)
+	req, err := testpkg.TenantQuery5(t, f.staffCtx(f.chain.AccountID), f.db, f.svc.CreatePickupChangeRequest, f.chain.StudentID, f.chain.AccountID, date, pickupTime, "Heute später")
 	require.NoError(t, err)
-	_, err = f.svc.Decide(f.staffCtx(f.staffAccount), carerequests.DecideInput{
+	_, err = testpkg.TenantQuery1(t, f.staffCtx(f.staffAccount), f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID: req.ID, Approve: false, Reason: "Nicht möglich", ReviewedBy: f.staffAccount,
 	})
 	require.NoError(t, err)
@@ -115,7 +114,7 @@ func TestListHistory_IncludesPickupChangeWithPayloadSummary(t *testing.T) {
 		}
 	}
 	require.NotNil(t, got)
-	assert.Equal(t, scheduleModels.CareRequestKindPickupChange, got.Request.RequestKind)
+	assert.Equal(t, carerequests.KindPickupChange, got.Request.RequestKind)
 	require.Equal(t, []carerequests.DiffEntry{{
 		Label: date.Format("02.01.2006") + " · Abholzeit", New: "15:30", CareKind: carerequests.KindPickup,
 	}}, got.Requested)

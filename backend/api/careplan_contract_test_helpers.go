@@ -13,6 +13,11 @@ import (
 // enrollment intake and decision flow without naming the Settings Platform
 // keys or the Identity & Access composition itself.
 
+// EnrollmentDecisionDependencies are the dependencies of Enrollment's
+// decision flow (NewEnrollmentDecisions), for the suite whose test role may
+// not name the Enrollment composition.
+type EnrollmentDecisionDependencies = enrollmentCompose.DecisionDependencies
+
 // CarePlanContractSettingKeys are the tenant setting keys and values the
 // suite's settings double answers.
 type CarePlanContractSettingKeys struct {

@@ -6,6 +6,8 @@ import (
 	"context"
 	"slices"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -21,22 +23,23 @@ import (
 // request-review projection binds in the server. Offering-change suites
 // assert the queue a staff member sees for the requests they submit.
 func NewOfferingReviewTestQuery(db transactionruntime.Database, today func() calendar.Date) (careplan.OfferingReviewQuery, error) {
-	auditCommand, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
+	auditCommand, err := auditCompose.NewCommand(owners.NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return nil, err
 	}
-	repos, err := NewStudentTestRepositories(db, auditCommand)
+	_, repos, err := NewStudentTestRepositories(db, auditCommand)
 	if err != nil {
 		return nil, err
 	}
-	people, err := NewPeopleDirectory(db)
+	reposTimetable := NewEnrollmentTimetableRows(db)
+	people, err := owners.NewPeopleDirectory(db)
 	if err != nil {
 		return nil, err
 	}
 	return careplanCompose.NewOfferingReviews(db.Pool(), func(careplanCompose.Observation) {}, careplanCompose.OfferingReviewDependencies{
 		People:     offeringReviewTestDirectory{people: people},
-		Enrollment: offeringReviewTestEnrollment{enrollment: repos.Enrollment(), bookings: careplanCompose.NewOfferingBookings()},
-		Courses:    offeringReviewTestCourses{query: repos.Timetable},
+		Enrollment: offeringReviewTestEnrollment{enrollment: repos.Enrollment()},
+		Courses:    offeringReviewTestCourses{query: reposTimetable.Timetable},
 		Scope: func(context.Context) (careplanCompose.ReviewScope, error) {
 			return careplanCompose.ReviewScope{SchoolWide: true}, nil
 		},
@@ -92,9 +95,11 @@ func (d offeringReviewTestDirectory) SearchStudentIDs(_ context.Context, _ strin
 	return within, nil
 }
 
+// offeringReviewTestEnrollment serves the review's Enrollment reads from the
+// projection and the bookings from Care Plan's tenant-scoped offering
+// bookings, which carry no state and are composed per read.
 type offeringReviewTestEnrollment struct {
-	enrollment EnrollmentBookingProjection
-	bookings   careplan.OfferingBookingQueries
+	enrollment owners.EnrollmentBookingProjection
 }
 
 func (e offeringReviewTestEnrollment) Children(ctx context.Context, ids []int64) ([]careplanCompose.OfferingReviewChild, error) {
@@ -148,7 +153,7 @@ func (e offeringReviewTestEnrollment) Phases(ctx context.Context, ids []int64) (
 }
 
 func (e offeringReviewTestEnrollment) Selections(ctx context.Context, dates map[int64]careplan.Date) ([]careplanCompose.OfferingReviewBooking, error) {
-	rows, err := e.bookings.CareOfferingBookingsAtDates(ctx, dates)
+	rows, err := careplanCompose.NewOfferingBookings().CareOfferingBookingsAtDates(ctx, dates)
 	if err != nil {
 		return nil, err
 	}

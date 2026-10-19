@@ -61,9 +61,6 @@ func timeTrackingHeaders() []string {
 	return headers
 }
 
-// ExportSessions renders the single-staff export of work sessions and
-// absences. CSV and XLSX stay plain data files (shared writers below);
-// PDF renders through the listexport design (#1568) as the print artifact.
 func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, from, to calendar.Date, format string) (*ExportFile, error) {
 	// Deliberately the stored-date read, not the intersecting one: an export
 	// row is a whole block, and a night block that reaches into the next month

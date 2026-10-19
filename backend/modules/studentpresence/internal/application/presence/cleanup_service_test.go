@@ -34,10 +34,9 @@ import (
 
 // setupCleanupService creates a cleanup service with real database connection
 func setupCleanupService(t *testing.T, db *testpkg.DB, clocks ...func() time.Time) active.CleanupService {
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default(), clocks...)
+	serviceFactoryCleanup, err := api.NewTestPresenceCleanup(testpkg.NewDatabase(t, db), slog.Default(), clocks...)
 	require.NoError(t, err, "Failed to create service factory")
-	return serviceFactory.ActiveCleanup
+	return serviceFactoryCleanup
 }
 
 // =============================================================================
@@ -185,7 +184,7 @@ func TestGetRetentionStatistics_EmptyDatabase(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// ACT: Get statistics when there may be no expired visits
-	stats, err := cleanupService.GetRetentionStatistics(ctx)
+	stats, err := testpkg.TenantQuery0(t, ctx, db, cleanupService.GetRetentionStatistics)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -252,7 +251,7 @@ func TestGetRetentionStatistics_WithData(t *testing.T) {
 	// IMPORTANT: Clean up in correct order (FK constraints)
 
 	// ACT: Get statistics
-	stats, err := cleanupService.GetRetentionStatistics(ctx)
+	stats, err := testpkg.TenantQuery0(t, ctx, db, cleanupService.GetRetentionStatistics)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -277,7 +276,7 @@ func TestPreviewCleanup_EmptyDatabase(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// ACT: Preview cleanup
-	preview, err := cleanupService.PreviewCleanup(ctx)
+	preview, err := testpkg.TenantQuery0(t, ctx, db, cleanupService.PreviewCleanup)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -300,7 +299,7 @@ func TestCleanupExpiredVisits_NoExpiredVisits(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// ACT: Run cleanup when there are no expired visits
-	result, err := cleanupService.CleanupExpiredVisits(ctx)
+	result, err := testpkg.TenantQuery0(t, ctx, db, cleanupService.CleanupExpiredVisits)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -370,7 +369,7 @@ func TestCleanupExpiredVisits_WithExpiredData(t *testing.T) {
 	// IMPORTANT: Clean up in correct order (FK constraints)
 
 	// ACT: Run batch cleanup
-	result, err := cleanupService.CleanupExpiredVisits(ctx)
+	result, err := testpkg.TenantQuery0(t, ctx, db, cleanupService.CleanupExpiredVisits)
 
 	// ASSERT
 	require.NoError(t, err)

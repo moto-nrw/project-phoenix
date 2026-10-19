@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -33,7 +33,7 @@ func TestParentAnnouncementFindByIDForUpdateBlocksSecondWriter(t *testing.T) {
 		Active:   true, CreatedBy: chain.AccountID,
 	})
 	draft.TenantID = chain.TenantID
-	require.NoError(t, repo.Create(ctx, draft))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Create, draft))
 
 	runtimeCtx := testpkg.ContextForTenant(
 		testpkg.ContextWithTenantRuntime(context.Background(), testpkg.TenantRuntime(t, db)),
@@ -43,7 +43,7 @@ func TestParentAnnouncementFindByIDForUpdateBlocksSecondWriter(t *testing.T) {
 	holder, err := db.BeginTx(context.Background(), nil)
 	require.NoError(t, err)
 	holderCtx := testpkg.ContextWithTransaction(runtimeCtx, &holder)
-	locked, err := repo.FindByIDForUpdate(holderCtx, draft.ID)
+	locked, err := testpkg.TenantQuery1(t, holderCtx, db, repo.FindByIDForUpdate, draft.ID)
 	require.NoError(t, err)
 	require.NotNil(t, locked)
 
@@ -53,7 +53,7 @@ func TestParentAnnouncementFindByIDForUpdateBlocksSecondWriter(t *testing.T) {
 	defer cancel()
 	result := make(chan error, 1)
 	go func() {
-		_, waitErr := repo.FindByIDForUpdate(waiterCtx, draft.ID)
+		_, waitErr := testpkg.TenantQuery1(t, waiterCtx, db, repo.FindByIDForUpdate, draft.ID)
 		result <- waitErr
 	}()
 
@@ -89,14 +89,13 @@ func TestParentAnnouncementFindByIDForUpdateIsTenantScoped(t *testing.T) {
 		Active:   true, CreatedBy: chain.AccountID,
 	})
 	draft.TenantID = chain.TenantID
-	require.NoError(t, repo.Create(ctx, draft))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Create, draft))
 
-	found, err := repo.FindByIDForUpdate(ctx, draft.ID)
+	found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByIDForUpdate, draft.ID)
 	require.NoError(t, err)
 	require.NotNil(t, found)
 
-	foreign, err := repo.FindByIDForUpdate(
-		testpkg.ContextForTenant(ctx, chain.TenantID+1_000_000), draft.ID)
+	foreign, err := testpkg.TenantQuery1(t, testpkg.ContextForTenant(ctx, chain.TenantID+1_000_000), db, repo.FindByIDForUpdate, draft.ID)
 	require.NoError(t, err)
 	require.Nil(t, foreign)
 }

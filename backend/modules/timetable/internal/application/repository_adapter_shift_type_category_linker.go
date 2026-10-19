@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
@@ -16,7 +17,7 @@ import (
 func ShiftTypeCategoryLinker(link func(context.Context, int64, []int64) error) func(context.Context, int64, []int64) error {
 	return func(ctx context.Context, shiftTypeID int64, categoryIDs []int64) error {
 		err := link(ctx, shiftTypeID, categoryIDs)
-		if errors.Is(err, activitiesModels.ErrUnknownCategoryIDs) {
+		if errors.Is(err, activityContract.ErrUnknownCategoryIDs) {
 			return unknownShiftTypeCategoriesError{err: err}
 		}
 		return err

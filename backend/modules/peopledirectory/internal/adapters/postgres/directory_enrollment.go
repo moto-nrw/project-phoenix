@@ -46,22 +46,22 @@ type enrollmentReadRow struct {
 }
 
 func (s *studentDirectoryReads) ReadEnrollment(ctx context.Context, id int64, lock string) (directory.EnrollmentRecord, directoryStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return directory.EnrollmentRecord{}, directoryStats{}, err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return directory.EnrollmentRecord{}, directoryStats{}, errors.New("student directory: tenant is required")
 	}
 	started := time.Now()
 	stats := directoryStats{}
 
 	row := enrollmentReadRow{}
-	query := s.rows.StudentRows(db, 0).
+	query := s.studentRows(db, scope).
 		ColumnExpr(enrollmentColumns).
 		ColumnExpr("COALESCE(to_char(student.enrolled_from, 'YYYY-MM-DD'), '') AS enrolled_from").
 		ColumnExpr("COALESCE(to_char(student.enrolled_until, 'YYYY-MM-DD'), '') AS enrolled_until").
-		Where("student.id = ?", id).Where("student.tenant_id = ?", tenantID)
+		Where("student.id = ?", id).Where("student.tenant_id = ?", scope.TenantID)
 	switch lock {
 	case "update":
 		query = query.For("UPDATE")

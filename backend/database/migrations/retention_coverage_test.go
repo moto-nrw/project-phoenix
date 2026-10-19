@@ -28,6 +28,12 @@ const (
 	withParent retentionClass = "with parent"
 	// noPersonalData: the table holds no personal data; the detail says why.
 	noPersonalData retentionClass = "no personal data"
+	// controllerDeletes: content the school keeps as long as it needs it and
+	// deletes itself as the controller, as the AVV states (#4045, ADR 0073); no window
+	// fits rows without an end, such as a file in use or a child on a class
+	// list. The detail names the school's deletion path and what goes
+	// automatically.
+	controllerDeletes retentionClass = "school deletes"
 	// specGap: personal data still without a deletion path; the detail names
 	// the open ticket of spec #3949 that adds it. The list only shrinks.
 	specGap retentionClass = "spec gap"
@@ -46,18 +52,24 @@ func parent(table string) tableRetention { return tableRetention{class: withPare
 func notPersonal(why string) tableRetention {
 	return tableRetention{class: noPersonalData, detail: why}
 }
-func gap(ticket string) tableRetention     { return tableRetention{class: specGap, detail: ticket} }
 func undecided(what string) tableRetention { return tableRetention{class: openGap, detail: what} }
+func schoolDeletes(how string) tableRetention {
+	return tableRetention{class: controllerDeletes, detail: how}
+}
 
 // openSpecTickets are the tickets of spec #3949 that still add a deletion
-// path. When a ticket lands, its tables move to own retention or with
+// path; a gap names its ticket as tableRetention{class: specGap, detail:
+// ticket}. When a ticket lands, its tables move to own retention or with
 // parent and the ticket leaves this list.
-var openSpecTickets = []string{"#3957"}
+var openSpecTickets = []string{}
 
 // The gap lists only shrink: closing a gap lowers its count, a new gap fails.
 const (
-	specGapTables = 1
-	openGapTables = 9
+	specGapTables = 0
+	openGapTables = 1
+	// schoolDeletesTables keeps the class of #4045 (ADR 0073) closed: a new
+	// table with personal data gets a deletion path, not this class.
+	schoolDeletesTables = 2
 )
 
 // staffRetention is the deletion path of a retired staff member's records
@@ -72,7 +84,7 @@ func staffRetention(owner string) tableRetention {
 var tableRetentions = map[string]tableRetention{
 	"active.activity_session_attendance":                    parent("schedule.instance_students"),
 	"active.activity_sessions":                              parent("schedule.activity_instances"),
-	"active.attendance":                                     gap("#3957"),
+	"active.attendance":                                     own("nightly retention step attendance_retention (api/worker_retention.go), Student Presence DeleteExpiredAttendance (school window gdpr.attendance_retention_days after the care day, #3957)"),
 	"active.combined_groups":                                notPersonal("runtime group-combination configuration"),
 	"active.excused_absence_requests":                       parent("users.student_profiles"),
 	"active.group_mappings":                                 notPersonal("group-to-combination mapping"),
@@ -129,8 +141,8 @@ var tableRetentions = map[string]tableRetention{
 	"auth.account_permissions":                              parent("auth.accounts"),
 	"auth.account_roles":                                    parent("auth.accounts"),
 	"auth.account_tenants":                                  parent("auth.accounts"),
-	"auth.accounts":                                         undecided("accounts (e-mail, username, calendar link) stay until someone deletes them"),
-	"auth.accounts_parents":                                 undecided("legacy parent accounts (e-mail, username) without a deletion path"),
+	"auth.accounts":                                         own("anonymized, not deleted, so messages, protocols and records of other people keep their reference: hourly token-cleanup, EraseUnusedAccounts -> SQL auth.erase_unused_accounts once no school needs the account (#4043)"),
+	"auth.accounts_parents":                                 undecided("legacy parent accounts (e-mail, username) without a deletion path; removal of table and legacy API in #4329"),
 	"auth.demo_accesses":                                    own("demo process only: hourly demoExpiry -> ExpireDemoAccesses -> DeleteExpiredDemoAccesses"),
 	"auth.guardian_invitations":                             own("hourly token-cleanup, DeleteExpiredGuardianInvitations (30 days after accepted_at, else expires_at)"),
 	"auth.guardian_student_access":                          parent("users.student_guardian_relationships"),
@@ -153,7 +165,7 @@ var tableRetentions = map[string]tableRetention{
 	"calendar.appointment_recipients":                       parent("calendar.appointments"),
 	"calendar.appointment_reminder_push_deliveries":         parent("users.guardian_profiles"),
 	"calendar.appointment_targets":                          notPersonal("appointment target configuration"),
-	"calendar.appointments":                                 undecided("past appointments stay; only deleted or cancelled ones go after 90 days"),
+	"calendar.appointments":                                 own("nightly retention steps appointment_retention, AppointmentRetention.DeleteExpiredAppointments (school window gdpr.timetable_retention_days after the last day; endless series stay, #4045), and appointment_tombstone_retention, DeleteFeedTombstonesBefore (90 days after cancellation or deletion)"),
 	"calendar.recurrence_rules":                             notPersonal("recurrence configuration"),
 	"calendar.staff_feed_tombstones":                        own("nightly timetable-cleanup step CleanupExpiredFeedTombstones -> StaffFeedTombstoneRepo.DeleteBefore (90 days)"),
 	"config.home_block_policies":                            notPersonal("home dashboard block policy configuration"),
@@ -171,7 +183,7 @@ var tableRetentions = map[string]tableRetention{
 	"documents.announcement_attachment_cleanup":             own("nightly retention step file_cleanup_retention, DeleteFinishedCleanups -> SQL documents.delete_finished_announcement_attachment_cleanups (30 days after cleaned_at)"),
 	"documents.announcement_attachments":                    parent("users.parent_announcements"),
 	"documents.file_cleanup":                                own("nightly retention step file_cleanup_retention, DeleteFinishedCleanups -> SQL documents.delete_finished_file_cleanups (30 days after cleaned_at)"),
-	"documents.files":                                       undecided("the school's file storage; rows stay until the school deletes them"),
+	"documents.files":                                       schoolDeletes("the school's file storage: a file in use stays until the school deletes it (Service.DeleteFile, DeleteFolder); the removed row goes in the nightly retention step removed_file_retention -> SQL documents.delete_removed_files (30 days after its bytes, #4045)"),
 	"documents.folder_accounts":                             parent("auth.accounts"),
 	"documents.folder_roles":                                notPersonal("folder audience by role"),
 	"documents.folders":                                     notPersonal("school folder names"),
@@ -182,7 +194,7 @@ var tableRetentions = map[string]tableRetention{
 	"education.grade_transition_class_teachers":             parent("education.grade_transitions"),
 	"education.grade_transition_history":                    parent("education.grade_transitions"),
 	"education.grade_transition_mappings":                   notPersonal("class-to-class mapping"),
-	"education.grade_transitions":                           undecided("creator account (FK NO ACTION) and free-text notes; manual delete only"),
+	"education.grade_transitions":                           own("nightly retention step grade_transition_retention, GradeTransitionRetention.DeleteExpiredGradeTransitions (school window gdpr.student_retention_days after application, reversal or a draft's last change, #4045)"),
 	"education.group_substitution":                          staffRetention("Workforce SQL users.erase_retired_staff_records"),
 	"education.group_teacher":                               staffRetention("School Membership EraseNextRetiredStaff"),
 	"education.groups":                                      notPersonal("class/group catalog"),
@@ -265,10 +277,10 @@ var tableRetentions = map[string]tableRetention{
 	"schedule.timeframes":                                   notPersonal("timeframe catalog"),
 	"schedule.timetable_conflict_acks":                      parent("auth.accounts"),
 	"users.care_withdrawal_completions":                     own("nightly retention step care_withdrawal_retention, DeleteFinishedWithdrawalCompletions (365 days after resolved_at; pending ones stay)"),
-	"users.class_list_entries":                              undecided("child first/last names from class lists; only platform.schools cascade; DeleteClassListEntry is manual"),
+	"users.class_list_entries":                              schoolDeletes("children without care on the school's class lists: the school removes a child that left (RemoveClassListEntry) and the grade transition removes graduating classes; no window fits a child still at the school (#4045)"),
 	"users.guardian_financial_data":                         parent("users.guardian_profiles"),
 	"users.guardian_phone_numbers":                          parent("users.guardian_profiles"),
-	"users.guardian_profiles":                               undecided("guardians (name, address, notes) stay even without a child"),
+	"users.guardian_profiles":                               own("nightly retention step guardian_retention (api/worker_retention.go), People Directory DeleteExpiredChildlessGuardians (school window gdpr.guardian_retention_days after childless_since, #4043)"),
 	"users.guests":                                          staffRetention("School Membership EraseNextRetiredStaff"),
 	"users.notification_preferences":                        parent("auth.accounts"),
 	"users.parent_announcement_declaration_submissions":     parent("users.student_profiles"),
@@ -277,7 +289,7 @@ var tableRetentions = map[string]tableRetention{
 	"users.parent_announcement_reads":                       parent("auth.accounts"),
 	"users.parent_announcement_responses":                   parent("users.student_profiles"),
 	"users.parent_announcement_targets":                     notPersonal("announcement target configuration"),
-	"users.parent_announcements":                            undecided("author account (FK RESTRICT) and body; manual delete only"),
+	"users.parent_announcements":                            own("nightly retention step parent_announcement_retention, ParentAnnouncementRetention.DeleteExpiredParentAnnouncements (school window gdpr.parent_message_retention_days after expiry, publication or a draft's last change; a declaration with submissions stays until they go with their child, #4045)"),
 	"users.parent_message_count_preferences":                parent("auth.accounts"),
 	"users.parent_message_reads":                            parent("users.parent_message_threads"),
 	"users.parent_message_threads":                          own("nightly retention step parent_message_retention deletes threads left empty (deleteEmptyParentThreadsSQL)"),
@@ -300,7 +312,7 @@ var tableRetentions = map[string]tableRetention{
 	"users.staff_message_threads":                           own("nightly staff-message-cleanup, CleanupExpiredMessages -> ThreadStore.DeleteEmpty"),
 	"users.staff_messages":                                  own("nightly staff-message-cleanup, CleanupExpiredMessages -> MessageStore.DeleteOlderThan"),
 	"users.staff_notice_acks":                               parent("auth.accounts"),
-	"users.staff_notices":                                   undecided("author account (FK RESTRICT) and body; manual delete only"),
+	"users.staff_notices":                                   own("nightly retention step staff_notice_retention, StaffNoticeRetention.DeleteExpiredStaffNotices (school window gdpr.staff_message_retention_days after the last valid day or the switch-off; an active open-ended notice stays, #4045)"),
 	"users.staff_offboarding_cleanup":                       own("nightly retention step staff_cleanup_retention, DeleteFinishedStaffCleanups -> DeleteCompletedOffboardingCleanups (30 days after completed_at)"),
 	"users.staff_qualifications":                            staffRetention("Workforce SQL users.erase_retired_staff_records"),
 	"users.staff_school_memberships":                        staffRetention("School Membership EraseNextRetiredStaff erases the records; the tombstone keeps only IDs that records of other people name, the person is anonymized"),
@@ -354,6 +366,7 @@ func TestEveryTableHasARetentionPath(t *testing.T) {
 	problems = append(problems, checkOpenSpecTickets()...)
 	problems = append(problems, checkGapBudget(specGap, specGapTables)...)
 	problems = append(problems, checkGapBudget(openGap, openGapTables)...)
+	problems = append(problems, checkGapBudget(controllerDeletes, schoolDeletesTables)...)
 
 	sort.Strings(problems)
 	require.Empty(t, problems, "retention coverage: classify each table in tableRetentions and the retention list docs/reference/loeschfristen.md")
@@ -362,7 +375,7 @@ func TestEveryTableHasARetentionPath(t *testing.T) {
 func checkRetentionEntry(ctx context.Context, t *testing.T, db *testpkg.DB, table string, retention tableRetention) []string {
 	t.Helper()
 	switch retention.class {
-	case ownRetention, noPersonalData, openGap:
+	case ownRetention, noPersonalData, controllerDeletes, openGap:
 		return nil
 	case specGap:
 		if !slices.Contains(openSpecTickets, retention.detail) {

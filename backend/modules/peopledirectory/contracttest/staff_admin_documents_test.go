@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -37,11 +38,12 @@ func newStaffDocumentScenario(t *testing.T) *staffDocumentScenario {
 
 	db := testpkg.SetupTestDB(t)
 
-	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
-	admin, err := api.NewStaffAdmin(api.StaffAdminDependencies{
-		DB: testpkg.NewDatabase(t, db), Staff: repos.Staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
-		MasterDataAudit: api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StaffMasterDataChange, PersonnelNumber: api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).PersonnelNumberChange, DataAccessLog: api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataAccessLog,
+	ownersWorkforce := owners.MustNewWorkforce(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposPeopleMembership := api.NewSchoolMembershipSuiteRepositories(testpkg.NewDatabase(t, db))
+	admin, err := api.NewStaffAdmin(testpkg.NewDatabase(t, db), reposPeople.Staff, reposPeople.Person, reposPeopleMembership.SchoolMembership(), api.StaffAdminDependencies{
+		MasterDataAudit: owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StaffMasterDataChange, PersonnelNumber: owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).PersonnelNumberChange, DataAccessLog: owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataAccessLog,
 	})
 	require.NoError(t, err)
 
@@ -52,7 +54,7 @@ func newStaffDocumentScenario(t *testing.T) *staffDocumentScenario {
 	return &staffDocumentScenario{
 		db:       db,
 		repos:    repos,
-		workTime: owners.Workforce,
+		workTime: ownersWorkforce,
 		svc:      admin,
 		ctx:      testpkg.Ctx(t),
 		staffID:  staff.ID,
@@ -66,11 +68,11 @@ func (s *staffDocumentScenario) actor(perms ...string) workforce.StaffDocumentAc
 
 func (s *staffDocumentScenario) create(t *testing.T, category string, actor workforce.StaffDocumentActor) *workforce.StaffDocumentInfo {
 	t.Helper()
-	info, err := s.svc.CreateStaffDocument(s.ctx, workforce.CreateStaffDocumentInput{
+	info, err := testpkg.TenantQuery2(t, s.ctx, s.db, s.svc.CreateStaffDocument, workforce.CreateStaffDocumentInput{
 		StaffID:         s.staffID,
 		Category:        category,
 		FilenameDisplay: category + "-datei.pdf",
-		FilenameStored:  fmt.Sprintf("%s-%d.pdf", category, time.Now().UnixNano()),
+		FilenameStored:  fmt.Sprintf("%s-%d-%d.pdf", category, s.staffID, time.Now().UnixNano()),
 		SizeBytes:       42,
 		ContentType:     "application/pdf",
 	}, actor)
@@ -122,7 +124,7 @@ func TestStaffDocumentService_CategoryAuthority(t *testing.T) {
 
 	// Directory maintainers cover the four general categories only.
 	s.create(t, userModels.StaffDocumentCategoryZeugnis, directory)
-	_, err := s.svc.CreateStaffDocument(s.ctx, workforce.CreateStaffDocumentInput{
+	_, err := testpkg.TenantQuery2(t, s.ctx, s.db, s.svc.CreateStaffDocument, workforce.CreateStaffDocumentInput{
 		StaffID:         s.staffID,
 		Category:        userModels.StaffDocumentCategoryAUBescheinigung,
 		FilenameDisplay: "au.pdf",
@@ -135,7 +137,7 @@ func TestStaffDocumentService_CategoryAuthority(t *testing.T) {
 	// The dedicated permissions cover exactly their category.
 	auInfo := s.create(t, userModels.StaffDocumentCategoryAUBescheinigung, health)
 	lohnInfo := s.create(t, userModels.StaffDocumentCategoryLohnabrechnung, payroll)
-	_, err = s.svc.CreateStaffDocument(s.ctx, workforce.CreateStaffDocumentInput{
+	_, err = testpkg.TenantQuery2(t, s.ctx, s.db, s.svc.CreateStaffDocument, workforce.CreateStaffDocumentInput{
 		StaffID:         s.staffID,
 		Category:        userModels.StaffDocumentCategoryZeugnis,
 		FilenameDisplay: "zeugnis.pdf",
@@ -177,11 +179,11 @@ func TestStaffDocumentService_CategoryAuthority(t *testing.T) {
 
 	// Downloads: the general category serves without an access-log row, the
 	// sensitive ones refuse foreign permissions and log for the right ones.
-	_, err = s.svc.ResolveStaffDocumentDownload(s.ctx, s.staffID, auInfo.Document.ID, directory)
+	_, err = testpkg.TenantQuery3(t, s.ctx, s.db, s.svc.ResolveStaffDocumentDownload, s.staffID, auInfo.Document.ID, directory)
 	require.ErrorIs(t, err, workforce.ErrStaffDocumentForbidden)
 
 	before := len(s.accessLogRowsFor(t))
-	_, err = s.svc.ResolveStaffDocumentDownload(s.ctx, s.staffID, lohnInfo.Document.ID, payroll)
+	_, err = testpkg.TenantQuery3(t, s.ctx, s.db, s.svc.ResolveStaffDocumentDownload, s.staffID, lohnInfo.Document.ID, payroll)
 	require.NoError(t, err)
 	logs := s.accessLogRowsFor(t)
 	require.Len(t, logs, before+1)
@@ -222,7 +224,7 @@ func TestStaffDocumentService_AuditTrailAndSoftDelete(t *testing.T) {
 	assert.Equal(t, "zeugnis-datei.pdf", rows[0].NewValue)
 	assert.Equal(t, s.account, rows[0].ChangedBy)
 
-	deleted, err := s.svc.DeleteStaffDocument(s.ctx, s.staffID, info.Document.ID, directory)
+	deleted, err := testpkg.TenantQuery3(t, s.ctx, s.db, s.svc.DeleteStaffDocument, s.staffID, info.Document.ID, directory)
 	require.NoError(t, err)
 	require.NotNil(t, deleted)
 	assert.Equal(t, info.Document.FilenameStored, deleted.FilenameStored)
@@ -246,7 +248,7 @@ func TestStaffDocumentService_AuditTrailAndSoftDelete(t *testing.T) {
 	assert.Equal(t, 1, count)
 
 	// Deleting again is a 404-shaped error, not a second audit row.
-	_, err = s.svc.DeleteStaffDocument(s.ctx, s.staffID, info.Document.ID, directory)
+	_, err = testpkg.TenantQuery3(t, s.ctx, s.db, s.svc.DeleteStaffDocument, s.staffID, info.Document.ID, directory)
 	require.Error(t, err)
 	var marker interface{ RepositoryNotFound() }
 	assert.True(t, errors.As(err, &marker), "second delete must be not-found, got %v", err)
@@ -274,7 +276,7 @@ func TestStaffDocumentService_RefusesDownloadsAfterOffboarding(t *testing.T) {
 	_, err := s.db.ExecContext(s.ctx, `UPDATE users.staff_school_memberships SET deleted_at = NOW() WHERE id = ?`, s.staffID)
 	require.NoError(t, err)
 
-	_, err = s.svc.ResolveStaffDocumentDownload(s.ctx, s.staffID, info.Document.ID, actor)
+	_, err = testpkg.TenantQuery3(t, s.ctx, s.db, s.svc.ResolveStaffDocumentDownload, s.staffID, info.Document.ID, actor)
 	require.Error(t, err)
 }
 

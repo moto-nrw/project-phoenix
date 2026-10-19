@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -29,7 +29,7 @@ const (
 
 type startScopeActor struct {
 	name     string
-	staff    []*scheduleModels.InstanceStaff
+	staff    []*fixtures.InstanceStaff
 	admin    bool
 	scope    string
 	noPerson bool
@@ -46,9 +46,8 @@ func newStartScopeDeps(t *testing.T, startScope string, actor startScopeActor) (
 	}
 	deps.settings.scope = overviewScopeAllStaff
 	deps.settings.startScope = startScope
-	deps.instanceRepo.byID[startScopeInstance] = instanceWithTimes(startScopeInstance, scheduleModels.InstanceStatusPlanned,
-		startScopeNow.Add(-5*time.Minute), startScopeNow.Add(time.Hour))
-	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{deps.instanceRepo.byID[startScopeInstance]}
+	deps.instanceRepo.byID[startScopeInstance] = instanceWithTimes(startScopeInstance, fixtures.InstanceStatusPlanned(), startScopeNow.Add(-5*time.Minute), startScopeNow.Add(time.Hour))
+	deps.instanceRepo.byDate = []*fixtures.ActivityInstance{deps.instanceRepo.byID[startScopeInstance]}
 	ctx := tenant.WithTenantID(context.Background(), startScopeTenant)
 	ctx = testpkg.IdentityContext(ctx, startScopeAccount, startScopeTenant, actor.scope, []string{"schedules:read"})
 	return deps, ctx
@@ -58,9 +57,16 @@ func newStartScopeDeps(t *testing.T, startScope string, actor startScopeActor) (
 // assignment rule, whatever the setting says (#3622).
 func TestTimetableStartScopeMatrix(t *testing.T) {
 	t.Parallel()
-	assigned := []*scheduleModels.InstanceStaff{{StaffID: startScopeStaff}}
-	other := []*scheduleModels.InstanceStaff{{StaffID: 9999}}
-	absent := []*scheduleModels.InstanceStaff{{StaffID: startScopeStaff, IsAbsent: true}}
+	assigned := []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = startScopeStaff
+	})}
+	other := []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = 9999
+	})}
+	absent := []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = startScopeStaff
+		fixtureRow.IsAbsent = true
+	})}
 	for _, tc := range []struct {
 		actor                startScopeActor
 		startOwn, startAll   bool
@@ -127,7 +133,7 @@ func TestTimetableStartScopePreservesBoundaries(t *testing.T) {
 			d.settings.startScope = "unknown"
 		}, err: timetable.ErrTimetableOperationForbidden},
 		{name: "block on another day", change: func(d *timetableOpsTestDeps, _ *context.Context) {
-			d.instanceRepo.byID[startScopeInstance].Date = scheduleModels.Date(calendar.DateFromTime(startScopeNow).AddDays(1))
+			d.instanceRepo.byID[startScopeInstance].Date = calendar.Date(calendar.DateFromTime(startScopeNow).AddDays(1))
 		}, err: timetable.ErrTimetableOperationForbidden},
 		{name: "not staff", change: func(d *timetableOpsTestDeps, _ *context.Context) {
 			d.personService.accountPerson = nil
@@ -144,7 +150,9 @@ func TestTimetableStartScopePreservesBoundaries(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			deps, ctx := newStartScopeDeps(t, blockStartScopeAllStaff, startScopeActor{staff: []*scheduleModels.InstanceStaff{{StaffID: 9999}}})
+			deps, ctx := newStartScopeDeps(t, blockStartScopeAllStaff, startScopeActor{staff: []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+				fixtureRow.StaffID = 9999
+			})}})
 			tc.change(deps, &ctx)
 
 			_, err := deps.service.Start(ctx, startScopeAccount, false, startScopeInstance)
@@ -163,7 +171,9 @@ func TestTimetableRosterReportsCanStart(t *testing.T) {
 	t.Parallel()
 	t.Run("planned block of the caller", func(t *testing.T) {
 		t.Parallel()
-		deps, ctx := newStartScopeDeps(t, blockStartScopeOwn, startScopeActor{staff: []*scheduleModels.InstanceStaff{{StaffID: startScopeStaff}}})
+		deps, ctx := newStartScopeDeps(t, blockStartScopeOwn, startScopeActor{staff: []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+			fixtureRow.StaffID = startScopeStaff
+		})}})
 		deps.settings.scope = overviewScopeOwn
 
 		roster, err := deps.service.Roster(ctx, startScopeAccount, false, startScopeInstance)
@@ -174,9 +184,11 @@ func TestTimetableRosterReportsCanStart(t *testing.T) {
 	})
 	t.Run("running block with the whole team starting", func(t *testing.T) {
 		t.Parallel()
-		deps, ctx := newStartScopeDeps(t, blockStartScopeAllStaff, startScopeActor{staff: []*scheduleModels.InstanceStaff{{StaffID: 9999}}})
+		deps, ctx := newStartScopeDeps(t, blockStartScopeAllStaff, startScopeActor{staff: []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+			fixtureRow.StaffID = 9999
+		})}})
 		deps.instanceRepo.byID[startScopeInstance] = activeInstance(startScopeInstance, 3628)
-		deps.instanceRepo.byID[startScopeInstance].Date = scheduleModels.Date(calendar.DateFromTime(startScopeNow))
+		deps.instanceRepo.byID[startScopeInstance].Date = calendar.Date(calendar.DateFromTime(startScopeNow))
 
 		roster, err := deps.service.Roster(ctx, startScopeAccount, false, startScopeInstance)
 
@@ -206,7 +218,9 @@ func TestTimetableSchoolWideScopeNeverAdmitsFewerThanOwn(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			deps, ctx := newStartScopeDeps(t, blockStartScopeAllStaff, startScopeActor{staff: []*scheduleModels.InstanceStaff{{StaffID: startScopeStaff}}})
+			deps, ctx := newStartScopeDeps(t, blockStartScopeAllStaff, startScopeActor{staff: []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+				fixtureRow.StaffID = startScopeStaff
+			})}})
 			deps.settings.attendanceScope = attendanceEditScopeAllStaff
 			tc.change(deps)
 
@@ -221,9 +235,9 @@ func TestTimetableSchoolWideScopeNeverAdmitsFewerThanOwn(t *testing.T) {
 	}
 }
 
-func runningStartScopeInstance() *scheduleModels.ActivityInstance {
+func runningStartScopeInstance() *fixtures.ActivityInstance {
 	inst := activeInstance(startScopeInstance, 3629)
-	inst.Date = scheduleModels.Date(calendar.DateFromTime(startScopeNow))
+	inst.Date = calendar.Date(calendar.DateFromTime(startScopeNow))
 	return inst
 }
 
@@ -231,8 +245,12 @@ func runningStartScopeInstance() *scheduleModels.ActivityInstance {
 // from starting (#3622).
 func TestTimetableCompleteScopeMatrix(t *testing.T) {
 	t.Parallel()
-	assigned := []*scheduleModels.InstanceStaff{{StaffID: startScopeStaff}}
-	other := []*scheduleModels.InstanceStaff{{StaffID: 9999}}
+	assigned := []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = startScopeStaff
+	})}
+	other := []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = 9999
+	})}
 	for _, tc := range []struct {
 		actor               startScopeActor
 		endOwn, endAllStaff bool
@@ -280,13 +298,15 @@ func TestTimetableCompleteScopeNeedsSchoolWideVisibilityAndARunningBlock(t *test
 	}{
 		{name: "personal visibility", change: func(d *timetableOpsTestDeps) { d.settings.scope = overviewScopeOwn }},
 		{name: "planned block", change: func(d *timetableOpsTestDeps) {
-			d.instanceRepo.byID[startScopeInstance].Status = scheduleModels.InstanceStatusPlanned
+			d.instanceRepo.byID[startScopeInstance].Status = fixtures.InstanceStatusPlanned()
 			d.instanceRepo.byID[startScopeInstance].ActiveGroupID = nil
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			deps, ctx := newStartScopeDeps(t, blockStartScopeOwn, startScopeActor{staff: []*scheduleModels.InstanceStaff{{StaffID: 9999}}})
+			deps, ctx := newStartScopeDeps(t, blockStartScopeOwn, startScopeActor{staff: []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+				fixtureRow.StaffID = 9999
+			})}})
 			deps.settings.completeScope = blockCompleteScopeAllStaff
 			deps.instanceRepo.byID[startScopeInstance] = runningStartScopeInstance()
 			tc.change(deps)

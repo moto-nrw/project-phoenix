@@ -14,7 +14,7 @@ import (
 func TestAccountAnonymizationPreservesTransactionAndOtherAccountState(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	accounts := setupAuthFactory(t, db).AccountAuthentication()
+	accounts := setupAuthFactory(t, db)
 	account := testpkg.CreateTestAccount(t, db, "anonymize-account")
 	other := testpkg.CreateTestAccount(t, db, "anonymize-other")
 	ctx := testpkg.Ctx(t)

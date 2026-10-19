@@ -3,9 +3,12 @@ package api
 import (
 	"context"
 	"log/slog"
-	"strings"
+
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	staffShiftsHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/staffshifts"
 
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
@@ -26,15 +29,11 @@ import (
 // timeTrackingIdentity derives the caller from the request's session claims.
 func timeTrackingIdentity(ctx context.Context) timeTrackingHTTP.Identity {
 	claims := sessiontoken.ClaimsFromCtx(ctx)
-	name := strings.TrimSpace(claims.FirstName + " " + claims.LastName)
-	if name == "" {
-		name = claims.Username
-	}
 	return timeTrackingHTTP.Identity{
 		AccountID:   int64(claims.ID),
 		Roles:       claims.Roles,
 		Permissions: sessiontoken.PermissionsFromCtx(ctx),
-		DisplayName: name,
+		DisplayName: claims.DisplayName(),
 	}
 }
 
@@ -66,7 +65,7 @@ func (p exportTransferPort) Status(ctx context.Context) (timeTrackingHTTP.Export
 func (p exportTransferPort) Transfer(ctx context.Context, request timeTrackingHTTP.ExportTransferRequest) (timeTrackingHTTP.ExportTransferOutcome, error) {
 	outcome, err := p.module.Transfer(ctx, exportTransferModule.Request{
 		Kind: request.Kind, Format: request.Format, Filename: request.Filename, Data: request.Data,
-		ActorAccountID: request.ActorAccountID, ActorName: request.ActorName,
+		ActorAccountID: request.ActorAccountID, ActorName: request.ActorName, PrepareFile: request.PrepareFile,
 	})
 	if err != nil {
 		return timeTrackingHTTP.ExportTransferOutcome{}, err
@@ -78,18 +77,22 @@ func (p exportTransferPort) Transfer(ctx context.Context, request timeTrackingHT
 }
 
 // newTimeTrackingResource composes the MA-facing /api/time-tracking surface.
-func newTimeTrackingResource(graph *serviceGraph, calendar schoolcalendar.Calendar) *timeTrackingHTTP.Resource {
-	capabilities := NewWorkforceAdminCapabilities(graph.Users, graph.StaffDocuments, graph.WorkSession)
+func newTimeTrackingResource(
+	users peoplePorts.PersonDirectory, documents *workforceModule.StaffAdmin, timeTracking *workforceCompose.TimeTracking,
+	shifts workforceModule.StaffShiftPlanning, assignments workforceModule.StaffAssignmentQuery,
+	calendar schoolcalendar.Calendar, settings settingsCompose.SettingsService,
+) *timeTrackingHTTP.Resource {
+	capabilities := owners.NewWorkforceAdminCapabilities(users, documents, timeTracking)
 	return timeTrackingHTTP.NewResource(timeTrackingHTTP.Dependencies{
 		WorkSessions:     capabilities.WorkSessions,
 		StaffAbsences:    capabilities.StaffAbsences,
 		Staff:            capabilities.Staff,
 		WorkTimeMonth:    capabilities.WorkTimeMonth,
-		StaffShifts:      graph.StaffShifts,
+		StaffShifts:      shifts,
 		ShiftResponses:   timeTrackingShiftResponses,
-		Assignments:      graph.StaffAssignments,
+		Assignments:      assignments,
 		Calendar:         PlanningCalendarCapability(calendar),
-		AccountStartDate: timeTrackingAccountStartDate(graph.Settings),
+		AccountStartDate: timeTrackingAccountStartDate(settings),
 		Identity:         timeTrackingIdentity,
 		WithinTenant: func(ctx context.Context, tenantID int64, run func(context.Context) error) error {
 			id, err := tenant.NewTenantID(tenantID)
@@ -105,14 +108,19 @@ func newTimeTrackingResource(graph *serviceGraph, calendar schoolcalendar.Calend
 // adapted capabilities; schedules is the Workforce query the schedule views
 // read from and the Sonderarbeitszeiten are written through; notifyChanged
 // invalidates the time-account views after such a write.
-func newStaffAdminResource(capabilities WorkforceAdminCapabilities, schedules workforceModule.Capability, notifyChanged func(context.Context), exportTransfer *exportTransferModule.Module, db transactionruntime.Database, logger *slog.Logger) *timeTrackingHTTP.StaffAdminResource {
+func newStaffAdminResource(capabilities owners.WorkforceAdminCapabilities, schedules workforceModule.Capability, notifyChanged func(context.Context), exportTransfer *exportTransferModule.Module, db transactionruntime.Database, logger *slog.Logger) *timeTrackingHTTP.StaffAdminResource {
 	cleanup, err := workforceCompose.NewDocumentCleanup(db.Pool(), nil)
+	if err != nil {
+		panic(err)
+	}
+	documentFiles, err := workforceCompose.NewStaffDocumentFileRecovery(capabilities.Documents, cleanup, nativeUploads.UploadFiles{}, logger)
 	if err != nil {
 		panic(err)
 	}
 	return timeTrackingHTTP.NewStaffAdminResource(timeTrackingHTTP.StaffAdminDependencies{
 		Uploads:            nativeUploads.UploadFiles{},
 		OffboardingCleanup: cleanup,
+		DocumentFiles:      documentFiles,
 		Staff:              capabilities.Staff,
 		Documents:          capabilities.Documents,
 		WorkSessions:       capabilities.WorkSessions,

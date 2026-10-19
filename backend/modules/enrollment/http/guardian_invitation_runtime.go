@@ -6,8 +6,8 @@ import "context"
 // Approving the first child of a family fires one, so the decision routes
 // reach the owner through the runtime below, which the composition root
 // binds (#3332). The routes name no owner contract: the invitation is
-// fire-and-forget here, and its failure is logged rather than answered, so
-// the runtime needs no outcome beyond the error.
+// enqueued within the approval transaction, so an enqueue failure rolls
+// the approval back. The runtime needs no outcome beyond the error.
 type GuardianInvitationRuntime struct {
 	// Create issues the invitation for a guardian contact that has an
 	// address on file and no account yet. The school comes from the tenant

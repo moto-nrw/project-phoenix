@@ -5,7 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -28,7 +29,7 @@ func (s *TemplateSplitService) loadSegmentRosterCandidates(
 	groupID int64,
 	effectiveDate calendar.Date,
 	segmentValidUntil *calendar.Date,
-) ([]*activitiesModel.StudentEnrollment, []*activitiesModel.SupervisorPlanned, error) {
+) ([]*activityContract.StudentEnrollment, []*activityContract.SupervisorPlanned, error) {
 	enrollments, err := s.deps.EnrollmentRepo.FindByGroupID(ctx, groupID)
 	if err != nil {
 		return nil, nil, &ports.ScheduleError{Op: "split template: load enrollments", Err: err}
@@ -38,14 +39,14 @@ func (s *TemplateSplitService) loadSegmentRosterCandidates(
 		return nil, nil, &ports.ScheduleError{Op: "split template: load supervisors", Err: err}
 	}
 
-	activeEnrollments := make([]*activitiesModel.StudentEnrollment, 0, len(enrollments))
+	activeEnrollments := make([]*activityContract.StudentEnrollment, 0, len(enrollments))
 	for _, e := range enrollments {
 		if e != nil && validityWindowsOverlap(calendar.Date(e.ValidFrom), timezoneDatePtr(e.ValidUntil), effectiveDate, segmentValidUntil) &&
 			(enrollmentIsProtected(e) || enrollmentBelongsToSegmentRoster(e, segmentValidUntil)) {
 			activeEnrollments = append(activeEnrollments, e)
 		}
 	}
-	activeSupervisors := make([]*activitiesModel.SupervisorPlanned, 0, len(supervisors))
+	activeSupervisors := make([]*activityContract.SupervisorPlanned, 0, len(supervisors))
 	for _, sp := range supervisors {
 		if sp != nil && validityWindowsOverlap(calendar.Date(sp.ValidFrom), timezoneDatePtr(sp.ValidUntil), effectiveDate, segmentValidUntil) &&
 			supervisorBelongsToSegmentRoster(sp, segmentValidUntil) {
@@ -55,7 +56,7 @@ func (s *TemplateSplitService) loadSegmentRosterCandidates(
 	return activeEnrollments, activeSupervisors, nil
 }
 
-func enrollmentBelongsToSegmentRoster(row *activitiesModel.StudentEnrollment, segmentValidUntil *calendar.Date) bool {
+func enrollmentBelongsToSegmentRoster(row *activityContract.StudentEnrollment, segmentValidUntil *calendar.Date) bool {
 	if enrollmentIsProtected(row) {
 		return false
 	}
@@ -65,17 +66,17 @@ func enrollmentBelongsToSegmentRoster(row *activitiesModel.StudentEnrollment, se
 	return optionalDatesEqual(timezoneDatePtr(row.ValidUntil), segmentValidUntil)
 }
 
-func enrollmentIsProtected(row *activitiesModel.StudentEnrollment) bool {
+func enrollmentIsProtected(row *activityContract.StudentEnrollment) bool {
 	return row.EnrollmentRequestChildID != nil || len(row.SelectedWeekdays) > 0
 }
 
-func supervisorBelongsToSegmentRoster(row *activitiesModel.SupervisorPlanned, segmentValidUntil *calendar.Date) bool {
+func supervisorBelongsToSegmentRoster(row *activityContract.SupervisorPlanned, segmentValidUntil *calendar.Date) bool {
 	return row.ValidUntil == nil || optionalDatesEqual(timezoneDatePtr(row.ValidUntil), segmentValidUntil)
 }
 
 func (s *TemplateSplitService) capBoundedSegmentEnrollments(
 	ctx context.Context,
-	rows []*activitiesModel.StudentEnrollment,
+	rows []*activityContract.StudentEnrollment,
 	segmentValidUntil *calendar.Date,
 	capAt calendar.Date,
 ) (int64, error) {
@@ -91,7 +92,7 @@ func (s *TemplateSplitService) capBoundedSegmentEnrollments(
 			if err := s.deps.EnrollmentRepo.Delete(ctx, row.ID); err != nil {
 				return changed, &ports.ScheduleError{Op: "cap segment: delete future enrollment", Err: err}
 			}
-		} else if err := s.deps.EnrollmentRepo.SetValidUntilByID(ctx, row.ID, activitiesModel.Date(capAt)); err != nil {
+		} else if err := s.deps.EnrollmentRepo.SetValidUntilByID(ctx, row.ID, activityContract.Date(capAt)); err != nil {
 			return changed, &ports.ScheduleError{Op: "cap segment: close enrollment", Err: err}
 		}
 		changed++
@@ -101,7 +102,7 @@ func (s *TemplateSplitService) capBoundedSegmentEnrollments(
 
 func (s *TemplateSplitService) capBoundedSegmentSupervisors(
 	ctx context.Context,
-	rows []*activitiesModel.SupervisorPlanned,
+	rows []*activityContract.SupervisorPlanned,
 	segmentValidUntil *calendar.Date,
 	capAt calendar.Date,
 ) (int64, error) {
@@ -117,7 +118,7 @@ func (s *TemplateSplitService) capBoundedSegmentSupervisors(
 			if err := s.deps.SupervisorRepo.Delete(ctx, row.ID); err != nil {
 				return changed, &ports.ScheduleError{Op: "cap segment: delete future supervisor", Err: err}
 			}
-		} else if err := s.deps.SupervisorRepo.SetValidUntilByID(ctx, row.ID, activitiesModel.Date(capAt)); err != nil {
+		} else if err := s.deps.SupervisorRepo.SetValidUntilByID(ctx, row.ID, activityContract.Date(capAt)); err != nil {
 			return changed, &ports.ScheduleError{Op: "cap segment: close supervisor", Err: err}
 		}
 		changed++
@@ -126,13 +127,13 @@ func (s *TemplateSplitService) capBoundedSegmentSupervisors(
 }
 
 // createSuccessorGroup copies the old template and applies the updated fields.
-func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *activitiesModel.Group, in TemplateSplitInput, tenantID int64) (*activitiesModel.Group, error) {
+func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *activityContract.Group, in TemplateSplitInput, tenantID int64) (*activityContract.Group, error) {
 	group := successorGroup(old, in)
 	group.SetTenantID(tenantID)
 	if err := s.deps.GroupRepo.Create(ctx, group); err != nil {
 		return nil, &ports.ScheduleError{Op: "split template: create successor template", Err: err}
 	}
-	targetRepo, ok := s.deps.GroupRepo.(activitiesModel.GroupTargetRepository)
+	targetRepo, ok := s.deps.GroupRepo.(ports.ActivityGroupTargets)
 	if !ok && len(in.Targets) > 0 {
 		return nil, &ports.ScheduleError{Op: "split template: create successor targets", Err: errors.New("target repository is not configured")}
 	}
@@ -150,14 +151,14 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 // clears it — the Personalbedarf override (#1839), the Wochennotiz (#1837
 // follow-up), the Listenart (#1565) and the planning track. MaxParticipants
 // falls back to the old template's value when not provided.
-func successorGroup(old *activitiesModel.Group, in TemplateSplitInput) *activitiesModel.Group {
+func successorGroup(old *activityContract.Group, in TemplateSplitInput) *activityContract.Group {
 	seriesRootID := old.ID
 	if old.SeriesRootID != nil {
 		seriesRootID = *old.SeriesRootID
 	}
 	sourceCareOfferingIDs, sourceGradeLevels, sourceSchoolClasses := successorOfferingSource(in)
 	roomID := in.RoomID
-	return &activitiesModel.Group{
+	return &activityContract.Group{
 		Name:                  in.Name,
 		MaxParticipants:       successorMaxParticipants(old, in),
 		RequiredStaff:         providedOrInherited(in.RequiredStaffProvided, in.RequiredStaff, old.RequiredStaff),
@@ -194,7 +195,7 @@ func successorIncludesClosingDays(requested *bool, inherited bool) bool {
 	return inherited
 }
 
-func successorMaxParticipants(old *activitiesModel.Group, in TemplateSplitInput) int {
+func successorMaxParticipants(old *activityContract.Group, in TemplateSplitInput) int {
 	if !in.MaxParticipantsProvided && in.MaxParticipants == nil {
 		return old.MaxParticipants
 	}
@@ -250,8 +251,8 @@ func (s *TemplateSplitService) createSuccessorSchedules(
 	scheduleIDs := make([]int64, 0, len(in.Weekdays))
 	for _, weekday := range in.Weekdays {
 		tfID := timeframeID
-		validFrom := activitiesModel.Date(in.EffectiveDate)
-		sched := &activitiesModel.Schedule{
+		validFrom := activityContract.Date(in.EffectiveDate)
+		sched := &activityContract.Schedule{
 			Weekday:          weekday,
 			TimeframeID:      &tfID,
 			ActivityGroupID:  groupID,
@@ -286,7 +287,7 @@ func (s *TemplateSplitService) createStudentRoster(
 	ctx context.Context,
 	groupID int64,
 	in TemplateSplitInput,
-	carried []*activitiesModel.StudentEnrollment,
+	carried []*activityContract.StudentEnrollment,
 	tenantID int64,
 	segmentValidUntil *calendar.Date,
 ) error {
@@ -297,7 +298,7 @@ func (s *TemplateSplitService) createStudentRoster(
 	protectedCoverage := buildProtectedStudentCoverage(
 		protected,
 		in.Weekdays,
-		func(row *activitiesModel.StudentEnrollment) bool {
+		func(row *activityContract.StudentEnrollment) bool {
 			return rosterPeriodApplies(row.CalendarPeriodID, in.CalendarPeriodID) ||
 				(in.CalendarPeriodID != nil && row.CalendarPeriodID != nil)
 		},
@@ -310,10 +311,10 @@ func (s *TemplateSplitService) createStudentRoster(
 }
 
 func partitionCarriedEnrollments(
-	carried []*activitiesModel.StudentEnrollment,
-) (manual, protected []*activitiesModel.StudentEnrollment) {
-	manual = make([]*activitiesModel.StudentEnrollment, 0, len(carried))
-	protected = make([]*activitiesModel.StudentEnrollment, 0, len(carried))
+	carried []*activityContract.StudentEnrollment,
+) (manual, protected []*activityContract.StudentEnrollment) {
+	manual = make([]*activityContract.StudentEnrollment, 0, len(carried))
+	protected = make([]*activityContract.StudentEnrollment, 0, len(carried))
 	for _, row := range carried {
 		if enrollmentIsProtected(row) {
 			protected = append(protected, row)
@@ -325,7 +326,7 @@ func partitionCarriedEnrollments(
 }
 
 func validateProtectedEnrollmentRebase(
-	rows []*activitiesModel.StudentEnrollment,
+	rows []*activityContract.StudentEnrollment,
 	targetPeriodID *int64,
 ) error {
 	if targetPeriodID == nil {
@@ -350,19 +351,19 @@ func validateProtectedEnrollmentRebase(
 
 func buildSuccessorStudentRows(
 	in TemplateSplitInput,
-	carried []*activitiesModel.StudentEnrollment,
+	carried []*activityContract.StudentEnrollment,
 	protectedCoverage map[int64]protectedStudentCoverage,
 	segmentValidUntil *calendar.Date,
-) []*activitiesModel.StudentEnrollment {
+) []*activityContract.StudentEnrollment {
 	if in.StudentIDs != nil {
 		resolved, err := resolveTemplateRoster(in.Weekdays, in.StudentIDs, nil, nil, in.WeekdayAssignments)
 		if err != nil {
 			resolved = resolvedTemplateRoster{Students: sharedRosterRows(in.StudentIDs, nil)}
 		}
 		manualRows := excludeProtectedStudentWeekdays(resolved.Students, protectedCoverage)
-		rows := make([]*activitiesModel.StudentEnrollment, 0, len(manualRows))
+		rows := make([]*activityContract.StudentEnrollment, 0, len(manualRows))
 		for _, row := range manualRows {
-			rows = append(rows, &activitiesModel.StudentEnrollment{
+			rows = append(rows, &activityContract.StudentEnrollment{
 				StudentID: row.PersonID,
 				Weekday:   weekdayScopePtr(row.Weekday),
 			})
@@ -373,13 +374,13 @@ func buildSuccessorStudentRows(
 }
 
 func carriedStudentRowsByPerson(
-	carried []*activitiesModel.StudentEnrollment,
+	carried []*activityContract.StudentEnrollment,
 	periodID *int64,
 	segmentValidUntil *calendar.Date,
-) []*activitiesModel.StudentEnrollment {
+) []*activityContract.StudentEnrollment {
 	// Keyed by (student, weekday scope) — see carriedStaffRowsByPerson for why
 	// the weekday must be part of the key (#2129).
-	byStudent := make(map[rosterPersonScope][]*activitiesModel.StudentEnrollment, len(carried))
+	byStudent := make(map[rosterPersonScope][]*activityContract.StudentEnrollment, len(carried))
 	order := make([]rosterPersonScope, 0, len(carried))
 	for _, row := range carried {
 		key := rosterPersonScope{PersonID: row.StudentID, Weekday: weekdayScopeKey(row.Weekday)}
@@ -388,11 +389,11 @@ func carriedStudentRowsByPerson(
 		}
 		byStudent[key] = append(byStudent[key], row)
 	}
-	rows := make([]*activitiesModel.StudentEnrollment, 0, len(order))
+	rows := make([]*activityContract.StudentEnrollment, 0, len(order))
 	for _, key := range order {
 		group := byStudent[key]
-		preferred := preferCarriedRow(group, periodID, func(row *activitiesModel.StudentEnrollment) *int64 { return row.CalendarPeriodID })
-		rows = append(rows, &activitiesModel.StudentEnrollment{
+		preferred := preferCarriedRow(group, periodID, func(row *activityContract.StudentEnrollment) *int64 { return row.CalendarPeriodID })
+		rows = append(rows, &activityContract.StudentEnrollment{
 			StudentID:        key.PersonID,
 			ValidFrom:        preferred.ValidFrom,
 			ValidUntil:       earliestActivityDate(preferred.ValidUntil, segmentValidUntil),
@@ -407,14 +408,14 @@ func (s *TemplateSplitService) persistSuccessorStudentRows(
 	ctx context.Context,
 	groupID int64,
 	in TemplateSplitInput,
-	rows []*activitiesModel.StudentEnrollment,
+	rows []*activityContract.StudentEnrollment,
 	tenantID int64,
 	segmentValidUntil *calendar.Date,
 ) error {
 	for _, row := range rows {
 		row.ActivityGroupID = groupID
 		if row.ValidFrom.IsZero() || row.ValidFrom.Before(in.EffectiveDate) {
-			row.ValidFrom = activitiesModel.Date(in.EffectiveDate)
+			row.ValidFrom = activityContract.Date(in.EffectiveDate)
 		}
 		row.ValidUntil = earliestActivityDate(row.ValidUntil, segmentValidUntil)
 		row.CalendarPeriodID = in.CalendarPeriodID
@@ -430,16 +431,16 @@ func (s *TemplateSplitService) persistProtectedStudentRows(
 	ctx context.Context,
 	groupID int64,
 	in TemplateSplitInput,
-	rows []*activitiesModel.StudentEnrollment,
+	rows []*activityContract.StudentEnrollment,
 	tenantID int64,
 	segmentValidUntil *calendar.Date,
 ) error {
 	for _, source := range rows {
 		validFrom := source.ValidFrom
 		if validFrom.Before(in.EffectiveDate) {
-			validFrom = activitiesModel.Date(in.EffectiveDate)
+			validFrom = activityContract.Date(in.EffectiveDate)
 		}
-		row := &activitiesModel.StudentEnrollment{
+		row := &activityContract.StudentEnrollment{
 			StudentID:                source.StudentID,
 			ActivityGroupID:          groupID,
 			ValidFrom:                validFrom,
@@ -479,7 +480,7 @@ func (s *TemplateSplitService) createStaffRoster(
 	ctx context.Context,
 	groupID int64,
 	in TemplateSplitInput,
-	carried []*activitiesModel.SupervisorPlanned,
+	carried []*activityContract.SupervisorPlanned,
 	tenantID int64,
 	segmentValidUntil *calendar.Date,
 ) error {
@@ -487,7 +488,7 @@ func (s *TemplateSplitService) createStaffRoster(
 	for _, row := range rows {
 		row.GroupID = groupID
 		if row.ValidFrom.IsZero() || row.ValidFrom.Before(in.EffectiveDate) {
-			row.ValidFrom = activitiesModel.Date(in.EffectiveDate)
+			row.ValidFrom = activityContract.Date(in.EffectiveDate)
 		}
 		row.ValidUntil = earliestActivityDate(row.ValidUntil, segmentValidUntil)
 		row.CalendarPeriodID = in.CalendarPeriodID
@@ -501,9 +502,9 @@ func (s *TemplateSplitService) createStaffRoster(
 
 func buildSuccessorStaffRows(
 	in TemplateSplitInput,
-	carried []*activitiesModel.SupervisorPlanned,
+	carried []*activityContract.SupervisorPlanned,
 	segmentValidUntil *calendar.Date,
-) []*activitiesModel.SupervisorPlanned {
+) []*activityContract.SupervisorPlanned {
 	if in.StaffIDs != nil {
 		resolved, err := resolveTemplateRoster(in.Weekdays, nil, in.StaffIDs, in.PrimaryStaffID, in.WeekdayAssignments)
 		if err != nil {
@@ -512,9 +513,9 @@ func buildSuccessorStaffRows(
 			// the shared roster rather than dropping the staff entirely.
 			resolved = resolvedTemplateRoster{Staff: sharedRosterRows(in.StaffIDs, in.PrimaryStaffID)}
 		}
-		rows := make([]*activitiesModel.SupervisorPlanned, 0, len(resolved.Staff))
+		rows := make([]*activityContract.SupervisorPlanned, 0, len(resolved.Staff))
 		for _, row := range resolved.Staff {
-			rows = append(rows, &activitiesModel.SupervisorPlanned{
+			rows = append(rows, &activityContract.SupervisorPlanned{
 				StaffID:   row.PersonID,
 				IsPrimary: row.IsPrimary,
 				Weekday:   weekdayScopePtr(row.Weekday),
@@ -526,14 +527,14 @@ func buildSuccessorStaffRows(
 }
 
 func carriedStaffRowsByPerson(
-	carried []*activitiesModel.SupervisorPlanned,
+	carried []*activityContract.SupervisorPlanned,
 	periodID *int64,
 	segmentValidUntil *calendar.Date,
-) []*activitiesModel.SupervisorPlanned {
+) []*activityContract.SupervisorPlanned {
 	// Keyed by (staff, weekday scope), not by staff alone: collapsing a
 	// per-weekday roster (#2129) to one row per person would turn "Anna
 	// montags, Bea dienstags" into "Anna and Bea every day" on the successor.
-	byStaff := make(map[rosterPersonScope][]*activitiesModel.SupervisorPlanned, len(carried))
+	byStaff := make(map[rosterPersonScope][]*activityContract.SupervisorPlanned, len(carried))
 	order := make([]rosterPersonScope, 0, len(carried))
 	for _, row := range carried {
 		key := rosterPersonScope{PersonID: row.StaffID, Weekday: weekdayScopeKey(row.Weekday)}
@@ -542,10 +543,10 @@ func carriedStaffRowsByPerson(
 		}
 		byStaff[key] = append(byStaff[key], row)
 	}
-	rows := make([]*activitiesModel.SupervisorPlanned, 0, len(order))
+	rows := make([]*activityContract.SupervisorPlanned, 0, len(order))
 	for _, key := range order {
-		preferred := preferCarriedRow(byStaff[key], periodID, func(row *activitiesModel.SupervisorPlanned) *int64 { return row.CalendarPeriodID })
-		rows = append(rows, &activitiesModel.SupervisorPlanned{
+		preferred := preferCarriedRow(byStaff[key], periodID, func(row *activityContract.SupervisorPlanned) *int64 { return row.CalendarPeriodID })
+		rows = append(rows, &activityContract.SupervisorPlanned{
 			StaffID:    key.PersonID,
 			IsPrimary:  preferred.IsPrimary,
 			ValidFrom:  preferred.ValidFrom,
@@ -596,7 +597,7 @@ func earliestOptionalDate(left, right *calendar.Date) *calendar.Date {
 	return cloneOptionalDate(right)
 }
 
-func earliestActivityDate(left *activitiesModel.Date, right *calendar.Date) *activitiesModel.Date {
+func earliestActivityDate(left *activityContract.Date, right *calendar.Date) *activityContract.Date {
 	return activityDatePtr(earliestOptionalDate(timezoneDatePtr(left), right))
 }
 
@@ -612,7 +613,7 @@ func cloneOptionalInt64(value *int64) *int64 {
 // rows. An empty/nil list means "all weekdays" and dominates the union; the
 // result preserves ascending weekday order. With a single row this returns
 // the preferred row's list unchanged.
-func unionSelectedWeekdays(rows []*activitiesModel.StudentEnrollment, preferred *activitiesModel.StudentEnrollment) []int {
+func unionSelectedWeekdays(rows []*activityContract.StudentEnrollment, preferred *activityContract.StudentEnrollment) []int {
 	if len(rows) == 1 {
 		return preferred.SelectedWeekdays
 	}
@@ -626,7 +627,7 @@ func unionSelectedWeekdays(rows []*activitiesModel.StudentEnrollment, preferred 
 		}
 	}
 	out := make([]int, 0, len(seen))
-	for wd := activitiesModel.WeekdayMonday; wd <= activitiesModel.WeekdaySunday; wd++ {
+	for wd := activityContract.WeekdayMonday; wd <= activityContract.WeekdaySunday; wd++ {
 		if _, ok := seen[wd]; ok {
 			out = append(out, wd)
 		}

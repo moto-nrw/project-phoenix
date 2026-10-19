@@ -53,17 +53,17 @@ func (u *fakeUnit) MarkRollback(context.Context) { u.rollbacks++ }
 func (*fakeUnit) RequireTransaction(context.Context) error { return nil }
 
 type fakePrincipals struct {
-	device *ports.Device
+	device *devicescan.PrincipalDevice
 }
 
-func (p fakePrincipals) Device(context.Context) (*ports.Device, bool) {
+func (p fakePrincipals) Device(context.Context) (*devicescan.PrincipalDevice, bool) {
 	return p.device, p.device != nil
 }
 
-func testDevice() *ports.Device {
+func testDevice() *devicescan.PrincipalDevice {
 	name := testDeviceName
 	lastSeen := fixedNow.Add(-time.Minute)
-	return &ports.Device{ID: testDeviceID, DeviceID: "dev-001", DeviceType: "rfid", Name: &name, Status: "active", LastSeen: &lastSeen, Active: true}
+	return &devicescan.PrincipalDevice{ID: testDeviceID, DeviceID: "dev-001", DeviceType: "rfid", Name: &name, Status: "active", LastSeen: &lastSeen, Active: true}
 }
 
 type fakeFleet struct {

@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 )
 
 type ScheduleReviewSchedules interface {
@@ -21,26 +20,35 @@ type ScheduleReviewSchedules interface {
 }
 
 type ScheduleReviewDependencies struct {
+	RunInTx               func(context.Context, func(context.Context) error) error
 	Requests              careplan.CareScheduleRequestQuery
 	Schedules             ScheduleReviewSchedules
-	People                ports.ScheduleReviewDirectory
-	Bookings              ports.ReviewBookings
-	Classes               ports.ReviewClassTimes
-	Scope                 ports.ReviewScopeResolver
+	People                careplan.ScheduleReviewDirectory
+	Bookings              careplan.ReviewBookings
+	Classes               careplan.ReviewClassTimes
+	Scope                 careplan.ReviewScopeResolver
 	BookingsAuthoritative func(context.Context) (bool, error)
 	Today                 func() careplan.Date
 	Fingerprint           func([]byte) string
-	Blocks                ports.PickupReviewBlocks
+	Blocks                careplan.PickupReviewBlocks
 	Logger                *slog.Logger
 }
 
 type ScheduleReviews struct{ deps ScheduleReviewDependencies }
 
-func NewScheduleReviews(deps ScheduleReviewDependencies) *ScheduleReviews {
+func NewScheduleReviews(deps ScheduleReviewDependencies) careplan.CareScheduleReviewQuery {
 	if deps.Logger == nil {
 		deps.Logger = slog.Default()
 	}
-	return &ScheduleReviews{deps: deps}
+	return &scheduleReviewCommands{&ScheduleReviews{deps: deps}}
+}
+
+func (s *scheduleReviewCommands) ListPending(ctx context.Context, filter careplan.RequestQueueFilter) (value0 []*careplan.CareScheduleReviewItem, value1 *careplan.RequestCursor, err error) {
+	err = s.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, value1, err = s.commands.ListPending(txCtx, filter)
+		return err
+	})
+	return
 }
 
 func (s *ScheduleReviews) ListPending(ctx context.Context, filter careplan.RequestQueueFilter) ([]*careplan.CareScheduleReviewItem, *careplan.RequestCursor, error) {
@@ -114,7 +122,7 @@ func (s *ScheduleReviews) ListPending(ctx context.Context, filter careplan.Reque
 	return items, next, nil
 }
 
-func (s *ScheduleReviews) people(ctx context.Context, rows []careplan.CareScheduleChangeRequest, operation string) (map[int64]ports.ReviewStudent, map[int64]ports.PersonName, error) {
+func (s *ScheduleReviews) people(ctx context.Context, rows []careplan.CareScheduleChangeRequest, operation string) (map[int64]careplan.ReviewStudent, map[int64]careplan.PersonName, error) {
 	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		ids = append(ids, row.StudentID)
@@ -132,6 +140,14 @@ func (s *ScheduleReviews) people(ctx context.Context, rows []careplan.CareSchedu
 		return nil, nil, fmt.Errorf("schedule: load persons for %s: %w", operation, err)
 	}
 	return students, names, nil
+}
+
+func (s *scheduleReviewCommands) ListHistory(ctx context.Context, filter careplan.RequestQueueFilter) (value0 []*careplan.CareScheduleHistoryItem, value1 *careplan.RequestCursor, err error) {
+	err = s.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, value1, err = s.commands.ListHistory(txCtx, filter)
+		return err
+	})
+	return
 }
 
 func (s *ScheduleReviews) ListHistory(ctx context.Context, filter careplan.RequestQueueFilter) ([]*careplan.CareScheduleHistoryItem, *careplan.RequestCursor, error) {
@@ -178,7 +194,7 @@ func (s *ScheduleReviews) ListHistory(ctx context.Context, filter careplan.Reque
 	return items, next, nil
 }
 
-func (s *ScheduleReviews) plan(ctx context.Context, student ports.ReviewStudent, date careplan.Date, weekly bool) (reviewPlanFacts, error) {
+func (s *ScheduleReviews) plan(ctx context.Context, student careplan.ReviewStudent, date careplan.Date, weekly bool) (reviewPlanFacts, error) {
 	facts := reviewPlanFacts{}
 	filter := careplan.StudentScheduleFilter{StudentIDs: []int64{student.ID}}
 	var err error
@@ -244,3 +260,5 @@ func (s *ScheduleReviews) plan(ctx context.Context, student ports.ReviewStudent,
 	}
 	return facts, nil
 }
+
+type scheduleReviewCommands struct{ commands *ScheduleReviews }

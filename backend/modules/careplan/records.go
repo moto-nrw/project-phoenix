@@ -435,3 +435,17 @@ func ValidateCareDocument(value CareDocument) error {
 	}
 	return nil
 }
+
+// Other returns the far endpoint when studentID belongs to this edge.
+func (c *CompanionEdge) Other(studentID int64) (int64, bool) {
+	switch studentID {
+	case c.StudentLowID:
+		return c.StudentHighID, true
+	case c.StudentHighID:
+		return c.StudentLowID, true
+	default:
+		return 0, false
+	}
+}
+
+func (c *CompanionEdge) GetTenantID() int64 { return c.TenantID }

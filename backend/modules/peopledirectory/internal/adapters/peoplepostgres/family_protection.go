@@ -6,7 +6,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
@@ -17,7 +17,7 @@ type FamilyProtectionEventRepository struct {
 }
 
 func NewFamilyProtectionEventRepository(runtime Runtime) ports.FamilyProtectionRecords {
-	return &FamilyProtectionEventRepository{runtime: requireRuntime(runtime)}
+	return nativeFamilyProtectionRecords{FamilyProtectionEventRepository: &FamilyProtectionEventRepository{runtime: requireRuntime(runtime)}}
 }
 
 // Create overrides the generic insert so created_at uses clock_timestamp().
@@ -28,7 +28,11 @@ func (r *FamilyProtectionEventRepository) Create(ctx context.Context, event *use
 		return fmt.Errorf("family protection event cannot be nil")
 	}
 	ensureTenantID(ctx, r.runtime, event)
-	if _, err := r.runtime.DB(ctx).NewInsert().Model(event).
+	ambientDB1, databaseErr1 := r.runtime.DB(ctx)
+	if databaseErr1 != nil {
+		return databaseErr1
+	}
+	if _, err := ambientDB1.NewInsert().Model(event).
 		ModelTableExpr(familyProtectionTable).
 		Value("created_at", "clock_timestamp()").
 		Value("updated_at", "clock_timestamp()").
@@ -46,7 +50,11 @@ func (r *FamilyProtectionEventRepository) CurrentForStudents(ctx context.Context
 		return result, nil
 	}
 	var rows []*userModels.FamilyProtectionEvent
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB2, databaseErr2 := r.runtime.DB(ctx)
+	if databaseErr2 != nil {
+		return *new(map[int64]*userModels.FamilyProtectionEvent), databaseErr2
+	}
+	query := ambientDB2.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`users.student_family_protection_events AS "family_protection_event"`).
 		Where(`"family_protection_event".student_id IN (?)`, bun.List(studentIDs)).

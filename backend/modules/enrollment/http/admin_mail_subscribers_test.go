@@ -33,7 +33,7 @@ func TestSubmit_AdminNotificationReachesSubscribedEnrollmentManagers(t *testing.
 	const enrollmentMail = "enrollment_submitted"
 	subscribe := func(t *testing.T, ctx context.Context, accountID int64, enabled bool) {
 		t.Helper()
-		require.NoError(t, consent.RecordConsent(ctx, accountID, enrollmentMail, enabled))
+		require.NoError(t, testpkg.TenantCommand3(t, ctx, testpkg.SetupTestDB(t), consent.RecordConsent, accountID, enrollmentMail, enabled))
 	}
 
 	manager := testpkg.CreateTestAccount(t, env.db, "anmeldung-leitung")

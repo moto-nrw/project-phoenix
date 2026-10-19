@@ -36,7 +36,7 @@
     "source": "Local verification on the #2729 branch on 2026-10-16 against the local postgres-test server.",
     "sources": [
       "backend/modules/workforce/plan_staff.go",
-      "backend/api/workforce_plan_staff.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/workforce_plan_staff.go",
       "backend/modules/workforce/internal/planning/ports.go",
       "backend/workflows/shiftplansync/internal/application/substitution.go"
     ],

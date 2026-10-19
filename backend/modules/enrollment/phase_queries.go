@@ -12,35 +12,26 @@ func (m *Module) OpenPhaseCandidates(ctx context.Context) ([]*Phase, error) {
 
 // CountPhaseSchemaReferences counts phases pinned to any of the supplied versions.
 func (m *Module) CountPhaseSchemaReferences(ctx context.Context, schemaIDs []int64) (int, error) {
-	var count int
-	err := m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		var err error
-		count, err = m.engine.CountPhaseSchemaReferences(txCtx, schemaIDs)
-		return err
-	})
-	return count, err
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return 0, err
+	}
+	return m.engine.CountPhaseSchemaReferences(ctx, schemaIDs)
 }
 
 // RepointPhaseSchemas advances phase form pins within the caller's school.
 // A publication workflow supplies its transaction to keep insertion and repointing atomic.
 func (m *Module) RepointPhaseSchemas(ctx context.Context, fromIDs []int64, toID int64) (int64, error) {
-	var count int64
-	err := m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		var err error
-		count, err = m.engine.RepointPhaseSchemas(txCtx, fromIDs, toID)
-		return err
-	})
-	return count, err
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return 0, err
+	}
+	return m.engine.RepointPhaseSchemas(ctx, fromIDs, toID)
 }
 
 // PhaseCountsByCalendarPeriod reports phase references for the caller's school.
 // Periods without phase references are omitted.
 func (m *Module) PhaseCountsByCalendarPeriod(ctx context.Context) (map[int64]int, error) {
-	var counts map[int64]int
-	err := m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		var err error
-		counts, err = m.engine.PhaseCountsByCalendarPeriod(txCtx)
-		return err
-	})
-	return counts, err
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	return m.engine.PhaseCountsByCalendarPeriod(ctx)
 }

@@ -6,6 +6,8 @@ import (
 	"context"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	notificationsHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 
@@ -16,40 +18,37 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+// SchoolTestModule is the Identity & Access side of the school portal.
 type SchoolTestModule struct {
-	ClassDayTestModule
-	DeliveryTestModule
 	Auth *identityaccess.Module
 	MFA  identityaccess.AccountMFA
 	// SchoolAuth and SchoolMFA are the portal runtimes the composition root
 	// binds, so a router test drives the same scope binding production has.
 	SchoolAuth schoolportal.AuthRuntime
 	SchoolMFA  schoolportal.MFARuntime
-	// TimetableSupervisionSheets serves the per-child sheet of the
-	// supervision surface from the enrollment report, as the root binds it.
-	TimetableSupervisionSheets TimetableSupervisionSheets
 }
 
-func NewSchoolTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (SchoolTestModule, error) {
+// NewSchoolTestModule composes the school portal's Identity & Access side
+// over db and returns it with the class day and the Delivery owner the
+// portal mounts beside it.
+func NewSchoolTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (SchoolTestModule, ClassDayTestModule, DeliveryTestModule, error) {
 	classday, err := NewClassDayTestModule(db, unit, clocks...)
 	if err != nil {
-		return SchoolTestModule{}, err
+		return SchoolTestModule{}, ClassDayTestModule{}, DeliveryTestModule{}, err
 	}
 	auth, err := NewAuthTestModule(db, unit)
 	if err != nil {
-		return SchoolTestModule{}, err
+		return SchoolTestModule{}, ClassDayTestModule{}, DeliveryTestModule{}, err
 	}
 	delivery, err := NewDeliveryTestModule(db, unit)
 	if err != nil {
-		return SchoolTestModule{}, err
+		return SchoolTestModule{}, ClassDayTestModule{}, DeliveryTestModule{}, err
 	}
 	return SchoolTestModule{
-		ClassDayTestModule: classday, DeliveryTestModule: delivery,
 		Auth: auth.Auth, MFA: auth.MFA,
-		SchoolAuth:                 SchoolPortalAuth(auth.Auth),
-		SchoolMFA:                  SchoolPortalMFA(auth.MFA),
-		TimetableSupervisionSheets: NewTimetableSupervisionSheets(classday.ClassDay),
-	}, nil
+		SchoolAuth: SchoolPortalAuth(auth.Auth),
+		SchoolMFA:  SchoolPortalMFA(auth.MFA),
+	}, classday, delivery, nil
 }
 
 // SchoolDeletionLookupForTests reads whether a seeded school exists and is
@@ -57,12 +56,12 @@ func NewSchoolTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 // owner the serving root binds. Every read runs under runtime, as the request
 // middleware provides it.
 func SchoolDeletionLookupForTests(db transactionruntime.Database, runtime tenant.UnitOfWork) (func(context.Context, int64) (found, deleted bool, err error), error) {
-	schools, err := NewOrganizationTenancy(db)
+	schools, err := owners.NewOrganizationTenancy(db)
 	if err != nil {
 		return nil, err
 	}
 	return func(ctx context.Context, id int64) (bool, bool, error) {
-		school, found, err := lookupSchool(tenant.WithUnitOfWork(ctx, runtime), schools, id)
+		school, found, err := owners.LookupSchool(tenant.WithUnitOfWork(ctx, runtime), schools, id)
 		return found, found && school.IsDeleted(), err
 	}, nil
 }

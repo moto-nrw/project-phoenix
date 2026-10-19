@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -61,7 +61,7 @@ func TestParentAnnouncementReminderDueScanAndClaim(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	rows, err := repo.ListDueReminders(ctx, window, now)
+	rows, err := testpkg.TenantQuery2(t, ctx, db, repo.ListDueReminders, window, now)
 	require.NoError(t, err)
 	got := api.ParentStoreAnnouncementIDsOf(rows)
 	assert.Contains(t, got, due.ID)
@@ -76,10 +76,10 @@ func TestParentAnnouncementReminderDueScanAndClaim(t *testing.T) {
 
 	// Editing before the claim works, and only rewrites the reminder columns.
 	moved := now.Add(30 * time.Minute)
-	applied, err := repo.SetReminder(ctx, due.ID, &moved, nil)
+	applied, err := testpkg.TenantQuery3(t, ctx, db, repo.SetReminder, due.ID, &moved, nil)
 	require.NoError(t, err)
 	assert.True(t, applied)
-	reloaded, err := repo.FindByID(ctx, due.ID)
+	reloaded, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, due.ID)
 	require.NoError(t, err)
 	require.NotNil(t, reloaded.ReminderAt)
 	assert.WithinDuration(t, moved, *reloaded.ReminderAt, time.Second)
@@ -89,71 +89,71 @@ func TestParentAnnouncementReminderDueScanAndClaim(t *testing.T) {
 
 	// Move it back into the window and claim it: once, and only once.
 	backDue := now.Add(-5 * time.Minute)
-	applied, err = repo.SetReminder(ctx, due.ID, &backDue, nil)
+	applied, err = testpkg.TenantQuery3(t, ctx, db, repo.SetReminder, due.ID, &backDue, nil)
 	require.NoError(t, err)
 	assert.True(t, applied)
 
-	claimed, err := repo.ClaimReminder(ctx, due.ID, now)
+	claimed, err := testpkg.TenantQuery2(t, ctx, db, repo.ClaimReminder, due.ID, now)
 	require.NoError(t, err)
 	assert.True(t, claimed, "the first claim wins")
-	released, err := repo.ReleaseReminderClaim(ctx, due.ID, now)
+	released, err := testpkg.TenantQuery2(t, ctx, db, repo.ReleaseReminderClaim, due.ID, now)
 	require.NoError(t, err)
 	assert.True(t, released, "a temporary delivery gate may restore its own claim")
-	claimed, err = repo.ClaimReminder(ctx, due.ID, now.Add(time.Second))
+	claimed, err = testpkg.TenantQuery2(t, ctx, db, repo.ClaimReminder, due.ID, now.Add(time.Second))
 	require.NoError(t, err)
 	assert.True(t, claimed, "the restored reminder can be retried")
-	released, err = repo.ReleaseReminderClaim(ctx, due.ID, now)
+	released, err = testpkg.TenantQuery2(t, ctx, db, repo.ReleaseReminderClaim, due.ID, now)
 	require.NoError(t, err)
 	assert.False(t, released, "an older scheduler run must not clear the newer claim")
-	claimed, err = repo.ClaimReminder(ctx, due.ID, now)
+	claimed, err = testpkg.TenantQuery2(t, ctx, db, repo.ClaimReminder, due.ID, now)
 	require.NoError(t, err)
 	assert.False(t, claimed, "a second claim of the same reminder must not send again")
 
-	rows, err = repo.ListDueReminders(ctx, window, now)
+	rows, err = testpkg.TenantQuery2(t, ctx, db, repo.ListDueReminders, window, now)
 	require.NoError(t, err)
 	assert.NotContains(t, api.ParentStoreAnnouncementIDsOf(rows), due.ID, "a claimed reminder leaves the due scan")
 
-	applied, err = repo.SetReminder(ctx, due.ID, &moved, nil)
+	applied, err = testpkg.TenantQuery3(t, ctx, db, repo.SetReminder, due.ID, &moved, nil)
 	require.NoError(t, err)
 	assert.False(t, applied, "a sent reminder is history and cannot be edited")
 
-	reloaded, err = repo.FindByID(ctx, due.ID)
+	reloaded, err = testpkg.TenantQuery1(t, ctx, db, repo.FindByID, due.ID)
 	require.NoError(t, err)
 	require.NotNil(t, reloaded.ReminderSentAt)
 
 	// A correction starts a new publication cycle. Its former reminder belonged
 	// to the withdrawn version, so no part of it may be retained or resent.
-	require.NoError(t, repo.SetPublished(ctx, due.ID, nil))
-	reloaded, err = repo.FindByID(ctx, due.ID)
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, db, repo.SetPublished, due.ID, nil))
+	reloaded, err = testpkg.TenantQuery1(t, ctx, db, repo.FindByID, due.ID)
 	require.NoError(t, err)
 	assert.Nil(t, reloaded.ReminderAt)
 	assert.Nil(t, reloaded.ReminderText)
 	assert.Nil(t, reloaded.ReminderSentAt)
 	replanned := now.Add(time.Hour)
-	applied, err = repo.SetReminder(ctx, due.ID, &replanned, nil)
+	applied, err = testpkg.TenantQuery3(t, ctx, db, repo.SetReminder, due.ID, &replanned, nil)
 	require.NoError(t, err)
 	assert.True(t, applied)
 	republishedAt := now
-	require.NoError(t, repo.SetPublished(ctx, due.ID, &republishedAt))
-	claimed, err = repo.ClaimReminder(ctx, due.ID, replanned.Add(time.Minute))
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, db, repo.SetPublished, due.ID, &republishedAt))
+	claimed, err = testpkg.TenantQuery2(t, ctx, db, repo.ClaimReminder, due.ID, replanned.Add(time.Minute))
 	require.NoError(t, err)
 	assert.True(t, claimed)
 
 	// Removing an unsent reminder drops moment and text together.
-	applied, err = repo.SetReminder(ctx, future.ID, nil, nil)
+	applied, err = testpkg.TenantQuery3(t, ctx, db, repo.SetReminder, future.ID, nil, nil)
 	require.NoError(t, err)
 	assert.True(t, applied)
-	reloaded, err = repo.FindByID(ctx, future.ID)
+	reloaded, err = testpkg.TenantQuery1(t, ctx, db, repo.FindByID, future.ID)
 	require.NoError(t, err)
 	assert.Nil(t, reloaded.ReminderAt)
 	assert.Nil(t, reloaded.ReminderText)
 
 	// Claims that lose to a retraction match nothing.
-	require.NoError(t, repo.SetPublished(ctx, draft.ID, nil))
-	claimed, err = repo.ClaimReminder(ctx, draft.ID, now)
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, db, repo.SetPublished, draft.ID, nil))
+	claimed, err = testpkg.TenantQuery2(t, ctx, db, repo.ClaimReminder, draft.ID, now)
 	require.NoError(t, err)
 	assert.False(t, claimed, "a draft cannot be claimed")
-	claimed, err = repo.ClaimReminder(ctx, expired.ID, now)
+	claimed, err = testpkg.TenantQuery2(t, ctx, db, repo.ClaimReminder, expired.ID, now)
 	require.NoError(t, err)
 	assert.False(t, claimed, "an expired announcement cannot be claimed")
 }
@@ -175,7 +175,7 @@ func TestParentAnnouncementReminderDueScanBatchLoadsTargets(t *testing.T) {
 	}
 	readDue := func(counter *testpkg.QueryCounter, want int) []string {
 		counter.Reset()
-		rows, err := repo.ListDueReminders(counter.Context(ctx), window, now)
+		rows, err := testpkg.MeasuredTenantQuery2(t, counter.Context(ctx), db, counter, repo.ListDueReminders, window, now)
 		require.NoError(t, err)
 		require.Len(t, rows, want)
 		return counter.Queries()
@@ -215,25 +215,25 @@ func TestParentAnnouncementReminderFeedOrderAndTenantIsolation(t *testing.T) {
 		"Neuer", api.ParentStoreTargetValues([]api.ParentStoreTargetInput{{TargetType: userModels.AnnouncementTargetSchoolAll}}))
 
 	// The guardian read the older one weeks ago.
-	olderRow, err := repo.FindByID(ctx, older.ID)
+	olderRow, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, older.ID)
 	require.NoError(t, err)
-	live, err := repo.MarkRead(ctx, chain.TenantID, older.ID, chain.AccountID, *olderRow.PublishedAt)
+	live, err := testpkg.TenantQuery4(t, ctx, db, repo.MarkRead, chain.TenantID, older.ID, chain.AccountID, *olderRow.PublishedAt)
 	require.NoError(t, err)
 	require.True(t, live)
 
 	scope := api.ParentStoreFeedScopeValue(api.ParentStoreFeedScopeInput{TenantIDs: []int64{chain.TenantID}})
-	feed, err := repo.ListFeedForAccount(ctx, chain.AccountID, scope)
+	feed, err := testpkg.TenantQuery2(t, ctx, db, repo.ListFeedForAccount, chain.AccountID, scope)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(feed), 2)
 	assert.Equal(t, newer.ID, feed[0].ID, "before the reminder the newer publication leads")
 
 	// The reminder goes out AFTER the newer announcement was published.
 	sentAt := databaseTimestamp(t, db)
-	claimed, err := repo.ClaimReminder(ctx, older.ID, sentAt)
+	claimed, err := testpkg.TenantQuery2(t, ctx, db, repo.ClaimReminder, older.ID, sentAt)
 	require.NoError(t, err)
 	require.True(t, claimed)
 
-	feed, err = repo.ListFeedForAccount(ctx, chain.AccountID, scope)
+	feed, err = testpkg.TenantQuery2(t, ctx, db, repo.ListFeedForAccount, chain.AccountID, scope)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(feed), 2)
 	assert.Equal(t, older.ID, feed[0].ID, "the reminded announcement is back on top")
@@ -241,7 +241,7 @@ func TestParentAnnouncementReminderFeedOrderAndTenantIsolation(t *testing.T) {
 	require.NotNil(t, feed[0].ReminderText)
 	assert.NotNil(t, feed[0].ReadAt, "the reminder does not reset the read state")
 
-	unread, err := repo.CountUnreadForAccount(ctx, chain.AccountID, scope)
+	unread, err := testpkg.TenantQuery2(t, ctx, db, repo.CountUnreadForAccount, chain.AccountID, scope)
 	require.NoError(t, err)
 	assert.Equal(t, 1, unread, "only the never-read announcement counts; the reminder adds nothing")
 
@@ -251,11 +251,11 @@ func TestParentAnnouncementReminderFeedOrderAndTenantIsolation(t *testing.T) {
 		return databaseTimestamp(t, db)
 	}, repo, chain.AccountID, chain.TenantID,
 		"Offen", now.Add(-10*time.Minute), true, nil)
-	rows, err := repo.ListDueReminders(ctx, now.Add(-time.Hour), now)
+	rows, err := testpkg.TenantQuery2(t, ctx, db, repo.ListDueReminders, now.Add(-time.Hour), now)
 	require.NoError(t, err)
 	require.Contains(t, api.ParentStoreAnnouncementIDsOf(rows), pending.ID)
 	otherTenant, _ := testpkg.CreateTestTenant(t, db)
-	rows, err = repo.ListDueReminders(testpkg.TenantContext(otherTenant), now.Add(-time.Hour), now)
+	rows, err = testpkg.TenantQuery2(t, testpkg.TenantContext(otherTenant), db, repo.ListDueReminders, now.Add(-time.Hour), now)
 	require.NoError(t, err)
 	assert.NotContains(t, api.ParentStoreAnnouncementIDsOf(rows), pending.ID)
 }

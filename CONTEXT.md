@@ -611,7 +611,8 @@ Träger-Büro, nicht das Büro).
 Ein **Personalaustritt** beendet die Beschäftigung einer Person an einer
 Schule, ohne ihren Personensatz oder ihren Beschäftigungsverlauf zu löschen.
 Er entzieht den Schulzugang, beendet Gruppen-, Klassen- und Vertretungs-
-zuordnungen und gibt Transponder und Arbeitszeitmodell frei. Personal-
+zuordnungen und gibt den Transponder frei. Kontolink und Arbeitszeitmodell
+bleiben stehen, damit eine Wiederaufnahme sie wiederfindet. Personal-
 dokumente werden dabei endgültig entfernt; sie kehren durch nichts zurück.
 _Vermeiden_: Offboarding (nur im Code), Löschung, Deaktivierung.
 
@@ -753,3 +754,26 @@ AU-Bescheinigung. moto ist dafür Ablage, kein gesetzliches Archiv: Gesetzliche
 Aufbewahrungspflichten erfüllt der Träger in seinem eigenen Lohn- und
 Aktensystem.
 _Vermeiden_: Personalakte (meint das vollständige gesetzliche Archiv).
+
+## Backend-Modul
+
+Ein **Fachmodul** ist der Teil des Backends, der einen fachlichen Begriff von
+moto mit seinen Regeln und Daten besitzt. Ein **Plattformmodul** stellt eine
+gemeinsame Laufzeit bereit, etwa Mandanten, Transaktionen, Sicherheit oder
+Zustellung, und besitzt nicht die fachliche Bedeutung dessen, was es
+transportiert. moto hat 18 Fachmodule und 10 Plattformmodule:
+
+- Fachmodule: Identity & Access, People Directory, School Membership,
+  Organisation & Tenancy, School Structure, School Calendar, Facilities,
+  Enrollment, Care Plan, Timetable & Activities, Student Presence, Workforce,
+  Appointments, Communication, Device Fleet, Meal Plan, Feedback, File Storage.
+- Plattformmodule: Tenant Runtime, Transaction Runtime, Security Runtime,
+  Settings Platform, Delivery Platform, Observability, Audit Platform,
+  Scheduler Runtime, Document Rendering, Export Transfer.
+
+Projektionen, Workflows und Werkzeuge sind keine Module. Die Regeln für
+Module stehen in den Prinzipien-ADRs 0066 bis 0071, Einstieg und Liste in
+[ADR 0066](docs/adr/0066-principle-every-module-table-and-cross-owner-read-has-one-owner.md),
+die Übersicht in der
+[Architektur-README](backend/architecture/README.md#architecture-principles).
+_Vermeiden_: Service oder Domäne für ein Plattformmodul.

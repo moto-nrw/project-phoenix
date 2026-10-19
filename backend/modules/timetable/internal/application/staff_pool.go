@@ -6,9 +6,9 @@ import (
 	"slices"
 	"sort"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -20,6 +20,14 @@ import (
 // StaffPoolForInstance categorizes every staff member against the block's
 // window. Same-day semantics mirror the deviation flow: an absence is
 // day-wide, and only planned or running blocks count as occupying.
+func (d *conflictCommands) StaffPoolForInstance(ctx context.Context, instanceID int64) (value0 timetable.StaffPool, err error) {
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.commands.StaffPoolForInstance(txCtx, instanceID)
+		return err
+	})
+	return
+}
+
 func (d *conflictDetection) StaffPoolForInstance(ctx context.Context, instanceID int64) (timetable.StaffPool, error) {
 	instance, err := d.deps.Instances.FindByID(ctx, instanceID)
 	if err != nil {
@@ -80,7 +88,7 @@ func (d *conflictDetection) loadStaffPoolFacts(ctx context.Context, instance *sc
 		return nil, false, nil, fmt.Errorf("load shifts: %w", err)
 	}
 	weekFrom, weekTo := timetable.ContainingCalendarWeek(calendar.Date(date))
-	usedWeeks, err := d.deps.Shifts.FindUsedCalendarWeeks(ctx, scheduleModels.Date(weekFrom), scheduleModels.Date(weekTo))
+	usedWeeks, err := d.deps.Shifts.FindUsedCalendarWeeks(ctx, calendar.Date(weekFrom), calendar.Date(weekTo))
 	if err != nil {
 		return nil, false, nil, fmt.Errorf("load used shift weeks: %w", err)
 	}

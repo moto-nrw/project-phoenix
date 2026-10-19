@@ -34,14 +34,14 @@ func (s *Store) ListStaffTargetOverrides(ctx context.Context, query domain.Targe
 	if len(query.StaffIDs) == 0 {
 		return nil, domain.OperationStats{}, nil
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []staffTargetOverrideRow{}
 	selectQuery := withTenant(db.NewSelect().Model(&rows).
 		ModelTableExpr(tableStaffTargetOverrides+` AS "staff_target_override"`).
-		Where(`"staff_target_override".staff_id IN (?)`, bun.List(query.StaffIDs)), aliasStaffTargetOverride, tenantID)
+		Where(`"staff_target_override".staff_id IN (?)`, bun.List(query.StaffIDs)), aliasStaffTargetOverride, scope)
 	if query.From != "" && query.To != "" {
 		selectQuery = selectQuery.
 			Where(`"staff_target_override".start_date <= ?`, calendarDate(query.To)).
@@ -61,7 +61,7 @@ func (s *Store) ListStaffTargetOverrides(ctx context.Context, query domain.Targe
 }
 
 func (s *Store) FindStaffTargetOverride(ctx context.Context, staffID, id int64) (domain.StaffTargetOverride, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffTargetOverride{}, false, domain.OperationStats{}, err
 	}
@@ -69,7 +69,7 @@ func (s *Store) FindStaffTargetOverride(ctx context.Context, staffID, id int64) 
 	query := withTenant(db.NewSelect().Model(row).
 		ModelTableExpr(tableStaffTargetOverrides+` AS "staff_target_override"`).
 		Where(`"staff_target_override".id = ?`, id).
-		Where(`"staff_target_override".staff_id = ?`, staffID), aliasStaffTargetOverride, tenantID)
+		Where(`"staff_target_override".staff_id = ?`, staffID), aliasStaffTargetOverride, scope)
 	found, stats, err := scanOne(ctx, query, "find staff target override")
 	if err != nil || !found {
 		return domain.StaffTargetOverride{}, found, stats, err
@@ -78,13 +78,13 @@ func (s *Store) FindStaffTargetOverride(ctx context.Context, staffID, id int64) 
 }
 
 func (s *Store) CreateStaffTargetOverride(ctx context.Context, value domain.StaffTargetOverride) (domain.StaffTargetOverride, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffTargetOverride{}, domain.OperationStats{}, err
 	}
 	row := staffTargetOverrideFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -98,14 +98,14 @@ func (s *Store) CreateStaffTargetOverride(ctx context.Context, value domain.Staf
 }
 
 func (s *Store) DeleteStaffTargetOverride(ctx context.Context, staffID, id int64) (bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewDelete().Model((*staffTargetOverrideRow)(nil)).
 		ModelTableExpr(tableStaffTargetOverrides+` AS "staff_target_override"`).
 		Where(`"staff_target_override".id = ?`, id).
-		Where(`"staff_target_override".staff_id = ?`, staffID), aliasStaffTargetOverride, tenantID)
+		Where(`"staff_target_override".staff_id = ?`, staffID), aliasStaffTargetOverride, scope)
 	stats, err := execAffected(ctx, query, "delete staff target override")
 	return err == nil && stats.Rows == 1, stats, err
 }

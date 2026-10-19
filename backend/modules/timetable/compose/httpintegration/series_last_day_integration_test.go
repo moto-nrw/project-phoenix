@@ -4,11 +4,13 @@ import (
 	"testing"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -36,10 +38,10 @@ func TestMaterializeForTenant_StopsAfterTheSeriesLastDay(t *testing.T) {
 	first := calendar.NewDate(2026, time.August, 31)
 	lastDay := first.AddDays(7)
 	after := first.AddDays(14)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, first)
+	s := makeScenario(t, activityContract.WeekdayMonday, first)
 	setSeriesLastDay(t, s, &lastDay)
 
-	result, err := s.factory.Materialization.MaterializeForTenant(s.ctx, first, after, timetable.MaterializationSourceManual)
+	result, err := s.materialization.MaterializeForTenant(s.ctx, first, after, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 
 	assert.Equal(t, 2, result.InstancesCreated, "the first Monday and the last day itself")
@@ -57,14 +59,14 @@ func TestUpdateTemplateFields_DropsOccurrencesAfterTheNewLastDay(t *testing.T) {
 	first := calendar.NewDate(2099, time.December, 7) // a Monday
 	lastDay := first.AddDays(7)
 	after := first.AddDays(14)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, first)
-	_, err := s.factory.Materialization.MaterializeForTenant(s.ctx, first, after, timetable.MaterializationSourceManual)
+	s := makeScenario(t, activityContract.WeekdayMonday, first)
+	_, err := s.materialization.MaterializeForTenant(s.ctx, first, after, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	require.Len(t, listInstancesForDate(t, s.db, s.template.ID, after), 1)
 
-	groups := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup
+	groups := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup
 	newEnd := lastDay.String()
-	updated, err := groups.UpdateTemplateFields(s.ctx, s.template.ID, activitiesModels.TemplateFieldsUpdate{
+	updated, err := groups.UpdateTemplateFields(s.ctx, s.template.ID, timetable.TemplateUpdate{
 		Name: s.template.Name, Type: s.template.Type, CategoryID: s.template.CategoryID,
 		RoomID: *s.template.PlannedRoomID, MaxParticipants: s.template.MaxParticipants,
 		CalendarPeriodID: s.template.CalendarPeriodID, TargetGroupType: s.template.TargetGroupType,
@@ -86,20 +88,20 @@ func TestReplanWeek_FollowsTheSeriesLastDay(t *testing.T) {
 	first := calendar.NewDate(2026, time.August, 31)
 	lastDay := first.AddDays(7)
 	after := first.AddDays(14)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, first)
-	_, err := s.factory.Materialization.MaterializeForTenant(s.ctx, first, after, timetable.MaterializationSourceManual)
+	s := makeScenario(t, activityContract.WeekdayMonday, first)
+	_, err := s.materialization.MaterializeForTenant(s.ctx, first, after, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	require.Len(t, listInstancesForDate(t, s.db, s.template.ID, after), 1)
 
 	templateID := s.template.ID
 	setSeriesLastDay(t, s, &lastDay)
-	_, err = s.factory.Instance.ReplanWeek(s.ctx, first, after, &templateID, nil)
+	_, err = s.instance.ReplanWeek(s.ctx, first, after, &templateID, nil)
 	require.NoError(t, err)
 	assert.Len(t, listInstancesForDate(t, s.db, s.template.ID, lastDay), 1)
 	assert.Empty(t, listInstancesForDate(t, s.db, s.template.ID, after), "shortened series drops the later Monday")
 
 	setSeriesLastDay(t, s, nil)
-	_, err = s.factory.Instance.ReplanWeek(s.ctx, first, after, &templateID, nil)
+	_, err = s.instance.ReplanWeek(s.ctx, first, after, &templateID, nil)
 	require.NoError(t, err)
 	assert.Len(t, listInstancesForDate(t, s.db, s.template.ID, after), 1, "without an end the series runs on")
 }

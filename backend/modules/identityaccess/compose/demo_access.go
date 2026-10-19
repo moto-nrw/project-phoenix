@@ -29,41 +29,19 @@ type DemoDependencies struct {
 	OperatorWithoutSecondFactor bool
 }
 
-func composeDemoAccess(db *bun.DB, sessions DemoSessions, dependencies *DemoDependencies) (*identityaccess.DemoAccess, error) {
-	if dependencies == nil {
+// composeDemoAccess composes the demo access of the public demo (#3462); the
+// token functions are the token adapter's opaque capability token, so only a
+// SHA-256 fingerprint is stored. Callers supply the unit of work on the
+// request context, as every public route does.
+func composeDemoAccess(db *bun.DB, sessions ports.DemoSessions, deps *DemoDependencies) (*identityaccess.DemoAccess, error) {
+	if deps == nil {
 		return nil, nil
 	}
-	return NewDemoAccess(DemoAccessDependencies{
-		DB: db, Sessions: sessions, Schools: dependencies.Schools, Mail: dependencies.Mail,
-		NewToken: dependencies.NewToken, Fingerprint: dependencies.Fingerprint,
-	})
-}
-
-// DemoSessions is the session minting the demo access redeems into; the
-// composed Identity & Access module satisfies it.
-type DemoSessions = ports.DemoSessions
-
-// DemoAccessDependencies compose the demo access of the public demo (#3462).
-// NewToken and Fingerprint are the opaque capability token of the token
-// adapter, so only a SHA-256 fingerprint is stored.
-type DemoAccessDependencies struct {
-	DB          *bun.DB
-	Sessions    DemoSessions
-	Schools     identityPorts.DemoSchools
-	Mail        identityaccess.DemoAccessMail
-	NewToken    func() (raw, fingerprint string, err error)
-	Fingerprint func(raw string) string
-}
-
-// NewDemoAccess composes the capability. Only the demo environment's root
-// calls it. Callers supply the unit of work on the request context, as every
-// public route does.
-func NewDemoAccess(deps DemoAccessDependencies) (*identityaccess.DemoAccess, error) {
-	if deps.DB == nil || deps.Sessions == nil || deps.Schools == nil || deps.Mail == nil || deps.NewToken == nil || deps.Fingerprint == nil {
+	if db == nil || sessions == nil || deps.Schools == nil || deps.Mail == nil || deps.NewToken == nil || deps.Fingerprint == nil {
 		return nil, errors.New("identity access compose: every demo access dependency is required")
 	}
 	flows, err := application.NewDemoAccess(application.DemoAccessDependencies{
-		Sessions: deps.Sessions, Store: newStore(deps.DB), Schools: application.DemoSchoolsPort{Schools: deps.Schools},
+		Sessions: sessions, Store: newStore(db), Schools: application.DemoSchoolsPort{Schools: deps.Schools},
 		Tokens:  application.DemoAccessTokens{Mint: deps.NewToken, FingerprintFunc: deps.Fingerprint},
 		Mail:    application.DemoAccessMail{Mail: deps.Mail},
 		AdminTx: tenant.WithinAdmin,
@@ -83,7 +61,7 @@ func NewDemoAccessExpiry(db bun.IDB, now func() time.Time) (*identityaccess.Demo
 	if now == nil {
 		return nil, errors.New("identity access compose: demo access expiry requires a clock")
 	}
-	return identityaccess.NewDemoAccessExpiry(demoAccessExpiryEngine{store: postgres.NewDemoAccessExpiryStore(db), now: now}), nil
+	return identityaccess.NewDemoAccessExpiry(demoAccessExpiryEngine{db: db, now: now}), nil
 }
 
 // demoAccessExpiryEngine deletes demo accesses 14 days after their last use
@@ -92,10 +70,17 @@ func NewDemoAccessExpiry(db bun.IDB, now func() time.Time) (*identityaccess.Demo
 // data. The schools left without any access go back to the caller, which
 // hides them through their owner.
 type demoAccessExpiryEngine struct {
-	store *postgres.DemoAccessExpiryStore
-	now   func() time.Time
+	db  bun.IDB
+	now func() time.Time
 }
 
 func (e demoAccessExpiryEngine) ExpireDemoAccesses(ctx context.Context) (int, []string, error) {
-	return e.store.DeleteExpiredDemoAccesses(ctx, e.now())
+	var count int
+	var slugs []string
+	err := tenant.WithAdminTx(ctx, e.db, func(txCtx context.Context, tx bun.Tx) error {
+		var err error
+		count, slugs, err = postgres.NewDemoAccessExpiryStore(tx).DeleteExpiredDemoAccesses(txCtx, e.now())
+		return err
+	})
+	return count, slugs, err
 }

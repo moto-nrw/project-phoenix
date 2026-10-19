@@ -6,6 +6,10 @@ import (
 	"sync"
 	"testing"
 
+	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+
+	staffAudience "github.com/moto-nrw/project-phoenix/modules/staffannouncementaudience"
+
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
@@ -22,7 +26,7 @@ var errInjectedAudit = errors.New("injected audit failure")
 type auditRecorder struct {
 	mu      sync.Mutex
 	failing bool
-	entries []communicationCompose.AuditEntry
+	entries []recordports.AuditEntry
 }
 
 type retryableAuditError struct{}
@@ -38,7 +42,7 @@ func (retryableAuditError) Field(field byte) string {
 
 type retryOnceAudit struct{ attempts int }
 
-func (a *retryOnceAudit) AppendAnnouncementAudit(context.Context, communicationCompose.AuditEntry) error {
+func (a *retryOnceAudit) AppendAnnouncementAudit(context.Context, recordports.AuditEntry) error {
 	a.attempts++
 	if a.attempts == 1 {
 		return retryableAuditError{}
@@ -46,7 +50,7 @@ func (a *retryOnceAudit) AppendAnnouncementAudit(context.Context, communicationC
 	return nil
 }
 
-func (a *auditRecorder) AppendAnnouncementAudit(_ context.Context, entry communicationCompose.AuditEntry) error {
+func (a *auditRecorder) AppendAnnouncementAudit(_ context.Context, entry recordports.AuditEntry) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.failing {
@@ -62,7 +66,7 @@ func (a *auditRecorder) fail(value bool) {
 	a.failing = value
 }
 
-func buildCommunication(t *testing.T, db *bun.DB, audit communicationCompose.Audit, observations ...func(communicationCompose.Observation)) *communication.Module {
+func buildCommunication(t *testing.T, db *bun.DB, audit recordports.Audit, observations ...func(communicationCompose.Observation)) *communication.Module {
 	t.Helper()
 	organizations, err := organizationCompose.New(organizationCompose.Dependencies{DB: db, Observe: func(organizationCompose.Observation) {}})
 	require.NoError(t, err)
@@ -72,7 +76,7 @@ func buildCommunication(t *testing.T, db *bun.DB, audit communicationCompose.Aud
 	if len(observations) > 0 {
 		observe = observations[0]
 	}
-	module, err := communicationCompose.New(communicationCompose.Dependencies{DB: db, Organizations: organizations, Viewers: communicationViewerNames{query: people}, Audit: audit, Observe: observe})
+	module, err := communicationCompose.New(communicationCompose.Dependencies{DB: db, Organizations: organizations, Viewers: communicationViewerNames{query: people}, Audit: audit, Observe: observe}, staffAudience.Map(staffAudience.New(communicationCompose.AnnouncementDatabase()), communicationCompose.AudienceMapping()))
 	require.NoError(t, err)
 	return module
 }

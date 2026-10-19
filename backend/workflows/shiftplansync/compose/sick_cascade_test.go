@@ -69,7 +69,7 @@ func buildSickCascadeEnv(t *testing.T) *sickCascadeEnv {
 func buildSickCascadeEnvWith(t *testing.T, cascadeBroadcaster realtime.Broadcaster) *sickCascadeEnv {
 	t.Helper()
 	env := newPlanSyncEnv(t, cascadeBroadcaster, sickCascadeNow)
-	absences, err := api.NewWorkforceTestModule(testpkg.NewDatabase(t, env.db), testpkg.TenantRuntime(t, env.db), sickCascadeNow)
+	absences, _, err := api.NewWorkforceTestModule(testpkg.NewDatabase(t, env.db), testpkg.TenantRuntime(t, env.db), sickCascadeNow)
 	require.NoError(t, err)
 
 	suffix := time.Now().UnixNano()
@@ -148,7 +148,7 @@ func (e *sickCascadeEnv) reloadShift(t *testing.T, id int64) workforce.StaffShif
 
 func (e *sickCascadeEnv) reloadRow(t *testing.T, id int64) *timetable.InstanceStaff {
 	t.Helper()
-	row, err := e.repos.InstanceStaffReads().FindByID(e.ctx, id)
+	row, err := testpkg.TenantQuery1(t, e.ctx, testpkg.SetupTestDB(t), e.repos.InstanceStaffReads().FindByID, id)
 	require.NoError(t, err)
 	return row
 }
@@ -173,7 +173,7 @@ type deviationEvent struct {
 // [from, to].
 func (e *sickCascadeEnv) deviationEvents(t *testing.T, from, to calendar.Date) []deviationEvent {
 	t.Helper()
-	events, err := e.repos.DeviationEventsBetween(e.ctx, from, to)
+	events, err := testpkg.TenantQuery2(t, e.ctx, testpkg.SetupTestDB(t), e.deviations.DeviationEventsBetween, from, to)
 	require.NoError(t, err)
 	out := make([]deviationEvent, 0, len(events))
 	for _, ev := range events {
@@ -780,11 +780,13 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 		return nil
 	})
 	ackNote := "bewusst offen"
-	storedClearable, err := e.repos.ActivityInstance.FindByID(e.ctx, clearableInstance.ID)
+	storedClearable, err := testpkg.TenantQuery1(t, e.ctx, testpkg.SetupTestDB(t), e.repos.ActivityInstance.FindByID, clearableInstance.ID)
 	require.NoError(t, err)
 	storedClearable.UnderstaffedAck = true
 	storedClearable.UnderstaffedNote = &ackNote
-	_, err = e.repos.ActivityInstance.UpdateColumns(e.ctx, storedClearable, "understaffed_ack", "understaffed_note")
+	_, err = testpkg.TenantQuery0(t, e.ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (int64, error) {
+		return e.repos.ActivityInstance.UpdateColumns(txCtx, storedClearable, "understaffed_ack", "understaffed_note")
+	})
 	require.NoError(t, err)
 
 	// Admin work AFTER the cascade: a replacement covering one cancelled
@@ -821,7 +823,7 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 	assert.False(t, row.IsAbsent)
 	assert.Nil(t, row.AbsenceReason)
 	assert.Nil(t, row.SickAbsenceID)
-	storedClearable, err = e.repos.ActivityInstance.FindByID(e.ctx, clearableInstance.ID)
+	storedClearable, err = testpkg.TenantQuery1(t, e.ctx, testpkg.SetupTestDB(t), e.repos.ActivityInstance.FindByID, clearableInstance.ID)
 	require.NoError(t, err)
 	assert.False(t, storedClearable.UnderstaffedAck)
 	assert.Nil(t, storedClearable.UnderstaffedNote)

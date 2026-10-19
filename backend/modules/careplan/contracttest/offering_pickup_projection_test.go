@@ -3,6 +3,11 @@ package contracttest_test
 import (
 	"context"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
+	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	"log/slog"
 	"testing"
 	"time"
@@ -12,8 +17,8 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
@@ -34,12 +39,12 @@ func createPickupTimeOffering(
 	name string,
 	days []string,
 	times map[string]string,
-) *enrollmentModels.CareOffering {
+) *offeringContract.CareOfferingRecord {
 	t.Helper()
-	offering := &enrollmentModels.CareOffering{
+	offering := &offeringContract.CareOfferingRecord{
 		PhaseID:        env.sourcePhase.ID,
 		Name:           uniqueSchemaName(name + "-" + t.Name()),
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:  days,
 		PickupTimes:    times,
 		IsActive:       true,
@@ -50,7 +55,7 @@ func createPickupTimeOffering(
 }
 
 func projectedPickupReader(env *decisionTestEnv) careplan.PickupScheduleService {
-	result, err := careplanCompose.NewPickupSchedules(env.db, env.repos.CarePlan(), newPickupBaselineService(env.repos.CarePlan(), approvedOfferingTestProjection(env.repos)), nil, nil, slog.Default())
+	result, err := careplanCompose.NewPickupSchedules(env.db, env.repos.CarePlan(), newPickupBaselineService(env.repos.CarePlan(), approvedOfferingTestProjection(env.reposEnrollment, env.reposPeople)), nil, nil, slog.Default())
 	if err != nil {
 		panic(err)
 	}
@@ -84,16 +89,16 @@ func TestOfferingPickupProjection_FutureBookingEndIsNotVisibleOnEffectiveDate(t 
 	require.NoError(t, err)
 
 	reader := projectedPickupReader(env)
-	before, err := reader.GetEffectivePickupTimeForDate(ctx, studentID, effectiveFrom.AddDays(-7))
+	before, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), reader.GetEffectivePickupTimeForDate, studentID, effectiveFrom.AddDays(-7))
 	require.NoError(t, err)
 	require.NotNil(t, before.PickupTime)
 	assert.Equal(t, "14:30", before.PickupTime.Format("15:04"))
 
-	atBoundary, err := reader.GetEffectivePickupTimeForDate(ctx, studentID, effectiveFrom)
+	atBoundary, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), reader.GetEffectivePickupTimeForDate, studentID, effectiveFrom)
 	require.NoError(t, err)
 	assert.Nil(t, atBoundary.PickupTime,
 		"an offering pickup time must stop at the booking's exclusive valid_until")
-	rangeData, err := reader.GetStudentPickupDataForRange(ctx, studentID, effectiveFrom.AddDays(-7), effectiveFrom)
+	rangeData, err := testpkg.TenantQuery3(t, ctx, testpkg.SetupTestDB(t), reader.GetStudentPickupDataForRange, studentID, effectiveFrom.AddDays(-7), effectiveFrom)
 	require.NoError(t, err)
 	require.Len(t, rangeData.EffectiveSchedules, 8)
 	require.NotNil(t, rangeData.EffectiveSchedules[0].Schedule)
@@ -101,15 +106,15 @@ func TestOfferingPickupProjection_FutureBookingEndIsNotVisibleOnEffectiveDate(t 
 	assert.Nil(t, rangeData.EffectiveSchedules[7].Schedule,
 		"an empty projected date must be explicit so clients cannot fall back to today's row")
 
-	stored, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	stored, err := careplantest.NewScheduleRecords(env.repos.CarePlan()).StudentPickupSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	assert.Empty(t, stored, "approval must not materialize an undated offering row")
 
 	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Geschützt")
-	testpkg.CreateTestPickupSchedule(t, env.db, studentID, scheduleModels.WeekdayMonday, author.ID, "15:15")
+	testpkg.CreateTestPickupSchedule(t, env.db, studentID, timetable.WeekdayMonday, author.ID, "15:15")
 	err = pickupTimeService(t, env).ResetStudentPickupDayToOffering(ctx, studentID, effectiveFrom)
 	require.ErrorIs(t, err, careplan.ErrPickupResetNoOffering)
-	stored, err = env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	stored, err = careplantest.NewScheduleRecords(env.repos.CarePlan()).StudentPickupSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	require.Len(t, stored, 1)
 	assert.Equal(t, "15:15", stored[0].PickupTime.Format("15:04"),
@@ -144,27 +149,27 @@ func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(
 	))
 
 	reader := projectedPickupReader(env)
-	before, err := reader.GetEffectivePickupTimeForDate(ctx, studentID, effectiveFrom.AddDays(-7))
+	before, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), reader.GetEffectivePickupTimeForDate, studentID, effectiveFrom.AddDays(-7))
 	require.NoError(t, err)
 	require.NotNil(t, before.PickupTime)
 	assert.Equal(t, "14:30", before.PickupTime.Format("15:04"))
 
-	atBoundary, err := reader.GetEffectivePickupTimeForDate(ctx, studentID, effectiveFrom)
+	atBoundary, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), reader.GetEffectivePickupTimeForDate, studentID, effectiveFrom)
 	require.NoError(t, err)
 	require.NotNil(t, atBoundary.PickupTime)
 	assert.Equal(t, "16:00", atBoundary.PickupTime.Format("15:04"))
-	weekly, err := reader.GetWeeklySchedulesByStudentIDsForDate(ctx, []int64{studentID}, effectiveFrom)
+	weekly, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), reader.GetWeeklySchedulesByStudentIDsForDate, []int64{studentID}, effectiveFrom)
 	require.NoError(t, err)
 	require.Len(t, weekly, 1)
 	assert.Equal(t, newOffering.Name, weekly[0].CareOfferingName)
 
-	rangeData, err := reader.GetStudentPickupDataForRange(ctx, studentID, effectiveFrom.AddDays(-7), effectiveFrom)
+	rangeData, err := testpkg.TenantQuery3(t, ctx, testpkg.SetupTestDB(t), reader.GetStudentPickupDataForRange, studentID, effectiveFrom.AddDays(-7), effectiveFrom)
 	require.NoError(t, err)
 	require.Len(t, rangeData.EffectiveSchedules, 8)
 	assert.Equal(t, oldOffering.Name, rangeData.EffectiveSchedules[0].Schedule.CareOfferingName)
 	assert.Equal(t, newOffering.Name, rangeData.EffectiveSchedules[7].Schedule.CareOfferingName)
 
-	futureWeek, err := reader.GetStudentPickupDataForRange(ctx, studentID, effectiveFrom, effectiveFrom.AddDays(4))
+	futureWeek, err := testpkg.TenantQuery3(t, ctx, testpkg.SetupTestDB(t), reader.GetStudentPickupDataForRange, studentID, effectiveFrom, effectiveFrom.AddDays(4))
 	require.NoError(t, err)
 	require.Len(t, futureWeek.Schedules, 1)
 	assert.Equal(t, newOffering.Name, futureWeek.Schedules[0].CareOfferingName,
@@ -172,10 +177,10 @@ func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(
 
 	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Zukunft")
 	require.NoError(t, reader.UpsertBulkStudentPickupSchedulesForDate(ctx, studentID, effectiveFrom, []*careplan.PickupSchedule{{
-		StudentID: studentID, Weekday: scheduleModels.WeekdayMonday,
+		StudentID: studentID, Weekday: timetable.WeekdayMonday,
 		PickupTime: calendar.NormalizeWallClock(time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC)), CreatedBy: author.ID,
 	}}))
-	stored, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	stored, err := careplantest.NewScheduleRecords(env.repos.CarePlan()).StudentPickupSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	assert.Empty(t, stored, "a future offering value must not be saved as a staff override")
 }
@@ -194,21 +199,21 @@ func TestOfferingPickupProjection_StaffOverrideSurvivesOfferingEdit(t *testing.T
 		t, env, offering.ID, "gehzeit-manual@example.com", "Override", 2,
 	)
 	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Manuell")
-	testpkg.CreateTestPickupSchedule(t, env.db, studentID, scheduleModels.WeekdayMonday, author.ID, "15:15")
+	testpkg.CreateTestPickupSchedule(t, env.db, studentID, timetable.WeekdayMonday, author.ID, "15:15")
 	offering.PickupTimes = map[string]string{"mon": "16:00"}
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, offering))
 
 	monday := nextWeekday(decisionTestToday, time.Monday)
-	actual, err := projectedPickupReader(env).GetEffectivePickupTimeForDate(ctx, studentID, monday)
+	actual, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), projectedPickupReader(env).GetEffectivePickupTimeForDate, studentID, monday)
 	require.NoError(t, err)
 	require.NotNil(t, actual.PickupTime)
 	assert.Equal(t, "15:15", actual.PickupTime.Format("15:04"))
 
 	require.NoError(t, pickupTimeService(t, env).ResetStudentPickupDayToOffering(ctx, studentID, monday))
-	stored, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	stored, err := careplantest.NewScheduleRecords(env.repos.CarePlan()).StudentPickupSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	assert.Empty(t, stored, "reset must delete the manual row when an offering pickup replaces it")
-	reset, err := projectedPickupReader(env).GetEffectivePickupTimeForDate(ctx, studentID, monday)
+	reset, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), projectedPickupReader(env).GetEffectivePickupTimeForDate, studentID, monday)
 	require.NoError(t, err)
 	require.NotNil(t, reset.PickupTime)
 	assert.Equal(t, "16:00", reset.PickupTime.Format("15:04"))
@@ -227,7 +232,7 @@ func TestOfferingPickupResetClearsManualWeekdayExtension(t *testing.T) {
 		t, env, offering.ID, "gehzeit-reset-extension@example.com", "Aufgabe", 2,
 	)
 	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Aufgabe")
-	testpkg.CreateTestPickupSchedule(t, env.db, studentID, scheduleModels.WeekdayMonday, author.ID, "16:00")
+	testpkg.CreateTestPickupSchedule(t, env.db, studentID, timetable.WeekdayMonday, author.ID, "16:00")
 	monday := nextWeekday(decisionTestToday, time.Monday)
 
 	var clearedStudentID int64
@@ -241,7 +246,7 @@ func TestOfferingPickupResetClearsManualWeekdayExtension(t *testing.T) {
 	).Bookings
 	require.NoError(t, reset.ResetStudentPickupDayToOffering(ctx, studentID, monday))
 	assert.Equal(t, studentID, clearedStudentID)
-	assert.Equal(t, scheduleModels.WeekdayMonday, clearedWeekday)
+	assert.Equal(t, timetable.WeekdayMonday, clearedWeekday)
 }
 
 func TestOfferingPickupProjection_IgnoresInactiveOffering(t *testing.T) {
@@ -260,9 +265,7 @@ func TestOfferingPickupProjection_IgnoresInactiveOffering(t *testing.T) {
 	offering.IsActive = false
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, offering))
 
-	pickup, err := projectedPickupReader(env).GetEffectivePickupTimeForDate(
-		ctx, studentID, nextWeekday(decisionTestToday, time.Monday),
-	)
+	pickup, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), projectedPickupReader(env).GetEffectivePickupTimeForDate, studentID, nextWeekday(decisionTestToday, time.Monday))
 	require.NoError(t, err)
 	assert.Nil(t, pickup.PickupTime)
 }
@@ -284,9 +287,7 @@ func TestOfferingPickupProjection_IgnoresNonCareOffering(t *testing.T) {
 	offering.CountsAsCareSet = true
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, offering))
 
-	pickup, err := projectedPickupReader(env).GetEffectivePickupTimeForDate(
-		ctx, studentID, nextWeekday(decisionTestToday, time.Monday),
-	)
+	pickup, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), projectedPickupReader(env).GetEffectivePickupTimeForDate, studentID, nextWeekday(decisionTestToday, time.Monday))
 	require.NoError(t, err)
 	assert.Nil(t, pickup.PickupTime)
 }
@@ -303,11 +304,11 @@ func TestOfferingPickupProjection_ResetWaitsForOfferingSourceGate(t *testing.T) 
 		t, env, offering.ID, "gehzeit-reset-gate@example.com", "Sperre", 2,
 	)
 	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Sperre")
-	testpkg.CreateTestPickupSchedule(t, env.db, studentID, scheduleModels.WeekdayMonday, author.ID, "15:15")
+	testpkg.CreateTestPickupSchedule(t, env.db, studentID, timetable.WeekdayMonday, author.ID, "15:15")
 	monday := nextWeekday(decisionTestToday, time.Monday)
 
 	resetter := newBookingsForTest(env, nil, func(ctx context.Context) error {
-		return api.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, env.db)).LockRecurrenceWrites(ctx)
+		return owners.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, env.db)).LockRecurrenceWrites(ctx)
 	}, nil)
 	releaseHolder, holderDone := holdOfferingSourceGate(t, env)
 	resetDone := startPickupReset(t, env, resetter, studentID, monday)
@@ -315,7 +316,7 @@ func TestOfferingPickupProjection_ResetWaitsForOfferingSourceGate(t *testing.T) 
 	close(releaseHolder)
 	require.NoError(t, <-holderDone)
 	require.NoError(t, <-resetDone)
-	stored, err := env.repos.StudentPickupSchedule.FindByStudentID(testpkg.Ctx(t), studentID)
+	stored, err := careplantest.NewScheduleRecords(env.repos.CarePlan()).StudentPickupSchedule.FindByStudentID(testpkg.Ctx(t), studentID)
 	require.NoError(t, err)
 	assert.Empty(t, stored)
 }
@@ -325,7 +326,7 @@ func holdOfferingSourceGate(t *testing.T, env *decisionTestEnv) (chan struct{}, 
 	acquired, release, done := make(chan struct{}), make(chan struct{}), make(chan error, 1)
 	go func() {
 		done <- testpkg.WithTenantTx(t, testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
-			if err := api.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, env.db)).LockRecurrenceWrites(ctx); err != nil {
+			if err := owners.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, env.db)).LockRecurrenceWrites(ctx); err != nil {
 				return err
 			}
 			close(acquired)

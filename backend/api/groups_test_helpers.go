@@ -3,80 +3,85 @@
 package api
 
 import (
-	"context"
 	"log/slog"
 
-	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+// GroupsTestModule is the School Structure side of the group routes; the
+// presence, the people and the caller rows come beside it from
+// NewGroupsTestModule (#4080).
 type GroupsTestModule struct {
-	Education   schoolstructure.GroupManagement
-	Active      studentpresence.Presence
-	Users       peoplePorts.PersonDirectory
-	People      peopleCompose.GroupRoutePeople
-	UserContext *CallerRows
+	Education schoolstructure.GroupManagement
 }
 
-// TeacherGroupIDs exposes the same assignment projection as attendance composition.
-func (m GroupsTestModule) TeacherGroupIDs(ctx context.Context, teacherID int64) ([]int64, error) {
-	return NewAttendanceTeacherGroups(m.Education).TeacherGroupIDs(ctx, teacherID)
-}
-
-func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, publishers ...deliveryCompose.RealtimePublisher) (GroupsTestModule, error) {
-	r, err := NewUserContextTestRepositories(db, MustNewMembershipTestRepositories(db))
+func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, publishers ...deliveryCompose.RealtimePublisher) (GroupsTestModule, ActivePresence, ActivePeople, *owners.CallerRows, error) {
+	members := owners.MustNewMembershipTestRepositories(db)
+	r, _, err := NewUserContextTestRepositories(db, members)
 	if err != nil {
-		return GroupsTestModule{}, err
+		return GroupsTestModule{}, ActivePresence{}, ActivePeople{}, nil, err
+	}
+	tt, err := owners.NewTimetableTestRepositoriesWithMembers(db, members)
+	if err != nil {
+		return GroupsTestModule{}, ActivePresence{}, ActivePeople{}, nil, err
 	}
 	identity, err := NewUserContextTestModule(db, unit)
 	if err != nil {
-		return GroupsTestModule{}, err
+		return GroupsTestModule{}, ActivePresence{}, ActivePeople{}, nil, err
 	}
-	tt := r.Timetable
+	ttRooms, err := owners.NewTimetableRoomRows(db)
+	if err != nil {
+		return GroupsTestModule{}, ActivePresence{}, ActivePeople{}, nil, err
+	}
+	ttPresence, err := NewTimetablePresenceRows(db, tt, members)
+	if err != nil {
+		return GroupsTestModule{}, ActivePresence{}, ActivePeople{}, nil, err
+	}
 	var publisher deliveryCompose.RealtimePublisher = deliveryCompose.NewRealtimeHub(slog.Default())
 	if len(publishers) > 0 {
 		publisher = publishers[0]
 	}
-	groups := education.NewGroupManagement(tt.Group, tt.GroupTeacher, tt.ClassTeacher,
-		NewEducationRooms(tt.Facilities), NewEducationTeachers(tt.Teacher), NewEducationStaff(tt.Staff),
-		tt.Student, r.Substitutions, education.NewLegacyRepositoryRuntime(db.Pool()), education.GroupServiceOptions{Broadcaster: NewGroupEvents(publisher, nil)})
+	structure := owners.NewSchoolStructureSuiteRepositories(db)
+	groups := education.NewGroupManagement(structure.Group, structure.GroupTeacher, structure.ClassTeacher,
+		owners.NewEducationRooms(ttRooms.Facilities), owners.NewEducationTeachers(members.Teacher), owners.NewEducationStaff(members.Staff),
+		members.Student, r.Substitutions, education.NewLegacyRepositoryRuntime(db.Pool()), education.GroupServiceOptions{Broadcaster: NewGroupEvents(publisher, nil)})
 
 	persons := peopleCompose.NewPersonDirectory(peoplePorts.PersonDirectoryDependencies{
-		PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
-		StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
-		PersonRepo:       tt.Person, StudentRepo: tt.Student, TeacherRepo: tt.Teacher, AccountExists: identityaccessCompose.AccountExists(r.Profile),
-		StaffDirectory: peopleCompose.NewStaffDirectory(peoplePorts.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: tt.Person, Staff: tt.Staff, Teachers: tt.Teacher, MayManageStaff: StaffAdministrationPermitted}),
+		PersonDirectory:  peopleCompose.NewPersonWrites(owners.MustNewPeopleDirectory(db)),
+		StudentDirectory: peopleCompose.NewStudentDirectory(owners.MustNewPeopleDirectory(db)),
+		PersonRepo:       members.Person, StudentRepo: members.Student, TeacherRepo: members.Teacher, AccountExists: identityaccessCompose.AccountExists(r.Profile),
+		StaffDirectory: peopleCompose.NewStaffDirectory(peoplePorts.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: members.Person, Staff: members.Staff, Teachers: members.Teacher, MayManageStaff: StaffAdministrationPermitted}),
 	})
 	rooms, err := facilitiesCompose.NewUnobserved(db.Pool())
 	if err != nil {
-		return GroupsTestModule{}, err
+		return GroupsTestModule{}, ActivePresence{}, ActivePeople{}, nil, err
 	}
-	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(tt.ActiveGroup)
+	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(ttPresence.ActiveGroup)
 	presence := presenceservice.NewPresence(presenceservice.PresenceDependencies{
-		PrincipalReader: devicescanCompose.AttendancePrincipal,
-		YardRoomColor:   facilitiesCompose.YardRoomColor(rooms),
-		StaffNames:      NewAttendanceStaffNames(tt.Staff, persons), GroupRepo: sessionGroups, SupervisorRepo: sessionSupervisors,
-		StudentRepo: PresenceStudents(db, tt.Student), StaffRepo: NewAttendanceStaffDirectory(tt.Staff), RoomRepo: facilitiesLegacy.NewAttendanceRooms(tt.Room),
-		EducationGroupRepo: NewAttendanceEducationGroups(tt.Group, tt.Student),
-		ActivityGroupRepo:  NewSessionActivities(tt.GroupReads()), DB: db.Pool(), Logger: slog.Default(),
-		SchoolPresence: NewLoggedStudentPresence(db, slog.Default()),
+		PrincipalReader: AttendancePrincipal,
+		YardRoomColor:   facilitiesModule.YardRoomColor(rooms),
+		StaffNames:      owners.NewAttendanceStaffNames(members.Staff, persons), GroupRepo: sessionGroups, SupervisorRepo: sessionSupervisors,
+		StudentRepo: owners.PresenceStudents(db, members.Student), StaffRepo: owners.NewAttendanceStaffDirectory(members.Staff), RoomRepo: facilitiesCompose.NewAttendanceRooms(ttRooms.Room),
+		EducationGroupRepo: owners.NewAttendanceEducationGroups(owners.NewSchoolStructureSuiteRepositories(db).Group, members.Student),
+		ActivityGroupRepo:  owners.NewSessionActivities(tt.GroupReads()), DB: db.Pool(), Logger: slog.Default(),
+		SchoolPresence: owners.NewLoggedStudentPresence(db, slog.Default()),
 	})
 
-	return GroupsTestModule{Education: groups, Active: presence, Users: persons, People: peopleCompose.NewGroupRoutePeople(persons), UserContext: identity.UserContext}, nil
+	return GroupsTestModule{Education: groups}, ActivePresence{Active: presence}, ActivePeople{Users: persons, People: peopleCompose.NewGroupRoutePeople(persons)}, identity, nil
 }
 
 // NewAttendanceTeacherGroups supplies assignment IDs the way the active route

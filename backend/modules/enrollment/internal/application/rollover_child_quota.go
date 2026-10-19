@@ -5,7 +5,7 @@ import (
 	"errors"
 	"log/slog"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // childQuotaReachedCode is the stable code of a write School Membership
@@ -29,7 +29,7 @@ func (s *Rollovers) holdForChildQuota(ctx context.Context, phaseID, childID int6
 	var held bool
 	hold := func(holdCtx context.Context) error {
 		var err error
-		held, err = s.deps.Children.HoldAutoRenewedChild(holdCtx, childID, enrollmentModels.ReviewReasonChildQuotaReached)
+		held, err = s.deps.Children.HoldAutoRenewedChild(holdCtx, childID, enrollmentNative.ReviewReasonChildQuotaReached)
 		return err
 	}
 	var err error

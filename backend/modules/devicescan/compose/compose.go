@@ -41,7 +41,7 @@ type Presence interface {
 type Rooms = application.Rooms
 
 // Rosters resolves the day rosters of running blocks. The roots bind it to
-// the Student Presence sessions and the Timetable roster (repositories.SessionRosters).
+// Timetable, which maps the Student Presence sessions to its day rosters.
 type Rosters = ports.Rosters
 
 // PickupReader is the slice of the retained pickup schedule service the
@@ -54,9 +54,10 @@ type PickupReader interface {
 // Presence, Rooms, Active, Users and Settings are required; the others may be nil in
 // narrow graphs and disable the flows that need them.
 type Dependencies struct {
-	Fleet    Fleet
-	Presence Presence
-	Rooms    Rooms
+	Principal devicescan.DevicePrincipal
+	Fleet     Fleet
+	Presence  Presence
+	Rooms     Rooms
 	// Active is the retained presence service that still owns the visit,
 	// session and attendance transitions.
 	Active studentpresence.Presence
@@ -87,6 +88,9 @@ func New(deps Dependencies) DeviceScan {
 	if deps.Fleet == nil || deps.Presence == nil || deps.Rooms == nil || deps.Active == nil || deps.Users == nil {
 		panic("device scan composition: fleet, presence, rooms, active and users are required")
 	}
+	if deps.Principal == nil {
+		panic("device scan composition: principal is required")
+	}
 	if deps.Settings == nil {
 		panic("device scan composition: settings are required")
 	}
@@ -115,7 +119,7 @@ func New(deps Dependencies) DeviceScan {
 		Fleet:      deps.Fleet,
 		Presence:   deps.Presence,
 		Rooms:      deps.Rooms,
-		Principals: principals{},
+		Principals: deps.Principal,
 		People:     people{deps.Users},
 		Visits:     visits{active: deps.Active, clock: clock},
 		Sessions:   sessions{active: deps.Active, presence: deps.Presence, clock: clock},

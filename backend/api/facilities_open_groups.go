@@ -24,27 +24,10 @@ func FacilitiesGroupSupervisions(presence interface {
 			return nil, &studentpresence.OperationError{Op: "FindSupervisorsByActiveGroupIDs", Err: studentpresence.ErrDatabaseOperation}
 		}
 		for _, row := range rows {
-			result = append(result, facilitiesCompose.OpenGroupSupervisor{ID: row.ID, GroupID: row.GroupID, StaffID: row.StaffID, Ended: facilitiesSupervisionEnded(row.EndDate, today.String())})
+			result = append(result, facilitiesCompose.OpenGroupSupervisor{ID: row.ID, GroupID: row.GroupID, StaffID: row.StaffID, Ended: row.EndedOn(today)})
 		}
 		return result, nil
 	}
-}
-
-// facilitiesSupervisionEnded matches ActiveOn: a planned future end_date is
-// still supervising and must stay on the live Schulhof roster.
-func facilitiesSupervisionEnded(endDate *string, today string) bool {
-	if endDate == nil {
-		return false
-	}
-	end, err := timezone.ParseDate(*endDate)
-	if err != nil {
-		return false
-	}
-	day, err := timezone.ParseDate(today)
-	if err != nil {
-		return false
-	}
-	return !day.Before(end)
 }
 
 func FacilitiesGroupVisits(presence interface {
@@ -76,7 +59,7 @@ func FacilitiesRoomSessions(presence interface {
 		for _, group := range groups {
 			result = append(result, facilitiesCompose.OpenGroup{
 				ID: group.ID, StartTime: group.StartTime, EndTime: group.EndTime,
-				IsToday: timezone.DateFromTime(group.StartTime) == today,
+				IsToday: group.StartedOn(today),
 			})
 		}
 		return result, nil

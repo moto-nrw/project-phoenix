@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -45,6 +45,9 @@ func (f *fakeNoticeRepo) FindByID(_ context.Context, id int64) (*scheduleModels.
 	return nil, nil
 }
 func (f *fakeNoticeRepo) Delete(context.Context, int64) error { return nil }
+func (f *fakeNoticeRepo) DeleteEndedBefore(context.Context, calendar.Date) (int, error) {
+	return 0, nil
+}
 func (f *fakeNoticeRepo) List(context.Context, bool) ([]*scheduleModels.StaffNotice, error) {
 	return f.notices, nil
 }
@@ -144,22 +147,22 @@ func TestStaffNoticeTodayHonoursWeekPattern(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	// Anker Montag 2026-08-03 = Woche A; 2026-08-10 ist damit Woche B.
-	anchor := scheduleModels.Date(noticeMustDate(t, "2026-08-03"))
+	anchor := calendar.Date(noticeMustDate(t, "2026-08-03"))
 	period := &scheduleModels.CalendarPeriod{
 		Name:            "Schuljahr",
 		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       scheduleModels.Date(noticeMustDate(t, "2026-08-01")),
-		EndDate:         scheduleModels.Date(noticeMustDate(t, "2027-07-31")),
+		StartDate:       calendar.Date(noticeMustDate(t, "2026-08-01")),
+		EndDate:         calendar.Date(noticeMustDate(t, "2027-07-31")),
 		WeekCycleLength: 2,
 		WeekCycleAnchor: &anchor,
 		IsActive:        true,
 	}
-	holidayAnchor := scheduleModels.Date(noticeMustDate(t, "2026-08-10"))
+	holidayAnchor := calendar.Date(noticeMustDate(t, "2026-08-10"))
 	holiday := &scheduleModels.CalendarPeriod{
 		Name:            "Ferien",
 		PeriodType:      scheduleModels.PeriodTypeHoliday,
-		StartDate:       scheduleModels.Date(noticeMustDate(t, "2026-08-01")),
-		EndDate:         scheduleModels.Date(noticeMustDate(t, "2026-08-31")),
+		StartDate:       calendar.Date(noticeMustDate(t, "2026-08-01")),
+		EndDate:         calendar.Date(noticeMustDate(t, "2026-08-31")),
 		WeekCycleLength: 2,
 		WeekCycleAnchor: &holidayAnchor,
 		IsActive:        true,
@@ -260,7 +263,7 @@ func TestStaffNoticeAcknowledgeRejectsNoticeThatDoesNotApplyToday(t *testing.T) 
 	t.Parallel()
 	ctx := context.Background()
 	today := noticeMustDate(t, "2026-08-05")
-	scheduleToday := scheduleModels.Date(today)
+	scheduleToday := calendar.Date(today)
 	otherWeekday := int16((int(today.Weekday())+6)%7 + 1)
 	otherWeekday = otherWeekday%7 + 1
 
@@ -322,8 +325,8 @@ func TestStaffNoticeAcknowledgeRejectsNoticeThatDoesNotApplyToday(t *testing.T) 
 			},
 			periods: &fakePeriodRepo{periods: []*scheduleModels.CalendarPeriod{{
 				PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-				StartDate:       scheduleModels.Date(today.AddDays(-7)),
-				EndDate:         scheduleModels.Date(today.AddDays(7)),
+				StartDate:       calendar.Date(today.AddDays(-7)),
+				EndDate:         calendar.Date(today.AddDays(7)),
 				WeekCycleLength: 2,
 				WeekCycleAnchor: &scheduleToday,
 				IsActive:        true,

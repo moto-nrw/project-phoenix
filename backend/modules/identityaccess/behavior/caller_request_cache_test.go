@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,16 +68,19 @@ func resolveFullChain(t *testing.T, ctx context.Context, rows *api.CallerRows) {
 	t.Helper()
 	caller := rows.Caller()
 
-	_, err := caller.StaffID(ctx)
+	_, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), caller.StaffID)
 	require.NoError(t, err)
-	_, err = caller.TeacherID(ctx)
+	_, err = testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), caller.TeacherID)
 	require.NoError(t, err)
-	_, err = rows.GetMyGroups(ctx)
+	_, err = testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), rows.GetMyGroups)
 	require.NoError(t, err)
-	_, err = rows.GetSubstitutedGroupIDs(ctx)
+	_, err = testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), rows.GetSubstitutedGroupIDs)
 	require.NoError(t, err)
 
-	access := caller.StudentAccess(ctx)
+	access, accessErr := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (identityaccess.StudentAccess, error) {
+		return caller.StudentAccess(txCtx), nil
+	})
+	require.NoError(t, accessErr)
 	require.True(t, access.HasFullAccess())
 }
 
@@ -155,7 +158,7 @@ func TestNonTeacherStaffNotFoundIsMemoized(t *testing.T) {
 
 	ctx := testpkg.WithRequestIdentityCache(callerCtx(t, account.ID))
 
-	_, err := rows.GetMyGroups(ctx)
+	_, err := testpkg.TenantQuery0(t, ctx, db, rows.GetMyGroups)
 	require.NoError(t, err)
 	_, err = rows.GetMyGroups(ctx)
 	require.NoError(t, err)

@@ -12,10 +12,10 @@ import (
 // The typed root's test compositions these suites build: each opens the
 // package's test database and composes the module through the root (#4005).
 
-func setupSchoolPortalModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, SchoolTestModule) {
+func setupSchoolPortalModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, SchoolTestModule, ClassDayTestModule, DeliveryTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := NewSchoolTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	module, classDay, delivery, err := NewSchoolTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
 	require.NoError(t, err)
-	return db, module
+	return db, module, classDay, delivery
 }

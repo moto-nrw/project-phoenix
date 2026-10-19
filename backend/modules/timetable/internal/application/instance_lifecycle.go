@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"time"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -198,7 +198,7 @@ func (s *InstanceLifecycleService) updateLifecycleColumns(ctx context.Context, i
 // GetPlannedStudentIDsByDate returns which of the children have a planned
 // block on the date.
 func (s *InstanceLifecycleService) GetPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]int64, error) {
-	return s.deps.InstanceStudents.FindPlannedStudentIDsByDate(ctx, studentIDs, scheduleModel.Date(date))
+	return s.deps.InstanceStudents.FindPlannedStudentIDsByDate(ctx, studentIDs, calendar.Date(date))
 }
 
 // detectStartConflicts asks the owner's start check and keeps the retained
@@ -227,27 +227,13 @@ func LifecycleInstanceOf(row *scheduleModel.ActivityInstance) *timetable.Lifecyc
 	}
 }
 
-type legacyListRepository[T any] interface {
-	List(context.Context, *domain.ListOptions) ([]T, error)
-}
-
-// legacyList reads through the retained repositories' List(options), which
-// they serve beside their model interfaces.
-func legacyList[T any](ctx context.Context, repository any, options *domain.ListOptions) ([]T, error) {
-	lister, ok := repository.(legacyListRepository[T])
+// listInstances retains the missing-capability error while requiring a bounded query.
+func listInstances(ctx context.Context, repository any, filter ports.LegacyInstanceFilter) ([]*scheduleModel.ActivityInstance, error) {
+	lister, ok := repository.(ports.InstanceListing)
 	if !ok {
 		return nil, fmt.Errorf("legacy list capability is not configured for %T", repository)
 	}
-	return lister.List(ctx, options)
-}
-
-// anyArgs widens values for the persistence-neutral Filter.In API.
-func anyArgs[T any](values []T) []any {
-	args := make([]any, len(values))
-	for i, value := range values {
-		args[i] = value
-	}
-	return args
+	return lister.ListInstances(ctx, filter)
 }
 
 func instanceRowIDs(instances []*scheduleModel.ActivityInstance) []int64 {

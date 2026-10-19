@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// GetTodayPresenceMap returns a map of staff IDs to their work status for today
 func (s *workSessionService) GetTodayPresenceMap(ctx context.Context) (map[int64]string, error) {
 	presenceMap, err := s.repo.GetTodayPresenceMap(ctx)
 	if err != nil {
@@ -21,9 +20,6 @@ func (s *workSessionService) GetTodayPresenceMap(ctx context.Context) (map[int64
 	return presenceMap, nil
 }
 
-// CleanupOpenSessions closes sessions still open from before yesterday. This
-// leaves a full following calendar day for legitimate night blocks to be
-// checked out normally before they become stale.
 func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, error) {
 	// Today's Berlin calendar day for the PostgreSQL DATE column
 	today := calendar.DateFromTime(s.now())
@@ -70,7 +66,6 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 	return count, nil
 }
 
-// AutoCheckoutDueSessions closes open sessions at their planned shift end (#1798).
 func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace time.Duration) (int, error) {
 	if s.staffShiftRepo == nil {
 		return 0, nil

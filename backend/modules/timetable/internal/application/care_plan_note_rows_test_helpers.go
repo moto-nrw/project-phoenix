@@ -5,9 +5,9 @@ package application
 import (
 	"context"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type CareArrivalNoteRows struct{ rows ports.CarePlanRows }
@@ -34,7 +34,7 @@ func arrivalNoteToLegacy(v ports.CareArrivalNote) *scheduleModels.StudentArrival
 
 func applyArrivalNote(r *scheduleModels.StudentArrivalNote, v ports.CareArrivalNote) {
 	r.ID, r.TenantID, r.CreatedAt, r.UpdatedAt = v.ID, v.TenantID, v.CreatedAt, v.UpdatedAt
-	r.StudentID, r.NoteDate, r.Content, r.CreatedBy = v.StudentID, scheduleModels.Date(v.NoteDate), v.Content, v.CreatedBy
+	r.StudentID, r.NoteDate, r.Content, r.CreatedBy = v.StudentID, calendar.Date(v.NoteDate), v.Content, v.CreatedBy
 }
 
 func pickupNoteToPublic(v *scheduleModels.StudentPickupNote) ports.CarePickupNote {
@@ -49,7 +49,7 @@ func pickupNoteToLegacy(v ports.CarePickupNote) *scheduleModels.StudentPickupNot
 
 func applyPickupNote(r *scheduleModels.StudentPickupNote, v ports.CarePickupNote) {
 	r.ID, r.TenantID, r.CreatedAt, r.UpdatedAt = v.ID, v.TenantID, v.CreatedAt, v.UpdatedAt
-	r.StudentID, r.NoteDate, r.Weekday, r.Content, r.CreatedBy = v.StudentID, scheduleModels.Date(v.NoteDate), v.Weekday, v.Content, v.CreatedBy
+	r.StudentID, r.NoteDate, r.Weekday, r.Content, r.CreatedBy = v.StudentID, calendar.Date(v.NoteDate), v.Weekday, v.Content, v.CreatedBy
 }
 
 func (r CareArrivalNoteRows) Create(ctx context.Context, row *scheduleModels.StudentArrivalNote) error {
@@ -67,7 +67,8 @@ func (r CareArrivalNoteRows) Create(ctx context.Context, row *scheduleModels.Stu
 	return nil
 }
 
-func (r CareArrivalNoteRows) FindByID(ctx context.Context, raw any) (*scheduleModels.StudentArrivalNote, error) {
+func (r CareArrivalNoteRows) FindByID(ctx context.Context, nativeRecordID int64) (*scheduleModels.StudentArrivalNote, error) {
+	var raw any = nativeRecordID
 	id, err := legacyScheduleID(raw)
 	if err != nil {
 		return nil, r.rows.ScheduleError("find by id", err)
@@ -89,19 +90,23 @@ func (r CareArrivalNoteRows) Update(ctx context.Context, row *scheduleModels.Stu
 	return r.rows.ScheduleError("update", r.rows.Records.UpdateArrivalNote(ctx, arrivalNoteToPublic(row)))
 }
 
-func (r CareArrivalNoteRows) List(ctx context.Context, options *domain.ListOptions) ([]*scheduleModels.StudentArrivalNote, error) {
-	return listWithOptions(ctx, r.rows, options, r.rows.Records.ListArrivalNotes, arrivalNoteToLegacy)
+func (r CareArrivalNoteRows) ListRows(ctx context.Context, filter ports.CareScheduleFilter) ([]*scheduleModels.StudentArrivalNote, error) {
+	values, err := r.rows.Records.ListArrivalNotes(ctx, filter)
+	if err != nil {
+		return nil, r.rows.ScheduleError("list with options", err)
+	}
+	return mapRows(values, arrivalNoteToLegacy), nil
 }
 
 func (r CareArrivalNoteRows) FindByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentArrivalNote, error) {
 	return r.list(ctx, ports.CareScheduleFilter{StudentIDs: []int64{id}}, "find by student id")
 }
 
-func (r CareArrivalNoteRows) FindByStudentIDAndDate(ctx context.Context, id int64, d scheduleModels.Date) ([]*scheduleModels.StudentArrivalNote, error) {
+func (r CareArrivalNoteRows) FindByStudentIDAndDate(ctx context.Context, id int64, d calendar.Date) ([]*scheduleModels.StudentArrivalNote, error) {
 	return r.list(ctx, ports.CareScheduleFilter{StudentIDs: []int64{id}, Date: ports.CareDate(d)}, "find by student id and date")
 }
 
-func (r CareArrivalNoteRows) FindByStudentIDsAndDate(ctx context.Context, ids []int64, d scheduleModels.Date) ([]*scheduleModels.StudentArrivalNote, error) {
+func (r CareArrivalNoteRows) FindByStudentIDsAndDate(ctx context.Context, ids []int64, d calendar.Date) ([]*scheduleModels.StudentArrivalNote, error) {
 	return r.list(ctx, ports.CareScheduleFilter{StudentIDs: ids, Date: ports.CareDate(d)}, "find by student ids and date")
 }
 
@@ -117,7 +122,7 @@ func (r CareArrivalNoteRows) DeleteByStudentID(ctx context.Context, id int64) er
 	return r.rows.ScheduleError("delete by student id", r.rows.Records.DeleteArrivalNotesByStudent(ctx, id))
 }
 
-func (r CareArrivalNoteRows) DeletePastNotes(ctx context.Context, d scheduleModels.Date) (int64, error) {
+func (r CareArrivalNoteRows) DeletePastNotes(ctx context.Context, d calendar.Date) (int64, error) {
 	rows, err := r.rows.Records.DeleteArrivalNotesBefore(ctx, ports.CareDate(d))
 	return rows, r.rows.ScheduleError("delete past notes", err)
 }
@@ -137,7 +142,8 @@ func (r CarePickupNoteRows) Create(ctx context.Context, row *scheduleModels.Stud
 	return nil
 }
 
-func (r CarePickupNoteRows) FindByID(ctx context.Context, raw any) (*scheduleModels.StudentPickupNote, error) {
+func (r CarePickupNoteRows) FindByID(ctx context.Context, nativeRecordID int64) (*scheduleModels.StudentPickupNote, error) {
+	var raw any = nativeRecordID
 	id, err := legacyScheduleID(raw)
 	if err != nil {
 		return nil, r.rows.ScheduleError("find by id", err)
@@ -159,19 +165,23 @@ func (r CarePickupNoteRows) Update(ctx context.Context, row *scheduleModels.Stud
 	return r.rows.ScheduleError("update", r.rows.Records.UpdatePickupNote(ctx, pickupNoteToPublic(row)))
 }
 
-func (r CarePickupNoteRows) List(ctx context.Context, options *domain.ListOptions) ([]*scheduleModels.StudentPickupNote, error) {
-	return listWithOptions(ctx, r.rows, options, r.rows.Records.ListPickupNotes, pickupNoteToLegacy)
+func (r CarePickupNoteRows) ListRows(ctx context.Context, filter ports.CareScheduleFilter) ([]*scheduleModels.StudentPickupNote, error) {
+	values, err := r.rows.Records.ListPickupNotes(ctx, filter)
+	if err != nil {
+		return nil, r.rows.ScheduleError("list with options", err)
+	}
+	return mapRows(values, pickupNoteToLegacy), nil
 }
 
 func (r CarePickupNoteRows) FindByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentPickupNote, error) {
 	return r.list(ctx, ports.CareScheduleFilter{StudentIDs: []int64{id}}, "find by student id")
 }
 
-func (r CarePickupNoteRows) FindByStudentIDAndDate(ctx context.Context, id int64, d scheduleModels.Date) ([]*scheduleModels.StudentPickupNote, error) {
+func (r CarePickupNoteRows) FindByStudentIDAndDate(ctx context.Context, id int64, d calendar.Date) ([]*scheduleModels.StudentPickupNote, error) {
 	return r.list(ctx, ports.CareScheduleFilter{StudentIDs: []int64{id}, Date: ports.CareDate(d)}, "find by student id and date")
 }
 
-func (r CarePickupNoteRows) FindByStudentIDsAndDate(ctx context.Context, ids []int64, d scheduleModels.Date) ([]*scheduleModels.StudentPickupNote, error) {
+func (r CarePickupNoteRows) FindByStudentIDsAndDate(ctx context.Context, ids []int64, d calendar.Date) ([]*scheduleModels.StudentPickupNote, error) {
 	return r.list(ctx, ports.CareScheduleFilter{StudentIDs: ids, Date: ports.CareDate(d)}, "find by student ids and date")
 }
 
@@ -187,12 +197,12 @@ func (r CarePickupNoteRows) DeleteByStudentID(ctx context.Context, id int64) err
 	return r.rows.ScheduleError("delete by student id", r.rows.Records.DeletePickupNotesByStudent(ctx, id))
 }
 
-func (r CarePickupNoteRows) DeletePastNotes(ctx context.Context, d scheduleModels.Date) (int64, error) {
+func (r CarePickupNoteRows) DeletePastNotes(ctx context.Context, d calendar.Date) (int64, error) {
 	rows, err := r.rows.Records.DeletePickupNotesBefore(ctx, ports.CareDate(d))
 	return rows, r.rows.ScheduleError("delete past notes", err)
 }
 
 var (
-	_ scheduleModels.StudentArrivalNoteRepository = CareArrivalNoteRows{}
-	_ scheduleModels.StudentPickupNoteRepository  = CarePickupNoteRows{}
+	_ ports.StudentArrivalNoteRecords = CareArrivalNoteRows{}
+	_ ports.StudentPickupNoteRecords  = CarePickupNoteRows{}
 )

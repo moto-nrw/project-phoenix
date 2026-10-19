@@ -5,31 +5,26 @@ package api
 import (
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
+// WorkSessionTestRepositories are the Workforce owner's work-session rows.
+// The Timetable rows, the people and the live sessions the time tracking
+// reads come from the timetable fixtures beside it, the edit trail from the
+// Audit persistence.
 type WorkSessionTestRepositories struct {
-	TimetableTestRepositories
 	// Workforce is the capability the time-tracking rows are served from.
-	Workforce workforce.Capability
-	// WorkSessionEdit is filled by NewWorkSessionTestRepositories.
-	WorkSessionEdit   auditModels.WorkSessionEditRepository
-	StaffAbsence      workforceCompose.StaffAbsenceRepository
-	StaffWorkSchedule configModels.StaffWorkScheduleRepository
-	WorkTimeModel     configModels.WorkTimeModelRepository
+	Workforce    workforce.Capability
+	StaffAbsence workforceCompose.StaffAbsenceRepository
 }
 
-func NewWorkSessionTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories, clocks ...func() time.Time) (WorkSessionTestRepositories, error) {
-	tt, err := NewTimetableTestRepositoriesWithMembers(db, members, clocks...)
-	if err != nil {
-		return WorkSessionTestRepositories{}, err
-	}
+func NewWorkSessionTestRepositoriesWithMembers(db transactionruntime.Database, members owners.MembershipTestRepositories, clocks ...func() time.Time) (WorkSessionTestRepositories, error) {
 	people := members.People
-	membership, err := NewSchoolMembership(db)
+	membership, err := owners.NewSchoolMembership(db)
 	if err != nil {
 		return WorkSessionTestRepositories{}, err
 	}
@@ -37,13 +32,12 @@ func NewWorkSessionTestRepositoriesWithMembers(db transactionruntime.Database, m
 	if len(clocks) > 0 {
 		now = clocks[0]
 	}
-	workTime, err := NewWorkforceWithClock(db, membership, now)
+	workTime, err := owners.NewWorkforceWithClock(db, membership, now)
 	if err != nil {
 		return WorkSessionTestRepositories{}, err
 	}
-	return WorkSessionTestRepositories{TimetableTestRepositories: tt,
-		Workforce:         workTime,
-		StaffAbsence:      NewStaffAbsenceRepository(workTime, membership, people),
-		StaffWorkSchedule: NewStaffWorkScheduleRepository(workTime),
-		WorkTimeModel:     NewWorkTimeModelRepository(workTime)}, nil
+	return WorkSessionTestRepositories{
+		Workforce:    workTime,
+		StaffAbsence: owners.NewStaffAbsenceRepository(workTime, membership, people),
+	}, nil
 }

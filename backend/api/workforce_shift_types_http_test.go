@@ -32,9 +32,9 @@ type shiftTypeRoute struct {
 func setupShiftTypeRoute(t *testing.T) *shiftTypeRoute {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := NewShiftTypeTestModule(testpkg.NewDatabase(t, db))
+	shiftTypes, module, err := NewShiftTypeTestModule(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	resource := newShiftTypesResource(module.ShiftTypes)
+	resource := newShiftTypesResource(shiftTypes)
 
 	claims := testutil.DefaultTestClaims()
 	claims.TenantID = testpkg.Tenant(t)

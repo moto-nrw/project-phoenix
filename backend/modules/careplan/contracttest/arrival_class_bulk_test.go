@@ -6,8 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
+	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	"github.com/moto-nrw/project-phoenix/api"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -21,13 +25,13 @@ func nativeClassArrivalPlans(t *testing.T) careplanCompose.ArrivalClassPlans {
 	t.Helper()
 	classes, err := arrivalTimetable.NewClassArrivals(testpkg.SetupTestDB(t), func(arrivalTimetable.Observation) {})
 	require.NoError(t, err)
-	return api.ClassArrivalPlans(classes)
+	return owners.ClassArrivalPlans(classes)
 }
 
 func nativeArrivalSchedules(t *testing.T, records careplanCompose.ArrivalScheduleRecords, baselines careplan.ArrivalBaselineReader, classes careplanCompose.ArrivalClassPlans, exceptions careplan.ClassArrivalExceptions) careplan.ArrivalScheduleService {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	rules, deps, err := api.ArrivalScheduleBinding(api.MustNewPeopleDirectory(testpkg.MustDatabase(db)), classes, exceptions, nil)
+	rules, deps, err := owners.ArrivalScheduleBinding(owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)), classes, exceptions, nil)
 	require.NoError(t, err)
 	service, err := careplanCompose.NewArrivalSchedules(db, records, baselines, rules, deps)
 	require.NoError(t, err)
@@ -46,19 +50,19 @@ func TestBulkUpsertBySchoolClassWritesTheClassTimetable(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassTimes(t, repos)
 
 	staff := testpkg.CreateTestStaff(t, db, "Sammel", "Betreuung")
 	first := testpkg.CreateTestStudent(t, db, "Eins", "Kind", "7c")
 	second := testpkg.CreateTestStudent(t, db, "Zwei", "Kind", "7c")
-	testpkg.CreateTestArrivalSchedule(t, db, first.ID, scheduleModel.WeekdayMonday, staff.ID, "12:15")
-	testpkg.CreateTestArrivalSchedule(t, db, second.ID, scheduleModel.WeekdayMonday, staff.ID, "")
+	testpkg.CreateTestArrivalSchedule(t, db, first.ID, timetable.WeekdayMonday, staff.ID, "12:15")
+	testpkg.CreateTestArrivalSchedule(t, db, second.ID, timetable.WeekdayMonday, staff.ID, "")
 
 	result, err := svc.BulkUpsertArrivalSchedules(ctx,
 		careplan.ArrivalScheduleBulkFilter{SchoolClass: "7c"},
-		[]careplan.ArrivalScheduleInput{{Weekday: scheduleModel.WeekdayMonday, ArrivalTime: "11:45"}},
+		[]careplan.ArrivalScheduleInput{{Weekday: timetable.WeekdayMonday, ArrivalTime: "11:45"}},
 		staff.ID,
 	)
 	require.NoError(t, err)
@@ -71,12 +75,12 @@ func TestBulkUpsertBySchoolClassWritesTheClassTimetable(t *testing.T) {
 	})
 
 	t.Run("an own time remains while an inherited row follows the class", func(t *testing.T) {
-		firstRows, storeErr := repos.StudentArrivalSchedule.FindByStudentID(ctx, first.ID)
+		firstRows, storeErr := careplantest.NewScheduleRecords(repos.CarePlan()).StudentArrivalSchedule.FindByStudentID(ctx, first.ID)
 		require.NoError(t, storeErr)
 		require.Len(t, firstRows, 1)
 		assert.Equal(t, "12:15", firstRows[0].ExpectedArrival.Format("15:04"))
 
-		secondRows, storeErr := repos.StudentArrivalSchedule.FindByStudentID(ctx, second.ID)
+		secondRows, storeErr := careplantest.NewScheduleRecords(repos.CarePlan()).StudentArrivalSchedule.FindByStudentID(ctx, second.ID)
 		require.NoError(t, storeErr)
 		require.Len(t, secondRows, 1)
 		assert.True(t, secondRows[0].InheritsClassTime())
@@ -91,13 +95,13 @@ func TestBulkUpsertBySchoolClassWritesTheClassTimetable(t *testing.T) {
 		require.NoError(t, readErr)
 		require.Len(t, firstWeek, 1)
 		assert.Equal(t, "12:15", firstWeek[0].ExpectedArrival.Format("15:04"))
-		assert.Equal(t, scheduleModel.ArrivalScheduleSourceStaff, firstWeek[0].Source)
+		assert.Equal(t, careplan.ScheduleSourceStaff, firstWeek[0].Source)
 
 		rows, readErr := svc.GetStudentArrivalSchedules(ctx, second.ID)
 		require.NoError(t, readErr)
 		require.Len(t, rows, 1)
 		assert.Equal(t, "11:45", rows[0].ExpectedArrival.Format("15:04"))
-		assert.Equal(t, scheduleModel.ArrivalScheduleSourceClassSchedule, rows[0].Source)
+		assert.Equal(t, careplan.ScheduleSourceClassSchedule, rows[0].Source)
 		assert.Equal(t, "7c", rows[0].SourceClass)
 	})
 }
@@ -106,15 +110,15 @@ func TestStoredArrivalScheduleStatusCountsOnlyOwnTimes(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassTimes(t, repos)
 
 	staff := testpkg.CreateTestStaff(t, db, "Status", "Betreuung")
 	withOwnTime := testpkg.CreateTestStudent(t, db, "Eigene", "Zeit", "7d")
 	withInheritedMarker := testpkg.CreateTestStudent(t, db, "Klassen", "Zeit", "7d")
-	testpkg.CreateTestArrivalSchedule(t, db, withOwnTime.ID, scheduleModel.WeekdayMonday, staff.ID, "12:15")
-	testpkg.CreateTestArrivalSchedule(t, db, withInheritedMarker.ID, scheduleModel.WeekdayMonday, staff.ID, "")
+	testpkg.CreateTestArrivalSchedule(t, db, withOwnTime.ID, timetable.WeekdayMonday, staff.ID, "12:15")
+	testpkg.CreateTestArrivalSchedule(t, db, withInheritedMarker.ID, timetable.WeekdayMonday, staff.ID, "")
 
 	hasSchedules, err := svc.GetStudentsWithStoredArrivalSchedules(ctx, []int64{withOwnTime.ID, withInheritedMarker.ID})
 	require.NoError(t, err)
@@ -126,14 +130,14 @@ func TestArrivalSchedulesForDateUseTheRequestedProjectionDate(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassTimes(t, repos)
 
 	student := testpkg.CreateTestStudent(t, db, "Export", "Datum", "8d")
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Export")
 	setClassArrivalTimes(t, "8d", map[string]string{"mon": "11:45"})
-	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "")
+	testpkg.CreateTestArrivalSchedule(t, db, student.ID, timetable.WeekdayMonday, staff.ID, "")
 	monday := mondayOnOrAfter(calendar.TodayDate())
 
 	rows, err := svc.GetWeeklySchedulesByStudentIDsForDate(ctx, []int64{student.ID}, monday)
@@ -159,9 +163,9 @@ func (tuesdayOnlyArrivalBaseline) Project(
 		for date := from; !date.After(to); date = date.AddDays(1) {
 			week := careplan.ArrivalWeek{}
 			if date.Weekday() == time.Tuesday {
-				week[scheduleModel.WeekdayTuesday] = &careplan.ArrivalSchedule{
+				week[timetable.WeekdayTuesday] = &careplan.ArrivalSchedule{
 					StudentID: studentID,
-					Weekday:   scheduleModel.WeekdayTuesday,
+					Weekday:   timetable.WeekdayTuesday,
 				}
 			}
 			weekly[date] = week
@@ -176,7 +180,7 @@ func TestArrivalDataForDateRangeKeepsMidweekBookingStart(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), tuesdayOnlyArrivalBaseline{}, nativeClassArrivalPlans(t), nil)
 	student := testpkg.CreateTestStudent(t, db, "Mitte", "Woche", "8f")
@@ -185,14 +189,14 @@ func TestArrivalDataForDateRangeKeepsMidweekBookingStart(t *testing.T) {
 	data, err := svc.GetStudentArrivalDataForDateRange(ctx, student.ID, monday, monday.AddDays(4))
 	require.NoError(t, err)
 	require.Len(t, data.Schedules, 1)
-	assert.Equal(t, scheduleModel.WeekdayTuesday, data.Schedules[0].Weekday)
+	assert.Equal(t, timetable.WeekdayTuesday, data.Schedules[0].Weekday)
 }
 
 func TestArrivalDataUsesWholeCurrentWeek(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), tuesdayOnlyArrivalBaseline{}, nativeClassArrivalPlans(t), nil)
 	student := testpkg.CreateTestStudent(t, db, "Ganz", "Woche", "8j")
@@ -200,14 +204,14 @@ func TestArrivalDataUsesWholeCurrentWeek(t *testing.T) {
 	data, err := svc.GetStudentArrivalData(ctx, student.ID)
 	require.NoError(t, err)
 	require.Len(t, data.Schedules, 1)
-	assert.Equal(t, scheduleModel.WeekdayTuesday, data.Schedules[0].Weekday)
+	assert.Equal(t, timetable.WeekdayTuesday, data.Schedules[0].Weekday)
 }
 
 func TestArrivalExceptionsDoNotCreateUnbookedCareDays(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), tuesdayOnlyArrivalBaseline{}, nativeClassArrivalPlans(t), nil)
 	student := testpkg.CreateTestStudent(t, db, "Ohne", "Buchung", "8k")
@@ -238,7 +242,7 @@ func TestWeeklyArrivalReadersUseEachWeekdayDate(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), tuesdayOnlyArrivalBaseline{}, nativeClassArrivalPlans(t), nil)
 	student := testpkg.CreateTestStudent(t, db, "Woche", "Dienstag", "8h")
@@ -246,34 +250,34 @@ func TestWeeklyArrivalReadersUseEachWeekdayDate(t *testing.T) {
 	week, err := svc.GetStudentArrivalSchedules(ctx, student.ID)
 	require.NoError(t, err)
 	require.Len(t, week, 1)
-	assert.Equal(t, scheduleModel.WeekdayTuesday, week[0].Weekday)
+	assert.Equal(t, timetable.WeekdayTuesday, week[0].Weekday)
 
-	byWeekday, err := svc.GetWeeklySchedulesByStudentIDsAndWeekday(ctx, []int64{student.ID}, scheduleModel.WeekdayTuesday)
+	byWeekday, err := svc.GetWeeklySchedulesByStudentIDsAndWeekday(ctx, []int64{student.ID}, timetable.WeekdayTuesday)
 	require.NoError(t, err)
 	require.Len(t, byWeekday, 1)
-	assert.Equal(t, scheduleModel.WeekdayTuesday, byWeekday[0].Weekday)
+	assert.Equal(t, timetable.WeekdayTuesday, byWeekday[0].Weekday)
 }
 
 func TestArrivalScheduleForWeekdayProjectsBookedDayWithoutStoredRow(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), tuesdayOnlyArrivalBaseline{}, nativeClassArrivalPlans(t), nil)
 	student := testpkg.CreateTestStudent(t, db, "Ohne", "Zeile", "8i")
 
-	row, err := svc.GetStudentArrivalScheduleForWeekday(ctx, student.ID, scheduleModel.WeekdayTuesday)
+	row, err := svc.GetStudentArrivalScheduleForWeekday(ctx, student.ID, timetable.WeekdayTuesday)
 	require.NoError(t, err)
 	require.NotNil(t, row)
-	assert.Equal(t, scheduleModel.WeekdayTuesday, row.Weekday)
+	assert.Equal(t, timetable.WeekdayTuesday, row.Weekday)
 }
 
 func TestArrivalDataForDateRangeKeepsOneRowPerWeekday(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), tuesdayOnlyArrivalBaseline{}, nativeClassArrivalPlans(t), nil)
 	student := testpkg.CreateTestStudent(t, db, "Bereich", "Woche", "8g")
@@ -282,7 +286,7 @@ func TestArrivalDataForDateRangeKeepsOneRowPerWeekday(t *testing.T) {
 	data, err := svc.GetStudentArrivalDataForDateRange(ctx, student.ID, monday, monday.AddDays(8))
 	require.NoError(t, err)
 	require.Len(t, data.Schedules, 1)
-	assert.Equal(t, scheduleModel.WeekdayTuesday, data.Schedules[0].Weekday)
+	assert.Equal(t, timetable.WeekdayTuesday, data.Schedules[0].Weekday)
 }
 
 type weekendFridayArrivalBaseline struct{}
@@ -302,9 +306,9 @@ func (weekendFridayArrivalBaseline) Project(
 		weekly := careplan.ArrivalPlanByDate{}
 		for date := from; !date.After(to); date = date.AddDays(1) {
 			weekly[date] = careplan.ArrivalWeek{
-				scheduleModel.WeekdayFriday: {
+				timetable.WeekdayFriday: {
 					StudentID: studentID,
-					Weekday:   scheduleModel.WeekdayFriday,
+					Weekday:   timetable.WeekdayFriday,
 				},
 			}
 		}
@@ -318,7 +322,7 @@ func TestArrivalDataForWeekendRangeReadsFridayRows(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), weekendFridayArrivalBaseline{}, nativeClassArrivalPlans(t), nil)
 	student := testpkg.CreateTestStudent(t, db, "Wochenende", "Freitag", "8n")
@@ -327,7 +331,7 @@ func TestArrivalDataForWeekendRangeReadsFridayRows(t *testing.T) {
 	data, err := svc.GetStudentArrivalDataForDateRange(ctx, student.ID, saturday, saturday.AddDays(1))
 	require.NoError(t, err)
 	require.Len(t, data.Schedules, 1)
-	assert.Equal(t, scheduleModel.WeekdayFriday, data.Schedules[0].Weekday)
+	assert.Equal(t, timetable.WeekdayFriday, data.Schedules[0].Weekday)
 }
 
 type firstMondayOnlyArrivalBaseline struct{}
@@ -347,9 +351,9 @@ func (firstMondayOnlyArrivalBaseline) Project(
 		for date := from; !date.After(to); date = date.AddDays(1) {
 			week := careplan.ArrivalWeek{}
 			if date == from {
-				week[scheduleModel.WeekdayMonday] = &careplan.ArrivalSchedule{
+				week[timetable.WeekdayMonday] = &careplan.ArrivalSchedule{
 					StudentID: studentID,
-					Weekday:   scheduleModel.WeekdayMonday,
+					Weekday:   timetable.WeekdayMonday,
 				}
 			}
 			weekly[date] = week
@@ -364,7 +368,7 @@ func TestArrivalDataForDateRangeDropsCareDayAfterBookingEnds(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), firstMondayOnlyArrivalBaseline{}, nativeClassArrivalPlans(t), nil)
 	student := testpkg.CreateTestStudent(t, db, "Ende", "Buchung", "8l")
@@ -397,9 +401,9 @@ func (bookingMondayBaseline) Project(
 	for _, studentID := range studentIDs {
 		projection.WeeklyByStudentDate[studentID] = careplan.ArrivalPlanByDate{
 			from: careplan.ArrivalWeek{
-				scheduleModel.WeekdayMonday: {
+				timetable.WeekdayMonday: {
 					StudentID: studentID,
-					Weekday:   scheduleModel.WeekdayMonday,
+					Weekday:   timetable.WeekdayMonday,
 				},
 			},
 		}
@@ -415,7 +419,7 @@ func TestWeeklyWriteFailsWhenClassTimeCannotBeChecked(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	wantErr := errors.New("class-time lookup failed")
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), classArrivalBaseline(t, repos), failingClassArrivalPlans{ArrivalClassPlans: nativeClassArrivalPlans(t), err: wantErr}, nil)
@@ -425,14 +429,14 @@ func TestWeeklyWriteFailsWhenClassTimeCannotBeChecked(t *testing.T) {
 	err := svc.UpsertBulkStudentArrivalSchedules(ctx, student.ID, []*careplan.ArrivalSchedule{
 		{
 			StudentID:       student.ID,
-			Weekday:         scheduleModel.WeekdayMonday,
+			Weekday:         timetable.WeekdayMonday,
 			ExpectedArrival: calendar.NormalizeWallClock(mustParseHHMM(t, "11:45")),
 			CreatedBy:       staff.ID,
 		},
 	})
 
 	require.ErrorIs(t, err, wantErr)
-	stored, findErr := repos.StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
+	stored, findErr := careplantest.NewScheduleRecords(repos.CarePlan()).StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
 	require.NoError(t, findErr)
 	assert.Empty(t, stored, "a failed class-time check must not persist a false deviation")
 }
@@ -441,23 +445,23 @@ func TestBookingModeWeeklyWritePreservesInactiveRows(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), bookingMondayBaseline{}, nativeClassArrivalPlans(t), nil)
 
 	staff := testpkg.CreateTestStaff(t, db, "Buchung", "Bewahren")
 	student := testpkg.CreateTestStudent(t, db, "Buchung", "Kind", "8f")
-	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "12:15")
-	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayTuesday, staff.ID, "13:00")
+	testpkg.CreateTestArrivalSchedule(t, db, student.ID, timetable.WeekdayMonday, staff.ID, "12:15")
+	testpkg.CreateTestArrivalSchedule(t, db, student.ID, timetable.WeekdayTuesday, staff.ID, "13:00")
 
 	require.NoError(t, svc.UpsertBulkStudentArrivalSchedules(ctx, student.ID, nil))
 
-	stored, err := repos.StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
+	stored, err := careplantest.NewScheduleRecords(repos.CarePlan()).StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
 	require.NoError(t, err)
 	require.Len(t, stored, 2)
-	assert.Equal(t, scheduleModel.WeekdayMonday, stored[0].Weekday)
+	assert.Equal(t, timetable.WeekdayMonday, stored[0].Weekday)
 	assert.Equal(t, "12:15", stored[0].ExpectedArrival.Format("15:04"))
-	assert.Equal(t, scheduleModel.WeekdayTuesday, stored[1].Weekday)
+	assert.Equal(t, timetable.WeekdayTuesday, stored[1].Weekday)
 	assert.Equal(t, "13:00", stored[1].ExpectedArrival.Format("15:04"))
 }
 
@@ -468,7 +472,7 @@ func TestWeeklyWriteCollapsesIntoTheClassTime(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassTimes(t, repos)
 
@@ -480,21 +484,21 @@ func TestWeeklyWriteCollapsesIntoTheClassTime(t *testing.T) {
 	deviating := calendar.NormalizeWallClock(mustParseHHMM(t, "12:15"))
 	require.NoError(t, svc.UpsertBulkStudentArrivalSchedules(ctx, student.ID,
 		[]*careplan.ArrivalSchedule{
-			{StudentID: student.ID, Weekday: scheduleModel.WeekdayMonday, ExpectedArrival: sameAsClass, CreatedBy: staff.ID},
-			{StudentID: student.ID, Weekday: scheduleModel.WeekdayTuesday, ExpectedArrival: deviating, CreatedBy: staff.ID},
+			{StudentID: student.ID, Weekday: timetable.WeekdayMonday, ExpectedArrival: sameAsClass, CreatedBy: staff.ID},
+			{StudentID: student.ID, Weekday: timetable.WeekdayTuesday, ExpectedArrival: deviating, CreatedBy: staff.ID},
 		}))
 
-	stored, err := repos.StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
+	stored, err := careplantest.NewScheduleRecords(repos.CarePlan()).StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
 	require.NoError(t, err)
 	require.Len(t, stored, 2)
-	byWeekday := map[int]*scheduleModel.StudentArrivalSchedule{}
+	byWeekday := map[int]*careplan.ArrivalSchedule{}
 	for _, row := range stored {
 		byWeekday[row.Weekday] = row
 	}
-	assert.True(t, byWeekday[scheduleModel.WeekdayMonday].InheritsClassTime(),
+	assert.True(t, byWeekday[timetable.WeekdayMonday].InheritsClassTime(),
 		"a value identical to the class time is no deviation")
-	assert.False(t, byWeekday[scheduleModel.WeekdayTuesday].InheritsClassTime())
-	assert.Equal(t, "12:15", byWeekday[scheduleModel.WeekdayTuesday].ExpectedArrival.Format("15:04"))
+	assert.False(t, byWeekday[timetable.WeekdayTuesday].InheritsClassTime())
+	assert.Equal(t, "12:15", byWeekday[timetable.WeekdayTuesday].ExpectedArrival.Format("15:04"))
 }
 
 func mustParseHHMM(t *testing.T, hhmm string) time.Time {

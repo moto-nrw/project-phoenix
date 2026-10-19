@@ -3,7 +3,6 @@ package compose
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -28,22 +27,8 @@ func NewGuardianPickupPermissions(db *bun.DB, observe func(Observation)) (carepl
 // tenant transaction to that school.
 func guardianPickupDatabase(db *bun.DB) postgres.Database {
 	return func(ctx context.Context) (bun.IDB, int64, error) {
-		tenantID := tenant.FromContext(ctx)
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return db, tenantID, nil
-		}
-		switch tx := transaction.(type) {
-		case bun.Tx:
-			return tx, tenantID, nil
-		case *bun.Tx:
-			if tx != nil {
-				return tx, tenantID, nil
-			}
-			return db, tenantID, nil
-		default:
-			return nil, 0, fmt.Errorf("care plan postgres: unsupported transaction %T", transaction)
-		}
+		database, err := tenant.CurrentTransaction[bun.IDB](ctx)
+		return database, tenant.FromContext(ctx), err
 	}
 }
 

@@ -119,7 +119,12 @@ func (s *StudentService) ListByStatusFlag(ctx context.Context, status string) (r
 }
 
 func (s *StudentService) Lock(ctx context.Context, id int64) error {
-	return s.run(ctx, "lock_student", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
+	return s.run(ctx, "lock_student", func(ctx context.Context, fn func(context.Context) error) error {
+		if err := s.tx.RequireTransaction(ctx); err != nil {
+			return err
+		}
+		return fn(ctx)
+	}, func(txCtx context.Context, stats *domain.OperationStats) error {
 		found, lockStats, err := s.store.Lock(txCtx, id)
 		stats.Add(lockStats)
 		if err != nil {

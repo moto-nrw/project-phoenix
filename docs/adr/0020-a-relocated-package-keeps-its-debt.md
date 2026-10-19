@@ -88,7 +88,7 @@ decides:
   reclassification;
 - a changed migration issue is still a reassignment and is still rejected;
 - a base entry whose import disappeared is still stale and must be removed;
-- ownership, read projections, composition surface and the semantic table
+- ownership, read-projection privileges, composition surface and the semantic table
   rules are untouched.
 
 The declaration is not an input to rule anchoring. Whether a package counts as
@@ -120,3 +120,31 @@ keys.
   fails closed.
 
 This decision was authorized in the implementation session on 2026-09-18.
+
+## Addendum: projection and transaction register paths (2026-10-19)
+
+The round-eight implementation decision for #2580 extends the same verified
+rename to two path-keyed guards. It creates no import permission or data grant.
+
+1. A read projection may follow its verified package relocation. Its owner,
+   production and test roles remain identical by the existing verifier. The
+   projection ID, ordered table list and tenant-safe privilege must also remain
+   identical. A changed table, privilege, identity or unverified path is still a
+   new grant and fails. The foreign-write guard and data ownership are unchanged.
+2. An administrative or command register entry may follow that same verified
+   package relocation. Only its file path changes: scope, function, operation,
+   ordinal, reason and canonical function-body fingerprint remain identical.
+   The old entry is consumed once; copying it, changing its body or reason,
+   changing scope, or adding an entry still fails. Retirement remains allowed.
+
+The transaction register obtains the verified map through the evaluator's
+read-only `relocations` metadata command. That command calls the existing
+`relocatedPackages` verifier against the immutable base, including its epoch,
+owner/role and exact Go-file-set checks. It cannot accept a declaration alone.
+The ordinary unchanged-entry comparison remains strict and unchanged; no
+runtime register entry, permission or count is added by this extension.
+
+Positive and negative tests cover path-only moves and reject widened grants,
+changed operations/reasons/bodies, unverified moves, copied allowances and extra
+entries. This addendum supersedes only the former treatment of a verified path
+rename as a new read grant or runtime entry, not any privilege check.

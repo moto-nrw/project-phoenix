@@ -242,10 +242,16 @@ func TestPlannedSupervisorListQueryBudgetStaysFlat(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("supervisor-owner-budget-%d", i))
 		createOwnedSupervisor(t, module, ctx, staff.ID, group.ID, i == 0)
 	}
-	counter := testpkg.CaptureQueries(t, db)
-	_, err := module.ListPlannedSupervisors(ctx, timetable.PlannedSupervisorFilter{StaffID: &staff.ID})
-	require.NoError(t, err)
-	testpkg.AssertQueryBudget(t, "modules.timetable.supervisors.list", counter.Queries())
+	// The owner read runs inside the HTTP/workflow unit of work. The budget
+	// still measures every business query, not connection/role setup.
+	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
+		counter := testpkg.CaptureQueries(t, db)
+		_, err := module.ListPlannedSupervisors(ctx, timetable.PlannedSupervisorFilter{StaffID: &staff.ID})
+		require.NoError(t, err)
+		testpkg.AssertQueryBudget(t, "modules.timetable.supervisors.list", counter.Queries())
+
+		return nil
+	}))
 }
 
 func createOwnedSupervisor(t *testing.T, module *timetable.Module, ctx context.Context, staffID, groupID int64, primary bool) timetable.PlannedSupervisor {

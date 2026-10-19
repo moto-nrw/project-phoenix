@@ -1505,6 +1505,7 @@
     "requestSubmitted": "Talep gönderildi. Ekip değişikliğinizi inceliyor.",
     "requestEdit": "Talebi düzenle",
     "pendingBadge": "İnceleniyor",
+    "pendingTitle": "Talep edilen değişiklik",
     "pendingNotice": "Bu alandaki bir değişiklik ekibin onayını bekliyor.",
     "editDisabled": "Bu OGS'de bu bilgiler düzenlenemez.",
     "requestDisabled": "Bu OGS'de değişiklik talepleri kapalı.",
@@ -2784,7 +2785,9 @@
         "managed_by_upload": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "invalid_value": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "presence_mode_switch_blocked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "booking_authority_blocked": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+        "booking_authority_blocked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "attendance_visible_exceeds_retention": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "attendance_retention_below_visible": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
       },
       "devices": {
         "tag_scan_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",

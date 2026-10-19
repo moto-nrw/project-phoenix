@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Group substitution target types. A group handover hands a whole education
@@ -51,7 +53,7 @@ type GroupSubstitution struct {
 // TenantID is an explicit tenant predicate on top of the ambient tenant; a
 // value for another tenant therefore matches nothing.
 type GroupSubstitutionFilter struct {
-	TenantID          int64
+	TenantID          *int64
 	GroupID           int64
 	GroupIDs          []int64
 	SubstituteStaffID int64
@@ -335,6 +337,24 @@ type ScheduleWholeDayAssignment struct {
 	SubstituteStaffID *int64
 	Dates             []string
 	Reason            *string
+}
+
+// Days parses the whole days of the assignment. A whole-day absence names
+// each of its days: an empty or malformed day refuses the period
+// (InvalidSubstitutionPeriod).
+func (a ScheduleWholeDayAssignment) Days() ([]calendar.Date, error) {
+	days := make([]calendar.Date, 0, len(a.Dates))
+	for _, raw := range a.Dates {
+		if raw == "" {
+			return nil, InvalidSubstitutionPeriod(nil)
+		}
+		day, err := calendar.ParseDate(raw)
+		if err != nil {
+			return nil, InvalidSubstitutionPeriod(err)
+		}
+		days = append(days, day)
+	}
+	return days, nil
 }
 
 type ScheduleSubstitutionAssignment struct {

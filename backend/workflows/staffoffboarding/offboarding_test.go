@@ -144,7 +144,7 @@ func TestWorkflowRollsBackAfterEachOwnerCommand(t *testing.T) {
 						return result, err
 					}
 					return result, failure
-				}, nil)
+				}, nil, schoolmembership.Reinstatement{})
 			case "audit":
 				f.deps.AppendAudit = func(context.Context, staffoffboarding.Actor, staffoffboarding.Result) error { return failure }
 			case "cleanup":
@@ -259,8 +259,4 @@ func (b employmentBinding) StaffEmployments(ctx context.Context, ids []int64) (m
 
 func (b employmentBinding) SaveStaffEmployment(ctx context.Context, value membershipcompose.StaffEmploymentProfile) error {
 	return b.owner.SaveStaffEmployment(ctx, workforce.StaffEmployment(value))
-}
-
-func (b employmentBinding) ClearStaffWorkTimeModel(ctx context.Context, id int64) error {
-	return b.owner.ClearStaffWorkTimeModel(ctx, id)
 }

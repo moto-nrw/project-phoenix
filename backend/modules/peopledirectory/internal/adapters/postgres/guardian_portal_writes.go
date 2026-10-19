@@ -16,15 +16,15 @@ const guardianEmailIndex = "idx_guardian_profiles_tenant_email"
 
 // tenantDB resolves the caller's transaction and refuses without a tenant:
 // every parents-portal write belongs to exactly one school.
-func (s *GuardianStore) tenantDB(ctx context.Context) (bun.IDB, int64, error) {
-	db, tenantID, err := s.database(ctx)
+func (s *GuardianStore) tenantDB(ctx context.Context) (bun.IDB, TenantScope, error) {
+	db, scope, err := s.database(ctx)
 	if err != nil {
-		return nil, 0, err
+		return nil, TenantScope{}, err
 	}
-	if tenantID <= 0 {
-		return nil, 0, domain.ErrTenantRequired
+	if scope.TenantID <= 0 {
+		return nil, TenantScope{}, domain.ErrTenantRequired
 	}
-	return db, tenantID, nil
+	return db, scope, nil
 }
 
 // exec runs one write statement and reports its rows affected.
@@ -85,11 +85,11 @@ func newGuardianContactRow(contact domain.GuardianContact, tenantID int64) *guar
 // InsertContact inserts a profile without an account; has_account, the
 // timestamps and the ID are the database's defaults.
 func (s *GuardianStore) InsertContact(ctx context.Context, contact domain.GuardianContact) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDB(ctx)
+	db, scope, err := s.tenantDB(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	row := newGuardianContactRow(contact, tenantID)
+	row := newGuardianContactRow(contact, scope.TenantID)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = db.NewInsert().Model(row).ModelTableExpr("users.guardian_profiles").
@@ -106,29 +106,29 @@ func (s *GuardianStore) InsertContact(ctx context.Context, contact domain.Guardi
 // UpdateContact rewrites the contact columns of one profile; updated_at is
 // moved by the table's trigger.
 func (s *GuardianStore) UpdateContact(ctx context.Context, guardianID int64, contact domain.GuardianContact) (bool, domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDB(ctx)
+	db, scope, err := s.tenantDB(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
-	row := newGuardianContactRow(contact, tenantID)
+	row := newGuardianContactRow(contact, scope.TenantID)
 	row.ID = guardianID
 	affected, stats, err := exec(ctx, "update guardian contact", db.NewUpdate().Model(row).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Column(guardianContactColumns...).
 		Where(`"guardian_profile".id = ?`, guardianID).
-		Where(`"guardian_profile".tenant_id = ?`, tenantID).Exec)
+		Where(`"guardian_profile".tenant_id = ?`, scope.TenantID).Exec)
 	return affected > 0, stats, err
 }
 
 func (s *GuardianStore) DeletePhones(ctx context.Context, guardianID int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDB(ctx)
+	db, scope, err := s.tenantDB(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	_, stats, err := exec(ctx, "delete guardian phones", db.NewDelete().
 		TableExpr("users.guardian_phone_numbers").
 		Where("guardian_profile_id = ?", guardianID).
-		Where("tenant_id = ?", tenantID).Exec)
+		Where("tenant_id = ?", scope.TenantID).Exec)
 	return stats, err
 }
 
@@ -147,12 +147,12 @@ type guardianPhoneRow struct {
 // InsertPhone adds one phone row of the profile. The composite foreign key
 // (tenant_id, guardian_profile_id) rejects a profile of another school.
 func (s *GuardianStore) InsertPhone(ctx context.Context, guardianID int64, phone domain.GuardianPhoneRecord) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDB(ctx)
+	db, scope, err := s.tenantDB(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
 	row := &guardianPhoneRow{
-		TenantID: tenantID, GuardianProfileID: guardianID, PhoneNumber: phone.PhoneNumber,
+		TenantID: scope.TenantID, GuardianProfileID: guardianID, PhoneNumber: phone.PhoneNumber,
 		PhoneType: phone.PhoneType, Label: phone.Label, IsPrimary: phone.IsPrimary, Priority: phone.Priority,
 	}
 	stats := domain.OperationStats{Queries: 1}
@@ -169,7 +169,7 @@ func (s *GuardianStore) InsertPhone(ctx context.Context, guardianID int64, phone
 }
 
 func (s *GuardianStore) UpdatePhoneNumber(ctx context.Context, phoneID int64, number string) (bool, domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDB(ctx)
+	db, scope, err := s.tenantDB(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
@@ -177,19 +177,19 @@ func (s *GuardianStore) UpdatePhoneNumber(ctx context.Context, phoneID int64, nu
 		TableExpr("users.guardian_phone_numbers").
 		Set("phone_number = ?", number).
 		Where("id = ?", phoneID).
-		Where("tenant_id = ?", tenantID).Exec)
+		Where("tenant_id = ?", scope.TenantID).Exec)
 	return affected > 0, stats, err
 }
 
 func (s *GuardianStore) DeletePhone(ctx context.Context, phoneID int64) (bool, domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDB(ctx)
+	db, scope, err := s.tenantDB(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
 	affected, stats, err := exec(ctx, "delete guardian phone", db.NewDelete().
 		TableExpr("users.guardian_phone_numbers").
 		Where("id = ?", phoneID).
-		Where("tenant_id = ?", tenantID).Exec)
+		Where("tenant_id = ?", scope.TenantID).Exec)
 	return affected > 0, stats, err
 }
 
@@ -202,7 +202,7 @@ func (s *GuardianStore) DeletePhone(ctx context.Context, phoneID int64) (bool, d
 // linked guardian stays the no-op it reports and never leaves the child
 // without a primary.
 func (s *GuardianStore) InsertLinkIfAbsent(ctx context.Context, link domain.GuardianLinkRecord) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDB(ctx)
+	db, scope, err := s.tenantDB(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
@@ -216,8 +216,7 @@ func (s *GuardianStore) InsertLinkIfAbsent(ctx context.Context, link domain.Guar
 					SELECT 1 FROM users.student_guardian_relationships AS linked
 					WHERE linked.tenant_id = relationship.tenant_id
 						AND linked.student_id = relationship.student_id
-						AND linked.guardian_profile_id = ?)`,
-			tenantID, link.StudentID, link.GuardianProfileID).Exec(ctx); err != nil {
+						AND linked.guardian_profile_id = ?)`, scope.TenantID, link.StudentID, link.GuardianProfileID).Exec(ctx); err != nil {
 			stats.StatementDuration = time.Since(started)
 			return 0, stats, wrapGuardianWriteError("demote primary guardian", err)
 		}
@@ -229,8 +228,7 @@ func (s *GuardianStore) InsertLinkIfAbsent(ctx context.Context, link domain.Guar
 		 is_primary, is_emergency_contact, emergency_priority, is_payer)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (tenant_id, student_id, guardian_profile_id) DO NOTHING
-		RETURNING id`,
-		tenantID, link.StudentID, link.GuardianProfileID, link.RelationshipType, link.GuardianRole,
+		RETURNING id`, scope.TenantID, link.StudentID, link.GuardianProfileID, link.RelationshipType, link.GuardianRole,
 		link.IsPrimary, link.IsEmergencyContact, link.EmergencyPriority, link.IsPayer).Scan(ctx, &ids)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
@@ -248,7 +246,7 @@ func (s *GuardianStore) InsertLinkIfAbsent(ctx context.Context, link domain.Guar
 // written under, sets the emergency contact flag when one is supplied, and
 // reports whether the tenant has the relationship.
 func (s *GuardianStore) LockLinkForPickup(ctx context.Context, linkID int64, isEmergencyContact *bool) (bool, domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDB(ctx)
+	db, scope, err := s.tenantDB(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
@@ -257,7 +255,7 @@ func (s *GuardianStore) LockLinkForPickup(ctx context.Context, linkID int64, isE
 			TableExpr("users.student_guardian_relationships").
 			Set("is_emergency_contact = ?", *isEmergencyContact).
 			Where("id = ?", linkID).
-			Where("tenant_id = ?", tenantID).Exec)
+			Where("tenant_id = ?", scope.TenantID).Exec)
 		return affected > 0, stats, err
 	}
 	var ids []int64
@@ -266,7 +264,7 @@ func (s *GuardianStore) LockLinkForPickup(ctx context.Context, linkID int64, isE
 	err = db.NewSelect().TableExpr("users.student_guardian_relationships").
 		Column("id").
 		Where("id = ?", linkID).
-		Where("tenant_id = ?", tenantID).
+		Where("tenant_id = ?", scope.TenantID).
 		For("UPDATE").Scan(ctx, &ids)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
@@ -279,7 +277,7 @@ func (s *GuardianStore) LockLinkForPickup(ctx context.Context, linkID int64, isE
 // GuardianAccount reads the portal account the guardian profile names; a new
 // link's access row binds it.
 func (s *GuardianStore) GuardianAccount(ctx context.Context, guardianID int64) (*int64, domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDB(ctx)
+	db, scope, err := s.tenantDB(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -291,7 +289,7 @@ func (s *GuardianStore) GuardianAccount(ctx context.Context, guardianID int64) (
 	err = db.NewSelect().TableExpr("users.guardian_profiles").
 		Column("account_id").
 		Where("id = ?", guardianID).
-		Where("tenant_id = ?", tenantID).Scan(ctx, &rows)
+		Where("tenant_id = ?", scope.TenantID).Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return nil, stats, fmt.Errorf("people directory postgres: read guardian account: %w", err)
@@ -305,7 +303,7 @@ func (s *GuardianStore) GuardianAccount(ctx context.Context, guardianID int64) (
 
 // SetPortalLocale updates the account's profiles of the tenant in context.
 func (s *GuardianStore) SetPortalLocale(ctx context.Context, accountID int64, locale string) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDB(ctx)
+	db, scope, err := s.tenantDB(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
@@ -314,5 +312,5 @@ func (s *GuardianStore) SetPortalLocale(ctx context.Context, accountID int64, lo
 		Set("portal_locale = ?", locale).
 		Set("updated_at = NOW()").
 		Where("account_id = ?", accountID).
-		Where("tenant_id = ?", tenantID).Exec)
+		Where("tenant_id = ?", scope.TenantID).Exec)
 }

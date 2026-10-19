@@ -78,7 +78,7 @@ func NewAccountAdministration(auth *AccountAuthentication, deps AccountAdministr
 // FindOwnAccount reads the account without the administration predicate.
 // The caller's own account is their own business; who may ask for it is the
 // request boundary's decision, not this one's.
-func (a *AccountAdministration) FindOwnAccount(ctx context.Context, accountID int64) (domain.ManagedAccountRecord, error) {
+func (a *AccountAdministration) findOwnAccount(ctx context.Context, accountID int64) (domain.ManagedAccountRecord, error) {
 	account, found, _, err := a.store.FindAccountRecord(ctx, accountID)
 	if err != nil {
 		return domain.ManagedAccountRecord{}, failed(opGetAccount, err)
@@ -104,7 +104,7 @@ func (a *AccountAdministration) AnonymizeAccountForDeletion(ctx context.Context,
 // FindManageableAccount reads one account within the caller's visibility.
 // An account outside it is reported as missing, so the read tells nobody
 // that an account they may not administer exists.
-func (a *AccountAdministration) FindManageableAccount(ctx context.Context, accountID int64) (domain.ManagedAccountRecord, error) {
+func (a *AccountAdministration) findManageableAccount(ctx context.Context, accountID int64) (domain.ManagedAccountRecord, error) {
 	visibility, err := a.visibility(ctx)
 	if err != nil {
 		return domain.ManagedAccountRecord{}, failed(opGetAccount, err)
@@ -120,7 +120,7 @@ func (a *AccountAdministration) FindManageableAccount(ctx context.Context, accou
 }
 
 // ListManageableAccounts lists the accounts the caller may administer.
-func (a *AccountAdministration) ListManageableAccounts(ctx context.Context, filter domain.AccountListFilter) ([]domain.ManagedAccountRecord, error) {
+func (a *AccountAdministration) listManageableAccounts(ctx context.Context, filter domain.AccountListFilter) ([]domain.ManagedAccountRecord, error) {
 	visibility, err := a.visibility(ctx)
 	if err != nil {
 		return nil, failed(opListAccounts, err)
@@ -148,7 +148,8 @@ func (a *AccountAdministration) ListManageableAccountsByRole(ctx context.Context
 		return accounts, listErr
 	}
 	if visibility.Kind != domain.AccountVisibilityOrganization {
-		accounts, listErr := read(ctx)
+		var accounts []domain.ManagedAccountRecord
+		listErr := a.runtime.RunInTx(ctx, func(txCtx context.Context) error { var err error; accounts, err = read(txCtx); return err })
 		if listErr != nil {
 			return nil, failed(opAccountsByRole, listErr)
 		}
@@ -169,7 +170,7 @@ func (a *AccountAdministration) ListManageableAccountsByRole(ctx context.Context
 // one, the name. Only those columns: the retained write replaced every
 // mapped column of the row it had read, which could undo a PIN or MFA
 // counter another request changed in between.
-func (a *AccountAdministration) UpdateManageableAccount(ctx context.Context, update domain.AccountIdentityUpdate) error {
+func (a *AccountAdministration) updateManageableAccount(ctx context.Context, update domain.AccountIdentityUpdate) error {
 	email, err := domain.NormalizeAccountEmail(update.Email)
 	if err != nil {
 		return failed(opUpdateAccount, err)
@@ -215,7 +216,7 @@ func (a *AccountAdministration) DeactivateAccount(ctx context.Context, accountID
 	return nil
 }
 
-func (a *AccountAdministration) setActive(ctx context.Context, accountID int64, active bool, op string) error {
+func (a *AccountAdministration) setActiveInTransaction(ctx context.Context, accountID int64, active bool, op string) error {
 	visibility, err := a.visibility(ctx)
 	if err != nil {
 		return failed(op, err)
@@ -234,7 +235,7 @@ func (a *AccountAdministration) setActive(ctx context.Context, accountID int64, 
 // current password is the authorization, so the read is unscoped: an
 // account holder proves who they are with the credential, not with a
 // school membership.
-func (a *AccountAdministration) ChangeAccountPassword(ctx context.Context, accountID int64, currentPassword, newPassword string) error {
+func (a *AccountAdministration) changeAccountPassword(ctx context.Context, accountID int64, currentPassword, newPassword string) error {
 	account, found, _, err := a.store.FindAccountRecord(ctx, accountID)
 	if err != nil {
 		return failed(opGetAccount, err)
@@ -326,5 +327,34 @@ func (a *AccountAdministration) markWipeCompleted(ctx context.Context, accountID
 	}
 	return a.runtime.WithAdminTx(a.runtime.Detach(ctx), func(adminCtx context.Context) error {
 		return a.auth.MarkAccountWideWipeCompleted(adminCtx, accountID)
+	})
+}
+
+func (a *AccountAdministration) FindOwnAccount(ctx context.Context, accountID int64) (result domain.ManagedAccountRecord, err error) {
+	err = globalIdentityRead(ctx, a.runtime, func(txCtx context.Context) error { result, err = a.findOwnAccount(txCtx, accountID); return err })
+	return result, err
+}
+
+func (a *AccountAdministration) FindManageableAccount(ctx context.Context, accountID int64) (result domain.ManagedAccountRecord, err error) {
+	err = a.runtime.RunInTx(ctx, func(txCtx context.Context) error { result, err = a.findManageableAccount(txCtx, accountID); return err })
+	return result, err
+}
+
+func (a *AccountAdministration) ListManageableAccounts(ctx context.Context, filter domain.AccountListFilter) (result []domain.ManagedAccountRecord, err error) {
+	err = a.runtime.RunInTx(ctx, func(txCtx context.Context) error { result, err = a.listManageableAccounts(txCtx, filter); return err })
+	return result, err
+}
+
+func (a *AccountAdministration) UpdateManageableAccount(ctx context.Context, update domain.AccountIdentityUpdate) error {
+	return a.runtime.RunInTx(ctx, func(txCtx context.Context) error { return a.updateManageableAccount(txCtx, update) })
+}
+
+func (a *AccountAdministration) setActive(ctx context.Context, accountID int64, active bool, op string) error {
+	return a.runtime.RunInTx(ctx, func(txCtx context.Context) error { return a.setActiveInTransaction(txCtx, accountID, active, op) })
+}
+
+func (a *AccountAdministration) ChangeAccountPassword(ctx context.Context, accountID int64, currentPassword, newPassword string) error {
+	return globalIdentityRead(ctx, a.runtime, func(txCtx context.Context) error {
+		return a.changeAccountPassword(txCtx, accountID, currentPassword, newPassword)
 	})
 }

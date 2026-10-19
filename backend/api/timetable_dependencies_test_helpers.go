@@ -5,42 +5,39 @@ package api
 import (
 	"fmt"
 
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
-// NewUnobservedTimetableDependencies composes the owner capabilities the
-// retained repositories read through, unobserved, for test graphs and CLI
-// roots. The People Directory is composed here since its construction left
-// the repository composition (#2743).
-func NewUnobservedTimetableDependencies(db transactionruntime.Database) TimetableDependencies {
-	students, err := NewPeopleDirectory(db)
-	if err != nil {
-		panic(fmt.Sprintf("compose timetable students: %v", err))
-	}
-	rooms, err := facilitiesCompose.NewUnobserved(db.Pool())
-	if err != nil {
-		panic(fmt.Sprintf("compose timetable rooms: %v", err))
-	}
-	capability, err := NewUnobservedTimetable(db, students, rooms)
-	if err != nil {
-		panic(fmt.Sprintf("compose timetable: %v", err))
-	}
-	groups, err := NewSchoolStructure(db)
+// The unobserved owners the retained repositories read through, one
+// constructor each, for test graphs. A composition failure is a broken test
+// setup and panics. Each call composes its owner afresh over db; the owners
+// hold no state of their own beyond the database.
+
+// MustNewSchoolStructure composes the School Structure owner.
+func MustNewSchoolStructure(db transactionruntime.Database) schoolstructure.Capability {
+	groups, err := owners.NewSchoolStructure(db)
 	if err != nil {
 		panic(fmt.Sprintf("compose timetable groups: %v", err))
 	}
-	calendar, err := NewSchoolCalendar(db)
+	return groups
+}
+
+// MustNewSchoolCalendar composes the School Calendar owner.
+func MustNewSchoolCalendar(db transactionruntime.Database) *schoolcalendar.Module {
+	calendar, err := owners.NewSchoolCalendar(db)
 	if err != nil {
 		panic(fmt.Sprintf("compose timetable calendar: %v", err))
 	}
-	membership, err := NewSchoolMembership(db)
-	if err != nil {
-		panic(fmt.Sprintf("compose timetable membership: %v", err))
-	}
-	workTime, err := NewWorkforce(db, membership)
-	if err != nil {
-		panic(fmt.Sprintf("compose workforce work-time: %v", err))
-	}
-	return TimetableDependencies{Capability: capability, Students: students, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime}
+	return calendar
+}
+
+// NewUnobservedTimetableRepositories builds the retained Timetable
+// repositories over the unobserved owners of db.
+func NewUnobservedTimetableRepositories(db transactionruntime.Database) owners.TimetableRepositories {
+	return owners.NewTimetableRepositories(db, owners.MustNewUnobservedTimetable(db), owners.MustNewPeopleDirectory(db), MustNewSchoolStructure(db),
+		owners.MustNewUnobservedRooms(db), MustNewSchoolCalendar(db), owners.MustNewSchoolMembership(db), owners.MustNewWorkforce(db))
 }

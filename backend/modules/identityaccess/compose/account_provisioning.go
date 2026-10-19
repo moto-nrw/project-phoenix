@@ -1,7 +1,6 @@
 package compose
 
 import (
-	"context"
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
@@ -24,10 +23,6 @@ func newAccountProvisioning(
 	if sessions == nil || lifecycle == nil {
 		return nil, errors.New("identity access compose: the provisioning flows require the session and lifecycle dependencies")
 	}
-	attach := sessions.TenantRuntime
-	if attach == nil {
-		attach = func(ctx context.Context) context.Context { return ctx }
-	}
 	return application.NewAccountProvisioning(application.AccountProvisioningDependencies{
 		Accounts:  store,
 		Logins:    store,
@@ -37,7 +32,7 @@ func newAccountProvisioning(
 		Identity:  lifecycle,
 		Profiles:  application.StaffDirectory{Source: deps.Staff},
 		Passwords: deps.Passwords,
-		Runtime:   tenantRuntime{attach: attach, runner: newTransactionRunner()},
+		Runtime:   tenantRuntime{attach: sessions.TenantRuntime, runner: newTransactionRunner()},
 		Logger:    deps.Logger,
 	})
 }

@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"testing"
 
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 
 	"github.com/stretchr/testify/assert"
@@ -14,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -28,16 +29,16 @@ func TestEmitChildEventToOtherGuardians_NeutralForEveryoneButTheSubmitter(t *tes
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	submitter := testpkg.CreateTestParentGuardianChain(t, db)
 	reviewer := testpkg.CreateTestAccount(t, db, "co-guardian-notice-reviewer")
 	other := testpkg.CreateTestCoGuardianForStudent(t, db, submitter.StudentID, "Klaus", "Zweitelternteil")
 
 	settings := &toggleSettings{enabled: true}
-	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(repos.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
+	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(reposMessages.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
 		settings, testpkg.NewRecordingBroadcaster(), slog.Default())
 
-	full := parentmessaging.ChildEvent{
+	full := eventContract.ChildEvent{
 		EventType:      "request_status",
 		ActorKind:      messaging.ParentMessageSenderStaff,
 		ActorAccountID: reviewer.ID,
@@ -50,11 +51,11 @@ func TestEmitChildEventToOtherGuardians_NeutralForEveryoneButTheSubmitter(t *tes
 	}
 	recipients := otherGuardiansOf(t, db, emitter, submitter)
 	require.Equal(t, []int64{other.AccountID}, recipients)
-	emitter.EmitChildEventToGuardians(submitter.TenantID, submitter.StudentID, recipients, full)
+	_ = emitter.EmitChildEventToGuardians(context.Background(), submitter.TenantID, submitter.StudentID, recipients, full)
 
 	// The other guardian gets exactly one line, and it carries nothing that
 	// belongs to the submitting parent.
-	_, otherPills := threadPills(t, db, repos, other)
+	_, otherPills := threadPills(t, db, reposMessages, other)
 	require.Len(t, otherPills, 1)
 	assert.Equal(t, "Betreuungsstand geändert: Krankmeldung 01.09.2026", otherPills[0].Body)
 	assert.Empty(t, otherPills[0].DecisionReason, "the staff reason belongs to the submitting guardian")
@@ -63,7 +64,7 @@ func TestEmitChildEventToOtherGuardians_NeutralForEveryoneButTheSubmitter(t *tes
 
 	// The submitter is skipped here: their full pill comes from the decision
 	// itself, so a fan-out line would duplicate it.
-	submitterThread, _ := threadPills(t, db, repos, submitter)
+	submitterThread, _ := threadPills(t, db, reposMessages, submitter)
 	assert.Nil(t, submitterThread, "the submitter must not receive the neutral fan-out")
 }
 
@@ -73,29 +74,29 @@ func TestEmitChildEventToOtherGuardians_LoneGuardianGetsNothing(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	submitter := testpkg.CreateTestParentGuardianChain(t, db)
 
 	settings := &toggleSettings{enabled: true}
-	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(repos.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
+	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(reposMessages.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
 		settings, testpkg.NewRecordingBroadcaster(), slog.Default())
 
 	recipients := otherGuardiansOf(t, db, emitter, submitter)
 	assert.Empty(t, recipients, "a child with one guardian has nobody to notify")
-	emitter.EmitChildEventToGuardians(submitter.TenantID, submitter.StudentID, recipients,
-		parentmessaging.ChildEvent{
+	_ = emitter.EmitChildEventToGuardians(context.Background(), submitter.TenantID, submitter.StudentID, recipients,
+		eventContract.ChildEvent{
 			EventType: "request_status", ActorKind: messaging.ParentMessageSenderStaff,
 			Body: "Betreuungsstand geändert: Krankmeldung 01.09.2026",
 		})
 
-	thread, _ := threadPills(t, db, repos, submitter)
+	thread, _ := threadPills(t, db, reposMessages, submitter)
 	assert.Nil(t, thread, "no other guardian means no pill and no thread")
 }
 
 // otherGuardiansOf resolves the fan-out recipients the way production does:
 // inside a tenant transaction, on the caller's context.
 func otherGuardiansOf(
-	t *testing.T, db *bun.DB, emitter *parentmessaging.Emitter, submitter testpkg.ParentChain,
+	t *testing.T, db *bun.DB, emitter eventContract.Emitter, submitter testpkg.ParentChain,
 ) []int64 {
 	t.Helper()
 	var accountIDs []int64
@@ -120,7 +121,7 @@ func TestResolveDecisionAudience_SplitsSharedFromNeutral(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	submitter := testpkg.CreateTestParentGuardianChain(t, db)
 	shared := testpkg.CreateTestCoGuardianForStudent(t, db, submitter.StudentID, "Klaus", "Mitleser")
 	uninvolved := testpkg.CreateTestCoGuardianForStudent(t, db, submitter.StudentID, "Rita", "Ohnezugang")
@@ -128,7 +129,7 @@ func TestResolveDecisionAudience_SplitsSharedFromNeutral(t *testing.T) {
 	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(repos.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
 		&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default())
 
-	var audience parentmessaging.DecisionAudience
+	var audience eventContract.DecisionAudience
 	require.NoError(t, tenant.WithTenantTx(
 		testpkg.WithTenantRuntime(t, context.Background(), db), db, submitter.TenantID,
 		func(txCtx context.Context, _ bun.Tx) error {
@@ -153,14 +154,14 @@ func TestResolveDecisionAudience_NoSharesMeansEverybodyNeutral(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	submitter := testpkg.CreateTestParentGuardianChain(t, db)
 	other := testpkg.CreateTestCoGuardianForStudent(t, db, submitter.StudentID, "Klaus", "Zweitelternteil")
 
 	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(repos.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
 		&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default())
 
-	var audience parentmessaging.DecisionAudience
+	var audience eventContract.DecisionAudience
 	require.NoError(t, tenant.WithTenantTx(
 		testpkg.WithTenantRuntime(t, context.Background(), db), db, submitter.TenantID,
 		func(txCtx context.Context, _ bun.Tx) error {

@@ -6,9 +6,14 @@ import (
 	"net/http"
 	"path/filepath"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	"github.com/moto-nrw/project-phoenix/realtime"
 
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
@@ -21,6 +26,7 @@ import (
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/timetracking"
 	"github.com/moto-nrw/project-phoenix/observability"
 )
@@ -113,15 +119,20 @@ func toStaffHTTPRoleRows(rows []StaffRoleRow) []staffHTTP.StaffWithRoleResponse 
 // newStaffComposition builds both halves of the /api/staff surface: the
 // workforce admin resource of the Workforce module and the School Membership
 // adapter bound over it.
-func newStaffComposition(module schoolMembershipModule.Capability, workforce workforceModule.Capability, graph *serviceGraph, identity *identityaccess.Module, db transactionruntime.Database, logger *slog.Logger) (*staffHTTP.Resource, *timeTrackingHTTP.StaffAdminResource, error) {
-	exportTransfer, err := newExportTransferModule(graph, db, logger)
+func newStaffComposition(
+	module schoolMembershipModule.Capability, workforce workforceModule.Capability, users peoplePorts.PersonDirectory,
+	documents *workforceModule.StaffAdmin, timeTracking *workforceCompose.TimeTracking, education schoolstructure.GroupManagement,
+	people peopleModule.Capability, settings settingsCompose.SettingsService, hub *realtime.Hub,
+	identity *identityaccess.Module, db transactionruntime.Database, logger *slog.Logger,
+) (*staffHTTP.Resource, *timeTrackingHTTP.StaffAdminResource, error) {
+	exportTransfer, err := newExportTransferModule(settings, db, logger)
 	if err != nil {
 		return nil, nil, err
 	}
-	capabilities := NewWorkforceAdminCapabilities(graph.Users, graph.StaffDocuments, graph.WorkSession)
-	staffAdmin := newStaffAdminResource(capabilities, workforce, staffTimeTrackingNotifier(graph.RealtimeHub), exportTransfer, db, logger)
-	return newStaffResource(module, graph.PeopleDirectory, func(hooks StaffMembershipHooks) StaffMembershipRuntime {
-		return NewStaffMembershipRuntime(graph, db, identity, logger, hooks)
+	capabilities := owners.NewWorkforceAdminCapabilities(users, documents, timeTracking)
+	staffAdmin := newStaffAdminResource(capabilities, workforce, staffTimeTrackingNotifier(hub), exportTransfer, db, logger)
+	return newStaffResource(module, people, func(hooks StaffMembershipHooks) StaffMembershipRuntime {
+		return NewStaffMembershipRuntime(users, education, timeTracking.StaffDay, hub, db, identity, logger, hooks)
 	}, staffAdmin, logger), staffAdmin, nil
 }
 
@@ -129,10 +140,10 @@ func newStaffComposition(module schoolMembershipModule.Capability, workforce wor
 // the tenant settings. It is composed HERE rather than alongside the other
 // modules because it needs the settings service, which only exists once the
 // service graph is built.
-func newExportTransferModule(graph *serviceGraph, db transactionruntime.Database, logger *slog.Logger) (*exportTransferModule.Module, error) {
+func newExportTransferModule(settings settingsCompose.SettingsService, db transactionruntime.Database, logger *slog.Logger) (*exportTransferModule.Module, error) {
 	// The setting keys stay in the settings layer next to their registry
 	// definitions; the root only passes the binding on.
-	resolvers, keys := settingsCompose.NewSFTPExportSettings(graph.Settings)
+	resolvers, keys := settingsCompose.NewSFTPExportSettings(settings)
 	return exportTransferCompose.New(exportTransferCompose.Dependencies{
 		DB: db.Pool(),
 		Settings: exportTransferCompose.Settings{

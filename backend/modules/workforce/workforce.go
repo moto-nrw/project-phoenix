@@ -189,6 +189,7 @@ type Query interface {
 	// StaffSchedulesInRange returns every version of the given staff members
 	// whose validity window intersects [from, to]; valid_until is exclusive.
 	StaffSchedulesInRange(ctx context.Context, staffIDs []int64, from, to string) ([]StaffWorkSchedule, error)
+	StaffPlanningProfiles(ctx context.Context, staffIDs []int64, from, to string) ([]StaffPlanningProfile, error)
 	// HasStaffScheduleHistory reports whether a staff member ever had a
 	// schedule version, closed-out ones included. It separates "no schedule
 	// was ever written", where the assigned template may stand in, from "no
@@ -246,19 +247,23 @@ type engine interface {
 	CurrentStaffSchedule(context.Context, int64) ([]StaffWorkSchedule, error)
 	StaffScheduleOn(ctx context.Context, staffID int64, date string) ([]StaffWorkSchedule, error)
 	StaffSchedulesInRange(ctx context.Context, staffIDs []int64, from, to string) ([]StaffWorkSchedule, error)
+	StaffPlanningProfiles(ctx context.Context, staffIDs []int64, from, to string) ([]StaffPlanningProfile, error)
 	HasStaffScheduleHistory(context.Context, int64) (bool, error)
 	StaffIDsWithScheduleHistory(context.Context, []int64) (map[int64]bool, error)
 }
 
 // Module is the one Workforce work-time facade. It guards the arguments every
 // caller must get right and delegates the rest to the composed engine.
-type Module struct{ engine engine }
+type Module struct {
+	engine engine
+	StaffPlanningProfilesQuery
+}
 
 func NewModule(engine engine) *Module {
 	if engine == nil {
 		panic("workforce: engine is required")
 	}
-	return &Module{engine: engine}
+	return &Module{engine: engine, StaffPlanningProfilesQuery: engine}
 }
 
 // --- work-time templates ---

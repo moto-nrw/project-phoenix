@@ -83,7 +83,7 @@ func correctionPath(s *patchSetup) string {
 // one the corrections route serves.
 func loadTrail(t *testing.T, s *patchSetup) []timetable.AttendanceCorrectionEntry {
 	t.Helper()
-	rows, err := s.res.AttendanceCorrections.GetAttendanceCorrections(s.ctx, s.instanceID, s.studentID)
+	rows, err := testpkg.TenantQuery2(t, s.ctx, testpkg.SetupTestDB(t), s.res.AttendanceCorrections.GetAttendanceCorrections, s.instanceID, s.studentID)
 	require.NoError(t, err)
 	return rows
 }

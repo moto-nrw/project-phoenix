@@ -34,8 +34,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/auth/device/devicetest"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet/devicetest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )

@@ -77,13 +77,22 @@ func (m *Module) AnonymizeStudentTransitionHistory(ctx context.Context, studentI
 	return m.engine.AnonymizeStudentTransitionHistory(ctx, studentID)
 }
 
-type Module struct{ engine engine }
+type Module struct {
+	engine    engine
+	retention GradeTransitionRetention
+}
 
-func NewModule(engine engine) *Module {
+// NewModule composes the module over its engine and, for the nightly
+// cleanup, the retention of grade transitions (#4045).
+func NewModule(engine engine, retention ...GradeTransitionRetention) *Module {
 	if engine == nil {
 		panic("school structure: engine is required")
 	}
-	return &Module{engine: engine}
+	module := &Module{engine: engine}
+	if len(retention) > 0 {
+		module.retention = retention[0]
+	}
+	return module
 }
 
 func (m *Module) FindGroup(ctx context.Context, id int64) (Group, error) {

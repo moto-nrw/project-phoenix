@@ -5,7 +5,6 @@ package compose
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres"
@@ -26,6 +25,11 @@ type Dependencies struct {
 	// never enrolls children may leave it unbound; its counting writes then
 	// fail instead of skipping the check.
 	ChildQuota ChildQuota
+	// ClassListStudents and ClassListTrail serve the audited class-list
+	// administration (#2382): the People Directory lookup and the Audit
+	// trail. Optional together; without them the audited flows refuse.
+	ClassListStudents schoolmembership.ClassListEntryStudents
+	ClassListTrail    schoolmembership.ClassListEntryTrail
 }
 
 // ChildQuota is the consumer-owned port over Organisation & Tenancy's
@@ -57,51 +61,18 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 	if dependencies.Employment == nil {
 		return nil, errStaffEmploymentUnbound
 	}
-	store := postgres.New(func(ctx context.Context) (bun.IDB, int64, error) {
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return nil, 0, errors.New("school membership postgres: transaction is required")
-		}
-		switch tx := transaction.(type) {
-		case bun.Tx:
-			return tx, tenant.FromContext(ctx), nil
-		case *bun.Tx:
-			if tx != nil {
-				return tx, tenant.FromContext(ctx), nil
-			}
-		}
-		return nil, 0, fmt.Errorf("school membership postgres: unsupported transaction %T", transaction)
-	})
+	var classList *application.ClassListAdministration
+	switch {
+	case dependencies.ClassListStudents != nil && dependencies.ClassListTrail != nil:
+		classList = application.NewClassListAdministration(dependencies.ClassListStudents, dependencies.ClassListTrail)
+	case dependencies.ClassListStudents != nil || dependencies.ClassListTrail != nil:
+		return nil, errors.New("school membership compose: the class list entries need a student directory and an audit trail")
+	}
+	store := postgres.New(postgres.NewContextDatabase(tenant.TenantFromContext, tenant.TransactionFromContext, tenant.IsAdminTx))
 	var quota ports.ChildQuota
 	if dependencies.ChildQuota != nil {
 		quota = dependencies.ChildQuota
 	}
-	service := application.New(store, staffEmployment{port: dependencies.Employment}, quota, postgres.BerlinToday, transaction{}, func(observation Observation) {
-		observation.Err = application.MapError(observation.Err)
-		dependencies.Observe(observation)
-	})
+	service := application.New(store, application.NewStaffEmployment(dependencies.Employment), quota, postgres.BerlinToday, application.TenantTransaction{}, application.NewObserver(dependencies.Observe), classList)
 	return service, nil
-}
-
-type transaction struct{}
-
-func (transaction) RunWrite(ctx context.Context, callback func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return callback(ctx)
-	}
-	return tenant.WithinCurrentTenant(ctx, callback)
-}
-
-func (transaction) RunSavepoint(ctx context.Context, callback func(context.Context) error) error {
-	return tenant.WithSavepoint(ctx, callback)
-}
-
-func (transaction) RunRead(ctx context.Context, callback func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return callback(ctx)
-	}
-	if _, err := tenant.TenantFromContext(ctx); err == nil {
-		return tenant.WithinCurrentTenant(ctx, callback)
-	}
-	return tenant.WithinAdmin(ctx, callback)
 }

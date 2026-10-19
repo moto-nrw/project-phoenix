@@ -1,12 +1,12 @@
 package application
 
 import (
-	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 )
 
-func LegacyServiceCategory(category timetable.Category) *activities.Category {
-	result := &activities.Category{
+func LegacyServiceCategory(category timetable.Category) *activityContract.Category {
+	result := &activityContract.Category{
 		Name: category.Name, Description: category.Description, Color: category.Color, IsSystem: category.IsSystem,
 		ShiftTypeID: category.ShiftTypeID, ArchivedAt: category.ArchivedAt,
 	}
@@ -17,16 +17,16 @@ func LegacyServiceCategory(category timetable.Category) *activities.Category {
 	return result
 }
 
-func LegacyServiceGroups(groups []timetable.Group) []*activities.Group {
-	result := make([]*activities.Group, 0, len(groups))
+func LegacyServiceGroups(groups []timetable.Group) []*activityContract.Group {
+	result := make([]*activityContract.Group, 0, len(groups))
 	for _, group := range groups {
 		result = append(result, LegacyServiceGroup(group))
 	}
 	return result
 }
 
-func LegacyServiceGroup(group timetable.Group) *activities.Group {
-	result := &activities.Group{
+func LegacyServiceGroup(group timetable.Group) *activityContract.Group {
+	result := &activityContract.Group{
 		Name:            group.Name,
 		MaxParticipants: group.MaxParticipants, RequiredStaff: group.RequiredStaff, IsOpen: group.IsOpen,
 		CategoryID: group.CategoryID, PlanningTrackID: group.PlanningTrackID, PlannedRoomID: group.PlannedRoomID,

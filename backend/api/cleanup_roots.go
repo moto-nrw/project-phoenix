@@ -7,9 +7,12 @@ import (
 	"log/slog"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -51,7 +54,7 @@ type RetentionCleanupRepositories struct {
 // RetentionDeletions is the deletion ledger the retention cleanup records
 // into, with the read its suites check the rollback through.
 type RetentionDeletions interface {
-	DataDeletionAppender
+	owners.DataDeletionAppender
 	FindByStudentID(ctx context.Context, studentID int64) ([]*auditModels.DataDeletion, error)
 }
 
@@ -59,18 +62,9 @@ type RetentionDeletions interface {
 // with the deletion ledger routed through command.
 func NewRetentionCleanupRepositories(db transactionruntime.Database, command auditModels.Command) RetentionCleanupRepositories {
 	return RetentionCleanupRepositories{
-		Sessions: newPresenceSessionRecords(presenceCompose.SessionRecordDependencies{DB: db.Pool()}),
+		Sessions: owners.ComposePresenceSessionRecords(presenceCompose.SessionRecordDependencies{DB: db.Pool()}),
 		Deletion: auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()}).WithRoutedWrites(command).DataDeletion,
 	}
-}
-
-// SessionCleanupRepositories are the Student Presence session and
-// supervision records the session cleanup runs on, the devices of the
-// sessions and the Timetable completion of their planned instances.
-type SessionCleanupRepositories struct {
-	Sessions        studentpresence.SessionRecords
-	Device          devicefleetLegacy.SessionDeviceRecords
-	TimetableBridge SessionCleanupTimetableBridge
 }
 
 // SessionCleanupTimetableBridge completes the planned activity instances of
@@ -79,13 +73,16 @@ type SessionCleanupTimetableBridge interface {
 	CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
 }
 
-// NewSessionCleanupRepositories composes the session cleanup's records over
-// the unobserved Device Fleet and Facilities owners and the given Timetable.
-func NewSessionCleanupRepositories(db transactionruntime.Database, timetableCapability timetable.Capability) SessionCleanupRepositories {
+// NewSessionCleanupRepositories composes the records the session cleanup runs
+// on over the unobserved Device Fleet and Facilities owners and the given
+// Timetable: the Student Presence session and supervision records, the
+// devices of the sessions and the Timetable completion of their planned
+// instances.
+func NewSessionCleanupRepositories(db transactionruntime.Database, timetableCapability timetable.Capability) (studentpresence.SessionRecords, devicefleet.SessionDeviceRecords, SessionCleanupTimetableBridge) {
 	if timetableCapability == nil {
 		panic("session cleanup repositories: timetable capability is required")
 	}
-	fleet, err := NewDeviceFleet(db)
+	fleet, err := owners.NewDeviceFleet(db)
 	if err != nil {
 		panic(fmt.Sprintf("session cleanup repositories: compose device fleet: %v", err))
 	}
@@ -93,10 +90,8 @@ func NewSessionCleanupRepositories(db transactionruntime.Database, timetableCapa
 	if err != nil {
 		panic(fmt.Sprintf("session cleanup repositories: compose facilities: %v", err))
 	}
-	return SessionCleanupRepositories{
-		Sessions: NewSessionRecords(db, SessionRecordOwners{Devices: fleet, Rooms: rooms, Timetable: timetableCapability}),
-		Device:   devicefleetRepositoryAdapter.NewDeviceRepository(fleet),
-		TimetableBridge: timetableCompose.NewActivityInstanceRepository(db.Pool(), timetableCapability,
-			NewUnloggedStudentPresence(db)),
-	}
+	sessions := owners.NewSessionRecords(db, nil, fleet, rooms, timetableCapability, nil, nil)
+	devices := devicefleetRepositoryAdapter.NewDeviceRepository(fleet)
+	completion := timetableCompose.NewActivityInstanceRepository(owners.MustPresenceReads(db), timetableCapability, owners.NewUnloggedStudentPresence(db))
+	return sessions, devices, completion
 }

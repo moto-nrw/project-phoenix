@@ -10,11 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// CombinedOfferingSourceCounts validates the selection exactly like a save
-// would (existence, active, one shared phase, phase-within-period) and then
-// counts distinct approved children across the offerings. Dedup key is the
-// request child — within one phase a child holds one request-child identity,
-// which is also the provenance tag the union resync seeds rows under.
 func (m *BookingMaterialization) CombinedOfferingSourceCounts(ctx context.Context, offeringIDs []int64, calendarPeriodID *int64) (*careplan.OfferingSourceCombinedCounts, error) {
 	sources, err := m.catalog.LoadOfferingSources(ctx, offeringIDs, calendarPeriodID, false)
 	if err != nil {
@@ -87,10 +82,6 @@ func (m *BookingMaterialization) offeringSourcePeriod(ctx context.Context, calen
 	return &period, nil
 }
 
-// ListOfferingSourceOptions returns the offerings an admin may pick as a
-// Regeltermin source. With a calendar period given, only offerings whose
-// phase's service window lies within that period qualify — a source outside
-// the Planungszeitraum could never materialize a single occurrence.
 func (m *BookingMaterialization) ListOfferingSourceOptions(ctx context.Context, calendarPeriodID *int64) ([]careplan.OfferingSourceOption, error) {
 	offerings, err := m.catalog.listTenantRecords(ctx)
 	if err != nil {

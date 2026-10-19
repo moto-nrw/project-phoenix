@@ -55,10 +55,13 @@ func (t *recordingTrail) AppendClassListEntryChange(_ context.Context, change sc
 
 func buildAdministeredModule(t *testing.T, db *bun.DB) (*schoolmembership.Module, *recordingStudents, *recordingTrail) {
 	t.Helper()
-	module := buildModule(t, db)
 	students := &recordingStudents{byName: map[string][]int64{}, enrolled: map[int64]bool{}}
 	trail := &recordingTrail{}
-	module.BindClassListEntryAdministration(students, trail)
+	module, err := New(Dependencies{
+		DB: db, Observe: func(Observation) {}, Employment: testEmployment, ChildQuota: newChildQuotas(),
+		ClassListStudents: students, ClassListTrail: trail,
+	})
+	require.NoError(t, err)
 	return module, students, trail
 }
 

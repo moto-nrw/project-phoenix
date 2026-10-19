@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	endbinding "github.com/moto-nrw/project-phoenix/roots/sessionendbinding"
+
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -134,15 +136,16 @@ func newStack(t *testing.T) *stack {
 		return testpkg.EndedActiveGroup{GroupID: group.ID, SupervisorID: testpkg.CreateTestGroupSupervisor(t, db, staff.ID, group.ID, "supervisor").ID}
 	}
 	s.command, err = compose.New(compose.Dependencies{
-		Presence:    presence,
-		Sessions:    presence,
-		Timetable:   s.timetable,
-		Completion:  s.completion,
-		Students:    people,
-		Rooms:       rooms,
-		Broadcaster: s.bc,
-		Guardians:   s.waker,
-		Observe:     func(o compose.Observation) { s.observed = append(s.observed, o) },
+		Notifier: endbinding.NewNotifier(s.bc, s.waker, nil),
+
+		Presence:   presence,
+		Sessions:   presence,
+		Timetable:  s.timetable,
+		Completion: s.completion,
+		Students:   people,
+		Rooms:      rooms,
+
+		Observe: func(o compose.Observation) { s.observed = append(s.observed, o) },
 	})
 	require.NoError(t, err)
 	return s

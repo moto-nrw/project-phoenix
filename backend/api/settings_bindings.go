@@ -8,8 +8,6 @@ import (
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -34,7 +32,7 @@ func (b ClassDayWriteScope) SchoolMayWriteClassArrivalExceptions(ctx context.Con
 	if err != nil {
 		return false, err
 	}
-	return scope == configModels.SchoolPortalWriteScopeClassArrivalExceptions, nil
+	return configModels.SchoolPortalWritesClassArrivalExceptions(scope), nil
 }
 
 // newClassDayWriteScope binds the write scope; nil settings leave it unbound.
@@ -217,41 +215,10 @@ type roomHistorySettingsReader interface {
 func NewRoomHistorySettings(settings roomHistorySettingsReader, logger *slog.Logger, prefetch func(context.Context, any, ...string) context.Context) func(context.Context) (context.Context, bool, int) {
 	return func(ctx context.Context) (context.Context, bool, int) {
 		ctx = prefetch(ctx, settings, configModels.KeyAttendanceLogEnabled, configModels.KeyRoomDetailVisibleDays)
-		enabled := settingsCompose.ResolveBoolOrDefault(ctx, settings, configModels.KeyAttendanceLogEnabled, false, logger)
-		days := settingsCompose.ResolveIntOrDefault(ctx, settings, configModels.KeyRoomDetailVisibleDays, 7, logger)
+		enabled := settingsCompose.ResolveBoolOrDefault(ctx, settings, configModels.KeyAttendanceLogEnabled, configModels.AttendanceLogEnabledFallback, logger)
+		days := settingsCompose.ResolveIntOrDefault(ctx, settings, configModels.KeyRoomDetailVisibleDays, configModels.RoomDetailVisibleDaysFallback, logger)
 		return ctx, enabled, days
 	}
-}
-
-// checkoutSwitchRegistry registers Facilities' checkout-switch side effects
-// with the Settings Platform.
-type checkoutSwitchRegistry struct {
-	registry *settingsCompose.SideEffectRegistry
-}
-
-func (r checkoutSwitchRegistry) Register(key string, handler facilitiesLegacy.SettingHandler) {
-	r.registry.Register(key, func(ctx context.Context, tenantID int64, value any) (func(), error) {
-		return handler(ctx, tenantID, value)
-	})
-}
-
-// registerCheckoutSettingsSideEffects provisions the Schulhof and WC
-// infrastructure when the checkout switches turn on.
-func registerCheckoutSettingsSideEffects(registry *settingsCompose.SideEffectRegistry, schulhof facilitiesCompose.SchulhofService, wc facilitiesCompose.WCService) {
-	facilitiesLegacy.RegisterSettingsSideEffects(checkoutSwitchRegistry{registry: registry},
-		configModels.KeyCheckoutSchulhofEnabled, configModels.KeyCheckoutWCEnabled, schulhof, wc)
-}
-
-// StaffSickNoteRetentionSettings resolves the staff sick note retention
-// window of the school in context.
-type StaffSickNoteRetentionSettings struct {
-	Settings interface {
-		ResolveInt(ctx context.Context, key string) (int, error)
-	}
-}
-
-func (s StaffSickNoteRetentionSettings) StaffSickNoteRetentionDays(ctx context.Context) (int, error) {
-	return s.Settings.ResolveInt(ctx, configModels.KeyGDPRStaffSickNoteRetentionDays)
 }
 
 // SchoolSetupSettings resolves the two settings the school setup steps

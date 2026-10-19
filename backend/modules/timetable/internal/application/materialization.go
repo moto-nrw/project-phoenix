@@ -8,9 +8,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -53,18 +53,18 @@ const materializeForTenantOp = "materialize for tenant"
 
 // materializationService is the concrete implementation.
 type materializationService struct {
-	groupRepo      activities.GroupRepository
-	scheduleRepo   activities.ScheduleRepository
-	enrollmentRepo activities.StudentEnrollmentRepository
-	supervisorRepo activities.SupervisorPlannedRepository
-	periodRepo     schedule.CalendarPeriodRepository
-	instanceRepo   schedule.ActivityInstanceRepository
-	staffRepo      schedule.InstanceStaffRepository
-	studentRepo    schedule.InstanceStudentRepository
+	groupRepo      ports.ActivityGroupRecords
+	scheduleRepo   ports.ActivityScheduleRecords
+	enrollmentRepo ports.ActivityEnrollmentRecords
+	supervisorRepo ports.PlannedSupervisorRecords
+	periodRepo     ports.CalendarPeriodRecords
+	instanceRepo   ports.ActivityInstanceRecords
+	staffRepo      ports.InstanceStaffRecords
+	studentRepo    ports.InstanceStudentRecords
 	careBounds     ports.CareBoundReader
 	nonWorkingDays timetable.NonWorkingDayCalendar // nil skips no holidays or closing days (#3594)
-	exceptionRepo  schedule.ActivityExceptionRepository
-	timeframeRepo  schedule.TimeframeRepository
+	exceptionRepo  ports.ActivityExceptionRecords
+	timeframeRepo  ports.TimeframeRecords
 	lock           timetable.RecurrenceWriteLock
 	transactions   ports.TenantTransactions
 	staffing       ports.StaffingAnnouncer
@@ -249,7 +249,7 @@ func (s *materializationService) materializeForTenantLocked(
 func (s *materializationService) loadMaterializationPreconditions(
 	ctx context.Context,
 	result *timetable.MaterializationResult,
-) ([]*schedule.CalendarPeriod, []*activities.Group, bool, error) {
+) ([]*schedule.CalendarPeriod, []*activityContract.Group, bool, error) {
 	periods, err := s.periodRepo.FindActiveByTenantID(ctx)
 	if err != nil {
 		return nil, nil, false, &ports.ScheduleError{Op: "materialize for tenant: load periods", Err: err}
@@ -292,11 +292,11 @@ func (s *materializationService) loadMaterializationWorld(
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "materialize for tenant: load non-working days", Err: err}
 	}
-	existing, err := s.instanceRepo.FindByTenantAndDateRange(ctx, schedule.Date(from), schedule.Date(to))
+	existing, err := s.instanceRepo.FindByTenantAndDateRange(ctx, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "materialize for tenant: load existing instances", Err: err}
 	}
-	exceptions, err := s.exceptionRepo.FindByDateRange(ctx, schedule.Date(from), schedule.Date(to))
+	exceptions, err := s.exceptionRepo.FindByDateRange(ctx, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "materialize for tenant: load exceptions", Err: err}
 	}
@@ -361,10 +361,10 @@ func (s *materializationService) finishLog(tenantID int64, source timetable.Mate
 // templateRoster is what one template materializes from: its schedules and
 // the people its occurrences receive.
 type templateRoster struct {
-	schedules        []*activities.Schedule
-	enrollments      []*activities.StudentEnrollment
+	schedules        []*activityContract.Schedule
+	enrollments      []*activityContract.StudentEnrollment
 	targetStudentIDs []int64
-	supervisors      []*activities.SupervisorPlanned
+	supervisors      []*activityContract.SupervisorPlanned
 	careBounds       map[int64]calendar.Date
 }
 
@@ -377,7 +377,7 @@ func (s *materializationService) loadTemplatePeople(ctx context.Context, templat
 		return templateRoster{}, &ports.ScheduleError{Op: op + ": load enrollments", Err: err}
 	}
 	targetStudentIDs := make([]int64, 0)
-	if targetRepo, ok := s.groupRepo.(activities.GroupTargetRepository); ok {
+	if targetRepo, ok := s.groupRepo.(ports.ActivityGroupTargets); ok {
 		targetStudentIDs, err = targetRepo.FindTargetStudentIDs(ctx, templateID)
 		if err != nil {
 			return templateRoster{}, &ports.ScheduleError{Op: op + ": load target students", Err: err}
@@ -405,7 +405,7 @@ func (s *materializationService) loadTemplatePeople(ctx context.Context, templat
 func (s *materializationService) loadCareBounds(
 	ctx context.Context,
 	targetStudentIDs []int64,
-	enrollments []*activities.StudentEnrollment,
+	enrollments []*activityContract.StudentEnrollment,
 ) (map[int64]calendar.Date, error) {
 	if s.careBounds == nil {
 		return nil, nil
@@ -445,7 +445,7 @@ func careEndedOnDate(bounds map[int64]calendar.Date, studentID int64, date calen
 // materialize on one date. Both materialization and lost-edit detection use
 // this function so manual enrollments and dynamic targets cannot drift apart.
 func expectedStudentIDsOn(
-	enrollments []*activities.StudentEnrollment,
+	enrollments []*activityContract.StudentEnrollment,
 	targetStudentIDs []int64,
 	careBounds map[int64]calendar.Date,
 	date calendar.Date,
@@ -482,7 +482,7 @@ func expectedStudentIDsOn(
 // invisible weekend instances.
 func (s *materializationService) materializeTemplate(
 	ctx context.Context,
-	tmpl *activities.Group,
+	tmpl *activityContract.Group,
 	world *materializationWorld,
 	result *timetable.MaterializationResult,
 ) error {
@@ -521,8 +521,8 @@ func (s *materializationService) materializeTemplate(
 // copies its roster.
 func (s *materializationService) materializeCandidate(
 	ctx context.Context,
-	tmpl *activities.Group,
-	sch *activities.Schedule,
+	tmpl *activityContract.Group,
+	sch *activityContract.Schedule,
 	date calendar.Date,
 	roster templateRoster,
 	world *materializationWorld,
@@ -584,8 +584,8 @@ func (s *materializationService) materializeCandidate(
 // constraint violation in the scheduler log points at one slot.
 func createInstanceError(
 	ctx context.Context,
-	tmpl *activities.Group,
-	sch *activities.Schedule,
+	tmpl *activityContract.Group,
+	sch *activityContract.Schedule,
 	date calendar.Date,
 	period *schedule.CalendarPeriod,
 	effective materialParams,
@@ -615,11 +615,11 @@ func createInstanceError(
 // so a later series edit of the override could never propagate past
 // ReplanWeek's deviation snapshot. A non-NULL instance value is therefore
 // always a single-occurrence pin.
-func materializedInstance(tmpl *activities.Group, date calendar.Date, period *schedule.CalendarPeriod, effective materialParams) *schedule.ActivityInstance {
+func materializedInstance(tmpl *activityContract.Group, date calendar.Date, period *schedule.CalendarPeriod, effective materialParams) *schedule.ActivityInstance {
 	periodID := period.ID
 	templateID := tmpl.ID
 	return &schedule.ActivityInstance{
-		Date:             schedule.Date(date),
+		Date:             calendar.Date(date),
 		ActivityGroupID:  &templateID,
 		CalendarPeriodID: &periodID,
 		Title:            tmpl.Name,
@@ -636,7 +636,7 @@ func materializedInstance(tmpl *activities.Group, date calendar.Date, period *sc
 func (s *materializationService) copyExpectedStudents(
 	ctx context.Context,
 	instanceID int64,
-	enrollments []*activities.StudentEnrollment,
+	enrollments []*activityContract.StudentEnrollment,
 	targetStudentIDs []int64,
 	careBounds map[int64]calendar.Date,
 	date calendar.Date,
@@ -660,10 +660,10 @@ func (s *materializationService) copyExpectedStudents(
 	if len(studentIDs) == 0 {
 		return nil
 	}
-	if _, err := s.studentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, schedule.Date(date)); err != nil {
+	if _, err := s.studentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, calendar.Date(date)); err != nil {
 		return &ports.ScheduleError{Op: "materialize template: apply student status days", Err: err}
 	}
-	if _, err := s.studentRepo.ApplyActivePartialAbsencesForInstance(ctx, instanceID, schedule.Date(date)); err != nil {
+	if _, err := s.studentRepo.ApplyActivePartialAbsencesForInstance(ctx, instanceID, calendar.Date(date)); err != nil {
 		return &ports.ScheduleError{Op: "materialize template: apply student partial absences", Err: err}
 	}
 	return nil
@@ -672,7 +672,7 @@ func (s *materializationService) copyExpectedStudents(
 func (s *materializationService) copySupervisors(
 	ctx context.Context,
 	instanceID int64,
-	supervisors []*activities.SupervisorPlanned,
+	supervisors []*activityContract.SupervisorPlanned,
 	date calendar.Date,
 	periodID int64,
 	planWeekday int,

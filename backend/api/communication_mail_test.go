@@ -7,11 +7,14 @@ import (
 	"net"
 	"testing"
 
+	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	mail "github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	mail "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -50,19 +53,19 @@ func TestCommunicationMailBindingPreservesMetadataTypedReadsAndPartialMessage(t 
 			Subject: "subject", Template: "template", Content: &communication.MailContent{Strings: map[string]string{"Body": "", "Title": "title"}, Flags: map[string]bool{"AckRequired": false}},
 		}, failure
 	})
-	message, err := BindCommunicationMailRenderer(native)(ctx, source)
+	message, err := owners.BindCommunicationMailRenderer(native)(ctx, source)
 	assert.Same(t, failure, err)
 	require.NotNil(t, message)
 	assert.Equal(t, &mail.Message{From: mail.Email{Name: "sender", Address: "from@example.test"}, To: mail.Email{Name: "guardian", Address: "to@example.test"}, ReplyTo: mail.Email{Name: "school", Address: "reply@example.test"}, Subject: "subject", Template: "template", Content: map[string]any{"Body": "", "Title": "title", "AckRequired": false}}, message)
 	assert.Zero(t, marshals, "typed reads must not invoke JSON serialization")
 	assert.Equal(t, json.Number("9007199254740993"), source.Payload["large"])
-	assert.Nil(t, BindCommunicationMailRenderer(nil))
+	assert.Nil(t, owners.BindCommunicationMailRenderer(nil))
 }
 
 func TestCommunicationMailBindingPreservesNilInputsResultsAndEmptyContent(t *testing.T) {
 	t.Parallel()
 	failure := errors.New("no message")
-	render := BindCommunicationMailRenderer(func(_ context.Context, input *communication.MailIntent) (*communication.MailMessage, error) {
+	render := owners.BindCommunicationMailRenderer(func(_ context.Context, input *communication.MailIntent) (*communication.MailMessage, error) {
 		assert.Nil(t, input)
 		return nil, failure
 	})
@@ -76,7 +79,7 @@ func TestCommunicationMailBindingPreservesNilInputsResultsAndEmptyContent(t *tes
 			return &communication.MailMessage{Content: content}, nil
 		})
 		for _, payload := range []map[string]any{nil, {}} {
-			message, err := BindCommunicationMailRenderer(native)(context.Background(), &deliveryCompose.MailIntent{Payload: payload})
+			message, err := owners.BindCommunicationMailRenderer(native)(context.Background(), &deliveryCompose.MailIntent{Payload: payload})
 			require.NoError(t, err)
 			if content == nil {
 				assert.Nil(t, message.Content)
@@ -100,7 +103,7 @@ func TestCommunicationAnnouncementAuditPreservesOwnerBindingAndEncodingFailure(t
 		recorded = row
 		return failure
 	})
-	input := communicationCompose.AuditEntry{OperatorID: 13, Action: "publish", ResourceID: 17, RequestIP: net.IPv4(127, 0, 0, 1)}
+	input := recordports.AuditEntry{OperatorID: 13, Action: "publish", ResourceID: 17, RequestIP: net.IPv4(127, 0, 0, 1)}
 	assert.Same(t, failure, audit.AppendAnnouncementAudit(ctx, input))
 	assert.Equal(t, input.OperatorID, recorded.OperatorID)
 	assert.Equal(t, "publish", recorded.Action)

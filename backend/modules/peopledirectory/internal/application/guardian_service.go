@@ -7,9 +7,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 )
 
 const (
@@ -65,8 +66,8 @@ func NewRetainedGuardianService(deps peoplePorts.GuardianServiceDependencies, tr
 
 // CreateGuardian creates a new guardian profile without an account
 // Note: Phone numbers should be added separately via AddPhoneNumber
-func (s *RetainedGuardianService) CreateGuardian(ctx context.Context, req peoplePorts.GuardianCreateRequest) (*users.GuardianProfile, error) {
-	profile := &users.GuardianProfile{
+func (s *RetainedGuardianService) CreateGuardian(ctx context.Context, req peoplePorts.GuardianCreateRequest) (*peopleValues.GuardianProfileSnapshot, error) {
+	profile := &peopleValues.GuardianProfileSnapshot{
 		FirstName:              req.FirstName,
 		LastName:               req.LastName,
 		Email:                  req.Email,
@@ -122,7 +123,7 @@ func (s *RetainedGuardianService) CreateGuardian(ctx context.Context, req people
 }
 
 // GetGuardianByID retrieves a guardian profile by ID with phone numbers
-func (s *RetainedGuardianService) GetGuardianByID(ctx context.Context, id int64) (*users.GuardianProfile, error) {
+func (s *RetainedGuardianService) GetGuardianByID(ctx context.Context, id int64) (*peopleValues.GuardianProfileSnapshot, error) {
 	profile, err := s.GuardianProfileRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -299,7 +300,7 @@ func (s *RetainedGuardianService) deleteGuardianWithLinks(ctx context.Context, i
 
 // deleteGuardianLinks removes the confirmed links of a full guardian delete,
 // auditing each payer mark that goes with them.
-func (s *RetainedGuardianService) deleteGuardianLinks(ctx context.Context, links []*users.StudentGuardian, changedByAccountID int64) error {
+func (s *RetainedGuardianService) deleteGuardianLinks(ctx context.Context, links []*peopleValues.GuardianRelationshipSnapshot, changedByAccountID int64) error {
 	for _, link := range links {
 		if link.IsPayer {
 			if err := s.recordPayerChange(ctx, link.GuardianProfileID, link.StudentID, changedByAccountID, "true", "false"); err != nil {
@@ -457,7 +458,7 @@ func (s *RetainedGuardianService) getGuardianDeleteImpact(ctx context.Context, g
 }
 
 // ListGuardians retrieves guardians with pagination and filters, including phone numbers
-func (s *RetainedGuardianService) ListGuardians(ctx context.Context, options *peoplePorts.QueryOptions) ([]*users.GuardianProfile, error) {
+func (s *RetainedGuardianService) ListGuardians(ctx context.Context, options *peoplePorts.QueryOptions) ([]*peopleValues.GuardianProfileSnapshot, error) {
 	profiles, err := s.GuardianProfileRepo.ListWithOptions(ctx, options)
 	if err != nil {
 		return nil, err
@@ -505,7 +506,7 @@ func (s *RetainedGuardianService) SearchGuardiansForPicker(ctx context.Context, 
 		return nil, err
 	}
 
-	byGuardian := make(map[int64][]*users.GuardianLinkedChild, len(profiles))
+	byGuardian := make(map[int64][]*peopleValues.GuardianLinkedChildSnapshot, len(profiles))
 	for _, c := range children {
 		byGuardian[c.GuardianProfileID] = append(byGuardian[c.GuardianProfileID], c)
 	}
@@ -518,12 +519,12 @@ func (s *RetainedGuardianService) SearchGuardiansForPicker(ctx context.Context, 
 }
 
 // GetGuardiansWithoutAccount retrieves guardians who don't have portal accounts
-func (s *RetainedGuardianService) GetGuardiansWithoutAccount(ctx context.Context) ([]*users.GuardianProfile, error) {
+func (s *RetainedGuardianService) GetGuardiansWithoutAccount(ctx context.Context) ([]*peopleValues.GuardianProfileSnapshot, error) {
 	return s.GuardianProfileRepo.FindWithoutAccount(ctx)
 }
 
 // GetInvitableGuardians retrieves guardians who can be invited
-func (s *RetainedGuardianService) GetInvitableGuardians(ctx context.Context) ([]*users.GuardianProfile, error) {
+func (s *RetainedGuardianService) GetInvitableGuardians(ctx context.Context) ([]*peopleValues.GuardianProfileSnapshot, error) {
 	return s.GuardianProfileRepo.FindInvitable(ctx)
 }
 

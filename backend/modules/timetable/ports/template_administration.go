@@ -4,8 +4,6 @@ import (
 	"context"
 	"log/slog"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -19,15 +17,15 @@ import (
 // Structure's education groups and class rules, and the realtime staffing
 // announcement. Staffing, Logger and Today are optional.
 type TemplateAdministrationDependencies struct {
-	Groups               activitiesModels.GroupRepository
-	Categories           activitiesModels.CategoryRepository
-	Schedules            activitiesModels.ScheduleRepository
-	Enrollments          activitiesModels.StudentEnrollmentRepository
-	Supervisors          activitiesModels.SupervisorPlannedRepository
-	Instances            scheduleModels.ActivityInstanceRepository
-	InstanceStaff        scheduleModels.InstanceStaffRepository
-	Participants         scheduleModels.InstanceStudentRepository
-	Timeframes           scheduleModels.TimeframeRepository
+	Groups               ActivityGroupRecords
+	Categories           ActivityCategoryRecords
+	Schedules            ActivityScheduleRecords
+	Enrollments          ActivityEnrollmentRecords
+	Supervisors          PlannedSupervisorRecords
+	Instances            ActivityInstanceRecords
+	InstanceStaff        InstanceStaffRecords
+	Participants         InstanceStudentRecords
+	Timeframes           TimeframeRecords
 	PlanningTracks       PlanningTrackAssignments
 	EducationGroups      EducationGroupDirectory
 	Materialization      timetable.MaterializationCapability

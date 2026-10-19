@@ -89,3 +89,20 @@ func (f presenceSessionFacts) ExecutionFacts(ctx context.Context, instanceIDs, p
 	}
 	return result.CompletedInstanceIDs, result.NotScheduledParticipantIDs, nil
 }
+
+func (f presenceSessionFacts) RunningSessionsByInstance(ctx context.Context, sessionIDs []int64) (map[int64]int64, error) {
+	sessions, err := f.presence.ListActivitySessions(ctx, studentpresence.ActivitySessionFilter{
+		ActiveGroupIDs: sessionIDs, Status: studentpresence.ActivitySessionActive,
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]int64, len(sessions))
+	for _, session := range sessions {
+		if session.ActiveGroupID == nil {
+			continue
+		}
+		result[session.InstanceID] = *session.ActiveGroupID
+	}
+	return result, nil
+}

@@ -3,12 +3,14 @@ package enrollmenthttp_test
 import (
 	"testing"
 
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/api"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -16,9 +18,7 @@ import (
 // the shortcut the rollover would otherwise take via renewalInitialStatus.
 func setChildStatus(t *testing.T, env *requestTestEnv, childID int64, status string) {
 	t.Helper()
-	require.NoError(t, flowRepositories(t, env.db).Enrollment().UpdateChildStatus(
-		testpkg.TenantContext(env.phase.TenantID), childID, status, nil, env.creatorID,
-	))
+	require.NoError(t, testpkg.TenantCommand4(t, testpkg.TenantContext(env.phase.TenantID), testpkg.SetupTestDB(t), api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, env.db)).Enrollment().UpdateChildStatus, childID, status, nil, env.creatorID))
 }
 
 // A parent-initiated change request on a renewal request IS the parent's
@@ -38,7 +38,7 @@ func TestChangeRequestService_Create_FlipsPendingRenewalToSubmitted(t *testing.T
 	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 	require.Len(t, result.Children, 1)
-	setChildStatus(t, env, result.Children[0].ID, enrollmentModels.ChildStatusPendingRenewal)
+	setChildStatus(t, env, result.Children[0].ID, enrollmentNative.ChildStatusPendingRenewal)
 
 	svc := newChangeRequestServiceForTest(env)
 	created, err := svc.Create(ctx, result.Request.StatusToken, enrollmentAPI.CreateChangeRequestInput{
@@ -47,9 +47,9 @@ func TestChangeRequestService_Create_FlipsPendingRenewalToSubmitted(t *testing.T
 	})
 	require.NoError(t, err)
 
-	stored, err := enrollmentAPI.ReadOwnerChildForTest(ctx, flowRepositories(t, env.db).Enrollment(), result.Children[0].ID)
+	stored, err := enrollmentAPI.ReadOwnerChildForTest(ctx, api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, env.db)).Enrollment(), result.Children[0].ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, stored.Status)
+	assert.Equal(t, enrollmentNative.ChildStatusSubmitted, stored.Status)
 
 	// The base snapshot must already carry the flipped status so the later
 	// approval's conflict guard compares equal states.
@@ -58,10 +58,10 @@ func TestChangeRequestService_Create_FlipsPendingRenewalToSubmitted(t *testing.T
 	require.Len(t, children, 1)
 	row, ok := children[0].(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, row["status"])
+	assert.Equal(t, enrollmentNative.ChildStatusSubmitted, row["status"])
 
 	// And the approval must go through without a snapshot conflict.
-	_, err = svc.Approve(ctx, created.ChangeRequest.ID, enrollmentAPI.ReviewChangeRequestInput{
+	_, err = testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), svc.Approve, created.ChangeRequest.ID, enrollmentAPI.ReviewChangeRequestInput{
 		Note:           "Freigegeben.",
 		ActorAccountID: env.creatorID,
 		ActorRole:      "admin",
@@ -78,7 +78,7 @@ func TestChangeRequestService_Create_FlipsAutoRenewedToSubmitted(t *testing.T) {
 
 	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
-	setChildStatus(t, env, result.Children[0].ID, enrollmentModels.ChildStatusAutoRenewed)
+	setChildStatus(t, env, result.Children[0].ID, enrollmentNative.ChildStatusAutoRenewed)
 
 	svc := newChangeRequestServiceForTest(env)
 	_, err = svc.Create(ctx, result.Request.StatusToken, enrollmentAPI.CreateChangeRequestInput{
@@ -86,9 +86,9 @@ func TestChangeRequestService_Create_FlipsAutoRenewedToSubmitted(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	stored, err := enrollmentAPI.ReadOwnerChildForTest(ctx, flowRepositories(t, env.db).Enrollment(), result.Children[0].ID)
+	stored, err := enrollmentAPI.ReadOwnerChildForTest(ctx, api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, env.db)).Enrollment(), result.Children[0].ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, stored.Status)
+	assert.Equal(t, enrollmentNative.ChildStatusSubmitted, stored.Status)
 }
 
 func TestChangeRequestService_Create_LeavesNonRenewalStatusesAlone(t *testing.T) {
@@ -108,7 +108,7 @@ func TestChangeRequestService_Create_LeavesNonRenewalStatusesAlone(t *testing.T)
 	})
 	require.NoError(t, err)
 
-	stored, err := enrollmentAPI.ReadOwnerChildForTest(ctx, flowRepositories(t, env.db).Enrollment(), result.Children[0].ID)
+	stored, err := enrollmentAPI.ReadOwnerChildForTest(ctx, api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, env.db)).Enrollment(), result.Children[0].ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, stored.Status)
+	assert.Equal(t, enrollmentNative.ChildStatusWaitlisted, stored.Status)
 }

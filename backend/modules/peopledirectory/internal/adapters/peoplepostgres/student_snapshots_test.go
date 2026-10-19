@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	models "github.com/moto-nrw/project-phoenix/models/users"
+	models "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -46,7 +46,7 @@ func TestNativeStudentSnapshotRetainsCompleteHydratedValue(t *testing.T) {
 			name := native.Type().Field(i).Name
 			want := fields.FieldByName(name).Interface()
 			if name == "Person" {
-				want = directoryPersonSnapshot(value.Person)
+				want = NativeDirectoryPerson(value.Person)
 			}
 			wantJSON, err := json.Marshal(want)
 			if err != nil {

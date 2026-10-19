@@ -100,7 +100,7 @@ func NewCallerContext(deps CallerContextDependencies) (identityaccess.CallerCont
 		Structure:  deps.Structure,
 		Activities: deps.Activities,
 		Sessions:   application.CallerSessions{CallerSessions: deps.Sessions},
-		Write:      transaction{}.RunWrite,
+		Write:      newCommandTransactions(nil).RunWrite,
 		RemoveFile: os.Remove,
 		Logger:     deps.Logger,
 	}

@@ -325,7 +325,7 @@ func TestEndingAnActivityLeavesIndependentRoomStays(t *testing.T) {
 	assertStillAttending(t, presence, all)
 
 	// The global daily close ends the room stays as well, not the attendance.
-	_, err = svc.EndDailySessions(ctx)
+	_, err = testpkg.TenantQuery0(t, ctx, db, svc.EndDailySessions)
 	require.NoError(t, err)
 	assert.Empty(t, openVisitSessions(t, presence, all), "the daily close must not keep yesterday's room stays")
 	assertStillAttending(t, presence, all)

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -88,15 +89,16 @@ func buildPlanningWorkforce(t *testing.T, db *bun.DB) workforce.Capability {
 // retained staff repository in ctx's tenant.
 func planningDependencies(t *testing.T, ctx context.Context, db *bun.DB, capability workforce.Capability, staffID int64) compose.ShiftPlanningDependencies {
 	t.Helper()
-	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	staffByID, err := api.NewPlanStaffDirectory(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners).Staff).FindWithPersonByIDs(ctx, []int64{staffID})
+	ownersRooms := owners.MustNewUnobservedRooms(testpkg.NewDatabase(t, db))
+	calendarOwner := api.MustNewSchoolCalendar(testpkg.NewDatabase(t, db))
+	staffByID, err := testpkg.TenantQuery1(t, ctx, db, owners.NewPlanStaffDirectory(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Staff).FindWithPersonByIDs, []int64{staffID})
 	require.NoError(t, err)
 	staff := staffByID[staffID]
 	require.NotNil(t, staff)
 	return compose.ShiftPlanningDependencies{
 		Workforce: capability, Staff: planningStaffDirectory{staff: staff},
-		CalendarPeriods: owners.Calendar, Instances: planningTimetable{},
-		InstanceStaff: planningInstanceStaff{}, Rooms: api.NewTimetableRoomNames(owners.Rooms), ActivityGroups: planningGroups{},
+		CalendarPeriods: calendarOwner, Instances: planningTimetable{},
+		InstanceStaff: planningInstanceStaff{}, Rooms: owners.NewTimetableRoomNames(ownersRooms), ActivityGroups: planningGroups{},
 		DB: db,
 	}
 }
@@ -197,4 +199,8 @@ func TestShiftPlanningServesTheDienstplanOverTheCapability(t *testing.T) {
 		From: day.String(), To: day.String(), Template: "persons", Variant: "aushang", Format: "pdf",
 	})
 	require.EqualError(t, exportErr, "plan export is not configured")
+}
+
+func (d planningStaffDirectory) ListMembershipsWithPerson(ctx context.Context) ([]*workforce.PlanStaff, error) {
+	return d.ListAllWithPerson(ctx)
 }

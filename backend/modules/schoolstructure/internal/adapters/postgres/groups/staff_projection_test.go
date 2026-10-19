@@ -5,6 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -20,6 +21,7 @@ func TestEducationGroupSupervisionResolvesTeachersToStaff(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	factory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	factoryStructure := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	today := calendar.TodayDate()
 
 	group := testpkg.CreateTestEducationGroup(t, db, "Zuordnung Gruppe")
@@ -38,7 +40,7 @@ func TestEducationGroupSupervisionResolvesTeachersToStaff(t *testing.T) {
 	testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, goneSubstitute.ID, today.AddDays(-1), today.AddDays(1))
 	require.NoError(t, factory.Staff.Delete(ctx, goneSubstitute.ID))
 
-	pairs, err := factory.Group.ListStaffIDsByEducationGroupIDs(ctx, []int64{group.ID}, today)
+	pairs, err := factoryStructure.Group.ListStaffIDsByEducationGroupIDs(ctx, []int64{group.ID}, today)
 	require.NoError(t, err)
 
 	staffIDs := make([]int64, 0, len(pairs))
@@ -55,7 +57,7 @@ func TestEducationGroupSupervisionResolvesTeachersToStaff(t *testing.T) {
 	require.NotEmpty(t, staffIDs)
 	assert.Equal(t, teacher.StaffID, staffIDs[0])
 
-	empty, err := factory.Group.ListStaffIDsByEducationGroupIDs(ctx, nil, today)
+	empty, err := factoryStructure.Group.ListStaffIDsByEducationGroupIDs(ctx, nil, today)
 	require.NoError(t, err)
 	assert.Empty(t, empty, "an empty request must not resolve to everybody")
 }
@@ -78,7 +80,7 @@ func TestGroupSubstitutionsCarryTheirStaffMembers(t *testing.T) {
 
 	// This test owns its tenant, so the substitution above is the only row
 	// the listing can see.
-	listed, err := factory.GroupSubstitution.ListWithRelations(ctx, schoolStructureCompose.HandoverQuery{})
+	listed, err := testpkg.TenantQuery1(t, ctx, db, factory.GroupSubstitution.ListWithRelations, schoolStructureCompose.HandoverQuery{})
 	require.NoError(t, err)
 	require.Len(t, listed, 1)
 	require.NotNil(t, listed[0].Group)

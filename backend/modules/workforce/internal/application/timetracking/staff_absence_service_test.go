@@ -717,10 +717,21 @@ func absSetupService() (*staffAbsenceService, *absStaffAbsenceRepoMock, *absWork
 		auditRepo:       auditRepo,
 		// Deletes require the tombstone writer (#1417); assertions stay on
 		// the absence repo.
-		deletionRepo: noopDeletionAuditRepo{},
+		deletionRepo:    noopDeletionAuditRepo{},
+		shiftPlanSyncer: noopShiftPlanSyncer{},
 	}
 	return svc, absRepo, workRepo
 }
+
+// noopShiftPlanSyncer is the sick cascade of a service without shift plans.
+type noopShiftPlanSyncer struct{}
+
+func (noopShiftPlanSyncer) MarkSickForRange(context.Context, SickCascadeInput) error  { return nil }
+func (noopShiftPlanSyncer) ClearSickForRange(context.Context, SickCascadeInput) error { return nil }
+func (noopShiftPlanSyncer) ReconcileSickRange(context.Context, SickCascadeInput, SickCascadeInput) error {
+	return nil
+}
+func (noopShiftPlanSyncer) ReassignSickStamps(context.Context, int64, int64) error { return nil }
 
 // compTimeToday is the day the comp-time tests run on. Without a configured
 // account start the Stundenkonto begins on 1 January of today's year, so the
@@ -3673,4 +3684,19 @@ func TestAbsCreateAbsenceFor_RejectsFarFutureCompTime(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid comp_time absence")
 	assert.Contains(t, err.Error(), "months ahead")
 	assert.False(t, createCalled)
+}
+
+// A sick report cascades into the plans (#1843) and the cascade is
+// fail-closed, so an absence service without one is refused at construction
+// instead of committing sick reports without their plan effects.
+func TestNewStaffAbsenceService_RequiresTheSickCascade(t *testing.T) {
+	t.Parallel()
+
+	require.PanicsWithValue(t, "staff absence service: the sick cascade is required", func() {
+		NewStaffAbsenceService(&absStaffAbsenceRepoMock{}, &absWorkSessionRepoMock{}, &absVacationQuotaRepoMock{}, &absStaffAbsenceAuditRepoMock{}, nil, nil)
+	})
+	require.NotPanics(t, func() {
+		NewStaffAbsenceService(&absStaffAbsenceRepoMock{}, &absWorkSessionRepoMock{}, &absVacationQuotaRepoMock{}, &absStaffAbsenceAuditRepoMock{}, nil, nil,
+			WithAbsenceShiftPlanSyncer(noopShiftPlanSyncer{}))
+	})
 }

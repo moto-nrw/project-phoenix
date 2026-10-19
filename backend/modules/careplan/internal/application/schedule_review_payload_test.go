@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,7 +28,7 @@ func TestCareReviewPendingRequiresReasonButSummaryDoesNot(t *testing.T) {
 			payload, err := json.Marshal(map[string]string{"date": "2026-03-30", "pickup_time": "14:00", "reason": reason})
 			require.NoError(t, err)
 			service := &ScheduleReviews{}
-			_, err = service.pickupDiff(context.Background(), &careplan.CareScheduleChangeRequest{Payload: payload}, ports.ReviewStudent{}, &careplan.CareScheduleReviewItem{})
+			_, err = service.pickupDiff(context.Background(), &careplan.CareScheduleChangeRequest{Payload: payload}, careplan.ReviewStudent{}, &careplan.CareScheduleReviewItem{})
 			require.Error(t, err)
 			require.Len(t, requestedCareSummary(payload), 1)
 		})
@@ -51,7 +50,7 @@ func TestCareReviewDayDepartureMode(t *testing.T) {
 	item := &careplan.CareScheduleReviewItem{}
 	diff, err := (&ScheduleReviews{}).pickupDiff(context.Background(), &careplan.CareScheduleChangeRequest{
 		Payload: json.RawMessage(`{"date":"2026-03-30","departure_mode":"pickup","previous_departure_modes":["alone","bus"],"reason":"Oma holt ab"}`),
-	}, ports.ReviewStudent{}, item)
+	}, careplan.ReviewStudent{}, item)
 	require.NoError(t, err)
 	require.Len(t, diff, 1)
 	require.Equal(t, "Geht alleine / Fährt Bus", diff[0].Old)

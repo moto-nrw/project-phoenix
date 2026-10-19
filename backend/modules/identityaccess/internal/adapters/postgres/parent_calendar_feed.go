@@ -16,7 +16,8 @@ func (s *Store) FindParentCalendarFeedAccount(ctx context.Context, id int64) (do
 	if err != nil {
 		return domain.ParentCalendarFeedAccount{}, false, domain.OperationStats{}, err
 	}
-	return scanParentCalendarFeedAccount(ctx, db.NewRaw(`SELECT id, email, active, COALESCE(calendar_feed_token, '') AS token_hash FROM auth.accounts WHERE id = ?`, id))
+	return scanParentCalendarFeedAccount(ctx, db.NewRaw(`SELECT id, email, active, COALESCE(calendar_feed_token, '') AS token_hash
+		FROM auth.accounts WHERE id = ? AND personal_data_erased_at IS NULL`, id))
 }
 
 func (s *Store) FindParentCalendarFeedOwner(ctx context.Context, hash string) (domain.ParentCalendarFeedAccount, bool, domain.OperationStats, error) {
@@ -27,7 +28,8 @@ func (s *Store) FindParentCalendarFeedOwner(ctx context.Context, hash string) (d
 	if err != nil {
 		return domain.ParentCalendarFeedAccount{}, false, domain.OperationStats{}, err
 	}
-	return scanParentCalendarFeedAccount(ctx, db.NewRaw(`SELECT id, email, active, COALESCE(calendar_feed_token, '') AS token_hash FROM auth.accounts WHERE calendar_feed_token = ?`, hash))
+	return scanParentCalendarFeedAccount(ctx, db.NewRaw(`SELECT id, email, active, COALESCE(calendar_feed_token, '') AS token_hash
+		FROM auth.accounts WHERE calendar_feed_token = ? AND personal_data_erased_at IS NULL`, hash))
 }
 
 func scanParentCalendarFeedAccount(ctx context.Context, query *bun.RawQuery) (domain.ParentCalendarFeedAccount, bool, domain.OperationStats, error) {
@@ -53,7 +55,8 @@ func (s *Store) EnsureParentCalendarFeedToken(ctx context.Context, id int64, has
 		return "", domain.OperationStats{}, err
 	}
 	started := time.Now()
-	result, err := db.NewRaw(`UPDATE auth.accounts SET calendar_feed_token = ? WHERE id = ? AND (calendar_feed_token IS NULL OR calendar_feed_token = '')`, hash, id).Exec(ctx)
+	result, err := db.NewRaw(`UPDATE auth.accounts SET calendar_feed_token = ?
+		WHERE id = ? AND personal_data_erased_at IS NULL AND (calendar_feed_token IS NULL OR calendar_feed_token = '')`, hash, id).Exec(ctx)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return "", stats, fmt.Errorf("ensure parent calendar feed token: %w", err)
@@ -73,7 +76,8 @@ func (s *Store) RotateParentCalendarFeedToken(ctx context.Context, id int64, has
 		return domain.OperationStats{}, err
 	}
 	started := time.Now()
-	result, err := db.NewRaw("UPDATE auth.accounts SET calendar_feed_token = ? WHERE id = ?", hash, id).Exec(ctx)
+	result, err := db.NewRaw(`UPDATE auth.accounts SET calendar_feed_token = ?
+		WHERE id = ? AND personal_data_erased_at IS NULL`, hash, id).Exec(ctx)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return stats, fmt.Errorf("rotate parent calendar feed token: %w", err)

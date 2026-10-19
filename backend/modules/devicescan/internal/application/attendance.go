@@ -60,7 +60,7 @@ func (s *Service) ToggleAttendance(ctx context.Context, command devicescan.Atten
 
 // findAttendanceStudent resolves a card for the attendance flows. Alumni are
 // never valid; care-ended children continue so an open presence can close.
-func (s *Service) findAttendanceStudent(ctx context.Context, device *ports.Device, tag string) (*ports.Student, *ports.Person, error) {
+func (s *Service) findAttendanceStudent(ctx context.Context, device *devicescan.PrincipalDevice, tag string) (*ports.Student, *ports.Person, error) {
 	person, err := s.people.FindPersonByTag(ctx, tag)
 	if err != nil {
 		if !isPersonNotFound(err) {
@@ -107,7 +107,7 @@ func publicAttendanceState(state *ports.AttendanceState) devicescan.AttendanceSt
 // confirmDailyCheckout resolves the deferred "nach Hause" decision. The
 // visit was normally already ended by the scan (the child is "unterwegs");
 // this only updates the attendance row when the child confirms going home.
-func (s *Service) confirmDailyCheckout(ctx context.Context, device *ports.Device, tag, destination string) (*devicescan.AttendanceToggleResult, error) {
+func (s *Service) confirmDailyCheckout(ctx context.Context, device *devicescan.PrincipalDevice, tag, destination string) (*devicescan.AttendanceToggleResult, error) {
 	person, err := s.people.FindPersonByTag(ctx, tag)
 	if err != nil && !isPersonNotFound(err) {
 		return nil, devicescan.Internal(devicescan.MessageInternalServerError, err)
@@ -145,7 +145,7 @@ func (s *Service) confirmDailyCheckout(ctx context.Context, device *ports.Device
 }
 
 // toggleAttendance flips today's row. The scan stays device-attributed.
-func (s *Service) toggleAttendance(ctx context.Context, device *ports.Device, tag string) (*devicescan.AttendanceToggleResult, error) {
+func (s *Service) toggleAttendance(ctx context.Context, device *devicescan.PrincipalDevice, tag string) (*devicescan.AttendanceToggleResult, error) {
 	person, err := s.people.FindPersonByTag(ctx, tag)
 	if err != nil {
 		if !isPersonNotFound(err) {

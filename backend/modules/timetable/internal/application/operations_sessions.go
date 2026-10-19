@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"slices"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -16,7 +17,7 @@ import (
 // Purely descriptive metadata, so it carries no per-caller filter; the
 // route's schedules:read gates access.
 func (s *operations) ActiveSessions(ctx context.Context, date calendar.Date) ([]timetable.OperationActiveSession, error) {
-	instances, err := s.deps.Instances.FindByTenantAndDate(ctx, scheduleModels.Date(date))
+	instances, err := s.deps.Instances.FindByTenantAndDate(ctx, calendar.Date(date))
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +92,7 @@ func (s *operations) SessionBlocks(ctx context.Context, accountID int64, isAdmin
 
 // runningBlocksOf keeps the day's running blocks behind the asked sessions.
 func (s *operations) runningBlocksOf(ctx context.Context, date calendar.Date, supervisorStaffIDs map[int64][]int64) ([]*scheduleModels.ActivityInstance, error) {
-	instances, err := s.deps.Instances.FindByTenantAndDate(ctx, scheduleModels.Date(date))
+	instances, err := s.deps.Instances.FindByTenantAndDate(ctx, calendar.Date(date))
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +123,7 @@ func (s *operations) EarliestPlannedBlockStartForClass(ctx context.Context, scho
 	if key == "" {
 		return "", nil
 	}
-	instances, err := s.deps.Instances.FindByTenantAndDate(ctx, scheduleModels.Date(date))
+	instances, err := s.deps.Instances.FindByTenantAndDate(ctx, calendar.Date(date))
 	if err != nil {
 		return "", fmt.Errorf("earliest block start: load instances: %w", err)
 	}
@@ -186,7 +187,7 @@ func (s *operations) templatesAddressingClass(ctx context.Context, groupIDs []in
 // templateAddressesClass reports whether the template names the normalized
 // class in its own target, one of its dynamic targets, or its offering class
 // filter.
-func (s *operations) templateAddressesClass(group *activitiesModels.Group, targets []*activitiesModels.GroupTarget, key string) bool {
+func (s *operations) templateAddressesClass(group *activityContract.Group, targets []*activityContract.GroupTarget, key string) bool {
 	if group.TargetSchoolClass != nil && s.deps.NormalizeSchoolClass(*group.TargetSchoolClass) == key {
 		return true
 	}

@@ -6,6 +6,8 @@ import (
 	"context"
 	"time"
 
+	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
@@ -14,10 +16,10 @@ import (
 // ParentAnnouncementFixtures binds native test values without replacing the
 // store's validation, transactions, defaults or persisted-field copy-back.
 type ParentAnnouncementFixtures struct {
-	repo ParentAnnouncementRepository
+	repo recordports.ParentAnnouncementRepository
 }
 
-func NewParentAnnouncementFixtures(repo ParentAnnouncementRepository) ParentAnnouncementFixtures {
+func NewParentAnnouncementFixtures(repo recordports.ParentAnnouncementRepository) ParentAnnouncementFixtures {
 	return ParentAnnouncementFixtures{repo: repo}
 }
 

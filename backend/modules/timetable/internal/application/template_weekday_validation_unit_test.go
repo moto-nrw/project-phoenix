@@ -4,7 +4,8 @@ import (
 	"testing"
 	"time"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +17,7 @@ func TestValidateTemplateCreateInputRejectsWeekendWeekday(t *testing.T) {
 
 	err := validateTemplateCreateInput(CreateTemplateInput{
 		Name:     "Wochenende",
-		Weekdays: []int{activitiesModel.WeekdaySaturday},
+		Weekdays: []int{activityContract.WeekdaySaturday},
 	}, testSchoolClassRules)
 
 	assert.ErrorContains(t, err, "Monday to Friday")
@@ -26,7 +27,7 @@ func TestValidateSplitRecurrenceRejectsWeekendWeekday(t *testing.T) {
 	t.Parallel()
 
 	err := validateSplitRecurrence(TemplateSplitInput{
-		Weekdays: []int{activitiesModel.WeekdaySunday},
+		Weekdays: []int{activityContract.WeekdaySunday},
 	}, calendar.NewDate(2026, 8, 24))
 
 	assert.ErrorContains(t, err, "Monday to Friday")
@@ -41,17 +42,17 @@ func TestValidateSplitInputAcceptsTargetsWithoutLegacyMirror(t *testing.T) {
 		TemplateID:      1,
 		EffectiveDate:   calendar.NewDate(2026, 8, 25),
 		Name:            "Lernzeit",
-		Type:            activitiesModel.GroupTypeActivity,
-		Weekdays:        []int{activitiesModel.WeekdayMonday},
+		Type:            activityContract.GroupTypeActivity,
+		Weekdays:        []int{activityContract.WeekdayMonday},
 		StartTime:       time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:         time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		RoomID:          1,
 		CategoryID:      1,
 		GradeLevelMax:   testSchoolClassRules.MaxGradeLevel,
-		TargetGroupType: activitiesModel.TargetGroupTypeJahrgang,
-		Targets: []*activitiesModel.GroupTarget{
-			{TargetGroupType: activitiesModel.TargetGroupTypeJahrgang, TargetGradeLevel: &gradeTwo},
-			{TargetGroupType: activitiesModel.TargetGroupTypeJahrgang, TargetGradeLevel: &gradeThree},
+		TargetGroupType: activityContract.TargetGroupTypeJahrgang,
+		Targets: []*activityContract.GroupTarget{
+			{TargetGroupType: activityContract.TargetGroupTypeJahrgang, TargetGradeLevel: &gradeTwo},
+			{TargetGroupType: activityContract.TargetGroupTypeJahrgang, TargetGradeLevel: &gradeThree},
 		},
 	}
 
@@ -66,12 +67,12 @@ func TestResolveTemplateRosterRejectsPrimaryOutsideWeekdayStaff(t *testing.T) {
 
 	primaryID := int64(22)
 	_, err := resolveTemplateRoster(
-		[]int{activitiesModel.WeekdayMonday},
+		[]int{activityContract.WeekdayMonday},
 		nil,
 		[]int64{11},
 		nil,
 		[]timetable.WeekdayRosterAssignment{{
-			Weekday:        activitiesModel.WeekdayMonday,
+			Weekday:        activityContract.WeekdayMonday,
 			StaffIDs:       []int64{11},
 			PrimaryStaffID: &primaryID,
 		}},
@@ -83,17 +84,17 @@ func TestResolveTemplateRosterRejectsPrimaryOutsideWeekdayStaff(t *testing.T) {
 func TestValidateSplitWeekdayAssignmentsRequiresBothExplicitRosters(t *testing.T) {
 	t.Parallel()
 
-	assignment := timetable.WeekdayRosterAssignment{Weekday: activitiesModel.WeekdayMonday}
+	assignment := timetable.WeekdayRosterAssignment{Weekday: activityContract.WeekdayMonday}
 
 	for _, input := range []TemplateSplitInput{
 		{
-			Weekdays:           []int{activitiesModel.WeekdayMonday},
+			Weekdays:           []int{activityContract.WeekdayMonday},
 			StudentIDs:         []int64{1},
 			StaffIDs:           nil,
 			WeekdayAssignments: []timetable.WeekdayRosterAssignment{assignment},
 		},
 		{
-			Weekdays:           []int{activitiesModel.WeekdayMonday},
+			Weekdays:           []int{activityContract.WeekdayMonday},
 			StudentIDs:         nil,
 			StaffIDs:           []int64{2},
 			WeekdayAssignments: []timetable.WeekdayRosterAssignment{assignment},

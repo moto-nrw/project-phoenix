@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -37,7 +38,7 @@ func NewCaregiverCapabilityService(
 func (s *caregiverCapabilityService) GetCaregiverCapability(
 	ctx context.Context,
 	accountID int64,
-) (*userModels.CaregiverCapabilityState, error) {
+) (*peopleValues.CaregiverCapabilityState, error) {
 	state, _, err := s.loadCapabilityStateWithRoleFlags(ctx, accountID)
 	return state, err
 }
@@ -45,8 +46,8 @@ func (s *caregiverCapabilityService) GetCaregiverCapability(
 func (s *caregiverCapabilityService) EnableCaregiverCapability(
 	ctx context.Context,
 	accountID int64,
-	input userModels.EnableCaregiverCapabilityInput,
-) (*userModels.CaregiverCapabilityState, error) {
+	input peopleValues.EnableCaregiverCapabilityInput,
+) (*peopleValues.CaregiverCapabilityState, error) {
 	if accountID <= 0 {
 		return nil, &userscontract.UsersError{
 			Op:  "enable caregiver capability",
@@ -58,7 +59,7 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 	input.LastName = strings.TrimSpace(input.LastName)
 	input.Position = strings.TrimSpace(input.Position)
 
-	var result *userModels.CaregiverCapabilityState
+	var result *peopleValues.CaregiverCapabilityState
 	if err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		var err error
 		result, err = s.enableInTx(txCtx, accountID, input)
@@ -73,8 +74,8 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 func (s *caregiverCapabilityService) enableInTx(
 	ctx context.Context,
 	accountID int64,
-	input userModels.EnableCaregiverCapabilityInput,
-) (*userModels.CaregiverCapabilityState, error) {
+	input peopleValues.EnableCaregiverCapabilityInput,
+) (*peopleValues.CaregiverCapabilityState, error) {
 	beforeState, _, err := s.loadCapabilityStateWithRoleFlags(ctx, accountID)
 	if err != nil {
 		return nil, err
@@ -119,7 +120,7 @@ func (s *caregiverCapabilityService) enableInTx(
 func (s *caregiverCapabilityService) ensureCaregiverProfile(
 	ctx context.Context,
 	accountID int64,
-	input userModels.EnableCaregiverCapabilityInput,
+	input peopleValues.EnableCaregiverCapabilityInput,
 	details map[string]any,
 ) error {
 	person, err := s.ensurePerson(ctx, accountID, input, details)
@@ -136,9 +137,9 @@ func (s *caregiverCapabilityService) ensureCaregiverProfile(
 func (s *caregiverCapabilityService) ensurePerson(
 	ctx context.Context,
 	accountID int64,
-	input userModels.EnableCaregiverCapabilityInput,
+	input peopleValues.EnableCaregiverCapabilityInput,
 	details map[string]any,
-) (*userModels.Person, error) {
+) (*peopleValues.DirectoryPersonSnapshot, error) {
 	person, err := s.PersonRepo.FindByAccountID(ctx, accountID)
 	if err != nil || person != nil {
 		return person, err
@@ -152,7 +153,7 @@ func (s *caregiverCapabilityService) ensurePerson(
 		}
 	}
 
-	person = &userModels.Person{
+	person = &peopleValues.DirectoryPersonSnapshot{
 		FirstName: input.FirstName,
 		LastName:  input.LastName,
 	}
@@ -171,12 +172,12 @@ func (s *caregiverCapabilityService) ensureStaff(
 	ctx context.Context,
 	personID int64,
 	details map[string]any,
-) (*userModels.Staff, error) {
+) (*peopleValues.Staff, error) {
 	staff, err := s.findStaffByPersonID(ctx, personID)
 	if err != nil || staff != nil {
 		return staff, err
 	}
-	staff = &userModels.Staff{PersonID: personID}
+	staff = &peopleValues.Staff{PersonID: personID}
 	staff.SetTenantID(tenant.FromContext(ctx))
 	if err := s.StaffRepo.Create(ctx, staff); err != nil {
 		return nil, err
@@ -195,7 +196,7 @@ func (s *caregiverCapabilityService) ensureTeacher(
 	if err != nil || teacher != nil {
 		return err
 	}
-	teacher = &userModels.Teacher{StaffID: staffID}
+	teacher = &peopleValues.Teacher{StaffID: staffID}
 	teacher.SetTenantID(tenant.FromContext(ctx))
 	if position != "" {
 		teacher.Role = position
@@ -223,7 +224,7 @@ func (s *caregiverCapabilityService) systemRoleID(ctx context.Context, op, roleN
 func (s *caregiverCapabilityService) DisableCaregiverCapability(
 	ctx context.Context,
 	accountID int64,
-) (*userModels.CaregiverCapabilityState, error) {
+) (*peopleValues.CaregiverCapabilityState, error) {
 	if accountID <= 0 {
 		return nil, &userscontract.UsersError{
 			Op:  "disable caregiver capability",
@@ -243,7 +244,7 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 	// aborted after a deadlock and cannot be replayed. Its after-commit hooks
 	// also belong to that request, not to this independently committed
 	// operation.
-	var result *userModels.CaregiverCapabilityState
+	var result *peopleValues.CaregiverCapabilityState
 	retryCtx := tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
 	err = tenant.WithinTenantRetry(retryCtx, tenantID, func(txCtx context.Context) error {
 		if err := s.requireTransaction(txCtx); err != nil {
@@ -263,7 +264,7 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 func (s *caregiverCapabilityService) disableInTx(
 	ctx context.Context,
 	accountID int64,
-) (*userModels.CaregiverCapabilityState, error) {
+) (*peopleValues.CaregiverCapabilityState, error) {
 	if err := s.lockCapabilityBindings(ctx, accountID); err != nil {
 		return nil, err
 	}
@@ -274,7 +275,7 @@ func (s *caregiverCapabilityService) disableInTx(
 	}
 
 	if len(state.DisableBlockers) > 0 {
-		return nil, &userModels.CaregiverCapabilityBlockedError{Reasons: state.DisableBlockers}
+		return nil, &peopleValues.CaregiverCapabilityBlockedError{Reasons: state.DisableBlockers}
 	}
 
 	if !roleFlags.hasUserRole && !roleFlags.hasLegacyTeacherRole {
@@ -364,8 +365,8 @@ func (s *caregiverCapabilityService) recordCapabilityAuditEvent(
 
 func (s *caregiverCapabilityService) buildCapabilityAuditMetadata(
 	ctx context.Context,
-	before *userModels.CaregiverCapabilityState,
-	after *userModels.CaregiverCapabilityState,
+	before *peopleValues.CaregiverCapabilityState,
+	after *peopleValues.CaregiverCapabilityState,
 	details map[string]any,
 ) map[string]any {
 	metadata := map[string]any{
@@ -392,7 +393,7 @@ func (s *caregiverCapabilityService) buildCapabilityAuditMetadata(
 	return metadata
 }
 
-func capabilityAuditSnapshot(state *userModels.CaregiverCapabilityState) map[string]any {
+func capabilityAuditSnapshot(state *peopleValues.CaregiverCapabilityState) map[string]any {
 	if state == nil {
 		return map[string]any{}
 	}
@@ -423,7 +424,7 @@ func capabilityAuditSnapshot(state *userModels.CaregiverCapabilityState) map[str
 func (s *caregiverCapabilityService) findStaffByPersonID(
 	ctx context.Context,
 	personID int64,
-) (*userModels.Staff, error) {
+) (*peopleValues.Staff, error) {
 	staff, err := s.StaffRepo.FindByPersonID(ctx, personID)
 	if err != nil {
 		if errors.Is(err, transactionruntime.ErrNoRows) {

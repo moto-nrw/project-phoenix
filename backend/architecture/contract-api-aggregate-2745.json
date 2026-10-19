@@ -55,7 +55,7 @@
     "sources": [
       "backend/api/base.go",
       "backend/api/server.go",
-      "backend/api/scheduler_ports.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/scheduler_ports.go",
       "backend/api/testdata/middleware_table.golden",
       "backend/architecture/composition.json",
       "backend/architecture/callers/api-aggregate-2745.json",

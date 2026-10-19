@@ -79,17 +79,21 @@ func hasFullAccessToStudent(access *common.StudentAccessContext, student *people
 
 // applyPhotoConsent reconciles a requested photo consent on the locked row
 // the caller holds; the caller persists it with its own write.
-func (rs *Resource) applyPhotoConsent(ctx context.Context, requested *bool, fresh *peopleModule.StudentState) {
+func (rs *Resource) applyPhotoConsent(ctx context.Context, requested *bool, fresh *peopleModule.StudentState) error {
 	if fresh == nil {
-		return
+		return nil
 	}
-	updated := rs.StudentPhotos.ApplyStudentPhotoConsent(ctx, peopleModule.StudentPhotoState{
+	updated, err := rs.StudentPhotos.ApplyStudentPhotoConsent(ctx, peopleModule.StudentPhotoState{
 		StudentID:           fresh.ID,
 		PhotoPath:           fresh.PhotoPath,
 		PhotoConsentGivenAt: fresh.PhotoConsentGivenAt,
 		PhotoConsentGivenBy: fresh.PhotoConsentGivenBy,
 	}, requested)
+	if err != nil {
+		return err
+	}
 	fresh.PhotoPath = updated.PhotoPath
 	fresh.PhotoConsentGivenAt = updated.PhotoConsentGivenAt
 	fresh.PhotoConsentGivenBy = updated.PhotoConsentGivenBy
+	return nil
 }

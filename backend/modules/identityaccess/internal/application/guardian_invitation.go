@@ -26,8 +26,6 @@ const (
 	opGuardianInviteFetch    = "fetch guardian invitation"
 )
 
-// CreateGuardianInvitation issues a fresh invitation for a guardian contact
-// and queues its mail. The school comes from the tenant in context.
 func (l *AccountLifecycle) CreateGuardianInvitation(ctx context.Context, request domain.GuardianInvitationRequest) (domain.GuardianInvitation, error) {
 	if request.GuardianProfileID <= 0 {
 		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, fmt.Errorf("guardian profile ID is required"))
@@ -35,31 +33,35 @@ func (l *AccountLifecycle) CreateGuardianInvitation(ctx context.Context, request
 	if request.CreatedBy <= 0 {
 		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, fmt.Errorf("created_by is required"))
 	}
-	profile, found, err := l.guardians.FindGuardianProfile(ctx, request.GuardianProfileID)
-	if err != nil {
-		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, err)
-	}
-	if !found {
-		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, fmt.Errorf("guardian profile not found"))
-	}
-	if strings.TrimSpace(profile.Email) == "" {
-		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, fmt.Errorf("guardian has no email on file"))
-	}
-	if profile.HasAccount {
-		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, fmt.Errorf("guardian already has an account"))
-	}
-
-	tenantID := l.runtime.TenantID(ctx)
-	invitation, err := l.invitations.InsertGuardianInvitation(ctx, domain.GuardianInvitation{
-		TenantID:          tenantID,
-		Token:             uuid.Must(uuid.NewV4()).String(),
-		GuardianProfileID: profile.ID,
-		CreatedBy:         request.CreatedBy,
-		ExpiresAt:         time.Now().Add(l.delivery.InvitationExpiry(ctx)),
-		ApprovalStatus:    domain.GuardianInvitationApprovalNotRequired,
+	var (
+		invitation domain.GuardianInvitation
+		profile    domain.GuardianProfile
+	)
+	err := l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		var profileErr error
+		profile, profileErr = l.lockInvitationProfile(txCtx, request.GuardianProfileID)
+		if profileErr != nil {
+			return failed(opGuardianInviteCreate, profileErr)
+		}
+		if _, _, _, err := l.logins.LockLoginAccountByEmail(txCtx, profile.Email); err != nil {
+			return failed(opGuardianInviteCreate, err)
+		}
+		var insertErr error
+		invitation, insertErr = l.invitations.InsertGuardianInvitation(txCtx, domain.GuardianInvitation{
+			TenantID:          l.runtime.TenantID(txCtx),
+			Token:             uuid.Must(uuid.NewV4()).String(),
+			GuardianProfileID: profile.ID,
+			CreatedBy:         request.CreatedBy,
+			ExpiresAt:         time.Now().Add(l.delivery.InvitationExpiry(txCtx)),
+			ApprovalStatus:    domain.GuardianInvitationApprovalNotRequired,
+		})
+		if insertErr != nil {
+			return failed(opGuardianInviteCreate, insertErr)
+		}
+		return nil
 	})
 	if err != nil {
-		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, err)
+		return domain.GuardianInvitation{}, err
 	}
 
 	l.logger.Info("guardian invitation created",
@@ -69,6 +71,23 @@ func (l *AccountLifecycle) CreateGuardianInvitation(ctx context.Context, request
 	)
 	l.mailNewInvitation(ctx, invitation, profile)
 	return invitation, nil
+}
+
+func (l *AccountLifecycle) lockInvitationProfile(ctx context.Context, profileID int64) (domain.GuardianProfile, error) {
+	profile, locked, err := l.guardians.LockGuardianProfile(ctx, profileID)
+	if err != nil {
+		return domain.GuardianProfile{}, err
+	}
+	if !locked {
+		return domain.GuardianProfile{}, fmt.Errorf("guardian profile not found")
+	}
+	if strings.TrimSpace(profile.Email) == "" {
+		return domain.GuardianProfile{}, fmt.Errorf("guardian has no email on file")
+	}
+	if profile.HasAccount {
+		return domain.GuardianProfile{}, fmt.Errorf("guardian already has an account")
+	}
+	return profile, nil
 }
 
 // mailNewInvitation queues the mail of a new token invitation and the
@@ -204,7 +223,7 @@ func (l *AccountLifecycle) AcceptGuardianInvitation(ctx context.Context, token s
 // provisionGuardianAccount returns the account the address already owns —
 // with its credential untouched — or creates one from the registration.
 func (l *AccountLifecycle) provisionGuardianAccount(ctx context.Context, email string, registration domain.GuardianRegistration) (domain.LoginAccount, error) {
-	account, found, _, err := l.logins.FindLoginAccountByEmail(ctx, email)
+	account, found, _, err := l.logins.LockLoginAccountByEmail(ctx, email)
 	if err != nil {
 		return domain.LoginAccount{}, failed(opGuardianInviteAccept, err)
 	}
@@ -271,9 +290,6 @@ func (l *AccountLifecycle) claimGuardianEnrollments(ctx context.Context, account
 	return nil
 }
 
-// ResendGuardianInvitation queues the mail of a still redeemable invitation
-// again. The token and its expiry stay as issued; an expired or spent
-// invitation is never revived, it is replaced by a new one.
 func (l *AccountLifecycle) ResendGuardianInvitation(ctx context.Context, invitationID, actorAccountID int64) error {
 	invitation, found, err := l.invitations.FindGuardianInvitation(ctx, invitationID)
 	if err != nil {
@@ -305,37 +321,6 @@ func (l *AccountLifecycle) ResendGuardianInvitation(ctx context.Context, invitat
 	)
 	l.delivery.EnqueueInvitationEmail(ctx, invitation, profile, l.delivery.SchoolName(ctx, invitation.TenantID))
 	return nil
-}
-
-// ListGuardianInvitations returns every invitation ever issued for the
-// guardian contact, newest first.
-func (l *AccountLifecycle) ListGuardianInvitations(ctx context.Context, guardianProfileID int64) ([]domain.GuardianInvitation, error) {
-	invitations, err := l.invitations.ListGuardianInvitationsByProfile(ctx, guardianProfileID)
-	if err != nil {
-		return nil, failed(opGuardianInviteFetch, err)
-	}
-	return invitations, nil
-}
-
-// ListOpenGuardianInvitations returns the invitations of those contacts that
-// are still going somewhere: redeemable, or waiting for a staff decision.
-// One read serves the whole guardian list.
-func (l *AccountLifecycle) ListOpenGuardianInvitations(ctx context.Context, guardianProfileIDs []int64) ([]domain.GuardianInvitation, error) {
-	invitations, err := l.invitations.ListOpenGuardianInvitations(ctx, guardianProfileIDs, time.Now())
-	if err != nil {
-		return nil, failed(opGuardianInviteFetch, err)
-	}
-	return invitations, nil
-}
-
-// ListRedeemableGuardianInvitations returns the invitations of the school in
-// context whose link can still be spent.
-func (l *AccountLifecycle) ListRedeemableGuardianInvitations(ctx context.Context) ([]domain.GuardianInvitation, error) {
-	invitations, err := l.invitations.ListRedeemableGuardianInvitations(ctx, time.Now())
-	if err != nil {
-		return nil, failed(opGuardianInviteFetch, err)
-	}
-	return invitations, nil
 }
 
 // GuardianInvitationSchoolSlug resolves the school an invitation belongs to,

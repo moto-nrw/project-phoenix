@@ -14,12 +14,14 @@ import (
 	"log/slog"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/emergencysnapshot"
 	emergencysnapshotCompose "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/compose"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -43,7 +45,7 @@ type emergencySnapshotPresenceMode interface {
 // projection needs: the record carries the health note no public facade
 // exposes yet.
 type emergencySnapshotStudents interface {
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.Student, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.StudentState, error)
 }
 
 // emergencySnapshotPersons is the People Directory read of display
@@ -54,7 +56,7 @@ type emergencySnapshotPersons interface {
 
 // emergencySnapshotContacts is the People Directory guardian-contact query.
 type emergencySnapshotContacts interface {
-	ListEmergencyContactRows(ctx context.Context, studentIDs []int64) ([]users.GuardianEmergencyContactRow, error)
+	ListEmergencyContactRows(ctx context.Context, studentIDs []int64) ([]peopledirectory.GuardianEmergencyContactRow, error)
 }
 
 // emergencySnapshotRooms is the Facilities read of room names.
@@ -124,11 +126,7 @@ func (p emergencySnapshotPresenceReads) Mode(ctx context.Context) (emergencysnap
 // CurrentRoomIDs selects the latest open visit per student inside a running
 // session; the owner query applies the selection.
 func (p emergencySnapshotPresenceReads) CurrentRoomIDs(ctx context.Context, studentIDs []int64) (map[int64]int64, error) {
-	visits, err := p.facade.ListVisitLocations(ctx, studentpresence.VisitLocationFilter{
-		VisitFilter:       studentpresence.VisitFilter{StudentIDs: studentIDs, OpenOnly: true},
-		RunningGroupsOnly: true,
-		LatestPerStudent:  true,
-	})
+	visits, err := p.facade.ListVisitLocations(ctx, studentpresence.CurrentRoomVisitsFilter(studentIDs))
 	if err != nil {
 		return nil, err
 	}
@@ -144,9 +142,8 @@ func (p emergencySnapshotPresenceReads) CurrentRoomIDs(ctx context.Context, stud
 func (p emergencySnapshotPresenceReads) SchoolStatuses(ctx context.Context, studentIDs []int64, date emergencysnapshot.Date) (map[int64]string, error) {
 	rows, err := p.facade.ListSchoolStatuses(ctx, studentIDs, string(date))
 	if err != nil {
-		// The retained Active service masked owner details on this path.
-		// Keep its public error text when bypassing that service wrapper.
-		return nil, errors.New("active: GetStudentsAttendanceStatuses: database operation failed")
+		// Student Presence masks the owner details on this path.
+		return nil, studentpresence.SchoolStatusReadFailed()
 	}
 	statuses := make(map[int64]string, len(rows))
 	for _, row := range rows {
@@ -189,7 +186,7 @@ func (s emergencySnapshotStudentRecords) ByIDs(ctx context.Context, studentIDs [
 			ID:          id,
 			PersonID:    row.PersonID,
 			SchoolClass: row.SchoolClass,
-			HealthInfo:  stringValue(row.HealthInfo),
+			HealthInfo:  owners.StringValue(row.HealthInfo),
 		}
 	}
 	return result, nil
@@ -227,9 +224,9 @@ func (c emergencySnapshotGuardianContacts) EmergencyContacts(ctx context.Context
 	for _, row := range rows {
 		result = append(result, emergencysnapshot.Contact{
 			StudentID: row.StudentID,
-			FirstName: stringValue(row.FirstName),
-			LastName:  stringValue(row.LastName),
-			Phone:     stringValue(row.PhoneNumber),
+			FirstName: owners.StringValue(row.FirstName),
+			LastName:  owners.StringValue(row.LastName),
+			Phone:     owners.StringValue(row.PhoneNumber),
 		})
 	}
 	return result, nil

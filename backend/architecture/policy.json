@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 76,
+  "policy_epoch": 87,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -19,6 +19,10 @@
   "owners": [
     {
       "id": "student-directory-view",
+      "kind": "projection"
+    },
+    {
+      "id": "staff-directory-view",
       "kind": "projection"
     },
     {
@@ -270,6 +274,10 @@
       "kind": "workflow"
     },
     {
+      "id": "care-exit",
+      "kind": "workflow"
+    },
+    {
       "id": "guardian-link-view",
       "kind": "projection"
     },
@@ -316,7 +324,7 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "modules/studentdirectoryview",
+      "path": "modules/studentdirectoryview/internal/adapters/postgres",
       "owner": "student-directory-view",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -326,6 +334,13 @@
       "path": "modules/studentdirectoryview/compose",
       "owner": "student-directory-view",
       "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/staffdirectoryview",
+      "owner": "staff-directory-view",
+      "role": "public",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -344,7 +359,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/peopledirectory/userscontract",
+      "path": "modules/peopledirectory/internal/domain/userscontract",
       "owner": "people-directory",
       "role": "domain",
       "internal_test_role": "module-internal-test",
@@ -666,7 +681,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/filestorage/documents",
+      "path": "modules/filestorage/internal/adapters/documents",
       "owner": "file-storage",
       "role": "adapter",
       "internal_test_role": "module-internal-test",
@@ -813,13 +828,6 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/facilities/http/rooms",
-      "owner": "facilities",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
       "path": "modules/schoolportal",
       "owner": "identity-access",
       "role": "http",
@@ -883,14 +891,14 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "applog",
+      "path": "observability/internal/adapters/applog",
       "owner": "observability",
       "role": "adapter",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "auth/authorize",
+      "path": "modules/securityruntime/internal/application/authorize",
       "owner": "security-runtime",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -904,14 +912,14 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "auth/device",
+      "path": "modules/devicefleet/internal/adapters/deviceauth",
       "owner": "device-fleet",
       "role": "adapter",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "auth/device/devicetest",
+      "path": "modules/devicefleet/devicetest",
       "owner": "device-fleet",
       "role": "test-support",
       "internal_test_role": "module-internal-test",
@@ -939,14 +947,14 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "auth/userpass",
+      "path": "modules/securityruntime/internal/domain/userpass",
       "owner": "security-runtime",
       "role": "domain",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "auth/userpass/userpasstest",
+      "path": "modules/securityruntime/userpasstest",
       "owner": "security-runtime",
       "role": "test-support",
       "internal_test_role": "module-internal-test",
@@ -967,14 +975,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "constants",
-      "owner": "legacy-shared",
-      "role": "domain",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "database",
+      "path": "modules/transactionruntime/internal/adapters/database",
       "owner": "transaction-runtime",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -995,14 +996,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/base",
-      "owner": "transaction-runtime",
-      "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "database/repositories/config",
+      "path": "modules/settings/internal/adapters/configpostgres",
       "owner": "settings-platform",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -1051,14 +1045,14 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/organizationtenancy/internal/adapters/operatordashboard",
+      "path": "modules/operatordashboard/internal/adapters/postgres",
       "owner": "operator-dashboard-view",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "database/repositories/parent",
+      "path": "modules/careplan/internal/adapters/parentpostgres",
       "owner": "care-plan",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -1086,14 +1080,14 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "email",
+      "path": "modules/delivery/internal/adapters/email",
       "owner": "delivery-platform",
       "role": "adapter",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "email/emailtest",
+      "path": "modules/delivery/emailtest",
       "owner": "delivery-platform",
       "role": "test-support",
       "internal_test_role": "module-internal-test",
@@ -1128,9 +1122,9 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "internal/collation",
-      "owner": "legacy-shared",
-      "role": "domain",
+      "path": "sharedkernel/collation",
+      "owner": "shared-kernel",
+      "role": "contract",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -1240,7 +1234,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "localization",
+      "path": "modules/delivery/internal/adapters/localization",
       "owner": "delivery-platform",
       "role": "adapter",
       "internal_test_role": "module-internal-test",
@@ -1261,51 +1255,9 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/activities",
-      "owner": "timetable-activities",
-      "role": "legacy-model",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/auditlog/records",
       "owner": "audit-platform",
       "role": "port",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "models/base",
-      "owner": "transaction-runtime",
-      "role": "legacy-model",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "models/calendar",
-      "owner": "school-calendar",
-      "role": "legacy-model",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "models/delivery",
-      "owner": "delivery-platform",
-      "role": "legacy-model",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "models/enrollment",
-      "owner": "enrollment",
-      "role": "legacy-model",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "models/facilities",
-      "owner": "facilities",
-      "role": "legacy-model",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -1345,14 +1297,14 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/dataimport/compose/retained",
+      "path": "modules/dataimport/compose/imports",
       "owner": "data-import",
       "role": "compose",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/dataimport/fileformat",
+      "path": "modules/dataimport/internal/adapters/fileformat",
       "owner": "data-import",
       "role": "adapter",
       "internal_test_role": "adapter-test",
@@ -1364,13 +1316,6 @@
       "role": "public",
       "internal_test_role": "workflow-decision-test",
       "external_test_role": "workflow-integration-test"
-    },
-    {
-      "path": "models/iot",
-      "owner": "device-fleet",
-      "role": "legacy-model",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
     },
     {
       "path": "modules/mealplan/internal/domain",
@@ -1401,23 +1346,16 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/parent",
+      "path": "modules/careplan/internal/rows",
       "owner": "care-plan",
-      "role": "legacy-model",
+      "role": "domain",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/schedule",
-      "owner": "timetable-activities",
-      "role": "legacy-model",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "models/users",
+      "path": "modules/peopledirectory/internal/rows",
       "owner": "people-directory",
-      "role": "legacy-model",
+      "role": "domain",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -1443,7 +1381,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "seed/api",
+      "path": "internal/devtools/seedapi",
       "owner": "dev-tools",
       "role": "cli",
       "internal_test_role": "adapter-test",
@@ -1471,13 +1409,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/communication/internal/staffannouncements",
-      "owner": "communication",
-      "role": "adapter",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "workflow-integration-test"
-    },
-    {
       "path": "modules/communication/internal/parentmessages",
       "owner": "communication",
       "role": "adapter",
@@ -1492,42 +1423,42 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "services/audit",
+      "path": "modules/auditlog/internal/application",
       "owner": "audit-platform",
       "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/config",
+      "path": "modules/settings/internal/application",
       "owner": "settings-platform",
       "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/config/settingstest",
+      "path": "modules/settings/settingstest",
       "owner": "settings-platform",
       "role": "test-support",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/config/defaults",
+      "path": "modules/settings/internal/defaults",
       "owner": "settings-platform",
       "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/config/sideeffects",
+      "path": "modules/settings/internal/application/sideeffects",
       "owner": "settings-platform",
       "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/database",
+      "path": "modules/transactionruntime/internal/application/stats",
       "owner": "transaction-runtime",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -1541,21 +1472,21 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/delivery/application/locales",
+      "path": "modules/delivery/internal/application/locales",
       "owner": "delivery-platform",
       "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/delivery/application/emailbranding",
+      "path": "modules/delivery/internal/application/emailbranding",
       "owner": "delivery-platform",
       "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/delivery/application/emailoutbox",
+      "path": "modules/delivery/internal/emailoutbox",
       "owner": "delivery-platform",
       "role": "application",
       "internal_test_role": "workflow-integration-test",
@@ -1653,28 +1584,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/delivery",
-      "owner": "delivery-platform",
-      "role": "contract",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/delivery/compose",
-      "owner": "delivery-platform",
-      "role": "compose",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/delivery/compose/email",
-      "owner": "delivery-platform",
-      "role": "compose",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/delivery/compose/realtime",
       "owner": "delivery-platform",
       "role": "compose",
       "internal_test_role": "module-internal-test",
@@ -1688,21 +1598,21 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/import",
+      "path": "modules/dataimport/internal/application/importservice",
       "owner": "data-import",
       "role": "application",
       "internal_test_role": "workflow-decision-test",
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "services/import/ports",
+      "path": "modules/dataimport/ports",
       "owner": "data-import",
       "role": "port",
       "internal_test_role": "workflow-decision-test",
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "services/import/integration",
+      "path": "modules/dataimport/importtest",
       "owner": "data-import",
       "role": "test-support",
       "internal_test_role": "workflow-integration-test",
@@ -1716,7 +1626,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/iot/staffclock",
+      "path": "workflows/staffclock/internal/application",
       "owner": "staff-clock",
       "role": "application",
       "internal_test_role": "workflow-decision-test",
@@ -1730,7 +1640,7 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "services/listexport",
+      "path": "modules/documentrendering/internal/application/listrenderer",
       "owner": "document-rendering",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -1794,13 +1704,6 @@
     },
     {
       "path": "modules/peopledirectory/compose",
-      "owner": "people-directory",
-      "role": "compose",
-      "internal_test_role": "workflow-integration-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/peopledirectory/compose/vocabulary",
       "owner": "people-directory",
       "role": "compose",
       "internal_test_role": "workflow-integration-test",
@@ -1940,18 +1843,11 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/facilities/compose/httpadapter",
+      "path": "modules/facilities/http",
       "owner": "facilities",
-      "role": "compose",
-      "internal_test_role": "workflow-integration-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/facilities/compose/legacy",
-      "owner": "facilities",
-      "role": "compose",
-      "internal_test_role": "workflow-integration-test",
-      "external_test_role": "module-behavior-test"
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
     },
     {
       "path": "modules/facilities/compose/repositoryadapter",
@@ -2003,13 +1899,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/timetable/compose/httpadapter",
-      "owner": "timetable-activities",
-      "role": "compose",
-      "internal_test_role": "workflow-integration-test",
-      "external_test_role": "workflow-integration-test"
-    },
-    {
       "path": "modules/timetable/compose/httpintegration",
       "owner": "timetable-activities",
       "role": "compose",
@@ -2024,7 +1913,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/timetableprojection",
+      "path": "modules/timetableprojection/internal/adapters/postgres",
       "owner": "timetable-legacy-view",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -2045,7 +1934,7 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "modules/timetableblockdisplay",
+      "path": "modules/timetableblockdisplay/internal/adapters/postgres",
       "owner": "timetable-block-display",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -2059,7 +1948,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/presenceprojection",
+      "path": "modules/presenceprojection/internal/adapters/postgres",
       "owner": "presence-legacy-view",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -2073,7 +1962,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/timetableenrollmentprovenance",
+      "path": "modules/timetableenrollmentprovenance/internal/adapters/postgres",
       "owner": "timetable-enrollment-provenance",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -2087,7 +1976,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/parentrequestfeedprojection",
+      "path": "modules/parentrequestfeedprojection/internal/adapters/postgres",
       "owner": "parent-request-feed-view",
       "role": "postgres",
       "internal_test_role": "workflow-integration-test",
@@ -2206,7 +2095,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/delivery/application/notifications",
+      "path": "modules/delivery/internal/notifications",
       "owner": "delivery-platform",
       "role": "application",
       "internal_test_role": "workflow-integration-test",
@@ -2234,13 +2123,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/parentmessaging",
-      "owner": "communication",
-      "role": "application",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/planexport",
       "owner": "document-rendering",
       "role": "public",
@@ -2248,14 +2130,14 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/delivery/application/pwa",
+      "path": "modules/delivery/internal/pwa",
       "owner": "delivery-platform",
       "role": "application",
       "internal_test_role": "workflow-integration-test",
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "modules/delivery/application/realtimeevents",
+      "path": "modules/delivery/internal/application/realtimeevents",
       "owner": "delivery-platform",
       "role": "application",
       "internal_test_role": "workflow-decision-test",
@@ -2318,14 +2200,14 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "workflows/parentportal/care",
+      "path": "workflows/parentportal/internal/care",
       "owner": "parent-portal",
       "role": "application",
       "internal_test_role": "workflow-integration-test",
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "workflows/parentportal/messaging",
+      "path": "workflows/parentportal/internal/messaging",
       "owner": "parent-portal",
       "role": "application",
       "internal_test_role": "workflow-integration-test",
@@ -2374,7 +2256,7 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "services/scheduler",
+      "path": "modules/schedulerruntime/internal/application",
       "owner": "scheduler-runtime",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -2395,21 +2277,21 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/schedulerruntime/jobruntime",
+      "path": "modules/schedulerruntime/internal/adapters/jobruntime",
       "owner": "scheduler-runtime",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/schedulerruntime/cleanupruns",
+      "path": "modules/schedulerruntime/internal/adapters/cleanupruns",
       "owner": "scheduler-runtime",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/schedulerruntime/workerlease",
+      "path": "modules/schedulerruntime/internal/adapters/workerlease",
       "owner": "scheduler-runtime",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -2465,7 +2347,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "simulate",
+      "path": "internal/devtools/simulate",
       "owner": "dev-tools",
       "role": "cli",
       "internal_test_role": "adapter-test",
@@ -2633,7 +2515,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/communication/internal/adapters/audience",
+      "path": "modules/staffannouncementaudience/internal/adapters/postgres",
       "owner": "staff-announcement-audience",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -2661,14 +2543,14 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/communication/internal/adapters/parentinbox",
+      "path": "modules/parentmessageinbox/internal/adapters/postgres",
       "owner": "parent-message-inbox",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/communication/internal/adapters/parentaudience",
+      "path": "modules/parentannouncementaudience/internal/adapters/postgres",
       "owner": "parent-announcement-audience",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -2682,7 +2564,7 @@
       "external_test_role": "e2e-test"
     },
     {
-      "path": "modules/communication/internal/adapters/staffinbox",
+      "path": "modules/staffmessageinbox/internal/adapters/postgres",
       "owner": "staff-message-inbox",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -2850,7 +2732,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/pwausage",
+      "path": "observability/internal/adapters/pwausage",
       "owner": "observability",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -2921,13 +2803,6 @@
     },
     {
       "path": "modules/devicefleet/compose/httpadapter",
-      "owner": "device-fleet",
-      "role": "compose",
-      "internal_test_role": "workflow-integration-test",
-      "external_test_role": "workflow-integration-test"
-    },
-    {
-      "path": "modules/devicefleet/compose/legacy",
       "owner": "device-fleet",
       "role": "compose",
       "internal_test_role": "workflow-integration-test",
@@ -3277,7 +3152,14 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/guardianlinkview",
+      "path": "workflows/careexit",
+      "owner": "care-exit",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/guardianlinkview/internal/adapters/postgres",
       "owner": "guardian-link-view",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -3298,7 +3180,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/schoolsetupview",
+      "path": "modules/schoolsetup/internal/adapters/schoolsetupview",
       "owner": "school-setup",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -3440,6 +3322,286 @@
     {
       "path": "modules/settings/records",
       "owner": "settings-platform",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/transactionruntime/stats",
+      "owner": "transaction-runtime",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/documentrendering/records",
+      "owner": "document-rendering",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "workflows/staffclock",
+      "owner": "staff-clock",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/communication/internal/application/parentmessaging",
+      "owner": "communication",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/http/activities",
+      "owner": "timetable-activities",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/parentannouncementaudience",
+      "owner": "parent-announcement-audience",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/parentannouncementaudience/contract",
+      "owner": "parent-announcement-audience",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/parentmessageinbox",
+      "owner": "parent-message-inbox",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/parentmessageinbox/contract",
+      "owner": "parent-message-inbox",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/staffmessageinbox",
+      "owner": "staff-message-inbox",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/staffmessageinbox/contract",
+      "owner": "staff-message-inbox",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/operatordashboard",
+      "owner": "operator-dashboard-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/operatordashboard/contract",
+      "owner": "operator-dashboard-view",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/staffannouncementaudience/contract",
+      "owner": "staff-announcement-audience",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/staffannouncementaudience",
+      "owner": "staff-announcement-audience",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/enrollment/offeringcontract",
+      "owner": "enrollment",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/eventcontract",
+      "owner": "communication",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/activitycontract",
+      "owner": "timetable-activities",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/presenceprojection/presencecontract",
+      "owner": "presence-legacy-view",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/transactionruntime/protocol",
+      "owner": "transaction-runtime",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/delivery/mail",
+      "owner": "delivery-platform",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/delivery/subscriptions",
+      "owner": "delivery-platform",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/delivery/subscriptiontest",
+      "owner": "delivery-platform",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/delivery/contract",
+      "owner": "delivery-platform",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/delivery/runtime",
+      "owner": "delivery-platform",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/internal/domain/activityrecords",
+      "owner": "timetable-activities",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/fixturetest",
+      "owner": "timetable-activities",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/internal/adapters/postgres/runtime",
+      "owner": "people-directory",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolstructure/internal/adapters/postgres/runtime",
+      "owner": "school-structure",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/internal/domain/schedulerecords",
+      "owner": "timetable-activities",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "roots/owners",
+      "owner": "root-composition",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/securityruntime/ports",
+      "owner": "security-runtime",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicefleet/internal/adapters/repositoryadapter",
+      "owner": "device-fleet",
+      "role": "postgres",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/facilities/internal/application/repositoryadapter",
+      "owner": "facilities",
+      "role": "application",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "roots/communicationtest",
+      "owner": "root-composition",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/internal/staffannouncements",
+      "owner": "communication",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "roots/requestreviewbinding",
+      "owner": "root-composition",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "roots/openroommovebinding",
+      "owner": "root-composition",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "roots/sessionendbinding",
+      "owner": "root-composition",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/ports",
+      "owner": "communication",
       "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -4486,7 +4648,7 @@
   "read_projections": [
     {
       "id": "student-directory-view",
-      "package": "modules/studentdirectoryview",
+      "package": "modules/studentdirectoryview/internal/adapters/postgres",
       "data_objects": [
         "users.student_profiles",
         "users.student_school_memberships",
@@ -4497,7 +4659,7 @@
     },
     {
       "id": "parent-request-feed-read-model",
-      "package": "modules/parentrequestfeedprojection",
+      "package": "modules/parentrequestfeedprojection/internal/adapters/postgres",
       "data_objects": [
         "active.excused_absence_requests",
         "auth.account_permissions",
@@ -4517,7 +4679,7 @@
     },
     {
       "id": "parent-message-inbox",
-      "package": "modules/communication/internal/adapters/parentinbox",
+      "package": "modules/parentmessageinbox/internal/adapters/postgres",
       "data_objects": [
         "users.guardian_profiles",
         "users.parent_message_reads",
@@ -4532,7 +4694,7 @@
     },
     {
       "id": "staff-message-inbox",
-      "package": "modules/communication/internal/adapters/staffinbox",
+      "package": "modules/staffmessageinbox/internal/adapters/postgres",
       "data_objects": [
         "users.persons",
         "users.staff_message_participants",
@@ -4544,7 +4706,7 @@
     },
     {
       "id": "parent-announcement-audience",
-      "package": "modules/communication/internal/adapters/parentaudience",
+      "package": "modules/parentannouncementaudience/internal/adapters/postgres",
       "data_objects": [
         "activities.student_enrollments",
         "auth.account_tenants",
@@ -4564,7 +4726,7 @@
     },
     {
       "id": "staff-announcement-audience",
-      "package": "modules/communication/internal/adapters/audience",
+      "package": "modules/staffannouncementaudience/internal/adapters/postgres",
       "data_objects": [
         "auth.account_roles",
         "auth.account_tenants",
@@ -4578,7 +4740,7 @@
     },
     {
       "id": "timetable-enrollment-provenance",
-      "package": "modules/timetableenrollmentprovenance",
+      "package": "modules/timetableenrollmentprovenance/internal/adapters/postgres",
       "data_objects": [
         "activities.student_enrollments",
         "enrollment.phases",
@@ -4589,7 +4751,7 @@
     },
     {
       "id": "timetable-legacy-view",
-      "package": "modules/timetableprojection",
+      "package": "modules/timetableprojection/internal/adapters/postgres",
       "data_objects": [
         "activities.groups",
         "activities.student_enrollments",
@@ -4601,7 +4763,7 @@
     },
     {
       "id": "timetable-block-display",
-      "package": "modules/timetableblockdisplay",
+      "package": "modules/timetableblockdisplay/internal/adapters/postgres",
       "data_objects": [
         "activities.groups",
         "education.groups",
@@ -4613,7 +4775,7 @@
     },
     {
       "id": "presence-legacy-view",
-      "package": "modules/presenceprojection",
+      "package": "modules/presenceprojection/internal/adapters/postgres",
       "data_objects": [
         "active.activity_session_attendance",
         "active.activity_sessions",
@@ -4627,7 +4789,7 @@
     },
     {
       "id": "operator-dashboard",
-      "package": "modules/organizationtenancy/internal/adapters/operatordashboard",
+      "package": "modules/operatordashboard/internal/adapters/postgres",
       "data_objects": [
         "auth.account_roles",
         "auth.account_tenants",
@@ -4641,7 +4803,7 @@
     },
     {
       "id": "guardian-link-view",
-      "package": "modules/guardianlinkview",
+      "package": "modules/guardianlinkview/internal/adapters/postgres",
       "data_objects": [
         "auth.guardian_student_access",
         "users.student_guardian_pickup_permissions",
@@ -4651,7 +4813,7 @@
     },
     {
       "id": "school-setup-progress",
-      "package": "modules/schoolsetupview",
+      "package": "modules/schoolsetup/internal/adapters/schoolsetupview",
       "data_objects": [
         "auth.guardian_invitations",
         "auth.invitation_tokens",
@@ -5202,16 +5364,6 @@
   ],
   "rules": [
     {
-      "id": "request-review-view.compose.impact-token",
-      "description": "Render the existing SHA-256 pickup-impact wire token from native facts (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_class": "crypto"
-    },
-    {
       "id": "care-plan.contracttest.security-runtime.public",
       "description": "The new Care Plan contract suite binds the existing SHA-256 primitive to the native impact-fingerprint port (#3351).",
       "scopes": [
@@ -5408,17 +5560,6 @@
       "source_role": "e2e-test",
       "target_owner": "identity-access",
       "target_role": "http"
-    },
-    {
-      "id": "care-plan.contracttest.request-review-view.compose",
-      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "e2e-test",
-      "target_owner": "request-review-view",
-      "target_role": "compose"
     },
     {
       "id": "care-plan.contracttest.student-presence.public",
@@ -5715,17 +5856,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "care-plan",
       "target_role": "contract"
-    },
-    {
-      "id": "request-review-view.compose.audit-corrections.public",
-      "description": "Render the native Audit correction history without retained audit models (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_owner": "audit-platform",
-      "target_role": "public"
     },
     {
       "id": "audit-platform.native-corrections.compose.tenant",
@@ -6088,17 +6218,6 @@
       "target_role": "public"
     },
     {
-      "id": "session-end.compose.delivery-platform",
-      "description": "Session end composition announces the committed close over the realtime broadcaster.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "session-end",
-      "source_role": "compose",
-      "target_owner": "delivery-platform",
-      "target_role": "public"
-    },
-    {
       "id": "session-end.adapter-test.student-presence-compose",
       "description": "Session end integration tests compose the student-presence owner.",
       "scopes": [
@@ -6297,17 +6416,6 @@
       "target_role": "public"
     },
     {
-      "id": "reminder-delivery.compose.tenant-runtime",
-      "description": "Reminder composition binds the independent tenant transaction and after-commit runtime.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "compose",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
       "id": "reminder-delivery.application.ports",
       "description": "Reminder evaluation consumes its own input projections.",
       "scopes": [
@@ -6317,48 +6425,6 @@
       "source_role": "application",
       "target_owner": "reminder-delivery",
       "target_role": "port"
-    },
-    {
-      "id": "reminder-delivery.compose.http",
-      "description": "Reminder composition binds its own HTTP adapter (#4064).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "compose",
-      "target_owner": "reminder-delivery",
-      "target_role": "http"
-    },
-    {
-      "id": "reminder-delivery.compose.permissions",
-      "description": "Reminder composition binds the users:read permission.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "compose",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
-      "id": "reminder-delivery.compose.orm",
-      "description": "Reminder composition supplies the transaction runtime database.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "compose",
-      "target_class": "orm-sql"
-    },
-    {
-      "id": "reminder-delivery.compose.router",
-      "description": "Reminder composition binds HTTP middleware.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "compose",
-      "target_class": "http-router"
     },
     {
       "id": "reminder-delivery.adapter-test.identity",
@@ -6643,17 +6709,6 @@
       "same_owner": true
     },
     {
-      "id": "domain.application-legacy-model",
-      "description": "domain application code may use its own domain. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner_kind": "domain",
-      "source_role": "application",
-      "target_role": "legacy-model",
-      "same_owner": true
-    },
-    {
       "id": "domain.application-port",
       "description": "domain application code may use its own consumer-owned ports.",
       "scopes": [
@@ -6673,17 +6728,6 @@
       "source_owner_kind": "domain",
       "source_role": "postgres",
       "target_role": "domain",
-      "same_owner": true
-    },
-    {
-      "id": "domain.postgres-legacy-model",
-      "description": "domain Postgres adapters may use their own domain. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner_kind": "domain",
-      "source_role": "postgres",
-      "target_role": "legacy-model",
       "same_owner": true
     },
     {
@@ -7513,17 +7557,6 @@
       "target_role": "compose"
     },
     {
-      "id": "enrollment.http-integration-test.domain",
-      "description": "The enrollment route suites seed and read the owner's enrollment rows (#2734). The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "workflow-integration-test",
-      "target_owner": "enrollment",
-      "target_role": "legacy-model"
-    },
-    {
       "id": "feedback.http.public",
       "description": "The Feedback HTTP adapter calls its own public capability.",
       "scopes": [
@@ -7576,17 +7609,6 @@
       "source_owner": "communication",
       "source_role": "adapter",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "communication.messages.adapter-identity-adapter",
-      "description": "The retained message implementation reads authenticated account claims.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "adapter",
-      "target_owner": "identity-access",
-      "target_role": "http"
     },
     {
       "id": "communication.messages.adapter-delivery-public",
@@ -7898,16 +7920,6 @@
       "target_role": "domain"
     },
     {
-      "id": "internal-test.same-owner.legacy-model",
-      "description": "Internal tests may import their owner's domain packages. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_role": "module-internal-test",
-      "same_owner": true,
-      "target_role": "legacy-model"
-    },
-    {
       "id": "internal-test.same-owner.postgres",
       "description": "Internal tests may import their owner's postgres packages.",
       "scopes": [
@@ -7949,17 +7961,6 @@
       "same_owner": true
     },
     {
-      "id": "platform.application-legacy-model",
-      "description": "platform application code may use its own domain. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner_kind": "platform",
-      "source_role": "application",
-      "target_role": "legacy-model",
-      "same_owner": true
-    },
-    {
       "id": "platform.application-port",
       "description": "platform application code may use its own consumer-owned ports.",
       "scopes": [
@@ -7979,17 +7980,6 @@
       "source_owner_kind": "platform",
       "source_role": "postgres",
       "target_role": "domain",
-      "same_owner": true
-    },
-    {
-      "id": "platform.postgres-legacy-model",
-      "description": "platform Postgres adapters may use their own domain. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner_kind": "platform",
-      "source_role": "postgres",
-      "target_role": "legacy-model",
       "same_owner": true
     },
     {
@@ -8023,17 +8013,6 @@
       "source_owner": "process-device-scan",
       "source_role": "application",
       "target_owner": "facilities",
-      "target_role": "public"
-    },
-    {
-      "id": "staff-clock.to.workforce",
-      "description": "staff-clock coordinates the public workforce capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "staff-clock",
-      "source_role": "application",
-      "target_owner": "workforce",
       "target_role": "public"
     },
     {
@@ -8385,17 +8364,6 @@
       "same_owner": true
     },
     {
-      "id": "timetable-activities.port.legacy-model",
-      "description": "Timetable & Activities ports name the schedule and activity rows of the owner's legacy models in their dependency types (ADR 0058 addendum point 5, #4084); #4086 dissolves models/schedule and models/activities and with them this rule. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "port",
-      "target_owner": "timetable-activities",
-      "target_role": "legacy-model"
-    },
-    {
       "id": "timetable-activities.port.student-presence.public",
       "description": "Timetable & Activities ports name student-presence public values in their dependency types (ADR 0058 addendum, #4084).",
       "scopes": [
@@ -8483,27 +8451,6 @@
       "target_role": "public"
     },
     {
-      "id": "timetable-activities.compose.http-router",
-      "description": "Timetable compatibility composition binds the established HTTP transport.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "compose",
-      "target_class": "http-router"
-    },
-    {
-      "id": "timetable-activities.compose.security-contract",
-      "description": "Timetable HTTP composition binds established activity permissions.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "compose",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
       "id": "timetable-activities.internal-test.tenant-runtime",
       "description": "Timetable & Activities composition tests verify rollback and tenant isolation through the shared runtime.",
       "scopes": [
@@ -8535,62 +8482,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "timetable-activities",
       "target_role": "domain"
-    },
-    {
-      "id": "timetable-activities.integration-test.legacy-model",
-      "description": "Timetable integration tests create retained owner rows. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "timetable-activities",
-      "target_role": "legacy-model"
-    },
-    {
-      "id": "timetable-activities.http-integration-test.common.tenant-runtime-common",
-      "description": "Timetable HTTP integration tests inspect shared error rendering contracts.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "tenant-runtime",
-      "target_role": "http",
-      "target_package": "api/common"
-    },
-    {
-      "id": "timetable-activities.http-integration-test.identity-adapter",
-      "description": "Timetable HTTP integration tests supply authenticated claims.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
-      "id": "timetable-activities.http-integration-test.owner-domain",
-      "description": "Timetable HTTP integration tests build retained owner rows. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "timetable-activities",
-      "target_role": "legacy-model"
-    },
-    {
-      "id": "timetable-activities.http-integration-test.application",
-      "description": "Timetable HTTP integration tests pin retained application error contracts.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "timetable-activities",
-      "target_role": "application"
     },
     {
       "id": "timetable-block-display.timetable-public",
@@ -8647,27 +8538,6 @@
       "target_role": "public"
     },
     {
-      "id": "facilities.compose.http-router",
-      "description": "Facilities HTTP composition binds the established Chi transport.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "facilities",
-      "source_role": "compose",
-      "target_class": "http-router"
-    },
-    {
-      "id": "facilities.compose.security-contract",
-      "description": "Facilities HTTP composition supplies the established room permissions.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "facilities",
-      "source_role": "compose",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
       "id": "facilities.compose.people-public",
       "description": "Facilities occupancy composition resolves supervisor people in one batch.",
       "scopes": [
@@ -8687,17 +8557,6 @@
       "source_owner": "facilities",
       "source_role": "compose",
       "target_owner": "school-membership",
-      "target_role": "public"
-    },
-    {
-      "id": "facilities.compatibility-domain.public",
-      "description": "The retired Facilities model name aliases the public owner value. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "facilities",
-      "source_role": "legacy-model",
-      "target_owner": "facilities",
       "target_role": "public"
     },
     {
@@ -8723,37 +8582,28 @@
       "target_role": "test-support"
     },
     {
-      "id": "facilities.integration-test.domain",
-      "description": "Facilities compatibility tests verify mapping of the retained room row. The models/* packages carry the legacy-model role (ADR 0057).",
+      "id": "facilities.module-internal-test.people-public",
+      "description": "Internal suites move with the native Facilities projection implementation; same public target and internal-test scope as the prior composition suite (ADR 0058 point 4).",
       "scopes": [
         "internal_test"
       ],
       "source_owner": "facilities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "facilities",
-      "target_role": "legacy-model"
-    },
-    {
-      "id": "facilities.integration-test.people-public",
-      "description": "Facilities occupancy tests exercise batched People Directory resolution.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "facilities",
-      "source_role": "workflow-integration-test",
+      "source_role": "module-internal-test",
       "target_owner": "people-directory",
-      "target_role": "public"
+      "target_role": "public",
+      "source_package": "modules/facilities/internal/application/roomservice"
     },
     {
-      "id": "facilities.integration-test.membership-public",
-      "description": "Facilities occupancy tests exercise batched School Membership resolution.",
+      "id": "facilities.module-internal-test.membership-public",
+      "description": "Internal suites move with the native Facilities projection implementation; same public target and internal-test scope as the prior composition suite (ADR 0058 point 4).",
       "scopes": [
         "internal_test"
       ],
       "source_owner": "facilities",
-      "source_role": "workflow-integration-test",
+      "source_role": "module-internal-test",
       "target_owner": "school-membership",
-      "target_role": "public"
+      "target_role": "public",
+      "source_package": "modules/facilities/internal/application/roomservice"
     },
     {
       "id": "process-device-scan.workflow-test.facilities",
@@ -8767,15 +8617,17 @@
       "target_role": "public"
     },
     {
-      "id": "facilities.integration-test.identity-adapter",
+      "id": "facilities.http.adapter-test.identity-adapter",
       "description": "Facilities HTTP integration tests mint authenticated tenant requests.",
       "scopes": [
         "internal_test"
       ],
       "source_owner": "facilities",
-      "source_role": "workflow-integration-test",
+      "source_role": "adapter-test",
       "target_owner": "identity-access",
-      "target_role": "http"
+      "target_role": "http",
+      "source_package": "modules/facilities/http",
+      "target_package": "modules/identityaccess/sessiontoken"
     },
     {
       "id": "workforce.port-domain",
@@ -8885,17 +8737,6 @@
       "target_role": "domain"
     },
     {
-      "id": "delivery.adapter-test.legacy-model",
-      "description": "Delivery Postgres adapter tests construct owned domain values. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "adapter-test",
-      "target_owner": "delivery-platform",
-      "target_role": "legacy-model"
-    },
-    {
       "id": "delivery.adapter-test.postgres",
       "description": "Delivery Postgres adapter tests exercise the owned adapter.",
       "scopes": [
@@ -8927,17 +8768,6 @@
       "source_role": "port",
       "target_role": "domain",
       "same_owner": true
-    },
-    {
-      "id": "people-directory.port.legacy-model",
-      "description": "People Directory ports name the person, student, staff and guardian rows of the owner's legacy model in the repository contracts (ADR 0058 addendum point 5, #4084); #4004 dissolves models/users and with it this rule. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "port",
-      "target_owner": "people-directory",
-      "target_role": "legacy-model"
     },
     {
       "id": "people-directory.postgres.port",
@@ -9185,17 +9015,6 @@
       "target_role": "application"
     },
     {
-      "id": "delivery-platform.workflow-integration-test.delivery-platform-legacy-model",
-      "description": "Allows one dependency introduced by the Delivery package cutover. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "workflow-integration-test",
-      "target_owner": "delivery-platform",
-      "target_role": "legacy-model"
-    },
-    {
       "id": "delivery-platform.workflow-integration-test.tenant-runtime-public",
       "description": "Allows one dependency introduced by the Delivery package cutover.",
       "scopes": [
@@ -9327,17 +9146,6 @@
       "target_role": "domain"
     },
     {
-      "id": "communication.compose.organization-tenancy",
-      "description": "Communication composition validates announcement targets through Organization and Tenancy.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "compose",
-      "target_owner": "organization-tenancy",
-      "target_role": "public"
-    },
-    {
       "id": "communication.compose.orm-sql",
       "description": "Communication composition supplies the concrete Bun database dependency.",
       "scopes": [
@@ -9420,17 +9228,6 @@
       ],
       "source_owner": "school-calendar",
       "source_role": "application",
-      "target_owner": "appointments",
-      "target_role": "public"
-    },
-    {
-      "id": "school-calendar.domain.appointments-public",
-      "description": "Legacy calendar transport types reuse Appointments values and validation. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "legacy-model",
       "target_owner": "appointments",
       "target_role": "public"
     },
@@ -9576,17 +9373,6 @@
       "target_role": "public"
     },
     {
-      "id": "care-plan.domain.public.legacy-model",
-      "description": "Legacy Care Plan domain contracts use the owner calendar-day value. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "legacy-model",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
       "id": "care-plan.testsupport.people-public",
       "description": "Care Plan test support supplies the required student lock through People Directory.",
       "scopes": [
@@ -9640,17 +9426,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "care-plan",
       "target_role": "domain"
-    },
-    {
-      "id": "care-plan.integration-test.legacy-model",
-      "description": "Care Plan compatibility tests assert legacy owner-domain views. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "workflow-integration-test",
-      "target_owner": "care-plan",
-      "target_role": "legacy-model"
     },
     {
       "id": "workforce.adapter.public",
@@ -10058,18 +9833,6 @@
       "target_role": "public"
     },
     {
-      "id": "device-fleet.integration-test.device-fleet-domain",
-      "description": "Device Fleet integration tests build the retained device row. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "workflow-integration-test",
-      "target_owner": "device-fleet",
-      "target_role": "legacy-model"
-    },
-    {
       "id": "device-fleet.integration-test.device-fleet-application",
       "description": "Device Fleet integration tests assert the retained IoT service contract.",
       "scopes": [
@@ -10267,6 +10030,30 @@
       "source_role": "http",
       "target_owner": "security-runtime",
       "target_role": "contract"
+    },
+    {
+      "id": "school-setup.http.security-contract",
+      "description": "The school setup HTTP adapter names the permissions of the onboarding wizard (#4082).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract",
+      "source_package": "modules/schoolsetup/http"
+    },
+    {
+      "id": "calendar-view.http.security-contract",
+      "description": "The supervision dashboard HTTP adapter names the permissions it checks for its caller (#4082).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract",
+      "source_package": "modules/supervisiondashboard/http"
     },
     {
       "id": "class-day-view.http.identity-runtime",
@@ -10542,17 +10329,6 @@
       "target_role": "contract"
     },
     {
-      "id": "people-directory.domain.contact.legacy-model",
-      "description": "Retained student/contact model validation delegates to the new owner contact contract (#2699). The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "legacy-model",
-      "target_owner": "people-directory",
-      "target_role": "contract"
-    },
-    {
       "id": "calendar-portal.production.parent-portal.http.school-calendar.contract",
       "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
       "scopes": [
@@ -10648,17 +10424,6 @@
       "source_role": "e2e-test",
       "target_owner": "identity-access",
       "target_role": "http"
-    },
-    {
-      "id": "calendar-portal.external_test.school-calendar.e2e-test.school-calendar.domain",
-      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "e2e-test",
-      "target_owner": "school-calendar",
-      "target_role": "legacy-model"
     },
     {
       "id": "calendar-portal.external_test.school-calendar.e2e-test.appointments.public",
@@ -10771,17 +10536,6 @@
       "target_role": "compose"
     },
     {
-      "id": "staff-offboarding.compose.offboarding.security-runtime.contract",
-      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "staff-offboarding",
-      "source_role": "compose",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
       "id": "staff-offboarding.compose.offboarding.delivery-platform.public",
       "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
       "scopes": [
@@ -10790,17 +10544,6 @@
       "source_owner": "staff-offboarding",
       "source_role": "compose",
       "target_owner": "delivery-platform",
-      "target_role": "public"
-    },
-    {
-      "id": "staff-offboarding.compose.offboarding.tenant-runtime.public",
-      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "staff-offboarding",
-      "source_role": "compose",
-      "target_owner": "tenant-runtime",
       "target_role": "public"
     },
     {
@@ -10881,17 +10624,6 @@
       "target_role": "contract"
     },
     {
-      "id": "document-rendering.decision-test.application",
-      "description": "Plan export rendering tests inspect the rendered Document Rendering document field by field (#2706).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "workflow-decision-test",
-      "target_owner": "document-rendering",
-      "target_role": "application"
-    },
-    {
       "id": "timetable-activities.http.document-rendering",
       "description": "The timetable Betreuungsplan export calls the public plan export capability (#2706, #2732).",
       "scopes": [
@@ -10901,93 +10633,6 @@
       "source_role": "http",
       "target_owner": "document-rendering",
       "target_role": "public"
-    },
-    {
-      "id": "request-review-view.compose.enrollment.public",
-      "description": "Bind native approved booking facts for care schedule reviews (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_owner": "enrollment",
-      "target_role": "public"
-    },
-    {
-      "id": "request-review-view.compose.timetable.public",
-      "description": "Bind native class dismissal and pickup impact facts (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_owner": "timetable-activities",
-      "target_role": "public"
-    },
-    {
-      "id": "request-review-view.compose.care-plan.public",
-      "description": "Request review binds native Care Plan queue facts and workflow ports (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
-      "id": "request-review-view.compose.care-plan.contract",
-      "description": "Request review binds native Care Plan queue facts and workflow ports (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "contract"
-    },
-    {
-      "id": "request-review-view.compose.production.identity-access.review-contract",
-      "description": "Bind native request-review identity and tenant-setting contracts without retained model dependencies (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_owner": "identity-access",
-      "target_role": "contract"
-    },
-    {
-      "id": "request-review-view.compose.people-directory.public",
-      "description": "Request review binds native owner capabilities through typed composition (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "public"
-    },
-    {
-      "id": "request-review-view.compose.school-structure.public",
-      "description": "Request review binds native owner capabilities through typed composition (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_owner": "school-structure",
-      "target_role": "public"
-    },
-    {
-      "id": "request-review-view.compose.orm",
-      "description": "Native School Structure composition receives the ambient database; the projection performs no SQL (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_class": "orm-sql"
     },
     {
       "id": "request-review-view.integration.people-compose",
@@ -11167,17 +10812,6 @@
       "target_role": "public"
     },
     {
-      "id": "student-deletion.compose.deletion.security-runtime.contract",
-      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-deletion",
-      "source_role": "compose",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
       "id": "student-deletion.compose.deletion.delivery-platform.public",
       "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
       "scopes": [
@@ -11187,39 +10821,6 @@
       "source_role": "compose",
       "target_owner": "delivery-platform",
       "target_role": "public"
-    },
-    {
-      "id": "student-deletion.compose.deletion.tenant-runtime.public",
-      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-deletion",
-      "source_role": "compose",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "people-directory.contracttest.student-deletion.public",
-      "description": "The People Directory contract suite runs Student Deletion with real owner composition and the outer tenant UnitOfWork (#2710, moved from services/users with #3755).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "e2e-test",
-      "target_owner": "student-deletion",
-      "target_role": "public"
-    },
-    {
-      "id": "people-directory.contracttest.student-deletion.compose",
-      "description": "The People Directory contract suite runs Student Deletion with real owner composition and the outer tenant UnitOfWork (#2710, moved from services/users with #3755).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "e2e-test",
-      "target_owner": "student-deletion",
-      "target_role": "compose"
     },
     {
       "id": "student-deletion.compose.database-binding",
@@ -11294,28 +10895,6 @@
       "source_owner": "grade-transition",
       "source_role": "public",
       "target_class": "crypto"
-    },
-    {
-      "id": "grade-transition.compose.transition.security-runtime.contract",
-      "description": "Wire the grade transition owner workflow required by #2711 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "grade-transition",
-      "source_role": "compose",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
-      "id": "grade-transition.compose.transition.tenant-runtime.public",
-      "description": "Wire the grade transition owner workflow required by #2711 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "grade-transition",
-      "source_role": "compose",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
     },
     {
       "id": "grade-transition.compose.database-binding",
@@ -11774,17 +11353,6 @@
       "target_role": "domain"
     },
     {
-      "id": "people-directory.contracttest.people-directory.legacy-model",
-      "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "e2e-test",
-      "target_owner": "people-directory",
-      "target_role": "legacy-model"
-    },
-    {
       "id": "people-directory.contracttest.tenant-runtime.public",
       "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import.",
       "scopes": [
@@ -11993,17 +11561,6 @@
       "source_role": "public",
       "target_owner": "care-plan",
       "target_role": "contract"
-    },
-    {
-      "id": "open-room-move.compose.student-presence-public",
-      "description": "The open-room move binds the public session detail and student move values (#3422).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "open-room-move",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "public"
     },
     {
       "id": "test-support.fixtures.student-presence-session-rows",
@@ -12713,17 +12270,6 @@
       "target_role": "contract"
     },
     {
-      "id": "facilities.compose.school-structure-contract",
-      "description": "Consumes the storage-neutral School Structure contract (#3555).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "facilities",
-      "source_role": "compose",
-      "target_owner": "school-structure",
-      "target_role": "contract"
-    },
-    {
       "id": "shift-plan-sync.public.school-structure-contract",
       "description": "Consumes the storage-neutral School Structure contract (#3555).",
       "scopes": [
@@ -12744,6 +12290,72 @@
       "source_role": "application",
       "target_owner": "school-structure",
       "target_role": "contract"
+    },
+    {
+      "id": "care-exit.to.care-plan",
+      "description": "Care Exit coordinates the Care Plan care-exit ledger entries and offering bookings through their public contract (#4082).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-exit",
+      "source_role": "public",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-exit.to.enrollment",
+      "description": "Care Exit reads the Enrollment applications and offering snapshots behind ended bookings through their public contract (#4082).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-exit",
+      "source_role": "public",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "care-exit.to.student-presence",
+      "description": "Care Exit replays and closes Student Presence attendance and reapplies day statuses through their public contract (#4082).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-exit",
+      "source_role": "public",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "care-exit.to.timetable-activities",
+      "description": "Care Exit removes and restores Timetable roster rows and resolves pickup extensions through their public contract (#4082).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-exit",
+      "source_role": "public",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-directory-view.to.school-membership",
+      "description": "The staff directory view joins School Membership's staff rows with its own person and account ports (#4082).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-directory-view",
+      "source_role": "public",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-directory-view.internal-test.school-membership-public",
+      "description": "The staff directory view's join tests build School Membership staff rows (#4082).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "staff-directory-view",
+      "source_role": "module-internal-test",
+      "target_owner": "school-membership",
+      "target_role": "public"
     },
     {
       "id": "workforce.e2e-test.school-structure-contract",
@@ -12867,7 +12479,8 @@
       ],
       "source_owner": "root-composition",
       "target_owner_kind": "domain",
-      "target_role": "http"
+      "target_role": "http",
+      "source_package": "api"
     },
     {
       "id": "root-composition.reach.domain.public",
@@ -12942,7 +12555,8 @@
       ],
       "source_owner": "root-composition",
       "target_owner_kind": "platform",
-      "target_role": "http"
+      "target_role": "http",
+      "source_package": "api"
     },
     {
       "id": "root-composition.reach.internal-test.audit-platform.port",
@@ -13009,7 +12623,8 @@
       ],
       "source_owner": "root-composition",
       "target_owner_kind": "projection",
-      "target_role": "http"
+      "target_role": "http",
+      "source_package": "api"
     },
     {
       "id": "root-composition.reach.projection.public",
@@ -13054,7 +12669,8 @@
       ],
       "source_owner": "root-composition",
       "target_owner_kind": "workflow",
-      "target_role": "http"
+      "target_role": "http",
+      "source_package": "api"
     },
     {
       "id": "root-composition.reach.workflow.port",
@@ -13198,17 +12814,6 @@
       "same_owner": true
     },
     {
-      "id": "owner-compose.domain.legacy-model",
-      "description": "ADR 0053 point 3: the composition of a domain owner imports its own domain role. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner_kind": "domain",
-      "source_role": "compose",
-      "target_role": "legacy-model",
-      "same_owner": true
-    },
-    {
       "id": "owner-compose.domain.port",
       "description": "ADR 0053 point 3: the composition of a domain owner imports its own port role.",
       "scopes": [
@@ -13294,17 +12899,6 @@
       "source_owner_kind": "platform",
       "source_role": "compose",
       "target_role": "domain",
-      "same_owner": true
-    },
-    {
-      "id": "owner-compose.platform.legacy-model",
-      "description": "ADR 0053 point 3: the composition of a platform owner imports its own domain role. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner_kind": "platform",
-      "source_role": "compose",
-      "target_role": "legacy-model",
       "same_owner": true
     },
     {
@@ -13889,17 +13483,6 @@
       ],
       "source_owner": "test-support",
       "source_role": "test-support",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
-      "id": "identity-access.compose.session-runtime",
-      "description": "Identity & Access compose reaches its own session token runtime, which carries the http role (ADR 0057 point 3).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "identity-access",
-      "source_role": "compose",
       "target_owner": "identity-access",
       "target_role": "http"
     },
@@ -15173,6 +14756,781 @@
       "source_role": "public",
       "target_owner": "settings-platform",
       "target_role": "port"
+    },
+    {
+      "id": "transaction-runtime.public.stats-port",
+      "description": "Native statistics types replace public application aliases; narrower successor of platform.public-application for the same owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "transaction-runtime",
+      "source_role": "public",
+      "target_owner": "transaction-runtime",
+      "target_role": "port"
+    },
+    {
+      "id": "data-import.port.audit-consents",
+      "description": "Native import construction ports and owner-local functional test adapters replace retained application declarations, preserving their existing capability subset.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "audit-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "data-import.port.native-public",
+      "description": "Native import construction ports and owner-local functional test adapters replace retained application declarations, preserving their existing capability subset.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "data-import",
+      "target_role": "public"
+    },
+    {
+      "id": "document-rendering.contract.document-records-port",
+      "description": "Native list and record values replace direct renderer application vocabulary; same-or-narrower successor of the established renderer reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "contract",
+      "target_owner": "document-rendering",
+      "target_role": "port"
+    },
+    {
+      "id": "document-rendering.public.document-records-port",
+      "description": "Native list and record values replace direct renderer application vocabulary; same-or-narrower successor of the established renderer reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "public",
+      "target_owner": "document-rendering",
+      "target_role": "port"
+    },
+    {
+      "id": "staff-clock.application.public",
+      "description": "The stamp application consumes the native workflow command, ports and classified error contract instead of retained service declarations.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-clock",
+      "source_role": "application",
+      "target_owner": "staff-clock",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-clock.to.process-device-scan.native-contract",
+      "description": "staff-clock implements the public device-scan staff clock contract the kiosk boundary consumes (#2690).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-clock",
+      "source_role": "public",
+      "target_owner": "process-device-scan",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-clock.to.workforce.native-contract",
+      "description": "staff-clock coordinates the public workforce capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-clock",
+      "source_role": "public",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.http.tenant-runtime.http",
+      "description": "Same-or-narrower owner HTTP successor of the Facilities composition binding; native values and exact runtime packages only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "http",
+      "source_package": "modules/facilities/http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "facilities.http.identity-access.http",
+      "description": "Same-or-narrower owner HTTP successor of the Facilities composition binding; native values and exact runtime packages only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "http",
+      "source_package": "modules/facilities/http",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "target_package": "modules/identityaccess/sessiontoken"
+    },
+    {
+      "id": "facilities.http.security-runtime.contract",
+      "description": "Same-or-narrower owner HTTP successor of the Facilities composition binding; native values and exact runtime packages only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "http",
+      "source_package": "modules/facilities/http",
+      "target_owner": "security-runtime",
+      "target_role": "contract",
+      "target_package": "auth/authorize/permissions"
+    },
+    {
+      "id": "facilities.http.people-directory.public",
+      "description": "Same-or-narrower owner HTTP successor of the Facilities composition binding; native values and exact runtime packages only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "http",
+      "source_package": "modules/facilities/http",
+      "target_owner": "people-directory",
+      "target_role": "public",
+      "target_package": "modules/peopledirectory"
+    },
+    {
+      "id": "facilities.http.school-structure.contract",
+      "description": "Same-or-narrower owner HTTP successor of the Facilities composition binding; native values and exact runtime packages only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "http",
+      "source_package": "modules/facilities/http",
+      "target_owner": "school-structure",
+      "target_role": "contract",
+      "target_package": "modules/schoolstructure/contract"
+    },
+    {
+      "id": "facilities.http.student-presence.public",
+      "description": "Same-or-narrower owner HTTP successor of the Facilities composition binding; native values and exact runtime packages only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "http",
+      "source_package": "modules/facilities/http",
+      "target_owner": "student-presence",
+      "target_role": "public",
+      "target_package": "modules/studentpresence"
+    },
+    {
+      "id": "facilities.http.document-rendering.port",
+      "description": "Same-or-narrower owner HTTP successor of the Facilities composition binding; native values and exact runtime packages only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "http",
+      "source_package": "modules/facilities/http",
+      "target_owner": "document-rendering",
+      "target_role": "port",
+      "target_package": "modules/documentrendering/records"
+    },
+    {
+      "id": "device-fleet.application.care-plan.public",
+      "description": "Native dashboard reader binding moved from Device Fleet composition; preserves its existing public owner direction (ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "application",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.application.student-presence.public",
+      "description": "Native dashboard reader binding moved from Device Fleet composition; preserves its existing public owner direction (ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.application.people-directory.public",
+      "description": "Native Facilities occupancy, history and attendance projections moved from composition; preserves its existing public owner direction (ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "application",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.application.school-membership.public",
+      "description": "Native Facilities occupancy, history and attendance projections moved from composition; preserves its existing public owner direction (ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "application",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.application.student-presence.public",
+      "description": "Native Facilities occupancy, history and attendance projections moved from composition; preserves its existing public owner direction (ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-announcement-audience.postgres.parentannouncementaudience.native-contract",
+      "description": "Native projection record successor to the retired private adapter reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-announcement-audience",
+      "source_role": "postgres",
+      "source_package": "modules/parentannouncementaudience/internal/adapters/postgres",
+      "target_owner": "parent-announcement-audience",
+      "target_role": "public",
+      "target_package": "modules/parentannouncementaudience/contract"
+    },
+    {
+      "id": "parent-message-inbox.postgres.parentmessageinbox.native-contract",
+      "description": "Native projection record successor to the retired private adapter reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-message-inbox",
+      "source_role": "postgres",
+      "source_package": "modules/parentmessageinbox/internal/adapters/postgres",
+      "target_owner": "parent-message-inbox",
+      "target_role": "public",
+      "target_package": "modules/parentmessageinbox/contract"
+    },
+    {
+      "id": "staff-message-inbox.postgres.staffmessageinbox.native-contract",
+      "description": "Native projection record successor to the retired private adapter reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-message-inbox",
+      "source_role": "postgres",
+      "source_package": "modules/staffmessageinbox/internal/adapters/postgres",
+      "target_owner": "staff-message-inbox",
+      "target_role": "public",
+      "target_package": "modules/staffmessageinbox/contract"
+    },
+    {
+      "id": "operator-dashboard-view.postgres.native-contract",
+      "description": "Own native projection values, replacing inline private definitions.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "operator-dashboard-view",
+      "source_role": "postgres",
+      "target_owner": "operator-dashboard-view",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-announcement-audience.postgres.staff-audience.native-public",
+      "description": "Native projection values replace the private constructor boundary; bindings are supplied by the root.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-announcement-audience",
+      "source_role": "postgres",
+      "source_package": "modules/staffannouncementaudience/internal/adapters/postgres",
+      "target_owner": "staff-announcement-audience",
+      "target_role": "public",
+      "target_package": "modules/staffannouncementaudience/contract"
+    },
+    {
+      "id": "communication.compose.staff-audience.native-public",
+      "description": "Native projection values replace the private constructor boundary; bindings are supplied by the root.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "source_package": "modules/communication/composition",
+      "target_owner": "staff-announcement-audience",
+      "target_role": "public",
+      "target_package": "modules/staffannouncementaudience/contract"
+    },
+    {
+      "id": "care-plan.contracttest.enrollment-offering-contract",
+      "description": "Native availability and offering values replace the retired legacy-model test boundary.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "source_package": "modules/careplan/contracttest",
+      "target_owner": "enrollment",
+      "target_role": "contract",
+      "target_package": "modules/enrollment/offeringcontract"
+    },
+    {
+      "id": "enrollment.application.offering-contract",
+      "description": "The implementation uses native availability and offering values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "enrollment",
+      "target_role": "contract",
+      "target_package": "modules/enrollment/offeringcontract"
+    },
+    {
+      "id": "enrollment.public.offering-contract",
+      "description": "Enrollment preserves its existing days-required error identity from the actual native offering contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "public",
+      "source_package": "modules/enrollment",
+      "target_owner": "enrollment",
+      "target_role": "contract",
+      "target_package": "modules/enrollment/offeringcontract"
+    },
+    {
+      "id": "communication.application.native-event-contract",
+      "description": "Typed native event capability replaces the retained emitter boundary; no private implementation reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "application",
+      "source_package": "modules/communication/internal/application/parentmessaging",
+      "target_owner": "communication",
+      "target_role": "contract",
+      "target_package": "modules/communication/eventcontract"
+    },
+    {
+      "id": "communication.adapter.native-event-contract",
+      "description": "Typed native event capability replaces the retained emitter boundary; no private implementation reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "source_package": "modules/communication/internal/parentmessages",
+      "target_owner": "communication",
+      "target_role": "contract",
+      "target_package": "modules/communication/eventcontract"
+    },
+    {
+      "id": "communication.test-support.native-event-contract",
+      "description": "Typed native event capability replaces the retained emitter boundary; no private implementation reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "test-support",
+      "source_package": "modules/communication/communicationtest",
+      "target_owner": "communication",
+      "target_role": "contract",
+      "target_package": "modules/communication/eventcontract"
+    },
+    {
+      "id": "care-plan.e2e-test.native-event-contract",
+      "description": "Typed native event capability replaces the retained emitter boundary; no private implementation reach.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "source_package": "modules/careplan/contracttest",
+      "target_owner": "communication",
+      "target_role": "contract",
+      "target_package": "modules/communication/eventcontract"
+    },
+    {
+      "id": "communication.event-contract.public",
+      "description": "The event capability includes Communication's existing parent-authored event port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "contract",
+      "source_package": "modules/communication/eventcontract",
+      "target_owner": "communication",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.application.production.activity-contract",
+      "description": "Actual native activity values and capability replace retained model and compose declarations.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "target_owner": "timetable-activities",
+      "target_role": "contract",
+      "target_package": "modules/timetable/activitycontract"
+    },
+    {
+      "id": "timetable-activities.workflow-integration-test.internal_test.activity-contract",
+      "description": "Actual native activity values and capability replace retained model and compose declarations.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-activities",
+      "target_role": "contract",
+      "target_package": "modules/timetable/activitycontract",
+      "source_package": "modules/timetable/compose"
+    },
+    {
+      "id": "timetable-activities.activity-contract.public",
+      "description": "The activity capability uses the owner's existing native people and occupancy values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "contract",
+      "source_package": "modules/timetable/activitycontract",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.http.activity-contract",
+      "description": "Owner HTTP uses its native activity capability, following the existing owner HTTP contract shape.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "http",
+      "source_package": "modules/timetable/http/activities",
+      "target_owner": "timetable-activities",
+      "target_role": "contract",
+      "target_package": "modules/timetable/activitycontract"
+    },
+    {
+      "id": "presence-legacy-view.postgres.native-presence-projection",
+      "description": "Native read values and the consumer-owned port replace the retained composition import.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "postgres",
+      "source_package": "modules/presenceprojection/internal/adapters/postgres",
+      "target_owner": "presence-legacy-view",
+      "target_role": "public",
+      "target_package": "modules/presenceprojection/presencecontract"
+    },
+    {
+      "id": "timetable-activities.application.native-presence-projection",
+      "description": "Native read values and the consumer-owned port replace the retained composition import.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "source_package": "modules/timetable/internal/application",
+      "target_owner": "presence-legacy-view",
+      "target_role": "public",
+      "target_package": "modules/presenceprojection/presencecontract"
+    },
+    {
+      "id": "timetable-activities.port.native-presence-projection",
+      "description": "Native read values and the consumer-owned port replace the retained composition import.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "port",
+      "source_package": "modules/timetable/ports",
+      "target_owner": "presence-legacy-view",
+      "target_role": "public",
+      "target_package": "modules/presenceprojection/presencecontract"
+    },
+    {
+      "id": "timetable-activities.port.activity-contract",
+      "description": "Consumer ports use the actual native activity values, not retained rows.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "port",
+      "source_package": "modules/timetable/ports",
+      "target_owner": "timetable-activities",
+      "target_role": "contract",
+      "target_package": "modules/timetable/activitycontract"
+    },
+    {
+      "id": "timetable-activities.http.adapter-test.common",
+      "description": "The unchanged route suites move with their owner HTTP transport, preserving the exact runtime target.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "adapter-test",
+      "source_package": "modules/timetable/http/activities",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "timetable-activities.http.adapter-test.identity-runtime",
+      "description": "The unchanged route suites move with their owner HTTP transport, preserving the exact runtime target.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "adapter-test",
+      "source_package": "modules/timetable/http/activities",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "target_package": "modules/identityaccess/sessiontoken"
+    },
+    {
+      "id": "root-composition.internal-test.activity-contract",
+      "description": "Root test construction names the actual native activity capability, replacing its retained compose declaration.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "source_package": "api",
+      "target_owner": "timetable-activities",
+      "target_role": "contract",
+      "target_package": "modules/timetable/activitycontract"
+    },
+    {
+      "id": "transaction-runtime.postgres.native-protocol",
+      "description": "The transaction adapter uses native outcome errors moved from its database implementation; same owner and original marker/error contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "transaction-runtime",
+      "source_role": "postgres",
+      "target_owner": "transaction-runtime",
+      "target_role": "contract",
+      "target_package": "modules/transactionruntime/protocol"
+    },
+    {
+      "id": "delivery.postgres.native-subscriptions",
+      "description": "Same-owner native subscription values replace the exact legacy-model capability; actual definitions, no ORM or generic API.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "postgres",
+      "target_owner": "delivery-platform",
+      "target_role": "contract",
+      "target_package": "modules/delivery/subscriptions"
+    },
+    {
+      "id": "delivery.port.native-subscriptions",
+      "description": "Native public values replace the same Delivery capability; no implementation grant or legacy alias.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "port",
+      "target_owner": "delivery-platform",
+      "target_role": "contract",
+      "target_package": "modules/delivery/subscriptions"
+    },
+    {
+      "id": "delivery.application.native-contracts",
+      "description": "Actual native mail, subscription and intent values replace the mixed facade/legacy model vocabulary. Fresh contract points; no implementation grant.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "delivery.test-support.native-contracts",
+      "description": "Actual native mail, subscription and intent values replace the mixed facade/legacy model vocabulary. Fresh contract points; no implementation grant.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "test-support",
+      "target_owner": "delivery-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "delivery.public.native-contracts",
+      "description": "Actual native mail, subscription and intent values replace the mixed facade/legacy model vocabulary. Fresh contract points; no implementation grant.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "public",
+      "target_owner": "delivery-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "delivery.workflow-integration-test.native-contracts",
+      "description": "Actual native mail, subscription and intent values replace the mixed facade/legacy model vocabulary. Fresh contract points; no implementation grant.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "delivery-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "timetable-activities.test-support.activity-contract",
+      "description": "The owner fixture seam accepts the standing activity contract; precedent delivery.test-support.native-contracts (#4086).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "test-support",
+      "target_owner": "timetable-activities",
+      "target_role": "contract",
+      "target_package": "modules/timetable/activitycontract"
+    },
+    {
+      "id": "timetable-activities.test-support.native-domain",
+      "description": "The owner fixture seam constructs its canonical native rows and error contracts (Round 6, ADR 0069). Same-owner shape: security-runtime.test-support.domain.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "test-support",
+      "source_package": "modules/timetable/fixturetest",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-activities.test-support.school-calendar-public",
+      "description": "The owner fixture queries use School Calendar native dateframe filters. Narrow fixture successor of timetable-activities.application.school-calendar.public, ADR 0071.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "test-support",
+      "source_package": "modules/timetable/fixturetest",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.reach.compose.self-compose",
+      "description": "ADR 0053 point 2: the typed roots compose their own owner builders.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "root-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.reach.cli.middleware",
+      "description": "ADR 0056: the commands root configures HTTP log redaction.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "cli",
+      "source_package": "cmd",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "middleware"
+    },
+    {
+      "id": "security-runtime.public.authorization-port",
+      "description": "Native authorization inputs replace public application aliases; narrower successor of platform.public-application, precedent transaction-runtime.public.stats-port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "security-runtime",
+      "source_role": "public",
+      "target_owner": "security-runtime",
+      "target_role": "port",
+      "target_package": "modules/securityruntime/ports"
+    },
+    {
+      "id": "people-directory.http.authorization-port",
+      "description": "The same native note-audience inputs replace the Security Runtime public aliases; narrower successor of people-directory.http.security-public.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "port",
+      "target_package": "modules/securityruntime/ports"
+    },
+    {
+      "id": "people-directory.adapter-test.authorization-port",
+      "description": "The same native note-audience inputs replace the Security Runtime public aliases; narrower successor of adapter-test.platform.public.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "adapter-test",
+      "target_owner": "security-runtime",
+      "target_role": "port",
+      "target_package": "modules/securityruntime/ports"
+    },
+    {
+      "id": "communication.postgres.port",
+      "description": "Native query observation binds Communication\u2019s own observer port; same-owner successor of composition wiring (ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "postgres",
+      "target_owner": "communication",
+      "target_role": "port"
+    },
+    {
+      "id": "communication.postgres.tenant-runtime.public",
+      "description": "Native ambient-transaction resolution moves from Communication composition to its owned persistence adapter (ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "communication.application.organization-tenancy.public",
+      "description": "Native organization target error mapping replaces composition mapping, preserving its existing owner direction (ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "application",
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.reach.internal-test.communication.port",
+      "description": "Exact native port successor of Communication composition audit values; same shape as existing Audit/Settings root test port bindings (ADR 0053).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "source_package": "api",
+      "target_owner": "communication",
+      "target_role": "port",
+      "target_package": "modules/communication/ports"
     }
   ],
   "relocations": [
@@ -15232,8 +15590,43 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
     },
     {
+      "from": "applog",
+      "to": "observability/internal/adapters/applog",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "auth/authorize",
+      "to": "modules/securityruntime/internal/application/authorize",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "auth/device",
+      "to": "modules/devicefleet/internal/adapters/deviceauth",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "auth/device/devicetest",
+      "to": "modules/devicefleet/devicetest",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "auth/rotation",
       "to": "modules/identityaccess/internal/application/rotation",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "auth/userpass",
+      "to": "modules/securityruntime/internal/domain/userpass",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "auth/userpass/userpasstest",
+      "to": "modules/securityruntime/userpasstest",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "database",
+      "to": "modules/transactionruntime/internal/adapters/database",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
@@ -15247,6 +15640,11 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
+      "from": "database/repositories/config",
+      "to": "modules/settings/internal/adapters/configpostgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "database/repositories/delivery",
       "to": "modules/delivery/internal/adapters/deliverypostgres",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
@@ -15257,8 +15655,33 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
     },
     {
+      "from": "database/repositories/parent",
+      "to": "modules/careplan/internal/adapters/parentpostgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "database/repositories/pwausage",
+      "to": "observability/internal/adapters/pwausage",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "database/repositories/workforce",
       "to": "modules/workforce/internal/adapters/workforcepostgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "email",
+      "to": "modules/delivery/internal/adapters/email",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "email/emailtest",
+      "to": "modules/delivery/emailtest",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "localization",
+      "to": "modules/delivery/internal/adapters/localization",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
@@ -15267,13 +15690,98 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
     },
     {
+      "from": "modules/communication/internal/adapters/audience",
+      "to": "modules/staffannouncementaudience/internal/adapters/postgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/communication/internal/adapters/parentaudience",
+      "to": "modules/parentannouncementaudience/internal/adapters/postgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/communication/internal/adapters/parentinbox",
+      "to": "modules/parentmessageinbox/internal/adapters/postgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/communication/internal/adapters/staffinbox",
+      "to": "modules/staffmessageinbox/internal/adapters/postgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/communication/projections/parentannouncementaudience",
+      "to": "modules/parentannouncementaudience",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/communication/projections/parentmessageinbox",
+      "to": "modules/parentmessageinbox",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/communication/projections/staffannouncementaudience",
+      "to": "modules/staffannouncementaudience",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/communication/projections/staffmessageinbox",
+      "to": "modules/staffmessageinbox",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/dataimport/compose/retained",
+      "to": "modules/dataimport/compose/imports",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/dataimport/fileformat",
+      "to": "modules/dataimport/internal/adapters/fileformat",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "modules/dataimport/inbound",
       "to": "modules/dataimport/http",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
     },
     {
+      "from": "modules/delivery/application/emailbranding",
+      "to": "modules/delivery/internal/application/emailbranding",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/delivery/application/emailoutbox",
+      "to": "modules/delivery/internal/emailoutbox",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/delivery/application/locales",
+      "to": "modules/delivery/internal/application/locales",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/delivery/application/notifications",
+      "to": "modules/delivery/internal/notifications",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/delivery/application/pwa",
+      "to": "modules/delivery/internal/pwa",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/delivery/application/realtimeevents",
+      "to": "modules/delivery/internal/application/realtimeevents",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "modules/emergencysnapshot/legacy",
       "to": "modules/emergencysnapshot/internal/adapters/nameorder",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/filestorage/documents",
+      "to": "modules/filestorage/internal/adapters/documents",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
@@ -15282,13 +15790,83 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
+      "from": "modules/guardianlinkview",
+      "to": "modules/guardianlinkview/internal/adapters/postgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "modules/identityaccess/legacy/jwt",
       "to": "modules/identityaccess/sessiontoken",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3487"
     },
     {
+      "from": "modules/organizationtenancy/internal/adapters/operatordashboard",
+      "to": "modules/operatordashboard/internal/adapters/postgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/organizationtenancy/projections/operatordashboard",
+      "to": "modules/operatordashboard",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/parentrequestfeedprojection",
+      "to": "modules/parentrequestfeedprojection/internal/adapters/postgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/peopledirectory/userscontract",
+      "to": "modules/peopledirectory/internal/domain/userscontract",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/presenceprojection",
+      "to": "modules/presenceprojection/internal/adapters/postgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/schedulerruntime/cleanupruns",
+      "to": "modules/schedulerruntime/internal/adapters/cleanupruns",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/schedulerruntime/jobruntime",
+      "to": "modules/schedulerruntime/internal/adapters/jobruntime",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/schedulerruntime/workerlease",
+      "to": "modules/schedulerruntime/internal/adapters/workerlease",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/schoolsetupview",
+      "to": "modules/schoolsetup/internal/adapters/schoolsetupview",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/studentdirectoryview",
+      "to": "modules/studentdirectoryview/internal/adapters/postgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "modules/supervisiondashboard/legacy",
       "to": "modules/supervisiondashboard/internal/adapters/nameorder",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/timetableblockdisplay",
+      "to": "modules/timetableblockdisplay/internal/adapters/postgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/timetableenrollmentprovenance",
+      "to": "modules/timetableenrollmentprovenance/internal/adapters/postgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/timetableprojection",
+      "to": "modules/timetableprojection/internal/adapters/postgres",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
@@ -15299,6 +15877,21 @@
     {
       "from": "modules/workforce/legacy",
       "to": "modules/workforce/internal/adapters/substitutions",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "seed/api",
+      "to": "internal/devtools/seedapi",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "services/config/settingstest",
+      "to": "modules/settings/settingstest",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "services/config/sideeffects",
+      "to": "modules/settings/internal/application/sideeffects",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
@@ -15314,6 +15907,31 @@
     {
       "from": "services/iot",
       "to": "modules/devicefleet/internal/application/deviceservice",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "services/parentmessaging",
+      "to": "modules/communication/internal/application/parentmessaging",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "services/scheduler",
+      "to": "modules/schedulerruntime/internal/application",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "simulate",
+      "to": "internal/devtools/simulate",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "workflows/parentportal/care",
+      "to": "workflows/parentportal/internal/care",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "workflows/parentportal/messaging",
+      "to": "workflows/parentportal/internal/messaging",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     }
   ]

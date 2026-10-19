@@ -24,7 +24,7 @@ func TestCalendarPeriodAdapter_KeepsTheLegacyContracts(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CalendarPeriod
+	repo := NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).CalendarPeriod
 	ctx := testpkg.Ctx(t)
 
 	fixture := readBack(t, ctx, repo.FindByID, testpkg.CreateTestCalendarPeriod(t, db, "Vorlage", testpkg.Date(2030, time.August, 1), testpkg.Date(2031, time.July, 31)).ID)
@@ -125,7 +125,7 @@ func TestCalendarPeriodAdapter_CreateIfAbsentIsRaceFreePerTenant(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CalendarPeriod
+	repo := NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).CalendarPeriod
 	ctx := testpkg.Ctx(t)
 	fixture := readBack(t, ctx, repo.FindByID, testpkg.CreateTestCalendarPeriod(t, db, "Vorlage", testpkg.Date(2030, time.August, 1), testpkg.Date(2031, time.July, 31)).ID)
 
@@ -184,7 +184,7 @@ func TestCalendarPeriodAdapter_OverlapFindersKeepTheDateSemantics(t *testing.T) 
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CalendarPeriod
+	repo := NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).CalendarPeriod
 	ctx := testpkg.Ctx(t)
 
 	active := testpkg.CreateTestCalendarPeriod(t, db, "Aktiv", testpkg.Date(2030, time.August, 1), testpkg.Date(2031, time.July, 31))
@@ -235,13 +235,13 @@ func TestCalendarPeriodAdapter_UsageCountsComeFromThePlanningTables(t *testing.T
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CalendarPeriod
+	repo := NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).CalendarPeriod
 	ctx := testpkg.Ctx(t)
 
 	period := testpkg.CreateTestCalendarPeriod(t, db, "Genutzt", testpkg.Date(2030, time.August, 1), testpkg.Date(2031, time.July, 31))
 	unused := testpkg.CreateTestCalendarPeriod(t, db, "Ungenutzt", testpkg.Date(2031, time.August, 1), testpkg.Date(2032, time.July, 31))
 
-	usage, err := repo.UsageCounts(ctx)
+	usage, err := testpkg.TenantQuery0(t, ctx, db, repo.UsageCounts)
 	require.NoError(t, err)
 	assert.Empty(t, usage, "periods without references are omitted")
 
@@ -252,7 +252,7 @@ func TestCalendarPeriodAdapter_UsageCountsComeFromThePlanningTables(t *testing.T
 		Exec(ctx)
 	require.NoError(t, err)
 
-	usage, err = repo.UsageCounts(ctx)
+	usage, err = testpkg.TenantQuery0(t, ctx, db, repo.UsageCounts)
 	require.NoError(t, err)
 	require.Contains(t, usage, period.ID)
 	assert.Equal(t, 1, usage[period.ID].ActivityGroups)
@@ -264,8 +264,8 @@ func TestCalendarPeriodAdapter_UsageCountsReturnDatabaseError(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupClosableTestDB(t)
-	repo := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CalendarPeriod
-	ctx := testpkg.Ctx(t)
+	repo := NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).CalendarPeriod
+	ctx := testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db)
 	require.NoError(t, db.Close())
 
 	usage, err := repo.UsageCounts(ctx)
@@ -305,73 +305,11 @@ func TestCalendarPeriodFKOnDelete(t *testing.T) {
 	}
 }
 
-func TestClosingDayAdapter_KeepsTheLegacyContracts(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-	repo := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ClosingDay
-	ctx := testpkg.Ctx(t)
-
-	fixture := readBack(t, ctx, repo.FindByID, testpkg.CreateTestClosingDay(t, db, testpkg.Date(2030, time.November, 4), testpkg.Date(2030, time.November, 8), "Pädagogische Woche").ID)
-	day := *fixture
-	day.ID = 0
-	day.StartDate = "2030-12-23"
-	day.EndDate = "2030-12-31"
-	day.Reason = "Weihnachtswoche"
-	require.NoError(t, repo.Create(ctx, &day))
-	assert.Positive(t, day.ID)
-	assert.NotEqual(t, fixture.ID, day.ID)
-	assert.Equal(t, testpkg.Tenant(t), day.GetTenantID())
-
-	found, err := repo.FindByID(ctx, day.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "2030-12-23", found.StartDate.String())
-	assert.Equal(t, "Weihnachtswoche", found.Reason)
-
-	_, err = repo.FindByID(ctx, missingID(day.ID))
-	require.Error(t, err)
-	assert.True(t, testpkg.IsNotFoundError(err))
-
-	blank := *fixture
-	blank.ID = 0
-	blank.Reason = ""
-	require.EqualError(t, repo.Create(ctx, &blank), "reason is required")
-	require.EqualError(t, repo.Create(ctx, nil), "ClosingDay cannot be nil or zero value")
-
-	day.EndDate = "2031-01-03"
-	require.NoError(t, repo.Update(ctx, &day))
-	overlapping, err := repo.FindOverlappingRange(ctx, "2031-01-03", "2031-01-31")
-	require.NoError(t, err)
-	require.Len(t, overlapping, 1, "the inclusive end date matches the window start")
-	assert.Equal(t, day.ID, overlapping[0].ID)
-	outside, err := repo.FindOverlappingRange(ctx, "2031-01-04", "2031-01-31")
-	require.NoError(t, err)
-	assert.Empty(t, outside)
-
-	otherTenantID := testpkg.UniqueTestTenantID(t)
-	testpkg.EnsureTestTenant(t, db, otherTenantID)
-	foreign, err := repo.FindByTenantID(testpkg.TenantContext(otherTenantID))
-	require.NoError(t, err)
-	assert.Empty(t, foreign, "the other tenant must not see this tenant's closing days")
-
-	all, err := repo.FindByTenantID(ctx)
-	require.NoError(t, err)
-	require.Len(t, all, 2)
-	assert.Equal(t, fixture.ID, all[0].ID, "ordered by start date")
-
-	require.NoError(t, repo.Delete(ctx, day.ID))
-	require.NoError(t, repo.Delete(ctx, day.ID), "delete stays idempotent")
-	days, err := repo.FindByTenantID(ctx)
-	require.NoError(t, err)
-	require.Len(t, days, 1)
-	assert.Equal(t, fixture.ID, days[0].ID)
-}
-
 func TestDateframeAdapter_KeepsTheLegacyLookups(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Dateframe
+	repo := NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).Dateframe
 	ctx := testpkg.Ctx(t)
 
 	berlin, err := time.LoadLocation("Europe/Berlin")
@@ -406,7 +344,7 @@ func TestCapacityOccurrencesReadPeriodsThroughTheCalendarOwner(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewTimetableRepositories(testpkg.MustDatabase(db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	ctx := testpkg.Ctx(t)
 
 	period := testpkg.CreateTestCalendarPeriod(t, db, "Kapazität", testpkg.Date(2030, time.September, 2), testpkg.Date(2030, time.September, 6))
@@ -419,7 +357,7 @@ func TestCapacityOccurrencesReadPeriodsThroughTheCalendarOwner(t *testing.T) {
 
 // readBack reads a fixture row through the adapter, as the owner row the
 // adapter writes.
-func readBack[M any](t *testing.T, ctx context.Context, find func(context.Context, any) (M, error), id int64) M {
+func readBack[M any](t *testing.T, ctx context.Context, find func(context.Context, int64) (M, error), id int64) M {
 	t.Helper()
 	row, err := find(ctx, id)
 	require.NoError(t, err)

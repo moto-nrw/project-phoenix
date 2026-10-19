@@ -150,7 +150,7 @@ func TestReplaceWeekdayPickupNotesWaitsForStudentLock(t *testing.T) {
 	lockDone := make(chan error, 1)
 	go func() {
 		lockDone <- testpkg.WithTenantTx(t, context.Background(), tc.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-			if _, err := newStudentTestRepositories(testpkg.NewDatabase(t, tc.db)).Student.FindByIDForUpdate(txCtx, student.ID); err != nil {
+			if _, err := testpkg.TenantQuery1(t, txCtx, testpkg.SetupTestDB(t), newStudentTestEnrollment(testpkg.NewDatabase(t, tc.db)).Student.FindByIDForUpdate, student.ID); err != nil {
 				return err
 			}
 			close(locked)
@@ -227,9 +227,7 @@ func TestWeekdayPickupNoteSurvivesBookingBoundary(t *testing.T) {
 
 	// The device-scan path resolves one child at a time rather than through
 	// the tile's bulk endpoint. A note-only day must survive that path too.
-	single, err := tc.resource.PickupScheduleService.GetEffectivePickupTimeForDate(
-		testpkg.Ctx(t), noted.ID, calendar.NewDate(2026, time.January, 26),
-	)
+	single, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), tc.db, tc.resource.PickupScheduleService.GetEffectivePickupTimeForDate, noted.ID, calendar.NewDate(2026, time.January, 26))
 	require.NoError(t, err)
 	require.NotNil(t, single)
 	assert.Nil(t, single.PickupTime)

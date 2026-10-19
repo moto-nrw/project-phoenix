@@ -120,7 +120,7 @@ func responseDependencies(phase *enrollment.Phase, children *responseChildren) P
 func newResponseService(phase *enrollment.Phase, children *responseChildren, roster responseRoster, exits, apps responseFlags) *Phases {
 	deps := responseDependencies(phase, children)
 	deps.Responses = &PhaseResponseSources{Roster: roster, CareExits: exits, PortalAccounts: apps}
-	return NewPhases(deps)
+	return newPhases(deps)
 }
 
 func TestResponseOverview_CountsAnswersAgainstTheExpectedChildren(t *testing.T) {
@@ -497,7 +497,7 @@ func TestResponseOverview_Errors(t *testing.T) {
 	})
 	t.Run("ports not wired", func(t *testing.T) {
 		t.Parallel()
-		svc := NewPhases(responseDependencies(nextYearPhase(), &responseChildren{}))
+		svc := newPhases(responseDependencies(nextYearPhase(), &responseChildren{}))
 		_, err := svc.ResponseOverview(context.Background(), 5)
 		assert.ErrorIs(t, err, enrollment.ErrPhaseResponseOverviewUnavailable)
 	})
@@ -507,7 +507,20 @@ func TestResponseOverview_Errors(t *testing.T) {
 		deps := responseDependencies(nextYearPhase(), &responseChildren{})
 		deps.Settings = responseSettings{err: boom}
 		deps.Responses = &PhaseResponseSources{Roster: responseRoster(nil), CareExits: responseFlags(nil), PortalAccounts: responseFlags(nil)}
-		_, err := NewPhases(deps).ResponseOverview(context.Background(), 5)
+		_, err := newPhases(deps).ResponseOverview(context.Background(), 5)
 		assert.ErrorIs(t, err, boom)
 	})
+}
+
+func TestResponseOverview_OnlyActiveChildrenAreAsked(t *testing.T) {
+	t.Parallel()
+	roster := responseRoster{
+		{ID: 41, LastName: "Aktiv", SchoolClass: "1a"},
+		{ID: 42, LastName: "Wartend", SchoolClass: "1a", NotActive: true},
+	}
+	svc := newResponseService(nextYearPhase(), &responseChildren{}, roster, nil, nil)
+
+	overview, err := svc.ResponseOverview(context.Background(), 5)
+	require.NoError(t, err)
+	assert.Equal(t, 1, overview.Expected, "a child that is not active is not asked to re-enroll")
 }

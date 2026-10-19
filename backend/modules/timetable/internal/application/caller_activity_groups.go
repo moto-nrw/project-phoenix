@@ -3,18 +3,20 @@ package application
 import (
 	"context"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 )
 
 // CallerActivityGroups serves the Identity & Access caller context and the
 // rows it renders the planned activity groups a staff member supervises,
 // read from the retained activity group rows (#3501).
 type CallerActivityGroups struct {
-	groups activitiesModels.GroupRepository
+	groups ports.ActivityGroupRecords
 }
 
 // NewCallerActivityGroups binds the reads to the retained activity groups.
-func NewCallerActivityGroups(groups activitiesModels.GroupRepository) CallerActivityGroups {
+func NewCallerActivityGroups(groups ports.ActivityGroupRecords) CallerActivityGroups {
 	return CallerActivityGroups{groups: groups}
 }
 
@@ -35,7 +37,7 @@ func (g CallerActivityGroups) SupervisedActivityGroupIDs(ctx context.Context, st
 // ActivityGroupRows returns the planned activity groups the
 // /api/me/groups/activity route renders, in the order of ids.
 func (g CallerActivityGroups) ActivityGroupRows(ctx context.Context, ids []int64) (any, error) {
-	result := make([]*activitiesModels.Group, 0, len(ids))
+	result := make([]*activityContract.Group, 0, len(ids))
 	if len(ids) == 0 {
 		return result, nil
 	}
@@ -43,7 +45,7 @@ func (g CallerActivityGroups) ActivityGroupRows(ctx context.Context, ids []int64
 	if err != nil {
 		return nil, err
 	}
-	byID := make(map[int64]*activitiesModels.Group, len(rows))
+	byID := make(map[int64]*activityContract.Group, len(rows))
 	for _, row := range rows {
 		byID[row.ID] = row
 	}

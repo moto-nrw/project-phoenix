@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -73,7 +72,7 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 		transaction{lock: store.AcquireXactLock},
 		assignments{store: store, live: dependencies.LiveStaffIDs},
 		dependencies.LockStaffAssignment,
-		clock{now: now},
+		application.Clock{Time: now},
 		application.AllowanceUses,
 		observe,
 		dependencies.StatutoryHolidays,
@@ -82,24 +81,13 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 }
 
 func databaseRuntime(db *bun.DB) postgres.Database {
-	return func(ctx context.Context) (bun.IDB, int64, error) {
-		tenantID := tenant.FromContext(ctx)
-		transaction, hasTransaction := tenant.TransactionFromContext(ctx)
-		if !hasTransaction {
-			return db, tenantID, nil
-		}
-		switch tx := transaction.(type) {
-		case bun.Tx:
-			return tx, tenantID, nil
-		case *bun.Tx:
-			if tx != nil {
-				return tx, tenantID, nil
-			}
-			return db, tenantID, nil
-		default:
-			return nil, 0, fmt.Errorf("workforce postgres: unsupported transaction %T", transaction)
-		}
+	return func(ctx context.Context) (bun.IDB, postgres.TenantScope, error) {
+		id, scopeErr := tenant.TenantFromContext(ctx)
+		raw, ok := tenant.TransactionFromContext(ctx)
+
+		return postgres.ResolveDatabase(raw, ok, id.Int64(), scopeErr, tenant.IsAdminTx(ctx))
 	}
+
 }
 
 // transaction runs units of work on the tenant runtime. lock is the Postgres
@@ -168,13 +156,6 @@ func (t transaction) LockStaffShifts(ctx context.Context, staffID int64) error {
 	return t.acquireXactLock(ctx, fmt.Sprintf("staff-shift:%d:%d", tenant.FromContext(ctx), staffID))
 }
 
-// clock derives the calendar day from the same instant the live windows use,
-// so a pinned test clock cannot disagree with itself across midnight.
-type clock struct{ now func() time.Time }
-
-func (c clock) Now() time.Time { return c.now() }
-func (c clock) Today() string  { return calendar.DateFromTime(c.now()).String() }
-
 // assignments reads the template binding from the employment profile and
 // keeps only the memberships School Membership still holds as live.
 type assignments struct {
@@ -195,4 +176,10 @@ func (a assignments) RebaseAnchor(ctx context.Context, staffIDs []int64, anchorD
 		return nil
 	}
 	return a.store.RebaseStaffRotationAnchor(ctx, staffIDs, anchorDate)
+}
+
+// RunRead establishes RLS for standalone owner queries; workflows and HTTP
+// requests keep their existing transaction.
+func (t transaction) RunRead(ctx context.Context, callback func(context.Context) error) error {
+	return t.RunWrite(ctx, callback)
 }

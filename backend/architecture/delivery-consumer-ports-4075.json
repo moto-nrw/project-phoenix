@@ -53,8 +53,8 @@
       "backend/modules/schoolstructure/internal/application/groups/substitution_module_test.go",
       "backend/modules/presenceprojection/http/status_day_internal_test.go",
       "backend/api/school_portal_school_notifications_test.go",
-      "backend/modules/delivery/application/notifications/settings_keys_test.go",
-      "backend/modules/delivery/application/pwa/settings_keys_test.go"
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/modules/delivery/application/notifications/settings_keys_test.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/modules/delivery/application/pwa/settings_keys_test.go"
     ],
     "workload": "Existing affected Go suites against local postgres-test, with package clones and per-test tenants. No HTTP deployment or external provider calls.",
     "thresholds": "Unchanged transaction, consent, child-access and wire assertions pass. Architecture reports zero #4075 keys, no rule additions and a non-increasing composition surface.",

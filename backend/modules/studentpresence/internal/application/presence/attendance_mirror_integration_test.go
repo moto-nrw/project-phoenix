@@ -27,7 +27,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -40,10 +41,9 @@ import (
 // attendanceSyncSetup bundles the syncer and the repos used to seed test
 // state. All cleanup registered via t.Cleanup in LIFO order.
 type attendanceSyncSetup struct {
-	syncer      studentpresence.AttendanceSyncer
-	instRepo    scheduleModels.ActivityInstanceRepository
-	isRepo      scheduleModels.InstanceStudentRepository
-	statusRepo  *api.StudentStatusDayRepository
+	syncer studentpresence.AttendanceSyncer
+	api.TimetableOwnerRows
+	statusRepo  *owners.StudentStatusDayRepository
 	groupRepo   studentpresence.SessionRecords
 	db          *bun.DB
 	ctx         context.Context
@@ -75,15 +75,14 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:         time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
 		RoomID:          room.ID,
-		Status:          scheduleModels.InstanceStatusActive,
+		Status:          studentpresence.ActivitySessionActive,
 		ActiveGroupID:   &activeGroup.ID,
 	}
 	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
-	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
-	timetableRepos := api.NewTimetableRepositories(testpkg.MustDatabase(db), owners)
-	instanceStudentRepo := timetableRepos.InstanceStudent
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	timetableRepos := api.NewAttendanceSyncTestRepositories(testpkg.MustDatabase(db), owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)))
+	instanceStudentRepo := timetableRepos.Participants
 
 	// Register parent cleanup first because t.Cleanup executes LIFO: the
 	// instance callback registered below must run before its room/group parents.
@@ -91,44 +90,29 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 		// active.group is tenant-owned and dies with the package clone
 	})
 
-	syncer, err := api.NewTimetableAttendanceMirror(api.TimetableOwnerRows{Instances: timetableRepos.ActivityInstance, Participants: instanceStudentRepo}, slog.Default())
+	syncer, err := api.NewAttendanceSyncTestMirror(api.TimetableOwnerRows{Instances: timetableRepos.Instances, Participants: instanceStudentRepo}, slog.Default())
 	require.NoError(t, err)
 	return &attendanceSyncSetup{
-		syncer:      syncer,
-		instRepo:    timetableRepos.ActivityInstance,
-		isRepo:      instanceStudentRepo,
-		statusRepo:  repoFactory.StudentStatusDay,
-		groupRepo:   api.NewPresenceSessionRecords(testpkg.MustDatabase(db)),
-		db:          db,
-		ctx:         ctx,
-		roomID:      room.ID,
-		activityID:  activity.ID,
-		activeGroup: activeGroup,
-		instance:    instance,
+		syncer:             syncer,
+		TimetableOwnerRows: timetableRepos,
+		statusRepo:         repoFactory.StudentStatusDay,
+		groupRepo:          api.NewPresenceSessionRecords(testpkg.MustDatabase(db)),
+		db:                 db,
+		ctx:                ctx,
+		roomID:             room.ID,
+		activityID:         activity.ID,
+		activeGroup:        activeGroup,
+		instance:           instance,
 	}
 }
 
 // newAttendanceMirror binds the Timetable owner's attendance mirror to the
 // Presence syncer port the way the composition root does (#3424 slice S3).
-func newAttendanceMirror(t testing.TB, instances scheduleModels.ActivityInstanceRepository, rows scheduleModels.InstanceStudentRepository, logger *slog.Logger) studentpresence.AttendanceSyncer {
+func newAttendanceMirror(t testing.TB, rows api.TimetableOwnerRows, logger *slog.Logger) studentpresence.AttendanceSyncer {
 	t.Helper()
-	syncer, err := api.NewTimetableAttendanceMirror(api.TimetableOwnerRows{Instances: instances, Participants: rows}, logger)
+	syncer, err := api.NewAttendanceSyncTestMirror(rows, logger)
 	require.NoError(t, err)
 	return syncer
-}
-
-// seedInstanceStudent inserts an instance_students row for s.instance + studentID
-// with the given status. Registers cleanup automatically.
-func seedInstanceStudent(t *testing.T, s *attendanceSyncSetup, studentID int64, status string) *scheduleModels.InstanceStudent {
-	t.Helper()
-	row := &scheduleModels.InstanceStudent{
-		InstanceID: s.instance.ID,
-		StudentID:  studentID,
-		Status:     status,
-	}
-	row.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, s.isRepo.Create(s.ctx, row))
-	return row
 }
 
 // --- MirrorCheckInForVisit ---------------------------------------------------
@@ -139,7 +123,7 @@ func TestAttendanceSync_MirrorCheckIn_HappyPath(t *testing.T) {
 	s := buildAttendanceSyncSetup(t)
 	student := testpkg.CreateTestStudent(t, s.db, "AS-Happy", fmt.Sprintf("A-%d", time.Now().UnixNano()), "3a")
 
-	row := seedInstanceStudent(t, s, student.ID, scheduleModels.AttendanceStatusExpected)
+	row := api.SeedAttendanceMirrorParticipant(func(err error) { require.NoError(t, err) }, s.ctx, s.TimetableOwnerRows, s.instance.ID, student.ID, testpkg.Tenant(t), studentpresence.SessionAttendanceExpected)
 
 	entryTime := time.Date(2026, 4, 21, 13, 5, 0, 0, time.UTC)
 	visit := &studentpresence.Visit{
@@ -151,14 +135,14 @@ func TestAttendanceSync_MirrorCheckIn_HappyPath(t *testing.T) {
 	snap, checkInErr1 := s.syncer.MirrorCheckInForVisit(s.ctx, visit)
 	require.NoError(t, checkInErr1)
 	require.NotNil(t, snap)
-	assert.Equal(t, scheduleModels.AttendanceStatusPresent, snap.Status)
+	assert.Equal(t, studentpresence.SessionAttendancePresent, snap.Status)
 	assert.Nil(t, snap.Substatus)
 	assert.Nil(t, snap.Note)
 
 	// DB state: row flipped to present + checked_in_at stamped.
-	got, err := s.isRepo.FindByID(s.ctx, row.ID)
+	got, err := s.Participants.FindByID(s.ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusPresent, got.Status)
+	assert.Equal(t, studentpresence.SessionAttendancePresent, got.Status)
 	require.NotNil(t, got.CheckedInAt)
 	assert.WithinDuration(t, entryTime, *got.CheckedInAt, time.Second)
 }
@@ -196,8 +180,8 @@ func TestAttendanceSync_MirrorCheckIn_WalkIn_NotEnrolled(t *testing.T) {
 	require.NoError(t, checkInErr3)
 	require.NotNil(t, snap)
 	assert.True(t, snap.IsUnplanned)
-	assert.Equal(t, scheduleModels.AttendanceStatusPresent, snap.Status)
-	row, err := s.isRepo.FindByInstanceAndStudent(s.ctx, s.instance.ID, student.ID)
+	assert.Equal(t, studentpresence.SessionAttendancePresent, snap.Status)
+	row, err := s.Participants.FindByInstanceAndStudent(s.ctx, s.instance.ID, student.ID)
 	require.NoError(t, err)
 	require.NotNil(t, row)
 	assert.True(t, row.IsUnplanned)
@@ -219,7 +203,7 @@ func TestAttendanceSync_MirrorCheckIn_CompletedWalkInPersistsClosedInterval(t *t
 	require.NotNil(t, snap)
 	assert.True(t, snap.IsUnplanned)
 
-	row, err := s.isRepo.FindByInstanceAndStudent(s.ctx, s.instance.ID, student.ID)
+	row, err := s.Participants.FindByInstanceAndStudent(s.ctx, s.instance.ID, student.ID)
 	require.NoError(t, err)
 	require.NotNil(t, row)
 	require.NotNil(t, row.CheckedInAt)
@@ -244,7 +228,7 @@ func TestAttendanceSync_BulkSessionEndPersistsSlotCheckout(t *testing.T) {
 			s := buildAttendanceSyncSetup(t)
 			student := testpkg.CreateTestStudent(t, s.db, "AS-Bulk", fmt.Sprintf("B-%d", time.Now().UnixNano()), "3a")
 
-			row := seedInstanceStudent(t, s, student.ID, scheduleModels.AttendanceStatusExpected)
+			row := api.SeedAttendanceMirrorParticipant(func(err error) { require.NoError(t, err) }, s.ctx, s.TimetableOwnerRows, s.instance.ID, student.ID, testpkg.Tenant(t), studentpresence.SessionAttendanceExpected)
 			entryTime := time.Now().Add(-time.Hour)
 			checkInSnapshot5, checkInErr5 := s.syncer.MirrorCheckInForVisit(s.ctx, &studentpresence.Visit{
 				StudentID: student.ID, ActiveGroupID: s.activeGroup.ID, EntryTime: entryTime,
@@ -253,7 +237,7 @@ func TestAttendanceSync_BulkSessionEndPersistsSlotCheckout(t *testing.T) {
 			require.NotNil(t, checkInSnapshot5)
 			testpkg.CreateTestVisit(t, s.db, student.ID, s.activeGroup.ID, entryTime, nil)
 
-			factory, err := api.NewServiceGraphForTests(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))), testpkg.NewDatabase(t, s.db), slog.Default())
+			factoryActive, err := api.NewTestActivePresence(testpkg.NewDatabase(t, s.db), slog.Default())
 			require.NoError(t, err)
 			if tt.timeout {
 				device := testpkg.CreateTestDevice(t, s.db, fmt.Sprintf("AS-Bulk-%d", time.Now().UnixNano()))
@@ -263,13 +247,13 @@ func TestAttendanceSync_BulkSessionEndPersistsSlotCheckout(t *testing.T) {
 					Where("id = ?", s.activeGroup.ID).
 					Exec(s.ctx)
 				require.NoError(t, err)
-				_, err = factory.Active.ProcessSessionTimeout(s.ctx, device.ID)
+				_, err = factoryActive.ProcessSessionTimeout(s.ctx, device.ID)
 			} else {
-				err = factory.Active.EndActivitySession(s.ctx, s.activeGroup.ID)
+				err = factoryActive.EndActivitySession(s.ctx, s.activeGroup.ID)
 			}
 			require.NoError(t, err)
 
-			got, err := s.isRepo.FindByID(s.ctx, row.ID)
+			got, err := s.Participants.FindByID(s.ctx, row.ID)
 			require.NoError(t, err)
 			require.NotNil(t, got.CheckedOutAt, "bulk-ended visit must close its slot attendance")
 			assert.False(t, got.CheckedOutAt.Before(entryTime))
@@ -283,7 +267,7 @@ func TestAttendancePerCareSlot_MorningPresentAfternoonSickAndClearIndependent(t 
 	s := buildAttendanceSyncSetup(t)
 	student := testpkg.CreateTestStudent(t, s.db, "AS-Slots", fmt.Sprintf("S-%d", time.Now().UnixNano()), "3a")
 
-	morning := seedInstanceStudent(t, s, student.ID, scheduleModels.AttendanceStatusExpected)
+	morning := api.SeedAttendanceMirrorParticipant(func(err error) { require.NoError(t, err) }, s.ctx, s.TimetableOwnerRows, s.instance.ID, student.ID, testpkg.Tenant(t), studentpresence.SessionAttendanceExpected)
 	morningCheckIn := time.Date(2026, 4, 21, 5, 5, 0, 0, time.UTC)
 	morningCheckOut := time.Date(2026, 4, 21, 6, 0, 0, 0, time.UTC)
 	checkInSnapshot6, checkInErr6 := s.syncer.MirrorCheckInForVisit(s.ctx, &studentpresence.Visit{
@@ -298,20 +282,20 @@ func TestAttendancePerCareSlot_MorningPresentAfternoonSickAndClearIndependent(t 
 	require.NoError(t, checkoutErr)
 	require.NotNil(t, checkoutSnapshot)
 
-	afternoonInstance := &scheduleModels.ActivityInstance{
-		Date: scheduleModels.NewDate(2026, 4, 21), Title: fmt.Sprintf("AS-Afternoon-%d", time.Now().UnixNano()),
-		StartTime: time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
-		EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
-		RoomID:    s.roomID, Status: scheduleModels.InstanceStatusPlanned,
-	}
-	afternoonInstance.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, s.instRepo.Create(s.ctx, afternoonInstance))
-	afternoon := &scheduleModels.InstanceStudent{
-		InstanceID: afternoonInstance.ID, StudentID: student.ID,
-		Status: scheduleModels.AttendanceStatusExpected,
-	}
-	afternoon.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, s.isRepo.Create(s.ctx, afternoon))
+	afternoonInstance := api.NewAttendanceMirrorInstance()
+	afternoonInstance.Date = calendar.NewDate(2026, 4, 21)
+	afternoonInstance.Title = fmt.Sprintf("AS-Afternoon-%d", time.Now().UnixNano())
+	afternoonInstance.StartTime = time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC)
+	afternoonInstance.EndTime = time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC)
+	afternoonInstance.RoomID = s.roomID
+	afternoonInstance.TenantID = testpkg.Tenant(t)
+	require.NoError(t, s.Instances.Create(s.ctx, afternoonInstance))
+	afternoon := api.NewAttendanceMirrorParticipant()
+	afternoon.InstanceID = afternoonInstance.ID
+	afternoon.StudentID = student.ID
+	afternoon.Status = studentpresence.SessionAttendanceExpected
+	afternoon.TenantID = testpkg.Tenant(t)
+	require.NoError(t, s.Participants.Create(s.ctx, afternoon))
 
 	statusRepo := s.statusRepo
 	statusDay := &absencerecords.StudentStatusDay{
@@ -321,34 +305,34 @@ func TestAttendancePerCareSlot_MorningPresentAfternoonSickAndClearIndependent(t 
 	}
 	require.NoError(t, statusRepo.UpsertReported(s.ctx, statusDay))
 
-	gotMorning, err := s.isRepo.FindByID(s.ctx, morning.ID)
+	gotMorning, err := s.Participants.FindByID(s.ctx, morning.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusPresent, gotMorning.Status)
+	assert.Equal(t, studentpresence.SessionAttendancePresent, gotMorning.Status)
 	require.NotNil(t, gotMorning.CheckedOutAt)
 	assert.WithinDuration(t, morningCheckOut, *gotMorning.CheckedOutAt, time.Second)
 	assert.Nil(t, gotMorning.StudentStatusDayID, "observed morning attendance must not be owned by the later sickness")
 
-	gotAfternoon, err := s.isRepo.FindByID(s.ctx, afternoon.ID)
+	gotAfternoon, err := s.Participants.FindByID(s.ctx, afternoon.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, gotAfternoon.Status)
+	assert.Equal(t, studentpresence.SessionAttendanceAbsent, gotAfternoon.Status)
 	require.NotNil(t, gotAfternoon.Substatus)
-	assert.Equal(t, scheduleModels.AttendanceSubstatusSick, *gotAfternoon.Substatus)
+	assert.Equal(t, studentpresence.SessionAttendanceSubstatusSick, *gotAfternoon.Substatus)
 	require.NotNil(t, gotAfternoon.StudentStatusDayID)
 	assert.Equal(t, statusDay.ID, *gotAfternoon.StudentStatusDayID)
 
-	historyRows, err := s.isRepo.FindInstancesWithAttendanceByStudentAndDateRange(
+	historyRows, err := s.Participants.FindInstancesWithAttendanceByStudentAndDateRange(
 		s.ctx, student.ID, afternoonInstance.Date, afternoonInstance.Date,
 	)
 	require.NoError(t, err)
 	require.Len(t, historyRows, 2, "history and exports must retain one row per care slot")
 
 	require.NoError(t, statusRepo.MarkClearedByID(s.ctx, statusDay.ID, morningCheckOut.Add(time.Minute), absencerecords.StudentStatusSourceManual))
-	gotMorning, err = s.isRepo.FindByID(s.ctx, morning.ID)
+	gotMorning, err = s.Participants.FindByID(s.ctx, morning.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusPresent, gotMorning.Status)
-	gotAfternoon, err = s.isRepo.FindByID(s.ctx, afternoon.ID)
+	assert.Equal(t, studentpresence.SessionAttendancePresent, gotMorning.Status)
+	gotAfternoon, err = s.Participants.FindByID(s.ctx, afternoon.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusExpected, gotAfternoon.Status)
+	assert.Equal(t, studentpresence.SessionAttendanceExpected, gotAfternoon.Status)
 	assert.Nil(t, gotAfternoon.Substatus)
 }
 
@@ -362,16 +346,15 @@ func TestAttendanceSync_MirrorCheckIn_AlreadyPresent_NoClobber(t *testing.T) {
 
 	// Seed row as already-present with a stamped checked_in_at and a substatus
 	// — exactly what a post-hoc staff edit would leave.
-	excused := scheduleModels.AttendanceSubstatusExcused
-	row := &scheduleModels.InstanceStudent{
-		InstanceID:  s.instance.ID,
-		StudentID:   student.ID,
-		Status:      scheduleModels.AttendanceStatusPresent,
-		Substatus:   &excused,
-		CheckedInAt: &firstCheckin,
-	}
-	row.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, s.isRepo.Create(s.ctx, row))
+	excused := studentpresence.SessionAttendanceSubstatusExcused
+	row := api.NewAttendanceMirrorParticipant()
+	row.InstanceID = s.instance.ID
+	row.StudentID = student.ID
+	row.Status = studentpresence.SessionAttendancePresent
+	row.Substatus = &excused
+	row.CheckedInAt = &firstCheckin
+	row.TenantID = testpkg.Tenant(t)
+	require.NoError(t, s.Participants.Create(s.ctx, row))
 
 	// Second check-in — later time. Mirror MUST NOT overwrite checked_in_at
 	// or the substatus.
@@ -382,12 +365,12 @@ func TestAttendanceSync_MirrorCheckIn_AlreadyPresent_NoClobber(t *testing.T) {
 	})
 	require.NoError(t, checkInErr7)
 	require.NotNil(t, snap, "snapshot should still reflect current state for SSE")
-	assert.Equal(t, scheduleModels.AttendanceStatusPresent, snap.Status)
+	assert.Equal(t, studentpresence.SessionAttendancePresent, snap.Status)
 	require.NotNil(t, snap.Substatus)
-	assert.Equal(t, scheduleModels.AttendanceSubstatusExcused, *snap.Substatus)
+	assert.Equal(t, studentpresence.SessionAttendanceSubstatusExcused, *snap.Substatus)
 
 	// DB: original first-checkin timestamp must survive.
-	got, err := s.isRepo.FindByID(s.ctx, row.ID)
+	got, err := s.Participants.FindByID(s.ctx, row.ID)
 	require.NoError(t, err)
 	require.NotNil(t, got.CheckedInAt)
 	assert.WithinDuration(t, firstCheckin, *got.CheckedInAt, time.Second)
@@ -420,7 +403,7 @@ func TestAttendanceSync_MirrorCheckIn_TenantIsolation(t *testing.T) {
 
 	s := buildAttendanceSyncSetup(t)
 	student := testpkg.CreateTestStudent(t, s.db, "AS-Ten", fmt.Sprintf("T-%d", time.Now().UnixNano()), "3a")
-	seedInstanceStudent(t, s, student.ID, scheduleModels.AttendanceStatusExpected)
+	api.SeedAttendanceMirrorParticipant(func(err error) { require.NoError(t, err) }, s.ctx, s.TimetableOwnerRows, s.instance.ID, student.ID, testpkg.Tenant(t), studentpresence.SessionAttendanceExpected)
 
 	// Call with tenant 2 context — RLS should hide everything.
 	ctxT2 := testpkg.TenantContext(2)
@@ -442,16 +425,15 @@ func TestAttendanceSync_LoadAttendance_ReturnsSnapshot(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, s.db, "AS-Load", fmt.Sprintf("L-%d", time.Now().UnixNano()), "3a")
 
 	note := "bus verspätet"
-	late := scheduleModels.AttendanceSubstatusLate
-	row := &scheduleModels.InstanceStudent{
-		InstanceID: s.instance.ID,
-		StudentID:  student.ID,
-		Status:     scheduleModels.AttendanceStatusPresent,
-		Substatus:  &late,
-		Note:       &note,
-	}
-	row.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, s.isRepo.Create(s.ctx, row))
+	late := studentpresence.SessionAttendanceSubstatusLate
+	row := api.NewAttendanceMirrorParticipant()
+	row.InstanceID = s.instance.ID
+	row.StudentID = student.ID
+	row.Status = studentpresence.SessionAttendancePresent
+	row.Substatus = &late
+	row.Note = &note
+	row.TenantID = testpkg.Tenant(t)
+	require.NoError(t, s.Participants.Create(s.ctx, row))
 
 	snap, err := s.syncer.MirrorCheckOutForVisit(s.ctx, &studentpresence.Visit{
 		StudentID:     student.ID,
@@ -459,14 +441,14 @@ func TestAttendanceSync_LoadAttendance_ReturnsSnapshot(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, snap)
-	assert.Equal(t, scheduleModels.AttendanceStatusPresent, snap.Status)
+	assert.Equal(t, studentpresence.SessionAttendancePresent, snap.Status)
 	require.NotNil(t, snap.Substatus)
-	assert.Equal(t, scheduleModels.AttendanceSubstatusLate, *snap.Substatus)
+	assert.Equal(t, studentpresence.SessionAttendanceSubstatusLate, *snap.Substatus)
 	require.NotNil(t, snap.Note)
 	assert.Equal(t, "bus verspätet", *snap.Note)
 
 	// Read-only: row must be unchanged (including updated_at).
-	got, err := s.isRepo.FindByID(s.ctx, row.ID)
+	got, err := s.Participants.FindByID(s.ctx, row.ID)
 	require.NoError(t, err)
 	assert.Equal(t, row.UpdatedAt.UnixNano(), got.UpdatedAt.UnixNano(), "LoadAttendance must not mutate")
 }

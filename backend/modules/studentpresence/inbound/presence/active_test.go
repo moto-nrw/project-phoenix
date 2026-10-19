@@ -52,8 +52,8 @@ func (s *recordingEndActiveGroupService) EndSession(ctx context.Context, id int6
 func setupActiveRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := setupActiveModule(t)
-	resource := presenceAPI.NewResource(svc.PresenceOperations(), activePeople{source: svc.AttendancePeople()}, svc.TeacherGroupIDs, activeStaffAccess{source: svc.AttendanceStaff()}, svc.Settings, rootAPI.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(svc.WithAttendanceStaff), authorizationForTest(), tenantsettings.NewDisplaySettings(svc.Settings))
+	db, svc, svcPresence, svcPeople, svcEducation, svcCaller, svcCare := setupActiveModule(t)
+	resource := presenceAPI.NewResource(svcPresence.PresenceOperations(), activePeople{source: svcPeople.AttendancePeople()}, svcEducation.TeacherGroupIDs, activeStaffAccess{source: rootAPI.NewActiveTestAttendanceStaff(svcCaller)}, svc.Settings, rootAPI.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(svcCare.WithAttendanceStaff), authorizationForTest(), tenantsettings.NewDisplaySettings(svc.Settings))
 
 	return &testContext{
 		db:       db,

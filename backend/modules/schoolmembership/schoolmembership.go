@@ -243,6 +243,7 @@ type Query interface {
 }
 
 type Command interface {
+	StaffEmploymentCommands
 	CreateStaff(context.Context, CreateStaff) (Staff, error)
 	UpdateStaff(context.Context, UpdateStaff) (Staff, error)
 	// DeleteStaff soft-deletes the staff row (deleted_at), keeping it.
@@ -314,6 +315,8 @@ type engine interface {
 	ListStaff(context.Context, StaffFilter) ([]Staff, error)
 	CreateStaff(context.Context, CreateStaff) (Staff, error)
 	UpdateStaff(context.Context, UpdateStaff) (Staff, error)
+	UpdateEmploymentDetails(context.Context, UpdateEmploymentDetails) (Staff, error)
+	BindSchedule(context.Context, BindSchedule) (Staff, error)
 	DeleteStaff(context.Context, int64) error
 
 	FindTeacher(context.Context, int64) (Teacher, error)
@@ -341,7 +344,6 @@ type engine interface {
 	ReviseClassListEntry(context.Context, ReviseClassListEntry) (ClassListEntry, error)
 	RemoveClassListEntry(context.Context, RemoveClassListEntry) error
 	ResolveClassListEntry(context.Context, ResolveClassListEntry) error
-	BindClassListEntryAdministration(ClassListEntryStudents, ClassListEntryTrail)
 	// ReadInTenant runs read inside one read transaction of the context's
 	// tenant and fails when the context carries none.
 	ReadInTenant(ctx context.Context, read func(context.Context) error) error
@@ -544,24 +546,13 @@ func validateStaffFields(fields *StaffFields) error {
 	if fields.PersonID <= 0 {
 		return invalid("person ID is required")
 	}
-	if fields.EmploymentType != nil {
-		switch *fields.EmploymentType {
-		case EmploymentTypeFullTime, EmploymentTypePartTime, EmploymentTypeMinijob:
-		default:
-			return invalid("employment_type must be 'full_time', 'part_time', or 'minijob'")
-		}
+	if err := validateEmploymentType(fields.EmploymentType); err != nil {
+		return err
 	}
 	if fields.WorkTimeModelID != nil && *fields.WorkTimeModelID <= 0 {
 		return invalid("work time model ID must be positive")
 	}
-	if fields.PersonnelNumber != nil {
-		trimmed := strings.TrimSpace(*fields.PersonnelNumber)
-		if trimmed == "" {
-			fields.PersonnelNumber = nil
-		} else {
-			fields.PersonnelNumber = &trimmed
-		}
-	}
+	fields.PersonnelNumber = normalizePersonnelNumber(fields.PersonnelNumber)
 	return validateDate(fields.RotationAnchorDate, "rotation anchor date")
 }
 

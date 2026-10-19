@@ -59,7 +59,7 @@
       "backend/modules/schoolstructure/internal/adapters/postgres/groups/group_substitution_repository_test.go",
       "backend/modules/schoolstructure/internal/adapters/postgres/groups/staff_projection_test.go",
       "backend/modules/schoolstructure/internal/application/groups/substitution_module_test.go",
-      "backend/modules/peopledirectory/contracttest/student_deletion_workflow_test.go",
+      "backend/workflows/studentdeletion/student_deletion_workflow_test.go",
       "backend/test/isolation_test.go"
     ],
     "workload": "No load run. Go suites through scripts/run-go-toolchain.sh and scripts/test-changed.sh origin/development against the local postgres-test server, per-test tenants, default package parallelism.",

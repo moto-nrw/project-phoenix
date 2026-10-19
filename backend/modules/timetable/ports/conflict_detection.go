@@ -5,10 +5,12 @@ import (
 	"log/slog"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	activitiesModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/activityrecords"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -17,9 +19,9 @@ import (
 // bridged to running sessions through the retained List(options) read, which
 // the repository serves beside this interface.
 type ConflictInstances interface {
-	FindByID(ctx context.Context, id any) (*scheduleModels.ActivityInstance, error)
-	FindByTenantAndDateRange(ctx context.Context, from, to scheduleModels.Date) ([]*scheduleModels.ActivityInstance, error)
-	FindByActivityGroupAndDateRange(ctx context.Context, activityGroupID int64, from, to scheduleModels.Date) ([]*scheduleModels.ActivityInstance, error)
+	FindByID(ctx context.Context, id int64) (*scheduleModels.ActivityInstance, error)
+	FindByTenantAndDateRange(ctx context.Context, from, to calendar.Date) ([]*scheduleModels.ActivityInstance, error)
+	FindByActivityGroupAndDateRange(ctx context.Context, activityGroupID int64, from, to calendar.Date) ([]*scheduleModels.ActivityInstance, error)
 }
 
 // ConflictInstanceStaff reads the staff rows of blocks.
@@ -36,21 +38,21 @@ type ConflictInstanceStudents interface {
 
 // ConflictExceptions reads activity exceptions by window.
 type ConflictExceptions interface {
-	FindByDateRange(ctx context.Context, from, to scheduleModels.Date) ([]*scheduleModels.ActivityException, error)
-	FindByActivityGroupAndDateRange(ctx context.Context, activityGroupID int64, from, to scheduleModels.Date) ([]*scheduleModels.ActivityException, error)
+	FindByDateRange(ctx context.Context, from, to calendar.Date) ([]*scheduleModels.ActivityException, error)
+	FindByActivityGroupAndDateRange(ctx context.Context, activityGroupID int64, from, to calendar.Date) ([]*scheduleModels.ActivityException, error)
 }
 
 // ConflictSchedules reads the template schedules of activity groups.
 type ConflictSchedules interface {
-	FindByGroupID(ctx context.Context, groupID int64) ([]*activitiesModels.Schedule, error)
+	FindByGroupID(ctx context.Context, groupID int64) ([]*activityContract.Schedule, error)
 	FindTemplateStartTimesByGroupIDs(ctx context.Context, groupIDs []int64) ([]*activitiesModels.TemplateStartTime, error)
 }
 
 // ConflictShifts reads the Dienstplan rows of Workforce.
 type ConflictShifts interface {
-	FindByDateRange(ctx context.Context, start, end scheduleModels.Date) ([]*scheduleModels.StaffShift, error)
-	FindByStaffIDsAndDates(ctx context.Context, staffIDs []int64, dates []scheduleModels.Date) ([]*scheduleModels.StaffShift, error)
-	FindUsedCalendarWeeks(ctx context.Context, start, end scheduleModels.Date) ([]scheduleModels.Date, error)
+	FindByDateRange(ctx context.Context, start, end calendar.Date) ([]*scheduleModels.StaffShift, error)
+	FindByStaffIDsAndDates(ctx context.Context, staffIDs []int64, dates []calendar.Date) ([]*scheduleModels.StaffShift, error)
+	FindUsedCalendarWeeks(ctx context.Context, start, end calendar.Date) ([]calendar.Date, error)
 }
 
 // ConflictStaffDirectory reads staff members with their person rows.
@@ -62,12 +64,12 @@ type ConflictStaffDirectory interface {
 // ConflictCalendarPeriods reads one calendar period; a missing period is a
 // not-found error.
 type ConflictCalendarPeriods interface {
-	FindByID(ctx context.Context, id any) (*scheduleModels.CalendarPeriod, error)
+	FindByID(ctx context.Context, id int64) (*scheduleModels.CalendarPeriod, error)
 }
 
 // ConflictArrivalExceptions reads the dated arrival exceptions of students.
 type ConflictArrivalExceptions interface {
-	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date scheduleModels.Date) ([]*scheduleModels.StudentArrivalException, error)
+	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*scheduleModels.StudentArrivalException, error)
 }
 
 // ConflictPresence supplies the current visits and staff supervisions of
@@ -103,6 +105,7 @@ type ArrivalBaselines interface {
 // optional; without it the exception-conflict read fails once it needs a
 // recurring arrival.
 type ConflictDetectionDependencies struct {
+	RunInTx           func(context.Context, func(context.Context) error) error
 	Instances         ConflictInstances
 	InstanceStaff     ConflictInstanceStaff
 	InstanceStudents  ConflictInstanceStudents

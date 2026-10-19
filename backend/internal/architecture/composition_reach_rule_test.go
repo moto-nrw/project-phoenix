@@ -202,13 +202,13 @@ func compositionReachPolicies(t *testing.T) (*Policy, *Policy) {
 func TestCompositionReachRulesPassOnlyInAReviewedEpoch(t *testing.T) {
 	t.Parallel()
 	base, candidate := compositionReachPolicies(t)
-	if err := comparePolicyStrictness(base, candidate, noCreated(), noCreated(), noCreated(), noCreated(), noCreated()); err != nil {
+	if err := comparePolicyStrictness(base, candidate, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil); err != nil {
 		t.Fatalf("reviewed composition reaches were rejected: %v", err)
 	}
 
 	unreviewed := *candidate
 	unreviewed.PolicyEpoch = base.PolicyEpoch
-	err := comparePolicyStrictness(base, &unreviewed, noCreated(), noCreated(), noCreated(), noCreated(), noCreated())
+	err := comparePolicyStrictness(base, &unreviewed, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil)
 	if err == nil {
 		t.Fatal("the composition reaches passed without an epoch increase")
 	}

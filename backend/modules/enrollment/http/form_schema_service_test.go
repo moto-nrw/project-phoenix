@@ -9,7 +9,6 @@ import (
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +20,7 @@ func setupSchemaTest(t *testing.T) (*bun.DB, capability.FormSchemaAdministration
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	repoFactory := flowRepositories(t, db)
+	repoFactory, _, _, _, _, _ := flowRepositories(t, db)
 	svc := NewTestFormSchemas(repoFactory.Enrollment())
 
 	// Need a real auth.accounts row to satisfy the created_by FK.
@@ -43,7 +42,7 @@ func setupSchemaTest(t *testing.T) (*bun.DB, capability.FormSchemaAdministration
 
 func agbPDFBlock(documentURL string) capability.FormLegalBlock {
 	return capability.FormLegalBlock{
-		Key:         enrollmentModels.ConsentKeyAGB,
+		Key:         capability.ConsentKeyAGB,
 		Kind:        capability.LegalBlockKindTerms,
 		Title:       "AGB / Teilnahmebedingungen",
 		Label:       "Ich akzeptiere die AGB.",
@@ -65,14 +64,16 @@ func TestFormSchemaService_CreateSchema_CreatesActive(t *testing.T) {
 	fields := []capability.FormField{
 		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldTextarea, SortOrder: 0},
 	}
-	schema, err := svc.CreateSchema(ctx, "Standardformular", fields, creatorID)
+	schema, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*capability.FormSchema, error) {
+		return svc.CreateSchema(txCtx, "Standardformular", fields, creatorID)
+	})
 	require.NoError(t, err)
 	assert.True(t, schema.IsActive)
 	assert.Equal(t, 1, schema.Version)
 	assert.Len(t, schema.Fields, 1)
 
 	// GetActive should now return this schema.
-	active, err := svc.GetActive(ctx)
+	active, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), svc.GetActive)
 	require.NoError(t, err)
 	assert.Equal(t, schema.ID, active.ID)
 }
@@ -89,21 +90,25 @@ func TestFormSchemaService_UpdateSchema_KeepsAllVersionsActive(t *testing.T) {
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	v1, err := svc.CreateSchema(ctx, "Standardformular", []capability.FormField{
-		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
-	}, creatorID)
+	v1, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*capability.FormSchema, error) {
+		return svc.CreateSchema(txCtx, "Standardformular", []capability.FormField{
+			{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
+		}, creatorID)
+	})
 	require.NoError(t, err)
 	assert.True(t, v1.IsActive)
 
-	v2, err := svc.UpdateSchema(ctx, v1.ID, []capability.FormField{
-		{Key: "diet", Label: "Ernährung", Type: capability.FormFieldText, SortOrder: 0},
-	}, creatorID)
+	v2, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*capability.FormSchema, error) {
+		return svc.UpdateSchema(txCtx, v1.ID, []capability.FormField{
+			{Key: "diet", Label: "Ernährung", Type: capability.FormFieldText, SortOrder: 0},
+		}, creatorID)
+	})
 	require.NoError(t, err)
 	assert.True(t, v2.IsActive)
 	assert.Equal(t, 2, v2.Version)
 
 	// v1 STAYS active (was deactivated under the old single-schema flow).
-	v1Refetched, err := svc.SchemaVersion(ctx, v1.ID)
+	v1Refetched, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.SchemaVersion, v1.ID)
 	require.NoError(t, err)
 	assert.True(t, v1Refetched.IsActive,
 		"previous version must remain active under multi-schema semantics")
@@ -115,7 +120,7 @@ func TestFormSchemaService_GetActive_NoRowsErrSentinel(t *testing.T) {
 	_, svc, _, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	_, err := svc.GetActive(ctx)
+	_, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), svc.GetActive)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, capability.ErrNoActiveSchema),
 		"GetActive on a tenant with no schema must return ErrNoActiveSchema")
@@ -127,9 +132,11 @@ func TestFormSchemaService_CreateSchema_RejectsCoreFieldKey(t *testing.T) {
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	_, err := svc.CreateSchema(ctx, "Standardformular", []capability.FormField{
-		{Key: "guardian_email", Label: "Email", Type: capability.FormFieldText, SortOrder: 0},
-	}, creatorID)
+	_, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*capability.FormSchema, error) {
+		return svc.CreateSchema(txCtx, "Standardformular", []capability.FormField{
+			{Key: "guardian_email", Label: "Email", Type: capability.FormFieldText, SortOrder: 0},
+		}, creatorID)
+	})
 	require.Error(t, err, "schema with a reserved core key must be rejected")
 }
 
@@ -139,10 +146,12 @@ func TestFormSchemaService_CreateSchema_RejectsDuplicateKey(t *testing.T) {
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	_, err := svc.CreateSchema(ctx, "Standardformular", []capability.FormField{
-		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
-		{Key: "allergies", Label: "Doppelt", Type: capability.FormFieldText, SortOrder: 1},
-	}, creatorID)
+	_, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*capability.FormSchema, error) {
+		return svc.CreateSchema(txCtx, "Standardformular", []capability.FormField{
+			{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
+			{Key: "allergies", Label: "Doppelt", Type: capability.FormFieldText, SortOrder: 1},
+		}, creatorID)
+	})
 	require.Error(t, err, "duplicate keys must be rejected")
 }
 
@@ -153,16 +162,9 @@ func TestFormSchemaService_CreateSchemaWithLegal_NormalizesTenantDocumentURL(t *
 	ctx := testpkg.TenantContext(tenantID)
 	documentURL := fmt.Sprintf("/api/public/enrollment-form-legal-documents/%d_terms.pdf", tenantID)
 
-	schema, err := svc.CreateSchemaWithLegal(
-		ctx,
-		"PDF-Rechtstext",
-		[]capability.FormField{
-			{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
-		},
-		creatorID,
-		capability.CoreRequirements{},
-		[]capability.FormLegalBlock{agbPDFBlock(documentURL)},
-	)
+	schema, err := testpkg.TenantQuery5(t, ctx, testpkg.SetupTestDB(t), svc.CreateSchemaWithLegal, "PDF-Rechtstext", []capability.FormField{
+		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
+	}, creatorID, capability.CoreRequirements{}, []capability.FormLegalBlock{agbPDFBlock(documentURL)})
 
 	require.NoError(t, err)
 	require.Len(t, schema.LegalBlocks, 1)
@@ -179,16 +181,9 @@ func TestFormSchemaService_CreateSchemaWithLegal_AcceptsTenantSettingsDocumentUR
 	ctx := testpkg.TenantContext(tenantID)
 	documentURL := fmt.Sprintf("/api/public/enrollment-legal-documents/%d_terms.pdf", tenantID)
 
-	schema, err := svc.CreateSchemaWithLegal(
-		ctx,
-		"PDF aus Einstellungen",
-		[]capability.FormField{
-			{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
-		},
-		creatorID,
-		capability.CoreRequirements{},
-		[]capability.FormLegalBlock{agbPDFBlock(documentURL)},
-	)
+	schema, err := testpkg.TenantQuery5(t, ctx, testpkg.SetupTestDB(t), svc.CreateSchemaWithLegal, "PDF aus Einstellungen", []capability.FormField{
+		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
+	}, creatorID, capability.CoreRequirements{}, []capability.FormLegalBlock{agbPDFBlock(documentURL)})
 
 	require.NoError(t, err)
 	require.Len(t, schema.LegalBlocks, 1)
@@ -205,16 +200,9 @@ func TestFormSchemaService_CreateSchemaWithLegal_RejectsForeignDocumentURL(t *te
 	ctx := testpkg.TenantContext(tenantID)
 	documentURL := fmt.Sprintf("/uploads/enrollment-form-legal-documents/%d_terms.pdf", tenantID+1)
 
-	_, err := svc.CreateSchemaWithLegal(
-		ctx,
-		"Fremde PDF",
-		[]capability.FormField{
-			{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
-		},
-		creatorID,
-		capability.CoreRequirements{},
-		[]capability.FormLegalBlock{agbPDFBlock(documentURL)},
-	)
+	_, err := testpkg.TenantQuery5(t, ctx, testpkg.SetupTestDB(t), svc.CreateSchemaWithLegal, "Fremde PDF", []capability.FormField{
+		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
+	}, creatorID, capability.CoreRequirements{}, []capability.FormLegalBlock{agbPDFBlock(documentURL)})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid PDF document URL")
@@ -227,16 +215,9 @@ func TestFormSchemaService_CreateSchemaWithLegal_RejectsForeignSettingsDocumentU
 	ctx := testpkg.TenantContext(tenantID)
 	documentURL := fmt.Sprintf("/uploads/enrollment-legal-documents/%d_terms.pdf", tenantID+1)
 
-	_, err := svc.CreateSchemaWithLegal(
-		ctx,
-		"Fremde Settings-PDF",
-		[]capability.FormField{
-			{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
-		},
-		creatorID,
-		capability.CoreRequirements{},
-		[]capability.FormLegalBlock{agbPDFBlock(documentURL)},
-	)
+	_, err := testpkg.TenantQuery5(t, ctx, testpkg.SetupTestDB(t), svc.CreateSchemaWithLegal, "Fremde Settings-PDF", []capability.FormField{
+		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
+	}, creatorID, capability.CoreRequirements{}, []capability.FormLegalBlock{agbPDFBlock(documentURL)})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid PDF document URL")
@@ -251,16 +232,9 @@ func TestFormSchemaService_CreateSchemaWithLegal_ClearsDocumentURLInTextMode(t *
 	block.DisplayMode = capability.LegalBlockDisplayModeText
 	block.Text = "AGB als Text"
 
-	schema, err := svc.CreateSchemaWithLegal(
-		ctx,
-		"Text-Rechtstext",
-		[]capability.FormField{
-			{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
-		},
-		creatorID,
-		capability.CoreRequirements{},
-		[]capability.FormLegalBlock{block},
-	)
+	schema, err := testpkg.TenantQuery5(t, ctx, testpkg.SetupTestDB(t), svc.CreateSchemaWithLegal, "Text-Rechtstext", []capability.FormField{
+		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
+	}, creatorID, capability.CoreRequirements{}, []capability.FormLegalBlock{block})
 
 	require.NoError(t, err)
 	require.Len(t, schema.LegalBlocks, 1)
@@ -278,14 +252,18 @@ func TestFormSchemaService_ListVersions_ReturnsNewestFirst(t *testing.T) {
 	fields := []capability.FormField{
 		{Key: "field", Label: "Feld", Type: capability.FormFieldText, SortOrder: 0},
 	}
-	latest, err := svc.CreateSchema(ctx, "Standardformular", fields, creatorID)
+	latest, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*capability.FormSchema, error) {
+		return svc.CreateSchema(txCtx, "Standardformular", fields, creatorID)
+	})
 	require.NoError(t, err)
 	for i := 0; i < 2; i++ {
-		latest, err = svc.UpdateSchema(ctx, latest.ID, fields, creatorID)
+		latest, err = testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*capability.FormSchema, error) {
+			return svc.UpdateSchema(txCtx, latest.ID, fields, creatorID)
+		})
 		require.NoError(t, err)
 	}
 
-	list, err := svc.ListVersions(ctx)
+	list, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), svc.ListVersions)
 	require.NoError(t, err)
 	require.Len(t, list, 3)
 	assert.Equal(t, 3, list[0].Version)
@@ -308,18 +286,22 @@ func TestFormSchemaService_RenameSchema_RenamesWholeLineage(t *testing.T) {
 	field := []capability.FormField{
 		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
 	}
-	created, err := svc.CreateSchema(ctx, "Ferienbetreuung", field, creatorID)
+	created, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*capability.FormSchema, error) {
+		return svc.CreateSchema(txCtx, "Ferienbetreuung", field, creatorID)
+	})
 	require.NoError(t, err)
 	// Add a second version so we can assert the rename hits every row.
-	v2, err := svc.UpdateSchema(ctx, created.ID, field, creatorID)
+	v2, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*capability.FormSchema, error) {
+		return svc.UpdateSchema(txCtx, created.ID, field, creatorID)
+	})
 	require.NoError(t, err)
 	require.Equal(t, 2, v2.Version)
 
-	renamed, err := svc.RenameSchema(ctx, created.ID, "  Ferienprogramm  ")
+	renamed, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), svc.RenameSchema, created.ID, "  Ferienprogramm  ")
 	require.NoError(t, err)
 	assert.Equal(t, "Ferienprogramm", renamed.Name, "service must trim the name")
 
-	list, err := svc.ListVersions(ctx)
+	list, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), svc.ListVersions)
 	require.NoError(t, err)
 	require.Len(t, list, 2)
 	for _, s := range list {
@@ -337,12 +319,16 @@ func TestFormSchemaService_RenameSchema_RejectsCollisionWithOtherSchema(t *testi
 	field := []capability.FormField{
 		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
 	}
-	a, err := svc.CreateSchema(ctx, "Schuljahr", field, creatorID)
+	a, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*capability.FormSchema, error) {
+		return svc.CreateSchema(txCtx, "Schuljahr", field, creatorID)
+	})
 	require.NoError(t, err)
-	_, err = svc.CreateSchema(ctx, "Ferien", field, creatorID)
+	_, err = testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*capability.FormSchema, error) {
+		return svc.CreateSchema(txCtx, "Ferien", field, creatorID)
+	})
 	require.NoError(t, err)
 
-	_, err = svc.RenameSchema(ctx, a.ID, "Ferien")
+	_, err = testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), svc.RenameSchema, a.ID, "Ferien")
 	require.ErrorIs(t, err, capability.ErrFormSchemaNameExists,
 		"renaming onto an existing schema name must be refused, not split the lineage")
 }
@@ -356,12 +342,14 @@ func TestFormSchemaService_RenameSchema_SameNameIsNoOp(t *testing.T) {
 	field := []capability.FormField{
 		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
 	}
-	created, err := svc.CreateSchema(ctx, "Schuljahr", field, creatorID)
+	created, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*capability.FormSchema, error) {
+		return svc.CreateSchema(txCtx, "Schuljahr", field, creatorID)
+	})
 	require.NoError(t, err)
 
 	// Renaming to the unchanged name must not trip the collision check
 	// against the schema's own rows.
-	renamed, err := svc.RenameSchema(ctx, created.ID, "Schuljahr")
+	renamed, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), svc.RenameSchema, created.ID, "Schuljahr")
 	require.NoError(t, err)
 	assert.Equal(t, "Schuljahr", renamed.Name)
 }
@@ -372,12 +360,14 @@ func TestFormSchemaService_RenameSchema_RejectsEmptyName(t *testing.T) {
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	created, err := svc.CreateSchema(ctx, "Schuljahr", []capability.FormField{
-		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
-	}, creatorID)
+	created, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*capability.FormSchema, error) {
+		return svc.CreateSchema(txCtx, "Schuljahr", []capability.FormField{
+			{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
+		}, creatorID)
+	})
 	require.NoError(t, err)
 
-	_, err = svc.RenameSchema(ctx, created.ID, "   ")
+	_, err = testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), svc.RenameSchema, created.ID, "   ")
 	require.Error(t, err, "a blank name must be rejected")
 }
 
@@ -387,7 +377,7 @@ func TestFormSchemaService_RenameSchema_RejectsNonPositiveID(t *testing.T) {
 	_, svc, _, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	_, err := svc.RenameSchema(ctx, 0, "Egal")
+	_, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), svc.RenameSchema, 0, "Egal")
 	require.ErrorIs(t, err, capability.ErrFormSchemaNotFound,
 		"a non-positive id can never identify a schema")
 }
@@ -400,7 +390,7 @@ func TestFormSchemaService_RenameSchema_MissingSchemaReturnsNotFound(t *testing.
 
 	// No row carries this id, so FindByID returns sql.ErrNoRows wrapped in a
 	// DatabaseError; the service must map that to the typed not-found sentinel.
-	_, err := svc.RenameSchema(ctx, 999999999, "Egal")
+	_, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), svc.RenameSchema, 999999999, "Egal")
 	require.ErrorIs(t, err, capability.ErrFormSchemaNotFound)
 }
 
@@ -424,10 +414,10 @@ func TestFormSchemaService_ActiveReadFailureStopsPublish(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	unavailable := errors.New("schema storage unavailable")
 	svc := newSchemaServiceWithOwner(activeSchemaReadFailure{err: unavailable})
-	_, err := svc.GetActive(ctx)
+	_, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), svc.GetActive)
 	require.ErrorIs(t, err, unavailable)
 	require.NotErrorIs(t, err, capability.ErrNoActiveSchema)
-	_, err = svc.PublishForm(ctx, capability.PublishFormInput{})
+	_, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.PublishForm, capability.PublishFormInput{})
 	require.ErrorIs(t, err, unavailable, "a read failure must not enter the default-schema creation path")
 }
 
@@ -452,7 +442,9 @@ func TestFormSchemaService_RenameAndPublishConcurrently_NeverSplitsLineage(t *te
 	// (rename keeps row ids), so both operations can reference it forever.
 	var lineageID int64
 	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		created, err := svc.CreateSchema(ctx, "Konzert", field, creatorID)
+		created, err := testpkg.TenantQuery0(t, ctx, db, func(txCtx context.Context) (*capability.FormSchema, error) {
+			return svc.CreateSchema(txCtx, "Konzert", field, creatorID)
+		})
 		if err != nil {
 			return err
 		}
@@ -468,14 +460,16 @@ func TestFormSchemaService_RenameAndPublishConcurrently_NeverSplitsLineage(t *te
 		go func() {
 			defer wg.Done()
 			renameErr = testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-				_, err := svc.RenameSchema(ctx, lineageID, target)
+				_, err := testpkg.TenantQuery2(t, ctx, db, svc.RenameSchema, lineageID, target)
 				return err
 			})
 		}()
 		go func() {
 			defer wg.Done()
 			publishErr = testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-				_, err := svc.UpdateSchema(ctx, lineageID, field, creatorID)
+				_, err := testpkg.TenantQuery0(t, ctx, db, func(txCtx context.Context) (*capability.FormSchema, error) {
+					return svc.UpdateSchema(txCtx, lineageID, field, creatorID)
+				})
 				return err
 			})
 		}()
@@ -485,7 +479,7 @@ func TestFormSchemaService_RenameAndPublishConcurrently_NeverSplitsLineage(t *te
 
 		names := make(map[string]struct{})
 		require.NoError(t, testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-			versions, err := svc.ListVersions(ctx)
+			versions, err := testpkg.TenantQuery0(t, ctx, db, svc.ListVersions)
 			if err != nil {
 				return err
 			}
@@ -518,7 +512,9 @@ func TestFormSchemaService_RenameThenFailedPublish_RollsBackRename(t *testing.T)
 
 	var lineageID int64
 	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		created, err := svc.CreateSchema(ctx, "Sommerfest", field, creatorID)
+		created, err := testpkg.TenantQuery0(t, ctx, db, func(txCtx context.Context) (*capability.FormSchema, error) {
+			return svc.CreateSchema(txCtx, "Sommerfest", field, creatorID)
+		})
 		if err != nil {
 			return err
 		}
@@ -530,7 +526,7 @@ func TestFormSchemaService_RenameThenFailedPublish_RollsBackRename(t *testing.T)
 	// rename back when the subsequent publication rejects a reserved core key.
 	newName := "Herbstfest"
 	ctx := testpkg.WithTenantRuntime(t, testpkg.TenantContext(tenantID), db)
-	failed, txErr := svc.PublishFormVersion(ctx, capability.PublishFormVersionInput{
+	failed, txErr := testpkg.TenantQuery1(t, ctx, db, svc.PublishFormVersion, capability.PublishFormVersionInput{
 		ID: lineageID, Name: &newName, ActorID: creatorID,
 		Fields: []capability.FormField{
 			{Key: "guardian_email", Label: "Email", Type: capability.FormFieldText, SortOrder: 0},
@@ -543,7 +539,7 @@ func TestFormSchemaService_RenameThenFailedPublish_RollsBackRename(t *testing.T)
 	// Neither change committed: the name is still the original and no new
 	// version row was inserted.
 	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		versions, err := svc.ListVersions(ctx)
+		versions, err := testpkg.TenantQuery0(t, ctx, db, svc.ListVersions)
 		if err != nil {
 			return err
 		}
@@ -552,13 +548,13 @@ func TestFormSchemaService_RenameThenFailedPublish_RollsBackRename(t *testing.T)
 			"the rename must roll back when the publish in the same transaction fails")
 		return nil
 	}))
-	retried, err := svc.PublishFormVersion(ctx, capability.PublishFormVersionInput{
+	retried, err := testpkg.TenantQuery1(t, ctx, db, svc.PublishFormVersion, capability.PublishFormVersionInput{
 		ID: lineageID, Name: &newName, ActorID: creatorID, Fields: field,
 	})
 	require.NoError(t, err)
 	require.Equal(t, 2, retried.Version, "rollback must not consume a version")
 	require.Equal(t, newName, retried.Name)
-	versions, err := svc.ListVersions(ctx)
+	versions, err := testpkg.TenantQuery0(t, ctx, db, svc.ListVersions)
 	require.NoError(t, err)
 	require.Len(t, versions, 2)
 	for _, version := range versions {
@@ -580,7 +576,7 @@ func TestFormSchemaService_PublishForm_WithNameCreatesNamedSchema(t *testing.T) 
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	schema, err := svc.PublishForm(ctx, capability.PublishFormInput{
+	schema, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.PublishForm, capability.PublishFormInput{
 		Name:    "Klassenanmeldung",
 		Fields:  publishFormFields(),
 		ActorID: creatorID,
@@ -598,7 +594,7 @@ func TestFormSchemaService_PublishForm_NoNameNoActiveCreatesStandardformular(t *
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	schema, err := svc.PublishForm(ctx, capability.PublishFormInput{
+	schema, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.PublishForm, capability.PublishFormInput{
 		Fields:  publishFormFields(),
 		ActorID: creatorID,
 	})
@@ -614,7 +610,7 @@ func TestFormSchemaService_PublishForm_NoNameWithActiveUpdatesActive(t *testing.
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	first, err := svc.PublishForm(ctx, capability.PublishFormInput{
+	first, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.PublishForm, capability.PublishFormInput{
 		Name:    "Standardformular",
 		Fields:  publishFormFields(),
 		ActorID: creatorID,
@@ -622,7 +618,7 @@ func TestFormSchemaService_PublishForm_NoNameWithActiveUpdatesActive(t *testing.
 	require.NoError(t, err)
 	require.Equal(t, 1, first.Version)
 
-	second, err := svc.PublishForm(ctx, capability.PublishFormInput{
+	second, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.PublishForm, capability.PublishFormInput{
 		Fields: []capability.FormField{
 			{Key: "diet", Label: "Diät", Type: capability.FormFieldText, SortOrder: 0},
 		},
@@ -640,7 +636,7 @@ func TestFormSchemaService_PublishFormVersion_WithNameRenamesAndPublishes(t *tes
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	first, err := svc.PublishForm(ctx, capability.PublishFormInput{
+	first, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.PublishForm, capability.PublishFormInput{
 		Name:    "Ferienprogramm alt",
 		Fields:  publishFormFields(),
 		ActorID: creatorID,
@@ -648,7 +644,7 @@ func TestFormSchemaService_PublishFormVersion_WithNameRenamesAndPublishes(t *tes
 	require.NoError(t, err)
 
 	newName := "Ferienprogramm neu"
-	version, err := svc.PublishFormVersion(ctx, capability.PublishFormVersionInput{
+	version, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.PublishFormVersion, capability.PublishFormVersionInput{
 		ID:      first.ID,
 		Name:    &newName,
 		Fields:  publishFormFields(),
@@ -659,7 +655,7 @@ func TestFormSchemaService_PublishFormVersion_WithNameRenamesAndPublishes(t *tes
 		"a name in the PUT body renames the lineage AND publishes the new version")
 	assert.Equal(t, 2, version.Version)
 
-	versions, err := svc.ListVersions(ctx)
+	versions, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), svc.ListVersions)
 	require.NoError(t, err)
 	for _, v := range versions {
 		assert.Equal(t, "Ferienprogramm neu", v.Name,
@@ -673,7 +669,7 @@ func TestFormSchemaService_PublishFormVersion_BlankNameSkipsRename(t *testing.T)
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	first, err := svc.PublishForm(ctx, capability.PublishFormInput{
+	first, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.PublishForm, capability.PublishFormInput{
 		Name:    "Klassenanmeldung",
 		Fields:  publishFormFields(),
 		ActorID: creatorID,
@@ -681,7 +677,7 @@ func TestFormSchemaService_PublishFormVersion_BlankNameSkipsRename(t *testing.T)
 	require.NoError(t, err)
 
 	blank := "   "
-	version, err := svc.PublishFormVersion(ctx, capability.PublishFormVersionInput{
+	version, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.PublishFormVersion, capability.PublishFormVersionInput{
 		ID:      first.ID,
 		Name:    &blank,
 		Fields:  publishFormFields(),
@@ -699,13 +695,13 @@ func TestFormSchemaService_PublishFormVersion_RenameCollisionWrapsError(t *testi
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	target, err := svc.PublishForm(ctx, capability.PublishFormInput{
+	target, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.PublishForm, capability.PublishFormInput{
 		Name:    "Anmeldung A",
 		Fields:  publishFormFields(),
 		ActorID: creatorID,
 	})
 	require.NoError(t, err)
-	_, err = svc.PublishForm(ctx, capability.PublishFormInput{
+	_, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.PublishForm, capability.PublishFormInput{
 		Name:    "Anmeldung B",
 		Fields:  publishFormFields(),
 		ActorID: creatorID,
@@ -713,7 +709,7 @@ func TestFormSchemaService_PublishFormVersion_RenameCollisionWrapsError(t *testi
 	require.NoError(t, err)
 
 	collidingName := "Anmeldung B"
-	_, err = svc.PublishFormVersion(ctx, capability.PublishFormVersionInput{
+	_, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.PublishFormVersion, capability.PublishFormVersionInput{
 		ID:      target.ID,
 		Name:    &collidingName,
 		Fields:  publishFormFields(),
@@ -726,7 +722,7 @@ func TestFormSchemaService_PublishFormVersion_RenameCollisionWrapsError(t *testi
 	assert.ErrorAs(t, err, &renameErr,
 		"a rename-step failure is wrapped so the handler can map it distinctly")
 
-	versions, err := svc.ListVersions(ctx)
+	versions, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), svc.ListVersions)
 	require.NoError(t, err)
 	aVersions := 0
 	for _, v := range versions {

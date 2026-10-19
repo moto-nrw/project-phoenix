@@ -24,18 +24,20 @@ type testContext struct {
 func newDashboardContext(t *testing.T) (*testContext, testutil.Router) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	svc, err := api.NewActiveTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	_, err := api.NewActiveTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	resource := dashboardHTTP.NewResource(svc.SupervisionDashboard)
+	svcSupervision := api.NewActiveTestSupervision(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	svcSettings := api.NewActiveTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	resource := dashboardHTTP.NewResource(svcSupervision.SupervisionDashboard)
 	router := api.NewOwnerHTTPTestRouter(resource.Register, "/active")
 	return &testContext{db: db, settings: testSettingsWriter{
 		SetString: func(ctx context.Context, key, value string, actor *int64, perms []string) error {
-			return svc.Settings.SetValue(ctx, key, value, actor, perms)
+			return svcSettings.Settings.SetValue(ctx, key, value, actor, perms)
 		},
 		SetBool: func(ctx context.Context, key string, value bool, actor *int64, perms []string) error {
-			return svc.Settings.SetValue(ctx, key, value, actor, perms)
+			return svcSettings.Settings.SetValue(ctx, key, value, actor, perms)
 		},
-		ResetValue: svc.Settings.ResetValue,
+		ResetValue: svcSettings.Settings.ResetValue,
 	}}, router
 }
 func TestMain(m *testing.M) {

@@ -12,6 +12,14 @@ import (
 
 // GetForReview authorizes the child before loading display identities. It
 // serves every request status and never reads today's schedule.
+func (s *scheduleReviewCommands) GetForReview(ctx context.Context, id int64) (value0 *carerequests.HistoryItem, err error) {
+	err = s.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = s.commands.GetForReview(txCtx, id)
+		return err
+	})
+	return
+}
+
 func (s *ScheduleReviews) GetForReview(ctx context.Context, id int64) (*carerequests.HistoryItem, error) {
 	if id <= 0 {
 		return nil, careplan.ErrCareScheduleRequestNotFound

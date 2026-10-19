@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"sync/atomic"
 	"time"
 )
 
@@ -292,6 +291,10 @@ type GuardianPaymentActor struct {
 // GuardianPayment is the bank section of one guardian: masked after the
 // default read, unmasked after the audited reveal.
 type GuardianPayment struct {
+	ID                int64
+	TenantID          int64
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 	GuardianProfileID int64
 	IBAN              *string
 	AccountHolder     *string
@@ -448,28 +451,11 @@ func (m *Module) observed(operation string, fn func() error) error {
 	return err
 }
 
-// BindGuardianProvider installs the application-level guardian provider.
-// It is called once at composition time; a second call replaces the
-// provider so test graphs can rebuild it.
-func (m *Module) BindGuardianProvider(provider GuardianProvider) {
-	if provider == nil {
-		panic("people directory: guardian provider is required")
-	}
-	m.guardians.Store(&provider)
-}
-
-type guardianProviderSlot struct {
-	value atomic.Pointer[GuardianProvider]
-}
-
-func (s *guardianProviderSlot) Store(provider *GuardianProvider) { s.value.Store(provider) }
-
-func (s *guardianProviderSlot) Load() (GuardianProvider, error) {
-	provider := s.value.Load()
-	if provider == nil {
+func (m *Module) guardianProvider() (GuardianProvider, error) {
+	if m.guardians == nil {
 		return nil, ErrGuardianProviderUnbound
 	}
-	return *provider, nil
+	return m.guardians, nil
 }
 
 func invalidGuardian(reason string) error { return &InvalidGuardianError{Reason: reason} }

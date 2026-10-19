@@ -32,12 +32,12 @@
   "runtime_evidence": {
     "source": "Assigned localhost5547 test DB, pinned Go toolchain and fresh /tmp/gocache-4073 after verified PR4284 merge. Base d2d6829de3bcaefbc74febe4efffd54bcd891b37.",
     "sources": [
-      "backend/api/communication_runtime.go",
-      "backend/api/communication_runtime_test.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/communication_runtime.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/81766f1a4096a58e15f8a9304909455ac0a91580/backend/api/communication_runtime_test.go",
       "backend/modules/communication/internal/parentmessages/runtime.go",
       "backend/modules/communication/internal/parentmessages/events.go",
       "backend/modules/communication/internal/staffmessages/runtime.go",
-      "backend/modules/communication/internal/staffannouncements/runtime.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/12608383f0f793e811f4379ec293f61efd6150c9/backend/modules/communication/internal/staffannouncements/runtime.go",
       "backend/modules/transactionruntime/compose/tenant_runtime.go"
     ],
     "workload": "Existing Communication and API behavior suites; Root lifecycle/guard/error regressions; complete nonfast structural gates.",

@@ -10,7 +10,7 @@ import (
 // --- master data ---
 
 func (s *Service) FindStaffMasterData(ctx context.Context, staffID int64) (result domain.StaffMasterData, err error) {
-	err = s.run("find_staff_master_data", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_staff_master_data", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.FindStaffMasterData(ctx, staffID)
@@ -27,7 +27,7 @@ func (s *Service) CreateStaffMasterData(ctx context.Context, value domain.StaffM
 	if validationErr := value.Validate(); validationErr != nil {
 		return domain.StaffMasterData{}, validationErr
 	}
-	err = s.run("create_staff_master_data", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_staff_master_data", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.CreateStaffMasterData(txCtx, value)
@@ -42,7 +42,7 @@ func (s *Service) UpdateStaffMasterData(ctx context.Context, value domain.StaffM
 	if validationErr := value.Validate(); validationErr != nil {
 		return domain.StaffMasterData{}, validationErr
 	}
-	err = s.run("update_staff_master_data", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "update_staff_master_data", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var found bool
 			var writeStats domain.OperationStats
@@ -60,7 +60,7 @@ func (s *Service) UpdateStaffMasterData(ctx context.Context, value domain.StaffM
 // --- qualifications ---
 
 func (s *Service) ListStaffQualifications(ctx context.Context, staffID int64) (result []domain.StaffQualification, err error) {
-	err = s.run("list_staff_qualifications", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_staff_qualifications", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListStaffQualifications(ctx, staffID)
 		stats.Add(queryStats)
@@ -89,7 +89,7 @@ func (s *Service) ReplaceStaffQualifications(ctx context.Context, staffID int64,
 		}
 		rows = append(rows, value)
 	}
-	err = s.run("replace_staff_qualifications", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "replace_staff_qualifications", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			if lockErr := s.transaction.LockStaffQualifications(txCtx, staffID); lockErr != nil {
 				return lockErr
@@ -238,7 +238,7 @@ func sameQualification(live, submitted domain.StaffQualification) bool {
 // --- financial data ---
 
 func (s *Service) FindStaffFinancialData(ctx context.Context, staffID int64) (result domain.StaffFinancialData, err error) {
-	err = s.run("find_staff_financial_data", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_staff_financial_data", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.FindStaffFinancialData(ctx, staffID)
@@ -255,7 +255,7 @@ func (s *Service) CreateStaffFinancialData(ctx context.Context, value domain.Sta
 	if validationErr := value.Validate(); validationErr != nil {
 		return domain.StaffFinancialData{}, validationErr
 	}
-	err = s.run("create_staff_financial_data", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_staff_financial_data", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.CreateStaffFinancialData(txCtx, value)
@@ -270,7 +270,7 @@ func (s *Service) UpdateStaffFinancialData(ctx context.Context, value domain.Sta
 	if validationErr := value.Validate(); validationErr != nil {
 		return domain.StaffFinancialData{}, validationErr
 	}
-	err = s.run("update_staff_financial_data", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "update_staff_financial_data", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var found bool
 			var writeStats domain.OperationStats
@@ -291,7 +291,7 @@ func (s *Service) CreateStaffDocument(ctx context.Context, value domain.StaffDoc
 	if validationErr := value.Validate(); validationErr != nil {
 		return domain.StaffDocument{}, validationErr
 	}
-	err = s.run("create_staff_document", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_staff_document", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.CreateStaffDocument(txCtx, value)
@@ -303,7 +303,7 @@ func (s *Service) CreateStaffDocument(ctx context.Context, value domain.StaffDoc
 }
 
 func (s *Service) FindStaffDocument(ctx context.Context, staffID, documentID int64, includeDeleted bool) (result domain.StaffDocument, err error) {
-	err = s.run("find_staff_document", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_staff_document", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.FindStaffDocument(ctx, staffID, documentID, includeDeleted)
@@ -317,7 +317,7 @@ func (s *Service) FindStaffDocument(ctx context.Context, staffID, documentID int
 }
 
 func (s *Service) ListStaffDocuments(ctx context.Context, filter domain.StaffDocumentFilter) (result []domain.StaffDocument, err error) {
-	err = s.run("list_staff_documents", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_staff_documents", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListStaffDocuments(ctx, filter)
 		stats.Add(queryStats)
@@ -330,7 +330,7 @@ func (s *Service) SoftDeleteStaffDocument(ctx context.Context, id, deletedBy int
 	if deletedBy <= 0 {
 		return 0, &domain.InvalidStaffRecordError{Reason: "deleted_by is required"}
 	}
-	err = s.run("soft_delete_staff_document", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "soft_delete_staff_document", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.SoftDeleteStaffDocument(txCtx, id, deletedBy, at)
@@ -342,7 +342,7 @@ func (s *Service) SoftDeleteStaffDocument(ctx context.Context, id, deletedBy int
 }
 
 func (s *Service) MarkStaffDocumentFileDeleted(ctx context.Context, id int64, at time.Time) error {
-	return s.run("mark_staff_document_file_deleted", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "mark_staff_document_file_deleted", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			writeStats, err := s.store.MarkStaffDocumentFileDeleted(txCtx, id, at)
 			stats.Add(writeStats)
@@ -357,7 +357,7 @@ func (s *Service) QueueStaffDocumentFileCleanup(ctx context.Context, value domai
 	if validationErr := value.Validate(); validationErr != nil {
 		return validationErr
 	}
-	return s.run("queue_staff_document_file_cleanup", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "queue_staff_document_file_cleanup", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			writeStats, err := s.store.QueueStaffDocumentFileCleanup(txCtx, value)
 			stats.Add(writeStats)
@@ -367,7 +367,7 @@ func (s *Service) QueueStaffDocumentFileCleanup(ctx context.Context, value domai
 }
 
 func (s *Service) ListQueuedStaffDocumentFileCleanups(ctx context.Context, staffID int64) (result []domain.StaffDocumentFileCleanup, err error) {
-	err = s.run("list_queued_staff_document_file_cleanups", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_queued_staff_document_file_cleanups", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListQueuedStaffDocumentFileCleanups(ctx, staffID, s.clock.Now())
 		stats.Add(queryStats)
@@ -377,7 +377,7 @@ func (s *Service) ListQueuedStaffDocumentFileCleanups(ctx context.Context, staff
 }
 
 func (s *Service) CompleteStaffDocumentFileCleanup(ctx context.Context, id int64) error {
-	return s.run("complete_staff_document_file_cleanup", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "complete_staff_document_file_cleanup", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			writeStats, err := s.store.CompleteStaffDocumentFileCleanup(txCtx, id, s.clock.Now())
 			stats.Add(writeStats)
@@ -390,7 +390,7 @@ func (s *Service) CompleteStaffDocumentFileCleanupByFilename(ctx context.Context
 	if filename == "" {
 		return &domain.InvalidStaffRecordError{Reason: "filename_stored is required"}
 	}
-	return s.run("complete_staff_document_file_cleanup_by_filename", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "complete_staff_document_file_cleanup_by_filename", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			writeStats, err := s.store.CompleteStaffDocumentFileCleanupByFilename(txCtx, filename, s.clock.Now())
 			stats.Add(writeStats)
@@ -403,7 +403,7 @@ func (s *Service) ActivateStaffDocumentFileCleanup(ctx context.Context, filename
 	if filename == "" {
 		return &domain.InvalidStaffRecordError{Reason: "filename_stored is required"}
 	}
-	return s.run("activate_staff_document_file_cleanup", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "activate_staff_document_file_cleanup", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			writeStats, err := s.store.ActivateStaffDocumentFileCleanup(txCtx, filename, s.clock.Now())
 			stats.Add(writeStats)

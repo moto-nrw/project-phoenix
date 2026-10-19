@@ -11,12 +11,14 @@ import (
 	"testing"
 	"time"
 
+	reviewbindings "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
-	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -265,23 +267,23 @@ func newAggResource() (*Resource, *aggFakes) {
 	}
 	// The list route reads the shared request-review projection (#2705);
 	// the fakes stand in for the retained owner queues it adapts.
-	access, err := requestreviewcompose.NewAccess(RequestReviewPrincipal, nil)
+	access, err := reviewbindings.NewAccess(RequestReviewPrincipal, nil)
 	if err != nil {
 		panic(err)
 	}
-	careQueue, err := requestreviewcompose.NewCareScheduleQueue(fakes.care, func() careplan.Date { return careplan.Date(calendar.TodayDate()) })
+	careQueue, err := reviewbindings.NewCareScheduleQueue(fakes.care, func() careplan.Date { return careplan.Date(calendar.TodayDate()) })
 	if err != nil {
 		panic(err)
 	}
-	offeringQueue, err := requestreviewcompose.NewOfferingQueue(fakes.offering, func() careplan.Date { return careplan.Date(calendar.TodayDate()) })
+	offeringQueue, err := reviewbindings.NewOfferingQueue(fakes.offering, func() careplan.Date { return careplan.Date(calendar.TodayDate()) })
 	if err != nil {
 		panic(err)
 	}
-	masterQueue, err := requestreviewcompose.NewMasterDataQueue(fakes.master)
+	masterQueue, err := reviewbindings.NewMasterDataQueue(fakes.master)
 	if err != nil {
 		panic(err)
 	}
-	excusedQueue, err := requestreviewcompose.NewExcusedQueue(fakes.excused, func() careplan.Date { return careplan.Date(calendar.TodayDate()) })
+	excusedQueue, err := reviewbindings.NewExcusedQueue(fakes.excused, func() careplan.Date { return careplan.Date(calendar.TodayDate()) })
 	if err != nil {
 		panic(err)
 	}

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
+	configRepo "github.com/moto-nrw/project-phoenix/modules/settings/internal/adapters/configpostgres"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -46,4 +46,4 @@ func (r auditRetention) DeleteExpiredSettingChanges(ctx context.Context) (int, i
 // transactionRuntime is the settings runtime of one tenant transaction.
 type transactionRuntime struct{ tx bun.Tx }
 
-func (r transactionRuntime) DB(context.Context) bun.IDB { return r.tx }
+func (r transactionRuntime) DB(context.Context) (bun.IDB, error) { return r.tx, nil }

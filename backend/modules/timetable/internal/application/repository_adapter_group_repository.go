@@ -5,7 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -23,7 +24,7 @@ type timetableActivityGroupRepository struct {
 	shiftTypes func(context.Context) ([]ports.ShiftType, error)
 }
 
-func (r timetableActivityGroupRepository) Create(ctx context.Context, group *activitiesModels.Group) error {
+func (r timetableActivityGroupRepository) Create(ctx context.Context, group *activityContract.Group) error {
 	if group == nil {
 		return errors.New("group cannot be nil or zero value")
 	}
@@ -38,7 +39,7 @@ func (r timetableActivityGroupRepository) Create(ctx context.Context, group *act
 	return nil
 }
 
-func (r timetableActivityGroupRepository) Update(ctx context.Context, group *activitiesModels.Group) error {
+func (r timetableActivityGroupRepository) Update(ctx context.Context, group *activityContract.Group) error {
 	if group == nil {
 		return errors.New("group cannot be nil")
 	}
@@ -52,7 +53,7 @@ func (r timetableActivityGroupRepository) Update(ctx context.Context, group *act
 	return nil
 }
 
-func (r timetableActivityGroupRepository) Delete(ctx context.Context, id any) error {
+func (r timetableActivityGroupRepository) Delete(ctx context.Context, id int64) error {
 	groupID, ok := LegacyGroupID(id)
 	if !ok {
 		return fmt.Errorf("database error during delete: invalid activity group id %T", id)
@@ -63,7 +64,7 @@ func (r timetableActivityGroupRepository) Delete(ctx context.Context, id any) er
 	return nil
 }
 
-func (r timetableActivityGroupRepository) FindByID(ctx context.Context, id any) (*activitiesModels.Group, error) {
+func (r timetableActivityGroupRepository) FindByID(ctx context.Context, id int64) (*activityContract.Group, error) {
 	groupID, ok := LegacyGroupID(id)
 	if !ok {
 		return nil, fmt.Errorf("database error during find by id: invalid activity group id %T", id)
@@ -75,7 +76,7 @@ func (r timetableActivityGroupRepository) FindByID(ctx context.Context, id any) 
 	return legacyGroup(group), nil
 }
 
-func (r timetableActivityGroupRepository) FindByIDForUpdate(ctx context.Context, id any) (*activitiesModels.Group, error) {
+func (r timetableActivityGroupRepository) FindByIDForUpdate(ctx context.Context, id int64) (*activityContract.Group, error) {
 	groupID, ok := LegacyGroupID(id)
 	if !ok {
 		return nil, fmt.Errorf("database error during find by id for update: invalid activity group id %T", id)
@@ -87,7 +88,7 @@ func (r timetableActivityGroupRepository) FindByIDForUpdate(ctx context.Context,
 	return legacyGroup(group), nil
 }
 
-func (r timetableActivityGroupRepository) FindByName(ctx context.Context, name string) (*activitiesModels.Group, error) {
+func (r timetableActivityGroupRepository) FindByName(ctx context.Context, name string) (*activityContract.Group, error) {
 	group, err := r.timetable.FindGroupByName(ctx, name)
 	if err != nil {
 		return nil, legacyGroupReadError("find group by name", err)
@@ -95,9 +96,9 @@ func (r timetableActivityGroupRepository) FindByName(ctx context.Context, name s
 	return legacyGroup(group), nil
 }
 
-func (r timetableActivityGroupRepository) FindByIDs(ctx context.Context, ids []int64) ([]*activitiesModels.Group, error) {
+func (r timetableActivityGroupRepository) FindByIDs(ctx context.Context, ids []int64) ([]*activityContract.Group, error) {
 	if len(ids) == 0 {
-		return []*activitiesModels.Group{}, nil
+		return []*activityContract.Group{}, nil
 	}
 	groups, err := r.timetable.ListGroups(ctx, timetable.GroupFilter{IDs: ids})
 	if err != nil {
@@ -106,7 +107,7 @@ func (r timetableActivityGroupRepository) FindByIDs(ctx context.Context, ids []i
 	return legacyGroups(groups), nil
 }
 
-func (r timetableActivityGroupRepository) ListWithCategory(ctx context.Context, query *activitiesModels.GroupListQuery) ([]*activitiesModels.Group, error) {
+func (r timetableActivityGroupRepository) ListWithCategory(ctx context.Context, query *activityContract.GroupListQuery) ([]*activityContract.Group, error) {
 	filter := timetable.GroupFilter{}
 	if query != nil {
 		filter = timetable.GroupFilter{Name: query.Name, CategoryID: query.CategoryID, IsSystem: query.IsSystem, IDs: query.IDs}
@@ -118,24 +119,17 @@ func (r timetableActivityGroupRepository) ListWithCategory(ctx context.Context, 
 	return legacyGroups(groups), nil
 }
 
-func (r timetableActivityGroupRepository) List(ctx context.Context, options *activitiesModels.QueryOptions) ([]*activitiesModels.Group, error) {
-	if options != nil && (len(options.StudentIDs) > 0 || options.Limit != 0 || options.Offset != 0) {
-		return nil, legacyDatabaseError("list", errors.New("activity group list options are unsupported"))
-	}
-	return r.listLegacyGroups(ctx, timetable.GroupFilter{}, "list")
-}
-
-func (r timetableActivityGroupRepository) FindOpenGroups(ctx context.Context) ([]*activitiesModels.Group, error) {
+func (r timetableActivityGroupRepository) FindOpenGroups(ctx context.Context) ([]*activityContract.Group, error) {
 	open, system := true, false
 	return r.listLegacyGroups(ctx, timetable.GroupFilter{IsOpen: &open, IsSystem: &system, OrderByName: true}, "find open groups")
 }
 
-func (r timetableActivityGroupRepository) FindAllTemplates(ctx context.Context) ([]*activitiesModels.Group, error) {
+func (r timetableActivityGroupRepository) FindAllTemplates(ctx context.Context) ([]*activityContract.Group, error) {
 	isTemplate := true
 	return r.listLegacyGroups(ctx, timetable.GroupFilter{IsTemplate: &isTemplate, ActiveOnly: true, OrderByName: true}, "find all templates")
 }
 
-func (r timetableActivityGroupRepository) FindWithEnrollmentCounts(ctx context.Context) ([]*activitiesModels.Group, map[int64]int, error) {
+func (r timetableActivityGroupRepository) FindWithEnrollmentCounts(ctx context.Context) ([]*activityContract.Group, map[int64]int, error) {
 	groups, err := r.timetable.ListGroups(ctx, timetable.GroupFilter{OrderByName: true})
 	if err != nil {
 		return nil, nil, legacyDatabaseError("find groups", err)
@@ -158,7 +152,7 @@ func (r timetableActivityGroupRepository) FindWithEnrollmentCounts(ctx context.C
 	return legacyGroups(groups), counts, nil
 }
 
-func (r timetableActivityGroupRepository) FindWithSupervisors(ctx context.Context, groupID int64) (*activitiesModels.Group, []*activitiesModels.SupervisorPlanned, error) {
+func (r timetableActivityGroupRepository) FindWithSupervisors(ctx context.Context, groupID int64) (*activityContract.Group, []*activityContract.SupervisorPlanned, error) {
 	group, err := r.timetable.FindGroup(ctx, groupID)
 	if err != nil {
 		return nil, nil, legacyGroupReadError("find group", err)
@@ -170,14 +164,14 @@ func (r timetableActivityGroupRepository) FindWithSupervisors(ctx context.Contex
 	return legacyGroup(group), legacyPlannedSupervisors(supervisors), nil
 }
 
-func (r timetableActivityGroupRepository) FindByStaffSupervisor(ctx context.Context, staffID int64) ([]*activitiesModels.Group, error) {
+func (r timetableActivityGroupRepository) FindByStaffSupervisor(ctx context.Context, staffID int64) ([]*activityContract.Group, error) {
 	supervisors, err := r.timetable.ListPlannedSupervisors(ctx, timetable.PlannedSupervisorFilter{StaffID: &staffID})
 	if err != nil {
 		return nil, legacyDatabaseError("find by staff supervisor", err)
 	}
 	groupIDs := uniqueSupervisorGroupIDs(supervisors)
 	if len(groupIDs) == 0 {
-		return []*activitiesModels.Group{}, nil
+		return []*activityContract.Group{}, nil
 	}
 	groups, err := r.timetable.ListGroups(ctx, timetable.GroupFilter{IDs: groupIDs})
 	if err != nil {
@@ -199,14 +193,14 @@ func uniqueSupervisorGroupIDs(values []timetable.PlannedSupervisor) []int64 {
 	return result
 }
 
-func (r timetableActivityGroupRepository) FindTemplateSeries(ctx context.Context, groupID int64) ([]*activitiesModels.Group, error) {
+func (r timetableActivityGroupRepository) FindTemplateSeries(ctx context.Context, groupID int64) ([]*activityContract.Group, error) {
 	isTemplate := true
 	return r.listLegacyGroups(ctx, timetable.GroupFilter{
 		IsTemplate: &isTemplate, ActiveOnly: true, SeriesForGroupID: &groupID, OrderByID: true,
 	}, "find template series")
 }
 
-func (r timetableActivityGroupRepository) UpdateTemplateFields(ctx context.Context, id int64, fields activitiesModels.TemplateFieldsUpdate) (int64, error) {
+func (r timetableActivityGroupRepository) UpdateTemplateFields(ctx context.Context, id int64, fields timetable.TemplateUpdate) (int64, error) {
 	return r.timetable.UpdateTemplate(ctx, id, timetable.TemplateUpdate{
 		Name: fields.Name, Type: fields.Type, CategoryID: fields.CategoryID,
 		PlanningTrackID: fields.PlanningTrackID, PlanningTrackIDProvided: fields.PlanningTrackIDProvided,
@@ -231,7 +225,7 @@ func (r timetableActivityGroupRepository) UpdateTemplateOfferingSource(ctx conte
 	})
 }
 
-func (r timetableActivityGroupRepository) listLegacyGroups(ctx context.Context, filter timetable.GroupFilter, operation string) ([]*activitiesModels.Group, error) {
+func (r timetableActivityGroupRepository) listLegacyGroups(ctx context.Context, filter timetable.GroupFilter, operation string) ([]*activityContract.Group, error) {
 	groups, err := r.timetable.ListGroups(ctx, filter)
 	if err != nil {
 		return nil, legacyGroupReadError(operation, err)
@@ -239,7 +233,7 @@ func (r timetableActivityGroupRepository) listLegacyGroups(ctx context.Context, 
 	return legacyGroups(groups), nil
 }
 
-func (r timetableActivityGroupRepository) ReplaceTargets(ctx context.Context, groupID int64, targets []*activitiesModels.GroupTarget) error {
+func (r timetableActivityGroupRepository) ReplaceTargets(ctx context.Context, groupID int64, targets []*activityContract.GroupTarget) error {
 	if groupID <= 0 {
 		return errors.New("replace group targets requires a positive activity group id")
 	}
@@ -265,13 +259,13 @@ func (r timetableActivityGroupRepository) ReplaceTargets(ctx context.Context, gr
 	return r.timetable.ReplaceGroupTargets(ctx, groupID, inputs)
 }
 
-func (r timetableActivityGroupRepository) FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*activitiesModels.GroupTarget, error) {
+func (r timetableActivityGroupRepository) FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*activityContract.GroupTarget, error) {
 	values, err := r.timetable.ListGroupTargets(ctx, groupIDs)
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[int64][]*activitiesModels.GroupTarget, len(values))
-	all := make([]*activitiesModels.GroupTarget, 0)
+	result := make(map[int64][]*activityContract.GroupTarget, len(values))
+	all := make([]*activityContract.GroupTarget, 0)
 	for groupID, targets := range values {
 		for _, target := range targets {
 			mapped := legacyGroupTarget(target)
@@ -283,8 +277,8 @@ func (r timetableActivityGroupRepository) FindTargetsByGroupIDs(ctx context.Cont
 		return result, nil
 	}
 	_, err = enrichGroupNames(ctx, r.groups, all,
-		func(row *activitiesModels.GroupTarget) int64 { return optionalGroupID(row.EducationGroupID) },
-		func(row *activitiesModels.GroupTarget, name string) { row.EducationGroupName = name },
+		func(row *activityContract.GroupTarget) int64 { return optionalGroupID(row.EducationGroupID) },
+		func(row *activityContract.GroupTarget, name string) { row.EducationGroupName = name },
 		"", "template targets")
 	return result, err
 }
@@ -301,8 +295,8 @@ func (r timetableActivityGroupRepository) FindTargetStudentIDsByGroupIDs(ctx con
 	return r.timetable.ListTargetStudentIDs(ctx, groupIDs)
 }
 
-func legacyGroupTarget(target timetable.GroupTarget) *activitiesModels.GroupTarget {
-	result := &activitiesModels.GroupTarget{
+func legacyGroupTarget(target timetable.GroupTarget) *activityContract.GroupTarget {
+	result := &activityContract.GroupTarget{
 		ActivityGroupID: target.ActivityGroupID,
 		TargetGroupType: target.TargetGroupType, TargetGradeLevel: target.TargetGradeLevel,
 		TargetSchoolClass: target.TargetSchoolClass, EducationGroupID: target.EducationGroupID,
@@ -315,16 +309,16 @@ func legacyGroupTarget(target timetable.GroupTarget) *activitiesModels.GroupTarg
 	return result
 }
 
-func legacyGroups(groups []timetable.Group) []*activitiesModels.Group {
-	result := make([]*activitiesModels.Group, 0, len(groups))
+func legacyGroups(groups []timetable.Group) []*activityContract.Group {
+	result := make([]*activityContract.Group, 0, len(groups))
 	for _, group := range groups {
 		result = append(result, legacyGroup(group))
 	}
 	return result
 }
 
-func legacyGroup(group timetable.Group) *activitiesModels.Group {
-	result := &activitiesModels.Group{
+func legacyGroup(group timetable.Group) *activityContract.Group {
+	result := &activityContract.Group{
 		Name: group.Name, MaxParticipants: group.MaxParticipants, RequiredStaff: group.RequiredStaff,
 		IsOpen: group.IsOpen, CategoryID: group.CategoryID, PlanningTrackID: group.PlanningTrackID,
 		PlannedRoomID: group.PlannedRoomID, CreatedBy: group.CreatedBy, Type: group.Type,
@@ -346,7 +340,7 @@ func legacyGroup(group timetable.Group) *activitiesModels.Group {
 	return result
 }
 
-func publicGroupInput(group *activitiesModels.Group) timetable.GroupInput {
+func publicGroupInput(group *activityContract.Group) timetable.GroupInput {
 	return timetable.GroupInput{
 		Name: group.Name, MaxParticipants: group.MaxParticipants, RequiredStaff: group.RequiredStaff, IsOpen: group.IsOpen,
 		CategoryID: group.CategoryID, PlanningTrackID: group.PlanningTrackID, PlannedRoomID: group.PlannedRoomID,
@@ -360,15 +354,15 @@ func publicGroupInput(group *activitiesModels.Group) timetable.GroupInput {
 	}
 }
 
-func activityDateFromString(value *string) *activitiesModels.Date {
+func activityDateFromString(value *string) *activityContract.Date {
 	if value == nil {
 		return nil
 	}
-	day := activitiesModels.Date(*value)
+	day := activityContract.Date(*value)
 	return &day
 }
 
-func activityDateString(value *activitiesModels.Date) *string {
+func activityDateString(value *activityContract.Date) *string {
 	if value == nil {
 		return nil
 	}
@@ -376,8 +370,8 @@ func activityDateString(value *activitiesModels.Date) *string {
 	return &day
 }
 
-func legacyCategory(category timetable.Category) *activitiesModels.Category {
-	result := &activitiesModels.Category{
+func legacyCategory(category timetable.Category) *activityContract.Category {
+	result := &activityContract.Category{
 		Name: category.Name, Description: category.Description, Color: category.Color,
 		IsSystem: category.IsSystem, ShiftTypeID: category.ShiftTypeID, ArchivedAt: category.ArchivedAt,
 	}
@@ -404,4 +398,8 @@ func legacyGroupReadError(operation string, err error) error {
 		return legacyNotFoundError(operation)
 	}
 	return legacyDatabaseError(operation, err)
+}
+
+func (r timetableActivityGroupRepository) ListAll(ctx context.Context) ([]*activityContract.Group, error) {
+	return r.listLegacyGroups(ctx, timetable.GroupFilter{}, "list")
 }

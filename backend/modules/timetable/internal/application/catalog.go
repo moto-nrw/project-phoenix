@@ -3,17 +3,18 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // CatalogSource is the existing activity service, bound by the owner composition.
 type CatalogSource interface {
-	GetGroup(context.Context, int64) (*activities.Group, error)
-	ListGroups(context.Context, *activities.GroupListQuery) ([]*activities.Group, error)
-	ListCategories(context.Context) ([]*activities.Category, error)
-	CreateCategory(context.Context, *activities.Category) (*activities.Category, error)
-	CreateGroup(context.Context, *activities.Group, []int64, []*activities.Schedule) (*activities.Group, error)
+	GetGroup(context.Context, int64) (*activityContract.Group, error)
+	ListGroups(context.Context, *activityContract.GroupListQuery) ([]*activityContract.Group, error)
+	ListCategories(context.Context) ([]*activityContract.Category, error)
+	CreateCategory(context.Context, *activityContract.Category) (*activityContract.Category, error)
+	CreateGroup(context.Context, *activityContract.Group, []int64, []*activityContract.Schedule) (*activityContract.Group, error)
 }
 
 type Catalog struct {
@@ -31,7 +32,7 @@ func (c Catalog) FindCatalogGroup(ctx context.Context, id int64) (*timetable.Gro
 }
 
 func (c Catalog) ListCatalogGroups(ctx context.Context, name string) ([]timetable.Group, error) {
-	rows, err := c.Source.ListGroups(ctx, &activities.GroupListQuery{Name: name})
+	rows, err := c.Source.ListGroups(ctx, &activityContract.GroupListQuery{Name: name})
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +60,7 @@ func (c Catalog) ListCatalogCategories(ctx context.Context) ([]timetable.Categor
 }
 
 func (c Catalog) CreateCatalogCategory(ctx context.Context, input timetable.CreateCategory) (timetable.Category, error) {
-	row, err := c.Source.CreateCategory(ctx, &activities.Category{Name: input.Name, Description: input.Description, Color: input.Color, IsSystem: input.IsSystem})
+	row, err := c.Source.CreateCategory(ctx, &activityContract.Category{Name: input.Name, Description: input.Description, Color: input.Color, IsSystem: input.IsSystem})
 	if row == nil {
 		return timetable.Category{}, err
 	}
@@ -68,14 +69,14 @@ func (c Catalog) CreateCatalogCategory(ctx context.Context, input timetable.Crea
 
 func (c Catalog) CreateCatalogGroup(ctx context.Context, input timetable.GroupInput) (timetable.Group, error) {
 	// System provisioning deliberately has no roster or schedules, just as before.
-	row, err := c.Source.CreateGroup(ctx, catalogGroupInput(input), []int64{}, []*activities.Schedule{})
+	row, err := c.Source.CreateGroup(ctx, catalogGroupInput(input), []int64{}, []*activityContract.Schedule{})
 	if row == nil {
 		return timetable.Group{}, err
 	}
 	return CatalogGroup(row), err
 }
 
-func CatalogGroup(row *activities.Group) timetable.Group {
+func CatalogGroup(row *activityContract.Group) timetable.Group {
 	return timetable.Group{
 		ID: row.ID, TenantID: row.GetTenantID(), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		Name: row.Name, MaxParticipants: row.MaxParticipants, RequiredStaff: row.RequiredStaff, IsOpen: row.IsOpen,
@@ -88,7 +89,7 @@ func CatalogGroup(row *activities.Group) timetable.Group {
 	}
 }
 
-func catalogCategoryPointer(row *activities.Category) *timetable.Category {
+func catalogCategoryPointer(row *activityContract.Category) *timetable.Category {
 	if row == nil {
 		return nil
 	}
@@ -96,13 +97,13 @@ func catalogCategoryPointer(row *activities.Category) *timetable.Category {
 	return &category
 }
 
-func catalogCategory(row *activities.Category) timetable.Category {
+func catalogCategory(row *activityContract.Category) timetable.Category {
 	return timetable.Category{ID: row.ID, TenantID: row.GetTenantID(), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		Name: row.Name, Description: row.Description, Color: row.Color, IsSystem: row.IsSystem, ShiftTypeID: row.ShiftTypeID, ArchivedAt: row.ArchivedAt}
 }
 
-func catalogGroupInput(input timetable.GroupInput) *activities.Group {
-	return &activities.Group{
+func catalogGroupInput(input timetable.GroupInput) *activityContract.Group {
+	return &activityContract.Group{
 		Name: input.Name, MaxParticipants: input.MaxParticipants, RequiredStaff: input.RequiredStaff, IsOpen: input.IsOpen,
 		CategoryID: input.CategoryID, PlanningTrackID: input.PlanningTrackID, PlannedRoomID: input.PlannedRoomID,
 		CreatedBy: input.CreatedBy, Type: input.Type, EducationGroupID: input.EducationGroupID, ListKind: input.ListKind,

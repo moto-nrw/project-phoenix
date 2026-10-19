@@ -11,6 +11,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -24,42 +25,44 @@ func (r *consentRecordingUnlinker) UnlinkStored(url string) { r.urls = append(r.
 // reaches: a withdrawal detaches the stored file after the commit.
 type consentPhotoUnlinker struct{ unlinker *consentRecordingUnlinker }
 
-func (u consentPhotoUnlinker) ScheduleUnlinkAfterCommit(_ context.Context, storedURL string) {
+func (u consentPhotoUnlinker) ScheduleUnlinkAfterCommit(_ context.Context, storedURL string) error {
 	if storedURL == "" {
-		return
+		return nil
 	}
 	u.unlinker.UnlinkStored(storedURL)
+	return nil
 }
 
-func buildConsentService(t *testing.T) (*parentService.Portal, *bun.DB, *api.RepositoryTestFactory, *consentRecordingUnlinker) {
+func buildConsentService(t *testing.T) (*parentService.Portal, *bun.DB, *api.PeopleRepositorySuiteFactory, *consentRecordingUnlinker) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	unlinker := &consentRecordingUnlinker{}
 	photos := consentPhotoUnlinker{unlinker: unlinker}
 	return parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges:     api.ParentGuardianChanges(),
-		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.NewParentGuardianPolicy(),
-		Fingerprints:        api.SecurityFingerprints{},
-		Declarations:        api.ParentDeclarationPolicy(),
-		Locales:             api.ParentPortalLocales(),
-		Runtime:             api.ParentPortalRuntime{},
-		CarePlan:            api.NewParentCarePlanCommands(repos.CarePlan(), nil),
-		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
+		CarePlan:            owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:              owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           repos.ParentChildReads(),
-		StudentRepo:         api.NewParentStudentReads(repos.Student),
-		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian),
-		StudentConsents:     api.NewParentStudentConsents(api.NewStudentConsents(testpkg.NewDatabase(t, db))),
-		StudentPhotos:       func() parentService.StudentPhotoUnlinker { return photos },
-		StudentUpdates:      api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
+		StudentRepo:         owners.NewParentStudentReads(reposPeople.Student),
+		StudentGuardianRepo: owners.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
+		StudentConsents:     owners.NewParentStudentConsents(api.NewStudentConsents(testpkg.NewDatabase(t, db))),
+		StudentPhotos:       photos,
+		StudentUpdates:      owners.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Logger:              slog.Default(),
 
-		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
 
-		CarePlanPolicy: api.NewParentCarePlanPolicy(),
-	}), db, repos, unlinker
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
+	}), db, reposPeople, unlinker
 }
 
 func TestGetChildConsentsShowsRecordedStatesAndWithdrawalCapability(t *testing.T) {
@@ -68,12 +71,12 @@ func TestGetChildConsentsShowsRecordedStatesAndWithdrawalCapability(t *testing.T
 	svc, db, repos, _ := buildConsentService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	now := time.Date(2026, time.August, 31, 9, 30, 0, 0, time.UTC)
-	student, err := repos.Student.FindByID(testpkg.Ctx(t), chain.StudentID)
+	student, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.Student.FindByID, any(chain.StudentID))
 	require.NoError(t, err)
 	student.AGBAcceptedAt = &now
 	student.DataProcessingAcceptedAt = &now
 	student.PhotoConsentGivenAt = &now
-	require.NoError(t, repos.Student.Update(testpkg.Ctx(t), student))
+	require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), db, repos.Student.Update, student))
 
 	consents, err := svc.GetChildConsents(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -99,11 +102,11 @@ func TestWithdrawPhotoConsentRemovesPhotoAndRecordsOneHistoryEntry(t *testing.T)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	now := time.Date(2026, time.August, 31, 9, 30, 0, 0, time.UTC)
 	storedURL := "/uploads/students/portrait.jpg"
-	student, err := repos.Student.FindByID(testpkg.Ctx(t), chain.StudentID)
+	student, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.Student.FindByID, any(chain.StudentID))
 	require.NoError(t, err)
 	student.PhotoConsentGivenAt = &now
 	student.PhotoPath = &storedURL
-	require.NoError(t, repos.Student.Update(testpkg.Ctx(t), student))
+	require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), db, repos.Student.Update, student))
 
 	consents, err := svc.WithdrawPhotoConsent(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -119,7 +122,7 @@ func TestWithdrawPhotoConsentRemovesPhotoAndRecordsOneHistoryEntry(t *testing.T)
 	// history receives no duplicate event.
 	_, err = svc.WithdrawPhotoConsent(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
-	rows, err := api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentConsentChange.ListByStudentID(testpkg.Ctx(t), chain.StudentID)
+	rows, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentConsentChange.ListByStudentID, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, "withdrawn", rows[0].Action)
@@ -134,11 +137,11 @@ func TestGrantPhotoConsentAfterWithdrawalRecordsNewStateWithoutRestoringPhoto(t 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	now := time.Date(2026, time.August, 31, 9, 30, 0, 0, time.UTC)
 	storedURL := "/uploads/students/portrait.jpg"
-	student, err := repos.Student.FindByID(testpkg.Ctx(t), chain.StudentID)
+	student, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.Student.FindByID, any(chain.StudentID))
 	require.NoError(t, err)
 	student.PhotoConsentGivenAt = &now
 	student.PhotoPath = &storedURL
-	require.NoError(t, repos.Student.Update(testpkg.Ctx(t), student))
+	require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), db, repos.Student.Update, student))
 
 	_, err = svc.WithdrawPhotoConsent(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -147,7 +150,7 @@ func TestGrantPhotoConsentAfterWithdrawalRecordsNewStateWithoutRestoringPhoto(t 
 	assert.Equal(t, "granted", ChildConsentState(consents, "photo"))
 	assert.Equal(t, []string{storedURL}, unlinker.urls)
 
-	updated, err := repos.Student.FindByID(testpkg.Ctx(t), chain.StudentID)
+	updated, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.Student.FindByID, any(chain.StudentID))
 	require.NoError(t, err)
 	require.NotNil(t, updated.PhotoConsentGivenAt)
 	require.NotNil(t, updated.PhotoConsentGivenBy)
@@ -158,7 +161,7 @@ func TestGrantPhotoConsentAfterWithdrawalRecordsNewStateWithoutRestoringPhoto(t 
 	// second grant event.
 	_, err = svc.GrantPhotoConsent(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
-	rows, err := api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentConsentChange.ListByStudentID(testpkg.Ctx(t), chain.StudentID)
+	rows, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentConsentChange.ListByStudentID, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 	assert.Equal(t, "granted", rows[0].Action)
@@ -176,12 +179,12 @@ func TestGrantPhotoConsentRejectsNeverRecordedConsent(t *testing.T) {
 	_, err := svc.GrantPhotoConsent(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.ErrorIs(t, err, parentService.ErrPhotoConsentNotWithdrawn)
 
-	student, err := repos.Student.FindByID(testpkg.Ctx(t), chain.StudentID)
+	student, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.Student.FindByID, any(chain.StudentID))
 	require.NoError(t, err)
 	assert.Nil(t, student.PhotoConsentGivenAt)
 	assert.Nil(t, student.PhotoConsentGivenBy)
 
-	rows, err := api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentConsentChange.ListByStudentID(testpkg.Ctx(t), chain.StudentID)
+	rows, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentConsentChange.ListByStudentID, chain.StudentID)
 	require.NoError(t, err)
 	assert.Empty(t, rows)
 }
@@ -193,11 +196,11 @@ func TestPhotoConsentChangesRejectCareEndedChild(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	now := time.Date(2026, time.August, 31, 9, 30, 0, 0, time.UTC)
 	storedURL := "/uploads/students/portrait.jpg"
-	student, err := repos.Student.FindByID(testpkg.Ctx(t), chain.StudentID)
+	student, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.Student.FindByID, any(chain.StudentID))
 	require.NoError(t, err)
 	student.PhotoConsentGivenAt = &now
 	student.PhotoPath = &storedURL
-	require.NoError(t, repos.Student.Update(testpkg.Ctx(t), student))
+	require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), db, repos.Student.Update, student))
 	endCareFor(t, db, chain.StudentID)
 
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
@@ -206,13 +209,13 @@ func TestPhotoConsentChangesRejectCareEndedChild(t *testing.T) {
 	_, err = svc.GrantPhotoConsent(ctx, chain.AccountID, chain.StudentID)
 	require.ErrorIs(t, err, parentService.ErrChildCareEnded)
 
-	updated, err := repos.Student.FindByID(testpkg.Ctx(t), chain.StudentID)
+	updated, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.Student.FindByID, any(chain.StudentID))
 	require.NoError(t, err)
 	require.NotNil(t, updated.PhotoConsentGivenAt)
 	require.NotNil(t, updated.PhotoPath)
 	assert.Equal(t, storedURL, *updated.PhotoPath)
 	assert.Empty(t, unlinker.urls)
-	rows, err := api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentConsentChange.ListByStudentID(testpkg.Ctx(t), chain.StudentID)
+	rows, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentConsentChange.ListByStudentID, chain.StudentID)
 	require.NoError(t, err)
 	assert.Empty(t, rows)
 }

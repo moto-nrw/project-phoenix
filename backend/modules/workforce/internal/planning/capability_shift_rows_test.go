@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -30,7 +30,7 @@ func TestShiftRowsKeepTheRepositoryErrorShapes(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	rows := planning.NewShiftRows(api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db)).Workforce)
+	rows := planning.NewShiftRows(api.MustNewWorkforce(testpkg.MustDatabase(db)))
 	ctx := testpkg.Ctx(t)
 
 	_, err := rows.FindByID(ctx, int64(987654321))

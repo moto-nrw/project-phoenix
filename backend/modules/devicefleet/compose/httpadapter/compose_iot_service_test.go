@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
+	iotModels "github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	iot "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application/deviceservice"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"

@@ -279,13 +279,10 @@ type StaffAbsenceService interface {
 	ListAbsenceRequests(ctx context.Context, req AbsenceRequestListQuery) ([]*StaffAbsenceRequestItem, error)
 }
 
-// GetTodayAbsenceMap returns staff ID -> absence type for today.
 func (s *staffAbsenceService) GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error) {
 	return s.absenceRepo.GetAbsenceMapForDate(ctx, calendar.TodayDate())
 }
 
-// GetTodayAbsenceLabelMap returns staff ID -> school-defined absence name for
-// today.
 func (s *staffAbsenceService) GetTodayAbsenceLabelMap(ctx context.Context) (map[int64]string, error) {
 	if s.absenceTypes == nil {
 		return map[int64]string{}, nil
@@ -312,6 +309,7 @@ func (s *staffAbsenceService) GetTodayAbsenceLabelMap(ctx context.Context) (map[
 
 // staffAbsenceService implements StaffAbsenceService
 type staffAbsenceService struct {
+	runInTx         func(context.Context, func(context.Context) error) error
 	absenceRepo     StaffAbsenceRepository
 	workSessionRepo WorkSessionRepository
 	quotaRepo       StaffVacationQuotaRepository
@@ -408,15 +406,6 @@ func (s *staffAbsenceService) broadcastTimeTrackingChanged(ctx context.Context) 
 	queueStaffTimeTrackingChanged(ctx, s.broadcaster, nil)
 }
 
-// planSyncer is nil-safe: bare-constructed services (unit tests) cascade into
-// a no-op.
-func (s *staffAbsenceService) planSyncer() ShiftPlanSyncer {
-	if s.shiftPlanSyncer != nil {
-		return s.shiftPlanSyncer
-	}
-	return noopShiftPlanSyncer{}
-}
-
 // NewStaffAbsenceService creates a new staff absence service
 func NewStaffAbsenceService(
 	absenceRepo StaffAbsenceRepository,
@@ -438,6 +427,12 @@ func NewStaffAbsenceService(
 	for _, opt := range opts {
 		opt(service)
 	}
+	if service.shiftPlanSyncer == nil {
+		panic("staff absence service: the sick cascade is required")
+	}
+	if service.runInTx != nil {
+		return &absenceCommands{service, service}
+	}
 	return service
 }
 
@@ -445,3 +440,8 @@ func NewStaffAbsenceService(
 // 30 working days = TVöD-Allgemein standard. Pro-Tenant override via settings
 // will come in a follow-up, see Issue #1375 Tranche 4a.
 const defaultEntitledDays = 30.0
+
+type absenceCommands struct {
+	StaffAbsenceService
+	commands *staffAbsenceService
+}

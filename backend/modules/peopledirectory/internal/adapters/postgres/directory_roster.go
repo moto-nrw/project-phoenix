@@ -23,7 +23,7 @@ type studentRosterRow struct {
 
 func (r studentRosterRow) toRosterEntry() directory.StudentRosterEntry {
 	return directory.StudentRosterEntry{
-		Record:    r.toDomain(),
+		Record:    directory.StudentStateFromRecord(r.toDomain()),
 		FirstName: r.FirstName,
 		LastName:  r.LastName,
 		TagID:     r.TagID,
@@ -42,16 +42,16 @@ func (s *studentDirectoryReads) selectStudentRoster(
 	operation string,
 	narrow func(*bun.SelectQuery) *bun.SelectQuery,
 ) ([]directory.StudentRosterEntry, directoryStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, directoryStats{}, err
 	}
 	rows := []studentRosterRow{}
-	query := withStudentTenant(s.rows.StudentRows(db, 0).
+	query := withStudentTenant(s.studentRows(db, scope).
 		ColumnExpr(studentRecordColumns).
 		ColumnExpr(`"person".first_name, "person".last_name, "person".tag_id, "person".account_id`).
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
-		Where(`"student".status <> ?`, directory.StudentStatusAlumnus), tenantID)
+		Where(`"student".status <> ?`, directory.StudentStatusAlumnus), scope)
 
 	query = narrow(query).
 		Distinct().

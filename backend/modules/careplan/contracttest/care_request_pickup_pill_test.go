@@ -11,14 +11,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
 	"github.com/moto-nrw/project-phoenix/api"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -31,38 +33,39 @@ import (
 // right after the call.
 type recordingParentEvents struct {
 	mu        sync.Mutex
-	emitted   []parentmessaging.ChildEvent
-	guardians []parentmessaging.PortalGuardian
+	emitted   []eventContract.ChildEvent
+	guardians []eventContract.PortalGuardian
 }
 
-func (r *recordingParentEvents) EmitChildEvent(_, _, _ int64, ev parentmessaging.ChildEvent) {
+func (r *recordingParentEvents) EmitChildEvent(_ context.Context, _, _, _ int64, ev eventContract.ChildEvent) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.emitted = append(r.emitted, ev)
+	return nil
 }
 func (r *recordingParentEvents) WakeChildGuardians(_, _ int64) {}
-func (r *recordingParentEvents) PortalGuardians(context.Context, int64) ([]parentmessaging.PortalGuardian, error) {
+func (r *recordingParentEvents) PortalGuardians(context.Context, int64) ([]eventContract.PortalGuardian, error) {
 	return r.guardians, nil
 }
 func (r *recordingParentEvents) InTransaction(context.Context) bool                    { return false }
 func (r *recordingParentEvents) MessagingEnabledForTenant(context.Context, int64) bool { return true }
 
-func (r *recordingParentEvents) last(t *testing.T) parentmessaging.ChildEvent {
+func (r *recordingParentEvents) last(t *testing.T) communicationtest.ChildEventSnapshot {
 	t.Helper()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	require.NotEmpty(t, r.emitted, "expected a pill to be emitted")
-	return r.emitted[len(r.emitted)-1]
+	return communicationtest.SnapshotChildEvent(r.emitted[len(r.emitted)-1])
 }
 
 func newPickupPillFixture(t *testing.T) (*careFixture, *recordingParentEvents) {
 	t.Helper()
 	events := &recordingParentEvents{}
-	f := newCareFixtureWithEmitter(t, parentmessaging.NewEmitter(events),
-		api.WithCareRequestToday(func() calendar.Date { return calendar.NewDate(2026, 9, 9) }))
+	f := newCareFixtureWithEmitter(t, communicationtest.NewEmitterWithDecisions(events, nil),
+		owners.WithCareRequestToday(func() calendar.Date { return calendar.NewDate(2026, 9, 9) }))
 	// The approve path re-checks that the submitting guardian still has the
 	// child; the fixture's chain is that guardian.
-	events.guardians = []parentmessaging.PortalGuardian{{AccountID: f.chain.AccountID}}
+	events.guardians = []eventContract.PortalGuardian{{AccountID: f.chain.AccountID}}
 	return f, events
 }
 
@@ -70,14 +73,14 @@ func newPickupPillFixture(t *testing.T) (*careFixture, *recordingParentEvents) {
 // day's weekday, so the request records a previous_pickup_time.
 func seedWeekdayPickup(t *testing.T, f *careFixture, ctx context.Context, date calendar.Date, hour, minute int) {
 	t.Helper()
-	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
+	require.NoError(t, f.schedules.Pickups.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
 		StudentID:  f.chain.StudentID,
 		Weekday:    int(date.Weekday()),
 		PickupTime: calendar.NormalizeWallClock(time.Date(1, 1, 1, hour, minute, 0, 0, time.UTC)),
 		CreatedBy:  f.staffID,
 	}))
 	t.Cleanup(func() {
-		require.NoError(t, f.sf.PickupSchedule.DeleteStudentPickupSchedule(ctx, f.chain.StudentID))
+		require.NoError(t, f.schedules.Pickups.DeleteStudentPickupSchedule(ctx, f.chain.StudentID))
 	})
 }
 
@@ -90,7 +93,7 @@ func TestPickupChangePills_NameRequestedDayAndTime(t *testing.T) {
 	seedWeekdayPickup(t, f, ctx, date, 15, 30)
 	pickup := time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC)
 
-	req, err := f.svc.CreatePickupChangeRequest(ctx, f.chain.StudentID, f.chain.AccountID, date, pickup, "Arzttermin")
+	req, err := testpkg.TenantQuery5(t, ctx, f.db, f.svc.CreatePickupChangeRequest, f.chain.StudentID, f.chain.AccountID, date, pickup, "Arzttermin")
 	require.NoError(t, err)
 
 	created := events.last(t)
@@ -104,7 +107,7 @@ func TestPickupChangePills_NameRequestedDayAndTime(t *testing.T) {
 		"date": "2026-09-15", "pickup_time": "14:30", "previous_pickup_time": "15:30",
 	}, created.Payload)
 
-	_, err = f.svc.Decide(ctx, carerequests.DecideInput{
+	_, err = testpkg.TenantQuery1(t, ctx, f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
 	})
 	require.NoError(t, err)
@@ -120,9 +123,9 @@ func TestPickupChangePills_NameRequestedDayAndTime(t *testing.T) {
 
 	// A second request for another day is rejected: the pill names THAT day
 	// and keeps the staff reason.
-	second, err := f.svc.CreatePickupChangeRequest(ctx, f.chain.StudentID, f.chain.AccountID, date.AddDays(1), pickup, "Oma holt ab")
+	second, err := testpkg.TenantQuery5(t, ctx, f.db, f.svc.CreatePickupChangeRequest, f.chain.StudentID, f.chain.AccountID, date.AddDays(1), pickup, "Oma holt ab")
 	require.NoError(t, err)
-	_, err = f.svc.Decide(ctx, carerequests.DecideInput{
+	_, err = testpkg.TenantQuery1(t, ctx, f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID: second.ID, Approve: false, Reason: "passt nicht", ReviewedBy: f.staffAccount,
 	})
 	require.NoError(t, err)
@@ -156,17 +159,17 @@ func TestGetForReview_OpensDecidedAndPendingPickupRequests(t *testing.T) {
 	seedWeekdayPickup(t, f, ctx, date, 15, 30)
 	pickup := time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC)
 
-	decidedReq, err := f.svc.CreatePickupChangeRequest(ctx, f.chain.StudentID, f.chain.AccountID, date, pickup, "Arzttermin")
+	decidedReq, err := testpkg.TenantQuery5(t, ctx, f.db, f.svc.CreatePickupChangeRequest, f.chain.StudentID, f.chain.AccountID, date, pickup, "Arzttermin")
 	require.NoError(t, err)
-	_, err = f.svc.Decide(ctx, carerequests.DecideInput{
+	_, err = testpkg.TenantQuery1(t, ctx, f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID: decidedReq.ID, Approve: false, Reason: "passt nicht", ReviewedBy: f.staffAccount,
 	})
 	require.NoError(t, err)
-	pendingReq, err := f.svc.CreatePickupChangeRequest(ctx, f.chain.StudentID, f.chain.AccountID, date.AddDays(1), pickup, "Oma holt ab")
+	pendingReq, err := testpkg.TenantQuery5(t, ctx, f.db, f.svc.CreatePickupChangeRequest, f.chain.StudentID, f.chain.AccountID, date.AddDays(1), pickup, "Oma holt ab")
 	require.NoError(t, err)
 
 	// The live plan moves on AFTER the decision; the detail must not follow it.
-	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
+	require.NoError(t, f.schedules.Pickups.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
 		StudentID:  f.chain.StudentID,
 		Weekday:    int(date.Weekday()),
 		PickupTime: calendar.NormalizeWallClock(time.Date(1, 1, 1, 17, 0, 0, 0, time.UTC)),
@@ -176,7 +179,7 @@ func TestGetForReview_OpensDecidedAndPendingPickupRequests(t *testing.T) {
 	decided, err := nativeCareReviews(t, f).GetForReview(ctx, decidedReq.ID)
 	require.NoError(t, err)
 	assert.Equal(t, decidedReq.ID, decided.Request.ID)
-	assert.Equal(t, scheduleModels.CareRequestStatusRejected, decided.Request.Status)
+	assert.Equal(t, carerequests.StatusRejected, decided.Request.Status)
 	assert.Equal(t, "Felix", decided.FirstName)
 	assert.Equal(t, "Schneider", decided.LastName)
 	assert.Equal(t, "Clara Confirm", decided.ReviewerName)
@@ -194,7 +197,7 @@ func TestGetForReview_OpensDecidedAndPendingPickupRequests(t *testing.T) {
 	pending, err := nativeCareReviews(t, f).GetForReview(ctx, pendingReq.ID)
 	require.NoError(t, err)
 	assert.Equal(t, pendingReq.ID, pending.Request.ID)
-	assert.Equal(t, scheduleModels.CareRequestStatusPending, pending.Request.Status)
+	assert.Equal(t, carerequests.StatusPending, pending.Request.Status)
 	assert.Empty(t, pending.ReviewerName)
 	require.NotNil(t, pending.RequestReason)
 	assert.Equal(t, "Oma holt ab", *pending.RequestReason)
@@ -207,8 +210,7 @@ func TestGetForReview_RefusesUnauthorizedAndForeignReaders(t *testing.T) {
 	f, _ := newPickupPillFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 	date := calendar.NewDate(2026, 9, 15)
-	req, err := f.svc.CreatePickupChangeRequest(ctx, f.chain.StudentID, f.chain.AccountID, date,
-		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), "Arzttermin")
+	req, err := testpkg.TenantQuery5(t, ctx, f.db, f.svc.CreatePickupChangeRequest, f.chain.StudentID, f.chain.AccountID, date, time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), "Arzttermin")
 	require.NoError(t, err)
 
 	// users:update without a staff record (the guardian's own account) is
@@ -231,20 +233,22 @@ func TestGetForReview_RefusesUnauthorizedAndForeignReaders(t *testing.T) {
 
 func nativeCareReviews(t *testing.T, f *careFixture) careplan.CareScheduleReviewQuery {
 	t.Helper()
-	query, err := requestreviewcompose.NewScheduleReviews(f.db, testpkg.StudentDirectory{}, requestreviewcompose.ScheduleReviewDependencies{
-		People: f.sf.PeopleDirectory,
-		Scope: func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
+	query, err := api.NewRequestReviewSchedules(testpkg.NewDatabase(t, f.db),
+		testpkg.StudentDirectory{},
+		f.persons,
+		func(ctx context.Context) (careplan.ReviewScope, error) {
 			// Match testpkg.RequestReviewPolicy used by this fixture's commands.
 			wide, _ := securityruntime.CanUpdateStudent(ctx, sessiontoken.PermissionsFromCtx(ctx),
-				careplan.ScheduleStudent{ID: f.chain.StudentID, TenantID: f.chain.TenantID}, f.sf.UserContext)
-			return requestreviewcompose.ReviewScope{SchoolWide: wide}, nil
+				careplan.ScheduleStudent{ID: f.chain.StudentID, TenantID: f.chain.TenantID}, f.caller)
+			return careplan.ReviewScope{SchoolWide: wide}, nil
 		},
-		BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil },
-		Today:                 func() careplan.Date { return "2026-09-09" },
-		Blocks:                api.NewPickupReviewBlocks(testpkg.MustDatabase(f.db)),
-		ObserveCare:           func(requestreviewcompose.CareObservation) {},
-		ObserveTimetable:      func(requestreviewcompose.TimetableObservation) {},
-	})
+		func(context.Context) (bool, error) { return false, nil },
+		func() careplan.Date { return "2026-09-09" },
+		ignoreReviewObservation,
+		ignoreReviewObservation,
+		api.NewPickupReviewBlocks(testpkg.MustDatabase(f.db)))
 	require.NoError(t, err)
 	return query
 }
+
+func ignoreReviewObservation[T any](T) {}

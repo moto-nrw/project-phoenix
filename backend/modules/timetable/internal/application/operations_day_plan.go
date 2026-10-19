@@ -4,7 +4,8 @@ import (
 	"context"
 	"sort"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
@@ -13,7 +14,7 @@ import (
 // track: missing ids are simply absent and read as "no metadata".
 type dayPlanMetadata struct {
 	staff           map[int64]*timetable.StaffMember
-	templates       map[int64]*activitiesModels.Group
+	templates       map[int64]*activityContract.Group
 	tracks          map[int64]timetable.PlanningTrack
 	educationGroups map[int64]string
 }
@@ -38,7 +39,7 @@ func (s *operations) enrichDayPlan(ctx context.Context, candidates []plannedNowC
 
 // decorate sets the template's education group and planning track on a
 // card; a missing template or reference leaves the card as it is.
-func (meta dayPlanMetadata) decorate(card *timetable.OperationPlannedInstance, group *activitiesModels.Group) {
+func (meta dayPlanMetadata) decorate(card *timetable.OperationPlannedInstance, group *activityContract.Group) {
 	if group == nil {
 		return
 	}
@@ -91,8 +92,8 @@ func (s *operations) loadDayPlanMetadata(ctx context.Context, candidates []plann
 
 // loadDayPlanTemplates reads the blocks' templates in one read and collects
 // the distinct education groups and planning tracks they reference.
-func (s *operations) loadDayPlanTemplates(ctx context.Context, candidates []plannedNowCandidate) (map[int64]*activitiesModels.Group, []int64, []int64, error) {
-	templates := map[int64]*activitiesModels.Group{}
+func (s *operations) loadDayPlanTemplates(ctx context.Context, candidates []plannedNowCandidate) (map[int64]*activityContract.Group, []int64, []int64, error) {
+	templates := map[int64]*activityContract.Group{}
 	groupIDs := make([]int64, 0)
 	seen := map[int64]bool{}
 	for _, candidate := range candidates {

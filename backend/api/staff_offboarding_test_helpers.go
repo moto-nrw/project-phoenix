@@ -5,6 +5,8 @@ package api
 import (
 	"context"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -15,14 +17,14 @@ import (
 
 // AssignInstanceStaffForTest plans a staff member onto a block through the
 // Timetable owner's instance staff command.
-func AssignInstanceStaffForTest(ctx context.Context, owners TimetableDependencies, instanceID, staffID int64) error {
-	_, err := owners.Capability.CreateInstanceStaff(ctx, timetable.InstanceStaffInput{InstanceID: instanceID, StaffID: staffID})
+func AssignInstanceStaffForTest(ctx context.Context, capability timetable.Capability, instanceID, staffID int64) error {
+	_, err := capability.CreateInstanceStaff(ctx, timetable.InstanceStaffInput{InstanceID: instanceID, StaffID: staffID})
 	return err
 }
 
 // MoveActivityInstanceForTest moves a block to another day through the
 // retained activity instance rows.
-func MoveActivityInstanceForTest(ctx context.Context, rows TimetableRepositories, instanceID int64, date calendar.Date) error {
+func MoveActivityInstanceForTest(ctx context.Context, rows owners.TimetableRepositories, instanceID int64, date calendar.Date) error {
 	stored, err := rows.ActivityInstance.FindByID(ctx, instanceID)
 	if err != nil {
 		return err

@@ -1,12 +1,11 @@
 package compose
 
 import (
-	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/application/emailbranding"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/application/realtimeevents"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/emailoutbox"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/pwa"
 )
 
 // The Delivery services the typed root binds. The root may not import
@@ -39,8 +38,7 @@ type (
 	MailRenderer     = emailoutbox.Renderer
 	MailRendererFunc = emailoutbox.RendererFunc
 	// PWA usage aggregates come from the root-bound Organisation & Tenancy port.
-	PWAUsageCounts = pwa.UsageCounts
-	PWAUsageRow    = pwa.UsageRow
+	PWAUsageRow = pwa.UsageRow
 	// The opt-in mail recipients of a notification type, which the root
 	// binds to Enrollment's "Neue Anmeldung" mail (#3780, #4012).
 	EmailSubscribers       = notifications.EmailSubscribers
@@ -55,7 +53,6 @@ type (
 	NotificationAudience           = notifications.Audience
 	NotificationAudienceScope      = notifications.AudienceScope
 	// Root bindings for mail, notifications and standalone PWA usage.
-	MailSchoolContacts           = emailoutbox.SchoolContacts
 	MailEnqueued                 = emailoutbox.Enqueued
 	NotificationDeliveryObserver = notifications.DeliveryObserver
 	StaffParentMessageNotifier   = notifications.StaffParentMessageNotifier
@@ -75,27 +72,22 @@ const (
 // enrollment.
 const NotificationEnrollmentSubmitted = notifications.TypeEnrollmentSubmitted
 
-// The portals a push subscription is bound to.
-const (
-	PushPortalParent = deliveryModels.PushPortalParent
-	PushPortalSchool = deliveryModels.PushPortalSchool
-)
-
 var (
-	NewEmailOutbox                = emailoutbox.NewService
-	NewEmailTemplateRegistry      = emailoutbox.NewTemplateRegistry
-	NewTenantMailIdentity         = emailoutbox.NewTenantMailIdentity
-	NewNotifier                   = notifications.NewServiceWithDeliveryObserver
-	NewSSEChannel                 = notifications.NewSSEChannel
-	WithGuardianChildAccess       = notifications.WithGuardianChildAccess
-	NewDurableWebPushChannel      = notifications.NewDurableWebPushChannel
-	NewPushSubscriptionService    = notifications.NewPushSubscriptionService
-	NewPreferenceService          = notifications.NewPreferenceService
-	NewEmailRecipientResolver     = notifications.NewEmailRecipientResolver
-	NewStaffRecipientResolver     = notifications.NewStaffRecipientResolver
-	NewStaffParentMessageNotifier = notifications.NewStaffParentMessageNotifier
-	NewAbsenceNotifier            = notifications.NewAbsenceNotifier
-	NewPWAUsageService            = pwa.NewUsageService
+	NewEmailOutbox                   = emailoutbox.NewService
+	NewEmailTemplateRegistry         = emailoutbox.NewTemplateRegistry
+	NewTenantMailIdentity            = emailoutbox.NewTenantMailIdentity
+	NewNotifier                      = notifications.NewServiceWithDeliveryObserver
+	NewPushSubscriptionService       = notifications.NewPushSubscriptionService
+	NewPreferenceService             = notifications.NewPreferenceService
+	NewEmailRecipientResolver        = notifications.NewEmailRecipientResolver
+	NewStaffRecipientResolver        = notifications.NewStaffRecipientResolver
+	NewStaffParentMessageNotifier    = notifications.NewStaffParentMessageNotifier
+	NewTenantSSEChannel              = notifications.NewTenantSSEChannel
+	NewTenantDurableWebPushChannel   = notifications.NewTenantDurableWebPushChannel
+	NewTenantAbsenceNotifier         = notifications.NewTenantAbsenceNotifier
+	NewTenantPreferenceService       = notifications.NewTenantPreferenceService
+	NewTenantPushSubscriptionService = notifications.NewTenantPushSubscriptionService
+	NewTenantPWAUsageService         = pwa.NewTenantUsageService
 	// ErrRenderCancelled and ErrRenderDeferred are the answers of a renderer
 	// whose mail must not go out, or not yet.
 	ErrRenderCancelled = emailoutbox.ErrRenderCancelled

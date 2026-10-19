@@ -8,8 +8,8 @@ import (
 	"slices"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -24,15 +24,23 @@ var ErrArrivalBaselineMissing = errors.New("load arrival schedules: baseline pro
 // DetectExceptionConflicts computes the cancelled_instance_with_scheduled_arrivals
 // and modified_instance_time_mismatch conflicts in the inclusive [from, to]
 // window and returns them unsorted (the caller sorts before responding).
+func (d *conflictCommands) DetectExceptionConflicts(ctx context.Context, from, to calendar.Date) (value0 []timetable.ExceptionConflict, err error) {
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.commands.DetectExceptionConflicts(txCtx, from, to)
+		return err
+	})
+	return
+}
+
 func (d *conflictDetection) DetectExceptionConflicts(ctx context.Context, from, to calendar.Date) ([]timetable.ExceptionConflict, error) {
-	exceptions, err := d.deps.Exceptions.FindByDateRange(ctx, scheduleModels.Date(from), scheduleModels.Date(to))
+	exceptions, err := d.deps.Exceptions.FindByDateRange(ctx, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return nil, err
 	}
 	if len(exceptions) == 0 {
 		return []timetable.ExceptionConflict{}, nil
 	}
-	instances, err := d.deps.Instances.FindByTenantAndDateRange(ctx, scheduleModels.Date(from), scheduleModels.Date(to))
+	instances, err := d.deps.Instances.FindByTenantAndDateRange(ctx, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +202,7 @@ func (d *conflictDetection) loadArrivalPreload(ctx context.Context, dates map[ca
 // at MaxTimetableReadRangeDays upstream, so this is bounded.
 func (d *conflictDetection) loadArrivalExceptions(ctx context.Context, pre *arrivalPreload, dates map[calendar.Date]map[int64]struct{}) error {
 	for date, students := range dates {
-		rows, err := d.deps.ArrivalExceptions.FindByStudentIDsAndDate(ctx, slices.Collect(maps.Keys(students)), scheduleModels.Date(date))
+		rows, err := d.deps.ArrivalExceptions.FindByStudentIDsAndDate(ctx, slices.Collect(maps.Keys(students)), calendar.Date(date))
 		if err != nil {
 			return err
 		}

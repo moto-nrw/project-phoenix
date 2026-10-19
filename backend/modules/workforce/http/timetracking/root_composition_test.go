@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/workforcetest"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -21,9 +22,9 @@ func init() {
 	workforcetest.ComposeAdmin = func(t *testing.T, clocks ...func() time.Time) (*bun.DB, workforcetest.AdminCapabilities) {
 		t.Helper()
 		db := testpkg.SetupTestDB(t)
-		svc, err := api.NewWorkforceTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+		svc, users, err := api.NewWorkforceTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
 		require.NoError(t, err)
-		capabilities := api.NewWorkforceAdminCapabilities(svc.Users, svc.StaffAdmin, svc.TimeTracking)
+		capabilities := owners.NewWorkforceAdminCapabilities(users, svc.StaffAdmin, svc.TimeTracking)
 		return db, workforcetest.AdminCapabilities{
 			Staff: capabilities.Staff, Documents: capabilities.Documents, WorkSessions: capabilities.WorkSessions,
 			StaffAbsences: capabilities.StaffAbsences, WorkTimeMonth: capabilities.WorkTimeMonth,
@@ -33,27 +34,30 @@ func init() {
 	}
 	workforcetest.ComposeCapability = func(t *testing.T, db *bun.DB, now func() time.Time) workforce.Capability {
 		t.Helper()
-		membership, err := api.NewSchoolMembership(testpkg.NewDatabase(t, db))
+		membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, db))
 		require.NoError(t, err)
-		capability, err := api.NewWorkforceWithClock(testpkg.NewDatabase(t, db), membership, now)
+		capability, err := owners.NewWorkforceWithClock(testpkg.NewDatabase(t, db), membership, now)
 		require.NoError(t, err)
 		return capability
 	}
 	workforcetest.ComposeRows = func(t *testing.T, db *bun.DB) workforcetest.Rows {
 		t.Helper()
-		repos, err := api.NewWorkforceTestRepositories(testpkg.NewDatabase(t, db), api.NewTestAuditStore(testpkg.NewDatabase(t, db)))
+		repos, err := api.NewWorkforceTestRepositories(testpkg.NewDatabase(t, db))
 		require.NoError(t, err)
+		timetable, err := api.NewTimetableTestRepositories(testpkg.NewDatabase(t, db))
+		require.NoError(t, err)
+		members := owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db))
 		return workforcetest.Rows{
 			StaffAbsence: repos.StaffAbsence,
 			FindShift: func(ctx context.Context, shiftID int64) (*workforcetest.ShiftRow, error) {
-				shift, err := repos.StaffShift.FindByID(ctx, shiftID)
+				shift, err := timetable.StaffShift.FindByID(ctx, shiftID)
 				if err != nil {
 					return nil, err
 				}
 				return &workforcetest.ShiftRow{Cancelled: shift.Cancelled, SickAbsenceID: shift.SickAbsenceID}, nil
 			},
 			FindStaff: func(ctx context.Context, staffID int64) (*workforcetest.StaffRow, error) {
-				staff, err := repos.Staff.FindByID(ctx, staffID)
+				staff, err := members.Staff.FindByID(ctx, staffID)
 				if err != nil {
 					return nil, err
 				}

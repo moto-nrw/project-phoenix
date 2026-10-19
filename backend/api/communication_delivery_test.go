@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/stretchr/testify/assert"
@@ -42,15 +44,15 @@ func TestCommunicationDeliveryPreservesRecipientSelectorsAndPartialReceipt(t *te
 		receivedContext, receivedEvent = ctx, event
 		return 7, failure
 	})
-	require.Same(t, failure, BindCommunicationNotificationSender(source)(ctx, event))
+	require.Same(t, failure, owners.BindCommunicationNotificationSender(source)(ctx, event))
 	assert.Same(t, ctx, receivedContext)
 	assert.Equal(t, expected, receivedEvent)
-	receipt, err := BindCommunicationDurableNotificationSender(source)(ctx, event)
+	receipt, err := owners.BindCommunicationDurableNotificationSender(source)(ctx, event)
 	assert.Equal(t, 7, receipt)
 	assert.Same(t, failure, err)
 	assert.Equal(t, expected, receivedEvent)
-	assert.Nil(t, BindCommunicationNotificationSender(nil))
-	assert.Nil(t, BindCommunicationDurableNotificationSender(nil))
+	assert.Nil(t, owners.BindCommunicationNotificationSender(nil))
+	assert.Nil(t, owners.BindCommunicationDurableNotificationSender(nil))
 }
 
 func TestCommunicationDeliveryPreservesAbsentAndEmptySelectors(t *testing.T) {
@@ -68,7 +70,7 @@ func TestCommunicationDeliveryPreservesAbsentAndEmptySelectors(t *testing.T) {
 			receivedEvent = event
 			return 0, nil
 		})
-		require.NoError(t, BindCommunicationNotificationSender(source)(context.Background(), event))
+		require.NoError(t, owners.BindCommunicationNotificationSender(source)(context.Background(), event))
 		assert.Equal(t, empty, receivedEvent.Data != nil)
 		assert.Equal(t, empty, receivedEvent.Audience.GuardianAccountIDs != nil)
 		assert.Equal(t, empty, receivedEvent.Audience.StaffAccountIDs != nil)

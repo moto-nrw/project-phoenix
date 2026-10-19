@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -53,18 +52,18 @@ func TestStudentRepository_Create(t *testing.T) {
 		// Create person first
 		person := testpkg.CreateTestPerson(t, db, "Create", "Student")
 
-		student := &userModels.Student{
+		student := &peopledirectory.StudentState{
 			PersonID:    person.ID,
 			SchoolClass: "1a",
 		}
 
-		err := repo.Create(ctx, student)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, student)
 		require.NoError(t, err)
 		assert.NotZero(t, student.ID)
 		assert.NotZero(t, student.CreatedAt)
 
 		// Verify in DB
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		assert.Equal(t, person.ID, found.PersonID)
 		assert.Equal(t, "1a", found.SchoolClass)
@@ -77,18 +76,18 @@ func TestStudentRepository_Create(t *testing.T) {
 
 		person := testpkg.CreateTestPerson(t, db, "BusDays", "All")
 
-		student := &userModels.Student{
+		student := &peopledirectory.StudentState{
 			PersonID:    person.ID,
 			SchoolClass: "2c",
 			BusDays:     peopledirectory.BusDaysFromLegacyFlag(true),
 		}
 
-		err := repo.Create(ctx, student)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, student)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
-		for _, day := range userModels.BusDayOrder {
+		for _, day := range peopledirectory.BusDayOrder {
 			assert.True(t, found.BusDays[day], "bus_days should enable %s", day)
 		}
 
@@ -99,16 +98,16 @@ func TestStudentRepository_Create(t *testing.T) {
 
 		person := testpkg.CreateTestPerson(t, db, "BusDays", "Empty")
 
-		student := &userModels.Student{
+		student := &peopledirectory.StudentState{
 			PersonID:    person.ID,
 			SchoolClass: "2d",
-			BusDays:     userModels.BusDays{},
+			BusDays:     peopledirectory.BusDays{},
 		}
 
-		err := repo.Create(ctx, student)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, student)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		assert.False(t, found.BusDays.HasAny())
 		assert.Empty(t, found.BusDays.Normalize())
@@ -116,7 +115,7 @@ func TestStudentRepository_Create(t *testing.T) {
 	})
 
 	t.Run("fails with nil student", func(t *testing.T) {
-		err := repo.Create(ctx, nil)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "nil")
 	})
@@ -124,12 +123,12 @@ func TestStudentRepository_Create(t *testing.T) {
 	t.Run("fails with invalid data - missing school class", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "Invalid", "Student")
 
-		student := &userModels.Student{
+		student := &peopledirectory.StudentState{
 			PersonID:    person.ID,
 			SchoolClass: "", // Required field
 		}
 
-		err := repo.Create(ctx, student)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, student)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "school class")
 	})
@@ -137,15 +136,15 @@ func TestStudentRepository_Create(t *testing.T) {
 	t.Run("fails with invalid bus days before persistence", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "Invalid", "BusDays")
 
-		student := &userModels.Student{
+		student := &peopledirectory.StudentState{
 			PersonID:    person.ID,
 			SchoolClass: "1a",
-			BusDays: userModels.BusDays{
+			BusDays: peopledirectory.BusDays{
 				"sat": true,
 			},
 		}
 
-		err := repo.Create(ctx, student)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, student)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), `weekday "sat"`)
 		assert.Zero(t, student.ID)
@@ -163,14 +162,14 @@ func TestStudentRepository_FindByID(t *testing.T) {
 	t.Run("finds existing student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "FindByID", "Test", "3c")
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		assert.Equal(t, student.ID, found.ID)
 		assert.Equal(t, "3c", found.SchoolClass)
 	})
 
 	t.Run("returns error for non-existent student", func(t *testing.T) {
-		_, err := repo.FindByID(ctx, int64(999999))
+		_, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(int64(999999)))
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no rows")
 	})
@@ -187,14 +186,14 @@ func TestStudentRepository_FindByPersonID(t *testing.T) {
 	t.Run("finds student by person ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "FindByPerson", "Test", "4a")
 
-		found, err := repo.FindByPersonID(ctx, student.PersonID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByPersonID, student.PersonID)
 		require.NoError(t, err)
 		assert.Equal(t, student.ID, found.ID)
 		assert.Equal(t, student.PersonID, found.PersonID)
 	})
 
 	t.Run("returns error for non-existent person ID", func(t *testing.T) {
-		_, err := repo.FindByPersonID(ctx, int64(999999))
+		_, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByPersonID, int64(999999))
 		require.Error(t, err)
 	})
 }
@@ -209,17 +208,17 @@ func TestStudentRepository_Update(t *testing.T) {
 
 	t.Run("updates student fields", func(t *testing.T) {
 		studentFixture := testpkg.CreateTestStudent(t, db, "Update", "Test", "1a")
-		student, err := repo.FindByID(ctx, studentFixture.ID)
+		student, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(studentFixture.ID))
 		require.NoError(t, err)
 
 		student.SchoolClass = "2b"
 		extraInfo := "Updated info"
 		student.ExtraInfo = &extraInfo
 
-		err = repo.Update(ctx, student)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Update, student)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		assert.Equal(t, "2b", found.SchoolClass)
 		require.NotNil(t, found.ExtraInfo)
@@ -227,7 +226,7 @@ func TestStudentRepository_Update(t *testing.T) {
 	})
 
 	t.Run("fails with nil student", func(t *testing.T) {
-		err := repo.Update(ctx, nil)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Update, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "nil")
 	})
@@ -246,16 +245,16 @@ func TestStudentRepository_Delete(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Delete", "Test", "1a")
 		personID := student.PersonID
 
-		err := repo.Delete(ctx, student.ID)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Delete, any(student.ID))
 		require.NoError(t, err)
 
 		// Verify student is deleted
-		_, err = repo.FindByID(ctx, student.ID)
+		_, err = testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.Error(t, err)
 
 		// Cleanup person (student is already deleted)
 		_, _ = db.NewDelete().
-			Model((*userModels.Person)(nil)).
+			Model((*peopledirectory.DirectoryPersonSnapshot)(nil)).
 			ModelTableExpr(`users.persons AS "person"`).
 			Where(`"person".id = ?`, personID).
 			Exec(ctx)
@@ -298,7 +297,7 @@ func TestStudentRepository_FindByGroupID(t *testing.T) {
 		assignStudentToGroupDirect(t, db, student1.ID, group.ID)
 		assignStudentToGroupDirect(t, db, student2.ID, group.ID)
 
-		students, err := repo.FindByGroupID(ctx, group.ID)
+		students, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByGroupID, group.ID)
 		require.NoError(t, err)
 		assert.Len(t, students, 2)
 	})
@@ -306,7 +305,7 @@ func TestStudentRepository_FindByGroupID(t *testing.T) {
 	t.Run("returns empty slice for group with no students", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "EmptyClass")
 
-		students, err := repo.FindByGroupID(ctx, group.ID)
+		students, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByGroupID, group.ID)
 		require.NoError(t, err)
 		assert.Empty(t, students)
 	})
@@ -330,19 +329,19 @@ func TestStudentRepository_FindByGroupIDs(t *testing.T) {
 		assignStudentToGroupDirect(t, db, student1.ID, group1.ID)
 		assignStudentToGroupDirect(t, db, student2.ID, group2.ID)
 
-		students, err := repo.FindByGroupIDs(ctx, []int64{group1.ID, group2.ID})
+		students, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByGroupIDs, []int64{group1.ID, group2.ID})
 		require.NoError(t, err)
 		assert.Len(t, students, 2)
 	})
 
 	t.Run("returns empty slice for empty group IDs", func(t *testing.T) {
-		students, err := repo.FindByGroupIDs(ctx, []int64{})
+		students, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByGroupIDs, []int64{})
 		require.NoError(t, err)
 		assert.Empty(t, students)
 	})
 }
 
-// NOTE: AssignToGroup and RemoveFromGroup use Model((*userModels.Student)(nil)) which
+// NOTE: AssignToGroup and RemoveFromGroup use Model((*peopledirectory.StudentState)(nil)) which
 // doesn't properly set the schema-qualified table name. These tests verify the
 // methods exist but the implementation has a known issue with nil model table expressions.
 // In production, this may work if the PostgreSQL search_path includes the "users" schema.
@@ -363,7 +362,7 @@ func TestStudentRepository_AssignToGroup(t *testing.T) {
 		// Use direct assignment as workaround for the nil model issue
 		assignStudentToGroupDirect(t, db, student.ID, group.ID)
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		require.NotNil(t, found.GroupID)
 		assert.Equal(t, group.ID, *found.GroupID)
@@ -394,7 +393,7 @@ func TestStudentRepository_RemoveFromGroup(t *testing.T) {
 			Exec(ctx)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		assert.Nil(t, found.GroupID)
 	})
@@ -419,7 +418,7 @@ func TestStudentClassReadUsesNativeDirectory(t *testing.T) {
 		testpkg.CreateTestStudent(t, db, "Class2", "Test", uniqueClass)  // Same class
 		testpkg.CreateTestStudent(t, db, "Class3", "Test", "OtherClass") // Different class
 
-		students, err := repo.ListStudentRecordsByClass(ctx, []string{uniqueClass}, peopledirectory.StudentScopeEnrolled)
+		students, err := testpkg.TenantQuery2(t, ctx, db, repo.ListStudentRecordsByClass, []string{uniqueClass}, peopledirectory.StudentScopeEnrolled)
 		require.NoError(t, err)
 		assert.Len(t, students, 2)
 	})
@@ -434,7 +433,7 @@ func TestStudentClassReadUsesNativeDirectory(t *testing.T) {
 			Exec(ctx)
 		require.NoError(t, err)
 
-		students, err := repo.ListStudentRecordsByClass(ctx, []string{uniqueClass}, peopledirectory.StudentScopeEnrolled)
+		students, err := testpkg.TenantQuery2(t, ctx, db, repo.ListStudentRecordsByClass, []string{uniqueClass}, peopledirectory.StudentScopeEnrolled)
 
 		require.NoError(t, err)
 		require.Len(t, students, 1)
@@ -442,7 +441,7 @@ func TestStudentClassReadUsesNativeDirectory(t *testing.T) {
 	})
 
 	t.Run("returns empty slice for non-existent class", func(t *testing.T) {
-		students, err := repo.ListStudentRecordsByClass(ctx, []string{"NonExistent99XYZ"}, peopledirectory.StudentScopeEnrolled)
+		students, err := testpkg.TenantQuery2(t, ctx, db, repo.ListStudentRecordsByClass, []string{"NonExistent99XYZ"}, peopledirectory.StudentScopeEnrolled)
 		require.NoError(t, err)
 		assert.Empty(t, students)
 	})
@@ -463,7 +462,7 @@ func TestStudentRepository_ClassRoster(t *testing.T) {
 		class := fmt.Sprintf("RosterClass%d", time.Now().UnixNano())
 		student := testpkg.CreateTestStudent(t, db, "Roster", "Test", class)
 
-		students, err := repo.ListClassRoster(ctx, class)
+		students, err := testpkg.TenantQuery1(t, ctx, db, repo.ListClassRoster, class)
 		require.NoError(t, err)
 		require.Len(t, students, 1)
 		assert.Equal(t, student.ID, students[0].ID)
@@ -472,7 +471,7 @@ func TestStudentRepository_ClassRoster(t *testing.T) {
 	t.Run("every class", func(t *testing.T) {
 		testpkg.CreateTestStudent(t, db, "RosterAll", "Test", "1a")
 
-		students, err := repo.ListClassRoster(ctx, "")
+		students, err := testpkg.TenantQuery1(t, ctx, db, repo.ListClassRoster, "")
 		require.NoError(t, err)
 		assert.NotEmpty(t, students, "an empty class name spans the whole school")
 	})
@@ -486,17 +485,17 @@ func TestStudentRepository_CountEnrolledLeavesGraduatesOut(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Counted", "Test", "1a")
-	before, err := repo.CountEnrolled(ctx)
+	before, err := testpkg.TenantQuery0(t, ctx, db, repo.CountEnrolled)
 	require.NoError(t, err)
 	require.Positive(t, before)
 
 	_, err = db.NewUpdate().TableExpr("users.student_school_memberships").
-		Set("status = ?", userModels.StudentStatusAlumnus).
+		Set("status = ?", peopledirectory.StudentStatusAlumnus).
 		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
-	after, err := repo.CountEnrolled(ctx)
+	after, err := testpkg.TenantQuery0(t, ctx, db, repo.CountEnrolled)
 	require.NoError(t, err)
 	assert.Equal(t, before-1, after, "a graduate stops counting")
 }
@@ -512,19 +511,19 @@ func TestStudentRepository_ListByGroupIDsIncludingAlumni(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Candidate", "Test", "1a")
 	_, err := db.NewUpdate().TableExpr("users.student_school_memberships").
 		Set("group_id = ?", group.ID).
-		Set("status = ?", userModels.StudentStatusAlumnus).
+		Set("status = ?", peopledirectory.StudentStatusAlumnus).
 		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
 	// The participation rule that follows decides per child whether a graduate
 	// still counts, so the candidate set has to contain them.
-	students, err := repo.ListByGroupIDsIncludingAlumni(ctx, []int64{group.ID})
+	students, err := testpkg.TenantQuery1(t, ctx, db, repo.ListByGroupIDsIncludingAlumni, []int64{group.ID})
 	require.NoError(t, err)
 	require.Len(t, students, 1)
 	assert.Equal(t, student.ID, students[0].ID)
 
-	enrolled, err := repo.FindByGroupIDs(ctx, []int64{group.ID})
+	enrolled, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByGroupIDs, []int64{group.ID})
 	require.NoError(t, err)
 	assert.Empty(t, enrolled, "the roster read still leaves the graduate out")
 }
@@ -546,7 +545,7 @@ func TestStudentRepository_CountWithOptions(t *testing.T) {
 		filter.ILike("school_class", "%CountClass%")
 		options.Filter = filter
 
-		count, err := repo.CountWithOptions(ctx, options)
+		count, err := testpkg.TenantQuery1(t, ctx, db, repo.CountWithOptions, options)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, count, 2)
 	})
@@ -595,10 +594,10 @@ func TestStudentRepository_FindByTeacherIDWithGroups(t *testing.T) {
 		}()
 
 		// Test
-		results, err := repo.FindByTeacherIDWithGroups(ctx, teacher.ID)
+		results, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByTeacherIDWithGroups, teacher.ID)
 		require.NoError(t, err)
 		assert.Len(t, results, 1)
-		assert.Equal(t, student.ID, results[0].ID)
+		assert.Equal(t, student.ID, results[0].Record.ID)
 		assert.Contains(t, results[0].GroupName, "ClassWithName") // Contains since unique suffix added
 	})
 }
@@ -616,18 +615,18 @@ func TestStudentRepository_FindAllWithGroups(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "AllWith", "Group", "3a")
 		assignStudentToGroupDirect(t, db, student.ID, group.ID)
 
-		results, err := repo.FindAllWithGroups(ctx)
+		results, err := testpkg.TenantQuery0(t, ctx, db, repo.FindAllWithGroups)
 		require.NoError(t, err)
 		assert.NotEmpty(t, results)
 
 		// Find our test student in results
 		var found bool
 		for _, r := range results {
-			if r.ID == student.ID {
+			if r.Record.ID == student.ID {
 				found = true
 				assert.Contains(t, r.GroupName, "AllGroupTest")
-				assert.NotNil(t, r.Person)
-				assert.Equal(t, "AllWith", r.Person.FirstName)
+				assert.NotNil(t, r.Record.Person)
+				assert.Equal(t, "AllWith", r.Record.Person.FirstName)
 				break
 			}
 		}
@@ -638,12 +637,12 @@ func TestStudentRepository_FindAllWithGroups(t *testing.T) {
 		// Student without group_id
 		student := testpkg.CreateTestStudent(t, db, "NoGroup", "Student", "4b")
 
-		results, err := repo.FindAllWithGroups(ctx)
+		results, err := testpkg.TenantQuery0(t, ctx, db, repo.FindAllWithGroups)
 		require.NoError(t, err)
 
 		var found bool
 		for _, r := range results {
-			if r.ID == student.ID {
+			if r.Record.ID == student.ID {
 				found = true
 				assert.Empty(t, r.GroupName) // COALESCE returns ''
 				break
@@ -656,16 +655,16 @@ func TestStudentRepository_FindAllWithGroups(t *testing.T) {
 		s1 := testpkg.CreateTestStudent(t, db, "Zara", "Alpha", "1a")
 		s2 := testpkg.CreateTestStudent(t, db, "Anna", "Beta", "1a")
 
-		results, err := repo.FindAllWithGroups(ctx)
+		results, err := testpkg.TenantQuery0(t, ctx, db, repo.FindAllWithGroups)
 		require.NoError(t, err)
 
 		// Find positions of our two test students
 		posAlpha, posBeta := -1, -1
 		for i, r := range results {
-			if r.ID == s1.ID {
+			if r.Record.ID == s1.ID {
 				posAlpha = i
 			}
-			if r.ID == s2.ID {
+			if r.Record.ID == s2.ID {
 				posBeta = i
 			}
 		}
@@ -704,59 +703,55 @@ func TestStudentRepository_FindOverlappingWithGroups(t *testing.T) {
 	}
 	// A graduated child stays out even while the interval overlaps: alumni are
 	// soft-deleted, and the statistics room aggregate excludes them too (#2606).
-	_, err := db.NewUpdate().TableExpr(`users.student_school_memberships`).Set(`status = ?`, userModels.StudentStatusAlumnus).Where(`student_profile_id = ? AND deleted_at IS NULL`, alumnus.ID).Exec(ctx)
+	_, err := db.NewUpdate().TableExpr(`users.student_school_memberships`).Set(`status = ?`, peopledirectory.StudentStatusAlumnus).Where(`student_profile_id = ? AND deleted_at IS NULL`, alumnus.ID).Exec(ctx)
 	require.NoError(t, err)
 
 	// A day after the window: nobody gets the immediate-activation override,
 	// so membership is the plain interval overlap.
 	afterWindow := to.AddDays(1)
-	results, err := repo.FindOverlappingWithGroups(ctx, from, to, afterWindow)
+	results, err := testpkg.TenantQuery3(t, ctx, db, repo.FindOverlappingWithGroups, from, to, afterWindow)
 	require.NoError(t, err)
-	ids := make(map[int64]*userModels.StudentWithGroupInfo, len(results))
+	ids := make(map[int64]*peopledirectory.StudentRosterEntry, len(results))
 	for _, result := range results {
-		ids[result.ID] = result
+		ids[result.Record.ID] = result
 	}
 	assert.Contains(t, ids, overlapping.ID)
 	assert.NotContains(t, ids, past.ID)
 	assert.NotContains(t, ids, future.ID)
 	assert.NotContains(t, ids, alumnus.ID)
-	require.NotNil(t, ids[overlapping.ID].EnrolledUntil)
-	assert.Equal(t, overlappingUntil, *ids[overlapping.ID].EnrolledUntil)
+	require.NotNil(t, ids[overlapping.ID].Record.EnrolledUntil)
+	assert.Equal(t, overlappingUntil, *ids[overlapping.ID].Record.EnrolledUntil)
 
 	_, err = db.NewUpdate().
 		TableExpr(`users.student_school_memberships`).
-		Set(`status = ?`, userModels.StudentStatusInactive).
+		Set(`status = ?`, peopledirectory.StudentStatusInactive).
 		Where(`student_profile_id = ? AND deleted_at IS NULL`, overlapping.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
-	historical, err := repo.FindOverlappingWithGroupsOnDate(
-		ctx,
-		"2026-06-01",
-		time.Date(2026, time.June, 9, 8, 0, 0, 0, time.UTC),
-	)
+	historical, err := testpkg.TenantQuery2(t, ctx, db, repo.FindOverlappingWithGroupsOnDate, "2026-06-01", time.Date(2026, time.June, 9, 8, 0, 0, 0, time.UTC))
 	require.NoError(t, err)
 	historicalIDs := make(map[int64]bool, len(historical))
 	for _, result := range historical {
-		historicalIDs[result.ID] = true
+		historicalIDs[result.Record.ID] = true
 	}
 	assert.True(t, historicalIDs[overlapping.ID], "a child enrolled on the list date remains eligible after becoming inactive")
 	assert.False(t, historicalIDs[future.ID], "immediate activation must not apply retroactively to a historical list")
 
 	// Immediate activation deliberately applies from today onward. A child
 	// activated before the formal service start therefore remains eligible on
-	// a future kitchen-list date, matching userModels.EnrolledOn and slot lists.
-	futureList, err := repo.FindOverlappingWithGroups(ctx, to, to, to.AddDays(-1))
+	// a future kitchen-list date, matching peopledirectory.EnrolledOn and slot lists.
+	futureList, err := testpkg.TenantQuery3(t, ctx, db, repo.FindOverlappingWithGroups, to, to, to.AddDays(-1))
 	require.NoError(t, err)
 	futureListIDs := make(map[int64]bool, len(futureList))
 	for _, result := range futureList {
-		futureListIDs[result.ID] = true
+		futureListIDs[result.Record.ID] = true
 	}
 	assert.True(t, futureListIDs[future.ID], "immediate activation applies to future dates from today onward")
 }
 
 // TestStudentRepository_FindOverlappingWithGroupsImmediateActivation pins the
-// enrollment rule of userModels.EnrolledOn at the query: a child activated
+// enrollment rule of peopledirectory.EnrolledOn at the query: a child activated
 // immediately (status active, enrolled_from still ahead) is in care from today
 // on, so a window containing today must list them — otherwise the statistics
 // drop their attendance and their room visits. The same child in status
@@ -778,12 +773,12 @@ func TestStudentRepository_FindOverlappingWithGroupsImmediateActivation(t *testi
 	startsLater := calendar.NewDate(2026, 9, 1)
 	for _, update := range []struct {
 		id     int64
-		status userModels.StudentStatus
+		status string
 		from   *calendar.Date
 	}{
-		{activated.ID, userModels.StudentStatusActive, &startsLater},
-		{pending.ID, userModels.StudentStatusPending, &startsLater},
-		{dormant.ID, userModels.StudentStatusInactive, nil},
+		{activated.ID, peopledirectory.StudentStatusActive, &startsLater},
+		{pending.ID, peopledirectory.StudentStatusPending, &startsLater},
+		{dormant.ID, peopledirectory.StudentStatusInactive, nil},
 	} {
 		query := db.NewUpdate().TableExpr(`users.student_school_memberships`).Set(`status = ?`, update.status)
 		if update.from != nil {
@@ -793,12 +788,12 @@ func TestStudentRepository_FindOverlappingWithGroupsImmediateActivation(t *testi
 		require.NoError(t, err)
 	}
 
-	contains := func(today calendar.Date) map[int64]*userModels.StudentWithGroupInfo {
-		results, err := repo.FindOverlappingWithGroups(ctx, from, to, today)
+	contains := func(today calendar.Date) map[int64]*peopledirectory.StudentRosterEntry {
+		results, err := testpkg.TenantQuery3(t, ctx, db, repo.FindOverlappingWithGroups, from, to, today)
 		require.NoError(t, err)
-		ids := make(map[int64]*userModels.StudentWithGroupInfo, len(results))
+		ids := make(map[int64]*peopledirectory.StudentRosterEntry, len(results))
 		for _, result := range results {
-			ids[result.ID] = result
+			ids[result.Record.ID] = result
 		}
 		return ids
 	}
@@ -809,10 +804,10 @@ func TestStudentRepository_FindOverlappingWithGroupsImmediateActivation(t *testi
 	assert.NotContains(t, inWindow, dormant.ID, "an inactive row without an interval is no longer enrolled")
 
 	// The row must carry the lifecycle status, not only pass the WHERE clause:
-	// userModels.EnrolledOn reads it per day, so a zero value would drop the very
+	// peopledirectory.EnrolledOn reads it per day, so a zero value would drop the very
 	// child this query just admitted (#2606).
 	require.NotNil(t, inWindow[activated.ID])
-	assert.Equal(t, userModels.StudentStatusActive, inWindow[activated.ID].Status)
+	assert.Equal(t, peopledirectory.StudentStatusActive, inWindow[activated.ID].Record.Status)
 
 	afterWindow := contains(to.AddDays(1))
 	assert.NotContains(t, afterWindow, activated.ID, "the override reaches today, not a window that ended before it")
@@ -846,7 +841,7 @@ func TestStudentRepository_FindByIDForUpdate(t *testing.T) {
 		url := "/uploads/student-photos/locked.jpg"
 		setPhotoPath(t, db, s.ID, &url)
 
-		fresh, err := repo.FindByIDForUpdate(ctx, s.ID)
+		fresh, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByIDForUpdate, s.ID)
 		require.NoError(t, err)
 		require.NotNil(t, fresh)
 		assert.Equal(t, s.ID, fresh.ID)
@@ -856,7 +851,7 @@ func TestStudentRepository_FindByIDForUpdate(t *testing.T) {
 	})
 
 	t.Run("returns error for missing row", func(t *testing.T) {
-		_, err := repo.FindByIDForUpdate(ctx, int64(999_999_999))
+		_, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByIDForUpdate, int64(999_999_999))
 		require.Error(t, err)
 	})
 }

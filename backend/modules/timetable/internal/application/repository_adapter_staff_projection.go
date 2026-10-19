@@ -3,19 +3,21 @@ package application
 import (
 	"context"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 )
 
 // staffActivityGroupRepository attaches the staff member to the supervisors
 // a group is loaded with. The replaced lookup was a soft-delete-aware model
 // select, so an offboarded supervisor keeps a nil Staff here.
 type staffActivityGroupRepository struct {
-	activitiesModels.GroupRepository
+	ports.ActivityGroupRecords
 	membership func(context.Context, []int64, bool) (map[int64]int64, error)
 }
 
-func (r staffActivityGroupRepository) FindWithSupervisors(ctx context.Context, groupID int64) (*activitiesModels.Group, []*activitiesModels.SupervisorPlanned, error) {
-	group, supervisors, err := r.GroupRepository.FindWithSupervisors(ctx, groupID)
+func (r staffActivityGroupRepository) FindWithSupervisors(ctx context.Context, groupID int64) (*activityContract.Group, []*activityContract.SupervisorPlanned, error) {
+	group, supervisors, err := r.ActivityGroupRecords.FindWithSupervisors(ctx, groupID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -29,15 +31,15 @@ func (r staffActivityGroupRepository) FindWithSupervisors(ctx context.Context, g
 // timetable services type-assert on reachable through the staff wrapper.
 type staffActivityGroupTargetRepository struct {
 	staffActivityGroupRepository
-	activitiesModels.GroupTargetRepository
+	ports.ActivityGroupTargets
 }
 
 var _ activityGroupTargets = staffActivityGroupTargetRepository{}
 
-func newStaffActivityGroupRepository(inner activitiesModels.GroupRepository, membership func(context.Context, []int64, bool) (map[int64]int64, error)) activitiesModels.GroupRepository {
-	wrapped := staffActivityGroupRepository{GroupRepository: inner, membership: membership}
-	if targets, ok := inner.(activitiesModels.GroupTargetRepository); ok {
-		return staffActivityGroupTargetRepository{staffActivityGroupRepository: wrapped, GroupTargetRepository: targets}
+func newStaffActivityGroupRepository(inner ports.ActivityGroupRecords, membership func(context.Context, []int64, bool) (map[int64]int64, error)) ports.ActivityGroupRecords {
+	wrapped := staffActivityGroupRepository{ActivityGroupRecords: inner, membership: membership}
+	if targets, ok := inner.(ports.ActivityGroupTargets); ok {
+		return staffActivityGroupTargetRepository{staffActivityGroupRepository: wrapped, ActivityGroupTargets: targets}
 	}
 	return wrapped
 }
@@ -46,27 +48,27 @@ func newStaffActivityGroupRepository(inner activitiesModels.GroupRepository, mem
 // supervisor rows. The replaced LEFT JOIN carried no soft-delete filter, so
 // an offboarded supervisor still resolves.
 type staffSupervisorPlannedRepository struct {
-	activitiesModels.SupervisorPlannedRepository
+	ports.PlannedSupervisorRecords
 	membership func(context.Context, []int64, bool) (map[int64]int64, error)
 }
 
-func (r staffSupervisorPlannedRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*activitiesModels.SupervisorPlanned, error) {
-	rows, err := r.SupervisorPlannedRepository.FindByGroupID(ctx, groupID)
+func (r staffSupervisorPlannedRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*activityContract.SupervisorPlanned, error) {
+	rows, err := r.PlannedSupervisorRecords.FindByGroupID(ctx, groupID)
 	if err != nil {
 		return nil, err
 	}
 	return rows, attachPlannedSupervisorStaff(ctx, r.membership, rows, true)
 }
 
-func (r staffSupervisorPlannedRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*activitiesModels.SupervisorPlanned, error) {
-	rows, err := r.SupervisorPlannedRepository.FindByGroupIDs(ctx, groupIDs)
+func (r staffSupervisorPlannedRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*activityContract.SupervisorPlanned, error) {
+	rows, err := r.PlannedSupervisorRecords.FindByGroupIDs(ctx, groupIDs)
 	if err != nil {
 		return nil, err
 	}
 	return rows, attachPlannedSupervisorStaff(ctx, r.membership, rows, true)
 }
 
-func attachPlannedSupervisorStaff(ctx context.Context, staffPersons func(context.Context, []int64, bool) (map[int64]int64, error), rows []*activitiesModels.SupervisorPlanned, includeDeleted bool) error {
+func attachPlannedSupervisorStaff(ctx context.Context, staffPersons func(context.Context, []int64, bool) (map[int64]int64, error), rows []*activityContract.SupervisorPlanned, includeDeleted bool) error {
 	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		if row != nil {

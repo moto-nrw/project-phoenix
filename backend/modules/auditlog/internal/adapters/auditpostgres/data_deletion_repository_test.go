@@ -33,7 +33,7 @@ func TestDataDeletionRepository_Create(t *testing.T) {
 			"system",
 		)
 
-		err := repo.Create(ctx, deletion)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, deletion)
 		require.NoError(t, err)
 		assert.NotZero(t, deletion.ID)
 
@@ -50,7 +50,7 @@ func TestDataDeletionRepository_Create(t *testing.T) {
 			DeletedAt:      time.Now(),
 		}
 
-		err := repo.Create(ctx, deletion)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, deletion)
 		require.NoError(t, err)
 		assert.NotZero(t, deletion.ID)
 
@@ -66,14 +66,14 @@ func TestDataDeletionRepository_Create(t *testing.T) {
 		deletion.DeletionReason = "GDPR Article 17 request"
 		deletion.SetMetadata("request_id", "GDPR-2024-001")
 
-		err := repo.Create(ctx, deletion)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, deletion)
 		require.NoError(t, err)
 		assert.NotZero(t, deletion.ID)
 
 	})
 
 	t.Run("create with nil deletion should fail", func(t *testing.T) {
-		err := repo.Create(ctx, nil)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be nil")
 	})
@@ -96,10 +96,10 @@ func TestDataDeletionRepository_FindByID(t *testing.T) {
 			15,
 			"system",
 		)
-		err := repo.Create(ctx, deletion)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, deletion)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, deletion.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(deletion.ID))
 		require.NoError(t, err)
 		assert.Equal(t, deletion.ID, found.ID)
 		require.NotNil(t, found.StudentID)
@@ -107,7 +107,7 @@ func TestDataDeletionRepository_FindByID(t *testing.T) {
 	})
 
 	t.Run("returns error for non-existent deletion", func(t *testing.T) {
-		_, err := repo.FindByID(ctx, int64(999999))
+		_, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(int64(999999)))
 		require.Error(t, err)
 	})
 }
@@ -132,14 +132,14 @@ func TestDataDeletionRepository_FindByStudentID(t *testing.T) {
 		deletion2 := audit.NewDataDeletion(student1.ID, audit.DeletionTypeManual, 3, "admin")
 		deletion3 := audit.NewDataDeletion(student2.ID, audit.DeletionTypeGDPRRequest, 10, "admin")
 
-		err := repo.Create(ctx, deletion1)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, deletion1)
 		require.NoError(t, err)
-		err = repo.Create(ctx, deletion2)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Create, deletion2)
 		require.NoError(t, err)
-		err = repo.Create(ctx, deletion3)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Create, deletion3)
 		require.NoError(t, err)
 
-		deletions, err := repo.FindByStudentID(ctx, student1.ID)
+		deletions, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByStudentID, student1.ID)
 		require.NoError(t, err)
 		assert.Len(t, deletions, 2)
 
@@ -165,10 +165,10 @@ func TestDataDeletionRepository_FindByDateRange(t *testing.T) {
 		weekAgo := now.AddDate(0, 0, -7)
 
 		deletion := audit.NewDataDeletion(student.ID, audit.DeletionTypeVisitRetention, 5, "system")
-		err := repo.Create(ctx, deletion)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, deletion)
 		require.NoError(t, err)
 
-		deletions, err := repo.FindByDateRange(ctx, weekAgo, now.Add(time.Hour))
+		deletions, err := testpkg.TenantQuery2(t, ctx, db, repo.FindByDateRange, weekAgo, now.Add(time.Hour))
 		require.NoError(t, err)
 
 		var found bool
@@ -196,12 +196,12 @@ func TestDataDeletionRepository_FindByType(t *testing.T) {
 		visitRetention := audit.NewDataDeletion(student.ID, audit.DeletionTypeVisitRetention, 5, "system")
 		manual := audit.NewDataDeletion(student.ID, audit.DeletionTypeManual, 3, "admin")
 
-		err := repo.Create(ctx, visitRetention)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, visitRetention)
 		require.NoError(t, err)
-		err = repo.Create(ctx, manual)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Create, manual)
 		require.NoError(t, err)
 
-		deletions, err := repo.FindByType(ctx, audit.DeletionTypeVisitRetention)
+		deletions, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByType, audit.DeletionTypeVisitRetention)
 		require.NoError(t, err)
 
 		for _, d := range deletions {
@@ -231,23 +231,23 @@ func TestDataDeletionRepository_List(t *testing.T) {
 
 	t.Run("lists all deletions", func(t *testing.T) {
 		deletion := audit.NewDataDeletion(student.ID, audit.DeletionTypeVisitRetention, 5, "system")
-		err := repo.Create(ctx, deletion)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, deletion)
 		require.NoError(t, err)
 
-		deletions, err := repo.List(ctx, nil)
+		deletions, err := testpkg.TenantQuery1(t, ctx, db, repo.List, nil)
 		require.NoError(t, err)
 		assert.NotEmpty(t, deletions)
 	})
 
 	t.Run("lists with filters", func(t *testing.T) {
 		deletion := audit.NewDataDeletion(student.ID, audit.DeletionTypeManual, 8, "admin@test.com")
-		err := repo.Create(ctx, deletion)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, deletion)
 		require.NoError(t, err)
 
 		filters := map[string]interface{}{
 			"deletion_type": audit.DeletionTypeManual,
 		}
-		deletions, err := repo.List(ctx, filters)
+		deletions, err := testpkg.TenantQuery1(t, ctx, db, repo.List, filters)
 		require.NoError(t, err)
 
 		for _, d := range deletions {
@@ -273,7 +273,7 @@ func TestTenantIsolation_DataDeletionVisibility(t *testing.T) {
 	ddB := testpkg.CreateTestDataDeletionForTenant(t, db, tenantB, sB.ID)
 
 	// --- Tenant A ---
-	deletions, err := repo.List(ctxA, nil)
+	deletions, err := testpkg.TenantQuery1(t, ctxA, db, repo.List, nil)
 	require.NoError(t, err)
 
 	for _, d := range deletions {
@@ -282,12 +282,12 @@ func TestTenantIsolation_DataDeletionVisibility(t *testing.T) {
 	}
 
 	// DataDeletionRepository uses base.Repository — FindByID returns error on not-found
-	_, err = repo.FindByID(ctxA, ddB.ID)
+	_, err = testpkg.TenantQuery1(t, ctxA, db, repo.FindByID, any(ddB.ID))
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant A must not see tenant B data deletion %d", ddB.ID)
 
 	// --- Tenant B ---
-	deletions, err = repo.List(ctxB, nil)
+	deletions, err = testpkg.TenantQuery1(t, ctxB, db, repo.List, nil)
 	require.NoError(t, err)
 
 	for _, d := range deletions {
@@ -295,7 +295,7 @@ func TestTenantIsolation_DataDeletionVisibility(t *testing.T) {
 			"cross-tenant leak: tenant A data deletion visible to tenant B (List)")
 	}
 
-	_, err = repo.FindByID(ctxB, ddA.ID)
+	_, err = testpkg.TenantQuery1(t, ctxB, db, repo.FindByID, any(ddA.ID))
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant B must not see tenant A data deletion %d", ddA.ID)
 }

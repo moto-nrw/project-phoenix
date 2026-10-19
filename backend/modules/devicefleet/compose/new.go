@@ -6,7 +6,6 @@ package compose
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
@@ -16,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -53,18 +51,11 @@ type DashboardSources = ports.DashboardSources
 // devicefleet.ErrDisplayNotFound so a dead link never leaks tenant state.
 type TenantFacts = ports.TenantFacts
 
-// PresenceQuery is the subset of the Student Presence capability the
-// dashboard reads.
-type PresenceQuery interface {
-	ListVisits(context.Context, studentpresence.VisitFilter) ([]studentpresence.Visit, error)
-	ListAttendance(context.Context, studentpresence.AttendanceFilter) ([]studentpresence.Attendance, error)
-}
-
 // Dependencies are the collaborators the Device Fleet owner needs.
 type Dependencies struct {
 	DB        *bun.DB
 	Rooms     facilitiesModule.Query
-	Presence  PresenceQuery
+	Presence  application.PresenceQuery
 	Dashboard DashboardSources
 	Tenants   TenantFacts
 	// Now is the owner's clock. The info-point aggregate derives the rendered
@@ -72,10 +63,10 @@ type Dependencies struct {
 	// serves the dashboard must supply Berlin time (timezone.Now); device-only
 	// graphs may leave it unset and get plain instants.
 	Now func() time.Time
-	// OnlineWindow resolves the per-tenant iot.device_online_window_minutes
-	// setting. Graphs without a settings service leave it unset and the owner
-	// falls back to defaultDeviceOnlineWindow.
-	OnlineWindow func(context.Context) time.Duration
+	// OnlineWindowMinutes resolves the raw iot.device_online_window_minutes
+	// value. Graphs without a settings service leave it unset; unset and
+	// non-positive minutes fall back to the owner's default window.
+	OnlineWindowMinutes func(context.Context) int
 	// APIKeys mints device API keys; the root binds Security Runtime's minter.
 	APIKeys interface{ Mint() (string, error) }
 	Observe func(Observation)
@@ -100,7 +91,7 @@ func New(dependencies Dependencies) (*devicefleet.Module, error) {
 	// Device-only graphs (the repository factory, CLI roots) never serve the
 	// public dashboard. They leave its collaborators unset and every
 	// dashboard read then fails loudly instead of returning a partial screen.
-	presence := ports.PresenceReader(presenceReader{presence: dependencies.Presence})
+	presence := ports.PresenceReader(application.PresenceReader{Presence: dependencies.Presence})
 	if dependencies.Presence == nil {
 		presence = uncomposedDashboard{}
 	}
@@ -129,34 +120,24 @@ func New(dependencies Dependencies) (*devicefleet.Module, error) {
 		Tokens:    credentials.DisplayTokens{},
 		APIKeys:   dependencies.APIKeys,
 		Now:       ports.Clock(now),
-		Window:    ports.WindowResolver(dependencies.OnlineWindow),
+		Window:    devicefleet.OnlineWindowFromMinutes(dependencies.OnlineWindowMinutes),
 		Observe:   observe,
 	})
 	return devicefleet.NewModule(application.NewEngine(service, observe, now)), nil
 }
 
-// databaseRuntime resolves the ambient transaction and tenant. A missing
-// tenant is not an error: device authentication and the public dashboard
-// route both run before one exists.
+// databaseRuntime requires an ambient school or explicit administrative unit.
+// Pre-school authentication and public-token discovery use named capabilities.
 func databaseRuntime(db *bun.DB) postgres.Database {
-	return func(ctx context.Context) (bun.IDB, int64, error) {
-		tenantID := tenant.FromContext(ctx)
-		transaction, hasTransaction := tenant.TransactionFromContext(ctx)
-		if !hasTransaction {
-			return db, tenantID, nil
+	return func(ctx context.Context) (bun.IDB, postgres.TenantScope, error) {
+		id, scopeErr := tenant.TenantFromContext(ctx)
+		raw, ok := tenant.TransactionFromContext(ctx)
+		if scopeErr != nil && !tenant.IsAdminTx(ctx) {
+			return nil, postgres.TenantScope{}, errors.Join(devicefleet.ErrTenantRequired, scopeErr)
 		}
-		switch tx := transaction.(type) {
-		case bun.Tx:
-			return tx, tenantID, nil
-		case *bun.Tx:
-			if tx != nil {
-				return tx, tenantID, nil
-			}
-			return db, tenantID, nil
-		default:
-			return nil, 0, fmt.Errorf("devicefleet postgres: unsupported transaction %T", transaction)
-		}
+		return postgres.ResolveDatabase(raw, ok, id.Int64(), scopeErr, tenant.IsAdminTx(ctx))
 	}
+
 }
 
 type transaction struct{ db *bun.DB }
@@ -165,15 +146,17 @@ func (t transaction) RunWrite(ctx context.Context, callback func(context.Context
 	if _, ok := tenant.TransactionFromContext(ctx); ok {
 		return callback(ctx)
 	}
-	if tenant.FromContext(ctx) <= 0 {
-		// Operator and CLI graphs write without an ambient tenant exactly as
-		// the retired repositories did; RLS still bounds the statement.
-		return callback(ctx)
+	id, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		return errors.Join(devicefleet.ErrTenantRequired, err)
 	}
-	return tenant.WithinCurrentTenant(ctx, callback)
+	return tenant.WithinTenant(ctx, id, callback)
 }
 
 func (t transaction) AdminScope(ctx context.Context, callback func(context.Context) error) error {
+	if _, ok := tenant.TransactionFromContext(ctx); ok {
+		return callback(ctx)
+	}
 	return tenant.WithAdminTx(ctx, t.db, func(adminCtx context.Context, _ bun.Tx) error {
 		return callback(adminCtx)
 	})
@@ -211,36 +194,4 @@ func toDomainRooms(rooms []facilitiesModule.Room) []domain.Room {
 		})
 	}
 	return result
-}
-
-type presenceReader struct{ presence PresenceQuery }
-
-func (r presenceReader) ListOpenVisits(ctx context.Context) ([]domain.PresentVisit, error) {
-	visits, err := r.presence.ListVisits(ctx, studentpresence.VisitFilter{OpenOnly: true})
-	if err != nil {
-		return nil, err
-	}
-	result := make([]domain.PresentVisit, 0, len(visits))
-	for _, visit := range visits {
-		if visit.ExitTime != nil {
-			continue
-		}
-		result = append(result, domain.PresentVisit{ActiveGroupID: visit.ActiveGroupID, StudentID: visit.StudentID})
-	}
-	return result, nil
-}
-
-func (r presenceReader) ListPresentStudents(ctx context.Context, today time.Time) ([]int64, error) {
-	day := today.Format(time.DateOnly)
-	attendance, err := r.presence.ListAttendance(ctx, studentpresence.AttendanceFilter{FromDate: day, UntilDate: day})
-	if err != nil {
-		return nil, err
-	}
-	present := make([]int64, 0, len(attendance))
-	for _, entry := range attendance {
-		if entry.CheckOutTime == nil {
-			present = append(present, entry.StudentID)
-		}
-	}
-	return present, nil
 }

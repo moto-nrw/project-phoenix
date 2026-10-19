@@ -11,11 +11,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// TenantSettingsRuntime is the tenant runtime the settings service, its
-// persistence and the legacy composition's settings consumers run in: the
-// tenant of the context, its transaction or the root database, the tenant
-// and administrative transactions, advisory locks and commit hooks. unit,
-// when set, is the unit of work the transactions attach (#2747).
+// TenantSettingsRuntime binds Settings consumers to the required ambient unit.
+// It provides school/admin boundaries, locks and commit hooks; unit optionally
+// binds them to the root's unit of work (#2747).
 type TenantSettingsRuntime struct {
 	db   *bun.DB
 	unit *tenant.UnitOfWork
@@ -27,16 +25,6 @@ func NewTenantSettingsRuntime(db *bun.DB, unit *tenant.UnitOfWork) TenantSetting
 	return TenantSettingsRuntime{db: db, unit: unit}
 }
 
-// BindTenantSettingsRuntime is NewTenantSettingsRuntime for a root that hands
-// its unit of work over as an opaque value; a value of another type fails.
-func BindTenantSettingsRuntime(db *bun.DB, unit any) (TenantSettingsRuntime, error) {
-	runtime, ok := unit.(tenant.UnitOfWork)
-	if !ok {
-		return TenantSettingsRuntime{}, fmt.Errorf("settings runtime: unsupported unit of work %T", unit)
-	}
-	return NewTenantSettingsRuntime(db, &runtime), nil
-}
-
 func (r TenantSettingsRuntime) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
 
 func (r TenantSettingsRuntime) HasTransaction(ctx context.Context) bool {
@@ -44,13 +32,8 @@ func (r TenantSettingsRuntime) HasTransaction(ctx context.Context) bool {
 	return ok
 }
 
-func (r TenantSettingsRuntime) DB(ctx context.Context) bun.IDB {
-	if raw, ok := tenant.TransactionFromContext(ctx); ok {
-		if tx, valid := raw.(bun.Tx); valid {
-			return tx
-		}
-	}
-	return r.db
+func (r TenantSettingsRuntime) DB(ctx context.Context) (bun.IDB, error) {
+	return tenant.CurrentTransaction[bun.IDB](ctx)
 }
 
 func (r TenantSettingsRuntime) LockStaffBalance(ctx context.Context, staffID int64) error {

@@ -38,7 +38,7 @@ type SchoolInvitationStore interface {
 	EnsureAccountTenant(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error)
 
 	// SetAccountPassword replaces the credential of the account a dormant
-	// invitee is restoring, and reports whether the account exists.
+	// invitee is restoring, and reports whether the account is live.
 	SetAccountPassword(ctx context.Context, accountID int64, hash string) (bool, domain.OperationStats, error)
 	// SetAccountActive re-enables the account offboarding disabled. Only a
 	// dormant account is restored this way (#3376); an account disabled
@@ -73,7 +73,7 @@ type InvitationOwnerTokens interface {
 // portal; the root resolves its host, the school name and the reply-to
 // identity, and records the outcome back through the module.
 type SchoolInvitationDelivery interface {
-	DispatchSchoolInvitation(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, expiry time.Duration)
+	DispatchSchoolInvitation(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, expiry time.Duration) error
 	// QueueSchoolWelcome persists the welcome before the invitation commits.
 	// A resend calls DispatchSchoolInvitation only, so it never repeats the
 	// welcome.

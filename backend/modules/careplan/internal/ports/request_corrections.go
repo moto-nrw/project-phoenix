@@ -28,8 +28,8 @@ type RequestCorrectionEffects interface {
 }
 
 type RequestCorrectionPeople interface {
-	LockStudent(context.Context, int64) (ReviewStudent, error)
-	CanReview(context.Context, ReviewStudent) (bool, error)
+	LockStudent(context.Context, int64) (careplan.ReviewStudent, error)
+	CanReview(context.Context, careplan.ReviewStudent) (bool, error)
 }
 
 type RequestCorrectionPlans interface {

@@ -146,3 +146,8 @@ func (m *Module) DeleteUnregisteredTagScansAfterRetention(ctx context.Context) (
 	deleted, err := m.DeleteExpiredUnregisteredTagScans(ctx, cutoff)
 	return int(deleted), UnregisteredTagScanRetentionDays, err
 }
+
+var (
+	ErrTagScanIDRequired         = errors.New("scan ID is required")
+	ErrTagScanOperatorIDRequired = errors.New("operator ID is required")
+)

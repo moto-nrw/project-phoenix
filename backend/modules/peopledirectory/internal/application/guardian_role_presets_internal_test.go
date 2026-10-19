@@ -1,11 +1,13 @@
 package application
 
 import (
+	"encoding/json"
 	"testing"
+
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/stretchr/testify/assert"
 
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
@@ -31,12 +33,13 @@ func presetTable() ports.GuardianRolePresetFuncs {
 func TestApplyGuardianRolePresetReplacesRoleAndPermissions(t *testing.T) {
 	t.Parallel()
 
-	link := &users.StudentGuardian{}
-	link.SetGuardianAuthorizationData("custom", map[string]interface{}{"parent_portal.sick_note.submit": true})
+	link := &peopleValues.GuardianRelationshipSnapshot{}
+	link.GuardianRole = "custom"
+	link.Permissions = []byte(`{"parent_portal.sick_note.submit":true}`)
 
 	ApplyGuardianRolePreset(presetTable(), link, "pickup_only")
 
-	_, role, _, _, _, permissions := link.GuardianAuthorizationData()
+	_, role, _, _, _, permissions := guardianAuthorizationData(link)
 	assert.Equal(t, "pickup_only", role)
 	assert.Equal(t, map[string]interface{}{"parent_portal.access": true}, permissions)
 }
@@ -44,15 +47,23 @@ func TestApplyGuardianRolePresetReplacesRoleAndPermissions(t *testing.T) {
 func TestApplyDefaultGuardianRoleUsesTheRelationshipFacts(t *testing.T) {
 	t.Parallel()
 
-	pickupOnly := &users.StudentGuardian{RelationshipType: "other", CanPickup: true}
+	pickupOnly := &peopleValues.GuardianRelationshipSnapshot{RelationshipType: "other", CanPickup: true}
 	ApplyDefaultGuardianRole(presetTable(), pickupOnly)
-	_, role, _, _, _, permissions := pickupOnly.GuardianAuthorizationData()
+	_, role, _, _, _, permissions := guardianAuthorizationData(pickupOnly)
 	assert.Equal(t, "pickup_only", role)
 	assert.Equal(t, map[string]interface{}{"parent_portal.access": true}, permissions)
 
-	primary := &users.StudentGuardian{RelationshipType: "parent", IsPrimary: true}
+	primary := &peopleValues.GuardianRelationshipSnapshot{RelationshipType: "parent", IsPrimary: true}
 	ApplyDefaultGuardianRole(presetTable(), primary)
-	_, role, _, _, _, permissions = primary.GuardianAuthorizationData()
+	_, role, _, _, _, permissions = guardianAuthorizationData(primary)
 	assert.Equal(t, "primary_guardian", role)
 	assert.Equal(t, map[string]interface{}{"parent_portal.access": true, "parent_portal.notes.write": true}, permissions)
+}
+
+func guardianAuthorizationData(link *peopleValues.GuardianRelationshipSnapshot) (string, string, bool, bool, bool, map[string]any) {
+	var permissions map[string]any
+	if json.Unmarshal(link.Permissions, &permissions) != nil {
+		permissions = nil
+	}
+	return link.RelationshipType, link.GuardianRole, link.IsPrimary, link.IsEmergencyContact, link.CanPickup, permissions
 }

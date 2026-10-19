@@ -79,7 +79,7 @@ func TestGetClientIP_ChiClientIPFromXFF(t *testing.T) {
 	req.Header.Set("X-Forwarded-For", "10.0.0.1")
 	req.RemoteAddr = "127.0.0.1:12345"
 
-	ip := getClientIPThroughMiddleware(req, chimiddleware.ClientIPFromXFF())
+	ip := getClientIPThroughMiddleware(req, chimiddleware.ClientIPFromXFFTrustedProxies(1))
 	assert.Equal(t, "10.0.0.1", ip, "Should return first IP from X-Forwarded-For")
 }
 
@@ -90,7 +90,7 @@ func TestGetClientIP_ChiClientIPFromXFF_RejectsSpoofedLeftmost(t *testing.T) {
 	req.Header.Set("X-Forwarded-For", "10.0.0.1, 10.0.0.2")
 	req.RemoteAddr = "127.0.0.1:12345"
 
-	ip := getClientIPThroughMiddleware(req, chimiddleware.ClientIPFromXFF())
+	ip := getClientIPThroughMiddleware(req, chimiddleware.ClientIPFromXFFTrustedProxies(1))
 	assert.Equal(t, "10.0.0.2", ip, "Should trust the rightmost XFF hop when no proxy CIDRs are configured")
 }
 
@@ -130,7 +130,7 @@ func TestGetClientIP_IPv6_XForwardedFor(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("X-Forwarded-For", "2001:db8::1")
 
-	ip := getClientIPThroughMiddleware(req, chimiddleware.ClientIPFromXFF())
+	ip := getClientIPThroughMiddleware(req, chimiddleware.ClientIPFromXFFTrustedProxies(1))
 	assert.Equal(t, "2001:db8::1", ip)
 }
 

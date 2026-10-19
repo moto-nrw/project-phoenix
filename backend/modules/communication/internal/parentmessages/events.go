@@ -1,11 +1,15 @@
 package messaging
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"log/slog"
 
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
+	"github.com/moto-nrw/project-phoenix/modules/communication/internal/application/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 )
 
 // EventEmitter is Communication's side of the parent-event emitter: it owns
@@ -59,7 +63,7 @@ func (e *EventEmitter) InTransaction(ctx context.Context) bool {
 // PortalGuardians lists the child's guardians with parent_portal.access on
 // the caller's context, so the caller's tenant transaction and RLS scope
 // apply.
-func (e *EventEmitter) PortalGuardians(ctx context.Context, studentID int64) ([]parentmessaging.PortalGuardian, error) {
+func (e *EventEmitter) PortalGuardians(ctx context.Context, studentID int64) ([]eventContract.PortalGuardian, error) {
 	if e == nil || e.threadRepo == nil {
 		return nil, parentmessaging.ErrEmitterNotConfigured
 	}
@@ -67,12 +71,12 @@ func (e *EventEmitter) PortalGuardians(ctx context.Context, studentID int64) ([]
 	if err != nil {
 		return nil, err
 	}
-	result := make([]parentmessaging.PortalGuardian, 0, len(guardians))
+	result := make([]eventContract.PortalGuardian, 0, len(guardians))
 	for _, guardian := range guardians {
 		if guardian == nil {
 			continue
 		}
-		result = append(result, parentmessaging.PortalGuardian{AccountID: guardian.AccountID, PortalLocale: guardian.PortalLocale})
+		result = append(result, eventContract.PortalGuardian{AccountID: guardian.AccountID, PortalLocale: guardian.PortalLocale})
 	}
 	return result, nil
 }
@@ -102,16 +106,15 @@ func (e *EventEmitter) MessagingEnabledForTenant(ctx context.Context, tenantID i
 // see the reconcile path below, which appends the closing pill to the existing
 // thread without ever creating one (and, when the submitting guardian has since
 // lost access, without waking that guardian).
-func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int64, ev parentmessaging.ChildEvent) {
+func (e *EventEmitter) EmitChildEvent(ctx context.Context, tenantID, studentID, guardianAccountID int64, ev eventContract.ChildEvent) error {
 	if e == nil || e.runtime == nil || !e.runtime.Configured() || e.threadRepo == nil || e.messageRepo == nil || e.settings == nil {
-		return
+		return nil
 	}
 	if tenantID <= 0 || studentID <= 0 || guardianAccountID <= 0 {
-		return
+		return nil
 	}
-	// Detached background context: the pill outlives the (already committed)
-	// request transaction and must not inherit its cancellation.
-	bgCtx := e.backgroundContext()
+	// Keep the triggering command context so the pill joins its transaction.
+	bgCtx := ctx
 	enabled, err := e.settings.ParentNotesEnabledForTenant(bgCtx, tenantID)
 	// Messaging OFF (or a settings-resolve blip, which fails CLOSED for this
 	// write path) normally drops the pill entirely so a disabled school never
@@ -130,9 +133,8 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 	messagingOff := err != nil || !enabled
 	isTerminal := parentmessaging.IsTerminalRequestEvent(ev)
 	if messagingOff && !isTerminal {
-		return
+		return nil
 	}
-
 	var threadID int64
 	var suppressReason string
 	skipGuardianBroadcast := false
@@ -202,49 +204,7 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 			thread = created
 		}
 		threadID = thread.ID
-		msg := &ParentMessage{
-			ThreadID:        thread.ID,
-			StudentID:       thread.StudentID,
-			SenderAccountID: ev.ActorAccountID,
-			SenderKind:      ParentMessageSenderSystem,
-			SenderName:      "System",
-			Body:            ev.Body,
-			Kind:            ParentMessageKindEvent,
-			EventType:       ev.EventType,
-			EventActorKind:  ev.ActorKind,
-			RequestType:     ev.RequestType,
-			RequestStatus:   ev.RequestStatus,
-			DecisionReason:  ev.DecisionReason,
-			RefTable:        ev.RefTable,
-			RefID:           ev.RefID,
-			Payload:         ev.Payload,
-		}
-		msg.SetTenantID(thread.TenantID)
-		if err := e.threadRepo.LockForMessageAppend(txCtx, thread.ID); err != nil {
-			return err
-		}
-		if err := e.messageRepo.Create(txCtx, msg); err != nil {
-			return err
-		}
-		// request_created pills are a QUEUE signal, not a chat message (#1803): keep
-		// them out of the thread's denormalized last-activity preview/ordering
-		// (last_message_*) exactly as counterpartUnread keeps them out of every unread
-		// count. Otherwise the two disagree — the Nachrichten badge (counterpart-side,
-		// non-request_created) flags an earlier staff decision while the preview shows
-		// the parent's OWN newest "Anfrage gestellt", which reads as "my own submission
-		// is unread". The pill still lives in the timeline (ListByThread) and still
-		// fires the SSE wake below; only the preview/sort skips it. A brand-new thread
-		// whose only pill is request_created keeps NULL last_message_at and renders the
-		// empty-preview fallback (never a broken row). Every OTHER pill (decision,
-		// withdrawal, self-service mirror) advances the preview as before.
-		if ev.EventType == ParentMessageEventRequestCreated {
-			return nil
-		}
-		// Touch the thread with the row's own DB-stamped created_at (one clock —
-		// see AppendMessage) and attribute it to the TRIGGERING side so the staff
-		// inbox's awaiting-reply signal and the guardian's unread badge both fire
-		// correctly, including for dual-role accounts.
-		return e.threadRepo.TouchLastMessage(txCtx, thread.ID, msg.CreatedAt, msg.ID, ev.ActorKind, ev.Body)
+		return e.appendChildEvent(txCtx, thread, ev)
 	})
 	if err != nil {
 		loggerOr(e.logger).Warn("parent messaging: child event emit failed",
@@ -253,7 +213,7 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 			slog.String("event_type", ev.EventType),
 			slog.String("error", err.Error()),
 		)
-		return
+		return err
 	}
 	if suppressReason != "" {
 		loggerOr(e.logger).Info("parent messaging: child event pill suppressed",
@@ -262,7 +222,7 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 			slog.String("event_type", ev.EventType),
 			slog.String("reason", suppressReason),
 		)
-		return
+		return nil
 	}
 	// The staff inbox and open threads refetch only on a parent_message SSE
 	// event — not student_updated — so without this the pill stays invisible
@@ -276,7 +236,8 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 	if skipGuardianBroadcast {
 		broadcastGuardianID = 0
 	}
-	Broadcast(e.broadcaster, e.logger, tenantID, broadcastGuardianID, threadID, studentID)
+	e.runtime.RegisterAfterCommit(ctx, func() { Broadcast(e.broadcaster, e.logger, tenantID, broadcastGuardianID, threadID, studentID) })
+	return nil
 }
 
 // WakeChildGuardians wakes EVERY guardian of the child with a message-
@@ -357,4 +318,77 @@ func (e *EventEmitter) guardianHasChildAccess(ctx context.Context, studentID, gu
 	return false, nil
 }
 
-var _ parentmessaging.Events = (*EventEmitter)(nil)
+var _ eventContract.Events = (*EventEmitter)(nil)
+
+func childEventPayloadFacts(payload *eventContract.ChildEventPayload) (map[string]any, error) {
+	if payload == nil {
+		return nil, nil
+	}
+	document, err := payload.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	var facts map[string]any
+	decoder := json.NewDecoder(bytes.NewReader(document))
+	decoder.UseNumber()
+	err = decoder.Decode(&facts)
+	return facts, err
+}
+
+func childEventMessage(thread *ParentMessageThread, ev eventContract.ChildEvent) (*ParentMessage, error) {
+	payload, err := childEventPayloadFacts(ev.Payload)
+	if err != nil {
+		return nil, err
+	}
+	msg := &ParentMessage{
+		ThreadID:        thread.ID,
+		StudentID:       thread.StudentID,
+		SenderAccountID: ev.ActorAccountID,
+		SenderKind:      ParentMessageSenderSystem,
+		SenderName:      "System",
+		Body:            ev.Body,
+		Kind:            ParentMessageKindEvent,
+		EventType:       ev.EventType,
+		EventActorKind:  ev.ActorKind,
+		RequestType:     ev.RequestType,
+		RequestStatus:   ev.RequestStatus,
+		DecisionReason:  ev.DecisionReason,
+		RefTable:        ev.RefTable,
+		RefID:           ev.RefID,
+		Payload:         payload,
+	}
+	msg.SetTenantID(thread.TenantID)
+	return msg, nil
+}
+
+func (e *EventEmitter) appendChildEvent(txCtx context.Context, thread *ParentMessageThread, ev eventContract.ChildEvent) error {
+	msg, err := childEventMessage(thread, ev)
+	if err != nil {
+		return err
+	}
+	if err := e.threadRepo.LockForMessageAppend(txCtx, thread.ID); err != nil {
+		return err
+	}
+	if err := e.messageRepo.Create(txCtx, msg); err != nil {
+		return err
+	}
+	// request_created pills are a QUEUE signal, not a chat message (#1803): keep
+	// them out of the thread's denormalized last-activity preview/ordering
+	// (last_message_*) exactly as counterpartUnread keeps them out of every unread
+	// count. Otherwise the two disagree — the Nachrichten badge (counterpart-side,
+	// non-request_created) flags an earlier staff decision while the preview shows
+	// the parent's OWN newest "Anfrage gestellt", which reads as "my own submission
+	// is unread". The pill still lives in the timeline (ListByThread) and still
+	// fires the SSE wake below; only the preview/sort skips it. A brand-new thread
+	// whose only pill is request_created keeps NULL last_message_at and renders the
+	// empty-preview fallback (never a broken row). Every OTHER pill (decision,
+	// withdrawal, self-service mirror) advances the preview as before.
+	if ev.EventType == ParentMessageEventRequestCreated {
+		return nil
+	}
+	// Touch the thread with the row's own DB-stamped created_at (one clock —
+	// see AppendMessage) and attribute it to the TRIGGERING side so the staff
+	// inbox's awaiting-reply signal and the guardian's unread badge both fire
+	// correctly, including for dual-role accounts.
+	return e.threadRepo.TouchLastMessage(txCtx, thread.ID, msg.CreatedAt, msg.ID, ev.ActorKind, ev.Body)
+}

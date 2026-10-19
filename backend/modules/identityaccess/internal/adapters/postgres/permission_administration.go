@@ -151,10 +151,8 @@ func (s *Store) ListAccountPermissions(ctx context.Context, accountID int64) ([]
 	roles := db.NewSelect().TableExpr("auth.role_permissions AS role_permission").
 		ColumnExpr("role_permission.permission_id").
 		Join("JOIN auth.account_roles AS ar ON ar.role_id = role_permission.role_id").Where("ar.account_id = ?", accountID)
-	if tenantID := s.scope(ctx).TenantID; tenantID > 0 {
-		direct = direct.Where("account_permission.tenant_id = ?", tenantID)
-		roles = roles.Where("ar.tenant_id = ?", tenantID)
-	}
+	direct = scopeTenantQuery(s.scope(ctx), direct, "account_permission.tenant_id = ?")
+	roles = scopeTenantQuery(s.scope(ctx), roles, "ar.tenant_id = ?")
 	return scanPermissions(ctx, db.NewSelect().TableExpr("auth.permissions AS permission").
 		ColumnExpr("permission.id, permission.name, permission.description, permission.resource, permission.action, permission.created_at, permission.updated_at").Distinct().
 		Join("JOIN (?) AS aap ON aap.permission_id = permission.id", direct.UnionAll(roles)), "find by account ID")
@@ -168,9 +166,7 @@ func (s *Store) ListAccountDirectPermissions(ctx context.Context, accountID int6
 	query := db.NewSelect().TableExpr("auth.permissions AS permission").ColumnExpr("permission.id, permission.name, permission.description, permission.resource, permission.action, permission.created_at, permission.updated_at").
 		Join("JOIN auth.account_permissions ap ON ap.permission_id = permission.id").
 		Where("ap.account_id = ? AND ap.granted = true", accountID)
-	if tenantID := s.scope(ctx).TenantID; tenantID > 0 {
-		query = query.Where("ap.tenant_id = ?", tenantID)
-	}
+	query = scopeTenantQuery(s.scope(ctx), query, "ap.tenant_id = ?")
 	return scanPermissions(ctx, query, "find direct permissions by account ID")
 }
 
@@ -236,9 +232,7 @@ func (s *Store) DeletePermissionGrants(ctx context.Context, permissionID int64) 
 		return err
 	}
 	query := db.NewDelete().TableExpr("auth.account_permissions AS account_permission").Where("account_permission.permission_id = ?", permissionID)
-	if tenantID := s.scope(ctx).TenantID; tenantID > 0 {
-		query = query.Where("account_permission.tenant_id = ?", tenantID)
-	}
+	query = scopeTenantQuery(s.scope(ctx), query, "account_permission.tenant_id = ?")
 	_, err = query.Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("delete by permission ID: %w", err)
@@ -262,12 +256,11 @@ func (s *Store) setAccountPermission(ctx context.Context, accountID, permissionI
 	if err != nil {
 		return err
 	}
-	tenantID := s.scope(ctx).TenantID
+	scope := s.scope(ctx)
+	tenantID := scope.TenantID
 	query := db.NewSelect().TableExpr("auth.account_permissions AS account_permission").
 		Where("account_permission.account_id = ? AND account_permission.permission_id = ?", accountID, permissionID)
-	if tenantID > 0 {
-		query = query.Where("account_permission.tenant_id = ?", tenantID)
-	}
+	query = scopeTenantQuery(scope, query, "account_permission.tenant_id = ?")
 	exists, err := query.Exists(ctx)
 	if err != nil {
 		return fmt.Errorf("check permission mapping: %w", err)
@@ -275,11 +268,12 @@ func (s *Store) setAccountPermission(ctx context.Context, accountID, permissionI
 	if exists {
 		update := db.NewUpdate().TableExpr("auth.account_permissions AS account_permission").
 			Set("granted = ?", granted).Where("account_permission.account_id = ? AND account_permission.permission_id = ?", accountID, permissionID)
-		if tenantID > 0 {
-			update = update.Where("account_permission.tenant_id = ?", tenantID)
-		}
+		update = scopeTenantQuery(scope, update, "account_permission.tenant_id = ?")
 		_, err = update.Exec(ctx)
 	} else {
+		if scope.AcrossSchools {
+			return domain.ErrTenantRequired
+		}
 		_, err = db.NewRaw("INSERT INTO auth.account_permissions (account_id, permission_id, granted, tenant_id) VALUES (?, ?, ?, ?)",
 			accountID, permissionID, granted, tenantID).Exec(ctx)
 	}
@@ -296,9 +290,7 @@ func (s *Store) RemoveAccountPermission(ctx context.Context, accountID, permissi
 	}
 	query := db.NewDelete().TableExpr("auth.account_permissions AS account_permission").
 		Where("account_permission.account_id = ? AND account_permission.permission_id = ?", accountID, permissionID)
-	if tenantID := s.scope(ctx).TenantID; tenantID > 0 {
-		query = query.Where("account_permission.tenant_id = ?", tenantID)
-	}
+	query = scopeTenantQuery(s.scope(ctx), query, "account_permission.tenant_id = ?")
 	_, err = query.Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("remove permission: %w", err)

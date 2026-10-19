@@ -11,13 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// MaterializeApprovedBookings writes one roster row per booked offering whose
-// care offering points at an activity group, or whose offering a template
-// sources. Offerings without either are skipped. It leaves out the
-// multi-source union resync: the approval runs BEFORE the child's status
-// flips to approved, so the union — which resolves children by their approved
-// status — cannot see the child yet; the decision runs
-// ResyncMultiSourceTemplatesForChild after the flip.
 func (m *BookingMaterialization) MaterializeApprovedBookings(ctx context.Context, requestChildID, studentID int64, phase careplan.OfferingPhase) error {
 	return m.materializeEnrollmentsFrom(ctx, requestChildID, studentID, phase, nil, false)
 }
@@ -172,17 +165,6 @@ func (m *BookingMaterialization) careEnrollmentDraftsForLinks(
 	return m.buildCareEnrollmentDrafts(ctx, requestChildID, studentID, links, offerings, phase)
 }
 
-// ResyncMultiSourceTemplatesForChild re-reconciles every multi-source
-// template fed by one of the child's offerings. Called AFTER the child's
-// status flipped to approved: the union resync resolves children through
-// their approved status, so the resync inside the approval's materialization
-// pass cannot see the child yet.
-//
-// Mirrors the approval's careOfferingsEnabled gate: with the setting off the
-// approval wrote no enrollment rows, so this post-flip pass must not start
-// materializing either. It also takes the tenant recurrence lock itself,
-// because with the setting off the locking materialization pass never ran in
-// this transaction.
 func (m *BookingMaterialization) ResyncMultiSourceTemplatesForChild(ctx context.Context, requestChildID int64, phase careplan.OfferingPhase) error {
 	careOfferingsEnabled, err := m.careOfferingsEnabled(ctx)
 	if err != nil {

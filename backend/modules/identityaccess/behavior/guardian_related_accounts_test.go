@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -19,7 +20,7 @@ import (
 // linkExists reports whether a student↔guardian link row exists.
 func (env *guardianTestEnv) linkExists(t *testing.T, studentID, guardianProfileID int64) bool {
 	t.Helper()
-	links, err := env.repos.StudentGuardian.FindByStudentID(testpkg.Ctx(t), studentID)
+	links, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), testpkg.SetupTestDB(t), env.repos.StudentGuardian.FindByStudentID, studentID)
 	require.NoError(t, err)
 	for _, l := range links {
 		if l.GuardianProfileID == guardianProfileID {
@@ -141,7 +142,7 @@ func TestInviteToStudent_StaffAccountAsParent_GetsPortalAccessEmail(t *testing.T
 
 	assert.Equal(t, identityaccess.InviteOutcomeAlreadyLinked, result.Outcome)
 	assert.Nil(t, result.InvitationID, "no registration token for an existing account")
-	stored, err := env.repos.GuardianProfile.FindByID(ctx, profile.ID)
+	stored, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.FindByID, profile.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stored.AccountID)
 	assert.Equal(t, adminAccount.ID, *stored.AccountID, "the profile is attached to the admin account")
@@ -182,7 +183,7 @@ func TestInviteToStudent_ExistingAccountWithoutTenantProfile_AutoLinks(t *testin
 	assert.Nil(t, result.InvitationID, "existing accounts are linked without a password invite")
 	assert.True(t, env.linkExists(t, student.ID, result.GuardianProfileID))
 
-	profile, err := env.repos.GuardianProfile.FindByID(ctx, result.GuardianProfileID)
+	profile, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.FindByID, result.GuardianProfileID)
 	require.NoError(t, err)
 	require.NotNil(t, profile.AccountID)
 	assert.Equal(t, account.ID, *profile.AccountID)
@@ -215,7 +216,7 @@ func TestInviteToStudent_RequireApprovalExistingAccountWithoutTenantProfile_Defe
 	assert.Equal(t, identityaccess.InviteOutcomePendingApproval, result.Outcome)
 	assert.False(t, env.linkExists(t, student.ID, result.GuardianProfileID), "staff approval must not create the child link")
 
-	profile, err := env.repos.GuardianProfile.FindByID(ctx, result.GuardianProfileID)
+	profile, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.FindByID, result.GuardianProfileID)
 	require.NoError(t, err)
 	require.NotNil(t, profile)
 	assert.False(t, profile.HasAccount, "existing account must not be attached before staff approval")
@@ -223,7 +224,7 @@ func TestInviteToStudent_RequireApprovalExistingAccountWithoutTenantProfile_Defe
 
 	require.NoError(t, env.service.ApproveInvitation(ctx, *result.InvitationID, creatorID))
 	assert.True(t, env.linkExists(t, student.ID, result.GuardianProfileID), "approval must create the child link")
-	profile, err = env.repos.GuardianProfile.FindByID(ctx, result.GuardianProfileID)
+	profile, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.FindByID, result.GuardianProfileID)
 	require.NoError(t, err)
 	require.NotNil(t, profile.AccountID)
 	assert.Equal(t, account.ID, *profile.AccountID)
@@ -282,7 +283,7 @@ func TestRevokeAccess_PayerStaysWithoutFinancialPermission(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t, func(db *bun.DB, cfg *api.GuardianInvitationTestConfig) {
-		cfg.Audit = testpkg.NewAuditCommand(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianFinancialChange.Create)
+		cfg.Audit = testpkg.NewAuditCommand(owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianFinancialChange.Create)
 	})
 	defer env.cleanup()
 
@@ -893,7 +894,8 @@ func TestRejectInvitation_PreservesProfileWithOtherLinks(t *testing.T) {
 
 	require.NoError(t, env.service.RejectInvitation(ctx, *res.InvitationID, approver))
 	// Profile is NOT cleaned up: it still has its link to student A.
-	p, _ := env.repos.GuardianProfile.FindByID(ctx, profile.ID)
+	p, readErr := testpkg.TenantQuery1(t, ctx, env.db, env.repos.GuardianProfile.FindByID, profile.ID)
+	require.NoError(t, readErr)
 	assert.NotNil(t, p, "a guardian with other child links must survive a reject")
 }
 
@@ -924,7 +926,7 @@ func TestRejectInvitation_PreservesPreexistingProfileWithoutLinks(t *testing.T) 
 	defer env.cleanupInvitation(t, *res.InvitationID, profile.ID)
 
 	require.NoError(t, env.service.RejectInvitation(ctx, *res.InvitationID, approver))
-	p, err := env.repos.GuardianProfile.FindByID(ctx, profile.ID)
+	p, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.FindByID, profile.ID)
 	require.NoError(t, err)
 	assert.NotNil(t, p, "pre-existing contact profiles must survive reject cleanup")
 }
@@ -969,7 +971,7 @@ func TestRejectInvitation_PreservesSharedPendingProfile(t *testing.T) {
 
 	require.NoError(t, env.service.RejectInvitation(ctx, *first.InvitationID, approver))
 
-	p, err := env.repos.GuardianProfile.FindByID(ctx, first.GuardianProfileID)
+	p, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.FindByID, first.GuardianProfileID)
 	require.NoError(t, err)
 	assert.NotNil(t, p, "profile with another open invitation must survive reject cleanup")
 

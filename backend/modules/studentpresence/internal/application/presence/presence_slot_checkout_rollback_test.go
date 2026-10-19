@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -18,25 +18,8 @@ import (
 )
 
 type failingSlotCheckout struct {
-	scheduleModels.InstanceStudentRepository
 	afterWrite error
 	writes     int
-}
-
-func (r *failingSlotCheckout) UpdateAttendanceCheckout(ctx context.Context, instanceID, studentID int64, at time.Time) error {
-	if err := r.InstanceStudentRepository.UpdateAttendanceCheckout(ctx, instanceID, studentID, at); err != nil {
-		return err
-	}
-	r.writes++
-	return r.afterWrite
-}
-
-func (r *failingSlotCheckout) UpdateAttendanceCheckoutBatch(ctx context.Context, keys []scheduleModels.InstanceStudentKey, at time.Time) error {
-	if err := r.InstanceStudentRepository.UpdateAttendanceCheckoutBatch(ctx, keys, at); err != nil {
-		return err
-	}
-	r.writes++
-	return r.afterWrite
 }
 
 func TestCheckoutRollsBackAfterSlotWriteAndRetries(t *testing.T) {
@@ -50,17 +33,17 @@ func TestCheckoutRollsBackAfterSlotWriteAndRetries(t *testing.T) {
 				testpkg.OwnTenant(t)
 				db := testpkg.SetupTestDB(t)
 				module := testSchoolPresence(t, db)
-				syncRows := api.NewAttendanceSyncTestRepositories(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)).Capability)
+				syncRows := api.NewAttendanceSyncTestRepositories(testpkg.NewDatabase(t, db), owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)))
 				instances, assignments := syncRows.Instances, syncRows.Participants
 				injected := errors.New("fail after slot checkout")
-				rows := &failingSlotCheckout{InstanceStudentRepository: assignments}
+				rows := &failingSlotCheckout{}
 				var settingsErr error
 				if fault == "slot write" {
 					rows.afterWrite = injected
 				} else {
 					settingsErr = injected
 				}
-				syncer := newAttendanceMirror(t, instances, rows, slog.Default())
+				syncer := newAttendanceMirror(t, rows.bind(api.TimetableOwnerRows{Instances: instances, Participants: assignments}), slog.Default())
 				svc, broadcaster := newServiceWithPresenceSync(t, db, module, syncer)
 				activeService.ConfigureForTest(svc, activeService.WithTenantRuntime(testpkg.TenantRuntime(t, db)))
 				presenceMode := "binary"
@@ -90,7 +73,7 @@ func TestCheckoutRollsBackAfterSlotWriteAndRetries(t *testing.T) {
 					student := testpkg.CreateTestStudent(t, db, "SlotCheckout", "Rollback", "3a")
 					studentIDs = append(studentIDs, student.ID)
 					testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkedIn, nil)
-					testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, scheduleModels.AttendanceStatusPresent, testpkg.InstanceStudentOpts{CheckedInAt: &checkedIn})
+					testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, studentpresence.SessionAttendancePresent, testpkg.InstanceStudentOpts{CheckedInAt: &checkedIn})
 					if detailed {
 						visit := testpkg.CreateTestVisit(t, db, student.ID, *activeGroupID, checkedIn, nil)
 						visitIDs = append(visitIDs, visit.ID)
@@ -164,4 +147,14 @@ func TestCheckoutRollsBackAfterSlotWriteAndRetries(t *testing.T) {
 			})
 		}
 	}
+}
+
+func (r *failingSlotCheckout) bind(rows api.TimetableOwnerRows) api.TimetableOwnerRows {
+	return api.AfterAttendanceMirrorWrite(rows, func(_ string, _ bool, err error) error {
+		if err != nil {
+			return err
+		}
+		r.writes++
+		return r.afterWrite
+	})
 }

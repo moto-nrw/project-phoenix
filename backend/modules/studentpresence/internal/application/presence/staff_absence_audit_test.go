@@ -3,8 +3,8 @@ package presence_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +16,7 @@ func TestRecordStaffAbsenceAuditReturnsIDAndTenant(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	workTime := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)).Workforce
+	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Audit", "Actor")
 	ctx := testpkg.TenantContext(staff.TenantID)
 	today := calendar.TodayDate().String()

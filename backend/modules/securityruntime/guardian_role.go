@@ -1,9 +1,11 @@
 package securityruntime
 
 import (
+	"bytes"
+	"encoding/json"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/application/authorize"
 )
 
 // Role presets of a student-guardian relationship.
@@ -59,6 +61,28 @@ func DefaultStudentGuardianRole(relationshipType string, isPrimary, isEmergencyC
 // value counts as granted.
 func GuardianPermissionGranted(value any) bool {
 	return authorize.StudentGuardianHasPermission(storedGuardianPermission{value: value}, storedGuardianPermissionKey)
+}
+
+// GuardianPermissionGrantedJSON reports whether the stored permissions
+// object grants permission, read by GuardianPermissionGranted. It fails
+// closed: an object that does not decode, a missing key and a value that
+// does not decode all grant nothing. Numbers keep their exact text.
+func GuardianPermissionGrantedJSON(raw json.RawMessage, permission string) bool {
+	var values map[string]json.RawMessage
+	if json.Unmarshal(raw, &values) != nil {
+		return false
+	}
+	value, exists := values[permission]
+	if !exists {
+		return false
+	}
+	decoder := json.NewDecoder(bytes.NewReader(value))
+	decoder.UseNumber()
+	var stored any
+	if decoder.Decode(&stored) != nil {
+		return false
+	}
+	return GuardianPermissionGranted(stored)
 }
 
 const storedGuardianPermissionKey = "permission"

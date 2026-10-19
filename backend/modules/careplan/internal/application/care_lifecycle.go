@@ -85,7 +85,7 @@ func NewCareLifecycle(deps CareLifecycleDependencies) (*CareLifecycle, error) {
 	}, nil
 }
 
-func (s *CareLifecycle) Preview(ctx context.Context, input careplan.CareExitInput) (*careplan.CareExitPreview, error) {
+func (s *CareLifecycle) inUnitPreview(ctx context.Context, input careplan.CareExitInput) (*careplan.CareExitPreview, error) {
 	normalized, err := domain.NormalizeCareExitInput(input, false, s.today())
 	if err != nil {
 		return nil, err
@@ -93,7 +93,7 @@ func (s *CareLifecycle) Preview(ctx context.Context, input careplan.CareExitInpu
 	return s.buildPreview(ctx, normalized, false, nil)
 }
 
-func (s *CareLifecycle) Confirm(ctx context.Context, token string, input careplan.CareExitInput, actorAccountID int64) (*careplan.CareExitResult, error) {
+func (s *CareLifecycle) inUnitConfirm(ctx context.Context, token string, input careplan.CareExitInput, actorAccountID int64) (*careplan.CareExitResult, error) {
 	return s.confirm(ctx, nil, token, input, actorAccountID, false)
 }
 
@@ -441,11 +441,7 @@ func (s *CareLifecycle) resumeCare(ctx context.Context, input careplan.CareResum
 		[]int64{input.StudentID}, nil, input.ActorAccountID)
 }
 
-// RecordedExitStudentIDs reduces the exit rows to their bare existence. The
-// reason and its note stay here: they are readable with users:delete only,
-// while the fact that an exit was recorded travels on the ordinary student
-// payload so the list can label exactly those children (#2487).
-func (s *CareLifecycle) RecordedExitStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]bool, error) {
+func (s *CareLifecycle) inUnitRecordedExitStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]bool, error) {
 	ids := domain.DedupeSortedIDs(studentIDs)
 	recorded := make(map[int64]bool, len(ids))
 	if len(ids) == 0 {
@@ -461,11 +457,7 @@ func (s *CareLifecycle) RecordedExitStudentIDs(ctx context.Context, studentIDs [
 	return recorded, nil
 }
 
-// ListEnded is the archive. It reads the CHILDREN whose enrolment interval
-// has run out rather than the reason rows: the archive holds every regularly
-// ended care, including one that ended with an enrolment phase and never got
-// a manually recorded reason.
-func (s *CareLifecycle) ListEnded(ctx context.Context, filter careplan.EndedCareFilter) ([]careplan.EndedCare, int, error) {
+func (s *CareLifecycle) inUnitListEnded(ctx context.Context, filter careplan.EndedCareFilter) ([]careplan.EndedCare, int, error) {
 	students, total, err := s.directory.ListEndedCare(ctx, careplan.Date(s.today()), filter)
 	if err != nil {
 		return nil, 0, fmt.Errorf("care lifecycle: list ended care: %w", err)
@@ -511,7 +503,7 @@ func withdrawalOfferings(completion *careplan.WithdrawalCompletion) map[int64][]
 	if completion == nil || completion.StudentID == nil {
 		return nil
 	}
-	return map[int64][]careplan.CareExitSourceOffering{*completion.StudentID: withdrawalSourceOfferings(*completion)}
+	return map[int64][]careplan.CareExitSourceOffering{*completion.StudentID: completion.SourceOfferings}
 }
 
 func carePlanDate(value *calendar.Date) *careplan.Date {

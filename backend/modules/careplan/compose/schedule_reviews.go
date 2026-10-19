@@ -5,20 +5,21 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 	"github.com/uptrace/bun"
 )
 
-type ScheduleReviewDirectory = ports.ScheduleReviewDirectory
-type ReviewBooking = ports.ReviewBooking
-type ReviewBookings = ports.ReviewBookings
-type ReviewClassTimes = ports.ReviewClassTimes
-type PickupReviewImpact = ports.PickupReviewImpact
-type PickupReviewBlock = ports.PickupReviewBlock
-type PickupReviewBlocks = ports.PickupReviewBlocks
+type ScheduleReviewDirectory = careplan.ScheduleReviewDirectory
+type ReviewBooking = careplan.ReviewBooking
+type ReviewBookings = careplan.ReviewBookings
+type ReviewClassTimes = careplan.ReviewClassTimes
+type PickupReviewImpact = careplan.PickupReviewImpact
+type PickupReviewBlock = careplan.PickupReviewBlock
+type PickupReviewBlocks = careplan.PickupReviewBlocks
 
 type ScheduleReviewDependencies struct {
 	People                ScheduleReviewDirectory
@@ -43,7 +44,7 @@ func NewScheduleReviews(db *bun.DB, observe func(Observation), deps ScheduleRevi
 		return nil, err
 	}
 	queries := application.NewExceptionQueryService(postgres.New(carePlanDatabase(db)), observe)
-	return application.NewScheduleReviews(application.ScheduleReviewDependencies{
+	return application.NewScheduleReviews(application.ScheduleReviewDependencies{RunInTx: tenant.NewTransactionRunner().RunInTx,
 		Requests: requests, Schedules: application.NewScheduleReviewSchedules(queries),
 		People: deps.People, Bookings: deps.Bookings, Classes: deps.Classes, Scope: deps.Scope,
 		BookingsAuthoritative: deps.BookingsAuthoritative, Today: deps.Today, Blocks: deps.Blocks, Fingerprint: deps.Fingerprint, Logger: deps.Logger,

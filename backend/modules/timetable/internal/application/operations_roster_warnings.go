@@ -4,9 +4,10 @@ import (
 	"context"
 	"log/slog"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -85,7 +86,7 @@ func rosterMismatchExpectedGroupIDs(group *rosterTemplateGroup) map[int64]struct
 	}
 	expected := make(map[int64]struct{}, len(group.Targets))
 	for _, target := range group.Targets {
-		if target == nil || target.TargetGroupType != activitiesModels.TargetGroupTypeGruppe || target.EducationGroupID == nil {
+		if target == nil || target.TargetGroupType != activityContract.TargetGroupTypeGruppe || target.EducationGroupID == nil {
 			continue
 		}
 		expected[*target.EducationGroupID] = struct{}{}

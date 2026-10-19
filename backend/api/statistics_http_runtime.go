@@ -5,16 +5,16 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/studentpresence/http"
 )
 
 func statisticsHTTPRuntime(renderer *lists.RendererService) statisticsAPI.Runtime {
 	runtime := statisticsAPI.Runtime{
-		ReportGuard: common.RequiresAllPermissions(permissions.ConfigRead, permissions.UsersRead),
+		ReportGuard: common.RequiresAllPermissions(presenceStudentsHTTP.StatisticsReportPermissions()...),
 		Actor: func(r *http.Request) studentpresence.StatisticsActor {
 			claims := sessiontoken.ClaimsFromCtx(r.Context())
 			return studentpresence.StatisticsActor{AccountID: int64(claims.ID), Role: strings.Join(claims.Roles, ",")}

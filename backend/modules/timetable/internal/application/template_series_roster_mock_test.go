@@ -13,7 +13,10 @@ import (
 	"errors"
 	"testing"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,33 +39,33 @@ func seriesMockUntil() calendar.Date { return calendar.NewDate(2026, 8, 24).AddD
 // ---------------------------------------------------------------- fakes ----
 
 type seriesMockGroupRepo struct {
-	activitiesModel.GroupRepository
-	groups []*activitiesModel.Group
+	ports.ActivityGroupRecords
+	groups []*activityContract.Group
 	err    error
 }
 
-func (r *seriesMockGroupRepo) FindTemplateSeries(context.Context, int64) ([]*activitiesModel.Group, error) {
+func (r *seriesMockGroupRepo) FindTemplateSeries(context.Context, int64) ([]*activityContract.Group, error) {
 	return r.groups, r.err
 }
 
 type seriesMockScheduleRepo struct {
-	activitiesModel.ScheduleRepository
-	byGroup map[int64][]*activitiesModel.Schedule
+	ports.ActivityScheduleRecords
+	byGroup map[int64][]*activityContract.Schedule
 	err     error
 }
 
-func (r *seriesMockScheduleRepo) FindByGroupID(_ context.Context, groupID int64) ([]*activitiesModel.Schedule, error) {
+func (r *seriesMockScheduleRepo) FindByGroupID(_ context.Context, groupID int64) ([]*activityContract.Schedule, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
 	return r.byGroup[groupID], nil
 }
 
-func (r *seriesMockScheduleRepo) FindByGroupIDs(_ context.Context, groupIDs []int64) ([]*activitiesModel.Schedule, error) {
+func (r *seriesMockScheduleRepo) FindByGroupIDs(_ context.Context, groupIDs []int64) ([]*activityContract.Schedule, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
-	var schedules []*activitiesModel.Schedule
+	var schedules []*activityContract.Schedule
 	for _, groupID := range groupIDs {
 		schedules = append(schedules, r.byGroup[groupID]...)
 	}
@@ -70,22 +73,22 @@ func (r *seriesMockScheduleRepo) FindByGroupIDs(_ context.Context, groupIDs []in
 }
 
 type seriesMockEnrollmentRepo struct {
-	activitiesModel.StudentEnrollmentRepository
-	rows      []*activitiesModel.StudentEnrollment
+	ports.ActivityEnrollmentRecords
+	rows      []*activityContract.StudentEnrollment
 	findErr   error
 	createErr error
 	closeErr  error
 	deleteErr error
-	created   []*activitiesModel.StudentEnrollment
+	created   []*activityContract.StudentEnrollment
 	closed    []int64
 	deleted   []int64
 }
 
-func (r *seriesMockEnrollmentRepo) FindByGroupID(context.Context, int64) ([]*activitiesModel.StudentEnrollment, error) {
+func (r *seriesMockEnrollmentRepo) FindByGroupID(context.Context, int64) ([]*activityContract.StudentEnrollment, error) {
 	return r.rows, r.findErr
 }
 
-func (r *seriesMockEnrollmentRepo) Create(_ context.Context, row *activitiesModel.StudentEnrollment) error {
+func (r *seriesMockEnrollmentRepo) Create(_ context.Context, row *activityContract.StudentEnrollment) error {
 	if r.createErr != nil {
 		return r.createErr
 	}
@@ -93,7 +96,7 @@ func (r *seriesMockEnrollmentRepo) Create(_ context.Context, row *activitiesMode
 	return nil
 }
 
-func (r *seriesMockEnrollmentRepo) SetValidUntilByID(_ context.Context, id int64, _ activitiesModel.Date) error {
+func (r *seriesMockEnrollmentRepo) SetValidUntilByID(_ context.Context, id int64, _ activityContract.Date) error {
 	if r.closeErr != nil {
 		return r.closeErr
 	}
@@ -101,33 +104,31 @@ func (r *seriesMockEnrollmentRepo) SetValidUntilByID(_ context.Context, id int64
 	return nil
 }
 
-func (r *seriesMockEnrollmentRepo) Delete(_ context.Context, id any) error {
+func (r *seriesMockEnrollmentRepo) Delete(_ context.Context, id int64) error {
 	if r.deleteErr != nil {
 		return r.deleteErr
 	}
-	if numeric, ok := id.(int64); ok {
-		r.deleted = append(r.deleted, numeric)
-	}
+	r.deleted = append(r.deleted, id)
 	return nil
 }
 
 type seriesMockSupervisorRepo struct {
-	activitiesModel.SupervisorPlannedRepository
-	rows      []*activitiesModel.SupervisorPlanned
+	ports.PlannedSupervisorRecords
+	rows      []*activityContract.SupervisorPlanned
 	findErr   error
 	createErr error
 	closeErr  error
 	deleteErr error
-	created   []*activitiesModel.SupervisorPlanned
+	created   []*activityContract.SupervisorPlanned
 	closed    []int64
 	deleted   []int64
 }
 
-func (r *seriesMockSupervisorRepo) FindByGroupID(context.Context, int64) ([]*activitiesModel.SupervisorPlanned, error) {
+func (r *seriesMockSupervisorRepo) FindByGroupID(context.Context, int64) ([]*activityContract.SupervisorPlanned, error) {
 	return r.rows, r.findErr
 }
 
-func (r *seriesMockSupervisorRepo) Create(_ context.Context, row *activitiesModel.SupervisorPlanned) error {
+func (r *seriesMockSupervisorRepo) Create(_ context.Context, row *activityContract.SupervisorPlanned) error {
 	if r.createErr != nil {
 		return r.createErr
 	}
@@ -135,7 +136,7 @@ func (r *seriesMockSupervisorRepo) Create(_ context.Context, row *activitiesMode
 	return nil
 }
 
-func (r *seriesMockSupervisorRepo) SetValidUntilByID(_ context.Context, id int64, _ activitiesModel.Date) error {
+func (r *seriesMockSupervisorRepo) SetValidUntilByID(_ context.Context, id int64, _ activityContract.Date) error {
 	if r.closeErr != nil {
 		return r.closeErr
 	}
@@ -143,28 +144,26 @@ func (r *seriesMockSupervisorRepo) SetValidUntilByID(_ context.Context, id int64
 	return nil
 }
 
-func (r *seriesMockSupervisorRepo) Delete(_ context.Context, id any) error {
+func (r *seriesMockSupervisorRepo) Delete(_ context.Context, id int64) error {
 	if r.deleteErr != nil {
 		return r.deleteErr
 	}
-	if numeric, ok := id.(int64); ok {
-		r.deleted = append(r.deleted, numeric)
-	}
+	r.deleted = append(r.deleted, id)
 	return nil
 }
 
 // -------------------------------------------------------------- fixtures ----
 
-func seriesMockGroup(id int64) *activitiesModel.Group {
-	group := &activitiesModel.Group{Name: "Series mock", IsTemplate: true}
+func seriesMockGroup(id int64) *activityContract.Group {
+	group := &activityContract.Group{Name: "Series mock", IsTemplate: true}
 	group.ID = id
 	return group
 }
 
-func seriesMockSchedule(groupID int64, from calendar.Date, until *calendar.Date) *activitiesModel.Schedule {
-	start := activitiesModel.Date(from)
-	return &activitiesModel.Schedule{
-		Weekday:         activitiesModel.WeekdayMonday,
+func seriesMockSchedule(groupID int64, from calendar.Date, until *calendar.Date) *activityContract.Schedule {
+	start := activityContract.Date(from)
+	return &activityContract.Schedule{
+		Weekday:         activityContract.WeekdayMonday,
 		ActivityGroupID: groupID,
 		ValidFrom:       &start,
 		ValidUntil:      activityDatePtr(until),
@@ -179,10 +178,10 @@ func seriesMockChain(
 ) *TemplateService {
 	until := seriesMockUntil()
 	return NewTemplateService(TemplateServiceDependencies{
-		ActivityGroupRepo: &seriesMockGroupRepo{groups: []*activitiesModel.Group{
+		ActivityGroupRepo: &seriesMockGroupRepo{groups: []*activityContract.Group{
 			seriesMockGroup(seriesMockOldID), seriesMockGroup(seriesMockLivingID),
 		}},
-		ActivityScheduleRepo: &seriesMockScheduleRepo{byGroup: map[int64][]*activitiesModel.Schedule{
+		ActivityScheduleRepo: &seriesMockScheduleRepo{byGroup: map[int64][]*activityContract.Schedule{
 			seriesMockOldID:    {seriesMockSchedule(seriesMockOldID, calendar.NewDate(2026, 8, 24), &until)},
 			seriesMockLivingID: {seriesMockSchedule(seriesMockLivingID, until, nil)},
 		}},
@@ -196,7 +195,7 @@ func seriesMockInput() TemplateUpdateInput {
 	anchor := seriesMockAnchor()
 	return TemplateUpdateInput{
 		TemplateID:                  seriesMockLivingID,
-		Weekdays:                    []int{activitiesModel.WeekdayMonday},
+		Weekdays:                    []int{activityContract.WeekdayMonday},
 		StudentIDs:                  []int64{seriesMockStudent},
 		StaffIDs:                    []int64{seriesMockStaff},
 		SeriesRosterFrom:            &anchor,
@@ -233,11 +232,11 @@ func TestReconcileSeriesPredecessorRoster_CreatesBoundedRows(t *testing.T) {
 		t.Context(), seriesMockInput(), seriesMockTenantID, nil))
 
 	require.Len(t, enrollments.created, 1)
-	assert.Equal(t, activitiesModel.Date(seriesMockAnchor()), enrollments.created[0].ValidFrom)
+	assert.Equal(t, activityContract.Date(seriesMockAnchor()), enrollments.created[0].ValidFrom)
 	require.NotNil(t, enrollments.created[0].ValidUntil)
-	assert.Equal(t, activitiesModel.Date(seriesMockUntil()), *enrollments.created[0].ValidUntil)
+	assert.Equal(t, activityContract.Date(seriesMockUntil()), *enrollments.created[0].ValidUntil)
 	require.NotNil(t, enrollments.created[0].Weekday)
-	assert.Equal(t, activitiesModel.WeekdayMonday, *enrollments.created[0].Weekday)
+	assert.Equal(t, activityContract.WeekdayMonday, *enrollments.created[0].Weekday)
 	require.Len(t, supervisors.created, 1)
 	assert.Equal(t, seriesMockStaff, supervisors.created[0].StaffID)
 }
@@ -263,7 +262,7 @@ func TestReconcileSeriesPredecessorRoster_RepositoryFailures(t *testing.T) {
 			name: "schedule lookup fails",
 			build: func() *TemplateService {
 				return NewTemplateService(TemplateServiceDependencies{
-					ActivityGroupRepo: &seriesMockGroupRepo{groups: []*activitiesModel.Group{
+					ActivityGroupRepo: &seriesMockGroupRepo{groups: []*activityContract.Group{
 						seriesMockGroup(seriesMockLivingID),
 					}},
 					ActivityScheduleRepo: &seriesMockScheduleRepo{err: errSeriesMock},
@@ -299,7 +298,7 @@ func TestReconcileSeriesPredecessorRoster_RepositoryFailures(t *testing.T) {
 			build: func() *TemplateService {
 				until := seriesMockUntil()
 				return seriesMockChain(&seriesMockEnrollmentRepo{
-					rows:     []*activitiesModel.StudentEnrollment{seriesMockEnrollmentRow(1, calendar.NewDate(2026, 8, 24), &until, nil)},
+					rows:     []*activityContract.StudentEnrollment{seriesMockEnrollmentRow(1, calendar.NewDate(2026, 8, 24), &until, nil)},
 					closeErr: errSeriesMock,
 				}, &seriesMockSupervisorRepo{})
 			},
@@ -312,7 +311,7 @@ func TestReconcileSeriesPredecessorRoster_RepositoryFailures(t *testing.T) {
 			build: func() *TemplateService {
 				until := seriesMockUntil()
 				return seriesMockChain(&seriesMockEnrollmentRepo{}, &seriesMockSupervisorRepo{
-					rows:     []*activitiesModel.SupervisorPlanned{seriesMockSupervisorRow(1, calendar.NewDate(2026, 8, 24), &until, nil)},
+					rows:     []*activityContract.SupervisorPlanned{seriesMockSupervisorRow(1, calendar.NewDate(2026, 8, 24), &until, nil)},
 					closeErr: errSeriesMock,
 				})
 			},
@@ -323,7 +322,7 @@ func TestReconcileSeriesPredecessorRoster_RepositoryFailures(t *testing.T) {
 			build: func() *TemplateService {
 				until := seriesMockUntil()
 				return seriesMockChain(&seriesMockEnrollmentRepo{
-					rows: []*activitiesModel.StudentEnrollment{
+					rows: []*activityContract.StudentEnrollment{
 						seriesMockEnrollmentRow(1, seriesMockAnchor().AddDays(1), &until, nil),
 					},
 					deleteErr: errSeriesMock,
@@ -356,14 +355,14 @@ func TestReconcileSeriesPredecessorRoster_SkipsUnrelatedRows(t *testing.T) {
 	otherPeriod := int64(4242)
 	longPast := calendar.NewDate(2026, 8, 24).AddDays(-90)
 	pastEnd := calendar.NewDate(2026, 8, 24).AddDays(-60)
-	wednesday := activitiesModel.WeekdayWednesday
+	wednesday := activityContract.WeekdayWednesday
 	until := seriesMockUntil()
 
-	enrollments := &seriesMockEnrollmentRepo{rows: []*activitiesModel.StudentEnrollment{
+	enrollments := &seriesMockEnrollmentRepo{rows: []*activityContract.StudentEnrollment{
 		// Another calendar period — owned by a different planning window.
 		seriesMockEnrollmentRow(11, calendar.NewDate(2026, 8, 24), &until, &otherPeriod),
 		// A weekday the edit does not describe.
-		func() *activitiesModel.StudentEnrollment {
+		func() *activityContract.StudentEnrollment {
 			row := seriesMockEnrollmentRow(12, calendar.NewDate(2026, 8, 24), &until, nil)
 			row.Weekday = &wednesday
 			return row
@@ -371,9 +370,9 @@ func TestReconcileSeriesPredecessorRoster_SkipsUnrelatedRows(t *testing.T) {
 		// A window that ended long before the reconciliation window.
 		seriesMockEnrollmentRow(13, longPast, &pastEnd, nil),
 	}}
-	supervisors := &seriesMockSupervisorRepo{rows: []*activitiesModel.SupervisorPlanned{
+	supervisors := &seriesMockSupervisorRepo{rows: []*activityContract.SupervisorPlanned{
 		seriesMockSupervisorRow(21, calendar.NewDate(2026, 8, 24), &until, &otherPeriod),
-		func() *activitiesModel.SupervisorPlanned {
+		func() *activityContract.SupervisorPlanned {
 			row := seriesMockSupervisorRow(22, calendar.NewDate(2026, 8, 24), &until, nil)
 			row.Weekday = &wednesday
 			return row
@@ -401,14 +400,14 @@ func TestLoadTemplateSeriesSegments_SkipsBrokenSibling(t *testing.T) {
 
 	until := seriesMockUntil()
 	other := until.AddDays(7)
-	broken := []*activitiesModel.Schedule{
+	broken := []*activityContract.Schedule{
 		seriesMockSchedule(seriesMockOldID, calendar.NewDate(2026, 8, 24), &until),
 		seriesMockSchedule(seriesMockOldID, calendar.NewDate(2026, 8, 24), &other),
 	}
-	groupRepo := &seriesMockGroupRepo{groups: []*activitiesModel.Group{
+	groupRepo := &seriesMockGroupRepo{groups: []*activityContract.Group{
 		seriesMockGroup(seriesMockOldID), seriesMockGroup(seriesMockLivingID),
 	}}
-	scheduleRepo := &seriesMockScheduleRepo{byGroup: map[int64][]*activitiesModel.Schedule{
+	scheduleRepo := &seriesMockScheduleRepo{byGroup: map[int64][]*activityContract.Schedule{
 		seriesMockOldID:    broken,
 		seriesMockLivingID: {seriesMockSchedule(seriesMockLivingID, until, nil)},
 	}}
@@ -435,11 +434,11 @@ func TestResolveLivingTemplateSegment_PropagatesLineageErrors(t *testing.T) {
 	assert.ErrorIs(t, err, errSeriesMock)
 }
 
-func seriesMockEnrollmentRow(id int64, from calendar.Date, until *calendar.Date, periodID *int64) *activitiesModel.StudentEnrollment {
-	row := &activitiesModel.StudentEnrollment{
+func seriesMockEnrollmentRow(id int64, from calendar.Date, until *calendar.Date, periodID *int64) *activityContract.StudentEnrollment {
+	row := &activityContract.StudentEnrollment{
 		StudentID:        seriesMockStudent,
 		ActivityGroupID:  seriesMockOldID,
-		ValidFrom:        activitiesModel.Date(from),
+		ValidFrom:        activityContract.Date(from),
 		ValidUntil:       activityDatePtr(until),
 		CalendarPeriodID: periodID,
 	}
@@ -447,11 +446,11 @@ func seriesMockEnrollmentRow(id int64, from calendar.Date, until *calendar.Date,
 	return row
 }
 
-func seriesMockSupervisorRow(id int64, from calendar.Date, until *calendar.Date, periodID *int64) *activitiesModel.SupervisorPlanned {
-	row := &activitiesModel.SupervisorPlanned{
+func seriesMockSupervisorRow(id int64, from calendar.Date, until *calendar.Date, periodID *int64) *activityContract.SupervisorPlanned {
+	row := &activityContract.SupervisorPlanned{
 		StaffID:          seriesMockStaff,
 		GroupID:          seriesMockOldID,
-		ValidFrom:        activitiesModel.Date(from),
+		ValidFrom:        activityContract.Date(from),
 		ValidUntil:       activityDatePtr(until),
 		CalendarPeriodID: periodID,
 	}

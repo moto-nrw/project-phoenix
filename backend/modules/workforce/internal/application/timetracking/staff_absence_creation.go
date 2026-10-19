@@ -6,23 +6,22 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// CreateAbsence creates a new absence record for the caller themself.
 func (s *staffAbsenceService) CreateAbsence(ctx context.Context, staffID int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
 	return s.CreateOwnAbsence(ctx, staffID, nil, req)
 }
 
-// CreateOwnAbsence is the self-service entry point. Comp-time absences change
-// the Stundenkonto and therefore require the manager-authorized staff route.
 func (s *staffAbsenceService) CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
 	if req.AbsenceType == AbsenceTypeCompTime {
 		return nil, ErrManagerControlledAbsence
 	}
 	if req.AbsenceType == AbsenceTypeVacation {
-		return nil, fmt.Errorf("vacation absences must be requested through the vacation flow")
+		return nil, &workforce.TimeTrackingError{Kind: workforce.ErrVacationFlowRequired, Cause: fmt.Errorf("vacation absences must be requested through the vacation flow")}
 	}
 	if req.AbsenceTypeID != nil && s.absenceTypes != nil {
 		absenceType, err := s.absenceTypes.GetAbsenceType(ctx, *req.AbsenceTypeID)
@@ -36,11 +35,6 @@ func (s *staffAbsenceService) CreateOwnAbsence(ctx context.Context, staffID int6
 	return s.CreateAbsenceFor(ctx, staffID, staffID, actorAccountID, req)
 }
 
-// CreateAbsenceFor creates an absence for subjectStaffID on createdByStaffID's
-// behalf (#1843 admin sick reporting; self-service passes the same id twice).
-// A full-day sick absence cascades into the plans; the merge path cascades
-// over the MERGED range of the primary row, which the idempotency guards in
-// the syncer make safe to re-run.
 func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
 	// Resolve the school-defined art first (#2403): it, not the client, decides
 	// the canonical type every guard below and every later calculation reads.
@@ -114,7 +108,7 @@ func (s *staffAbsenceService) cascadeSickReport(ctx context.Context, absence *St
 	if absence.AbsenceType != AbsenceTypeSick || absence.HalfDay {
 		return nil
 	}
-	if err := s.planSyncer().MarkSickForRange(ctx, sickCascadeInput(absence, actorStaffID, actorAccountID)); err != nil {
+	if err := s.shiftPlanSyncer.MarkSickForRange(ctx, sickCascadeInput(absence, actorStaffID, actorAccountID)); err != nil {
 		return fmt.Errorf("sick report saved nothing — plan cascade failed: %w", err)
 	}
 	return nil
@@ -124,17 +118,17 @@ func (s *staffAbsenceService) cascadeSickReport(ctx context.Context, absence *St
 func parseDateRange(startStr, endStr string) (calendar.Date, calendar.Date, error) {
 	dateStart, err := calendar.ParseDate(startStr)
 	if err != nil {
-		return calendar.Date(""), calendar.Date(""), fmt.Errorf("invalid date_start format, expected YYYY-MM-DD")
+		return calendar.Date(""), calendar.Date(""), &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid date_start format, expected YYYY-MM-DD")}
 	}
 	dateEnd, err := calendar.ParseDate(endStr)
 	if err != nil {
-		return calendar.Date(""), calendar.Date(""), fmt.Errorf("invalid date_end format, expected YYYY-MM-DD")
+		return calendar.Date(""), calendar.Date(""), &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid date_end format, expected YYYY-MM-DD")}
 	}
 	// Reject reversed ranges here instead of letting them hit the DB check
 	// constraint chk_sa_dates, which would surface as a 500 (#1420 review).
 	// The "invalid" prefix is what the handlers classify as a 400.
 	if dateEnd.Before(dateStart) {
-		return calendar.Date(""), calendar.Date(""), fmt.Errorf("invalid date range: date_end must not be before date_start")
+		return calendar.Date(""), calendar.Date(""), &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid date range: date_end must not be before date_start")}
 	}
 	return dateStart, dateEnd, nil
 }
@@ -185,7 +179,7 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	// (#1843). Fail closed — a dangling stamp breaks the reversal invariant.
 	if primary.AbsenceType == AbsenceTypeSick {
 		for _, secondary := range existing[1:] {
-			if err := s.planSyncer().ReassignSickStamps(ctx, secondary.ID, primary.ID); err != nil {
+			if err := s.shiftPlanSyncer.ReassignSickStamps(ctx, secondary.ID, primary.ID); err != nil {
 				return nil, fmt.Errorf("failed to merge absence — plan stamp reassignment failed: %w", err)
 			}
 		}
@@ -211,9 +205,9 @@ func validateSameMergeDuration(existing []*StaffAbsence, req CreateAbsenceReques
 	for _, absence := range existing {
 		if absence.HalfDay != req.HalfDay {
 			if req.AbsenceType == AbsenceTypeCompTime {
-				return fmt.Errorf("invalid comp_time absence: half-day and full-day entries cannot be merged")
+				return &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid comp_time absence: half-day and full-day entries cannot be merged")}
 			}
-			return fmt.Errorf("invalid sick absence: half-day and full-day reports cannot be merged")
+			return &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid sick absence: half-day and full-day reports cannot be merged")}
 		}
 	}
 	return nil
@@ -224,7 +218,7 @@ func validateSickAbsenceRange(absenceType string, start, end calendar.Date) erro
 		return nil
 	}
 	if start.DaysUntil(end)+1 > maxSickAbsenceRangeDays {
-		return fmt.Errorf("invalid sick absence: date range exceeds %d days", maxSickAbsenceRangeDays)
+		return &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid sick absence: date range exceeds %d days", maxSickAbsenceRangeDays)}
 	}
 	return nil
 }
@@ -235,9 +229,9 @@ func validateSingleDayHalfDayAbsence(absenceType string, halfDay bool, start, en
 	}
 	switch absenceType {
 	case AbsenceTypeSick:
-		return fmt.Errorf("invalid sick absence: half-day reports must cover exactly one date")
+		return &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid sick absence: half-day reports must cover exactly one date")}
 	case AbsenceTypeCompTime:
-		return fmt.Errorf("invalid comp_time absence: half-day reports must cover exactly one date")
+		return &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid comp_time absence: half-day reports must cover exactly one date")}
 	}
 	return nil
 }
@@ -255,13 +249,13 @@ func (s *staffAbsenceService) rejectPreAccountCompTime(ctx context.Context, abse
 		return fmt.Errorf("failed to resolve account start for comp_time absence: %w", err)
 	}
 	if dateStart.Before(anchor) {
-		return fmt.Errorf("invalid comp_time absence: date_start %s lies before the account start %s", dateStart.String(), anchor.String())
+		return &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid comp_time absence: date_start %s lies before the account start %s", dateStart.String(), anchor.String())}
 	}
 	// Mirror the Monatskarte's future bound: the overdraft guard reads the
 	// closing balance before dateStart, which has no defined result beyond
 	// the carry-chain horizon (#1420 review).
 	if horizon := monthOf(s.today()).addMonths(maxFutureMonths); horizon.before(monthOf(dateEnd)) {
-		return fmt.Errorf("invalid comp_time absence: date_end %s is more than %d months ahead", dateEnd.String(), maxFutureMonths)
+		return &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid comp_time absence: date_end %s is more than %d months ahead", dateEnd.String(), maxFutureMonths)}
 	}
 	return nil
 }
@@ -281,9 +275,9 @@ func (s *staffAbsenceService) lockStaffAbsenceWrites(ctx context.Context, staffI
 func validateSameAbsenceTypeName(existing []*StaffAbsence, absenceTypeID *int64) error {
 	for _, e := range existing {
 		if !sameAbsenceTypeID(e.AbsenceTypeID, absenceTypeID) {
-			return fmt.Errorf("absence overlaps with an existing absence of a different Abwesenheitsart from %s to %s",
+			return &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceOverlap, Cause: fmt.Errorf("absence overlaps with an existing absence of a different Abwesenheitsart from %s to %s",
 				e.DateStart,
-				e.DateEnd)
+				e.DateEnd)}
 		}
 	}
 	return nil
@@ -300,10 +294,10 @@ func sameAbsenceTypeID(a, b *int64) bool {
 func validateSameAbsenceType(existing []*StaffAbsence, absenceType string) error {
 	for _, e := range existing {
 		if e.AbsenceType != absenceType {
-			return fmt.Errorf("absence overlaps with existing %s absence from %s to %s",
+			return &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceOverlap, Cause: fmt.Errorf("absence overlaps with existing %s absence from %s to %s",
 				e.AbsenceType,
 				e.DateStart,
-				e.DateEnd)
+				e.DateEnd)}
 		}
 	}
 	return nil

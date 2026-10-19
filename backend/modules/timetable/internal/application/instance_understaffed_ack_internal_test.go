@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"testing"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -17,7 +17,7 @@ import (
 // ackUnitStaffRepo stubs InstanceStaffRepository.FindByInstanceID for the
 // understaffed-acknowledgement clearing tests.
 type ackUnitStaffRepo struct {
-	scheduleModel.InstanceStaffRepository
+	ports.InstanceStaffRecords
 	rows []*scheduleModel.InstanceStaff
 	err  error
 }

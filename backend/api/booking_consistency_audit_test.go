@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
@@ -17,9 +19,9 @@ import (
 
 func bookingConsistencyAuditUnderTest(t *testing.T, db *bun.DB) testpkg.BookingConsistencyAudit {
 	t.Helper()
-	carePlan, err := NewUnobservedCarePlan(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	carePlan, err := owners.NewUnobservedCarePlan(testpkg.NewDatabase(t, db), owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)), owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
-	audit, err := NewBookingConsistencyAudit(testpkg.NewDatabase(t, db), MustNewPeopleDirectory(testpkg.NewDatabase(t, db)), carePlan)
+	audit, err := owners.NewBookingConsistencyAudit(testpkg.NewDatabase(t, db), owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)), carePlan)
 	require.NoError(t, err)
 	return func(ctx context.Context, auditDate string) (testpkg.BookingConsistencyFindings, error) {
 		report, err := audit(ctx, auditModels.Date(auditDate))

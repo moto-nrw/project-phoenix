@@ -1,10 +1,10 @@
 package compose
 
 import (
-	"context"
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -15,12 +15,19 @@ import (
 // a routable address, which stays where it is owned instead of becoming a
 // second copy of the pattern here.
 
+// OperatorLinkDelivery mails both operator links.
+type OperatorLinkDelivery interface {
+	identityPorts.OperatorInvitationDelivery
+	identityPorts.OperatorEmailChangeDelivery
+}
+
 // OperatorProvisioningDependencies compose the invitation and e-mail change
 // flows. They require the operator dependencies: the flows reuse the
 // operator ledger and the credential policy.
 type OperatorProvisioningDependencies struct {
-	Invites           identityPorts.OperatorInvitationDelivery
-	Changes           identityPorts.OperatorEmailChangeDelivery
+	// DeliveryFor builds both transports over the recorder of their outcome;
+	// the composition calls it once.
+	DeliveryFor       func(identityaccess.OperatorLinkDeliveryRecorder) OperatorLinkDelivery
 	Format            identityPorts.EmailFormat
 	InvitationExpiry  time.Duration
 	EmailChangeExpiry time.Duration
@@ -39,12 +46,13 @@ func newOperatorProvisioning(
 	if sessions == nil || operators == nil {
 		return nil, errors.New("identity access compose: the provisioning flows require the session and operator dependencies")
 	}
-	if deps.Invites == nil || deps.Changes == nil || deps.Format == nil {
-		return nil, errors.New("identity access compose: every operator provisioning dependency is required")
+	var delivery OperatorLinkDelivery
+	if deps.DeliveryFor != nil {
+		// The recorder answers like the module: its engine holds the tokens alone.
+		delivery = deps.DeliveryFor(identityaccess.NewModule(application.NewEngine(application.EngineParts{Tokens: tokens})))
 	}
-	attach := sessions.TenantRuntime
-	if attach == nil {
-		attach = func(ctx context.Context) context.Context { return ctx }
+	if delivery == nil || deps.Format == nil {
+		return nil, errors.New("identity access compose: every operator provisioning dependency is required")
 	}
 	return application.NewOperatorProvisioning(service, application.OperatorProvisioningDependencies{
 		Tokens:    tokens,
@@ -52,9 +60,9 @@ func newOperatorProvisioning(
 		Hasher:    operators.Passwords,
 		Format:    application.EmailFormat{Source: deps.Format},
 		Audit:     application.OperatorAudit{Source: operators.Audit},
-		Invites:   application.OperatorInvitationDelivery{Source: deps.Invites, Expiry: deps.InvitationExpiry},
-		Changes:   application.OperatorEmailChangeDelivery{Source: deps.Changes, Expiry: deps.EmailChangeExpiry},
-		Runtime:   tenantRuntime{attach: attach, runner: tenant.NewTransactionRunner()},
+		Invites:   application.OperatorInvitationDelivery{Source: delivery, Expiry: deps.InvitationExpiry},
+		Changes:   application.OperatorEmailChangeDelivery{Source: delivery, Expiry: deps.EmailChangeExpiry},
+		Runtime:   tenantRuntime{attach: sessions.TenantRuntime, runner: tenant.NewTransactionRunner()},
 		Expiry: application.OperatorProvisioningExpiry{
 			Invitation: deps.InvitationExpiry, EmailChange: deps.EmailChangeExpiry,
 		},

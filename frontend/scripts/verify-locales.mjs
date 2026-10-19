@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 
 const backendLocalesUrl = new URL(
-  "../../backend/localization/locales.json",
+  "../../backend/modules/delivery/internal/adapters/localization/locales.json",
   import.meta.url,
 );
 const generatedLocalesUrl = new URL(
@@ -23,7 +23,7 @@ const actual = await readFile(generatedLocalesUrl, "utf8");
 
 if (actual !== expected) {
   console.error(
-    "frontend/src/i18n/locales.generated.ts is out of sync with backend/localization/locales.json",
+    "frontend/src/i18n/locales.generated.ts is out of sync with backend/modules/delivery/internal/adapters/localization/locales.json",
   );
   console.error(
     "Update the generated frontend locale mirror before running checks.",

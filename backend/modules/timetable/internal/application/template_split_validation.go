@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -48,7 +49,7 @@ type TemplateSplitInput struct {
 	TargetGroupType    string
 	TargetGradeLevel   *int16
 	TargetSchoolClass  *string
-	Targets            []*activitiesModel.GroupTarget
+	Targets            []*activityContract.GroupTarget
 	targetsProvided    bool
 	targetsPresenceSet bool
 	// Offering-source rule (#2137), presence-aware like RequiredStaff (#2147
@@ -169,10 +170,10 @@ func validateSplitRecurrence(in TemplateSplitInput, today calendar.Date) error {
 		return fmt.Errorf("%w: at least one weekday is required", timetable.ErrSplitInvalidInput)
 	}
 	for _, w := range in.Weekdays {
-		if !activitiesModel.IsValidWeekday(w) {
+		if !activityContract.IsValidWeekday(w) {
 			return fmt.Errorf("%w: invalid weekday %d (must be 1=Mon … 7=Sun)", timetable.ErrSplitInvalidInput, w)
 		}
-		if w > activitiesModel.WeekdayFriday {
+		if w > activityContract.WeekdayFriday {
 			return fmt.Errorf("%w: timetable templates can only be scheduled from Monday to Friday", timetable.ErrSplitInvalidInput)
 		}
 	}
@@ -205,7 +206,7 @@ func validateSplitTargetGroup(in *TemplateSplitInput) error {
 	}
 	in.Targets = targets
 	mirrorSplitTargets(in)
-	target := &activitiesModel.Group{
+	target := &activityContract.Group{
 		TargetGroupType:   in.TargetGroupType,
 		TargetGradeLevel:  in.TargetGradeLevel,
 		TargetSchoolClass: in.TargetSchoolClass,
@@ -270,7 +271,7 @@ func validateSplitMaterializationWindow(in TemplateSplitInput) error {
 
 // loadTemplate resolves the old template and enforces the split preconditions:
 // it must exist in the current tenant, be a template, and not be archived.
-func (s *TemplateSplitService) loadTemplate(ctx context.Context, id int64) (*activitiesModel.Group, error) {
+func (s *TemplateSplitService) loadTemplate(ctx context.Context, id int64) (*activityContract.Group, error) {
 	group, err := s.deps.GroupRepo.FindByID(ctx, id)
 	if err != nil {
 		if domain.IsRecordNotFound(err) {

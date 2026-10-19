@@ -77,6 +77,19 @@ func (s *StaffWorkSchedule) SetTenantID(tenantID int64) {
 	s.TenantID = tenantID
 }
 
+// StaffScheduleVersionStart is the start day of the schedule version the
+// entries are written as. The rows of one version share their start day, so
+// the first row that carries one names it; without any the version starts
+// today, which the empty day leaves to the writer.
+func StaffScheduleVersionStart(entries []*StaffWorkSchedule) CalendarDate {
+	for _, entry := range entries {
+		if entry != nil && entry.ValidFrom != "" {
+			return entry.ValidFrom
+		}
+	}
+	return ""
+}
+
 // StaffWorkScheduleRepository defines operations for managing staff work schedules
 type StaffWorkScheduleRepository interface {
 	// GetCurrentByStaffID returns the currently valid schedule entries for a staff member

@@ -3,9 +3,10 @@ package contracttest_test
 import (
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -33,7 +34,7 @@ func TestStudentRepository_FindPendingDueForActivation(t *testing.T) {
 		testpkg.SetStudentLifecycle(t, db, futureStudent.ID, testpkg.StudentStatusPending, &tomorrow, nil)
 		testpkg.SetStudentLifecycle(t, db, activeStudent.ID, testpkg.StudentStatusActive, &yesterday, nil)
 
-		results, err := repo.FindPendingDueForActivation(ctx, asOf)
+		results, err := testpkg.TenantQuery1(t, ctx, db, repo.FindPendingDueForActivation, asOf)
 		require.NoError(t, err)
 
 		ids := make(map[int64]bool, len(results))
@@ -49,7 +50,7 @@ func TestStudentRepository_FindPendingDueForActivation(t *testing.T) {
 		nullStudent := testpkg.CreateTestStudent(t, db, "PendingNull", "Lifecycle", "1a")
 		testpkg.SetStudentLifecycle(t, db, nullStudent.ID, testpkg.StudentStatusPending, nil, nil)
 
-		results, err := repo.FindPendingDueForActivation(ctx, asOf)
+		results, err := testpkg.TenantQuery1(t, ctx, db, repo.FindPendingDueForActivation, asOf)
 		require.NoError(t, err)
 		for _, s := range results {
 			assert.NotEqual(t, nullStudent.ID, s.ID, "NULL enrolled_from must not be returned")
@@ -78,7 +79,7 @@ func TestStudentRepository_FindActiveDueForDeactivation(t *testing.T) {
 		testpkg.SetStudentLifecycle(t, db, futureStudent.ID, testpkg.StudentStatusActive, nil, &tomorrow)
 		testpkg.SetStudentLifecycle(t, db, pendingStudent.ID, testpkg.StudentStatusPending, nil, &yesterday)
 
-		results, err := repo.FindActiveDueForDeactivation(ctx, asOf)
+		results, err := testpkg.TenantQuery1(t, ctx, db, repo.FindActiveDueForDeactivation, asOf)
 		require.NoError(t, err)
 
 		ids := make(map[int64]bool, len(results))
@@ -103,16 +104,16 @@ func TestStudentRepository_UpdateStatus(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Activate", "Lifecycle", "1a")
 		testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusPending, nil, nil)
 
-		err := repo.UpdateStatus(ctx, student.ID, userModels.StudentStatusActive)
+		err := testpkg.TenantCommand2(t, ctx, db, repo.UpdateStatus, student.ID, peopleValues.StudentStatusActive)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
-		assert.Equal(t, userModels.StudentStatusActive, found.Status)
+		assert.Equal(t, peopleValues.StudentStatusActive, found.Status)
 	})
 
 	t.Run("returns error for non-existent student", func(t *testing.T) {
-		err := repo.UpdateStatus(ctx, int64(999999), userModels.StudentStatusActive)
+		err := testpkg.TenantCommand2(t, ctx, db, repo.UpdateStatus, int64(999999), peopleValues.StudentStatusActive)
 		require.Error(t, err, "update on missing student must error")
 	})
 }
@@ -127,25 +128,15 @@ func TestStudentRepository_TransitionStatus(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Conditional", "Lifecycle", "1a")
 	testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusPending, nil, nil)
 
-	applied, err := repo.TransitionStatus(
-		ctx,
-		student.ID,
-		userModels.StudentStatusPending,
-		userModels.StudentStatusActive,
-	)
+	applied, err := testpkg.TenantQuery3(t, ctx, db, repo.TransitionStatus, student.ID, peopleValues.StudentStatusPending, peopleValues.StudentStatusActive)
 	require.NoError(t, err)
 	assert.True(t, applied)
 
-	applied, err = repo.TransitionStatus(
-		ctx,
-		student.ID,
-		userModels.StudentStatusPending,
-		userModels.StudentStatusInactive,
-	)
+	applied, err = testpkg.TenantQuery3(t, ctx, db, repo.TransitionStatus, student.ID, peopleValues.StudentStatusPending, peopleValues.StudentStatusInactive)
 	require.NoError(t, err)
 	assert.False(t, applied, "a stale expected status must not overwrite the current status")
 
-	found, err := repo.FindByID(ctx, student.ID)
+	found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 	require.NoError(t, err)
-	assert.Equal(t, userModels.StudentStatusActive, found.Status)
+	assert.Equal(t, peopleValues.StudentStatusActive, found.Status)
 }

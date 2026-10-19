@@ -83,13 +83,12 @@ func (s *OfferingChanges) emitDecisionPill(ctx context.Context, row careplan.Off
 		ActorAccountID: pill.reviewedBy, Body: pill.body, RequestType: careplan.OfferingChangeRequestType,
 		RequestStatus: pill.status, DecisionReason: pill.reason, Payload: pill.payload,
 	}
-	if err := s.emitPillAfterCommit(ctx, row, event); err != nil {
+	if err := s.emitPill(ctx, row, event); err != nil {
 		return err
 	}
 	// Every other guardian of the child hears about the decision: the full
 	// pill for explicit share recipients, a neutral line for the rest.
-	s.notifyOtherGuardiansAfterCommit(ctx, row, event)
-	return nil
+	return s.notifyOtherGuardians(ctx, row, event)
 }
 
 func (s *OfferingChanges) rowTenantID(ctx context.Context, row careplan.OfferingChangeRequest) int64 {
@@ -99,9 +98,9 @@ func (s *OfferingChanges) rowTenantID(ctx context.Context, row careplan.Offering
 	return s.deps.Hooks.TenantID(ctx)
 }
 
-// emitPillAfterCommit writes the durable decision intent in the surrounding
-// transaction, then posts the best-effort parent-OGS pill after commit.
-func (s *OfferingChanges) emitPillAfterCommit(ctx context.Context, row careplan.OfferingChangeRequest, event ports.RequestEvent) error {
+// emitPill writes the durable decision intent in the surrounding
+// transaction, and appends the parent-OGS pill before commit.
+func (s *OfferingChanges) emitPill(ctx context.Context, row careplan.OfferingChangeRequest, event ports.RequestEvent) error {
 	messenger := s.deps.Messenger
 	if messenger == nil {
 		return nil
@@ -112,8 +111,10 @@ func (s *OfferingChanges) emitPillAfterCommit(ctx context.Context, row careplan.
 	if err := messenger.EnqueueRequestDecision(ctx, tenantID, studentID, guardianAccountID, event); err != nil {
 		return fmt.Errorf("offering change: enqueue request decision: %w", err)
 	}
+	if err := messenger.EmitChildEvent(ctx, tenantID, studentID, guardianAccountID, event); err != nil {
+		return err
+	}
 	s.deps.Hooks.AfterCommit(ctx, func() {
-		messenger.EmitChildEvent(tenantID, studentID, guardianAccountID, event)
 		messenger.BroadcastChildUpdateToGuardians(tenantID, studentID)
 	})
 	return nil
@@ -138,13 +139,13 @@ func (s *OfferingChanges) sharedRecipients(ctx context.Context, row careplan.Off
 	return accountIDs
 }
 
-// notifyOtherGuardiansAfterCommit posts the decision to the child's other
+// notifyOtherGuardians posts the decision to the child's other
 // guardians (#2267, story 47). The audience is resolved inside the
 // transaction; the pills go out after commit.
-func (s *OfferingChanges) notifyOtherGuardiansAfterCommit(ctx context.Context, row careplan.OfferingChangeRequest, event ports.RequestEvent) {
+func (s *OfferingChanges) notifyOtherGuardians(ctx context.Context, row careplan.OfferingChangeRequest, event ports.RequestEvent) error {
 	messenger := s.deps.Messenger
 	if messenger == nil {
-		return
+		return nil
 	}
 	audience, err := messenger.ResolveDecisionAudience(ctx, row.StudentID, row.SubmittedBy, s.sharedRecipients(ctx, row))
 	if err != nil {
@@ -153,16 +154,14 @@ func (s *OfferingChanges) notifyOtherGuardiansAfterCommit(ctx context.Context, r
 			slog.Int64("student_id", row.StudentID),
 			slog.String("error", err.Error()),
 		)
-		return
+		return err
 	}
 	if len(audience.Full) == 0 && len(audience.Neutral) == 0 {
-		return
+		return nil
 	}
 	tenantID := s.rowTenantID(ctx, row)
 	neutral := event
 	neutral.Body = "Betreuungsstand geändert: Angebote ab " + offeringChangeEffectiveFrom(row).Format("02.01.2006")
 	studentID := row.StudentID
-	s.deps.Hooks.AfterCommit(ctx, func() {
-		messenger.EmitDecisionAudience(tenantID, studentID, audience, event, neutral)
-	})
+	return messenger.EmitDecisionAudience(ctx, tenantID, studentID, audience, event, neutral)
 }

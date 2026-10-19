@@ -52,14 +52,11 @@ type Dependencies struct {
 	// photo consent then reports that the trail is not configured rather than
 	// rendering a withdrawal as "never granted".
 	StudentConsentHistory StudentConsentHistory
-	// StudentPhotoRuntime resolves the surfaces the photo lifecycle needs
-	// beyond the directory's own rows. It is a resolver, not a value, because
-	// the file cleanup, the live refresh and the caller-access gates only
-	// exist once the HTTP layer is up. Optional, and a resolver may return
-	// nil: every photo route then reports the feature as disabled, which is
-	// what graphs that never serve a photo (CLI roots, repository tests)
-	// need.
-	StudentPhotoRuntime func() StudentPhotoRuntime
+	// StudentPhotos are the surfaces the photo lifecycle needs beyond the
+	// directory's own rows. Optional: without them every photo route reports
+	// the feature as disabled, which is what graphs that never serve a photo
+	// (CLI roots, repository tests) need.
+	StudentPhotos StudentPhotoRuntime
 	// StudentCompanions is the Care Plan seam the student write path needs:
 	// narrowing a departure plan drops the "läuft mit" links it no longer
 	// allows. Optional, on the same terms as the others — a graph that never
@@ -78,6 +75,10 @@ type Dependencies struct {
 	// Now is the clock a granted photo consent is stamped with. Optional;
 	// time.Now by default.
 	Now func() time.Time
+	// GuardianProvider serves the guardian, phone-number and link
+	// capability. Optional: without it those flows refuse with
+	// peopledirectory.ErrGuardianProviderUnbound.
+	GuardianProvider *GuardianDirectoryProvider
 }
 
 // New composes People Directory without Identity & Access account projections.
@@ -96,17 +97,12 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 	if dependencies.DB == nil || dependencies.Observe == nil || dependencies.StudentDirectory == nil {
 		return nil, errors.New("people directory compose: all dependencies are required")
 	}
-	database := func(ctx context.Context) (bun.IDB, int64, error) {
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return nil, 0, errors.New("people directory postgres: transaction is required")
-		}
-		tx, ok := transaction.(bun.Tx)
-		if !ok {
-			return nil, 0, fmt.Errorf("people directory postgres: unsupported transaction %T", transaction)
-		}
-		return tx, tenant.FromContext(ctx), nil
+	database := func(ctx context.Context) (bun.IDB, postgres.TenantScope, error) {
+		id, scopeErr := tenant.TenantFromContext(ctx)
+		raw, ok := tenant.TransactionFromContext(ctx)
+		return postgres.ResolveDatabase(raw, ok, id.Int64(), scopeErr, tenant.IsAdminTx(ctx))
 	}
+
 	observe := func(observation Observation) {
 		observation.Err = application.MapError(observation.Err)
 		dependencies.Observe(observation)
@@ -129,12 +125,8 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 		auditLog = application.NewStudentFieldAuditLog(dependencies.StudentFieldAudit)
 	}
 	studentAudit := application.NewStudentAudit(auditLog, observe)
-	var consentHistory internalports.StudentConsentHistory
-	if dependencies.StudentConsentHistory != nil {
-		consentHistory = dependencies.StudentConsentHistory
-	}
-	studentConsents := application.NewStudentConsents(consentHistory, observe)
-	photoRuntime := internalports.StudentPhotoRuntime(studentPhotoRuntime{resolve: dependencies.StudentPhotoRuntime})
+	studentConsents := application.NewStudentConsents(dependencies.StudentConsentHistory, observe)
+	photoRuntime := studentPhotoPort(dependencies.StudentPhotos)
 	now := dependencies.Now
 	if now == nil {
 		now = time.Now
@@ -145,15 +137,19 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 		noteStore, postgres.New(database),
 		postgres.NewStudentStore(database, dependencies.StudentDirectory, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery),
 		transaction{}, noteDeletionAudit, observe)
-	return peopledirectory.NewModule(application.NewEngine(application.EngineServices{
+	return newModule(application.NewEngine(application.EngineServices{
 		Service: service, Students: students, Guardians: guardians,
 		StudentAudit: studentAudit, StudentConsents: studentConsents,
 		StudentPhotos: studentPhotos, StudentNotes: studentNotes, Observe: observe,
 		GuardianLifecycle: application.NewGuardianLifecycle(guardians, dependencies.GuardianRolePresets),
-	})), nil
+	}), dependencies.GuardianProvider)
 }
 
 type transaction struct{}
+
+func (transaction) RequireTransaction(ctx context.Context) error {
+	return tenant.RequireTransaction(ctx)
+}
 
 // TenantID is the tenant the caller's request is scoped to.
 func (transaction) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
@@ -165,20 +161,11 @@ func (transaction) RegisterAfterCommit(ctx context.Context, callback func()) {
 }
 
 func (transaction) RunWrite(ctx context.Context, callback func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return callback(ctx)
-	}
-	return tenant.WithinCurrentTenant(ctx, callback)
+	return tenant.NewTransactionRunner().RunInTx(ctx, callback)
 }
 
 func (transaction) RunRead(ctx context.Context, callback func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return callback(ctx)
-	}
-	if _, err := tenant.TenantFromContext(ctx); err == nil {
-		return tenant.WithinCurrentTenant(ctx, callback)
-	}
-	return tenant.WithinAdmin(ctx, callback)
+	return tenant.NewTransactionRunner().RunInTx(ctx, callback)
 }
 
 func (transaction) RunSavepoint(ctx context.Context, callback func(context.Context) error) error {

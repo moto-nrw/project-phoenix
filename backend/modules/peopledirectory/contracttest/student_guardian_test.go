@@ -4,9 +4,10 @@ import (
 	"strings"
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,7 +61,7 @@ func TestStudentGuardianRepository_FindByStudentID_Success(t *testing.T) {
 	createTestStudentGuardian(t, db, student.ID, guardian2.ID, "parent", false)
 
 	// ACT
-	results, err := repo.FindByStudentID(ctx, student.ID)
+	results, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByStudentID, student.ID)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -83,7 +84,7 @@ func TestStudentGuardianRepository_FindByStudentID_Empty(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "NoGuardian", "Student", "1b")
 
 	// ACT
-	results, err := repo.FindByStudentID(ctx, student.ID)
+	results, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByStudentID, student.ID)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -112,7 +113,7 @@ func TestStudentGuardianRepository_FindByGuardianProfileID_Success(t *testing.T)
 	createTestStudentGuardian(t, db, student2.ID, guardian.ID, "parent", true)
 
 	// ACT
-	results, err := repo.FindByGuardianProfileID(ctx, guardian.ID)
+	results, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByGuardianProfileID, guardian.ID)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -155,13 +156,13 @@ func TestStudentGuardianRepository_SetPrimary_Success(t *testing.T) {
 	sg := createTestStudentGuardian(t, db, student.ID, guardian.ID, "parent", false)
 
 	// ACT
-	err := repo.SetPrimary(ctx, sg.ID, true)
+	err := testpkg.TenantCommand2(t, ctx, db, repo.SetPrimary, sg.ID, true)
 
 	// ASSERT
 	require.NoError(t, err)
 
 	// Verify it was updated
-	results, err := repo.FindByStudentID(ctx, student.ID)
+	results, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByStudentID, student.ID)
 	require.NoError(t, err)
 
 	var found bool
@@ -204,23 +205,23 @@ func TestStudentGuardianRepository_Create_Success(t *testing.T) {
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "create-sg-guardian")
 
 	// ACT
-	sg := &userModels.StudentGuardian{
+	sg := &peopleValues.GuardianRelationshipSnapshot{
 		StudentID:          student.ID,
 		GuardianProfileID:  guardian.ID,
 		RelationshipType:   "parent",
 		IsPrimary:          true,
 		IsEmergencyContact: false,
 		CanPickup:          true,
-		Permissions:        map[string]interface{}{},
+		Permissions:        []byte(`{}`),
 	}
-	err := repo.Create(ctx, sg)
+	err := testpkg.TenantCommand1(t, ctx, db, repo.Create, sg)
 
 	// ASSERT
 	require.NoError(t, err)
 	assert.NotZero(t, sg.ID)
 
 	// Verify it was created
-	results, err := repo.FindByStudentID(ctx, student.ID)
+	results, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByStudentID, student.ID)
 	require.NoError(t, err)
 	assert.NotEmpty(t, results)
 }
@@ -234,7 +235,7 @@ func TestStudentGuardianRepository_Create_NilReturnsError(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// ACT
-	err := repo.Create(ctx, nil)
+	err := testpkg.TenantCommand1(t, ctx, db, repo.Create, nil)
 
 	// ASSERT
 	require.Error(t, err)
@@ -250,12 +251,12 @@ func TestStudentGuardianRepository_Create_ValidationError(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// ACT - Create with invalid data
-	sg := &userModels.StudentGuardian{
+	sg := &peopleValues.GuardianRelationshipSnapshot{
 		StudentID:         0, // Invalid
 		GuardianProfileID: 0, // Invalid
 		RelationshipType:  "",
 	}
-	err := repo.Create(ctx, sg)
+	err := testpkg.TenantCommand1(t, ctx, db, repo.Create, sg)
 
 	// ASSERT
 	require.Error(t, err)
@@ -295,7 +296,7 @@ func TestStudentGuardianRepository_List_WithFilters(t *testing.T) {
 	require.NoError(t, testpkg.InsertTestStudentGuardian(ctx, db, sg))
 
 	// ACT
-	results, err := repo.List(ctx, map[string]interface{}{
+	results, err := testpkg.TenantQuery1(t, ctx, db, repo.List, map[string]interface{}{
 		"is_primary": true,
 	})
 
@@ -324,7 +325,7 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Link", "Student", "1a")
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "linkfresh")
 
-		rel := &userModels.StudentGuardian{
+		rel := &peopleValues.GuardianRelationshipSnapshot{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -333,7 +334,7 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 		}
 		rel.SetTenantID(testpkg.Tenant(t))
 
-		inserted, err := repo.LinkIfNotExists(ctx, rel)
+		inserted, err := testpkg.TenantQuery1(t, ctx, db, repo.LinkIfNotExists, rel)
 		require.NoError(t, err)
 		assert.True(t, inserted, "a brand-new link must report inserted=true")
 		assert.Equal(t, testpkg.GuardianRoleLegalGuardian, rel.GuardianRole)
@@ -344,32 +345,32 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Dup", "Student", "1b")
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "linkdup")
 
-		first := &userModels.StudentGuardian{
+		first := &peopleValues.GuardianRelationshipSnapshot{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
 			EmergencyPriority: 1,
 		}
 		first.SetTenantID(testpkg.Tenant(t))
-		inserted, err := repo.LinkIfNotExists(ctx, first)
+		inserted, err := testpkg.TenantQuery1(t, ctx, db, repo.LinkIfNotExists, first)
 		require.NoError(t, err)
 		require.True(t, inserted)
 
 		// Same (tenant, student, guardian) again — must NOT raise a unique
 		// violation and must report that nothing new was inserted.
-		dup := &userModels.StudentGuardian{
+		dup := &peopleValues.GuardianRelationshipSnapshot{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "guardian",
 			EmergencyPriority: 2,
 		}
 		dup.SetTenantID(testpkg.Tenant(t))
-		inserted, err = repo.LinkIfNotExists(ctx, dup)
+		inserted, err = testpkg.TenantQuery1(t, ctx, db, repo.LinkIfNotExists, dup)
 		require.NoError(t, err, "a duplicate link must not error")
 		assert.False(t, inserted, "a duplicate link must report inserted=false")
 
 		// Exactly one row survives for this (student, guardian) pair.
-		count, err := repo.List(ctx, map[string]interface{}{"student_id": student.ID})
+		count, err := testpkg.TenantQuery1(t, ctx, db, repo.List, map[string]interface{}{"student_id": student.ID})
 		require.NoError(t, err)
 		var matched int
 		for _, l := range count {
@@ -385,13 +386,13 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "linkauto")
 
 		// TenantID deliberately left at zero — the repo must fill it from ctx.
-		rel := &userModels.StudentGuardian{
+		rel := &peopleValues.GuardianRelationshipSnapshot{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
 			EmergencyPriority: 1,
 		}
-		inserted, err := repo.LinkIfNotExists(ctx, rel)
+		inserted, err := testpkg.TenantQuery1(t, ctx, db, repo.LinkIfNotExists, rel)
 		require.NoError(t, err)
 		require.True(t, inserted)
 		assert.Equal(t, testpkg.Tenant(t), rel.GetTenantID(), "tenant_id must be auto-set from context")
@@ -403,14 +404,14 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Pickup", "Student", "1d")
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "linkpickup")
 
-		rel := &userModels.StudentGuardian{
+		rel := &peopleValues.GuardianRelationshipSnapshot{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "other",
 			CanPickup:         true,
 			EmergencyPriority: 1,
 		}
-		inserted, err := repo.LinkIfNotExists(ctx, rel)
+		inserted, err := testpkg.TenantQuery1(t, ctx, db, repo.LinkIfNotExists, rel)
 		require.NoError(t, err)
 		require.True(t, inserted)
 		assert.Equal(t, testpkg.GuardianRolePickupOnly, rel.GuardianRole)
@@ -430,7 +431,7 @@ func TestStudentGuardianRepository_ListLinkedChildrenForGuardians_EmptyInput(t *
 	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).StudentGuardian
 	ctx := testpkg.Ctx(t)
 
-	rows, err := repo.ListLinkedChildrenForGuardians(ctx, []int64{})
+	rows, err := testpkg.TenantQuery1(t, ctx, db, repo.ListLinkedChildrenForGuardians, []int64{})
 	require.NoError(t, err)
 	assert.Empty(t, rows, "an empty guardian-id slice must return no rows")
 }
@@ -458,15 +459,15 @@ func TestStudentGuardianRepository_FindByStudentAndGuardianForUpdate(t *testing.
 	sg := createTestStudentGuardian(t, db, student.ID, guardian.ID, "relative", false)
 
 	t.Run("returns the relationship row", func(t *testing.T) {
-		got, err := repo.FindByStudentAndGuardianForUpdate(ctx, student.ID, guardian.ID)
+		got, err := testpkg.TenantQuery2(t, ctx, db, repo.FindByStudentAndGuardianForUpdate, student.ID, guardian.ID)
 		require.NoError(t, err)
 		require.NotNil(t, got)
 		assert.Equal(t, sg.ID, got.ID)
 	})
 
 	t.Run("returns ErrStudentGuardianNotFound for an unlinked pair", func(t *testing.T) {
-		_, err := repo.FindByStudentAndGuardianForUpdate(ctx, student.ID, int64(999_999_999))
-		require.ErrorIs(t, err, userModels.ErrStudentGuardianNotFound)
+		_, err := testpkg.TenantQuery2(t, ctx, db, repo.FindByStudentAndGuardianForUpdate, student.ID, int64(999_999_999))
+		require.ErrorIs(t, err, peopleValues.ErrStudentGuardianNotFound)
 	})
 
 	t.Run("FOR UPDATE blocks a concurrent staff write of the same row", func(t *testing.T) {
@@ -477,7 +478,7 @@ func TestStudentGuardianRepository_FindByStudentAndGuardianForUpdate(t *testing.
 		defer func() { _ = tx.Rollback() }()
 		holdCtx := testpkg.ContextWithTransaction(ctx, &tx)
 
-		locked, err := repo.FindByStudentAndGuardianForUpdate(holdCtx, student.ID, guardian.ID)
+		locked, err := testpkg.TenantQuery2(t, holdCtx, db, repo.FindByStudentAndGuardianForUpdate, student.ID, guardian.ID)
 		require.NoError(t, err)
 		require.Equal(t, sg.ID, locked.ID)
 
@@ -538,33 +539,33 @@ func TestStudentGuardianRepository_AccountHasStudentPermission(t *testing.T) {
 	perm := testpkg.GuardianPermissionEnrollmentSubmit
 
 	t.Run("granted on the guardian's own child", func(t *testing.T) {
-		granted, err := repo.AccountHasStudentPermission(ctx, chain.AccountID, chain.StudentID, chain.TenantID, perm)
+		granted, err := testpkg.TenantQuery4(t, ctx, db, repo.AccountHasStudentPermission, chain.AccountID, chain.StudentID, chain.TenantID, perm)
 		require.NoError(t, err)
 		assert.True(t, granted)
 	})
 
 	t.Run("denied on a different child lacking the permission", func(t *testing.T) {
-		granted, err := repo.AccountHasStudentPermission(ctx, chain.AccountID, otherChild.ID, chain.TenantID, perm)
+		granted, err := testpkg.TenantQuery4(t, ctx, db, repo.AccountHasStudentPermission, chain.AccountID, otherChild.ID, chain.TenantID, perm)
 		require.NoError(t, err)
 		assert.False(t, granted, "submit permission on one child must not extend to another")
 	})
 
 	t.Run("denied for an unrelated account", func(t *testing.T) {
-		granted, err := repo.AccountHasStudentPermission(ctx, chain.AccountID+9_000_000, chain.StudentID, chain.TenantID, perm)
+		granted, err := testpkg.TenantQuery4(t, ctx, db, repo.AccountHasStudentPermission, chain.AccountID+9_000_000, chain.StudentID, chain.TenantID, perm)
 		require.NoError(t, err)
 		assert.False(t, granted)
 	})
 
 	t.Run("denied under a different tenant", func(t *testing.T) {
-		granted, err := repo.AccountHasStudentPermission(ctx, chain.AccountID, chain.StudentID, chain.TenantID+1, perm)
+		granted, err := testpkg.TenantQuery4(t, ctx, db, repo.AccountHasStudentPermission, chain.AccountID, chain.StudentID, chain.TenantID+1, perm)
 		require.NoError(t, err)
 		assert.False(t, granted, "tenant filter must isolate the check")
 	})
 
 	t.Run("rejects non-positive arguments", func(t *testing.T) {
-		_, err := repo.AccountHasStudentPermission(ctx, 0, chain.StudentID, chain.TenantID, perm)
+		_, err := testpkg.TenantQuery4(t, ctx, db, repo.AccountHasStudentPermission, 0, chain.StudentID, chain.TenantID, perm)
 		require.Error(t, err)
-		_, err = repo.AccountHasStudentPermission(ctx, chain.AccountID, chain.StudentID, chain.TenantID, "  ")
+		_, err = testpkg.TenantQuery4(t, ctx, db, repo.AccountHasStudentPermission, chain.AccountID, chain.StudentID, chain.TenantID, "  ")
 		require.Error(t, err)
 	})
 }
@@ -604,53 +605,53 @@ func TestStudentGuardianRepository_GuardianEmailHasStudentPermission(t *testing.
 	perm := testpkg.GuardianPermissionEnrollmentSubmit
 
 	t.Run("granted for an accountless guardian of the child", func(t *testing.T) {
-		granted, err := repo.GuardianEmailHasStudentPermission(ctx, accountlessEmail, accountlessChild.ID, testpkg.Tenant(t), perm)
+		granted, err := testpkg.TenantQuery4(t, ctx, db, repo.GuardianEmailHasStudentPermission, accountlessEmail, accountlessChild.ID, testpkg.Tenant(t), perm)
 		require.NoError(t, err)
 		assert.True(t, granted, "a guardian without a portal account must still be able to renew their own child")
 	})
 
 	t.Run("email matching is case-insensitive and trimmed", func(t *testing.T) {
-		granted, err := repo.GuardianEmailHasStudentPermission(ctx, "  "+strings.ToUpper(accountlessEmail)+" ", accountlessChild.ID, testpkg.Tenant(t), perm)
+		granted, err := testpkg.TenantQuery4(t, ctx, db, repo.GuardianEmailHasStudentPermission, "  "+strings.ToUpper(accountlessEmail)+" ", accountlessChild.ID, testpkg.Tenant(t), perm)
 		require.NoError(t, err)
 		assert.True(t, granted)
 	})
 
 	t.Run("denied on another family's child", func(t *testing.T) {
-		granted, err := repo.GuardianEmailHasStudentPermission(ctx, accountlessEmail, chain.StudentID, testpkg.Tenant(t), perm)
+		granted, err := testpkg.TenantQuery4(t, ctx, db, repo.GuardianEmailHasStudentPermission, accountlessEmail, chain.StudentID, testpkg.Tenant(t), perm)
 		require.NoError(t, err)
 		assert.False(t, granted, "the reviewed P1: an invited guardian must not renew a child they have no relationship with")
 	})
 
 	t.Run("denied on the guardian's other child lacking the permission", func(t *testing.T) {
-		granted, err := repo.GuardianEmailHasStudentPermission(ctx, chain.Email, otherChild.ID, testpkg.Tenant(t), perm)
+		granted, err := testpkg.TenantQuery4(t, ctx, db, repo.GuardianEmailHasStudentPermission, chain.Email, otherChild.ID, testpkg.Tenant(t), perm)
 		require.NoError(t, err)
 		assert.False(t, granted, "submit permission on one child must not extend to another")
 	})
 
 	t.Run("granted for an account-backed guardian on its own child", func(t *testing.T) {
-		granted, err := repo.GuardianEmailHasStudentPermission(ctx, chain.Email, chain.StudentID, chain.TenantID, perm)
+		granted, err := testpkg.TenantQuery4(t, ctx, db, repo.GuardianEmailHasStudentPermission, chain.Email, chain.StudentID, chain.TenantID, perm)
 		require.NoError(t, err)
 		assert.True(t, granted)
 	})
 
 	t.Run("denied for an unknown email", func(t *testing.T) {
-		granted, err := repo.GuardianEmailHasStudentPermission(ctx, "stranger@example.test", chain.StudentID, chain.TenantID, perm)
+		granted, err := testpkg.TenantQuery4(t, ctx, db, repo.GuardianEmailHasStudentPermission, "stranger@example.test", chain.StudentID, chain.TenantID, perm)
 		require.NoError(t, err)
 		assert.False(t, granted)
 	})
 
 	t.Run("denied under a different tenant", func(t *testing.T) {
-		granted, err := repo.GuardianEmailHasStudentPermission(ctx, accountlessEmail, accountlessChild.ID, chain.TenantID+1, perm)
+		granted, err := testpkg.TenantQuery4(t, ctx, db, repo.GuardianEmailHasStudentPermission, accountlessEmail, accountlessChild.ID, chain.TenantID+1, perm)
 		require.NoError(t, err)
 		assert.False(t, granted, "tenant filter must isolate the check")
 	})
 
 	t.Run("rejects invalid arguments", func(t *testing.T) {
-		_, err := repo.GuardianEmailHasStudentPermission(ctx, "  ", accountlessChild.ID, testpkg.Tenant(t), perm)
+		_, err := testpkg.TenantQuery4(t, ctx, db, repo.GuardianEmailHasStudentPermission, "  ", accountlessChild.ID, testpkg.Tenant(t), perm)
 		require.Error(t, err)
-		_, err = repo.GuardianEmailHasStudentPermission(ctx, accountlessEmail, 0, testpkg.Tenant(t), perm)
+		_, err = testpkg.TenantQuery4(t, ctx, db, repo.GuardianEmailHasStudentPermission, accountlessEmail, 0, testpkg.Tenant(t), perm)
 		require.Error(t, err)
-		_, err = repo.GuardianEmailHasStudentPermission(ctx, accountlessEmail, accountlessChild.ID, testpkg.Tenant(t), "  ")
+		_, err = testpkg.TenantQuery4(t, ctx, db, repo.GuardianEmailHasStudentPermission, accountlessEmail, accountlessChild.ID, testpkg.Tenant(t), "  ")
 		require.Error(t, err)
 	})
 }
@@ -682,72 +683,60 @@ func TestStudentGuardianRepository_FilterAccountsWithStudentAccess(t *testing.T)
 	otherFamily := testpkg.CreateTestParentGuardianChain(t, db)
 
 	t.Run("keeps a guardian who still sees the child", func(t *testing.T) {
-		permitted, err := repo.FilterAccountsWithStudentAccess(ctx,
-			[]int64{chain.AccountID}, []int64{chain.StudentID}, chain.TenantID, perm)
+		permitted, err := testpkg.TenantQuery4(t, ctx, db, repo.FilterAccountsWithStudentAccess, []int64{chain.AccountID}, []int64{chain.StudentID}, chain.TenantID, perm)
 		require.NoError(t, err)
 		assert.Equal(t, []int64{chain.AccountID}, permitted)
 	})
 
 	t.Run("drops a guardian whose link to that child carries no access", func(t *testing.T) {
-		permitted, err := repo.FilterAccountsWithStudentAccess(ctx,
-			[]int64{chain.AccountID}, []int64{revokedChild.ID}, chain.TenantID, perm)
+		permitted, err := testpkg.TenantQuery4(t, ctx, db, repo.FilterAccountsWithStudentAccess, []int64{chain.AccountID}, []int64{revokedChild.ID}, chain.TenantID, perm)
 		require.NoError(t, err)
 		assert.Empty(t, permitted, "access to one child must not deliver a notification about another")
 	})
 
 	t.Run("keeps a recipient with access to at least one listed child", func(t *testing.T) {
-		permitted, err := repo.FilterAccountsWithStudentAccess(ctx,
-			[]int64{chain.AccountID}, []int64{revokedChild.ID, chain.StudentID}, chain.TenantID, perm)
+		permitted, err := testpkg.TenantQuery4(t, ctx, db, repo.FilterAccountsWithStudentAccess, []int64{chain.AccountID}, []int64{revokedChild.ID, chain.StudentID}, chain.TenantID, perm)
 		require.NoError(t, err)
 		assert.Equal(t, []int64{chain.AccountID}, permitted)
 	})
 
 	t.Run("never returns an account the caller did not list", func(t *testing.T) {
-		permitted, err := repo.FilterAccountsWithStudentAccess(ctx,
-			[]int64{chain.AccountID},
-			[]int64{chain.StudentID, otherFamily.StudentID},
-			chain.TenantID, perm)
+		permitted, err := testpkg.TenantQuery4(t, ctx, db, repo.FilterAccountsWithStudentAccess, []int64{chain.AccountID}, []int64{chain.StudentID, otherFamily.StudentID}, chain.TenantID, perm)
 		require.NoError(t, err)
 		assert.Equal(t, []int64{chain.AccountID}, permitted,
 			"the filter may only narrow the audience the producer resolved")
 	})
 
 	t.Run("drops an unrelated account", func(t *testing.T) {
-		permitted, err := repo.FilterAccountsWithStudentAccess(ctx,
-			[]int64{chain.AccountID, otherFamily.AccountID}, []int64{chain.StudentID}, chain.TenantID, perm)
+		permitted, err := testpkg.TenantQuery4(t, ctx, db, repo.FilterAccountsWithStudentAccess, []int64{chain.AccountID, otherFamily.AccountID}, []int64{chain.StudentID}, chain.TenantID, perm)
 		require.NoError(t, err)
 		assert.Equal(t, []int64{chain.AccountID}, permitted)
 	})
 
 	t.Run("isolates tenants", func(t *testing.T) {
-		permitted, err := repo.FilterAccountsWithStudentAccess(ctx,
-			[]int64{chain.AccountID}, []int64{chain.StudentID}, chain.TenantID+1, perm)
+		permitted, err := testpkg.TenantQuery4(t, ctx, db, repo.FilterAccountsWithStudentAccess, []int64{chain.AccountID}, []int64{chain.StudentID}, chain.TenantID+1, perm)
 		require.NoError(t, err)
 		assert.Empty(t, permitted)
 	})
 
 	t.Run("empty inputs resolve to no recipients", func(t *testing.T) {
-		permitted, err := repo.FilterAccountsWithStudentAccess(ctx, nil, []int64{chain.StudentID}, chain.TenantID, perm)
+		permitted, err := testpkg.TenantQuery4(t, ctx, db, repo.FilterAccountsWithStudentAccess, nil, []int64{chain.StudentID}, chain.TenantID, perm)
 		require.NoError(t, err)
 		assert.Empty(t, permitted)
 
-		permitted, err = repo.FilterAccountsWithStudentAccess(ctx, []int64{chain.AccountID}, nil, chain.TenantID, perm)
+		permitted, err = testpkg.TenantQuery4(t, ctx, db, repo.FilterAccountsWithStudentAccess, []int64{chain.AccountID}, nil, chain.TenantID, perm)
 		require.NoError(t, err)
 		assert.Empty(t, permitted)
 	})
 
 	t.Run("rejects invalid arguments", func(t *testing.T) {
-		_, err := repo.FilterAccountsWithStudentAccess(ctx,
-			[]int64{chain.AccountID}, []int64{chain.StudentID}, 0, perm)
+		_, err := testpkg.TenantQuery4(t, ctx, db, repo.FilterAccountsWithStudentAccess, []int64{chain.AccountID}, []int64{chain.StudentID}, 0, perm)
 		require.Error(t, err)
-		_, err = repo.FilterAccountsWithStudentAccess(ctx,
-			[]int64{chain.AccountID}, []int64{chain.StudentID}, chain.TenantID, "  ")
+		_, err = testpkg.TenantQuery4(t, ctx, db, repo.FilterAccountsWithStudentAccess, []int64{chain.AccountID}, []int64{chain.StudentID}, chain.TenantID, "  ")
 		require.Error(t, err)
-		_, err = repo.FilterAccountsWithStudentAccess(ctx,
-			[]int64{0}, []int64{chain.StudentID}, chain.TenantID, perm)
+		_, err = testpkg.TenantQuery4(t, ctx, db, repo.FilterAccountsWithStudentAccess, []int64{0}, []int64{chain.StudentID}, chain.TenantID, perm)
 		require.Error(t, err)
-		_, err = repo.FilterAccountsWithStudentAccess(ctx,
-			[]int64{chain.AccountID}, []int64{-1}, chain.TenantID, perm)
+		_, err = testpkg.TenantQuery4(t, ctx, db, repo.FilterAccountsWithStudentAccess, []int64{chain.AccountID}, []int64{-1}, chain.TenantID, perm)
 		require.Error(t, err)
 	})
 }

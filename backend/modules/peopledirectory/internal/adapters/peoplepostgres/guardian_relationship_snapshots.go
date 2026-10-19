@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	models "github.com/moto-nrw/project-phoenix/models/users"
 	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	models "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 )
 
 func nativeGuardianRelationship(row *models.StudentGuardian) (*directory.GuardianRelationshipSnapshot, error) {
@@ -20,7 +20,7 @@ func nativeGuardianRelationship(row *models.StudentGuardian) (*directory.Guardia
 		}
 		value.Permissions = raw
 	}
-	value.Student = NativeStudentSnapshot(row.Student)
+	value.Student = NativeStudentState(row.Student)
 	return value, nil
 }
 func nativeGuardianRelationships(rows []*models.StudentGuardian, err error) ([]*directory.GuardianRelationshipSnapshot, error) {

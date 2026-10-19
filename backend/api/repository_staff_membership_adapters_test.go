@@ -46,7 +46,7 @@ func TestStaffMembershipAdapter_NotFoundKeepsTheLegacyErrorShape(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Missing", "Contract")
@@ -103,14 +103,14 @@ func TestStaffMembershipAdapter_ListsAreTenantScoped(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 
 	own := testpkg.CreateTestStaff(t, db, "Own", "Tenant")
 	foreignTenant, _ := testpkg.CreateTestTenant(t, db)
 	foreign := testpkg.CreateTestStaffForTenant(t, db, foreignTenant, "Foreign", "Tenant")
 
-	members, err := factory.Staff.ListAllWithPerson(ctx)
+	members, err := testpkg.TenantQuery0(t, ctx, db, factory.Staff.ListAllWithPerson)
 	require.NoError(t, err)
 	ids := make(map[int64]bool, len(members))
 	for _, member := range members {
@@ -133,23 +133,23 @@ func TestStaffMembershipAdapter_AttachesPersonAndAccount(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Person", "Attached")
 
-	withPerson, err := factory.Staff.FindWithPerson(ctx, staff.ID)
+	withPerson, err := testpkg.TenantQuery1(t, ctx, db, factory.Staff.FindWithPerson, staff.ID)
 	require.NoError(t, err)
 	require.NotNil(t, withPerson.Person)
 	assert.Equal(t, "Person", withPerson.Person.FirstName)
 
-	byIDs, err := factory.Staff.FindWithPersonByIDs(ctx, []int64{staff.ID})
+	byIDs, err := testpkg.TenantQuery1(t, ctx, db, factory.Staff.FindWithPersonByIDs, []int64{staff.ID})
 	require.NoError(t, err)
 	require.Contains(t, byIDs, staff.ID)
 	require.NotNil(t, byIDs[staff.ID].Person)
 	assert.Equal(t, "Attached", byIDs[staff.ID].Person.LastName)
 
-	info, err := factory.Staff.GetStaffContactInfo(ctx, staff.ID)
+	info, err := testpkg.TenantQuery1(t, ctx, db, factory.Staff.GetStaffContactInfo, staff.ID)
 	require.NoError(t, err)
 	assert.Equal(t, account.Email, info.Email, "the e-mail comes from the account owner")
 	assert.Equal(t, "Person", info.FirstName)
@@ -162,7 +162,7 @@ func TestStaffMembershipAdapter_IDLookupsKeepLegacyDeletedSemantics(t *testing.T
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	staff := testpkg.CreateTestStaff(t, db, "Historical", "Staff")
 	require.NoError(t, factory.Staff.Delete(ctx, staff.ID))
@@ -171,7 +171,7 @@ func TestStaffMembershipAdapter_IDLookupsKeepLegacyDeletedSemantics(t *testing.T
 	require.NoError(t, err)
 	require.NotContains(t, byID, staff.ID, "FindByIDs must keep excluding offboarded staff")
 
-	withPerson, err := factory.Staff.FindWithPersonByIDs(ctx, []int64{staff.ID})
+	withPerson, err := testpkg.TenantQuery1(t, ctx, db, factory.Staff.FindWithPersonByIDs, []int64{staff.ID})
 	require.NoError(t, err)
 	require.Contains(t, withPerson, staff.ID)
 }
@@ -180,18 +180,18 @@ func TestStaffMembershipAdapter_AccountIDsExcludeUnreachableStaff(t *testing.T) 
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 
 	withAccount, account := testpkg.CreateTestCalendarStaff(t, db, "Reachable", "Colleague")
 	withoutAccount := testpkg.CreateTestStaff(t, db, "Accountless", "Colleague")
 
-	accounts, err := factory.Staff.ListAccountIDsByStaffIDs(ctx, []int64{withAccount.ID, withoutAccount.ID})
+	accounts, err := testpkg.TenantQuery1(t, ctx, db, factory.Staff.ListAccountIDsByStaffIDs, []int64{withAccount.ID, withoutAccount.ID})
 	require.NoError(t, err)
 	assert.Equal(t, account.ID, accounts[withAccount.ID])
 	assert.NotContains(t, accounts, withoutAccount.ID, "staff without an account must be absent, not mapped to zero")
 
-	all, err := factory.Staff.ListAllStaffAccountIDs(ctx)
+	all, err := testpkg.TenantQuery0(t, ctx, db, factory.Staff.ListAllStaffAccountIDs)
 	require.NoError(t, err)
 	assert.Contains(t, all, withAccount.ID)
 	assert.NotContains(t, all, withoutAccount.ID)
@@ -201,21 +201,21 @@ func TestStaffMembershipAdapter_ExcludesSoftDeletedPersons(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	staff, _ := testpkg.CreateTestStaffWithAccount(t, db, "Deleted", "Person")
 	_, err := db.NewRaw(`UPDATE users.persons SET deleted_at = NOW() WHERE id = ?`, staff.PersonID).Exec(ctx)
 	require.NoError(t, err)
 
-	accounts, err := factory.Staff.ListAccountIDsByStaffIDs(ctx, []int64{staff.ID})
+	accounts, err := testpkg.TenantQuery1(t, ctx, db, factory.Staff.ListAccountIDsByStaffIDs, []int64{staff.ID})
 	require.NoError(t, err)
 	assert.NotContains(t, accounts, staff.ID)
 
-	all, err := factory.Staff.ListAllStaffAccountIDs(ctx)
+	all, err := testpkg.TenantQuery0(t, ctx, db, factory.Staff.ListAllStaffAccountIDs)
 	require.NoError(t, err)
 	assert.NotContains(t, all, staff.ID)
 
-	withPerson, err := factory.Staff.FindWithPersonByIDs(ctx, []int64{staff.ID})
+	withPerson, err := testpkg.TenantQuery1(t, ctx, db, factory.Staff.FindWithPersonByIDs, []int64{staff.ID})
 	require.NoError(t, err)
 	require.Contains(t, withPerson, staff.ID)
 	assert.Nil(t, withPerson[staff.ID].Person)
@@ -225,7 +225,7 @@ func TestStaffMembershipAdapter_AccountActivityStaysTenantScoped(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	primary, account := testpkg.CreateTestStaffWithAccount(t, db, "Primary", "Account")
 	foreignTenant, _ := testpkg.CreateTestTenant(t, db)
 	foreign, _ := testpkg.CreateTestStaffWithAccountForTenant(t, db, foreignTenant, "Foreign", "Account")
@@ -260,13 +260,13 @@ func TestStaffMembershipAdapter_CalendarReachabilityUsesEffectivePermissions(t *
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 
 	reachable, _ := testpkg.CreateTestCalendarStaff(t, db, "Calendar", "User")
 	unreachable := testpkg.CreateTestStaff(t, db, "NoAccount", "User")
 
-	result, err := factory.Staff.FindReachableCalendarStaffIDs(ctx, []int64{reachable.ID, unreachable.ID})
+	result, err := testpkg.TenantQuery1(t, ctx, db, factory.Staff.FindReachableCalendarStaffIDs, []int64{reachable.ID, unreachable.ID})
 	require.NoError(t, err)
 	assert.True(t, result[reachable.ID], "an active account with the user role can use the calendar")
 	assert.False(t, result[unreachable.ID], "a staff member without a login account cannot")
@@ -276,12 +276,12 @@ func TestTeacherMembershipAdapter_ResolvesStaffAndPerson(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Composed", "Teacher")
 
-	found, err := factory.Teacher.FindWithStaffAndPerson(ctx, teacher.ID)
+	found, err := testpkg.TenantQuery1(t, ctx, db, factory.Teacher.FindWithStaffAndPerson, teacher.ID)
 	require.NoError(t, err)
 	require.NotNil(t, found.Staff)
 	require.NotNil(t, found.Staff.Person)
@@ -292,7 +292,7 @@ func TestTeacherMembershipAdapter_ResolvesStaffAndPerson(t *testing.T) {
 	require.Contains(t, byStaff, teacher.StaffID, "the map is keyed by staff id")
 	assert.Equal(t, teacher.ID, byStaff[teacher.StaffID].ID)
 
-	all, err := factory.Teacher.ListAllWithStaffAndPerson(ctx)
+	all, err := testpkg.TenantQuery0(t, ctx, db, factory.Teacher.ListAllWithStaffAndPerson)
 	require.NoError(t, err)
 	var listed bool
 	for _, entry := range all {
@@ -309,7 +309,7 @@ func TestTeacherMembershipAdapter_ActiveCaregiversNeedAccountAndSystemRole(t *te
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 
@@ -327,7 +327,7 @@ func TestTeacherMembershipAdapter_ActiveCaregiversNeedAccountAndSystemRole(t *te
 	roleless, rolelessAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Roleless", "Teacher")
 	testpkg.EnsureAccountTenant(t, db, rolelessAccount.ID, tenantID)
 
-	caregivers, err := factory.Teacher.ListActiveCaregivers(ctx)
+	caregivers, err := testpkg.TenantQuery0(t, ctx, db, factory.Teacher.ListActiveCaregivers)
 	require.NoError(t, err)
 	listed := make(map[int64]bool, len(caregivers))
 	for _, entry := range caregivers {
@@ -340,12 +340,12 @@ func TestTeacherMembershipAdapter_ActiveCaregiversNeedAccountAndSystemRole(t *te
 	assert.True(t, listed[caregiver.ID])
 	assert.False(t, listed[roleless.ID], "a teacher without a system caregiver role is not listed")
 
-	found, err := factory.Teacher.FindActiveCaregiverByAccountID(ctx, caregiverAccount.ID)
+	found, err := testpkg.TenantQuery1(t, ctx, db, factory.Teacher.FindActiveCaregiverByAccountID, caregiverAccount.ID)
 	require.NoError(t, err)
 	require.NotNil(t, found)
 	assert.Equal(t, caregiver.ID, found.TeacherID)
 
-	missing, err := factory.Teacher.FindActiveCaregiverByAccountID(ctx, rolelessAccount.ID)
+	missing, err := testpkg.TenantQuery1(t, ctx, db, factory.Teacher.FindActiveCaregiverByAccountID, rolelessAccount.ID)
 	require.NoError(t, err)
 	assert.Nil(t, missing, "a non-caregiver resolves to nil, not an error")
 }
@@ -354,7 +354,7 @@ func TestTeacherMembershipAdapter_ActiveCaregiversResolveInAdminContext(t *testi
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	foreignTenant, _ := testpkg.CreateTestTenant(t, db)
 	staff, account := testpkg.CreateTestStaffWithAccountForTenant(t, db, foreignTenant, "Admin", "Caregiver")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -364,6 +364,14 @@ func TestTeacherMembershipAdapter_ActiveCaregiversResolveInAdminContext(t *testi
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, foreignTenant)
 	assignSystemCaregiverRole(t, db, account.ID, foreignTenant)
+
+	_, err = factory.Teacher.ListActiveCaregivers(context.Background())
+	require.Error(t, err, "tenantless requests must not select the administrative projection")
+	local, err := factory.Teacher.ListActiveCaregivers(testpkg.Ctx(t))
+	require.NoError(t, err)
+	for _, caregiver := range local {
+		require.NotEqual(t, teacherID, caregiver.TeacherID)
+	}
 
 	err = testpkg.WithinAdminContext(t, context.Background(), db, func(adminCtx context.Context) error {
 		caregivers, err := factory.Teacher.ListActiveCaregivers(adminCtx)
@@ -391,7 +399,7 @@ func TestGuestMembershipAdapter_FindsByStaffAndActiveWindow(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 
 	guest := testpkg.CreateTestGuest(t, db, "Zirkus")
@@ -409,7 +417,7 @@ func TestStaffMembershipAdapter_ExpiredGuestIsNotExternal(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	guest := testpkg.CreateTestGuest(t, db, "Tanz")
 
@@ -430,7 +438,7 @@ func TestStaffMembershipAdapter_ListRejectsUnknownFilters(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Filter", "Staff")
@@ -451,7 +459,7 @@ func TestTeacherMembershipAdapter_ActiveCaregiversSortInGermanDictionaryOrder(t 
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 
@@ -463,7 +471,7 @@ func TestTeacherMembershipAdapter_ActiveCaregiversSortInGermanDictionaryOrder(t 
 		expected = append(expected, teacher.ID)
 	}
 
-	caregivers, err := factory.Teacher.ListActiveCaregivers(ctx)
+	caregivers, err := testpkg.TenantQuery0(t, ctx, db, factory.Teacher.ListActiveCaregivers)
 	require.NoError(t, err)
 	wanted := map[int64]bool{expected[0]: true, expected[1]: true, expected[2]: true}
 	var listed []int64

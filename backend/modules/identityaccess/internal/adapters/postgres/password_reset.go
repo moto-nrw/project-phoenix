@@ -171,7 +171,8 @@ func (s *Store) SetAccountPassword(ctx context.Context, accountID int64, hash st
 		return db.NewUpdate().TableExpr(`auth.accounts AS "account"`).
 			Set("password_hash = ?", hash).
 			Set("is_password_otp = FALSE").
-			Where(`"account".id = ?`, accountID)
+			Where(`"account".id = ?`, accountID).
+			Where(`"account".personal_data_erased_at IS NULL`)
 	})
 	return rows == 1, stats, err
 }

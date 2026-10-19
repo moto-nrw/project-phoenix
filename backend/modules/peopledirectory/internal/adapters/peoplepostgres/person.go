@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 
+	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
+	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
@@ -19,7 +21,11 @@ const errPersonNotFound = "no person found with ID %d"
 // unlinkField sets a person's column to NULL and handles common error patterns.
 // The column name is bound as a quoted identifier.
 func (r *personRepository) unlinkField(ctx context.Context, personID int64, fieldName, opName string) error {
-	query := r.runtime.DB(ctx).NewUpdate().
+	ambientDB1, databaseErr1 := r.runtime.DB(ctx)
+	if databaseErr1 != nil {
+		return databaseErr1
+	}
+	query := ambientDB1.NewUpdate().
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
 		Set("? = NULL", bun.Ident(fieldName)).
@@ -70,8 +76,8 @@ func WithAccountLookup(lookup AccountLookup) PersonOption {
 	return func(r *personRepository) { r.accounts = lookup }
 }
 
-// NewPersonRepository creates a new PersonRepository
-func NewPersonRepository(runtime Runtime, options ...PersonOption) ports.PersonRepository {
+// newRawPersonRepository creates a new PersonRepository
+func newRawPersonRepository(runtime Runtime, options ...PersonOption) rawPersonRepository {
 	repository := &personRepository{runtime: requireRuntime(runtime)}
 	for _, option := range options {
 		option(repository)
@@ -85,7 +91,11 @@ func (r *personRepository) FindByTagID(ctx context.Context, tagID string) (*user
 	normalizedTagID := users.NormalizeTagID(tagID)
 
 	person := new(users.Person)
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB2, databaseErr2 := r.runtime.DB(ctx)
+	if databaseErr2 != nil {
+		return *new(*users.Person), databaseErr2
+	}
+	query := ambientDB2.NewSelect().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".tag_id = ?`, normalizedTagID)
@@ -111,7 +121,11 @@ func (r *personRepository) FindByTagID(ctx context.Context, tagID string) (*user
 // FindByAccountID retrieves a person by their account ID
 func (r *personRepository) FindByAccountID(ctx context.Context, accountID int64) (*users.Person, error) {
 	person := new(users.Person)
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB3, databaseErr3 := r.runtime.DB(ctx)
+	if databaseErr3 != nil {
+		return *new(*users.Person), databaseErr3
+	}
+	query := ambientDB3.NewSelect().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".account_id = ?`, accountID)
@@ -142,7 +156,11 @@ func (r *personRepository) FindByAccountIDs(ctx context.Context, accountIDs []in
 	}
 
 	var persons []*users.Person
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB4, databaseErr4 := r.runtime.DB(ctx)
+	if databaseErr4 != nil {
+		return *new(map[int64]*users.Person), databaseErr4
+	}
+	query := ambientDB4.NewSelect().
 		Model(&persons).
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".account_id IN (?)`, bun.List(accountIDs))
@@ -171,7 +189,11 @@ func (r *personRepository) FindByAccountIDs(ctx context.Context, accountIDs []in
 // each other with stale full-row snapshots.
 func (r *personRepository) FindByIDForUpdate(ctx context.Context, id int64) (*users.Person, error) {
 	person := new(users.Person)
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB5, databaseErr5 := r.runtime.DB(ctx)
+	if databaseErr5 != nil {
+		return *new(*users.Person), databaseErr5
+	}
+	query := ambientDB5.NewSelect().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".id = ?`, id).
@@ -192,7 +214,11 @@ func (r *personRepository) FindByIDs(ctx context.Context, ids []int64) (map[int6
 	}
 
 	var persons []*users.Person
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB6, databaseErr6 := r.runtime.DB(ctx)
+	if databaseErr6 != nil {
+		return *new(map[int64]*users.Person), databaseErr6
+	}
+	query := ambientDB6.NewSelect().
 		Model(&persons).
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".id IN (?)`, bun.List(ids))
@@ -219,7 +245,11 @@ func (r *personRepository) FindByIDs(ctx context.Context, ids []int64) (map[int6
 
 // LinkToAccount associates a person with an account
 func (r *personRepository) LinkToAccount(ctx context.Context, personID int64, accountID int64) error {
-	query := r.runtime.DB(ctx).NewUpdate().
+	ambientDB7, databaseErr7 := r.runtime.DB(ctx)
+	if databaseErr7 != nil {
+		return databaseErr7
+	}
+	query := ambientDB7.NewUpdate().
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
 		Set("account_id = ?", accountID).
@@ -264,7 +294,11 @@ func (r *personRepository) LinkToRFIDCard(ctx context.Context, personID int64, t
 	// Normalize the tag ID to match RFID card format
 	normalizedTagID := users.NormalizeTagID(tagID)
 
-	query := r.runtime.DB(ctx).NewUpdate().
+	ambientDB8, databaseErr8 := r.runtime.DB(ctx)
+	if databaseErr8 != nil {
+		return databaseErr8
+	}
+	query := ambientDB8.NewUpdate().
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
 		Set("tag_id = ?", normalizedTagID).
@@ -316,7 +350,11 @@ func (r *personRepository) Update(ctx context.Context, person *users.Person) err
 	}
 
 	// Explicitly update all person fields (including NULL values)
-	query := r.runtime.DB(ctx).NewUpdate().
+	ambientDB9, databaseErr9 := r.runtime.DB(ctx)
+	if databaseErr9 != nil {
+		return databaseErr9
+	}
+	query := ambientDB9.NewUpdate().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
 		Column("first_name", "last_name", "birthday", "tag_id", "account_id").
@@ -335,7 +373,7 @@ func (r *personRepository) Update(ctx context.Context, person *users.Person) err
 // AccountLookup resolves the login account behind a person. Identity &
 // Access owns auth.accounts, so the relation that used to be a LEFT JOIN is
 // injected as an owner lookup; a missing account resolves to nil.
-type AccountLookup func(ctx context.Context, accountID int64) (*users.PersonAccount, error)
+type AccountLookup func(ctx context.Context, accountID int64) (*directory.PersonAccountSnapshot, error)
 
 // FindWithAccount retrieves a person with their associated account. The
 // person row is read here; the account comes from the Identity & Access
@@ -346,7 +384,11 @@ func (r *personRepository) FindWithAccount(ctx context.Context, id int64) (*user
 	}
 
 	person := new(users.Person)
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB10, databaseErr10 := r.runtime.DB(ctx)
+	if databaseErr10 != nil {
+		return *new(*users.Person), databaseErr10
+	}
+	query := ambientDB10.NewSelect().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".id = ?`, id).
@@ -369,7 +411,8 @@ func (r *personRepository) FindWithAccount(ctx context.Context, id int64) (*user
 		return nil, &ports.DatabaseError{Op: "find with account", Err: err}
 	}
 	if account != nil && account.ID != 0 {
-		person.Account = account
+		value := users.PersonAccount(*account)
+		person.Account = &value
 	}
 
 	return person, nil
@@ -430,7 +473,11 @@ func applyNullableFieldFilter(filter *ports.QueryFilter, column string, value in
 // statement; used by operator SoftDeletePerson. Cross-tenant by design when
 // the context carries no tenant (operator admin transactions).
 func (r *personRepository) AnonymizeAndSoftDelete(ctx context.Context, personID int64) error {
-	query := r.runtime.DB(ctx).NewUpdate().
+	ambientDB11, databaseErr11 := r.runtime.DB(ctx)
+	if databaseErr11 != nil {
+		return databaseErr11
+	}
+	query := ambientDB11.NewUpdate().
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
 		Set(`first_name = ?`, "Gelöscht").
@@ -460,7 +507,11 @@ func (r *personRepository) Create(ctx context.Context, person *users.Person) err
 		return err
 	}
 	ensureTenantID(ctx, r.runtime, person)
-	if _, err := r.runtime.DB(ctx).NewInsert().Model(person).ModelTableExpr(`users.persons`).Exec(ctx); err != nil {
+	ambientDB12, databaseErr12 := r.runtime.DB(ctx)
+	if databaseErr12 != nil {
+		return databaseErr12
+	}
+	if _, err := ambientDB12.NewInsert().Model(person).ModelTableExpr(`users.persons`).Exec(ctx); err != nil {
 		return &ports.DatabaseError{Op: "create", Err: err}
 	}
 	return nil
@@ -469,7 +520,11 @@ func (r *personRepository) Create(ctx context.Context, person *users.Person) err
 // FindByID retrieves a person by ID.
 func (r *personRepository) FindByID(ctx context.Context, id any) (*users.Person, error) {
 	person := new(users.Person)
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB13, databaseErr13 := r.runtime.DB(ctx)
+	if databaseErr13 != nil {
+		return *new(*users.Person), databaseErr13
+	}
+	query := ambientDB13.NewSelect().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".id = ?`, id)
@@ -482,7 +537,11 @@ func (r *personRepository) FindByID(ctx context.Context, id any) (*users.Person,
 
 // Delete removes a person row.
 func (r *personRepository) Delete(ctx context.Context, id any) error {
-	query := r.runtime.DB(ctx).NewDelete().
+	ambientDB14, databaseErr14 := r.runtime.DB(ctx)
+	if databaseErr14 != nil {
+		return databaseErr14
+	}
+	query := ambientDB14.NewDelete().
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".id = ?`, id)
@@ -497,7 +556,11 @@ func (r *personRepository) Delete(ctx context.Context, id any) error {
 // is an empty list, not nil.
 func (r *personRepository) ListWithOptions(ctx context.Context, options *ports.QueryOptions) ([]*users.Person, error) {
 	persons := make([]*users.Person, 0)
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB15, databaseErr15 := r.runtime.DB(ctx)
+	if databaseErr15 != nil {
+		return *new([]*users.Person), databaseErr15
+	}
+	query := ambientDB15.NewSelect().
 		Model(&persons).
 		ModelTableExpr(`users.persons AS "person"`)
 	query = withTenantFilter(ctx, r.runtime, query, "person")

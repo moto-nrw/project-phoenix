@@ -15,21 +15,15 @@ type PendingAnnouncementApplicant struct {
 // PendingAnnouncementApplicantsForSchools serves a parent feed's explicit school
 // scope. Cross-school callers supply their authorized admin transaction.
 func (m *Module) PendingAnnouncementApplicantsForSchools(ctx context.Context, schoolIDs []int64) ([]PendingAnnouncementApplicant, error) {
-	var rows []PendingAnnouncementApplicant
-	err := m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		var err error
-		rows, err = m.engine.PendingAnnouncementApplicantsForSchools(txCtx, schoolIDs)
-		return err
-	})
-	return rows, err
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	return m.engine.PendingAnnouncementApplicantsForSchools(ctx, schoolIDs)
 }
 
 func (m *Module) PendingAnnouncementApplicants(ctx context.Context) ([]PendingAnnouncementApplicant, error) {
-	var rows []PendingAnnouncementApplicant
-	err := m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		var err error
-		rows, err = m.engine.PendingAnnouncementApplicants(txCtx)
-		return err
-	})
-	return rows, err
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	return m.engine.PendingAnnouncementApplicants(ctx)
 }

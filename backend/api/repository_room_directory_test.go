@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -14,13 +16,13 @@ func TestSessionCleanupRootResolvesRoomsThroughOwner(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
-	repos := NewSessionCleanupRepositories(testpkg.NewDatabase(t, db), timetabletest.New(t, db))
+	sessions, _, _ := NewSessionCleanupRepositories(testpkg.NewDatabase(t, db), timetabletest.New(t, db))
 	room := testpkg.CreateTestRoom(t, db, "Igelraum")
 	activity := testpkg.CreateTestActivityGroup(t, db, "Room Activity")
 	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 	err := testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
-		groups, err := repos.Sessions.FindByIDs(ctx, []int64{group.ID})
+		groups, err := sessions.FindByIDs(ctx, []int64{group.ID})
 		require.NoError(t, err)
 		require.NotNil(t, groups[group.ID].Room)
 		assert.Equal(t, room.Name, groups[group.ID].Room.Name)
@@ -37,7 +39,8 @@ func TestFactoryResolvesRoomsThroughTheOwner(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
-	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db), NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
+	factoryPresence := NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	devices, err := NewDeviceRepository(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 
@@ -53,7 +56,7 @@ func TestFactoryResolvesRoomsThroughTheOwner(t *testing.T) {
 	require.NoError(t, err)
 
 	err = testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
-		rooms, err := testpkg.SessionRooms(ctx, factory.ActiveGroup, []int64{activeGroup.ID})
+		rooms, err := testpkg.SessionRooms(ctx, factoryPresence.ActiveGroup, []int64{activeGroup.ID})
 		require.NoError(t, err)
 		require.NotNil(t, rooms[activeGroup.ID], "active group carries its room")
 		assert.Equal(t, room.Name, rooms[activeGroup.ID].Name)

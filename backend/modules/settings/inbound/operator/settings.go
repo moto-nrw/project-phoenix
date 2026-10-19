@@ -268,6 +268,7 @@ func renderOperatorSettingsError(w http.ResponseWriter, r *http.Request, err err
 
 	var defNotFound *settings.DefinitionNotFoundError
 	var invalidValue *settings.InvalidValueError
+	var attendanceWindow *settings.AttendanceWindowError
 	var permDenied *settings.PermissionDeniedError
 
 	switch {
@@ -275,9 +276,22 @@ func renderOperatorSettingsError(w http.ResponseWriter, r *http.Request, err err
 		common.RenderError(w, r, common.OperatorRejection(http.StatusNotFound, common.CodeSettingsNotFound, err.Error()))
 	case errors.As(inner, &invalidValue):
 		common.RenderError(w, r, common.OperatorInvalidRequestWithCode(err, common.CodeSettingsInvalidValue))
+	case errors.As(inner, &attendanceWindow):
+		code, details := attendanceWindowRejection(attendanceWindow)
+		common.RenderError(w, r, common.OperatorRejectionWithDetails(http.StatusBadRequest, code, err.Error(), details))
 	case errors.As(inner, &permDenied):
 		common.RenderError(w, r, common.OperatorForbidden(err.Error()))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("Failed to change setting", err))
 	}
+}
+
+// attendanceWindowRejection names the window that blocks the write (#3957):
+// the retention a visible window may not exceed, or the visible window a
+// retention may not undercut.
+func attendanceWindowRejection(window *settings.AttendanceWindowError) (string, map[string]any) {
+	if window.VisibleWritten() {
+		return common.CodeSettingsAttendanceVisibleExceedsRetention, map[string]any{"retention_days": window.RetentionDays}
+	}
+	return common.CodeSettingsAttendanceRetentionBelowVisible, map[string]any{"visible_days": window.VisibleDays}
 }

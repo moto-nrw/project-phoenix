@@ -15,7 +15,7 @@ import (
 func setupOperatorSettingsModule(t *testing.T) (*bun.DB, api.OperatorSettingsTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := api.NewOperatorSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	module, _, err := api.NewOperatorSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	return db, module
 }

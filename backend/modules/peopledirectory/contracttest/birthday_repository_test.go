@@ -5,12 +5,14 @@ import (
 	"testing"
 	"time"
 
+	peopleBirthday "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -46,7 +48,7 @@ func TestStudentBirthdaysExcludeEndedCare(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 
 	today := calendar.TodayDate()
@@ -59,7 +61,7 @@ func TestStudentBirthdaysExcludeEndedCare(t *testing.T) {
 	setEnrolledUntil(t, db, lastDay.ID, today)
 	setEnrolledUntil(t, db, departed.ID, today.AddDays(-1))
 
-	entries, err := repos.Student.FindBirthdaysOn(ctx, []userModels.MonthDay{
+	entries, err := testpkg.TenantQuery1(t, ctx, db, repos.Student.FindBirthdaysOn, []peopleBirthday.BirthdayMonthDay{
 		{Month: today.Month(), Day: today.Day()},
 	})
 	require.NoError(t, err)
@@ -94,14 +96,14 @@ func TestBirthdayRepositoriesRejectAnEmptyDaySet(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 
 	students, err := repos.Student.FindBirthdaysOn(ctx, nil)
 	require.NoError(t, err)
 	assert.Empty(t, students)
 
-	staff, err := repos.Staff.FindBirthdaysOn(ctx, []userModels.MonthDay{})
+	staff, err := repos.Staff.FindBirthdaysOn(ctx, []peopleBirthday.BirthdayMonthDay{})
 	require.NoError(t, err)
 	assert.Empty(t, staff)
 }

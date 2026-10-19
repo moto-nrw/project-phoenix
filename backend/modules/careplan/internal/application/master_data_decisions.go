@@ -18,9 +18,9 @@ import (
 // ports may be nil and the decision then skips that effect.
 type MasterDataDecisionDependencies struct {
 	Requests    ports.MasterDataRequestRows
-	People      ports.MasterDataFieldReviews
+	People      careplan.MasterDataFieldReviews
 	Records     ports.MasterDataRecords
-	Scope       ports.ReviewScopeResolver
+	Scope       careplan.ReviewScopeResolver
 	Hooks       ports.TransactionHooks
 	Today       func() careplan.Date
 	Logger      *slog.Logger
@@ -37,9 +37,9 @@ type MasterDataDecisionDependencies struct {
 // Every method runs inside the ambient tenant transaction the caller opened.
 type MasterDataDecisions struct {
 	requests    ports.MasterDataRequestRows
-	people      ports.MasterDataFieldReviews
+	people      careplan.MasterDataFieldReviews
 	records     ports.MasterDataRecords
-	scope       ports.ReviewScopeResolver
+	scope       careplan.ReviewScopeResolver
 	hooks       ports.TransactionHooks
 	today       func() careplan.Date
 	logger      *slog.Logger

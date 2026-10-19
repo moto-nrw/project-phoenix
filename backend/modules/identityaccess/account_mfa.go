@@ -85,6 +85,36 @@ const (
 	AdminRoleName = "admin"
 )
 
+// MFASettingsWithoutService answers the gate's parameters for a root
+// composed without a settings service: the second factor is off, trusted
+// devices are allowed, and the remember-device lifetime and the lockout
+// answer zero, so the flows apply the module fallbacks.
+type MFASettingsWithoutService struct{}
+
+func (MFASettingsWithoutService) MFAMode(context.Context, int64) (string, error) {
+	return MFAModeOff, nil
+}
+
+func (MFASettingsWithoutService) MFAModeInTx(context.Context, int64) (string, error) {
+	return MFAModeOff, nil
+}
+
+func (MFASettingsWithoutService) TrustedDeviceEnabled(context.Context, int64) (bool, error) {
+	return true, nil
+}
+
+func (MFASettingsWithoutService) TrustedDeviceDays(context.Context, int64) (int, error) {
+	return 0, nil
+}
+
+func (MFASettingsWithoutService) LockoutThreshold(context.Context, int64) (int, error) {
+	return 0, nil
+}
+
+func (MFASettingsWithoutService) LockoutDuration(context.Context, int64) (time.Duration, error) {
+	return 0, nil
+}
+
 // The admin-override values. There is no "none" row: its absence is the
 // none outcome.
 const (

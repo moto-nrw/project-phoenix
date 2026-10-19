@@ -8,7 +8,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
+	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -19,8 +19,8 @@ type studentRepository struct {
 	students StudentDirectoryRows
 }
 
-// NewStudentRepository creates a new StudentRepository
-func NewStudentRepository(runtime Runtime, students StudentDirectoryRows) ports.StudentRepository {
+// newRawStudentRepository creates a new StudentRepository
+func newRawStudentRepository(runtime Runtime, students StudentDirectoryRows) rawStudentRepository {
 	return &studentRepository{runtime: requireRuntime(runtime), students: requireStudentRows(students)}
 }
 
@@ -28,7 +28,11 @@ func NewStudentRepository(runtime Runtime, students StudentDirectoryRows) ports.
 // repository that can accidentally fall back to the rollback view.
 func (r *studentRepository) List(ctx context.Context, filters map[string]any) ([]*users.Student, error) {
 	rows := make([]*users.Student, 0)
-	db := r.runtime.DB(ctx)
+	ambientDB1, databaseErr1 := r.runtime.DB(ctx)
+	if databaseErr1 != nil {
+		return *new([]*users.Student), databaseErr1
+	}
+	db := ambientDB1
 	query := r.students.StudentModelRows(db, r.runtime.TenantID(ctx), &rows)
 	for field, value := range filters {
 		if value != nil {
@@ -42,8 +46,12 @@ func (r *studentRepository) List(ctx context.Context, filters map[string]any) ([
 }
 
 func (r *studentRepository) CountWithOptions(ctx context.Context, options *ports.QueryOptions) (int, error) {
-	db := r.runtime.DB(ctx)
-	query := r.students.StudentRows(db, r.runtime.TenantID(ctx)).Column("student.id")
+	ambientDB2, databaseErr2 := r.runtime.DB(ctx)
+	if databaseErr2 != nil {
+		return *new(int), databaseErr2
+	}
+	db := ambientDB2
+	query := studentRows(ctx, r.runtime, r.students, db).Column("student.id")
 	if options != nil && options.Filter != nil {
 		options.Filter.WithTableAlias("student")
 		query = applyFilter(query, options.Filter)

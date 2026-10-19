@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -106,22 +107,26 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	testpkg.OwnTenant(t)
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repos, err := api.NewActiveTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	repos, err := api.NewActiveTestRepositories(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
+	reposCare := api.NewActiveTestCarePlanRows(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	reposPeople := api.NewActiveTestPeopleRows(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	reposRooms := api.NewActiveTestRoomRows(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	reposTimetable := api.NewActiveTestTimetableRows(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	deviceFault := activeService.NewCheckinDeviceFault(api.NewSessionDeviceDirectory(devices, nil, nil))
+	deviceFault := activeService.NewCheckinDeviceFault(owners.NewSessionDeviceDirectory(devices, nil, nil))
 	groupFault := &checkinAttributionFault{ActiveGroupRepository: sessionGroups(repos.ActiveGroup)}
 	presence := testSchoolPresence(t, db)
-	statuses := &plannedStatusFault{StudentStatusDayRepository: repos.StudentStatusDay}
-	students := &plannedStudentFault{PresenceStudents: api.PresenceStudents(testpkg.MustDatabase(db), repos.Student)}
+	statuses := &plannedStatusFault{StudentStatusDayRepository: reposCare.StudentStatusDay}
+	students := &plannedStudentFault{PresenceStudents: owners.PresenceStudents(testpkg.MustDatabase(db), reposPeople.Student)}
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := activeService.NewService(activeService.ServiceDependencies{PrincipalReader: api.AttendancePrincipal,
 		SchoolPresence: presence, StudentRepo: students, StudentStatusRepo: statuses,
-		StaffRepo:          api.NewAttendanceStaffDirectory(repos.Staff),
-		EducationGroupRepo: api.NewAttendanceEducationGroups(repos.Group, repos.Student), GroupRepo: groupFault, DeviceRepo: deviceFault,
-		RoomRepo: api.NewAttendanceRooms(repos.Room), ActivityGroupRepo: api.NewSessionActivities(repos.GroupReads()),
-		DB: db, Broadcaster: api.NewPresenceEvents(broadcaster, nil),
+		StaffRepo:          owners.NewAttendanceStaffDirectory(reposPeople.Staff),
+		EducationGroupRepo: owners.NewAttendanceEducationGroups(owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).Group, reposPeople.Student), GroupRepo: groupFault, DeviceRepo: deviceFault,
+		RoomRepo: api.NewAttendanceRooms(reposRooms.Room), ActivityGroupRepo: owners.NewSessionActivities(reposTimetable.GroupReads()),
+		DB: db, Broadcaster: owners.NewPresenceEvents(broadcaster, nil),
 	})
 	activeService.ConfigureForTest(svc, activeService.WithTenantRuntime(testpkg.TenantRuntime(t, db)))
 	var settingsErr error
@@ -152,7 +157,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	ctx = api.WithAttendanceDevice(ctx, device.ID, device.TenantID)
 	ctx = api.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
 	studentFixture := testpkg.CreateTestStudent(t, db, "Planned", "Rollback", "3a")
-	student, err := repos.Student.FindByID(ctx, studentFixture.ID)
+	student, err := reposPeople.Student.FindByID(ctx, studentFixture.ID)
 	require.NoError(t, err)
 	var groupID int64
 	if mode == "visit" {
@@ -165,10 +170,10 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	} else {
 		student.Sick, student.SickSince = &sick, &since
 	}
-	require.NoError(t, repos.Student.Update(ctx, student))
+	require.NoError(t, reposPeople.Student.Update(ctx, student))
 	status := &absencerecords.StudentStatusDay{StudentID: student.ID, Date: calendar.TodayDate(), Status: absencerecords.StudentStatusDaySick, ReportedAt: time.Now(), Source: absencerecords.StudentStatusSourcePlanned}
 	if kind == "planned" {
-		require.NoError(t, repos.StudentStatusDay.UpsertReported(ctx, status))
+		require.NoError(t, reposCare.StudentStatusDay.UpsertReported(ctx, status))
 	}
 	injected := errors.New("planned status transaction fault")
 	switch stage {
@@ -231,17 +236,17 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	visits, err := presence.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: []int64{student.ID}})
 	require.NoError(t, err)
 	assert.Empty(t, visits, "a failed check-in must not leave a room visit")
-	remaining, err := repos.StudentStatusDay.FindActiveByStudentAndDateRange(ctx, student.ID, status.Date, status.Date)
+	remaining, err := reposCare.StudentStatusDay.FindActiveByStudentAndDateRange(ctx, student.ID, status.Date, status.Date)
 	require.NoError(t, err)
 	if kind == "planned" {
 		require.Len(t, remaining, 1, "status clearing must roll back")
 	} else {
 		assert.Empty(t, remaining)
-		history, err := repos.StudentStatusDay.FindByStudentAndDateRange(ctx, student.ID, status.Date, status.Date)
+		history, err := reposCare.StudentStatusDay.FindByStudentAndDateRange(ctx, student.ID, status.Date, status.Date)
 		require.NoError(t, err)
 		assert.Empty(t, history, "failed check-in must not retain inserted history, even if cleared")
 	}
-	storedStudent, err := repos.Student.FindByID(ctx, student.ID)
+	storedStudent, err := reposPeople.Student.FindByID(ctx, student.ID)
 	require.NoError(t, err)
 	flag, flagSince := storedStudent.Sick, storedStudent.SickSince
 	if kind == "excused" {
@@ -279,10 +284,10 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 		assert.Zero(t, attendance[0].CheckedInBy, "a device without a supervisor retains device-only attribution")
 		assert.Equal(t, device.ID, attendance[0].DeviceID)
 	}
-	remaining, err = repos.StudentStatusDay.FindActiveByStudentAndDateRange(ctx, student.ID, status.Date, status.Date)
+	remaining, err = reposCare.StudentStatusDay.FindActiveByStudentAndDateRange(ctx, student.ID, status.Date, status.Date)
 	require.NoError(t, err)
 	assert.Empty(t, remaining)
-	storedStudent, err = repos.Student.FindByID(ctx, student.ID)
+	storedStudent, err = reposPeople.Student.FindByID(ctx, student.ID)
 	require.NoError(t, err)
 	flag, flagSince = storedStudent.Sick, storedStudent.SickSince
 	if kind == "excused" {

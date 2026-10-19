@@ -5,9 +5,10 @@ import (
 	"testing"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,16 +33,16 @@ func TestTeacherRepository_Create(t *testing.T) {
 	t.Run("creates teacher with valid data", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Teacher", "Create")
 
-		teacher := &userModels.Teacher{
+		teacher := &peopleValues.Teacher{
 			StaffID: staff.ID,
 		}
 
-		err := repo.Create(ctx, teacher)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, teacher)
 		require.NoError(t, err)
 		assert.NotZero(t, teacher.ID)
 
 		// Verify in DB
-		found, err := repo.FindByID(ctx, teacher.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(teacher.ID))
 		require.NoError(t, err)
 		assert.Equal(t, staff.ID, found.StaffID)
 
@@ -55,15 +56,15 @@ func TestTeacherRepository_Create(t *testing.T) {
 	t.Run("creates teacher with specialization", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Math", "Teacher")
 
-		teacher := &userModels.Teacher{
+		teacher := &peopleValues.Teacher{
 			StaffID:        staff.ID,
 			Specialization: "Mathematics",
 		}
 
-		err := repo.Create(ctx, teacher)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, teacher)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, teacher.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(teacher.ID))
 		require.NoError(t, err)
 		assert.Equal(t, "Mathematics", found.Specialization)
 
@@ -74,17 +75,17 @@ func TestTeacherRepository_Create(t *testing.T) {
 	})
 
 	t.Run("fails with nil teacher", func(t *testing.T) {
-		err := repo.Create(ctx, nil)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "nil")
 	})
 
 	t.Run("fails with missing staff ID", func(t *testing.T) {
-		teacher := &userModels.Teacher{
+		teacher := &peopleValues.Teacher{
 			StaffID: 0, // Invalid
 		}
 
-		err := repo.Create(ctx, teacher)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, teacher)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "staff ID")
 	})
@@ -101,13 +102,13 @@ func TestTeacherRepository_FindByID(t *testing.T) {
 	t.Run("finds existing teacher", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "FindByID", "Teacher")
 
-		found, err := repo.FindByID(ctx, teacher.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(teacher.ID))
 		require.NoError(t, err)
 		assert.Equal(t, teacher.ID, found.ID)
 	})
 
 	t.Run("returns error for non-existent teacher", func(t *testing.T) {
-		_, err := repo.FindByID(ctx, int64(999999))
+		_, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(int64(999999)))
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no rows")
 	})
@@ -124,14 +125,14 @@ func TestTeacherRepository_FindByStaffID(t *testing.T) {
 	t.Run("finds teacher by staff ID", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "FindByStaff", "Teacher")
 
-		found, err := repo.FindByStaffID(ctx, teacher.StaffID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByStaffID, teacher.StaffID)
 		require.NoError(t, err)
 		assert.Equal(t, teacher.ID, found.ID)
 		assert.Equal(t, teacher.StaffID, found.StaffID)
 	})
 
 	t.Run("returns nil for non-existent staff ID", func(t *testing.T) {
-		found, err := repo.FindByStaffID(ctx, int64(999999))
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByStaffID, int64(999999))
 		require.NoError(t, err)
 		assert.Nil(t, found, "Expected nil for non-existent staff ID")
 	})
@@ -150,7 +151,7 @@ func TestTeacherRepository_FindByStaffIDs(t *testing.T) {
 		teacher2 := testpkg.CreateTestTeacher(t, db, "FindByIDs2", "Teacher")
 
 		staffIDs := []int64{teacher1.StaffID, teacher2.StaffID}
-		teacherMap, err := repo.FindByStaffIDs(ctx, staffIDs)
+		teacherMap, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByStaffIDs, staffIDs)
 
 		require.NoError(t, err)
 		assert.Len(t, teacherMap, 2)
@@ -159,7 +160,7 @@ func TestTeacherRepository_FindByStaffIDs(t *testing.T) {
 	})
 
 	t.Run("returns empty map for empty input", func(t *testing.T) {
-		teacherMap, err := repo.FindByStaffIDs(ctx, []int64{})
+		teacherMap, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByStaffIDs, []int64{})
 
 		require.NoError(t, err)
 		assert.Empty(t, teacherMap)
@@ -169,7 +170,7 @@ func TestTeacherRepository_FindByStaffIDs(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "FindByIDsPartial", "Teacher")
 
 		staffIDs := []int64{teacher.StaffID, 999999} // one exists, one doesn't
-		teacherMap, err := repo.FindByStaffIDs(ctx, staffIDs)
+		teacherMap, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByStaffIDs, staffIDs)
 
 		require.NoError(t, err)
 		assert.Len(t, teacherMap, 1)
@@ -189,21 +190,21 @@ func TestTeacherRepository_Update(t *testing.T) {
 
 	t.Run("updates teacher specialization", func(t *testing.T) {
 		teacherFixture := testpkg.CreateTestTeacher(t, db, "Update", "Teacher")
-		teacher, err := repo.FindByID(ctx, teacherFixture.ID)
+		teacher, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(teacherFixture.ID))
 		require.NoError(t, err)
 
 		teacher.Specialization = "Physics"
 
-		err = repo.Update(ctx, teacher)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Update, teacher)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, teacher.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(teacher.ID))
 		require.NoError(t, err)
 		assert.Equal(t, "Physics", found.Specialization)
 	})
 
 	t.Run("fails with nil teacher", func(t *testing.T) {
-		err := repo.Update(ctx, nil)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Update, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "nil")
 	})
@@ -220,11 +221,11 @@ func TestTeacherRepository_Delete(t *testing.T) {
 	t.Run("deletes existing teacher", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "Delete", "Teacher")
 
-		err := repo.Delete(ctx, teacher.ID)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Delete, any(teacher.ID))
 		require.NoError(t, err)
 
 		// Verify teacher is deleted
-		_, err = repo.FindByID(ctx, teacher.ID)
+		_, err = testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(teacher.ID))
 		require.Error(t, err)
 
 		// Cleanup staff (teacher is already deleted)
@@ -246,22 +247,22 @@ func TestTeacherRepository_FindBySpecialization(t *testing.T) {
 	t.Run("finds teachers by specialization (case-insensitive)", func(t *testing.T) {
 		// Create teacher with unique specialization
 		teacherFixture := testpkg.CreateTestTeacher(t, db, "Spec", "Teacher")
-		teacher, err := repo.FindByID(ctx, teacherFixture.ID)
+		teacher, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(teacherFixture.ID))
 		require.NoError(t, err)
 
 		uniqueSpec := fmt.Sprintf("UniqueSpec%d", time.Now().UnixNano())
 		teacher.Specialization = uniqueSpec
-		err = repo.Update(ctx, teacher)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Update, teacher)
 		require.NoError(t, err)
 
 		// Search with different case
-		teachers, err := repo.FindBySpecialization(ctx, uniqueSpec)
+		teachers, err := testpkg.TenantQuery1(t, ctx, db, repo.FindBySpecialization, uniqueSpec)
 		require.NoError(t, err)
 		assert.Len(t, teachers, 1)
 	})
 
 	t.Run("returns empty for non-existent specialization", func(t *testing.T) {
-		teachers, err := repo.FindBySpecialization(ctx, "NonExistentSpec999")
+		teachers, err := testpkg.TenantQuery1(t, ctx, db, repo.FindBySpecialization, "NonExistentSpec999")
 		require.NoError(t, err)
 		assert.Empty(t, teachers)
 	})
@@ -278,7 +279,7 @@ func TestTeacherRepository_List(t *testing.T) {
 	t.Run("lists all teachers with no filters", func(t *testing.T) {
 		testpkg.CreateTestTeacher(t, db, "List", "Teacher")
 
-		teachers, err := repo.List(ctx, nil)
+		teachers, err := testpkg.TenantQuery1(t, ctx, db, repo.List, nil)
 		require.NoError(t, err)
 		assert.NotEmpty(t, teachers)
 	})
@@ -286,7 +287,7 @@ func TestTeacherRepository_List(t *testing.T) {
 	t.Run("lists teachers with staff_id filter", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "Filter", "Teacher")
 
-		teachers, err := repo.List(ctx, map[string]any{
+		teachers, err := testpkg.TenantQuery1(t, ctx, db, repo.List, map[string]any{
 			"staff_id": teacher.StaffID,
 		})
 		require.NoError(t, err)
@@ -322,7 +323,7 @@ func TestTeacherRepository_FindByGroupID(t *testing.T) {
 		}()
 
 		// Test
-		teachers, err := repo.FindByGroupID(ctx, group.ID)
+		teachers, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByGroupID, group.ID)
 		require.NoError(t, err)
 		assert.Len(t, teachers, 1)
 		assert.Equal(t, teacher.ID, teachers[0].ID)
@@ -331,7 +332,7 @@ func TestTeacherRepository_FindByGroupID(t *testing.T) {
 	t.Run("returns empty for group with no teachers", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "EmptyTeacherGroup")
 
-		teachers, err := repo.FindByGroupID(ctx, group.ID)
+		teachers, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByGroupID, group.ID)
 		require.NoError(t, err)
 		assert.Empty(t, teachers)
 	})
@@ -352,7 +353,7 @@ func TestTeacherRepository_FindWithStaffAndPerson(t *testing.T) {
 	t.Run("finds teacher with staff and person loaded", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "WithStaff", "Person")
 
-		found, err := repo.FindWithStaffAndPerson(ctx, teacher.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindWithStaffAndPerson, teacher.ID)
 		require.NoError(t, err)
 		require.NotNil(t, found.Staff)
 		require.NotNil(t, found.Staff.Person)
@@ -361,7 +362,7 @@ func TestTeacherRepository_FindWithStaffAndPerson(t *testing.T) {
 	})
 
 	t.Run("returns error for non-existent teacher", func(t *testing.T) {
-		_, err := repo.FindWithStaffAndPerson(ctx, int64(999999))
+		_, err := testpkg.TenantQuery1(t, ctx, db, repo.FindWithStaffAndPerson, int64(999999))
 		require.Error(t, err)
 	})
 }
@@ -379,7 +380,7 @@ func TestTeacherRepository_ListAllWithStaffAndPerson(t *testing.T) {
 		teacher1 := testpkg.CreateTestTeacher(t, db, "AllWithStaff1", "Person1")
 		teacher2 := testpkg.CreateTestTeacher(t, db, "AllWithStaff2", "Person2")
 
-		results, err := repo.ListAllWithStaffAndPerson(ctx)
+		results, err := testpkg.TenantQuery0(t, ctx, db, repo.ListAllWithStaffAndPerson)
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 
@@ -409,11 +410,11 @@ func TestTeacherRepository_ListAllWithStaffAndPerson(t *testing.T) {
 	t.Run("loads all staff and person fields correctly", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "StaffPersonFields", "Check")
 
-		results, err := repo.ListAllWithStaffAndPerson(ctx)
+		results, err := testpkg.TenantQuery0(t, ctx, db, repo.ListAllWithStaffAndPerson)
 		require.NoError(t, err)
 
 		// Find our teacher
-		var found *userModels.Teacher
+		var found *peopleValues.Teacher
 		for _, tr := range results {
 			if tr.ID == teacher.ID {
 				found = tr
@@ -450,16 +451,16 @@ func TestTeacherRepository_ListWithStringFilters(t *testing.T) {
 	t.Run("filters teachers by specialization_like", func(t *testing.T) {
 		// Create teacher with unique specialization
 		teacherFixture := testpkg.CreateTestTeacher(t, db, "FilterTest", "Teacher")
-		teacher, err := repo.FindByID(ctx, teacherFixture.ID)
+		teacher, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(teacherFixture.ID))
 		require.NoError(t, err)
 
 		uniqueSpec := fmt.Sprintf("FilterSpec%d", time.Now().UnixNano())
 		teacher.Specialization = uniqueSpec
-		err = repo.Update(ctx, teacher)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Update, teacher)
 		require.NoError(t, err)
 
 		// Use LIKE filter (tests applyTeacherStringLikeFilter)
-		teachers, err := repo.List(ctx, map[string]any{
+		teachers, err := testpkg.TenantQuery1(t, ctx, db, repo.List, map[string]any{
 			"specialization_like": "FilterSpec",
 		})
 		require.NoError(t, err)
@@ -477,17 +478,17 @@ func TestTeacherRepository_ListWithStringFilters(t *testing.T) {
 
 	t.Run("filters teachers by role_like", func(t *testing.T) {
 		teacherFixture := testpkg.CreateTestTeacher(t, db, "RoleTest", "Teacher")
-		teacher, err := repo.FindByID(ctx, teacherFixture.ID)
+		teacher, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(teacherFixture.ID))
 		require.NoError(t, err)
 
 		// Set a unique role
 		uniqueRole := fmt.Sprintf("RoleFilter%d", time.Now().UnixNano())
 		teacher.Role = uniqueRole
-		err = repo.Update(ctx, teacher)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Update, teacher)
 		require.NoError(t, err)
 
 		// Use role_like filter (tests applyTeacherStringLikeFilter)
-		teachers, err := repo.List(ctx, map[string]any{
+		teachers, err := testpkg.TenantQuery1(t, ctx, db, repo.List, map[string]any{
 			"role_like": "RoleFilter",
 		})
 		require.NoError(t, err)

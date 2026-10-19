@@ -6,15 +6,18 @@ import (
 	"context"
 	"errors"
 
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // statusDayStudentSource is the slice of the student service the status-day
 // write transaction needs: the locked read and the owner's row write.
 type statusDayStudentSource interface {
-	GetByIDForUpdate(context.Context, int64) (*users.Student, error)
-	Update(context.Context, *users.Student) error
+	GetByIDForUpdate(context.Context, int64) (*peopleValues.StudentState, error)
+	Update(context.Context, *peopleValues.StudentState) error
 }
 
 // StatusDayAuthorize decides on the freshly locked row whether the caller may
@@ -39,7 +42,7 @@ var errStatusDayAuthorizeMissing = errors.New("status day students: authorizatio
 type statusDayStudents struct {
 	source    statusDayStudentSource
 	authorize StatusDayAuthorize
-	locked    map[int64]*users.Student
+	locked    map[int64]*peopleValues.StudentState
 }
 
 // StatusDayStudents serves studentpresence.StatusDayStudents for one write context. The
@@ -52,23 +55,23 @@ type statusDayStudents struct {
 // the conversion needs both the owner's row type and the presence record, so
 // neither side can host a shared helper. Keep the two in step.
 func StatusDayStudents(source statusDayStudentSource, authorize StatusDayAuthorize) studentpresence.StatusDayStudents {
-	return &statusDayStudents{source: source, authorize: authorize, locked: map[int64]*users.Student{}}
+	return &statusDayStudents{source: source, authorize: authorize, locked: map[int64]*peopleValues.StudentState{}}
 }
 
 // statusDayStudentRepoSource is the repository spelling of the same two
 // operations; the repository names its locked read FindByIDForUpdate.
 type statusDayStudentRepoSource interface {
-	FindByIDForUpdate(context.Context, int64) (*users.Student, error)
-	Update(context.Context, *users.Student) error
+	FindByIDForUpdate(context.Context, int64) (*peopleValues.StudentState, error)
+	Update(context.Context, *peopleValues.StudentState) error
 }
 
 type statusDayStudentRepo struct{ source statusDayStudentRepoSource }
 
-func (r statusDayStudentRepo) GetByIDForUpdate(ctx context.Context, id int64) (*users.Student, error) {
+func (r statusDayStudentRepo) GetByIDForUpdate(ctx context.Context, id int64) (*peopleValues.StudentState, error) {
 	return r.source.FindByIDForUpdate(ctx, id)
 }
 
-func (r statusDayStudentRepo) Update(ctx context.Context, student *users.Student) error {
+func (r statusDayStudentRepo) Update(ctx context.Context, student *peopleValues.StudentState) error {
 	return r.source.Update(ctx, student)
 }
 
@@ -86,7 +89,7 @@ func (s *statusDayStudents) LockForStatusWrite(ctx context.Context, studentID in
 	if err != nil {
 		return nil, err
 	}
-	record := StudentRecord(fresh)
+	record := owners.StudentRecord(fresh)
 	if !s.authorize(ctx, record, status) {
 		return nil, studentpresence.ErrStudentStatusDayReassigned
 	}
@@ -112,7 +115,7 @@ func (s *statusDayStudents) UpdateLiveStatus(ctx context.Context, record *studen
 
 // applyStudentLiveStatus copies the presence flags onto the owner's row so a
 // caller holding the full row can persist them through the owner's write path.
-func applyStudentLiveStatus(row *users.Student, record *studentpresence.StudentRecord) {
+func applyStudentLiveStatus(row *peopleValues.StudentState, record *studentpresence.StudentRecord) {
 	if row == nil || record == nil {
 		return
 	}

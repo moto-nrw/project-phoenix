@@ -5,8 +5,8 @@ import (
 	"errors"
 	"log/slog"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -17,7 +17,7 @@ import (
 // a successor ("Dieser und alle folgenden löschen") — intentionally the
 // destructive half of Split. Planned non-spontaneous future instances are
 // deleted; active/completed/cancelled/spontaneous rows remain as history.
-func (s *TemplateSplitService) EndFromDate(ctx context.Context, in timetable.EndTemplateCommand) (*timetable.EndTemplateResult, error) {
+func (s *TemplateSplitService) EndTemplateFromDate(ctx context.Context, in timetable.EndTemplateCommand) (*timetable.EndTemplateResult, error) {
 	if err := validateTemplateEndInput(in, s.deps.Today()); err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ func (s *TemplateSplitService) deleteEndedInstances(
 	templateID int64,
 	effectiveDate, requestedFrom calendar.Date,
 ) (int64, error) {
-	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, scheduleModel.Date(effectiveDate), nil, &templateID, false)
+	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, calendar.Date(effectiveDate), nil, &templateID, false)
 	if err != nil {
 		return 0, &ports.ScheduleError{Op: "end template: delete planned instances", Err: err}
 	}
@@ -139,11 +139,11 @@ func (s *TemplateSplitService) capEndedSegment(
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "end template: cap schedules", Err: err}
 	}
-	cappedEnrollments, err := s.deps.EnrollmentRepo.CapActiveByGroup(ctx, templateID, activitiesModel.Date(effectiveDate))
+	cappedEnrollments, err := s.deps.EnrollmentRepo.CapActiveByGroup(ctx, templateID, activityContract.Date(effectiveDate))
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "end template: cap enrollments", Err: err}
 	}
-	cappedSupervisors, err := s.deps.SupervisorRepo.CapActiveByGroup(ctx, templateID, activitiesModel.Date(effectiveDate))
+	cappedSupervisors, err := s.deps.SupervisorRepo.CapActiveByGroup(ctx, templateID, activityContract.Date(effectiveDate))
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "end template: cap supervisors", Err: err}
 	}
@@ -245,7 +245,7 @@ func (s *TemplateSplitService) endCascadedSegment(
 		)
 	}
 	segmentID := seg.Group.ID
-	n, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, scheduleModel.Date(capAt), nil, &segmentID, false)
+	n, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, calendar.Date(capAt), nil, &segmentID, false)
 	if err != nil {
 		return 0, &ports.ScheduleError{Op: "end template: delete cascaded segment planned instances", Err: err}
 	}

@@ -2,32 +2,30 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
+	fileStorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
 )
 
-func newSettingsResource(operations settingsHTTP.Operations, homeLayouts settingsHTTP.HomeLayoutOperations, references func(context.Context, string, string) (bool, error)) *settingsHTTP.SettingsResource {
+func newSettingsResource(db transactionruntime.Database, operations settingsHTTP.Operations, homeLayouts settingsHTTP.HomeLayoutOperations, references func(context.Context, string, string) (bool, error)) *settingsHTTP.SettingsResource {
 	settingsRuntime := settingsHTTP.NewRuntime(settingsHTTP.RuntimeDependencies{
+		DocumentCleanup: fileStorageCompose.NewUploadCleanup(db.Pool(), "enrollment-legal-documents").Queue,
 		Protected: func(r chi.Router, fn func(chi.Router, settingsHTTP.Middleware)) {
 			ProtectedTenantRoutes(r, fn)
 		},
 		Permission: func(access settingsHTTP.Access) settingsHTTP.Middleware {
-			switch access {
-			case settingsHTTP.AccessRead:
-				return RequireConfigRead()
-			case settingsHTTP.AccessManage:
-				return RequireConfigManage()
-			case settingsHTTP.AccessReadOrWrite:
-				return RequireConfigReadOrWrite()
-			default:
-				return RequireConfigWrite()
-			}
+			return requireSettingsAccess(access)
 		},
 		TenantGuard: apiCommon.TenantOperationMiddleware,
 		RequestActor: func(ctx context.Context) (int64, int64, []string) {
@@ -37,13 +35,13 @@ func newSettingsResource(operations settingsHTTP.Operations, homeLayouts setting
 			}
 			return principal.TenantID(), principal.AccountID(), principal.Permissions()
 		},
-		Editable:  CanEditConfig,
+		Editable:  canEditConfig,
 		Success:   apiCommon.Respond,
 		NoContent: apiCommon.RespondNoContent,
 		Failure: func(w http.ResponseWriter, r *http.Request, status int, err error) {
 			switch status {
 			case http.StatusBadRequest:
-				apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
+				apiCommon.RenderError(w, r, settingsInputError(err))
 			case http.StatusForbidden:
 				apiCommon.RenderError(w, r, apiCommon.ErrorForbidden(err))
 			case http.StatusNotFound:
@@ -80,4 +78,20 @@ func newSettingsResource(operations settingsHTTP.Operations, homeLayouts setting
 		},
 	})
 	return settingsHTTP.NewSettingsResource(operations, homeLayouts, settingsRuntime)
+}
+
+// settingsInputError renders a rejected setting value. A visible attendance
+// window longer than its retention names the window that blocks it (#3957),
+// so the person reads which value is allowed.
+func settingsInputError(err error) render.Renderer {
+	window, ok := errors.AsType[*settingsModule.AttendanceWindowError](err)
+	if !ok {
+		return apiCommon.ErrorInvalidRequest(err)
+	}
+	if window.VisibleWritten() {
+		return apiCommon.ErrorInvalidRequestWithDetails(err, apiCommon.CodeSettingsAttendanceVisibleExceedsRetention,
+			map[string]any{"retention_days": window.RetentionDays})
+	}
+	return apiCommon.ErrorInvalidRequestWithDetails(err, apiCommon.CodeSettingsAttendanceRetentionBelowVisible,
+		map[string]any{"visible_days": window.VisibleDays})
 }

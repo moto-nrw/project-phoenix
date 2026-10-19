@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 
+	nativeports "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
@@ -20,7 +22,7 @@ type Observation = ports.Observation
 
 type Dependencies struct {
 	DB       *bun.DB
-	Students StudentDirectory
+	Students nativeports.StudentDirectory
 	Rooms    timetable.RoomDirectory
 	// Sessions answers which planned rows Student Presence already executed
 	// or observed; Timetable never reads that owner's tables itself (#2762).
@@ -41,7 +43,7 @@ func New(dependencies Dependencies) (*timetable.Module, error) {
 		observation.Err = application.MapError(observation.Err)
 		dependencies.Observe(observation)
 	}
-	service := application.New(store, transaction{}, studentDirectory{query: dependencies.Students}, roomDirectory{query: dependencies.Rooms}, dependencies.Sessions,
+	service := application.New(store, transaction{}, application.NewStudentDirectory(dependencies.Students), application.NewRoomDirectory(dependencies.Rooms), dependencies.Sessions,
 		dependencies.LockStaffAssignment, func() string { return calendar.TodayDate().String() }, observe)
 	return timetable.NewModule(application.NewEngine(service, observe, postgres.NewProvenanceStore(store, dependencies.Provenance))), nil
 }
@@ -54,7 +56,7 @@ func databaseRuntime(db *bun.DB) postgres.Database {
 		}
 		transaction, ok := tenant.TransactionFromContext(ctx)
 		if !ok {
-			return db, tenantID.Int64(), nil
+			return nil, 0, errors.New("timetable postgres: transaction is required")
 		}
 		switch tx := transaction.(type) {
 		case bun.Tx:
@@ -63,7 +65,7 @@ func databaseRuntime(db *bun.DB) postgres.Database {
 			if tx != nil {
 				return tx, tenantID.Int64(), nil
 			}
-			return db, tenantID.Int64(), nil
+			return nil, 0, errors.New("timetable postgres: transaction is required")
 		default:
 			return nil, 0, fmt.Errorf("timetable postgres: unsupported transaction %T", transaction)
 		}
@@ -77,6 +79,9 @@ func (transaction) RunWrite(ctx context.Context, retry bool, callback func(conte
 		return callback(ctx)
 	}
 	if !retry {
+		if _, err := tenant.TenantFromContext(ctx); err != nil {
+			return fmt.Errorf("timetable postgres: tenant is required: %w", err)
+		}
 		return tenant.WithinCurrentTenant(ctx, callback)
 	}
 	tenantID, err := tenant.TenantFromContext(ctx)

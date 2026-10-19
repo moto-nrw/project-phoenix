@@ -42,15 +42,9 @@ func (s *Service) RetireStaff(ctx context.Context, staffID int64, revision strin
 			return deleteErr
 		}
 		result.ClassAssignments = deleteStats.Rows
-		// The retained membership must stop referencing the template. The
-		// template binding is Workforce's, so the retirement asks its owner
-		// inside the same unit of work.
-		if staff.WorkTimeModelID != nil {
-			stats.Queries++
-			if clearErr := s.employment.ClearStaffWorkTimeModel(txCtx, staffID); clearErr != nil {
-				return clearErr
-			}
-		}
+		// The work-time binding stays on the retired membership: it has no
+		// audit, and a Wiederaufnahme needs it back (ADR 0021). Workforce
+		// releases it when the template itself is deleted.
 		deleteStats, deleteErr = s.store.SoftDeleteStaff(txCtx, staffID)
 		stats.Add(deleteStats)
 		return deleteErr
@@ -143,8 +137,7 @@ func (s *Service) retirementSnapshot(ctx context.Context, staffID int64, stats *
 }
 
 // lockStaffForRetirement locks the live membership and composes the whole
-// staff member: the work-time binding decides whether retirement clears it
-// and is part of the revision.
+// staff member: the work-time binding is part of the revision.
 func (s *Service) lockStaffForRetirement(ctx context.Context, staffID int64, stats *domain.OperationStats) (domain.Staff, bool, error) {
 	staff, found, queryStats, err := s.store.FindStaff(ctx, staffID, "UPDATE", false)
 	stats.Add(queryStats)

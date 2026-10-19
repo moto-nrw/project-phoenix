@@ -25,7 +25,7 @@ type AttachmentDigest struct {
 // so a file that cannot be read fails the publication instead of producing a
 // version whose attachment nobody can verify.
 func (s *Service) AttachmentDigests(ctx context.Context, announcementID int64, digest func(io.Reader) (string, int64, error)) (digests []AttachmentDigest, err error) {
-	err = s.run("attachment_digests", func(o *op) error {
+	err = s.runRead(ctx, "attachment_digests", func(ctx context.Context, o *op) error {
 		if announcementID <= 0 {
 			return fmt.Errorf("%w: announcement id is required", domain.ErrInvalid)
 		}

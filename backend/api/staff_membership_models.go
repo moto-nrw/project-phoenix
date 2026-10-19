@@ -1,13 +1,14 @@
 package api
 
 import (
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
 
 // legacyStaffToMembership projects a legacy staff model onto the capability
 // value the HTTP adapter renders.
-func legacyStaffToMembership(staff *userModels.Staff) schoolmembership.Staff {
+func legacyStaffToMembership(staff *peopleValues.Staff) schoolmembership.Staff {
 	if staff == nil {
 		return schoolmembership.Staff{}
 	}
@@ -23,7 +24,7 @@ func legacyStaffToMembership(staff *userModels.Staff) schoolmembership.Staff {
 	return result
 }
 
-func legacyTeacherToMembership(teacher *userModels.Teacher) *schoolmembership.Teacher {
+func legacyTeacherToMembership(teacher *peopleValues.Teacher) *schoolmembership.Teacher {
 	if teacher == nil {
 		return nil
 	}

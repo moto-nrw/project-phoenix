@@ -1,6 +1,7 @@
 package timetracking_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -34,17 +35,20 @@ func TestWorkSessionHistoryQueryBudget(t *testing.T) {
 	}
 	add(0, 2)
 	service := f.newAdminSessionService()
-	counter := testpkg.CaptureQueriesForContext(t, f.db)
-	ctx := counter.Context(f.ctx)
-	run := func() []string {
-		counter.Reset()
-		_, err := service.GetHistory(ctx, f.staff, calendar.NewDate(snapshotYear, time.August, 1), calendar.NewDate(snapshotYear, time.August, 31))
-		require.NoError(t, err)
-		return counter.Operation("SELECT")
-	}
-	small := run()
-	add(2, 7)
-	large := run()
-	assert.Equal(t, len(small), len(large))
-	testpkg.AssertQueryBudget(t, "services.active.work_session_history.reads", large)
+	require.NoError(t, testpkg.WithinTenantContext(t, f.ctx, f.db, testpkg.TenantIDFromContext(f.ctx), func(ctx context.Context) error {
+		counter := testpkg.CaptureQueriesForContext(t, f.db)
+		countedCtx := counter.Context(ctx)
+		run := func() []string {
+			counter.Reset()
+			_, err := service.GetHistory(countedCtx, f.staff, calendar.NewDate(snapshotYear, time.August, 1), calendar.NewDate(snapshotYear, time.August, 31))
+			require.NoError(t, err)
+			return counter.Operation("SELECT")
+		}
+		small := run()
+		add(2, 7)
+		large := run()
+		assert.Equal(t, len(small), len(large))
+		testpkg.AssertQueryBudget(t, "services.active.work_session_history.reads", large)
+		return nil
+	}))
 }

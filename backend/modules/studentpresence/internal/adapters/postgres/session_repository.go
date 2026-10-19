@@ -6,6 +6,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
@@ -138,7 +140,7 @@ func (r *SessionRepository) FindActiveByDeviceIDWithNames(ctx context.Context, d
 		return nil, r.errors.WrapRecordError("find active by device ID with names", err)
 	}
 	if room, ok := rooms[session.RoomID]; ok && room.Name != "" {
-		session.Room = &ports.SessionRoom{ID: session.RoomID, Name: room.Name}
+		session.Room = &studentpresence.SessionRoom{ID: session.RoomID, Name: room.Name}
 	}
 	return session, nil
 }

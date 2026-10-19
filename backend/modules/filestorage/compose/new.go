@@ -14,11 +14,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"sync"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/filestorage"
-	apiDocuments "github.com/moto-nrw/project-phoenix/modules/filestorage/documents"
+	apiDocuments "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/documents"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
@@ -96,6 +95,37 @@ type Dependencies struct {
 	Now func() time.Time
 }
 
+// AttachmentPurgerDependencies are the bindings of the attachment purger:
+// the database and the object store alone.
+type AttachmentPurgerDependencies struct {
+	DB      *bun.DB
+	Objects ObjectBackend
+	Observe func(Observation)
+	// Now is the clock; nil means time.Now.
+	Now func() time.Time
+}
+
+// NewAttachmentPurger composes the side of the announcement attachments
+// the parent announcements call: cleanup before a deletion, the count for
+// the e-mail and the digests of an Erklärung. It needs neither the
+// announcements nor the parents portal, so a root hands it to the
+// announcements at their construction and builds New over them afterwards
+// (#4080). Both are stateless over the same tables and objects.
+func NewAttachmentPurger(dependencies AttachmentPurgerDependencies) (filestorage.AttachmentPurger, error) {
+	if dependencies.DB == nil || dependencies.Objects == nil || dependencies.Observe == nil {
+		return nil, errors.New("file storage compose: all dependencies are required")
+	}
+	runtime := databaseRuntime(dependencies.DB)
+	return application.NewPublicPurger(application.NewAttachmentPurger(application.AttachmentPurgerDependencies{
+		Attachments:        postgres.NewAttachmentStore(runtime),
+		AttachmentCleanups: postgres.NewAttachmentCleanupStore(runtime),
+		AttachmentObjects:  objectStore{kind: attachmentObjectKind, backend: dependencies.Objects},
+		Tx:                 transaction{},
+		Observe:            observer(dependencies.Observe),
+		Now:                dependencies.Now,
+	})), nil
+}
+
 // New composes the File Storage module. Every operation resolves the tenant
 // from the context; the stores apply it as a defense-in-depth predicate.
 func New(dependencies Dependencies) (*filestorage.Module, error) {
@@ -103,10 +133,6 @@ func New(dependencies Dependencies) (*filestorage.Module, error) {
 		dependencies.People == nil || dependencies.Settings == nil || dependencies.Events == nil ||
 		dependencies.Observe == nil || dependencies.Logger == nil || dependencies.HasPermission == nil {
 		return nil, errors.New("file storage compose: all dependencies are required")
-	}
-	now := dependencies.Now
-	if now == nil {
-		now = time.Now
 	}
 	runtime := databaseRuntime(dependencies.DB)
 	service := application.New(application.Dependencies{
@@ -125,39 +151,22 @@ func New(dependencies Dependencies) (*filestorage.Module, error) {
 		GuardianAudience:   dependencies.GuardianAudience,
 		Tx:                 transaction{},
 		StoredNames:        apiDocuments.NewStoredName,
-		Observe: func(observation Observation) {
-			observation.Err = mapError(observation.Err)
-			dependencies.Observe(observation)
-		},
-		Logger: dependencies.Logger,
-		Now:    now,
+		Observe:            observer(dependencies.Observe),
+		Logger:             dependencies.Logger,
+		Now:                dependencies.Now,
 	})
-	return filestorage.NewModule(engine{service: service, hasPermission: dependencies.HasPermission}), nil
+	return filestorage.NewModule(application.NewPublicEngine(service, dependencies.HasPermission)), nil
 }
 
-func databaseRuntime(db *bun.DB) postgres.Database {
-	return func(ctx context.Context) (bun.IDB, int64, error) {
-		tenantID, err := tenant.TenantFromContext(ctx)
-		if err != nil {
-			return nil, 0, fmt.Errorf("file storage postgres: tenant is required: %w", err)
-		}
-		transaction, hasTransaction := tenant.TransactionFromContext(ctx)
-		if !hasTransaction {
-			return db, tenantID.Int64(), nil
-		}
-		switch tx := transaction.(type) {
-		case bun.Tx:
-			return tx, tenantID.Int64(), nil
-		case *bun.Tx:
-			if tx != nil {
-				return tx, tenantID.Int64(), nil
-			}
-			return db, tenantID.Int64(), nil
-		default:
-			return nil, 0, fmt.Errorf("file storage postgres: unsupported transaction %T", transaction)
-		}
+// observer reports every observation with the public error.
+func observer(observe func(Observation)) func(Observation) {
+	return func(observation Observation) {
+		observation.Err = application.MapPublicError(observation.Err)
+		observe(observation)
 	}
 }
+
+func databaseRuntime(db *bun.DB) postgres.Database { return tenant.CurrentTenantTransaction[bun.IDB] }
 
 // --- tenant runtime ------------------------------------------------------------
 
@@ -274,314 +283,8 @@ func (p people) PersonNames(ctx context.Context, accountIDs []int64) (map[int64]
 	return result, nil
 }
 
-// --- public engine -------------------------------------------------------------
-
-type engine struct {
-	service       *application.Service
-	hasPermission func(string, []string) bool
-}
-
-func (e engine) actor(value filestorage.Actor) domain.Actor {
-	return domain.Actor{
-		AccountID: value.AccountID,
-		Name:      value.Name,
-		Manager:   e.hasPermission("files:manage", value.Permissions),
-	}
-}
-
-func (e engine) ListFolders(ctx context.Context, who filestorage.Actor) (filestorage.FolderOverview, error) {
-	overview, err := e.service.ListFolders(ctx, e.actor(who))
-	if err != nil {
-		return filestorage.FolderOverview{}, mapError(err)
-	}
-	result := filestorage.FolderOverview{
-		Folders:            make([]filestorage.Folder, 0, len(overview.Folders)),
-		CanManage:          overview.CanManage,
-		CanUpload:          overview.CanUpload,
-		StaffUploadEnabled: overview.StaffUploadEnabled,
-		UsedBytes:          overview.UsedBytes,
-		MaxBytes:           overview.MaxBytes,
-	}
-	for _, view := range overview.Folders {
-		result.Folders = append(result.Folders, toFolder(view))
-	}
-	return result, nil
-}
-
-func (e engine) ListAudienceOptions(ctx context.Context, who filestorage.Actor) (filestorage.AudienceOptions, error) {
-	roles, accounts, err := e.service.ListAudienceOptions(ctx, e.actor(who))
-	if err != nil {
-		return filestorage.AudienceOptions{}, mapError(err)
-	}
-	result := filestorage.AudienceOptions{
-		Roles:    make([]filestorage.AudienceRole, 0, len(roles)),
-		Accounts: make([]filestorage.AudienceAccount, 0, len(accounts)),
-	}
-	for _, role := range roles {
-		result.Roles = append(result.Roles, filestorage.AudienceRole{ID: role.ID, Name: role.Name})
-	}
-	for _, account := range accounts {
-		result.Accounts = append(result.Accounts, filestorage.AudienceAccount{AccountID: account.AccountID, FirstName: account.FirstName, LastName: account.LastName})
-	}
-	return result, nil
-}
-
-func folderInput(input filestorage.FolderInput) domain.FolderInput {
-	return domain.FolderInput{Name: input.Name, Visibility: input.Visibility, RoleIDs: input.RoleIDs, AccountIDs: input.AccountIDs}
-}
-
-func (e engine) CreateFolder(ctx context.Context, input filestorage.FolderInput, who filestorage.Actor) (filestorage.Folder, error) {
-	view, err := e.service.CreateFolder(ctx, folderInput(input), e.actor(who))
-	return toFolder(view), mapError(err)
-}
-
-func (e engine) UpdateFolder(ctx context.Context, folderID int64, input filestorage.FolderInput, who filestorage.Actor) (filestorage.Folder, error) {
-	view, err := e.service.UpdateFolder(ctx, folderID, folderInput(input), e.actor(who))
-	return toFolder(view), mapError(err)
-}
-
-func (e engine) DeleteFolder(ctx context.Context, folderID int64, who filestorage.Actor) error {
-	return mapError(e.service.DeleteFolder(ctx, folderID, e.actor(who)))
-}
-
-func (e engine) ListFiles(ctx context.Context, folderID int64, who filestorage.Actor) (filestorage.FileList, error) {
-	folder, files, err := e.service.ListFiles(ctx, folderID, e.actor(who))
-	if err != nil {
-		return filestorage.FileList{}, mapError(err)
-	}
-	result := filestorage.FileList{
-		Folder: toFolder(domain.FolderView{FolderListItem: domain.FolderListItem{Folder: folder, FileCount: int64(len(files))}}),
-		Files:  make([]filestorage.File, 0, len(files)),
-	}
-	for _, file := range files {
-		result.Files = append(result.Files, toFile(file.Document, file.CanDelete))
-	}
-	return result, nil
-}
-
-func (e engine) OpenFile(ctx context.Context, folderID, fileID int64, who filestorage.Actor) (filestorage.Content, error) {
-	file, object, err := e.service.OpenFile(ctx, folderID, fileID, e.actor(who))
-	if err != nil {
-		return filestorage.Content{}, mapError(err)
-	}
-	return toContent(file, object), nil
-}
-
-func upload(value filestorage.Upload) domain.Upload {
-	return domain.Upload{FilenameDisplay: value.Filename, ContentType: value.ContentType, Extension: value.Extension, Content: value.Content}
-}
-
-func (e engine) UploadFile(ctx context.Context, folderID int64, value filestorage.Upload, who filestorage.Actor) (filestorage.File, error) {
-	file, err := e.service.UploadFile(ctx, folderID, upload(value), e.actor(who))
-	if err != nil {
-		return filestorage.File{}, mapError(err)
-	}
-	return toFile(file, true), nil
-}
-
-func (e engine) DeleteFile(ctx context.Context, folderID, fileID int64, who filestorage.Actor) error {
-	return mapError(e.service.DeleteFile(ctx, folderID, fileID, e.actor(who)))
-}
-
-func (e engine) ListAttachments(ctx context.Context, announcementID int64) (filestorage.AttachmentList, error) {
-	attachments, editable, err := e.service.ListAttachments(ctx, announcementID)
-	if err != nil {
-		return filestorage.AttachmentList{}, mapError(err)
-	}
-	return filestorage.AttachmentList{Attachments: toAttachments(attachments), Editable: editable}, nil
-}
-
-func (e engine) OpenAttachment(ctx context.Context, announcementID, attachmentID int64) (filestorage.Content, error) {
-	attachment, object, err := e.service.OpenAttachment(ctx, announcementID, attachmentID)
-	if err != nil {
-		return filestorage.Content{}, mapError(err)
-	}
-	return toContent(attachment, object), nil
-}
-
-func (e engine) ListGuardianAttachments(ctx context.Context, accountID, announcementID int64) ([]filestorage.Attachment, error) {
-	_, attachments, err := e.service.ListGuardianAttachments(ctx, accountID, announcementID)
-	if err != nil {
-		return nil, mapError(err)
-	}
-	return toAttachments(attachments), nil
-}
-
-func (e engine) OpenGuardianAttachment(ctx context.Context, accountID, announcementID, attachmentID int64) (filestorage.Content, error) {
-	attachment, object, err := e.service.OpenGuardianAttachment(ctx, accountID, announcementID, attachmentID)
-	if err != nil {
-		return filestorage.Content{}, mapError(err)
-	}
-	return toContent(attachment, object), nil
-}
-
-func (e engine) OpenGuardianDeclarationProofAttachment(ctx context.Context, accountID, announcementID, studentID, attachmentID int64) (filestorage.Content, error) {
-	attachment, object, err := e.service.OpenGuardianDeclarationProofAttachment(ctx, accountID, announcementID, studentID, attachmentID)
-	if err != nil {
-		return filestorage.Content{}, mapError(err)
-	}
-	return toContent(attachment, object), nil
-}
-
-func (e engine) UploadAttachment(ctx context.Context, announcementID int64, value filestorage.Upload, who filestorage.Actor) (filestorage.Attachment, error) {
-	attachment, err := e.service.UploadAttachment(ctx, announcementID, upload(value), e.actor(who))
-	if err != nil {
-		return filestorage.Attachment{}, mapError(err)
-	}
-	return toAttachment(attachment), nil
-}
-
-func (e engine) DeleteAttachment(ctx context.Context, announcementID, attachmentID int64, who filestorage.Actor) error {
-	return mapError(e.service.DeleteAttachment(ctx, announcementID, attachmentID, e.actor(who)))
-}
-
-func (e engine) QueueAttachmentCleanupForAnnouncement(ctx context.Context, announcementID int64) error {
-	return mapError(e.service.QueueAttachmentCleanupForAnnouncement(ctx, announcementID))
-}
-
-func (e engine) CountAttachments(ctx context.Context, announcementID int64) (int, error) {
-	count, err := e.service.CountAttachments(ctx, announcementID)
-	return count, mapError(err)
-}
-
-func (e engine) AttachmentDigests(ctx context.Context, announcementID int64, digest func(io.Reader) (string, int64, error)) ([]filestorage.AttachmentDigest, error) {
-	digests, err := e.service.AttachmentDigests(ctx, announcementID, digest)
-	if err != nil {
-		return nil, mapError(err)
-	}
-	out := make([]filestorage.AttachmentDigest, 0, len(digests))
-	for _, digest := range digests {
-		out = append(out, filestorage.AttachmentDigest(digest))
-	}
-	return out, nil
-}
-
-func (e engine) CleanupOrphanedFiles(ctx context.Context) (int, error) {
-	removed, err := e.service.CleanupOrphanedFiles(ctx)
-	return removed, mapError(err)
-}
-
-// --- mapping -------------------------------------------------------------------
-
-func toFolder(view domain.FolderView) filestorage.Folder {
-	return filestorage.Folder{
-		ID:         view.ID,
-		Name:       view.Name,
-		Visibility: view.Visibility,
-		FileCount:  view.FileCount,
-		RoleIDs:    append([]int64{}, view.Audience.RoleIDs...),
-		AccountIDs: append([]int64{}, view.Audience.AccountIDs...),
-		CreatedAt:  view.CreatedAt,
-	}
-}
-
-func toFile(document domain.Document, canDelete bool) filestorage.File {
-	return filestorage.File{
-		ID: document.ID, FolderID: document.OwnerID, Filename: document.FilenameDisplay,
-		SizeBytes: document.SizeBytes, ContentType: document.ContentType,
-		UploadedAt: document.CreatedAt, UploadedBy: document.UploadedBy, CanDelete: canDelete,
-	}
-}
-
-func toAttachment(document domain.Document) filestorage.Attachment {
-	return filestorage.Attachment{
-		ID: document.ID, AnnouncementID: document.OwnerID, Filename: document.FilenameDisplay,
-		SizeBytes: document.SizeBytes, ContentType: document.ContentType, UploadedAt: document.CreatedAt,
-	}
-}
-
-func toAttachments(documents []domain.Document) []filestorage.Attachment {
-	result := make([]filestorage.Attachment, 0, len(documents))
-	for _, document := range documents {
-		result = append(result, toAttachment(document))
-	}
-	return result
-}
-
-func toContent(document domain.Document, object ports.Object) filestorage.Content {
-	return filestorage.Content{Object: &storedObject{Object: object}, ModTime: object.ModTime(), Filename: document.FilenameDisplay, ContentType: document.ContentType}
-}
-
-// storedObject adapts the backend's seekable object to the public random
-// access shape. The local backend hands out *os.File, which reads at offsets
-// natively; any other object is served through a guarded seek-and-read.
-type storedObject struct {
-	ports.Object
-	mu   sync.Mutex
-	size int64
-	seen bool
-}
-
-func (o *storedObject) ReadAt(p []byte, off int64) (int, error) {
-	if reader, ok := o.Object.(io.ReaderAt); ok {
-		return reader.ReadAt(p, off)
-	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if _, err := o.Seek(off, io.SeekStart); err != nil {
-		return 0, err
-	}
-	// io.ReaderAt reports a short final read as io.EOF, never as
-	// io.ErrUnexpectedEOF; a section reader would otherwise fail the last
-	// chunk of a download instead of ending it.
-	n, err := io.ReadFull(o.Object, p)
-	if errors.Is(err, io.ErrUnexpectedEOF) {
-		err = io.EOF
-	}
-	return n, err
-}
-
-func (o *storedObject) Size() int64 {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if o.seen {
-		return o.size
-	}
-	current, err := o.Seek(0, io.SeekCurrent)
-	if err != nil {
-		return 0
-	}
-	end, err := o.Seek(0, io.SeekEnd)
-	if err != nil {
-		return 0
-	}
-	if _, err := o.Seek(current, io.SeekStart); err != nil {
-		return 0
-	}
-	o.size, o.seen = end, true
-	return end
-}
-
-// mappedError carries the public sentinel while keeping the internal message.
-type mappedError struct {
-	public error
-	msg    string
-}
-
-func (e *mappedError) Error() string { return e.msg }
-func (e *mappedError) Unwrap() error { return e.public }
-
-var errorPairs = []struct{ internal, public error }{
-	{domain.ErrNotFound, filestorage.ErrNotFound},
-	{domain.ErrForbidden, filestorage.ErrForbidden},
-	{domain.ErrInvalid, filestorage.ErrInvalid},
-	{domain.ErrFolderNameTaken, filestorage.ErrFolderNameTaken},
-	{domain.ErrQuotaExceeded, filestorage.ErrQuotaExceeded},
-	{domain.ErrObjectNotFound, filestorage.ErrObjectNotFound},
-	{domain.ErrAttachmentNotFound, filestorage.ErrAttachmentNotFound},
-	{domain.ErrAttachmentPublished, filestorage.ErrAttachmentPublished},
-	{domain.ErrAttachmentLimitReached, filestorage.ErrAttachmentLimitReached},
-	{domain.ErrTenantRequired, filestorage.ErrTenantRequired},
-}
-
-func mapError(err error) error {
-	if err == nil {
-		return nil
-	}
-	for _, pair := range errorPairs {
-		if errors.Is(err, pair.internal) {
-			return &mappedError{public: pair.public, msg: err.Error()}
-		}
-	}
-	return err
+// NewUploadCleanup uses the existing file cleanup outbox, partitioned by kind.
+func NewUploadCleanup(db *bun.DB, kind filestorage.UploadCleanupKind) *filestorage.UploadCleanup {
+	cleanup := application.NewUploadCleanup(postgres.NewUploadCleanupStore(databaseRuntime(db), string(kind)), transaction{}, string(kind))
+	return filestorage.NewUploadCleanup(cleanup.Queue, cleanup.Sweep)
 }

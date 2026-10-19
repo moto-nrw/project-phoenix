@@ -41,8 +41,8 @@
       "backend/modules/communication/internal/parentmessages/settings.go",
       "backend/modules/communication/internal/parentmessages/retention.go",
       "backend/modules/communication/internal/staffmessages/service.go",
-      "backend/modules/communication/internal/staffannouncements/settings.go",
-      "backend/api/service_graph_compose_requests.go"
+      "https://github.com/moto-nrw/project-phoenix/blob/12608383f0f793e811f4379ec293f61efd6150c9/backend/modules/communication/internal/staffannouncements/settings.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/a52dccfc01e977e18c112d164949b819eda552f3/backend/api/service_graph_compose_requests.go"
     ],
     "workload": "Existing Settings/Communication/API behavior and actual override/default/retention/scope suites; native key/context/error/nil/metadata regressions; complete nonfast structural gates.",
     "thresholds": "Seven exact private imports absent; owner keys and resolver unchanged. Preserve original context, explicit school, defaults, false/zero, errors, logging metadata and assertions. No new permission, Go alias or increased budget.",

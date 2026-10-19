@@ -31,12 +31,12 @@
     "sources": [
       "backend/workflows/parentportal/parentportal.go",
       "backend/workflows/parentportal/compose/new.go",
-      "backend/workflows/parentportal/care/helpers_test.go",
-      "backend/workflows/parentportal/care/parent_care_offerings_service_test.go",
-      "backend/workflows/parentportal/care/parent_declaration_test.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/care/helpers_test.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/care/parent_care_offerings_service_test.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/care/parent_declaration_test.go",
       "backend/api/communication_security.go",
       "backend/modules/securityruntime/fingerprint.go",
-      "backend/auth/authorize/fingerprint.go"
+      "https://github.com/moto-nrw/project-phoenix/blob/121b0ee5130db5ec6b289965f495acdca6285744/backend/auth/authorize/fingerprint.go"
     ],
     "workload": "Existing account-scoped child/enrollment, soft-deleted-person/audience eligibility, relationship denial, care-ended write guards and redaction suites; new boundary and policy tests.",
     "thresholds": "Five exact retirements, no new import debt, grants or composition target; identical JSON/date values and explicit relationship permissions; compose surfaces shrink176 LOC.",

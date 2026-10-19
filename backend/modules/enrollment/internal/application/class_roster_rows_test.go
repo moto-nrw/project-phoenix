@@ -4,11 +4,12 @@ import (
 	"testing"
 	"time"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // classRosterRowGroupID is the group a fixture student is placed in when a
@@ -24,15 +25,15 @@ func classRosterRow(
 	person *RosterPerson,
 	groupName string,
 	approved *classRosterApprovedEnrollment,
-	offeringByID map[int64]*enrollmentModels.CareOffering,
-	schemas map[int64]*enrollment.FormSchema,
-	studentGuardians []enrollment.ClassRosterGuardian,
+	offeringByID map[int64]*offeringContract.CareOfferingRecord,
+	schemas map[int64]*enrollmentNative.FormSchema,
+	studentGuardians []enrollmentNative.ClassRosterGuardian,
 	companions []CompanionLink,
 	careOfferingsEnabled bool,
-) (enrollment.ClassRosterRow, error) {
+) (enrollmentNative.ClassRosterRow, error) {
 	in := &classRosterInputs{
 		students:            []*RosterStudent{student},
-		studentGuardians:    map[int64][]enrollment.ClassRosterGuardian{student.ID: studentGuardians},
+		studentGuardians:    map[int64][]enrollmentNative.ClassRosterGuardian{student.ID: studentGuardians},
 		companions:          map[int64][]CompanionLink{student.ID: companions},
 		persons:             map[int64]*RosterPerson{},
 		enrollments:         map[int64]*classRosterApprovedEnrollment{},
@@ -60,7 +61,7 @@ func TestClassRosterRowUsesPhaseEnrollmentData(t *testing.T) {
 	t.Parallel()
 
 	schemaID := int64(88)
-	req := &enrollmentModels.Request{
+	req := &Request{
 		ID:          10,
 		SchemaID:    &schemaID,
 		SubmittedAt: time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC),
@@ -71,14 +72,14 @@ func TestClassRosterRowUsesPhaseEnrollmentData(t *testing.T) {
 		FirstName:   "Lina",
 		LastName:    "Muster",
 		DateOfBirth: "2018-05-04",
-		Status:      enrollmentModels.ChildStatusApproved,
+		Status:      enrollmentNative.ChildStatusApproved,
 		CustomData: map[string]any{
 			"arrival": map[string]any{"mon": "11:30"},
 			"pickup":  map[string]any{"mon": "14:30"},
 			"departure": map[string]any{
 				"mon": []any{"pickup", "accompanied"},
 			},
-			enrollment.TargetStudentDepartureCompanionNote: "Mia",
+			enrollmentNative.TargetStudentDepartureCompanionNote: "Mia",
 		},
 	}
 	student := &RosterStudent{
@@ -93,19 +94,19 @@ func TestClassRosterRowUsesPhaseEnrollmentData(t *testing.T) {
 	approved := &classRosterApprovedEnrollment{
 		request: req,
 		child:   child,
-		links: []*enrollment.RequestChildOfferingRecord{
+		links: []*enrollmentNative.RequestChildOfferingRecord{
 			{RequestChildID: 20, CareOfferingID: 1, SelectedDays: []string{"mon"}},
 		},
 	}
-	offerings := map[int64]*enrollmentModels.CareOffering{
-		1: {Name: "Randstunde", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice},
+	offerings := map[int64]*offeringContract.CareOfferingRecord{
+		1: {Name: "Randstunde", DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice},
 	}
-	schemas := map[int64]*enrollment.FormSchema{
+	schemas := map[int64]*enrollmentNative.FormSchema{
 		schemaID: {
-			Fields: []enrollment.FormField{
-				{Key: "arrival", Target: enrollment.TargetScheduleArrival, Type: enrollment.FormFieldWeekdaySchedule, AppliesToCh: true},
-				{Key: "pickup", Target: enrollment.TargetSchedulePickup, Type: enrollment.FormFieldWeekdaySchedule, AppliesToCh: true},
-				{Key: "departure", Target: enrollment.TargetStudentAllowedDepartureModes, Type: enrollment.FormFieldWeekdayMultiMode, AppliesToCh: true},
+			Fields: []enrollmentNative.FormField{
+				{Key: "arrival", Target: enrollmentNative.TargetScheduleArrival, Type: enrollmentNative.FormFieldWeekdaySchedule, AppliesToCh: true},
+				{Key: "pickup", Target: enrollmentNative.TargetSchedulePickup, Type: enrollmentNative.FormFieldWeekdaySchedule, AppliesToCh: true},
+				{Key: "departure", Target: enrollmentNative.TargetStudentAllowedDepartureModes, Type: enrollmentNative.FormFieldWeekdayMultiMode, AppliesToCh: true},
 			},
 		},
 	}
@@ -127,7 +128,7 @@ func TestClassRosterRowUsesPhaseEnrollmentData(t *testing.T) {
 func TestClassRosterRowBuildsDailyOfferingNames(t *testing.T) {
 	t.Parallel()
 
-	req := &enrollmentModels.Request{
+	req := &Request{
 		ID:          13,
 		SubmittedAt: time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC),
 	}
@@ -135,7 +136,7 @@ func TestClassRosterRowBuildsDailyOfferingNames(t *testing.T) {
 		ID:          23,
 		RequestID:   13,
 		DateOfBirth: "2018-05-04",
-		Status:      enrollmentModels.ChildStatusApproved,
+		Status:      enrollmentNative.ChildStatusApproved,
 	}
 	student := &RosterStudent{
 		ID:          103,
@@ -146,14 +147,14 @@ func TestClassRosterRowBuildsDailyOfferingNames(t *testing.T) {
 	approved := &classRosterApprovedEnrollment{
 		request: req,
 		child:   child,
-		links: []*enrollment.RequestChildOfferingRecord{
+		links: []*enrollmentNative.RequestChildOfferingRecord{
 			{RequestChildID: 23, CareOfferingID: 1, SelectedDays: []string{"mon", "wed"}},
 			{RequestChildID: 23, CareOfferingID: 2, SelectedDays: []string{"wed", "fri"}},
 		},
 	}
-	offerings := map[int64]*enrollmentModels.CareOffering{
-		1: {Name: "Randstunde", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice},
-		2: {Name: "Ganztag bis 16:00", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice},
+	offerings := map[int64]*offeringContract.CareOfferingRecord{
+		1: {Name: "Randstunde", DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice},
+		2: {Name: "Ganztag bis 16:00", DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice},
 	}
 
 	row, err := classRosterRow(student, person, "", approved, offerings, nil, nil, nil, true)
@@ -171,7 +172,7 @@ func TestClassRosterRowReadsGuardianLevelSchedules(t *testing.T) {
 	t.Parallel()
 
 	schemaID := int64(90)
-	req := &enrollmentModels.Request{
+	req := &Request{
 		ID:          12,
 		SchemaID:    &schemaID,
 		SubmittedAt: time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC),
@@ -185,7 +186,7 @@ func TestClassRosterRowReadsGuardianLevelSchedules(t *testing.T) {
 		RequestID:  12,
 		FirstName:  "Lina",
 		LastName:   "Muster",
-		Status:     enrollmentModels.ChildStatusApproved,
+		Status:     enrollmentNative.ChildStatusApproved,
 		CustomData: map[string]any{},
 	}
 	student := &RosterStudent{
@@ -198,11 +199,11 @@ func TestClassRosterRowReadsGuardianLevelSchedules(t *testing.T) {
 		request: req,
 		child:   child,
 	}
-	schemas := map[int64]*enrollment.FormSchema{
+	schemas := map[int64]*enrollmentNative.FormSchema{
 		schemaID: {
-			Fields: []enrollment.FormField{
-				{Key: "guardian_arrival", Target: enrollment.TargetScheduleArrival, Type: enrollment.FormFieldWeekdaySchedule, AppliesToCh: false},
-				{Key: "guardian_pickup", Target: enrollment.TargetSchedulePickup, Type: enrollment.FormFieldWeekdaySchedule, AppliesToCh: false},
+			Fields: []enrollmentNative.FormField{
+				{Key: "guardian_arrival", Target: enrollmentNative.TargetScheduleArrival, Type: enrollmentNative.FormFieldWeekdaySchedule, AppliesToCh: false},
+				{Key: "guardian_pickup", Target: enrollmentNative.TargetSchedulePickup, Type: enrollmentNative.FormFieldWeekdaySchedule, AppliesToCh: false},
 			},
 		},
 	}
@@ -218,7 +219,7 @@ func TestClassRosterRowTreatsAllWeekdaysAsCareDaysWithoutOfferings(t *testing.T)
 	t.Parallel()
 
 	schemaID := int64(91)
-	req := &enrollmentModels.Request{
+	req := &Request{
 		ID:          14,
 		SchemaID:    &schemaID,
 		SubmittedAt: time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC),
@@ -228,7 +229,7 @@ func TestClassRosterRowTreatsAllWeekdaysAsCareDaysWithoutOfferings(t *testing.T)
 		RequestID:  14,
 		FirstName:  "Lina",
 		LastName:   "Muster",
-		Status:     enrollmentModels.ChildStatusApproved,
+		Status:     enrollmentNative.ChildStatusApproved,
 		CustomData: map[string]any{"pickup": map[string]any{"mon": "14:30", "thu": "15:00"}},
 	}
 	student := &RosterStudent{
@@ -241,10 +242,10 @@ func TestClassRosterRowTreatsAllWeekdaysAsCareDaysWithoutOfferings(t *testing.T)
 		request: req,
 		child:   child,
 	}
-	schemas := map[int64]*enrollment.FormSchema{
+	schemas := map[int64]*enrollmentNative.FormSchema{
 		schemaID: {
-			Fields: []enrollment.FormField{
-				{Key: "pickup", Target: enrollment.TargetSchedulePickup, Type: enrollment.FormFieldWeekdaySchedule, AppliesToCh: true},
+			Fields: []enrollmentNative.FormField{
+				{Key: "pickup", Target: enrollmentNative.TargetSchedulePickup, Type: enrollmentNative.FormFieldWeekdaySchedule, AppliesToCh: true},
 			},
 		},
 	}
@@ -257,16 +258,16 @@ func TestClassRosterRowTreatsAllWeekdaysAsCareDaysWithoutOfferings(t *testing.T)
 	assert.Equal(t, "15:00", row.PickupByDay["thu"])
 	assert.Empty(t, row.PickupByDay["tue"])
 
-	offerings := map[int64]*enrollmentModels.CareOffering{
-		1: {Name: "Ganztag", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice, IsActive: true},
+	offerings := map[int64]*offeringContract.CareOfferingRecord{
+		1: {Name: "Ganztag", DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice, IsActive: true},
 	}
 	constrained, err := classRosterRow(student, person, "", approved, offerings, schemas, nil, nil, true)
 	require.NoError(t, err)
 	assert.Empty(t, constrained.CareDays)
 	assert.Equal(t, "14:30", constrained.PickupByDay["mon"])
 
-	inactiveOnly := map[int64]*enrollmentModels.CareOffering{
-		1: {Name: "Ganztag", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice, IsActive: false},
+	inactiveOnly := map[int64]*offeringContract.CareOfferingRecord{
+		1: {Name: "Ganztag", DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice, IsActive: false},
 	}
 	unconstrained, err := classRosterRow(student, person, "", approved, inactiveOnly, schemas, nil, nil, true)
 	require.NoError(t, err)
@@ -291,7 +292,7 @@ func TestClassRosterRowMarksMissingEnrollmentAsNoRegistration(t *testing.T) {
 	}
 	person := &RosterPerson{FirstName: "Tom", LastName: "Ohne"}
 
-	row, err := classRosterRow(student, person, "", nil, nil, nil, []enrollment.ClassRosterGuardian{{Name: "Eva Ohne", Email: "eva@example.test", Phone: "02551 123"}}, nil, true)
+	row, err := classRosterRow(student, person, "", nil, nil, nil, []enrollmentNative.ClassRosterGuardian{{Name: "Eva Ohne", Email: "eva@example.test", Phone: "02551 123"}}, nil, true)
 
 	require.NoError(t, err)
 	assert.False(t, row.Registered)
@@ -302,7 +303,7 @@ func TestClassRosterRowMarksMissingEnrollmentAsNoRegistration(t *testing.T) {
 		"mon": "geht alleine", "tue": "geht alleine", "wed": "geht alleine",
 		"thu": "geht alleine", "fri": "geht alleine",
 	}, row.DepartureByDay)
-	assert.Equal(t, []enrollment.ClassRosterGuardian{{Name: "Eva Ohne", Email: "eva@example.test", Phone: "02551 123"}}, row.Guardians)
+	assert.Equal(t, []enrollmentNative.ClassRosterGuardian{{Name: "Eva Ohne", Email: "eva@example.test", Phone: "02551 123"}}, row.Guardians)
 }
 
 func TestClassRosterRowWithoutContactsHasNoInventedContact(t *testing.T) {
@@ -314,7 +315,7 @@ func TestClassRosterRowWithoutContactsHasNoInventedContact(t *testing.T) {
 		SchoolClass: "1a",
 	}
 	person := &RosterPerson{FirstName: "Tom", LastName: "Ohne"}
-	want := []enrollment.ClassRosterGuardian{}
+	want := []enrollmentNative.ClassRosterGuardian{}
 
 	t.Run("without enrollment", func(t *testing.T) {
 		row, err := classRosterRow(student, person, "", nil, nil, nil, nil, nil, true)
@@ -325,12 +326,12 @@ func TestClassRosterRowWithoutContactsHasNoInventedContact(t *testing.T) {
 	})
 
 	t.Run("with enrollment but without request guardians", func(t *testing.T) {
-		req := &enrollmentModels.Request{ID: 10}
+		req := &Request{ID: 10}
 		child := &reportChild{
 			ID:          20,
 			RequestID:   10,
 			DateOfBirth: "2018-05-04",
-			Status:      enrollmentModels.ChildStatusApproved,
+			Status:      enrollmentNative.ChildStatusApproved,
 		}
 		row, err := classRosterRow(student, person, "", &classRosterApprovedEnrollment{
 			request: req,
@@ -346,7 +347,7 @@ func TestClassRosterRowWithoutContactsHasNoInventedContact(t *testing.T) {
 func TestClassRosterStudentGuardiansUseLinkedContacts(t *testing.T) {
 	t.Parallel()
 
-	linked := []enrollment.ClassRosterGuardian{{
+	linked := []enrollmentNative.ClassRosterGuardian{{
 		Name:  "Stamm Kontakt",
 		Email: "stamm@example.test",
 		Phone: "02551 333",
@@ -362,7 +363,7 @@ func TestClassRosterApprovedEnrollmentsOnlyUsesApprovedChildrenInClass(t *testin
 
 	studentID := int64(100)
 	otherStudentID := int64(200)
-	requestByID := map[int64]*enrollmentModels.Request{
+	requestByID := map[int64]*Request{
 		1: {ID: 1, SubmittedAt: time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC)},
 		2: {ID: 2, SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC)},
 	}
@@ -370,9 +371,9 @@ func TestClassRosterApprovedEnrollmentsOnlyUsesApprovedChildrenInClass(t *testin
 		studentID: {ID: studentID},
 	}
 	children := []*reportChild{
-		{ID: 10, RequestID: 1, Status: enrollmentModels.ChildStatusApproved, CreatedStudentID: &studentID},
-		{ID: 11, RequestID: 2, Status: enrollmentModels.ChildStatusRejected, CreatedStudentID: &studentID},
-		{ID: 12, RequestID: 2, Status: enrollmentModels.ChildStatusApproved, CreatedStudentID: &otherStudentID},
+		{ID: 10, RequestID: 1, Status: enrollmentNative.ChildStatusApproved, CreatedStudentID: &studentID},
+		{ID: 11, RequestID: 2, Status: enrollmentNative.ChildStatusRejected, CreatedStudentID: &studentID},
+		{ID: 12, RequestID: 2, Status: enrollmentNative.ChildStatusApproved, CreatedStudentID: &otherStudentID},
 	}
 
 	got, childIDs := classRosterApprovedEnrollments(children, requestByID, studentByID)
@@ -387,7 +388,7 @@ func TestClassRosterApprovedEnrollmentsUsesOnlyNewestChildLinks(t *testing.T) {
 
 	studentID := int64(100)
 	newestOfferingID := int64(20)
-	requestByID := map[int64]*enrollmentModels.Request{
+	requestByID := map[int64]*Request{
 		1: {ID: 1, SubmittedAt: time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC)},
 		2: {ID: 2, SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC)},
 	}
@@ -395,12 +396,12 @@ func TestClassRosterApprovedEnrollmentsUsesOnlyNewestChildLinks(t *testing.T) {
 		studentID: {ID: studentID},
 	}
 	children := []*reportChild{
-		{ID: 10, RequestID: 1, Status: enrollmentModels.ChildStatusApproved, CreatedStudentID: &studentID},
-		{ID: 20, RequestID: 2, Status: enrollmentModels.ChildStatusApproved, CreatedStudentID: &studentID},
+		{ID: 10, RequestID: 1, Status: enrollmentNative.ChildStatusApproved, CreatedStudentID: &studentID},
+		{ID: 20, RequestID: 2, Status: enrollmentNative.ChildStatusApproved, CreatedStudentID: &studentID},
 	}
 
 	got, childIDs := classRosterApprovedEnrollments(children, requestByID, studentByID)
-	classRosterAttachOfferingLinks(got, []*enrollment.RequestChildOfferingRecord{
+	classRosterAttachOfferingLinks(got, []*enrollmentNative.RequestChildOfferingRecord{
 		{RequestChildID: 10, CareOfferingID: 1},
 		{RequestChildID: 20, CareOfferingID: newestOfferingID},
 	})
@@ -417,7 +418,7 @@ func TestClassRosterCareDaysKeepsLeftoverBookingsWhenOfferingsDisabled(t *testin
 
 	got := classRosterCareDays(
 		[]string{"mon", "wed"},
-		map[int64]*enrollmentModels.CareOffering{
+		map[int64]*offeringContract.CareOfferingRecord{
 			1: {Name: "Ganztag", IsActive: true},
 		},
 		false,

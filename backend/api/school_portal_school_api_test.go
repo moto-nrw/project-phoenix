@@ -47,19 +47,21 @@ func decodeSchoolPortalData[T any](t *testing.T, body []byte) T {
 func setupSchoolRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, *schoolportal.Resource, int64, string) {
 	t.Helper()
 
-	db, services := setupSchoolPortalModule(t, clocks...)
-	classDayResource := classdayhttp.NewResource(services.ClassDay, nil)
+	db, services, classDay, delivery := setupSchoolPortalModule(t, clocks...)
+	classDayResource := classdayhttp.NewResource(classDay.ClassDay, nil)
+	timetableOwner, _ := NewActiveTestTimetable(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
 	timetableResource := timetable.NewResource(timetable.Dependencies{
-		OperationsService: services.TimetableOperations,
-		SupervisionSheets: services.TimetableSupervisionSheets, SettingsService: services.Settings,
-		Now: firstSchoolClock(clocks),
+		OperationsService: timetableOwner.TimetableOperations,
+		SupervisionSheets: NewTimetableSupervisionSheets(classDay.ClassDay),
+		SettingsService:   NewActiveTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...).Settings,
+		Now:               firstSchoolClock(clocks),
 	})
 	resource := NewSchoolPortalHTTP(
 		services.SchoolAuth, services.SchoolMFA,
 		schoolportal.PasswordResetRuntime{}, classDayResource, timetableResource,
 		emptySchoolMessagingRouter{},
 		nil,
-		newSchoolNotificationsForTests(services.DeliveryTestModule),
+		newSchoolNotificationsForTests(delivery),
 	)
 
 	tenantID, subdomain := testpkg.CreateTestTenant(t, db)

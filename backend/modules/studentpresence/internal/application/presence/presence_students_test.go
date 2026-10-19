@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
@@ -22,8 +23,8 @@ func TestPresenceStudents_UpdateLiveStatusFailsOnUnknownStudent(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	students := api.PresenceStudents(testpkg.MustDatabase(db), repoFactory.Student)
+	repoFactory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	students := owners.PresenceStudents(testpkg.MustDatabase(db), repoFactory.Student)
 
 	sick := true
 	now := time.Now()
@@ -46,7 +47,7 @@ func TestStatusDayStudents_MissingAuthorizeFailsClosed(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	repoFactory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	student := testpkg.CreateTestStudent(t, db, "FailClosed", "Student", "FC1")
 	ctx := testpkg.Ctx(t)
 
@@ -55,7 +56,7 @@ func TestStatusDayStudents_MissingAuthorizeFailsClosed(t *testing.T) {
 	require.Error(t, err, "a status-day adapter without an authorization callback must refuse the write")
 
 	guarded := api.StatusDayStudentsFromRepository(repoFactory.Student, api.AllowAllStatusDayWrites)
-	record, err := guarded.LockForStatusWrite(ctx, student.ID, absencerecords.StudentStatusDaySick)
+	record, err := testpkg.TenantQuery2(t, ctx, db, guarded.LockForStatusWrite, student.ID, absencerecords.StudentStatusDaySick)
 	require.NoError(t, err)
 	assert.Equal(t, student.ID, record.ID)
 }
@@ -66,8 +67,8 @@ func TestPresenceStudents_UpdateLiveStatusPersistsFlags(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	students := api.PresenceStudents(testpkg.MustDatabase(db), repoFactory.Student)
+	repoFactory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	students := owners.PresenceStudents(testpkg.MustDatabase(db), repoFactory.Student)
 	student := testpkg.CreateTestStudent(t, db, "Live", "Status", "LS1")
 	ctx := testpkg.Ctx(t)
 

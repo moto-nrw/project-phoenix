@@ -2,7 +2,6 @@ package timetracking
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -11,14 +10,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// CheckOut ends the running work session of the staff member, whichever day it
-// was opened on. Resolving the day from the clock instead would strand a block
-// that crossed Berlin midnight: check-in refuses while it is open, so a
-// today-only checkout would leave no way to close it.
 func (s *workSessionService) CheckOut(ctx context.Context, staffID int64, reason string) (*WorkSession, error) {
 	day, err := s.openBlockDay(ctx, staffID)
 	if err != nil {
@@ -51,7 +48,6 @@ func (s *workSessionService) openBlockDay(ctx context.Context, staffID int64) (c
 	return calendar.DateFromTime(s.now()), nil
 }
 
-// CheckOutOn ends the open session of an explicit calendar day.
 func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day calendar.Date, reason string) (*WorkSession, error) {
 	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, err
@@ -60,13 +56,13 @@ func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day 
 	session, err := s.repo.GetOpenByStaffAndDate(ctx, staffID, day)
 	if err != nil {
 		if isRecordNotFound(err) {
-			return nil, errors.New(errNoActiveSession)
+			return nil, workforce.ErrNoActiveSession
 		}
 		return nil, fmt.Errorf(errGetCurrentSession, err)
 	}
 
 	if session == nil {
-		return nil, errors.New(errNoActiveSession)
+		return nil, workforce.ErrNoActiveSession
 	}
 
 	now := s.now()
@@ -94,7 +90,7 @@ func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day 
 		return nil, fmt.Errorf("failed to close session: %w", err)
 	}
 	if !closed {
-		return nil, errors.New(errNoActiveSession)
+		return nil, workforce.ErrNoActiveSession
 	}
 
 	if deviation != nil {
@@ -303,5 +299,9 @@ func (s *workSessionService) runInWorkSessionTx(ctx context.Context, fn func(con
 	if s.db == nil {
 		return fn(ctx)
 	}
+	return tenant.NewTransactionRunner().RunInTx(ctx, fn)
+}
+
+func runTimeTrackingUnit(ctx context.Context, fn func(context.Context) error) error {
 	return tenant.NewTransactionRunner().RunInTx(ctx, fn)
 }

@@ -3,8 +3,10 @@ package contracttest_test
 import (
 	"testing"
 
+	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/api"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,12 +34,11 @@ func TestParentMessaging_TenantIsolation(t *testing.T) {
 	homeCtx := tenantCtx(t)
 
 	thread := api.ParentStoreThread(testpkg.Tenant(t), chain.StudentID, chain.AccountID)
-	require.NoError(t, repos.Thread.Create(homeCtx, thread))
+	require.NoError(t, testpkg.TenantCommand1(t, homeCtx, db, repos.Thread.Create, thread))
 	message := api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, chain.AccountID,
-		userModels.ParentMessageSenderGuardian, "Nur fuer diese Schule")
-	require.NoError(t, repos.Message.Create(homeCtx, message))
-	advanced, err := repos.Read.MarkReadUpTo(
-		homeCtx, testpkg.Tenant(t), thread.ID, staffAccount.ID, message.CreatedAt, message.ID)
+		owner0.ParentMessageSenderGuardian, "Nur fuer diese Schule")
+	require.NoError(t, testpkg.TenantCommand1(t, homeCtx, db, repos.Message.Create, message))
+	advanced, err := testpkg.TenantQuery5(t, homeCtx, db, repos.Read.MarkReadUpTo, testpkg.Tenant(t), thread.ID, staffAccount.ID, message.CreatedAt, message.ID)
 	require.NoError(t, err)
 	require.True(t, advanced, "the fixture cursor must actually advance")
 
@@ -47,21 +48,21 @@ func TestParentMessaging_TenantIsolation(t *testing.T) {
 	foreignCtx := testpkg.TenantContext(otherTenant)
 
 	t.Run("thread reads are scoped to the owning school", func(t *testing.T) {
-		found, err := repos.Thread.FindByID(foreignCtx, thread.ID)
+		found, err := testpkg.TenantQuery1(t, foreignCtx, db, repos.Thread.FindByID, thread.ID)
 		require.NoError(t, err)
 		assert.Nil(t, found, "another school must not load the thread by id")
 
-		byPair, err := repos.Thread.FindByStudentGuardian(foreignCtx, chain.StudentID, chain.AccountID)
+		byPair, err := testpkg.TenantQuery2(t, foreignCtx, db, repos.Thread.FindByStudentGuardian, chain.StudentID, chain.AccountID)
 		require.NoError(t, err)
 		assert.Nil(t, byPair, "another school must not resolve the (student, guardian) conversation")
 	})
 
 	t.Run("message reads are scoped to the owning school", func(t *testing.T) {
-		found, err := repos.Message.FindByID(foreignCtx, message.ID)
+		found, err := testpkg.TenantQuery1(t, foreignCtx, db, repos.Message.FindByID, message.ID)
 		require.NoError(t, err)
 		assert.Nil(t, found, "another school must not load the message by id")
 
-		listed, err := repos.Message.ListByThread(foreignCtx, thread.ID, 0)
+		listed, err := testpkg.TenantQuery2(t, foreignCtx, db, repos.Message.ListByThread, thread.ID, 0)
 		require.NoError(t, err)
 		assert.Empty(t, listed, "another school must not read the conversation body")
 	})
@@ -69,29 +70,29 @@ func TestParentMessaging_TenantIsolation(t *testing.T) {
 	t.Run("the inbox projection is scoped to the owning school", func(t *testing.T) {
 		// allStudents=true is the widest staff scope there is, so nothing but the
 		// tenant filter can be keeping these rows out.
-		inbox, err := repos.Read.ListInboxForStaff(foreignCtx, staffAccount.ID, true, false)
+		inbox, err := testpkg.TenantQuery3(t, foreignCtx, db, repos.Read.ListInboxForStaff, staffAccount.ID, true, false)
 		require.NoError(t, err)
 		assert.Empty(t, inbox, "another school's staff must not see the thread in their inbox")
 
-		unread, err := repos.Read.UnreadMessageCountForStaff(foreignCtx, staffAccount.ID, true)
+		unread, err := testpkg.TenantQuery2(t, foreignCtx, db, repos.Read.UnreadMessageCountForStaff, staffAccount.ID, true)
 		require.NoError(t, err)
 		assert.Zero(t, unread, "another school's badge must not count this school's messages")
 
-		threads, err := repos.Read.ListThreadsForStudent(foreignCtx, staffAccount.ID, chain.StudentID)
+		threads, err := testpkg.TenantQuery2(t, foreignCtx, db, repos.Read.ListThreadsForStudent, staffAccount.ID, chain.StudentID)
 		require.NoError(t, err)
 		assert.Empty(t, threads, "another school must not list the child's conversations")
 
-		header, err := repos.Read.FindThreadHeader(foreignCtx, thread.ID)
+		header, err := testpkg.TenantQuery1(t, foreignCtx, db, repos.Read.FindThreadHeader, thread.ID)
 		require.NoError(t, err)
 		assert.Nil(t, header, "another school must not read the child and guardian names")
 	})
 
 	t.Run("read cursors are scoped to the owning school", func(t *testing.T) {
-		cursor, err := repos.Read.GuardianReadCursor(foreignCtx, thread.ID)
+		cursor, err := testpkg.TenantQuery1(t, foreignCtx, db, repos.Read.GuardianReadCursor, thread.ID)
 		require.NoError(t, err)
 		assert.Nil(t, cursor, "another school must not read the guardian's position")
 
-		other, err := repos.Read.LatestReadCursorByOther(foreignCtx, thread.ID, chain.AccountID)
+		other, err := testpkg.TenantQuery2(t, foreignCtx, db, repos.Read.LatestReadCursorByOther, thread.ID, chain.AccountID)
 		require.NoError(t, err)
 		assert.Nil(t, other, "another school's staff cursor must not satisfy the read receipt")
 	})
@@ -99,15 +100,15 @@ func TestParentMessaging_TenantIsolation(t *testing.T) {
 	t.Run("the owning school still reads its own rows", func(t *testing.T) {
 		// The mirror assertion: without it a filter that excludes everything
 		// would pass every check above.
-		found, err := repos.Thread.FindByID(homeCtx, thread.ID)
+		found, err := testpkg.TenantQuery1(t, homeCtx, db, repos.Thread.FindByID, thread.ID)
 		require.NoError(t, err)
 		require.NotNil(t, found)
 
-		listed, err := repos.Message.ListByThread(homeCtx, thread.ID, 0)
+		listed, err := testpkg.TenantQuery2(t, homeCtx, db, repos.Message.ListByThread, thread.ID, 0)
 		require.NoError(t, err)
 		assert.Len(t, listed, 1)
 
-		header, err := repos.Read.FindThreadHeader(homeCtx, thread.ID)
+		header, err := testpkg.TenantQuery1(t, homeCtx, db, repos.Read.FindThreadHeader, thread.ID)
 		require.NoError(t, err)
 		require.NotNil(t, header)
 	})

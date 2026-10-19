@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -31,21 +33,21 @@ const (
 // with the School Membership owner.
 func adapterWorkforce(t *testing.T, db *bun.DB) workforce.Capability {
 	t.Helper()
-	membership, err := NewSchoolMembership(testpkg.NewDatabase(t, db))
+	membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	capability, err := NewWorkforce(testpkg.NewDatabase(t, db), membership)
+	capability, err := owners.NewWorkforce(testpkg.NewDatabase(t, db), membership)
 	require.NoError(t, err)
 	return capability
 }
 
 func adapterScheduleRepository(t *testing.T, db *bun.DB) configModels.StaffWorkScheduleRepository {
 	t.Helper()
-	return NewStaffWorkScheduleRepository(adapterWorkforce(t, db))
+	return owners.NewStaffWorkScheduleRepository(adapterWorkforce(t, db))
 }
 
 func adapterModelRepository(t *testing.T, db *bun.DB) configModels.WorkTimeModelRepository {
 	t.Helper()
-	return NewWorkTimeModelRepository(adapterWorkforce(t, db))
+	return owners.NewWorkTimeModelRepository(adapterWorkforce(t, db))
 }
 
 func adapterCalendarDate(year int, month time.Month, day int) configModels.CalendarDate {

@@ -50,6 +50,16 @@ type Person struct {
 
 func (p Person) FullName() string { return p.FirstName + " " + p.LastName }
 
+// PersonDisplayName is the trimmed "first last" display name of a person, so
+// a missing part leaves no stray space.
+func PersonDisplayName(firstName, lastName string) string {
+	return strings.TrimSpace(firstName + " " + lastName)
+}
+
+// PersonIsLive reports a person the directory has not soft-deleted: a deleted
+// person carries its deletion time.
+func PersonIsLive(deletedAt *time.Time) bool { return deletedAt == nil }
+
 type CreatePerson struct {
 	FirstName string
 	LastName  string
@@ -158,6 +168,7 @@ type Command interface {
 }
 
 type Capability interface {
+	StudentTagRelease
 	Query
 	Command
 }
@@ -181,6 +192,7 @@ type engine interface {
 	guardianEngine
 	guardianPortalEngine
 	GuardianLifecycleCommand
+	childlessGuardianPurge
 	RenamePerson(ctx context.Context, personID int64, firstName, lastName *string) error
 	PersonDetailsCommand
 	PersonRemovalCommand
@@ -206,14 +218,28 @@ type engine interface {
 
 type Module struct {
 	engine    engine
-	guardians guardianProviderSlot
+	guardians GuardianProvider
 }
 
-func NewModule(engine engine) *Module {
+// NewModule wraps the engine. The guardian provider serves the
+// application-level guardian flows; without one they refuse with
+// ErrGuardianProviderUnbound.
+func NewModule(engine engine, guardians ...GuardianProvider) *Module {
 	if engine == nil {
 		panic("people directory: engine is required")
 	}
-	return &Module{engine: engine}
+	module := &Module{engine: engine}
+	switch len(guardians) {
+	case 0:
+	case 1:
+		if guardians[0] == nil {
+			panic("people directory: guardian provider is required")
+		}
+		module.guardians = guardians[0]
+	default:
+		panic("people directory: at most one guardian provider is allowed")
+	}
+	return module
 }
 
 func (m *Module) CreatePerson(ctx context.Context, input CreatePerson) (Person, error) {

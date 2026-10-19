@@ -75,6 +75,15 @@ type StudentAuditCommand interface {
 	RecordStudentPickupPlan(ctx context.Context, studentID int64, before, after, result, reason string, editedBy int64, editedByName string) error
 }
 
+// StudentAuditError reports that an audited student write stored the row but
+// could not append its change history. It reads as the recorder's error, so a
+// caller that names the failed step keeps the recorder's text and chain.
+type StudentAuditError struct{ Err error }
+
+func (e *StudentAuditError) Error() string { return e.Err.Error() }
+
+func (e *StudentAuditError) Unwrap() error { return e.Err }
+
 func (m *Module) ListStudentChangeHistory(ctx context.Context, studentID int64) ([]StudentFieldEdit, error) {
 	if studentID <= 0 {
 		return nil, invalidStudent("student ID is required")

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"reflect"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -36,6 +35,12 @@ func CaptureUnitOfWorkEvidence(ctx context.Context) (context.Context, func() []U
 		events = append(events, UnitOfWorkEvidence{Kind: string(event.Kind), Result: string(event.Result), Retries: event.Retries, Duration: event.Duration})
 	})
 	return ctx, func() []UnitOfWorkEvidence { return append([]UnitOfWorkEvidence(nil), events...) }
+}
+
+// ContextForScope binds a portal scope for fixtures that verify wrong-portal
+// and missing-school rejection without importing runtime internals.
+func ContextForScope(ctx context.Context, scope string) context.Context {
+	return tenant.WithScope(ctx, scope)
 }
 
 // ContextWithTenantRuntime binds a tenant runtime to ctx, for repository
@@ -208,22 +213,6 @@ func TenantRuntimeMiddleware(tb testing.TB, db *bun.DB) func(http.Handler) http.
 	}
 }
 
-// SetTenantRuntime wires a test runtime without forcing behavior tests to
-// import the tenant runtime package directly.
-func SetTenantRuntime(tb testing.TB, target any, db *bun.DB) {
-	tb.Helper()
-	setter, ok := target.(interface{ SetTenantRuntime(tenant.UnitOfWork) })
-	if ok {
-		setter.SetTenantRuntime(TenantRuntime(tb, db))
-		return
-	}
-	method := reflect.ValueOf(target).MethodByName("SetRuntime")
-	if !method.IsValid() {
-		tb.Fatalf("%T does not accept a tenant runtime", target)
-	}
-	method.Call([]reflect.Value{reflect.ValueOf(SettingsRuntime(tb, db))})
-}
-
 // SettingsRuntimeAdapter implements the consumer-owned settings runtime port.
 type SettingsRuntimeAdapter struct {
 	db      *bun.DB
@@ -242,13 +231,18 @@ func (r SettingsRuntimeAdapter) HasTransaction(ctx context.Context) bool {
 	return ok
 }
 
-func (r SettingsRuntimeAdapter) DB(ctx context.Context) bun.IDB {
+func (r SettingsRuntimeAdapter) DB(ctx context.Context) (bun.IDB, error) {
 	if raw, ok := tenant.TransactionFromContext(ctx); ok {
-		if tx, valid := raw.(bun.Tx); valid {
-			return tx
+		switch tx := raw.(type) {
+		case bun.Tx:
+			return tx, nil
+		case *bun.Tx:
+			if tx != nil {
+				return tx, nil
+			}
 		}
 	}
-	return r.db
+	return nil, fmt.Errorf("settings fixture: transaction is required")
 }
 
 func (r SettingsRuntimeAdapter) LockStaffBalance(ctx context.Context, staffID int64) error {
@@ -271,7 +265,11 @@ func (r SettingsRuntimeAdapter) LockStaffAssignment(ctx context.Context, staffID
 		return fmt.Errorf("staff assignment requires a tenant transaction")
 	}
 	var id int64
-	return r.DB(ctx).NewSelect().TableExpr("users.staff_school_memberships").Column("id").
+	db, err := r.DB(ctx)
+	if err != nil {
+		return err
+	}
+	return db.NewSelect().TableExpr("users.staff_school_memberships").Column("id").
 		Where("tenant_id = ?", r.TenantID(ctx)).Where("id = ?", staffID).
 		Where("deleted_at IS NULL").For("UPDATE").Scan(ctx, &id)
 }
@@ -286,7 +284,11 @@ func (r SettingsRuntimeAdapter) LiveStaffIDs(ctx context.Context, membershipIDs 
 	if len(membershipIDs) == 0 {
 		return ids, nil
 	}
-	query := r.DB(ctx).NewSelect().
+	db, err := r.DB(ctx)
+	if err != nil {
+		return nil, err
+	}
+	query := db.NewSelect().
 		TableExpr(`users.staff_school_memberships AS "staff"`).
 		ColumnExpr(`"staff".id`).
 		Where(`"staff".id IN (?)`, bun.List(membershipIDs)).
@@ -447,3 +449,199 @@ func (TenantTransactionRuntime) TenantID(ctx context.Context) int64 { return ten
 
 // MarkRollback asks the request's tenant transaction to roll back.
 func (TenantTransactionRuntime) MarkRollback(ctx context.Context) { tenant.MarkRollback(ctx) }
+
+// TenantQuery1 arranges the explicit unit required by raw owner adapters.
+func TenantQuery1[T any, A0 any](tb testing.TB, ctx context.Context, db *bun.DB, query func(context.Context, A0) (T, error), arg0 A0) (value T, err error) {
+	tb.Helper()
+	if _, active := tenant.TransactionFromContext(ctx); active {
+		return query(ctx, arg0)
+	}
+	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		value, err = query(txCtx, arg0)
+		return err
+	})
+	return value, err
+}
+
+// MeasuredTenantQuery1 measures an application read inside the same explicit
+// request unit production supplies. Transaction setup/commit is outside the
+// measurement; every business statement remains counted, cumulatively.
+func MeasuredTenantQuery1[T any, A0 any](tb testing.TB, ctx context.Context, db *bun.DB, counter *QueryCounter, query func(context.Context, A0) (T, error), arg0 A0) (value T, err error) {
+	tb.Helper()
+	counter.Stop()
+	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		counter.Start()
+		defer counter.Stop()
+		value, err = query(txCtx, arg0)
+		return err
+	})
+	return value, err
+}
+
+// MeasuredTenantQuery2 measures an application read inside the same explicit
+// request unit production supplies. Transaction setup/commit is outside the
+// measurement; every business statement remains counted, cumulatively.
+func MeasuredTenantQuery2[T any, A0 any, A1 any](tb testing.TB, ctx context.Context, db *bun.DB, counter *QueryCounter, query func(context.Context, A0, A1) (T, error), arg0 A0, arg1 A1) (value T, err error) {
+	tb.Helper()
+	counter.Stop()
+	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		counter.Start()
+		defer counter.Stop()
+		value, err = query(txCtx, arg0, arg1)
+		return err
+	})
+	return value, err
+}
+
+// TenantCommand0 supplies an explicit fixture unit for a raw owner adapter.
+func TenantCommand0(tb testing.TB, ctx context.Context, db *bun.DB, call func(context.Context) error) (err error) {
+	tb.Helper()
+	if _, active := tenant.TransactionFromContext(ctx); active {
+		return call(ctx)
+	}
+	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		return call(txCtx)
+	})
+	return err
+}
+
+// TenantCommand1 supplies an explicit fixture unit for a raw owner adapter.
+func TenantCommand1[A0 any](tb testing.TB, ctx context.Context, db *bun.DB, call func(context.Context, A0) error, arg0 A0) (err error) {
+	tb.Helper()
+	if _, active := tenant.TransactionFromContext(ctx); active {
+		return call(ctx, arg0)
+	}
+	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		return call(txCtx, arg0)
+	})
+	return err
+}
+
+// TenantCommand2 supplies an explicit fixture unit for a raw owner adapter.
+func TenantCommand2[A0 any, A1 any](tb testing.TB, ctx context.Context, db *bun.DB, call func(context.Context, A0, A1) error, arg0 A0, arg1 A1) (err error) {
+	tb.Helper()
+	if _, active := tenant.TransactionFromContext(ctx); active {
+		return call(ctx, arg0, arg1)
+	}
+	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		return call(txCtx, arg0, arg1)
+	})
+	return err
+}
+
+// TenantCommand3 supplies an explicit fixture unit for a raw owner adapter.
+func TenantCommand3[A0 any, A1 any, A2 any](tb testing.TB, ctx context.Context, db *bun.DB, call func(context.Context, A0, A1, A2) error, arg0 A0, arg1 A1, arg2 A2) (err error) {
+	tb.Helper()
+	if _, active := tenant.TransactionFromContext(ctx); active {
+		return call(ctx, arg0, arg1, arg2)
+	}
+	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		return call(txCtx, arg0, arg1, arg2)
+	})
+	return err
+}
+
+// TenantQuery0 supplies an explicit fixture unit for a raw owner adapter.
+func TenantQuery0[T any](tb testing.TB, ctx context.Context, db *bun.DB, call func(context.Context) (T, error)) (value T, err error) {
+	tb.Helper()
+	if _, active := tenant.TransactionFromContext(ctx); active {
+		return call(ctx)
+	}
+	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		value, err = call(txCtx)
+		return err
+	})
+	return value, err
+}
+
+// TenantQuery2 supplies an explicit fixture unit for a raw owner adapter.
+func TenantQuery2[T any, A0 any, A1 any](tb testing.TB, ctx context.Context, db *bun.DB, call func(context.Context, A0, A1) (T, error), arg0 A0, arg1 A1) (value T, err error) {
+	tb.Helper()
+	if _, active := tenant.TransactionFromContext(ctx); active {
+		return call(ctx, arg0, arg1)
+	}
+	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		value, err = call(txCtx, arg0, arg1)
+		return err
+	})
+	return value, err
+}
+
+// TenantQuery3 supplies an explicit fixture unit for a raw owner adapter.
+func TenantQuery3[T any, A0 any, A1 any, A2 any](tb testing.TB, ctx context.Context, db *bun.DB, call func(context.Context, A0, A1, A2) (T, error), arg0 A0, arg1 A1, arg2 A2) (value T, err error) {
+	tb.Helper()
+	if _, active := tenant.TransactionFromContext(ctx); active {
+		return call(ctx, arg0, arg1, arg2)
+	}
+	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		value, err = call(txCtx, arg0, arg1, arg2)
+		return err
+	})
+	return value, err
+}
+
+func TenantCommand4[A0 any, A1 any, A2 any, A3 any](tb testing.TB, ctx context.Context, db *bun.DB, call func(context.Context, A0, A1, A2, A3) error, arg0 A0, arg1 A1, arg2 A2, arg3 A3) (err error) {
+	tb.Helper()
+	if _, active := tenant.TransactionFromContext(ctx); active {
+		return call(ctx, arg0, arg1, arg2, arg3)
+	}
+	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		return call(txCtx, arg0, arg1, arg2, arg3)
+	})
+	return err
+}
+
+func TenantQuery4[T any, A0 any, A1 any, A2 any, A3 any](tb testing.TB, ctx context.Context, db *bun.DB, call func(context.Context, A0, A1, A2, A3) (T, error), arg0 A0, arg1 A1, arg2 A2, arg3 A3) (value T, err error) {
+	tb.Helper()
+	if _, active := tenant.TransactionFromContext(ctx); active {
+		return call(ctx, arg0, arg1, arg2, arg3)
+	}
+	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		value, err = call(txCtx, arg0, arg1, arg2, arg3)
+		return err
+	})
+	return value, err
+}
+
+func TenantCommand5[A0 any, A1 any, A2 any, A3 any, A4 any](tb testing.TB, ctx context.Context, db *bun.DB, call func(context.Context, A0, A1, A2, A3, A4) error, arg0 A0, arg1 A1, arg2 A2, arg3 A3, arg4 A4) (err error) {
+	tb.Helper()
+	if _, active := tenant.TransactionFromContext(ctx); active {
+		return call(ctx, arg0, arg1, arg2, arg3, arg4)
+	}
+	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		return call(txCtx, arg0, arg1, arg2, arg3, arg4)
+	})
+	return err
+}
+
+func TenantQuery5[T any, A0 any, A1 any, A2 any, A3 any, A4 any](tb testing.TB, ctx context.Context, db *bun.DB, call func(context.Context, A0, A1, A2, A3, A4) (T, error), arg0 A0, arg1 A1, arg2 A2, arg3 A3, arg4 A4) (value T, err error) {
+	tb.Helper()
+	if _, active := tenant.TransactionFromContext(ctx); active {
+		return call(ctx, arg0, arg1, arg2, arg3, arg4)
+	}
+	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		value, err = call(txCtx, arg0, arg1, arg2, arg3, arg4)
+		return err
+	})
+	return value, err
+}
+
+// TenantQueryPair0 supplies an explicit fixture unit for a two-value owner read.
+func TenantQueryPair0[T any, U any](tb testing.TB, ctx context.Context, db *bun.DB, call func(context.Context) (T, U, error)) (first T, second U, err error) {
+	tb.Helper()
+	if _, active := tenant.TransactionFromContext(ctx); active {
+		return call(ctx)
+	}
+	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error { first, second, err = call(txCtx); return err })
+	return first, second, err
+}
+
+// TenantQueryPair1 supplies an explicit fixture unit for a two-value owner read.
+func TenantQueryPair1[T any, U any, A0 any](tb testing.TB, ctx context.Context, db *bun.DB, call func(context.Context, A0) (T, U, error), arg0 A0) (first T, second U, err error) {
+	tb.Helper()
+	if _, active := tenant.TransactionFromContext(ctx); active {
+		return call(ctx, arg0)
+	}
+	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error { first, second, err = call(txCtx, arg0); return err })
+	return first, second, err
+}

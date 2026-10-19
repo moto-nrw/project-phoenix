@@ -21,7 +21,7 @@ import (
 // composition-root renderers. Each refusal keeps its status, answers in the
 // RFC 9457 envelope with its own iot.* code and carries its diagnostic text
 // in detail (#2508, #2520).
-func checkIoTErrorCodes(t *testing.T, api *serveGraph) {
+func checkIoTErrorCodes(t *testing.T, api *goldenRuntime) {
 	t.Helper()
 	testpkg.OwnTenant(t)
 	db := testpkg.SetupTestDB(t)
@@ -110,7 +110,7 @@ func checkIoTErrorCodes(t *testing.T, api *serveGraph) {
 	})
 }
 
-func iotCodeRequest(t *testing.T, api *serveGraph, method, path, authorization, pin string, body map[string]any) *httptest.ResponseRecorder {
+func iotCodeRequest(t *testing.T, api *goldenRuntime, method, path, authorization, pin string, body map[string]any) *httptest.ResponseRecorder {
 	t.Helper()
 	payload := ""
 	if body != nil {

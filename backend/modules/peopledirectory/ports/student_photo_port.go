@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
 // PhotoSettings is the narrow settings surface the photo feature gate needs.
@@ -36,8 +36,8 @@ type StudentPhotoService interface {
 	// ApplyConsentTransition reconciles a requested photo consent against the
 	// row the caller holds, mutating it in place; the caller persists it. The
 	// file a withdrawal detaches is removed after the caller's commit.
-	ApplyConsentTransition(ctx context.Context, requestedConsent *bool, fresh *users.Student)
-	ScheduleUnlinkAfterCommit(ctx context.Context, storedURL string)
+	ApplyConsentTransition(ctx context.Context, requestedConsent *bool, fresh *peopleValues.StudentState) error
+	ScheduleUnlinkAfterCommit(ctx context.Context, storedURL string) error
 }
 
 // StudentConsentRecorder appends the Audit Platform trail entry for an
@@ -46,7 +46,7 @@ type StudentPhotoService interface {
 type StudentConsentRecorder interface {
 	RecordTransitions(
 		ctx context.Context,
-		before, after *users.Student,
+		before, after *peopleValues.StudentState,
 		source string,
 		actorAccountID *int64,
 		changedAt time.Time,

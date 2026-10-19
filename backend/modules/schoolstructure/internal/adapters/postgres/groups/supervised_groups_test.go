@@ -3,7 +3,7 @@ package groups_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -33,7 +33,7 @@ func TestGroupRepository_ListStaffIDsByEducationGroupIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Group
+	repo := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).Group
 	ctx := testpkg.Ctx(t)
 	today := calendar.TodayDate()
 
@@ -45,7 +45,7 @@ func TestGroupRepository_ListStaffIDsByEducationGroupIDs(t *testing.T) {
 		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID,
 			today.AddDays(-1), today.AddDays(1))
 
-		pairs, err := repo.ListStaffIDsByEducationGroupIDs(ctx, []int64{group.ID}, today)
+		pairs, err := testpkg.TenantQuery2(t, ctx, db, repo.ListStaffIDsByEducationGroupIDs, []int64{group.ID}, today)
 		require.NoError(t, err)
 
 		staff := staffIDsFor(pairs, group.ID)
@@ -59,14 +59,14 @@ func TestGroupRepository_ListStaffIDsByEducationGroupIDs(t *testing.T) {
 		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID,
 			today.AddDays(-10), today.AddDays(-5))
 
-		pairs, err := repo.ListStaffIDsByEducationGroupIDs(ctx, []int64{group.ID}, today)
+		pairs, err := testpkg.TenantQuery2(t, ctx, db, repo.ListStaffIDsByEducationGroupIDs, []int64{group.ID}, today)
 		require.NoError(t, err)
 		assert.NotContains(t, staffIDsFor(pairs, group.ID), substitute.ID,
 			"a substitution that ended last week says nothing about today")
 	})
 
 	t.Run("no groups means no staff", func(t *testing.T) {
-		pairs, err := repo.ListStaffIDsByEducationGroupIDs(ctx, nil, today)
+		pairs, err := testpkg.TenantQuery2(t, ctx, db, repo.ListStaffIDsByEducationGroupIDs, nil, today)
 		require.NoError(t, err)
 		assert.Empty(t, pairs, "an empty request must not resolve to everybody")
 	})
@@ -77,7 +77,7 @@ func TestGroupRepository_ListStaffIDsByEducationGroupIDs(t *testing.T) {
 
 		foreignGroup := testpkg.CreateTestEducationGroupForTenant(t, db, otherTenant, "ByGroupForeign")
 
-		pairs, err := repo.ListStaffIDsByEducationGroupIDs(ctx, []int64{foreignGroup.ID}, today)
+		pairs, err := testpkg.TenantQuery2(t, ctx, db, repo.ListStaffIDsByEducationGroupIDs, []int64{foreignGroup.ID}, today)
 		require.NoError(t, err)
 		assert.Empty(t, staffIDsFor(pairs, foreignGroup.ID))
 	})

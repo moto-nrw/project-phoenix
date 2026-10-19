@@ -87,7 +87,7 @@
   "runtime_evidence": {
     "source": "Local runs on the PR branch. The change moves the composition of the retained services from services into the root without changing what is built, so the evidence is the unchanged suites, the generated caller inventory and the architecture check, not a benchmark rerun.",
     "sources": [
-      "backend/api/service_graph_compose.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/a52dccfc01e977e18c112d164949b819eda552f3/backend/api/service_graph_compose.go",
       "backend/api/service_graph_test.go",
       "backend/architecture/callers/service-factory-2747.json",
       "scripts/backend-service-factory-callers/main.go",

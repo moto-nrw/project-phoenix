@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -20,11 +19,11 @@ import (
 func seedChildWithStatus(t *testing.T, env *rolloverTestEnv, phaseID int64, email, first, last string, grade int16, status string) *enrollmentAPI.RequestChild {
 	t.Helper()
 	child := seedApprovedChild(t, env, phaseID, "Eltern", last, email, first, last, grade)
-	if status == enrollmentModels.ChildStatusApproved {
+	if status == capability.ChildStatusApproved {
 		return child
 	}
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(ctx, child.ID, status, nil, env.creatorID))
+	require.NoError(t, testpkg.TenantCommand4(t, ctx, env.db, env.repos.Enrollment().UpdateChildStatus, child.ID, status, nil, env.creatorID))
 	updated, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), child.ID)
 	require.NoError(t, err)
 	return updated
@@ -42,8 +41,8 @@ func TestRolloverService_PreviewPhaseFromSource_CountsCarriedExcludedReview(t *t
 	seedApprovedChild(t, env, env.sourcePhase.ID, "Anna", "Ahrens", "anna.preview@example.com", "Lena", "Ahrens", 3)
 	seedApprovedChild(t, env, env.sourcePhase.ID, "Bernd", "Berg", "bernd.preview@example.com", "Tim", "Berg", 4)
 	// Not approved: never silently carried, must show up as excluded.
-	seedChildWithStatus(t, env, env.sourcePhase.ID, "carla.preview@example.com", "Mia", "Clasen", 2, enrollmentModels.ChildStatusSubmitted)
-	seedChildWithStatus(t, env, env.sourcePhase.ID, "dora.preview@example.com", "Ole", "Dahl", 2, enrollmentModels.ChildStatusWithdrawn)
+	seedChildWithStatus(t, env, env.sourcePhase.ID, "carla.preview@example.com", "Mia", "Clasen", 2, capability.ChildStatusSubmitted)
+	seedChildWithStatus(t, env, env.sourcePhase.ID, "dora.preview@example.com", "Ole", "Dahl", 2, capability.ChildStatusWithdrawn)
 
 	preview, err := env.rolloverSvc.PreviewPhaseFromSource(ctx, env.sourcePhase.ID, true)
 	require.NoError(t, err)
@@ -51,11 +50,11 @@ func TestRolloverService_PreviewPhaseFromSource_CountsCarriedExcludedReview(t *t
 	assert.Equal(t, 2, preview.CarryCandidateCount)
 	assert.Equal(t, 1, preview.CarriedCount)
 	assert.Equal(t, 1, preview.ReviewCount)
-	assert.Equal(t, map[string]int{enrollmentModels.ReviewReasonGradeAboveMax: 1}, preview.ReviewByReason)
+	assert.Equal(t, map[string]int{capability.ReviewReasonGradeAboveMax: 1}, preview.ReviewByReason)
 	assert.Equal(t, 2, preview.ExcludedCount)
 	assert.Equal(t, map[string]int{
-		enrollmentModels.ChildStatusSubmitted: 1,
-		enrollmentModels.ChildStatusWithdrawn: 1,
+		capability.ChildStatusSubmitted: 1,
+		capability.ChildStatusWithdrawn: 1,
 	}, preview.ExcludedByStatus)
 	assert.Equal(t, 2, preview.RequestCount)
 }
@@ -92,7 +91,7 @@ func TestRolloverService_PreviewPhaseFromSource_IsReadOnly(t *testing.T) {
 
 	// The preview must not mark the source as rolled or create any rows —
 	// a real rollover right after it must still succeed.
-	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptIn, false)
+	req := validRolloverRequest(env, capability.PhaseRolloverModeOptIn, false)
 	req.ServiceStartDate = calendar.NewDate(2027, 2, 1)
 	req.ServiceEndDate = calendar.NewDate(2027, 7, 31)
 	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, req)
@@ -108,7 +107,7 @@ func TestRolloverService_PreviewPhaseFromSource_RejectsAlreadyRolledSource(t *te
 	ctx := testpkg.Ctx(t)
 
 	seedApprovedChild(t, env, env.sourcePhase.ID, "Anna", "Ahrens", "anna.rolled@example.com", "Lena", "Ahrens", 3)
-	_, err := env.rolloverSvc.CreatePhaseFromSource(ctx, validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
+	_, err := env.rolloverSvc.CreatePhaseFromSource(ctx, validRolloverRequest(env, capability.PhaseRolloverModeOptOut, true))
 	require.NoError(t, err)
 
 	_, err = env.rolloverSvc.PreviewPhaseFromSource(ctx, env.sourcePhase.ID, true)

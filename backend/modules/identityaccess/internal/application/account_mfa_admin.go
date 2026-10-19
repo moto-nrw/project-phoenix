@@ -213,6 +213,9 @@ func (f *AccountMFAFlows) OperatorSetGlobalMFAOverride(ctx context.Context, oper
 	failure.Reason = reason
 
 	previous := domain.MFAAdminOverrideNone
+	record := func(txCtx context.Context) error {
+		return f.recordGlobalOverride(txCtx, operatorID, targetAccountID, domain.OperatorMFAOverrideEvidence{Action: "set_global_override", Scope: "platform", Override: override, PreviousOverride: previous, Reason: reason})
+	}
 	txErr := f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
 		if err := f.records.LockAccountForOverrideWrite(txCtx, targetAccountID); err != nil {
 			return err
@@ -228,7 +231,7 @@ func (f *AccountMFAFlows) OperatorSetGlobalMFAOverride(ctx context.Context, oper
 			if err := f.records.DeleteGlobalOverride(txCtx, targetAccountID); err != nil {
 				return fmt.Errorf("clear global mfa override: %w", err)
 			}
-			return nil
+			return record(txCtx)
 		}
 		if err := f.records.UpsertGlobalOverride(txCtx, domain.AccountMFAOverride{
 			AccountID: targetAccountID, Override: override, SetBy: operatorID,
@@ -241,7 +244,7 @@ func (f *AccountMFAFlows) OperatorSetGlobalMFAOverride(ctx context.Context, oper
 				return fmt.Errorf("revoke trusted devices: %w", err)
 			}
 		}
-		return nil
+		return record(txCtx)
 	})
 	if txErr != nil {
 		failure.ErrMsg = txErr.Error()
@@ -249,19 +252,6 @@ func (f *AccountMFAFlows) OperatorSetGlobalMFAOverride(ctx context.Context, oper
 		return txErr
 	}
 
-	// An account-wide override is a platform action with no single school.
-	// The authentication ledger is school-scoped and would drop the row, so
-	// this one goes to the operator action log instead — the same table the
-	// operator's own MFA actions use.
-	target := targetAccountID
-	f.audit.RecordOperatorActionAsync(domain.OperatorAuditEntry{
-		OperatorID: operatorID, Action: domain.OperatorAuditActionMFAAdminOverride,
-		ResourceType: domain.OperatorAuditResourceAccount, ResourceID: &target,
-		MFA: &domain.OperatorMFAEvidence{Override: &domain.OperatorMFAOverrideEvidence{
-			Action: "set_global_override", Scope: "platform", Override: override,
-			PreviousOverride: previous, Reason: reason,
-		}},
-	})
 	return nil
 }
 
@@ -383,4 +373,8 @@ func (f *AccountMFAFlows) recordAdminFailure(ctx context.Context, failure adminO
 			Action: failure.Action, Override: failure.Override, Reason: failure.Reason,
 		}},
 	})
+}
+
+func (f *AccountMFAFlows) recordGlobalOverride(ctx context.Context, operatorID, targetID int64, evidence domain.OperatorMFAOverrideEvidence) error {
+	return f.audit.RecordOperatorAction(ctx, domain.OperatorAuditEntry{OperatorID: operatorID, Action: domain.OperatorAuditActionMFAAdminOverride, ResourceType: domain.OperatorAuditResourceAccount, ResourceID: &targetID, MFA: &domain.OperatorMFAEvidence{Override: &evidence}})
 }

@@ -197,12 +197,14 @@ type DeviceSession struct {
 	RoomName     *string
 }
 
-// Person is the part of a person the soft delete reads.
+// Person is the part of a person the soft delete reads. FormerStaff is true
+// when the person holds retired staff memberships and no live one.
 type Person struct {
 	ID          int64
 	TenantID    int64
 	AccountID   *int64
 	HasRFIDCard bool
+	FormerStaff bool
 }
 
 // PersonListing is one person of the operator person listings.
@@ -230,66 +232,4 @@ type ActivityCategory struct {
 	Name        string
 	Description string
 	Color       string
-}
-
-// DashboardCounts are the platform-wide counts the operator overview shows
-// before devices are attached.
-type DashboardCounts struct {
-	Organizations int
-	Schools       int
-	Accounts      int
-}
-
-// OrganizationSummary is an organisation with its school and account counts.
-type OrganizationSummary struct {
-	ID           int64
-	Name         string
-	Slug         string
-	Active       bool
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	DeletedAt    *time.Time
-	Settings     string
-	SchoolCount  int
-	AccountCount int
-}
-
-// SchoolSummary is a school with its organisation's name and account count.
-type SchoolSummary struct {
-	ID               int64
-	OrganizationID   int64
-	OrganizationName string
-	Name             string
-	Slug             string
-	Subdomain        string
-	Active           bool
-	Hidden           bool
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
-	DeletedAt        *time.Time
-	Address          string
-	City             string
-	Zip              string
-	Phone            string
-	Email            string
-	Settings         string
-	AccountCount     int
-	// ChildQuotaBundles is nil when the school has no Kinderkontingent.
-	ChildQuotaBundles    *int
-	ChildQuotaBundleSize int
-}
-
-// PWAPortalStaff and PWAPortalParent are the portal labels the operator
-// dashboard's PWA usage query writes (the stored push portals of Delivery).
-const (
-	PWAPortalStaff  = "staff"
-	PWAPortalParent = "parent"
-)
-
-// PWAUsageRow is one (school, portal) bucket of PWA standalone usage.
-type PWAUsageRow struct {
-	TenantID        int64
-	Portal          string
-	StandaloneUsers int
-	EligibleUsers   int
 }

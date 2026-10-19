@@ -6,21 +6,23 @@ import (
 	"fmt"
 	"time"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type instanceAutoEnd struct {
-	instances  scheduleModel.ActivityInstanceRepository
+	instances  ports.ActivityInstanceRecords
 	completion timetable.InstanceLifecycle
 }
 
 // NewInstanceAutoEnd composes the tenant-scoped automatic completion, which
 // completes through the lifecycle the manual completion uses.
-func NewInstanceAutoEnd(instances scheduleModel.ActivityInstanceRepository, completion timetable.InstanceLifecycle) (timetable.InstanceAutoEnd, error) {
+func NewInstanceAutoEnd(instances ports.ActivityInstanceRecords, completion timetable.InstanceLifecycle) (timetable.InstanceAutoEnd, error) {
 	if instances == nil || completion == nil {
 		return nil, errors.New("timetable auto-end: instances and lifecycle are required")
 	}
@@ -36,9 +38,7 @@ func (s *instanceAutoEnd) RunForTenant(ctx context.Context, now time.Time, grace
 	defer func() {
 		result.DurationMS = time.Since(startedAt).Milliseconds()
 	}()
-	options := domain.NewListOptions()
-	options.Filter.Equal("status", scheduleModel.InstanceStatusActive)
-	instances, err := legacyList[*scheduleModel.ActivityInstance](ctx, s.instances, options)
+	instances, err := listInstances(ctx, s.instances, ports.LegacyInstanceFilter{Status: scheduleModel.InstanceStatusActive})
 	if err != nil {
 		return result, fmt.Errorf("load active activity instances: %w", err)
 	}

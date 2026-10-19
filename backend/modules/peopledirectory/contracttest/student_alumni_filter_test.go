@@ -113,22 +113,22 @@ func TestStudentRepository_AlumniExcludedFromGroupInfoReads(t *testing.T) {
 	testpkg.SetStudentLifecycle(t, db, alumnusStudent.ID, testpkg.StudentStatusAlumnus, nil, nil)
 
 	t.Run("FindAllWithGroups excludes alumni", func(t *testing.T) {
-		infos, err := repos.Student.FindAllWithGroups(ctx)
+		infos, err := testpkg.TenantQuery0(t, ctx, db, repos.Student.FindAllWithGroups)
 		require.NoError(t, err)
 		ids := make([]int64, 0, len(infos))
 		for _, info := range infos {
-			ids = append(ids, info.ID)
+			ids = append(ids, info.Record.ID)
 		}
 		assert.Contains(t, ids, activeStudent.ID)
 		assert.NotContains(t, ids, alumnusStudent.ID)
 	})
 
 	t.Run("FindByTeacherIDWithGroups excludes alumni", func(t *testing.T) {
-		infos, err := repos.Student.FindByTeacherIDWithGroups(ctx, teacher.ID)
+		infos, err := testpkg.TenantQuery1(t, ctx, db, repos.Student.FindByTeacherIDWithGroups, teacher.ID)
 		require.NoError(t, err)
 		ids := make([]int64, 0, len(infos))
 		for _, info := range infos {
-			ids = append(ids, info.ID)
+			ids = append(ids, info.Record.ID)
 		}
 		assert.Contains(t, ids, activeStudent.ID)
 		assert.NotContains(t, ids, alumnusStudent.ID)

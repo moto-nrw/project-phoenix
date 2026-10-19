@@ -6,8 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
+
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -115,7 +117,7 @@ func TestValidateNoteSubjectForChild(t *testing.T) {
 	t.Parallel()
 
 	groupID, activityID := int64(9), int64(7)
-	child := securityruntime.StudentNoteChild{
+	child := securitycontract.StudentNoteChild{
 		GroupID: &groupID, ActivityGroupIDs: []int64{activityID},
 	}
 
@@ -155,7 +157,7 @@ func TestBuildNoteResponseDoesNotOfferEditingForOrphanedLeadershipNote(t *testin
 	}
 
 	groupID := int64(19)
-	response := buildNoteResponse(note, securityruntime.StudentNoteAudience{
+	response := buildNoteResponse(note, securitycontract.StudentNoteAudience{
 		LedEducationGroupIDs: []int64{groupID},
 	}, &peopleModule.StudentState{GroupID: &groupID}, author)
 	assert.False(t, response.CanEdit,

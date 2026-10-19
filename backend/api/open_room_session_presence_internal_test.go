@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -124,7 +126,7 @@ func TestRunningSessionIDsPreserveSelectionAndErrors(t *testing.T) {
 	ended := time.Now()
 	failure := errors.New("presence query failed")
 	for _, queryErr := range []error{nil, failure} {
-		adapter := OpenRoomSessionPresence{Presence: runningSessionQuery{query: func(got context.Context, filter studentpresence.LiveGroupFilter) ([]studentpresence.LiveGroup, error) {
+		adapter := owners.OpenRoomSessionPresence{Presence: runningSessionQuery{query: func(got context.Context, filter studentpresence.LiveGroupFilter) ([]studentpresence.LiveGroup, error) {
 			require.Same(t, ctx, got)
 			require.Equal(t, studentpresence.LiveGroupFilter{}, filter)
 			return []studentpresence.LiveGroup{{ID: 11}, {ID: 14, EndTime: &ended}, {ID: 12}, {ID: 13}}, queryErr

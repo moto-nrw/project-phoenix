@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -1432,10 +1433,8 @@ func TestDeletePeriod(t *testing.T) {
 
 	t.Run("returns 409 when roster links cannot be unscoped", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{
-			period: newTestPeriod(),
-			deleteErr: errors.New(
-				`delete calendar period: duplicate key value violates unique constraint "idx_student_enrollments_active"`,
-			),
+			period:    newTestPeriod(),
+			deleteErr: fmt.Errorf("delete calendar period: %w", schoolcalendar.ErrCalendarPeriodRosterConflict),
 		}
 		res := NewResource(periodDependencies(mock))
 		router := setupTestRouter(res.deletePeriod, http.MethodDelete, true)
@@ -1490,9 +1489,7 @@ func TestDeletePeriod_RosterConflictMarksTenantRollback(t *testing.T) {
 			require.Equal(t, int64(42), id)
 			require.NoError(t, probe.Write(ctx))
 			require.True(t, probe.Written(), "probe insert must happen inside the tenant tx")
-			return errors.New(
-				`delete calendar period: duplicate key value violates unique constraint "idx_student_enrollments_active"`,
-			)
+			return fmt.Errorf("delete calendar period: %w", schoolcalendar.ErrCalendarPeriodRosterConflict)
 		},
 	}
 	res := NewResource(periodDependencies(mock))

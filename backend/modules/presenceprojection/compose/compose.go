@@ -1,7 +1,7 @@
-// Package compose names the presence legacy view's readers for the roots.
 package compose
 
-import "github.com/moto-nrw/project-phoenix/modules/presenceprojection"
+import presenceprojection "github.com/moto-nrw/project-phoenix/modules/presenceprojection/internal/adapters/postgres"
 
-// Reader serves the reads the roots bind to other owners' ports.
-type Reader = presenceprojection.Reader
+func New() presenceprojection.Reader {
+	return presenceprojection.Reader{}
+}

@@ -191,6 +191,9 @@ const (
 	AuthEventTokenRevoked             = "token_revoked"
 	AuthEventAccountWideWipeCompleted = "account_wide_wipe_completed"
 	AuthEventTenantSwitch             = "tenant_switch"
+	AuthEventTenantAccessGranted      = "tenant_access_granted"
+	AuthEventTenantRoleChanged        = "tenant_role_changed"
+	AuthEventTenantAccessRevoked      = "tenant_access_revoked"
 )
 
 // AuthEvent is one authentication ledger entry with its typed evidence.
@@ -210,6 +213,52 @@ type AuthEvent struct {
 	CompletedWipe   *CompletedWipeEvidence
 	// MFA is set on the mfa_* events (#3331).
 	MFA *MFAEvidence
+}
+
+// AuthEventMetadataEntry is one metadata key of an auth audit event and the
+// value the Audit platform stores under it.
+type AuthEventMetadataEntry struct {
+	Key   string
+	Value any
+}
+
+// Metadata lists the audit metadata of the event's evidence in recording
+// order; a later entry with the same key replaces an earlier one. A tenant
+// access event adds the role facts its type changes; the MFA evidence adds
+// none.
+func (e AuthEvent) Metadata() []AuthEventMetadataEntry {
+	var entries []AuthEventMetadataEntry
+	add := func(key string, value any) {
+		entries = append(entries, AuthEventMetadataEntry{Key: key, Value: value})
+	}
+	if evidence := e.TenantAccess; evidence != nil {
+		add("school_id", evidence.SchoolID)
+		add("school_name", evidence.SchoolName)
+		add("operator_id", evidence.OperatorID)
+		switch e.Type {
+		case AuthEventTenantAccessGranted:
+			add("role", evidence.Role)
+		case AuthEventTenantRoleChanged:
+			add("role", evidence.Role)
+			add("removed_roles", evidence.RemovedRoles)
+		case AuthEventTenantAccessRevoked:
+			add("account_deactivated", evidence.AccountDeactivated)
+		}
+	}
+	if evidence := e.RevokedSessions; evidence != nil {
+		add("portal_scope", evidence.PortalScope)
+		add("family_fingerprint", evidence.FamilyFingerprint)
+		add("reason", evidence.Reason)
+		add("revoked_token_count", evidence.Count)
+	}
+	if evidence := e.PendingWipe; evidence != nil {
+		add("reason", evidence.Reason)
+		add("pending_account_wide_wipe", true)
+	}
+	if evidence := e.CompletedWipe; evidence != nil {
+		add("pending_event_id", evidence.PendingEventID)
+	}
+	return entries
 }
 
 // TenantAccessEvidence describes an operator-led change of the school

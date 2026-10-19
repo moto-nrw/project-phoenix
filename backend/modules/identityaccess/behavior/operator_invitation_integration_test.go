@@ -27,7 +27,7 @@ import (
 // operator routes depend on, composed the way the server composes it.
 func buildInvitationService(t *testing.T, db *bun.DB) operatorServiceShim {
 	t.Helper()
-	return operatorServiceShim{module: buildServiceFactory(t, db).OperatorInvitation}
+	return operatorServiceShim{module: buildServiceFactory(t, db)}
 }
 
 // createInvitingOperator creates the operator an invitation is created by.

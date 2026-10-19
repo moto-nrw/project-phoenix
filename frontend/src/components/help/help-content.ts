@@ -3625,6 +3625,7 @@ function endCareTopic(): HelpTopic {
       "Bei `Anderer Grund` tragen Sie zusätzlich eine kurze Erklärung ein.",
       "Beendete Kinder finden Sie über das Menü mit den drei Punkten unter `Beendete Betreuungen`.",
       "Nach der Löschfrist löscht moto das Kind mit allen Angaben. Die Frist sehen Sie unter `Einstellungen` und `Datenschutz`.",
+      "Erziehungsberechtigte ohne weiteres Kind an der Schule löscht moto nach einer eigenen Frist. Auch sie steht unter `Datenschutz`.",
     ],
     differences: [
       "Ist schon ein Ende geplant, heißt der Knopf `Ende ändern`. Daneben steht `Ende stornieren`.",
@@ -6083,13 +6084,13 @@ function parentChildDataTopic(): HelpTopic {
       },
     ],
     result:
-      "Angefragte Änderungen tragen `In Prüfung`. Bis zur Bestätigung gelten die bisherigen Angaben.",
+      "Unter dem Feld steht dann `Beantragte Änderung` mit dem neuen Wert und `In Prüfung`. Bis zur Bestätigung gilt der Wert darüber.",
     notes: [
       "Gesundheitshinweise gehen sofort an das Team, ohne Prüfung.",
-      "Eine offene Anfrage lässt sich mit `Anfrage bearbeiten` noch ändern.",
+      "Sie möchten eine offene Anfrage ändern? Tippen Sie unter `Beantragte Änderung` auf `Anfrage bearbeiten`.",
     ],
     differences: [
-      "Ein Feld trägt `In Prüfung`? Dann wartet dort schon eine Änderung auf die OGS.",
+      "Unter einem Feld steht schon `Beantragte Änderung`? Dann wartet diese Änderung noch auf die OGS.",
     ],
     troubleshootingDetails: [
       "moto sagt, das Bearbeiten sei deaktiviert? Dann nimmt Ihre OGS keine Änderungen über die App an. Schreiben Sie ihr eine Nachricht.",

@@ -19,7 +19,7 @@ func TestOperatorAuditLogLosesEntriesAfterTheFollowingYear(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
-	persistence, err := NewTenantPersistence(db, false)
+	persistence, err := NewTenantPersistence(db)
 	require.NoError(t, err)
 	command, err := NewObservedCommand(persistence.AppendStore, slog.Default(), func(string, time.Duration, int, error) {})
 	require.NoError(t, err)

@@ -88,20 +88,20 @@ func NewSessionMaintenance(deps SessionMaintenanceDependencies) (*SessionMainten
 		return nil, errors.New("identity access compose: the session maintenance needs the schools, persons, audit and push seams")
 	}
 	module, err := New(Dependencies{
-		DB: deps.DB, Observe: func(Observation) {},
+		DB: deps.DB, Observe: func(Observation) {}, TenantRuntime: deps.Runtime,
 		Sessions: &SessionDependencies{
 			Schools: deps.Schools, Persons: deps.Persons, Passwords: application.UnusablePasswords{},
 			Codec: application.UnsignedSessions{}, MFALock: application.UnlockedMFAPolicy{}, Audit: deps.Audit, Push: deps.Push,
 			Logger: deps.Logger,
 		},
 		Resets: &PasswordResetDependencies{
-			Delivery: application.UnsentPasswordResets{}, Passwords: application.UnusablePasswords{}, Expiry: deps.ResetExpiry, Logger: deps.Logger,
+			DeliveryFor: func(identityaccess.PasswordResetDeliveryRecorder) identityPorts.PasswordResetDelivery {
+				return application.UnsentPasswordResets{}
+			},
+			Passwords: application.UnusablePasswords{}, Expiry: deps.ResetExpiry, Logger: deps.Logger,
 		},
 	})
 	if err != nil {
-		return nil, err
-	}
-	if err := module.SetTenantRuntime(deps.Runtime); err != nil {
 		return nil, err
 	}
 	return &SessionMaintenance{AccountSessionMaintenance: module, PasswordResets: module}, nil

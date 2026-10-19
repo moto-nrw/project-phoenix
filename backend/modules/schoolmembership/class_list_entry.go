@@ -292,18 +292,6 @@ func (m *Module) ResolveClassListEntry(ctx context.Context, input ResolveClassLi
 	return m.engine.ResolveClassListEntry(ctx, input)
 }
 
-// BindClassListEntryAdministration installs the student directory and the
-// audit trail the administration commands depend on. The composition root
-// builds both only after this module exists, so they arrive late; without
-// them the four commands and the match hint refuse with a wiring error while
-// every other capability keeps working.
-func (m *Module) BindClassListEntryAdministration(students ClassListEntryStudents, trail ClassListEntryTrail) {
-	if students == nil || trail == nil {
-		panic("school membership: class list entry administration needs a student directory and an audit trail")
-	}
-	m.engine.BindClassListEntryAdministration(students, trail)
-}
-
 func normalizeClassListEntryFilter(filter ClassListEntryFilter) ClassListEntryFilter {
 	filter.IDs = uniquePositive(filter.IDs)
 	filter.FirstName = strings.TrimSpace(filter.FirstName)

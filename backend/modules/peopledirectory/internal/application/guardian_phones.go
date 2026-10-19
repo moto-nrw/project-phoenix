@@ -4,25 +4,26 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // The phone numbers of a guardian profile.
 
 // AddPhoneNumber adds a new phone number to a guardian
-func (s *RetainedGuardianService) AddPhoneNumber(ctx context.Context, guardianID int64, req peoplePorts.PhoneNumberCreateRequest) (*users.GuardianPhoneNumber, error) {
+func (s *RetainedGuardianService) AddPhoneNumber(ctx context.Context, guardianID int64, req peoplePorts.PhoneNumberCreateRequest) (*peopleValues.GuardianProfilePhoneSnapshot, error) {
 	// Lock the guardian profile so phone-list writers serialize with the
 	// parents-portal contact path, which locks the same row before its wholesale
 	// phone replace (delete-all + re-insert) — see UpdateGuardian. Without this a
 	// staff phone add could land between the parent's read-old-phones and its
 	// replace, then be wiped by the replace. Held for the request transaction.
 	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, guardianID); err != nil {
-		return nil, fmt.Errorf(errMsgGuardianNotFound, err)
+		return nil, guardianLookupFailure(peopleValues.ErrGuardianNotFound, fmt.Errorf(errMsgGuardianNotFound, err))
 	}
 	// Verify guardian exists
 	if _, err := s.GuardianProfileRepo.FindByID(ctx, guardianID); err != nil {
-		return nil, fmt.Errorf(errMsgGuardianNotFound, err)
+		return nil, guardianLookupFailure(peopleValues.ErrGuardianNotFound, fmt.Errorf(errMsgGuardianNotFound, err))
 	}
 
 	// Get current count to determine if this should be primary
@@ -57,7 +58,7 @@ func (s *RetainedGuardianService) AddPhoneNumber(ctx context.Context, guardianID
 // newGuardianPhone builds the phone row AddPhoneNumber inserts: next
 // priority, a known phone type, and primary when it is the guardian's first
 // number or the request asks for it.
-func (s *RetainedGuardianService) newGuardianPhone(ctx context.Context, guardianID int64, req peoplePorts.PhoneNumberCreateRequest, count int) (*users.GuardianPhoneNumber, error) {
+func (s *RetainedGuardianService) newGuardianPhone(ctx context.Context, guardianID int64, req peoplePorts.PhoneNumberCreateRequest, count int) (*peopleValues.GuardianProfilePhoneSnapshot, error) {
 	// Get next priority
 	priority, err := s.GuardianPhoneNumberRepo.GetNextPriority(ctx, guardianID)
 	if err != nil {
@@ -65,12 +66,12 @@ func (s *RetainedGuardianService) newGuardianPhone(ctx context.Context, guardian
 	}
 
 	// Determine phone type
-	phoneType := users.PhoneType(req.PhoneType)
-	if !users.ValidPhoneTypes[phoneType] {
-		phoneType = users.PhoneTypeMobile // Default to mobile
+	phoneType := string(req.PhoneType)
+	if !peopleValues.ValidPhoneType(phoneType) {
+		phoneType = peopleValues.PhoneTypeMobile // Default to mobile
 	}
 
-	phone := &users.GuardianPhoneNumber{
+	phone := &peopleValues.GuardianProfilePhoneSnapshot{
 		GuardianProfileID: guardianID,
 		PhoneNumber:       req.PhoneNumber,
 		PhoneType:         phoneType,
@@ -87,14 +88,14 @@ func (s *RetainedGuardianService) newGuardianPhone(ctx context.Context, guardian
 func (s *RetainedGuardianService) UpdatePhoneNumber(ctx context.Context, phoneID int64, req peoplePorts.PhoneNumberUpdateRequest) error {
 	phone, err := s.GuardianPhoneNumberRepo.FindByID(ctx, phoneID)
 	if err != nil {
-		return fmt.Errorf(errMsgPhoneNotFound, err)
+		return guardianLookupFailure(peopleValues.ErrGuardianPhoneNotFound, fmt.Errorf(errMsgPhoneNotFound, err))
 	}
 	// Lock the owning guardian profile so this edit serializes with the
 	// parents-portal contact path's wholesale phone replace (see UpdateGuardian).
 	// The phone→profile association is immutable, so reading the phone first and
 	// then locking its profile is safe.
 	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, phone.GuardianProfileID); err != nil {
-		return fmt.Errorf(errMsgGuardianNotFound, err)
+		return guardianLookupFailure(peopleValues.ErrGuardianNotFound, fmt.Errorf(errMsgGuardianNotFound, err))
 	}
 
 	// Update fields if provided
@@ -102,8 +103,8 @@ func (s *RetainedGuardianService) UpdatePhoneNumber(ctx context.Context, phoneID
 		phone.PhoneNumber = *req.PhoneNumber
 	}
 	if req.PhoneType != nil {
-		phoneType := users.PhoneType(*req.PhoneType)
-		if users.ValidPhoneTypes[phoneType] {
+		phoneType := string(*req.PhoneType)
+		if peopleValues.ValidPhoneType(phoneType) {
 			phone.PhoneType = phoneType
 		}
 	}
@@ -137,13 +138,13 @@ func (s *RetainedGuardianService) UpdatePhoneNumber(ctx context.Context, phoneID
 func (s *RetainedGuardianService) DeletePhoneNumber(ctx context.Context, phoneID int64) error {
 	phone, err := s.GuardianPhoneNumberRepo.FindByID(ctx, phoneID)
 	if err != nil {
-		return fmt.Errorf(errMsgPhoneNotFound, err)
+		return guardianLookupFailure(peopleValues.ErrGuardianPhoneNotFound, fmt.Errorf(errMsgPhoneNotFound, err))
 	}
 	// Lock the owning guardian profile so this delete (and the primary-promotion
 	// below) serializes with the parents-portal contact path's wholesale phone
 	// replace (see UpdateGuardian).
 	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, phone.GuardianProfileID); err != nil {
-		return fmt.Errorf(errMsgGuardianNotFound, err)
+		return guardianLookupFailure(peopleValues.ErrGuardianNotFound, fmt.Errorf(errMsgGuardianNotFound, err))
 	}
 
 	wasPrimary := phone.IsPrimary
@@ -174,7 +175,7 @@ func (s *RetainedGuardianService) DeletePhoneNumber(ctx context.Context, phoneID
 func (s *RetainedGuardianService) SetPrimaryPhone(ctx context.Context, phoneID int64) error {
 	phone, err := s.GuardianPhoneNumberRepo.FindByID(ctx, phoneID)
 	if err != nil {
-		return fmt.Errorf(errMsgPhoneNotFound, err)
+		return guardianLookupFailure(peopleValues.ErrGuardianPhoneNotFound, fmt.Errorf(errMsgPhoneNotFound, err))
 	}
 	// Lock the owning guardian profile so this primary-flag flip serializes with
 	// the parents-portal contact path's wholesale phone replace (delete-all +
@@ -183,18 +184,18 @@ func (s *RetainedGuardianService) SetPrimaryPhone(ctx context.Context, phoneID i
 	// replace. The phone→profile association is immutable, so reading the phone
 	// first and then locking its profile is safe. Held for the request tx.
 	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, phone.GuardianProfileID); err != nil {
-		return fmt.Errorf(errMsgGuardianNotFound, err)
+		return guardianLookupFailure(peopleValues.ErrGuardianNotFound, fmt.Errorf(errMsgGuardianNotFound, err))
 	}
 
 	return s.GuardianPhoneNumberRepo.SetPrimary(ctx, phoneID, phone.GuardianProfileID)
 }
 
 // GetGuardianPhoneNumbers retrieves all phone numbers for a guardian, sorted by priority
-func (s *RetainedGuardianService) GetGuardianPhoneNumbers(ctx context.Context, guardianID int64) ([]*users.GuardianPhoneNumber, error) {
+func (s *RetainedGuardianService) GetGuardianPhoneNumbers(ctx context.Context, guardianID int64) ([]*peopleValues.GuardianProfilePhoneSnapshot, error) {
 	return s.GuardianPhoneNumberRepo.FindByGuardianID(ctx, guardianID)
 }
 
 // GetPhoneNumberByID retrieves a phone number by ID
-func (s *RetainedGuardianService) GetPhoneNumberByID(ctx context.Context, phoneID int64) (*users.GuardianPhoneNumber, error) {
+func (s *RetainedGuardianService) GetPhoneNumberByID(ctx context.Context, phoneID int64) (*peopleValues.GuardianProfilePhoneSnapshot, error) {
 	return s.GuardianPhoneNumberRepo.FindByID(ctx, phoneID)
 }

@@ -12,7 +12,9 @@ import (
 	"testing"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -33,7 +35,7 @@ func (s failingPickupReadService) GetStudentPickupSchedules(context.Context, int
 // the "data changed after the decision" step of the freeze scenario.
 func upsertMondayPickup(t *testing.T, f *careFixture, hour, minute int) {
 	t.Helper()
-	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(
+	require.NoError(t, f.schedules.Pickups.UpsertStudentPickupSchedule(
 		f.staffCtx(f.staffAccount),
 		&careplan.PickupSchedule{
 			StudentID:  f.chain.StudentID,
@@ -72,7 +74,7 @@ func TestDecide_FreezesAltNeuDiffInHistory(t *testing.T) {
 	req := f.createPending(t, careWeekdays(
 		map[string]any{"weekday": 1, "pickup": "16:00"},
 	))
-	_, err := f.svc.Decide(ctx, carerequests.DecideInput{
+	_, err := testpkg.TenantQuery1(t, ctx, f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
 	})
 	require.NoError(t, err)
@@ -103,7 +105,7 @@ func TestDecide_RejectAlsoFreezesDiff(t *testing.T) {
 	req := f.createPending(t, careWeekdays(
 		map[string]any{"weekday": 1, "pickup": "18:00"},
 	))
-	_, err := f.svc.Decide(ctx, carerequests.DecideInput{
+	_, err := testpkg.TenantQuery1(t, ctx, f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID: req.ID, Approve: false, Reason: "zu spät", ReviewedBy: f.staffAccount,
 	})
 	require.NoError(t, err)
@@ -126,11 +128,12 @@ func TestDecide_SkipsSnapshotWhenPickupPlanReadFails(t *testing.T) {
 	f := newCareFixture(t)
 	readErr := errors.New("pickup plan unavailable")
 	rejectingService := newCareScheduleRequestService(
-		f.repos.CarePlan(),
-		f.sf.PeopleDirectory,
-		f.sf.ArrivalSchedule,
-		failingPickupReadService{PickupScheduleService: f.sf.PickupSchedule, err: readErr},
-		f.sf,
+		f.reposCare.CarePlan(),
+		f.persons,
+		f.schedules.Arrivals,
+		failingPickupReadService{PickupScheduleService: f.schedules.Pickups, err: readErr},
+		f.caller,
+		f.services,
 		nil,
 		nil,
 		slog.Default(),
@@ -163,8 +166,8 @@ func TestWithdraw_LeavesNoSnapshot(t *testing.T) {
 	// Guardian withdrawal was retired in #2267 (guardians edit instead); the
 	// withdrawn STATUS survives for historic rows, so it is written straight
 	// through the repository here.
-	err := f.repos.CareScheduleChangeRequest.Decide(
-		f.staffCtx(f.chain.AccountID), req.ID, scheduleModels.CareRequestStatusWithdrawn, nil, nil, false,
+	err := careplantest.NewScheduleRecords(f.reposCare.CarePlan()).CareScheduleChangeRequest.Decide(
+		f.staffCtx(f.chain.AccountID), req.ID, carerequests.StatusWithdrawn, nil, nil, false,
 	)
 	require.NoError(t, err)
 
@@ -184,7 +187,7 @@ func TestListHistory_LegacyDecidedRowFallsBackToRequested(t *testing.T) {
 	req := f.createPending(t, careWeekdays(
 		map[string]any{"weekday": 1, "pickup": "16:00"},
 	))
-	_, err := f.svc.Decide(f.staffCtx(f.staffAccount), carerequests.DecideInput{
+	_, err := testpkg.TenantQuery1(t, f.staffCtx(f.staffAccount), f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID: req.ID, Approve: false, Reason: "passt nicht", ReviewedBy: f.staffAccount,
 	})
 	require.NoError(t, err)
@@ -213,12 +216,9 @@ func TestDecide_PickupChangeFreezesDiff(t *testing.T) {
 	// A fixed future Monday lets the exception's weekday fallback (the live
 	// Monday plan) supply the old side without depending on the wall clock.
 	date := calendar.NewDate(2026, 8, 31)
-	req, err := f.svc.CreatePickupChangeRequest(
-		f.staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID,
-		date, time.Date(0, 1, 1, 16, 30, 0, 0, time.UTC), "Arzttermin",
-	)
+	req, err := testpkg.TenantQuery5(t, f.staffCtx(f.chain.AccountID), f.db, f.svc.CreatePickupChangeRequest, f.chain.StudentID, f.chain.AccountID, date, time.Date(0, 1, 1, 16, 30, 0, 0, time.UTC), "Arzttermin")
 	require.NoError(t, err)
-	_, err = f.svc.Decide(f.staffCtx(f.staffAccount), carerequests.DecideInput{
+	_, err = testpkg.TenantQuery1(t, f.staffCtx(f.staffAccount), f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
 	})
 	require.NoError(t, err)

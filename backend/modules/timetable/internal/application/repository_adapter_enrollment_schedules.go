@@ -4,7 +4,9 @@ import (
 	"context"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 )
 
 // EnrollmentPickupSchedules replaces a student's weekly pickup times; it is
@@ -24,7 +26,7 @@ type EnrollmentArrivalSchedules interface {
 // NewEnrollmentPickupSchedules binds the weekly pickup times an enrollment
 // approval writes to the retained schedule repository. A nil repository
 // leaves the port unbound, so the approval skips the pickup schedule.
-func NewEnrollmentPickupSchedules(repo scheduleModels.StudentPickupScheduleRepository) EnrollmentPickupSchedules {
+func NewEnrollmentPickupSchedules(repo ports.StudentPickupScheduleRecords) EnrollmentPickupSchedules {
 	if repo == nil {
 		return nil
 	}
@@ -34,7 +36,7 @@ func NewEnrollmentPickupSchedules(repo scheduleModels.StudentPickupScheduleRepos
 // NewEnrollmentArrivalSchedules binds the weekly arrival days an enrollment
 // approval writes to the retained schedule repository. A nil repository
 // leaves the port unbound, so the approval skips the arrival schedule.
-func NewEnrollmentArrivalSchedules(repo scheduleModels.StudentArrivalScheduleRepository) EnrollmentArrivalSchedules {
+func NewEnrollmentArrivalSchedules(repo ports.StudentArrivalScheduleRecords) EnrollmentArrivalSchedules {
 	if repo == nil {
 		return nil
 	}
@@ -42,7 +44,7 @@ func NewEnrollmentArrivalSchedules(repo scheduleModels.StudentArrivalScheduleRep
 }
 
 type enrollmentPickupSchedules struct {
-	repo scheduleModels.StudentPickupScheduleRepository
+	repo ports.StudentPickupScheduleRecords
 }
 
 func (s enrollmentPickupSchedules) DeletePickupSchedules(ctx context.Context, studentID int64) error {
@@ -59,7 +61,7 @@ func (s enrollmentPickupSchedules) UpsertPickupSchedule(ctx context.Context, stu
 }
 
 type enrollmentArrivalSchedules struct {
-	repo scheduleModels.StudentArrivalScheduleRepository
+	repo ports.StudentArrivalScheduleRecords
 }
 
 func (s enrollmentArrivalSchedules) DeleteArrivalSchedules(ctx context.Context, studentID int64) error {

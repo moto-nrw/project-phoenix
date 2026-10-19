@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -33,7 +35,7 @@ import (
 
 // TimetableHTTPTestRows are the retained repositories the timetable route
 // suites arrange and assert through.
-type TimetableHTTPTestRows = TimetableTestRepositories
+type TimetableHTTPTestRows = owners.TimetableTestRepositories
 
 // NewTimetableHTTPTestRows composes the retained repositories over the test
 // database.
@@ -83,19 +85,20 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 	if err != nil {
 		return TimetableHTTPTestModule{}, err
 	}
+	members := owners.MustNewMembershipTestRepositories(db)
 	var today func() calendar.Date
 	if options.Clock != nil {
 		clock := options.Clock
 		today = func() calendar.Date { return calendar.DateFromTime(clock()) }
 	}
-	lock, err := newTimetableTestRecurrenceLock(db)
+	lock, err := owners.NewTimetableTestRecurrenceLock(db)
 	if err != nil {
 		return TimetableHTTPTestModule{}, err
 	}
 	recovery := timetableCompose.NewRetainedActivityRecoveryRepository(db.Pool(), r.InstanceStudent)
 	rows := r.OwnerRows()
 	rows.Locks = recovery
-	conflicts, data, err := newTimetableHTTPTestReads(db, r, rows)
+	conflicts, data, err := newTimetableHTTPTestReads(db, r, members, rows)
 	if err != nil {
 		return TimetableHTTPTestModule{}, err
 	}
@@ -106,7 +109,7 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 			EnrollmentRepo: r.StudentEnrollment, SupervisorRepo: r.ActivitySupervisor,
 			PeriodRepo: r.CalendarPeriod, InstanceRepo: r.ActivityInstance, StaffRepo: r.InstanceStaff,
 			StudentRepo: r.InstanceStudent, ExceptionRepo: r.ActivityException,
-			TimeframeRepo: r.Timeframe, CareBounds: r.Student, RecurrenceLock: lock, Transactions: timetableCompose.NewTenantTransactions(db.Pool()),
+			TimeframeRepo: r.Timeframe, CareBounds: members.Student, RecurrenceLock: lock, Transactions: timetableCompose.NewTenantTransactions(db.Pool()),
 		})
 		if err != nil {
 			return TimetableHTTPTestModule{}, err
@@ -122,7 +125,7 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 		InstanceStaff:        r.InstanceStaff,
 		Participants:         r.InstanceStudent,
 		Timeframes:           r.Timeframe,
-		EducationGroups:      r.Group,
+		EducationGroups:      owners.NewSchoolStructureSuiteRepositories(db).Group,
 		Materialization:      materialization,
 		Deviations:           timetableHTTPTestSeriesDeviations(options.Instances),
 		CareOfferings:        timetableHTTPTestCareOfferingChecks(options),
@@ -143,7 +146,7 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 		Participants: r.InstanceStudent,
 		Instances:    r.ActivityInstance,
 		Trail:        TimetableAttendanceCorrectionTrail(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{Reads: trail}).AttendanceCorrection),
-		People:       timetableCorrectionPeople{rows: r.Person},
+		People:       timetableCorrectionPeople{rows: members.Person},
 		Locks:        recovery,
 	})
 	if err != nil {
@@ -160,12 +163,16 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 
 // newTimetableHTTPTestReads composes the conflict detection and the planner
 // reads over Care Plan's baselines in the legacy booking mode.
-func newTimetableHTTPTestReads(db transactionruntime.Database, r TimetableHTTPTestRows, rows timetableCompose.OwnerRows) (timetable.ConflictDetectionCapability, timetable.TimetableDataCapability, error) {
-	people, err := NewPeopleDirectory(db)
+func newTimetableHTTPTestReads(db transactionruntime.Database, r TimetableHTTPTestRows, members owners.MembershipTestRepositories, rows timetableCompose.OwnerRows) (timetable.ConflictDetectionCapability, timetable.TimetableDataCapability, error) {
+	people, err := owners.NewPeopleDirectory(db)
 	if err != nil {
 		return nil, nil, err
 	}
-	carePlan, err := NewCarePlan(db, people, r.InstanceStudent)
+	sessions, err := NewTimetablePresenceRows(db, r, members)
+	if err != nil {
+		return nil, nil, err
+	}
+	carePlan, err := owners.NewCarePlan(db, people, r.InstanceStudent)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -182,7 +189,7 @@ func newTimetableHTTPTestReads(db transactionruntime.Database, r TimetableHTTPTe
 		return nil, nil, err
 	}
 	legacyBookings := func(context.Context) (bool, error) { return false, nil }
-	arrivals, err := NewArrivalBaselines(carePlan, people, classArrivalQueries, approvedOfferings, legacyBookings)
+	arrivals, err := owners.NewArrivalBaselines(carePlan, people, classArrivalQueries, approvedOfferings, legacyBookings)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -197,12 +204,12 @@ func newTimetableHTTPTestReads(db transactionruntime.Database, r TimetableHTTPTe
 		Exceptions:        r.ActivityException,
 		Schedules:         r.ActivitySchedule,
 		Shifts:            r.StaffShift,
-		Staff:             NewTimetableStaff(r.Staff),
+		Staff:             owners.NewTimetableStaff(members.Staff),
 		CalendarPeriods:   r.CalendarPeriod,
 		ArrivalExceptions: r.StudentArrivalException,
-		ArrivalBaselines:  ArrivalBaselineProjector{Reader: arrivals},
+		ArrivalBaselines:  owners.ArrivalBaselineProjector{Reader: arrivals},
 		Presence:          presence,
-		Sessions:          r.ActiveGroup,
+		Sessions:          sessions.ActiveGroup,
 		ContentHash:       securityruntime.Fingerprint,
 	})
 	if err != nil {
@@ -218,18 +225,18 @@ func newTimetableHTTPTestReads(db transactionruntime.Database, r TimetableHTTPTe
 		Participants:      r.InstanceStudent,
 		PickupExceptions:  r.StudentPickupException,
 		ArrivalExceptions: r.StudentArrivalException,
-		ArrivalBaselines:  ArrivalBaselineProjector{Reader: arrivals},
+		ArrivalBaselines:  owners.ArrivalBaselineProjector{Reader: arrivals},
 		PickupBaselines:   PickupBaselineProjector{Reader: pickups},
 		Visits:            presence,
 		Templates:         templates,
 		Groups:            r.Timetable,
 		BlockMetadata:     timetableCompose.NewBlockDisplayMetadata(db.Pool(), blockDisplayCompose.List),
 		Categories:        r.ActivityCategory,
-		Rooms:             rows.RoomNames(),
-		RoomOccupancy:     TimetableRoomOccupancy{Sessions: r.ActiveGroup},
-		DeviationEvents:   rows.DeviationEventReader(),
+		Rooms:             rows.Rooms,
+		RoomOccupancy:     TimetableRoomOccupancy{Sessions: sessions.ActiveGroup},
+		DeviationEvents:   rows.DeviationEvents,
 		ConflictAcks:      r.Timetable,
-		Locks:             rows.AttendanceLocks(),
+		Locks:             rows.Locks,
 		Advisory:          timetableAdvisoryLocks{},
 	})
 	if err != nil {
@@ -294,20 +301,20 @@ func (timetableHTTPTestNoPreservedDeviations) Reapply(context.Context, int64, *i
 // NewTimetableHTTPTestSessionRecords are Student Presence's live sessions and
 // supervisions over the test database, for suites that arrange a running
 // block.
-func NewTimetableHTTPTestSessionRecords(db transactionruntime.Database) *presenceCompose.SessionRecords {
+func NewTimetableHTTPTestSessionRecords(db transactionruntime.Database) presenceCompose.SessionRecords {
 	return NewPresenceSessionRecords(db)
 }
 
 // NewTimetableHTTPTestRecurrenceLock is the Timetable owner's tenant
 // recurrence gate over the test database.
 func NewTimetableHTTPTestRecurrenceLock(db transactionruntime.Database) (timetable.RecurrenceWriteLock, error) {
-	return newTimetableTestRecurrenceLock(db)
+	return owners.NewTimetableTestRecurrenceLock(db)
 }
 
 // NewTimetableHTTPTestPeople serves the People port of the timetable routes
 // over the person, staff and student rows of the test database.
 func NewTimetableHTTPTestPeople(db transactionruntime.Database) (TimetablePeople, error) {
-	r, err := NewTimetableTestRepositories(db)
+	r, err := owners.NewMembershipTestRepositories(db)
 	if err != nil {
 		return TimetablePeople{}, err
 	}

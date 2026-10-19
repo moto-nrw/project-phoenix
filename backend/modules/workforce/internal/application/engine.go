@@ -11,10 +11,15 @@ import (
 // Engine serves the Workforce capability over the application service: it
 // maps the public vocabulary onto the domain and the domain errors onto the
 // contract (#4084).
-type Engine struct{ service *Service }
+type Engine struct {
+	service *Service
+	workforce.StaffPlanningProfilesQuery
+}
 
 // NewEngine serves the capability over service.
-func NewEngine(service *Service) Engine { return Engine{service: service} }
+func NewEngine(service *Service) Engine {
+	return Engine{service: service, StaffPlanningProfilesQuery: service}
+}
 
 func (e Engine) ListWorkTimeModels(ctx context.Context) ([]workforce.WorkTimeModel, error) {
 	values, err := e.service.ListWorkTimeModels(ctx)

@@ -7,10 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +25,7 @@ func setupFullSchemaTest(t *testing.T) (*bun.DB, enrollmentCapability.FormSchema
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
-	repoFactory := flowRepositories(t, db)
+	repoFactory, _, _, _, _, _ := flowRepositories(t, db)
 	svc := NewTestFormSchemas(repoFactory.Enrollment())
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "Form", "Editor2")
@@ -54,11 +53,11 @@ func TestFormSchemaService_GetByID_RejectsNonPositive(t *testing.T) {
 	_, svc, _, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
-	_, err := svc.SchemaVersion(ctx, 0)
+	_, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.SchemaVersion, 0)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "positive")
 
-	_, err = svc.SchemaVersion(ctx, -1)
+	_, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.SchemaVersion, -1)
 	require.Error(t, err)
 }
 
@@ -68,12 +67,14 @@ func TestFormSchemaService_GetByID_ReturnsRow(t *testing.T) {
 	_, svc, creatorID, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
-	pub, err := svc.CreateSchema(ctx, "Testformular GetByID", []enrollmentCapability.FormField{
-		{Key: "allergies", Label: "Allergien", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
-	}, creatorID)
+	pub, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*enrollmentCapability.FormSchema, error) {
+		return svc.CreateSchema(txCtx, "Testformular GetByID", []enrollmentCapability.FormField{
+			{Key: "allergies", Label: "Allergien", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
+		}, creatorID)
+	})
 	require.NoError(t, err)
 
-	got, err := svc.SchemaVersion(ctx, pub.ID)
+	got, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.SchemaVersion, pub.ID)
 	require.NoError(t, err)
 	assert.Equal(t, pub.ID, got.ID)
 	assert.Equal(t, pub.Name, got.Name)
@@ -87,9 +88,11 @@ func TestFormSchemaService_CreateSchema_RequiresName(t *testing.T) {
 	_, svc, creatorID, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
-	_, err := svc.CreateSchema(ctx, "", []enrollmentCapability.FormField{
-		{Key: "x", Label: "X", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
-	}, creatorID)
+	_, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*enrollmentCapability.FormSchema, error) {
+		return svc.CreateSchema(txCtx, "", []enrollmentCapability.FormField{
+			{Key: "x", Label: "X", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
+		}, creatorID)
+	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "name")
 }
@@ -101,9 +104,11 @@ func TestFormSchemaService_CreateSchema_FreshNameOK(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	name := uniqueSchemaName("Klassenanmeldung")
-	out, err := svc.CreateSchema(ctx, name, []enrollmentCapability.FormField{
-		{Key: "field_a", Label: "Feld A", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
-	}, creatorID)
+	out, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*enrollmentCapability.FormSchema, error) {
+		return svc.CreateSchema(txCtx, name, []enrollmentCapability.FormField{
+			{Key: "field_a", Label: "Feld A", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
+		}, creatorID)
+	})
 	require.NoError(t, err)
 	assert.Equal(t, name, out.Name)
 	assert.Equal(t, 1, out.Version, "fresh name starts at version 1")
@@ -119,14 +124,18 @@ func TestFormSchemaService_CreateSchema_RefusesExistingName(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	name := uniqueSchemaName("Doppelname")
-	_, err := svc.CreateSchema(ctx, name, []enrollmentCapability.FormField{
-		{Key: "field_a", Label: "Feld A", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
-	}, creatorID)
+	_, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*enrollmentCapability.FormSchema, error) {
+		return svc.CreateSchema(txCtx, name, []enrollmentCapability.FormField{
+			{Key: "field_a", Label: "Feld A", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
+		}, creatorID)
+	})
 	require.NoError(t, err)
 
-	_, err = svc.CreateSchema(ctx, name, []enrollmentCapability.FormField{
-		{Key: "field_b", Label: "Feld B", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
-	}, creatorID)
+	_, err = testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*enrollmentCapability.FormSchema, error) {
+		return svc.CreateSchema(txCtx, name, []enrollmentCapability.FormField{
+			{Key: "field_b", Label: "Feld B", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
+		}, creatorID)
+	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
 }
@@ -137,9 +146,11 @@ func TestFormSchemaService_UpdateSchema_RejectsNonPositiveID(t *testing.T) {
 	_, svc, creatorID, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
-	_, err := svc.UpdateSchema(ctx, 0, []enrollmentCapability.FormField{
-		{Key: "x", Label: "X", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
-	}, creatorID)
+	_, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*enrollmentCapability.FormSchema, error) {
+		return svc.UpdateSchema(txCtx, 0, []enrollmentCapability.FormField{
+			{Key: "x", Label: "X", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
+		}, creatorID)
+	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "positive")
 }
@@ -151,22 +162,26 @@ func TestFormSchemaService_UpdateSchema_InheritsNameBumpsVersion(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	name := uniqueSchemaName("BumpTest")
-	v1, err := svc.CreateSchema(ctx, name, []enrollmentCapability.FormField{
-		{Key: "field_a", Label: "Feld A", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
-	}, creatorID)
+	v1, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*enrollmentCapability.FormSchema, error) {
+		return svc.CreateSchema(txCtx, name, []enrollmentCapability.FormField{
+			{Key: "field_a", Label: "Feld A", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
+		}, creatorID)
+	})
 	require.NoError(t, err)
 	require.Equal(t, 1, v1.Version)
 
-	v2, err := svc.UpdateSchema(ctx, v1.ID, []enrollmentCapability.FormField{
-		{Key: "field_a", Label: "Feld A (überarbeitet)", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
-	}, creatorID)
+	v2, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*enrollmentCapability.FormSchema, error) {
+		return svc.UpdateSchema(txCtx, v1.ID, []enrollmentCapability.FormField{
+			{Key: "field_a", Label: "Feld A (überarbeitet)", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
+		}, creatorID)
+	})
 	require.NoError(t, err)
 	assert.Equal(t, name, v2.Name, "new version inherits source name")
 	assert.Equal(t, 2, v2.Version, "version is bumped by 1")
 	assert.True(t, v2.IsActive)
 
 	// v1 stays around — phases pinning it must keep working.
-	v1ReFetched, err := svc.SchemaVersion(ctx, v1.ID)
+	v1ReFetched, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.SchemaVersion, v1.ID)
 	require.NoError(t, err)
 	assert.True(t, v1ReFetched.IsActive,
 		"previous version stays active under multi-schema semantics")
@@ -179,20 +194,22 @@ func TestFormSchemaService_UpdateSchema_RepointsPhasesButKeepsRequestSchemaPin(t
 	ctx := testpkg.Ctx(t)
 
 	name := uniqueSchemaName("RepointTest")
-	v1, err := svc.CreateSchema(ctx, name, []enrollmentCapability.FormField{
-		{Key: "field_a", Label: "Feld A", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
-	}, creatorID)
+	v1, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*enrollmentCapability.FormSchema, error) {
+		return svc.CreateSchema(txCtx, name, []enrollmentCapability.FormField{
+			{Key: "field_a", Label: "Feld A", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
+		}, creatorID)
+	})
 	require.NoError(t, err)
 
 	phaseName := uniqueSchemaName("form-schema-extra-repoint")
 	phase := &enrollmentCapability.Phase{
 		Name:              phaseName,
-		Kind:              enrollmentModels.PhaseKindSchoolYear,
+		Kind:              enrollmentCapability.PhaseKindSchoolYear,
 		ServiceStartDate:  enrollmentCapability.Date(calendar.NewDate(2026, 9, 1)),
 		ServiceEndDate:    enrollmentCapability.Date(calendar.NewDate(2027, 7, 31)),
 		FormSchemaID:      &v1.ID,
 		IsActive:          true,
-		CareOverflowMode:  enrollmentModels.PhaseCareOverflowWaitlist,
+		CareOverflowMode:  enrollmentCapability.PhaseCareOverflowWaitlist,
 		EnrollmentOpenAt:  nil,
 		EnrollmentCloseAt: nil,
 	}
@@ -211,13 +228,15 @@ func TestFormSchemaService_UpdateSchema_RepointsPhasesButKeepsRequestSchemaPin(t
 	}
 	require.NoError(t, enrollmentAPI.InsertOwnerRequestForTest(ctx, repoFactory.Enrollment(), request))
 
-	v2, err := svc.UpdateSchema(ctx, v1.ID, []enrollmentCapability.FormField{
-		{Key: "field_a", Label: "Feld A (v2)", Type: enrollmentCapability.FormFieldText, SortOrder: 0, Required: true},
-	}, creatorID)
+	v2, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*enrollmentCapability.FormSchema, error) {
+		return svc.UpdateSchema(txCtx, v1.ID, []enrollmentCapability.FormField{
+			{Key: "field_a", Label: "Feld A (v2)", Type: enrollmentCapability.FormFieldText, SortOrder: 0, Required: true},
+		}, creatorID)
+	})
 	require.NoError(t, err)
 	require.NotEqual(t, v1.ID, v2.ID)
 
-	gotPhase, err := repoFactory.Enrollment().Phase(ctx, phase.ID)
+	gotPhase, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), repoFactory.Enrollment().Phase, phase.ID)
 	require.NoError(t, err)
 	require.NotNil(t, gotPhase.FormSchemaID)
 	assert.Equal(t, v2.ID, *gotPhase.FormSchemaID,
@@ -237,14 +256,18 @@ func TestFormSchemaService_UpdateSchema_RejectsCoreFieldKey(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	name := uniqueSchemaName("CoreKeyGuard")
-	v1, err := svc.CreateSchema(ctx, name, []enrollmentCapability.FormField{
-		{Key: "allergies", Label: "Allergien", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
-	}, creatorID)
+	v1, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*enrollmentCapability.FormSchema, error) {
+		return svc.CreateSchema(txCtx, name, []enrollmentCapability.FormField{
+			{Key: "allergies", Label: "Allergien", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
+		}, creatorID)
+	})
 	require.NoError(t, err)
 
-	_, err = svc.UpdateSchema(ctx, v1.ID, []enrollmentCapability.FormField{
-		{Key: "guardian_email", Label: "Email", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
-	}, creatorID)
+	_, err = testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (*enrollmentCapability.FormSchema, error) {
+		return svc.UpdateSchema(txCtx, v1.ID, []enrollmentCapability.FormField{
+			{Key: "guardian_email", Label: "Email", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
+		}, creatorID)
+	})
 	require.Error(t, err, "core field key must still be rejected on update")
 }
 
@@ -254,7 +277,7 @@ func TestFormSchemaService_DeleteSchema_RejectsZero(t *testing.T) {
 	_, svc, _, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
-	err := svc.DeleteSchema(ctx, 0)
+	err := testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.DeleteSchema, 0)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentCapability.ErrFormSchemaNotFound))
 }
@@ -265,7 +288,7 @@ func TestFormSchemaService_DeleteSchema_MissingIDReturnsNotFound(t *testing.T) {
 	_, svc, _, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
-	err := svc.DeleteSchema(ctx, 999_999_999)
+	err := testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.DeleteSchema, 999_999_999)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentCapability.ErrFormSchemaNotFound))
 }
@@ -276,7 +299,7 @@ func TestFormSchemaService_GetByID_MissingIDReturnsNotFound(t *testing.T) {
 	_, svc, _, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
-	_, err := svc.SchemaVersion(ctx, 999_999_999)
+	_, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.SchemaVersion, 999_999_999)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentCapability.ErrFormSchemaNotFound))
 }
@@ -288,21 +311,25 @@ func TestFormSchemaService_DeleteSchema_HappyPathDropsAllVersions(t *testing.T) 
 	ctx := testpkg.Ctx(t)
 
 	name := uniqueSchemaName("DropMe")
-	v1, err := svc.CreateSchema(ctx, name, []enrollmentCapability.FormField{
-		{Key: "field_a", Label: "Feld A", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
-	}, creatorID)
+	v1, err := testpkg.TenantQuery0(t, ctx, db, func(txCtx context.Context) (*enrollmentCapability.FormSchema, error) {
+		return svc.CreateSchema(txCtx, name, []enrollmentCapability.FormField{
+			{Key: "field_a", Label: "Feld A", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
+		}, creatorID)
+	})
 	require.NoError(t, err)
-	v2, err := svc.UpdateSchema(ctx, v1.ID, []enrollmentCapability.FormField{
-		{Key: "field_a", Label: "Feld A (v2)", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
-	}, creatorID)
+	v2, err := testpkg.TenantQuery0(t, ctx, db, func(txCtx context.Context) (*enrollmentCapability.FormSchema, error) {
+		return svc.UpdateSchema(txCtx, v1.ID, []enrollmentCapability.FormField{
+			{Key: "field_a", Label: "Feld A (v2)", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
+		}, creatorID)
+	})
 	require.NoError(t, err)
 
-	require.NoError(t, svc.DeleteSchema(ctx, v2.ID))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, svc.DeleteSchema, v2.ID))
 
 	// Both versions gone.
-	_, err = svc.SchemaVersion(ctx, v1.ID)
+	_, err = testpkg.TenantQuery1(t, ctx, db, svc.SchemaVersion, v1.ID)
 	require.Error(t, err)
-	_, err = svc.SchemaVersion(ctx, v2.ID)
+	_, err = testpkg.TenantQuery1(t, ctx, db, svc.SchemaVersion, v2.ID)
 	require.Error(t, err)
 
 	// Cross-check row count directly.

@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"strings"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -71,25 +72,25 @@ func (r *fakeEducationGroupRepo) GroupNamesByID(_ context.Context, ids []int64) 
 }
 
 type fakeClassRosterRequestRepo struct {
-	requests    []*enrollmentModels.Request
-	seenFilters enrollment.RequestListFilters
+	requests    []*Request
+	seenFilters enrollmentNative.RequestListFilters
 }
 
 // AdminRequests answers an unscoped read with more requests than an export
 // may hold, so a roster that forgets to scope by student fails.
-func (r *fakeClassRosterRequestRepo) AdminRequests(_ context.Context, filters enrollment.RequestListFilters) ([]*enrollment.Request, error) {
+func (r *fakeClassRosterRequestRepo) AdminRequests(_ context.Context, filters enrollmentNative.RequestListFilters) ([]*enrollmentNative.Request, error) {
 	r.seenFilters = filters
 	if len(filters.CreatedStudentIDs) == 0 {
-		return make([]*enrollment.Request, maxExportRequests+1), nil
+		return make([]*enrollmentNative.Request, maxExportRequests+1), nil
 	}
 	return reportRequestInputs(r.requests)
 }
 
 type fakeCareUsageRequestRepo struct {
-	requests []*enrollmentModels.Request
+	requests []*Request
 }
 
-func (r *fakeCareUsageRequestRepo) AdminRequests(_ context.Context, _ enrollment.RequestListFilters) ([]*enrollment.Request, error) {
+func (r *fakeCareUsageRequestRepo) AdminRequests(_ context.Context, _ enrollmentNative.RequestListFilters) ([]*enrollmentNative.Request, error) {
 	return reportRequestInputs(r.requests)
 }
 
@@ -97,8 +98,8 @@ type fakeClassRosterChildRepo struct {
 	children []*reportChild
 }
 
-func (r *fakeClassRosterChildRepo) ChildrenForRequests(_ context.Context, _ []int64) ([]*enrollment.RequestChild, error) {
-	var values []*enrollment.RequestChild
+func (r *fakeClassRosterChildRepo) ChildrenForRequests(_ context.Context, _ []int64) ([]*enrollmentNative.RequestChild, error) {
+	var values []*enrollmentNative.RequestChild
 	for _, child := range r.children {
 		value, err := reportChildInput(child)
 		if err != nil {
@@ -114,17 +115,17 @@ func (r *fakeClassRosterChildRepo) ChildrenForRequests(_ context.Context, _ []in
 	return values, nil
 }
 
-func (r *fakeClassRosterChildRepo) RequestChildOfferingsForChildrenAtDate(context.Context, []int64, enrollment.Date) ([]*enrollment.RequestChildOffering, error) {
+func (r *fakeClassRosterChildRepo) RequestChildOfferingsForChildrenAtDate(context.Context, []int64, enrollmentNative.Date) ([]*enrollmentNative.RequestChildOffering, error) {
 	return nil, nil
 }
 
 type fakeClassRosterRequestGuardianRepo struct {
-	guardians  []*enrollment.RequestGuardian
+	guardians  []*enrollmentNative.RequestGuardian
 	err        error
 	requestIDs []int64
 }
 
-func (r *fakeClassRosterRequestGuardianRepo) RequestGuardians(_ context.Context, requestIDs []int64) ([]*enrollment.RequestGuardian, error) {
+func (r *fakeClassRosterRequestGuardianRepo) RequestGuardians(_ context.Context, requestIDs []int64) ([]*enrollmentNative.RequestGuardian, error) {
 	r.requestIDs = append([]int64(nil), requestIDs...)
 	if r.err != nil {
 		return nil, r.err
@@ -133,7 +134,7 @@ func (r *fakeClassRosterRequestGuardianRepo) RequestGuardians(_ context.Context,
 	for _, id := range requestIDs {
 		seen[id] = true
 	}
-	out := make([]*enrollment.RequestGuardian, 0, len(r.guardians))
+	out := make([]*enrollmentNative.RequestGuardian, 0, len(r.guardians))
 	for _, guardian := range r.guardians {
 		if guardian != nil && seen[guardian.RequestID] {
 			copied := *guardian
@@ -144,10 +145,10 @@ func (r *fakeClassRosterRequestGuardianRepo) RequestGuardians(_ context.Context,
 }
 
 type fakeClassRosterCareOfferingRepo struct {
-	offerings []*enrollmentModels.CareOffering
+	offerings []*offeringContract.CareOfferingRecord
 }
 
-func (r *fakeClassRosterCareOfferingRepo) ListByPhase(_ context.Context, _ int64) ([]*enrollmentModels.CareOffering, error) {
+func (r *fakeClassRosterCareOfferingRepo) ListByPhase(_ context.Context, _ int64) ([]*offeringContract.CareOfferingRecord, error) {
 	return r.offerings, nil
 }
 
@@ -182,33 +183,33 @@ func (r *fakeClassRosterStudentGuardianRepo) GuardianContacts(_ context.Context,
 }
 
 type fakeClassRosterPhaseRepo struct {
-	phase *enrollment.Phase
+	phase *enrollmentNative.Phase
 }
 
-func (r *fakeClassRosterPhaseRepo) Phase(_ context.Context, id int64) (*enrollment.Phase, error) {
+func (r *fakeClassRosterPhaseRepo) Phase(_ context.Context, id int64) (*enrollmentNative.Phase, error) {
 	if r.phase != nil {
 		phase := *r.phase
 		phase.ID = id
 		return &phase, nil
 	}
-	return &enrollment.Phase{ID: id, Name: "Schuljahr 2026"}, nil
+	return &enrollmentNative.Phase{ID: id, Name: "Schuljahr 2026"}, nil
 }
 
-func (r *fakeClassRosterPhaseRepo) Phases(context.Context) ([]*enrollment.Phase, error) {
+func (r *fakeClassRosterPhaseRepo) Phases(context.Context) ([]*enrollmentNative.Phase, error) {
 	if r.phase == nil {
 		return nil, nil
 	}
 	phase := *r.phase
-	return []*enrollment.Phase{&phase}, nil
+	return []*enrollmentNative.Phase{&phase}, nil
 }
 
 // fakeClassDayPhaseRepo serves a fixed phase list for classDayPhases.
 type fakeClassDayPhaseRepo struct {
-	phases []*enrollment.Phase
+	phases []*enrollmentNative.Phase
 }
 
-func (r *fakeClassDayPhaseRepo) Phases(_ context.Context) ([]*enrollment.Phase, error) {
-	var values []*enrollment.Phase
+func (r *fakeClassDayPhaseRepo) Phases(_ context.Context) ([]*enrollmentNative.Phase, error) {
+	var values []*enrollmentNative.Phase
 	for _, phase := range r.phases {
 		if phase == nil {
 			values = append(values, nil)
@@ -220,14 +221,14 @@ func (r *fakeClassDayPhaseRepo) Phases(_ context.Context) ([]*enrollment.Phase, 
 	return values, nil
 }
 
-func (r *fakeClassDayPhaseRepo) Phase(_ context.Context, id int64) (*enrollment.Phase, error) {
+func (r *fakeClassDayPhaseRepo) Phase(_ context.Context, id int64) (*enrollmentNative.Phase, error) {
 	for _, phase := range r.phases {
 		if phase != nil && phase.ID == id {
 			copied := *phase
 			return &copied, nil
 		}
 	}
-	return nil, enrollment.ErrReportPhaseNotFound
+	return nil, enrollmentNative.ErrReportPhaseNotFound
 }
 
 type fakeClassCareParticipation map[int64]bool
@@ -323,14 +324,14 @@ func (r *fakeExportAccessLog) RecordStudentExport(_ context.Context, _ int64, en
 
 // reportRequestInputs hands request fixtures over the way the owner stores
 // them: answers as raw JSON.
-func reportRequestInputs(requests []*enrollmentModels.Request) ([]*enrollment.Request, error) {
-	var values []*enrollment.Request
+func reportRequestInputs(requests []*Request) ([]*enrollmentNative.Request, error) {
+	var values []*enrollmentNative.Request
 	for _, r := range requests {
 		if r == nil {
 			values = append(values, nil)
 			continue
 		}
-		value := &enrollment.Request{
+		value := &enrollmentNative.Request{
 			ID: r.ID, TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 			SchemaID: r.SchemaID, PhaseID: r.PhaseID,
 			GuardianFirstName: r.GuardianFirstName, GuardianLastName: r.GuardianLastName,
@@ -357,13 +358,13 @@ func reportRequestInputs(requests []*enrollmentModels.Request) ([]*enrollment.Re
 }
 
 // reportChildInput hands a child fixture over the way the owner stores it.
-func reportChildInput(r *reportChild) (*enrollment.RequestChild, error) {
+func reportChildInput(r *reportChild) (*enrollmentNative.RequestChild, error) {
 	if r == nil {
 		return nil, nil
 	}
-	result := &enrollment.RequestChild{
+	result := &enrollmentNative.RequestChild{
 		ID: r.ID, RequestID: r.RequestID, FirstName: r.FirstName, LastName: r.LastName,
-		DateOfBirth:      enrollment.Date(r.DateOfBirth),
+		DateOfBirth:      enrollmentNative.Date(r.DateOfBirth),
 		TargetGradeLevel: r.TargetGradeLevel, TargetSchoolClass: r.TargetSchoolClass, Status: r.Status,
 		CreatedStudentID: r.CreatedStudentID, MatchedStudentID: r.MatchedStudentID,
 	}

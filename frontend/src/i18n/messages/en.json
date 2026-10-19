@@ -1505,6 +1505,7 @@
     "requestSubmitted": "Request sent. The team will review your change.",
     "requestEdit": "Edit request",
     "pendingBadge": "Under review",
+    "pendingTitle": "Requested change",
     "pendingNotice": "A change to this field is awaiting confirmation by the team.",
     "editDisabled": "Editing these details is disabled for this OGS.",
     "requestDisabled": "Change requests are disabled for this OGS.",
@@ -2784,7 +2785,9 @@
         "managed_by_upload": "{object} could not be changed. Please check its current status.",
         "invalid_value": "{object} could not be saved. Please check your entries.",
         "presence_mode_switch_blocked": "{object} could not be changed. Please check its current status.",
-        "booking_authority_blocked": "{object} could not be changed. Please check its current status."
+        "booking_authority_blocked": "{object} could not be changed. Please check its current status.",
+        "attendance_visible_exceeds_retention": "{object} could not be saved. Please check your entries.",
+        "attendance_retention_below_visible": "{object} could not be saved. Please check your entries."
       },
       "devices": {
         "tag_scan_not_found": "{object} could not be changed. Please check its current status.",

@@ -5,8 +5,10 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/ports"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type DocumentCleanup struct {
@@ -57,4 +59,32 @@ func (s *DocumentCleanup) Backlog(ctx context.Context) (result domain.DocumentCl
 		return err
 	})
 	return result, err
+}
+
+// ClaimPublic claims due cleanups for the public queue. The claim must commit
+// on its own, so a caller inside a tenant transaction is refused.
+func (s *DocumentCleanup) ClaimPublic(ctx context.Context, limit int) ([]workforce.DocumentCleanupClaim, error) {
+	if _, active := tenant.TransactionFromContext(ctx); active {
+		return nil, errors.New("document cleanup: claim must commit independently")
+	}
+	values, err := s.Claim(ctx, limit)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]workforce.DocumentCleanupClaim, 0, len(values))
+	for _, value := range values {
+		result = append(result, workforce.DocumentCleanupClaim(value))
+	}
+	return result, nil
+}
+
+// FinishPublic finishes a claim of the public queue.
+func (s *DocumentCleanup) FinishPublic(ctx context.Context, claim workforce.DocumentCleanupClaim, success bool) (bool, error) {
+	return s.Finish(ctx, domain.DocumentCleanupClaim(claim), success)
+}
+
+// BacklogPublic reports the backlog of the public queue.
+func (s *DocumentCleanup) BacklogPublic(ctx context.Context) (workforce.DocumentCleanupBacklog, error) {
+	result, err := s.Backlog(ctx)
+	return workforce.DocumentCleanupBacklog(result), err
 }

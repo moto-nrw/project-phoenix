@@ -1,6 +1,6 @@
 package parentportal
 
-import "github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
+import "github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
 
 // An owner error keeps its exact message and original cause while also
 // satisfying the workflow's native classification. No cause is discarded.

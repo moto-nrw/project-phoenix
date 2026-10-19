@@ -455,7 +455,7 @@ func TestLogin_ClientIPExtraction_IgnoresRawXRealIP(t *testing.T) {
 
 func serveOperatorLoginThroughXFFMiddleware(resource *identityoperator.Resource, rr *httptest.ResponseRecorder, req *http.Request) {
 	router := chi.NewRouter()
-	router.Use(chimiddleware.ClientIPFromXFF())
+	router.Use(chimiddleware.ClientIPFromXFFTrustedProxies(1))
 	router.Post("/auth/login", resource.Login)
 	router.ServeHTTP(rr, req)
 }

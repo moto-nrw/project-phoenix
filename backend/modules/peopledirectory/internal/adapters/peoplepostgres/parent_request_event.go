@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
@@ -33,7 +33,11 @@ func (r *ParentRequestEventRepository) Create(ctx context.Context, event *userMo
 	if event.Payload == nil {
 		event.Payload = map[string]any{}
 	}
-	if _, err := r.runtime.DB(ctx).NewInsert().Model(event).
+	ambientDB1, databaseErr1 := r.runtime.DB(ctx)
+	if databaseErr1 != nil {
+		return databaseErr1
+	}
+	if _, err := ambientDB1.NewInsert().Model(event).
 		ModelTableExpr(parentRequestEventTable).
 		Value("created_at", "clock_timestamp()").
 		Value("updated_at", "clock_timestamp()").
@@ -51,7 +55,11 @@ func (r *ParentRequestEventRepository) ListForRequest(
 	requestID int64,
 ) ([]*userModels.ParentRequestEvent, error) {
 	rows := make([]*userModels.ParentRequestEvent, 0)
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB2, databaseErr2 := r.runtime.DB(ctx)
+	if databaseErr2 != nil {
+		return *new([]*userModels.ParentRequestEvent), databaseErr2
+	}
+	query := ambientDB2.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`users.parent_request_events AS "parent_request_event"`).
 		Where(`"parent_request_event".request_type = ?`, requestType).
@@ -74,7 +82,11 @@ func (r *ParentRequestEventRepository) ListForStudent(
 		limit = parentRequestEventDefaultLimit
 	}
 	rows := make([]*userModels.ParentRequestEvent, 0)
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB3, databaseErr3 := r.runtime.DB(ctx)
+	if databaseErr3 != nil {
+		return *new([]*userModels.ParentRequestEvent), databaseErr3
+	}
+	query := ambientDB3.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`users.parent_request_events AS "parent_request_event"`).
 		Where(`"parent_request_event".student_id = ?`, studentID).

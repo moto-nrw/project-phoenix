@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 )
 
@@ -18,7 +17,7 @@ func NewService(devices devicefleet.Capability) Service {
 	return &service{Administration: devicefleet.NewAdministration(devices)}
 }
 
-func (s *service) CreateDevice(ctx context.Context, row *iot.Device) error {
+func (s *service) CreateDevice(ctx context.Context, row *devicefleet.Device) error {
 	if row == nil {
 		return s.Administration.CreateDevice(ctx, nil)
 	}
@@ -28,7 +27,7 @@ func (s *service) CreateDevice(ctx context.Context, row *iot.Device) error {
 	return err
 }
 
-func (s *service) UpdateDevice(ctx context.Context, row *iot.Device) error {
+func (s *service) UpdateDevice(ctx context.Context, row *devicefleet.Device) error {
 	if row == nil {
 		return s.Administration.UpdateDevice(ctx, nil)
 	}
@@ -38,7 +37,7 @@ func (s *service) UpdateDevice(ctx context.Context, row *iot.Device) error {
 	return err
 }
 
-func (s *service) GetDeviceByID(ctx context.Context, id int64) (*iot.Device, error) {
+func (s *service) GetDeviceByID(ctx context.Context, id int64) (*devicefleet.Device, error) {
 	row, err := s.Administration.GetDeviceByID(ctx, id)
 	if err != nil || row == nil {
 		return nil, err
@@ -46,7 +45,7 @@ func (s *service) GetDeviceByID(ctx context.Context, id int64) (*iot.Device, err
 	return toModel(*row), nil
 }
 
-func (s *service) GetDeviceByDeviceID(ctx context.Context, deviceID string) (*iot.Device, error) {
+func (s *service) GetDeviceByDeviceID(ctx context.Context, deviceID string) (*devicefleet.Device, error) {
 	row, err := s.Administration.GetDeviceByDeviceID(ctx, deviceID)
 	if err != nil || row == nil {
 		return nil, err
@@ -54,7 +53,7 @@ func (s *service) GetDeviceByDeviceID(ctx context.Context, deviceID string) (*io
 	return toModel(*row), nil
 }
 
-func (s *service) GetDevicesByType(ctx context.Context, deviceType string) ([]*iot.Device, error) {
+func (s *service) GetDevicesByType(ctx context.Context, deviceType string) ([]*devicefleet.Device, error) {
 	rows, err := s.Administration.GetDevicesByType(ctx, deviceType)
 	if err != nil {
 		return nil, err
@@ -62,7 +61,7 @@ func (s *service) GetDevicesByType(ctx context.Context, deviceType string) ([]*i
 	return administrationToModels(rows), nil
 }
 
-func (s *service) GetDevicesByStatus(ctx context.Context, status iot.DeviceStatus) ([]*iot.Device, error) {
+func (s *service) GetDevicesByStatus(ctx context.Context, status devicefleet.DeviceStatus) ([]*devicefleet.Device, error) {
 	rows, err := s.Administration.GetDevicesByStatus(ctx, devicefleet.DeviceStatus(status))
 	if err != nil {
 		return nil, err
@@ -70,7 +69,7 @@ func (s *service) GetDevicesByStatus(ctx context.Context, status iot.DeviceStatu
 	return administrationToModels(rows), nil
 }
 
-func (s *service) GetDevicesByRegisteredBy(ctx context.Context, personID int64) ([]*iot.Device, error) {
+func (s *service) GetDevicesByRegisteredBy(ctx context.Context, personID int64) ([]*devicefleet.Device, error) {
 	rows, err := s.Administration.GetDevicesByRegisteredBy(ctx, personID)
 	if err != nil {
 		return nil, err
@@ -78,7 +77,7 @@ func (s *service) GetDevicesByRegisteredBy(ctx context.Context, personID int64) 
 	return administrationToModels(rows), nil
 }
 
-func (s *service) GetOfflineDevices(ctx context.Context, duration time.Duration) ([]*iot.Device, error) {
+func (s *service) GetOfflineDevices(ctx context.Context, duration time.Duration) ([]*devicefleet.Device, error) {
 	rows, err := s.Administration.GetOfflineDevices(ctx, duration)
 	if err != nil {
 		return nil, err
@@ -86,7 +85,7 @@ func (s *service) GetOfflineDevices(ctx context.Context, duration time.Duration)
 	return administrationToModels(rows), nil
 }
 
-func (s *service) GetActiveDevices(ctx context.Context) ([]*iot.Device, error) {
+func (s *service) GetActiveDevices(ctx context.Context) ([]*devicefleet.Device, error) {
 	rows, err := s.Administration.GetActiveDevices(ctx)
 	if err != nil {
 		return nil, err
@@ -94,7 +93,7 @@ func (s *service) GetActiveDevices(ctx context.Context) ([]*iot.Device, error) {
 	return administrationToModels(rows), nil
 }
 
-func (s *service) GetDevicesRequiringMaintenance(ctx context.Context) ([]*iot.Device, error) {
+func (s *service) GetDevicesRequiringMaintenance(ctx context.Context) ([]*devicefleet.Device, error) {
 	rows, err := s.Administration.GetDevicesRequiringMaintenance(ctx)
 	if err != nil {
 		return nil, err
@@ -102,7 +101,7 @@ func (s *service) GetDevicesRequiringMaintenance(ctx context.Context) ([]*iot.De
 	return administrationToModels(rows), nil
 }
 
-func (s *service) DetectNewDevices(ctx context.Context) ([]*iot.Device, error) {
+func (s *service) DetectNewDevices(ctx context.Context) ([]*devicefleet.Device, error) {
 	rows, err := s.Administration.DetectNewDevices(ctx)
 	if err != nil {
 		return nil, err
@@ -110,7 +109,7 @@ func (s *service) DetectNewDevices(ctx context.Context) ([]*iot.Device, error) {
 	return administrationToModels(rows), nil
 }
 
-func (s *service) ListDevices(ctx context.Context, filters map[string]interface{}) ([]*iot.Device, error) {
+func (s *service) ListDevices(ctx context.Context, filters map[string]interface{}) ([]*devicefleet.Device, error) {
 	filter, err := toFilter(filters)
 	if err != nil {
 		return nil, &IoTError{Op: "ListDevices", Err: err}
@@ -121,22 +120,22 @@ func (s *service) ListDevices(ctx context.Context, filters map[string]interface{
 	}
 	return administrationToModels(rows), nil
 }
-func administrationToModels(rows []*devicefleet.Device) []*iot.Device {
-	result := make([]*iot.Device, 0, len(rows))
+func administrationToModels(rows []*devicefleet.Device) []*devicefleet.Device {
+	result := make([]*devicefleet.Device, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, toModel(*row))
 	}
 	return result
 }
 
-func (s *service) UpdateDeviceStatus(ctx context.Context, id string, status iot.DeviceStatus) error {
+func (s *service) UpdateDeviceStatus(ctx context.Context, id string, status devicefleet.DeviceStatus) error {
 	return s.Administration.UpdateDeviceStatus(ctx, id, devicefleet.DeviceStatus(status))
 }
 
-func (s *service) IsDeviceOnline(ctx context.Context, row *iot.Device) bool {
+func (s *service) IsDeviceOnline(ctx context.Context, row *devicefleet.Device) bool {
 	return s.IsDeviceOnlineAt(ctx, row, time.Now())
 }
-func (s *service) IsDeviceOnlineAt(ctx context.Context, row *iot.Device, now time.Time) bool {
+func (s *service) IsDeviceOnlineAt(ctx context.Context, row *devicefleet.Device, now time.Time) bool {
 	if row == nil {
 		return false
 	}

@@ -4,11 +4,12 @@ import (
 	"testing"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/stretchr/testify/assert"
 
-	"github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -46,17 +47,17 @@ func edExpected() []materialParams {
 	}
 }
 
-func edSupervisors() []*activities.SupervisorPlanned {
+func edSupervisors() []*activityContract.SupervisorPlanned {
 	pid := edPeriodID
-	return []*activities.SupervisorPlanned{
+	return []*activityContract.SupervisorPlanned{
 		{StaffID: edStaffP, IsPrimary: true, CalendarPeriodID: &pid},
 		{StaffID: edStaffS, IsPrimary: false, CalendarPeriodID: &pid},
 	}
 }
 
-func edEnrollments() []*activities.StudentEnrollment {
+func edEnrollments() []*activityContract.StudentEnrollment {
 	pid := edPeriodID
-	return []*activities.StudentEnrollment{
+	return []*activityContract.StudentEnrollment{
 		{StudentID: edStudA, CalendarPeriodID: &pid},
 		{StudentID: edStudB, CalendarPeriodID: &pid},
 	}
@@ -69,7 +70,7 @@ func edPristineInstance() *scheduleModel.ActivityInstance {
 	return &scheduleModel.ActivityInstance{
 		Title:            edTitle,
 		Notes:            nil,
-		Date:             scheduleModel.Date(edWednesday),
+		Date:             calendar.Date(edWednesday),
 		StartTime:        edClock(15, 0),
 		EndTime:          edClock(16, 0),
 		RoomID:           edRoomA,
@@ -217,11 +218,11 @@ func TestExpectedSlotsOn_LegacyWeekendScheduleIsNotMaterializable(t *testing.T) 
 	// instance projection must do the same so it warns before a re-plan removes
 	// an existing weekend row without replacing it.
 	projection := &templateProjection{
-		roster: templateRoster{schedules: []*activities.Schedule{{Weekday: 6}}},
+		roster: templateRoster{schedules: []*activityContract.Schedule{{Weekday: 6}}},
 	}
 	saturday := calendar.NewDate(2026, time.June, 13)
 
-	slots := projection.expectedSlotsOn(&activities.Group{}, nil, saturday)
+	slots := projection.expectedSlotsOn(&activityContract.Group{}, nil, saturday)
 
 	assert.Empty(t, slots)
 }

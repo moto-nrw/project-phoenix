@@ -35,8 +35,8 @@
     "source": "Local run on the PR branch. The producer is the same code behind ports; the evidence is the moved suites, the vocabulary pin against the notification service and the architecture check, not a benchmark rerun.",
     "sources": [
       "backend/workflows/reminderdelivery/personal_notifications.go",
-      "backend/services/scheduler/reminder_notifications.go",
-      "backend/api/personal_reminder_notifications.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/a4b10d5cdf06c707909c14f386807d6a56295f3c/backend/services/scheduler/reminder_notifications.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/personal_reminder_notifications.go",
       "backend/modules/workforce/worksession.go"
     ],
     "workload": "Go test suites through scripts/run-go-toolchain.sh against a local postgres-test server; scripts/test-changed.sh origin/development.",

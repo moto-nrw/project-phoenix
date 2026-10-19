@@ -5,7 +5,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -26,22 +25,22 @@ func TestStudentClassRosterHydratesOrdersAndReturnsNilWhenEmpty(t *testing.T) {
 
 	class := "List behavior"
 	person := testpkg.CreateTestPerson(t, db, "Student list", "Hydrated")
-	hydrated := &userModels.Student{
+	hydrated := &peopledirectory.StudentState{
 		PersonID:    person.ID,
 		SchoolClass: class,
 		BusDays:     peopledirectory.BusDaysFromLegacyFlag(true),
 	}
-	require.NoError(t, repo.Create(ctx, hydrated))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Create, hydrated))
 	second := testpkg.CreateTestStudent(t, db, "Student list", "Second", class)
 
-	rows, err := repo.ListClassRoster(ctx, class)
+	rows, err := testpkg.TenantQuery1(t, ctx, db, repo.ListClassRoster, class)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 	assert.Equal(t, hydrated.ID, rows[0].ID, "rows arrive in a total order")
 	assert.Equal(t, second.ID, rows[1].ID)
 	assert.True(t, rows[0].BusDays.HasAny(), "the departure plan comes back hydrated")
 
-	empty, err := repo.ListClassRoster(ctx, "Missing student class")
+	empty, err := testpkg.TenantQuery1(t, ctx, db, repo.ListClassRoster, "Missing student class")
 	require.NoError(t, err)
 	assert.Nil(t, empty)
 	assert.Empty(t, empty)
@@ -54,26 +53,26 @@ func TestGuardianProfileRepositoryListWithOptionsPreservesDefaultOrderAndEmptySl
 	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile
 	ctx := testpkg.Ctx(t)
 	zuluFixture := testpkg.CreateTestGuardianProfile(t, db, "guardian-list-zulu")
-	zulu, err := repo.FindByID(ctx, zuluFixture.ID)
+	zulu, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, zuluFixture.ID)
 	require.NoError(t, err)
 	alphaFixture := testpkg.CreateTestGuardianProfile(t, db, "guardian-list-alpha")
-	alpha, err := repo.FindByID(ctx, alphaFixture.ID)
+	alpha, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, alphaFixture.ID)
 	require.NoError(t, err)
 	zulu.LastName = "Zulu"
 	alpha.LastName = "Alpha"
-	require.NoError(t, repo.Update(ctx, zulu))
-	require.NoError(t, repo.Update(ctx, alpha))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, zulu))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, alpha))
 
 	options := peoplePorts.NewQueryOptions().WithPagination(1, 1)
 	options.Filter.In("id", zulu.ID, alpha.ID)
-	rows, err := repo.ListWithOptions(ctx, options)
+	rows, err := testpkg.TenantQuery1(t, ctx, db, repo.ListWithOptions, options)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, alpha.ID, rows[0].ID)
 
 	emptyOptions := peoplePorts.NewQueryOptions()
 	emptyOptions.Filter.Equal("last_name", "Missing guardian")
-	empty, err := repo.ListWithOptions(ctx, emptyOptions)
+	empty, err := testpkg.TenantQuery1(t, ctx, db, repo.ListWithOptions, emptyOptions)
 	require.NoError(t, err)
 	assert.Nil(t, empty)
 	assert.Empty(t, empty)
@@ -89,12 +88,12 @@ func TestGuardianProfileRepositoryListWithOptionsStaysWithinTenant(t *testing.T)
 	otherTenant, _ := testpkg.CreateTestTenant(t, db)
 	foreign := testpkg.CreateTestGuardianProfileForTenant(t, db, otherTenant, "Foreign", "Guardian", "guardian-list-foreign")
 
-	rows, err := repo.ListWithOptions(ctx, nil)
+	rows, err := testpkg.TenantQuery1(t, ctx, db, repo.ListWithOptions, nil)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, own.ID, rows[0].ID)
 
-	byEmail, err := repo.FindByEmails(ctx, []string{*own.Email, *foreign.Email})
+	byEmail, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByEmails, []string{*own.Email, *foreign.Email})
 	require.NoError(t, err)
 	require.Len(t, byEmail, 1)
 	assert.Equal(t, own.ID, byEmail[0].ID)

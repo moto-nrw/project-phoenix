@@ -1,15 +1,14 @@
 package presence_test
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -18,7 +17,6 @@ import (
 )
 
 type failingVisitSlotCheckIn struct {
-	scheduleModels.InstanceStudentRepository
 	failAt string
 	writes []string
 	err    error
@@ -33,20 +31,6 @@ func (r *failingVisitSlotCheckIn) after(phase string, err error) error {
 		return r.err
 	}
 	return nil
-}
-
-func (r *failingVisitSlotCheckIn) UpdateAttendanceFromCheckin(ctx context.Context, instanceID, studentID int64, at time.Time) (bool, error) {
-	changed, err := r.InstanceStudentRepository.UpdateAttendanceFromCheckin(ctx, instanceID, studentID, at)
-	return changed, r.after("check-in", err)
-}
-
-func (r *failingVisitSlotCheckIn) CreateUnplannedPresentIfAbsent(ctx context.Context, instanceID, studentID int64, at time.Time) (*scheduleModels.InstanceStudent, error) {
-	row, err := r.InstanceStudentRepository.CreateUnplannedPresentIfAbsent(ctx, instanceID, studentID, at)
-	return row, r.after("insert", err)
-}
-
-func (r *failingVisitSlotCheckIn) UpdateAttendanceCheckout(ctx context.Context, instanceID, studentID int64, at time.Time) error {
-	return r.after("checkout", r.InstanceStudentRepository.UpdateAttendanceCheckout(ctx, instanceID, studentID, at))
 }
 
 func TestVisitCheckInRollsBackAfterEachSlotWriteAndRetries(t *testing.T) {
@@ -65,11 +49,11 @@ func TestVisitCheckInRollsBackAfterEachSlotWriteAndRetries(t *testing.T) {
 			testpkg.OwnTenant(t)
 			db := testpkg.SetupTestDB(t)
 			module := testSchoolPresence(t, db)
-			syncRows := api.NewAttendanceSyncTestRepositories(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)).Capability)
+			syncRows := api.NewAttendanceSyncTestRepositories(testpkg.NewDatabase(t, db), owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)))
 			instances, assignments := syncRows.Instances, syncRows.Participants
 			injected := errors.New("fail after visit slot write")
-			rows := &failingVisitSlotCheckIn{InstanceStudentRepository: assignments, failAt: tc.failAt, err: injected}
-			syncer := newAttendanceMirror(t, instances, rows, slog.Default())
+			rows := &failingVisitSlotCheckIn{failAt: tc.failAt, err: injected}
+			syncer := newAttendanceMirror(t, rows.bind(api.TimetableOwnerRows{Instances: instances, Participants: assignments}), slog.Default())
 			svc, broadcaster := newServiceWithPresenceSync(t, db, module, syncer)
 			activeService.ConfigureForTest(svc, activeService.WithTenantRuntime(testpkg.TenantRuntime(t, db)))
 			student := testpkg.CreateTestStudent(t, db, "VisitSlot", "Rollback", "3a")
@@ -78,7 +62,7 @@ func TestVisitCheckInRollsBackAfterEachSlotWriteAndRetries(t *testing.T) {
 			group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
 			instance := testpkg.CreateTestActivityInstance(t, db, testpkg.TodayDate(), group.RoomID, testpkg.ActivityInstanceOpts{ActiveGroupID: &group.ID})
 			if !tc.unplanned {
-				testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, scheduleModels.AttendanceStatusExpected)
+				testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, studentpresence.SessionAttendanceExpected)
 			}
 			ctx := api.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)
 			ctx = api.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
@@ -107,7 +91,7 @@ func TestVisitCheckInRollsBackAfterEachSlotWriteAndRetries(t *testing.T) {
 				require.NotNil(t, slot)
 				assert.Nil(t, slot.CheckedInAt)
 				assert.Nil(t, slot.CheckedOutAt)
-				assert.Equal(t, scheduleModels.AttendanceStatusExpected, slot.Status)
+				assert.Equal(t, studentpresence.SessionAttendanceExpected, slot.Status)
 			}
 
 			rows.failAt = ""
@@ -132,4 +116,8 @@ func TestVisitCheckInRollsBackAfterEachSlotWriteAndRetries(t *testing.T) {
 			}
 		})
 	}
+}
+
+func (r *failingVisitSlotCheckIn) bind(rows api.TimetableOwnerRows) api.TimetableOwnerRows {
+	return api.AfterAttendanceMirrorWrite(rows, func(phase string, _ bool, err error) error { return r.after(phase, err) })
 }

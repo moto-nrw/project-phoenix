@@ -3,7 +3,7 @@ package application
 import (
 	"time"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 

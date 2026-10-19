@@ -27,10 +27,7 @@ func (e staffEmployment) read(ctx context.Context, operation string, queries int
 		if _, ok := tenant.TransactionFromContext(ctx); ok {
 			return callback(ctx)
 		}
-		if _, err := tenant.TenantFromContext(ctx); err == nil {
-			return tenant.WithinCurrentTenant(ctx, callback)
-		}
-		return tenant.WithinAdmin(ctx, callback)
+		return tenant.WithinCurrentTenant(ctx, callback)
 	})
 }
 
@@ -76,12 +73,6 @@ func (e staffEmployment) StaffOnWorkTimeModel(ctx context.Context, workTimeModel
 func (e staffEmployment) SaveStaffEmployment(ctx context.Context, value workforce.StaffEmployment) error {
 	return e.write(ctx, "save_staff_employment", 1, func(ctx context.Context) error {
 		return e.store.SaveStaffEmployment(ctx, domain.StaffEmployment(value))
-	})
-}
-
-func (e staffEmployment) ClearStaffWorkTimeModel(ctx context.Context, membershipID int64) error {
-	return e.write(ctx, "clear_staff_work_time_model", 1, func(ctx context.Context) error {
-		return e.store.ClearStaffWorkTimeModel(ctx, membershipID)
 	})
 }
 

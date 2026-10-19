@@ -11,3 +11,12 @@ import "strings"
 func NormalizeClass(class string) string {
 	return strings.ToLower(strings.TrimSpace(class))
 }
+
+// Supported grade bounds are shared by target-group validation, tenant
+// metadata, and enrollment settings. Keeping them here prevents the public
+// form and timetable APIs from drifting apart again.
+const (
+	MinGradeLevel        = 1
+	DefaultGradeLevelMax = 4
+	MaxGradeLevel        = 13
+)

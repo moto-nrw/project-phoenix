@@ -243,7 +243,7 @@ func toPublicRoster(values []domain.StudentRosterEntry) []peopledirectory.Studen
 	result := make([]peopledirectory.StudentRosterEntry, 0, len(values))
 	for _, value := range values {
 		result = append(result, peopledirectory.StudentRosterEntry{
-			Record:    peopledirectory.StudentRecord(value.Record),
+			Record:    peopledirectory.StudentStateFromRecord(peopledirectory.StudentRecord(value.Record)),
 			FirstName: value.FirstName, LastName: value.LastName,
 			TagID: value.TagID, AccountID: value.AccountID,
 		})

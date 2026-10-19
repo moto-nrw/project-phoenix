@@ -27,7 +27,7 @@ func newReleaseTestService(owner facilitiesModule.Capability) Service {
 			}
 			return result, nil
 		},
-		History: func(context.Context, int64, time.Time, time.Time, *int64) ([]RoomSessionEntry, error) {
+		History: func(context.Context, int64, time.Time, time.Time, *int64) ([]facilitiesModule.RoomSessionEntry, error) {
 			return nil, nil
 		},
 	})

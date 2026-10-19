@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -188,6 +188,6 @@ type shiftTypeTestRows struct {
 }
 
 func newShiftTypeTestRows(db *bun.DB) shiftTypeTestRows {
-	workforce := api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db)).Workforce
+	workforce := api.MustNewWorkforce(testpkg.MustDatabase(db))
 	return shiftTypeTestRows{StaffShift: planning.NewShiftRows(workforce), ShiftType: planning.NewShiftTypeRows(workforce)}
 }

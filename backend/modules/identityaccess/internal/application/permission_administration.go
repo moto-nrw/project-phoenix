@@ -48,8 +48,6 @@ func (r *RoleAdministration) UpdatePermission(ctx context.Context, permission do
 	return nil
 }
 
-// DeletePermission removes the account grants and role mappings of the
-// permission before the permission itself.
 func (r *RoleAdministration) DeletePermission(ctx context.Context, id int64) error {
 	if err := r.store.DeletePermissionGrants(ctx, id); err != nil {
 		return failed("delete account permissions", err)
@@ -108,8 +106,6 @@ func (r *RoleAdministration) RemovePermissionFromAccount(ctx context.Context, ac
 	})
 }
 
-// GetAccountPermissions returns the direct and the role-based permissions of
-// an account in one query.
 func (r *RoleAdministration) GetAccountPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error) {
 	if _, err := r.accounts.FindManageableAccount(ctx, accountID); err != nil {
 		return nil, failed("get account permissions", domain.ErrAccountNotFound)
@@ -124,8 +120,6 @@ func (r *RoleAdministration) GetAccountPermissions(ctx context.Context, accountI
 	return permissions, nil
 }
 
-// GetAccountDirectPermissions returns only the direct permissions of an
-// account, not the role-based ones.
 func (r *RoleAdministration) GetAccountDirectPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error) {
 	if _, err := r.accounts.FindManageableAccount(ctx, accountID); err != nil {
 		return nil, failed("get account direct permissions", domain.ErrAccountNotFound)
