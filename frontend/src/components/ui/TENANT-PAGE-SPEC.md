@@ -18,6 +18,7 @@ Wurzel jeder Seite ist `TenantPage` aus `~/components/ui/tenant-page`:
   title="Kinder"
   stats={statusLine} // echte Zahlen, KEIN Erklärsatz
   statsLoading={isLoading} // rendert an der Stelle ein Skelett
+  info={<p>Erklärung zum Kennenlernen</p>} // Info-Knopf neben dem Titel
   actions={<Button size="md">Kind anlegen</Button>}
   search={{ value: query, onChange: setQuery, placeholder: "Kind suchen…" }}
   filters={filterConfigs} // FilterConfig[] aus ui/page-header/types
@@ -53,6 +54,12 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    **Höchstens drei Paare** — `TenantPageStats` schneidet dahinter ab. Die
    Statuszeile ist eine Orientierung; was mehr sagen will, ist eine Fläche
    im Inhalt, keine längere Zeile.
+   Eine Zahl, die schon auf einer Fläche im Inhalt steht (Kachel, Karte),
+   steht nicht noch einmal in der Statuszeile. Dann bleibt `stats` leer.
+   Erklärtext, den man nur zum Kennenlernen braucht, gehört in `info`: er
+   liegt hinter einem Info-Knopf neben dem Titel (Popover, per Tipp und
+   Tastatur, auch mit Link) und kostet im Alltag keine Kartenzeile (#4385).
+   Text, den man bei jedem Besuch braucht, bleibt eine `SectionCard`.
 4. **Aktionen gehören in `actions`, und dort steht GENAU EINE sichtbar.**
    Keine eigene Button-Zeile unter oder über dem Kopf, keine Zeile, die nur
    einen Zähler, ein Select oder einen Export-Knopf trägt. Neben dem Titel

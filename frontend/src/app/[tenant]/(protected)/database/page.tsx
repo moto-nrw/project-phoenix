@@ -8,7 +8,6 @@ import Link from "~/components/ui/navigation-link";
 import { redirect } from "next/navigation";
 import { CollectionGrid } from "~/components/ui/collection-grid";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { Skeleton } from "~/components/ui/skeleton";
 import { TileCard } from "~/components/ui/tile-card";
@@ -17,7 +16,6 @@ import { ChevronRight } from "lucide-react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { DatabaseCardGridSkeleton } from "./page-skeleton";
-import { formatCount } from "~/lib/format-utils";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 
@@ -227,26 +225,6 @@ const baseDataSections: DataSection[] = [
 
 const NFC_ONLY_SECTION_IDS = new Set(["activities", "devices"]);
 
-/** Statuszeile des Seitenkopfs: die Bestände, die der Zugriff hergibt.
- *  Zahlen stammen aus /api/database/counts, das die Seite ohnehin lädt. */
-function buildDatabaseStatusLine(counts: DatabaseCounts): string {
-  const permissions = counts.permissions;
-  const parts: string[] = [];
-  if (permissions.canViewStudents) {
-    parts.push(`${formatCount(counts.students)} Kinder`);
-  }
-  if (permissions.canViewTeachers) {
-    parts.push(`${formatCount(counts.teachers)} Personen`);
-  }
-  if (permissions.canViewRooms) {
-    parts.push(`${formatCount(counts.rooms)} Räume`);
-  }
-  if (permissions.canViewGroups) {
-    parts.push(`${formatCount(counts.groups)} Gruppen`);
-  }
-  return parts.slice(0, 3).join(" · ");
-}
-
 function DatabaseContent() {
   const { data: session } = useSession();
   const nfcEnabled = useNFCEnabled();
@@ -285,20 +263,19 @@ function DatabaseContent() {
   }
 
   const showSkeleton = countsLoading && data === undefined;
-  const statusLine = countsMissing ? null : buildDatabaseStatusLine(counts);
 
   return (
+    // Keine Statuszeile: jede Zahl steht schon auf ihrer Kachel, der Kopf
+    // wiederholte nur drei davon (#4385).
     <TenantPage
       title="Datenverwaltung"
-      stats={statusLine}
-      statsLoading={showSkeleton}
-    >
-      {/* Die Grenze zu „Alle Kinder" steht auf der Seite selbst, nicht nur
-          in der Hilfe (ADR 0008, #2826): hier wird angelegt und gepflegt,
-          der laufende Tag liegt im Tagesbetrieb. Der Text steht auf einer
-          Fläche, nicht auf dem gemusterten Grund (BAUARTEN-SPEC, Teil 3). */}
-      <SectionCard>
-        <p className="max-w-2xl text-sm leading-6 text-gray-600">
+      info={
+        // Die Grenze zu „Alle Kinder" steht auf der Seite selbst, nicht nur
+        // in der Hilfe (ADR 0008, #2826): hier wird angelegt und gepflegt,
+        // der laufende Tag liegt im Tagesbetrieb. Wer die Seite täglich
+        // nutzt, braucht den Satz nicht mehr, deshalb liegt er hinter dem
+        // Info-Knopf statt in einer eigenen Karte (#4385).
+        <p>
           Hier legen Sie Kinder, Personal, Räume und Gruppen an und pflegen ihre
           Daten. Wer heute da ist, sehen Sie unter{" "}
           <Link
@@ -309,8 +286,8 @@ function DatabaseContent() {
           </Link>
           .
         </p>
-      </SectionCard>
-
+      }
+    >
       <LoadErrorAlert error={countsLoadError} />
 
       {showSkeleton ? (

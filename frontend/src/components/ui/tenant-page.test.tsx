@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
+import Link from "next/link";
 import { TenantPage, TenantPageStats } from "./tenant-page";
 
 vi.mock("next/link", () => ({
@@ -427,6 +428,60 @@ describe("TenantPage", () => {
     const band = screen.getByRole("tablist", { name: "Einstellungsbereiche" });
     expect(band.className).toContain("max-sm:overflow-x-auto");
     expect(within(band).getAllByRole("tab")).toHaveLength(2);
+  });
+
+  it("legt die Erklärung hinter einen Info-Knopf neben dem Titel", () => {
+    render(
+      <TenantPage
+        title="Datenverwaltung"
+        info={
+          <p>
+            Hier legen Sie Daten an.{" "}
+            <Link href="/students/search">Alle Kinder</Link>
+          </p>
+        }
+      >
+        <p>Inhalt</p>
+      </TenantPage>,
+    );
+
+    // Im Alltag kostet die Erklärung keine Zeile: sie ist zu, bis jemand
+    // sie öffnet.
+    expect(screen.queryByText(/Hier legen Sie Daten an/)).toBeNull();
+    const heading = screen.getByRole("heading", { level: 1 });
+    expect(heading).toHaveTextContent(/^Datenverwaltung$/);
+
+    const trigger = screen.getByRole("button", {
+      name: "Erklärung zu Datenverwaltung",
+    });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(heading.contains(trigger)).toBe(false);
+
+    fireEvent.click(trigger);
+
+    const panel = screen.getByRole("dialog", {
+      name: "Erklärung zu Datenverwaltung",
+    });
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(trigger).toHaveAttribute("aria-controls", panel.id);
+    expect(panel).toHaveTextContent(/Hier legen Sie Daten an/);
+    expect(
+      within(panel).getByRole("link", { name: "Alle Kinder" }),
+    ).toHaveAttribute("href", "/students/search");
+
+    fireEvent.keyDown(panel, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("zeigt ohne Erklärung keinen Info-Knopf", () => {
+    render(
+      <TenantPage title="Kinder">
+        <p>Inhalt</p>
+      </TenantPage>,
+    );
+
+    expect(screen.queryByRole("button", { name: /Erklärung/ })).toBeNull();
   });
 
   it("zeigt im Fehlerzustand die mitgegebene Aktion", () => {

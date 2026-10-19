@@ -72,10 +72,13 @@ export { DataTableSkeleton as TableSkeleton } from "~/components/ui/data-table";
  */
 export function TenantPageHeaderSkeleton({
   leading = false,
+  stats = true,
   controls = false,
 }: Readonly<{
   /** Platz für Avatar oder Konzept-Symbol links vom Titel. */
   leading?: boolean;
+  /** Zeile für die Statuszeile; aus für Seiten ohne `stats`. */
+  stats?: boolean;
   /** Zweite Zeile für Suche, Filter oder Zeitnavigation. */
   controls?: boolean;
 }> = {}) {
@@ -85,7 +88,9 @@ export function TenantPageHeaderSkeleton({
         {leading && <Skeleton className="h-12 w-12 shrink-0 rounded-xl" />}
         <div className="min-w-0 flex-1">
           <Skeleton className="h-7 w-52 max-w-3/4 rounded-full" />
-          <Skeleton className="mt-2 h-4 w-64 max-w-full rounded-full" />
+          {stats && (
+            <Skeleton className="mt-2 h-4 w-64 max-w-full rounded-full" />
+          )}
         </div>
       </div>
       {controls && (

@@ -1,4 +1,10 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -178,15 +184,16 @@ describe("DatabasePage", () => {
     });
   });
 
-  it("shows no more than three counts in the page header", async () => {
+  it("shows every count once, on its tile and not again in the page header", () => {
     render(<DatabasePage />);
 
-    await waitFor(() => {
-      expect(
-        screen.getByText("100 Kinder · 25 Personen · 15 Räume"),
-      ).toBeInTheDocument();
-      expect(screen.queryByText("10 Gruppen")).not.toBeInTheDocument();
-    });
+    // Die Kacheln tragen jeden Bestand; eine Statuszeile im Kopf wiederholte
+    // drei davon (#4385).
+    const header = screen.getByRole("banner");
+    expect(header).not.toHaveTextContent(/\d/);
+    expect(screen.getAllByText("100 Einträge")).toHaveLength(1);
+    expect(screen.getAllByText("25 Einträge")).toHaveLength(1);
+    expect(screen.getAllByText("15 Einträge")).toHaveLength(1);
   });
 
   it("displays singular 'Eintrag' for count of 1", async () => {
@@ -417,20 +424,28 @@ describe("DatabasePage", () => {
     });
   });
 
-  it("puts the intro text with the Alle Kinder link on a surface", () => {
+  it("keeps the intro text with the Alle Kinder link behind the info button", () => {
     render(<DatabasePage />);
 
-    // Auf dem gemusterten Grund steht kein Text (BAUARTEN-SPEC, Teil 3).
-    const allChildrenLink = screen.getByRole("link", { name: "Alle Kinder" });
-    expect(allChildrenLink).toHaveAttribute(
-      "href",
-      "/test-tenant/students/search",
+    // Im Alltag kostet der Satz keine Kartenzeile (#4385); die Grenze zu
+    // „Alle Kinder" bleibt auf der Seite (ADR 0008).
+    expect(
+      screen.queryByText(/Hier legen Sie Kinder, Personal, Räume/),
+    ).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Erklärung zu Datenverwaltung" }),
     );
-    const surface = allChildrenLink.closest("section");
-    expect(surface).not.toBeNull();
-    expect(surface).toHaveTextContent(
+
+    const panel = screen.getByRole("dialog", {
+      name: "Erklärung zu Datenverwaltung",
+    });
+    expect(panel).toHaveTextContent(
       /Hier legen Sie Kinder, Personal, Räume und Gruppen an/,
     );
+    expect(
+      within(panel).getByRole("link", { name: "Alle Kinder" }),
+    ).toHaveAttribute("href", "/test-tenant/students/search");
   });
 
   it("keeps the tenant slug on the Exporte link in path routing", async () => {

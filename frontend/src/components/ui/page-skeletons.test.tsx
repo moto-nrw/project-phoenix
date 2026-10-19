@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { PageHeaderSkeleton } from "./page-header/PageHeaderSkeleton";
-import { SkeletonRegion } from "./page-skeletons";
+import { SkeletonRegion, TenantPageHeaderSkeleton } from "./page-skeletons";
 
 describe("SkeletonRegion", () => {
   it("shows its loading shape immediately without an invisible transition", () => {
@@ -18,6 +18,18 @@ describe("SkeletonRegion", () => {
     expect(
       screen.getByRole("status", { name: "Daten werden geladen" }),
     ).toHaveAttribute("aria-busy", "true");
+  });
+});
+
+describe("TenantPageHeaderSkeleton", () => {
+  it("drops the status line row for a page without stats", () => {
+    const { container: withStats } = render(<TenantPageHeaderSkeleton />);
+    const { container: withoutStats } = render(
+      <TenantPageHeaderSkeleton stats={false} />,
+    );
+
+    expect(withStats.querySelectorAll(".animate-pulse")).toHaveLength(2);
+    expect(withoutStats.querySelectorAll(".animate-pulse")).toHaveLength(1);
   });
 });
 

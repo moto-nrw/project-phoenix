@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "~/components/ui/navigation-link";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Info } from "lucide-react";
 import type {
   InputHTMLAttributes,
   KeyboardEvent,
@@ -16,6 +16,8 @@ import {
   useState,
 } from "react";
 import { Alert } from "~/components/ui/alert";
+import { AnchoredPopover } from "~/components/ui/anchored-popover";
+import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import type { FormErrorDetail } from "~/components/ui/form-error";
 import { errorAlertActions } from "~/components/ui/form-error-alert";
@@ -80,6 +82,13 @@ export interface TenantPageProps {
   readonly stats?: ReactNode;
   /** Zeigt statt der Statuszeile ein Skelett. */
   readonly statsLoading?: boolean;
+  /**
+   * Erklärung der Seite, die man zum Kennenlernen braucht, aber nicht jeden
+   * Tag liest. Sie liegt hinter einem Info-Knopf neben dem Titel und kostet
+   * im Alltag keine Zeile (#4385). Per Tipp, Klick und Tastatur erreichbar,
+   * deshalb auch für Text mit Link; ein Tooltip trägt nur reinen Text.
+   */
+  readonly info?: ReactNode;
   /** Aktionen rechts in der Titelzeile (Primäraktion, Export, Kebab). */
   readonly actions?: ReactNode;
   /** Element links vom Titel, zum Beispiel Avatar oder Konzept-Icon. */
@@ -219,6 +228,47 @@ export interface TenantPageProps {
 }
 
 /**
+ * Der Info-Knopf neben dem Seitentitel. Ein Popover statt eines Tooltips:
+ * auf dem Telefon gibt es kein Hover, und die Erklärung darf einen Link
+ * tragen. Escape und ein Klick daneben schließen sie wieder.
+ */
+function TenantPageInfo({
+  title,
+  children,
+}: Readonly<{ title: string; children: ReactNode }>) {
+  const [open, setOpen] = useState(false);
+  const label = `Erklärung zu ${title}`;
+
+  return (
+    <AnchoredPopover
+      open={open}
+      onOpenChange={setOpen}
+      ariaLabel={label}
+      preferredWidth={360}
+      renderTrigger={({ ref, open: expanded, panelId, toggle }) => (
+        <Button
+          ref={ref}
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={label}
+          aria-expanded={expanded}
+          aria-controls={expanded ? panelId : undefined}
+          onClick={toggle}
+          className="shrink-0 text-gray-400"
+        >
+          <Info aria-hidden="true" className="h-[18px] w-[18px]" />
+        </Button>
+      )}
+    >
+      {() => (
+        <div className="p-4 text-sm leading-6 text-gray-700">{children}</div>
+      )}
+    </AnchoredPopover>
+  );
+}
+
+/**
  * Ein Wert-Label-Paar der Statuszeile. Trennzeichen setzt `TenantPageStats`.
  *
  * Höchstens DREI Paare: die Statuszeile ist eine Orientierung, keine
@@ -274,6 +324,7 @@ export function TenantPage({
   title,
   stats,
   statsLoading = false,
+  info,
   actions,
   leading,
   prominent = false,
@@ -350,23 +401,28 @@ export function TenantPage({
           <div className="flex min-w-0 flex-1 basis-0 items-center gap-3 max-sm:min-w-[11rem]">
             {leading}
             <div className="min-w-0">
-              <h1
-                className={cn(
-                  "font-semibold tracking-tight text-balance text-gray-900",
-                  // Auch auf dem Telefon sichtbar: unter lg gibt es keine
-                  // Shell-Kopfzeile mehr (wie in der Eltern-App), die
-                  // Kopfkarte ist die einzige Trägerin des Seitennamens.
-                  // Der Desktop-Grad ist der Grundwert, Telefon und die
-                  // Dichte-Stufe kleiner Bildschirme ziehen ihn je eine
-                  // Stufe herunter (#2824). Beide Varianten schliessen
-                  // einander aus, es gilt also immer genau eine.
-                  prominent
-                    ? "compact:text-2xl text-[28px] leading-tight max-sm:text-2xl"
-                    : "compact:text-xl text-2xl leading-tight max-sm:text-xl",
+              <div className="flex items-center gap-1">
+                <h1
+                  className={cn(
+                    "font-semibold tracking-tight text-balance text-gray-900",
+                    // Auch auf dem Telefon sichtbar: unter lg gibt es keine
+                    // Shell-Kopfzeile mehr (wie in der Eltern-App), die
+                    // Kopfkarte ist die einzige Trägerin des Seitennamens.
+                    // Der Desktop-Grad ist der Grundwert, Telefon und die
+                    // Dichte-Stufe kleiner Bildschirme ziehen ihn je eine
+                    // Stufe herunter (#2824). Beide Varianten schliessen
+                    // einander aus, es gilt also immer genau eine.
+                    prominent
+                      ? "compact:text-2xl text-[28px] leading-tight max-sm:text-2xl"
+                      : "compact:text-xl text-2xl leading-tight max-sm:text-xl",
+                  )}
+                >
+                  {title}
+                </h1>
+                {info != null && (
+                  <TenantPageInfo title={title}>{info}</TenantPageInfo>
                 )}
-              >
-                {title}
-              </h1>
+              </div>
               {/* Ein div, kein p: `stats` ist beliebiges ReactNode, und
                   Seiten setzen Blockelemente hinein (das LocationBadge der
                   Kinderseite rendert ein div). In einem p wäre das ungültiges
