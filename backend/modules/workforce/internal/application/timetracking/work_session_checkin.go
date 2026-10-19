@@ -40,10 +40,10 @@ func (s *workSessionService) CheckInOn(ctx context.Context, staffID int64, _ cal
 // from the date column.
 func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status, source, reason string, enforceDeviationGate bool) (*WorkSession, error) {
 	if status != WorkSessionStatusPresent && status != WorkSessionStatusHomeOffice {
-		return nil, fmt.Errorf("status must be 'present' or 'home_office'")
+		return nil, workforce.ErrSessionStatusInvalid
 	}
 	if source != WorkSessionSourceApp && source != WorkSessionSourceNFC {
-		return nil, fmt.Errorf("source must be 'app' or 'nfc'")
+		return nil, workforce.ErrSessionSourceInvalid
 	}
 	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, err
@@ -84,7 +84,7 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status,
 		}
 		expired, stale := ExpireStaleOpenBlock(sibling, now)
 		if !stale {
-			return nil, fmt.Errorf("already checked in")
+			return nil, workforce.ErrAlreadyCheckedIn
 		}
 		if err := s.closeStaleOpenBlock(ctx, sibling, *expired.CheckOutTime); err != nil {
 			return nil, err

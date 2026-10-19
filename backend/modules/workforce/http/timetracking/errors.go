@@ -2,9 +2,7 @@ package timetracking
 
 import (
 	"errors"
-	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 
@@ -12,11 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 )
 
-// The web time-tracking routes classify through the rule tables below; the
-// first matching rule wins. The legacy service names many failures only by
-// their wording, and that wording also feeds the IoT stamp mapping
-// (services/workforce_time_clock.go), so it stays as it is. The web answer
-// carries a stable code, so the frontend never reads the sentence (#2514).
+// Error rules classify owner identities; the first matching rule wins.
 
 // classifyServiceError maps known business errors to appropriate HTTP status codes
 func classifyServiceError(err error) render.Renderer {
@@ -36,32 +30,26 @@ var serviceErrorRules = []common.ErrorRule{
 	// A concurrent stamp of the same person lost the race: to the person it
 	// reads exactly like stamping twice.
 	{Target: workforce.ErrCheckInRaced, Render: conflictWithCode(common.CodeWorkforceAlreadyCheckedIn)},
-	{Match: msgIs("already checked in"), Render: conflictWithCode(common.CodeWorkforceAlreadyCheckedIn)},
-	{Match: msgIs("break already active"), Render: conflictWithCode(common.CodeWorkforceBreakAlreadyActive)},
-	{Match: msgIs("already checked out today"), Render: conflictWithCode(common.CodeWorkforceAlreadyCheckedOut)},
+	{Target: workforce.ErrAlreadyCheckedIn, Render: conflictWithCode(common.CodeWorkforceAlreadyCheckedIn)},
+	{Target: workforce.ErrBreakAlreadyActive, Render: conflictWithCode(common.CodeWorkforceBreakAlreadyActive)},
+	{Target: workforce.ErrAlreadyCheckedOut, Render: conflictWithCode(common.CodeWorkforceAlreadyCheckedOut)},
 	// The overlap message carries the conflicting interval, so only the code
 	// identifies it.
-	{Match: msgPrefix("work session overlaps an existing block"), Render: conflictWithCode(common.CodeWorkforceWorkSessionOverlap)},
-	{Match: msgIs("no active session found"), Render: notFoundWithCode(common.CodeWorkforceNoActiveSession)},
-	{Match: msgIs("no active break found"), Render: notFoundWithCode(common.CodeWorkforceNoActiveBreak)},
-	{Match: msgIs("no session found for today"), Render: notFoundWithCode(common.CodeWorkforceNoSessionForToday)},
-	{Match: msgIs("session not found"), Render: notFoundWithCode(common.CodeWorkforceSessionNotFound)},
-	{Match: msgIn("can only update own sessions", "session does not belong to requesting staff"), Render: forbiddenWithCode(common.CodeWorkforceSessionNotOwned)},
+	{Target: workforce.ErrWorkSessionOverlap, Render: conflictWithCode(common.CodeWorkforceWorkSessionOverlap)},
+	{Target: workforce.ErrNoActiveSession, Render: notFoundWithCode(common.CodeWorkforceNoActiveSession)},
+	{Target: workforce.ErrNoActiveBreak, Render: notFoundWithCode(common.CodeWorkforceNoActiveBreak)},
+	{Target: workforce.ErrNoSessionForToday, Render: notFoundWithCode(common.CodeWorkforceNoSessionForToday)},
+	{Target: workforce.ErrSessionNotFound, Render: notFoundWithCode(common.CodeWorkforceSessionNotFound)},
+	{Match: isAny(workforce.ErrSessionUpdateNotOwned, workforce.ErrSessionNotOwned), Render: forbiddenWithCode(common.CodeWorkforceSessionNotOwned)},
 	// Only these Validate() failures describe the recorded times; a missing
 	// staff ID or creator is a server fault and stays a 500.
-	{Match: msgIn(
-		"invalid session data: check-in time must be before check-out time",
-		"invalid session data: break minutes cannot be negative",
-		"check_out_time must be after check_in_time",
-		"break minutes cannot be negative",
-		"break duration cannot be negative",
-	), Render: invalidWithCode(common.CodeWorkforceSessionTimesInvalid)},
-	{Match: msgIn("notes required when changing status", "notes required when changing recorded times"), Render: invalidWithCode(common.CodeWorkforceSessionNoteRequired)},
-	{Match: msgPrefix("status must be"), Render: common.ErrorInvalidRequest},
-	{Match: msgPrefix("source must be"), Render: common.ErrorInvalidRequest},
-	{Match: msgPrefix("planned_duration_minutes must be"), Render: common.ErrorInvalidRequest},
-	{Match: isForeignBreak, Render: common.ErrorInvalidRequest},
-	{Match: msgIs("cannot edit duration of an active break"), Render: common.ErrorInvalidRequest},
+	{Match: isAny(workforce.ErrSessionTimeOrder, workforce.ErrBreakMinutesNegative, workforce.ErrSessionCheckoutOrder, workforce.ErrBreakDurationNegative), Render: invalidWithCode(common.CodeWorkforceSessionTimesInvalid)},
+	{Match: isAny(workforce.ErrSessionStatusNoteRequired, workforce.ErrSessionTimesNoteRequired), Render: invalidWithCode(common.CodeWorkforceSessionNoteRequired)},
+	{Target: workforce.ErrSessionStatusInvalid, Render: common.ErrorInvalidRequest},
+	{Target: workforce.ErrSessionSourceInvalid, Render: common.ErrorInvalidRequest},
+	{Target: workforce.ErrPlannedBreakDurationInvalid, Render: common.ErrorInvalidRequest},
+	{Target: workforce.ErrBreakNotOwned, Render: common.ErrorInvalidRequest},
+	{Target: workforce.ErrActiveBreakDurationEdit, Render: common.ErrorInvalidRequest},
 }
 
 var absenceErrorRules = []common.ErrorRule{
@@ -75,23 +63,18 @@ var absenceErrorRules = []common.ErrorRule{
 	// Kontingente may not go negative (#3256).
 	{Target: workforce.ErrVacationQuotaExceeded, Render: conflictWithCode(common.CodeWorkforceVacationQuotaExceeded)},
 	{Target: workforce.ErrAllowanceBookingOverlap, Render: conflictWithCode(common.CodeWorkforceAbsenceOverlap)},
-	{Match: msgIs("absence not found"), Render: notFoundWithCode(common.CodeWorkforceAbsenceNotFound)},
-	{Match: msgIn(
-		"can only update own absences",
-		"can only delete own absences",
-		"can only cancel own absences",
-		"can only resubmit own absences",
-	), Render: forbiddenWithCode(common.CodeWorkforceAbsenceNotOwned)},
-	{Match: msgIn("only pending or approved absences can be canceled", "past absences cannot be canceled"), Render: conflictWithCode(common.CodeWorkforceAbsenceNotCancelable)},
-	{Match: msgIs("vacation range contains no working days"), Render: invalidWithCode(common.CodeWorkforceAbsenceNoWorkingDays)},
-	{Match: msgIs("vacation request must start today or in the future"), Render: invalidWithCode(common.CodeWorkforceVacationRequestInPast)},
-	{Match: msgIs("resubmit note is required"), Render: common.ErrorInvalidRequest},
+	{Target: workforce.ErrAbsenceNotFound, Render: notFoundWithCode(common.CodeWorkforceAbsenceNotFound)},
+	{Match: isAny(workforce.ErrAbsenceUpdateNotOwned, workforce.ErrAbsenceDeleteNotOwned, workforce.ErrAbsenceCancelNotOwned, workforce.ErrAbsenceResubmitNotOwned), Render: forbiddenWithCode(common.CodeWorkforceAbsenceNotOwned)},
+	{Match: isAny(workforce.ErrAbsenceNotCancelable, workforce.ErrPastAbsenceCancel), Render: conflictWithCode(common.CodeWorkforceAbsenceNotCancelable)},
+	{Target: workforce.ErrAbsenceNoWorkingDays, Render: invalidWithCode(common.CodeWorkforceAbsenceNoWorkingDays)},
+	{Target: workforce.ErrVacationRequestInPast, Render: invalidWithCode(common.CodeWorkforceVacationRequestInPast)},
+	{Target: workforce.ErrAbsenceResubmitNoteRequired, Render: common.ErrorInvalidRequest},
 	// The Leitung decided while the person was still answering the question.
-	{Match: msgIs("only absences with a question can be resubmitted"), Render: invalidWithCode(common.CodeWorkforceAbsenceAlreadyDecided)},
-	{Match: msgPrefix("absence overlaps"), Render: conflictWithCode(common.CodeWorkforceAbsenceOverlap)},
-	{Match: msgPrefix("dates overlap"), Render: conflictWithCode(common.CodeWorkforceAbsenceOverlap)},
-	{Match: msgPrefix("updated dates overlap"), Render: conflictWithCode(common.CodeWorkforceAbsenceOverlap)},
-	{Match: msgPrefix("invalid"), Render: common.ErrorInvalidRequest},
+	{Target: workforce.ErrAbsenceNotQuestioned, Render: invalidWithCode(common.CodeWorkforceAbsenceAlreadyDecided)},
+	{Target: workforce.ErrAbsenceOverlap, Render: conflictWithCode(common.CodeWorkforceAbsenceOverlap)},
+	{Target: workforce.ErrAbsenceDatesOverlap, Render: conflictWithCode(common.CodeWorkforceAbsenceOverlap)},
+	{Target: workforce.ErrAbsenceUpdatedDatesOverlap, Render: conflictWithCode(common.CodeWorkforceAbsenceOverlap)},
+	{Target: workforce.ErrAbsenceInvalid, Render: common.ErrorInvalidRequest},
 	// The #1843 sick cascade wraps schedule-layer errors: reactivating a
 	// shift whose freed window was re-planned collides as an overlap.
 	{Target: workforce.ErrStaffShiftOverlap, Render: conflictWithCode(common.CodeWorkforceShiftOverlap)},
@@ -127,14 +110,15 @@ func renderDeviationReasonRequired(err error) render.Renderer {
 	})
 }
 
-// isForeignBreak matches "break <id> does not belong to this session".
-func isForeignBreak(err error) bool {
-	msg := err.Error()
-	return strings.HasPrefix(msg, "break ") && strings.Contains(msg, "does not belong to this session")
-}
-
-func msgIn(messages ...string) func(error) bool {
-	return func(err error) bool { return slices.Contains(messages, err.Error()) }
+func isAny(targets ...error) func(error) bool {
+	return func(err error) bool {
+		for _, target := range targets {
+			if errors.Is(err, target) {
+				return true
+			}
+		}
+		return false
+	}
 }
 
 func notFoundWithCode(code string) func(error) render.Renderer {

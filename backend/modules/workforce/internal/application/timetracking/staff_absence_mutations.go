@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -16,12 +18,12 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 	}
 	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
 	if err != nil {
-		return nil, fmt.Errorf("absence not found")
+		return nil, workforce.ErrAbsenceNotFound
 	}
 
 	// Verify ownership
 	if absence.StaffID != staffID {
-		return nil, fmt.Errorf("can only update own absences")
+		return nil, workforce.ErrAbsenceUpdateNotOwned
 	}
 	if err := s.rejectManagerControlledCustomUpdate(ctx, absence, req); err != nil {
 		return nil, err
@@ -47,7 +49,7 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 	if req.AbsenceTypeIDSet || req.AbsenceTypeID != nil {
 		if before.AbsenceType == AbsenceTypeSick &&
 			!sameAbsenceTypeID(req.AbsenceTypeID, before.AbsenceTypeID) {
-			return nil, fmt.Errorf("invalid absence type change: sick absences must be deleted and re-created, not converted")
+			return nil, &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid absence type change: sick absences must be deleted and re-created, not converted")}
 		}
 		if sameAbsenceTypeID(req.AbsenceTypeID, before.AbsenceTypeID) {
 			absence.AbsenceTypeID = before.AbsenceTypeID
@@ -89,7 +91,7 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 	absence.UpdatedAt = time.Now()
 
 	if err := absence.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid absence data: %w", err)
+		return nil, &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid absence data: %w", err)}
 	}
 
 	if err := s.absenceRepo.Update(ctx, absence); err != nil {
@@ -136,10 +138,10 @@ func (s *staffAbsenceService) rejectManagerControlledCustomType(ctx context.Cont
 
 func validateAbsenceUpdate(absence *StaffAbsence, req UpdateAbsenceRequest) error {
 	if isVacationWorkflowAbsence(absence) {
-		return fmt.Errorf("vacation workflow absences must be changed through the vacation flow")
+		return &workforce.TimeTrackingError{Kind: workforce.ErrVacationFlowRequired, Cause: fmt.Errorf("vacation workflow absences must be changed through the vacation flow")}
 	}
 	if req.AbsenceType != nil && *req.AbsenceType == AbsenceTypeVacation {
-		return fmt.Errorf("vacation absences must be requested through the vacation flow")
+		return &workforce.TimeTrackingError{Kind: workforce.ErrVacationFlowRequired, Cause: fmt.Errorf("vacation absences must be requested through the vacation flow")}
 	}
 	// A type change into or out of "sick" would desync the #1843 plan cascade:
 	// sick→other keeps the cancellations/marks but skips the reversal on
@@ -148,13 +150,13 @@ func validateAbsenceUpdate(absence *StaffAbsence, req UpdateAbsenceRequest) erro
 	// plan-day difference below.
 	if req.AbsenceType != nil && *req.AbsenceType != absence.AbsenceType &&
 		(absence.AbsenceType == AbsenceTypeSick || *req.AbsenceType == AbsenceTypeSick) {
-		return fmt.Errorf("invalid absence type change: sick absences must be deleted and re-created, not converted")
+		return &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid absence type change: sick absences must be deleted and re-created, not converted")}
 	}
 	// Same reasoning for the half-day flag: flipping it would desync the
 	// already-applied (or deliberately skipped) cascade from the record.
 	if absence.AbsenceType == AbsenceTypeSick &&
 		req.HalfDay != nil && *req.HalfDay != absence.HalfDay {
-		return fmt.Errorf("invalid absence change: sick absences cannot switch between half and full days — delete and re-create the report")
+		return &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid absence change: sick absences cannot switch between half and full days — delete and re-create the report")}
 	}
 	return nil
 }
@@ -196,14 +198,14 @@ func applyAbsenceUpdates(absence *StaffAbsence, req UpdateAbsenceRequest) error 
 	if req.DateStart != nil {
 		dateStart, err := calendar.ParseDate(*req.DateStart)
 		if err != nil {
-			return fmt.Errorf("invalid date_start format, expected YYYY-MM-DD")
+			return &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid date_start format, expected YYYY-MM-DD")}
 		}
 		absence.DateStart = dateStart
 	}
 	if req.DateEnd != nil {
 		dateEnd, err := calendar.ParseDate(*req.DateEnd)
 		if err != nil {
-			return fmt.Errorf("invalid date_end format, expected YYYY-MM-DD")
+			return &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid date_end format, expected YYYY-MM-DD")}
 		}
 		absence.DateEnd = dateEnd
 	}
@@ -224,9 +226,9 @@ func (s *staffAbsenceService) checkOverlapExcludingSelf(ctx context.Context, sta
 	}
 	for _, e := range existing {
 		if e.ID != absenceID && blocksAbsenceRange(e.Status) {
-			return fmt.Errorf("updated dates overlap with existing absence from %s to %s",
+			return &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceUpdatedDatesOverlap, Cause: fmt.Errorf("updated dates overlap with existing absence from %s to %s",
 				e.DateStart,
-				e.DateEnd)
+				e.DateEnd)}
 		}
 	}
 	return nil
@@ -260,12 +262,12 @@ func (s *staffAbsenceService) deleteAbsenceFor(ctx context.Context, subjectStaff
 	}
 	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
 	if err != nil {
-		return fmt.Errorf("absence not found")
+		return workforce.ErrAbsenceNotFound
 	}
 
 	// Verify ownership
 	if absence.StaffID != subjectStaffID {
-		return fmt.Errorf("can only delete own absences")
+		return workforce.ErrAbsenceDeleteNotOwned
 	}
 	if (absence.AbsenceType == AbsenceTypeCompTime || isDirectVacation(absence)) && !allowManagerControlled {
 		return ErrManagerControlledAbsence
@@ -276,7 +278,7 @@ func (s *staffAbsenceService) deleteAbsenceFor(ctx context.Context, subjectStaff
 		}
 	}
 	if isVacationWorkflowAbsence(absence) {
-		return fmt.Errorf("vacation workflow absences must be canceled through the vacation flow")
+		return &workforce.TimeTrackingError{Kind: workforce.ErrVacationFlowRequired, Cause: fmt.Errorf("vacation workflow absences must be canceled through the vacation flow")}
 	}
 
 	// The reversal runs UNCONDITIONALLY: it is keyed purely by provenance

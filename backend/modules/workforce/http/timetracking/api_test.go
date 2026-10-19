@@ -516,7 +516,7 @@ func TestCheckIn_ServiceConflict(t *testing.T) {
 
 	wsSvc := &mockWorkSessionService{
 		checkInFn: func(_ context.Context, _ int64, _, _, _ string) (*workforce.WorkSession, error) {
-			return nil, errors.New("already checked in")
+			return nil, workforce.ErrAlreadyCheckedIn
 		},
 	}
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
@@ -599,7 +599,7 @@ func TestCheckOut_NoActiveSession(t *testing.T) {
 
 	wsSvc := &mockWorkSessionService{
 		checkOutFn: func(_ context.Context, _ int64, _ string) (*workforce.WorkSession, error) {
-			return nil, errors.New("no active session found")
+			return nil, workforce.ErrNoActiveSession
 		},
 	}
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
@@ -919,7 +919,7 @@ func TestUpdateSession_Forbidden(t *testing.T) {
 
 	wsSvc := &mockWorkSessionService{
 		updateSessionFn: func(_ context.Context, _ int64, _ int64, _ workforce.SessionUpdateRequest) (*workforce.WorkSession, error) {
-			return nil, errors.New("can only update own sessions")
+			return nil, workforce.ErrSessionUpdateNotOwned
 		},
 	}
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
@@ -948,7 +948,7 @@ func TestUpdateSession_NotesRequiredOnStatusChange(t *testing.T) {
 
 	wsSvc := &mockWorkSessionService{
 		updateSessionFn: func(_ context.Context, _ int64, _ int64, _ workforce.SessionUpdateRequest) (*workforce.WorkSession, error) {
-			return nil, errors.New("notes required when changing status")
+			return nil, workforce.ErrSessionStatusNoteRequired
 		},
 	}
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
@@ -1021,7 +1021,7 @@ func TestStartBreak_AlreadyActive(t *testing.T) {
 
 	wsSvc := &mockWorkSessionService{
 		startBreakFn: func(_ context.Context, _ int64, _ *int) (*workforce.WorkSessionBreak, error) {
-			return nil, errors.New("break already active")
+			return nil, workforce.ErrBreakAlreadyActive
 		},
 	}
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
@@ -1064,7 +1064,7 @@ func TestEndBreak_NoActiveBreak(t *testing.T) {
 
 	wsSvc := &mockWorkSessionService{
 		endBreakFn: func(_ context.Context, _ int64) (*workforce.WorkSession, error) {
-			return nil, errors.New("no active break found")
+			return nil, workforce.ErrNoActiveBreak
 		},
 	}
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
@@ -1338,7 +1338,7 @@ func TestListAbsences_InvalidStatus(t *testing.T) {
 
 	absSvc := &mockStaffAbsenceService{
 		listAbsencesFn: func(_ context.Context, _ int64, _ workforce.StaffAbsenceListFilter) ([]*workforce.StaffAbsenceResponse, error) {
-			return nil, errors.New("invalid absence status")
+			return nil, &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: errors.New("invalid absence status")}
 		},
 	}
 	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), nil)
@@ -1417,7 +1417,7 @@ func TestCreateAbsence_Conflict(t *testing.T) {
 
 	absSvc := &mockStaffAbsenceService{
 		createAbsenceFn: func(_ context.Context, _ int64, _ workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {
-			return nil, errors.New("absence overlaps with existing absence")
+			return nil, &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceOverlap, Cause: errors.New("absence overlaps with existing absence")}
 		},
 	}
 	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), db)
@@ -1484,7 +1484,7 @@ func TestUpdateAbsence_Forbidden(t *testing.T) {
 
 	absSvc := &mockStaffAbsenceService{
 		updateAbsenceFn: func(_ context.Context, _ int64, _ *int64, _ int64, _ workforce.UpdateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {
-			return nil, errors.New("can only update own absences")
+			return nil, workforce.ErrAbsenceUpdateNotOwned
 		},
 	}
 	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), db)
@@ -1546,7 +1546,7 @@ func TestDeleteAbsence_NotFound(t *testing.T) {
 
 	absSvc := &mockStaffAbsenceService{
 		deleteAbsenceFn: func(_ context.Context, _ int64, _ int64) error {
-			return errors.New("absence not found")
+			return workforce.ErrAbsenceNotFound
 		},
 	}
 	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), db)
@@ -1567,7 +1567,7 @@ func TestDeleteAbsence_Forbidden(t *testing.T) {
 
 	absSvc := &mockStaffAbsenceService{
 		deleteAbsenceFn: func(_ context.Context, _ int64, _ int64) error {
-			return errors.New("can only delete own absences")
+			return workforce.ErrAbsenceDeleteNotOwned
 		},
 	}
 	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), db)
@@ -1702,29 +1702,29 @@ func TestClassifyServiceError(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		errMsg     string
+		failure    error
 		wantStatus int
 	}{
-		{"conflict - already checked in", "already checked in", http.StatusConflict},
-		{"conflict - already checked out", "already checked out today", http.StatusConflict},
-		{"conflict - break active", "break already active", http.StatusConflict},
-		{"not found - no active session", "no active session found", http.StatusNotFound},
-		{"not found - no session today", "no session found for today", http.StatusNotFound},
-		{"not found - session not found", "session not found", http.StatusNotFound},
-		{"not found - no active break", "no active break found", http.StatusNotFound},
-		{"forbidden - own sessions", "can only update own sessions", http.StatusForbidden},
-		{"bad request - status", "status must be present or home_office", http.StatusBadRequest},
-		{"bad request - break minutes", "break minutes cannot be negative", http.StatusBadRequest},
-		{"bad request - invalid session data", "invalid session data: check-in time must be before check-out time", http.StatusBadRequest},
-		{"bad request - admin create time range", "check_out_time must be after check_in_time", http.StatusBadRequest},
-		{"internal server - invalid session missing creator", "invalid session data: created_by is required", http.StatusInternalServerError},
-		{"internal server - invalid session missing staff", "invalid session data: staff ID is required", http.StatusInternalServerError},
-		{"internal server - unknown", "some unknown error", http.StatusInternalServerError},
+		{"conflict - already checked in", workforce.ErrAlreadyCheckedIn, http.StatusConflict},
+		{"conflict - already checked out", workforce.ErrAlreadyCheckedOut, http.StatusConflict},
+		{"conflict - break active", workforce.ErrBreakAlreadyActive, http.StatusConflict},
+		{"not found - no active session", workforce.ErrNoActiveSession, http.StatusNotFound},
+		{"not found - no session today", workforce.ErrNoSessionForToday, http.StatusNotFound},
+		{"not found - session not found", workforce.ErrSessionNotFound, http.StatusNotFound},
+		{"not found - no active break", workforce.ErrNoActiveBreak, http.StatusNotFound},
+		{"forbidden - own sessions", workforce.ErrSessionUpdateNotOwned, http.StatusForbidden},
+		{"bad request - status", &workforce.TimeTrackingError{Kind: workforce.ErrSessionStatusInvalid, Cause: errors.New("status must be present or home_office")}, http.StatusBadRequest},
+		{"bad request - break minutes", workforce.ErrBreakMinutesNegative, http.StatusBadRequest},
+		{"bad request - invalid session data", workforce.ErrSessionTimeOrder, http.StatusBadRequest},
+		{"bad request - admin create time range", workforce.ErrSessionCheckoutOrder, http.StatusBadRequest},
+		{"internal server - invalid session missing creator", errors.New("invalid session data: created_by is required"), http.StatusInternalServerError},
+		{"internal server - invalid session missing staff", errors.New("invalid session data: staff ID is required"), http.StatusInternalServerError},
+		{"internal server - unknown", errors.New("some unknown error"), http.StatusInternalServerError},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			renderer := classifyServiceError(errors.New(tt.errMsg))
+			renderer := classifyServiceError(tt.failure)
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodGet, "/", nil)
 			err := render.Render(w, r, renderer)
@@ -1739,23 +1739,23 @@ func TestClassifyAbsenceError(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		errMsg     string
+		failure    error
 		wantStatus int
 	}{
-		{"not found", "absence not found", http.StatusNotFound},
-		{"forbidden - update", "can only update own absences", http.StatusForbidden},
-		{"forbidden - delete", "can only delete own absences", http.StatusForbidden},
-		{"conflict - overlaps", "absence overlaps with existing", http.StatusConflict},
-		{"conflict - updated overlaps", "updated dates overlap with existing", http.StatusConflict},
-		{"bad request - invalid", "invalid absence type", http.StatusBadRequest},
-		{"bad request - invalid status", "invalid absence status", http.StatusBadRequest},
-		{"bad request - invalid prefix", "invalid date format", http.StatusBadRequest},
-		{"internal server - unknown", "some unknown error", http.StatusInternalServerError},
+		{"not found", workforce.ErrAbsenceNotFound, http.StatusNotFound},
+		{"forbidden - update", workforce.ErrAbsenceUpdateNotOwned, http.StatusForbidden},
+		{"forbidden - delete", workforce.ErrAbsenceDeleteNotOwned, http.StatusForbidden},
+		{"conflict - overlaps", &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceOverlap, Cause: errors.New("absence overlaps with existing")}, http.StatusConflict},
+		{"conflict - updated overlaps", &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceUpdatedDatesOverlap, Cause: errors.New("updated dates overlap with existing")}, http.StatusConflict},
+		{"bad request - invalid", &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: errors.New("invalid absence type")}, http.StatusBadRequest},
+		{"bad request - invalid status", &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: errors.New("invalid absence status")}, http.StatusBadRequest},
+		{"bad request - invalid prefix", &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: errors.New("invalid date format")}, http.StatusBadRequest},
+		{"internal server - unknown", errors.New("some unknown error"), http.StatusInternalServerError},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			renderer := classifyAbsenceError(errors.New(tt.errMsg))
+			renderer := classifyAbsenceError(tt.failure)
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodGet, "/", nil)
 			err := render.Render(w, r, renderer)
@@ -1803,28 +1803,28 @@ func TestClassifierCodes(t *testing.T) {
 		wantStatus int
 		wantCode   string
 	}{
-		{"already checked in", classifyServiceError, errors.New("already checked in"), http.StatusConflict, "workforce.already_checked_in"},
-		{"already checked out", classifyServiceError, errors.New("already checked out today"), http.StatusConflict, "workforce.already_checked_out"},
+		{"already checked in", classifyServiceError, workforce.ErrAlreadyCheckedIn, http.StatusConflict, "workforce.already_checked_in"},
+		{"already checked out", classifyServiceError, workforce.ErrAlreadyCheckedOut, http.StatusConflict, "workforce.already_checked_out"},
 		{"check-in race", classifyServiceError, &workforce.TimeTrackingError{Kind: workforce.ErrCheckInRaced, Cause: errors.New("work session for the day is already open")}, http.StatusConflict, "workforce.already_checked_in"},
-		{"break already active", classifyServiceError, errors.New("break already active"), http.StatusConflict, "workforce.break_already_active"},
-		{"no active session", classifyServiceError, errors.New("no active session found"), http.StatusNotFound, "workforce.no_active_session"},
-		{"no active break", classifyServiceError, errors.New("no active break found"), http.StatusNotFound, "workforce.no_active_break"},
-		{"no session today", classifyServiceError, errors.New("no session found for today"), http.StatusNotFound, "workforce.no_session_for_today"},
-		{"session not found", classifyServiceError, errors.New("session not found"), http.StatusNotFound, "workforce.session_not_found"},
-		{"session not owned", classifyServiceError, errors.New("can only update own sessions"), http.StatusForbidden, "workforce.session_not_owned"},
-		{"check-in after check-out", classifyServiceError, errors.New("invalid session data: check-in time must be before check-out time"), http.StatusBadRequest, "workforce.session_times_invalid"},
-		{"negative break", classifyServiceError, errors.New("invalid session data: break minutes cannot be negative"), http.StatusBadRequest, "workforce.session_times_invalid"},
-		{"admin time range", classifyServiceError, errors.New("check_out_time must be after check_in_time"), http.StatusBadRequest, "workforce.session_times_invalid"},
-		{"note on status change", classifyServiceError, errors.New("notes required when changing status"), http.StatusBadRequest, "workforce.session_note_required"},
-		{"missing staff stays a server fault", classifyServiceError, errors.New("invalid session data: staff ID is required"), http.StatusInternalServerError, "general.server"},
-		{"absence overlap", classifyAbsenceError, errors.New("dates overlap with an existing absence"), http.StatusConflict, "workforce.absence_overlap"},
-		{"no working days", classifyAbsenceError, errors.New("vacation range contains no working days"), http.StatusBadRequest, "workforce.absence_no_working_days"},
-		{"vacation in the past", classifyAbsenceError, errors.New("vacation request must start today or in the future"), http.StatusBadRequest, "workforce.vacation_request_in_past"},
-		{"cancel a past absence", classifyAbsenceError, errors.New("past absences cannot be canceled"), http.StatusConflict, "workforce.absence_not_cancelable"},
-		{"cancel a decided absence", classifyAbsenceError, errors.New("only pending or approved absences can be canceled"), http.StatusConflict, "workforce.absence_not_cancelable"},
-		{"answer after the decision", classifyAbsenceError, errors.New("only absences with a question can be resubmitted"), http.StatusBadRequest, "workforce.absence_already_decided"},
-		{"absence not found", classifyAbsenceError, errors.New("absence not found"), http.StatusNotFound, "workforce.absence_not_found"},
-		{"cancel someone else's absence", classifyAbsenceError, errors.New("can only cancel own absences"), http.StatusForbidden, "workforce.absence_not_owned"},
+		{"break already active", classifyServiceError, workforce.ErrBreakAlreadyActive, http.StatusConflict, "workforce.break_already_active"},
+		{"no active session", classifyServiceError, workforce.ErrNoActiveSession, http.StatusNotFound, "workforce.no_active_session"},
+		{"no active break", classifyServiceError, workforce.ErrNoActiveBreak, http.StatusNotFound, "workforce.no_active_break"},
+		{"no session today", classifyServiceError, workforce.ErrNoSessionForToday, http.StatusNotFound, "workforce.no_session_for_today"},
+		{"session not found", classifyServiceError, workforce.ErrSessionNotFound, http.StatusNotFound, "workforce.session_not_found"},
+		{"session not owned", classifyServiceError, workforce.ErrSessionUpdateNotOwned, http.StatusForbidden, "workforce.session_not_owned"},
+		{"check-in after check-out", classifyServiceError, fmt.Errorf("invalid session data: %w", workforce.ErrSessionTimeOrder), http.StatusBadRequest, "workforce.session_times_invalid"},
+		{"negative break", classifyServiceError, fmt.Errorf("invalid session data: %w", workforce.ErrBreakMinutesNegative), http.StatusBadRequest, "workforce.session_times_invalid"},
+		{"admin time range", classifyServiceError, workforce.ErrSessionCheckoutOrder, http.StatusBadRequest, "workforce.session_times_invalid"},
+		{"note on status change", classifyServiceError, workforce.ErrSessionStatusNoteRequired, http.StatusBadRequest, "workforce.session_note_required"},
+		{"missing staff stays a server fault", classifyServiceError, &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: errors.New("invalid session data: staff ID is required")}, http.StatusInternalServerError, "general.server"},
+		{"absence overlap", classifyAbsenceError, &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceDatesOverlap, Cause: errors.New("dates overlap with an existing absence")}, http.StatusConflict, "workforce.absence_overlap"},
+		{"no working days", classifyAbsenceError, workforce.ErrAbsenceNoWorkingDays, http.StatusBadRequest, "workforce.absence_no_working_days"},
+		{"vacation in the past", classifyAbsenceError, workforce.ErrVacationRequestInPast, http.StatusBadRequest, "workforce.vacation_request_in_past"},
+		{"cancel a past absence", classifyAbsenceError, workforce.ErrPastAbsenceCancel, http.StatusConflict, "workforce.absence_not_cancelable"},
+		{"cancel a decided absence", classifyAbsenceError, workforce.ErrAbsenceNotCancelable, http.StatusConflict, "workforce.absence_not_cancelable"},
+		{"answer after the decision", classifyAbsenceError, workforce.ErrAbsenceNotQuestioned, http.StatusBadRequest, "workforce.absence_already_decided"},
+		{"absence not found", classifyAbsenceError, workforce.ErrAbsenceNotFound, http.StatusNotFound, "workforce.absence_not_found"},
+		{"cancel someone else's absence", classifyAbsenceError, workforce.ErrAbsenceCancelNotOwned, http.StatusForbidden, "workforce.absence_not_owned"},
 		{"sick cascade shift overlap", classifyAbsenceError, &workforce.TimeTrackingError{Kind: workforce.ErrStaffShiftOverlap, Cause: errors.New("shift overlaps an existing shift on this day")}, http.StatusConflict, "workforce.shift_overlap"},
 	}
 
@@ -1856,15 +1856,15 @@ func TestAbsenceDecisionCodes(t *testing.T) {
 		wantStatus int
 		wantCode   string
 	}{
-		{"approve decided", renderApproveAbsenceError, errors.New("only requested absences can be approved"), http.StatusConflict, "workforce.absence_already_decided"},
-		{"deny without reason", renderDenyAbsenceError, errors.New("decline reason is required"), http.StatusBadRequest, "workforce.decision_note_required"},
-		{"deny decided", renderDenyAbsenceError, errors.New("only requested absences can be declined"), http.StatusConflict, "workforce.absence_already_decided"},
-		{"deny missing", renderDenyAbsenceError, errors.New("absence not found"), http.StatusNotFound, "general.input"},
+		{"approve decided", renderApproveAbsenceError, workforce.ErrAbsenceNotApprovable, http.StatusConflict, "workforce.absence_already_decided"},
+		{"deny without reason", renderDenyAbsenceError, workforce.ErrAbsenceDeclineNoteRequired, http.StatusBadRequest, "workforce.decision_note_required"},
+		{"deny decided", renderDenyAbsenceError, workforce.ErrAbsenceNotDeclinable, http.StatusConflict, "workforce.absence_already_decided"},
+		{"deny missing", renderDenyAbsenceError, workforce.ErrAbsenceNotFound, http.StatusNotFound, "general.input"},
 		{"deny unknown", renderDenyAbsenceError, errors.New("db down"), http.StatusInternalServerError, "general.server"},
-		{"question without note", renderQuestionAbsenceError, errors.New("question note is required"), http.StatusBadRequest, "workforce.decision_note_required"},
-		{"question decided", renderQuestionAbsenceError, errors.New("only requested absences can be questioned"), http.StatusBadRequest, "workforce.absence_already_decided"},
-		{"admin overlap", renderAdminAbsenceError, errors.New("dates overlap with an existing absence"), http.StatusConflict, "workforce.absence_overlap"},
-		{"admin no working days", renderAdminAbsenceError, errors.New("vacation range contains no working days"), http.StatusBadRequest, "workforce.absence_no_working_days"},
+		{"question without note", renderQuestionAbsenceError, workforce.ErrAbsenceQuestionNoteRequired, http.StatusBadRequest, "workforce.decision_note_required"},
+		{"question decided", renderQuestionAbsenceError, workforce.ErrAbsenceNotQuestionable, http.StatusBadRequest, "workforce.absence_already_decided"},
+		{"admin overlap", renderAdminAbsenceError, &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceDatesOverlap, Cause: errors.New("dates overlap with an existing absence")}, http.StatusConflict, "workforce.absence_overlap"},
+		{"admin no working days", renderAdminAbsenceError, workforce.ErrAbsenceNoWorkingDays, http.StatusBadRequest, "workforce.absence_no_working_days"},
 	}
 
 	for _, tt := range tests {
@@ -2140,7 +2140,7 @@ func TestResubmitAbsence_NotOwn(t *testing.T) {
 
 	absSvc := &mockStaffAbsenceService{
 		resubmitAbsenceFn: func(_ context.Context, _ int64, _ int64, _ int64, _ string) (*workforce.StaffAbsenceResponse, error) {
-			return nil, errors.New("can only resubmit own absences")
+			return nil, workforce.ErrAbsenceResubmitNotOwned
 		},
 	}
 	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), db)
@@ -2163,7 +2163,7 @@ func TestResubmitAbsence_WrongStatus(t *testing.T) {
 
 	absSvc := &mockStaffAbsenceService{
 		resubmitAbsenceFn: func(_ context.Context, _ int64, _ int64, _ int64, _ string) (*workforce.StaffAbsenceResponse, error) {
-			return nil, errors.New("only absences with a question can be resubmitted")
+			return nil, workforce.ErrAbsenceNotQuestioned
 		},
 	}
 	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), db)

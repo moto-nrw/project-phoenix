@@ -422,7 +422,7 @@ func (s *OperatorAuthentication) ChangePassword(ctx context.Context, operatorID 
 		return domain.ErrOperatorPasswordMismatch
 	}
 	if err := s.hasher.ValidatePasswordStrength(newPassword); err != nil {
-		return domain.InvalidInput("password doesn't meet complexity requirements")
+		return &domain.InvalidInputError{Err: domain.ErrOperatorPasswordTooWeak}
 	}
 	hash, err := s.hasher.HashPassword(newPassword)
 	if err != nil {
