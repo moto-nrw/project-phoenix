@@ -200,15 +200,17 @@ func (s *Store) ListCatererSchools(ctx context.Context, catererID int64) ([]int6
 	return schools, stats, err
 }
 
-func (s *Store) HasActiveCatererSchool(ctx context.Context) (bool, domain.OperationStats, error) {
+func (s *Store) FindSchoolCaterer(ctx context.Context) (domain.Caterer, bool, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
-		return false, domain.OperationStats{}, err
+		return domain.Caterer{}, false, domain.OperationStats{}, err
 	}
+	var row catererRow
 	started := time.Now()
-	exists, err := scopeTenantQuery(s.scope(ctx), db.NewSelect().Model((*catererSchoolRow)(nil)).
+	err = scopeTenantQuery(s.scope(ctx), db.NewSelect().Model(&row).
+		Join(`JOIN auth.caterer_schools AS "caterer_school" ON "caterer_school".caterer_id = "caterer".id`).
 		Where(`"caterer_school".ended_at IS NULL`), `"caterer_school".tenant_id = ?`).
-		Exists(ctx)
-	_, stats, err := scanOne("check active caterer school", started, err)
-	return exists, stats, err
+		Scan(ctx)
+	found, stats, err := scanOne("find school caterer", started, err)
+	return domain.Caterer{ID: row.ID, Name: row.Name}, found, stats, err
 }

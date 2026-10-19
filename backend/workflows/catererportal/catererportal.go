@@ -32,7 +32,6 @@ type SchoolCaterer struct {
 // since when.
 type SchoolSupply struct {
 	CatererName     string
-	Email           string
 	DeliveryAddress string
 	StartedAt       time.Time
 }

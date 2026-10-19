@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,6 +41,9 @@ func (f *fakeCaterers) AcceptCatererInvitation(ctx context.Context, _ string, _ 
 func (f *fakeCaterers) EndCatererSchool(context.Context) (bool, error) {
 	f.linkEnded = true
 	return true, f.err
+}
+func (f *fakeCaterers) SchoolCaterer(context.Context) (identityaccess.Caterer, bool, error) {
+	return f.caterer, f.caterer.ID > 0, f.err
 }
 func (f *fakeCaterers) CatererSchools(context.Context, int64) (identityaccess.Caterer, []int64, error) {
 	return f.caterer, f.schools, f.err
@@ -161,22 +163,18 @@ func TestPortalEndsSupplyAndLinkTogether(t *testing.T) {
 	require.Error(t, err)
 }
 
-// The school's page names the caterer of its latest accepted invitation.
-func TestSchoolCatererNamesTheAcceptedInvitation(t *testing.T) {
+// The school's page names the caterer of the running supply from its link
+// to the school, not from an invitation the retention may have deleted.
+func TestSchoolCatererNamesTheSupplyingCaterer(t *testing.T) {
 	t.Parallel()
-	older, newer := time.Date(2026, 9, 1, 8, 0, 0, 0, time.UTC), time.Date(2026, 9, 20, 8, 0, 0, 0, time.UTC)
-	caterers := &fakeCaterers{invitations: []identityaccess.CatererInvitation{
-		{ID: 1, CatererName: "Alte Küche", Email: "alt@example.com", AcceptedAt: &older},
-		{ID: 2, CatererName: "Offen", Email: "offen@example.com"},
-		{ID: 3, CatererName: "Neue Küche", Email: "neu@example.com", AcceptedAt: &newer},
-	}}
+	caterers := &fakeCaterers{caterer: identityaccess.Caterer{ID: 7, Name: "Küche am Markt"}}
 	var opened schoolsOpened
 	page, err := newTestPortal(t, caterers, &fakeSupplies{active: true, supply: mealplan.Supply{DeliveryAddress: "Hof"}}, &opened).SchoolCaterer(context.Background())
 	require.NoError(t, err)
 	require.NotNil(t, page.Supply)
-	assert.Equal(t, "Neue Küche", page.Supply.CatererName)
-	assert.Equal(t, "neu@example.com", page.Supply.Email)
-	assert.Len(t, page.Invitations, 3)
+	assert.Equal(t, "Küche am Markt", page.Supply.CatererName)
+	assert.Equal(t, "Hof", page.Supply.DeliveryAddress)
+	assert.Empty(t, page.Invitations, "no invitation needed to name the caterer")
 
 	page, err = newTestPortal(t, caterers, &fakeSupplies{}, &opened).SchoolCaterer(context.Background())
 	require.NoError(t, err)

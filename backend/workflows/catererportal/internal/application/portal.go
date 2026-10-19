@@ -45,8 +45,8 @@ func New(deps Dependencies) (*Portal, error) {
 	return &Portal{identityFlows: deps.Caterers, deps: deps}, nil
 }
 
-// SchoolCaterer reads the school's running supply and its invitations. The
-// supply names the caterer as the school invited it.
+// SchoolCaterer reads the school's running supply, the caterer that runs it
+// and the school's invitations.
 func (p *Portal) SchoolCaterer(ctx context.Context) (catererportal.SchoolCaterer, error) {
 	supply, active, err := p.deps.Supplies.CurrentSupply(ctx)
 	if err != nil {
@@ -57,26 +57,15 @@ func (p *Portal) SchoolCaterer(ctx context.Context) (catererportal.SchoolCaterer
 		return catererportal.SchoolCaterer{}, err
 	}
 	result := catererportal.SchoolCaterer{Invitations: invitations}
-	if active {
-		result.Supply = &catererportal.SchoolSupply{DeliveryAddress: supply.DeliveryAddress, StartedAt: supply.StartedAt}
-		if accepted, found := lastAccepted(invitations); found {
-			result.Supply.CatererName, result.Supply.Email = accepted.CatererName, accepted.Email
-		}
+	if !active {
+		return result, nil
 	}
+	caterer, _, err := p.deps.Caterers.SchoolCaterer(ctx)
+	if err != nil {
+		return catererportal.SchoolCaterer{}, err
+	}
+	result.Supply = &catererportal.SchoolSupply{CatererName: caterer.Name, DeliveryAddress: supply.DeliveryAddress, StartedAt: supply.StartedAt}
 	return result, nil
-}
-
-// lastAccepted is the school's most recently accepted invitation: the one
-// that started the running supply.
-func lastAccepted(invitations []identityaccess.CatererInvitation) (identityaccess.CatererInvitation, bool) {
-	var latest identityaccess.CatererInvitation
-	found := false
-	for _, invitation := range invitations {
-		if invitation.AcceptedAt != nil && (!found || invitation.AcceptedAt.After(*latest.AcceptedAt)) {
-			latest, found = invitation, true
-		}
-	}
-	return latest, found
 }
 
 // EndSupply ends the supply and the caterer's link to the school in the

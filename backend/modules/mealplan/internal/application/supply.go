@@ -21,7 +21,7 @@ var (
 // the running supply again changes nothing; another caterer's is refused.
 func (s *Service) StartSupply(ctx context.Context, catererID int64, deliveryAddress string, accountID int64) error {
 	return mapPublicError(s.run(ctx, "start_supply", func(txCtx context.Context) (domain.OperationStats, error) {
-		supply, active, stats, err := s.store.FindActiveSupply(txCtx)
+		supply, active, stats, err := s.store.FindActiveSupply(txCtx, true)
 		if err != nil {
 			return stats, err
 		}
@@ -51,7 +51,7 @@ func (s *Service) CurrentSupply(ctx context.Context) (mealplan.Supply, bool, err
 	var supply domain.Supply
 	var active bool
 	err := s.run(ctx, "read_supply", func(txCtx context.Context) (stats domain.OperationStats, err error) {
-		supply, active, stats, err = s.store.FindActiveSupply(txCtx)
+		supply, active, stats, err = s.store.FindActiveSupply(txCtx, false)
 		return stats, err
 	})
 	return mealplan.Supply(supply), active, mapPublicError(err)
@@ -62,8 +62,11 @@ func (s *Service) CurrentSupply(ctx context.Context) (mealplan.Supply, bool, err
 // read, and cut down to what the caterer may see.
 func (s *Service) CatererOrders(ctx context.Context, catererID int64, from, to string) (mealplan.OrderWeek, error) {
 	var view domain.OrderView
+	var supply domain.Supply
 	err := s.run(ctx, "read_caterer_orders", func(txCtx context.Context) (domain.OperationStats, error) {
-		stats, supplyErr := s.requireSupplier(txCtx, catererID)
+		var stats domain.OperationStats
+		var supplyErr error
+		supply, stats, supplyErr = s.requireSupplier(txCtx, catererID)
 		if supplyErr != nil {
 			return stats, supplyErr
 		}
@@ -79,18 +82,31 @@ func (s *Service) CatererOrders(ctx context.Context, catererID int64, from, to s
 	if err != nil {
 		return mealplan.OrderWeek{}, mapPublicError(err)
 	}
+	view.Days = daysSince(view.Days, domain.DateFromInstant(supply.StartedAt))
 	return catererWeek(publicOrderWeek(view), view.Rules), nil
+}
+
+// daysSince keeps the days from the start of the supply on: a caterer never
+// reads what the school ordered from its predecessor.
+func daysSince(days []domain.OrderDay, start domain.Date) []domain.OrderDay {
+	kept := days[:0:0]
+	for _, day := range days {
+		if !day.Date.Before(start) {
+			kept = append(kept, day)
+		}
+	}
+	return kept
 }
 
 // ConfirmOrder records that the caterer received a fixed order. It is the
 // caterer's only write (ADR 0074); confirming twice keeps the first.
 func (s *Service) ConfirmOrder(ctx context.Context, catererID, orderID, accountID int64) error {
 	return mapPublicError(s.run(ctx, "confirm_order", func(txCtx context.Context) (domain.OperationStats, error) {
-		stats, err := s.requireSupplier(txCtx, catererID)
+		supply, stats, err := s.requireSupplier(txCtx, catererID)
 		if err != nil {
 			return stats, err
 		}
-		found, confirmStats, err := s.store.ConfirmOrder(txCtx, orderID, accountID, s.now())
+		found, confirmStats, err := s.store.ConfirmOrder(txCtx, orderID, accountID, domain.DateFromInstant(supply.StartedAt), s.now())
 		stats = addStats(stats, confirmStats)
 		if err == nil && !found {
 			err = ErrOrderNotFound
@@ -99,15 +115,16 @@ func (s *Service) ConfirmOrder(ctx context.Context, catererID, orderID, accountI
 	}))
 }
 
-func (s *Service) requireSupplier(ctx context.Context, catererID int64) (domain.OperationStats, error) {
-	supply, active, stats, err := s.store.FindActiveSupply(ctx)
+// requireSupplier is the running supply when the caterer runs it.
+func (s *Service) requireSupplier(ctx context.Context, catererID int64) (domain.Supply, domain.OperationStats, error) {
+	supply, active, stats, err := s.store.FindActiveSupply(ctx, false)
 	if err != nil {
-		return stats, err
+		return domain.Supply{}, stats, err
 	}
 	if !active || supply.CatererID != catererID {
-		return stats, ErrNotSupplied
+		return domain.Supply{}, stats, ErrNotSupplied
 	}
-	return stats, nil
+	return supply, stats, nil
 }
 
 // catererWeek cuts the school's view down to what its caterer may read

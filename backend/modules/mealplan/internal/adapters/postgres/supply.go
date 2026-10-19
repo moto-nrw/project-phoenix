@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -23,9 +24,9 @@ type supplyRow struct {
 	EndedBy         *int64     `bun:"ended_by_account_id"`
 }
 
-// FindActiveSupply reads the school's running supply, locked for the rest of
-// the transaction so a start and an end cannot cross (ADR 0074).
-func (s *Store) FindActiveSupply(ctx context.Context) (domain.Supply, bool, domain.OperationStats, error) {
+// FindActiveSupply reads the school's running supply. A start locks it for
+// the rest of the transaction, so two starts cannot cross (ADR 0074).
+func (s *Store) FindActiveSupply(ctx context.Context, forUpdate bool) (domain.Supply, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return domain.Supply{}, false, domain.OperationStats{}, err
@@ -33,12 +34,14 @@ func (s *Store) FindActiveSupply(ctx context.Context) (domain.Supply, bool, doma
 	stats := domain.OperationStats{}
 	var row supplyRow
 	err = timedQuery(&stats, func() error {
-		return db.NewSelect().Model(&row).
+		query := db.NewSelect().Model(&row).
 			ModelTableExpr(`schedule.meal_caterer_supplies AS "meal_caterer_supply"`).
 			Where(`"meal_caterer_supply".tenant_id = ?`, tenantID).
-			Where(`"meal_caterer_supply".ended_at IS NULL`).
-			For("UPDATE").
-			Scan(ctx)
+			Where(`"meal_caterer_supply".ended_at IS NULL`)
+		if forUpdate {
+			query = query.For("UPDATE")
+		}
+		return query.Scan(ctx)
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.Supply{}, false, stats, nil
@@ -98,9 +101,9 @@ func (s *Store) EndSupply(ctx context.Context, accountID int64, endedAt time.Tim
 }
 
 // ConfirmOrder records the caterer's confirmation of a fixed order once and
-// reports whether the school has the order. A second confirmation keeps the
-// first.
-func (s *Store) ConfirmOrder(ctx context.Context, orderID, accountID int64, confirmedAt time.Time) (bool, domain.OperationStats, error) {
+// reports whether the school has the order with a day from since on. A
+// second confirmation keeps the first.
+func (s *Store) ConfirmOrder(ctx context.Context, orderID, accountID int64, since calendar.Date, confirmedAt time.Time) (bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
@@ -112,12 +115,12 @@ func (s *Store) ConfirmOrder(ctx context.Context, orderID, accountID int64, conf
 			WITH confirmed AS (
 				UPDATE schedule.meal_orders
 				SET confirmed_at = ?, confirmed_by_account_id = ?
-				WHERE tenant_id = ? AND id = ? AND confirmed_at IS NULL
+				WHERE tenant_id = ? AND id = ? AND period_end >= ? AND confirmed_at IS NULL
 				RETURNING id
 			)
 			SELECT EXISTS (SELECT 1 FROM confirmed)
-				OR EXISTS (SELECT 1 FROM schedule.meal_orders WHERE tenant_id = ? AND id = ?)`,
-			confirmedAt, optionalAccount(accountID), tenantID, orderID, tenantID, orderID).Scan(ctx, &found)
+				OR EXISTS (SELECT 1 FROM schedule.meal_orders WHERE tenant_id = ? AND id = ? AND period_end >= ?)`,
+			confirmedAt, optionalAccount(accountID), tenantID, orderID, since, tenantID, orderID, since).Scan(ctx, &found)
 	}); err != nil {
 		return false, stats, fmt.Errorf("meal plan postgres: confirm order: %w", err)
 	}

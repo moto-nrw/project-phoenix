@@ -127,3 +127,34 @@ func TestCatererReadsNoClassesWhenTheSchoolOrdersTotals(t *testing.T) {
 	assert.Equal(t, 1, week.Days[0].Total)
 	assert.Empty(t, week.Days[0].Classes)
 }
+
+// ADR 0074: a caterer reads and confirms nothing the school ordered before
+// its supply started, so a successor never sees its predecessor's orders.
+func TestNewCatererSeesNothingBeforeItsSupply(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	student := testpkg.CreateTestStudent(t, db, "Ben", "Vorher", "2c")
+	parent := testpkg.CreateTestAccount(t, db, "meal-successor-parent")
+	former, successor := createTestCaterer(t, db, "Alte Küche"), createTestCaterer(t, db, "Neue Küche")
+	register := buildModuleAt(t, db, true, nil, time.Date(2026, 9, 4, 8, 0, 0, 0, testBerlin))
+	for _, date := range []mealplan.Date{"2026-09-07", "2026-09-08"} {
+		require.NoError(t, register.SetParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: student.ID, GuardianAccountID: parent.ID, Date: date, Participating: true}))
+	}
+	monday := buildModuleWithRules(t, db, singleDeadlineSettings("09:00"), time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin))
+	require.NoError(t, monday.StartSupply(ctx, former, "", 0))
+	week, err := monday.CatererOrders(ctx, former, "2026-09-07", "2026-09-07")
+	require.NoError(t, err)
+	mondayOrder := week.Days[0].OrderID
+	_, err = monday.EndSupply(ctx, 0)
+	require.NoError(t, err)
+
+	tuesday := buildModuleWithRules(t, db, singleDeadlineSettings("09:00"), time.Date(2026, 9, 8, 10, 0, 0, 0, testBerlin))
+	require.NoError(t, tuesday.StartSupply(ctx, successor, "", 0))
+	week, err = tuesday.CatererOrders(ctx, successor, "2026-09-07", "2026-09-08")
+	require.NoError(t, err)
+	require.Len(t, week.Days, 1, "Monday was ordered before the supply started")
+	assert.Equal(t, mealplan.Date("2026-09-08"), week.Days[0].Date)
+	require.ErrorIs(t, tuesday.ConfirmOrder(ctx, successor, mondayOrder, 0), mealplan.ErrOrderNotFound)
+	require.NoError(t, tuesday.ConfirmOrder(ctx, successor, week.Days[0].OrderID, 0))
+}

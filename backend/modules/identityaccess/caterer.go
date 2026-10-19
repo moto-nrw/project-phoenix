@@ -97,6 +97,8 @@ type CatererAccessEngine interface {
 	// EndCatererSchool ends the school's link to its caterer; the caller
 	// ends the supply in the same transaction.
 	EndCatererSchool(ctx context.Context) (bool, error)
+	// SchoolCaterer names the caterer that supplies the school now.
+	SchoolCaterer(ctx context.Context) (Caterer, bool, error)
 	// CatererSchools names the caterer of an account and the schools it
 	// supplies now.
 	CatererSchools(ctx context.Context, accountID int64) (Caterer, []int64, error)

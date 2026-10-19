@@ -70,7 +70,9 @@ tenant transaction.
 5. **Numbers by default.** The caterer reads orders, changes to them and
    counts per day and class. Children's names reach it only while the school's
    `gdpr.meal_caterer_names_enabled` is on. The reason a child does not eat
-   never reaches it. Its only write in V1 is confirming an order.
+   never reaches it. It reads and confirms only days from the start of its
+   supply on, so a new caterer never sees its predecessor's orders. Its only
+   write in V1 is confirming an order.
 6. **Password first.** Caterer accounts sign in with e-mail and password,
    like parent accounts. A second factor is a follow-up: the existing MFA is
    bound to a school's policy, and a caterer has no school.
@@ -98,18 +100,20 @@ point 5 lets the registers only fall; this decision raises them by exactly
 what the caterer adds:
 
 1. `modulePassthroughOwnerBudgets["modules/identityaccess"]` rises from 556
-   to 559, and `modulePassthroughOwnerBudgetTotal` from 2,974 to 2,977: the
+   to 560, and `modulePassthroughOwnerBudgetTotal` from 2,974 to 2,978: the
    engine method that deletes expired caterer invitations, next to the one
-   of the guardian invitations, and the entries of the caterer flows that
-   attach the unit of work and translate the errors. The flows speak the
-   public types themselves, so no engine forwards them.
+   of the guardian invitations, the entries of the caterer flows that
+   attach the unit of work and translate the errors, and the read that
+   names a school's caterer from its link to the school (the accepted
+   invitation that started the supply is deleted after 30 days). The flows
+   speak the public types themselves, so no engine forwards them.
 2. `moduleComposeBudgets["modules/identityaccess/compose"]` rises from 1,729
    to 1,773, and `moduleComposeBudgetTotal` by the same 44 lines: composing
    the caterer flows beside the engine, as the demo access is, with the
    delivery of their invitation mail, and handing the authentication the
    caterer store for the refresh.
 3. `modulePassthroughOwnerBudgets["modules/mealplan"]` rises from 15 to 18,
-   and `modulePassthroughOwnerBudgetTotal` from 2,977 to 2,980: the supply's
+   and `modulePassthroughOwnerBudgetTotal` from 2,978 to 2,981: the supply's
    end and read and the caterer's confirmation each run one statement in
    the Meal Plan's unit of work. The supply methods already speak the public
    types, so no engine method forwards them; the caterer portal hands the

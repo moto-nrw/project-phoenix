@@ -17,6 +17,7 @@ type Caterers interface {
 	PreviewCatererInvitation(ctx context.Context, token string) (identityaccess.CatererInvitationPreview, error)
 	AcceptCatererInvitation(ctx context.Context, token string, registration identityaccess.CatererRegistration, start identityaccess.CatererAcceptanceHook) (identityaccess.CatererAcceptance, error)
 	EndCatererSchool(ctx context.Context) (bool, error)
+	SchoolCaterer(ctx context.Context) (identityaccess.Caterer, bool, error)
 	CatererSchools(ctx context.Context, accountID int64) (identityaccess.Caterer, []int64, error)
 	LoginCatererWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 }

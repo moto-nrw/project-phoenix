@@ -29,7 +29,6 @@ type InvitationResponse struct {
 // SupplyResponse is the school's running supply.
 type SupplyResponse struct {
 	CatererName     string    `json:"caterer_name"`
-	Email           string    `json:"email"`
 	DeliveryAddress string    `json:"delivery_address"`
 	StartedAt       time.Time `json:"started_at"`
 }
@@ -70,8 +69,7 @@ func schoolCatererResponse(caterer catererportal.SchoolCaterer, now time.Time) S
 	}
 	if caterer.Supply != nil {
 		response.Supply = &SupplyResponse{
-			CatererName: caterer.Supply.CatererName, Email: caterer.Supply.Email,
-			DeliveryAddress: caterer.Supply.DeliveryAddress, StartedAt: caterer.Supply.StartedAt,
+			CatererName: caterer.Supply.CatererName, DeliveryAddress: caterer.Supply.DeliveryAddress, StartedAt: caterer.Supply.StartedAt,
 		}
 	}
 	return response

@@ -102,7 +102,7 @@ func (c *CatererAccess) createInvitation(ctx context.Context, request domain.Cat
 	if err != nil {
 		return domain.CatererInvitation{}, "", err
 	}
-	if active, _, err := c.store.HasActiveCatererSchool(ctx); err != nil {
+	if _, active, _, err := c.store.FindSchoolCaterer(ctx); err != nil {
 		return domain.CatererInvitation{}, "", fmt.Errorf("check caterer supply: %w", err)
 	} else if active {
 		return domain.CatererInvitation{}, "", domain.ErrCatererAlreadySupplies
@@ -181,6 +181,20 @@ func (c *CatererAccess) EndCatererSchool(ctx context.Context) (bool, error) {
 		return false, catererError(failed("end caterer school", err))
 	}
 	return ended, nil
+}
+
+// SchoolCaterer names the caterer that supplies the school now, from its
+// link to the school: the invitation that started it may long be deleted.
+func (c *CatererAccess) SchoolCaterer(ctx context.Context) (identityaccess.Caterer, bool, error) {
+	ctx = c.attach(ctx)
+	if !c.inSchool(ctx) {
+		return identityaccess.Caterer{}, false, catererError(failed("find school caterer", errSchoolTransactionRequired))
+	}
+	caterer, found, _, err := c.store.FindSchoolCaterer(ctx)
+	if err != nil {
+		return identityaccess.Caterer{}, false, catererError(failed("find school caterer", err))
+	}
+	return identityaccess.Caterer(caterer), found, nil
 }
 
 // PreviewCatererInvitation is what the public acceptance page shows. The

@@ -25,12 +25,14 @@ type Store interface {
 
 // SupplyStore holds the school's supply by its caterer (ADR 0074).
 type SupplyStore interface {
-	// FindActiveSupply locks the running supply for the unit of work.
-	FindActiveSupply(context.Context) (domain.Supply, bool, domain.OperationStats, error)
+	// FindActiveSupply reads the running supply; forUpdate locks it for the
+	// unit of work.
+	FindActiveSupply(ctx context.Context, forUpdate bool) (domain.Supply, bool, domain.OperationStats, error)
 	InsertSupply(ctx context.Context, catererID int64, deliveryAddress string, accountID int64, startedAt time.Time) (domain.OperationStats, error)
 	EndSupply(ctx context.Context, accountID int64, endedAt time.Time) (bool, domain.OperationStats, error)
-	// ConfirmOrder confirms a fixed order once; false: no such order.
-	ConfirmOrder(ctx context.Context, orderID, accountID int64, confirmedAt time.Time) (bool, domain.OperationStats, error)
+	// ConfirmOrder confirms a fixed order with a day from since on once;
+	// false: no such order.
+	ConfirmOrder(ctx context.Context, orderID, accountID int64, since domain.Date, confirmedAt time.Time) (bool, domain.OperationStats, error)
 }
 
 // OrderStore holds the school's orders (#3873). LockOrders serializes every
