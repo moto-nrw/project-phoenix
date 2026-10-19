@@ -31,6 +31,15 @@ describe("TenantPageHeaderSkeleton", () => {
     expect(withStats.querySelectorAll(".animate-pulse")).toHaveLength(2);
     expect(withoutStats.querySelectorAll(".animate-pulse")).toHaveLength(1);
   });
+
+  it("reserves the info button next to the title when requested", () => {
+    const { container } = render(
+      <TenantPageHeaderSkeleton stats={false} info />,
+    );
+
+    expect(container.querySelectorAll(".animate-pulse")).toHaveLength(2);
+    expect(container.querySelector(".h-8.w-8")).toBeInTheDocument();
+  });
 });
 
 describe("PageHeaderSkeleton", () => {

@@ -49,7 +49,7 @@ export function DatabaseIndexSkeleton() {
   return (
     <div className="w-full space-y-6">
       {/* Ohne Statuszeile: die Zahlen stehen auf den Kacheln (#4385). */}
-      <TenantPageHeaderSkeleton stats={false} />
+      <TenantPageHeaderSkeleton stats={false} info />
       <DatabaseCardGridSkeleton />
     </div>
   );
