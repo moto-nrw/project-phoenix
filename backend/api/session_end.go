@@ -3,6 +3,8 @@ package api
 import (
 	"log/slog"
 
+	endbinding "github.com/moto-nrw/project-phoenix/roots/sessionendbinding"
+
 	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
 
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
@@ -27,15 +29,15 @@ func newSessionEnd(
 ) (sessionend.Command, error) {
 	log := logger.With("workflow", "session-end")
 	deps := sessionEndCompose.Dependencies{
-		Presence:    presence,
-		Sessions:    presence,
-		Timetable:   activities,
-		Completion:  completion,
-		Students:    students,
-		Rooms:       rooms,
-		Broadcaster: hub,
-		Guardians:   guardians,
-		Logger:      log,
+		Notifier: endbinding.NewNotifier(hub, guardians, log),
+
+		Presence:   presence,
+		Sessions:   presence,
+		Timetable:  activities,
+		Completion: completion,
+		Students:   students,
+		Rooms:      rooms,
+
 		Observe: func(o sessionEndCompose.Observation) {
 			observability.ObserveSessionEndOperation(o.Operation, o.Duration, o.Err)
 			log.Debug("session end operation",

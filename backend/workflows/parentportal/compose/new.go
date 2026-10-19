@@ -101,7 +101,7 @@ type Dependencies struct {
 // resolver reaches the child flows once both exist.
 func New(deps Dependencies) *parentportal.Portal {
 	var childFlows *care.Service
-	messagingFlows := parentportal.NewMessagingFlows(messagingConfig(deps, children{flows: &childFlows})).MessagingFlows
+	messagingFlows := parentportal.NewMessagingFlows(messagingConfig(deps, messaging.NewChildResolver(&childFlows))).MessagingFlows
 	childFlows = parentportal.NewChildFlows(careConfig(deps, bindOwners(deps), messagingFlows))
 	return &parentportal.Portal{ChildFlows: childFlows, MessagingFlows: messagingFlows}
 }
@@ -130,7 +130,7 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 		CareOfferingRepo: deps.CareOfferingRepo, OfferingChanges: deps.OfferingChanges,
 		StudentAudit: deps.StudentAudit, StudentConsents: deps.StudentConsents, StudentPhotos: deps.StudentPhotos,
 		ParentRequestEvents: deps.ParentRequestEvents,
-		GuardianChanges:     guardianChanges{log: deps.GuardianChanges},
+		GuardianChanges:     newGuardianChanges(deps.GuardianChanges),
 		GuardianInvites:     deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,
 		Locales: deps.Locales, StudentUpdates: deps.StudentUpdates, GuardianPolicy: deps.GuardianPolicy, DeparturePolicy: deps.DeparturePolicy,
 		AbsenceNotifier: deps.AbsenceNotifier, Emitter: deps.Emitter,
@@ -138,7 +138,7 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 		RequestSharing: messagingFlows.ChildFlowSharing(),
 	}
 	if deps.MealPlan != nil {
-		cfg.MealPlan = mealPlan{provider: deps.MealPlan}
+		cfg.MealPlan = newMealPlan(deps.MealPlan)
 	}
 	return cfg
 }
@@ -180,10 +180,10 @@ func bindOwners(deps Dependencies) owners {
 		bound.careExceptions = deps.CareExceptions
 	}
 	if deps.People != nil {
-		bound.guardians = guardianRecords{people: deps.People}
+		bound.guardians = newGuardianRecords(deps.People)
 	}
 	if deps.People != nil || deps.CareProfiles != nil {
-		bound.students = studentRecords{care: deps.CareProfiles, people: deps.People}
+		bound.students = newStudentRecords(deps.CareProfiles, deps.People)
 	}
 	return bound
 }

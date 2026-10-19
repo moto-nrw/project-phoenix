@@ -58,7 +58,7 @@ func buildGroupManagement(db transactionruntime.Database, hub *realtime.Hub, str
 func buildSubstitutions(
 	db transactionruntime.Database, env owners.RootEnvironment, hub *realtime.Hub, structure owners.StructureRows, people owners.PeopleRows,
 	substitutions owners.GroupSubstitutions, workTime workforce.Capability, callerContext identityaccess.CallerContext,
-	sessions *presenceCompose.SessionRecords, supervisions studentpresence.SupervisionRecords, active studentpresence.Presence,
+	sessions presenceCompose.SessionRecords, supervisions studentpresence.SupervisionRecords, active studentpresence.Presence,
 	deviations timetable.StaffDeviations, owner owners.TimetableOwner, audit owners.AuditOwner, settings settingsCompose.SettingsService,
 ) (education.SubstitutionModule, error) {
 	repos := owner.Repositories

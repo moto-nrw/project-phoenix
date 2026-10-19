@@ -60,3 +60,9 @@ type ParentAnnouncementOption struct {
 // ErrParentAnnouncementPublished reports a draft-only write that found the
 // announcement already published: the row is no longer editable.
 var ErrParentAnnouncementPublished = errors.New("users: parent announcement is published (not editable)")
+
+func AnnouncementResponseIsPoll(responseType string) bool {
+	return responseType == "single_choice" || responseType == "multi_choice"
+}
+
+func AnnouncementIsDeclaration(deliveryMode string) bool { return deliveryMode == "declaration" }

@@ -6,6 +6,8 @@ import (
 	"context"
 	"time"
 
+	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+
 	"github.com/moto-nrw/project-phoenix/tenant"
 
 	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -33,7 +35,7 @@ func ParentStoreRecipientByProfile(recipients []*communication.PortalAnnouncemen
 
 // ParentStoreReminderAnnouncement creates an announcement carrying a reminder at
 // reminderAt. published decides whether it is live; expiresAt is optional.
-func ParentStoreReminderAnnouncement(t ParentStoreFixtureChecks, ctx context.Context, databaseTimestamp func() time.Time, repo parentstore.ParentAnnouncementRepository, createdBy, tenantID int64, title string, reminderAt time.Time, published bool, expiresAt *time.Time) *communication.PortalParentAnnouncement {
+func ParentStoreReminderAnnouncement(t ParentStoreFixtureChecks, ctx context.Context, databaseTimestamp func() time.Time, repo recordports.ParentAnnouncementRepository, createdBy, tenantID int64, title string, reminderAt time.Time, published bool, expiresAt *time.Time) *communication.PortalParentAnnouncement {
 	t.Helper()
 	text := "Kurz: " + title
 	a := &communication.PortalParentAnnouncement{
@@ -70,7 +72,7 @@ func ParentStoreAnnouncementIDsOf(rows []*communication.PortalParentAnnouncement
 
 // ParentStorePollAnnouncement publishes a poll with two options and returns it plus the
 // option ids in display order.
-func ParentStorePollAnnouncement(t ParentStoreFixtureChecks, ctx context.Context, databaseTimestamp func() time.Time, repo parentstore.ParentAnnouncementRepository, createdBy, tenantID int64, responseType string) (*communication.PortalParentAnnouncement, []int64) {
+func ParentStorePollAnnouncement(t ParentStoreFixtureChecks, ctx context.Context, databaseTimestamp func() time.Time, repo recordports.ParentAnnouncementRepository, createdBy, tenantID int64, responseType string) (*communication.PortalParentAnnouncement, []int64) {
 	t.Helper()
 	a := &communication.PortalParentAnnouncement{
 		Title:        "Umfrage",
@@ -107,7 +109,7 @@ func ParentStorePollAnnouncement(t ParentStoreFixtureChecks, ctx context.Context
 
 // ParentStorePublishedAnnouncement creates an announcement with the given targets, publishes
 // it, and registers cleanup. created_by is the chain account (a real auth.account).
-func ParentStorePublishedAnnouncement(t ParentStoreFixtureChecks, ctx context.Context, databaseTimestamp func() time.Time, repo parentstore.ParentAnnouncementRepository, createdBy, tenantID int64, title string, targets []*communication.PortalParentAnnouncementTarget) *communication.PortalParentAnnouncement {
+func ParentStorePublishedAnnouncement(t ParentStoreFixtureChecks, ctx context.Context, databaseTimestamp func() time.Time, repo recordports.ParentAnnouncementRepository, createdBy, tenantID int64, title string, targets []*communication.PortalParentAnnouncementTarget) *communication.PortalParentAnnouncement {
 	t.Helper()
 	a := &communication.PortalParentAnnouncement{Title: title, Body: "Testtext", Priority: "info", Active: true, CreatedBy: createdBy}
 	a.TenantID = tenantID

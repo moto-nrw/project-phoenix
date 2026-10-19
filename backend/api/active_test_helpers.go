@@ -8,6 +8,9 @@ import (
 	"log/slog"
 	"time"
 
+	presenceHTTP "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
+	endbinding "github.com/moto-nrw/project-phoenix/roots/sessionendbinding"
+
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -78,7 +81,7 @@ type ActivePresence struct {
 
 // PresenceOperations binds the retained active service behind the presence
 // operations contract the active routes consume.
-func (m ActivePresence) PresenceOperations() presenceservice.PresenceOperations {
+func (m ActivePresence) PresenceOperations() presenceHTTP.PresenceOperations {
 	operations, err := presenceservice.NewPresenceOperations(m.Active, nil, slog.Default())
 	if err != nil {
 		panic(err)
@@ -320,7 +323,7 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	}
 	sessionEnd, err := sessionEndCompose.New(sessionEndCompose.Dependencies{
 		Presence: owners.NewLoggedStudentPresence(db, logger), Sessions: owners.NewLoggedStudentPresence(db, logger), Timetable: timetableOwner, Completion: bridge, Students: students, Rooms: rooms,
-		Broadcaster: hub, Observe: func(sessionEndCompose.Observation) {}, Now: OptionalClock(clocks),
+		Notifier: endbinding.NewNotifier(hub, nil, nil), Observe: func(sessionEndCompose.Observation) {}, Now: OptionalClock(clocks),
 	})
 	if err != nil {
 		return fail(err)

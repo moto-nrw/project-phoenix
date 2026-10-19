@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	reviewbindings "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding"
+
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -28,7 +30,7 @@ import (
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	projectionStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/presenceprojection/http"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
-	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
+
 	reviewStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/requestreview/http"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
@@ -230,11 +232,11 @@ func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTes
 	if err != nil {
 		return nil, nil, err
 	}
-	reviewStudents, err := requestreviewcompose.NewStudentDirectory(peopleServices.PeopleDirectory, reviewGroups)
+	reviewStudents, err := reviewbindings.NewStudentDirectory(peopleServices.PeopleDirectory, reviewGroups)
 	if err != nil {
 		return nil, nil, err
 	}
-	reviewAccess, err := requestreviewcompose.NewAccess(reviewStudentsHTTP.RequestReviewPrincipal, nil)
+	reviewAccess, err := reviewbindings.NewAccess(reviewStudentsHTTP.RequestReviewPrincipal, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -273,7 +275,7 @@ func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTes
 	if err != nil {
 		return nil, nil, err
 	}
-	careQueue, err := requestreviewcompose.NewCareScheduleQueue(careReviews, func() careplan.Date {
+	careQueue, err := reviewbindings.NewCareScheduleQueue(careReviews, func() careplan.Date {
 		return careplan.Date(calendar.DateFromTime(clock()))
 	})
 	if err != nil {
@@ -290,7 +292,7 @@ func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTes
 	if err != nil {
 		return nil, nil, err
 	}
-	offeringQueue, err := requestreviewcompose.NewOfferingQueue(offeringReviews, func() careplan.Date {
+	offeringQueue, err := reviewbindings.NewOfferingQueue(offeringReviews, func() careplan.Date {
 		return careplan.Date(calendar.DateFromTime(clock()))
 	})
 	if err != nil {
@@ -300,17 +302,17 @@ func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTes
 	if err != nil {
 		return nil, nil, err
 	}
-	corrections, err := requestreviewcompose.NewCorrectionLog(correctionQueries, peopleServices.PeopleDirectory, func(ctx context.Context) bool {
+	corrections, err := reviewbindings.NewCorrectionLog(correctionQueries, peopleServices.PeopleDirectory, func(ctx context.Context) bool {
 		return reviewStudentsHTTP.RequestReviewCorrectionAccess(ctx, live.HasCurrentStaff)
 	})
 	if err != nil {
 		return nil, nil, err
 	}
-	masterQueue, err := requestreviewcompose.NewMasterDataQueue(masterDataReviews)
+	masterQueue, err := reviewbindings.NewMasterDataQueue(masterDataReviews)
 	if err != nil {
 		return nil, nil, err
 	}
-	excusedQueue, err := requestreviewcompose.NewExcusedQueue(svc.ExcusedRequests, func() careplan.Date {
+	excusedQueue, err := reviewbindings.NewExcusedQueue(svc.ExcusedRequests, func() careplan.Date {
 		return careplan.Date(calendar.DateFromTime(clock()))
 	})
 	if err != nil {
@@ -318,7 +320,7 @@ func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTes
 	}
 	requestReview, err := requestreview.NewChecked(requestreview.Dependencies{
 		Queues: requestreview.Queues{DirectCorrections: corrections, MasterData: masterQueue, CareSchedule: careQueue, Offering: offeringQueue, Excused: excusedQueue},
-		Access: reviewAccess, Students: reviewStudents, FamilyProtection: requestreviewcompose.NewFamilyProtection(peopleServices.PeopleDirectory),
+		Access: reviewAccess, Students: reviewStudents, FamilyProtection: reviewbindings.NewFamilyProtection(peopleServices.PeopleDirectory),
 		Today: func() requestreview.Date { return requestreview.Date(calendar.DateFromTime(clock())) },
 	})
 	if err != nil {
