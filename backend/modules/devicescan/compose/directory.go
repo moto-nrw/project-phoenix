@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
 )
 
 // Directory is the composed kiosk roster contract.
@@ -31,21 +30,5 @@ func NewDirectory(persons PersonDirectory, activities devicescan.ActivityDirecto
 type directoryPeople struct{ PersonDirectory }
 
 func (d directoryPeople) Teachers(ctx context.Context) ([]application.DirectoryTeacher, error) {
-	teachers, err := d.ListTeachersWithStaffAndPerson(ctx)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]application.DirectoryTeacher, 0, len(teachers))
-	for _, teacher := range teachers {
-		row := application.DirectoryTeacher{}
-		if teacher != nil {
-			row.StaffID = teacher.StaffID
-			if teacher.Staff != nil && teacher.Staff.Person != nil {
-				person := teacher.Staff.Person
-				row.Person = &ports.Person{ID: person.ID, FirstName: person.FirstName, LastName: person.LastName}
-			}
-		}
-		result = append(result, row)
-	}
-	return result, nil
+	return application.TeachersBinding(ctx, d.PersonDirectory)
 }

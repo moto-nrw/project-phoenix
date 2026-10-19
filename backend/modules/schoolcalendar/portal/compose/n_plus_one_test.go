@@ -24,7 +24,7 @@ func (r *revisingCandidateLock) FindReminderCandidatesForUpdate(ctx context.Cont
 	revise := r.calls == r.on
 	r.mu.Unlock()
 	if revise && len(ids) > 0 {
-		if _, err := r.db.ExecContext(context.Background(),
+		if _, err := r.Db.ExecContext(context.Background(),
 			`UPDATE calendar.appointments SET revision = revision + 1 WHERE id = ?`, ids[0]); err != nil {
 			return nil, err
 		}

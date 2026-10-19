@@ -5,7 +5,6 @@ package compose
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/adapters/postgres"
@@ -31,13 +30,7 @@ func PersistenceRuntimeFor(db *bun.DB) PersistenceRuntime {
 		panic("school calendar compose: database is required")
 	}
 	return PersistenceRuntime{
-		Database: func(ctx context.Context) (bun.IDB, error) {
-			db, err := tenant.CurrentTransaction[bun.IDB](ctx)
-			if err != nil {
-				return nil, fmt.Errorf("school calendar repository: tenant is required for the ambient transaction: %w", err)
-			}
-			return db, nil
-		},
+		Database: postgres.NewPersistenceDatabase(),
 		TenantID: tenant.FromContext,
 	}
 }
@@ -62,7 +55,7 @@ func NewRecords(dependencies RecordsDependencies) (*schoolcalendar.Records, erro
 	}
 	// The records serve no period administration, so its gate and guard
 	// are never asked.
-	service := newService(dependencies.DB, dependencies.Observe, application.Administration{Transaction: writeTransaction, Today: application.BerlinToday})
+	service := retainedNewService(dependencies.DB, dependencies.Observe, application.Administration{Transaction: writeTransaction, Today: application.BerlinToday})
 	return schoolcalendar.NewRecords(application.NewPublicEngine(service, dependencies.FederalState)), nil
 }
 
@@ -95,34 +88,16 @@ func NewAdministration(records *schoolcalendar.Records, dependencies Administrat
 	if today == nil {
 		today = application.BerlinToday
 	}
-	service := newService(dependencies.DB, dependencies.Observe, application.Administration{
+	service := retainedNewService(dependencies.DB, dependencies.Observe, application.Administration{
 		Transaction: writeTransaction, RecurrenceGate: dependencies.RecurrenceGate,
 		CareOfferingGuard: application.BindCareOfferingGuard(dependencies.CareOfferingGuard), Today: today,
 	})
 	return schoolcalendar.NewAdministeredModule(records, application.NewPublicEngine(service, nil)), nil
 }
 
-func newService(db *bun.DB, observe func(Observation), administration application.Administration) *application.Service {
-	store := postgres.New(func(ctx context.Context) (bun.IDB, int64, error) {
-		id, scopeErr := tenant.TenantFromContext(ctx)
-		raw, ok := tenant.TransactionFromContext(ctx)
-		return postgres.ResolveDatabase(raw, ok, id.Int64(), scopeErr)
-	})
-	return application.New(store, func(observation Observation) {
-		observation.Err = application.MapPublicError(observation.Err)
-		observe(observation)
-	}, administration)
-}
-
 // writeTransaction joins the ambient tenant transaction (tenant middleware,
 // recurrence gate, scheduler loops) and otherwise opens one for the tenant
 // in context, so the recurrence gate always holds a transaction-scoped lock.
 func writeTransaction(ctx context.Context, fn func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return fn(ctx)
-	}
-	if _, err := tenant.TenantFromContext(ctx); err != nil {
-		return fmt.Errorf("school calendar: tenant is required: %w", err)
-	}
-	return tenant.WithinCurrentTenant(ctx, fn)
+	return postgres.WriteTransactionBinding(ctx, fn, tenant.WithinCurrentTenant)
 }

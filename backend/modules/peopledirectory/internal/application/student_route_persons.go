@@ -129,10 +129,9 @@ func studentRouteRecord(student *peopleModule.StudentState) peopleModule.Student
 		AddressCity:       student.AddressCity,
 		AddressPostalCode: student.AddressPostalCode,
 
-		ExtraInfo:       student.ExtraInfo,
-		SupervisorNotes: student.SupervisorNotes,
-		HealthInfo:      student.HealthInfo,
-		PickupStatus:    student.PickupStatus,
+		ExtraInfo:    student.ExtraInfo,
+		HealthInfo:   student.HealthInfo,
+		PickupStatus: student.PickupStatus,
 
 		DepartureDays:          student.DepartureDays,
 		AllowedDepartureModes:  student.AllowedDepartureModes,

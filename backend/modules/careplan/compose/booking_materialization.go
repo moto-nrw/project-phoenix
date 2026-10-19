@@ -35,6 +35,21 @@ type BookingPickup = ports.BookingPickup
 // exist in the tenant. The error keeps its text.
 func BookingRowNotFound(err error) error { return ports.BookingRowNotFound(err) }
 
+func bookingDependencies(deps BookingMaterializationDependencies, catalog *application.CareOfferingCatalog) application.BookingMaterializationDependencies {
+	return application.BookingMaterializationDependencies{
+		Catalog: catalog, Rosters: deps.Rosters, Templates: deps.Templates, Periods: deps.Periods,
+		Enrollment: deps.Enrollment, Students: deps.Students, Settings: deps.Settings, Bookings: deps.Bookings,
+		Withdrawals: deps.Withdrawals, Audit: deps.Audit, Pickup: deps.Pickup,
+		RunInTx:                     tenant.NewTransactionRunner().RunInTx,
+		LockTemplateRecurrence:      deps.LockTemplateRecurrence,
+		ResyncPickupAutoExcusals:    deps.ResyncPickupAutoExcusals,
+		ClearPickupWeekdayExtension: deps.ClearPickupWeekdayExtension,
+		AnnouncePickupChange:        application.AnnounceOfferingPickupChange(deps.PickupStaff, deps.PickupGuardians, TenantHooks{}, deps.Logger),
+		Today:                       deps.Today,
+		Logger:                      deps.Logger,
+	}
+}
+
 // BookingMaterializationDependencies bind the booking materialization (#3560)
 // to its owners. Catalog comes from NewCareOfferingCatalog, unset for
 // NewCareOfferingCatalogWithBookings; the hooks are nil-safe.
@@ -61,19 +76,4 @@ type BookingMaterializationDependencies struct {
 
 	Today  func() calendar.Date
 	Logger *slog.Logger
-}
-
-func bookingDependencies(deps BookingMaterializationDependencies, catalog *application.CareOfferingCatalog) application.BookingMaterializationDependencies {
-	return application.BookingMaterializationDependencies{
-		Catalog: catalog, Rosters: deps.Rosters, Templates: deps.Templates, Periods: deps.Periods,
-		Enrollment: deps.Enrollment, Students: deps.Students, Settings: deps.Settings, Bookings: deps.Bookings,
-		Withdrawals: deps.Withdrawals, Audit: deps.Audit, Pickup: deps.Pickup,
-		RunInTx:                     tenant.NewTransactionRunner().RunInTx,
-		LockTemplateRecurrence:      deps.LockTemplateRecurrence,
-		ResyncPickupAutoExcusals:    deps.ResyncPickupAutoExcusals,
-		ClearPickupWeekdayExtension: deps.ClearPickupWeekdayExtension,
-		AnnouncePickupChange:        application.AnnounceOfferingPickupChange(deps.PickupStaff, deps.PickupGuardians, TenantHooks{}, deps.Logger),
-		Today:                       deps.Today,
-		Logger:                      deps.Logger,
-	}
 }

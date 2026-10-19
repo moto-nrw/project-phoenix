@@ -27,12 +27,8 @@ type StudentState struct {
 	AddressCity       *string `json:"address_city,omitempty"`
 	AddressPostalCode *string `json:"address_postal_code,omitempty"`
 	ExtraInfo         *string `json:"extra_info,omitempty"`
-	SupervisorNotes   *string `json:"supervisor_notes,omitempty"`
-	// SupervisorNotesSupplied is request-local. It prevents unrelated updates
-	// from treating a hydrated compatibility value as a new legacy write.
-	SupervisorNotesSupplied bool    `json:"-"`
-	HealthInfo              *string `json:"health_info,omitempty"`
-	PickupStatus            *string `json:"pickup_status,omitempty"`
+	HealthInfo        *string `json:"health_info,omitempty"`
+	PickupStatus      *string `json:"pickup_status,omitempty"`
 
 	// DepartureDays, AllowedDepartureModes, PickupDays and BusDays are the
 	// departure plan in its effective form (departure.Plan.Effective): the
@@ -130,10 +126,9 @@ func StudentStateFromRecord(record StudentRecord) *StudentState {
 		AddressCity:       record.AddressCity,
 		AddressPostalCode: record.AddressPostalCode,
 
-		ExtraInfo:       record.ExtraInfo,
-		SupervisorNotes: record.SupervisorNotes,
-		HealthInfo:      record.HealthInfo,
-		PickupStatus:    record.PickupStatus,
+		ExtraInfo:    record.ExtraInfo,
+		HealthInfo:   record.HealthInfo,
+		PickupStatus: record.PickupStatus,
 
 		DepartureDays:          record.DepartureDays,
 		AllowedDepartureModes:  record.AllowedDepartureModes,
@@ -210,10 +205,9 @@ func (s *StudentState) DirectoryRecord() StudentRecord {
 		AddressCity:       s.AddressCity,
 		AddressPostalCode: s.AddressPostalCode,
 
-		ExtraInfo:       s.ExtraInfo,
-		SupervisorNotes: s.SupervisorNotes,
-		HealthInfo:      s.HealthInfo,
-		PickupStatus:    s.PickupStatus,
+		ExtraInfo:    s.ExtraInfo,
+		HealthInfo:   s.HealthInfo,
+		PickupStatus: s.PickupStatus,
 
 		DepartureCompanionNote: s.DepartureCompanionNote,
 
@@ -245,9 +239,8 @@ func (s *StudentState) DirectoryWrite() StudentWrite {
 			PickupDays:            s.PickupDays,
 			PickupStatus:          s.PickupStatus,
 		},
-		CompanionNote:           s.DepartureCompanionNote,
-		NoteSupplied:            s.DepartureCompanionNote != nil,
-		SupervisorNotesSupplied: s.SupervisorNotesSupplied,
+		CompanionNote: s.DepartureCompanionNote,
+		NoteSupplied:  s.DepartureCompanionNote != nil,
 	}
 	if baseline := s.DepartureBaseline; baseline != nil {
 		write.Baseline = &StudentPlan{
@@ -289,7 +282,6 @@ func (s *StudentState) AuditSnapshot() StudentAuditSnapshot {
 		StudentID:              s.ID,
 		Status:                 s.Status,
 		CareEnd:                RenderCalendarDate(s.EnrolledUntil),
-		SupervisorNotes:        s.SupervisorNotes,
 		ExtraInfo:              s.ExtraInfo,
 		HealthInfo:             s.HealthInfo,
 		PickupStatus:           s.PickupStatus,

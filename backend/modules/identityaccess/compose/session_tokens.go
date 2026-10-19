@@ -5,7 +5,6 @@ import (
 	"time"
 
 	application "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
-
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
@@ -13,7 +12,7 @@ import (
 type SignedIdentityTokens interface {
 	identityPorts.TokenCodec
 	identityPorts.MFAChallengeCodec
-	InvitationOwnerTokens
+	identityPorts.InvitationOwnerTokens
 }
 
 func NewSessionTokenCodec(signer application.JWTSigner, accessExpiry, refreshExpiry time.Duration) (SignedIdentityTokens, error) {

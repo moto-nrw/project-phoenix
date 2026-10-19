@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -73,7 +73,7 @@ func BuildIdentityAccess(
 	if err != nil {
 		return nil, nil, err
 	}
-	mfa, err := NewMFADependencies(tokens.SessionTokens, settings, mfaMail, operatorAuditLog, cfg.JWTSecret, &identityaccessCompose.PasskeyDependencies{
+	mfa, err := NewMFADependencies(tokens.SessionTokens, settings, mfaMail, operatorAuditLog, cfg.JWTSecret, &identityBindingPorts.PasskeyDependencies{
 		RPID: tenantDomain, RPName: identityaccess.PasskeyRPName,
 		TenantDomain: tenantDomain, OperatorFrontendURL: operatorFrontendURL,
 	}, authLogger)

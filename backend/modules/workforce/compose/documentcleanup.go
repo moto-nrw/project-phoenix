@@ -18,7 +18,7 @@ func NewDocumentCleanup(db *bun.DB, now func() time.Time) (*workforce.DocumentCl
 	if now == nil {
 		now = time.Now
 	}
-	store := postgres.New(databaseRuntime(db))
+	store := postgres.New(postgres.DatabaseRuntime(db))
 	service := application.NewDocumentCleanup(store, transaction{lock: store.AcquireXactLock}, now)
 	return workforce.NewDocumentCleanup(service.Enqueue, service.ClaimPublic, service.FinishPublic, service.BacklogPublic), nil
 }

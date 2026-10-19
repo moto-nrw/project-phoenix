@@ -12,16 +12,6 @@ func NewStudentNoteDeletion(studentID, noteID, actorAccountID int64) *DataDeleti
 	return record
 }
 
-// NewLegacyStudentNoteDeletion is the deletion log entry of a student note
-// the system removed when it cleared the legacy supervisor notes.
-func NewLegacyStudentNoteDeletion(studentID, noteID int64) *DataDeletion {
-	record := NewDataDeletion(studentID, DeletionTypeManual, 1, "system")
-	record.DeletionReason = "legacy supervisor notes cleared"
-	record.SetMetadata("student_note_id", noteID)
-	record.SetMetadata("source", "supervisor_notes")
-	return record
-}
-
 // NewTimetableRetentionDeletion is the deletion log entry of one child the
 // timetable retention touched: the deleted rows, the window, the cutoff date
 // and, when there is one, a sample of the instance ids.

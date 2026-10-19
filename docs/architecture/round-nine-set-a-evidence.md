@@ -4,7 +4,7 @@ Base: `12608383f0f793e811f4379ec293f61efd6150c9`. Own packages only; set B is no
 
 ## Result
 
-- Runtime-retained functions in set A: **324 → 2**. The two exact #4088 register blockers remain named in the [complete audit](final-legacy-cluster-round-eight-compose.md).
+- Runtime-retained functions in set A: **324 → 0** after the integrated follow-up. Student Presence is a direct binding; Communication now joins in the application caller and retains its original admin-retry register key.
 - Legacy baseline stays empty. No legacy key is retired or added, so `exact_ratchet_keys` is empty.
 - Composition surface stays **0** across production and test scopes.
 - No new aliases, DTO definitions, table grants, hook allowances, register entries or checker permissions. Existing native record/port definitions move once; the narrow generic source/view ports bind existing values without another service forwarding layer.
@@ -52,12 +52,9 @@ Retired: `communication.compose.organization-tenancy`, `communication.compose.pa
 
 The `module_complexity_ratchet_test.go` and `module_function_length_ratchet_test.go` keys follow the same functions from `modules/communication/internal/staffannouncements/<file>` to `modules/communication/internal/application/staff_<file>`. Function names, receiver names and each numeric threshold are unchanged. No entry is added. Request Review’s package-scoped query budget remains attached to its retained owner integration tests, so no budget path is changed there.
 
-## Remaining blockers
+## Integrated follow-up
 
-| Function | Exact constraint |
-|---|---|
-| `modules/communication/composition/new.go:transaction.RunAdmin` | The #4088 transaction register allows shrinkage or a verified same-owner/all-role package rename with identical filename set, operation, reason and body. A partial `compose` → `application` extraction is not such a rename. Retained unchanged; no replacement key or checker extension. |
-| `modules/studentpresence/compose/new.go:transaction.Run` | The #4088 transaction register allows shrinkage or a verified same-owner/all-role package rename with identical filename set, operation, reason and body. A partial `compose` → `application` extraction is not such a rename. Retained unchanged; no replacement key or checker extension. |
+No remaining blockers. The register check accepts Communication's narrowed branch-free body. Student Presence's body and key remain byte-identical and are classified by the same direct-binding standard as other tenant forwards. See the [complete integrated audit](final-legacy-cluster-round-eight-compose.md).
 
 ## Verification
 

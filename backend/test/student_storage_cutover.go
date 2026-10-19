@@ -28,6 +28,7 @@ func RestoreStudentCompatibilityBeforeContract(tb testing.TB, db *bun.DB) {
 	if !missing {
 		tb.Fatal("historical compatibility fixture requires contracted storage")
 	}
+	restoreSupervisorNotesColumn(tb, db)
 	if _, err := db.ExecContext(context.Background(), studentStorageBeforeContract+studentCompatibilityBeforeContract); err != nil {
 		tb.Fatalf("restore historical student compatibility schema: %v", err)
 	}
@@ -51,6 +52,7 @@ func RestoreStudentStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 	tb.Helper()
 	requireIsolatedStudentStorage(tb, db)
 	restoreGuardianStorageIfCutOver(tb, db)
+	restoreSupervisorNotesColumn(tb, db)
 	var archiveMissing bool
 	if err := db.NewRaw(`SELECT to_regclass('users.students_legacy') IS NULL`).Scan(context.Background(), &archiveMissing); err != nil {
 		tb.Fatalf("inspect historical student archive: %v", err)
@@ -125,6 +127,24 @@ func RestoreStudentStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 		DELETE FROM platform.storage_backfill_checkpoints WHERE backfill = 'student-owner';
 	`); err != nil {
 		tb.Fatalf("restore student storage before cutover: %v", err)
+	}
+}
+
+// RestoreStudentSupervisorNotesColumn re-adds the „Betreuernotizen" column
+// that migration 1.15.458 dropped (#4268), empty, inside this test's isolated
+// database. Contracts written for the migrations before it describe a care
+// profile that still has the column.
+func RestoreStudentSupervisorNotesColumn(tb testing.TB, db *bun.DB) {
+	tb.Helper()
+	requireIsolatedStudentStorage(tb, db)
+	restoreSupervisorNotesColumn(tb, db)
+}
+
+func restoreSupervisorNotesColumn(tb testing.TB, db *bun.DB) {
+	tb.Helper()
+	if _, err := db.ExecContext(context.Background(),
+		`ALTER TABLE users.student_care_profiles ADD COLUMN IF NOT EXISTS supervisor_notes TEXT`); err != nil {
+		tb.Fatalf("restore users.student_care_profiles.supervisor_notes: %v", err)
 	}
 }
 

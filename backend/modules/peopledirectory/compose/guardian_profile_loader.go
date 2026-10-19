@@ -5,11 +5,10 @@ import (
 	"log/slog"
 
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-
-	"github.com/uptrace/bun"
-
+	boundaryBinding "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // GuardianProfileLoader resolves the autofill payload the public + parent
@@ -37,21 +36,5 @@ func NewGuardianProfileLoader(repo peoplePorts.GuardianProfileRepository, db *bu
 // profile in this tenant — callers fall through to their default
 // (claims-derived) response.
 func (s *GuardianProfileLoader) LoadForTenant(ctx context.Context, accountID, tenantID int64) (*peopleValues.GuardianProfileWithChildren, error) {
-	if accountID <= 0 || tenantID <= 0 {
-		return nil, nil
-	}
-
-	var result *peopleValues.GuardianProfileWithChildren
-	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		loaded, loadErr := s.repo.LoadProfileWithChildren(txCtx, accountID)
-		if loadErr != nil {
-			return loadErr
-		}
-		result = loaded
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
+	return boundaryBinding.GuardianProfileLoaderLoadForTenantBinding(ctx, accountID, tenantID, tenant.WithTenantTx, func() *bun.DB { return s.db }, func() peoplePorts.GuardianProfileRepository { return s.repo })
 }

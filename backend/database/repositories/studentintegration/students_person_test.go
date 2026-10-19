@@ -36,15 +36,25 @@ func TestStudentDirectoryListsStudentsByPerson(t *testing.T) {
 	assert.Empty(t, empty)
 
 	// The enrollment profile patch carries the directory columns the import
-	// writes: group, the child's own address and the supervisor notes.
+	// writes: group and the child's own address. Its „Betreuernotizen" cell
+	// becomes the child's carried-over permanent hint (#4268).
 	street := "Kinderweg 3"
-	notes := "kommt mit dem Rad"
+	notes := " kommt mit dem Rad "
 	require.NoError(t, module.ApplyEnrollmentProfile(ctx, first.ID, peopledirectory.EnrollmentProfilePatch{
-		AddressSet: true, AddressStreet: &street, SupervisorNotesSet: true, SupervisorNotes: &notes,
+		AddressSet: true, AddressStreet: &street, PermanentHint: &notes,
 	}))
 	record, err := module.ReadEnrollmentStudent(ctx, first.ID, "")
 	require.NoError(t, err)
 	assert.Equal(t, &street, record.AddressStreet)
 	assert.Nil(t, record.AddressCity)
-	assert.Equal(t, &notes, record.SupervisorNotes)
+	var hint struct {
+		Body       string `bun:"body"`
+		Kind       string `bun:"kind"`
+		Visibility string `bun:"visibility"`
+	}
+	require.NoError(t, db.NewRaw(`SELECT body, kind, visibility FROM users.student_notes
+		WHERE student_id = ? AND origin = 'master_data' AND deleted_at IS NULL`, first.ID).Scan(ctx, &hint))
+	assert.Equal(t, "kommt mit dem Rad", hint.Body)
+	assert.Equal(t, "permanent", hint.Kind)
+	assert.Equal(t, "all_staff", hint.Visibility)
 }

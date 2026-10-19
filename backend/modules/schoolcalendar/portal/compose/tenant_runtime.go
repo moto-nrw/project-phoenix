@@ -2,8 +2,8 @@ package compose
 
 import (
 	"context"
-	"fmt"
 
+	runtimeBinding "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -26,28 +26,21 @@ func (r *TenantRuntime) TenantID(ctx context.Context) int64 { return tenant.From
 // WithinAppointmentWrite runs command in the request transaction when one is
 // open, otherwise in the transaction of the context's tenant.
 func (r *TenantRuntime) WithinAppointmentWrite(ctx context.Context, command func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return command(ctx)
-	}
-	tenantID, err := tenant.TenantFromContext(ctx)
-	if err != nil {
-		return fmt.Errorf("calendar appointment command: %w", err)
-	}
-	return tenant.WithinTenant(ctx, tenantID, command)
+	return runtimeBinding.PortalAppointmentWrite(ctx, command, tenant.WithinTenant)
 }
 
 // WithinTenant runs command in the tenant transaction of tenantID.
 func (r *TenantRuntime) WithinTenant(ctx context.Context, tenantID int64, command func(context.Context) error) error {
-	return tenant.WithTenantTx(ctx, r.db, tenantID, func(txCtx context.Context, _ bun.Tx) error { return command(txCtx) })
+	return runtimeBinding.PortalTenantWrite(ctx, r.db, tenantID, command, tenant.WithTenantTx)
 }
 
 // WithinAdmin runs command in the administrative transaction.
 func (r *TenantRuntime) WithinAdmin(ctx context.Context, command func(context.Context) error) error {
-	return tenant.WithAdminTx(ctx, r.db, func(txCtx context.Context, _ bun.Tx) error { return command(txCtx) })
+	return runtimeBinding.PortalAdminWrite(ctx, r.db, command, tenant.WithAdminTx)
 }
 
 // WithoutTransactionAndHooks detaches ctx from the transaction and its
 // commit hooks.
 func (r *TenantRuntime) WithoutTransactionAndHooks(ctx context.Context) context.Context {
-	return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
+	return runtimeBinding.PortalDetachedContext(ctx)
 }

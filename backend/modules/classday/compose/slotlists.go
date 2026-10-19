@@ -11,33 +11,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
-
-// CareDayResolver is the retained schedule service's care-day derivation.
-type CareDayResolver interface {
-	ResolveForDate(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]careplan.CareDayStatus, error)
-}
-
-// PickupTimeReader is the retained pickup schedule service's bulk read.
-type PickupTimeReader interface {
-	GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]*careplan.EffectivePickupTime, error)
-}
-
-// ArrivalTimeReader is the retained arrival schedule service's bulk read.
-type ArrivalTimeReader interface {
-	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]*careplan.EffectiveArrivalTime, error)
-}
-
-// PickupBaselineReader is the retained date-aware recurring pickup projection
-// (no exceptions applied).
-type PickupBaselineReader interface {
-	Project(ctx context.Context, studentIDs []int64, from, to calendar.Date) (*careplan.PickupBaselineProjection, error)
-}
 
 // SlotListSettings resolves the timetable flag and the Ganztag pickup
 // cutoffs the lists read; the root binds it to the Settings Platform.
@@ -81,15 +59,15 @@ func NewSlotLists(deps SlotListDependencies) classday.SlotLists {
 	}
 	var careDays ports.CareDays
 	if deps.CareDays != nil {
-		careDays = careDayBinding{resolver: deps.CareDays}
+		careDays = application.CareDayBinding{Resolver: deps.CareDays}
 	}
 	var effectiveTimes ports.EffectiveTimes
 	if deps.PickupTimes != nil && deps.ArrivalTimes != nil {
-		effectiveTimes = effectiveTimeBinding{pickups: deps.PickupTimes, arrivals: deps.ArrivalTimes}
+		effectiveTimes = application.EffectiveTimeBinding{Pickups: deps.PickupTimes, Arrivals: deps.ArrivalTimes}
 	}
 	var baselines ports.PickupBaselines
 	if deps.PickupBaselines != nil {
-		baselines = pickupBaselineBinding{baselines: deps.PickupBaselines}
+		baselines = application.PickupBaselineBinding{Baselines: deps.PickupBaselines}
 	}
 	return application.NewSlotLists(application.SlotListDependencies{
 		Timetable:       deps.Timetable,
@@ -102,7 +80,7 @@ func NewSlotLists(deps SlotListDependencies) classday.SlotLists {
 		CareDays:        careDays,
 		EffectiveTimes:  effectiveTimes,
 		PickupBaselines: baselines,
-		Rules:           Rules(deps.EnrolledOn),
+		Rules:           application.Rules(deps.EnrolledOn),
 		Settings:        settings,
 		Access:          deps.Access,
 		ListExport:      deps.ListExport,
@@ -110,83 +88,7 @@ func NewSlotLists(deps SlotListDependencies) classday.SlotLists {
 	})
 }
 
-type careDayBinding struct{ resolver CareDayResolver }
-
-func (b careDayBinding) ResolveForDate(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]ports.CareDay, error) {
-	verdicts, err := b.resolver.ResolveForDate(ctx, studentIDs, date)
-	if err != nil {
-		return nil, err
-	}
-	out := make(map[int64]ports.CareDay, len(verdicts))
-	for studentID, verdict := range verdicts {
-		out[studentID] = ports.CareDay(verdict)
-	}
-	return out, nil
-}
-
-type effectiveTimeBinding struct {
-	pickups  PickupTimeReader
-	arrivals ArrivalTimeReader
-}
-
-func (b effectiveTimeBinding) PickupTimes(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]*time.Time, error) {
-	effective, err := b.pickups.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, date)
-	if err != nil {
-		return nil, err
-	}
-	out := make(map[int64]*time.Time, len(effective))
-	for studentID, entry := range effective {
-		if entry != nil {
-			out[studentID] = entry.PickupTime
-		}
-	}
-	return out, nil
-}
-
-func (b effectiveTimeBinding) ArrivalTimes(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]*time.Time, error) {
-	effective, err := b.arrivals.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, date)
-	if err != nil {
-		return nil, err
-	}
-	out := make(map[int64]*time.Time, len(effective))
-	for studentID, entry := range effective {
-		if entry != nil {
-			out[studentID] = entry.ArrivalTime
-		}
-	}
-	return out, nil
-}
-
-type pickupBaselineBinding struct{ baselines PickupBaselineReader }
-
-func (b pickupBaselineBinding) RegularPickupTimes(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]string, error) {
-	projection, err := b.baselines.Project(ctx, studentIDs, date, date)
-	if err != nil {
-		return nil, err
-	}
-	out := make(map[int64]string, len(studentIDs))
-	for _, studentID := range studentIDs {
-		if row := projection.ForDate(studentID, date); row != nil {
-			out[studentID] = row.PickupTime.Format("15:04")
-		}
-	}
-	return out, nil
-}
-
-const SlotAttendanceExpected = "expected" // Timetable's stored status, pinned in list_kind_pin_test.go.
-
-// Rules forwards the pure care-plan rules to their owners so every reader of
-// the roster shares one derivation (#1565, #2606).
-type Rules func(status string, enrolledFrom, enrolledUntil *calendar.Date, date, today calendar.Date) bool
-
-func (Rules) RowCareDay(instanceCompleted bool, row ports.RosterFacts, planVerdict ports.CareDay) ports.CareDay {
-	model := &careplan.CareDayAttendance{Expected: row.Status == SlotAttendanceExpected, NotScheduled: row.NotScheduled, ManuallyDecided: row.ManualStatusAt != nil, PlanOwnedAbsence: row.StudentStatusDayID != nil || row.PickupExceptionID != nil}
-	return ports.CareDay(careplan.AttendanceRowCareDay(instanceCompleted, model, careplan.CareDayStatus(planVerdict)))
-}
-
-func (r Rules) EnrolledOn(student ports.StudentFacts, date, today calendar.Date) bool {
-	return r(student.Status, student.EnrolledFrom, student.EnrolledUntil, date, today)
-}
+// Timetable's stored status, pinned in list_kind_pin_test.go.
 
 // SlotBlock is one block of the day as the slot lists read it: the Timetable
 // plan folded with the Student Presence execution (#2762).
@@ -198,3 +100,5 @@ type SlotRosterRow = ports.InstanceStudent
 // TimetableReader is the block and roster read seam the slot lists build on;
 // the composition root binds it over both owners.
 type TimetableReader = ports.TimetableReader
+
+const SlotAttendanceExpected = application.SlotAttendanceExpected

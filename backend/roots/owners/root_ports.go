@@ -8,22 +8,22 @@ import (
 	"strings"
 	"time"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-
-	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanBindingPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -107,7 +107,7 @@ type precedingMails struct {
 	status func(ctx context.Context, tenantID, id int64) (deliveryContract.State, bool, error)
 }
 
-func (p precedingMails) PrecedingMailState(ctx context.Context, tenantID, outboxID int64) (identityaccessCompose.PrecedingMailState, bool, error) {
+func (p precedingMails) PrecedingMailState(ctx context.Context, tenantID, outboxID int64) (identityBindingPorts.PrecedingMailState, bool, error) {
 	state, found, err := p.status(ctx, tenantID, outboxID)
 	if err != nil || !found {
 		return identityaccessCompose.PrecedingMailQueued, found, err
@@ -285,5 +285,5 @@ type CalendarCalDAVSettings interface {
 // ParentChildLinkSource lists the children a guardian account reaches
 // (careplanCompose.ParentChildLinks).
 type ParentChildLinkSource interface {
-	ListByAccount(context.Context, int64) ([]careplanCompose.ParentChildLink, error)
+	ListByAccount(context.Context, int64) ([]carePlanBindingPorts.ParentChildLink, error)
 }

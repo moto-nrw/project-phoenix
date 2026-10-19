@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-
+	applicationBindings "github.com/moto-nrw/project-phoenix/modules/delivery/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,7 +19,7 @@ import (
 
 func TestProviderResultMapsPublicCancellationToDomainDecision(t *testing.T) {
 	t.Parallel()
-	_, err := providerResult(deliveryContract.ProviderResult{}, fmt.Errorf("access revoked: %w", deliveryContract.ErrCancelled))
+	_, err := applicationBindings.ProviderResult(deliveryContract.ProviderResult{}, fmt.Errorf("access revoked: %w", deliveryContract.ErrCancelled))
 	assert.True(t, errors.Is(err, domain.ErrCancelled))
 }
 

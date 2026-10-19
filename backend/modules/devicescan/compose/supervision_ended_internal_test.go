@@ -23,7 +23,7 @@ func TestSupervisionEndedMatchesActiveOn(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if got := supervisionEnded(tc.endDate, today); got != tc.ended {
+			if got := SupervisionEnded(tc.endDate, today); got != tc.ended {
 				t.Fatalf("supervisionEnded(%v, %q) = %v, want %v", pointerString(tc.endDate), today, got, tc.ended)
 			}
 		})

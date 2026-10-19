@@ -12,7 +12,6 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -25,12 +24,12 @@ import (
 // the challenge codec, the school settings, the mails and the operator
 // ledger. passkeys carries the relying-party facts; nil leaves the
 // ceremonies unavailable.
-func NewMFADependencies(codec identityPorts.MFAChallengeCodec, settings settingsCompose.SettingsService, mail MFAMailer, operatorAuditLog OperatorAuditEntries, jwtSecret string, passkeys *identityaccessCompose.PasskeyDependencies, logger *slog.Logger) (*identityaccessCompose.MFADependencies, error) {
+func NewMFADependencies(codec identityPorts.MFAChallengeCodec, settings settingsCompose.SettingsService, mail MFAMailer, operatorAuditLog OperatorAuditEntries, jwtSecret string, passkeys *identityPorts.PasskeyDependencies, logger *slog.Logger) (*identityPorts.MFADependencies, error) {
 	if codec == nil || operatorAuditLog == nil || mail.Logger == nil || logger == nil {
 		return nil, errors.New("identity access composition: the second factor needs the challenge codec, the operator audit log and a logger")
 	}
 
-	return &identityaccessCompose.MFADependencies{
+	return &identityPorts.MFADependencies{
 		Settings:      mfaSettingsFor(settings),
 		Codec:         codec,
 		Codes:         shortCodeHasher{},
@@ -44,7 +43,7 @@ func NewMFADependencies(codec identityPorts.MFAChallengeCodec, settings settings
 
 // mfaSettingsFor binds the gate's parameters to the settings service; a root
 // composed without one gets Identity & Access's answers for that case.
-func mfaSettingsFor(settings settingsCompose.SettingsService) identityaccessCompose.MFASettings {
+func mfaSettingsFor(settings settingsCompose.SettingsService) identityPorts.MFASettings {
 	if settings == nil {
 		return identityaccess.MFASettingsWithoutService{}
 	}

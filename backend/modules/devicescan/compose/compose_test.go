@@ -3,6 +3,8 @@ package compose_test
 import (
 	"testing"
 
+	scanBindings "github.com/moto-nrw/project-phoenix/roots/devicescanbinding"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -15,7 +17,7 @@ import (
 func TestNewFailsFastWithoutTheRequiredCapabilities(t *testing.T) {
 	t.Parallel()
 	assert.PanicsWithValue(t, "device scan composition: fleet, presence, rooms, active and users are required", func() {
-		devicescanCompose.New(devicescanCompose.Dependencies{})
+		scanBindings.New(devicescanCompose.Dependencies{})
 	})
 }
 

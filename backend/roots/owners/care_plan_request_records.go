@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -27,10 +26,10 @@ type RequestArrivalPlans interface {
 }
 
 type RequestRecords interface {
-	compose.RequestSubmissionRecords
-	compose.RequestReadRecords
-	compose.RequestEditRecords
-	compose.RequestDecisionRecords
-	compose.RequestCorrectionRecords
+	carePlanPorts.RequestSubmissionRecords
+	carePlanPorts.RequestReadRecords
+	carePlanPorts.RequestEditRecords
+	carePlanPorts.RequestDecisionRecords
+	carePlanPorts.RequestCorrectionRecords
 	carePlanPorts.PickupApprovalRecords
 }

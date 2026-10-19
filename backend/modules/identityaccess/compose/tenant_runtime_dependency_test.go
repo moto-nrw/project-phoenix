@@ -6,18 +6,27 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/require"
 )
 
-type sweepSchools struct{ identityPorts.SchoolDirectory }
-type sweepPersons struct{ PersonDirectory }
-type sweepPasswords struct{ PasswordVerifier }
-type sweepCodec struct{ identityPorts.TokenCodec }
-type sweepMFALock struct{ MFAPolicyLock }
+type sweepSchools struct {
+	identityPorts.SchoolDirectory
+}
+type sweepPersons struct {
+	identityPorts.PersonDirectory
+}
+type sweepPasswords struct {
+	identityPorts.PasswordVerifier
+}
+type sweepCodec struct {
+	identityPorts.TokenCodec
+}
+type sweepMFALock struct {
+	identityPorts.MFAPolicyLock
+}
 
 // sweepAudit and sweepPush answer the session sweep's administrative
 // follow-up with nothing to do.
@@ -27,7 +36,9 @@ func (sweepAudit) ListPendingAccountWideWipes(context.Context) ([]identityaccess
 	return nil, nil
 }
 
-type sweepPush struct{ PushSubscriptionCleanup }
+type sweepPush struct {
+	identityPorts.PushSubscriptionCleanup
+}
 
 func (sweepPush) DeleteOrphaned(context.Context) error { return nil }
 
@@ -41,7 +52,7 @@ func TestNew_BindsTheTenantRuntimeDependency(t *testing.T) {
 	sweep := func(deps Dependencies) (string, error) {
 		var logs bytes.Buffer
 		deps.DB, deps.Observe = db, func(Observation) {}
-		deps.Sessions = &SessionDependencies{
+		deps.Sessions = &identityPorts.SessionDependencies{
 			Schools: sweepSchools{}, Persons: sweepPersons{}, Passwords: sweepPasswords{},
 			Codec: sweepCodec{}, MFALock: sweepMFALock{}, Audit: sweepAudit{}, Push: sweepPush{},
 			Logger: slog.New(slog.NewTextHandler(&logs, nil)),

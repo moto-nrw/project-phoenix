@@ -10,6 +10,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -59,7 +60,7 @@ func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, repo
 	if repos.schools.Schools == nil || repos.persons == nil || repos.authEvents == nil || repos.pushSubscriptions == nil || codec == nil || audit == nil {
 		return nil, errors.New("identity access composition: repositories, token codec and audit command are required")
 	}
-	base.Sessions = &identityaccessCompose.SessionDependencies{
+	base.Sessions = &identityBindingPorts.SessionDependencies{
 		Schools:   repos.schools,
 		Persons:   PersonDirectory{Persons: repos.persons},
 		Passwords: passwordVerifier{},
@@ -82,14 +83,14 @@ func requiredIdentityAccessObservation(observe IdentityAccessObserver) func(iden
 	return identityAccessObservation(observe)
 }
 
-func DemoDependencies(wiring *DemoAccessWiring, standingSchool string, schools organizationtenancy.Query) (*identityaccessCompose.DemoDependencies, error) {
+func DemoDependencies(wiring *DemoAccessWiring, standingSchool string, schools organizationtenancy.Query) (*identityBindingPorts.DemoDependencies, error) {
 	if wiring == nil {
 		return nil, nil
 	}
 	if wiring.MaxActiveSchools < 1 {
 		return nil, errors.New("the public demo requires serve --demo-max-active-schools above zero")
 	}
-	return &identityaccessCompose.DemoDependencies{
+	return &identityBindingPorts.DemoDependencies{
 		Schools: demoSchoolDirectory{access: organizationtenancy.NewDemoSchoolAccess(
 			schools, organizationCompose.NewDemoSchoolOrders(SecureRandomSource(), wiring.MaxActiveSchools), standingSchool,
 		)},

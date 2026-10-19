@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	scanBindings "github.com/moto-nrw/project-phoenix/roots/devicescanbinding"
+
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
@@ -53,7 +55,7 @@ func NewCheckinTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	}
 	logger := slog.Default()
 	rosters := owners.MustNewUnobservedTimetable(db)
-	scan := devicescanCompose.New(devicescanCompose.Dependencies{Principal: DeviceScanPrincipal,
+	scan := scanBindings.New(devicescanCompose.Dependencies{Principal: DeviceScanPrincipal,
 		Fleet:      moduleDevices.IoT.Fleet(),
 		Presence:   owners.NewLoggedStudentPresence(db, logger),
 		Rooms:      rooms,

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/settings"
+	app "github.com/moto-nrw/project-phoenix/modules/settings/internal/application"
 )
 
 // NewAnalyseFreigabe answers whether a school has the Analyse-Freigabe
@@ -13,15 +14,5 @@ import (
 // middleware, so it resolves for an explicit school. It fails closed: a
 // settings error keeps the event anonymous and is logged.
 func NewAnalyseFreigabe(reader settings.TenantReader, logger *slog.Logger) func(ctx context.Context, schoolID int64) bool {
-	return func(ctx context.Context, schoolID int64) bool {
-		freigabe, err := reader.ResolveBoolForTenant(ctx, schoolID, settings.KeyAnalyticsFreigabe)
-		if err != nil {
-			logger.WarnContext(ctx, "analyse-freigabe unresolved, core action stays anonymous",
-				slog.Int64("school_id", schoolID),
-				slog.String("error", err.Error()),
-			)
-			return false
-		}
-		return freigabe
-	}
+	return app.NewAnalyseFreigabeReader(reader, logger, settings.KeyAnalyticsFreigabe)
 }

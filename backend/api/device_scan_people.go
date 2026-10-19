@@ -42,12 +42,12 @@ func NewDeviceScanPeople(users deviceScanUserRows) devicescanCompose.PersonDirec
 
 func (DeviceScanPeople) NormalizeTag(tag string) string { return peopledirectory.NormalizeTagID(tag) }
 
-func (p DeviceScanPeople) Get(ctx context.Context, id interface{}) (*devicescanCompose.ScanPerson, error) {
+func (p DeviceScanPeople) FindPersonByID(ctx context.Context, id int64) (*devicescan.ScanPerson, error) {
 	person, err := p.Users.Get(ctx, id)
 	return scanPerson(person), err
 }
 
-func (p DeviceScanPeople) FindByTagID(ctx context.Context, tagID string) (*devicescanCompose.ScanPerson, error) {
+func (p DeviceScanPeople) FindByTagID(ctx context.Context, tagID string) (*devicescan.ScanPerson, error) {
 	person, err := p.Users.FindByTagID(ctx, tagID)
 	return scanPerson(person), err
 }
@@ -60,51 +60,51 @@ func (p DeviceScanPeople) UnlinkFromRFIDCard(ctx context.Context, personID int64
 	return p.Users.UnlinkFromRFIDCard(ctx, personID)
 }
 
-func (p DeviceScanPeople) GetStaffByID(ctx context.Context, id int64) (*devicescanCompose.ScanStaff, error) {
+func (p DeviceScanPeople) GetStaffByID(ctx context.Context, id int64) (*devicescan.ScanStaff, error) {
 	staff, err := p.Users.GetStaffByID(ctx, id)
 	return scanStaff(staff), err
 }
 
-func (p DeviceScanPeople) GetStaffByPersonID(ctx context.Context, personID int64) (*devicescanCompose.ScanStaff, error) {
+func (p DeviceScanPeople) GetStaffByPersonID(ctx context.Context, personID int64) (*devicescan.ScanStaff, error) {
 	staff, err := p.Users.GetStaffByPersonID(ctx, personID)
 	return scanStaff(staff), err
 }
 
-func (p DeviceScanPeople) GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*devicescanCompose.ScanStaff, error) {
+func (p DeviceScanPeople) GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*devicescan.ScanStaff, error) {
 	rows, err := p.Users.GetStaffWithPersonByIDs(ctx, ids)
 	if rows == nil {
 		return nil, err
 	}
-	result := make(map[int64]*devicescanCompose.ScanStaff, len(rows))
+	result := make(map[int64]*devicescan.ScanStaff, len(rows))
 	for id, row := range rows {
 		result[id] = scanStaff(row)
 	}
 	return result, err
 }
 
-func (p DeviceScanPeople) GetTeacherByStaffID(ctx context.Context, staffID int64) (*devicescanCompose.ScanTeacher, error) {
+func (p DeviceScanPeople) GetTeacherByStaffID(ctx context.Context, staffID int64) (*devicescan.ScanTeacher, error) {
 	teacher, err := p.Users.GetTeacherByStaffID(ctx, staffID)
 	return scanTeacher(teacher), err
 }
 
-func (p DeviceScanPeople) ListTeachersWithStaffAndPerson(ctx context.Context) ([]*devicescanCompose.ScanTeacher, error) {
+func (p DeviceScanPeople) ListTeachersWithStaffAndPerson(ctx context.Context) ([]*devicescan.ScanTeacher, error) {
 	rows, err := p.Users.ListTeachersWithStaffAndPerson(ctx)
 	if rows == nil {
 		return nil, err
 	}
-	result := make([]*devicescanCompose.ScanTeacher, len(rows))
+	result := make([]*devicescan.ScanTeacher, len(rows))
 	for i, row := range rows {
 		result[i] = scanTeacher(row)
 	}
 	return result, err
 }
 
-func (p DeviceScanPeople) GetStudentByIDForUpdate(ctx context.Context, id int64) (*devicescanCompose.ScanStudent, error) {
+func (p DeviceScanPeople) GetStudentByIDForUpdate(ctx context.Context, id int64) (*devicescan.ScanStudent, error) {
 	student, err := p.Users.GetStudentByIDForUpdate(ctx, id)
 	return scanStudent(student), err
 }
 
-func (p DeviceScanPeople) GetStudentByPersonID(ctx context.Context, personID int64) (*devicescanCompose.ScanStudent, error) {
+func (p DeviceScanPeople) GetStudentByPersonID(ctx context.Context, personID int64) (*devicescan.ScanStudent, error) {
 	student, err := p.Users.GetStudentByPersonID(ctx, personID)
 	return scanStudent(student), err
 }
@@ -141,32 +141,32 @@ func (p DeviceScanPeople) Students(ctx context.Context, teacherIDs []int64) ([]d
 	return result, nil
 }
 
-func scanPerson(person *peopledirectory.DirectoryPersonSnapshot) *devicescanCompose.ScanPerson {
+func scanPerson(person *peopledirectory.DirectoryPersonSnapshot) *devicescan.ScanPerson {
 	if person == nil {
 		return nil
 	}
-	return &devicescanCompose.ScanPerson{ID: person.ID, FirstName: person.FirstName, LastName: person.LastName, TagID: person.TagID}
+	return &devicescan.ScanPerson{ID: person.ID, FirstName: person.FirstName, LastName: person.LastName, TagID: person.TagID}
 }
 
-func scanStaff(staff *peopledirectory.Staff) *devicescanCompose.ScanStaff {
+func scanStaff(staff *peopledirectory.Staff) *devicescan.ScanStaff {
 	if staff == nil {
 		return nil
 	}
-	return &devicescanCompose.ScanStaff{ID: staff.ID, PersonID: staff.PersonID, Person: scanPerson(staff.Person)}
+	return &devicescan.ScanStaff{ID: staff.ID, PersonID: staff.PersonID, Person: scanPerson(staff.Person)}
 }
 
-func scanTeacher(teacher *peopledirectory.Teacher) *devicescanCompose.ScanTeacher {
+func scanTeacher(teacher *peopledirectory.Teacher) *devicescan.ScanTeacher {
 	if teacher == nil {
 		return nil
 	}
-	return &devicescanCompose.ScanTeacher{StaffID: teacher.StaffID, Role: teacher.Role, Specialization: teacher.Specialization, Staff: scanStaff(teacher.Staff)}
+	return &devicescan.ScanTeacher{StaffID: teacher.StaffID, Role: teacher.Role, Specialization: teacher.Specialization, Staff: scanStaff(teacher.Staff)}
 }
 
-func scanStudent(student *peopledirectory.StudentState) *devicescanCompose.ScanStudent {
+func scanStudent(student *peopledirectory.StudentState) *devicescan.ScanStudent {
 	if student == nil {
 		return nil
 	}
-	return &devicescanCompose.ScanStudent{
+	return &devicescan.ScanStudent{
 		ID: student.ID, PersonID: student.PersonID, GroupID: student.GroupID, SchoolClass: student.SchoolClass,
 		Alumnus: student.IsAlumnus(), EnrolledUntil: student.EnrolledUntil,
 		Person: scanPerson(student.Person),

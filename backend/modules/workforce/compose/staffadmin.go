@@ -37,7 +37,7 @@ func NewStaffAdmin(dependencies StaffAdminDependencies) (*workforce.StaffAdmin, 
 	if dependencies.DB == nil || dependencies.Subjects == nil || dependencies.Audit == nil || dependencies.Allows == nil {
 		return nil, errors.New("staff admin: database, staff subjects, audit trail and permission matcher are required")
 	}
-	store := postgres.New(databaseRuntime(dependencies.DB))
+	store := postgres.New(postgres.DatabaseRuntime(dependencies.DB))
 	now := dependencies.Now
 	if now == nil {
 		now = time.Now
@@ -46,12 +46,7 @@ func NewStaffAdmin(dependencies StaffAdminDependencies) (*workforce.StaffAdmin, 
 	if logger == nil {
 		logger = slog.Default()
 	}
-	observe := func(observation Observation) {
-		if dependencies.Observe != nil {
-			observation.Err = application.MapError(observation.Err)
-			dependencies.Observe(observation)
-		}
-	}
+	observe := application.NewOptionalObserver(dependencies.Observe)
 	unit := transaction{lock: store.AcquireXactLock}
 	records := application.NewRecords(store, unit, application.Clock{Time: now}, observe)
 	admin := application.NewStaffAdmin(

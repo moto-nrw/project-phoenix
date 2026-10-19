@@ -4,14 +4,12 @@ package compose
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/adapters/sftp"
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -76,97 +74,10 @@ func newModule(dependencies Dependencies, transportOptions ...sftp.Option) (*exp
 	}
 
 	resolver := application.SettingsResolver{Settings: application.Settings(dependencies.Settings), Keys: application.SettingKeys(dependencies.Keys)}
-	service := application.New(resolver, uploader{client: sftp.New(transportOptions...)}, postgres.New(database()), ports.CommandRuntime{
-		Active: tenant.HasAfterCommitHooks,
-		Detached: func(ctx context.Context) context.Context {
-			return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
-		},
+	service := application.New(resolver, retainedUploader{Client: sftp.New(transportOptions...)}, postgres.New(retainedDatabase()), ports.CommandRuntime{
+		Active:       tenant.HasAfterCommitHooks,
+		Detached:     retainedNewDetachedContext(),
 		WithinTenant: tenant.WithinCurrentTenant,
 	}, dependencies.Logger)
-	return exporttransfer.NewModule(engine{service: service}), nil
-}
-
-// database yields the caller's tenant transaction for the journal. The entry
-// is written on the SAME transaction as the request, so it cannot end up
-// describing a state the database never reached.
-func database() postgres.Database {
-	return func(ctx context.Context) (bun.IDB, int64, error) {
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return nil, 0, errors.New("export transfer postgres: transaction is required")
-		}
-		tx, ok := transaction.(bun.Tx)
-		if !ok {
-			return nil, 0, fmt.Errorf("export transfer postgres: unsupported transaction %T", transaction)
-		}
-		tenantID, err := tenant.TenantFromContext(ctx)
-		if err != nil {
-			return nil, 0, err
-		}
-		return tx, tenantID.Int64(), nil
-	}
-}
-
-// uploader binds the transport to the port. Port and transport carry their
-// own destination types so neither imports the other; translating between
-// them is composition work, and it stays a field copy — any rule about WHERE
-// a file may go belongs in the transport's address policy.
-type uploader struct{ client *sftp.Client }
-
-func (u uploader) Prepare(ctx context.Context, target domain.Target, filename string, data []byte) (func() error, func() error, error) {
-	pending, err := u.client.Prepare(ctx, sftp.Target{
-		Host:               target.Host,
-		Port:               target.Port,
-		Username:           target.Username,
-		Password:           target.Password,
-		RemoteDirectory:    target.RemoteDirectory,
-		HostKeyFingerprint: target.HostKeyFingerprint,
-	}, filename, data)
-	if err != nil {
-		return nil, nil, err
-	}
-	return pending.Commit, pending.Rollback, nil
-}
-
-// engine translates between the domain values the application works on and
-// the public capability types. Keeping the translation here is what lets the
-// application layer stay free of the contract package.
-type engine struct{ service *application.Service }
-
-func (e engine) Status(ctx context.Context) (exporttransfer.Status, error) {
-	state, err := e.service.State(ctx)
-	if err != nil {
-		return exporttransfer.Status{}, err
-	}
-	return exporttransfer.Status{
-		Enabled:         state.Enabled,
-		Ready:           state.Ready(),
-		Host:            state.Host,
-		Port:            state.Port,
-		RemoteDirectory: state.RemoteDirectory,
-		MissingSettings: state.MissingSettings,
-	}, nil
-}
-
-func (e engine) Transfer(ctx context.Context, request exporttransfer.Request) (exporttransfer.Outcome, error) {
-	result, err := e.service.Transfer(ctx, domain.Request{
-		Kind:           request.Kind,
-		Format:         request.Format,
-		Filename:       request.Filename,
-		Data:           request.Data,
-		PrepareFile:    request.PrepareFile,
-		ActorAccountID: request.ActorAccountID,
-		ActorName:      request.ActorName,
-	})
-	if err != nil {
-		return exporttransfer.Outcome{}, err
-	}
-	return exporttransfer.Outcome{
-		Transferred:     result.Success,
-		Filename:        result.Filename,
-		ByteSize:        result.ByteSize,
-		TargetHost:      result.TargetHost,
-		TargetDirectory: result.TargetDirectory,
-		Reason:          result.Reason,
-	}, nil
+	return exporttransfer.NewModule(retainedEngine{Service: service}), nil
 }

@@ -7,12 +7,11 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // The Identity & Access compositions of the command roots: the cleanup CLI's
@@ -41,19 +40,6 @@ func NewGuardianSeedAccess(db *bun.DB) (func(ctx context.Context, email, passwor
 	return module.SeedGuardianAccount, nil
 }
 
-// AccountExists answers the People Directory's account-reference check. Only
-// a missing account is absence; any other lookup failure is returned rather
-// than read as absence.
-func AccountExists(profiles identityaccess.AccountProfiles) func(context.Context, int64) (bool, error) {
-	return func(ctx context.Context, accountID int64) (bool, error) {
-		_, err := profiles.FindAccountMetadata(ctx, accountID)
-		if errors.Is(err, identityaccess.ErrAccountNotFound) {
-			return false, nil
-		}
-		return err == nil, err
-	}
-}
-
 // SessionMaintenanceDependencies are the seams the expired session sweep
 // and its revocation follow-ups need: the schools and persons a wipe names
 // in its audit evidence, the audit ledger and the push subscriptions a
@@ -63,9 +49,9 @@ type SessionMaintenanceDependencies struct {
 	DB      *bun.DB
 	Runtime tenant.UnitOfWork
 	Schools identityPorts.SchoolDirectory
-	Persons PersonDirectory
+	Persons identityPorts.PersonDirectory
 	Audit   identityPorts.AuthAudit
-	Push    PushSubscriptionCleanup
+	Push    identityPorts.PushSubscriptionCleanup
 	// ResetExpiry configures the reset flows; the sweep only deletes spent
 	// links and stale rate-limit windows and never issues one.
 	ResetExpiry time.Duration
@@ -89,7 +75,7 @@ func NewSessionMaintenance(deps SessionMaintenanceDependencies) (*SessionMainten
 	}
 	module, err := New(Dependencies{
 		DB: deps.DB, Observe: func(Observation) {}, TenantRuntime: deps.Runtime,
-		Sessions: &SessionDependencies{
+		Sessions: &identityPorts.SessionDependencies{
 			Schools: deps.Schools, Persons: deps.Persons, Passwords: application.UnusablePasswords{},
 			Codec: application.UnsignedSessions{}, MFALock: application.UnlockedMFAPolicy{}, Audit: deps.Audit, Push: deps.Push,
 			Logger: deps.Logger,
@@ -105,4 +91,8 @@ func NewSessionMaintenance(deps SessionMaintenanceDependencies) (*SessionMainten
 		return nil, err
 	}
 	return &SessionMaintenance{AccountSessionMaintenance: module, PasswordResets: module}, nil
+}
+
+func AccountExists(profiles identityaccess.AccountProfiles) func(context.Context, int64) (bool, error) {
+	return application.AccountExists(profiles)
 }

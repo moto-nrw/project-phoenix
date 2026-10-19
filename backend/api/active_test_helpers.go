@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	scanBindings "github.com/moto-nrw/project-phoenix/roots/devicescanbinding"
+
 	presenceHTTP "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
 	endbinding "github.com/moto-nrw/project-phoenix/roots/sessionendbinding"
 
@@ -329,7 +331,7 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		return fail(err)
 	}
 	scan := ActiveDeviceScan{
-		SessionLifecycle: devicescanCompose.NewSessionLifecycle(presence, devicescanCompose.NewSupervisionQuery(owners.NewLoggedStudentPresence(db, logger)), NewDeviceScanPeople(dataUsers), dataDevices.IoT, nil, logger, DeviceScanPrincipal),
+		SessionLifecycle: scanBindings.NewSessionLifecycle(presence, scanBindings.NewSupervisionQuery(owners.NewLoggedStudentPresence(db, logger)), NewDeviceScanPeople(dataUsers), dataDevices.IoT, nil, logger, DeviceScanPrincipal),
 		RoomAvailability: data.RoomAvailability, Configuration: data.Configuration, Directory: data.Directory, TagAssignments: data.TagAssignments,
 	}
 	return ActiveTestModule{PickupSchedule: pickups, ArrivalSchedule: arrivals, CareDay: careDay},

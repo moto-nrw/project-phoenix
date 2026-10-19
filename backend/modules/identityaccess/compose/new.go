@@ -6,14 +6,14 @@ import (
 	"context"
 	"errors"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application/rotation"
 	internalports "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 type Observation = internalports.Observation
@@ -25,7 +25,7 @@ type Dependencies struct {
 	// parent and school login, refresh, switching, logout, session validation,
 	// cleanup and revocation. Compositions that only read identity facts
 	// leave it nil; the flows then report ErrAccountAuthenticationUnavailable.
-	Sessions *SessionDependencies
+	Sessions *identityBindingPorts.SessionDependencies
 	// Operators composes the operator flows (#3252): operator login, the
 	// MFA-proven token issue, refresh, profile and password changes, and
 	// the operator-led school access of accounts. It requires Sessions;
@@ -44,18 +44,18 @@ type Dependencies struct {
 	// Invitations composes the school invitation flows (#2722). They require
 	// Sessions and Lifecycle; compositions without it report
 	// ErrSchoolInvitationUnavailable.
-	Invitations *SchoolInvitationDependencies
+	Invitations *identityBindingPorts.SchoolInvitationDependencies
 	// MFA composes the account and operator second factor and, with its
 	// relying-party facts, both portals' passkey ceremonies (#3331). It
 	// requires Sessions; compositions without it report
 	// ErrAccountMFAUnavailable and ErrOperatorMFAUnavailable.
-	MFA *MFADependencies
+	MFA *identityBindingPorts.MFADependencies
 	// OperatorProvisioning composes the operator invitation and e-mail
 	// change flows (#3332). They require Sessions and Operators;
 	// compositions without it report ErrOperatorProvisioningUnavailable.
 	OperatorProvisioning *OperatorProvisioningDependencies
 	// Demo composes public demo access only in the demo environment.
-	Demo *DemoDependencies
+	Demo *identityBindingPorts.DemoDependencies
 	// TenantRuntime is the unit of work the module opens its session,
 	// lifecycle and operator transactions under. A zero value binds nothing:
 	// the sessions keep their own runtime.
@@ -76,12 +76,10 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("identity access compose: all dependencies are required")
 	}
-	dependencies, attach := bindTenantRuntime(dependencies)
-	store := newStore(dependencies.DB)
-	service := application.New(store, store, store, newCommandTransactions(attach), tenant.FromContext, func(observation Observation) {
-		observation.Err = application.MapError(observation.Err)
-		dependencies.Observe(observation)
-	})
+	sessions, attach := application.BindTenantRuntime(dependencies.Sessions, dependencies.TenantRuntime)
+	dependencies.Sessions = sessions
+	store := postgres.NewStore(dependencies.DB)
+	service := application.New(store, store, store, newCommandTransactions(attach), tenant.FromContext, application.NewObserver(dependencies.Observe))
 	operatorMFARecords := application.NewOperatorMFA(service, store)
 	// The second factor is composed first: every login path consults its
 	// gate, and the passkey ceremonies below need the sessions it gates.
@@ -114,7 +112,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		return nil, err
 	}
 	tokens := application.NewOperatorTokens(service, store)
-	operatorAuth, accountAccess, err := newOperatorFlows(service, store, tokens, auth, dependencies.Sessions, dependencies.Operators, lifecycle, operatorLoginGate(flows, dependencies.Demo))
+	operatorAuth, accountAccess, err := newOperatorFlows(service, store, tokens, auth, dependencies.Sessions, dependencies.Operators, lifecycle, application.OperatorLoginGate(flows, dependencies.Demo))
 	if err != nil {
 		return nil, err
 	}
@@ -139,8 +137,8 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		Passkeys: operatorPasskeys, AccountPasskeys: accountPasskeys, AccountRoleQueries: application.NewAccountRoleQueries(service, store, postgres.NewRoleStore(store)),
 		Auth: auth, OperatorAuth: operatorAuth, AccountAccess: accountAccess, Lifecycle: lifecycle, Roles: roles,
 		Resets: resets, Invitations: invitations, Provisioning: provisioning, Administration: administration,
-		MFAFlows: flows, OperatorProvisioning: operatorProvisioning, SignInRetention: application.NewSignInDataRetention(store, invitationLogger(dependencies.Invitations), newCommandTransactions(attach).RunAdmin), AccountRetention: application.NewAccountRetention(store, attach, tenant.RegisterAfterCommit, invitationLogger(dependencies.Invitations)),
-		InvitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations), newCommandTransactions(attach).RunPlatform),
+		MFAFlows: flows, OperatorProvisioning: operatorProvisioning, SignInRetention: application.NewSignInDataRetention(store, application.InvitationLogger(dependencies.Invitations), newCommandTransactions(attach).RunAdmin), AccountRetention: application.NewAccountRetention(store, attach, tenant.RegisterAfterCommit, application.InvitationLogger(dependencies.Invitations)),
+		InvitationMaintenance: application.NewSchoolInvitationMaintenance(store, application.InvitationLogger(dependencies.Invitations), newCommandTransactions(attach).RunPlatform),
 		Runtime:               attach, WithRecoveryProof: rotation.WithRecoveryProof,
 	})
 	return identityaccess.NewDemoModule(e, demoAccess), nil
@@ -153,26 +151,7 @@ func NewGuardianInvitationReads(db *bun.DB) (identityaccess.GuardianInvitationRe
 	if db == nil {
 		return nil, errors.New("identity access compose: the guardian invitation reads need the database")
 	}
-	return application.NewGuardianInvitationReads(newStore(db), newCommandTransactions(nil).RunRead), nil
-}
-
-// bindTenantRuntime is the runtime the module opens its transactions under:
-// Dependencies.TenantRuntime when set, otherwise the sessions' own runtime,
-// otherwise the context's. The sessions attach through it.
-func bindTenantRuntime(dependencies Dependencies) (Dependencies, func(context.Context) context.Context) {
-	attach := func(ctx context.Context) context.Context { return ctx }
-	if dependencies.Sessions != nil && dependencies.Sessions.TenantRuntime != nil {
-		attach = dependencies.Sessions.TenantRuntime
-	}
-	if unit := dependencies.TenantRuntime; !unit.IsZero() {
-		attach = func(ctx context.Context) context.Context { return tenant.WithUnitOfWork(ctx, unit) }
-	}
-	if dependencies.Sessions != nil {
-		sessions := *dependencies.Sessions
-		sessions.TenantRuntime = attach
-		dependencies.Sessions = &sessions
-	}
-	return dependencies, attach
+	return application.NewGuardianInvitationReads(postgres.NewStore(db), newCommandTransactions(nil).RunRead), nil
 }
 
 func newPasskeyRecords(service *application.Service, store *postgres.Store) (*application.OperatorPasskey, *application.AccountPasskey) {

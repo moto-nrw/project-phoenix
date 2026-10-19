@@ -43,6 +43,6 @@ func TestDisabledStudentPhotos_MatchesTheUnboundRuntime(t *testing.T) {
 
 	// A consent change fails with the error the unbound runtime reports.
 	err := DisabledStudentPhotos().RecordPhotoConsent(ctx, StudentPhotoConsentSnapshot{}, StudentPhotoConsentSnapshot{}, nil, time.Now())
-	require.ErrorIs(t, err, errStudentPhotoRuntimeUnbound)
+	require.ErrorIs(t, err, studentPhotoRuntimeUnboundForTest())
 	require.EqualError(t, err, "people directory: student photo runtime is not bound")
 }

@@ -45,7 +45,6 @@ func fillWideStudentFields(t *testing.T, db *bun.DB, studentID, personID int64) 
 	require.NoError(t, err, "failed to fill wide profile fields")
 	_, err = db.NewRaw(`UPDATE users.student_care_profiles SET
 			health_info = 'Laktoseintoleranz, Notfallmedikament im Gruppenraum',
-			supervisor_notes = 'Braucht manchmal etwas mehr Zeit bei Uebergaengen',
 			pickup_status = 'Wird abgeholt',
 			bus_days = '{"mon":true,"tue":true,"wed":true,"thu":true,"fri":true}'::jsonb,
 			pickup_days = '{"mon":true,"tue":true,"wed":true,"thu":true,"fri":true}'::jsonb,
@@ -144,13 +143,15 @@ func TestListStudents_FullViewKeepsWideProjection(t *testing.T) {
 
 		body := rr.Body.String()
 		for _, required := range []string{
-			"health_info", "supervisor_notes", "extra_info",
+			"health_info", "extra_info",
 			"address_street", "pickup_days",
 			"allowed_departure_modes", "created_at",
 		} {
 			assert.Contains(t, body, required,
 				"GET /students%s must keep the full projection", path)
 		}
+		assert.NotContains(t, body, "supervisor_notes",
+			"the retired Betreuernotizen field is no longer part of the projection (#4268)")
 	}
 }
 
