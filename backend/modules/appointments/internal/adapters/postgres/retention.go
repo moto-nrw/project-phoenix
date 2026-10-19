@@ -72,6 +72,10 @@ func (s *Store) retentionCandidates(ctx context.Context, cutoff appointments.Dat
 	if err != nil {
 		return nil, err
 	}
+	return retentionCandidatesFromRows(rows, rules, overrides), nil
+}
+
+func retentionCandidatesFromRows(rows []appointmentRow, rules []recurrenceRuleRow, overrides map[int64]appointments.Date) []appointments.RetentionCandidate {
 	rulesByAppointment := make(map[int64]*appointments.RecurrenceRule, len(rules))
 	for _, rule := range rules {
 		rulesByAppointment[rule.AppointmentID] = &appointments.RecurrenceRule{
@@ -90,7 +94,7 @@ func (s *Store) retentionCandidates(ctx context.Context, cutoff appointments.Dat
 			LatestOverride: overrides[row.ID],
 		})
 	}
-	return candidates, nil
+	return candidates
 }
 
 func publicDate(value *domain.Date) *appointments.Date {
