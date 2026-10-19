@@ -270,9 +270,7 @@ function MessagesInboxContent() {
               <li key={thread.thread_id}>
                 <TileCard onClick={navigate}>
                   {/* Absender und Kind tragen die Symbole aus dem
-                      Konzeptregister, wie in den Anfragen (#4361). Die Zeit
-                      steht nur in der ersten Zeile, damit Kind und Vorschau
-                      auf dem Handy die volle Breite haben. */}
+                      Konzeptregister, wie in den Anfragen (#4361). */}
                   <div className="flex min-w-0 items-center gap-2">
                     <MotoConceptIcon concept="parents" size={20} />
                     <h3 className="truncate text-base font-semibold text-gray-900">
