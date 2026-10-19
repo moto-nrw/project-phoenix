@@ -104,7 +104,7 @@ func (g guardianRecords[C, P, L, K, G]) PatchGuardianLinkPickup(ctx context.Cont
 }
 
 func (g guardianRecords[C, P, L, K, G]) ListGuardianProfileTenants(ctx context.Context, accountID int64) ([]int64, error) {
-	guardians, err := g.GuardianSource.ListGuardiansByAccount(ctx, []int64{accountID})
+	guardians, err := g.ListGuardiansByAccount(ctx, []int64{accountID})
 	if err != nil {
 		return nil, err
 	}

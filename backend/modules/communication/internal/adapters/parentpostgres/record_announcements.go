@@ -214,7 +214,7 @@ func (r *announcementRepository) SetResponse(ctx context.Context, tenantID, anno
 	if err := r.store.LockResponse(ctx, announcementID, studentID); err != nil {
 		return false, err
 	}
-	allowed, err := r.AnnouncementAudienceReads.HoldAnswerPermission(ctx, tenantID, announcementID, accountID, studentID)
+	allowed, err := r.HoldAnswerPermission(ctx, tenantID, announcementID, accountID, studentID)
 	if err != nil || !allowed {
 		return false, err
 	}
@@ -281,7 +281,7 @@ func (r *announcementRepository) AccountMatchesAnnouncement(ctx context.Context,
 	if err != nil {
 		return false, err
 	}
-	return r.AnnouncementAudienceReads.HistoricalDeclarationAccess(ctx, tenantID, accountID, declarationHistoryLinksForAccount(submissions, accountID))
+	return r.HistoricalDeclarationAccess(ctx, tenantID, accountID, declarationHistoryLinksForAccount(submissions, accountID))
 }
 
 func (r *announcementRepository) ResolveAudienceEmails(ctx context.Context, tenantID, announcementID int64) ([]*communication.PortalAnnouncementRecipient, error) {
@@ -361,7 +361,7 @@ func (r *announcementRepository) ListFeedForAccount(ctx context.Context, account
 	if err != nil {
 		return nil, err
 	}
-	history, err := r.AnnouncementAudienceReads.HistoricalDeclarationFeed(ctx, accountID, scopeValue, declarationHistoryLinks(submissions))
+	history, err := r.HistoricalDeclarationFeed(ctx, accountID, scopeValue, declarationHistoryLinks(submissions))
 	if err != nil {
 		return nil, err
 	}
