@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { berlinTodayISO } from "~/lib/date-helpers";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import {
   useOperationalOverviewScope,
@@ -236,16 +237,37 @@ describe("TagesplanView", () => {
       error: null,
     });
 
-    const { container } = render(<TagesplanView />);
+    render(<TagesplanView />);
 
-    expect(screen.getByRole("img", { name: "Raum" })).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "Personal" })).toBeInTheDocument();
-    expect(
-      container.querySelectorAll('[data-moto-duotone-tone="navy"]'),
-    ).toHaveLength(1);
-    expect(
-      container.querySelectorAll('[data-moto-duotone-tone="orange"]'),
-    ).toHaveLength(1);
+    // Die Symbole sind Schmuck neben dem Text, kein zweiter Vorleser-Text.
+    const roomIcon = screen.getByText(/Kreativraum/).querySelector("svg");
+    const staffIcon = screen.getByText("Maria Muster").querySelector("svg");
+    expect(roomIcon).toHaveAttribute(
+      "data-moto-duotone-tone",
+      MOTO_CONCEPTS.rooms.tone,
+    );
+    expect(roomIcon).toHaveAttribute("aria-hidden", "true");
+    expect(staffIcon).toHaveAttribute(
+      "data-moto-duotone-tone",
+      MOTO_CONCEPTS.staff.tone,
+    );
+    expect(staffIcon).toHaveAttribute("aria-hidden", "true");
+  });
+
+  // Wer nur die eigene Einteilung sieht (#2380), hätte das Etikett an jeder
+  // Zeile; dort sagt es nichts und fällt weg.
+  it("leaves the own-block label out when only own blocks are shown (#4350)", () => {
+    vi.mocked(useOperationalOverviewScope).mockReturnValue("own");
+    setSWR({
+      data: [makeInstance({ id: "1", title: "Basteln", isAssigned: true })],
+      isLoading: false,
+      error: null,
+    });
+
+    render(<TagesplanView />);
+
+    expect(screen.getByText("Basteln")).toBeInTheDocument();
+    expect(screen.queryByText("Mein Block")).not.toBeInTheDocument();
   });
 
   it("opens the live list of a running block on tap", () => {

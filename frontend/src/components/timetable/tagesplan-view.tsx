@@ -19,6 +19,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import {
   Fragment,
+  type ReactNode,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -149,17 +150,25 @@ function NowDivider({ nowHHMM }: Readonly<{ nowHHMM: string }>) {
   );
 }
 
+// Raum- und Personalsymbol in den Textzeilen einer Zeile (#4350).
+const META_ICON = {
+  size: 14,
+  className: "mr-1 inline-block align-[-2px]",
+} as const;
+
 function TagesplanRow({
   instance,
   isToday,
   dayIsPast,
   nowHHMM,
+  showMine,
   startBusy,
   onOpenSession,
   onStart,
 }: Readonly<{
   instance: PlannedTimetableInstance;
   isToday: boolean;
+  showMine: boolean;
   dayIsPast: boolean;
   nowHHMM: string;
   startBusy: boolean;
@@ -193,17 +202,22 @@ function TagesplanRow({
   const staff = staffLine(instance);
   // Eigener Block (#4350): als Wort, weil der linke Rand schon die Farbe der
   // Planungsspur trägt. isAssigned gilt auch für eine Vertretung, nur wer
-  // abwesend gemeldet ist, fällt heraus.
-  const mine = instance.isAssigned;
+  // abwesend gemeldet ist, fällt heraus. Sieht jemand ohnehin nur die eigene
+  // Einteilung, trüge jede Zeile das Etikett und es sagte nichts mehr.
+  const mine = showMine && instance.isAssigned;
 
-  // Der Raum trägt sein Konzeptsymbol mitten in der Metazeile; die Teile
-  // davor und danach bleiben durchgehender Text.
-  const metaBefore = [
+  // Der Raum trägt sein Konzeptsymbol mitten in der Metazeile. Die Symbole
+  // sind Schmuck: der Text daneben sagt schon, was gemeint ist.
+  const metaParts: ReactNode[] = [
     instance.status === "completed" ? "Beendet" : null,
     missed ? "Nicht gestartet" : null,
     isDuty ? "Dienst" : null,
-  ].filter(Boolean);
-  const metaAfter = [
+    room ? (
+      <Fragment key="room">
+        <MotoConceptIcon concept="rooms" {...META_ICON} />
+        {room}
+      </Fragment>
+    ) : null,
     instance.groupName,
     cancelled || isDuty ? null : childrenShort(instance),
   ].filter(Boolean);
@@ -249,32 +263,13 @@ function TagesplanRow({
           </span>
         ) : null}
         <span className="block truncate text-xs text-gray-500">
-          {metaBefore.join(" · ")}
-          {metaBefore.length > 0 && room ? " · " : null}
-          {room ? (
-            <>
-              <MotoConceptIcon
-                concept="rooms"
-                size={14}
-                label="Raum"
-                className="mr-1 inline-block align-[-2px]"
-              />
-              {room}
-            </>
-          ) : null}
-          {(metaBefore.length > 0 || room) && metaAfter.length > 0
-            ? " · "
-            : null}
-          {metaAfter.join(" · ")}
+          {metaParts.flatMap((part, index) =>
+            index === 0 ? [part] : [" · ", part],
+          )}
         </span>
         {staff && !cancelled ? (
           <span className="block truncate text-xs text-gray-400">
-            <MotoConceptIcon
-              concept="staff"
-              size={14}
-              label="Personal"
-              className="mr-1 inline-block align-[-2px]"
-            />
+            <MotoConceptIcon concept="staff" {...META_ICON} />
             {staff}
           </span>
         ) : null}
@@ -550,6 +545,7 @@ export function TagesplanView() {
                     isToday={isToday}
                     dayIsPast={day < today}
                     nowHHMM={nowHHMM}
+                    showMine={overviewScope === "all_staff"}
                     startBusy={startBusyId === instance.id}
                     onOpenSession={openSession}
                     onStart={(entry) => void handleStart(entry)}
