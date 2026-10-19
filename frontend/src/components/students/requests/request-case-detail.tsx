@@ -9,6 +9,7 @@
 import { useEffect, useRef } from "react";
 
 import { Button } from "~/components/ui/button";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { FamilyProtectionControl } from "~/components/students/family-protection-control";
 import type { CareWithdrawalCompletion } from "~/lib/care-exit-api";
 import {
@@ -92,9 +93,12 @@ export function RequestCaseDetail({
       )}
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 bg-gray-50/70 px-4 py-3 sm:px-5">
         <div className="min-w-0">
-          <h3 className="truncate font-semibold text-gray-900">
-            {childCase.studentName}
-          </h3>
+          <div className="flex min-w-0 items-center gap-2">
+            <MotoConceptIcon concept="children" size={20} />
+            <h3 className="truncate font-semibold text-gray-900">
+              {childCase.studentName}
+            </h3>
+          </div>
           <p className="text-sm font-medium text-gray-600">
             {requestCount > 0 || expired === 0 ? (
               <span>
