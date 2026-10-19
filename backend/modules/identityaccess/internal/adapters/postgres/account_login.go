@@ -184,6 +184,7 @@ func (s *Store) ListAccountRolesAtTenant(ctx context.Context, accountID, tenantI
 		Join(`JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
 		Where(`"account_role".account_id = ?`, accountID)
 	query = query.Where(`"account_role".tenant_id = ?`, tenantID)
+	query = scopeTenantQuery(s.scope(ctx), query, `"account_role".tenant_id = ?`)
 	if forShare {
 		query = query.For(`SHARE OF "account_role"`)
 	}
@@ -222,7 +223,9 @@ func (s *Store) ListAccountPermissionsAtTenant(ctx context.Context, accountID, t
 		Join(`JOIN auth.account_roles AS "ar" ON "ar".role_id = "role_permission".role_id`).
 		Where(`"ar".account_id = ?`, accountID)
 	direct = direct.Where(`"account_permission".tenant_id = ?`, tenantID)
+	direct = scopeTenantQuery(s.scope(ctx), direct, `"account_permission".tenant_id = ?`)
 	fromRoles = fromRoles.Where(`"ar".tenant_id = ?`, tenantID)
+	fromRoles = scopeTenantQuery(s.scope(ctx), fromRoles, `"ar".tenant_id = ?`)
 	var names []string
 	started := time.Now()
 	err = db.NewSelect().

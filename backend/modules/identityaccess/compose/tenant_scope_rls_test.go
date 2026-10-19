@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	identityPostgres "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
-
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -29,18 +26,25 @@ func TestIdentityStoreRequiresTransactionAndIsolatesSchools(t *testing.T) {
 		require.NoError(t, err)
 	}
 	store := newStore(db)
-	roles := identityPostgres.NewRoleStore(store)
 	base := testpkg.WithTenantRuntime(t, context.Background(), db)
 	_, _, err := store.ListActiveTenantIDs(base, account.ID)
 	require.ErrorContains(t, err, "tenant")
-	_, _, err = store.ListActiveTenantIDs(tenant.WithTenantID(base, schoolA), account.ID)
+	_, _, err = store.ListActiveTenantIDs(testpkg.ContextForTenant(base, schoolA), account.ID)
 	require.ErrorContains(t, err, "transaction is required")
 	for _, id := range []int64{schoolA, schoolB} {
-		require.NoError(t, tenant.WithTenantTx(base, db, id, func(ctx context.Context, _ testpkg.Tx) error {
-			rows, err := roles.ListAccountRoles(ctx, account.ID)
+		require.NoError(t, testpkg.WithinTenantTransaction(base, db, id, func(ctx context.Context, _ testpkg.Tx) error {
+			rows, _, err := store.ListAccountRolesAtTenant(ctx, account.ID, id, false)
 			require.NoError(t, err)
 			require.Len(t, rows, 1)
-			require.Equal(t, rolesBySchool[id], rows[0].ID)
+			require.Equal(t, rolesBySchool[id], rows[0].RoleID)
+			foreign := schoolA
+			if id == schoolA {
+				foreign = schoolB
+			}
+			other, _, err := store.ListAccountRolesAtTenant(ctx, account.ID, foreign, false)
+			require.NoError(t, err)
+			require.Empty(t, other, "school-scoped role reads cannot select another school")
+
 			// The explicit role/permission API cannot use school 0 as all schools.
 			_, _, err = store.ListAccountRolesAtTenant(ctx, account.ID, 0, false)
 			require.Error(t, err)
@@ -49,7 +53,7 @@ func TestIdentityStoreRequiresTransactionAndIsolatesSchools(t *testing.T) {
 			return nil
 		}))
 	}
-	require.NoError(t, tenant.WithinAdmin(base, func(ctx context.Context) error {
+	require.NoError(t, testpkg.WithinAdminTransaction(base, func(ctx context.Context) error {
 		ids, _, err := store.ListActiveTenantIDs(ctx, account.ID)
 		require.NoError(t, err)
 		require.ElementsMatch(t, []int64{schoolA, schoolB}, ids, "explicit authentication bootstrap can resolve both account schools")
@@ -61,10 +65,12 @@ func TestIdentityRuntimeDoesNotEscalateTenantlessPortalScope(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	runtime := tenantRuntime{attach: func(ctx context.Context) context.Context { return testpkg.WithTenantRuntime(t, ctx, db) }, runner: newTransactionRunner()}
-	for _, scope := range []string{tenant.ScopeParent, tenant.ScopeSchool, tenant.ScopeOrg, "unexpected"} {
+	required := testpkg.WithinCurrentTenant(testpkg.WithTenantRuntime(t, context.Background(), db), func(context.Context) error { t.Fatal("missing tenant reached callback"); return nil })
+	require.Error(t, required)
+	for _, scope := range []string{"parent", "school", "org", "unexpected"} {
 		called := false
-		err := runtime.RunInTx(tenant.WithScope(context.Background(), scope), func(context.Context) error { called = true; return nil })
-		require.ErrorIs(t, err, tenant.ErrTenantRequired, scope)
+		err := runtime.RunInTx(testpkg.ContextForScope(context.Background(), scope), func(context.Context) error { called = true; return nil })
+		require.ErrorIs(t, err, required, scope)
 		require.False(t, called, scope)
 	}
 }

@@ -37,6 +37,12 @@ func CaptureUnitOfWorkEvidence(ctx context.Context) (context.Context, func() []U
 	return ctx, func() []UnitOfWorkEvidence { return append([]UnitOfWorkEvidence(nil), events...) }
 }
 
+// ContextForScope binds a portal scope for fixtures that verify wrong-portal
+// and missing-school rejection without importing runtime internals.
+func ContextForScope(ctx context.Context, scope string) context.Context {
+	return tenant.WithScope(ctx, scope)
+}
+
 // ContextWithTenantRuntime binds a tenant runtime to ctx, for repository
 // tests that drive their own transactions through it.
 func ContextWithTenantRuntime(ctx context.Context, runtime tenant.UnitOfWork) context.Context {
