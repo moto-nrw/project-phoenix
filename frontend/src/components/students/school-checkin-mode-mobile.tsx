@@ -8,8 +8,10 @@ import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 
 const CHECKIN_BAR_OFFSET_VAR = "--moto-checkin-bar-offset";
-const CHECKIN_BAR_OFFSET = "4.5rem";
-const CHECKIN_SELECTION_BAR_OFFSET = "6.75rem";
+// Measured bar height plus the install hint's clearance (#4358): 106 px in
+// "Direkt", 151 px in "Mehrere" at 360 to 390 px viewport width.
+const CHECKIN_BAR_OFFSET = "7.25rem";
+const CHECKIN_SELECTION_BAR_OFFSET = "9.5rem";
 
 interface SchoolCheckinModeMobileProps {
   /** Whether the page is currently in check-in/out mode. */
@@ -115,6 +117,22 @@ export function SchoolCheckinModeMobile({
     );
   }
 
+  // Before the first tap the line stays empty: the mode line above already
+  // says what is going on, and a lone „Bereit“ next to the switcher read like
+  // a third option (#4358).
+  const statusText = selectionActive
+    ? ""
+    : [
+        successCount > 0 ? `${successCount} bearbeitet` : null,
+        pendingCount > 0 ? `${pendingCount} laufen` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+  const showStatusRow =
+    onSelectionActiveChange !== undefined ||
+    statusText !== "" ||
+    pendingCount > 0;
+
   // Sticky bar sits above the mobile bottom nav. The nav's actual visible
   // height is ~4.75rem (pill min-h-44px + py-2 + outer pb-4) plus its own
   // safe-area-inset. Offset = 5.5rem (nav + breathing gap) + safe-area so
@@ -132,54 +150,63 @@ export function SchoolCheckinModeMobile({
         aria-busy={disabled && runningAction !== null}
       >
         <div className="flex items-center gap-2">
-          {onSelectionActiveChange ? (
-            <SegmentedControl
-              ariaLabel="Tipp-Verhalten"
-              items={[
-                { value: "immediate", label: "Direkt", disabled },
-                { value: "select", label: "Mehrere", disabled },
-              ]}
-              value={selectionActive ? "select" : "immediate"}
-              onChange={(next) => onSelectionActiveChange(next === "select")}
-              className="shrink-0"
-            />
-          ) : (
+          <div className="flex min-w-0 flex-1 items-start gap-1.5">
             <CheckSquare
-              className="text-moto-green size-4 shrink-0"
+              className="text-moto-green mt-0.5 size-4 shrink-0"
               aria-hidden
             />
-          )}
-
-          <span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-500 tabular-nums">
-            {selectionActive
-              ? null
-              : successCount === 0
-                ? "Bereit"
-                : `${successCount} bearbeitet`}
-            {!selectionActive && pendingCount > 0
-              ? ` · ${pendingCount} laufen`
-              : ""}
-          </span>
-
-          {pendingCount > 0 ? (
-            <Loader2
-              className="size-3.5 shrink-0 animate-spin text-gray-500"
-              aria-hidden
-            />
-          ) : null}
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-balance text-gray-900">
+                An- und Abmelde-Modus aktiv
+              </p>
+              {selectionActive ? null : (
+                <p className="text-xs text-gray-600">
+                  Jeder Tipp meldet sofort an oder ab.
+                </p>
+              )}
+            </div>
+          </div>
 
           <Button
             type="button"
-            variant="ghost"
-            size="compact"
+            variant="primary"
+            size="md"
             onClick={onToggle}
             disabled={disabled}
             aria-label="Fertig, An- und Abmelde-Modus beenden"
-            className="shrink-0 rounded-full shadow-none"
+            className="shrink-0"
           >
             Fertig
           </Button>
         </div>
+
+        {showStatusRow ? (
+          <div className="mt-2 flex items-center gap-2">
+            {onSelectionActiveChange ? (
+              <SegmentedControl
+                ariaLabel="Tipp-Verhalten"
+                items={[
+                  { value: "immediate", label: "Direkt", disabled },
+                  { value: "select", label: "Mehrere", disabled },
+                ]}
+                value={selectionActive ? "select" : "immediate"}
+                onChange={(next) => onSelectionActiveChange(next === "select")}
+                className="shrink-0"
+              />
+            ) : null}
+
+            <span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-500 tabular-nums">
+              {statusText}
+            </span>
+
+            {pendingCount > 0 ? (
+              <Loader2
+                className="size-3.5 shrink-0 animate-spin text-gray-500"
+                aria-hidden
+              />
+            ) : null}
+          </div>
+        ) : null}
 
         {selectionActive ? (
           <div className="mt-1.5 flex items-center justify-end gap-1.5 border-t border-gray-100 pt-1.5 max-[359px]:grid max-[359px]:grid-cols-2">
