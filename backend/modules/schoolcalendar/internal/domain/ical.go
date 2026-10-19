@@ -155,35 +155,58 @@ func formatRRULE(rule *CalendarRecurrence, allDay bool) string {
 	if rule.Interval > 1 {
 		parts = append(parts, fmt.Sprintf("INTERVAL=%d", rule.Interval))
 	}
-	if freq == "WEEKLY" && len(rule.Weekdays) > 0 {
-		days := make([]string, 0, len(rule.Weekdays))
-		for _, weekday := range rule.Weekdays {
-			if value, ok := weekdayToICS[strings.ToLower(strings.TrimSpace(weekday))]; ok {
-				days = append(days, value)
-			}
-		}
-		if len(days) > 0 {
-			parts = append(parts, "BYDAY="+strings.Join(days, ","))
+	if freq == "WEEKLY" {
+		parts = appendRRULEByDay(parts, rule.Weekdays)
+	}
+	if freq == "MONTHLY" {
+		parts = appendRRULEByMonthDay(parts, rule.MonthDays)
+	}
+	return strings.Join(appendRRULEEnd(parts, rule, allDay), ";")
+}
+
+// appendRRULEByDay adds the BYDAY part for the known weekday names; unknown
+// names are skipped and no part is added when none is known.
+func appendRRULEByDay(parts, weekdays []string) []string {
+	if len(weekdays) == 0 {
+		return parts
+	}
+	days := make([]string, 0, len(weekdays))
+	for _, weekday := range weekdays {
+		if value, ok := weekdayToICS[strings.ToLower(strings.TrimSpace(weekday))]; ok {
+			days = append(days, value)
 		}
 	}
-	if freq == "MONTHLY" && len(rule.MonthDays) > 0 {
-		days := make([]string, 0, len(rule.MonthDays))
-		for _, day := range rule.MonthDays {
-			days = append(days, fmt.Sprintf("%d", day))
-		}
-		parts = append(parts, "BYMONTHDAY="+strings.Join(days, ","))
+	if len(days) == 0 {
+		return parts
 	}
+	return append(parts, "BYDAY="+strings.Join(days, ","))
+}
+
+func appendRRULEByMonthDay(parts []string, monthDays []int) []string {
+	if len(monthDays) == 0 {
+		return parts
+	}
+	days := make([]string, 0, len(monthDays))
+	for _, day := range monthDays {
+		days = append(days, fmt.Sprintf("%d", day))
+	}
+	return append(parts, "BYMONTHDAY="+strings.Join(days, ","))
+}
+
+// appendRRULEEnd adds UNTIL (inclusive end of the last day, Berlin time, for
+// timed series) or, without an end date, a positive COUNT.
+func appendRRULEEnd(parts []string, rule *CalendarRecurrence, allDay bool) []string {
 	if rule.Until != "" {
 		if allDay {
-			parts = append(parts, "UNTIL="+formatDate(rule.Until))
-		} else {
-			until, _ := time.Parse("2006-01-02", rule.Until)
-			parts = append(parts, "UNTIL="+formatUTC(time.Date(until.Year(), until.Month(), until.Day(), 23, 59, 59, 0, berlinLocation()).UTC()))
+			return append(parts, "UNTIL="+formatDate(rule.Until))
 		}
-	} else if rule.Count != nil && *rule.Count > 0 {
-		parts = append(parts, fmt.Sprintf("COUNT=%d", *rule.Count))
+		until, _ := time.Parse("2006-01-02", rule.Until)
+		return append(parts, "UNTIL="+formatUTC(time.Date(until.Year(), until.Month(), until.Day(), 23, 59, 59, 0, berlinLocation()).UTC()))
 	}
-	return strings.Join(parts, ";")
+	if rule.Count != nil && *rule.Count > 0 {
+		return append(parts, fmt.Sprintf("COUNT=%d", *rule.Count))
+	}
+	return parts
 }
 
 func addDays(date string, days int) string {

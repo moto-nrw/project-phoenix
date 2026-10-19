@@ -347,7 +347,17 @@ type UpdateAppointment struct {
 	AppointmentFields
 }
 
+// Query reads every Appointments record family; consumers that need one
+// family depend on its narrow facade.
 type Query interface {
+	AppointmentQuery
+	RecurrenceQuery
+	RecipientQuery
+}
+
+// AppointmentQuery reads appointment rows: by ID, by calendar window, the
+// reminder candidates and the targeting intent.
+type AppointmentQuery interface {
 	FindAppointment(context.Context, int64) (*Appointment, error)
 	FindAppointmentForUpdate(context.Context, int64) (*Appointment, error)
 	// FindReminderCandidateForUpdate returns nil without an error when a row
@@ -362,11 +372,20 @@ type Query interface {
 	ListGuardianCancellationTombstones(context.Context, []int64, []int64, time.Time) ([]*Appointment, error)
 	ListGuardianReminderCandidates(context.Context, Date, Date) ([]*Appointment, error)
 	FindAppointmentTargets(context.Context, int64) ([]*AppointmentTarget, error)
+}
+
+// RecurrenceQuery reads recurrence rules and per-occurrence overrides.
+type RecurrenceQuery interface {
 	FindRecurrenceRule(context.Context, int64) (*RecurrenceRule, error)
 	FindRecurrenceRules(context.Context, []int64) ([]*RecurrenceRule, error)
 	FindOccurrenceOverrides(context.Context, []int64, []Date) ([]*AppointmentOccurrenceOverride, error)
 	FindOccurrenceOverridesByStartDates(context.Context, []int64, []Date) ([]*AppointmentOccurrenceOverride, error)
 	FindCancelledOccurrenceOverrides(context.Context, []int64) ([]*AppointmentOccurrenceOverride, error)
+}
+
+// RecipientQuery reads recipients and the students they were addressed
+// through.
+type RecipientQuery interface {
 	FindAppointmentRecipient(context.Context, int64) (*AppointmentRecipient, error)
 	FindAppointmentRecipients(context.Context, int64) ([]*AppointmentRecipient, error)
 	FindAppointmentRecipientsByAppointmentIDs(context.Context, []int64) ([]*AppointmentRecipient, error)
@@ -374,7 +393,17 @@ type Query interface {
 	CountAppointmentRecipientStudents(context.Context, int64) (int, error)
 }
 
+// Command writes every Appointments record family; consumers that need one
+// family depend on its narrow facade.
 type Command interface {
+	AppointmentCommand
+	RecurrenceCommand
+	RecipientCommand
+}
+
+// AppointmentCommand writes appointment rows, their lifecycle and their
+// targeting intent.
+type AppointmentCommand interface {
 	// CreateAppointment writes the appointment and its targeting intent in one
 	// UnitOfWork. A failed target insert rolls back the appointment insert.
 	CreateAppointment(context.Context, CreateAppointment) (*Appointment, []*AppointmentTarget, error)
@@ -384,6 +413,10 @@ type Command interface {
 	SoftDeleteAppointment(context.Context, int64) error
 	DeleteFeedTombstonesBefore(context.Context, time.Time) (int, error)
 	ReplaceAppointmentTargets(context.Context, int64, []AppointmentTargetFields) ([]*AppointmentTarget, error)
+}
+
+// RecurrenceCommand writes recurrence rules and per-occurrence overrides.
+type RecurrenceCommand interface {
 	CreateRecurrenceRule(context.Context, *RecurrenceRule) error
 	DeleteRecurrenceRule(context.Context, int64) error
 	CreateOccurrenceOverride(context.Context, *AppointmentOccurrenceOverride) error
@@ -391,6 +424,11 @@ type Command interface {
 	// CancelAppointmentOccurrence upserts the cancellation and bumps the parent
 	// revision in one UnitOfWork. It returns false when already cancelled.
 	CancelAppointmentOccurrence(context.Context, int64, Date) (bool, error)
+}
+
+// RecipientCommand writes recipients, their RSVPs and the reminder push
+// delivery claims.
+type RecipientCommand interface {
 	// CreateAppointmentRecipients writes recipients and their student links in
 	// one UnitOfWork. A failed link insert rolls back every recipient insert.
 	CreateAppointmentRecipients(context.Context, int64, []AppointmentRecipientFields) ([]*AppointmentRecipient, []*AppointmentRecipientStudent, error)
