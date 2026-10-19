@@ -15,7 +15,19 @@ func evidenceRepository(t *testing.T) (string, string) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "backend/architecture")
 	for _, name := range []string{"migration-ticket-template.json", "checkpoint-ticket-template.json", "runtime-checkpoints.json"} {
-		writeFile(t, filepath.Join(dir, name), readFile(t, filepath.Join(architectureBackendRoot(t), "architecture", name)))
+		var document map[string]any
+		if err := json.Unmarshal([]byte(readFile(t, filepath.Join(architectureBackendRoot(t), "architecture", name))), &document); err != nil {
+			t.Fatal(err)
+		}
+		// Synthetic waves start at checkpoint 2 so the acceptance transition
+		// remains independent of the shipped registry's latest checkpoint.
+		switch name {
+		case "migration-ticket-template.json":
+			document["checkpoint_reference"] = checkpointIssues[1]
+		case "runtime-checkpoints.json":
+			document["accepted"] = document["accepted"].([]any)[:2]
+		}
+		writeEvidenceDocument(t, root, name, document)
 	}
 	writeFile(t, filepath.Join(dir, "policy.json"), readFile(t, fixturePath(t, "vertical-allowed.json")))
 	writeFile(t, filepath.Join(dir, "legacy.jsonl"), legacyRecord(3415))
@@ -161,6 +173,7 @@ func TestHistoricalGapsCannotAuthorizeNewRetirements(t *testing.T) {
 	if err := json.Unmarshal([]byte(readFile(t, filepath.Join(realRoot, "backend/architecture/account-sessions-2720.json"))), &document); err != nil {
 		t.Fatal(err)
 	}
+	document["checkpoint_reference"] = checkpointIssues[1]
 	writeEvidenceDocument(t, root, "account-sessions-2720.json", document)
 	for _, source := range document["runtime_evidence"].(map[string]any)["sources"].([]any) {
 		writeFile(t, filepath.Join(root, source.(string)), "Historical evidence fixture.\n")

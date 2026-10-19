@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
   "ticket_kind": "migration",
-  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3021",
   "prerequisites": [
     "#3020",
     "#2733",
