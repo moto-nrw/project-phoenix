@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -62,15 +61,6 @@ func (r timetableTimeframeRepository) Delete(ctx context.Context, id int64) erro
 		return WrapDatabaseError("delete", err)
 	}
 	return nil
-}
-
-func (r timetableTimeframeRepository) List(ctx context.Context, options *TimeframeQueryOptions) ([]*scheduleModels.Timeframe, error) {
-	description, limit, offset, err := TimeframeListOptions(options)
-	if err != nil {
-		return nil, WrapDatabaseError("list with options", err)
-	}
-	description = strings.TrimSuffix(strings.TrimPrefix(description, "%"), "%")
-	return r.list(ctx, timetable.TimeframeFilter{DescriptionContains: description, Limit: limit, Offset: offset}, "list with options")
 }
 
 func (r timetableTimeframeRepository) ListAll(ctx context.Context) ([]*scheduleModels.Timeframe, error) {
@@ -142,4 +132,8 @@ func legacyTimeframeError(operation string, err error) error {
 		return WrapNotFoundDatabaseError(operation)
 	}
 	return WrapDatabaseError(operation, err)
+}
+
+func (r timetableTimeframeRepository) ListTimeframes(ctx context.Context, filter timetable.TimeframeFilter) ([]*scheduleModels.Timeframe, error) {
+	return r.list(ctx, filter, "list with options")
 }

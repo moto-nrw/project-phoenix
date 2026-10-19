@@ -1,4 +1,6 @@
-package application
+//go:build testhooks
+
+package fixturetest
 
 import (
 	"context"
@@ -10,17 +12,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// supportListOptions is the retained repositories' list options, reached
+// QueryOptions is the retained repositories' list options, reached
 // through this package's alias so the test needs no base model import.
-type supportListOptions = RecurrenceRuleQueryOptions
 
 // supportFresh returns a new zero value of the pointer's element type.
 func supportFresh[T any](*T) *T { return new(T) }
 
 // newSupportListOptions mirrors the base package's options constructor: an
 // empty filter, no pagination, no sorting.
-func newSupportListOptions() *supportListOptions {
-	options := &supportListOptions{}
+func newSupportListOptions() *QueryOptions {
+	options := &QueryOptions{}
 	options.Filter = supportFresh(options.Filter)
 	return options
 }
@@ -53,7 +54,7 @@ func TestUnfilteredListingRejectsOptionsTheOwnerCannotServe(t *testing.T) {
 	condition.Filter.Equal("name", "x")
 	composite := newSupportListOptions()
 	composite.Filter.Or(*newSupportListOptions().Filter.Equal("name", "x"))
-	for name, options := range map[string]*supportListOptions{
+	for name, options := range map[string]*QueryOptions{
 		"pagination": newSupportListOptions().WithPagination(1, 10),
 		"sorting":    sorting,
 		"condition":  condition,

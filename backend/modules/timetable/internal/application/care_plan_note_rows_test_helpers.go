@@ -5,7 +5,6 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -91,8 +90,12 @@ func (r CareArrivalNoteRows) Update(ctx context.Context, row *scheduleModels.Stu
 	return r.rows.ScheduleError("update", r.rows.Records.UpdateArrivalNote(ctx, arrivalNoteToPublic(row)))
 }
 
-func (r CareArrivalNoteRows) List(ctx context.Context, options *domain.ListOptions) ([]*scheduleModels.StudentArrivalNote, error) {
-	return listWithOptions(ctx, r.rows, options, r.rows.Records.ListArrivalNotes, arrivalNoteToLegacy)
+func (r CareArrivalNoteRows) ListRows(ctx context.Context, filter ports.CareScheduleFilter) ([]*scheduleModels.StudentArrivalNote, error) {
+	values, err := r.rows.Records.ListArrivalNotes(ctx, filter)
+	if err != nil {
+		return nil, r.rows.ScheduleError("list with options", err)
+	}
+	return mapRows(values, arrivalNoteToLegacy), nil
 }
 
 func (r CareArrivalNoteRows) FindByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentArrivalNote, error) {
@@ -162,8 +165,12 @@ func (r CarePickupNoteRows) Update(ctx context.Context, row *scheduleModels.Stud
 	return r.rows.ScheduleError("update", r.rows.Records.UpdatePickupNote(ctx, pickupNoteToPublic(row)))
 }
 
-func (r CarePickupNoteRows) List(ctx context.Context, options *domain.ListOptions) ([]*scheduleModels.StudentPickupNote, error) {
-	return listWithOptions(ctx, r.rows, options, r.rows.Records.ListPickupNotes, pickupNoteToLegacy)
+func (r CarePickupNoteRows) ListRows(ctx context.Context, filter ports.CareScheduleFilter) ([]*scheduleModels.StudentPickupNote, error) {
+	values, err := r.rows.Records.ListPickupNotes(ctx, filter)
+	if err != nil {
+		return nil, r.rows.ScheduleError("list with options", err)
+	}
+	return mapRows(values, pickupNoteToLegacy), nil
 }
 
 func (r CarePickupNoteRows) FindByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentPickupNote, error) {

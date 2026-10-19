@@ -188,19 +188,6 @@ func (r timetableInstanceStudentRepository) Delete(ctx context.Context, id int64
 	return nil
 }
 
-func (r timetableInstanceStudentRepository) List(ctx context.Context, options *InstanceStudentQueryOptions) ([]*scheduleModels.InstanceStudent, error) {
-	filter, err := InstanceStudentListOptions(options)
-	if err != nil {
-		return nil, WrapDatabaseError("list with options", err)
-	}
-	rows, err := r.list(ctx, timetable.InstanceStudentFilter{IDs: filter.IDs, InstanceIDs: filter.InstanceIDs,
-		StudentIDs: filter.StudentIDs, Limit: filter.Limit, Offset: filter.Offset}, "list with options")
-	if err != nil || filter.Status == nil {
-		return rows, err
-	}
-	return filterLegacyInstanceStudents(rows, func(row *scheduleModels.InstanceStudent) bool { return row.Status == *filter.Status }), nil
-}
-
 func (r timetableInstanceStudentRepository) FindByInstanceID(ctx context.Context, instanceID int64) ([]*scheduleModels.InstanceStudent, error) {
 	return r.list(ctx, timetable.InstanceStudentFilter{InstanceIDs: []int64{instanceID}, OrderByCreated: true}, "find by instance id")
 }
@@ -720,4 +707,13 @@ func legacyInstanceStudentError(operation string, err error) error {
 		return WrapNotFoundDatabaseError(operation)
 	}
 	return WrapDatabaseError(operation, err)
+}
+
+func (r timetableInstanceStudentRepository) ListStudents(ctx context.Context, filter ports.ParticipantListingFilter) ([]*scheduleModels.InstanceStudent, error) {
+	rows, err := r.list(ctx, timetable.InstanceStudentFilter{IDs: filter.IDs, InstanceIDs: filter.InstanceIDs,
+		StudentIDs: filter.StudentIDs, Limit: filter.Limit, Offset: filter.Offset}, "list with options")
+	if err != nil || filter.Status == nil {
+		return rows, err
+	}
+	return filterLegacyInstanceStudents(rows, func(row *scheduleModels.InstanceStudent) bool { return row.Status == *filter.Status }), nil
 }

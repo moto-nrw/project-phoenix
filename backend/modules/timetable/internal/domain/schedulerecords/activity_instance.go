@@ -156,6 +156,10 @@ func (i *ActivityInstance) Validate() error {
 	if i.RequiredStaff != nil && *i.RequiredStaff < 0 {
 		return errors.New("required_staff cannot be negative")
 	}
+	return i.validateMetadata()
+}
+
+func (i *ActivityInstance) validateMetadata() error {
 	if i.IdempotencyKey != nil {
 		if strings.TrimSpace(*i.IdempotencyKey) == "" {
 			return errors.New("idempotency_key cannot be blank")

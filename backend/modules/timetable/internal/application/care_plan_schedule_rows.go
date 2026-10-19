@@ -1,10 +1,8 @@
 package application
 
 import (
-	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -52,34 +50,8 @@ func legacyScheduleID(raw any) (int64, error) {
 // careScheduleListFilter reads the retained listing options: the page, the
 // sort order and one student_id equality, the shape the retained callers
 // list with. Any other condition is refused rather than dropped.
-func careScheduleListFilter(options *domain.ListOptions) (ports.CareScheduleFilter, error) {
-	return narrowListOptions(options, "care schedule",
-		func(f *ports.CareScheduleFilter, limit, offset int) { f.Limit, f.Offset = limit, offset },
-		func(f *ports.CareScheduleFilter, field domain.ListSortField) {
-			f.Sort = append(f.Sort, ports.CareScheduleSort{Field: field.Field, Descending: field.Direction == domain.ListSortDesc})
-		},
-		func(f *ports.CareScheduleFilter, condition domain.ListCondition) error {
-			id, ok := condition.Value.(int64)
-			if condition.Field != "student_id" || condition.Operator != domain.ListOpEqual || !ok || f.StudentIDs != nil {
-				return fmt.Errorf("unsupported care schedule filter %s %s", condition.Field, condition.Operator)
-			}
-			f.StudentIDs = []int64{id}
-			return nil
-		})
-}
 
 // listWithOptions serves a retained List over one of the owner's listings.
-func listWithOptions[T, R any](ctx context.Context, rows ports.CarePlanRows, options *domain.ListOptions, list func(context.Context, ports.CareScheduleFilter) ([]T, error), convert func(T) R) ([]R, error) {
-	filter, err := careScheduleListFilter(options)
-	var values []T
-	if err == nil {
-		values, err = list(ctx, filter)
-	}
-	if err != nil {
-		return nil, rows.ScheduleError("list with options", err)
-	}
-	return mapRows(values, convert), nil
-}
 
 func mapRows[T any, R any](values []T, convert func(T) R) []R {
 	result := make([]R, 0, len(values))

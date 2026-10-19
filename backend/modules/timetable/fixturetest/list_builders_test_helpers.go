@@ -1,6 +1,6 @@
 //go:build testhooks
 
-package domain
+package fixturetest
 
 // The builders below serve only the tests that pin how the retained
 // repositories narrow or reject list options.

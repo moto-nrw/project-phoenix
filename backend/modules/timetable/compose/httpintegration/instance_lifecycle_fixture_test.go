@@ -16,7 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -42,7 +42,7 @@ func newInstancePresence(t *testing.T, db *bun.DB) studentpresence.Capability {
 // to the test's own tenant clone; nothing is cleaned up explicitly.
 type lifecycleSetup struct {
 	presence        timetablePorts.LifecyclePresence
-	svc             timetablePorts.InstanceLifecycle
+	svc             fixtures.InstanceLifecycle
 	instance        timetable.InstanceLifecycleCapability
 	timetableData   compose.Planning
 	active          studentpresence.Presence
@@ -102,7 +102,7 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 
 	setup := &lifecycleSetup{
 		presence:        newInstancePresence(t, db),
-		instance:        ttLifecycle.Instances,
+		instance:        fixtures.FromInstanceLifecycle(ttLifecycle.Instances),
 		timetableData:   ttPlanning.Planning,
 		active:          ttActive,
 		materialization: ttMaterialization,
@@ -131,31 +131,31 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	return setup
 }
 
-func instanceServiceWithBroadcaster(t *testing.T, s *lifecycleSetup, broadcaster realtime.Broadcaster, recovery ...timetablePorts.ActivityRecoveryRecords) timetablePorts.InstanceLifecycle {
+func instanceServiceWithBroadcaster(t *testing.T, s *lifecycleSetup, broadcaster realtime.Broadcaster, recovery ...fixtures.ActivityRecoveryRecords) fixtures.InstanceLifecycle {
 	t.Helper()
 	return newLifecycle(t, lifecycleDependencies(s, broadcaster, recovery...))
 }
 
-func newLifecycle(t *testing.T, deps timetablePorts.InstanceLifecycleDependencies) timetablePorts.InstanceLifecycle {
+func newLifecycle(t *testing.T, deps timetablePorts.InstanceLifecycleDependencies) fixtures.InstanceLifecycle {
 	t.Helper()
 	svc, err := compose.NewInstanceLifecycle(deps)
 	require.NoError(t, err)
-	return svc
+	return fixtures.FromInstanceLifecycle(svc)
 }
 
 // newLifecycleAutoEnd composes the scheduler's auto end over the lifecycle,
 // as the composition root does.
-func newLifecycleAutoEnd(t *testing.T, instances timetablePorts.ActivityInstanceRecords, lifecycle timetable.InstanceLifecycle) timetable.InstanceAutoEnd {
+func newLifecycleAutoEnd(t *testing.T, instances fixtures.ActivityInstanceRecords, lifecycle timetable.InstanceLifecycle) timetable.InstanceAutoEnd {
 	t.Helper()
-	autoEnd, err := compose.NewInstanceAutoEnd(instances, lifecycle)
+	autoEnd, err := compose.NewInstanceAutoEnd(fixtures.IntoActivityInstanceRecords(instances), lifecycle)
 	require.NoError(t, err)
 	return autoEnd
 }
 
 // lifecycleDependencies is the dependency set instanceServiceWithBroadcaster
 // wires, for tests that add an optional collaborator before construction.
-func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, recovery ...timetablePorts.ActivityRecoveryRecords) timetablePorts.InstanceLifecycleDependencies {
-	recoveryRepo := compose.NewRetainedActivityRecoveryRepository(s.db, s.timetable.InstanceStudent)
+func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, recovery ...fixtures.ActivityRecoveryRecords) timetablePorts.InstanceLifecycleDependencies {
+	recoveryRepo := fixtures.FromActivityRecoveryRecords(compose.NewRetainedActivityRecoveryRepository(s.db, fixtures.IntoInstanceStudentRecords(fixtures.FromInstanceStudentRecords(s.timetable.InstanceStudent))))
 	if len(recovery) > 0 {
 		recoveryRepo = recovery[0]
 	}
@@ -173,18 +173,18 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 		StartConflicts:      lifecycleStartConflicts(s),
 		SubstituteConflicts: s.timetableData.Deviations,
 		Presence:            s.presence,
-		InstanceRepo:        s.timetable.ActivityInstance,
-		IdempotencyRepo:     s.timetable.InstanceIdempotency,
-		InstanceStaffRepo:   s.timetable.InstanceStaff,
-		InstanceStudents:    s.timetable.InstanceStudent,
-		ExceptionRepo:       s.timetable.ActivityException,
+		InstanceRepo:        fixtures.IntoActivityInstanceRecords(fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance)),
+		IdempotencyRepo:     fixtures.IntoInstanceIdempotencyRecords(fixtures.FromInstanceIdempotencyRecords(s.timetable.InstanceIdempotency)),
+		InstanceStaffRepo:   fixtures.IntoInstanceStaffRecords(fixtures.FromInstanceStaffRecords(s.timetable.InstanceStaff)),
+		InstanceStudents:    fixtures.IntoInstanceStudentRecords(fixtures.FromInstanceStudentRecords(s.timetable.InstanceStudent)),
+		ExceptionRepo:       fixtures.IntoActivityExceptionRecords(fixtures.FromActivityExceptionRecords(s.timetable.ActivityException)),
 		ActiveGroupRepo:     s.repos.ActiveGroup,
 		SupervisorRepo:      s.repos.GroupSupervisor,
 		Rooms:               api.NewTimetableRoomNames(rooms),
 		ActivityGroupRepo:   s.timetable.ActivityGroup,
 		StaffRepo:           api.NewTimetableStaff(s.reposPeople.Staff),
 		StudentRepo:         api.NewTimetableLifecycleStudents(api.NewTimetableRosterStudents(s.reposPeople.Student)),
-		CalendarPeriodRepo:  s.reposSchedules.CalendarPeriod,
+		CalendarPeriodRepo:  fixtures.IntoCalendarPeriodRecords(fixtures.FromCalendarPeriodRecords(s.reposSchedules.CalendarPeriod)),
 		ActiveService:       s.active,
 		Materialization:     s.materialization,
 		RecurrenceLock:      s.timetableData.RecurrenceLock,
@@ -194,7 +194,7 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 		ContentHash:         securityruntime.Fingerprint,
 		Database:            compose.NewTenantDatabase(s.db),
 		Logger:              slog.Default(),
-		RecoveryRepo:        recoveryRepo,
+		RecoveryRepo:        fixtures.IntoActivityRecoveryRecords(recoveryRepo),
 	}
 	if broadcaster != nil {
 		deps.Broadcaster = lifecycleRealtime{broadcaster: broadcaster}
@@ -207,10 +207,10 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 // presence; the lifecycle only consumes its start check.
 func lifecycleStartConflicts(s *lifecycleSetup) timetable.StartConflictQuery {
 	detection, err := api.NewTimetableConflictDetection(timetablePorts.ConflictDetectionDependencies{
-		Instances: s.timetable.ActivityInstance, InstanceStaff: s.timetable.InstanceStaff, InstanceStudents: s.timetable.InstanceStudent,
-		Exceptions: s.timetable.ActivityException, Schedules: s.timetable.ActivitySchedule, Staff: api.NewTimetableStaff(s.reposPeople.Staff),
-		CalendarPeriods: s.reposSchedules.CalendarPeriod, ArrivalExceptions: s.reposSchedules.StudentArrivalException,
-		Sessions: s.repos.ActiveGroup, Shifts: unusedShiftRows{}, Presence: s.presence,
+		Instances: fixtures.IntoConflictInstances(fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance)), InstanceStaff: fixtures.IntoConflictInstanceStaff(fixtures.FromInstanceStaffRecords(s.timetable.InstanceStaff)), InstanceStudents: fixtures.IntoConflictInstanceStudents(fixtures.FromInstanceStudentRecords(s.timetable.InstanceStudent)),
+		Exceptions: fixtures.IntoConflictExceptions(fixtures.FromActivityExceptionRecords(s.timetable.ActivityException)), Schedules: s.timetable.ActivitySchedule, Staff: api.NewTimetableStaff(s.reposPeople.Staff),
+		CalendarPeriods: fixtures.IntoConflictCalendarPeriods(fixtures.FromCalendarPeriodRecords(s.reposSchedules.CalendarPeriod)), ArrivalExceptions: fixtures.IntoConflictArrivalExceptions(fixtures.FromStudentArrivalExceptionRecords(s.reposSchedules.StudentArrivalException)),
+		Sessions: s.repos.ActiveGroup, Shifts: fixtures.IntoConflictShifts(unusedShiftRows{}), Presence: s.presence,
 	}, nil)
 	if err != nil {
 		panic(err)
@@ -224,11 +224,11 @@ type unusedShiftRows struct{}
 
 var errShiftRowsNotUsed = errors.New("the start check reads no Dienstplan rows")
 
-func (unusedShiftRows) FindByDateRange(context.Context, calendar.Date, calendar.Date) ([]*scheduleModels.StaffShift, error) {
+func (unusedShiftRows) FindByDateRange(context.Context, calendar.Date, calendar.Date) ([]*fixtures.StaffShift, error) {
 	return nil, errShiftRowsNotUsed
 }
 
-func (unusedShiftRows) FindByStaffIDsAndDates(context.Context, []int64, []calendar.Date) ([]*scheduleModels.StaffShift, error) {
+func (unusedShiftRows) FindByStaffIDsAndDates(context.Context, []int64, []calendar.Date) ([]*fixtures.StaffShift, error) {
 	return nil, errShiftRowsNotUsed
 }
 
@@ -330,21 +330,25 @@ func seedInstance(t *testing.T, s *lifecycleSetup, withStaff bool, withStudents 
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:         time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
 		RoomID:          s.roomID,
-		Status:          scheduleModels.InstanceStatusPlanned,
+		Status:          fixtures.InstanceStatusPlanned(),
 		IsSpontaneous:   false,
 	}
 	ai.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, ai)
 
 	if withStaff {
-		row := &scheduleModels.InstanceStaff{InstanceID: ai.ID, StaffID: s.staffID, IsPrimary: true}
+		row := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+			fixtureRow.InstanceID = ai.ID
+			fixtureRow.StaffID = s.staffID
+			fixtureRow.IsPrimary = true
+		})
 		row.SetTenantID(testpkg.Tenant(t))
 		_, err := s.db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 		require.NoError(t, err)
 	}
 	if withStudents {
 		for _, sid := range []int64{s.student1, s.student2} {
-			row := &testpkg.InstanceStudent{InstanceID: ai.ID, StudentID: sid, Status: scheduleModels.AttendanceStatusExpected}
+			row := &testpkg.InstanceStudent{InstanceID: ai.ID, StudentID: sid, Status: fixtures.AttendanceStatusExpected()}
 			row.TenantID = testpkg.Tenant(t)
 			testpkg.InsertInstanceStudentRow(t, s.ctx, s.db, row)
 		}
@@ -360,13 +364,17 @@ func seedSpontaneousInstance(t *testing.T, s *lifecycleSetup, withStaff bool) *t
 		StartTime:     time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
 		RoomID:        s.roomID,
-		Status:        scheduleModels.InstanceStatusPlanned,
+		Status:        fixtures.InstanceStatusPlanned(),
 		IsSpontaneous: true,
 	}
 	ai.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, ai)
 	if withStaff {
-		row := &scheduleModels.InstanceStaff{InstanceID: ai.ID, StaffID: s.staffID, IsPrimary: true}
+		row := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+			fixtureRow.InstanceID = ai.ID
+			fixtureRow.StaffID = s.staffID
+			fixtureRow.IsPrimary = true
+		})
 		row.SetTenantID(testpkg.Tenant(t))
 		_, err := s.db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 		require.NoError(t, err)
@@ -385,9 +393,9 @@ func forceSetInstanceStatus(t *testing.T, s *lifecycleSetup, id int64, status st
 
 // reloadInstance reads the stored row of a block, for the columns the
 // lifecycle's public view does not carry.
-func reloadInstance(t *testing.T, s *lifecycleSetup, id int64) *scheduleModels.ActivityInstance {
+func reloadInstance(t *testing.T, s *lifecycleSetup, id int64) *fixtures.ActivityInstance {
 	t.Helper()
-	row, err := s.timetable.ActivityInstance.FindByID(s.ctx, id)
+	row, err := fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance).FindByID(s.ctx, id)
 	require.NoError(t, err)
 	require.NotNil(t, row)
 	return row
@@ -444,9 +452,9 @@ func instanceExists(t *testing.T, s *lifecycleSetup, id int64) bool {
 	return count > 0
 }
 
-func loadLifecycleExceptions(t *testing.T, s *lifecycleSetup) []*scheduleModels.ActivityException {
+func loadLifecycleExceptions(t *testing.T, s *lifecycleSetup) []*fixtures.ActivityException {
 	t.Helper()
-	var rows []*scheduleModels.ActivityException
+	var rows []*fixtures.ActivityException
 	err := s.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`schedule.activity_exceptions AS "activity_exception"`).

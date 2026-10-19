@@ -28,15 +28,13 @@ func NewDateframeRepository(calendar schoolcalendar.Capability) ports.DateframeR
 // closingDayCalendarRepository serves the legacy schedule.ClosingDayRecords
 // over the School Calendar capability (#2666).
 type closingDayCalendarRepository struct {
-	UnfilteredListing[*scheduleModels.ClosingDay]
 	ClosingDayRangeListing
 	calendar schoolcalendar.Capability
 }
 
 func newClosingDayCalendarRepository(capability schoolcalendar.Capability) closingDayCalendarRepository {
 	repo := closingDayCalendarRepository{calendar: capability}
-	repo.UnfilteredListing.Source = repo.FindByTenantID
-	repo.ClosingDayRangeListing.Source = repo.listOverlappingRange
+	repo.Source = repo.listOverlappingRange
 	return repo
 }
 
@@ -145,13 +143,11 @@ func (r closingDayCalendarRepository) listOverlappingRange(ctx context.Context, 
 // over the School Calendar capability (#2666). Dateframes are instants, so
 // the legacy midnight normalisation of the lookups stays here.
 type dateframeCalendarRepository struct {
-	DateframeOptionsListing
 	calendar schoolcalendar.Capability
 }
 
 func newDateframeCalendarRepository(capability schoolcalendar.Capability) dateframeCalendarRepository {
 	repo := dateframeCalendarRepository{calendar: capability}
-	repo.Source = repo.list
 	return repo
 }
 
@@ -242,20 +238,6 @@ func (r dateframeCalendarRepository) Delete(ctx context.Context, nativeRecordID 
 	return calendarError("delete", err)
 }
 
-func (r dateframeCalendarRepository) list(ctx context.Context, listing DateframeListing) ([]*scheduleModels.Dateframe, error) {
-	filter := schoolcalendar.DateframeFilter{
-		Name: listing.Name, NamePattern: listing.NamePattern, Limit: listing.Limit, Offset: listing.Offset,
-	}
-	for _, field := range listing.Sort {
-		filter.Sort = append(filter.Sort, schoolcalendar.DateframeSort{Field: field.Field, Descending: field.Descending})
-	}
-	values, err := r.calendar.ListDateframes(ctx, filter)
-	if err != nil {
-		return nil, calendarError("list", err)
-	}
-	return toLegacyDateframes(values), nil
-}
-
 // FindByName keeps the legacy not-found error shape for an unknown name.
 func (r dateframeCalendarRepository) FindByName(ctx context.Context, name string) (*scheduleModels.Dateframe, error) {
 	values, err := r.calendar.ListDateframes(ctx, schoolcalendar.DateframeFilter{NameFold: name, Limit: 1})
@@ -274,3 +256,11 @@ var (
 	_ ports.ClosingDayRecords = closingDayCalendarRepository{}
 	_ ports.DateframeRecords  = dateframeCalendarRepository{}
 )
+
+func (r dateframeCalendarRepository) ListDateframes(ctx context.Context, filter schoolcalendar.DateframeFilter) ([]*scheduleModels.Dateframe, error) {
+	values, err := r.calendar.ListDateframes(ctx, filter)
+	if err != nil {
+		return nil, calendarError("list", err)
+	}
+	return toLegacyDateframes(values), nil
+}

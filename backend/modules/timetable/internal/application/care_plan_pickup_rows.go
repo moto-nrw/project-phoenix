@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -44,8 +43,12 @@ func (r CarePickupScheduleRows) Update(ctx context.Context, row *scheduleModels.
 	}
 	return r.rows.ScheduleError("update", r.rows.Records.UpdatePickupSchedule(ctx, pickupScheduleToPublic(row)))
 }
-func (r CarePickupScheduleRows) List(ctx context.Context, options *domain.ListOptions) ([]*scheduleModels.StudentPickupSchedule, error) {
-	return listWithOptions(ctx, r.rows, options, r.rows.Records.ListPickupSchedules, pickupScheduleToLegacy)
+func (r CarePickupScheduleRows) ListRows(ctx context.Context, filter ports.CareScheduleFilter) ([]*scheduleModels.StudentPickupSchedule, error) {
+	values, err := r.rows.Records.ListPickupSchedules(ctx, filter)
+	if err != nil {
+		return nil, r.rows.ScheduleError("list with options", err)
+	}
+	return mapRows(values, pickupScheduleToLegacy), nil
 }
 func (r CarePickupScheduleRows) FindByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentPickupSchedule, error) {
 	values, err := r.rows.Records.ListPickupSchedules(ctx, ports.CareScheduleFilter{StudentIDs: []int64{id}})
@@ -124,8 +127,12 @@ func (r CarePickupExceptionRows) Update(ctx context.Context, row *scheduleModels
 	}
 	return r.rows.ScheduleError("update", r.rows.Records.UpdatePickupException(ctx, pickupExceptionToPublic(row)))
 }
-func (r CarePickupExceptionRows) List(ctx context.Context, options *domain.ListOptions) ([]*scheduleModels.StudentPickupException, error) {
-	return listWithOptions(ctx, r.rows, options, r.rows.Records.ListPickupExceptions, pickupExceptionToLegacy)
+func (r CarePickupExceptionRows) ListRows(ctx context.Context, filter ports.CareScheduleFilter) ([]*scheduleModels.StudentPickupException, error) {
+	values, err := r.rows.Records.ListPickupExceptions(ctx, filter)
+	if err != nil {
+		return nil, r.rows.ScheduleError("list with options", err)
+	}
+	return mapRows(values, pickupExceptionToLegacy), nil
 }
 func (r CarePickupExceptionRows) FindByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentPickupException, error) {
 	return r.list(ctx, ports.CareScheduleFilter{StudentIDs: []int64{id}}, "find by student id")

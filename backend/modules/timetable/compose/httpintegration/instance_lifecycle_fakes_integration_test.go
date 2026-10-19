@@ -8,12 +8,12 @@ import (
 	"time"
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -32,17 +32,20 @@ import (
 
 // newFakeLifecycle composes the lifecycle over the given doubles; every
 // collaborator the transition under test does not reach is an unused stub.
-func newFakeLifecycle(t *testing.T, deps timetablePorts.InstanceLifecycleDependencies) timetablePorts.InstanceLifecycle {
+func newFakeLifecycle(t *testing.T, deps timetablePorts.InstanceLifecycleDependencies) fixtures.InstanceLifecycle {
 	t.Helper()
-	deps.IdempotencyRepo = struct {
-		timetablePorts.InstanceIdempotencyRecords
-	}{}
-	deps.ExceptionRepo = struct {
-		timetablePorts.ActivityExceptionRecords
-	}{}
-	deps.CalendarPeriodRepo = struct {
-		timetablePorts.CalendarPeriodRecords
-	}{}
+	deps.IdempotencyRepo = fixtures.IntoInstanceIdempotencyRecords(struct {
+		fixtures.
+			InstanceIdempotencyRecords
+	}{})
+	deps.ExceptionRepo = fixtures.IntoActivityExceptionRecords(struct {
+		fixtures.
+			ActivityExceptionRecords
+	}{})
+	deps.CalendarPeriodRepo = fixtures.IntoCalendarPeriodRecords(struct {
+		fixtures.
+			CalendarPeriodRecords
+	}{})
 	deps.StaffRepo = struct{ timetablePorts.LifecycleStaff }{}
 	deps.ActiveService = struct{ timetablePorts.SessionEnder }{}
 	deps.CareDays = struct{ timetablePorts.CareDays }{}
@@ -61,8 +64,8 @@ func newFakeLifecycle(t *testing.T, deps timetablePorts.InstanceLifecycleDepende
 	deps.ContentHash = securityruntime.Fingerprint
 	deps.Database = compose.NewTenantDatabase(testpkg.SetupTestDB(t))
 	deps.Logger = slog.New(slog.DiscardHandler)
-	if deps.InstanceStaffRepo == nil {
-		deps.InstanceStaffRepo = fakeNoInstanceStaff{}
+	if fixtures.FromInstanceStaffRecords(deps.InstanceStaffRepo) == nil {
+		deps.InstanceStaffRepo = fixtures.IntoInstanceStaffRecords(fakeNoInstanceStaff{})
 	}
 	if deps.Rooms == nil {
 		deps.Rooms = fakeLockableRoom{}
@@ -76,11 +79,11 @@ func newFakeLifecycle(t *testing.T, deps timetablePorts.InstanceLifecycleDepende
 	if deps.SupervisorRepo == nil {
 		deps.SupervisorRepo = &absorbSupervisorRepo{}
 	}
-	if deps.InstanceStudents == nil {
-		deps.InstanceStudents = &absorbInstanceStudentRepo{}
+	if fixtures.FromInstanceStudentRecords(deps.InstanceStudents) == nil {
+		deps.InstanceStudents = fixtures.IntoInstanceStudentRecords(&absorbInstanceStudentRepo{})
 	}
-	if deps.RecoveryRepo == nil {
-		deps.RecoveryRepo = fakeRecovery{}
+	if fixtures.FromActivityRecoveryRecords(deps.RecoveryRepo) == nil {
+		deps.RecoveryRepo = fixtures.IntoActivityRecoveryRecords(fakeRecovery{})
 	}
 	return newLifecycle(t, deps)
 }
@@ -92,10 +95,11 @@ func (noStartConflicts) DetectStartConflicts(context.Context, timetable.StartCon
 }
 
 type fakeNoInstanceStaff struct {
-	timetablePorts.InstanceStaffRecords
+	fixtures.
+		InstanceStaffRecords
 }
 
-func (fakeNoInstanceStaff) FindByInstanceID(context.Context, int64) ([]*scheduleModels.InstanceStaff, error) {
+func (fakeNoInstanceStaff) FindByInstanceID(context.Context, int64) ([]*fixtures.InstanceStaff, error) {
 	return nil, nil
 }
 
@@ -109,12 +113,13 @@ func (fakeLockableRoom) LockRoom(context.Context, int64) (*int, bool, error) {
 }
 
 type fakeRecovery struct {
-	timetablePorts.ActivityRecoveryRecords
+	fixtures.
+		ActivityRecoveryRecords
 }
 
 func (fakeRecovery) LockAttendance(context.Context, int64) error { return nil }
 
-func (fakeRecovery) Restore(context.Context, int64, scheduleModels.ActivityCompletionSnapshot, time.Time) error {
+func (fakeRecovery) Restore(context.Context, int64, fixtures.ActivityCompletionSnapshot, time.Time) error {
 	return nil
 }
 
@@ -123,33 +128,35 @@ func (fakeRecovery) Restore(context.Context, int64, scheduleModels.ActivityCompl
 // absorbPlannedInstance is the planned block the absorption tests start;
 // the reload under the day lock returns it unchanged.
 type absorbInstanceRepo struct {
-	timetablePorts.ActivityInstanceRecords
-	planned *scheduleModels.ActivityInstance
-	byGroup map[int64]*scheduleModels.ActivityInstance
+	fixtures.
+		ActivityInstanceRecords
+	planned *fixtures.ActivityInstance
+	byGroup map[int64]*fixtures.ActivityInstance
 }
 
-func (r *absorbInstanceRepo) FindByID(_ context.Context, _ int64) (*scheduleModels.ActivityInstance, error) {
+func (r *absorbInstanceRepo) FindByID(_ context.Context, _ int64) (*fixtures.ActivityInstance, error) {
 	planned := *r.planned
 	return &planned, nil
 }
 
-func (r *absorbInstanceRepo) FindByActiveGroupID(_ context.Context, groupID int64) (*scheduleModels.ActivityInstance, error) {
+func (r *absorbInstanceRepo) FindByActiveGroupID(_ context.Context, groupID int64) (*fixtures.ActivityInstance, error) {
 	return r.byGroup[groupID], nil
 }
 
-func (r *absorbInstanceRepo) UpdateColumns(context.Context, *scheduleModels.ActivityInstance, ...string) (int64, error) {
+func (r *absorbInstanceRepo) UpdateColumns(context.Context, *fixtures.ActivityInstance, ...string) (int64, error) {
 	return 1, nil
 }
 
-func absorbPlannedInstance(instanceID, roomID int64) *scheduleModels.ActivityInstance {
-	planned := &scheduleModels.ActivityInstance{
-		Date:      calendar.NewDate(2026, 4, 20),
-		Title:     "Absorb",
-		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
-		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
-		RoomID:    roomID,
-		Status:    scheduleModels.InstanceStatusPlanned,
-	}
+func absorbPlannedInstance(instanceID, roomID int64) *fixtures.ActivityInstance {
+	planned := fixtures.NewActivityInstance(func(fixtureRow *fixtures.ActivityInstance) {
+		fixtureRow.Date = calendar.NewDate(2026, 4, 20)
+		fixtureRow.Title = "Absorb"
+		fixtureRow.StartTime = time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)
+		fixtureRow.EndTime = time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC)
+		fixtureRow.RoomID = roomID
+		fixtureRow.Status = fixtures.InstanceStatusPlanned()
+	})
+
 	planned.ID = instanceID
 	return planned
 }
@@ -245,7 +252,8 @@ func (r *absorbVisitRepo) ListVisits(_ context.Context, filter studentpresence.V
 }
 
 type absorbInstanceStudentRepo struct {
-	timetablePorts.InstanceStudentRecords
+	fixtures.
+		InstanceStudentRecords
 	unplannedStudentID int64
 	updates            []absorbedAttendanceUpdate
 	lookups            []absorbedAttendanceUpdate
@@ -271,7 +279,7 @@ func (r *absorbInstanceStudentRepo) UpdateAttendanceFromCheckin(
 
 func (r *absorbInstanceStudentRepo) FindByInstanceAndStudent(
 	_ context.Context, instanceID, studentID int64,
-) (*scheduleModels.InstanceStudent, error) {
+) (*fixtures.InstanceStudent, error) {
 	r.lookups = append(r.lookups, absorbedAttendanceUpdate{
 		instanceID: instanceID,
 		studentID:  studentID,
@@ -281,16 +289,17 @@ func (r *absorbInstanceStudentRepo) FindByInstanceAndStudent(
 
 func (r *absorbInstanceStudentRepo) CreateUnplannedPresentIfAbsent(
 	_ context.Context, instanceID, studentID int64, checkedIn time.Time,
-) (*scheduleModels.InstanceStudent, error) {
+) (*fixtures.InstanceStudent, error) {
 	r.creates = append(r.creates, absorbedAttendanceUpdate{
 		instanceID: instanceID,
 		studentID:  studentID,
 		checkedIn:  checkedIn,
 	})
-	return &scheduleModels.InstanceStudent{}, nil
+	return fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+	}), nil
 }
 
-func (r *absorbInstanceStudentRepo) FindByInstanceIDs(_ context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStudent, error) {
+func (r *absorbInstanceStudentRepo) FindByInstanceIDs(_ context.Context, instanceIDs []int64) ([]*fixtures.InstanceStudent, error) {
 	if len(instanceIDs) > 0 && r.unplannedStudentID > 0 {
 		r.lookups = append(r.lookups, absorbedAttendanceUpdate{
 			instanceID: instanceIDs[0],
@@ -315,8 +324,8 @@ func TestInstanceStart_DoesNotAbsorbGroupMovedAfterCandidateLookup(t *testing.T)
 	}
 	visitRepo := &absorbVisitRepo{}
 	svc := newFakeLifecycle(t, timetablePorts.InstanceLifecycleDependencies{
-		InstanceRepo:     &absorbInstanceRepo{planned: absorbPlannedInstance(9, 42)},
-		InstanceStudents: &absorbInstanceStudentRepo{},
+		InstanceRepo:     fixtures.IntoActivityInstanceRecords(&absorbInstanceRepo{planned: absorbPlannedInstance(9, 42)}),
+		InstanceStudents: fixtures.IntoInstanceStudentRecords(&absorbInstanceStudentRepo{}),
 		ActiveGroupRepo:  groupRepo,
 		SupervisorRepo:   &absorbSupervisorRepo{},
 		Presence:         visitRepo,
@@ -379,19 +388,19 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 		},
 	}}
 	instanceStudents := &absorbInstanceStudentRepo{unplannedStudentID: unplannedStudentID}
-	instanceRepo := &absorbInstanceRepo{planned: absorbPlannedInstance(instanceID, 42), byGroup: map[int64]*scheduleModels.ActivityInstance{
-		13: {
-			Date:          calendar.Date(calendar.TodayDate()),
-			Status:        scheduleModels.InstanceStatusActive,
-			ActiveGroupID: &bridged.ID,
-		},
+	instanceRepo := &absorbInstanceRepo{planned: absorbPlannedInstance(instanceID, 42), byGroup: map[int64]*fixtures.ActivityInstance{
+		13: fixtures.NewActivityInstance(func(fixtureRow *fixtures.ActivityInstance) {
+			fixtureRow.Date = calendar.Date(calendar.TodayDate())
+			fixtureRow.Status = fixtures.InstanceStatusActive()
+			fixtureRow.ActiveGroupID = &bridged.ID
+		}),
 	}}
 	systemActivity := &activityContract.Group{IsSystem: true}
 	systemActivity.ID = systemActivityID
 
 	svc := newFakeLifecycle(t, timetablePorts.InstanceLifecycleDependencies{
-		InstanceRepo:      instanceRepo,
-		InstanceStudents:  instanceStudents,
+		InstanceRepo:      fixtures.IntoActivityInstanceRecords(instanceRepo),
+		InstanceStudents:  fixtures.IntoInstanceStudentRecords(instanceStudents),
 		ActiveGroupRepo:   groupRepo,
 		ActivityGroupRepo: &absorbActivityGroupRepo{byID: map[int64]*activityContract.Group{systemActivityID: systemActivity}},
 		SupervisorRepo:    supervisorRepo,
@@ -490,34 +499,39 @@ func (reopenSessionRepo) CheckRoomConflict(context.Context, int64, int64) (bool,
 // reopenCompletedInstance is a completed block of group 90 inside its reopen
 // window whose snapshot names the given closed visits.
 type reopenInstanceRepo struct {
-	timetablePorts.ActivityInstanceRecords
-	completed *scheduleModels.ActivityInstance
+	fixtures.
+		ActivityInstanceRecords
+	completed *fixtures.ActivityInstance
 }
 
-func (r *reopenInstanceRepo) FindByID(context.Context, int64) (*scheduleModels.ActivityInstance, error) {
+func (r *reopenInstanceRepo) FindByID(context.Context, int64) (*fixtures.ActivityInstance, error) {
 	completed := *r.completed
 	return &completed, nil
 }
 
-func (r *reopenInstanceRepo) UpdateColumns(context.Context, *scheduleModels.ActivityInstance, ...string) (int64, error) {
+func (r *reopenInstanceRepo) UpdateColumns(context.Context, *fixtures.ActivityInstance, ...string) (int64, error) {
 	return 1, nil
 }
 
 func reopenCompletedInstance(t *testing.T, visitIDs []int64) *reopenInstanceRepo {
 	t.Helper()
-	snapshot, err := json.Marshal(scheduleModels.ActivityCompletionSnapshot{ActiveGroupID: 90, VisitIDs: visitIDs})
+	snapshot, err := json.Marshal(*fixtures.NewActivityCompletionSnapshot(func(fixtureRow *fixtures.ActivityCompletionSnapshot) {
+		fixtureRow.ActiveGroupID = 90
+		fixtureRow.VisitIDs = visitIDs
+	}))
 	require.NoError(t, err)
 	reopenUntil := time.Now().Add(time.Hour)
-	completed := &scheduleModels.ActivityInstance{
-		Date:               calendar.NewDate(2026, 4, 20),
-		Title:              "Reopen",
-		StartTime:          time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
-		EndTime:            time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
-		RoomID:             42,
-		Status:             scheduleModels.InstanceStatusCompleted,
-		ReopenUntil:        &reopenUntil,
-		CompletionSnapshot: snapshot,
-	}
+	completed := fixtures.NewActivityInstance(func(fixtureRow *fixtures.ActivityInstance) {
+		fixtureRow.Date = calendar.NewDate(2026, 4, 20)
+		fixtureRow.Title = "Reopen"
+		fixtureRow.StartTime = time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)
+		fixtureRow.EndTime = time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC)
+		fixtureRow.RoomID = 42
+		fixtureRow.Status = fixtures.InstanceStatusCompleted()
+		fixtureRow.ReopenUntil = &reopenUntil
+		fixtureRow.CompletionSnapshot = snapshot
+	})
+
 	completed.ID = 5
 	return &reopenInstanceRepo{completed: completed}
 }
@@ -534,7 +548,7 @@ func TestLockReopenSnapshotStudents_LocksSortedUniqueStudents(t *testing.T) {
 	students := &reopenStudentLockStub{}
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	deps := timetablePorts.InstanceLifecycleDependencies{
-		InstanceRepo: reopenCompletedInstance(t, []int64{22, 20, 21}),
+		InstanceRepo: fixtures.IntoActivityInstanceRecords(reopenCompletedInstance(t, []int64{22, 20, 21})),
 		Presence: &reopenVisitStub{byGroup: map[int64][]studentpresence.Visit{
 			90: {visitA, visitB, visitDup},
 		}},
@@ -567,7 +581,7 @@ func TestLockReopenSnapshotStudents_RejectsActiveVisit(t *testing.T) {
 	current := studentpresence.Visit{StudentID: 52}
 	current.ID = 99
 	svc := newFakeLifecycle(t, timetablePorts.InstanceLifecycleDependencies{
-		InstanceRepo: reopenCompletedInstance(t, []int64{20}),
+		InstanceRepo: fixtures.IntoActivityInstanceRecords(reopenCompletedInstance(t, []int64{20})),
 		Presence: &reopenVisitStub{
 			byGroup: map[int64][]studentpresence.Visit{90: {visit}},
 			current: map[int64]studentpresence.Visit{52: current},

@@ -7,14 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
 	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -22,8 +21,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func newBoundPickupExceptionRepository(db *bun.DB) ports.StudentPickupExceptionRecords {
-	return api.NewCareScheduleSuiteRepositories(testpkg.MustDatabase(db)).StudentPickupException
+func newBoundPickupExceptionRepository(db *bun.DB) fixtures.StudentPickupExceptionRecords {
+	return fixtures.FromStudentPickupExceptionRecords(api.NewCareScheduleSuiteRepositories(testpkg.MustDatabase(db)).StudentPickupException)
 }
 
 func instanceStudentFactory(t *testing.T, db *bun.DB) *api.RepositoryTestFactory {
@@ -31,9 +30,9 @@ func instanceStudentFactory(t *testing.T, db *bun.DB) *api.RepositoryTestFactory
 	return api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 }
 
-func instanceStudentRepository(t *testing.T, db *bun.DB) ports.InstanceStudentRecords {
+func instanceStudentRepository(t *testing.T, db *bun.DB) fixtures.InstanceStudentRecords {
 	t.Helper()
-	return api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).InstanceStudent
+	return fixtures.FromInstanceStudentRecords(api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).InstanceStudent)
 }
 
 func TestInstanceStudentRepository_Create_and_FindByInstanceID(t *testing.T) {
@@ -50,18 +49,20 @@ func TestInstanceStudentRepository_Create_and_FindByInstanceID(t *testing.T) {
 	studentA := testpkg.CreateTestStudent(t, db, "Max", fmt.Sprintf("A-%d", time.Now().UnixNano()), "3a")
 	studentB := testpkg.CreateTestStudent(t, db, "Mia", fmt.Sprintf("B-%d", time.Now().UnixNano()), "3a")
 
-	rowA := &scheduleModels.InstanceStudent{
-		InstanceID: inst.ID,
-		StudentID:  studentA.ID,
-		Status:     scheduleModels.AttendanceStatusExpected,
-	}
+	rowA := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StudentID = studentA.ID
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	})
+
 	rowA.SetTenantID(testpkg.Tenant(t))
 
-	rowB := &scheduleModels.InstanceStudent{
-		InstanceID: inst.ID,
-		StudentID:  studentB.ID,
-		Status:     scheduleModels.AttendanceStatusPresent,
-	}
+	rowB := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StudentID = studentB.ID
+		fixtureRow.Status = fixtures.AttendanceStatusPresent()
+	})
+
 	rowB.SetTenantID(testpkg.Tenant(t))
 
 	require.NoError(t, repo.Create(ctx, rowA))
@@ -78,7 +79,7 @@ func TestInstanceStudentRepository_Create_and_FindByInstanceID(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, got)
 		assert.Equal(t, rowA.ID, got.ID)
-		assert.Equal(t, scheduleModels.AttendanceStatusExpected, got.Status)
+		assert.Equal(t, fixtures.AttendanceStatusExpected(), got.Status)
 	})
 
 	t.Run("FindByInstanceAndStudent returns nil when missing", func(t *testing.T) {
@@ -88,11 +89,12 @@ func TestInstanceStudentRepository_Create_and_FindByInstanceID(t *testing.T) {
 	})
 
 	t.Run("UNIQUE(instance_id, student_id) blocks duplicate", func(t *testing.T) {
-		dup := &scheduleModels.InstanceStudent{
-			InstanceID: inst.ID,
-			StudentID:  studentA.ID,
-			Status:     scheduleModels.AttendanceStatusExpected,
-		}
+		dup := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.InstanceID = inst.ID
+			fixtureRow.StudentID = studentA.ID
+			fixtureRow.Status = fixtures.AttendanceStatusExpected()
+		})
+
 		dup.SetTenantID(testpkg.Tenant(t))
 		err := repo.Create(ctx, dup)
 		require.Error(t, err)
@@ -102,13 +104,15 @@ func TestInstanceStudentRepository_Create_and_FindByInstanceID(t *testing.T) {
 		// Service-layer validation catches this first, but we also want the
 		// CHECK constraint to protect integrity. Skip model validation by
 		// inserting via raw BUN bypass: construct an overlong note.
-		row := &scheduleModels.InstanceStudent{
-			InstanceID: inst.ID,
-			StudentID:  studentB.ID, // different student still FAILS due to UNIQUE, so use a fresh one
-			Status:     scheduleModels.AttendanceStatusExpected,
-		}
+		row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.InstanceID = inst.ID
+			fixtureRow.StudentID = studentB.ID
+			fixtureRow. // different student still FAILS due to UNIQUE, so use a fresh one
+					Status = fixtures.AttendanceStatusExpected()
+		})
+
 		row.SetTenantID(testpkg.Tenant(t))
-		long := strings.Repeat("x", scheduleModels.InstanceStudentNoteMaxLength+1)
+		long := strings.Repeat("x", fixtures.InstanceStudentNoteMaxLength()+1)
 		row.Note = &long
 		err := repo.Create(ctx, row)
 		require.Error(t, err)
@@ -129,18 +133,19 @@ func TestInstanceStudentRepository_Update(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "Ella", fmt.Sprintf("Upd-%d", time.Now().UnixNano()), "3a")
 
-	row := &scheduleModels.InstanceStudent{
-		InstanceID: inst.ID,
-		StudentID:  student.ID,
-		Status:     scheduleModels.AttendanceStatusExpected,
-	}
+	row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StudentID = student.ID
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	})
+
 	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, row))
 
 	now := time.Now().UTC()
-	late := scheduleModels.AttendanceSubstatusLate
+	late := fixtures.AttendanceSubstatusLate()
 	note := "bus verpasst"
-	row.Status = scheduleModels.AttendanceStatusPresent
+	row.Status = fixtures.AttendanceStatusPresent()
 	row.Substatus = &late
 	row.Note = &note
 	row.CheckedInAt = &now
@@ -149,9 +154,9 @@ func TestInstanceStudentRepository_Update(t *testing.T) {
 
 	got, err := repo.FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusPresent, got.Status)
+	assert.Equal(t, fixtures.AttendanceStatusPresent(), got.Status)
 	require.NotNil(t, got.Substatus)
-	assert.Equal(t, scheduleModels.AttendanceSubstatusLate, *got.Substatus)
+	assert.Equal(t, fixtures.AttendanceSubstatusLate(), *got.Substatus)
 	require.NotNil(t, got.Note)
 	assert.Equal(t, "bus verpasst", *got.Note)
 	require.NotNil(t, got.CheckedInAt)
@@ -178,12 +183,13 @@ func TestInstanceStudentRepository_FindByStudentAndDateRange(t *testing.T) {
 	instOutside, cleanOut := createInstanceFixture(t, db, "range-out", dayOutside)
 	defer cleanOut()
 
-	mkRow := func(instID int64) *scheduleModels.InstanceStudent {
-		row := &scheduleModels.InstanceStudent{
-			InstanceID: instID,
-			StudentID:  student.ID,
-			Status:     scheduleModels.AttendanceStatusExpected,
-		}
+	mkRow := func(instID int64) *fixtures.InstanceStudent {
+		row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.InstanceID = instID
+			fixtureRow.StudentID = student.ID
+			fixtureRow.Status = fixtures.AttendanceStatusExpected()
+		})
+
 		row.SetTenantID(testpkg.Tenant(t))
 		return row
 	}
@@ -220,11 +226,12 @@ func TestInstanceStudentRepository_CreateValidation(t *testing.T) {
 	})
 
 	t.Run("Create rejects invalid payload", func(t *testing.T) {
-		bad := &scheduleModels.InstanceStudent{
-			InstanceID: 0,
-			StudentID:  123,
-			Status:     scheduleModels.AttendanceStatusExpected,
-		}
+		bad := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.InstanceID = 0
+			fixtureRow.StudentID = 123
+			fixtureRow.Status = fixtures.AttendanceStatusExpected()
+		})
+
 		bad.SetTenantID(testpkg.Tenant(t))
 		err := repo.Create(ctx, bad)
 		require.Error(t, err)
@@ -247,11 +254,12 @@ func TestInstanceStudentRepository_UpdateValidation(t *testing.T) {
 	})
 
 	t.Run("Update rejects invalid payload", func(t *testing.T) {
-		bad := &scheduleModels.InstanceStudent{
-			InstanceID: 10,
-			StudentID:  0,
-			Status:     scheduleModels.AttendanceStatusExpected,
-		}
+		bad := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.InstanceID = 10
+			fixtureRow.StudentID = 0
+			fixtureRow.Status = fixtures.AttendanceStatusExpected()
+		})
+
 		bad.SetTenantID(testpkg.Tenant(t))
 		err := repo.Update(ctx, bad)
 		require.Error(t, err)
@@ -286,11 +294,12 @@ func TestInstanceStudentRepository_List(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "Peter", fmt.Sprintf("List-%d", time.Now().UnixNano()), "3a")
 
-	row := &scheduleModels.InstanceStudent{
-		InstanceID: inst.ID,
-		StudentID:  student.ID,
-		Status:     scheduleModels.AttendanceStatusExpected,
-	}
+	row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StudentID = student.ID
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	})
+
 	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, row))
 
@@ -375,11 +384,12 @@ func TestInstanceStudentRepository_UpdateAttendanceFromCheckin(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Lea", fmt.Sprintf("Mirror-%d", time.Now().UnixNano()), "3a")
 
 	t.Run("flips expected → present and stamps checked_in_at", func(t *testing.T) {
-		row := &scheduleModels.InstanceStudent{
-			InstanceID: inst.ID,
-			StudentID:  student.ID,
-			Status:     scheduleModels.AttendanceStatusExpected,
-		}
+		row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.InstanceID = inst.ID
+			fixtureRow.StudentID = student.ID
+			fixtureRow.Status = fixtures.AttendanceStatusExpected()
+		})
+
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
 		t.Cleanup(func() { require.NoError(t, repo.Delete(ctx, row.ID)) })
@@ -391,7 +401,7 @@ func TestInstanceStudentRepository_UpdateAttendanceFromCheckin(t *testing.T) {
 
 		got, err := repo.FindByID(ctx, row.ID)
 		require.NoError(t, err)
-		assert.Equal(t, scheduleModels.AttendanceStatusPresent, got.Status)
+		assert.Equal(t, fixtures.AttendanceStatusPresent(), got.Status)
 		require.NotNil(t, got.CheckedInAt)
 		assert.WithinDuration(t, checkedAt, *got.CheckedInAt, time.Second)
 	})
@@ -400,12 +410,13 @@ func TestInstanceStudentRepository_UpdateAttendanceFromCheckin(t *testing.T) {
 		other := testpkg.CreateTestStudent(t, db, "Tom", fmt.Sprintf("Mono-%d", time.Now().UnixNano()), "3a")
 
 		firstCheckin := time.Date(2026, 10, 10, 13, 0, 0, 0, time.UTC)
-		row := &scheduleModels.InstanceStudent{
-			InstanceID:  inst.ID,
-			StudentID:   other.ID,
-			Status:      scheduleModels.AttendanceStatusPresent,
-			CheckedInAt: &firstCheckin,
-		}
+		row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.InstanceID = inst.ID
+			fixtureRow.StudentID = other.ID
+			fixtureRow.Status = fixtures.AttendanceStatusPresent()
+			fixtureRow.CheckedInAt = &firstCheckin
+		})
+
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
 
@@ -416,7 +427,7 @@ func TestInstanceStudentRepository_UpdateAttendanceFromCheckin(t *testing.T) {
 
 		got, err := repo.FindByID(ctx, row.ID)
 		require.NoError(t, err)
-		assert.Equal(t, scheduleModels.AttendanceStatusPresent, got.Status)
+		assert.Equal(t, fixtures.AttendanceStatusPresent(), got.Status)
 		require.NotNil(t, got.CheckedInAt)
 		// Original checked_in_at must be preserved — monotonicity.
 		assert.WithinDuration(t, firstCheckin, *got.CheckedInAt, time.Second)
@@ -427,13 +438,14 @@ func TestInstanceStudentRepository_UpdateAttendanceFromCheckin(t *testing.T) {
 
 		firstCheckin := time.Date(2026, 10, 10, 13, 0, 0, 0, time.UTC)
 		firstCheckout := firstCheckin.Add(time.Hour)
-		row := &scheduleModels.InstanceStudent{
-			InstanceID:   inst.ID,
-			StudentID:    other.ID,
-			Status:       scheduleModels.AttendanceStatusPresent,
-			CheckedInAt:  &firstCheckin,
-			CheckedOutAt: &firstCheckout,
-		}
+		row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.InstanceID = inst.ID
+			fixtureRow.StudentID = other.ID
+			fixtureRow.Status = fixtures.AttendanceStatusPresent()
+			fixtureRow.CheckedInAt = &firstCheckin
+			fixtureRow.CheckedOutAt = &firstCheckout
+		})
+
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
 
@@ -505,21 +517,22 @@ func TestInstanceStudentRepository_UpdateAttendanceCheckout_GuardsMirroredPresen
 		checkoutAt time.Time
 		wantWrite  bool
 	}{
-		{name: "mirrored present row", status: scheduleModels.AttendanceStatusPresent, checkIn: &checkedIn, checkoutAt: checkedOut, wantWrite: true},
-		{name: "expected row", status: scheduleModels.AttendanceStatusExpected, checkoutAt: checkedOut},
-		{name: "absent row with timestamp", status: scheduleModels.AttendanceStatusAbsent, checkIn: &checkedIn, checkoutAt: checkedOut},
-		{name: "checkout before checkin", status: scheduleModels.AttendanceStatusPresent, checkIn: &checkedIn, checkoutAt: checkedIn.Add(-time.Minute)},
+		{name: "mirrored present row", status: fixtures.AttendanceStatusPresent(), checkIn: &checkedIn, checkoutAt: checkedOut, wantWrite: true},
+		{name: "expected row", status: fixtures.AttendanceStatusExpected(), checkoutAt: checkedOut},
+		{name: "absent row with timestamp", status: fixtures.AttendanceStatusAbsent(), checkIn: &checkedIn, checkoutAt: checkedOut},
+		{name: "checkout before checkin", status: fixtures.AttendanceStatusPresent(), checkIn: &checkedIn, checkoutAt: checkedIn.Add(-time.Minute)},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			student := testpkg.CreateTestStudent(t, db, "Checkout", fmt.Sprintf("Guard-%d", time.Now().UnixNano()), "3a")
-			row := &scheduleModels.InstanceStudent{
-				InstanceID:  inst.ID,
-				StudentID:   student.ID,
-				Status:      tt.status,
-				CheckedInAt: tt.checkIn,
-			}
+			row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+				fixtureRow.InstanceID = inst.ID
+				fixtureRow.StudentID = student.ID
+				fixtureRow.Status = tt.status
+				fixtureRow.CheckedInAt = tt.checkIn
+			})
+
 			row.SetTenantID(testpkg.Tenant(t))
 			require.NoError(t, repo.Create(ctx, row))
 
@@ -547,11 +560,12 @@ func TestInstanceStudentRepository_CreateUnplannedPresentIfAbsent_PromotesConcur
 	defer cleanupInst()
 	student := testpkg.CreateTestStudent(t, db, "Conflict", fmt.Sprintf("Roster-%d", time.Now().UnixNano()), "3a")
 
-	row := &scheduleModels.InstanceStudent{
-		InstanceID: inst.ID,
-		StudentID:  student.ID,
-		Status:     scheduleModels.AttendanceStatusExpected,
-	}
+	row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StudentID = student.ID
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	})
+
 	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, row))
 
@@ -559,7 +573,7 @@ func TestInstanceStudentRepository_CreateUnplannedPresentIfAbsent_PromotesConcur
 	got, err := repo.CreateUnplannedPresentIfAbsent(ctx, inst.ID, student.ID, checkedIn)
 	require.NoError(t, err)
 	require.NotNil(t, got)
-	assert.Equal(t, scheduleModels.AttendanceStatusPresent, got.Status)
+	assert.Equal(t, fixtures.AttendanceStatusPresent(), got.Status)
 	assert.False(t, got.IsUnplanned, "a concurrent booked row must keep its booking provenance")
 	require.NotNil(t, got.CheckedInAt)
 	assert.WithinDuration(t, checkedIn, *got.CheckedInAt, time.Second)
@@ -575,18 +589,17 @@ func TestInstanceStudentRepository_FindCurrentCandidates_ExcludesEndedInstances(
 	day := calendar.NewDate(2026, 10, 15)
 	student := testpkg.CreateTestStudent(t, db, "Candidate", fmt.Sprintf("Status-%d", time.Now().UnixNano()), "3a")
 
-	statuses := []string{
-		scheduleModels.InstanceStatusPlanned,
-		scheduleModels.InstanceStatusActive,
-		scheduleModels.InstanceStatusCompleted,
-		scheduleModels.InstanceStatusCancelled,
-	}
-	instanceByStatus := make(map[string]*scheduleModels.ActivityInstance, len(statuses))
+	statuses := []string{fixtures.InstanceStatusPlanned(), fixtures.InstanceStatusActive(), fixtures.InstanceStatusCompleted(), fixtures.InstanceStatusCancelled()}
+	instanceByStatus := make(map[string]*fixtures.ActivityInstance, len(statuses))
 	for _, status := range statuses {
 		inst, cleanup := createInstanceFixture(t, db, "candidate-"+status, day)
 		defer cleanup()
 		testpkg.SetActivityInstanceLifecycle(t, ctx, db, inst.ID, status)
-		row := &scheduleModels.InstanceStudent{InstanceID: inst.ID, StudentID: student.ID, Status: scheduleModels.AttendanceStatusExpected}
+		row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.InstanceID = inst.ID
+			fixtureRow.StudentID = student.ID
+			fixtureRow.Status = fixtures.AttendanceStatusExpected()
+		})
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
 		instanceByStatus[status] = inst
@@ -597,10 +610,10 @@ func TestInstanceStudentRepository_FindCurrentCandidates_ExcludesEndedInstances(
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 	ids := []int64{rows[0].InstanceID, rows[1].InstanceID}
-	assert.Contains(t, ids, instanceByStatus[scheduleModels.InstanceStatusPlanned].ID)
-	assert.Contains(t, ids, instanceByStatus[scheduleModels.InstanceStatusActive].ID)
-	assert.NotContains(t, ids, instanceByStatus[scheduleModels.InstanceStatusCompleted].ID)
-	assert.NotContains(t, ids, instanceByStatus[scheduleModels.InstanceStatusCancelled].ID)
+	assert.Contains(t, ids, instanceByStatus[fixtures.InstanceStatusPlanned()].ID)
+	assert.Contains(t, ids, instanceByStatus[fixtures.InstanceStatusActive()].ID)
+	assert.NotContains(t, ids, instanceByStatus[fixtures.InstanceStatusCompleted()].ID)
+	assert.NotContains(t, ids, instanceByStatus[fixtures.InstanceStatusCancelled()].ID)
 }
 
 func TestInstanceStudentRepository_ReconcileAttendanceInterval_UsesPreviousIntervalAsGuard(t *testing.T) {
@@ -616,10 +629,14 @@ func TestInstanceStudentRepository_ReconcileAttendanceInterval_UsesPreviousInter
 
 	previousIn := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
 	previousOut := previousIn.Add(time.Hour)
-	row := &scheduleModels.InstanceStudent{
-		InstanceID: inst.ID, StudentID: student.ID, Status: scheduleModels.AttendanceStatusPresent,
-		CheckedInAt: &previousIn, CheckedOutAt: &previousOut,
-	}
+	row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StudentID = student.ID
+		fixtureRow.Status = fixtures.AttendanceStatusPresent()
+		fixtureRow.CheckedInAt = &previousIn
+		fixtureRow.CheckedOutAt = &previousOut
+	})
+
 	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, row))
 
@@ -661,11 +678,12 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 	defer cleanupInst()
 	student := testpkg.CreateTestStudent(t, db, "Status", fmt.Sprintf("Replacement-%d", time.Now().UnixNano()), "3a")
 
-	attendance := &scheduleModels.InstanceStudent{
-		InstanceID: inst.ID,
-		StudentID:  student.ID,
-		Status:     scheduleModels.AttendanceStatusExpected,
-	}
+	attendance := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StudentID = student.ID
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	})
+
 	attendance.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, instanceStudentRepository(t, db).Create(ctx, attendance))
 
@@ -681,9 +699,9 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, newer))
 	got, err := instanceStudentRepository(t, db).FindByID(ctx, attendance.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got.Status)
+	assert.Equal(t, fixtures.AttendanceStatusAbsent(), got.Status)
 	require.NotNil(t, got.Substatus)
-	assert.Equal(t, scheduleModels.AttendanceSubstatusExcused, *got.Substatus)
+	assert.Equal(t, fixtures.AttendanceSubstatusExcused(), *got.Substatus)
 	require.NotNil(t, got.StudentStatusDayID)
 	assert.Equal(t, newer.ID, *got.StudentStatusDayID, "the newest active status must take provenance immediately")
 
@@ -697,16 +715,16 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, older.ID, time.Now(), absencerecords.StudentStatusSourceManual))
 	got, err = instanceStudentRepository(t, db).FindByID(ctx, attendance.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got.Status)
+	assert.Equal(t, fixtures.AttendanceStatusAbsent(), got.Status)
 	require.NotNil(t, got.Substatus)
-	assert.Equal(t, scheduleModels.AttendanceSubstatusExcused, *got.Substatus)
+	assert.Equal(t, fixtures.AttendanceSubstatusExcused(), *got.Substatus)
 	require.NotNil(t, got.StudentStatusDayID)
 	assert.Equal(t, newer.ID, *got.StudentStatusDayID)
 
 	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, newer.ID, time.Now(), absencerecords.StudentStatusSourceManual))
 	got, err = instanceStudentRepository(t, db).FindByID(ctx, attendance.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusExpected, got.Status)
+	assert.Equal(t, fixtures.AttendanceStatusExpected(), got.Status)
 	assert.Nil(t, got.Substatus)
 	assert.Nil(t, got.StudentStatusDayID)
 
@@ -715,11 +733,11 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 		ReportedAt: time.Date(2026, 10, 3, 8, 0, 0, 0, time.UTC), Source: absencerecords.StudentStatusSourcePlanned,
 	}
 	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, completedStatus))
-	testpkg.SetActivityInstanceLifecycle(t, ctx, db, inst.ID, scheduleModels.InstanceStatusCompleted)
+	testpkg.SetActivityInstanceLifecycle(t, ctx, db, inst.ID, fixtures.InstanceStatusCompleted())
 	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, completedStatus.ID, time.Now(), absencerecords.StudentStatusSourceManual))
 	got, err = instanceStudentRepository(t, db).FindByID(ctx, attendance.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got.Status, "completed slots remain historical absences")
+	assert.Equal(t, fixtures.AttendanceStatusAbsent(), got.Status, "completed slots remain historical absences")
 	assert.Nil(t, got.Substatus)
 	assert.Nil(t, got.StudentStatusDayID)
 }
@@ -744,11 +762,12 @@ func TestInstanceStudentRepository_MarkNotScheduled_TakesBackStatusDayAbsence(t 
 
 	student := testpkg.CreateTestStudent(t, db, "Unbooked", fmt.Sprintf("Sick-%d", time.Now().UnixNano()), "3a")
 
-	attendance := &scheduleModels.InstanceStudent{
-		InstanceID: inst.ID,
-		StudentID:  student.ID,
-		Status:     scheduleModels.AttendanceStatusExpected,
-	}
+	attendance := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StudentID = student.ID
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	})
+
 	attendance.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, instanceStudentRepository(t, db).Create(ctx, attendance))
 
@@ -760,17 +779,19 @@ func TestInstanceStudentRepository_MarkNotScheduled_TakesBackStatusDayAbsence(t 
 
 	got, err := repo.FindByID(ctx, attendance.ID)
 	require.NoError(t, err)
-	require.Equal(t, scheduleModels.AttendanceStatusAbsent, got.Status, "precondition: the sick report writes the absence")
+	require.Equal(t, fixtures.AttendanceStatusAbsent(), got.Status, "precondition: the sick report writes the absence")
 	require.NotNil(t, got.StudentStatusDayID)
 
-	require.NoError(t, repo.MarkNotScheduled(ctx, []scheduleModels.StudentInstanceRef{
-		{StudentID: student.ID, InstanceID: inst.ID},
+	require.NoError(t, repo.MarkNotScheduled(ctx, []fixtures.StudentInstanceRef{*fixtures.NewStudentInstanceRef(func(fixtureRow *fixtures.StudentInstanceRef) {
+		fixtureRow.StudentID = student.ID
+		fixtureRow.InstanceID = inst.ID
+	}),
 	}))
 
 	got, err = repo.FindByID(ctx, attendance.ID)
 	require.NoError(t, err)
 	assert.True(t, got.NotScheduled, "the non-booking must be recorded")
-	assert.Equal(t, scheduleModels.AttendanceStatusExpected, got.Status,
+	assert.Equal(t, fixtures.AttendanceStatusExpected(), got.Status,
 		"a child owed no care that day cannot be absent from it")
 	assert.Nil(t, got.Substatus)
 	assert.Nil(t, got.StudentStatusDayID,
@@ -795,21 +816,27 @@ func TestInstanceStudentRepository_MarkNotScheduled_KeepsDecidedOutcomes(t *test
 	manual := testpkg.CreateTestStudent(t, db, "Manual", fmt.Sprintf("Absent-%d", suffix), "3a")
 	present := testpkg.CreateTestStudent(t, db, "Checked", fmt.Sprintf("In-%d", suffix), "3a")
 
-	rows := map[int64]*scheduleModels.InstanceStudent{
-		manual.ID: {
-			InstanceID: inst.ID, StudentID: manual.ID,
-			Status: scheduleModels.AttendanceStatusAbsent, // PATCH-decided: no status-day provenance
-		},
-		present.ID: {
-			InstanceID: inst.ID, StudentID: present.ID,
-			Status: scheduleModels.AttendanceStatusPresent,
-		},
+	rows := map[int64]*fixtures.InstanceStudent{
+		manual.ID: fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.InstanceID = inst.ID
+			fixtureRow.StudentID = manual.ID
+			fixtureRow.Status = fixtures.AttendanceStatusAbsent()
+		}), // PATCH-decided: no status-day provenance
+
+		present.ID: fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.InstanceID = inst.ID
+			fixtureRow.StudentID = present.ID
+			fixtureRow.Status = fixtures.AttendanceStatusPresent()
+		}),
 	}
-	refs := make([]scheduleModels.StudentInstanceRef, 0, len(rows))
+	refs := make([]fixtures.StudentInstanceRef, 0, len(rows))
 	for studentID, row := range rows {
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
-		refs = append(refs, scheduleModels.StudentInstanceRef{StudentID: studentID, InstanceID: inst.ID})
+		refs = append(refs, *fixtures.NewStudentInstanceRef(func(fixtureRow *fixtures.StudentInstanceRef) {
+			fixtureRow.StudentID = studentID
+			fixtureRow.InstanceID = inst.ID
+		}))
 	}
 
 	require.NoError(t, repo.MarkNotScheduled(ctx, refs))
@@ -842,20 +869,23 @@ func TestInstanceStudentRepository_MarkNotScheduled_KeepsManualExpected(t *testi
 
 	student := testpkg.CreateTestStudent(t, db, "Manuell", fmt.Sprintf("Erwartet-%d", time.Now().UnixNano()), "3a")
 
-	row := &scheduleModels.InstanceStudent{
-		InstanceID: inst.ID,
-		StudentID:  student.ID,
-		Status:     scheduleModels.AttendanceStatusExpected,
-		// The slot already carries the marker from an earlier completion.
-		NotScheduled: true,
-	}
+	row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StudentID = student.ID
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+		fixtureRow.
+			// The slot already carries the marker from an earlier completion.
+			NotScheduled = true
+	})
+
 	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, row))
 
-	expected := scheduleModels.AttendanceStatusExpected
-	require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID, scheduleModels.AttendanceFieldPatch{
-		Status: &expected,
-	}))
+	expected := fixtures.AttendanceStatusExpected()
+	require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID, *fixtures.NewAttendanceFieldPatch(func(fixtureRow *fixtures.AttendanceFieldPatch) {
+		fixtureRow.Status = &expected
+	}),
+	))
 
 	got, err := repo.FindByID(ctx, row.ID)
 	require.NoError(t, err)
@@ -870,14 +900,16 @@ func TestInstanceStudentRepository_MarkNotScheduled_KeepsManualExpected(t *testi
 	}
 
 	// ...and the write itself refuses it even when a caller passes it anyway.
-	require.NoError(t, repo.MarkNotScheduled(ctx, []scheduleModels.StudentInstanceRef{
-		{StudentID: student.ID, InstanceID: inst.ID},
+	require.NoError(t, repo.MarkNotScheduled(ctx, []fixtures.StudentInstanceRef{*fixtures.NewStudentInstanceRef(func(fixtureRow *fixtures.StudentInstanceRef) {
+		fixtureRow.StudentID = student.ID
+		fixtureRow.InstanceID = inst.ID
+	}),
 	}))
 
 	got, err = repo.FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	assert.False(t, got.NotScheduled, "the manual expectation stays a genuine expectation")
-	assert.Equal(t, scheduleModels.AttendanceStatusExpected, got.Status)
+	assert.Equal(t, fixtures.AttendanceStatusExpected(), got.Status)
 }
 
 // A finished block is frozen. Only Complete() holds the day lock, so the
@@ -896,8 +928,8 @@ func TestInstanceStudentRepository_MarkNotScheduled_LeavesFinishedInstancesAlone
 		name   string
 		status string
 	}{
-		{name: "completed", status: scheduleModels.InstanceStatusCompleted},
-		{name: "cancelled", status: scheduleModels.InstanceStatusCancelled},
+		{name: "completed", status: fixtures.InstanceStatusCompleted()},
+		{name: "cancelled", status: fixtures.InstanceStatusCancelled()},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			date := calendar.NewDate(2026, 10, 19)
@@ -909,24 +941,27 @@ func TestInstanceStudentRepository_MarkNotScheduled_LeavesFinishedInstancesAlone
 
 			// Exactly the shape the write claims — 'expected', no manual stamp.
 			// Only the instance's finished status may keep it out.
-			row := &scheduleModels.InstanceStudent{
-				InstanceID: inst.ID,
-				StudentID:  student.ID,
-				Status:     scheduleModels.AttendanceStatusExpected,
-			}
+			row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+				fixtureRow.InstanceID = inst.ID
+				fixtureRow.StudentID = student.ID
+				fixtureRow.Status = fixtures.AttendanceStatusExpected()
+			})
+
 			row.SetTenantID(testpkg.Tenant(t))
 			require.NoError(t, repo.Create(ctx, row))
 
 			moveInstanceTo(t, db, inst, tc.status)
 
-			require.NoError(t, repo.MarkNotScheduled(ctx, []scheduleModels.StudentInstanceRef{
-				{StudentID: student.ID, InstanceID: inst.ID},
+			require.NoError(t, repo.MarkNotScheduled(ctx, []fixtures.StudentInstanceRef{*fixtures.NewStudentInstanceRef(func(fixtureRow *fixtures.StudentInstanceRef) {
+				fixtureRow.StudentID = student.ID
+				fixtureRow.InstanceID = inst.ID
+			}),
 			}))
 
 			got, err := repo.FindByID(ctx, row.ID)
 			require.NoError(t, err)
 			assert.False(t, got.NotScheduled, "a finished day must not gain a marker after the fact")
-			assert.Equal(t, scheduleModels.AttendanceStatusExpected, got.Status,
+			assert.Equal(t, fixtures.AttendanceStatusExpected(), got.Status,
 				"and its recorded attendance must stay exactly as the day ended")
 		})
 	}
@@ -946,45 +981,48 @@ func TestInstanceStudentRepository_UpdateAttendanceFields(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Nora", fmt.Sprintf("Patch-%d", time.Now().UnixNano()), "3a")
 
 	checkedAt := time.Date(2026, 10, 11, 13, 0, 0, 0, time.UTC)
-	late := scheduleModels.AttendanceSubstatusLate
+	late := fixtures.AttendanceSubstatusLate()
 	origNote := "im stau"
 
-	row := &scheduleModels.InstanceStudent{
-		InstanceID:  inst.ID,
-		StudentID:   student.ID,
-		Status:      scheduleModels.AttendanceStatusPresent,
-		Substatus:   &late,
-		Note:        &origNote,
-		CheckedInAt: &checkedAt,
-	}
+	row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StudentID = student.ID
+		fixtureRow.Status = fixtures.AttendanceStatusPresent()
+		fixtureRow.Substatus = &late
+		fixtureRow.Note = &origNote
+		fixtureRow.CheckedInAt = &checkedAt
+	})
+
 	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, row))
 
 	t.Run("updates only the fields the patch carries", func(t *testing.T) {
-		newStatus := scheduleModels.AttendanceStatusAbsent
-		excused := scheduleModels.AttendanceSubstatusExcused
+		newStatus := fixtures.AttendanceStatusAbsent()
+		excused := fixtures.AttendanceSubstatusExcused()
 
-		patch := scheduleModels.AttendanceFieldPatch{
-			Status:    &newStatus,
-			Substatus: &excused,
-			// Note intentionally not set — must be preserved.
-		}
+		patch := *fixtures.NewAttendanceFieldPatch(func(fixtureRow *fixtures.AttendanceFieldPatch) {
+			fixtureRow.Status = &newStatus
+			fixtureRow.Substatus = &excused
+		})
+		// Note intentionally not set — must be preserved.
+
 		require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID, patch))
 
 		got, err := repo.FindByID(ctx, row.ID)
 		require.NoError(t, err)
-		assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got.Status)
+		assert.Equal(t, fixtures.AttendanceStatusAbsent(), got.Status)
 		require.NotNil(t, got.Substatus)
-		assert.Equal(t, scheduleModels.AttendanceSubstatusExcused, *got.Substatus)
+		assert.Equal(t, fixtures.AttendanceSubstatusExcused(), *got.Substatus)
 		require.NotNil(t, got.Note)
 		assert.Equal(t, "im stau", *got.Note, "note must survive when patch omits it")
 	})
 
 	t.Run("clears nullable columns via *Clear flags", func(t *testing.T) {
-		patch := scheduleModels.AttendanceFieldPatch{
-			SubstatusClear: true,
-			NoteClear:      true,
-		}
+		patch := *fixtures.NewAttendanceFieldPatch(func(fixtureRow *fixtures.AttendanceFieldPatch) {
+			fixtureRow.SubstatusClear = true
+			fixtureRow.NoteClear = true
+		})
+
 		require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID, patch))
 
 		got, err := repo.FindByID(ctx, row.ID)
@@ -1000,23 +1038,24 @@ func TestInstanceStudentRepository_UpdateAttendanceFields(t *testing.T) {
 		partial := testpkg.CreateTestPickupException(t, db, student.ID, inst.Date, staff.ID, "13:00", "Termin")
 
 		row.PickupExceptionID = &partial.ID
-		row.Status = scheduleModels.AttendanceStatusAbsent
-		excused := scheduleModels.AttendanceSubstatusExcused
+		row.Status = fixtures.AttendanceStatusAbsent()
+		excused := fixtures.AttendanceSubstatusExcused()
 		row.Substatus = &excused
 		row.ManualStatusAt = nil
 		require.NoError(t, repo.Update(ctx, row))
 
-		late := scheduleModels.AttendanceSubstatusLate
-		require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID, scheduleModels.AttendanceFieldPatch{
-			Substatus: &late,
-		}))
+		late := fixtures.AttendanceSubstatusLate()
+		require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID, *fixtures.NewAttendanceFieldPatch(func(fixtureRow *fixtures.AttendanceFieldPatch) {
+			fixtureRow.Substatus = &late
+		}),
+		))
 
 		got, err := repo.FindByID(ctx, row.ID)
 		require.NoError(t, err)
 		assert.Nil(t, got.PickupExceptionID)
 		require.NotNil(t, got.ManualStatusAt)
 		require.NotNil(t, got.Substatus)
-		assert.Equal(t, scheduleModels.AttendanceSubstatusLate, *got.Substatus)
+		assert.Equal(t, fixtures.AttendanceSubstatusLate(), *got.Substatus)
 	})
 
 	t.Run("empty patch is a no-op (defensive)", func(t *testing.T) {
@@ -1025,7 +1064,8 @@ func TestInstanceStudentRepository_UpdateAttendanceFields(t *testing.T) {
 		beforeRow, err := repo.FindByID(ctx, row.ID)
 		require.NoError(t, err)
 
-		require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID, scheduleModels.AttendanceFieldPatch{}))
+		require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID, *fixtures.NewAttendanceFieldPatch(func(fixtureRow *fixtures.AttendanceFieldPatch) {
+		})))
 
 		afterRow, err := repo.FindByID(ctx, row.ID)
 		require.NoError(t, err)
@@ -1046,21 +1086,21 @@ func TestInstanceStudentRepository_MarkExpectedAbsentByActiveGroupIDs_PairScoped
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instanceRepo := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance
+	instanceRepo := fixtures.FromActivityInstanceRecords(api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance)
 
 	fx := newActivityInstanceFixtures(t, db, "mark-pairs")
 	defer fx.cleanup()
 
 	student := testpkg.CreateTestStudent(t, db, "Juna", fmt.Sprintf("MP-%d", time.Now().UnixNano()), "2c")
 
-	mkActiveInstance := func(title string, date calendar.Date) *scheduleModels.ActivityInstance {
+	mkActiveInstance := func(title string, date calendar.Date) *fixtures.ActivityInstance {
 		ag := testpkg.CreateTestActiveGroup(t, db, fx.activityID, fx.roomID)
 		inst := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
 			time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 			time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
 			fmt.Sprintf("%s-%d", title, time.Now().UnixNano()),
 		)
-		inst.Status = scheduleModels.InstanceStatusActive
+		inst.Status = fixtures.InstanceStatusActive()
 		inst.ActiveGroupID = &ag.ID
 		require.NoError(t, instanceRepo.Create(ctx, inst))
 		return inst
@@ -1069,12 +1109,13 @@ func TestInstanceStudentRepository_MarkExpectedAbsentByActiveGroupIDs_PairScoped
 	instSpared := mkActiveInstance("spared", calendar.NewDate(2035, 2, 5))
 	instStamped := mkActiveInstance("stamped", calendar.NewDate(2035, 2, 6))
 
-	mkRow := func(instID int64) *scheduleModels.InstanceStudent {
-		row := &scheduleModels.InstanceStudent{
-			InstanceID: instID,
-			StudentID:  student.ID,
-			Status:     scheduleModels.AttendanceStatusExpected,
-		}
+	mkRow := func(instID int64) *fixtures.InstanceStudent {
+		row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.InstanceID = instID
+			fixtureRow.StudentID = student.ID
+			fixtureRow.Status = fixtures.AttendanceStatusExpected()
+		})
+
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
 		return row
@@ -1085,20 +1126,23 @@ func TestInstanceStudentRepository_MarkExpectedAbsentByActiveGroupIDs_PairScoped
 	err := repo.MarkExpectedAbsentByActiveGroupIDs(ctx,
 		[]int64{*instSpared.ActiveGroupID, *instStamped.ActiveGroupID},
 		time.Now(),
-		[]scheduleModels.StudentInstanceRef{{StudentID: student.ID, InstanceID: instSpared.ID}},
+		[]fixtures.StudentInstanceRef{*fixtures.NewStudentInstanceRef(func(fixtureRow *fixtures.StudentInstanceRef) {
+			fixtureRow.StudentID = student.ID
+			fixtureRow.InstanceID = instSpared.ID
+		})},
 	)
 	require.NoError(t, err)
 
 	gotSpared, err := repo.FindByInstanceAndStudent(ctx, instSpared.ID, student.ID)
 	require.NoError(t, err)
 	require.NotNil(t, gotSpared)
-	assert.Equal(t, scheduleModels.AttendanceStatusExpected, gotSpared.Status,
+	assert.Equal(t, fixtures.AttendanceStatusExpected(), gotSpared.Status,
 		"the excluded (instance, student) pair must be spared")
 
 	gotStamped, err := repo.FindByInstanceAndStudent(ctx, instStamped.ID, student.ID)
 	require.NoError(t, err)
 	require.NotNil(t, gotStamped)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, gotStamped.Status,
+	assert.Equal(t, fixtures.AttendanceStatusAbsent(), gotStamped.Status,
 		"the same student's row on the other instance must still be stamped absent")
 }
 
@@ -1118,82 +1162,72 @@ func TestInstanceStudentRepository_BulkUpdateStatus(t *testing.T) {
 	sExpected2 := testpkg.CreateTestStudent(t, db, "Bea", suffix+"-e2", "3a")
 	sPresent := testpkg.CreateTestStudent(t, db, "Cem", suffix+"-p", "3a")
 
-	buildRow := func(studentID int64, status string) *scheduleModels.InstanceStudent {
-		row := &scheduleModels.InstanceStudent{
-			InstanceID: inst.ID,
-			StudentID:  studentID,
-			Status:     status,
-		}
+	buildRow := func(studentID int64, status string) *fixtures.InstanceStudent {
+		row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.InstanceID = inst.ID
+			fixtureRow.StudentID = studentID
+			fixtureRow.Status = status
+		})
+
 		row.SetTenantID(testpkg.Tenant(t))
 		return row
 	}
 
-	rowE1 := buildRow(sExpected1.ID, scheduleModels.AttendanceStatusExpected)
-	rowE2 := buildRow(sExpected2.ID, scheduleModels.AttendanceStatusExpected)
-	rowP := buildRow(sPresent.ID, scheduleModels.AttendanceStatusPresent)
+	rowE1 := buildRow(sExpected1.ID, fixtures.AttendanceStatusExpected())
+	rowE2 := buildRow(sExpected2.ID, fixtures.AttendanceStatusExpected())
+	rowP := buildRow(sPresent.ID, fixtures.AttendanceStatusPresent())
 
 	require.NoError(t, repo.Create(ctx, rowE1))
 	require.NoError(t, repo.Create(ctx, rowE2))
 	require.NoError(t, repo.Create(ctx, rowP))
 
 	t.Run("flips only matching expected rows", func(t *testing.T) {
-		n, err := repo.BulkUpdateStatus(ctx, inst.ID,
-			scheduleModels.AttendanceStatusExpected,
-			scheduleModels.AttendanceStatusAbsent,
-			nil,
-		)
+		n, err := repo.BulkUpdateStatus(ctx, inst.ID, fixtures.AttendanceStatusExpected(), fixtures.AttendanceStatusAbsent(), nil)
 		require.NoError(t, err)
 		assert.Equal(t, 2, n)
 
 		gotE1, err := repo.FindByInstanceAndStudent(ctx, inst.ID, sExpected1.ID)
 		require.NoError(t, err)
 		require.NotNil(t, gotE1)
-		assert.Equal(t, scheduleModels.AttendanceStatusAbsent, gotE1.Status)
+		assert.Equal(t, fixtures.AttendanceStatusAbsent(), gotE1.Status)
 
 		gotE2, err := repo.FindByInstanceAndStudent(ctx, inst.ID, sExpected2.ID)
 		require.NoError(t, err)
 		require.NotNil(t, gotE2)
-		assert.Equal(t, scheduleModels.AttendanceStatusAbsent, gotE2.Status)
+		assert.Equal(t, fixtures.AttendanceStatusAbsent(), gotE2.Status)
 
 		gotP, err := repo.FindByInstanceAndStudent(ctx, inst.ID, sPresent.ID)
 		require.NoError(t, err)
 		require.NotNil(t, gotP)
-		assert.Equal(t, scheduleModels.AttendanceStatusPresent, gotP.Status,
+		assert.Equal(t, fixtures.AttendanceStatusPresent(), gotP.Status,
 			"present row must not be touched by expected→absent bulk update")
 	})
 
 	t.Run("second call is a no-op", func(t *testing.T) {
-		n, err := repo.BulkUpdateStatus(ctx, inst.ID,
-			scheduleModels.AttendanceStatusExpected,
-			scheduleModels.AttendanceStatusAbsent,
-			nil,
-		)
+		n, err := repo.BulkUpdateStatus(ctx, inst.ID, fixtures.AttendanceStatusExpected(), fixtures.AttendanceStatusAbsent(), nil)
 		require.NoError(t, err)
 		assert.Equal(t, 0, n)
 	})
 
 	t.Run("no-op when called with a different tenant context", func(t *testing.T) {
 		// Reset one row back to 'expected' in tenant 1 so there's a target.
-		reset := scheduleModels.AttendanceFieldPatch{}
-		expected := scheduleModels.AttendanceStatusExpected
+		reset := *fixtures.NewAttendanceFieldPatch(func(fixtureRow *fixtures.AttendanceFieldPatch) {
+		})
+		expected := fixtures.AttendanceStatusExpected()
 		reset.Status = &expected
 		require.NoError(t, repo.UpdateAttendanceFields(ctx, rowE1.ID, reset))
 
 		// Switch to a foreign tenant — bulk update must match zero rows,
 		// and the tenant 1 row must remain 'expected'.
 		ctxT2 := testpkg.TenantContext(2)
-		n, err := repo.BulkUpdateStatus(ctxT2, inst.ID,
-			scheduleModels.AttendanceStatusExpected,
-			scheduleModels.AttendanceStatusAbsent,
-			nil,
-		)
+		n, err := repo.BulkUpdateStatus(ctxT2, inst.ID, fixtures.AttendanceStatusExpected(), fixtures.AttendanceStatusAbsent(), nil)
 		require.NoError(t, err)
 		assert.Equal(t, 0, n)
 
 		got, err := repo.FindByInstanceAndStudent(ctx, inst.ID, sExpected1.ID)
 		require.NoError(t, err)
 		require.NotNil(t, got)
-		assert.Equal(t, scheduleModels.AttendanceStatusExpected, got.Status)
+		assert.Equal(t, fixtures.AttendanceStatusExpected(), got.Status)
 	})
 }
 
@@ -1210,11 +1244,12 @@ func TestInstanceStudentRepository_DeleteByInstanceID(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "Ola", fmt.Sprintf("Del-%d", time.Now().UnixNano()), "3a")
 
-	row := &scheduleModels.InstanceStudent{
-		InstanceID: inst.ID,
-		StudentID:  student.ID,
-		Status:     scheduleModels.AttendanceStatusExpected,
-	}
+	row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StudentID = student.ID
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	})
+
 	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, row))
 
@@ -1248,35 +1283,39 @@ func TestInstanceStudentRepository_FindExpectedByInstanceIDs_FiltersStatus(t *te
 	absentStudent := testpkg.CreateTestStudent(t, db, "Abs", fmt.Sprintf("B13-%d", unique+2), "3a")
 	otherStudent := testpkg.CreateTestStudent(t, db, "Other", fmt.Sprintf("B13-%d", unique+3), "3a")
 
-	expectedRow := &scheduleModels.InstanceStudent{
-		InstanceID: inst1.ID,
-		StudentID:  expectedStudent.ID,
-		Status:     scheduleModels.AttendanceStatusExpected,
-	}
+	expectedRow := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.InstanceID = inst1.ID
+		fixtureRow.StudentID = expectedStudent.ID
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	})
+
 	expectedRow.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, expectedRow))
 
-	presentRow := &scheduleModels.InstanceStudent{
-		InstanceID: inst1.ID,
-		StudentID:  presentStudent.ID,
-		Status:     scheduleModels.AttendanceStatusPresent,
-	}
+	presentRow := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.InstanceID = inst1.ID
+		fixtureRow.StudentID = presentStudent.ID
+		fixtureRow.Status = fixtures.AttendanceStatusPresent()
+	})
+
 	presentRow.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, presentRow))
 
-	absentRow := &scheduleModels.InstanceStudent{
-		InstanceID: inst1.ID,
-		StudentID:  absentStudent.ID,
-		Status:     scheduleModels.AttendanceStatusAbsent,
-	}
+	absentRow := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.InstanceID = inst1.ID
+		fixtureRow.StudentID = absentStudent.ID
+		fixtureRow.Status = fixtures.AttendanceStatusAbsent()
+	})
+
 	absentRow.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, absentRow))
 
-	otherExpected := &scheduleModels.InstanceStudent{
-		InstanceID: inst2.ID,
-		StudentID:  otherStudent.ID,
-		Status:     scheduleModels.AttendanceStatusExpected,
-	}
+	otherExpected := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.InstanceID = inst2.ID
+		fixtureRow.StudentID = otherStudent.ID
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	})
+
 	otherExpected.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, otherExpected))
 
@@ -1286,7 +1325,7 @@ func TestInstanceStudentRepository_FindExpectedByInstanceIDs_FiltersStatus(t *te
 		ids := make(map[int64]bool, len(rows))
 		for _, r := range rows {
 			ids[r.ID] = true
-			assert.Equal(t, scheduleModels.AttendanceStatusExpected, r.Status)
+			assert.Equal(t, fixtures.AttendanceStatusExpected(), r.Status)
 		}
 		assert.True(t, ids[expectedRow.ID], "missed expected-status row for inst1")
 		assert.True(t, ids[otherExpected.ID], "missed expected-status row for inst2")
@@ -1319,11 +1358,12 @@ func TestInstanceStudentRepository_FindExpectedByInstanceIDs_TenantScoped(t *tes
 
 	student := testpkg.CreateTestStudent(t, db, "Iso", fmt.Sprintf("B13-iso-%d", time.Now().UnixNano()), "3a")
 
-	row := &scheduleModels.InstanceStudent{
-		InstanceID: inst.ID,
-		StudentID:  student.ID,
-		Status:     scheduleModels.AttendanceStatusExpected,
-	}
+	row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StudentID = student.ID
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	})
+
 	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(testpkg.Ctx(t), row))
 
@@ -1358,17 +1398,21 @@ func TestInstanceStudentRepository_FindNotScheduledCandidatesByInstanceIDs(t *te
 	manualStudent := testpkg.CreateTestStudent(t, db, "Manual", fmt.Sprintf("Cand-%d", suffix+2), "3a")
 	presentStudent := testpkg.CreateTestStudent(t, db, "Pres", fmt.Sprintf("Cand-%d", suffix+3), "3a")
 
-	create := func(studentID int64, status string) *scheduleModels.InstanceStudent {
-		row := &scheduleModels.InstanceStudent{InstanceID: inst.ID, StudentID: studentID, Status: status}
+	create := func(studentID int64, status string) *fixtures.InstanceStudent {
+		row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.InstanceID = inst.ID
+			fixtureRow.StudentID = studentID
+			fixtureRow.Status = status
+		})
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
 		return row
 	}
 
-	expectedRow := create(expectedStudent.ID, scheduleModels.AttendanceStatusExpected)
-	sickRow := create(sickStudent.ID, scheduleModels.AttendanceStatusExpected)
-	manualRow := create(manualStudent.ID, scheduleModels.AttendanceStatusAbsent)
-	presentRow := create(presentStudent.ID, scheduleModels.AttendanceStatusPresent)
+	expectedRow := create(expectedStudent.ID, fixtures.AttendanceStatusExpected())
+	sickRow := create(sickStudent.ID, fixtures.AttendanceStatusExpected())
+	manualRow := create(manualStudent.ID, fixtures.AttendanceStatusAbsent())
+	presentRow := create(presentStudent.ID, fixtures.AttendanceStatusPresent())
 
 	sick := &absencerecords.StudentStatusDay{
 		StudentID: sickStudent.ID, Date: calendar.Date(date), Status: absencerecords.StudentStatusDaySick,
@@ -1378,7 +1422,7 @@ func TestInstanceStudentRepository_FindNotScheduledCandidatesByInstanceIDs(t *te
 
 	got, err := repo.FindByID(ctx, sickRow.ID)
 	require.NoError(t, err)
-	require.Equal(t, scheduleModels.AttendanceStatusAbsent, got.Status, "precondition: the sick report writes the absence")
+	require.Equal(t, fixtures.AttendanceStatusAbsent(), got.Status, "precondition: the sick report writes the absence")
 
 	rows, err := repo.FindNotScheduledCandidatesByInstanceIDs(ctx, []int64{inst.ID})
 	require.NoError(t, err)
@@ -1432,12 +1476,12 @@ func TestInstanceStudentRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
 	studentAbsent := testpkg.CreateTestStudent(t, db, "Cnt", fmt.Sprintf("S3-%d", suffix), "3a")
 
 	// instA: expected + present (both non-absent), one absent → expect 2
-	testpkg.CreateTestInstanceStudent(t, db, instA.ID, studentExpected.ID, scheduleModels.AttendanceStatusExpected)
-	testpkg.CreateTestInstanceStudent(t, db, instA.ID, studentPresent.ID, scheduleModels.AttendanceStatusPresent)
-	testpkg.CreateTestInstanceStudent(t, db, instA.ID, studentAbsent.ID, scheduleModels.AttendanceStatusAbsent)
+	testpkg.CreateTestInstanceStudent(t, db, instA.ID, studentExpected.ID, fixtures.AttendanceStatusExpected())
+	testpkg.CreateTestInstanceStudent(t, db, instA.ID, studentPresent.ID, fixtures.AttendanceStatusPresent())
+	testpkg.CreateTestInstanceStudent(t, db, instA.ID, studentAbsent.ID, fixtures.AttendanceStatusAbsent())
 
 	// instB: 1 expected → expect 1
-	testpkg.CreateTestInstanceStudent(t, db, instB.ID, studentExpected.ID, scheduleModels.AttendanceStatusExpected)
+	testpkg.CreateTestInstanceStudent(t, db, instB.ID, studentExpected.ID, fixtures.AttendanceStatusExpected())
 
 	// instEmpty: nothing assigned → must NOT appear in map
 
@@ -1498,16 +1542,12 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 	statusDay := testpkg.CreateTestStudentStatusDay(t, db, graduate.ID, calendar.Date(future), "sick")
 
 	// Deleted: dated from today onwards and still planned.
-	testpkg.CreateTestInstanceStudent(t, db, futureInst.ID, graduate.ID,
-		scheduleModels.AttendanceStatusExpected)
-	testpkg.CreateTestInstanceStudent(t, db, todayInst.ID, graduate.ID,
-		scheduleModels.AttendanceStatusExpected)
+	testpkg.CreateTestInstanceStudent(t, db, futureInst.ID, graduate.ID, fixtures.AttendanceStatusExpected())
+	testpkg.CreateTestInstanceStudent(t, db, todayInst.ID, graduate.ID, fixtures.AttendanceStatusExpected())
 	// Kept: before `from`.
-	testpkg.CreateTestInstanceStudent(t, db, pastInst.ID, graduate.ID,
-		scheduleModels.AttendanceStatusExpected)
+	testpkg.CreateTestInstanceStudent(t, db, pastInst.ID, graduate.ID, fixtures.AttendanceStatusExpected())
 	// Kept: another child's future row must be untouched.
-	testpkg.CreateTestInstanceStudent(t, db, futureInst.ID, stayer.ID,
-		scheduleModels.AttendanceStatusExpected)
+	testpkg.CreateTestInstanceStudent(t, db, futureInst.ID, stayer.ID, fixtures.AttendanceStatusExpected())
 
 	archived := func(instanceID, studentID int64) int {
 		n, cErr := db.NewSelect().
@@ -1564,12 +1604,13 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 		// path writes. The status alone is not the proof — see the
 		// pre-marked-presence subtest below (#405 review).
 		checkedInAt := time.Now()
-		row := &scheduleModels.InstanceStudent{
-			InstanceID:  todayInst.ID,
-			StudentID:   graduate.ID,
-			Status:      scheduleModels.AttendanceStatusPresent,
-			CheckedInAt: &checkedInAt,
-		}
+		row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.InstanceID = todayInst.ID
+			fixtureRow.StudentID = graduate.ID
+			fixtureRow.Status = fixtures.AttendanceStatusPresent()
+			fixtureRow.CheckedInAt = &checkedInAt
+		})
+
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
 
@@ -1580,13 +1621,14 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 	})
 
 	t.Run("removes a future absence a status day owns", func(t *testing.T) {
-		absent := scheduleModels.AttendanceStatusAbsent
-		sick := scheduleModels.AttendanceSubstatusSick
+		absent := fixtures.AttendanceStatusAbsent()
+		sick := fixtures.AttendanceSubstatusSick()
 		row := testpkg.CreateTestInstanceStudent(t, db, futureInst.ID, graduate.ID, absent,
 			testpkg.InstanceStudentOpts{StudentStatusDayID: &statusDay.ID})
 		t.Cleanup(func() { require.NoError(t, repo.Delete(ctx, row.ID)) })
-		require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID,
-			scheduleModels.AttendanceFieldPatch{Substatus: &sick}))
+		require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID, *fixtures.NewAttendanceFieldPatch(func(fixtureRow *fixtures.AttendanceFieldPatch) {
+			fixtureRow.Substatus = &sick
+		})))
 
 		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
 		require.NoError(t, err)
@@ -1596,12 +1638,13 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 
 	t.Run("keeps a future row that records an actual presence", func(t *testing.T) {
 		checkedInAt := time.Now()
-		row := &scheduleModels.InstanceStudent{
-			InstanceID:  futureInst.ID,
-			StudentID:   graduate.ID,
-			Status:      scheduleModels.AttendanceStatusPresent,
-			CheckedInAt: &checkedInAt,
-		}
+		row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.InstanceID = futureInst.ID
+			fixtureRow.StudentID = graduate.ID
+			fixtureRow.Status = fixtures.AttendanceStatusPresent()
+			fixtureRow.CheckedInAt = &checkedInAt
+		})
+
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
 		t.Cleanup(func() { require.NoError(t, repo.Delete(ctx, row.ID)) })
@@ -1618,11 +1661,12 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 	// and counted for staffing, since none of those readers filter alumni
 	// (#405 review).
 	t.Run("removes a future presence nobody observed yet", func(t *testing.T) {
-		row := &scheduleModels.InstanceStudent{
-			InstanceID: futureInst.ID,
-			StudentID:  graduate.ID,
-			Status:     scheduleModels.AttendanceStatusPresent,
-		}
+		row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.InstanceID = futureInst.ID
+			fixtureRow.StudentID = graduate.ID
+			fixtureRow.Status = fixtures.AttendanceStatusPresent()
+		})
+
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
 		t.Cleanup(func() { require.NoError(t, repo.Delete(ctx, row.ID)) })
@@ -1637,12 +1681,13 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 
 	t.Run("keeps a future row carrying a stamped check-in", func(t *testing.T) {
 		checkedInAt := time.Now()
-		row := &scheduleModels.InstanceStudent{
-			InstanceID:  futureInst.ID,
-			StudentID:   graduate.ID,
-			Status:      scheduleModels.AttendanceStatusExpected,
-			CheckedInAt: &checkedInAt,
-		}
+		row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.InstanceID = futureInst.ID
+			fixtureRow.StudentID = graduate.ID
+			fixtureRow.Status = fixtures.AttendanceStatusExpected()
+			fixtureRow.CheckedInAt = &checkedInAt
+		})
+
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
 		t.Cleanup(func() { require.NoError(t, repo.Delete(ctx, row.ID)) })
@@ -1660,8 +1705,7 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 	})
 
 	t.Run("tenant isolation leaves other tenants alone", func(t *testing.T) {
-		row := testpkg.CreateTestInstanceStudent(t, db, futureInst.ID, graduate.ID,
-			scheduleModels.AttendanceStatusExpected)
+		row := testpkg.CreateTestInstanceStudent(t, db, futureInst.ID, graduate.ID, fixtures.AttendanceStatusExpected())
 		t.Cleanup(func() { require.NoError(t, repo.Delete(ctx, row.ID)) })
 
 		removed, err := repo.ArchivePlannedByStudentIDsFrom(
@@ -1706,13 +1750,13 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom_ManualStatusRo
 
 	// A hand-set absence: the PATCH stamps manual_status_at, clears any
 	// status-day provenance and drops the non-booking marker.
-	handSetAbsence := func(t *testing.T) *scheduleModels.InstanceStudent {
+	handSetAbsence := func(t *testing.T) *fixtures.InstanceStudent {
 		t.Helper()
-		row := testpkg.CreateTestInstanceStudent(t, db, inst.ID, graduate.ID,
-			scheduleModels.AttendanceStatusExpected)
-		absent := scheduleModels.AttendanceStatusAbsent
-		require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID,
-			scheduleModels.AttendanceFieldPatch{Status: &absent}))
+		row := testpkg.CreateTestInstanceStudent(t, db, inst.ID, graduate.ID, fixtures.AttendanceStatusExpected())
+		absent := fixtures.AttendanceStatusAbsent()
+		require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID, *fixtures.NewAttendanceFieldPatch(func(fixtureRow *fixtures.AttendanceFieldPatch) {
+			fixtureRow.Status = &absent
+		})))
 		stored, err := repo.FindByInstanceAndStudent(ctx, inst.ID, graduate.ID)
 		require.NoError(t, err)
 		require.NotNil(t, stored.ManualStatusAt, "the PATCH must record that a human decided this row")
@@ -1758,7 +1802,7 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom_ManualStatusRo
 		back, err := repo.FindByInstanceAndStudent(ctx, inst.ID, graduate.ID)
 		require.NoError(t, err)
 		require.NotNil(t, back)
-		assert.Equal(t, scheduleModels.AttendanceStatusAbsent, back.Status,
+		assert.Equal(t, fixtures.AttendanceStatusAbsent(), back.Status,
 			"the supervisor's decision comes back verbatim")
 		assert.NotNil(t, back.ManualStatusAt, "and it is still marked as hand-set")
 		assert.Nil(t, back.StudentStatusDayID, "a hand-set status carries no day-status provenance")
@@ -1779,7 +1823,7 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_SkipsFrozen(t *te
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instanceRepo := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance
+	instanceRepo := fixtures.FromActivityInstanceRecords(api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance)
 
 	account := testpkg.CreateTestAccount(t, db, "roster-restore-frozen@test.local")
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
@@ -1797,10 +1841,8 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_SkipsFrozen(t *te
 	suffix := time.Now().UnixNano()
 	graduate := testpkg.CreateTestStudent(t, db, "Abgang", fmt.Sprintf("F-%d", suffix), "4a")
 
-	testpkg.CreateTestInstanceStudent(t, db, finishedInst.ID, graduate.ID,
-		scheduleModels.AttendanceStatusExpected)
-	testpkg.CreateTestInstanceStudent(t, db, openInst.ID, graduate.ID,
-		scheduleModels.AttendanceStatusExpected)
+	testpkg.CreateTestInstanceStudent(t, db, finishedInst.ID, graduate.ID, fixtures.AttendanceStatusExpected())
+	testpkg.CreateTestInstanceStudent(t, db, openInst.ID, graduate.ID, fixtures.AttendanceStatusExpected())
 
 	removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
 	require.NoError(t, err)
@@ -1882,16 +1924,10 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentSta
 	// sickness, the other two were plain plan rows.
 	oldStatusDay := testpkg.CreateTestStudentStatusDay(t, db, recovered.ID, calendar.Date(soon), "sick")
 
-	testpkg.CreateTestInstanceStudent(t, db, inst.ID, sickened.ID,
-		scheduleModels.AttendanceStatusExpected)
-	testpkg.CreateTestInstanceStudent(t, db, inst.ID, recovered.ID,
-		scheduleModels.AttendanceStatusAbsent,
-		testpkg.InstanceStudentOpts{StudentStatusDayID: &oldStatusDay.ID})
-	testpkg.CreateTestInstanceStudent(t, db, inst.ID, unbooked.ID,
-		scheduleModels.AttendanceStatusExpected,
-		testpkg.InstanceStudentOpts{NotScheduled: true})
-	testpkg.CreateTestInstanceStudent(t, db, inst.ID, partiallyExcused.ID,
-		scheduleModels.AttendanceStatusExpected)
+	testpkg.CreateTestInstanceStudent(t, db, inst.ID, sickened.ID, fixtures.AttendanceStatusExpected())
+	testpkg.CreateTestInstanceStudent(t, db, inst.ID, recovered.ID, fixtures.AttendanceStatusAbsent(), testpkg.InstanceStudentOpts{StudentStatusDayID: &oldStatusDay.ID})
+	testpkg.CreateTestInstanceStudent(t, db, inst.ID, unbooked.ID, fixtures.AttendanceStatusExpected(), testpkg.InstanceStudentOpts{NotScheduled: true})
+	testpkg.CreateTestInstanceStudent(t, db, inst.ID, partiallyExcused.ID, fixtures.AttendanceStatusExpected())
 
 	graduates := []int64{sickened.ID, recovered.ID, unbooked.ID, partiallyExcused.ID}
 	removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, graduates, today, time.Now())
@@ -1916,7 +1952,7 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentSta
 	require.NoError(t, err)
 	require.Equal(t, 4, replayed)
 
-	get := func(studentID int64) *scheduleModels.InstanceStudent {
+	get := func(studentID int64) *fixtures.InstanceStudent {
 		got, gErr := repo.FindByInstanceAndStudent(ctx, inst.ID, studentID)
 		require.NoError(t, gErr)
 		require.NotNil(t, got)
@@ -1924,30 +1960,30 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentSta
 	}
 
 	gotSickened := get(sickened.ID)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, gotSickened.Status,
+	assert.Equal(t, fixtures.AttendanceStatusAbsent(), gotSickened.Status,
 		"a sickness reported while the child was an alumnus must win over the archived plan")
 	require.NotNil(t, gotSickened.Substatus)
-	assert.Equal(t, scheduleModels.AttendanceSubstatusSick, *gotSickened.Substatus)
+	assert.Equal(t, fixtures.AttendanceSubstatusSick(), *gotSickened.Substatus)
 	require.NotNil(t, gotSickened.StudentStatusDayID)
 	assert.Equal(t, newStatusDay.ID, *gotSickened.StudentStatusDayID,
 		"the row must be owned by the status day that is active now")
 
 	gotRecovered := get(recovered.ID)
-	assert.Equal(t, scheduleModels.AttendanceStatusExpected, gotRecovered.Status,
+	assert.Equal(t, fixtures.AttendanceStatusExpected(), gotRecovered.Status,
 		"a cleared status day must not come back as an absence")
 	assert.Nil(t, gotRecovered.Substatus)
 	assert.Nil(t, gotRecovered.StudentStatusDayID)
 
 	gotUnbooked := get(unbooked.ID)
 	assert.True(t, gotUnbooked.NotScheduled, "the non-booking marker is structural and replays verbatim")
-	assert.Equal(t, scheduleModels.AttendanceStatusExpected, gotUnbooked.Status)
+	assert.Equal(t, fixtures.AttendanceStatusExpected(), gotUnbooked.Status)
 	assert.Nil(t, gotUnbooked.StudentStatusDayID)
 
 	gotPartial := get(partiallyExcused.ID)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, gotPartial.Status,
+	assert.Equal(t, fixtures.AttendanceStatusAbsent(), gotPartial.Status,
 		"a partial excusal created while the child was an alumnus must be replayed")
 	require.NotNil(t, gotPartial.Substatus)
-	assert.Equal(t, scheduleModels.AttendanceSubstatusExcused, *gotPartial.Substatus)
+	assert.Equal(t, fixtures.AttendanceSubstatusExcused(), *gotPartial.Substatus)
 	assert.Nil(t, gotPartial.StudentStatusDayID)
 	require.NotNil(t, gotPartial.PickupExceptionID)
 	assert.Equal(t, partial.ID, *gotPartial.PickupExceptionID)
@@ -1969,15 +2005,13 @@ func TestInstanceStudentRepository_ApplyActivePartialAbsencesSkipsCancelledInsta
 	defer cleanupActive()
 	cancelledInst, cleanupCancelled := createInstanceFixture(t, db, "partial-cxl", date)
 	defer cleanupCancelled()
-	moveInstanceTo(t, db, cancelledInst, scheduleModels.InstanceStatusCancelled)
+	moveInstanceTo(t, db, cancelledInst, fixtures.InstanceStatusCancelled())
 
 	student := testpkg.CreateTestStudent(t, db, "Cancel", fmt.Sprintf("Partial-%d", time.Now().UnixNano()), "3a")
 	staff := testpkg.CreateTestStaff(t, db, "Partial", fmt.Sprintf("Cancel-%d", time.Now().UnixNano()))
 
-	activeRow := testpkg.CreateTestInstanceStudent(t, db, activeInst.ID, student.ID,
-		scheduleModels.AttendanceStatusExpected)
-	cancelledRow := testpkg.CreateTestInstanceStudent(t, db, cancelledInst.ID, student.ID,
-		scheduleModels.AttendanceStatusExpected)
+	activeRow := testpkg.CreateTestInstanceStudent(t, db, activeInst.ID, student.ID, fixtures.AttendanceStatusExpected())
+	cancelledRow := testpkg.CreateTestInstanceStudent(t, db, cancelledInst.ID, student.ID, fixtures.AttendanceStatusExpected())
 
 	partial := testpkg.CreateTestPickupException(t, db, student.ID, date, staff.ID, "13:00", "Termin")
 	from := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
@@ -1992,7 +2026,7 @@ func TestInstanceStudentRepository_ApplyActivePartialAbsencesSkipsCancelledInsta
 
 	gotCancelled, err := repo.FindByID(ctx, cancelledRow.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusExpected, gotCancelled.Status)
+	assert.Equal(t, fixtures.AttendanceStatusExpected(), gotCancelled.Status)
 	assert.Nil(t, gotCancelled.PickupExceptionID)
 
 	n, err = repo.ApplyActivePartialAbsencesForInstance(ctx, activeInst.ID, date)
@@ -2001,7 +2035,7 @@ func TestInstanceStudentRepository_ApplyActivePartialAbsencesSkipsCancelledInsta
 
 	gotActive, err := repo.FindByID(ctx, activeRow.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, gotActive.Status)
+	assert.Equal(t, fixtures.AttendanceStatusAbsent(), gotActive.Status)
 	require.NotNil(t, gotActive.PickupExceptionID)
 	assert.Equal(t, partial.ID, *gotActive.PickupExceptionID)
 }
@@ -2023,16 +2057,14 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceSkipsCompletedInstance(t *
 	defer cleanupActive()
 	completedInst, cleanupCompleted := createInstanceFixture(t, db, "partial-done", date)
 	defer cleanupCompleted()
-	moveInstanceTo(t, db, completedInst, scheduleModels.InstanceStatusCompleted)
+	moveInstanceTo(t, db, completedInst, fixtures.InstanceStatusCompleted())
 
 	student := testpkg.CreateTestStudent(t, db, "Done", fmt.Sprintf("Partial-%d", time.Now().UnixNano()), "3a")
 	staff := testpkg.CreateTestStaff(t, db, "Partial", fmt.Sprintf("Done-%d", time.Now().UnixNano()))
 
-	activeRow := testpkg.CreateTestInstanceStudent(t, db, activeInst.ID, student.ID,
-		scheduleModels.AttendanceStatusExpected)
+	activeRow := testpkg.CreateTestInstanceStudent(t, db, activeInst.ID, student.ID, fixtures.AttendanceStatusExpected())
 	// Post-completion state: a bare historical absence without provenance.
-	completedRow := testpkg.CreateTestInstanceStudent(t, db, completedInst.ID, student.ID,
-		scheduleModels.AttendanceStatusAbsent)
+	completedRow := testpkg.CreateTestInstanceStudent(t, db, completedInst.ID, student.ID, fixtures.AttendanceStatusAbsent())
 
 	partial := testpkg.CreateTestPickupException(t, db, student.ID, date, staff.ID, "13:00", "Termin")
 	from := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
@@ -2047,13 +2079,13 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceSkipsCompletedInstance(t *
 
 	gotCompleted, err := repo.FindByID(ctx, completedRow.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, gotCompleted.Status)
+	assert.Equal(t, fixtures.AttendanceStatusAbsent(), gotCompleted.Status)
 	assert.Nil(t, gotCompleted.Substatus, "completed row must keep its bare historical absence")
 	assert.Nil(t, gotCompleted.PickupExceptionID, "completed row must not gain pickup provenance")
 
 	gotActive, err := repo.FindByID(ctx, activeRow.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, gotActive.Status)
+	assert.Equal(t, fixtures.AttendanceStatusAbsent(), gotActive.Status)
 	require.NotNil(t, gotActive.PickupExceptionID)
 	assert.Equal(t, partial.ID, *gotActive.PickupExceptionID)
 }
@@ -2079,10 +2111,8 @@ func TestInstanceStudentRepository_ReleasePartialAbsenceSkipsCompletedInstance(t
 	student := testpkg.CreateTestStudent(t, db, "Release", fmt.Sprintf("Done-%d", time.Now().UnixNano()), "3a")
 	staff := testpkg.CreateTestStaff(t, db, "Release", fmt.Sprintf("Partial-%d", time.Now().UnixNano()))
 
-	activeRow := testpkg.CreateTestInstanceStudent(t, db, activeInst.ID, student.ID,
-		scheduleModels.AttendanceStatusExpected)
-	completedRow := testpkg.CreateTestInstanceStudent(t, db, completedInst.ID, student.ID,
-		scheduleModels.AttendanceStatusExpected)
+	activeRow := testpkg.CreateTestInstanceStudent(t, db, activeInst.ID, student.ID, fixtures.AttendanceStatusExpected())
+	completedRow := testpkg.CreateTestInstanceStudent(t, db, completedInst.ID, student.ID, fixtures.AttendanceStatusExpected())
 
 	partial := testpkg.CreateTestPickupException(t, db, student.ID, date, staff.ID, "13:00", "Termin")
 	from := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
@@ -2096,7 +2126,7 @@ func TestInstanceStudentRepository_ReleasePartialAbsenceSkipsCompletedInstance(t
 	n, err := repo.ApplyPartialAbsence(ctx, partial.ID)
 	require.NoError(t, err)
 	require.Equal(t, 2, n)
-	moveInstanceTo(t, db, completedInst, scheduleModels.InstanceStatusCompleted)
+	moveInstanceTo(t, db, completedInst, fixtures.InstanceStatusCompleted())
 
 	released, err := repo.ReleasePartialAbsence(ctx, partial.ID)
 	require.NoError(t, err)
@@ -2104,15 +2134,15 @@ func TestInstanceStudentRepository_ReleasePartialAbsenceSkipsCompletedInstance(t
 
 	gotActive, err := repo.FindByID(ctx, activeRow.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusExpected, gotActive.Status)
+	assert.Equal(t, fixtures.AttendanceStatusExpected(), gotActive.Status)
 	assert.Nil(t, gotActive.Substatus)
 	assert.Nil(t, gotActive.PickupExceptionID)
 
 	gotCompleted, err := repo.FindByID(ctx, completedRow.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, gotCompleted.Status)
+	assert.Equal(t, fixtures.AttendanceStatusAbsent(), gotCompleted.Status)
 	require.NotNil(t, gotCompleted.Substatus)
-	assert.Equal(t, scheduleModels.AttendanceSubstatusExcused, *gotCompleted.Substatus,
+	assert.Equal(t, fixtures.AttendanceSubstatusExcused(), *gotCompleted.Substatus,
 		"completed row keeps its historical excused record")
 	require.NotNil(t, gotCompleted.PickupExceptionID)
 	assert.Equal(t, partial.ID, *gotCompleted.PickupExceptionID,
@@ -2139,8 +2169,7 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceClaimsBridgeBareAbsence(t 
 	staff := testpkg.CreateTestStaff(t, db, "Partial", fmt.Sprintf("Bridge-%d", time.Now().UnixNano()))
 
 	// Session-end bridge already stamped a bare absence (no provenance).
-	row := testpkg.CreateTestInstanceStudent(t, db, inst.ID, student.ID,
-		scheduleModels.AttendanceStatusAbsent)
+	row := testpkg.CreateTestInstanceStudent(t, db, inst.ID, student.ID, fixtures.AttendanceStatusAbsent())
 
 	partial := testpkg.CreateTestPickupException(t, db, student.ID, date, staff.ID, "13:00", "Termin")
 	from := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
@@ -2155,9 +2184,9 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceClaimsBridgeBareAbsence(t 
 
 	got, err := repo.FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got.Status)
+	assert.Equal(t, fixtures.AttendanceStatusAbsent(), got.Status)
 	require.NotNil(t, got.Substatus)
-	assert.Equal(t, scheduleModels.AttendanceSubstatusExcused, *got.Substatus)
+	assert.Equal(t, fixtures.AttendanceSubstatusExcused(), *got.Substatus)
 	require.NotNil(t, got.PickupExceptionID)
 	assert.Equal(t, partial.ID, *got.PickupExceptionID)
 
@@ -2166,7 +2195,7 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceClaimsBridgeBareAbsence(t 
 	require.NoError(t, err)
 	assert.Equal(t, 1, released)
 	statusDay := testpkg.CreateTestStudentStatusDay(t, db, student.ID, calendar.Date(date), "sick")
-	applied, err := repo.ApplyStatusDay(ctx, student.ID, date, statusDay.ID, scheduleModels.AttendanceSubstatusSick)
+	applied, err := repo.ApplyStatusDay(ctx, student.ID, date, statusDay.ID, fixtures.AttendanceSubstatusSick())
 	require.NoError(t, err)
 	assert.Equal(t, 1, applied)
 
@@ -2187,8 +2216,8 @@ func TestInstanceStudentRepository_FindPartialAbsenceBlocksIncludesUnmaterialize
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db).(interface {
-		FindPartialAbsenceBlocks(context.Context, int64, calendar.Date, time.Time) ([]scheduleModels.PartialAbsenceBlock, error)
-		Update(context.Context, *scheduleModels.InstanceStudent) error
+		FindPartialAbsenceBlocks(context.Context, int64, calendar.Date, time.Time) ([]fixtures.PartialAbsenceBlock, error)
+		Update(context.Context, *fixtures.InstanceStudent) error
 	})
 	date := calendar.NewDate(2026, 11, 10)
 
@@ -2217,8 +2246,7 @@ func TestInstanceStudentRepository_FindPartialAbsenceBlocksIncludesUnmaterialize
 	require.Len(t, blocks, 1)
 	assert.Equal(t, instance.ID, blocks[0].ID)
 
-	row := testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID,
-		scheduleModels.AttendanceStatusAbsent)
+	row := testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, fixtures.AttendanceStatusAbsent())
 	staff := testpkg.CreateTestStaff(t, db, "Preview", fmt.Sprintf("Exception-%d", time.Now().UnixNano()))
 	otherException := testpkg.CreateTestPickupException(t, db, student.ID, date, staff.ID, "14:30", "Termin")
 	row.PickupExceptionID = &otherException.ID
@@ -2250,7 +2278,7 @@ func TestInstanceStudentRepository_FindPresentInOtherActiveInstances(t *testing.
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instRepo := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance
+	instRepo := fixtures.FromActivityInstanceRecords(api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance)
 
 	student := testpkg.CreateTestStudent(t, db, "Paula", fmt.Sprintf("Parallel-%d", time.Now().UnixNano()), "1a")
 	other := testpkg.CreateTestStudent(t, db, "Otto", fmt.Sprintf("Parallel-%d", time.Now().UnixNano()+1), "1a")
@@ -2264,38 +2292,43 @@ func TestInstanceStudentRepository_FindPresentInOtherActiveInstances(t *testing.
 	instPlanned, cleanPlanned := createInstanceFixture(t, db, "par-planned", day)
 	defer cleanPlanned()
 
-	activate := func(inst *scheduleModels.ActivityInstance, title string) {
+	activate := func(inst *fixtures.ActivityInstance, title string) {
 		inst.Title = title
 		inst.StartTime = time.Date(2024, 1, 1, 12, 45, 0, 0, time.UTC)
 		inst.EndTime = time.Date(2024, 1, 1, 13, 45, 0, 0, time.UTC)
 		require.NoError(t, instRepo.Update(ctx, inst))
-		moveInstanceTo(t, db, inst, scheduleModels.InstanceStatusActive)
+		moveInstanceTo(t, db, inst, fixtures.InstanceStatusActive())
 	}
 	activate(instTarget, "Lernzeit JG 1")
 	activate(instActive, "GT 1")
 
-	mkRow := func(instID, studentID int64, status string) *scheduleModels.InstanceStudent {
-		row := &scheduleModels.InstanceStudent{InstanceID: instID, StudentID: studentID, Status: status}
+	mkRow := func(instID, studentID int64, status string) *fixtures.InstanceStudent {
+		row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.InstanceID = instID
+			fixtureRow.StudentID = studentID
+			fixtureRow.Status = status
+		})
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
 		return row
 	}
 	// Present in the target itself — must be excluded.
-	mkRow(instTarget.ID, student.ID, scheduleModels.AttendanceStatusPresent)
+	mkRow(instTarget.ID, student.ID, fixtures.AttendanceStatusPresent())
 	// Present in another ACTIVE instance — the one expected hit.
-	mkRow(instActive.ID, student.ID, scheduleModels.AttendanceStatusPresent)
+	mkRow(instActive.ID, student.ID, fixtures.AttendanceStatusPresent())
 	// Present in a PLANNED instance — not running, excluded.
-	mkRow(instPlanned.ID, student.ID, scheduleModels.AttendanceStatusPresent)
+	mkRow(instPlanned.ID, student.ID, fixtures.AttendanceStatusPresent())
 	// Only expected in the other active instance — excluded.
-	mkRow(instActive.ID, other.ID, scheduleModels.AttendanceStatusExpected)
+	mkRow(instActive.ID, other.ID, fixtures.AttendanceStatusExpected())
 	// A checked-out row retains status='present' but is no longer current.
 	checkedOutAt := time.Date(2026, 9, 21, 13, 0, 0, 0, time.UTC)
-	rCheckedOut := &scheduleModels.InstanceStudent{
-		InstanceID:   instActive.ID,
-		StudentID:    checkedOut.ID,
-		Status:       scheduleModels.AttendanceStatusPresent,
-		CheckedOutAt: &checkedOutAt,
-	}
+	rCheckedOut := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.InstanceID = instActive.ID
+		fixtureRow.StudentID = checkedOut.ID
+		fixtureRow.Status = fixtures.AttendanceStatusPresent()
+		fixtureRow.CheckedOutAt = &checkedOutAt
+	})
+
 	rCheckedOut.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, rCheckedOut))
 
@@ -2334,34 +2367,40 @@ func TestInstanceStudentRepository_BatchAttendanceMirrors(t *testing.T) {
 
 	// A is expected — the batch check-in must flip it. B is already present
 	// and open — the guard must preserve its original check-in.
-	rowA := &scheduleModels.InstanceStudent{
-		InstanceID: inst.ID,
-		StudentID:  studentA.ID,
-		Status:     scheduleModels.AttendanceStatusExpected,
-	}
+	rowA := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StudentID = studentA.ID
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	})
+
 	rowA.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, rowA))
 
 	firstCheckin := time.Date(2026, 10, 20, 13, 0, 0, 0, time.UTC)
-	rowB := &scheduleModels.InstanceStudent{
-		InstanceID:  inst.ID,
-		StudentID:   studentB.ID,
-		Status:      scheduleModels.AttendanceStatusPresent,
-		CheckedInAt: &firstCheckin,
-	}
+	rowB := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StudentID = studentB.ID
+		fixtureRow.Status = fixtures.AttendanceStatusPresent()
+		fixtureRow.CheckedInAt = &firstCheckin
+	})
+
 	rowB.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, rowB))
 
-	keys := []scheduleModels.InstanceStudentKey{
-		{InstanceID: inst.ID, StudentID: studentA.ID},
-		{InstanceID: inst.ID, StudentID: studentB.ID},
+	keys := []fixtures.InstanceStudentKey{*fixtures.NewInstanceStudentKey(func(fixtureRow *fixtures.InstanceStudentKey) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StudentID = studentA.ID
+	}), *fixtures.NewInstanceStudentKey(func(fixtureRow *fixtures.InstanceStudentKey) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StudentID = studentB.ID
+	}),
 	}
 	batchCheckin := time.Date(2026, 10, 20, 14, 0, 0, 0, time.UTC)
 	require.NoError(t, repo.UpdateAttendanceFromCheckinBatch(ctx, keys, batchCheckin))
 
 	gotA, err := repo.FindByID(ctx, rowA.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusPresent, gotA.Status)
+	assert.Equal(t, fixtures.AttendanceStatusPresent(), gotA.Status)
 	require.NotNil(t, gotA.CheckedInAt)
 	assert.WithinDuration(t, batchCheckin, *gotA.CheckedInAt, time.Second)
 
