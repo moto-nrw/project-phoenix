@@ -1505,6 +1505,7 @@
     "requestSubmitted": "Kërkesa u dërgua. Ekipi do ta kontrollojë ndryshimin.",
     "requestEdit": "Ndrysho kërkesën",
     "pendingBadge": "Në shqyrtim",
+    "pendingTitle": "Ndryshimi i kërkuar",
     "pendingNotice": "Një ndryshim në këtë fushë pret konfirmimin e ekipit.",
     "editDisabled": "Ndryshimi i këtyre të dhënave është çaktivizuar për këtë OGS.",
     "requestDisabled": "Kërkesat për ndryshim janë çaktivizuar për këtë OGS.",

@@ -1505,6 +1505,7 @@
     "requestSubmitted": "Anfrage gesendet. Das Team prüft Ihre Änderung.",
     "requestEdit": "Anfrage bearbeiten",
     "pendingBadge": "In Prüfung",
+    "pendingTitle": "Beantragte Änderung",
     "pendingNotice": "Eine Änderung an diesem Feld wartet auf Bestätigung durch das Team.",
     "editDisabled": "Das Bearbeiten dieser Angaben ist bei dieser OGS deaktiviert.",
     "requestDisabled": "Änderungsanfragen sind bei dieser OGS deaktiviert.",
