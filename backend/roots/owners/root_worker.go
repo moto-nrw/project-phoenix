@@ -186,7 +186,7 @@ func workerTracer(tracer *observability.Tracer) schedulerPorts.WorkerTracer {
 func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, tracer *observability.Tracer, tracker ProductEventTracker, tokensFor func() (TokenAdapter, error), communicationSession interface {
 	AccountID(context.Context) int64
 	Permissions(context.Context) []string
-}, timetableSession timetablePorts.RequestSession, principal func(context.Context) studentpresence.RequestPrincipal, withStaff func(context.Context, int64, int64) context.Context, events communicationEventRuntime, requestsRuntime communicationRequestRuntime, portalRuntime parentPortalRuntime) (schedulerPorts.Worker, error) {
+}, timetableSession timetablePorts.RequestSession, principal func(context.Context) studentpresence.RequestPrincipal, withStaff func(context.Context, int64, int64) context.Context, events communicationEventRuntime, requestsRuntime communicationRequestRuntime, portalRuntime parentPortalRuntime, documentPermissions carePlanCompose.StudentDocumentPermissions) (schedulerPorts.Worker, error) {
 	unit := db.UnitOfWork()
 	communicationCompose.InstrumentMessageQueries(db.Pool(), false)
 	renderer := lists.NewRendererService()
@@ -478,7 +478,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		},
 		func() (err error) {
 			requests, err = BuildCarePlanRequests(db, env, hub, carePlan, persons, people, schedules, offerings, enrollment,
-				timetableOwner, settings.Service, audit, services, emitter, caller, reviewPolicy, tokens.Permissions, notifications.AbsenceNotifier)
+				timetableOwner, settings.Service, audit, services, emitter, caller, reviewPolicy, tokens.Permissions, notifications.AbsenceNotifier, documentPermissions)
 			return
 		},
 		func() error {

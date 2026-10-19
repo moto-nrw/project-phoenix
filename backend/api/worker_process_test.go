@@ -11,6 +11,13 @@ import (
 	"testing"
 	"time"
 
+	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
+
+	"github.com/moto-nrw/project-phoenix/analytics"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
+	"github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/stretchr/testify/assert"
@@ -134,24 +141,27 @@ func TestStandaloneWorkerServesItsProbesAndStopsTheWorker(t *testing.T) {
 	}
 }
 
-// The real standalone composition must bind every job without building the server router.
+// The real worker root binds every job without constructing an API router.
 func TestStandaloneWorkerComposesItsJobsWithoutTheAPIRouter(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupTestDB(t)
-	called := false
-	err := WithRuntime(context.Background(), ServeConfig{
-		Port: "127.0.0.1:0", FrontendURL: "http://localhost:3000", PublicAPIURL: "http://api.invalid",
-		Logger: slog.New(slog.DiscardHandler), Process: ServeWorkerOnly,
-	}, func(runtime *Runtime) error {
-		called = true
-		require.NotNil(t, runtime.worker)
-		require.Nil(t, runtime.Handler(), "the worker builds no API router")
-		code, _ := probe(t, runtime.server.Handler, "/health", "")
-		require.Equal(t, http.StatusOK, code)
-		code, _ = probe(t, runtime.server.Handler, "/api/groups", "")
-		require.Equal(t, http.StatusNotFound, code)
-		return nil
-	})
+	serve := testpkg.SetupServeTestDB(t)
+	t.Cleanup(func() { require.NoError(t, serve.Close()) })
+	db := testpkg.NewDatabase(t, serve)
+	logger := slog.New(slog.DiscardHandler)
+	env, err := newProductionEnvironment(logger, "http://api.invalid")
 	require.NoError(t, err)
-	require.True(t, called)
+	hub := deliveryCompose.NewRealtimeHub(logger)
+	health, legal, fallback := carePlanHTTP.StudentDocumentPermissions()
+	worker, err := owners.ComposeWorker(db, env, hub, newRuntimeTracer(logger), analytics.NewNoop(),
+		newLegacyTokenAdapter, CommunicationSession{}, TimetableRequestSession{}, AttendancePrincipal,
+		deviceauth.WithAttendanceStaff, NewCommunicationEventRuntime(true, db.UnitOfWork()),
+		CommunicationRequestRuntime{}, ParentPortalRuntime{}, carePlanCompose.StudentDocumentPermissions{Health: health, Legal: legal, Default: fallback})
+	require.NoError(t, err)
+	require.NotNil(t, worker)
+	handler := workerProbeHandler(worker.Ready, "metrics-token")
+	code, _ := probe(t, handler, "/health", "")
+	require.Equal(t, http.StatusOK, code)
+	code, _ = probe(t, handler, "/api/groups", "")
+	require.Equal(t, http.StatusNotFound, code)
 }

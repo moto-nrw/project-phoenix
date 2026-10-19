@@ -74,7 +74,7 @@ import (
 // route resource where the values exist.
 func composeServeRoot(
 	db transactionruntime.Database, env owners.RootEnvironment, hub *realtime.Hub, config ServeConfig, tracker analytics.Tracker,
-	metrics *httpMetrics, tracer *observability.Tracer, metricsToken string, embedWorker bool,
+	metrics *httpMetrics, tracer *observability.Tracer, metricsToken string, embedWorker bool, documentPermissions carePlanCompose.StudentDocumentPermissions,
 ) (http.Handler, schedulerPorts.Worker, error) {
 	unit := db.UnitOfWork()
 	communicationCompose.InstrumentMessageQueries(db.Pool(), false)
@@ -405,7 +405,7 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			requests, err = owners.BuildCarePlanRequests(db, env, hub, carePlan, persons, people, schedules, offerings, enrollment,
-				timetableOwner, settings.Service, audit, services, emitter, caller, reviewPolicy, tokens.Permissions, notifications.AbsenceNotifier)
+				timetableOwner, settings.Service, audit, services, emitter, caller, reviewPolicy, tokens.Permissions, notifications.AbsenceNotifier, documentPermissions)
 			return
 		},
 		func() (err error) {

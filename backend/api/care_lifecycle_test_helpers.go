@@ -5,6 +5,8 @@ package api
 import (
 	"context"
 
+	carePlanHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
+
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
@@ -64,7 +66,8 @@ func NewStudentDocumentsTestModule(
 	userContext securityruntime.StudentAccessUserContext,
 	edits auditModels.StudentFieldEditRepository, accessLog auditModels.DataAccessLogRepository,
 ) (careplan.StudentDocuments, error) {
-	deps, err := owners.StudentDocumentDependencies(records, students, userContext, edits, accessLog)
+	health, legal, fallback := carePlanHTTP.StudentDocumentPermissions()
+	deps, err := owners.StudentDocumentDependencies(records, students, userContext, edits, accessLog, carePlanCompose.StudentDocumentPermissions{Health: health, Legal: legal, Default: fallback})
 	if err != nil {
 		return nil, err
 	}

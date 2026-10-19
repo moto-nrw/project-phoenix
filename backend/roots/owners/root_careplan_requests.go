@@ -54,7 +54,7 @@ func BuildCarePlanRequests(
 	persons peopledirectory.Capability, people PeopleRows, schedules CarePlanSchedules, offerings CarePlanOfferings,
 	enrollment EnrollmentRows, timetableOwner timetable.Capability, settings settingsCompose.BatchSettingsService,
 	audit AuditOwner, services PeopleServices, emitter eventContract.Emitter, caller *CallerRows,
-	reviews *ParentRequestReviewPolicy, permissions func(context.Context) []string, absences deliveryCompose.AbsenceNotifier,
+	reviews *ParentRequestReviewPolicy, permissions func(context.Context) []string, absences deliveryCompose.AbsenceNotifier, documentPermissions carePlanCompose.StudentDocumentPermissions,
 ) (CarePlanRequests, error) {
 	shares, err := requestShareVisibility(db)
 	if err != nil {
@@ -88,7 +88,7 @@ func BuildCarePlanRequests(
 	); err != nil {
 		return CarePlanRequests{}, fmt.Errorf("compose excused absence requests: %w", err)
 	}
-	return buildCarePlanDecisions(db, env, hub, carePlan, persons, people, services, emitter, caller, reviews, permissions, shares, audit, requests)
+	return buildCarePlanDecisions(db, env, hub, carePlan, persons, people, services, emitter, caller, reviews, permissions, shares, audit, requests, documentPermissions)
 }
 
 // buildOfferingChanges binds the offering-change review over Enrollment's
@@ -128,9 +128,9 @@ func buildCarePlanDecisions(
 	db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, carePlan careplan.Capability,
 	persons peopledirectory.Capability, people PeopleRows, services PeopleServices, emitter eventContract.Emitter,
 	caller *CallerRows, reviews *ParentRequestReviewPolicy, permissions func(context.Context) []string,
-	shares eventContract.ShareVisibilityResolver, audit AuditOwner, requests CarePlanRequests,
+	shares eventContract.ShareVisibilityResolver, audit AuditOwner, requests CarePlanRequests, documentPermissions carePlanCompose.StudentDocumentPermissions,
 ) (CarePlanRequests, error) {
-	deps, err := StudentDocumentDependencies(carePlan, people.Students, caller, audit.Persistence.StudentFieldEdit, audit.Persistence.DataAccessLog)
+	deps, err := StudentDocumentDependencies(carePlan, people.Students, caller, audit.Persistence.StudentFieldEdit, audit.Persistence.DataAccessLog, documentPermissions)
 	if err != nil {
 		return CarePlanRequests{}, fmt.Errorf("compose care plan documents: %w", err)
 	}

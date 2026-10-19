@@ -7,7 +7,6 @@ import (
 
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -101,7 +100,7 @@ func (a studentDocumentAudit) RecordDocumentDownload(ctx context.Context, studen
 func StudentDocumentDependencies(
 	records careplan.Capability, students studentDocumentStudents,
 	userContext securityruntime.StudentAccessUserContext,
-	edits studentDocumentEdits, accessLog studentDocumentAccessLog,
+	edits studentDocumentEdits, accessLog studentDocumentAccessLog, documentPermissions carePlanCompose.StudentDocumentPermissions,
 ) (carePlanCompose.StudentDocumentDependencies, error) {
 	if students == nil || userContext == nil {
 		return carePlanCompose.StudentDocumentDependencies{}, errors.New("student documents: student repository and user context are required")
@@ -109,11 +108,10 @@ func StudentDocumentDependencies(
 	if edits == nil || accessLog == nil {
 		return carePlanCompose.StudentDocumentDependencies{}, errors.New("student documents: change history and data access log are required; refusing unaudited changes")
 	}
-	health, legal, fallback := permissions.StudentDocumentsHealth, permissions.StudentDocumentsLegal, permissions.UsersUpdate
 	return carePlanCompose.StudentDocumentDependencies{
 		Records:     records,
 		Access:      studentDocumentAccess{students: students, userContext: userContext},
-		Permissions: carePlanCompose.StudentDocumentPermissions{Health: health, Legal: legal, Default: fallback},
+		Permissions: documentPermissions,
 		Audit:       studentDocumentAudit{edits: edits, accessLog: accessLog},
 	}, nil
 }
