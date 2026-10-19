@@ -121,17 +121,36 @@ func (s *Store) ListCourseGroups(ctx context.Context, filter domain.CourseGroupF
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
-	type courseGroupRow struct {
-		ID                    int64    `bun:"id"`
-		Active                bool     `bun:"active"`
-		MaxParticipants       int      `bun:"max_participants"`
-		SourceCareOfferingIDs []int64  `bun:"source_care_offering_ids,type:jsonb,nullzero"`
-		SourceGradeLevels     []int    `bun:"source_grade_levels,type:jsonb,nullzero"`
-		SourceSchoolClasses   []string `bun:"source_school_classes,type:jsonb,nullzero"`
-		ScheduledWeekdays     []int    `bun:"scheduled_weekdays,array"`
-	}
 	rows := []courseGroupRow{}
-	query := db.NewSelect().Model(&rows).ModelTableExpr(`activities.groups AS "group"`).
+	query := courseGroupListQuery(db, &rows, tenantID, filter)
+	stats, err := scanAll(ctx, query, "list course groups")
+	if err != nil {
+		return nil, stats, err
+	}
+	result := make([]domain.CourseGroup, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, courseGroupToDomain(row))
+	}
+	stats.Rows = int64(len(result))
+	return result, stats, nil
+}
+
+// courseGroupRow is the course-group projection ListCourseGroups scans.
+type courseGroupRow struct {
+	ID                    int64    `bun:"id"`
+	Active                bool     `bun:"active"`
+	MaxParticipants       int      `bun:"max_participants"`
+	SourceCareOfferingIDs []int64  `bun:"source_care_offering_ids,type:jsonb,nullzero"`
+	SourceGradeLevels     []int    `bun:"source_grade_levels,type:jsonb,nullzero"`
+	SourceSchoolClasses   []string `bun:"source_school_classes,type:jsonb,nullzero"`
+	ScheduledWeekdays     []int    `bun:"scheduled_weekdays,array"`
+}
+
+// courseGroupListQuery builds the course-group read: the group facts, its
+// scheduled weekdays (bounded to filter.EffectiveOn when set) and the legacy
+// group or source-offering match.
+func courseGroupListQuery(db bun.IDB, rows *[]courseGroupRow, tenantID int64, filter domain.CourseGroupFilter) *bun.SelectQuery {
+	query := db.NewSelect().Model(rows).ModelTableExpr(`activities.groups AS "group"`).
 		ColumnExpr(`"group".id, "group".archived_at IS NULL AS active, "group".max_participants,
 			"group".source_care_offering_ids, "group".source_grade_levels, "group".source_school_classes`)
 	if filter.EffectiveOn == "" {
@@ -168,24 +187,19 @@ func (s *Store) ListCourseGroups(ctx context.Context, filter domain.CourseGroupF
 			}
 			return q
 		})
-	stats, err := scanAll(ctx, query, "list course groups")
-	if err != nil {
-		return nil, stats, err
+	return query
+}
+
+func courseGroupToDomain(row courseGroupRow) domain.CourseGroup {
+	return domain.CourseGroup{
+		ID:                    row.ID,
+		Active:                row.Active,
+		MaxParticipants:       row.MaxParticipants,
+		SourceCareOfferingIDs: append([]int64(nil), row.SourceCareOfferingIDs...),
+		SourceGradeLevels:     append([]int(nil), row.SourceGradeLevels...),
+		SourceSchoolClasses:   append([]string(nil), row.SourceSchoolClasses...),
+		ScheduledWeekdays:     append([]int(nil), row.ScheduledWeekdays...),
 	}
-	result := make([]domain.CourseGroup, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, domain.CourseGroup{
-			ID:                    row.ID,
-			Active:                row.Active,
-			MaxParticipants:       row.MaxParticipants,
-			SourceCareOfferingIDs: append([]int64(nil), row.SourceCareOfferingIDs...),
-			SourceGradeLevels:     append([]int(nil), row.SourceGradeLevels...),
-			SourceSchoolClasses:   append([]string(nil), row.SourceSchoolClasses...),
-			ScheduledWeekdays:     append([]int(nil), row.ScheduledWeekdays...),
-		})
-	}
-	stats.Rows = int64(len(result))
-	return result, stats, nil
 }
 
 func (s *Store) CreateGroup(ctx context.Context, fields domain.GroupFields) (domain.Group, domain.OperationStats, error) {

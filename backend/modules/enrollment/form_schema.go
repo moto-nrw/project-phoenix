@@ -30,6 +30,15 @@ var validFormFieldTypes = map[FormFieldType]bool{
 // see sibling fields. appliesToChild is the owning field's scope; the
 // grade_level / care_offering sources are per-child only.
 func (c *VisibilityCondition) Validate(appliesToChild bool) error {
+	if err := c.validateOperatorValue(); err != nil {
+		return err
+	}
+	return c.validateSource(appliesToChild)
+}
+
+// validateOperatorValue checks the operator is known and that a value-taking
+// operator carries a scalar value.
+func (c *VisibilityCondition) validateOperatorValue() error {
 	switch c.Operator {
 	case ConditionOpEquals, ConditionOpNotEquals, ConditionOpNotEmpty, ConditionOpIncludes:
 	default:
@@ -58,7 +67,12 @@ func (c *VisibilityCondition) Validate(appliesToChild bool) error {
 			)
 		}
 	}
+	return nil
+}
 
+// validateSource checks the condition source against the operator and the
+// owning field's scope.
+func (c *VisibilityCondition) validateSource(appliesToChild bool) error {
 	switch c.Source {
 	case ConditionSourceField:
 		if strings.TrimSpace(c.Field) == "" {
@@ -258,7 +272,17 @@ func (f *FormField) validateQuestion() error {
 	if f.Type != FormFieldSelect && len(f.Options) > 0 {
 		return invalidInputf(CodeFormFieldOptionsInvalid, "options", "non-select field %q must not declare options", f.Key)
 	}
+	if err := f.validateAllowedTimes(); err != nil {
+		return err
+	}
+	if err := f.validateSingleModeGrades(); err != nil {
+		return err
+	}
+	return f.validateTarget()
+}
 
+// validateAllowedTimes checks and normalizes the fixed pickup times.
+func (f *FormField) validateAllowedTimes() error {
 	// AllowedTimes (fixed pickup times) is only meaningful on the pickup
 	// schedule field; everywhere else it would silently do nothing, so
 	// reject it. In particular the arrival schedule (schedule.arrival)
@@ -284,7 +308,12 @@ func (f *FormField) validateQuestion() error {
 			f.AllowedTimes[i] = t
 		}
 	}
+	return nil
+}
 
+// validateSingleModeGrades checks and normalizes the Heimweg-Beschränkung
+// grades.
+func (f *FormField) validateSingleModeGrades() error {
 	// SingleModeGrades (Heimweg-Beschränkung, #2381) only makes sense on
 	// the allowed-departure-modes field; anywhere else it would silently
 	// do nothing, so reject it. Grade bounds and dedup reuse the shared
@@ -302,7 +331,11 @@ func (f *FormField) validateQuestion() error {
 		}
 		f.SingleModeGrades = normalized
 	}
+	return nil
+}
 
+// validateTarget checks the structured-type and reserved-target pairing.
+func (f *FormField) validateTarget() error {
 	// Structured types are only meaningful when paired with their
 	// canonical target. They have no free-form variant — admins can't
 	// invent a "phone_list" with their own semantics.
@@ -548,6 +581,26 @@ func (b *FormLegalBlock) Validate() error {
 	b.DisplayMode = strings.TrimSpace(b.DisplayMode)
 	b.DocumentURL = strings.TrimSpace(b.DocumentURL)
 
+	validators := []func() error{
+		b.validateKey,
+		b.validateSource,
+		b.validateContent,
+		b.validateDisplayMode,
+	}
+	for _, validate := range validators {
+		if err := validate(); err != nil {
+			return err
+		}
+	}
+	var err error
+	b.Translations, err = b.Translations.Normalize(TranslationAttrTitle, TranslationAttrLabel, TranslationAttrText)
+	if err != nil {
+		return fmt.Errorf("legal block %q: %w", b.Key, err)
+	}
+	return nil
+}
+
+func (b *FormLegalBlock) validateKey() error {
 	if b.Key == "" {
 		return invalidInput(CodeLegalBlockKeyInvalid, "key", errors.New("legal block key is required"))
 	}
@@ -559,6 +612,11 @@ func (b *FormLegalBlock) Validate() error {
 			return invalidInputf(CodeLegalBlockKeyInvalid, "key", "legal block key %q must be lowercase letters, digits, or underscores", b.Key)
 		}
 	}
+	return nil
+}
+
+// validateSource defaults the source from the key and checks the pair.
+func (b *FormLegalBlock) validateSource() error {
 	if b.Source == "" {
 		if standardLegalBlockKeys[b.Key] {
 			b.Source = LegalBlockSourceStandard
@@ -575,6 +633,12 @@ func (b *FormLegalBlock) Validate() error {
 	if b.Source == LegalBlockSourceCustom && standardLegalBlockKeys[b.Key] {
 		return invalidInputf(CodeLegalBlockKeyInvalid, "key", "custom legal block key %q is reserved for a standard block", b.Key)
 	}
+	return nil
+}
+
+// validateContent checks the kind, the texts an enabled block needs and the
+// kinds that must not be required.
+func (b *FormLegalBlock) validateContent() error {
 	if !validLegalBlockKinds[b.Kind] {
 		return fmt.Errorf("legal block %q has unknown kind %q", b.Key, b.Kind)
 	}
@@ -594,14 +658,6 @@ func (b *FormLegalBlock) Validate() error {
 	// re-validated, so legacy consent+required rows keep resolving.
 	if b.Kind == LegalBlockKindConsent && b.Required {
 		return invalidInputf(CodeLegalBlockRequiredNotAllowed, "required", "consent legal block %q cannot be required", b.Key)
-	}
-	if err := b.validateDisplayMode(); err != nil {
-		return err
-	}
-	var err error
-	b.Translations, err = b.Translations.Normalize(TranslationAttrTitle, TranslationAttrLabel, TranslationAttrText)
-	if err != nil {
-		return fmt.Errorf("legal block %q: %w", b.Key, err)
 	}
 	return nil
 }
@@ -623,6 +679,27 @@ func (s *FormSchema) Validate() error {
 	if err := s.CoreRequirements.Validate(); err != nil {
 		return err
 	}
+	if err := s.validateLegalBlocks(); err != nil {
+		return err
+	}
+	byKey, err := s.validateFields()
+	if err != nil {
+		return err
+	}
+
+	// Second pass: validate cross-field visibility references now that
+	// every key is known. A "field" condition must point at an existing
+	// boolean/select field that the owning field can actually observe.
+	for i := range s.Fields {
+		if err := validateFieldVisibility(&s.Fields[i], byKey); err != nil {
+			return NestInput(err, fmt.Sprintf("fields.%d", i), "field %d", i)
+		}
+	}
+	return nil
+}
+
+// validateLegalBlocks validates every legal block and rejects duplicate keys.
+func (s *FormSchema) validateLegalBlocks() error {
 	// NOTE: a template may deliberately enable blocks while keeping
 	// data_processing disabled — pilot schools without a standalone
 	// Datenschutzinformation run their consent via the Elternbrief/AGB
@@ -638,14 +715,20 @@ func (s *FormSchema) Validate() error {
 		}
 		legalByKey[s.LegalBlocks[i].Key] = true
 	}
+	return nil
+}
+
+// validateFields validates every field, rejects duplicate keys and reserved
+// targets, and returns the fields by key.
+func (s *FormSchema) validateFields() (map[string]*FormField, error) {
 	byKey := make(map[string]*FormField, len(s.Fields))
 	seenTarget := make(map[string]string, len(s.Fields))
 	for i := range s.Fields {
 		if err := s.Fields[i].Validate(); err != nil {
-			return NestInput(err, fmt.Sprintf("fields.%d", i), "field %d", i)
+			return nil, NestInput(err, fmt.Sprintf("fields.%d", i), "field %d", i)
 		}
 		if _, dup := byKey[s.Fields[i].Key]; dup {
-			return invalidInputf(CodeFormFieldKeyDuplicate, fmt.Sprintf("fields.%d.key", i), "duplicate form field key %q", s.Fields[i].Key)
+			return nil, invalidInputf(CodeFormFieldKeyDuplicate, fmt.Sprintf("fields.%d.key", i), "duplicate form field key %q", s.Fields[i].Key)
 		}
 		byKey[s.Fields[i].Key] = &s.Fields[i]
 		// A reserved target writes one specific Stammdaten column on approval, so
@@ -655,21 +738,12 @@ func (s *FormSchema) Validate() error {
 		// target) may repeat. Keep in sync with the editor's reserved-targets picker.
 		if t := s.Fields[i].Target; t != "" {
 			if firstKey, dup := seenTarget[t]; dup {
-				return invalidInputf(CodeFormFieldTargetDuplicate, fmt.Sprintf("fields.%d.target", i), "duplicate field target %q on fields %q and %q", t, firstKey, s.Fields[i].Key)
+				return nil, invalidInputf(CodeFormFieldTargetDuplicate, fmt.Sprintf("fields.%d.target", i), "duplicate field target %q on fields %q and %q", t, firstKey, s.Fields[i].Key)
 			}
 			seenTarget[t] = s.Fields[i].Key
 		}
 	}
-
-	// Second pass: validate cross-field visibility references now that
-	// every key is known. A "field" condition must point at an existing
-	// boolean/select field that the owning field can actually observe.
-	for i := range s.Fields {
-		if err := validateFieldVisibility(&s.Fields[i], byKey); err != nil {
-			return NestInput(err, fmt.Sprintf("fields.%d", i), "field %d", i)
-		}
-	}
-	return nil
+	return byKey, nil
 }
 
 // validateFieldVisibility checks a field's "field"-sourced visibility

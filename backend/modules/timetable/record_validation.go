@@ -115,8 +115,14 @@ func validStudentEnrollment(input StudentEnrollmentInput) bool {
 	if input.AttendanceStatus != nil && !validAttendanceStatus(*input.AttendanceStatus) {
 		return false
 	}
-	seen := make(map[int]struct{}, len(input.SelectedWeekdays))
-	for _, weekday := range input.SelectedWeekdays {
+	return validSelectedWeekdays(input.SelectedWeekdays)
+}
+
+// validSelectedWeekdays reports whether every selected weekday is valid and
+// appears once.
+func validSelectedWeekdays(weekdays []int) bool {
+	seen := make(map[int]struct{}, len(weekdays))
+	for _, weekday := range weekdays {
 		if !validWeekday(weekday) {
 			return false
 		}
