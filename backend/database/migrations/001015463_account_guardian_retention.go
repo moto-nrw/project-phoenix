@@ -82,17 +82,24 @@ const accountGuardianRetentionUpSQL = `
 		SECURITY DEFINER
 		SET search_path = pg_catalog, auth
 		AS $$
+		DECLARE
+			referenced_account_id BIGINT;
 		BEGIN
-			IF NEW.account_id IS NULL THEN
-				RETURN NEW;
-			END IF;
-			PERFORM 1 FROM auth.accounts
-			WHERE id = NEW.account_id AND personal_data_erased_at IS NULL
-			FOR KEY SHARE;
-			IF NOT FOUND THEN
-				RAISE EXCEPTION 'cannot reference an erased account'
-					USING ERRCODE = '23503';
-			END IF;
+			FOR referenced_account_id IN
+				SELECT NULLIF(to_jsonb(NEW) ->> reference_column, '')::BIGINT
+				FROM unnest(TG_ARGV) AS reference_column
+			LOOP
+				IF referenced_account_id IS NULL THEN
+					CONTINUE;
+				END IF;
+				PERFORM 1 FROM auth.accounts
+				WHERE id = referenced_account_id AND personal_data_erased_at IS NULL
+				FOR KEY SHARE;
+				IF NOT FOUND THEN
+					RAISE EXCEPTION 'cannot reference an erased account'
+						USING ERRCODE = '23503';
+				END IF;
+			END LOOP;
 			RETURN NEW;
 		END;
 		$$;
@@ -100,27 +107,35 @@ const accountGuardianRetentionUpSQL = `
 		DROP TRIGGER IF EXISTS lock_live_account_reference ON users.persons;
 		CREATE TRIGGER lock_live_account_reference
 			BEFORE INSERT OR UPDATE OF account_id ON users.persons
-			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference();
+			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference('account_id');
 		DROP TRIGGER IF EXISTS lock_live_account_reference ON users.guardian_profiles;
 		CREATE TRIGGER lock_live_account_reference
 			BEFORE INSERT OR UPDATE OF account_id ON users.guardian_profiles
-			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference();
+			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference('account_id');
 		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.account_roles;
 		CREATE TRIGGER lock_live_account_reference
 			BEFORE INSERT OR UPDATE ON auth.account_roles
-			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference();
+			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference('account_id');
 		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.account_permissions;
 		CREATE TRIGGER lock_live_account_reference
 			BEFORE INSERT OR UPDATE ON auth.account_permissions
-			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference();
+			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference('account_id');
 		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.account_tenants;
 		CREATE TRIGGER lock_live_account_reference
 			BEFORE INSERT OR UPDATE ON auth.account_tenants
-			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference();
+			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference('account_id');
 		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.guardian_student_access;
 		CREATE TRIGGER lock_live_account_reference
 			BEFORE INSERT OR UPDATE OF account_id ON auth.guardian_student_access
-			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference();
+			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference('account_id');
+		DROP TRIGGER IF EXISTS lock_live_account_reference ON enrollment.requests;
+		CREATE TRIGGER lock_live_account_reference
+			BEFORE INSERT OR UPDATE OF guardian_account_id ON enrollment.requests
+			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference('guardian_account_id');
+		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.demo_accesses;
+		CREATE TRIGGER lock_live_account_reference
+			BEFORE INSERT OR UPDATE OF account_id, parent_account_id ON auth.demo_accesses
+			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference('account_id', 'parent_account_id');
 
 		CREATE OR REPLACE FUNCTION auth.account_is_unused(target_id BIGINT, target_email TEXT)
 		RETURNS BOOLEAN
@@ -356,6 +371,8 @@ const accountGuardianRetentionDownSQL = `
 				)
 			);
 
+		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.demo_accesses;
+		DROP TRIGGER IF EXISTS lock_live_account_reference ON enrollment.requests;
 		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.guardian_student_access;
 		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.account_tenants;
 		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.account_permissions;

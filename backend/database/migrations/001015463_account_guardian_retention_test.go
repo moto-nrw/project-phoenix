@@ -137,6 +137,16 @@ func TestAccountReferencesWaitForErasureAndRejectTheTombstone(t *testing.T) {
 	guardian := testpkg.CreateTestGuardianProfileForTenant(t, db, tenantID, "Guardian", "Link", "account-reference-guardian")
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Student", "Link", "1a")
 	guardianAccess := testpkg.CreateTestStudentGuardianLinkForTenant(t, db, tenantID, student.ID, guardian.ID, "parent")
+	phase := testpkg.CreateTestEnrollmentPhase(t, db)
+	request := testpkg.CreateTestEnrollmentRequestAwaitingGuardian(t, db, phase.ID, "account-reference-request@example.invalid", fmt.Sprintf("account-reference-request-%d", account.ID))
+	var demoAccessID int64
+	require.NoError(t, db.NewRaw(`INSERT INTO auth.demo_accesses
+		(email, first_name, last_name, school_name, token_hash, expires_at, school_slug)
+		VALUES (?, 'Demo', 'Referenz', 'OGS Beispiel', ?, NOW() + INTERVAL '1 day', ?)
+		RETURNING id`,
+		fmt.Sprintf("account-reference-demo-%d@example.invalid", account.ID),
+		fmt.Sprintf("account-reference-demo-%d", account.ID),
+		fmt.Sprintf("account-reference-demo-%d", account.ID)).Scan(ctx, &demoAccessID))
 	role := testpkg.CreateTestRoleForTenant(t, db, "account-reference-role", tenantID)
 	permission := testpkg.CreateTestPermission(t, db, "account-reference", "account-reference", "read")
 
@@ -190,6 +200,18 @@ func TestAccountReferencesWaitForErasureAndRejectTheTombstone(t *testing.T) {
 			query: `UPDATE auth.guardian_student_access SET account_id = ? WHERE tenant_id = ? AND relationship_id = ?`,
 			args:  []any{account.ID, tenantID, guardianAccess.ID},
 		},
+		"enrollment request": {
+			query: `UPDATE enrollment.requests SET guardian_account_id = ? WHERE id = ?`,
+			args:  []any{account.ID, request.ID},
+		},
+		"demo access": {
+			query: `UPDATE auth.demo_accesses SET account_id = ? WHERE id = ?`,
+			args:  []any{account.ID, demoAccessID},
+		},
+		"demo parent access": {
+			query: `UPDATE auth.demo_accesses SET parent_account_id = ? WHERE id = ?`,
+			args:  []any{account.ID, demoAccessID},
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, writeErr := db.ExecContext(ctx, write.query, write.args...)
@@ -197,11 +219,16 @@ func TestAccountReferencesWaitForErasureAndRejectTheTombstone(t *testing.T) {
 		})
 	}
 
-	var guardianAccountID, accessAccountID *int64
+	var guardianAccountID, accessAccountID, requestAccountID, demoAccountID, demoParentAccountID *int64
 	require.NoError(t, db.NewRaw(`SELECT account_id FROM users.guardian_profiles WHERE id = ?`, guardian.ID).Scan(ctx, &guardianAccountID))
 	require.NoError(t, db.NewRaw(`SELECT account_id FROM auth.guardian_student_access WHERE relationship_id = ?`, guardianAccess.ID).Scan(ctx, &accessAccountID))
+	require.NoError(t, db.NewRaw(`SELECT guardian_account_id FROM enrollment.requests WHERE id = ?`, request.ID).Scan(ctx, &requestAccountID))
+	require.NoError(t, db.NewRaw(`SELECT account_id, parent_account_id FROM auth.demo_accesses WHERE id = ?`, demoAccessID).Scan(ctx, &demoAccountID, &demoParentAccountID))
 	assert.Nil(t, guardianAccountID)
 	assert.Nil(t, accessAccountID)
+	assert.Nil(t, requestAccountID)
+	assert.Nil(t, demoAccountID)
+	assert.Nil(t, demoParentAccountID)
 }
 
 func TestOnlyTheAdminRoleMayEraseUnusedAccounts(t *testing.T) {
