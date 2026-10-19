@@ -6,9 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -22,13 +20,12 @@ func CreateTestVisit(tb testing.TB, db *bun.DB, studentID, activeGroupID int64, 
 // CreateTestVisitForTenant records a room stay in an explicit fixture tenant.
 func CreateTestVisitForTenant(tb testing.TB, db *bun.DB, tenantID, studentID, activeGroupID int64, entryTime time.Time, exitTime *time.Time) *studentpresence.Visit {
 	tb.Helper()
-	ctx, cancel := context.WithTimeout(tenant.WithTenantID(Ctx(tb), tenantID), 5*time.Second)
+	ctx, cancel := context.WithTimeout(Ctx(tb), 5*time.Second)
 	defer cancel()
-	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
-	require.NoError(tb, err)
-	visit, err := presence.RecordVisit(ctx, studentpresence.Visit{
-		StudentID: studentID, ActiveGroupID: activeGroupID, EntryTime: entryTime, ExitTime: exitTime,
-	})
+	visit := studentpresence.Visit{TenantID: tenantID, StudentID: studentID, ActiveGroupID: activeGroupID, EntryTime: entryTime, ExitTime: exitTime}
+	err := db.NewRaw(`INSERT INTO active.visits (tenant_id, student_id, active_group_id, entry_time, exit_time)
+ VALUES (?, ?, ?, ?, ?) RETURNING id, created_at, updated_at`, tenantID, studentID, activeGroupID, entryTime, exitTime).
+		Scan(ctx, &visit.ID, &visit.CreatedAt, &visit.UpdatedAt)
 	require.NoError(tb, err, "Failed to create test visit")
 	return &visit
 }
@@ -48,14 +45,12 @@ func CreateTestAttendanceForDate(tb testing.TB, db *bun.DB, studentID, staffID, 
 // CreateTestAttendanceForTenant records a school stay in an explicit fixture tenant.
 func CreateTestAttendanceForTenant(tb testing.TB, db *bun.DB, tenantID, studentID, staffID, deviceID int64, date calendar.Date, checkInTime time.Time, checkOutTime *time.Time) *studentpresence.Attendance {
 	tb.Helper()
-	ctx, cancel := context.WithTimeout(tenant.WithTenantID(Ctx(tb), tenantID), 5*time.Second)
+	ctx, cancel := context.WithTimeout(Ctx(tb), 5*time.Second)
 	defer cancel()
-	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
-	require.NoError(tb, err)
-	attendance, err := presence.RecordAttendance(ctx, studentpresence.Attendance{
-		StudentID: studentID, Date: date.String(), CheckInTime: checkInTime, CheckOutTime: checkOutTime,
-		CheckedInBy: staffID, DeviceID: deviceID,
-	})
+	attendance := studentpresence.Attendance{TenantID: tenantID, StudentID: studentID, Date: date.String(), CheckInTime: checkInTime, CheckOutTime: checkOutTime, CheckedInBy: staffID, DeviceID: deviceID}
+	err := db.NewRaw(`INSERT INTO active.attendance (tenant_id, student_id, date, check_in_time, check_out_time, checked_in_by, device_id)
+ VALUES (?, ?, ?, ?, ?, NULLIF(?, 0), NULLIF(?, 0)) RETURNING id, created_at, updated_at`, tenantID, studentID, date, checkInTime, checkOutTime, staffID, deviceID).
+		Scan(ctx, &attendance.ID, &attendance.CreatedAt, &attendance.UpdatedAt)
 	require.NoError(tb, err, "Failed to create test attendance record")
 	return &attendance
 }
@@ -64,11 +59,9 @@ func CreateTestAttendanceForTenant(tb testing.TB, db *bun.DB, tenantID, studentI
 // the web checkout does: booked by the staff member, without a device.
 func CheckOutTestAttendanceByStaff(tb testing.TB, db *bun.DB, studentID int64, date string, at time.Time, staffID int64) {
 	tb.Helper()
-	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
-	require.NoError(tb, err)
-	_, err = presence.CloseAttendance(Ctx(tb), studentpresence.AttendanceCheckout{
-		StudentIDs: []int64{studentID}, Date: date, At: at, StaffID: staffID,
-	})
+	_, err := db.NewUpdate().Table("active.attendance").
+		Set("check_out_time = ?", at).Set("checked_out_by = ?", staffID).Set("yard_since = NULL").Set("updated_at = NOW()").
+		Where("tenant_id = ?", Tenant(tb)).Where("student_id = ?", studentID).Where("date = ?", date).Where("check_out_time IS NULL").Exec(Ctx(tb))
 	require.NoError(tb, err, "Failed to check out test attendance")
 }
 
@@ -132,47 +125,4 @@ func CreateTestScheduledCheckout(tb testing.TB, db *bun.DB, studentID, staffID i
 	`, Tenant(tb), studentID, staffID, scheduledFor).Scan(ctx, &id)
 	require.NoError(tb, err, "Failed to create test scheduled checkout")
 	return id
-}
-
-// SessionRooms returns the room rows the composed session records project onto
-// the given sessions. The public contract answers with a room summary, so a
-// test that asserts the full projected row reads it here instead of naming the
-// module's composition itself.
-func SessionRooms(ctx context.Context, records studentpresence.SessionRecords, ids []int64) (map[int64]*presenceCompose.SessionRoom, error) {
-	sessions, _ := presenceCompose.SessionRepositories(records)
-	groups, err := sessions.FindByIDs(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	rooms := make(map[int64]*presenceCompose.SessionRoom, len(groups))
-	for id, group := range groups {
-		rooms[id] = group.Room
-	}
-	return rooms, nil
-}
-
-// SupervisionRowStaff returns the staff projection the composed supervision
-// records attach to the stored rows of an active group, in row order. The
-// public contract carries only the staff member's display name.
-func SupervisionRowStaff(ctx context.Context, records studentpresence.SessionRecords, activeGroupID int64) ([]*presenceCompose.SessionStaff, error) {
-	_, supervisors := presenceCompose.SessionRepositories(records)
-	rows, err := supervisors.FindByActiveGroupID(ctx, activeGroupID, true)
-	if err != nil {
-		return nil, err
-	}
-	staff := make([]*presenceCompose.SessionStaff, len(rows))
-	for i, row := range rows {
-		staff[i] = row.Staff
-	}
-	return staff, nil
-}
-
-// PresenceModule composes the Student Presence owner over the test database
-// for tests that need the owner's own outcome, such as a rejected duplicate
-// visit, rather than a fixture that already asserts success.
-func PresenceModule(tb testing.TB, db *bun.DB) *studentpresence.Module {
-	tb.Helper()
-	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
-	require.NoError(tb, err)
-	return presence
 }

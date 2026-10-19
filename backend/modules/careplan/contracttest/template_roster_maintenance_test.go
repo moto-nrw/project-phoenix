@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -351,7 +350,7 @@ func TestTemplateRosterMaintenanceFeeds_RejectsSourcesFromDifferentPhases(t *tes
 	otherPhase := *env.sourcePhase
 	otherPhase.ID = 0
 	otherPhase.Name = uniqueSchemaName("FeedAnderePhase-" + t.Name())
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), enrollmentTest.New().InsertPhase, &otherPhase))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), api.NewParentPortalEnrollments().Enrollment.InsertPhase, &otherPhase))
 	_, err := env.db.NewRaw(`UPDATE enrollment.care_offerings SET phase_id = ? WHERE id = ?`, otherPhase.ID, second.ID).Exec(ctx)
 	require.NoError(t, err)
 

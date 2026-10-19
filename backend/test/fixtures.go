@@ -3041,7 +3041,7 @@ func CreateTestEnrollmentRequestAwaitingGuardian(tb testing.TB, db *bun.DB, phas
 		StatusToken:       statusToken,
 		SubmittedAt:       time.Now(),
 	}
-	if err := TenantCommand1(tb, ctx, db, enrollmentOwner.New().InsertRequest, request); err != nil {
+	if err := insertEnrollmentRequest(tb, ctx, db, request); err != nil {
 		tb.Fatalf("create test enrollment request: %v", err)
 	}
 	return request
@@ -3060,7 +3060,7 @@ func createTestEnrollmentPhase(tb testing.TB, db *bun.DB, periodID *int64, today
 		CalendarPeriodID:          periodID,
 		IsActive:                  true,
 	}
-	err := TenantCommand1(tb, ctx, db, enrollmentOwner.New().InsertPhase, phase)
+	err := insertEnrollmentPhase(tb, ctx, db, phase)
 	if err != nil {
 		tb.Fatalf("create test enrollment phase: %v", err)
 	}

@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -49,11 +48,11 @@ var dienstplanMonday = calendar.NewDate(2026, time.July, 27)
 // with the staff roster read over the given tenant transaction.
 func dienstplanOverview(t *testing.T, db *bun.DB, tx bun.IDB, capability workforce.Capability, rooms workforceCompose.RoomReader) workforce.StaffScheduleOverviewQuery {
 	t.Helper()
-	instances := dienstplanInstances{rows: timetabletest.NewLegacyRows(t, NewTimetablePresenceProjection(testpkg.MustDatabase(db)))}
+	instances := dienstplanInstances{rows: NewTimetableTestLegacyRows(t, NewTimetablePresenceProjection(testpkg.MustDatabase(db)))}
 	return workforceCompose.NewStaffScheduleOverview(workforceCompose.StaffScheduleOverviewDependencies{
 		Shifts:        capability,
 		Instances:     instances,
-		InstanceStaff: dienstplanInstanceStaff{timetable: timetabletest.New(t, db)},
+		InstanceStaff: dienstplanInstanceStaff{timetable: NewTestTimetable(t, testpkg.MustDatabase(db))},
 		Rooms:         rooms,
 		Staff:         txStaffRoster{tx: tx},
 	})
@@ -231,7 +230,7 @@ func (r txStaffRoster) FindWithPersonByIDs(ctx context.Context, ids []int64) (ma
 // owner's presence-joined reads, in the scheduled-instance shape the
 // Workforce overview speaks.
 type dienstplanInstances struct {
-	rows timetabletest.LegacyRows
+	rows TimetableTestLegacyRows
 }
 
 func (s dienstplanInstances) FindByTenantAndDateRange(ctx context.Context, from, to calendar.Date) ([]*timetable.ScheduledInstance, error) {
@@ -242,7 +241,7 @@ func (s dienstplanInstances) FindByIDs(ctx context.Context, ids []int64) ([]*tim
 	return scheduledDienstplanInstances(s.rows.InstancesByID(ctx, ids))
 }
 
-func scheduledDienstplanInstances(rows []timetabletest.LegacyInstance, err error) ([]*timetable.ScheduledInstance, error) {
+func scheduledDienstplanInstances(rows []TimetableTestLegacyInstance, err error) ([]*timetable.ScheduledInstance, error) {
 	if err != nil {
 		return nil, err
 	}

@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,7 +16,7 @@ import (
 func TestRecurrenceEventsPreserveCalendarContracts(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module := timetabletest.New(t, db)
+	module := owners.NewTestTimetable(t, testpkg.MustDatabase(db))
 	ctx := testpkg.Ctx(t)
 	cases := []struct {
 		name       string
@@ -54,7 +55,7 @@ func TestRecurrenceEventsPreserveCalendarContracts(t *testing.T) {
 func TestRecurrenceEventsRespectTenantAndReadFailures(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module := timetabletest.New(t, db)
+	module := owners.NewTestTimetable(t, testpkg.MustDatabase(db))
 	ctx := testpkg.Ctx(t)
 	rule, err := module.CreateRecurrenceRule(ctx, timetable.RecurrenceRuleInput{Frequency: "daily", IntervalCount: 1})
 	require.NoError(t, err)

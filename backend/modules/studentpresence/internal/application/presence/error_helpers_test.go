@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -91,7 +92,8 @@ func TestIsDuplicateActiveVisitViolation(t *testing.T) {
 		db := testpkg.SetupTestDB(t)
 
 		ctx := testpkg.Ctx(t)
-		presence := testpkg.PresenceModule(t, db)
+		presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+		require.NoError(t, err)
 
 		// Hermetic fixtures.
 		student := testpkg.CreateTestStudent(t, db, "DupViol", "Student", "1a")
@@ -109,7 +111,7 @@ func TestIsDuplicateActiveVisitViolation(t *testing.T) {
 			ActiveGroupID: activeGroup.ID,
 			EntryTime:     time.Now(),
 		}
-		duplicate, err := presence.RecordVisit(ctx, duplicate)
+		duplicate, err = presence.RecordVisit(ctx, duplicate)
 
 		require.Error(t, err, "partial unique index from migration 1.15.47 must reject the second open visit")
 		assert.Equal(t, int64(0), duplicate.ID, "rejected insert must not assign an ID")
