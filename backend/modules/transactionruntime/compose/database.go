@@ -1,8 +1,6 @@
 package compose
 
 import (
-	"log/slog"
-
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime/internal/adapters/database"
@@ -14,8 +12,7 @@ import (
 // owner compositions and close it on shutdown, so no root names the ORM
 // (ADR 0053, point 5).
 type Database struct {
-	pool       *bun.DB
-	unitOfWork tenant.UnitOfWork
+	database.BoundDatabase[tenant.UnitOfWork]
 }
 
 // NewDatabase binds the tenant unit of work to an open pool. Tests and the
@@ -51,43 +48,12 @@ func OpenDemoDatabase() (Database, error) {
 	return openDatabase(database.DBConnForDemo, NewDemoDatabase)
 }
 
-// Pool is the opened pool the owner compositions take.
-func (d Database) Pool() *bun.DB { return d.pool }
-
-// UnitOfWork is the tenant unit of work bound to the pool.
-func (d Database) UnitOfWork() tenant.UnitOfWork { return d.unitOfWork }
-
-// Close releases the pool. A value without a pool has nothing to close.
-func (d Database) Close() error {
-	if d.pool == nil {
-		return nil
-	}
-	return database.ClosePool(d.pool)
-}
-
-// AddQueryHook registers hook on the pool every component already holds.
-func (d Database) AddQueryHook(hook bun.QueryHook) {
-	database.AttachQueryHook(d.pool, hook)
-}
-
-// LogQueries logs every statement of the pool through logger; the server
-// enables it with db_debug.
-func (d Database) LogQueries(logger *slog.Logger) {
-	d.AddQueryHook(database.NewQueryHook(logger))
-}
-
-// Capacity snapshots the pool's connection statistics for the metrics
-// endpoint and the capacity log.
-func (d Database) Capacity() database.CapacityStats {
-	return database.SnapshotCapacity(d.pool)
-}
-
 func bindDatabase(pool *bun.DB, bind func(*bun.DB) (tenant.UnitOfWork, error)) (Database, error) {
 	unitOfWork, err := bind(pool)
 	if err != nil {
 		return Database{}, err
 	}
-	return Database{pool: pool, unitOfWork: unitOfWork}, nil
+	return Database{BoundDatabase: database.NewBoundDatabase(pool, unitOfWork)}, nil
 }
 
 func openDatabase(open func() (*bun.DB, error), bind func(*bun.DB) (Database, error)) (Database, error) {

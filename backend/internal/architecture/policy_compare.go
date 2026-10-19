@@ -2,6 +2,7 @@ package architecture
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -26,6 +27,10 @@ func compareCandidatePolicyStrictness(project, baseRef string, base, candidate *
 	if err != nil {
 		return err
 	}
+	moves, err := relocatedPackages(project, baseRef, base, candidate)
+	if err != nil {
+		return err
+	}
 	var candidateOnlyExternal map[string]struct{}
 	if graph != nil {
 		candidateOnlyExternal = candidateOnlyExternalPackagesFromGraph(candidate, createdPackages, graph)
@@ -47,7 +52,7 @@ func compareCandidatePolicyStrictness(project, baseRef string, base, candidate *
 	for name := range retiredExpressionObjects {
 		adoptedDataObjects[name] = struct{}{}
 	}
-	return comparePolicyStrictness(base, candidate, createdDataObjects, adoptedDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols)
+	return comparePolicyStrictness(base, candidate, createdDataObjects, adoptedDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols, moves)
 }
 
 // adoptionProbeOwner is the write owner the retired-expression probe assigns
@@ -232,12 +237,12 @@ func tableAccessBySource(violations []Violation) (map[[2]string]struct{}, map[st
 	return access, unresolved
 }
 
-func comparePolicyStrictness(base, candidate *Policy, createdDataObjects, adoptedDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols map[string]struct{}) error {
+func comparePolicyStrictness(base, candidate *Policy, createdDataObjects, adoptedDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols map[string]struct{}, verifiedRelocations map[string]string) error {
 	problems := modulePathLoosenings(base, candidate)
 	problems = append(problems, epochLoosenings(base, candidate)...)
 	problems = append(problems, ownershipLoosenings(base, candidate, createdDataObjects, adoptedDataObjects, createdPackages)...)
 	problems = append(problems, classificationLoosenings(base, candidate, createdPackages, candidateOnlyExternal)...)
-	problems = append(problems, readProjectionLoosenings(base, candidate, createdPackages)...)
+	problems = append(problems, readProjectionLoosenings(base, candidate, createdPackages, verifiedRelocations)...)
 	problems = append(problems, compositionLoosenings(base, candidate, deletedLegacySymbols)...)
 	problems = append(problems, importLoosenings(base, candidate)...)
 	problems = append(problems, ruleLoosenings(base, candidate, candidateOnlyRolePoints(candidate, createdPackages))...)
@@ -379,8 +384,8 @@ func ownerPackagesAreCandidateCreated(candidate *Policy, owner string, createdPa
 	return found
 }
 
-func readProjectionLoosenings(base, candidate *Policy, createdPackages map[string]struct{}) []string {
-	baseGrants := projectionGrants(base)
+func readProjectionLoosenings(base, candidate *Policy, createdPackages map[string]struct{}, verifiedRelocations map[string]string) []string {
+	baseGrants := relocatedProjectionGrants(base, candidate, verifiedRelocations)
 	replacements := studentProjectionReplacementGrants(base, candidate)
 	baseOwners := ownersByID(base)
 	candidatePackages := candidate.packageMap()
@@ -402,6 +407,28 @@ func readProjectionLoosenings(base, candidate *Policy, createdPackages map[strin
 		}
 	}
 	return problems
+}
+
+// ADR 0020 renames a grant only after the package's owner, all roles and
+// immutable-base file set have been verified. Every grant field except its
+// package path must remain identical; ordinary additions still fail below.
+func relocatedProjectionGrants(base, candidate *Policy, verifiedRelocations map[string]string) map[string]struct{} {
+	grants := projectionGrants(base)
+	for _, before := range base.ReadProjections {
+		to, moved := verifiedRelocations[base.absolutePackage(before.Package)]
+		if !moved {
+			continue
+		}
+		for _, after := range candidate.ReadProjections {
+			if candidate.absolutePackage(after.Package) != to || before.ID != after.ID || before.TenantSafe != after.TenantSafe || !slices.Equal(before.DataObjects, after.DataObjects) {
+				continue
+			}
+			for _, object := range before.DataObjects {
+				grants[to+"|"+object] = struct{}{}
+			}
+		}
+	}
+	return grants
 }
 
 func compositionLoosenings(base, candidate *Policy, deletedSymbols map[string]struct{}) []string {

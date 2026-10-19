@@ -6,8 +6,8 @@
 package parentportal
 
 import (
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging"
 )
 
 // Portal is the composed guardian portal: the child flows of care and the

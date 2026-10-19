@@ -2,7 +2,7 @@
 // which bind it to Timetable (ADR 0058).
 package compose
 
-import "github.com/moto-nrw/project-phoenix/modules/timetableenrollmentprovenance"
+import timetableenrollmentprovenance "github.com/moto-nrw/project-phoenix/modules/timetableenrollmentprovenance/internal/adapters/postgres"
 
 // NewReader builds the reader the root binds to Timetable.
 func NewReader() timetableenrollmentprovenance.Reader {

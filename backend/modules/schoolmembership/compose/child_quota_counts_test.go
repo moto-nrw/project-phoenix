@@ -35,7 +35,7 @@ func TestChildQuotaCountsCountTheKontingentzahlOfEverySchool(t *testing.T) {
 	setMembership(t, db, tenantID, ended.ID, "enrolled_until = '2099-06-14'")
 	testpkg.CreateTestStudentForTenant(t, db, otherTenantID, "Andere", "Schule", "1a")
 
-	counts := childQuotaCounts{today: func() string { return "2099-06-15" }}
+	counts := NewChildQuotaCountsWithClock(func() string { return "2099-06-15" })
 	require.NoError(t, testpkg.WithinAdminContext(t, context.Background(), db, func(adminCtx context.Context) error {
 		byTenant, err := counts.CountChildQuotaByTenant(adminCtx)
 		require.NoError(t, err)

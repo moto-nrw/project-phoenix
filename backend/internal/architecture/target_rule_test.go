@@ -234,11 +234,11 @@ func TestPolicyEpochMayNotDecrease(t *testing.T) {
 	candidate := repositoryPolicy(t)
 	base := *candidate
 	base.PolicyEpoch++
-	err := comparePolicyStrictness(&base, candidate, noCreated(), noCreated(), noCreated(), noCreated(), noCreated())
+	err := comparePolicyStrictness(&base, candidate, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil)
 	if err == nil || !strings.Contains(err.Error(), "policy_epoch decreased") {
 		t.Fatalf("lower epoch accepted: %v", err)
 	}
-	if err := comparePolicyStrictness(candidate, candidate, noCreated(), noCreated(), noCreated(), noCreated(), noCreated()); err != nil {
+	if err := comparePolicyStrictness(candidate, candidate, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil); err != nil {
 		t.Fatalf("unchanged epoch rejected: %v", err)
 	}
 }
@@ -325,7 +325,7 @@ func TestCompositionIntoARootIsRejectedInProduction(t *testing.T) {
 		if err := candidate.Validate(); err == nil || !strings.Contains(err.Error(), "cross-owner glue belongs in the root") {
 			t.Fatalf("%v: validation accepted an owner composition importing a root: %v", scopes, err)
 		}
-		err := comparePolicyStrictness(base, &candidate, noCreated(), noCreated(), noCreated(), noCreated(), noCreated())
+		err := comparePolicyStrictness(base, &candidate, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil)
 		if err == nil || !strings.Contains(err.Error(), "rule facilities.compose.root-compose newly allows production") {
 			t.Fatalf("%v: comparison accepted an owner composition importing a root: %v", scopes, err)
 		}

@@ -1,6 +1,6 @@
 package parentportal
 
-import "github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
+import "github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
 
 func carePlanToAppCourseCatalog(value CourseCatalogSnapshot) care.CourseCatalog {
 	return care.CourseCatalog{

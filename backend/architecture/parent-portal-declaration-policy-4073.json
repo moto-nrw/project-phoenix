@@ -37,9 +37,9 @@
       "backend/modules/communication/declaration_policy.go",
       "https://github.com/moto-nrw/project-phoenix/blob/dd92c93a8af3c4cc3d74d51769eb04d4922c85b8/backend/services/parentmessaging/declarations.go",
       "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/parent_portal_platform.go",
-      "backend/workflows/parentportal/messaging/declaration_policy.go",
-      "backend/workflows/parentportal/messaging/parent_declaration_feed.go",
-      "backend/workflows/parentportal/messaging/parent_declaration_service.go"
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/messaging/declaration_policy.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/messaging/parent_declaration_feed.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/messaging/parent_declaration_service.go"
     ],
     "workload": "Existing pure declaration state/action/permission/deadline scenarios and full Parent Portal/Care/HTTP behavior suites, Root production router golden and complete affected-package gate.",
     "thresholds": "One exact production key removed, 172->171, carrier10->9; 836 rules and composition1657 unchanged; Parent Compose487->486,total52846->52845, all other budgets flat. Preserve all old test assertions, exact canonical policy and external behavior.",

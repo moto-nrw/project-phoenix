@@ -51,7 +51,7 @@
       "backend/modules/communication/internal/application/notification_delivery.go",
       "backend/modules/delivery/devices/notification_commands.go",
       "backend/modules/delivery/devices/parent_policy.go",
-      "backend/modules/delivery/application/notifications/native_commands.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/modules/delivery/application/notifications/native_commands.go",
       "https://github.com/moto-nrw/project-phoenix/blob/121b0ee5130db5ec6b289965f495acdca6285744/backend/modules/delivery/application/locales/parent_copy.go"
     ],
     "workload": "Existing actual Communication/Delivery/API behavior and localized copy suites, native boundary probes and full nonfast structural gates.",

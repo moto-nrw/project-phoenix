@@ -30,9 +30,9 @@
     "source": "Assigned local test database on development dc66b3d3147e957b1b9ab586dc970f91662d330e; in-process contract migration, not a benchmark.",
     "sources": [
       "backend/modules/delivery/devices/devices.go",
-      "backend/modules/delivery/application/notifications/parent_devices.go",
-      "backend/modules/delivery/application/notifications/push_subscriptions.go",
-      "backend/modules/delivery/application/notifications/preferences.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/modules/delivery/application/notifications/parent_devices.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/modules/delivery/application/notifications/push_subscriptions.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/modules/delivery/application/notifications/preferences.go",
       "backend/api/parent_delivery_http.go",
       "backend/api/parent_delivery_http_test.go",
       "backend/workflows/parentportal/http/push_handlers_test.go"

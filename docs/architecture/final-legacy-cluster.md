@@ -1,4 +1,85 @@
-# Final legacy cluster: round 7
+# Final legacy cluster: round 8
+
+Implementation base: `148e5aeb86cf22fdbfbffedd76ba070f52f80a3e`. The Round 7 record below is historical; its blockers and counts are not the current exit claim.
+
+Integrated development: `e423ad19c732f17966b2f8332eafb5df01196f29`. Upstream retention changes and gocognit 1.3 scores are retained. Two upstream ADRs numbered 0072 were made unique by moving the retention ADR to 0073 and updating its references, without changing either decision.
+
+Integration after the rehire/offboarding merge: `e569799b30`. The employment binding removes `ClearStaffWorkTimeModel` exactly as upstream does; the work-time model is retained on retirement and account-link/rehire behavior remains upstream-owned. Retention ADR 0073 already matches this branch. No further composition extraction is included.
+
+## Literal exits
+
+| Issue | Evidence and current result |
+|---|---|
+| #4086 | The remaining 16 non-root production implementation packages move under `internal`. The five private projection adapters move to their projection homes as well. No production Go package remains in `services`, `models` or `database/repositories`; no production legacy directory or legacy-prefixed Go file remains (the negative architecture fixture `testdata/semantic/invalid/legacy` is intentionally retained). `cmd` is a root-composition/CLI role, not an implementation carrier (ADR 0053 point 1; ADR 0059; ADR 0068 point 1). `templates/email` contains templates and external template tests, but no production Go file. |
+| #4084 | Not proven. The complete role-based inventory still records runtime bodies, including constructor callbacks. The allowed extractions and reduced budgets below do not disguise that remainder. The native parent-announcement facade attempt passed Go tests but was reverted because internal `communication/adapter-test` suites cannot import `communication/application`. No test grant, alias, DTO copy or role change was added. |
+| #4004 | Already complete in development. The legacy baseline stays empty. No key is added or retired in this round. |
+
+## Approved ADR 0020 rename semantics
+
+The projection guard consumes the canonical Git-verified package map. Owner, production role, both test roles, grant identity, table list and tenant-safety privilege must remain identical. A new table, changed privilege, changed identity, missing relocation or owner change is rejected by regression tests.
+
+The transaction register uses the same verifier through the read-only `relocations` metadata command. Scope, function, operation, ordinal and reason are identical. Complete source-body bytes are compared directly as an injective fingerprint, excluding file paths; no hash collision can accept a changed body. Changed bodies/reasons/operations, additional/copied entries, unverified paths and scope changes fail. No register entry is added.
+
+## Package relocation proof
+
+| Previous package | Current package | Owner / role | Go files |
+|---|---|---|---:|
+| `auth/device` | `modules/devicefleet/internal/adapters/deviceauth` | `device-fleet / adapter` | 4 |
+| `auth/device/devicetest` | `modules/devicefleet/devicetest` | `device-fleet / test-support` | 2 |
+| `modules/communication/internal/adapters/audience` | `modules/staffannouncementaudience/internal/adapters/postgres` | `staff-announcement-audience / postgres` | 4 |
+| `modules/communication/internal/adapters/parentaudience` | `modules/parentannouncementaudience/internal/adapters/postgres` | `parent-announcement-audience / postgres` | 7 |
+| `modules/communication/internal/adapters/parentinbox` | `modules/parentmessageinbox/internal/adapters/postgres` | `parent-message-inbox / postgres` | 5 |
+| `modules/communication/internal/adapters/staffinbox` | `modules/staffmessageinbox/internal/adapters/postgres` | `staff-message-inbox / postgres` | 4 |
+| `modules/communication/projections/parentannouncementaudience` | `modules/parentannouncementaudience` | `parent-announcement-audience / compose` | 1 |
+| `modules/communication/projections/parentmessageinbox` | `modules/parentmessageinbox` | `parent-message-inbox / compose` | 1 |
+| `modules/communication/projections/staffannouncementaudience` | `modules/staffannouncementaudience` | `staff-announcement-audience / compose` | 1 |
+| `modules/communication/projections/staffmessageinbox` | `modules/staffmessageinbox` | `staff-message-inbox / compose` | 1 |
+| `modules/delivery/application/emailoutbox` | `modules/delivery/internal/emailoutbox` | `delivery-platform / application` | 7 |
+| `modules/delivery/application/notifications` | `modules/delivery/internal/notifications` | `delivery-platform / application` | 51 |
+| `modules/delivery/application/pwa` | `modules/delivery/internal/pwa` | `delivery-platform / application` | 9 |
+| `modules/guardianlinkview` | `modules/guardianlinkview/internal/adapters/postgres` | `guardian-link-view / postgres` | 4 |
+| `modules/organizationtenancy/internal/adapters/operatordashboard` | `modules/operatordashboard/internal/adapters/postgres` | `operator-dashboard-view / postgres` | 5 |
+| `modules/organizationtenancy/projections/operatordashboard` | `modules/operatordashboard` | `operator-dashboard-view / compose` | 1 |
+| `modules/parentrequestfeedprojection` | `modules/parentrequestfeedprojection/internal/adapters/postgres` | `parent-request-feed-view / postgres` | 3 |
+| `modules/presenceprojection` | `modules/presenceprojection/internal/adapters/postgres` | `presence-legacy-view / postgres` | 9 |
+| `modules/schedulerruntime/jobruntime` | `modules/schedulerruntime/internal/adapters/jobruntime` | `scheduler-runtime / postgres` | 2 |
+| `modules/schedulerruntime/workerlease` | `modules/schedulerruntime/internal/adapters/workerlease` | `scheduler-runtime / postgres` | 3 |
+| `modules/schoolsetupview` | `modules/schoolsetup/internal/adapters/schoolsetupview` | `school-setup / postgres` | 1 |
+| `modules/studentdirectoryview` | `modules/studentdirectoryview/internal/adapters/postgres` | `student-directory-view / postgres` | 6 |
+| `modules/timetableblockdisplay` | `modules/timetableblockdisplay/internal/adapters/postgres` | `timetable-block-display / postgres` | 4 |
+| `modules/timetableenrollmentprovenance` | `modules/timetableenrollmentprovenance/internal/adapters/postgres` | `timetable-enrollment-provenance / postgres` | 3 |
+| `modules/timetableprojection` | `modules/timetableprojection/internal/adapters/postgres` | `timetable-legacy-view / postgres` | 2 |
+| `workflows/parentportal/care` | `workflows/parentportal/internal/care` | `parent-portal / application` | 90 |
+| `workflows/parentportal/messaging` | `workflows/parentportal/internal/messaging` | `parent-portal / application` | 19 |
+
+Owner and all three roles are unchanged. The canonical verifier checks the exact Go filename set. The five projection builders remain constructor-role packages at their module roots; they do not become implementation packages. The private runtime packages retain their cohesive names under `internal` rather than gaining another compatibility facade. Their pre-existing delegation scan coverage is not presented as an improvement or a retired debt.
+
+## Compose work retained
+
+- People Directory caregiver extraction was reverted after the unchanged production-router contract exposed a changed equality identity. The original comparable service/database binding remains; no assertion or golden changed.
+- Timetable reorder validation/error handling move to application; composition only binds the registered executor.
+- Communication platform-announcement response/error mapping moves to application, and the native SQL adapter owns ambient transaction validation. The separate parent-announcement facade remains in the inventory for the test-reach blocker.
+- Audit context validation, handoff resolution and logging callbacks move to existing private adapter/application roles with constructor-supplied context providers.
+- School Setup row mapping, School Structure substitution/error mapping, School Membership employment/count/scope mappings, Scheduler lease adaptation and Transaction Runtime pool lifecycle move to private owner roles.
+- Grade Transition, Student Deletion and Staff Offboarding cross-owner authorization, audit, event and runtime binding move to the existing typed root. Existing owner dependency records remain at their seam; no root composition field is added.
+
+## Exact remaining blockers and boundaries
+
+| Surface | Exact constraint | Outcome |
+|---|---|---|
+| People Directory caregiver boundary | The unchanged `TestFullProductionRouterGolden/contracts/caregiver_wiring` contract compares separately constructed views for equality. Injected function fields made the value uncomparable; pointer embedding made it comparable but unequal. Preserving the exact existing binding is required. | Attempt reverted; the original boundary and its administrative register entry remain unchanged. |
+| Parent-announcement shared application port | `internal_test` source `modules/communication/internal/staffannouncements`, owner `communication`, role `adapter-test`, target `modules/communication/internal/application`, role `application`, is forbidden. Production adapter-to-application is allowed, but no equivalent internal-test reach exists. The native seam passed its Go suites before this architecture rejection. | Attempt reverted; assertions, roles and grants remain unchanged. |
+| Partial extraction of registered domain composition executors | The transaction register accepts whole Git-verified same-owner/role package renames only. Moving an individual boundary, such as `modules/facilities/compose/new.go:transaction.RunWrite:tenant.WithinCurrentTenant#1`, into an existing application package cannot supply that package proof; replacing it with a differently keyed invocation is still rejected. Constructor-only bindings are retained where possible; execution guards are not hidden by parentheses, operation renames or new allowances. | Remaining bodies are named in the complete inventory. No wider guard extension is made. |
+
+The [complete compose audit](final-legacy-cluster-round-eight-compose.md) enumerates every non-constructor by package, source line and calls, and separately records function-literal bodies. It is the evidence for the outstanding exit, not a claim that a low LOC count makes runtime logic construction.
+
+## Historical evidence
+
+Local source links in earlier ticket evidence that genuinely moved are pinned to their immutable pre-move commit. Their behavioral claims, exact keys and thresholds are unchanged. Current round evidence uses the new paths.
+
+---
+
+# Round 7 historical record
 
 Base: `121b0ee5130db5ec6b289965f495acdca6285744` after PR #4344. The obsolete held follow-up is not part of this branch. Integrated development `2fdb6d2c4cff1bd18069067f07316ed51dcae7c1` after the dependency-only PR #4375; backend source and policy are unchanged by that integration.
 

@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforcecompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
@@ -47,7 +49,7 @@ func NewStaffOffboardingWorkflow(deps offboardingcompose.Dependencies) (*staffof
 		logger = slog.Default()
 	}
 	events := NewGroupEvents(deps.Broadcaster, logger)
-	return offboardingcompose.New(deps, work, func(ctx context.Context) {
+	return owners.NewStaffOffboarding(deps, work, func(ctx context.Context) {
 		events.QueueGroupAccessChanged(ctx, "staff_offboarding")
 	})
 }

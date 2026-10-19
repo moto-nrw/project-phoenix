@@ -33,7 +33,7 @@
       "backend/modules/communication/parent_announcement_fixtures_test_helpers.go",
       "backend/modules/communication/parentstore/announcement_fixtures_test_helpers.go",
       "backend/modules/communication/parentstore/announcements.go",
-      "backend/workflows/parentportal/care/parent_declaration_test.go"
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/care/parent_declaration_test.go"
     ],
     "workload": "Full non-fast affected-package suites, including parent feed/polls/declarations/attachments, messaging and request-sharing behavior, and existing API/router, module and hermetic guards.",
     "thresholds": "Remove exactly one external-test key without new rules, reach, aliases, exceptions or budget increases. Preserve501 existing tests and2295 assertions, persisted fields/defaults, permission/session guards and tenant transaction behavior.",

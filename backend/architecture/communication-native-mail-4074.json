@@ -47,8 +47,8 @@
       "backend/modules/communication/internal/application/mail_delivery.go",
       "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/communication_mail.go",
       "backend/api/operator_audit_log.go",
-      "backend/modules/delivery/application/emailoutbox/outbox.go",
-      "backend/modules/delivery/application/emailoutbox/native_enqueue_test.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/modules/delivery/application/emailoutbox/outbox.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/modules/delivery/application/emailoutbox/native_enqueue_test.go",
       "backend/api/communication_mail_test.go"
     ],
     "workload": "Existing actual Communication/Delivery/API behavior and template suites; native enqueue parity/failure-order, renderer/selector/metadata/error/content and Audit binding probes; full nonfast structural checks.",

@@ -9,8 +9,8 @@ import (
 
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/emailoutbox"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications"
 	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"

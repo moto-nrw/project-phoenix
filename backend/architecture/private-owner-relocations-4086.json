@@ -1,0 +1,130 @@
+{
+  "schema_version": 3,
+  "prerequisites": [
+    "#2580",
+    "#4084",
+    "#4086",
+    "#4087",
+    "#4088"
+  ],
+  "owner_and_capability": "Verified projection and runtime package renames into owner-private roles, immutable device-auth dependencies, and constructor-only owner/root capability bindings.",
+  "affected_packages": [
+    "modules/communication/internal/application",
+    "modules/delivery/internal/emailoutbox",
+    "modules/delivery/internal/notifications",
+    "modules/delivery/internal/pwa",
+    "modules/devicefleet/devicetest",
+    "modules/devicefleet/internal/adapters/deviceauth",
+    "modules/guardianlinkview/internal/adapters/postgres",
+    "modules/operatordashboard",
+    "modules/operatordashboard/internal/adapters/postgres",
+    "modules/parentannouncementaudience",
+    "modules/parentannouncementaudience/internal/adapters/postgres",
+    "modules/parentmessageinbox",
+    "modules/parentmessageinbox/internal/adapters/postgres",
+    "modules/parentrequestfeedprojection/internal/adapters/postgres",
+    "modules/presenceprojection/internal/adapters/postgres",
+    "modules/schedulerruntime/internal/adapters/jobruntime",
+    "modules/schedulerruntime/internal/adapters/workerlease",
+    "modules/schoolmembership/internal/application",
+    "modules/schoolsetup/internal/adapters/schoolsetupview",
+    "modules/schoolstructure/internal/application/groups",
+    "modules/staffannouncementaudience",
+    "modules/staffannouncementaudience/internal/adapters/postgres",
+    "modules/staffmessageinbox",
+    "modules/staffmessageinbox/internal/adapters/postgres",
+    "modules/studentdirectoryview/internal/adapters/postgres",
+    "modules/timetable/internal/application",
+    "modules/timetableblockdisplay/internal/adapters/postgres",
+    "modules/timetableenrollmentprovenance/internal/adapters/postgres",
+    "modules/timetableprojection/internal/adapters/postgres",
+    "roots/owners",
+    "workflows/parentportal/internal/care",
+    "workflows/parentportal/internal/messaging"
+  ],
+  "affected_tables": [
+    "No ownership, SQL statement, filter or privilege changes; projection grants retain their exact existing tables."
+  ],
+  "exact_ratchet_keys": [],
+  "atomic_cutover": "Preserve the empty baseline, rename only Git-verified same-owner/role packages and unchanged register entries, inject device-auth dependencies at construction, and bind native private owner capabilities. Retain and document the unproven compose exit without a new permission.",
+  "tests": [
+    "scripts/backend-architecture.sh check",
+    "scripts/backend-architecture.sh validate-ticket --all --base-ref e569799b301dee4e5e2516b0c425814218a6765c",
+    "scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development without --fast",
+    "Positive and negative projection/transaction rename regressions, existing native owner/HTTP/tenant-isolation suites, pinned lint and full hooks."
+  ],
+  "runtime_evidence": {
+    "source": "Local source and metadata cutover, integrated with immutable development e569799b301dee4e5e2516b0c425814218a6765c. No production request or performance claim.",
+    "sources": [
+      "docs/architecture/final-legacy-cluster.md",
+      "docs/architecture/final-legacy-cluster-round-eight-compose.md",
+      "docs/adr/0020-a-relocated-package-keeps-its-debt.md",
+      "backend/internal/architecture/relocation_projection_test.go",
+      "backend/test/transaction_relocation_internal_test.go",
+      "backend/modules/devicefleet/internal/adapters/deviceauth/device_auth.go",
+      "backend/modules/schedulerruntime/internal/application/lease_store.go"
+    ],
+    "workload": "The existing affected owner, root, HTTP, authorization, tenant-isolation and persistence suites run locally through the pinned toolchain and the bounded test wrapper. No production workload is contacted.",
+    "thresholds": "Zero architecture violations, no uncovered removed keys, no composition growth, exact relocated grant/register identities, no new grant/rule/alias and no increased budget; unchanged HTTP/IoT behavior and behavioral assertions.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "Only code location and native adapter entry points change; the existing suites cover writes and rollback without a new row-volume benchmark."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "No SQL or query sequence is added or removed by the relocation; existing query-budget assertions remain the verification, not a new query benchmark."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency measurement is claimed for this source cutover."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency measurement is claimed for this source cutover."
+    },
+    "errors": {
+      "state": "not_applicable",
+      "reason": "Existing authorization, native error, nil/empty result and persistence error assertions are retained; no production error-rate measurement is claimed."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "Pool configuration and acquisition are unchanged; no new wait measurement is claimed."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "Lock statements and ordering are unchanged; no new lock timing measurement is claimed."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No transaction, lock order or retry policy changes; source-body equality guards relocated registered boundaries."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "Scheduler storage moves without changing job execution; no new duration measurement is claimed."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "No job retry policy changes and no retry-rate measurement is claimed."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "No queue or backlog policy changes and no new backlog measurement is claimed."
+    },
+    "failure": {
+      "state": "not_applicable",
+      "reason": "Existing owner failure-path assertions run in the affected suite; no new manual failure injection or performance claim is made."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data cutover occurs; existing rollback assertions remain and no manual rollback experiment is claimed."
+    },
+    "smoke": {
+      "state": "not_applicable",
+      "reason": "No manual HTTP or production smoke is claimed; the full affected HTTP and unchanged router-golden suites are required."
+    }
+  },
+  "rollback_and_cleanup": "Revert the whole source/import/policy/register cutover together. No data, credential or environment rollback is required.",
+  "exit_criterion": "All non-root production implementation Go packages are internal, old carriers and legacy-prefixed files are absent, and the zero baseline remains empty. The separate compose exit remains explicitly unproven by the complete audit.",
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020"
+}

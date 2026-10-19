@@ -163,18 +163,6 @@
     "fingerprint": "09567d506a83c807d41c83d108946140",
     "reason": "Realtime guardian/staff refetch notice only. Request-ledger entries, chat timeline pills and durable device intents are written before commit; losing this event only delays the visible refresh."
   },
-  "modules/delivery/application/notifications/service.go:router.Notify:RegisterAfterCommit@51e8d1e27e96b31a9cb74dd4047fd7ed#1": {
-    "fingerprint": "51e8d1e27e96b31a9cb74dd4047fd7ed",
-    "reason": "Fan-out to non-durable in-process channels only after durable channels have enqueued in the transaction. Production binds realtime SSE here; lost wakes recover from committed records/outbox on reconnect."
-  },
-  "modules/delivery/application/notifications/service.go:router.NotifyBatch:RegisterAfterCommit@f1b9fa2d446cee417b31e8d11c93a7d2#1": {
-    "fingerprint": "f1b9fa2d446cee417b31e8d11c93a7d2",
-    "reason": "Fan-out to non-durable in-process channels only after durable channels have enqueued in the transaction. Production binds realtime SSE here; lost wakes recover from committed records/outbox on reconnect."
-  },
-  "modules/delivery/application/notifications/service.go:router.NotifyDurably:RegisterAfterCommit@51e8d1e27e96b31a9cb74dd4047fd7ed#1": {
-    "fingerprint": "51e8d1e27e96b31a9cb74dd4047fd7ed",
-    "reason": "Fan-out to non-durable in-process channels only after durable channels have enqueued in the transaction. Production binds realtime SSE here; lost wakes recover from committed records/outbox on reconnect."
-  },
   "modules/delivery/internal/application/realtimeevents/active_supervision.go:QueueActiveSupervisionChanged:RegisterAfterCommit@fa5297417f7b4cae2102f99d24765ae4#1": {
     "fingerprint": "fa5297417f7b4cae2102f99d24765ae4",
     "reason": "Realtime SSE invalidation only, assembled from already committed school state. Loss may delay an open tab; reconnect/refetch reconstructs the state without this notice."
@@ -194,6 +182,18 @@
   "modules/delivery/internal/application/realtimeevents/staff_time_tracking.go:QueueStaffTimeTrackingChanged:RegisterAfterCommit@10a27cb9d276d6f9d3c11ba14eb054ba#1": {
     "fingerprint": "10a27cb9d276d6f9d3c11ba14eb054ba",
     "reason": "Realtime SSE invalidation only, assembled from already committed school state. Loss may delay an open tab; reconnect/refetch reconstructs the state without this notice."
+  },
+  "modules/delivery/internal/notifications/service.go:router.Notify:RegisterAfterCommit@51e8d1e27e96b31a9cb74dd4047fd7ed#1": {
+    "fingerprint": "51e8d1e27e96b31a9cb74dd4047fd7ed",
+    "reason": "Fan-out to non-durable in-process channels only after durable channels have enqueued in the transaction. Production binds realtime SSE here; lost wakes recover from committed records/outbox on reconnect."
+  },
+  "modules/delivery/internal/notifications/service.go:router.NotifyBatch:RegisterAfterCommit@f1b9fa2d446cee417b31e8d11c93a7d2#1": {
+    "fingerprint": "f1b9fa2d446cee417b31e8d11c93a7d2",
+    "reason": "Fan-out to non-durable in-process channels only after durable channels have enqueued in the transaction. Production binds realtime SSE here; lost wakes recover from committed records/outbox on reconnect."
+  },
+  "modules/delivery/internal/notifications/service.go:router.NotifyDurably:RegisterAfterCommit@51e8d1e27e96b31a9cb74dd4047fd7ed#1": {
+    "fingerprint": "51e8d1e27e96b31a9cb74dd4047fd7ed",
+    "reason": "Fan-out to non-durable in-process channels only after durable channels have enqueued in the transaction. Production binds realtime SSE here; lost wakes recover from committed records/outbox on reconnect."
   },
   "modules/enrollment/internal/application/approved_child_sync.go:Decisions.deferStudentPlanBroadcasts:AfterCommit@43b1ffba4f0bdf7bb95b841f1033e9fd#1": {
     "fingerprint": "43b1ffba4f0bdf7bb95b841f1033e9fd",
@@ -399,6 +399,10 @@
     "fingerprint": "10a27cb9d276d6f9d3c11ba14eb054ba",
     "reason": "Optional immediate staff-document cleanup wake (or workforce SSE invalidation), backed by committed document/offboarding cleanup markers. Existing cleanup sweeps retry those durable rows, so no file-deletion intent depends on this callback."
   },
+  "roots/owners/binding_studentdeletion.go:Assemble:RegisterAfterCommit@5925e3b1741c018b1177ebad7e0cad19#1": {
+    "fingerprint": "5925e3b1741c018b1177ebad7e0cad19",
+    "reason": "Realtime companion-list invalidation only after deletion and companion-link changes commit. Losing the wake affects refresh timing, not deletion or relationship cleanup."
+  },
   "roots/owners/communication_runtime.go:CommunicationEventRuntime.RegisterAfterCommit:RegisterAfterCommit@3d79e06dc114db3c08b02ba709d51ff3#1": {
     "fingerprint": "3d79e06dc114db3c08b02ba709d51ff3",
     "reason": "Transaction-hook forwarder for Communication realtime broadcasts only. Timeline records and durable push intents are committed before callbacks; reconnect/refetch reads those records."
@@ -411,43 +415,43 @@
     "fingerprint": "3d79e06dc114db3c08b02ba709d51ff3",
     "reason": "Parent Portal transaction-hook forwarder for realtime invalidation only. Timeline pills now append in the triggering transaction; clients recover current state on reconnect/refetch."
   },
-  "workflows/parentportal/care/absences.go:Service.afterAbsenceCommit:RegisterAfterCommit@eed37765f420745f077b429a315a1847#1": {
+  "workflows/parentportal/internal/care/absences.go:Service.afterAbsenceCommit:RegisterAfterCommit@eed37765f420745f077b429a315a1847#1": {
     "fingerprint": "eed37765f420745f077b429a315a1847",
     "reason": "Realtime child/message/profile read-model invalidation only. Domain changes and timeline/message/read markers commit in the transaction; reconnect/refetch reads them if this wake is lost."
   },
-  "workflows/parentportal/care/care_exception_writes.go:Service.withdrawCareException:RegisterAfterCommit@ff1b15a90c0dc0c250da5d4c1b0cf3ab#1": {
+  "workflows/parentportal/internal/care/care_exception_writes.go:Service.withdrawCareException:RegisterAfterCommit@ff1b15a90c0dc0c250da5d4c1b0cf3ab#1": {
     "fingerprint": "ff1b15a90c0dc0c250da5d4c1b0cf3ab",
     "reason": "Realtime child/message/profile read-model invalidation only. Domain changes and timeline/message/read markers commit in the transaction; reconnect/refetch reads them if this wake is lost."
   },
-  "workflows/parentportal/care/care_exception_writes.go:Service.writeCareException:RegisterAfterCommit@ff1b15a90c0dc0c250da5d4c1b0cf3ab#1": {
+  "workflows/parentportal/internal/care/care_exception_writes.go:Service.writeCareException:RegisterAfterCommit@ff1b15a90c0dc0c250da5d4c1b0cf3ab#1": {
     "fingerprint": "ff1b15a90c0dc0c250da5d4c1b0cf3ab",
     "reason": "Realtime child/message/profile read-model invalidation only. Domain changes and timeline/message/read markers commit in the transaction; reconnect/refetch reads them if this wake is lost."
   },
-  "workflows/parentportal/care/guardian_contact_updates.go:Service.broadcastProfileChildrenAfterCommit:RegisterAfterCommit@22a309f750ae681b55b15df7fcecf1ad#1": {
+  "workflows/parentportal/internal/care/guardian_contact_updates.go:Service.broadcastProfileChildrenAfterCommit:RegisterAfterCommit@22a309f750ae681b55b15df7fcecf1ad#1": {
     "fingerprint": "22a309f750ae681b55b15df7fcecf1ad",
     "reason": "Realtime child/message/profile read-model invalidation only. Domain changes and timeline/message/read markers commit in the transaction; reconnect/refetch reads them if this wake is lost."
   },
-  "workflows/parentportal/care/guardian_contacts.go:Service.createGuardianContactInTx:RegisterAfterCommit@1413c5a1fed2ed669a8be3d7899e137a#1": {
+  "workflows/parentportal/internal/care/guardian_contacts.go:Service.createGuardianContactInTx:RegisterAfterCommit@1413c5a1fed2ed669a8be3d7899e137a#1": {
     "fingerprint": "1413c5a1fed2ed669a8be3d7899e137a",
     "reason": "Realtime child/message/profile read-model invalidation only. Domain changes and timeline/message/read markers commit in the transaction; reconnect/refetch reads them if this wake is lost."
   },
-  "workflows/parentportal/care/guardian_relationships.go:Service.projectEditedRelationship:RegisterAfterCommit@f816882b890b9609b10d41a071d7161d#1": {
+  "workflows/parentportal/internal/care/guardian_relationships.go:Service.projectEditedRelationship:RegisterAfterCommit@f816882b890b9609b10d41a071d7161d#1": {
     "fingerprint": "f816882b890b9609b10d41a071d7161d",
     "reason": "Realtime child/message/profile read-model invalidation only. Domain changes and timeline/message/read markers commit in the transaction; reconnect/refetch reads them if this wake is lost."
   },
-  "workflows/parentportal/care/parent_consent_service.go:Service.writePhotoConsent:RegisterAfterCommit@6184587272843b956a0799c9f676e862#1": {
+  "workflows/parentportal/internal/care/parent_consent_service.go:Service.writePhotoConsent:RegisterAfterCommit@6184587272843b956a0799c9f676e862#1": {
     "fingerprint": "6184587272843b956a0799c9f676e862",
     "reason": "Realtime child/message/profile read-model invalidation only. Domain changes and timeline/message/read markers commit in the transaction; reconnect/refetch reads them if this wake is lost."
   },
-  "workflows/parentportal/care/parent_master_data_service.go:Service.applyTrackAInTx:RegisterAfterCommit@f816882b890b9609b10d41a071d7161d#1": {
+  "workflows/parentportal/internal/care/parent_master_data_service.go:Service.applyTrackAInTx:RegisterAfterCommit@f816882b890b9609b10d41a071d7161d#1": {
     "fingerprint": "f816882b890b9609b10d41a071d7161d",
     "reason": "Realtime child/message/profile read-model invalidation only. Domain changes and timeline/message/read markers commit in the transaction; reconnect/refetch reads them if this wake is lost."
   },
-  "workflows/parentportal/messaging/parent_messaging_service.go:Service.GetChildConversation:RegisterAfterCommit@3d982fdc2e971c2002a9f44b815d5198#1": {
+  "workflows/parentportal/internal/messaging/parent_messaging_service.go:Service.GetChildConversation:RegisterAfterCommit@3d982fdc2e971c2002a9f44b815d5198#1": {
     "fingerprint": "3d982fdc2e971c2002a9f44b815d5198",
     "reason": "Realtime child/message/profile read-model invalidation only. Domain changes and timeline/message/read markers commit in the transaction; reconnect/refetch reads them if this wake is lost."
   },
-  "workflows/parentportal/messaging/parent_messaging_service.go:Service.PostChildMessage:RegisterAfterCommit@47abd6de1477faef47e16b2cc77ff7d7#1": {
+  "workflows/parentportal/internal/messaging/parent_messaging_service.go:Service.PostChildMessage:RegisterAfterCommit@47abd6de1477faef47e16b2cc77ff7d7#1": {
     "fingerprint": "47abd6de1477faef47e16b2cc77ff7d7",
     "reason": "Realtime child/message/profile read-model invalidation only. Domain changes and timeline/message/read markers commit in the transaction; reconnect/refetch reads them if this wake is lost."
   },
@@ -462,9 +466,5 @@
   "workflows/shiftplansync/internal/application/substitution.go:SubstitutionAdapter.broadcastStaffingChanged:RegisterAfterCommit@0c3c4a5e46089a74c4d127d73d9a49c0#1": {
     "fingerprint": "0c3c4a5e46089a74c4d127d73d9a49c0",
     "reason": "Realtime timetable/activity/staffing invalidation only. The schedule and running-instance changes persist in the transaction; losing this wake merely delays open-tab refresh."
-  },
-  "workflows/studentdeletion/compose/new.go:Assemble:RegisterAfterCommit@5925e3b1741c018b1177ebad7e0cad19#1": {
-    "fingerprint": "5925e3b1741c018b1177ebad7e0cad19",
-    "reason": "Realtime companion-list invalidation only after deletion and companion-link changes commit. Losing the wake affects refresh timing, not deletion or relationship cleanup."
   }
 }

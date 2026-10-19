@@ -3,7 +3,7 @@ package parentportal
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging"
 )
 
 func (p *Portal) ListMessageThreads(ctx context.Context, accountID int64) ([]*InboxThread, error) {

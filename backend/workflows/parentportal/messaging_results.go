@@ -1,6 +1,6 @@
 package parentportal
 
-import "github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
+import "github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging"
 
 type MessageThreadView struct {
 	ThreadID    int64

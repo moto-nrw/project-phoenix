@@ -44,7 +44,7 @@
     "source": "Local verification on 2026-10-16 of this #4076 slice. No production or staging requests and no benchmark run.",
     "sources": [
       "backend/api/parent_request_feed.go",
-      "backend/modules/studentdirectoryview/care_reader.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/modules/studentdirectoryview/care_reader.go",
       "backend/modules/timetable/internal/adapters/postgres/enrollment_provenance.go",
       "backend/test/fixtures_student_projection.go",
       "backend/test/enrollment_provenance_fixture.go"

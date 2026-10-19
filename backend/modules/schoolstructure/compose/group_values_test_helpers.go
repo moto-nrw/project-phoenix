@@ -238,3 +238,5 @@ type Service interface {
 	GetStaffSchoolClasses(ctx context.Context, staffID int64) ([]string, error)
 	SetStaffSchoolClasses(ctx context.Context, staffID int64, classes []string, changedBy int64) error
 }
+
+func publicGroupError(err error) error { return groups.PublicGroupError(err) }

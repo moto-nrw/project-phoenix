@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetableprojection"
+	timetableprojection "github.com/moto-nrw/project-phoenix/modules/timetableprojection/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"

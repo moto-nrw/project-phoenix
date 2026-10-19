@@ -17,12 +17,14 @@ type CLIDependencies struct {
 
 func RunCLI(args []string, dependencies CLIDependencies) error {
 	if len(args) == 0 {
-		return fmt.Errorf("command is required: check, explain, diagram, dependencies, cycles, audit-issues, or validate-ticket")
+		return fmt.Errorf("command is required: check, explain, diagram, dependencies, cycles, audit-issues, relocations, or validate-ticket")
 	}
 
 	switch args[0] {
 	case "check":
 		return runCheck(args[1:])
+	case "relocations":
+		return runRelocations(args[1:])
 	case "explain":
 		return runExplain(args[1:])
 	case "audit-issues":
@@ -36,7 +38,7 @@ func RunCLI(args []string, dependencies CLIDependencies) error {
 	case "validate-ticket":
 		return runValidateMigrationTicket(args[1:], dependencies)
 	default:
-		return fmt.Errorf("unknown command %q: expected check, explain, diagram, dependencies, cycles, audit-issues, or validate-ticket", args[0])
+		return fmt.Errorf("unknown command %q: expected check, explain, diagram, dependencies, cycles, audit-issues, relocations, or validate-ticket", args[0])
 	}
 }
 
