@@ -773,7 +773,9 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
 
-	t.Run("update_supervisor_notes", func(t *testing.T) {
+	t.Run("update_ignores_retired_supervisor_notes", func(t *testing.T) {
+		// The Betreuernotizen field is gone (#4268). A stale client that still
+		// sends it must neither fail nor create a hint behind the note card.
 		student := testpkg.CreateTestStudent(t, tc.db, "Notes", "Student", "NS1")
 
 		body := map[string]interface{}{
@@ -783,7 +785,12 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
-		assert.Equal(t, http.StatusOK, rr.Code)
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		assert.NotContains(t, rr.Body.String(), "supervisor_notes")
+		var notes int
+		require.NoError(t, tc.db.NewRaw(`SELECT count(*) FROM users.student_notes WHERE student_id = ?`,
+			student.ID).Scan(testpkg.Ctx(t), &notes))
+		assert.Zero(t, notes)
 	})
 
 	t.Run("update_and_clear_child_address", func(t *testing.T) {

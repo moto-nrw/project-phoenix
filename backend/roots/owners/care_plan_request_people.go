@@ -33,7 +33,6 @@ func requestStudentAuditSnapshot(student peopledirectory.StudentRecord) *peopled
 	plan := requestDeparturePlan(student)
 	row := &peopledirectory.StudentState{
 		Status:                 string(student.Status),
-		SupervisorNotes:        student.SupervisorNotes,
 		ExtraInfo:              student.ExtraInfo,
 		HealthInfo:             student.HealthInfo,
 		PickupStatus:           student.PickupStatus,

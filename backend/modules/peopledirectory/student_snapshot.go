@@ -23,7 +23,6 @@ type StudentSnapshot struct {
 	AddressCity              *string
 	AddressPostalCode        *string
 	ExtraInfo                *string
-	SupervisorNotes          *string
 	HealthInfo               *string
 	PickupStatus             *string
 	DepartureDays            json.RawMessage

@@ -36,7 +36,6 @@ describe("useStudentData", () => {
     buskind: false,
     birthday: "2010-05-15",
     extra_info: "Extra info",
-    supervisor_notes: "Notes",
     health_info: "Health info",
     pickup_status: "regular",
     sick: false,
@@ -382,7 +381,6 @@ describe("useStudentData", () => {
           student: {
             ...mockStudent,
             extra_info: "Sensitive info",
-            supervisor_notes: "Private notes",
             sick: true,
             sick_since: "2024-01-10T08:00:00Z",
           },
@@ -403,7 +401,6 @@ describe("useStudentData", () => {
 
       expect(result.current.hasFullAccess).toBe(true);
       expect(result.current.student?.extra_info).toBe("Sensitive info");
-      expect(result.current.student?.supervisor_notes).toBe("Private notes");
       expect(result.current.student?.sick).toBe(true);
     });
 

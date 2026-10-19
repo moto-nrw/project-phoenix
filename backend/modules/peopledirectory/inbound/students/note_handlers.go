@@ -73,6 +73,47 @@ func (rs *Resource) listStudentNotes(w http.ResponseWriter, r *http.Request) {
 		rs.renderNotes(r, notes, audience, student), "Student notes retrieved")
 }
 
+// noteSubjectActivity is one activity a new note may refer to.
+type noteSubjectActivity struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// noteSubjectsResponse lists what a new note of this child may refer to
+// besides the child itself. The OGS group is already on the child's file.
+type noteSubjectsResponse struct {
+	Activities []noteSubjectActivity `json:"activities"`
+}
+
+// listStudentNoteSubjects serves the reference picker of the note form. It
+// answers from the same enrollment read the create route validates against.
+func (rs *Resource) listStudentNoteSubjects(w http.ResponseWriter, r *http.Request) {
+	student, ok := rs.parseAndGetStudent(w, r)
+	if !ok {
+		return
+	}
+	if !rs.checkStudentReadAccess(r, student) {
+		renderError(w, r, common.ErrorForbidden(errors.New("read access required to view notes")))
+		return
+	}
+	activities, err := rs.noteActivities(r.Context(), student.ID)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, buildNoteSubjectsResponse(activities), "Student note subjects retrieved")
+}
+
+func buildNoteSubjectsResponse(activities []peopleModule.StudentActivityGroup) noteSubjectsResponse {
+	response := noteSubjectsResponse{Activities: make([]noteSubjectActivity, 0, len(activities))}
+	for _, group := range activities {
+		response.Activities = append(response.Activities, noteSubjectActivity{
+			ID: strconv.FormatInt(group.ID, 10), Name: group.Name,
+		})
+	}
+	return response
+}
+
 func (rs *Resource) createStudentNote(w http.ResponseWriter, r *http.Request) {
 	student, child, audience, ok := rs.resolveNoteReader(w, r)
 	if !ok {
@@ -302,18 +343,29 @@ func (rs *Resource) noteChild(ctx context.Context, student *peopleModule.Student
 	child := securitycontract.StudentNoteChild{
 		GroupID: student.GroupID, SchoolClass: schoolClassKey(student.SchoolClass),
 	}
-	if rs.ActiveEnrollments == nil {
-		return child, nil
-	}
-	groupsByStudent, err := rs.ActiveEnrollments.ActiveEnrollmentGroups(
-		ctx, []int64{student.ID}, calendar.TodayDate())
+	activities, err := rs.noteActivities(ctx, student.ID)
 	if err != nil {
 		return securitycontract.StudentNoteChild{}, err
 	}
-	for _, group := range groupsByStudent[student.ID] {
+	for _, group := range activities {
 		child.ActivityGroupIDs = append(child.ActivityGroupIDs, group.ID)
 	}
 	return child, nil
+}
+
+// noteActivities is the one read of the activities a note may refer to: the
+// child's enrollments today. The audience, the reference check and the picker
+// all use it, so the picker never offers an activity the write would refuse.
+func (rs *Resource) noteActivities(ctx context.Context, studentID int64) ([]peopleModule.StudentActivityGroup, error) {
+	if rs.ActiveEnrollments == nil {
+		return nil, nil
+	}
+	groupsByStudent, err := rs.ActiveEnrollments.ActiveEnrollmentGroups(
+		ctx, []int64{studentID}, calendar.TodayDate())
+	if err != nil {
+		return nil, err
+	}
+	return groupsByStudent[studentID], nil
 }
 
 func decodeStudentNoteBody(w http.ResponseWriter, r *http.Request) (studentNoteRequestBody, bool) {

@@ -53,11 +53,11 @@ func (s *Store) SaveStudentCareProfile(ctx context.Context, profile domain.Stude
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := db.NewRaw(`INSERT INTO users.student_care_profiles AS care
-  (tenant_id, membership_id, supervisor_notes, health_info, pickup_status, sick, sick_since, excused, excused_since,
+  (tenant_id, membership_id, health_info, pickup_status, sick, sick_since, excused, excused_since,
    allowed_departure_modes, departure_days, bus_days, pickup_days, departure_companion_note)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?::jsonb, ?)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?::jsonb, ?)
   ON CONFLICT (membership_id) DO UPDATE SET
-   supervisor_notes = EXCLUDED.supervisor_notes, health_info = EXCLUDED.health_info,
+   health_info = EXCLUDED.health_info,
    pickup_status = EXCLUDED.pickup_status, sick = EXCLUDED.sick, sick_since = EXCLUDED.sick_since,
    excused = EXCLUDED.excused, excused_since = EXCLUDED.excused_since, updated_at = NOW(),
    allowed_departure_modes = CASE WHEN ? THEN EXCLUDED.allowed_departure_modes ELSE care.allowed_departure_modes END,
@@ -66,7 +66,7 @@ func (s *Store) SaveStudentCareProfile(ctx context.Context, profile domain.Stude
    pickup_days = CASE WHEN ? THEN EXCLUDED.pickup_days ELSE care.pickup_days END,
    departure_companion_note = CASE WHEN ? THEN EXCLUDED.departure_companion_note ELSE care.departure_companion_note END
   WHERE care.tenant_id = EXCLUDED.tenant_id`,
-		tenantID, profile.MembershipID, profile.SupervisorNotes, profile.HealthInfo, profile.PickupStatus,
+		tenantID, profile.MembershipID, profile.HealthInfo, profile.PickupStatus,
 		profile.Sick, profile.SickSince, profile.Excused, profile.ExcusedSince,
 		departure.modes, departure.days, departure.bus, departure.pickup, departure.note,
 		departure.touched, departure.touched, departure.touched, departure.touched, plan != nil).Exec(ctx)

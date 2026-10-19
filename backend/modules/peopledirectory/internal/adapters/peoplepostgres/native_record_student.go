@@ -21,7 +21,6 @@ func NativeStudentState(value *models.Student) *directory.StudentState {
 	result.AddressCity = value.AddressCity
 	result.AddressPostalCode = value.AddressPostalCode
 	result.ExtraInfo = value.ExtraInfo
-	result.SupervisorNotes = value.SupervisorNotes
 	result.HealthInfo = value.HealthInfo
 	result.PickupStatus = value.PickupStatus
 	result.DepartureDays = value.DepartureDays
@@ -67,7 +66,6 @@ func StudentStateRow(value *directory.StudentState) *models.Student {
 	result.AddressCity = value.AddressCity
 	result.AddressPostalCode = value.AddressPostalCode
 	result.ExtraInfo = value.ExtraInfo
-	result.SupervisorNotes = value.SupervisorNotes
 	result.HealthInfo = value.HealthInfo
 	result.PickupStatus = value.PickupStatus
 	result.DepartureDays = value.DepartureDays

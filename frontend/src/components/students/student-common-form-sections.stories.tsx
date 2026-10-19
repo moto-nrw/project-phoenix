@@ -27,7 +27,6 @@ export const WithErrors: Story = {
   args: {
     formData: {
       health_info: "Erdnussallergie",
-      supervisor_notes: "Braucht Erinnerung an Medikamente",
       extra_info: "Holt sich gerne Hilfe beim Anziehen",
     },
     fieldError: (name: string) =>

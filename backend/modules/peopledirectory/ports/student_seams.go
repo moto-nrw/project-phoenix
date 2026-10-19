@@ -37,5 +37,4 @@ type StudentOwners interface {
 // deletion evidence commit or roll back in the same tenant transaction.
 type StudentNoteDeletionAudit interface {
 	RecordStudentNoteDeletion(context.Context, int64, int64, int64) error
-	RecordLegacyStudentNoteDeletion(context.Context, int64, int64) error
 }

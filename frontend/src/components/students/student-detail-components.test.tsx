@@ -197,7 +197,6 @@ describe("Kopf der Kindakte", () => {
     buskind: false,
     pickup_status: "selbst",
     health_info: undefined,
-    supervisor_notes: undefined,
     extra_info: undefined,
     sick: false,
     sick_since: undefined,
@@ -708,7 +707,6 @@ describe("PersonalInfoReadOnly", () => {
     address_street: "Musterstraße 12",
     address_city: "Köln",
     address_postal_code: "50667",
-    supervisor_notes: undefined,
     extra_info: undefined,
     sick: false,
     sick_since: undefined,
@@ -1037,7 +1035,6 @@ describe("PersonalInfoReadOnly with showEditButton", () => {
     buskind: false,
     pickup_status: "selbst",
     health_info: "Allergien: Erdnüsse",
-    supervisor_notes: "Benötigt extra Aufmerksamkeit",
     extra_info: "Elternnotiz hier",
     sick: false,
     sick_since: undefined,
@@ -1085,9 +1082,8 @@ describe("PersonalInfoReadOnly with showEditButton", () => {
 
   // Betreuernotizen used to render here as a free-text field. Since #3632 the
   // durable hints are notes of their own, rendered by
-  // StudentPermanentNotesCard with their author and their audience. The
-  // student row still carries the old column until the follow-up migration
-  // drops it, so this pins that the retired field does not leak back onto a
+  // StudentPermanentNotesCard with their author and their audience, and #4268
+  // removed the old field. This pins that the label does not come back onto a
   // surface that no longer owns it.
   it("does not render the retired supervisor-notes field", () => {
     render(
@@ -1097,9 +1093,6 @@ describe("PersonalInfoReadOnly with showEditButton", () => {
         onEditClick={vi.fn()}
       />,
     );
-    expect(
-      screen.queryByText("Benötigt extra Aufmerksamkeit"),
-    ).not.toBeInTheDocument();
     expect(screen.queryByText("Betreuernotizen")).not.toBeInTheDocument();
   });
 

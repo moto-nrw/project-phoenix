@@ -51,10 +51,9 @@ type StudentRecord struct {
 	AddressCity       *string `json:"address_city,omitempty"`
 	AddressPostalCode *string `json:"address_postal_code,omitempty"`
 
-	ExtraInfo       *string `json:"extra_info,omitempty"`
-	SupervisorNotes *string `json:"supervisor_notes,omitempty"`
-	HealthInfo      *string `json:"health_info,omitempty"`
-	PickupStatus    *string `json:"pickup_status,omitempty"`
+	ExtraInfo    *string `json:"extra_info,omitempty"`
+	HealthInfo   *string `json:"health_info,omitempty"`
+	PickupStatus *string `json:"pickup_status,omitempty"`
 
 	DepartureDays          departure.DepartureDays         `json:"departure_days,omitempty"`
 	AllowedDepartureModes  departure.AllowedDepartureModes `json:"allowed_departure_modes,omitempty"`

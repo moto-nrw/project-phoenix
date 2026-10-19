@@ -113,7 +113,6 @@ func TestCareLifecycle_ConfirmAuditsOnlyCareEnd(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.NewUpdate().
 		TableExpr("users.student_care_profiles").
-		Set("supervisor_notes = ?", "Nicht ändern").
 		Set("health_info = ?", "Nicht ändern").
 		Set("pickup_status = ?", "pickup").
 		Where("membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", student.ID).

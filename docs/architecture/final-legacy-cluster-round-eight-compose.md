@@ -9,7 +9,7 @@ Classification: **direct binding** has no local branch/loop and at most one dele
 
 ## Round 9 owner set B
 
-Re-audited against `12608383f0f793e811f4379ec293f61efd6150c9`. Set A was integrated at `6af2ea106214969af23bc3143789fc7c016f63b5`; all compose packages were re-audited after integration. Counts below are production runtime-retained non-constructors; remaining constructor callbacks in B only bind or forward native values. Transaction operations stay bound at their existing registered compose declarations and execute in named internal functions. No transaction-register keys or router goldens changed. Caregiver bindings retain comparable value fields.
+Re-audited against `12608383f0f793e811f4379ec293f61efd6150c9`. Set A and the student-notes follow-up are integrated through development `545bbe9f27`; all 61 compose packages were re-audited after integration. Counts below are production runtime-retained non-constructors; remaining constructor callbacks in B only bind or forward native values. Transaction operations stay bound at their existing registered compose declarations and execute in named internal functions. No transaction-register keys or router goldens changed. Caregiver bindings retain comparable value fields.
 
 | Compose package | Runtime before → after | Compose LOC before → after |
 |---|---:|---:|
@@ -43,7 +43,7 @@ DeviceScan publishes its workflow-owned port records. Foreign Student Presence, 
 
 Communication's application caller joins an ambient transaction through its bound `HasTransaction` capability, otherwise invokes the original registered admin-retry binding. The transaction register accepts the narrowed branch-free `transaction.RunAdmin` body. Student Presence's byte-identical `transaction.Run` is consistently classified as a direct binding, like the other branch-free tenant forwards. Neither registered operation is relocated or replaced.
 
-Feedback, Meal Plan and Request Feed constructor callbacks now use named native factories with injected context lookups; no tenant dependency grant is added. No exact blockers remain. No new alias, grant, exception, transaction-register key, checker allowance or router golden change.
+Feedback, Meal Plan and Request Feed constructor callbacks now use named native factories with injected context lookups; no tenant dependency grant is added. No exact blockers remain. The student-notes merge adds no compose runtime. People Directory delegations measure 298 and the total cap is 2,925, both below development (302 / 2,970). No new alias, grant, exception, transaction-register key, checker allowance or router golden change.
 
 ## Package summary
 

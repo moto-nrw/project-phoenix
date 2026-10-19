@@ -54,17 +54,6 @@ func (a testStudentNoteDeletionAudit) RecordStudentNoteDeletion(
 	return err
 }
 
-func (a testStudentNoteDeletionAudit) RecordLegacyStudentNoteDeletion(
-	ctx context.Context, studentID, noteID int64,
-) error {
-	_, err := a.Db.NewRaw(`INSERT INTO audit.data_deletions
-		(tenant_id, student_id, deletion_type, records_deleted, deletion_reason, deleted_by, metadata)
-		VALUES (?, ?, 'manual', 1, 'legacy supervisor notes cleared', 'system',
-		jsonb_build_object('student_note_id', ?, 'source', 'supervisor_notes'))`,
-		tenant.FromContext(ctx), studentID, noteID).Exec(ctx)
-	return err
-}
-
 // noteTestStudentOwners supplies the owner calls a real student write makes.
 // The note test is about the synchronisation after that owner write, not about
 // duplicating the care-plan owner's own persistence contract.
@@ -247,10 +236,6 @@ func (failingStudentNoteDeletionAudit) RecordStudentNoteDeletion(context.Context
 	return errors.New("deletion audit unavailable")
 }
 
-func (failingStudentNoteDeletionAudit) RecordLegacyStudentNoteDeletion(context.Context, int64, int64) error {
-	return errors.New("deletion audit unavailable")
-}
-
 func TestStudentNoteCreateRevalidatesSubjectInWriteTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -308,82 +293,56 @@ func TestStudentNoteDeleteReloadsAuthorizationInWriteTransaction(t *testing.T) {
 	assert.True(t, called, "the supplied authorization is replaced in the write transaction")
 }
 
-// The temporary supervisor_notes column still has two product writers: the
-// legacy student form and imports through ApplyEnrollmentProfile. Both use the
-// same owner command, which must keep the carried-over hint current without a
-// compatibility trigger on the old student-owner tables.
-func TestStudentNotesStayInSyncWithLegacySupervisorNotes(t *testing.T) {
+// The data import is the one writer left for a carried-over hint (#4268): its
+// „Betreuernotizen" cell becomes the child's permanent hint, written by the
+// same owner command as the import's other profile columns.
+func TestImportedPermanentHint(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	module := notesModuleWithOwners(t, db, noteTestStudentOwners{})
 	ctx := testpkg.Ctx(t)
-	child := testpkg.CreateTestStudent(t, db, "Mira", "Altwert", "3a")
-	audience := peopledirectory.StudentNoteAudience{
-		Visibilities: []string{peopledirectory.StudentNoteVisibilityAllStaff},
-	}
+	child := testpkg.CreateTestStudent(t, db, "Mira", "Import", "3a")
 	listPermanent := func() []peopledirectory.StudentNote {
 		t.Helper()
 		notes, err := module.ListStudentNotes(ctx, peopledirectory.StudentNoteFilter{
-			StudentID: child.ID, Kind: peopledirectory.StudentNoteKindPermanent, Audience: audience,
+			StudentID: child.ID, Kind: peopledirectory.StudentNoteKindPermanent,
+			Audience: peopledirectory.StudentNoteAudience{
+				Visibilities: []string{peopledirectory.StudentNoteVisibilityAllStaff},
+			},
 		})
 		require.NoError(t, err)
 		return notes
 	}
 
 	first := "  Braucht Zeit zum Ankommen.  "
-	record, err := module.FindStudentRecord(ctx, child.ID)
-	require.NoError(t, err)
-	record.SupervisorNotes = &first
-	_, err = module.UpdateStudent(ctx, peopledirectory.StudentWrite{
-		Record: record, SupervisorNotesSupplied: true,
-	})
-	require.NoError(t, err)
+	require.NoError(t, module.ApplyEnrollmentProfile(ctx, child.ID, peopledirectory.EnrollmentProfilePatch{
+		PermanentHint: &first,
+	}))
 	notes := listPermanent()
 	require.Len(t, notes, 1)
 	assert.Equal(t, "Braucht Zeit zum Ankommen.", notes[0].Body)
 	assert.Equal(t, peopledirectory.StudentNoteOriginMasterData, notes[0].Origin)
+	assert.Nil(t, notes[0].AuthorAccountID, "an imported hint names no author")
 
 	updated := "Morgens bitte in Ruhe ankommen lassen."
 	require.NoError(t, module.ApplyEnrollmentProfile(ctx, child.ID, peopledirectory.EnrollmentProfilePatch{
-		SupervisorNotesSet: true, SupervisorNotes: &updated,
+		PermanentHint: &updated,
 	}))
 	notes = listPermanent()
-	require.Len(t, notes, 1)
+	require.Len(t, notes, 1, "a re-import replaces the hint instead of adding a second one")
 	assert.Equal(t, updated, notes[0].Body)
-	legacyNoteID := notes[0].ID
 
-	cleared := ""
+	empty := "   "
 	require.NoError(t, module.ApplyEnrollmentProfile(ctx, child.ID, peopledirectory.EnrollmentProfilePatch{
-		SupervisorNotesSet: true, SupervisorNotes: &cleared,
+		PermanentHint: &empty,
 	}))
-	assert.Empty(t, listPermanent())
-	var deletionAudit struct {
-		DeletedBy string `bun:"deleted_by"`
-		NoteID    int64  `bun:"note_id"`
-	}
-	require.NoError(t, db.NewRaw(`SELECT deleted_by,
-		(metadata->>'student_note_id')::bigint AS note_id
-		FROM audit.data_deletions
-		WHERE tenant_id = ? AND student_id = ? AND deletion_reason = 'legacy supervisor notes cleared'`,
-		testpkg.Tenant(t), child.ID).Scan(ctx, &deletionAudit))
-	assert.Equal(t, "system", deletionAudit.DeletedBy)
-	assert.Equal(t, legacyNoteID, deletionAudit.NoteID)
-
-	reintroduced := "Wieder ein alter Hinweis."
-	require.NoError(t, module.ApplyEnrollmentProfile(ctx, child.ID, peopledirectory.EnrollmentProfilePatch{
-		SupervisorNotesSet: true, SupervisorNotes: &reintroduced,
-	}))
-	assert.Empty(t, listPermanent(), "clearing the legacy field keeps its carried-over hint deleted")
-
-	var tombstones int
-	require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.student_notes
-		WHERE tenant_id = ? AND student_id = ? AND origin = 'master_data'
-			AND deleted_at IS NOT NULL AND deleted_by_account_id IS NULL`,
-		testpkg.Tenant(t), child.ID).Scan(ctx, &tombstones))
-	assert.Equal(t, 1, tombstones, "the compatibility writer records a system tombstone")
+	require.NoError(t, module.ApplyEnrollmentProfile(ctx, child.ID, peopledirectory.EnrollmentProfilePatch{}))
+	notes = listPermanent()
+	require.Len(t, notes, 1, "an empty or missing cell says nothing and never removes a hint")
+	assert.Equal(t, updated, notes[0].Body)
 }
 
-func TestDeletedLegacyStudentNoteStaysDeleted(t *testing.T) {
+func TestDeletedImportedHintStaysDeleted(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	module := notesModuleWithOwners(t, db, noteTestStudentOwners{})
@@ -393,15 +352,10 @@ func TestDeletedLegacyStudentNoteStaysDeleted(t *testing.T) {
 		Visibilities: []string{peopledirectory.StudentNoteVisibilityAllStaff},
 	}
 
-	legacyText := "Braucht Zeit zum Ankommen."
-	record, err := module.FindStudentRecord(ctx, child.ID)
-	require.NoError(t, err)
-	record.SupervisorNotes = &legacyText
-	_, err = module.UpdateStudent(ctx, peopledirectory.StudentWrite{
-		Record: record, SupervisorNotesSupplied: true,
-	})
-	require.NoError(t, err)
-
+	importedText := "Braucht Zeit zum Ankommen."
+	require.NoError(t, module.ApplyEnrollmentProfile(ctx, child.ID, peopledirectory.EnrollmentProfilePatch{
+		PermanentHint: &importedText,
+	}))
 	notes, err := module.ListStudentNotes(ctx, peopledirectory.StudentNoteFilter{
 		StudentID: child.ID, Kind: peopledirectory.StudentNoteKindPermanent, Audience: audience,
 	})
@@ -419,19 +373,15 @@ func TestDeletedLegacyStudentNoteStaysDeleted(t *testing.T) {
 		WHERE tenant_id = ? AND student_id = ? AND origin = 'master_data'`,
 		testpkg.Tenant(t), child.ID).Scan(ctx, &tombstone))
 
-	record, err = module.FindStudentRecord(ctx, child.ID)
-	require.NoError(t, err)
-	record.SupervisorNotes = &legacyText
-	_, err = module.UpdateStudent(ctx, peopledirectory.StudentWrite{
-		Record: record, SupervisorNotesSupplied: true,
-	})
-	require.NoError(t, err)
+	require.NoError(t, module.ApplyEnrollmentProfile(ctx, child.ID, peopledirectory.EnrollmentProfilePatch{
+		PermanentHint: &importedText,
+	}))
 
 	notes, err = module.ListStudentNotes(ctx, peopledirectory.StudentNoteFilter{
 		StudentID: child.ID, Kind: peopledirectory.StudentNoteKindPermanent, Audience: audience,
 	})
 	require.NoError(t, err)
-	assert.Empty(t, notes, "a later legacy write must not restore a deliberately deleted hint")
+	assert.Empty(t, notes, "a later import must not restore a deliberately deleted hint")
 	var after struct {
 		Body      string    `bun:"body"`
 		UpdatedAt time.Time `bun:"updated_at"`
@@ -439,7 +389,7 @@ func TestDeletedLegacyStudentNoteStaysDeleted(t *testing.T) {
 	require.NoError(t, db.NewRaw(`SELECT body, updated_at FROM users.student_notes
 		WHERE tenant_id = ? AND student_id = ? AND origin = 'master_data'`,
 		testpkg.Tenant(t), child.ID).Scan(ctx, &after))
-	assert.Equal(t, tombstone, after, "an unchanged legacy write must not rewrite a deleted hint")
+	assert.Equal(t, tombstone, after, "a later import must not rewrite a deleted hint")
 }
 
 // The audience predicate is the security boundary of this feature. It is built

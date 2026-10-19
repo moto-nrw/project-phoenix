@@ -191,7 +191,7 @@ func decisionStudentRow(student *enrollmentCompose.Student) *peopledirectory.Stu
 	row := &peopledirectory.StudentState{
 		PersonID: student.PersonID, SchoolClass: student.SchoolClass, GroupID: student.GroupID,
 		AddressStreet: student.AddressStreet, AddressCity: student.AddressCity, AddressPostalCode: student.AddressPostalCode,
-		ExtraInfo: student.ExtraInfo, SupervisorNotes: student.SupervisorNotes, HealthInfo: student.HealthInfo,
+		ExtraInfo: student.ExtraInfo, HealthInfo: student.HealthInfo,
 		PickupStatus: student.PickupStatus, DepartureDays: student.DepartureDays,
 		AllowedDepartureModes: student.AllowedDepartureModes, DepartureCompanionNote: student.DepartureCompanionNote,
 		DepartureCompanionDays: student.DepartureCompanionDays, PickupDays: student.PickupDays, BusDays: student.BusDays,
