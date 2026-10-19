@@ -645,23 +645,3 @@ func TenantQueryPair1[T any, U any, A0 any](tb testing.TB, ctx context.Context, 
 	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error { first, second, err = call(txCtx, arg0); return err })
 	return first, second, err
 }
-
-// TenantQueryPair2 supplies an explicit fixture unit for a two-value owner read.
-func TenantQueryPair2[T any, U any, A0 any, A1 any](tb testing.TB, ctx context.Context, db *bun.DB, call func(context.Context, A0, A1) (T, U, error), arg0 A0, arg1 A1) (first T, second U, err error) {
-	tb.Helper()
-	if _, active := tenant.TransactionFromContext(ctx); active {
-		return call(ctx, arg0, arg1)
-	}
-	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error { first, second, err = call(txCtx, arg0, arg1); return err })
-	return first, second, err
-}
-
-// TenantQueryPair3 supplies an explicit fixture unit for a two-value owner read.
-func TenantQueryPair3[T any, U any, A0 any, A1 any, A2 any](tb testing.TB, ctx context.Context, db *bun.DB, call func(context.Context, A0, A1, A2) (T, U, error), arg0 A0, arg1 A1, arg2 A2) (first T, second U, err error) {
-	tb.Helper()
-	if _, active := tenant.TransactionFromContext(ctx); active {
-		return call(ctx, arg0, arg1, arg2)
-	}
-	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error { first, second, err = call(txCtx, arg0, arg1, arg2); return err })
-	return first, second, err
-}

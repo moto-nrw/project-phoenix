@@ -28,11 +28,6 @@ func (r *scopedCareOfferingRows) Update(ctx context.Context, row *offeringContra
 func (r *scopedCareOfferingRows) Delete(ctx context.Context, id int64) error {
 	return fixtureEnrollmentCommand(ctx, func(txCtx context.Context) error { return r.CareOfferingRows.Delete(txCtx, id) })
 }
-func (r *scopedCareOfferingRows) List(ctx context.Context) ([]*offeringContract.CareOfferingRecord, error) {
-	return fixtureEnrollmentQuery(ctx, func(txCtx context.Context) ([]*offeringContract.CareOfferingRecord, error) {
-		return r.CareOfferingRows.List(txCtx)
-	})
-}
 func (r *scopedCareOfferingRows) ListByPhase(ctx context.Context, id int64) ([]*offeringContract.CareOfferingRecord, error) {
 	return fixtureEnrollmentQuery(ctx, func(txCtx context.Context) ([]*offeringContract.CareOfferingRecord, error) {
 		return r.CareOfferingRows.ListByPhase(txCtx, id)
