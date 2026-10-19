@@ -514,6 +514,94 @@ describe("ParentMealPlanPage", () => {
     });
   });
 
+  it("marks each participation state with its own icon next to the text", async () => {
+    mocks.getChildFeatures.mockResolvedValue({
+      meal_plan_enabled: true,
+      meal_registration_enabled: true,
+    });
+    mocks.getMealParticipation.mockResolvedValue({
+      weekdays: [1, 2, 3],
+      effective_from: "2026-08-10",
+      cutoff_time: "09:00",
+      days: [
+        {
+          date: "2026-08-10",
+          participating: true,
+          source: "regular",
+          changeable: false,
+        },
+        {
+          date: "2026-08-11",
+          participating: false,
+          source: "sick",
+          changeable: false,
+        },
+        {
+          date: "2026-08-14",
+          participating: false,
+          source: "none",
+          changeable: true,
+        },
+      ],
+    });
+
+    render(<ParentMealPlanPage />);
+
+    const badgeFor = async (label: string) => {
+      const badge = await screen.findByText(label);
+      expect(badge).toHaveTextContent(new RegExp(`^${label}$`));
+      const icons = badge.querySelectorAll("svg");
+      expect(icons).toHaveLength(1);
+      expect(icons[0]).toHaveAttribute("aria-hidden", "true");
+      return icons[0];
+    };
+
+    expect(await badgeFor("Zum Mittagessen angemeldet")).toHaveClass(
+      "lucide-check",
+    );
+    expect(await badgeFor("Durch die Krankmeldung abgemeldet")).toHaveClass(
+      "lucide-ban",
+    );
+    expect(await badgeFor("Nicht zum Mittagessen angemeldet")).toHaveClass(
+      "lucide-minus",
+    );
+  });
+
+  it("switches the icon with the draft while a day is being changed", async () => {
+    mocks.getChildFeatures.mockResolvedValue({
+      meal_plan_enabled: true,
+      meal_registration_enabled: true,
+    });
+    mocks.getMealParticipation.mockResolvedValue({
+      weekdays: [],
+      effective_from: "2026-08-10",
+      cutoff_time: "09:00",
+      days: [
+        {
+          date: "2026-08-14",
+          participating: false,
+          source: "none",
+          changeable: true,
+        },
+      ],
+    });
+
+    render(<ParentMealPlanPage />);
+
+    const before = await screen.findByText("Nicht zum Mittagessen angemeldet");
+    expect(before.querySelector("svg")).toHaveClass("lucide-minus");
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Anmeldung ändern: Freitag, 14. August",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
+
+    const after = screen.getByText("Zum Mittagessen angemeldet");
+    expect(after.querySelector("svg")).toHaveClass("lucide-check");
+  });
+
   it("distinguishes missing children from a disabled school meal plan", async () => {
     mocks.listMyChildren.mockResolvedValue([]);
 
@@ -777,6 +865,18 @@ describe("ParentMealPlanPage", () => {
       expect(
         await screen.findByText("Montag und Mittwoch"),
       ).toBeInTheDocument();
+    });
+
+    it("shows no state icon while the participation could not be loaded", async () => {
+      mocks.getMealParticipation.mockRejectedValue(unavailable());
+
+      render(<ParentMealPlanPage />);
+
+      const badges = await screen.findAllByText("Anmeldung nicht geladen");
+      expect(badges).toHaveLength(5);
+      for (const badge of badges) {
+        expect(badge.querySelector("svg")).toBeNull();
+      }
     });
 
     it("keeps the regular-days draft open and shows the save error in it", async () => {
