@@ -175,17 +175,10 @@ func (s *Service) lockOperationalInstanceStaff(ctx context.Context, id int64, da
 	if err != nil {
 		return err
 	}
-	ids := make([]int64, 0, len(assignments))
-	for _, assignment := range assignments {
-		ids = append(ids, assignment.StaffID)
-	}
-	slices.Sort(ids)
-	ids = slices.Compact(ids)
+	ids := sortedInstanceStaffIDs(assignments)
 	if operational {
-		for _, staffID := range ids {
-			if err := s.lockStaffAssignment(ctx, staffID); err != nil {
-				return err
-			}
+		if err := s.lockInstanceStaffAssignments(ctx, ids); err != nil {
+			return err
 		}
 	}
 	current, found, queryStats, err := s.store.LockActivityInstance(ctx, id, true)
@@ -202,15 +195,40 @@ func (s *Service) lockOperationalInstanceStaff(ctx context.Context, id int64, da
 	if !operational {
 		return nil
 	}
-	// Do not acquire newly discovered staff locks below the instance lock:
-	// that would invert offboarding's order. Abort and let the caller retry.
-	assignments, queryStats, err = s.store.ListInstanceStaff(ctx, domain.InstanceStaffFilter{InstanceIDs: []int64{id}})
+	return s.requireInstanceStaffLocked(ctx, id, ids, stats)
+}
+
+// sortedInstanceStaffIDs returns the distinct staff IDs of the assignments in
+// ascending order: the order offboarding takes staff locks in.
+func sortedInstanceStaffIDs(assignments []domain.InstanceStaff) []int64 {
+	ids := make([]int64, 0, len(assignments))
+	for _, assignment := range assignments {
+		ids = append(ids, assignment.StaffID)
+	}
+	slices.Sort(ids)
+	return slices.Compact(ids)
+}
+
+func (s *Service) lockInstanceStaffAssignments(ctx context.Context, staffIDs []int64) error {
+	for _, staffID := range staffIDs {
+		if err := s.lockStaffAssignment(ctx, staffID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// requireInstanceStaffLocked re-reads the instance staff below the instance
+// lock. Do not acquire newly discovered staff locks there: that would invert
+// offboarding's order. Abort and let the caller retry.
+func (s *Service) requireInstanceStaffLocked(ctx context.Context, id int64, lockedIDs []int64, stats *domain.OperationStats) error {
+	assignments, queryStats, err := s.store.ListInstanceStaff(ctx, domain.InstanceStaffFilter{InstanceIDs: []int64{id}})
 	stats.Add(queryStats)
 	if err != nil {
 		return err
 	}
 	for _, assignment := range assignments {
-		if _, locked := slices.BinarySearch(ids, assignment.StaffID); !locked {
+		if _, locked := slices.BinarySearch(lockedIDs, assignment.StaffID); !locked {
 			return domain.ErrOffboardingConflict
 		}
 	}

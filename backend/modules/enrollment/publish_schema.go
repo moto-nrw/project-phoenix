@@ -26,25 +26,31 @@ func (m *Module) PublishSchema(ctx context.Context, input FormSchema) (*FormSche
 		if err := m.engine.InsertSchemaVersion(txCtx, schema); err != nil {
 			return fmt.Errorf("create schema: %w", err)
 		}
-		versions, err := m.engine.SchemaVersions(txCtx)
-		if err != nil {
-			return fmt.Errorf("list schema versions for repoint: %w", err)
-		}
-		oldIDs := make([]int64, 0, len(versions))
-		for _, previous := range versions {
-			if previous.Name == schema.Name && previous.ID != schema.ID {
-				oldIDs = append(oldIDs, previous.ID)
-			}
-		}
-		if len(oldIDs) > 0 {
-			if _, err := m.engine.RepointPhaseSchemas(txCtx, oldIDs, schema.ID); err != nil {
-				return fmt.Errorf("repoint phases to schema %d: %w", schema.ID, err)
-			}
-		}
-		return nil
+		return m.repointPreviousVersions(txCtx, schema)
 	})
 	if err != nil {
 		return nil, err
 	}
 	return schema, nil
+}
+
+// repointPreviousVersions advances the phases on older versions of the
+// schema's lineage to the newly inserted version.
+func (m *Module) repointPreviousVersions(ctx context.Context, schema *FormSchema) error {
+	versions, err := m.engine.SchemaVersions(ctx)
+	if err != nil {
+		return fmt.Errorf("list schema versions for repoint: %w", err)
+	}
+	oldIDs := make([]int64, 0, len(versions))
+	for _, previous := range versions {
+		if previous.Name == schema.Name && previous.ID != schema.ID {
+			oldIDs = append(oldIDs, previous.ID)
+		}
+	}
+	if len(oldIDs) > 0 {
+		if _, err := m.engine.RepointPhaseSchemas(ctx, oldIDs, schema.ID); err != nil {
+			return fmt.Errorf("repoint phases to schema %d: %w", schema.ID, err)
+		}
+	}
+	return nil
 }

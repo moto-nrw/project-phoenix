@@ -116,20 +116,12 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/devicescan/internal/application/session_mirror.go:(*sessionMirror).MirrorSession": 17,
 	"modules/devicescan/internal/application/systemspace.go:(*Service).systemActivity":         20,
 
-	"modules/enrollment/delete_schema.go:(*Module).DeleteUnusedSchema":                                       27,
-	"modules/enrollment/form_schema.go:(*FormField).validateQuestion":                                        34,
-	"modules/enrollment/form_schema.go:(*FormLegalBlock).Validate":                                           26,
-	"modules/enrollment/form_schema.go:(*FormSchema).Validate":                                               23,
-	"modules/enrollment/form_schema.go:(*VisibilityCondition).Validate":                                      20,
-	"modules/enrollment/internal/adapters/postgres/change_request_reads.go:(*Store).ChangeRequestsForReview": 17,
-	"modules/enrollment/phase.go:(*Phase).Validate":                                                          41,
-	"modules/enrollment/publish_schema.go:(*Module).PublishSchema":                                           21,
-	"modules/careplan/selection/automatic_shares.go:AutomaticShares":                                         18,
-	"modules/careplan/selection/materialize.go:MaterializeAdjustments":                                       44,
-	"modules/careplan/selection/materialize.go:autoLunchDaysForTarget":                                       16,
-	"modules/careplan/selection/materialize.go:materializeOfferingSelections":                                44,
-	"modules/careplan/selection/materialize.go:validateCareOfferingSelectionModeWithMissing":                 29,
-	"modules/careplan/selection/types.go:(*AvailabilityRule).NormalizeAndValidate":                           21,
+	"modules/careplan/selection/automatic_shares.go:AutomaticShares":                         18,
+	"modules/careplan/selection/materialize.go:MaterializeAdjustments":                       44,
+	"modules/careplan/selection/materialize.go:autoLunchDaysForTarget":                       16,
+	"modules/careplan/selection/materialize.go:materializeOfferingSelections":                44,
+	"modules/careplan/selection/materialize.go:validateCareOfferingSelectionModeWithMissing": 29,
+	"modules/careplan/selection/types.go:(*AvailabilityRule).NormalizeAndValidate":           21,
 
 	"modules/filestorage/internal/application/attachments.go:(*Service).DeleteAttachment": 29,
 	"modules/filestorage/internal/application/attachments.go:(*Service).UploadAttachment": 17,
@@ -198,12 +190,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/peopledirectory/internal/application/student_write.go:(*StudentService).reconcileCompanions": 19,
 	"modules/peopledirectory/student_field_review.go:reviewStudentField":                                  16,
 
-	"modules/planexport/betreuungsplan.go:(*betreuungsplanData).rows":      23,
-	"modules/planexport/betreuungsplan.go:(*betreuungsplanData).staffLine": 17,
-	"modules/planexport/betreuungsplan.go:(*service).blockColors":          21,
-	"modules/planexport/dienstplan.go:(*dienstplanData).rowsByArea":        51,
-	"modules/planexport/service.go:(*service).nonWorkingDays":              28,
-
 	"roots/requestreviewbinding/corrections.go:(correctionLog).History": 19,
 	"modules/requestreview/query.go:(*ListQuery).validate":              23,
 
@@ -225,29 +211,7 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/schoolcalendar/portal/internal/application/service.go:(*service).staffShiftEventsWithCancelled":      19,
 	"modules/schoolcalendar/portal/internal/application/service.go:(*service).updateStaffAppointment":             29,
 
-	"modules/schoolmembership/internal/adapters/postgres/store.go:(*Store).ListGuests":                         18,
-	"modules/schoolmembership/internal/adapters/postgres/store.go:(*Store).ListTeachers":                       17,
-	"modules/schoolmembership/internal/adapters/postgres/teaching_assignment.go:(*Store).ListGroupAssignments": 16,
-	"modules/schoolmembership/internal/application/offboarding.go:(*Service).RetireStaff":                      17,
-	"modules/schoolmembership/internal/application/offboarding.go:(*Service).retirementSnapshot":               24,
-
-	"modules/schoolstructure/internal/adapters/postgres/transition_store.go:(*Store).ListTransitions": 16,
-	"modules/schoolstructure/internal/application/transition.go:(*Service).UpdateTransition":          32,
-
-	"modules/studentpresence/internal/adapters/postgres/live_groups.go:(*Store).QueryGroupSupervisions": 19,
-	"modules/studentpresence/internal/adapters/postgres/live_groups.go:(*Store).QueryLiveGroups":        19,
-	"modules/studentpresence/internal/application/live_groups.go:(*Service).QueryGroupSupervisions":     26,
-	"modules/studentpresence/internal/application/live_groups.go:(*Service).QueryLiveGroups":            21,
-	"modules/studentpresence/internal/application/school_status.go:(*Service).ListSchoolStatuses":       21,
-
 	"modules/supervisiondashboard/supervisiondashboard.go:(*service).loadPresenceSections": 17,
-
-	"modules/timetable/internal/application/activity_supervisor_operations.go:buildReplacementSupervisorIDs": 22,
-	"modules/timetable/internal/application/activity_instances.go:(*Service).lockOperationalInstanceStaff":   20,
-	"modules/timetable/internal/application/pickup_extensions.go:(*Service).ensurePickupWeekdayEnrollment":   16,
-	"modules/timetable/internal/application/pickup_extensions.go:(*Service).pickupExtensionBlocks":           23,
-	"modules/timetable/internal/application/recurrence_events.go:(*Service).GenerateRecurrenceEvents":        21,
-	"modules/timetable/record_validation.go:validStudentEnrollment":                                          16,
 
 	// Moved in by #3996 from modules/workforce/legacy/absence_repositories.go;
 	// the scores crossed the boundary unchanged.

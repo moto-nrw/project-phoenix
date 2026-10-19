@@ -135,39 +135,15 @@ func (s *Store) ListTransitions(ctx context.Context, tenantID int64, filter doma
 		return nil, 0, domain.OperationStats{}, err
 	}
 	stats := domain.OperationStats{}
-	apply := func(query *bun.SelectQuery) *bun.SelectQuery {
-		query = query.Where(`"transition".tenant_id = ?`, tenantID)
-		if filter.Status != "" {
-			query = query.Where(`"transition".status = ?`, filter.Status)
-		}
-		if filter.AcademicYear != "" {
-			query = query.Where(`"transition".academic_year = ?`, filter.AcademicYear)
-		}
-		if filter.AfterID != nil {
-			query = query.Where(`"transition".id > ?`, *filter.AfterID)
-		}
-		return query
-	}
 	started := time.Now()
-	total, err := apply(db.NewSelect().Model((*transitionRow)(nil)).ModelTableExpr(transitionsTable)).Count(ctx)
+	total, err := filterTransitions(db.NewSelect().Model((*transitionRow)(nil)).ModelTableExpr(transitionsTable), tenantID, filter).Count(ctx)
 	stats.Queries++
 	stats.StatementDuration += time.Since(started)
 	if err != nil {
 		return nil, 0, stats, storeError("count transitions", err)
 	}
 	rows := []transitionRow{}
-	query := apply(db.NewSelect().Model(&rows).ModelTableExpr(transitionsTable))
-	if filter.AfterID != nil {
-		query = query.OrderExpr(`"transition".id ASC`)
-	} else {
-		query = query.OrderExpr(`"transition".created_at DESC, "transition".id DESC`)
-	}
-	if filter.Limit > 0 {
-		query = query.Limit(int64(filter.Limit))
-	}
-	if filter.Offset > 0 {
-		query = query.Offset(int64(filter.Offset))
-	}
+	query := pageTransitions(filterTransitions(db.NewSelect().Model(&rows).ModelTableExpr(transitionsTable), tenantID, filter), filter)
 	started = time.Now()
 	err = query.Scan(ctx)
 	stats.Queries++
@@ -192,6 +168,39 @@ func (s *Store) ListTransitions(ctx context.Context, tenantID int64, filter doma
 		result = append(result, transition)
 	}
 	return result, int(total), stats, nil
+}
+
+// filterTransitions narrows a transition query to the tenant and the filter;
+// the count and the page share it.
+func filterTransitions(query *bun.SelectQuery, tenantID int64, filter domain.TransitionFilter) *bun.SelectQuery {
+	query = query.Where(`"transition".tenant_id = ?`, tenantID)
+	if filter.Status != "" {
+		query = query.Where(`"transition".status = ?`, filter.Status)
+	}
+	if filter.AcademicYear != "" {
+		query = query.Where(`"transition".academic_year = ?`, filter.AcademicYear)
+	}
+	if filter.AfterID != nil {
+		query = query.Where(`"transition".id > ?`, *filter.AfterID)
+	}
+	return query
+}
+
+// pageTransitions orders and bounds the listed page: a cursor walks forward by
+// ID, an offset page lists the newest first.
+func pageTransitions(query *bun.SelectQuery, filter domain.TransitionFilter) *bun.SelectQuery {
+	if filter.AfterID != nil {
+		query = query.OrderExpr(`"transition".id ASC`)
+	} else {
+		query = query.OrderExpr(`"transition".created_at DESC, "transition".id DESC`)
+	}
+	if filter.Limit > 0 {
+		query = query.Limit(int64(filter.Limit))
+	}
+	if filter.Offset > 0 {
+		query = query.Offset(int64(filter.Offset))
+	}
+	return query
 }
 
 func (s *Store) listMappings(ctx context.Context, db bun.IDB, tenantID int64, transitionIDs []int64) (map[int64][]domain.TransitionMapping, domain.OperationStats, error) {

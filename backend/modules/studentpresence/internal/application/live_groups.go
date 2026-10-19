@@ -19,17 +19,8 @@ func (s *Service) QueryLiveGroups(ctx context.Context, filter ports.LiveGroupFil
 		if filter.Limit < 0 || filter.Offset < 0 {
 			return ports.Stats{}, errors.New("student presence: invalid pagination")
 		}
-		for _, ids := range [][]int64{filter.IDs, filter.ActivityGroupIDs} {
-			for _, id := range ids {
-				if id <= 0 {
-					return ports.Stats{}, errors.New("student presence: invalid group filter ID")
-				}
-			}
-		}
-		for _, id := range []*int64{filter.RoomID, filter.DeviceID} {
-			if id != nil && *id <= 0 {
-				return ports.Stats{}, errors.New("student presence: invalid group filter ID")
-			}
+		if err := validateLiveGroupFilterIDs(filter); err != nil {
+			return ports.Stats{}, err
 		}
 		if filter.From != nil && filter.Until != nil && filter.From.After(*filter.Until) {
 			return ports.Stats{}, errors.New("student presence: invalid group time range")
@@ -89,28 +80,16 @@ func (s *Service) QueryGroupSupervisions(ctx context.Context, filter ports.Group
 		if filter.Limit < 0 || filter.Offset < 0 {
 			return ports.Stats{}, errors.New("student presence: invalid supervision pagination")
 		}
-		for _, id := range filter.StaffIDs {
-			if id <= 0 {
-				return ports.Stats{}, errors.New("student presence: invalid staff ID")
-			}
-		}
-		for _, id := range filter.IDs {
-			if id <= 0 {
-				return ports.Stats{}, errors.New("student presence: invalid supervision ID")
-			}
+		if err := validateSupervisionRowFilter(filter); err != nil {
+			return ports.Stats{}, err
 		}
 		if filter.ForUpdate {
 			if err := s.tx.Require(ctx); err != nil {
 				return ports.Stats{}, err
 			}
 		}
-		for _, id := range filter.GroupIDs {
-			if id <= 0 {
-				return ports.Stats{}, errors.New("student presence: invalid group ID")
-			}
-		}
-		if filter.StaffID != nil && *filter.StaffID <= 0 {
-			return ports.Stats{}, errors.New("student presence: invalid staff ID")
+		if err := validateSupervisionGroupFilter(filter); err != nil {
+			return ports.Stats{}, err
 		}
 		var stats ports.Stats
 		result, stats, err = s.store.QueryGroupSupervisions(ctx, filter)
@@ -135,4 +114,52 @@ func (s *Service) SupervisedRoomsOn(ctx context.Context, date ports.Date) (resul
 		return stats, err
 	})
 	return result, err
+}
+
+// validateLiveGroupFilterIDs rejects non-positive session, activity group,
+// room and device IDs in a live group filter.
+func validateLiveGroupFilterIDs(filter ports.LiveGroupFilter) error {
+	for _, ids := range [][]int64{filter.IDs, filter.ActivityGroupIDs} {
+		for _, id := range ids {
+			if id <= 0 {
+				return errors.New("student presence: invalid group filter ID")
+			}
+		}
+	}
+	for _, id := range []*int64{filter.RoomID, filter.DeviceID} {
+		if id != nil && *id <= 0 {
+			return errors.New("student presence: invalid group filter ID")
+		}
+	}
+	return nil
+}
+
+// validateSupervisionRowFilter rejects non-positive staff and supervision IDs
+// in a supervision filter.
+func validateSupervisionRowFilter(filter ports.GroupSupervisionFilter) error {
+	for _, id := range filter.StaffIDs {
+		if id <= 0 {
+			return errors.New("student presence: invalid staff ID")
+		}
+	}
+	for _, id := range filter.IDs {
+		if id <= 0 {
+			return errors.New("student presence: invalid supervision ID")
+		}
+	}
+	return nil
+}
+
+// validateSupervisionGroupFilter rejects non-positive group IDs and a
+// non-positive single staff ID in a supervision filter.
+func validateSupervisionGroupFilter(filter ports.GroupSupervisionFilter) error {
+	for _, id := range filter.GroupIDs {
+		if id <= 0 {
+			return errors.New("student presence: invalid group ID")
+		}
+	}
+	if filter.StaffID != nil && *filter.StaffID <= 0 {
+		return errors.New("student presence: invalid staff ID")
+	}
+	return nil
 }

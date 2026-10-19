@@ -208,7 +208,8 @@ type GuestFilter struct {
 	HasOrganization      *bool
 }
 
-type Query interface {
+// StaffQuery reads the staff rows and their teacher and guest profiles.
+type StaffQuery interface {
 	// FindStaff returns one live staff member visible in the caller's
 	// transaction.
 	FindStaff(context.Context, int64) (Staff, error)
@@ -227,7 +228,10 @@ type Query interface {
 	FindGuest(context.Context, int64) (Guest, error)
 	FindGuestByStaff(context.Context, int64) (Guest, error)
 	ListGuests(context.Context, GuestFilter) ([]Guest, error)
+}
 
+// ClassListQuery reads the Klassenliste entries.
+type ClassListQuery interface {
 	FindClassListEntry(context.Context, int64) (ClassListEntry, error)
 	// FindClassListEntryForMutation locks the row for the caller's transaction.
 	FindClassListEntryForMutation(context.Context, int64) (ClassListEntry, error)
@@ -240,12 +244,22 @@ type Query interface {
 	// MatchingStudentIDs names the enrolled students sharing an entry's name
 	// and class: the "Zuordnen" hint, never an automatic merge.
 	MatchingStudentIDs(context.Context, ClassListEntryFields) ([]int64, error)
+}
 
+// TeachingAssignmentQuery reads the class teacher and group teacher rows.
+type TeachingAssignmentQuery interface {
 	ListClassAssignments(context.Context, ClassAssignmentFilter) ([]ClassAssignment, error)
 	ListGroupAssignments(context.Context, GroupAssignmentFilter) ([]GroupAssignment, error)
 }
 
-type Command interface {
+type Query interface {
+	StaffQuery
+	ClassListQuery
+	TeachingAssignmentQuery
+}
+
+// StaffCommand writes the staff rows and their teacher and guest profiles.
+type StaffCommand interface {
 	StaffEmploymentCommands
 	CreateStaff(context.Context, CreateStaff) (Staff, error)
 	UpdateStaff(context.Context, UpdateStaff) (Staff, error)
@@ -261,7 +275,10 @@ type Command interface {
 	UpdateGuest(context.Context, UpdateGuest) (Guest, error)
 	// DeleteGuest removes the guest profile; guests carry no tombstone.
 	DeleteGuest(context.Context, int64) error
+}
 
+// ClassListCommand writes the Klassenliste entries.
+type ClassListCommand interface {
 	CreateClassListEntry(context.Context, CreateClassListEntry) (ClassListEntry, error)
 	UpdateClassListEntry(context.Context, UpdateClassListEntry) (ClassListEntry, error)
 	// DeleteClassListEntry removes the entry; entries carry no tombstone.
@@ -274,7 +291,10 @@ type Command interface {
 	ReviseClassListEntry(context.Context, ReviseClassListEntry) (ClassListEntry, error)
 	RemoveClassListEntry(context.Context, RemoveClassListEntry) error
 	ResolveClassListEntry(context.Context, ResolveClassListEntry) error
+}
 
+// TeachingAssignmentCommand writes the class teacher and group teacher rows.
+type TeachingAssignmentCommand interface {
 	CreateClassAssignment(context.Context, CreateClassAssignment) (ClassAssignment, error)
 	UpdateClassAssignment(context.Context, UpdateClassAssignment) (ClassAssignment, error)
 	DeleteClassAssignment(context.Context, int64) error
@@ -288,6 +308,12 @@ type Command interface {
 	// group assignment rows for the caller's transaction, so a caregiver
 	// capability re-check cannot race a concurrent assignment write.
 	LockGroupAssignments(context.Context) error
+}
+
+type Command interface {
+	StaffCommand
+	ClassListCommand
+	TeachingAssignmentCommand
 }
 
 type Capability interface {

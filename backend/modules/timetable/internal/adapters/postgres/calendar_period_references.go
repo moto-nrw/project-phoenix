@@ -15,11 +15,7 @@ func (s *Store) CountCalendarPeriodReferences(ctx context.Context) (map[int64]do
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
-	var rows []struct {
-		Source           string `bun:"source"`
-		CalendarPeriodID int64  `bun:"calendar_period_id"`
-		Count            int    `bun:"count"`
-	}
+	var rows []calendarPeriodReferenceRow
 	query := db.NewSelect().
 		ColumnExpr("source, calendar_period_id, count").
 		TableExpr(`(
@@ -52,6 +48,21 @@ func (s *Store) CountCalendarPeriodReferences(ctx context.Context) (map[int64]do
 	if err != nil {
 		return nil, stats, err
 	}
+	stats.Rows = int64(len(rows))
+	return calendarPeriodReferenceCounts(rows), stats, nil
+}
+
+// calendarPeriodReferenceRow is one (source table, period) count of the
+// UNION ALL read in CountCalendarPeriodReferences.
+type calendarPeriodReferenceRow struct {
+	Source           string `bun:"source"`
+	CalendarPeriodID int64  `bun:"calendar_period_id"`
+	Count            int    `bun:"count"`
+}
+
+// calendarPeriodReferenceCounts folds the per-source rows into one
+// reference count per calendar period.
+func calendarPeriodReferenceCounts(rows []calendarPeriodReferenceRow) map[int64]domain.CalendarPeriodReferences {
 	counts := make(map[int64]domain.CalendarPeriodReferences, len(rows))
 	for _, row := range rows {
 		entry := counts[row.CalendarPeriodID]
@@ -69,6 +80,5 @@ func (s *Store) CountCalendarPeriodReferences(ctx context.Context) (map[int64]do
 		}
 		counts[row.CalendarPeriodID] = entry
 	}
-	stats.Rows = int64(len(rows))
-	return counts, stats, nil
+	return counts
 }
