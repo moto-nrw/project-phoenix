@@ -5,7 +5,7 @@ Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes s
 
 Stand 19.10.2026 · Ratchet 0 · Composition 0 · Policy-Epoche 86 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 0 Legacy-Verzeichnisse und
-0 `legacy_*.go` · Compose-Cap 20.127 LOC.
+0 `legacy_*.go` · Compose-Cap 20.118 LOC.
 
 `backend/architecture/legacy.jsonl` ist leer. Der normale Architekturcheck und
 der Check ohne Baseline müssen beide mit null Verstößen bestehen. Der letzte

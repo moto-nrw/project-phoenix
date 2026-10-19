@@ -49,7 +49,7 @@ Classification: **direct binding** has no local branch/loop and at most one dele
 | `modules/schoolcalendar/portal/compose` | `school-calendar` | 5 | 4 |
 | `modules/schoolmembership/compose` | `school-membership` | 2 | 0 |
 | `modules/schoolsetup/compose` | `school-setup` | 2 | 0 |
-| `modules/schoolstructure/compose` | `school-structure` | 23 | 0 |
+| `modules/schoolstructure/compose` | `school-structure` | 22 | 0 |
 | `modules/settings/compose` | `settings-platform` | 17 | 11 |
 | `modules/staffannouncementaudience` | `staff-announcement-audience` | 1 | 0 |
 | `modules/staffmessageinbox` | `staff-message-inbox` | 0 | 0 |
@@ -1042,7 +1042,6 @@ No non-constructor functions.
 
 | Function | Source | Classification | Calls |
 |---|---|---|---|
-| `publicGroupError` | [group_values.go:9](../../../backend/modules/schoolstructure/compose/group_values.go#L9) | direct binding | `groups.PublicGroupError` |
 | `legacyTeacher` | [group_values_test_helpers.go:13](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L13) | test-only | `groups.TeacherPerson` |
 | `legacyGroupError` | [group_values_test_helpers.go:25](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L25) | test-only | `retainedGroupError` |
 | `retainedGroupError` | [group_values_test_helpers.go:29](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L29) | test-only | `legacyGroupError`, `legacyGroupError`, `groups.MapGroupErrorCauses` |

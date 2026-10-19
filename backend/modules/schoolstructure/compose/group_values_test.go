@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,7 +15,7 @@ func TestNativeGroupStorageErrorsPreserveTextAndClassification(t *testing.T) {
 	t.Parallel()
 	for _, cause := range []error{legacyGroupRecordTestNotFound, errors.New("driver failure")} {
 		original := &EducationError{Op: "CountGroups", Err: &legacyGroupStorageTestError{Op: "count", Err: cause}}
-		native := publicGroupError(original)
+		native := groups.PublicGroupError(original)
 		require.Equal(t, original.Error(), native.Error())
 		var service *schoolstructure.EducationError
 		require.ErrorAs(t, native, &service)
@@ -41,7 +42,7 @@ func TestNativeGroupErrorsPreserveWrappedAndJoinedCauses(t *testing.T) {
 		&EducationError{Op: "GetGroup", Err: &legacyGroupStorageTestError{Op: "find by id", Err: errors.Join(legacyGroupRecordTestNotFound, sql.ErrNoRows)}},
 		sibling,
 	))
-	native := publicGroupError(original)
+	native := groups.PublicGroupError(original)
 	require.Equal(t, original.Error(), native.Error())
 	require.ErrorIs(t, native, sibling)
 	require.ErrorIs(t, native, sql.ErrNoRows)
