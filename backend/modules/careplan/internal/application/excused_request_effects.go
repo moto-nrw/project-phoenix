@@ -39,36 +39,6 @@ func (w *ExcusedRequests) emitRequestPill(ctx context.Context, req *careplan.Exc
 	return w.messenger.EmitChildEvent(ctx, tenantID, studentID, guardianAccountID, ev)
 }
 
-// broadcastRequestTransition wakes both audiences after any absence-request
-// transition that changes the child's "Freigabe ausstehend" badge: staff
-// tabs through the tenant-wide events, guardians through a message-
-// independent invalidation. Both run after commit so a woken client never
-// reads the pre-commit snapshot.
-func (w *ExcusedRequests) broadcastRequestTransition(ctx context.Context, tenantID, studentID int64) {
-	tenantID = w.tenantOf(ctx, tenantID)
-	w.hooks.AfterCommit(ctx, func() {
-		if w.broadcaster != nil {
-			if err := w.broadcaster.StudentUpdated(tenantID); err != nil {
-				w.logger.Warn("care plan: broadcast student_updated after excused request transition failed",
-					slog.Int64("tenant_id", tenantID),
-					slog.Int64("student_id", studentID),
-					slog.String("error", err.Error()),
-				)
-			}
-			if err := w.broadcaster.ChangeRequestsChanged(tenantID); err != nil {
-				w.logger.Warn("care plan: broadcast change_requests_changed after excused request transition failed",
-					slog.Int64("tenant_id", tenantID),
-					slog.Int64("student_id", studentID),
-					slog.String("error", err.Error()),
-				)
-			}
-		}
-		if w.messenger != nil {
-			w.messenger.BroadcastChildUpdateToGuardians(tenantID, studentID)
-		}
-	})
-}
-
 // notifyOtherGuardians posts the neutral „Betreuungsstand
 // geändert“ line to every other portal guardian of the child. The guardians
 // are resolved inside the transaction; only the pills are posted after commit.

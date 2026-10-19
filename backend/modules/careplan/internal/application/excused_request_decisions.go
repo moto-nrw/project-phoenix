@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -11,59 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 )
-
-func (w *ExcusedRequests) Decide(ctx context.Context, input careplan.ExcusedRequestDecideInput) (result *careplan.ExcusedRequestReviewItem, err error) {
-	started := time.Now()
-	defer func() { w.done("excused_request_decide", started, err) }()
-	if input.RequestID <= 0 {
-		return nil, careplan.ErrExcusedRequestNotFound
-	}
-	reason, err := decisionReason(input)
-	if err != nil {
-		return nil, err
-	}
-	req, student, err := w.lockDecidableRequest(ctx, input)
-	if err != nil {
-		return nil, err
-	}
-
-	if input.Approve {
-		if err := w.validateAbsenceApproval(ctx, &req, &student); err != nil {
-			return nil, err
-		}
-		// Apply, status update and after-commit hooks all run in the ambient
-		// tenant transaction. A mid-apply failure propagates so the whole
-		// transaction rolls back rather than committing a half-applied absence.
-		if err := w.applyAbsenceRequest(ctx, &req); err != nil {
-			return nil, err
-		}
-	}
-
-	outcome := absenceDecisionOutcome(req.AbsenceStatus, input.Approve, reason)
-	reviewedBy := input.ReviewedBy
-	if err := w.carePlan.DecideExcusedAbsenceRequest(ctx, careplan.ExcusedAbsenceDecision{
-		// A staff reason is kept for both verdicts: without it the history
-		// shows an approval with no explanation.
-		ID: req.ID, Status: outcome.status, Reason: optionalReason(reason), ReviewedBy: &reviewedBy, Applied: input.Approve,
-	}); err != nil {
-		return nil, err
-	}
-
-	if err := w.announceDecision(ctx, &req, input); err != nil {
-		return nil, err
-	}
-	// Either decision clears the child's pending badge (approval also
-	// surfaces the confirmed absence). Wake staff tabs for both outcomes.
-	w.broadcastRequestTransition(ctx, req.TenantID, req.StudentID)
-	if err := w.notifyDecision(ctx, &req, ports.RequestEvent{
-		EventType: careplan.ParentMessageEventRequestStatus, ActorKind: careplan.ParentMessageActorStaff,
-		ActorAccountID: input.ReviewedBy, Body: outcome.pillBody, RequestType: outcome.requestType,
-		RequestStatus: outcome.pillStatus, DecisionReason: reason,
-	}); err != nil {
-		return nil, err
-	}
-	return w.recordDecision(ctx, req.ID, student.PersonID, input, reason)
-}
 
 // decisionReason trims the staff reason and checks it against the verdict's
 // requirements.
@@ -148,40 +94,52 @@ func absenceDecisionOutcome(absenceStatus string, approve bool, reason string) a
 	}
 }
 
-// announceDecision enqueues the co-recipient absence notice for an approval
-// and logs the verdict after commit.
-func (w *ExcusedRequests) announceDecision(ctx context.Context, req *careplan.ExcusedAbsenceRequest, input careplan.ExcusedRequestDecideInput) error {
-	tenantID := w.tenantOf(ctx, req.TenantID)
-	if !input.Approve {
-		w.hooks.AfterCommit(ctx, func() {
-			w.logger.Info("absence request rejected",
-				slog.Int64("request_id", req.ID),
-				slog.Int64("student_id", req.StudentID),
-				slog.Int64("tenant_id", req.TenantID),
-				slog.Int64("reviewed_by", input.ReviewedBy),
-				slog.String("status", req.AbsenceStatus),
-			)
-		})
-		return nil
-	}
-	if w.notifier != nil {
-		if err := w.notifier.NotifyAbsenceReported(ctx, ports.AbsenceReport{
-			TenantID: tenantID, StudentIDs: []int64{req.StudentID}, Status: req.AbsenceStatus, Dates: req.Dates,
-			FromParent: true, ActorAccountID: input.ReviewedBy, ExcludedAccountIDs: []int64{req.SubmittedBy},
-		}); err != nil {
-			return fmt.Errorf("enqueue absence notification: %w", err)
+// storeDecision applies an approval and stores the verdict. Apply, status
+// update and after-commit hooks all run in the ambient tenant transaction. A
+// mid-apply failure propagates so the whole transaction rolls back rather
+// than committing a half-applied absence.
+func (w *ExcusedRequests) storeDecision(ctx context.Context, req *careplan.ExcusedAbsenceRequest, student *careplan.ReviewStudent, input careplan.ExcusedRequestDecideInput, reason string) (absenceDecision, error) {
+	if input.Approve {
+		if err := w.validateAbsenceApproval(ctx, req, student); err != nil {
+			return absenceDecision{}, err
+		}
+		if err := w.applyAbsenceRequest(ctx, req); err != nil {
+			return absenceDecision{}, err
 		}
 	}
-	w.hooks.AfterCommit(ctx, func() {
-		w.logger.Info("absence request approved",
-			slog.Int64("request_id", req.ID),
-			slog.Int64("student_id", req.StudentID),
-			slog.Int64("tenant_id", req.TenantID),
-			slog.Int64("reviewed_by", input.ReviewedBy),
-			slog.String("status", req.AbsenceStatus),
-			slog.Int("days", len(req.Dates)),
-		)
-	})
+	outcome := absenceDecisionOutcome(req.AbsenceStatus, input.Approve, reason)
+	reviewedBy := input.ReviewedBy
+	if err := w.carePlan.DecideExcusedAbsenceRequest(ctx, careplan.ExcusedAbsenceDecision{
+		// A staff reason is kept for both verdicts: without it the history
+		// shows an approval with no explanation.
+		ID: req.ID, Status: outcome.status, Reason: optionalReason(reason), ReviewedBy: &reviewedBy, Applied: input.Approve,
+	}); err != nil {
+		return absenceDecision{}, err
+	}
+	return outcome, nil
+}
+
+// event is the staff chat pill announcing the verdict.
+func (d absenceDecision) event(reviewedBy int64, reason string) ports.RequestEvent {
+	return ports.RequestEvent{
+		EventType: careplan.ParentMessageEventRequestStatus, ActorKind: careplan.ParentMessageActorStaff,
+		ActorAccountID: reviewedBy, Body: d.pillBody, RequestType: d.requestType,
+		RequestStatus: d.pillStatus, DecisionReason: reason,
+	}
+}
+
+// notifyApprovedAbsence enqueues the co-recipient absence notice for an
+// approval.
+func (w *ExcusedRequests) notifyApprovedAbsence(ctx context.Context, tenantID int64, req *careplan.ExcusedAbsenceRequest, reviewedBy int64) error {
+	if w.notifier == nil {
+		return nil
+	}
+	if err := w.notifier.NotifyAbsenceReported(ctx, ports.AbsenceReport{
+		TenantID: tenantID, StudentIDs: []int64{req.StudentID}, Status: req.AbsenceStatus, Dates: req.Dates,
+		FromParent: true, ActorAccountID: reviewedBy, ExcludedAccountIDs: []int64{req.SubmittedBy},
+	}); err != nil {
+		return fmt.Errorf("enqueue absence notification: %w", err)
+	}
 	return nil
 }
 
