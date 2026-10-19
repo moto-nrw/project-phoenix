@@ -11,6 +11,7 @@ import (
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	carePlanBindingPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
@@ -94,18 +95,18 @@ func ComposeParentMessagingRepositories(
 	members := ParentStaffMembers{Membership: membership}.List
 	// The staff accounts are loaded from the person rows.
 	persons := NewPersonRepository(db)
-	personAccounts := func(ctx context.Context, ids []int64) (map[int64]*parentStore.StaffPersonAccount, error) {
+	personAccounts := func(ctx context.Context, ids []int64) (map[int64]*recordports.StaffPersonAccount, error) {
 		rows, err := persons.FindByIDs(ctx, ids)
 		if rows == nil {
 			return nil, err
 		}
-		out := make(map[int64]*parentStore.StaffPersonAccount, len(rows))
+		out := make(map[int64]*recordports.StaffPersonAccount, len(rows))
 		for id, row := range rows {
 			if row == nil {
 				out[id] = nil
 				continue
 			}
-			out[id] = &parentStore.StaffPersonAccount{AccountID: row.AccountID}
+			out[id] = &recordports.StaffPersonAccount{AccountID: row.AccountID}
 		}
 		return out, err
 	}
@@ -296,14 +297,14 @@ func (d ParentPortalSchools) SchoolNames(ctx context.Context, ids []int64) (map[
 // Membership.
 type ParentStaffMembers struct{ Membership schoolmembership.Query }
 
-func (d ParentStaffMembers) List(ctx context.Context, tenantIDs []int64) ([]parentStore.StaffMember, error) {
+func (d ParentStaffMembers) List(ctx context.Context, tenantIDs []int64) ([]recordports.StaffMember, error) {
 	members, err := d.Membership.ListStaff(ctx, schoolmembership.StaffFilter{TenantIDs: tenantIDs})
 	if err != nil {
 		return nil, err
 	}
-	result := make([]parentStore.StaffMember, 0, len(members))
+	result := make([]recordports.StaffMember, 0, len(members))
 	for _, member := range members {
-		result = append(result, parentStore.StaffMember{TenantID: member.TenantID, PersonID: member.PersonID})
+		result = append(result, recordports.StaffMember{TenantID: member.TenantID, PersonID: member.PersonID})
 	}
 	return result, nil
 }

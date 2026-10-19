@@ -6,6 +6,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
 	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -103,8 +104,8 @@ func NewStudentAuditRows(db transactionruntime.Database, command auditModels.Com
 // StudentMessageRows are the Communication owner's parent message rows the
 // student suites arrange.
 type StudentMessageRows struct {
-	ParentMessageThread parentStore.ParentMessageThreadRepository
-	ParentMessage       parentStore.ParentMessageRepository
+	ParentMessageThread recordports.ParentMessageThreadRepository
+	ParentMessage       recordports.ParentMessageRepository
 }
 
 // NewStudentMessageRows composes the parent message rows over db.

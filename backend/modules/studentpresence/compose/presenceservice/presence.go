@@ -67,17 +67,7 @@ func WithGuardianWaker(waker GuardianWaker) PresenceOption {
 
 // NewPresence builds the presence capability from explicit dependencies.
 func NewPresence(deps PresenceDependencies, options ...PresenceOption) studentpresence.Presence {
-	return newPresenceFacade(presence.NewService(deps, options...), deps)
-}
-
-// presenceEngineOf returns the application service a composed presence value
-// runs on.
-func presenceEngineOf(value studentpresence.Presence) (presence.Service, bool) {
-	facade, ok := value.(*presenceFacade)
-	if !ok {
-		return nil, false
-	}
-	return facade.engine, true
+	return presence.NewPresenceFacade(presence.NewService(deps, options...), deps)
 }
 
 // NewPresenceCleanup builds the data-retention cleanup. settings supplies the

@@ -6068,13 +6068,13 @@ function parentChildDataTopic(): HelpTopic {
       },
     ],
     result:
-      "Angefragte Änderungen tragen `In Prüfung`. Bis zur Bestätigung gelten die bisherigen Angaben.",
+      "Unter dem Feld steht dann `Beantragte Änderung` mit dem neuen Wert und `In Prüfung`. Bis zur Bestätigung gilt der Wert darüber.",
     notes: [
       "Gesundheitshinweise gehen sofort an das Team, ohne Prüfung.",
-      "Eine offene Anfrage lässt sich mit `Anfrage bearbeiten` noch ändern.",
+      "Sie möchten eine offene Anfrage ändern? Tippen Sie unter `Beantragte Änderung` auf `Anfrage bearbeiten`.",
     ],
     differences: [
-      "Ein Feld trägt `In Prüfung`? Dann wartet dort schon eine Änderung auf die OGS.",
+      "Unter einem Feld steht schon `Beantragte Änderung`? Dann wartet diese Änderung noch auf die OGS.",
     ],
     troubleshootingDetails: [
       "moto sagt, das Bearbeiten sei deaktiviert? Dann nimmt Ihre OGS keine Änderungen über die App an. Schreiben Sie ihr eine Nachricht.",

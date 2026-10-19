@@ -86,13 +86,13 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/communication/internal/parentmessages/message_email.go:messageEmailCopy":                                                           84,
 	"modules/communication/internal/parentmessages/service.go:(*Service).PostMessage":                                                           69,
 	"modules/communication/internal/parentmessages/service.go:(*Service).notifyGuardianDevice":                                                  61,
-	"modules/communication/internal/staffannouncements/care_cancellation.go:(*service).PublishCareCancellation":                                 72,
-	"modules/communication/internal/staffannouncements/email.go:NewAnnouncementRenderer":                                                        61,
-	"modules/communication/internal/staffannouncements/letter.go:(*service).ResendFailedEmails":                                                 107,
-	"modules/communication/internal/staffannouncements/letter.go:(*service).queueLetterMailsAs":                                                 90,
-	"modules/communication/internal/staffannouncements/poll.go:(*service).enqueueReminderEmails":                                                77,
-	"modules/communication/internal/staffannouncements/poll.go:(*service).pushPollReminder":                                                     64,
-	"modules/communication/internal/staffannouncements/reminder.go:(*service).SendDueReminders":                                                 72,
+	"modules/communication/internal/application/staff_care_cancellation.go:(*service).PublishCareCancellation":                                  72,
+	"modules/communication/internal/application/staff_email.go:NewAnnouncementRenderer":                                                         61,
+	"modules/communication/internal/application/staff_letter.go:(*service).ResendFailedEmails":                                                  107,
+	"modules/communication/internal/application/staff_letter.go:(*service).queueLetterMailsAs":                                                  90,
+	"modules/communication/internal/application/staff_poll.go:(*service).enqueueReminderEmails":                                                 77,
+	"modules/communication/internal/application/staff_poll.go:(*service).pushPollReminder":                                                      64,
+	"modules/communication/internal/application/staff_reminder.go:(*service).SendDueReminders":                                                  72,
 	"modules/communication/internal/staffmessages/notify.go:(*Service).notifyRecipients":                                                        84,
 	"modules/communication/internal/staffmessages/service.go:(*Service).PostMessage":                                                            71,
 	"modules/dataimport/internal/adapters/fileformat/helpers.go:MapStudentRow":                                                                  168,
@@ -146,7 +146,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/peopledirectory/enrollment_departure.go:normalizeEnrollmentDeparture":                                                              67,
 	"modules/planexport/betreuungsplan.go:(*betreuungsplanData).rows":                                                                           75,
 	"modules/planexport/dienstplan.go:(*dienstplanData).rowsByArea":                                                                             91,
-	"modules/requestreview/compose/corrections.go:(correctionLog).History":                                                                      64,
+	"roots/requestreviewbinding/corrections.go:(correctionLog).History":                                                                         64,
 	"modules/schoolcalendar/portal/internal/application/feed.go:(*service).ParentCalendarFeedByToken":                                           124,
 	"modules/schoolcalendar/portal/internal/application/ics.go:appointmentICSEvent":                                                             76,
 	"modules/schoolcalendar/portal/internal/application/notifications.go:(*service).notifyGuardians":                                            83,
@@ -267,6 +267,7 @@ func moduleFuncLenViolations(lengths, allowlist map[string]int) []string {
 	return violations
 }
 
+// Moved root bindings retain their original coverage and thresholds (ADR 0064).
 // moduleFuncLenScan returns the body length of every named function over the
 // threshold in non-test .go files under modules/ and workflows/, keyed
 // "relpath:FuncName" with methods rendered like the gocognit CLI. Declarations
@@ -274,7 +275,7 @@ func moduleFuncLenViolations(lengths, allowlist map[string]int) []string {
 // counted.
 func moduleFuncLenScan(backendRoot string) (map[string]int, error) {
 	lengths := make(map[string]int)
-	for _, sub := range []string{"modules", "workflows"} {
+	for _, sub := range []string{"modules", "workflows", "roots/requestreviewbinding", "roots/sessionendbinding", "roots/openroommovebinding", "roots/owners/parent_announcement_audience_binding.go", "roots/owners/parent_inbox_binding.go", "roots/owners/staff_inbox_binding.go"} {
 		root := filepath.Join(backendRoot, sub)
 		err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 			if err != nil {

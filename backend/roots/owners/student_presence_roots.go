@@ -87,7 +87,7 @@ func NewPresenceFacts(db transactionruntime.Database) timetable.SessionFacts {
 // owner directory bound at construction (#2743): the supervision clock (nil
 // is the Berlin clock), the devices (nil fails device reads loudly), the
 // rooms, the activities, the staff memberships and their persons.
-func NewSessionRecords(db transactionruntime.Database, now func() time.Time, devices devicefleet.Query, rooms facilitiesModule.Query, activities timetable.Capability, membership schoolmembership.Query, persons peopledirectory.Query) *presenceCompose.SessionRecords {
+func NewSessionRecords(db transactionruntime.Database, now func() time.Time, devices devicefleet.Query, rooms facilitiesModule.Query, activities timetable.Capability, membership schoolmembership.Query, persons peopledirectory.Query) presenceCompose.SessionRecords {
 	deps := sessionRecordDependencies(now, devices, rooms, activities, membership, persons)
 	deps.DB = db.Pool()
 	return ComposePresenceSessionRecords(deps)

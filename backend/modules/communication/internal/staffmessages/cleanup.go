@@ -91,3 +91,7 @@ func (s *Service) retentionDays(ctx context.Context) (int, error) {
 	}
 	return days, nil
 }
+
+func (r CleanupResult) CleanupCounts() (int, int, int) {
+	return r.MessagesDeleted, r.ThreadsDeleted, r.RetentionDays
+}

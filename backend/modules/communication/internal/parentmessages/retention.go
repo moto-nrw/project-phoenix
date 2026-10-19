@@ -63,3 +63,7 @@ func (r Retention) CleanupExpiredMessages(ctx context.Context) (RetentionResult,
 	}
 	return RetentionResult{MessagesDeleted: int(messages), ThreadsDeleted: int(threads), RetentionDays: days}, nil
 }
+
+func (r RetentionResult) CleanupCounts() (int, int, int) {
+	return r.MessagesDeleted, r.ThreadsDeleted, r.RetentionDays
+}

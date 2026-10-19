@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	reviewbindings "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -378,11 +380,11 @@ func TestOwnerQueueFailureSurfacesUnchanged(t *testing.T) {
 // authority from and Care Plan's excused requests.
 type ReviewComposition struct {
 	PeopleDirectory interface {
-		Students
-		ReviewPeople
-		MasterDataPeople
-		ScheduleReviewPeople
-		OfferingReviewPeople
+		reviewbindings.Students
+		reviewbindings.ReviewPeople
+		reviewbindings.MasterDataPeople
+		reviewbindings.ScheduleReviewPeople
+		reviewbindings.OfferingReviewPeople
 	}
 	FamilyProtection requestreview.FamilyProtection
 	Settings         interface {
@@ -405,15 +407,15 @@ type ReviewDecorations struct {
 	Corrections requestreview.CorrectionLog
 }
 
-var ComposeReviewDecorations func(t *testing.T, db *bun.DB, people ReviewPeople, allowed func(context.Context) bool) (ReviewDecorations, error)
+var ComposeReviewDecorations func(t *testing.T, db *bun.DB, people reviewbindings.ReviewPeople, allowed func(context.Context) bool) (ReviewDecorations, error)
 
-func composeStudentDirectory(t *testing.T, db *bun.DB, people ReviewPeople) (requestreview.StudentDirectory, error) {
+func composeStudentDirectory(t *testing.T, db *bun.DB, people reviewbindings.ReviewPeople) (requestreview.StudentDirectory, error) {
 	t.Helper()
 	decorations, err := ComposeReviewDecorations(t, db, people, func(context.Context) bool { return true })
 	return decorations.Students, err
 }
 
-func composeCorrectionLog(t *testing.T, db *bun.DB, people ReviewPeople, allowed func(context.Context) bool) (requestreview.CorrectionLog, error) {
+func composeCorrectionLog(t *testing.T, db *bun.DB, people reviewbindings.ReviewPeople, allowed func(context.Context) bool) (requestreview.CorrectionLog, error) {
 	t.Helper()
 	decorations, err := ComposeReviewDecorations(t, db, people, allowed)
 	return decorations.Corrections, err
@@ -496,8 +498,8 @@ func TestRequestReviewEnforcesRLS(t *testing.T) {
 // parents portal does: an approved enrollment child with two offerings and
 // one pending change request for the child.
 
-func nativeCareQueue(query CareScheduleQueueQuery, today func() careplan.Date) requestreview.Queue {
-	queue, err := NewCareScheduleQueue(query, today)
+func nativeCareQueue(query reviewbindings.CareScheduleQueueQuery, today func() careplan.Date) requestreview.Queue {
+	queue, err := reviewbindings.NewCareScheduleQueue(query, today)
 	if err != nil {
 		panic(err)
 	}
@@ -505,7 +507,7 @@ func nativeCareQueue(query CareScheduleQueueQuery, today func() careplan.Date) r
 }
 
 func nativeOfferingQueue(query careplan.OfferingReviewQuery, today func() careplan.Date) requestreview.Queue {
-	queue, err := NewOfferingQueue(query, today)
+	queue, err := reviewbindings.NewOfferingQueue(query, today)
 	if err != nil {
 		panic(err)
 	}
@@ -513,14 +515,14 @@ func nativeOfferingQueue(query careplan.OfferingReviewQuery, today func() carepl
 }
 
 func nativeMasterQueue(query careplan.MasterDataReviewQuery) requestreview.Queue {
-	queue, err := NewMasterDataQueue(query)
+	queue, err := reviewbindings.NewMasterDataQueue(query)
 	if err != nil {
 		panic(err)
 	}
 	return queue
 }
 func nativeExcusedQueue(query excusedrequests.ReviewQuery, today func() careplan.Date) requestreview.Queue {
-	queue, err := NewExcusedQueue(query, today)
+	queue, err := reviewbindings.NewExcusedQueue(query, today)
 	if err != nil {
 		panic(err)
 	}

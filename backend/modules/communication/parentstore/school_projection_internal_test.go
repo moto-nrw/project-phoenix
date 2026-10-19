@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
 )
 
 type announcementSchoolDirectory struct {
-	SchoolDirectory
+	recordports.SchoolDirectory
 	lookup func(context.Context, int64) (string, error)
 }
 
@@ -22,7 +24,7 @@ func TestNativeAnnouncementSchoolNameUsesSchoolDirectory(t *testing.T) {
 	const tenantID = 9007199254740993
 	cause := errors.New("school lookup failed")
 	for _, lookupErr := range []error{nil, cause} {
-		stores := (MessagingRepositories{ParentAnnouncement: &announcementRepository{}}).WithSchoolNames(announcementSchoolDirectory{
+		stores := (MessagingRepositories{ParentAnnouncement: recordports.ParentAnnouncementRepository(nil)}).WithSchoolNames(announcementSchoolDirectory{
 			lookup: func(gotCtx context.Context, gotTenantID int64) (string, error) {
 				if gotCtx != ctx || gotTenantID != tenantID {
 					t.Fatalf("school lookup received context %v and tenant %d", gotCtx, gotTenantID)

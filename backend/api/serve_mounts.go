@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	reviewbindings "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding"
+
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
@@ -394,7 +396,7 @@ func requestReviewDependencies(
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review groups: %w", err)
 	}
-	reviewStudents, err := requestreviewcompose.NewStudentDirectory(persons, reviewGroups)
+	reviewStudents, err := reviewbindings.NewStudentDirectory(persons, reviewGroups)
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review student directory: %w", err)
 	}
@@ -406,7 +408,7 @@ func requestReviewDependencies(
 	}
 	// Report the union of ordinary and absence-review rights, as the
 	// navigation capability does. Each native queue keeps its own scope.
-	reviewAccess, err := requestreviewcompose.NewAccess(reviewStudentsHTTP.RequestReviewPrincipal, func(ctx context.Context) (string, error) {
+	reviewAccess, err := reviewbindings.NewAccess(reviewStudentsHTTP.RequestReviewPrincipal, func(ctx context.Context) (string, error) {
 		return reviewPolicy.AccessLevel(ctx, sessiontoken.PermissionsFromCtx(ctx))
 	})
 	if err != nil {
@@ -441,7 +443,7 @@ func requestReviewDependencies(
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("care schedule reviews: %w", err)
 	}
-	careQueue, err := requestreviewcompose.NewCareScheduleQueue(careReviews, carePlanModule.Today)
+	careQueue, err := reviewbindings.NewCareScheduleQueue(careReviews, carePlanModule.Today)
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("care schedule review queue: %w", err)
 	}
@@ -458,7 +460,7 @@ func requestReviewDependencies(
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("offering reviews: %w", err)
 	}
-	offeringQueue, err := requestreviewcompose.NewOfferingQueue(offeringReviews, carePlanModule.Today)
+	offeringQueue, err := reviewbindings.NewOfferingQueue(offeringReviews, carePlanModule.Today)
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("offering review queue: %w", err)
 	}
@@ -466,23 +468,23 @@ func requestReviewDependencies(
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review corrections: %w", err)
 	}
-	corrections, err := requestreviewcompose.NewCorrectionLog(correctionQueries, persons, func(ctx context.Context) bool {
+	corrections, err := reviewbindings.NewCorrectionLog(correctionQueries, persons, func(ctx context.Context) bool {
 		return reviewStudentsHTTP.RequestReviewCorrectionAccess(ctx, caller.HasCurrentStaff)
 	})
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("direct correction history: %w", err)
 	}
-	masterQueue, err := requestreviewcompose.NewMasterDataQueue(masterDataReviews)
+	masterQueue, err := reviewbindings.NewMasterDataQueue(masterDataReviews)
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("master data review queue: %w", err)
 	}
-	excusedQueue, err := requestreviewcompose.NewExcusedQueue(excused, carePlanModule.Today)
+	excusedQueue, err := reviewbindings.NewExcusedQueue(excused, carePlanModule.Today)
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("excused review queue: %w", err)
 	}
 	return requestreviewcompose.ProjectionDependencies{
 		Queues:   requestreviewcompose.Queues{DirectCorrections: corrections, MasterData: masterQueue, CareSchedule: careQueue, Offering: offeringQueue, Excused: excusedQueue},
-		Students: reviewStudents, FamilyProtection: requestreviewcompose.NewFamilyProtection(persons), Access: reviewAccess,
+		Students: reviewStudents, FamilyProtection: reviewbindings.NewFamilyProtection(persons), Access: reviewAccess,
 	}, careReviews, nil
 }
 

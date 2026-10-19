@@ -141,7 +141,7 @@ func BuildReminders(
 func BuildProvisioning(
 	db transactionruntime.Database, env RootEnvironment, organizations organizationtenancy.Capability, identity *identityaccess.Module,
 	persons peopledirectory.Capability, membership schoolmembership.Capability, people PeopleRows, devices devicefleet.Capability,
-	sessions *presenceCompose.SessionRecords, supervisions studentpresence.SupervisionRecords, owner TimetableOwner,
+	sessions presenceCompose.SessionRecords, supervisions studentpresence.SupervisionRecords, owner TimetableOwner,
 	operatorAuditLog OperatorAuditEntries, settings settingsCompose.SettingsService,
 ) (organizationtenancy.Provisioning, error) {
 	adapters, err := NewOperatorProvisioningAdapters(

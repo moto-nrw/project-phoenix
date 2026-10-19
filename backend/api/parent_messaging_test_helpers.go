@@ -5,6 +5,8 @@ package api
 import (
 	"context"
 
+	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
@@ -22,9 +24,9 @@ func NewMessageableGuardianRepository(db transactionruntime.Database) *peopleCom
 // ParentMessagingTestRepositories is the parent-conversation data layer for
 // repository tests.
 type ParentMessagingTestRepositories struct {
-	Thread  parentStore.ParentMessageThreadRepository
-	Message parentStore.ParentMessageRepository
-	Read    parentStore.ParentMessageReadRepository
+	Thread  recordports.ParentMessageThreadRepository
+	Message recordports.ParentMessageRepository
+	Read    recordports.ParentMessageReadRepository
 }
 
 // NewParentMessagingTestRepositories composes Communication's conversation
@@ -40,18 +42,18 @@ func NewParentMessagingTestRepositories(db transactionruntime.Database) (ParentM
 		return ParentMessagingTestRepositories{}, err
 	}
 	persons := owners.NewPersonRepository(db)
-	personAccounts := func(ctx context.Context, ids []int64) (map[int64]*parentStore.StaffPersonAccount, error) {
+	personAccounts := func(ctx context.Context, ids []int64) (map[int64]*recordports.StaffPersonAccount, error) {
 		rows, err := persons.FindByIDs(ctx, ids)
 		if rows == nil {
 			return nil, err
 		}
-		out := make(map[int64]*parentStore.StaffPersonAccount, len(rows))
+		out := make(map[int64]*recordports.StaffPersonAccount, len(rows))
 		for id, row := range rows {
 			if row == nil {
 				out[id] = nil
 				continue
 			}
-			out[id] = &parentStore.StaffPersonAccount{AccountID: row.AccountID}
+			out[id] = &recordports.StaffPersonAccount{AccountID: row.AccountID}
 		}
 		return out, err
 	}
