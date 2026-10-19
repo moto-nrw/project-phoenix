@@ -3846,6 +3846,10 @@
       "write_owner": "identity-access"
     },
     {
+      "name": "auth.caterer_schools",
+      "write_owner": "identity-access"
+    },
+    {
       "name": "auth.caterers",
       "write_owner": "identity-access"
     },

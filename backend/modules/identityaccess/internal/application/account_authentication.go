@@ -33,7 +33,10 @@ type AccountAuthentication struct {
 	push      ports.PushSubscriptionCleanup
 	runtime   ports.Runtime
 	rotation  ports.Rotation
-	logger    *slog.Logger
+	// caterers lets a caterer session refresh only while its account
+	// belongs to a caterer (ADR 0074).
+	caterers ports.CatererStore
+	logger   *slog.Logger
 	// refreshSF deduplicates concurrent refresh calls for the same refresh
 	// token and recovery proof.
 	refreshSF singleflight.Group
@@ -52,7 +55,9 @@ type AccountAuthenticationDependencies struct {
 	Push      ports.PushSubscriptionCleanup
 	Runtime   ports.Runtime
 	Rotation  ports.Rotation
-	Logger    *slog.Logger
+	// Caterers is optional: without it no caterer session refreshes.
+	Caterers ports.CatererStore
+	Logger   *slog.Logger
 }
 
 // NewAccountAuthentication composes the flows over the session service that
@@ -91,7 +96,7 @@ func NewAccountAuthentication(sessions *Service, deps AccountAuthenticationDepen
 	return &AccountAuthentication{
 		sessions: sessions, store: deps.Store, schools: deps.Schools, persons: deps.Persons, passwords: deps.Passwords,
 		codec: deps.Codec, mfa: deps.MFA, mfaLock: deps.MFALock, audit: deps.Audit, push: deps.Push,
-		runtime: deps.Runtime, rotation: deps.Rotation, logger: logger,
+		runtime: deps.Runtime, rotation: deps.Rotation, caterers: deps.Caterers, logger: logger,
 	}, nil
 }
 

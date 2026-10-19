@@ -424,6 +424,7 @@ func (m *Module) FindRFIDCard(ctx context.Context, tag string) (string, bool, er
 type Module struct {
 	engine     Engine
 	demoAccess *DemoAccess
+	caterers   *CatererAccess
 }
 
 // NewModule wraps the composed engine; the composition binds the unit of

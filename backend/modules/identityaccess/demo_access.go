@@ -195,10 +195,21 @@ func (d *DemoAccess) ResetDemoAccess(ctx context.Context, token, clientIP string
 // NewDemoModule is NewModule with the demo-only capability; access is nil
 // outside the demo environment.
 func NewDemoModule(engine Engine, access *DemoAccess) *Module {
+	return NewComposedModule(engine, access, nil)
+}
+
+// NewComposedModule is NewModule with the capabilities composed beside the
+// engine: the demo access (nil outside the demo environment) and the caterer
+// flows (nil without their dependencies).
+func NewComposedModule(engine Engine, access *DemoAccess, caterers *CatererAccess) *Module {
 	module := NewModule(engine)
-	module.demoAccess = access
+	module.demoAccess, module.caterers = access, caterers
 	return module
 }
+
+// Caterers returns the caterer flows (ADR 0074), nil when the module was
+// composed without them.
+func (m *Module) Caterers() *CatererAccess { return m.caterers }
 
 // DemoAccess returns the demo-only capability when this module was composed
 // in the demo environment.

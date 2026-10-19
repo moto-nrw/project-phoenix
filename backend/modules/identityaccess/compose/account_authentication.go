@@ -60,7 +60,7 @@ type SessionDependencies struct {
 	Logger        *slog.Logger
 }
 
-func newAccountAuthentication(service *application.Service, store ports.AccountLoginStore, deps *SessionDependencies, mfa ports.MFAGate) (*application.AccountAuthentication, error) {
+func newAccountAuthentication(service *application.Service, store ports.AccountLoginStore, caterers ports.CatererStore, deps *SessionDependencies, mfa ports.MFAGate) (*application.AccountAuthentication, error) {
 	if deps == nil {
 		return nil, nil
 	}
@@ -82,6 +82,7 @@ func newAccountAuthentication(service *application.Service, store ports.AccountL
 		Push:      deps.Push,
 		Runtime:   tenantRuntime{attach: attach, runner: newTransactionRunner()},
 		Rotation:  rotationPolicy{},
+		Caterers:  caterers,
 		Logger:    deps.Logger,
 	})
 }

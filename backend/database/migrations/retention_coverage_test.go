@@ -145,6 +145,7 @@ var tableRetentions = map[string]tableRetention{
 	"auth.accounts_parents":                                 undecided("legacy parent accounts (e-mail, username) without a deletion path; removal of table and legacy API in #4329"),
 	"auth.demo_accesses":                                    own("demo process only: hourly demoExpiry -> ExpireDemoAccesses -> DeleteExpiredDemoAccesses"),
 	"auth.caterer_accounts":                                 notPersonal("link of a login account to its caterer business; an erased account keeps it, as a tombstone that cannot sign in"),
+	"auth.caterer_schools":                                  notPersonal("which school a caterer supplies and since when; no person"),
 	"auth.caterer_invitations":                              own("hourly token-cleanup, DeleteExpiredCatererInvitations (30 days after accepted_at, revoked_at, else expires_at)"),
 	"auth.caterers":                                         notPersonal("caterer business name; its login accounts go with auth.accounts"),
 	"auth.guardian_invitations":                             own("hourly token-cleanup, DeleteExpiredGuardianInvitations (30 days after accepted_at, else expires_at)"),

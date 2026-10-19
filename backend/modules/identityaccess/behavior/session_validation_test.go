@@ -32,7 +32,7 @@ func TestValidateSessionTokens(t *testing.T) {
 	sessions, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
-	for _, portal := range []string{"tenant", "parent", "school", "platform"} {
+	for _, portal := range []string{"tenant", "parent", "school", "platform", "caterer"} {
 		t.Run(portal, func(t *testing.T) {
 			account := testpkg.CreateTestAccount(t, db, "session-validation")
 			testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
@@ -42,7 +42,7 @@ func TestValidateSessionTokens(t *testing.T) {
 			if portal == "tenant" {
 				scope = ""
 			}
-			if portal == "parent" || portal == "platform" {
+			if portal == "parent" || portal == "platform" || portal == "caterer" {
 				tenantID = 0
 			}
 			handle := fmt.Sprintf("session-handle-%d", time.Now().UnixNano())
@@ -73,7 +73,7 @@ func TestValidateSessionTokens(t *testing.T) {
 			// Validation is non-consuming: the same pair remains valid.
 			_, err = service.ValidateSessionTokens(ctx, access, refresh, portal)
 			require.NoError(t, err)
-			for _, wrongPortal := range []string{"tenant", "parent", "school", "platform"} {
+			for _, wrongPortal := range []string{"tenant", "parent", "school", "platform", "caterer"} {
 				if wrongPortal == portal {
 					continue
 				}

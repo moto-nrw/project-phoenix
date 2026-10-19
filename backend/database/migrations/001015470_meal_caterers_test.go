@@ -10,8 +10,8 @@ import (
 )
 
 // TestMealCaterersKeepCaterersAwayFromSchools pins ADR 0074: sessions may
-// carry the caterer scope, a school has one active supply at most, and the
-// school's role reaches neither a caterer nor its accounts.
+// carry the caterer scope, a school has one active supply and one active
+// caterer link at most, and a school may create but never rewrite a caterer.
 func TestMealCaterersKeepCaterersAwayFromSchools(t *testing.T) {
 	t.Parallel()
 
@@ -38,10 +38,14 @@ func TestMealCaterersKeepCaterersAwayFromSchools(t *testing.T) {
 	require.NoError(t, err, "after the end a new supply may start")
 
 	for _, table := range []string{"auth.caterers", "auth.caterer_accounts"} {
-		var readable bool
-		require.NoError(t, db.NewRaw(`SELECT has_table_privilege('phoenix_tenant', ?, 'SELECT')`, table).Scan(ctx, &readable))
-		assert.False(t, readable, table)
+		var rewritable bool
+		require.NoError(t, db.NewRaw(`SELECT has_table_privilege('phoenix_tenant', ?, 'UPDATE') OR has_table_privilege('phoenix_tenant', ?, 'DELETE')`, table, table).Scan(ctx, &rewritable))
+		assert.False(t, rewritable, table)
 	}
+	_, err = db.NewRaw(`INSERT INTO auth.caterer_schools (caterer_id, tenant_id) VALUES (?, ?)`, catererID, tenantID).Exec(ctx)
+	require.NoError(t, err)
+	_, err = db.NewRaw(`INSERT INTO auth.caterer_schools (caterer_id, tenant_id, started_at) VALUES (?, ?, NOW() + INTERVAL '1 second')`, catererID, tenantID).Exec(ctx)
+	require.Error(t, err, "a second active caterer of the same school")
 	var deletable bool
 	require.NoError(t, db.NewRaw(`SELECT has_table_privilege('phoenix_tenant', 'schedule.meal_caterer_supplies', 'DELETE')`).Scan(ctx, &deletable))
 	assert.False(t, deletable, "an ended supply stays as the record of it")
@@ -69,14 +73,14 @@ func TestAccountErasureKeepsAWorkingCaterer(t *testing.T) {
 	require.NoError(t, db.NewRaw(`INSERT INTO auth.caterers (name) VALUES ('Küche am Markt') RETURNING id`).Scan(ctx, &catererID))
 	_, err = db.NewRaw(`INSERT INTO auth.caterer_accounts (account_id, caterer_id) VALUES (?, ?)`, account.ID, catererID).Exec(ctx)
 	require.NoError(t, err)
-	_, err = db.NewRaw(`INSERT INTO schedule.meal_caterer_supplies (tenant_id, caterer_id) VALUES (?, ?)`, tenantID, catererID).Exec(ctx)
+	_, err = db.NewRaw(`INSERT INTO auth.caterer_schools (caterer_id, tenant_id) VALUES (?, ?)`, catererID, tenantID).Exec(ctx)
 	require.NoError(t, err)
 
 	erased := eraseUnusedAccountsAsAdmin(t, db)
 	assert.NotContains(t, erased, account.ID, "a caterer that supplies a school keeps its login")
 	assert.NotContains(t, erased, invited.ID, "an open caterer invitation keeps the account of its address")
 
-	_, err = db.NewRaw(`UPDATE schedule.meal_caterer_supplies SET ended_at = NOW() WHERE caterer_id = ?`, catererID).Exec(ctx)
+	_, err = db.NewRaw(`UPDATE auth.caterer_schools SET ended_at = NOW() WHERE caterer_id = ?`, catererID).Exec(ctx)
 	require.NoError(t, err)
 	assert.Contains(t, eraseUnusedAccountsAsAdmin(t, db), account.ID, "without a school the login has no purpose")
 }

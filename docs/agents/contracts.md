@@ -143,7 +143,7 @@ pending → active → inactive.
 
 | Layer | Scoping mechanism |
 |---|---|
-| JWT | `tenant_id`, `org_id`, `scope`: `""` tenant, `org`, `platform`, `parent`, `school` |
+| JWT | `tenant_id`, `org_id`, `scope`: `""` tenant, `org`, `platform`, `parent`, `school`, `caterer` (no tenant; ADR 0074) |
 | Context | `tenant.WithTenantID(ctx, id)` / `tenant.FromContext(ctx)` |
 | Database | `TenantTxMiddleware` sets local role and RLS configuration; rolls back on 5xx |
 | Models | `base.TenantModel` and `TenantScoped` |

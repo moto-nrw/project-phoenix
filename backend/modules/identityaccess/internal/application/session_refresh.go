@@ -111,6 +111,19 @@ func (s *AccountAuthentication) doRefreshTokenWithAudit(ctx context.Context, ref
 	return &refreshResult{accessToken: accessToken, refreshToken: refreshTokenString}, nil
 }
 
+// catererRefreshClaims keeps a caterer session a caterer session, and only
+// while the account still belongs to a caterer (ADR 0074).
+func (s *AccountAuthentication) catererRefreshClaims(ctx context.Context, account domain.LoginAccount, out **domain.AccountClaimsPayload) error {
+	if s.caterers == nil {
+		return domain.ErrAccountNotCaterer
+	}
+	if _, isCaterer, _, err := s.caterers.FindCatererOfAccount(ctx, account.ID); err != nil || !isCaterer {
+		return errors.Join(domain.ErrAccountNotCaterer, err)
+	}
+	*out = buildCatererMetadata(account)
+	return nil
+}
+
 // refreshClaimsGuard assembles the claims of a non-school refresh (tenant and
 // parent scopes) inside the rotation transaction. Parent-scope refresh tokens
 // round-trip as parent tokens: detected via the scope claim or, for tokens
@@ -120,6 +133,9 @@ func (s *AccountAuthentication) refreshClaimsGuard(scope string, tenantID int64,
 		if scope == domain.ScopeParent {
 			*out = buildParentMetadata(account)
 			return nil
+		}
+		if scope == domain.ScopeCaterer {
+			return s.catererRefreshClaims(ctx, account, out)
 		}
 		guardianOnly, err := s.isGuardianOnlyAccountInTx(ctx, account.ID, tenantID)
 		if err != nil {
@@ -282,6 +298,11 @@ func (r *refreshRotation) persist(ctx context.Context, current domain.AccountSes
 	// Pre-tenant-claim tokens carry tenant 0; the successor gets the
 	// account's default mapping.
 	effectiveTenantID := r.tenantID
+	// A caterer belongs to no school: its successor keeps the school the
+	// login pinned the session row to (ADR 0074).
+	if effectiveTenantID == 0 && r.claims.Scope == domain.ScopeCaterer {
+		effectiveTenantID = current.TenantID
+	}
 	if effectiveTenantID == 0 {
 		resolved, _, err := r.service.resolveAccountTenant(ctx, r.account.ID, "")
 		if err != nil {

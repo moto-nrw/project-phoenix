@@ -82,8 +82,8 @@ const accountIsUnusedSQL = `
 const catererAccountsInUse = `
 			AND NOT EXISTS (
 				SELECT 1 FROM auth.caterer_accounts AS caterer_account
-				JOIN schedule.meal_caterer_supplies AS supply
-					ON supply.caterer_id = caterer_account.caterer_id AND supply.ended_at IS NULL
+				JOIN auth.caterer_schools AS school
+					ON school.caterer_id = caterer_account.caterer_id AND school.ended_at IS NULL
 				WHERE caterer_account.account_id = target_id
 			)
 			AND NOT EXISTS (
@@ -122,7 +122,10 @@ func init() {
 	Migrations.MustRegister(mealCaterersUp, mealCaterersDown)
 }
 
-// mealCaterersUp adds the caterer (ADR 0074). The caterer, its accounts and a
+// mealCaterersUp adds the caterer (ADR 0074). auth.caterer_schools names
+// the schools a caterer supplies, so the login and the caterer portal find
+// them through the global identity read and open each school on its own;
+// nothing searches across schools (#4088). The caterer, its accounts and a
 // school's invitation are identity data; the supply of a school is the
 // school's meal plan data under its RLS. A caterer reaches a school only
 // through an active supply, and a school has at most one. An invitation keeps
@@ -169,6 +172,19 @@ func mealCaterersUp(ctx context.Context, db *bun.DB) error {
 			COMMENT ON TABLE auth.caterer_invitations IS
 				'Einladung einer Schule an ihren Caterer; gespeichert ist nur der Hash des Links.';
 
+			CREATE TABLE auth.caterer_schools (
+				caterer_id BIGINT NOT NULL REFERENCES auth.caterers(id) ON DELETE CASCADE,
+				tenant_id BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
+				started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+				ended_at TIMESTAMPTZ,
+				PRIMARY KEY (caterer_id, tenant_id, started_at),
+				CONSTRAINT chk_caterer_school_period CHECK (ended_at IS NULL OR ended_at >= started_at)
+			);
+			CREATE UNIQUE INDEX uq_caterer_school_active ON auth.caterer_schools (tenant_id) WHERE ended_at IS NULL;
+			CREATE INDEX idx_caterer_schools_caterer ON auth.caterer_schools (caterer_id) WHERE ended_at IS NULL;
+			COMMENT ON TABLE auth.caterer_schools IS
+				'Welche Schulen ein Caterer beliefert. Login und Caterer-Portal finden darüber die Schulen, ohne über alle Schulen zu suchen (#4088).';
+
 			CREATE TABLE schedule.meal_caterer_supplies (
 				id BIGSERIAL PRIMARY KEY,
 				tenant_id BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
@@ -191,9 +207,14 @@ func mealCaterersUp(ctx context.Context, db *bun.DB) error {
 			GRANT SELECT, INSERT, UPDATE ON auth.caterer_invitations TO phoenix_tenant;
 			REVOKE DELETE, TRUNCATE ON auth.caterer_invitations FROM phoenix_tenant;
 			GRANT USAGE ON SEQUENCE auth.caterer_invitations_id_seq TO phoenix_tenant;
-			-- Caterers are no school's data: only the administrative role of
-			-- the login and acceptance flows reaches them.
-			REVOKE ALL ON auth.caterers, auth.caterer_accounts FROM phoenix_tenant;
+			-- The acceptance runs in the invited school's transaction: it
+			-- creates the caterer, its account link and the school's link.
+			-- Nothing there may be rewritten or deleted by a school.
+			GRANT SELECT, INSERT ON auth.caterers, auth.caterer_accounts TO phoenix_tenant;
+			REVOKE UPDATE, DELETE, TRUNCATE ON auth.caterers, auth.caterer_accounts FROM phoenix_tenant;
+			GRANT USAGE ON SEQUENCE auth.caterers_id_seq TO phoenix_tenant;
+			GRANT SELECT, INSERT, UPDATE ON auth.caterer_schools TO phoenix_tenant;
+			REVOKE DELETE, TRUNCATE ON auth.caterer_schools FROM phoenix_tenant;
 
 			ALTER TABLE auth.tokens DROP CONSTRAINT IF EXISTS chk_tokens_portal_scope;
 			ALTER TABLE auth.tokens ADD CONSTRAINT chk_tokens_portal_scope
@@ -201,7 +222,7 @@ func mealCaterersUp(ctx context.Context, db *bun.DB) error {
 		`); err != nil {
 			return fmt.Errorf("create caterer tables: %w", err)
 		}
-		if err := provisionTenantRLS(ctx, tx, "auth.caterer_invitations", "schedule.meal_caterer_supplies"); err != nil {
+		if err := provisionTenantRLS(ctx, tx, "auth.caterer_invitations", "auth.caterer_schools", "schedule.meal_caterer_supplies"); err != nil {
 			return fmt.Errorf("provision caterer tenant isolation: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, catererAccountReferences+accountIsUnusedSQL+catererAccountsInUse+accountIsUnusedEnd); err != nil {
@@ -221,6 +242,7 @@ func mealCaterersDown(ctx context.Context, db *bun.DB) error {
 		ALTER TABLE auth.tokens ADD CONSTRAINT chk_tokens_portal_scope
 			CHECK (portal_scope IN ('tenant', 'org', 'parent', 'school', 'unknown'));
 		DROP TABLE IF EXISTS schedule.meal_caterer_supplies;
+		DROP TABLE IF EXISTS auth.caterer_schools;
 		DROP TABLE IF EXISTS auth.caterer_invitations;
 		DROP TABLE IF EXISTS auth.caterer_accounts;
 		DROP TABLE IF EXISTS auth.caterers;

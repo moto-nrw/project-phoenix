@@ -89,7 +89,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	auth, err := newAccountAuthentication(service, store, dependencies.Sessions, application.CapabilityGate{Capability: flows.Capability})
+	auth, err := newAccountAuthentication(service, store, store, dependencies.Sessions, application.CapabilityGate{Capability: flows.Capability})
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +128,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	demoAccess, err := composeDemoAccess(dependencies.DB, auth, dependencies.Demo)
+	demoAccess, caterers, err := composeBesideEngine(dependencies, auth, store)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +143,18 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		InvitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations), newCommandTransactions(attach).RunPlatform),
 		Runtime:               attach, WithRecoveryProof: rotation.WithRecoveryProof,
 	})
-	return identityaccess.NewDemoModule(e, demoAccess), nil
+	return identityaccess.NewComposedModule(e, demoAccess, caterers), nil
+}
+
+// composeBesideEngine composes the capabilities the module carries beside
+// its engine: the demo access and the caterer flows.
+func composeBesideEngine(dependencies Dependencies, auth *application.AccountAuthentication, store *postgres.Store) (*identityaccess.DemoAccess, *identityaccess.CatererAccess, error) {
+	demoAccess, err := composeDemoAccess(dependencies.DB, auth, dependencies.Demo)
+	if err != nil {
+		return nil, nil, err
+	}
+	caterers, err := newCatererAccess(auth, store, dependencies.Sessions, dependencies.Lifecycle)
+	return demoAccess, caterers, err
 }
 
 // NewGuardianInvitationReads composes the guardian invitation lists over the

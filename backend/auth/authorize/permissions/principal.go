@@ -21,6 +21,8 @@ const (
 	ScopePlatform     Scope = "platform"
 	ScopeParent       Scope = "parent"
 	ScopeSchool       Scope = "school"
+	// ScopeCaterer is the caterer portal (ADR 0074): no tenant, like parents.
+	ScopeCaterer Scope = "caterer"
 )
 
 type PrincipalInput struct {
@@ -78,6 +80,8 @@ func normalizeScope(raw string) (Scope, error) {
 		return ScopeParent, nil
 	case string(ScopeSchool):
 		return ScopeSchool, nil
+	case string(ScopeCaterer):
+		return ScopeCaterer, nil
 	default:
 		return "", fmt.Errorf("%w: unknown scope %q", ErrInvalidPrincipal, raw)
 	}
@@ -93,7 +97,7 @@ func validateScope(scope Scope, tenantID, organizationID int64) error {
 		if tenantID <= 0 || organizationID <= 0 {
 			return fmt.Errorf("%w: organization scope requires tenant and organization", ErrInvalidPrincipal)
 		}
-	case ScopeParent, ScopePlatform:
+	case ScopeParent, ScopePlatform, ScopeCaterer:
 		if tenantID != 0 {
 			return fmt.Errorf("%w: scope %q must not carry a tenant", ErrInvalidPrincipal, scope)
 		}
