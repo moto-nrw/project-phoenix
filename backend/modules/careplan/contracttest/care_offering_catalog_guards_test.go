@@ -137,7 +137,7 @@ func (f *calendarPeriodValidationFixture) createLinkedTemplate(
 		IsActive:        true,
 	}
 	offering.TenantID = f.tenantID
-	created, err := enrollmentTest.NewCareOfferingRows(f.catalog).Create(f.ctx, offering)
+	created, err := newScopedOfferingRows(f.catalog).Create(f.ctx, offering)
 	require.NoError(t, err)
 	return group, created
 }
@@ -347,7 +347,7 @@ func TestCareOfferingCalendarPeriodValidation_AllowsCompatibleFallbacks(t *testi
 // setupCareGuardTest replaces the deleted setupCareTest of the old catalog
 // suite for the materializability tests: a catalog over the test database,
 // its row adapter and a school-year phase of the test tenant.
-func setupCareGuardTest(t *testing.T) (*bun.DB, *enrollmentTest.CareOfferingRows, careplan.CareOfferingCatalogCapability, *enrollmentTest.Phase, func()) {
+func setupCareGuardTest(t *testing.T) (*bun.DB, *scopedCareOfferingRows, careplan.CareOfferingCatalogCapability, *enrollmentTest.Phase, func()) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
@@ -378,7 +378,7 @@ func setupCareGuardTest(t *testing.T) (*bun.DB, *enrollmentTest.CareOfferingRows
 			Exec(bg)
 	}
 
-	return db, enrollmentTest.NewCareOfferingRows(catalog), catalog, phase, cleanup
+	return db, newScopedOfferingRows(catalog), catalog, phase, cleanup
 }
 
 func baseGuardLinkedOffering(t *testing.T, phaseID int64, groupID int64) *offeringContract.CareOfferingRecord {
@@ -433,7 +433,7 @@ func setCareTestPhaseWindow(
 	t.Helper()
 	phase.ServiceStartDate = enrollmentTest.Date(start)
 	phase.ServiceEndDate = enrollmentTest.Date(end)
-	require.NoError(t, api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, db)).Enrollment().UpdatePhase(testpkg.Ctx(t), ownerPhaseForTest(phase)))
+	require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), testpkg.SetupTestDB(t), api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, db)).Enrollment().UpdatePhase, ownerPhaseForTest(phase)))
 }
 
 func createCareMaterializationException(

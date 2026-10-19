@@ -18,14 +18,22 @@ import (
 
 // --- queries ------------------------------------------------------------------
 
-func (r *GuardianRelationshipRepository) linkQuery(ctx context.Context, model any) *bun.SelectQuery {
-	return r.links.GuardianLinkModelRows(r.runtime.DB(ctx), 0, model)
+func (r *GuardianRelationshipRepository) linkQuery(ctx context.Context, model any) (*bun.SelectQuery, error) {
+	db, err := r.runtime.DB(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return guardianLinkModelRows(ctx, r.runtime, r.links, db, model), nil
 }
 
 // FindByID retrieves one relationship with its three halves.
 func (r *GuardianRelationshipRepository) FindByID(ctx context.Context, id any) (*users.StudentGuardian, error) {
 	relationship := new(users.StudentGuardian)
-	query := withTenantFilter(ctx, r.runtime, r.linkQuery(ctx, relationship).Where(`"student_guardian".id = ?`, id), "student_guardian")
+	ambientDB1, databaseErr1 := r.linkQuery(ctx, relationship)
+	if databaseErr1 != nil {
+		return *new(*users.StudentGuardian), databaseErr1
+	}
+	query := withTenantFilter(ctx, r.runtime, ambientDB1.Where(`"student_guardian".id = ?`, id), "student_guardian")
 	if err := query.Scan(ctx); err != nil {
 		return nil, &ports.DatabaseError{Op: "find by id", Err: translateNotFound(err)}
 	}
@@ -42,7 +50,11 @@ var listFilterColumns = []string{
 // filter value is ignored, as it was on the old table.
 func (r *GuardianRelationshipRepository) List(ctx context.Context, filters map[string]any) ([]*users.StudentGuardian, error) {
 	var relationships []*users.StudentGuardian
-	query := r.linkQuery(ctx, &relationships)
+	ambientDB2, databaseErr2 := r.linkQuery(ctx, &relationships)
+	if databaseErr2 != nil {
+		return *new([]*users.StudentGuardian), databaseErr2
+	}
+	query := ambientDB2
 	for field, value := range filters {
 		if value == nil {
 			continue
@@ -62,7 +74,11 @@ func (r *GuardianRelationshipRepository) List(ctx context.Context, filters map[s
 // FindByStudentID retrieves relationships by student ID
 func (r *GuardianRelationshipRepository) FindByStudentID(ctx context.Context, studentID int64) ([]*users.StudentGuardian, error) {
 	var relationships []*users.StudentGuardian
-	query := withTenantFilter(ctx, r.runtime, r.linkQuery(ctx, &relationships).
+	ambientDB3, databaseErr3 := r.linkQuery(ctx, &relationships)
+	if databaseErr3 != nil {
+		return *new([]*users.StudentGuardian), databaseErr3
+	}
+	query := withTenantFilter(ctx, r.runtime, ambientDB3.
 		Where(`"student_guardian".student_id = ?`, studentID), "student_guardian")
 	if err := query.Scan(ctx); err != nil {
 		return nil, &ports.DatabaseError{Op: "find by student ID", Err: translateNotFound(err)}
@@ -76,7 +92,11 @@ func (r *GuardianRelationshipRepository) FindByStudentIDs(ctx context.Context, s
 		return []*users.StudentGuardian{}, nil
 	}
 	var relationships []*users.StudentGuardian
-	query := withTenantFilter(ctx, r.runtime, r.linkQuery(ctx, &relationships).
+	ambientDB4, databaseErr4 := r.linkQuery(ctx, &relationships)
+	if databaseErr4 != nil {
+		return *new([]*users.StudentGuardian), databaseErr4
+	}
+	query := withTenantFilter(ctx, r.runtime, ambientDB4.
 		Where(`"student_guardian".student_id IN (?)`, bun.List(studentIDs)), "student_guardian")
 	if err := query.Scan(ctx); err != nil {
 		return nil, &ports.DatabaseError{Op: "find by student IDs", Err: translateNotFound(err)}
@@ -87,7 +107,11 @@ func (r *GuardianRelationshipRepository) FindByStudentIDs(ctx context.Context, s
 // FindByGuardianProfileID retrieves relationships by guardian profile ID
 func (r *GuardianRelationshipRepository) FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*users.StudentGuardian, error) {
 	var relationships []*users.StudentGuardian
-	query := withTenantFilter(ctx, r.runtime, r.linkQuery(ctx, &relationships).
+	ambientDB5, databaseErr5 := r.linkQuery(ctx, &relationships)
+	if databaseErr5 != nil {
+		return *new([]*users.StudentGuardian), databaseErr5
+	}
+	query := withTenantFilter(ctx, r.runtime, ambientDB5.
 		Where(`"student_guardian".guardian_profile_id = ?`, guardianProfileID), "student_guardian")
 	if err := query.Scan(ctx); err != nil {
 		return nil, &ports.DatabaseError{Op: "find by guardian profile ID", Err: translateNotFound(err)}
@@ -103,7 +127,11 @@ func (r *GuardianRelationshipRepository) FindByGuardianProfileID(ctx context.Con
 // until this transaction commits.
 func (r *GuardianRelationshipRepository) FindByStudentAndGuardianForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*users.StudentGuardian, error) {
 	var locked []int64
-	lock := r.runtime.DB(ctx).NewSelect().
+	ambientDB6, databaseErr6 := r.runtime.DB(ctx)
+	if databaseErr6 != nil {
+		return *new(*users.StudentGuardian), databaseErr6
+	}
+	lock := ambientDB6.NewSelect().
 		TableExpr(`users.student_guardian_relationships AS "relationship"`).
 		ColumnExpr(`"relationship".id`).
 		Where(`"relationship".student_id = ?`, studentID).
@@ -148,8 +176,12 @@ func (r *GuardianRelationshipRepository) ListLinkedChildrenForGuardians(ctx cont
 		  AND p.deleted_at IS NULL
 		ORDER BY p.last_name ASC, p.first_name ASC`
 	var rows []*owner0.GuardianLinkedChildSnapshot
-	db := r.runtime.DB(ctx)
-	if err := db.NewRaw(query, r.students.StudentRows(db, r.runtime.TenantID(ctx)), bun.List(guardianProfileIDs)).Scan(ctx, &rows); err != nil {
+	ambientDB7, databaseErr7 := r.runtime.DB(ctx)
+	if databaseErr7 != nil {
+		return *new([]*owner0.GuardianLinkedChildSnapshot), databaseErr7
+	}
+	db := ambientDB7
+	if err := db.NewRaw(query, studentRows(ctx, r.runtime, r.students, db), bun.List(guardianProfileIDs)).Scan(ctx, &rows); err != nil {
 		return nil, &ports.DatabaseError{Op: "list linked children for guardians", Err: translateNotFound(err)}
 	}
 	return rows, nil
@@ -193,7 +225,11 @@ func (r *GuardianRelationshipRepository) AccountHasStudentPermission(ctx context
 				AND gp.account_id = ?
 				AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
 		)`
-	db := r.runtime.DB(ctx)
+	ambientDB8, databaseErr8 := r.runtime.DB(ctx)
+	if databaseErr8 != nil {
+		return *new(bool), databaseErr8
+	}
+	db := ambientDB8
 	var granted bool
 	if err := db.NewRaw(query, r.links.GuardianLinkRows(db, tenantID), studentID, accountID, permission).Scan(ctx, &granted); err != nil {
 		return false, fmt.Errorf("student guardian: account permission for student: %w", err)
@@ -243,7 +279,11 @@ func (r *GuardianRelationshipRepository) FilterAccountsWithStudentAccess(ctx con
 		WHERE sg.student_id  IN (?)
 			AND gp.account_id  IN (?)
 			AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE`
-	db := r.runtime.DB(ctx)
+	ambientDB9, databaseErr9 := r.runtime.DB(ctx)
+	if databaseErr9 != nil {
+		return *new([]int64), databaseErr9
+	}
+	db := ambientDB9
 	var granted []int64
 	if err := db.NewRaw(query,
 		r.links.GuardianLinkRows(db, tenantID),
@@ -305,7 +345,11 @@ func (r *GuardianRelationshipRepository) GuardianEmailHasStudentPermission(ctx c
 			WHERE sg.student_id = ?
 				AND LOWER(gp.email) = ?
 				AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE`
-	db := r.runtime.DB(ctx)
+	ambientDB10, databaseErr10 := r.runtime.DB(ctx)
+	if databaseErr10 != nil {
+		return *new(bool), databaseErr10
+	}
+	db := ambientDB10
 	var rows []struct{ AccountID *int64 }
 	if err := db.NewRaw(query, r.links.GuardianLinkRows(db, tenantID), studentID, normalizedEmail, permission).Scan(ctx, &rows); err != nil {
 		return false, fmt.Errorf("student guardian: email permission for student: %w", err)
@@ -343,7 +387,11 @@ func (r *GuardianRelationshipRepository) ListEmergencyContactRows(ctx context.Co
 	}
 
 	var rows []users.GuardianEmergencyContactRow
-	query := r.links.GuardianLinkRows(r.runtime.DB(ctx), 0).
+	ambientDB11, databaseErr11 := r.runtime.DB(ctx)
+	if databaseErr11 != nil {
+		return *new([]users.GuardianEmergencyContactRow), databaseErr11
+	}
+	query := guardianLinkRows(ctx, r.runtime, r.links, ambientDB11).
 		ColumnExpr(`"student_guardian".student_id`).
 		ColumnExpr(`"guardian".id AS guardian_profile_id`).
 		ColumnExpr(`"guardian".first_name`).
@@ -354,8 +402,8 @@ func (r *GuardianRelationshipRepository) ListEmergencyContactRows(ctx context.Co
 		ColumnExpr(`"student_guardian".pickup_notes`).
 		ColumnExpr(`"student_guardian".can_pickup`).
 		ColumnExpr(`"student_guardian".is_emergency_contact`).
-		Join(`JOIN users.guardian_profiles AS "guardian" ON "guardian".id = "student_guardian".guardian_profile_id`).
-		Join(`LEFT JOIN users.guardian_phone_numbers AS "phone" ON "phone".guardian_profile_id = "guardian".id`).
+		Join(`JOIN users.guardian_profiles AS "guardian" ON "guardian".id = "student_guardian".guardian_profile_id AND "guardian".tenant_id = "student_guardian".tenant_id`).
+		Join(`LEFT JOIN users.guardian_phone_numbers AS "phone" ON "phone".guardian_profile_id = "guardian".id AND "phone".tenant_id = "guardian".tenant_id`).
 		Where(`"student_guardian".student_id IN (?)`, bun.List(studentIDs)).
 		OrderExpr(`"student_guardian".is_emergency_contact DESC`).
 		OrderExpr(`"student_guardian".is_primary DESC`).
@@ -364,12 +412,6 @@ func (r *GuardianRelationshipRepository) ListEmergencyContactRows(ctx context.Co
 		OrderExpr(`"phone".priority ASC NULLS LAST`).
 		OrderExpr(`"student_guardian".student_id ASC`).
 		OrderExpr(`"guardian".id ASC`)
-
-	if tenantID := r.runtime.TenantID(ctx); tenantID > 0 {
-		query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
-		query = query.Where(`"guardian".tenant_id = ?`, tenantID)
-		query = query.Where(`("phone".tenant_id = ? OR "phone".tenant_id IS NULL)`, tenantID)
-	}
 
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &ports.DatabaseError{
@@ -387,7 +429,11 @@ func (r *GuardianRelationshipRepository) ListEmergencyContactRows(ctx context.Co
 // assigned looks complete while missing exactly the rows that need work.
 func (r *GuardianRelationshipRepository) ListPaymentAssignments(ctx context.Context) ([]owner0.GuardianPaymentAssignment, error) {
 	var rows []owner0.GuardianPaymentAssignment
-	query := r.students.StudentRows(r.runtime.DB(ctx), r.runtime.TenantID(ctx)).
+	ambientDB12, databaseErr12 := r.runtime.DB(ctx)
+	if databaseErr12 != nil {
+		return *new([]owner0.GuardianPaymentAssignment), databaseErr12
+	}
+	query := studentRows(ctx, r.runtime, r.students, ambientDB12).
 		ColumnExpr(`"student".id AS student_id`).
 		ColumnExpr(`"student_person".first_name AS student_first_name`).
 		ColumnExpr(`"student_person".last_name AS student_last_name`).
@@ -398,19 +444,13 @@ func (r *GuardianRelationshipRepository) ListPaymentAssignments(ctx context.Cont
 		ColumnExpr(`COALESCE("student_guardian".relationship_type, '') AS relationship_type_raw`).
 		Join(`JOIN users.persons AS "student_person" ON "student_person".id = "student".person_id`).
 		Join(`LEFT JOIN users.student_guardian_relationships AS "student_guardian"
-			ON "student_guardian".student_id = "student".id AND "student_guardian".is_payer`).
-		Join(`LEFT JOIN users.guardian_profiles AS "guardian" ON "guardian".id = "student_guardian".guardian_profile_id`).
+			ON "student_guardian".student_id = "student".id AND "student_guardian".tenant_id = "student".tenant_id AND "student_guardian".is_payer`).
+		Join(`LEFT JOIN users.guardian_profiles AS "guardian" ON "guardian".id = "student_guardian".guardian_profile_id AND "guardian".tenant_id = "student_guardian".tenant_id`).
 		Where(`"student".status != ?`, string(users.StudentStatusAlumnus)).
 		Where(`"student_person".deleted_at IS NULL`).
 		OrderExpr(`"student_person".last_name ASC`).
 		OrderExpr(`"student_person".first_name ASC`).
 		OrderExpr(`"student".id ASC`)
-
-	if tenantID := r.runtime.TenantID(ctx); tenantID > 0 {
-		query = query.Where(`"student".tenant_id = ?`, tenantID)
-		query = query.Where(`("student_guardian".tenant_id = ? OR "student_guardian".tenant_id IS NULL)`, tenantID)
-		query = query.Where(`("guardian".tenant_id = ? OR "guardian".tenant_id IS NULL)`, tenantID)
-	}
 
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &ports.DatabaseError{Op: "list guardian payment assignments", Err: translateNotFound(err)}

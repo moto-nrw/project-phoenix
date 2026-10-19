@@ -108,7 +108,7 @@ func createCareBookingOffering(
 		CareOverflowMode: "waitlist", CareOfferingSelectionMode: "optional", IsActive: true,
 	}
 	phase.TenantID = scope.TenantID
-	err := enrollmentFixture.New().InsertPhase(testpkg.WithTenantRuntime(t, scope.Context(), db), phase)
+	err := testpkg.TenantCommand1(t, testpkg.WithTenantRuntime(t, scope.Context(), db), testpkg.SetupTestDB(t), enrollmentFixture.New().InsertPhase, phase)
 	require.NoError(t, err)
 	offering := &testpkg.CareOffering{
 		PhaseID: phase.ID, Name: fmt.Sprintf("Betreuung-%d-%s", studentID, key),
@@ -135,14 +135,14 @@ func createCareBookingSource(
 	request.TenantID = scope.TenantID
 	owner := enrollmentFixture.New()
 	ctx := testpkg.WithTenantRuntime(t, scope.Context(), db)
-	require.NoError(t, owner.InsertRequest(ctx, request))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), owner.InsertRequest, request))
 	child := &enrollmentFixture.RequestChild{
 		RequestID: request.ID, FirstName: "Test", LastName: "Kind",
 		DateOfBirth: enrollmentFixture.Date(calendar.TodayDate().AddDays(-2500)), Status: enrollmentFixture.ChildStatusApproved,
 		CreatedStudentID: &studentID,
 	}
 	child.TenantID = scope.TenantID
-	require.NoError(t, owner.InsertChild(ctx, child))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), owner.InsertChild, child))
 	return child
 }
 

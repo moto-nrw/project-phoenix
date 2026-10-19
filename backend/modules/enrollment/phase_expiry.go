@@ -33,11 +33,8 @@ func (m *Module) PhaseExpirySnapshots(ctx context.Context, input PhaseExpiryInpu
 	if input.WarningThrough.Before(input.AsOf) {
 		return nil, errors.New("phase expiry warning horizon must not be before the report date")
 	}
-	var rows []*PhaseExpirySnapshot
-	err := m.transactions.RunInTx(ctx, func(ctx context.Context) error {
-		var err error
-		rows, err = m.engine.PhaseExpirySnapshots(ctx, input)
-		return err
-	})
-	return rows, err
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	return m.engine.PhaseExpirySnapshots(ctx, input)
 }

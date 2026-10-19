@@ -103,7 +103,7 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 		StudentID: author.StudentID, Enabled: true, Reason: "Schutzfall", ActorAccountID: author.AccountID,
 	}
 	protectionOn.TenantID = author.TenantID
-	require.NoError(t, repos.CreateFamilyProtectionFixture(ctx, protectionOn))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.CreateFamilyProtectionFixture, protectionOn))
 	recipientRows, err = svc.ListMyMasterDataRequests(ctx, recipient.AccountID, author.StudentID)
 	require.NoError(t, err)
 	assert.Empty(t, recipientRows)
@@ -112,7 +112,7 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 		StudentID: author.StudentID, Enabled: false, Reason: "Schutz aufgehoben", ActorAccountID: author.AccountID,
 	}
 	protectionOff.TenantID = author.TenantID
-	require.NoError(t, repos.CreateFamilyProtectionFixture(ctx, protectionOff))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.CreateFamilyProtectionFixture, protectionOff))
 	recipientRows, err = svc.ListMyMasterDataRequests(ctx, recipient.AccountID, author.StudentID)
 	require.NoError(t, err)
 	assert.Empty(t, recipientRows, "disabling protection must not revive an old share")

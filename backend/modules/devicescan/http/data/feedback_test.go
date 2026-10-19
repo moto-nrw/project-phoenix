@@ -61,7 +61,7 @@ func TestSubmitFeedback_NoDevice(t *testing.T) {
 	t.Parallel()
 	ctx := setupFeedbackModule(t)
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_id": 1,
@@ -82,7 +82,7 @@ func TestSubmitFeedback_InvalidJSON(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-1")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	// Send invalid JSON body
 	req := httptest.NewRequest("POST", "/feedback", bytes.NewBufferString("invalid json"))
@@ -100,7 +100,7 @@ func TestSubmitFeedback_MissingStudentID(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-2")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"value": "positive",
@@ -121,7 +121,7 @@ func TestSubmitFeedback_MissingValue(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-3")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_id": 1,
@@ -142,7 +142,7 @@ func TestSubmitFeedback_InvalidStudentID(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-4")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_id": 0, // Invalid - must be positive
@@ -164,7 +164,7 @@ func TestSubmitFeedback_StudentNotFound(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-5")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_id": 99999, // Non-existent student
@@ -201,7 +201,7 @@ func TestSubmitFeedback_Alumnus(t *testing.T) {
 		Exec(t.Context())
 	require.NoError(t, err)
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_id": student.ID,
@@ -231,7 +231,7 @@ func TestSubmitFeedback_Success(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-6")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student", "1a")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_id": student.ID,
@@ -254,7 +254,7 @@ func TestSubmitFeedback_NeutralValue(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-7")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student2", "1b")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_id": student.ID,
@@ -277,7 +277,7 @@ func TestSubmitFeedback_NegativeValue(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-8")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student3", "1c")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_id": student.ID,
@@ -300,7 +300,7 @@ func TestSubmitFeedback_InvalidValue(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-9")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student4", "1d")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_id": student.ID,
@@ -329,7 +329,7 @@ func TestSubmitFeedback_FeedbackDisabled(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "DisabledStudent", "2a")
 
 	ctx.setEnabled(false)
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_id": student.ID,
@@ -365,7 +365,7 @@ func TestSubmitFeedback_FeedbackEnabled(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-enabled")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "EnabledStudent", "2b")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"student_id": student.ID,

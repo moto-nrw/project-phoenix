@@ -8,7 +8,7 @@ import (
 )
 
 func (s *Service) FindPlanningTrack(ctx context.Context, id int64, lock string) (result domain.PlanningTrack, err error) {
-	err = s.run("find_planning_track", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_planning_track", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, findErr := s.store.FindPlanningTrack(ctx, id, lock)
 		stats.Add(queryStats)
 		if findErr != nil {
@@ -24,7 +24,7 @@ func (s *Service) FindPlanningTrack(ctx context.Context, id int64, lock string) 
 }
 
 func (s *Service) ListPlanningTracks(ctx context.Context, filter domain.PlanningTrackFilter) (result []domain.PlanningTrack, err error) {
-	err = s.run("list_planning_tracks", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_planning_tracks", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListPlanningTracks(ctx, filter)
 		stats.Add(queryStats)
 		result = values

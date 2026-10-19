@@ -23,7 +23,7 @@ func TestCallerRows_GetMySchoolClasses(t *testing.T) {
 	t.Run("returns empty slice for non-staff user", func(t *testing.T) {
 		_, account := testpkg.CreateTestPersonWithAccount(t, db, "ClassesNonStaff", "User")
 
-		classes, err := rows.GetMySchoolClasses(callerCtx(t, account.ID))
+		classes, err := testpkg.TenantQuery0(t, callerCtx(t, account.ID), db, rows.GetMySchoolClasses)
 		require.NoError(t, err)
 		assert.Empty(t, classes)
 	})
@@ -34,7 +34,7 @@ func TestCallerRows_GetMySchoolClasses(t *testing.T) {
 		_ = testpkg.CreateTestClassTeacher(t, db, staff.ID, "2b")
 		_ = testpkg.CreateTestClassTeacher(t, db, staff.ID, "1a")
 
-		classes, err := rows.GetMySchoolClasses(callerCtx(t, account.ID))
+		classes, err := testpkg.TenantQuery0(t, callerCtx(t, account.ID), db, rows.GetMySchoolClasses)
 		require.NoError(t, err)
 		assert.Equal(t, []string{"1a", "2b"}, classes)
 	})
@@ -46,7 +46,7 @@ func TestCallerRows_GetMySchoolClasses(t *testing.T) {
 
 		ctx := testpkg.WithRequestIdentityCache(callerCtx(t, account.ID))
 
-		first, err := rows.GetMySchoolClasses(ctx)
+		first, err := testpkg.TenantQuery0(t, ctx, db, rows.GetMySchoolClasses)
 		require.NoError(t, err)
 		require.Equal(t, []string{"1a"}, first)
 
@@ -59,7 +59,7 @@ func TestCallerRows_GetMySchoolClasses(t *testing.T) {
 		assert.Equal(t, []string{"1a"}, second)
 
 		// A fresh request context sees the new assignment.
-		fresh, err := rows.GetMySchoolClasses(callerCtx(t, account.ID))
+		fresh, err := testpkg.TenantQuery0(t, callerCtx(t, account.ID), db, rows.GetMySchoolClasses)
 		require.NoError(t, err)
 		assert.Equal(t, []string{"1a", "2b"}, fresh)
 	})

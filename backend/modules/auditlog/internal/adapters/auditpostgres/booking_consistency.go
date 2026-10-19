@@ -262,7 +262,11 @@ func (r *bookingConsistencyRepository) Audit(
 	}
 
 	report := &auditModel.BookingConsistencyReport{}
-	err = runtimeDB(ctx, r.runtime).NewRaw(bookingConsistencyQuery, tenantID, auditDate, pgdialect.Array(alumni), offerings, string(encodedBookings), string(encodedLinks)).Scan(ctx, report)
+	ambientDB1, databaseErr1 := runtimeDB(ctx, r.runtime)
+	if databaseErr1 != nil {
+		return *new(*auditModel.BookingConsistencyReport), databaseErr1
+	}
+	err = ambientDB1.NewRaw(bookingConsistencyQuery, tenantID, auditDate, pgdialect.Array(alumni), offerings, string(encodedBookings), string(encodedLinks)).Scan(ctx, report)
 	if err != nil {
 		return nil, fmt.Errorf("audit booking consistency for tenant %d: %w", tenantID, err)
 	}

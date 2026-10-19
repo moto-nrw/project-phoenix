@@ -31,7 +31,7 @@ func New(store ports.Store, operators ports.OperatorStore, sessions ports.Accoun
 }
 
 func (s *Service) FindAccount(ctx context.Context, id int64) (result domain.Account, err error) {
-	err = s.run(ctx, s.tx.RunRead, "find_account", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.run(ctx, s.tx.RunPlatform, "find_account", func(txCtx context.Context, stats *domain.OperationStats) error {
 		if id <= 0 {
 			return domain.ErrAccountNotFound
 		}
@@ -50,7 +50,7 @@ func (s *Service) FindAccount(ctx context.Context, id int64) (result domain.Acco
 }
 
 func (s *Service) FindAccountByEmail(ctx context.Context, email string) (result domain.Account, err error) {
-	err = s.run(ctx, s.tx.RunRead, "find_account_by_email", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.run(ctx, s.tx.RunPlatform, "find_account_by_email", func(txCtx context.Context, stats *domain.OperationStats) error {
 		normalized := strings.TrimSpace(strings.ToLower(email))
 		if normalized == "" {
 			return domain.ErrAccountNotFound
@@ -86,7 +86,7 @@ func (s *Service) FindAccountsByEmails(ctx context.Context, emails []string) (re
 	if len(normalized) == 0 {
 		return map[string]domain.Account{}, nil
 	}
-	err = s.run(ctx, s.tx.RunRead, "find_accounts_by_email", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.run(ctx, s.tx.RunPlatform, "find_accounts_by_email", func(txCtx context.Context, stats *domain.OperationStats) error {
 		accounts, queryStats, findErr := s.store.FindAccountsByEmails(txCtx, normalized)
 		stats.Add(queryStats)
 		if findErr != nil {

@@ -339,7 +339,7 @@ func TestModuleWritesRollBackWithTheOuterTransaction(t *testing.T) {
 	assert.Equal(t, "Rolled back", found.Name)
 }
 
-func TestModuleReadsOnTheSharedConnectionWithoutTransaction(t *testing.T) {
+func TestModuleReadsUseTheCallerTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	module := buildModule(t, db)
@@ -363,6 +363,14 @@ func TestModuleRefusesWritesWithoutABoundTenant(t *testing.T) {
 	period := createPeriod(t, ctx, module, periodFields("Guarded", "2030-08-01", "2031-07-31", true))
 	day := createClosingDay(t, ctx, module, "2030-11-04", "2030-11-08", "Guarded")
 	unscoped := testpkg.WithPackageTenantRuntime(context.Background())
+	_, readErr := module.FindCalendarPeriod(unscoped, period.ID)
+	require.ErrorContains(t, readErr, "tenant is required")
+	_, readErr = module.ListCalendarPeriods(unscoped, schoolcalendar.CalendarPeriodFilter{})
+	require.ErrorContains(t, readErr, "tenant is required")
+	_, readErr = module.FindClosingDay(unscoped, day.ID)
+	require.ErrorContains(t, readErr, "tenant is required")
+	_, readErr = module.ListClosingDays(unscoped, schoolcalendar.ClosingDayFilter{})
+	require.ErrorContains(t, readErr, "tenant is required")
 
 	_, err := module.CreateCalendarPeriod(unscoped, schoolcalendar.CreateCalendarPeriod{CalendarPeriodFields: periodFields("Unscoped", "2030-08-01", "2031-07-31", true)})
 	require.ErrorContains(t, err, "tenant is required")

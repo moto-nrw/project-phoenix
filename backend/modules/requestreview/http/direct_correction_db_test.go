@@ -47,7 +47,7 @@ func setupCorrectionFixture(t *testing.T, tc *testContext, studentID, tenantID i
 	request.TenantID = tenantID
 	owner := api.NewEnrollmentBookingFixture()
 	ownerCtx := testpkg.WithTenantRuntime(t, testpkg.Ctx(t), tc.db)
-	require.NoError(t, owner.InsertRequest(ownerCtx, request))
+	require.NoError(t, testpkg.TenantCommand1(t, ownerCtx, testpkg.SetupTestDB(t), owner.InsertRequest, request))
 
 	child := &capability.RequestChild{
 		RequestID:        request.ID,
@@ -58,7 +58,7 @@ func setupCorrectionFixture(t *testing.T, tc *testContext, studentID, tenantID i
 		CreatedStudentID: &studentID,
 	}
 	child.TenantID = tenantID
-	require.NoError(t, owner.InsertChild(ownerCtx, child))
+	require.NoError(t, testpkg.TenantCommand1(t, ownerCtx, testpkg.SetupTestDB(t), owner.InsertChild, child))
 
 	for _, offering := range []*testpkg.CareOffering{ganztag, mittag} {
 		link := &capability.RequestChildOffering{

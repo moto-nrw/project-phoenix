@@ -68,7 +68,7 @@ func (s *staffDocumentScenario) actor(perms ...string) workforce.StaffDocumentAc
 
 func (s *staffDocumentScenario) create(t *testing.T, category string, actor workforce.StaffDocumentActor) *workforce.StaffDocumentInfo {
 	t.Helper()
-	info, err := s.svc.CreateStaffDocument(s.ctx, workforce.CreateStaffDocumentInput{
+	info, err := testpkg.TenantQuery2(t, s.ctx, s.db, s.svc.CreateStaffDocument, workforce.CreateStaffDocumentInput{
 		StaffID:         s.staffID,
 		Category:        category,
 		FilenameDisplay: category + "-datei.pdf",
@@ -124,7 +124,7 @@ func TestStaffDocumentService_CategoryAuthority(t *testing.T) {
 
 	// Directory maintainers cover the four general categories only.
 	s.create(t, userModels.StaffDocumentCategoryZeugnis, directory)
-	_, err := s.svc.CreateStaffDocument(s.ctx, workforce.CreateStaffDocumentInput{
+	_, err := testpkg.TenantQuery2(t, s.ctx, s.db, s.svc.CreateStaffDocument, workforce.CreateStaffDocumentInput{
 		StaffID:         s.staffID,
 		Category:        userModels.StaffDocumentCategoryAUBescheinigung,
 		FilenameDisplay: "au.pdf",
@@ -137,7 +137,7 @@ func TestStaffDocumentService_CategoryAuthority(t *testing.T) {
 	// The dedicated permissions cover exactly their category.
 	auInfo := s.create(t, userModels.StaffDocumentCategoryAUBescheinigung, health)
 	lohnInfo := s.create(t, userModels.StaffDocumentCategoryLohnabrechnung, payroll)
-	_, err = s.svc.CreateStaffDocument(s.ctx, workforce.CreateStaffDocumentInput{
+	_, err = testpkg.TenantQuery2(t, s.ctx, s.db, s.svc.CreateStaffDocument, workforce.CreateStaffDocumentInput{
 		StaffID:         s.staffID,
 		Category:        userModels.StaffDocumentCategoryZeugnis,
 		FilenameDisplay: "zeugnis.pdf",
@@ -179,11 +179,11 @@ func TestStaffDocumentService_CategoryAuthority(t *testing.T) {
 
 	// Downloads: the general category serves without an access-log row, the
 	// sensitive ones refuse foreign permissions and log for the right ones.
-	_, err = s.svc.ResolveStaffDocumentDownload(s.ctx, s.staffID, auInfo.Document.ID, directory)
+	_, err = testpkg.TenantQuery3(t, s.ctx, s.db, s.svc.ResolveStaffDocumentDownload, s.staffID, auInfo.Document.ID, directory)
 	require.ErrorIs(t, err, workforce.ErrStaffDocumentForbidden)
 
 	before := len(s.accessLogRowsFor(t))
-	_, err = s.svc.ResolveStaffDocumentDownload(s.ctx, s.staffID, lohnInfo.Document.ID, payroll)
+	_, err = testpkg.TenantQuery3(t, s.ctx, s.db, s.svc.ResolveStaffDocumentDownload, s.staffID, lohnInfo.Document.ID, payroll)
 	require.NoError(t, err)
 	logs := s.accessLogRowsFor(t)
 	require.Len(t, logs, before+1)
@@ -224,7 +224,7 @@ func TestStaffDocumentService_AuditTrailAndSoftDelete(t *testing.T) {
 	assert.Equal(t, "zeugnis-datei.pdf", rows[0].NewValue)
 	assert.Equal(t, s.account, rows[0].ChangedBy)
 
-	deleted, err := s.svc.DeleteStaffDocument(s.ctx, s.staffID, info.Document.ID, directory)
+	deleted, err := testpkg.TenantQuery3(t, s.ctx, s.db, s.svc.DeleteStaffDocument, s.staffID, info.Document.ID, directory)
 	require.NoError(t, err)
 	require.NotNil(t, deleted)
 	assert.Equal(t, info.Document.FilenameStored, deleted.FilenameStored)
@@ -248,7 +248,7 @@ func TestStaffDocumentService_AuditTrailAndSoftDelete(t *testing.T) {
 	assert.Equal(t, 1, count)
 
 	// Deleting again is a 404-shaped error, not a second audit row.
-	_, err = s.svc.DeleteStaffDocument(s.ctx, s.staffID, info.Document.ID, directory)
+	_, err = testpkg.TenantQuery3(t, s.ctx, s.db, s.svc.DeleteStaffDocument, s.staffID, info.Document.ID, directory)
 	require.Error(t, err)
 	var marker interface{ RepositoryNotFound() }
 	assert.True(t, errors.As(err, &marker), "second delete must be not-found, got %v", err)
@@ -276,7 +276,7 @@ func TestStaffDocumentService_RefusesDownloadsAfterOffboarding(t *testing.T) {
 	_, err := s.db.ExecContext(s.ctx, `UPDATE users.staff_school_memberships SET deleted_at = NOW() WHERE id = ?`, s.staffID)
 	require.NoError(t, err)
 
-	_, err = s.svc.ResolveStaffDocumentDownload(s.ctx, s.staffID, info.Document.ID, actor)
+	_, err = testpkg.TenantQuery3(t, s.ctx, s.db, s.svc.ResolveStaffDocumentDownload, s.staffID, info.Document.ID, actor)
 	require.Error(t, err)
 }
 

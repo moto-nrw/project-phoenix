@@ -105,7 +105,7 @@ func TestInvitationIsRedeemableOnce(t *testing.T) {
 	member, err := testpkg.ActiveAccountTenantExists(context.Background(), env.db, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.True(t, member, "the invitee can sign in at the school")
-	person, err := env.repos.Person.FindByAccountID(ctx, account.ID)
+	person, err := testpkg.TenantQuery1(t, ctx, db, env.repos.Person.FindByAccountID, account.ID)
 	require.NoError(t, err)
 	require.NotNil(t, person, "accepting provisions the identity the role needs")
 	assert.Equal(t, "Ada", person.FirstName)

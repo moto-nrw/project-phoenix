@@ -184,7 +184,7 @@ var queryBudgets = map[string]queryBudget{
 	"services.calendar.caldav_snapshot": {max: 24},
 	// #2941: list/read enrichment stays flat as result rows grow.
 	"services.active.work_session_history.reads":           {max: 7},
-	"services.active.future_comp_time_commitment.reads":    {max: 4, exact: true},
+	"services.active.future_comp_time_commitment.reads":    {max: 3, exact: true},
 	"services.auth.pending_guardian_approvals.reads":       {max: 6},
 	"services.auth.pending_invitations.reads":              {max: 1, exact: true},
 	"services.platform.pending_operator_invitations.reads": {max: 1, exact: true},

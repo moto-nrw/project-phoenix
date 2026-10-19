@@ -518,7 +518,7 @@ func submitApprovedAdjustmentChild(
 	require.NoError(t, err)
 	require.Len(t, submitted.Children, 1)
 
-	outcome, err := env.decision.Decide(ctx, enrollmentAPI.DecideInput{
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
 		RequestID:  submitted.Request.ID,
 		ChildID:    submitted.Children[0].ID,
 		Status:     enrollmentNative.DecisionApproved,

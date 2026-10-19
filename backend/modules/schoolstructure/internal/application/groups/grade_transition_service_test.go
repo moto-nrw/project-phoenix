@@ -372,7 +372,7 @@ func TestGradeTransitionWorkflow_Apply(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify history was created
-		history, err := f.deps.Structure.ListTransitionHistory(ctx, id)
+		history, err := testpkg.TenantQuery1(t, ctx, db, f.deps.Structure.ListTransitionHistory, id)
 		require.NoError(t, err)
 		assert.NotEmpty(t, history)
 
@@ -676,7 +676,7 @@ func TestGradeTransitionWorkflow_History(t *testing.T) {
 		require.NoError(t, err)
 
 		// Get history
-		history, err := f.deps.Structure.ListTransitionHistory(ctx, id)
+		history, err := testpkg.TenantQuery1(t, ctx, db, f.deps.Structure.ListTransitionHistory, id)
 		require.NoError(t, err)
 		assert.NotEmpty(t, history)
 
@@ -698,7 +698,7 @@ func TestGradeTransitionWorkflow_History(t *testing.T) {
 	t.Run("empty history for transition without apply", func(t *testing.T) {
 		id := f.createDraft(t, ctx, "2025-2026")
 
-		history, err := f.deps.Structure.ListTransitionHistory(ctx, id)
+		history, err := testpkg.TenantQuery1(t, ctx, db, f.deps.Structure.ListTransitionHistory, id)
 		require.NoError(t, err)
 		assert.Empty(t, history)
 	})

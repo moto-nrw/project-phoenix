@@ -22,7 +22,7 @@ func TestStudentDeletionRepository_Create(t *testing.T) {
 	event := &auditModels.StudentDeletion{StudentID: 99, ActorAccountID: &actor, Reason: "test_data"}
 	ctx := testpkg.Ctx(t)
 	expectedTenantID := auditModels.TenantIDFromContext(ctx)
-	require.NoError(t, repo.Create(ctx, event))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Create, event))
 	assert.Equal(t, expectedTenantID, event.TenantID)
 	assert.Positive(t, event.ID)
 }

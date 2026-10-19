@@ -78,7 +78,7 @@ func TestServiceGraph_EnrollmentDeletionKeepsGuardianDirectoryAfterAuditSetup(t 
 	_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, notices, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), testServiceConfig())
 	require.NoError(t, err)
 
-	_, err = notices.Deletions.PreviewRequest(testpkg.Ctx(t), testpkg.UniqueTestTenantID(t))
+	_, err = testpkg.TenantQuery1(t, testpkg.Ctx(t), db, notices.Deletions.PreviewRequest, testpkg.UniqueTestTenantID(t))
 	require.EqualError(t, err, "enrollment deletion target not found")
 }
 

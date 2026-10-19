@@ -184,10 +184,16 @@ func TestInstanceStaffListQueryBudgetStaysFlat(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Owner", fmt.Sprintf("Budget-%d", index))
 		createOwnedInstanceStaff(t, module, ctx, instance.ID, staff.ID, false, false)
 	}
-	counter := testpkg.CaptureQueries(t, db)
-	_, err := module.ListInstanceStaff(ctx, timetable.InstanceStaffFilter{InstanceIDs: []int64{instance.ID}})
-	require.NoError(t, err)
-	testpkg.AssertQueryBudget(t, "modules.timetable.instance_staff.list", counter.Queries())
+	// The owner read runs inside the HTTP/workflow unit of work. The budget
+	// still measures every business query, not connection/role setup.
+	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
+		counter := testpkg.CaptureQueries(t, db)
+		_, err := module.ListInstanceStaff(ctx, timetable.InstanceStaffFilter{InstanceIDs: []int64{instance.ID}})
+		require.NoError(t, err)
+		testpkg.AssertQueryBudget(t, "modules.timetable.instance_staff.list", counter.Queries())
+
+		return nil
+	}))
 }
 
 func createOwnedInstanceStaff(t *testing.T, module *timetable.Module, ctx context.Context, instanceID, staffID int64, primary, absent bool) timetable.InstanceStaff {

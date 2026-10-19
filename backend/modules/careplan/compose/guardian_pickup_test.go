@@ -57,7 +57,7 @@ func TestGuardianPickupPermissionsWriteOnlyTheirSchool(t *testing.T) {
 	require.Equal(t, notes, *stored)
 
 	flag := false
-	found, err := permissions.ChangeGuardianPickupPermission(ctx, careplan.GuardianPickupPermissionChange{
+	found, err := testpkg.TenantQuery1(t, ctx, db, permissions.ChangeGuardianPickupPermission, careplan.GuardianPickupPermissionChange{
 		TenantID: tenantID, RelationshipID: relationshipID, CanPickup: &flag,
 	})
 	require.NoError(t, err)
@@ -65,7 +65,7 @@ func TestGuardianPickupPermissionsWriteOnlyTheirSchool(t *testing.T) {
 	canPickup, stored = readPickupPermission(t, db, relationshipID)
 	require.False(t, canPickup)
 	require.Equal(t, notes, *stored, "unsupplied notes stay")
-	found, err = permissions.ChangeGuardianPickupPermission(ctx, careplan.GuardianPickupPermissionChange{
+	found, err = testpkg.TenantQuery1(t, ctx, db, permissions.ChangeGuardianPickupPermission, careplan.GuardianPickupPermissionChange{
 		TenantID: tenantID, RelationshipID: relationshipID, SetPickupNotes: true,
 	})
 	require.NoError(t, err)
@@ -77,11 +77,11 @@ func TestGuardianPickupPermissionsWriteOnlyTheirSchool(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 	otherCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), otherTenantID)
 	require.NoError(t, testpkg.WithTenantTx(t, otherCtx, db, otherTenantID, func(ctx context.Context, _ testpkg.Tx) error {
-		_, err := permissions.ChangeGuardianPickupPermission(ctx, careplan.GuardianPickupPermissionChange{
+		_, err := testpkg.TenantQuery1(t, ctx, db, permissions.ChangeGuardianPickupPermission, careplan.GuardianPickupPermissionChange{
 			TenantID: tenantID, RelationshipID: relationshipID, CanPickup: &flag,
 		})
 		require.ErrorIs(t, err, careplan.ErrGuardianPickupTenantMismatch, "a command naming another school is refused")
-		found, err := permissions.ChangeGuardianPickupPermission(ctx, careplan.GuardianPickupPermissionChange{
+		found, err := testpkg.TenantQuery1(t, ctx, db, permissions.ChangeGuardianPickupPermission, careplan.GuardianPickupPermissionChange{
 			TenantID: otherTenantID, RelationshipID: relationshipID, CanPickup: &flag,
 		})
 		require.NoError(t, err)

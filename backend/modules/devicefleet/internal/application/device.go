@@ -125,7 +125,7 @@ func (s *Service) findDevice(
 	read func(context.Context) (domain.Device, bool, domain.OperationStats, error),
 ) (domain.Device, error) {
 	var device domain.Device
-	err := s.run(ctx, operation, func(ctx context.Context, stats *domain.OperationStats) error {
+	err := s.runInTenant(ctx, operation, func(ctx context.Context, stats *domain.OperationStats) error {
 		found, exists, queryStats, err := read(ctx)
 		stats.Add(queryStats)
 		if err != nil {
@@ -151,7 +151,7 @@ func (s *Service) findDevice(
 // ListDevices reads every live device matching filter, including room names.
 func (s *Service) ListDevices(ctx context.Context, filter domain.DeviceFilter) ([]domain.Device, error) {
 	var devices []domain.Device
-	err := s.run(ctx, "list_devices", func(ctx context.Context, stats *domain.OperationStats) error {
+	err := s.runInTenant(ctx, "list_devices", func(ctx context.Context, stats *domain.OperationStats) error {
 		found, queryStats, err := s.deps.Devices.List(ctx, filter)
 		stats.Add(queryStats)
 		if err != nil {
@@ -169,7 +169,7 @@ func (s *Service) ListDevices(ctx context.Context, filter domain.DeviceFilter) (
 // ListOfflineDevices reads devices unseen for at least offlineSince.
 func (s *Service) ListOfflineDevices(ctx context.Context, offlineSince time.Duration) ([]domain.Device, error) {
 	var devices []domain.Device
-	err := s.run(ctx, "list_offline_devices", func(ctx context.Context, stats *domain.OperationStats) error {
+	err := s.runInTenant(ctx, "list_offline_devices", func(ctx context.Context, stats *domain.OperationStats) error {
 		found, queryStats, err := s.deps.Devices.ListOffline(ctx, s.deps.Now().Add(-offlineSince))
 		stats.Add(queryStats)
 		devices = found
@@ -181,7 +181,7 @@ func (s *Service) ListOfflineDevices(ctx context.Context, offlineSince time.Dura
 // CountDevicesByTenant counts live devices grouped by tenant.
 func (s *Service) CountDevicesByTenant(ctx context.Context) (map[int64]int, error) {
 	var counts map[int64]int
-	err := s.run(ctx, "count_devices_by_tenant", func(ctx context.Context, stats *domain.OperationStats) error {
+	err := s.runInTenant(ctx, "count_devices_by_tenant", func(ctx context.Context, stats *domain.OperationStats) error {
 		found, queryStats, err := s.deps.Devices.CountByTenant(ctx)
 		stats.Add(queryStats)
 		counts = found
@@ -193,7 +193,7 @@ func (s *Service) CountDevicesByTenant(ctx context.Context) (map[int64]int, erro
 // ListDevicesByTenants reads the live devices of the given tenants.
 func (s *Service) ListDevicesByTenants(ctx context.Context, tenantIDs []int64) ([]domain.Device, error) {
 	var devices []domain.Device
-	err := s.run(ctx, "list_devices_by_tenant", func(ctx context.Context, stats *domain.OperationStats) error {
+	err := s.runInTenant(ctx, "list_devices_by_tenant", func(ctx context.Context, stats *domain.OperationStats) error {
 		found, queryStats, err := s.deps.Devices.ListByTenants(ctx, tenantIDs)
 		stats.Add(queryStats)
 		devices = found

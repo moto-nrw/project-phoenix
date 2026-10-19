@@ -283,10 +283,16 @@ func TestActivityInstanceListQueryBudgetStaysFlat(t *testing.T) {
 	for day := 17; day <= 24; day++ {
 		createOwnedActivityInstance(t, module, ctx, fixture, fmt.Sprintf("2027-09-%02d", day), "08:00:00", "Budget")
 	}
-	counter := testpkg.CaptureQueries(t, db)
-	_, err := module.ListActivityInstances(ctx, timetable.ActivityInstanceFilter{ActivityGroupID: &fixture.groupID})
-	require.NoError(t, err)
-	testpkg.AssertQueryBudget(t, "modules.timetable.activity_instances.list", counter.Queries())
+	// The owner read runs inside the HTTP/workflow unit of work. The budget
+	// still measures every business query, not connection/role setup.
+	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
+		counter := testpkg.CaptureQueries(t, db)
+		_, err := module.ListActivityInstances(ctx, timetable.ActivityInstanceFilter{ActivityGroupID: &fixture.groupID})
+		require.NoError(t, err)
+		testpkg.AssertQueryBudget(t, "modules.timetable.activity_instances.list", counter.Queries())
+
+		return nil
+	}))
 }
 
 func newOwnedActivityInstanceFixture(t *testing.T, db *bun.DB, suffix string) ownedActivityInstanceFixture {

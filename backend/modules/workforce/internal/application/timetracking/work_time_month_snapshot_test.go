@@ -128,10 +128,11 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 	)
 
 	closeSvc := timetracking.NewStaffMonthCloseService(
-		timetracking.MonthSnapshotCapability(workTime), monthSvc, owners.MonthCloseStaff(reposPeople.Staff), settings, nil,
+		timetracking.MonthSnapshotCapability(workTime), monthSvc, owners.MonthCloseStaff(reposPeople.Staff), settings, nil, timetracking.WithMonthCloseUnitOfWork(testpkg.RunInTenantTransaction),
 	)
 	adjustSvc := timetracking.NewStaffBalanceAdjustmentService(
-		workforceCompose.NewTimeTrackingTestRows(workTime).Adjustments, monthSvc, settings, nil,
+		workforceCompose.NewTimeTrackingTestRows(workTime).Adjustments, monthSvc, settings, nil, timetracking.WithAdjustmentUnitOfWork(testpkg.RunInTenantTransaction),
+
 		timetracking.WithAdjustmentSnapshots(timetracking.MonthSnapshotCapability(workTime)),
 	)
 

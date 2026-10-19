@@ -27,7 +27,7 @@ func TestSettingAuditRepository_Create(t *testing.T) {
 		ChangedAt:  time.Now(),
 	}
 
-	err := repo.Create(ctx, entry)
+	err := testpkg.TenantCommand1(t, ctx, db, repo.Create, entry)
 	require.NoError(t, err)
 	assert.Greater(t, entry.ID, int64(0), "should have an auto-generated ID")
 }
@@ -40,14 +40,14 @@ func TestSettingAuditRepository_Create_ValidatesEntry(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// Missing key
-	err := repo.Create(ctx, &config.SettingAuditEntry{
+	err := testpkg.TenantCommand1(t, ctx, db, repo.Create, &config.SettingAuditEntry{
 		TenantID: testpkg.Tenant(t),
 		Action:   "set",
 	})
 	assert.Error(t, err)
 
 	// Invalid action
-	err = repo.Create(ctx, &config.SettingAuditEntry{
+	err = testpkg.TenantCommand1(t, ctx, db, repo.Create, &config.SettingAuditEntry{
 		TenantID:   testpkg.Tenant(t),
 		SettingKey: "test.key",
 		Action:     "invalid",
@@ -62,6 +62,6 @@ func TestSettingAuditRepository_CreateNil(t *testing.T) {
 	repo := NewSettingAuditRepository(testpkg.ConfigRuntime(db))
 	ctx := testpkg.Ctx(t)
 
-	err := repo.Create(ctx, nil)
+	err := testpkg.TenantCommand1(t, ctx, db, repo.Create, nil)
 	assert.Error(t, err)
 }

@@ -35,3 +35,28 @@ func RequireTenantDatabase(ctx context.Context, expectedTenantID int64) (bun.IDB
 	}
 	return tx, nil
 }
+
+// RequireAdminDatabase resolves only an existing privileged transaction.
+func RequireAdminDatabase(ctx context.Context) (bun.IDB, error) {
+	raw, ok := tenant.TransactionFromContext(ctx)
+	if !ok || !tenant.IsAdminTx(ctx) {
+		return nil, errors.New("delivery postgres: administrative transaction is required")
+	}
+	switch tx := raw.(type) {
+	case bun.Tx:
+		return tx, nil
+	case *bun.Tx:
+		if tx != nil {
+			return tx, nil
+		}
+	}
+	return nil, fmt.Errorf("delivery postgres: unsupported transaction %T", raw)
+}
+
+func (s *Store) inAdminTransaction(ctx context.Context, fn func(context.Context, bun.IDB) error) error {
+	db, err := s.adminDB(ctx)
+	if err != nil {
+		return err
+	}
+	return fn(ctx, db)
+}

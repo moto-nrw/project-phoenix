@@ -29,7 +29,7 @@ const (
 // --- staff shifts ---
 
 func (s *Store) FindStaffShift(ctx context.Context, id int64) (domain.StaffShift, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffShift{}, false, domain.OperationStats{}, err
 	}
@@ -37,7 +37,7 @@ func (s *Store) FindStaffShift(ctx context.Context, id int64) (domain.StaffShift
 	query := withTenant(db.NewSelect().
 		Model(row).
 		ModelTableExpr(tableStaffShifts+` AS "staff_shift"`).
-		Where(`"staff_shift".id = ?`, id), aliasStaffShift, tenantID)
+		Where(`"staff_shift".id = ?`, id), aliasStaffShift, scope)
 	found, stats, err := scanOne(ctx, query, "find staff shift")
 	if err != nil || !found {
 		return domain.StaffShift{}, found, stats, err
@@ -46,14 +46,14 @@ func (s *Store) FindStaffShift(ctx context.Context, id int64) (domain.StaffShift
 }
 
 func (s *Store) ListStaffShifts(ctx context.Context, filter domain.StaffShiftFilter) ([]domain.StaffShift, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []staffShiftRow{}
 	query, empty := applyStaffShiftFilter(withTenant(db.NewSelect().
 		Model(&rows).
-		ModelTableExpr(tableStaffShifts+` AS "staff_shift"`), aliasStaffShift, tenantID), filter)
+		ModelTableExpr(tableStaffShifts+` AS "staff_shift"`), aliasStaffShift, scope), filter)
 	if empty {
 		return []domain.StaffShift{}, domain.OperationStats{}, nil
 	}
@@ -132,7 +132,7 @@ func applyStaffShiftFilter(query *bun.SelectQuery, filter domain.StaffShiftFilte
 }
 
 func (s *Store) UsedStaffShiftWeeks(ctx context.Context, from, to string) ([]string, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -145,7 +145,7 @@ func (s *Store) UsedStaffShiftWeeks(ctx context.Context, from, to string) ([]str
 		Where(`"staff_shift".date >= ?`, from).
 		Where(`"staff_shift".date <= ?`, to).
 		Where(`"staff_shift".cancelled = FALSE`).
-		OrderExpr(`week_start ASC`), aliasStaffShift, tenantID)
+		OrderExpr(`week_start ASC`), aliasStaffShift, scope)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = query.Scan(ctx, &rows)
@@ -162,7 +162,7 @@ func (s *Store) UsedStaffShiftWeeks(ctx context.Context, from, to string) ([]str
 }
 
 func (s *Store) CreateStaffShift(ctx context.Context, value domain.StaffShift) (domain.StaffShift, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffShift{}, domain.OperationStats{}, err
 	}
@@ -171,7 +171,7 @@ func (s *Store) CreateStaffShift(ctx context.Context, value domain.StaffShift) (
 		return domain.StaffShift{}, domain.OperationStats{}, err
 	}
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -191,7 +191,7 @@ func (s *Store) CreateStaffShifts(ctx context.Context, values []domain.StaffShif
 	if len(values) == 0 {
 		return []domain.StaffShift{}, domain.OperationStats{}, nil
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -202,7 +202,7 @@ func (s *Store) CreateStaffShifts(ctx context.Context, values []domain.StaffShif
 			return nil, domain.OperationStats{}, err
 		}
 		if row.TenantID == 0 {
-			row.TenantID = tenantID
+			row.TenantID = scope.TenantID
 		}
 		rows = append(rows, row)
 	}
@@ -225,7 +225,7 @@ func (s *Store) CreateStaffShifts(ctx context.Context, values []domain.StaffShif
 }
 
 func (s *Store) UpdateStaffShift(ctx context.Context, value domain.StaffShift) (domain.StaffShift, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffShift{}, false, domain.OperationStats{}, err
 	}
@@ -240,9 +240,7 @@ func (s *Store) UpdateStaffShift(ctx context.Context, value domain.StaffShift) (
 		Set("updated_at = NOW()").
 		WherePK().
 		Returning("*")
-	if tenantID > 0 {
-		query = query.Where(`"staff_shift".tenant_id = ?`, tenantID)
-	}
+	query = scopeQuery(scope, query, `"staff_shift".tenant_id = ?`)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := query.Exec(ctx)
@@ -265,7 +263,7 @@ func (s *Store) UpdateStaffShift(ctx context.Context, value domain.StaffShift) (
 }
 
 func (s *Store) SetStaffShiftSickAbsence(ctx context.Context, shiftID int64, absenceID *int64) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
@@ -273,24 +271,24 @@ func (s *Store) SetStaffShiftSickAbsence(ctx context.Context, shiftID int64, abs
 		Model((*staffShiftRow)(nil)).
 		ModelTableExpr(tableStaffShifts+` AS "staff_shift"`).
 		Set("sick_absence_id = ?", absenceID).
-		Where(`"staff_shift".id = ?`, shiftID), aliasStaffShift, tenantID)
+		Where(`"staff_shift".id = ?`, shiftID), aliasStaffShift, scope)
 	return execCount(ctx, query, "set staff shift sick absence")
 }
 
 func (s *Store) DeleteStaffShift(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewDelete().
 		Model((*staffShiftRow)(nil)).
 		ModelTableExpr(tableStaffShifts+` AS "staff_shift"`).
-		Where(`"staff_shift".id = ?`, id), aliasStaffShift, tenantID)
+		Where(`"staff_shift".id = ?`, id), aliasStaffShift, scope)
 	return execAffected(ctx, query, "delete staff shift")
 }
 
 func (s *Store) DeleteUpcomingStaffShifts(ctx context.Context, staffID int64, from string) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
@@ -298,12 +296,12 @@ func (s *Store) DeleteUpcomingStaffShifts(ctx context.Context, staffID int64, fr
 		Model((*staffShiftRow)(nil)).
 		ModelTableExpr(tableStaffShifts+` AS "staff_shift"`).
 		Where(`"staff_shift".staff_id = ?`, staffID).
-		Where(`"staff_shift".date >= ?`, from), aliasStaffShift, tenantID)
+		Where(`"staff_shift".date >= ?`, from), aliasStaffShift, scope)
 	return execCount(ctx, query, "delete upcoming staff shifts")
 }
 
 func (s *Store) DeleteRegenerableSeriesShifts(ctx context.Context, seriesID int64, from string) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
@@ -312,12 +310,12 @@ func (s *Store) DeleteRegenerableSeriesShifts(ctx context.Context, seriesID int6
 		ModelTableExpr(tableStaffShifts+` AS "staff_shift"`).
 		Where(`"staff_shift".series_id = ?`, seriesID).
 		Where(`"staff_shift".detached = FALSE`).
-		Where(`"staff_shift".date >= ?`, from), aliasStaffShift, tenantID)
+		Where(`"staff_shift".date >= ?`, from), aliasStaffShift, scope)
 	return execCount(ctx, query, "delete non-detached staff shifts by series")
 }
 
 func (s *Store) RepointDetachedSeriesShifts(ctx context.Context, fromSeriesID, toSeriesID int64, from string) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
@@ -327,14 +325,14 @@ func (s *Store) RepointDetachedSeriesShifts(ctx context.Context, fromSeriesID, t
 		Set("series_id = ?", toSeriesID).
 		Where(`"staff_shift".series_id = ?`, fromSeriesID).
 		Where(`"staff_shift".detached = TRUE`).
-		Where(`"staff_shift".series_occurrence_date >= ?`, from), aliasStaffShift, tenantID)
+		Where(`"staff_shift".series_occurrence_date >= ?`, from), aliasStaffShift, scope)
 	return execCount(ctx, query, "repoint detached staff shifts to successor series")
 }
 
 // --- shift series ---
 
 func (s *Store) FindStaffShiftSeries(ctx context.Context, id int64) (domain.StaffShiftSeries, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffShiftSeries{}, false, domain.OperationStats{}, err
 	}
@@ -342,7 +340,7 @@ func (s *Store) FindStaffShiftSeries(ctx context.Context, id int64) (domain.Staf
 	query := withTenant(db.NewSelect().
 		Model(row).
 		ModelTableExpr(tableStaffShiftSeries+` AS "staff_shift_series"`).
-		Where(`"staff_shift_series".id = ?`, id), aliasStaffShiftSeries, tenantID)
+		Where(`"staff_shift_series".id = ?`, id), aliasStaffShiftSeries, scope)
 	found, stats, err := scanOne(ctx, query, "find staff shift series")
 	if err != nil || !found {
 		return domain.StaffShiftSeries{}, found, stats, err
@@ -351,7 +349,7 @@ func (s *Store) FindStaffShiftSeries(ctx context.Context, id int64) (domain.Staf
 }
 
 func (s *Store) FindOverlappingSeriesInLineage(ctx context.Context, rootID, excludeID int64, from string) (domain.StaffShiftSeries, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffShiftSeries{}, false, domain.OperationStats{}, err
 	}
@@ -363,7 +361,7 @@ func (s *Store) FindOverlappingSeriesInLineage(ctx context.Context, rootID, excl
 		Where(`"staff_shift_series".id != ?`, excludeID).
 		Where(`("staff_shift_series".valid_until IS NULL OR "staff_shift_series".valid_until > ?)`, from).
 		OrderExpr(`"staff_shift_series".valid_from ASC`).
-		Limit(1), aliasStaffShiftSeries, tenantID)
+		Limit(1), aliasStaffShiftSeries, scope)
 	found, stats, err := scanOne(ctx, query, "find overlapping staff shift series in lineage")
 	if err != nil || !found {
 		return domain.StaffShiftSeries{}, found, stats, err
@@ -372,7 +370,7 @@ func (s *Store) FindOverlappingSeriesInLineage(ctx context.Context, rootID, excl
 }
 
 func (s *Store) CreateStaffShiftSeries(ctx context.Context, value domain.StaffShiftSeries) (domain.StaffShiftSeries, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffShiftSeries{}, domain.OperationStats{}, err
 	}
@@ -381,7 +379,7 @@ func (s *Store) CreateStaffShiftSeries(ctx context.Context, value domain.StaffSh
 		return domain.StaffShiftSeries{}, domain.OperationStats{}, err
 	}
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -395,7 +393,7 @@ func (s *Store) CreateStaffShiftSeries(ctx context.Context, value domain.StaffSh
 }
 
 func (s *Store) UpdateStaffShiftSeries(ctx context.Context, value domain.StaffShiftSeries) (domain.StaffShiftSeries, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffShiftSeries{}, false, domain.OperationStats{}, err
 	}
@@ -410,9 +408,7 @@ func (s *Store) UpdateStaffShiftSeries(ctx context.Context, value domain.StaffSh
 		Set("updated_at = NOW()").
 		WherePK().
 		Returning("*")
-	if tenantID > 0 {
-		query = query.Where(`"staff_shift_series".tenant_id = ?`, tenantID)
-	}
+	query = scopeQuery(scope, query, `"staff_shift_series".tenant_id = ?`)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := query.Exec(ctx)
@@ -432,14 +428,14 @@ func (s *Store) UpdateStaffShiftSeries(ctx context.Context, value domain.StaffSh
 }
 
 func (s *Store) DeleteStaffShiftSeries(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewDelete().
 		Model((*staffShiftSeriesRow)(nil)).
 		ModelTableExpr(tableStaffShiftSeries+` AS "staff_shift_series"`).
-		Where(`"staff_shift_series".id = ?`, id), aliasStaffShiftSeries, tenantID)
+		Where(`"staff_shift_series".id = ?`, id), aliasStaffShiftSeries, scope)
 	return execAffected(ctx, query, "delete staff shift series")
 }
 
@@ -447,7 +443,7 @@ func (s *Store) DeleteStaffShiftSeries(ctx context.Context, id int64) (domain.Op
 // before valid_from clamps to valid_from, an empty segment that materializes
 // nothing, instead of violating the validity check constraint.
 func (s *Store) CapStaffShiftSeries(ctx context.Context, id int64, until string) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -456,12 +452,12 @@ func (s *Store) CapStaffShiftSeries(ctx context.Context, id int64, until string)
 		ModelTableExpr(tableStaffShiftSeries+` AS "staff_shift_series"`).
 		Set("valid_until = GREATEST(valid_from, ?)", calendarDate(until)).
 		Where(`"staff_shift_series".id = ?`, id).
-		Where(`("staff_shift_series".valid_until IS NULL OR "staff_shift_series".valid_until > ?)`, until), aliasStaffShiftSeries, tenantID)
+		Where(`("staff_shift_series".valid_until IS NULL OR "staff_shift_series".valid_until > ?)`, until), aliasStaffShiftSeries, scope)
 	return execAffected(ctx, query, "cap staff shift series valid_until")
 }
 
 func (s *Store) CapStaffShiftSeriesForStaff(ctx context.Context, staffID int64, until string) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
@@ -470,14 +466,14 @@ func (s *Store) CapStaffShiftSeriesForStaff(ctx context.Context, staffID int64, 
 		ModelTableExpr(tableStaffShiftSeries+` AS "staff_shift_series"`).
 		Set("valid_until = GREATEST(valid_from, ?)", calendarDate(until)).
 		Where(`"staff_shift_series".staff_id = ?`, staffID).
-		Where(`("staff_shift_series".valid_until IS NULL OR "staff_shift_series".valid_until > ?)`, until), aliasStaffShiftSeries, tenantID)
+		Where(`("staff_shift_series".valid_until IS NULL OR "staff_shift_series".valid_until > ?)`, until), aliasStaffShiftSeries, scope)
 	return execCount(ctx, query, "cap staff shift series by staff")
 }
 
 // --- series exceptions ---
 
 func (s *Store) RecordSeriesException(ctx context.Context, value domain.StaffShiftSeriesException) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -485,7 +481,7 @@ func (s *Store) RecordSeriesException(ctx context.Context, value domain.StaffShi
 		TenantID: value.TenantID, SeriesID: value.SeriesID, Date: calendarDate(value.Date), CreatedBy: value.CreatedBy,
 	}
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -505,7 +501,7 @@ func (s *Store) RecordSeriesException(ctx context.Context, value domain.StaffShi
 }
 
 func (s *Store) SeriesExceptionDates(ctx context.Context, seriesID int64) ([]string, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -516,7 +512,7 @@ func (s *Store) SeriesExceptionDates(ctx context.Context, seriesID int64) ([]str
 		TableExpr(tableStaffShiftSeriesException+` AS "staff_shift_series_exception"`).
 		ColumnExpr(`"staff_shift_series_exception".date`).
 		Where(`"staff_shift_series_exception".series_id = ?`, seriesID).
-		OrderExpr(`"staff_shift_series_exception".date ASC`), aliasStaffShiftException, tenantID)
+		OrderExpr(`"staff_shift_series_exception".date ASC`), aliasStaffShiftException, scope)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = query.Scan(ctx, &rows)
@@ -533,7 +529,7 @@ func (s *Store) SeriesExceptionDates(ctx context.Context, seriesID int64) ([]str
 }
 
 func (s *Store) RepointSeriesExceptions(ctx context.Context, fromSeriesID, toSeriesID int64, from string) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
@@ -542,14 +538,14 @@ func (s *Store) RepointSeriesExceptions(ctx context.Context, fromSeriesID, toSer
 		ModelTableExpr(tableStaffShiftSeriesException+` AS "staff_shift_series_exception"`).
 		Set("series_id = ?", toSeriesID).
 		Where(`"staff_shift_series_exception".series_id = ?`, fromSeriesID).
-		Where(`"staff_shift_series_exception".date >= ?`, from), aliasStaffShiftException, tenantID)
+		Where(`"staff_shift_series_exception".date >= ?`, from), aliasStaffShiftException, scope)
 	return execCount(ctx, query, "repoint staff shift series exceptions")
 }
 
 // --- shift types ---
 
 func (s *Store) ListShiftTypes(ctx context.Context) ([]domain.ShiftType, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -557,7 +553,7 @@ func (s *Store) ListShiftTypes(ctx context.Context) ([]domain.ShiftType, domain.
 	query := withTenant(db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(tableShiftTypes+` AS "shift_type"`).
-		OrderExpr(`"shift_type".name ASC`), aliasShiftType, tenantID)
+		OrderExpr(`"shift_type".name ASC`), aliasShiftType, scope)
 	stats, err := scanAll(ctx, query, "list shift types")
 	if err != nil {
 		return nil, stats, err
@@ -571,7 +567,7 @@ func (s *Store) ListShiftTypes(ctx context.Context) ([]domain.ShiftType, domain.
 }
 
 func (s *Store) FindShiftType(ctx context.Context, id int64) (domain.ShiftType, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.ShiftType{}, false, domain.OperationStats{}, err
 	}
@@ -579,7 +575,7 @@ func (s *Store) FindShiftType(ctx context.Context, id int64) (domain.ShiftType, 
 	query := withTenant(db.NewSelect().
 		Model(row).
 		ModelTableExpr(tableShiftTypes+` AS "shift_type"`).
-		Where(`"shift_type".id = ?`, id), aliasShiftType, tenantID)
+		Where(`"shift_type".id = ?`, id), aliasShiftType, scope)
 	found, stats, err := scanOne(ctx, query, "find shift type")
 	if err != nil || !found {
 		return domain.ShiftType{}, found, stats, err
@@ -588,13 +584,13 @@ func (s *Store) FindShiftType(ctx context.Context, id int64) (domain.ShiftType, 
 }
 
 func (s *Store) CreateShiftType(ctx context.Context, value domain.ShiftType) (domain.ShiftType, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.ShiftType{}, domain.OperationStats{}, err
 	}
 	row := shiftTypeFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -614,13 +610,13 @@ func (s *Store) CreateShiftType(ctx context.Context, value domain.ShiftType) (do
 // lets exactly one concurrent insert win while the loser stays a clean no-op
 // inside the surrounding tenant transaction.
 func (s *Store) CreateShiftTypeIfAbsent(ctx context.Context, value domain.ShiftType) (domain.ShiftType, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.ShiftType{}, false, domain.OperationStats{}, err
 	}
 	row := shiftTypeFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -642,7 +638,7 @@ func (s *Store) CreateShiftTypeIfAbsent(ctx context.Context, value domain.ShiftT
 }
 
 func (s *Store) UpdateShiftType(ctx context.Context, value domain.ShiftType) (domain.ShiftType, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.ShiftType{}, false, domain.OperationStats{}, err
 	}
@@ -654,9 +650,7 @@ func (s *Store) UpdateShiftType(ctx context.Context, value domain.ShiftType) (do
 		Set("updated_at = NOW()").
 		WherePK().
 		Returning("*")
-	if tenantID > 0 {
-		query = query.Where(`"shift_type".tenant_id = ?`, tenantID)
-	}
+	query = scopeQuery(scope, query, `"shift_type".tenant_id = ?`)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := query.Exec(ctx)
@@ -681,14 +675,14 @@ func (s *Store) UpdateShiftType(ctx context.Context, value domain.ShiftType) (do
 // DeleteShiftType removes the type; shifts referencing it keep their row and
 // lose only the reference through the FK's ON DELETE SET NULL.
 func (s *Store) DeleteShiftType(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewDelete().
 		Model((*shiftTypeRow)(nil)).
 		ModelTableExpr(tableShiftTypes+` AS "shift_type"`).
-		Where(`"shift_type".id = ?`, id), aliasShiftType, tenantID)
+		Where(`"shift_type".id = ?`, id), aliasShiftType, scope)
 	return execAffected(ctx, query, "delete shift type")
 }
 

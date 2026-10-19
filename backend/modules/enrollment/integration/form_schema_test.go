@@ -38,22 +38,22 @@ func TestSchemaQueriesTenantIsolationAndReadFailure(t *testing.T) {
 		})
 	}
 	ctx := testpkg.ContextForTenant(testpkg.Ctx(t), tenantIDs[0])
-	active, err := module.ActiveSchema(ctx)
+	active, err := testpkg.TenantQuery0(t, ctx, db, module.ActiveSchema)
 	require.NoError(t, err)
 	require.Equal(t, schemaIDs[0], active.ID)
 	require.Equal(t, tenantIDs[0], active.TenantID)
-	versions, err := module.SchemaVersions(ctx)
+	versions, err := testpkg.TenantQuery0(t, ctx, db, module.SchemaVersions)
 	require.NoError(t, err)
 	require.Len(t, versions, 1)
 	require.Equal(t, schemaIDs[0], versions[0].ID)
-	_, err = module.Schema(ctx, schemaIDs[1])
+	_, err = testpkg.TenantQuery1(t, ctx, db, module.Schema, schemaIDs[1])
 	require.ErrorIs(t, err, sql.ErrNoRows)
 
 	// Admin transactions bypass RLS. The owner query must still honor its tenant.
 	err = tenant.WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
-		_, readErr := module.Schema(adminCtx, schemaIDs[1])
+		_, readErr := testpkg.TenantQuery1(t, adminCtx, db, module.Schema, schemaIDs[1])
 		require.ErrorContains(t, readErr, "tenant ID is required")
-		_, readErr = module.Schema(testpkg.ContextForTenant(adminCtx, tenantIDs[0]), schemaIDs[1])
+		_, readErr = testpkg.TenantQuery1(t, testpkg.ContextForTenant(adminCtx, tenantIDs[0]), db, module.Schema, schemaIDs[1])
 		require.ErrorIs(t, readErr, sql.ErrNoRows)
 		return nil
 	})
@@ -69,7 +69,7 @@ func TestSchemaQueriesTenantIsolationAndReadFailure(t *testing.T) {
 		return readErr
 	})
 	require.Error(t, err)
-	active, err = module.ActiveSchema(ctx)
+	active, err = testpkg.TenantQuery0(t, ctx, db, module.ActiveSchema)
 	require.NoError(t, err, "a rolled-back read failure must not poison the retry")
 	require.Equal(t, schemaIDs[0], active.ID)
 
@@ -83,13 +83,13 @@ func TestSchemaQueriesTenantIsolationAndReadFailure(t *testing.T) {
 		return renameFailure
 	})
 	require.ErrorIs(t, err, renameFailure)
-	active, err = module.Schema(ctx, schemaIDs[0])
+	active, err = testpkg.TenantQuery1(t, ctx, db, module.Schema, schemaIDs[0])
 	require.NoError(t, err)
 	require.Equal(t, "Enrollment form", active.Name, "rename must roll back with its caller")
 	renamed, err := module.RenameSchema(ctx, schemaIDs[0], "New name")
 	require.NoError(t, err)
 	require.Equal(t, "New name", renamed.Name)
-	foreign, err := module.Schema(testpkg.ContextForTenant(testpkg.Ctx(t), tenantIDs[1]), schemaIDs[1])
+	foreign, err := testpkg.TenantQuery1(t, testpkg.ContextForTenant(testpkg.Ctx(t), tenantIDs[1]), db, module.Schema, schemaIDs[1])
 	require.NoError(t, err)
 	require.Equal(t, "Enrollment form", foreign.Name)
 	_, err = module.RenameSchema(ctx, schemaIDs[0], "Enrollment form")
@@ -105,13 +105,13 @@ func TestSchemaQueriesTenantIsolationAndReadFailure(t *testing.T) {
 		return injected
 	})
 	require.ErrorIs(t, err, injected)
-	_, err = module.Schema(ctx, schemaIDs[0])
+	_, err = testpkg.TenantQuery1(t, ctx, db, module.Schema, schemaIDs[0])
 	require.NoError(t, err, "schema deletion must roll back with its caller")
 	name, err := module.DeleteUnusedSchema(ctx, schemaIDs[0])
 	require.NoError(t, err)
 	require.Equal(t, "Enrollment form", name)
-	_, err = module.Schema(ctx, schemaIDs[0])
+	_, err = testpkg.TenantQuery1(t, ctx, db, module.Schema, schemaIDs[0])
 	require.ErrorIs(t, err, sql.ErrNoRows)
-	_, err = module.Schema(testpkg.ContextForTenant(testpkg.Ctx(t), tenantIDs[1]), schemaIDs[1])
+	_, err = testpkg.TenantQuery1(t, testpkg.ContextForTenant(testpkg.Ctx(t), tenantIDs[1]), db, module.Schema, schemaIDs[1])
 	require.NoError(t, err, "deleting a lineage must not affect another school")
 }

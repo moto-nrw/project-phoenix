@@ -101,7 +101,7 @@ func approveOneChildForExport(t *testing.T, env *decisionTestEnv, email, firstNa
 	t.Helper()
 	ctx := testpkg.Ctx(t)
 	reqID, childID := submitOneChild(t, env, email, firstName, lastName)
-	outcome, err := env.decision.Decide(ctx, enrollmentAPI.DecideInput{
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
 		RequestID:  reqID,
 		ChildID:    childID,
 		Status:     capability.DecisionApproved,
@@ -151,7 +151,7 @@ func TestDecisionService_ExportPhase_LoadsDataAndRecordsAudit(t *testing.T) {
 	svc := newExportDecisionService(env, audit)
 
 	const actorID = int64(4242)
-	data, err := svc.ExportPhase(ctx, env.sourcePhase.ID, actorID, "admin", "pdf", "")
+	data, err := testpkg.TenantQuery5(t, ctx, testpkg.SetupTestDB(t), svc.ExportPhase, env.sourcePhase.ID, actorID, "admin", "pdf", "")
 	require.NoError(t, err)
 	require.NotNil(t, data)
 
@@ -207,12 +207,11 @@ func TestDecisionService_ExportPhase_ChildStatusFilter(t *testing.T) {
 	// phase holds a mixed set.
 	_, approvedChildID := submitOneChild(t, env, "filter-approved@example.com", "Ada", "Approved")
 	submitOneChild(t, env, "filter-open@example.com", "Ben", "Open")
-	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(
-		ctx, approvedChildID, capability.ChildStatusApproved, nil, 0))
+	require.NoError(t, testpkg.TenantCommand4(t, ctx, env.db, env.repos.Enrollment().UpdateChildStatus, approvedChildID, capability.ChildStatusApproved, nil, 0))
 
 	auditAll := &stubAccessLogRepo{}
-	all, err := newExportDecisionService(env, auditAll).
-		ExportPhase(ctx, env.sourcePhase.ID, 4242, "admin", "xlsx", "")
+	all, err := testpkg.TenantQuery5(t, ctx, testpkg.SetupTestDB(t), newExportDecisionService(env, auditAll).
+		ExportPhase, env.sourcePhase.ID, 4242, "admin", "xlsx", "")
 	require.NoError(t, err)
 	_, allChildren := all.Counts()
 	assert.Equal(t, 2, allChildren, "no filter exports every child")
@@ -254,8 +253,8 @@ func TestDecisionService_ExportStudent_LoadsDataAndRecordsAudit(t *testing.T) {
 	studentID := approveOneChildForExport(t, env, "student-export@example.com", "Sina", "Export")
 	audit := &stubAccessLogRepo{}
 
-	data, err := newExportDecisionService(env, audit).
-		ExportStudent(ctx, studentID, 4242, "admin", "xlsx")
+	data, err := testpkg.TenantQuery4(t, ctx, testpkg.SetupTestDB(t), newExportDecisionService(env, audit).
+		ExportStudent, studentID, 4242, "admin", "xlsx")
 	require.NoError(t, err)
 	require.NotNil(t, data)
 	assert.Equal(t, studentID, data.StudentID)

@@ -22,7 +22,14 @@ type timetableStaffRows interface {
 type TimetableStaff struct{ rows timetableStaffRows }
 
 // NewTimetableStaff binds the staff ports to the People Directory staff rows.
-func NewTimetableStaff(rows timetableStaffRows) TimetableStaff { return TimetableStaff{rows: rows} }
+func NewTimetableStaff(rows timetableStaffRows) TimetableStaff {
+	// TimetableStaff maps only membership and person fields, never employment.
+	if members, ok := rows.(StaffMembershipRepository); ok {
+		members.membershipOnly = true
+		rows = members
+	}
+	return TimetableStaff{rows: rows}
+}
 
 func (s TimetableStaff) FindByID(ctx context.Context, id any) (*timetable.StaffMember, error) {
 	return MapRow(TimetableStaffMember)(s.rows.FindByID(ctx, id))

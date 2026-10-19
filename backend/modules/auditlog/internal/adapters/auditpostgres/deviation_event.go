@@ -27,7 +27,11 @@ func (r *deviationEventRepository) ListByRange(ctx context.Context, from, to aud
 		return nil, fmt.Errorf("date range is required")
 	}
 	var rows []*audit.DeviationEvent
-	q := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB1, databaseErr1 := runtimeDB(ctx, r.runtime)
+	if databaseErr1 != nil {
+		return *new([]*audit.DeviationEvent), databaseErr1
+	}
+	q := ambientDB1.NewSelect().
 		Model(&rows).
 		ModelTableExpr(deviationEventTableExpr).
 		Where(`"deviation_event".occurrence_date >= ?`, from).
@@ -42,9 +46,7 @@ func (r *deviationEventRepository) ListByRange(ctx context.Context, from, to aud
 		Where(`"deviation_event".event_type NOT IN (?)`, bun.List(audit.ShiftScopedDeviationEventTypes)).
 		Where(`"deviation_event".staff_shift_id IS NULL`)
 	// Defense-in-depth on top of RLS, same as the generic TenantScoped path.
-	if tenantID := runtimeTenantID(ctx, r.runtime); tenantID > 0 {
-		q = q.Where(`"deviation_event".tenant_id = ?`, tenantID)
-	}
+	q = tenantQuery(ctx, r.runtime, q, "deviation_event")
 	if activityGroupID != nil {
 		q = q.Where(`"deviation_event".activity_group_id = ?`, *activityGroupID)
 	}
@@ -65,7 +67,11 @@ func (r *deviationEventRepository) DeleteOlderThan(ctx context.Context, cutoff a
 		return 0, wrapDatabase("delete expired deviation events", fmt.Errorf("tenant context is required"))
 	}
 	var deleted int64
-	if err := runtimeDB(ctx, r.runtime).NewRaw(
+	ambientDB2, databaseErr2 := runtimeDB(ctx, r.runtime)
+	if databaseErr2 != nil {
+		return *new(int64), databaseErr2
+	}
+	if err := ambientDB2.NewRaw(
 		`SELECT audit.delete_expired_deviation_events(?, ?)`, tenantID, cutoff,
 	).Scan(ctx, &deleted); err != nil {
 		return 0, wrapDatabase("delete expired deviation events", err)

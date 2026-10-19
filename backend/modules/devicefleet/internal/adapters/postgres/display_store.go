@@ -44,14 +44,14 @@ func NewDisplayStore(database Database) *DisplayStore {
 
 // Create registers one display for the caller's tenant.
 func (s *DisplayStore) Create(ctx context.Context, input domain.CreateDisplay) (domain.Display, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.Display{}, domain.OperationStats{}, err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return domain.Display{}, domain.OperationStats{}, errDisplayTenantRequired
 	}
-	row := displayRow{TenantID: tenantID, Name: input.Name, IsActive: true, TokenHash: input.TokenHash}
+	row := displayRow{TenantID: scope.TenantID, Name: input.Name, IsActive: true, TokenHash: input.TokenHash}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = db.NewInsert().Model(&row).ModelTableExpr(`display.displays`).Returning("*").Scan(ctx)
@@ -66,11 +66,11 @@ func (s *DisplayStore) Create(ctx context.Context, input domain.CreateDisplay) (
 // Update writes exactly the supplied columns and reports how many rows
 // matched, so a concurrent delete surfaces as zero instead of a false success.
 func (s *DisplayStore) Update(ctx context.Context, input domain.UpdateDisplay) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return 0, domain.OperationStats{}, errDisplayTenantRequired
 	}
 	row := displayRow{ID: input.ID, UpdatedAt: time.Now()}
@@ -91,7 +91,7 @@ func (s *DisplayStore) Update(ctx context.Context, input domain.UpdateDisplay) (
 		ModelTableExpr(displayTableExpr).
 		Column(columns...).
 		Where(`"display".id = ?`, input.ID).
-		Where(`"display".tenant_id = ?`, tenantID)
+		Where(`"display".tenant_id = ?`, scope.TenantID)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := query.Exec(ctx)
@@ -109,17 +109,17 @@ func (s *DisplayStore) Update(ctx context.Context, input domain.UpdateDisplay) (
 
 // Delete removes one display and reports how many rows matched.
 func (s *DisplayStore) Delete(ctx context.Context, id int64) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return 0, domain.OperationStats{}, errDisplayTenantRequired
 	}
 	query := db.NewDelete().Model((*displayRow)(nil)).
 		ModelTableExpr(displayTableExpr).
 		Where(`"display".id = ?`, id).
-		Where(`"display".tenant_id = ?`, tenantID)
+		Where(`"display".tenant_id = ?`, scope.TenantID)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := query.Exec(ctx)
@@ -137,18 +137,18 @@ func (s *DisplayStore) Delete(ctx context.Context, id int64) (int64, domain.Oper
 
 // FindByID reads one display of the caller's tenant.
 func (s *DisplayStore) FindByID(ctx context.Context, id int64) (domain.Display, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.Display{}, false, domain.OperationStats{}, err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return domain.Display{}, false, domain.OperationStats{}, errDisplayTenantRequired
 	}
 	row := displayRow{}
 	query := db.NewSelect().Model(&row).
 		ModelTableExpr(displayTableExpr).
 		Where(`"display".id = ?`, id).
-		Where(`"display".tenant_id = ?`, tenantID)
+		Where(`"display".tenant_id = ?`, scope.TenantID)
 	return scanDisplay(ctx, query, &row, "find display")
 }
 
@@ -190,17 +190,17 @@ func scanDisplay(
 
 // List reads every display of the caller's tenant.
 func (s *DisplayStore) List(ctx context.Context) ([]domain.Display, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return nil, domain.OperationStats{}, errDisplayTenantRequired
 	}
 	var rows []displayRow
 	query := db.NewSelect().Model(&rows).
 		ModelTableExpr(displayTableExpr).
-		Where(`"display".tenant_id = ?`, tenantID)
+		Where(`"display".tenant_id = ?`, scope.TenantID)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = query.Scan(ctx)

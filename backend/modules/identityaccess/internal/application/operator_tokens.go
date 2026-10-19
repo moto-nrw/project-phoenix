@@ -32,7 +32,7 @@ func NewOperatorTokens(service *Service, store ports.OperatorTokenStore) *Operat
 }
 
 func (t *OperatorTokens) run(ctx context.Context, operation string, fn func(context.Context, *domain.OperationStats) error) error {
-	return t.service.run(ctx, t.service.tx.RunPlatform, operation, fn)
+	return t.service.run(ctx, t.service.tx.RunAdmin, operation, fn)
 }
 
 func (t *OperatorTokens) CreateInvitation(ctx context.Context, invitation domain.OperatorInvitation) (result domain.OperatorInvitation, err error) {

@@ -78,6 +78,7 @@ type (
 // given fakes.
 func unitTimetableData(deps unitDataDeps) timetable.TimetableDataCapability {
 	composed := timetablePorts.TimetableDataDependencies{
+		RunInTx:           func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) },
 		Instances:         stubDataInstances{},
 		InstanceStaff:     stubDataInstanceStaff{},
 		Participants:      stubDataParticipants{},

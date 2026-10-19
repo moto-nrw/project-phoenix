@@ -319,7 +319,7 @@ func (s *AccountAuthentication) auditRejectedRefresh(ctx context.Context, accoun
 // fetchAndValidateAccountForUpdate locks the account before refresh locks
 // its session row, preserving the account-first order login uses.
 func (s *AccountAuthentication) fetchAndValidateAccountForUpdate(ctx context.Context, accountID int64) (domain.LoginAccount, error) {
-	account, found, _, err := s.store.FindLoginAccount(ctx, accountID, true)
+	account, found, _, err := findLoginAccount(ctx, s.runtime, s.store, accountID, true)
 	if err != nil {
 		return domain.LoginAccount{}, failed("get account", fmt.Errorf("account lookup failed: %w", err))
 	}
@@ -416,7 +416,7 @@ func (s *AccountAuthentication) logRefreshDecision(event, reason string, account
 // school check closes the race with a concurrent soft delete that bulk
 // deletes the school's sessions; an inactive school is refused before the
 // rotation so the client can retry after reactivation.
-func (s *AccountAuthentication) validateTenantAccess(ctx context.Context, claims domain.RefreshClaims) error {
+func (s *AccountAuthentication) validateTenantAccessInTransaction(ctx context.Context, claims domain.RefreshClaims) error {
 	exists, _, err := s.store.HasActiveAccountTenant(ctx, claims.AccountID, claims.TenantID)
 	if err != nil {
 		s.logger.Error("refresh_session_validation_failed",
@@ -520,4 +520,8 @@ func (s *AccountAuthentication) auditLogout(ctx context.Context, revoked domain.
 			slog.Int64("account_id", revoked.AccountID),
 			slog.Any("error", err))
 	}
+}
+
+func (s *AccountAuthentication) validateTenantAccess(ctx context.Context, claims domain.RefreshClaims) error {
+	return globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error { return s.validateTenantAccessInTransaction(txCtx, claims) })
 }

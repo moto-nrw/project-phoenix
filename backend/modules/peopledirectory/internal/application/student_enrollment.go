@@ -9,7 +9,12 @@ import (
 func (s *StudentService) ReadEnrollment(ctx context.Context, id int64, lock string) (result domain.EnrollmentRecord, err error) {
 	run := s.tx.RunRead
 	if lock != "" {
-		run = s.tx.RunWrite
+		run = func(ctx context.Context, fn func(context.Context) error) error {
+			if err := s.tx.RequireTransaction(ctx); err != nil {
+				return err
+			}
+			return fn(ctx)
+		}
 	}
 	err = s.run(ctx, "read_enrollment_student", run, func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
@@ -21,7 +26,12 @@ func (s *StudentService) ReadEnrollment(ctx context.Context, id int64, lock stri
 }
 
 func (s *StudentService) LockEnrollmentClassWrites(ctx context.Context) error {
-	return s.run(ctx, "lock_enrollment_class_writes", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
+	return s.run(ctx, "lock_enrollment_class_writes", func(ctx context.Context, fn func(context.Context) error) error {
+		if err := s.tx.RequireTransaction(ctx); err != nil {
+			return err
+		}
+		return fn(ctx)
+	}, func(txCtx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.LockEnrollmentClassWrites(txCtx)
 		stats.Add(queryStats)
 		return err

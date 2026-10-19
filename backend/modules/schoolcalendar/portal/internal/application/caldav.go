@@ -144,6 +144,20 @@ func (s *service) staffCalendarOwnerByToken(ctx context.Context, token string) (
 	if strings.TrimSpace(token) == "" {
 		return staffFeedOwner{}, ErrNotFound
 	}
+	var owner staffFeedOwner
+	bootstrap := s.cfg.Runtime.WithinAdmin
+	if s.cfg.Runtime.TenantID(ctx) > 0 {
+		bootstrap = s.cfg.Runtime.WithinAppointmentWrite
+	}
+	err := bootstrap(ctx, func(txCtx context.Context) error {
+		var err error
+		owner, err = s.readStaffCalendarOwner(txCtx, token)
+		return err
+	})
+	return owner, err
+}
+
+func (s *service) readStaffCalendarOwner(ctx context.Context, token string) (staffFeedOwner, error) {
 	owner, err := s.cfg.StaffFeedRepo.FindOwnerByTokenHash(ctx, s.feedTokenHash(token))
 	if err != nil {
 		return staffFeedOwner{}, err

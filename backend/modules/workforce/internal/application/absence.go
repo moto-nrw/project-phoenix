@@ -12,7 +12,7 @@ import (
 // --- staff absences ---
 
 func (s *Service) FindStaffAbsence(ctx context.Context, id int64) (result domain.StaffAbsence, err error) {
-	err = s.run("find_staff_absence", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_staff_absence", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.FindStaffAbsence(ctx, id)
@@ -29,7 +29,7 @@ func (s *Service) ListStaffAbsences(ctx context.Context, filter domain.StaffAbse
 	if validationErr := filter.Validate(); validationErr != nil {
 		return nil, validationErr
 	}
-	err = s.run("list_staff_absences", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_staff_absences", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListStaffAbsences(ctx, filter)
 		stats.Add(queryStats)
@@ -42,7 +42,7 @@ func (s *Service) CountStaffAbsences(ctx context.Context, filter domain.StaffAbs
 	if validationErr := filter.Validate(); validationErr != nil {
 		return 0, validationErr
 	}
-	err = s.run("count_staff_absences", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "count_staff_absences", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.CountStaffAbsences(ctx, filter)
 		stats.Add(queryStats)
@@ -52,7 +52,7 @@ func (s *Service) CountStaffAbsences(ctx context.Context, filter domain.StaffAbs
 }
 
 func (s *Service) ListStaffAbsenceRequests(ctx context.Context, filter domain.StaffAbsenceRequestFilter) (result []domain.StaffAbsence, err error) {
-	err = s.run("list_staff_absence_requests", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_staff_absence_requests", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListStaffAbsenceRequests(ctx, filter)
 		stats.Add(queryStats)
@@ -67,7 +67,7 @@ func (s *Service) StaffAbsenceMapForDate(ctx context.Context, date string) (resu
 	if validationErr := domain.ValidateDate(date, "date"); validationErr != nil {
 		return nil, validationErr
 	}
-	err = s.run("staff_absence_map_for_date", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "staff_absence_map_for_date", func(ctx context.Context, stats *domain.OperationStats) error {
 		candidates, queryStats, queryErr := s.store.EffectiveStaffAbsencesOn(ctx, date)
 		stats.Add(queryStats)
 		if queryErr != nil {
@@ -90,7 +90,7 @@ func (s *Service) StaffAbsenceTypeIDMapForDate(ctx context.Context, date string)
 	if validationErr := domain.ValidateDate(date, "date"); validationErr != nil {
 		return nil, validationErr
 	}
-	err = s.run("staff_absence_type_id_map_for_date", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "staff_absence_type_id_map_for_date", func(ctx context.Context, stats *domain.OperationStats) error {
 		candidates, queryStats, queryErr := s.store.EffectiveStaffAbsencesOn(ctx, date)
 		stats.Add(queryStats)
 		if queryErr != nil {
@@ -115,7 +115,7 @@ func (s *Service) OldestStaffAbsenceDate(ctx context.Context, column, before str
 	if validationErr := domain.ValidateDate(before, "before"); validationErr != nil {
 		return "", validationErr
 	}
-	err = s.run("oldest_staff_absence_date", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "oldest_staff_absence_date", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.OldestStaffAbsenceDate(ctx, column, before)
 		stats.Add(queryStats)
@@ -127,7 +127,7 @@ func (s *Service) OldestStaffAbsenceDate(ctx context.Context, column, before str
 // LockStaffAbsenceWrites takes the shared staff balance lock and then the
 // absence lock, in that order, inside the caller's ambient transaction.
 func (s *Service) LockStaffAbsenceWrites(ctx context.Context, staffID int64) error {
-	return s.run("lock_staff_absence_writes", func(*domain.OperationStats) error {
+	return s.observeOperation("lock_staff_absence_writes", func(*domain.OperationStats) error {
 		if err := s.transaction.LockStaffBalance(ctx, staffID); err != nil {
 			return err
 		}
@@ -139,7 +139,7 @@ func (s *Service) CreateStaffAbsence(ctx context.Context, value domain.StaffAbse
 	if validationErr := value.Validate(); validationErr != nil {
 		return domain.StaffAbsence{}, validationErr
 	}
-	err = s.run("create_staff_absence", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_staff_absence", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			if value.DateEnd >= s.clock.Today() || value.Status == domain.AbsenceStatusRequested || value.Status == domain.AbsenceStatusQuestion {
 				if err := s.lockStaffAssignment(txCtx, value.StaffID); err != nil {
@@ -159,7 +159,7 @@ func (s *Service) UpdateStaffAbsence(ctx context.Context, value domain.StaffAbse
 	if validationErr := value.Validate(); validationErr != nil {
 		return domain.StaffAbsence{}, validationErr
 	}
-	err = s.run("update_staff_absence", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "update_staff_absence", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			if value.DateEnd >= s.clock.Today() || value.Status == domain.AbsenceStatusRequested || value.Status == domain.AbsenceStatusQuestion {
 				if err := s.lockStaffAssignment(txCtx, value.StaffID); err != nil {
@@ -180,7 +180,7 @@ func (s *Service) UpdateStaffAbsence(ctx context.Context, value domain.StaffAbse
 }
 
 func (s *Service) DeleteStaffAbsence(ctx context.Context, id int64) error {
-	return s.run("delete_staff_absence", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "delete_staff_absence", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			writeStats, err := s.store.DeleteStaffAbsence(txCtx, id)
 			stats.Add(writeStats)
@@ -193,7 +193,7 @@ func (s *Service) DeleteNonHistoricalStaffAbsences(ctx context.Context, staffID 
 	if validationErr := requireDate(from, "from"); validationErr != nil {
 		return 0, validationErr
 	}
-	err = s.run("delete_non_historical_staff_absences", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "delete_non_historical_staff_absences", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.DeleteNonHistoricalStaffAbsences(txCtx, staffID, from)
@@ -211,7 +211,7 @@ func (s *Service) DeleteStaffAbsencesOlderThan(ctx context.Context, column, cuto
 	if validationErr := requireDate(cutoff, "cutoff"); validationErr != nil {
 		return 0, validationErr
 	}
-	err = s.run("delete_staff_absences_older_than", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "delete_staff_absences_older_than", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.DeleteStaffAbsencesOlderThan(txCtx, column, cutoff)
@@ -233,7 +233,7 @@ func requireDate(value, field string) error {
 // --- absence types ---
 
 func (s *Service) ListStaffAbsenceTypes(ctx context.Context) (result []domain.StaffAbsenceType, err error) {
-	err = s.run("list_staff_absence_types", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_staff_absence_types", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListStaffAbsenceTypes(ctx)
 		stats.Add(queryStats)
@@ -251,7 +251,7 @@ func (s *Service) LockStaffAbsenceType(ctx context.Context, id int64) (domain.St
 }
 
 func (s *Service) findStaffAbsenceType(ctx context.Context, operation string, id int64, lock bool) (result domain.StaffAbsenceType, err error) {
-	err = s.run(operation, func(stats *domain.OperationStats) error {
+	err = s.run(ctx, operation, func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.FindStaffAbsenceType(ctx, id, lock)
@@ -265,7 +265,7 @@ func (s *Service) findStaffAbsenceType(ctx context.Context, operation string, id
 }
 
 func (s *Service) StaffAbsenceTypeInUse(ctx context.Context, id int64) (result bool, err error) {
-	err = s.run("staff_absence_type_in_use", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "staff_absence_type_in_use", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.StaffAbsenceTypeInUse(ctx, id)
 		stats.Add(queryStats)
@@ -372,7 +372,7 @@ func (s *Service) CreateStaffAbsenceType(ctx context.Context, fields domain.Staf
 	if validationErr := fields.Normalize(); validationErr != nil {
 		return domain.StaffAbsenceType{}, validationErr
 	}
-	err = s.run("create_staff_absence_type", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_staff_absence_type", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.CreateStaffAbsenceType(txCtx, fields)
@@ -392,7 +392,7 @@ func (s *Service) UpdateStaffAbsenceType(ctx context.Context, value domain.Staff
 		return domain.StaffAbsenceType{}, validationErr
 	}
 	value.Name, value.BaseType = fields.Name, fields.BaseType
-	err = s.run("update_staff_absence_type", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "update_staff_absence_type", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var found bool
 			var writeStats domain.OperationStats
@@ -413,7 +413,7 @@ func (s *Service) RecordStaffAbsenceAudit(ctx context.Context, value domain.Staf
 	if validationErr := value.Validate(); validationErr != nil {
 		return domain.StaffAbsenceAudit{}, validationErr
 	}
-	err = s.run("record_staff_absence_audit", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "record_staff_absence_audit", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.RecordStaffAbsenceAudit(txCtx, value)

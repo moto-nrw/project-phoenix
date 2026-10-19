@@ -35,9 +35,6 @@ func (d *timetableData) LockSpontaneousStartRoom(ctx context.Context, roomID int
 	return d.acquireSpontaneousLock(ctx, fmt.Sprintf("timetable:spontaneous-start-room:%d:%d", tenant.FromContext(ctx), roomID))
 }
 
-// ResolveSpontaneousActivity returns the requested activity or the activity
-// named after the title; a missing one is created in the "Spontan" category
-// under a name lock, so two starts with the same title share it.
 func (d *timetableData) ResolveSpontaneousActivity(ctx context.Context, title string, requestedID *int64, createdBy int64) (*int64, error) {
 	if requestedID != nil {
 		return requestedID, nil

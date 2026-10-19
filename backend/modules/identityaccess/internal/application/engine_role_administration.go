@@ -32,12 +32,19 @@ func publicPermissions(permissions []domain.ManagedPermission) []identityaccess.
 	return result
 }
 
-func (e engine) GetRole(ctx context.Context, id int64) (identityaccess.Role, error) {
+func (e engine) GetRole(ctx context.Context, id int64) (value0 identityaccess.Role, err error) {
 	if e.roles == nil {
 		return identityaccess.Role{}, errRoleAdministrationUnavailable
 	}
-	role, err := e.roles.GetRole(e.attach(ctx), id)
-	return identityaccess.Role(role), roleError(err)
+	operation := func(ctx context.Context) (identityaccess.Role, error) {
+		role, err := e.roles.GetRole(e.attach(ctx), id)
+		return identityaccess.Role(role), roleError(err)
+	}
+	err = e.roles.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
 func (e engine) ListRoles(ctx context.Context, filter identityaccess.RoleFilter) ([]identityaccess.Role, error) {
@@ -48,70 +55,126 @@ func (e engine) ListRoles(ctx context.Context, filter identityaccess.RoleFilter)
 	return publicRoles(roles), roleError(err)
 }
 
-func (e engine) ResolveAssignableSchoolRole(ctx context.Context, roleID, tenantID int64) (*identityaccess.AssignableSchoolRole, error) {
+func (e engine) ResolveAssignableSchoolRole(ctx context.Context, roleID, tenantID int64) (value0 *identityaccess.AssignableSchoolRole, err error) {
 	if e.roles == nil {
 		return nil, errRoleAdministrationUnavailable
 	}
-	role, permissions, err := e.roles.ResolveAssignableSchoolRole(e.attach(ctx), roleID, tenantID)
-	if err != nil {
-		return nil, roleError(err)
+	operation := func(ctx context.Context) (*identityaccess.AssignableSchoolRole, error) {
+		role, permissions, err := e.roles.ResolveAssignableSchoolRole(e.attach(ctx), roleID, tenantID)
+		if err != nil {
+			return nil, roleError(err)
+		}
+		return &identityaccess.AssignableSchoolRole{Role: identityaccess.Role(role), Permissions: permissions}, nil
 	}
-	return &identityaccess.AssignableSchoolRole{Role: identityaccess.Role(role), Permissions: permissions}, nil
+	err = globalIdentityRead(ctx, e.roles.runtime, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) GetAccountRoles(ctx context.Context, accountID int64) ([]identityaccess.Role, error) {
+func (e engine) GetAccountRoles(ctx context.Context, accountID int64) (value0 []identityaccess.Role, err error) {
 	if e.roles == nil {
 		return nil, errRoleAdministrationUnavailable
 	}
-	roles, err := e.roles.GetAccountRoles(e.attach(ctx), accountID)
-	return publicRoles(roles), roleError(err)
+	operation := func(ctx context.Context) ([]identityaccess.Role, error) {
+		roles, err := e.roles.GetAccountRoles(e.attach(ctx), accountID)
+		return publicRoles(roles), roleError(err)
+	}
+	err = e.roles.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) AccountHoldsLehrkraftRole(ctx context.Context, accountID int64) (bool, error) {
+func (e engine) AccountHoldsLehrkraftRole(ctx context.Context, accountID int64) (value0 bool, err error) {
 	if e.roles == nil {
 		return false, errRoleAdministrationUnavailable
 	}
-	holds, err := e.roles.AccountHoldsLehrkraftRole(e.attach(ctx), accountID)
-	return holds, roleError(err)
+	operation := func(ctx context.Context) (bool, error) {
+		holds, err := e.roles.AccountHoldsLehrkraftRole(e.attach(ctx), accountID)
+		return holds, roleError(err)
+	}
+	err = e.roles.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) GetAccountRoleNames(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
+func (e engine) GetAccountRoleNames(ctx context.Context, accountIDs []int64) (value0 map[int64]string, err error) {
 	if e.roles == nil {
 		return nil, errRoleAdministrationUnavailable
 	}
-	names, err := e.roles.GetAccountRoleNames(e.attach(ctx), accountIDs)
-	return names, roleError(err)
+	operation := func(ctx context.Context) (map[int64]string, error) {
+		names, err := e.roles.GetAccountRoleNames(e.attach(ctx), accountIDs)
+		return names, roleError(err)
+	}
+	err = e.roles.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) GetAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
+func (e engine) GetAccountEmails(ctx context.Context, accountIDs []int64) (value0 map[int64]string, err error) {
 	if e.roles == nil {
 		return nil, errRoleAdministrationUnavailable
 	}
-	emails, err := e.roles.GetAccountEmails(e.attach(ctx), accountIDs)
-	return emails, roleError(err)
+	operation := func(ctx context.Context) (map[int64]string, error) {
+		emails, err := e.roles.GetAccountEmails(e.attach(ctx), accountIDs)
+		return emails, roleError(err)
+	}
+	err = e.roles.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) GetAccountAvatars(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
+func (e engine) GetAccountAvatars(ctx context.Context, accountIDs []int64) (value0 map[int64]string, err error) {
 	if e.roles == nil {
 		return nil, errRoleAdministrationUnavailable
 	}
-	avatars, err := e.roles.GetAccountAvatars(e.attach(ctx), accountIDs)
-	return avatars, roleError(err)
+	operation := func(ctx context.Context) (map[int64]string, error) {
+		avatars, err := e.roles.GetAccountAvatars(e.attach(ctx), accountIDs)
+		return avatars, roleError(err)
+	}
+	err = e.roles.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) CreateRole(ctx context.Context, name, description string, baseRole *string) (identityaccess.Role, error) {
+func (e engine) CreateRole(ctx context.Context, name, description string, baseRole *string) (value0 identityaccess.Role, err error) {
 	if e.roles == nil {
 		return identityaccess.Role{}, errRoleAdministrationUnavailable
 	}
-	role, err := e.roles.CreateRole(e.attach(ctx), name, description, baseRole)
-	return identityaccess.Role(role), roleError(err)
+	operation := func(ctx context.Context) (identityaccess.Role, error) {
+		role, err := e.roles.CreateRole(e.attach(ctx), name, description, baseRole)
+		return identityaccess.Role(role), roleError(err)
+	}
+	err = e.roles.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) UpdateRole(ctx context.Context, role identityaccess.Role) error {
+func (e engine) UpdateRole(ctx context.Context, role identityaccess.Role) (err error) {
 	if e.roles == nil {
 		return errRoleAdministrationUnavailable
 	}
-	return roleError(e.roles.UpdateRole(e.attach(ctx), domain.ManagedRole(role)))
+	operation := func(ctx context.Context) error {
+		return roleError(e.roles.UpdateRole(e.attach(ctx), domain.ManagedRole(role)))
+	}
+	err = e.roles.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		err = operation(txCtx)
+		return err
+	})
+	return
 }
 
 func (e engine) DeleteRole(ctx context.Context, id int64) error {
@@ -142,20 +205,34 @@ func (e engine) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int
 	return roleError(e.roles.RemoveRoleFromAccount(e.attach(ctx), accountID, roleID))
 }
 
-func (e engine) GetPermission(ctx context.Context, id int64) (identityaccess.Permission, error) {
+func (e engine) GetPermission(ctx context.Context, id int64) (value0 identityaccess.Permission, err error) {
 	if e.roles == nil {
 		return identityaccess.Permission{}, errRoleAdministrationUnavailable
 	}
-	permission, err := e.roles.GetPermission(e.attach(ctx), id)
-	return identityaccess.Permission(permission), roleError(err)
+	operation := func(ctx context.Context) (identityaccess.Permission, error) {
+		permission, err := e.roles.GetPermission(e.attach(ctx), id)
+		return identityaccess.Permission(permission), roleError(err)
+	}
+	err = e.roles.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) GetPermissionByName(ctx context.Context, name string) (identityaccess.Permission, error) {
+func (e engine) GetPermissionByName(ctx context.Context, name string) (value0 identityaccess.Permission, err error) {
 	if e.roles == nil {
 		return identityaccess.Permission{}, errRoleAdministrationUnavailable
 	}
-	permission, err := e.roles.GetPermissionByName(e.attach(ctx), name)
-	return identityaccess.Permission(permission), roleError(err)
+	operation := func(ctx context.Context) (identityaccess.Permission, error) {
+		permission, err := e.roles.GetPermissionByName(e.attach(ctx), name)
+		return identityaccess.Permission(permission), roleError(err)
+	}
+	err = e.roles.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
 func (e engine) ListPermissions(ctx context.Context, filter identityaccess.PermissionFilter) ([]identityaccess.Permission, error) {
@@ -166,50 +243,92 @@ func (e engine) ListPermissions(ctx context.Context, filter identityaccess.Permi
 	return publicPermissions(permissions), roleError(err)
 }
 
-func (e engine) GetRolePermissions(ctx context.Context, roleID int64) ([]identityaccess.Permission, error) {
+func (e engine) GetRolePermissions(ctx context.Context, roleID int64) (value0 []identityaccess.Permission, err error) {
 	if e.roles == nil {
 		return nil, errRoleAdministrationUnavailable
 	}
-	permissions, err := e.roles.GetRolePermissions(e.attach(ctx), roleID)
-	return publicPermissions(permissions), roleError(err)
+	operation := func(ctx context.Context) ([]identityaccess.Permission, error) {
+		permissions, err := e.roles.GetRolePermissions(e.attach(ctx), roleID)
+		return publicPermissions(permissions), roleError(err)
+	}
+	err = e.roles.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) GetAccountPermissions(ctx context.Context, accountID int64) ([]identityaccess.Permission, error) {
+func (e engine) GetAccountPermissions(ctx context.Context, accountID int64) (value0 []identityaccess.Permission, err error) {
 	if e.roles == nil {
 		return nil, errRoleAdministrationUnavailable
 	}
-	permissions, err := e.roles.GetAccountPermissions(e.attach(ctx), accountID)
-	return publicPermissions(permissions), roleError(err)
+	operation := func(ctx context.Context) ([]identityaccess.Permission, error) {
+		permissions, err := e.roles.GetAccountPermissions(e.attach(ctx), accountID)
+		return publicPermissions(permissions), roleError(err)
+	}
+	err = e.roles.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) GetAccountDirectPermissions(ctx context.Context, accountID int64) ([]identityaccess.Permission, error) {
+func (e engine) GetAccountDirectPermissions(ctx context.Context, accountID int64) (value0 []identityaccess.Permission, err error) {
 	if e.roles == nil {
 		return nil, errRoleAdministrationUnavailable
 	}
-	permissions, err := e.roles.GetAccountDirectPermissions(e.attach(ctx), accountID)
-	return publicPermissions(permissions), roleError(err)
+	operation := func(ctx context.Context) ([]identityaccess.Permission, error) {
+		permissions, err := e.roles.GetAccountDirectPermissions(e.attach(ctx), accountID)
+		return publicPermissions(permissions), roleError(err)
+	}
+	err = e.roles.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) CreatePermission(ctx context.Context, name, description, resource, action string) (identityaccess.Permission, error) {
+func (e engine) CreatePermission(ctx context.Context, name, description, resource, action string) (value0 identityaccess.Permission, err error) {
 	if e.roles == nil {
 		return identityaccess.Permission{}, errRoleAdministrationUnavailable
 	}
-	permission, err := e.roles.CreatePermission(e.attach(ctx), name, description, resource, action)
-	return identityaccess.Permission(permission), roleError(err)
+	operation := func(ctx context.Context) (identityaccess.Permission, error) {
+		permission, err := e.roles.CreatePermission(e.attach(ctx), name, description, resource, action)
+		return identityaccess.Permission(permission), roleError(err)
+	}
+	err = globalIdentityRead(ctx, e.roles.runtime, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) UpdatePermission(ctx context.Context, permission identityaccess.Permission) error {
+func (e engine) UpdatePermission(ctx context.Context, permission identityaccess.Permission) (err error) {
 	if e.roles == nil {
 		return errRoleAdministrationUnavailable
 	}
-	return roleError(e.roles.UpdatePermission(e.attach(ctx), domain.ManagedPermission(permission)))
+	operation := func(ctx context.Context) error {
+		return roleError(e.roles.UpdatePermission(e.attach(ctx), domain.ManagedPermission(permission)))
+	}
+	err = globalIdentityRead(ctx, e.roles.runtime, func(txCtx context.Context) error {
+		err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) DeletePermission(ctx context.Context, id int64) error {
+func (e engine) DeletePermission(ctx context.Context, id int64) (err error) {
 	if e.roles == nil {
 		return errRoleAdministrationUnavailable
 	}
-	return roleError(e.roles.DeletePermission(e.attach(ctx), id))
+	operation := func(ctx context.Context) error {
+		return roleError(e.roles.DeletePermission(e.attach(ctx), id))
+	}
+	err = globalIdentityRead(ctx, e.roles.runtime, func(txCtx context.Context) error {
+		err = operation(txCtx)
+		return err
+	})
+	return
 }
 
 func (e engine) GrantPermissionToAccount(ctx context.Context, accountID, permissionID int64) error {

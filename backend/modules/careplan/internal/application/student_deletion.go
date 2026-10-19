@@ -11,19 +11,19 @@ import (
 // coordinating workflow holds the student locks and decides the order.
 
 func (s *Service) FindPendingWithdrawalStudent(ctx context.Context, completionID int64, lock bool) (int64, error) {
-	return runValue(s, "find_pending_withdrawal_student", func() (int64, domain.OperationStats, error) {
+	return runValue(ctx, s, "find_pending_withdrawal_student", func(ctx context.Context) (int64, domain.OperationStats, error) {
 		return s.store.FindPendingWithdrawalStudent(ctx, completionID, lock)
 	})
 }
 
 func (s *Service) ResolvePendingWithdrawalAsDeleted(ctx context.Context, completionID, actorAccountID int64, at time.Time) (bool, error) {
-	return runValue(s, "resolve_pending_withdrawal_as_deleted", func() (bool, domain.OperationStats, error) {
+	return runValue(ctx, s, "resolve_pending_withdrawal_as_deleted", func(ctx context.Context) (bool, domain.OperationStats, error) {
 		return s.store.ResolvePendingWithdrawalAsDeleted(ctx, completionID, actorAccountID, at)
 	})
 }
 
 func (s *Service) RedactWithdrawalsForDeletedStudent(ctx context.Context, studentID, actorAccountID int64, at time.Time) (int, error) {
-	return runValue(s, "redact_withdrawals_for_deleted_student", func() (int, domain.OperationStats, error) {
+	return runValue(ctx, s, "redact_withdrawals_for_deleted_student", func(ctx context.Context) (int, domain.OperationStats, error) {
 		return s.store.RedactWithdrawalsForDeletedStudent(ctx, studentID, actorAccountID, at)
 	})
 }
@@ -33,7 +33,7 @@ func (s *Service) RedactWithdrawalsForDeletedStudent(ctx context.Context, studen
 // The intents carry no student foreign key, so they survive the cascade that
 // removes the document rows with the child.
 func (s *Service) QueueCareDocumentCleanupForDeletedStudent(ctx context.Context, studentID int64, at time.Time) (int, error) {
-	return runValue(s, "queue_care_document_cleanup_for_deleted_student", func() (int, domain.OperationStats, error) {
+	return runValue(ctx, s, "queue_care_document_cleanup_for_deleted_student", func(ctx context.Context) (int, domain.OperationStats, error) {
 		documents, stats, err := s.store.ListPendingCareDocumentCleanup(ctx, studentID)
 		if err != nil {
 			return 0, stats, err

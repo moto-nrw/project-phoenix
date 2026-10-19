@@ -75,7 +75,7 @@ func TestOperationsCreateAndStartSpontaneousResolvesActivityAgainstRealRepositor
 		return *service.lastSpontaneousInput.ActivityGroupID
 	}
 
-	_, err := repos.ActivityCategory.FindByNameIncludingArchivedForShare(testpkg.Ctx(t), "Spontan")
+	_, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.ActivityCategory.FindByNameIncludingArchivedForShare, "Spontan")
 	var notFound interface{ RepositoryNotFound() }
 	require.True(t, errors.As(err, &notFound), "the tenant starts without a Spontan category: %v", err)
 
@@ -86,7 +86,7 @@ func TestOperationsCreateAndStartSpontaneousResolvesActivityAgainstRealRepositor
 	createdGroup, err := repos.ActivityGroup.FindByID(testpkg.Ctx(t), createdGroupID)
 	require.NoError(t, err)
 	assert.Equal(t, newTitle, createdGroup.Name)
-	category, err := repos.ActivityCategory.FindByNameIncludingArchivedForShare(testpkg.Ctx(t), "Spontan")
+	category, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.ActivityCategory.FindByNameIncludingArchivedForShare, "Spontan")
 	require.NoError(t, err, "a tenant without the Spontan category gets one on the first spontaneous start")
 	assert.Equal(t, category.ID, createdGroup.CategoryID)
 

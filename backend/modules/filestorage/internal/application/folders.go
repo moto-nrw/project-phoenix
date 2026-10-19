@@ -13,7 +13,7 @@ import (
 // ListFolders returns the folders the actor may see plus what the actor may
 // do, so the UI never has to guess authority.
 func (s *Service) ListFolders(ctx context.Context, actor domain.Actor) (overview domain.Overview, err error) {
-	err = s.run("list_folders", func(o *op) error {
+	err = s.runRead(ctx, "list_folders", func(ctx context.Context, o *op) error {
 		overview = domain.Overview{Folders: []domain.FolderView{}, CanManage: actor.Manager}
 		viewer, active, err := s.viewer(ctx, actor)
 		if err != nil {
@@ -187,7 +187,7 @@ func (s *Service) DeleteFolder(ctx context.Context, folderID int64, actor domain
 
 // ListAudienceOptions returns the roles and persons a folder can be shared with.
 func (s *Service) ListAudienceOptions(ctx context.Context, actor domain.Actor) (roles []domain.AudienceRole, accounts []domain.AudienceAccount, err error) {
-	err = s.run("list_audience_options", func(*op) error {
+	err = s.runRead(ctx, "list_audience_options", func(ctx context.Context, _ *op) error {
 		if err := requireManager(actor); err != nil {
 			return err
 		}

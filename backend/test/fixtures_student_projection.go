@@ -115,9 +115,10 @@ const studentDirectorySource = `(SELECT p.id, p.tenant_id, p.person_id, p.create
 // StudentRows is the directory row source a Care Plan statement embeds.
 func (StudentDirectory) StudentRows(db bun.IDB, tenantID int64) *bun.SelectQuery {
 	query := db.NewSelect().TableExpr(studentDirectorySource)
-	if tenantID > 0 {
-		query = query.Where(`"student".tenant_id = ?`, tenantID)
+	if tenantID <= 0 {
+		return query.Err(errors.New("fixture projection: tenant is required"))
 	}
+	query = query.Where(`"student".tenant_id = ?`, tenantID)
 	return query
 }
 
@@ -125,9 +126,10 @@ func (StudentDirectory) StudentRows(db bun.IDB, tenantID int64) *bun.SelectQuery
 // selection, for the retained People Directory repositories.
 func (StudentDirectory) StudentModelRows(db bun.IDB, tenantID int64, model any) *bun.SelectQuery {
 	query := db.NewSelect().Model(model).ModelTableExpr(studentDirectorySource)
-	if tenantID > 0 {
-		query = query.Where(`"student".tenant_id = ?`, tenantID)
+	if tenantID <= 0 {
+		return query.Err(errors.New("fixture projection: tenant is required"))
 	}
+	query = query.Where(`"student".tenant_id = ?`, tenantID)
 	return query
 }
 
@@ -136,9 +138,10 @@ func (StudentDirectory) StudentDisplayRows(db bun.IDB, tenantID int64) *bun.Sele
 	query := db.NewSelect().TableExpr(studentDirectorySource).
 		ColumnExpr(`"student".id, "student".tenant_id, "student".school_class, "person".first_name, "person".last_name`).
 		Join(`LEFT JOIN users.persons AS "person" ON "person".tenant_id = "student".tenant_id AND "person".id = "student".person_id AND "person".deleted_at IS NULL`)
-	if tenantID > 0 {
-		query = query.Where(`"student".tenant_id = ?`, tenantID)
+	if tenantID <= 0 {
+		return query.Err(errors.New("fixture projection: tenant is required"))
 	}
+	query = query.Where(`"student".tenant_id = ?`, tenantID)
 	return query
 }
 
@@ -157,3 +160,10 @@ func (StudentDirectory) ListCareStudents(context.Context, bun.IDB, int64, string
 }
 
 var errUnmappedStudentDirectoryRead = errors.New("the student directory's care-exit reads are not mapped in test support")
+
+func (StudentDirectory) AllSchoolsStudentRows(db bun.IDB) *bun.SelectQuery {
+	return db.NewSelect().TableExpr(studentDirectorySource)
+}
+func (StudentDirectory) AllSchoolsStudentModelRows(db bun.IDB, model any) *bun.SelectQuery {
+	return db.NewSelect().Model(model).ModelTableExpr(studentDirectorySource)
+}

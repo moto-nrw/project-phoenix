@@ -51,7 +51,7 @@ func TestSlotListCutoffWriteSeesConcurrentCommitDespiteRequestCache(t *testing.T
 	)
 
 	// The request memoizes the short cutoff default (15:00) before any writer.
-	short, err := service.ResolveString(requestCtx, config.KeySlotListShortDayCutoff)
+	short, err := testpkg.TenantQuery1(t, requestCtx, db, service.ResolveString, config.KeySlotListShortDayCutoff)
 	require.NoError(t, err)
 	require.Equal(t, "15:00", short)
 
@@ -62,15 +62,13 @@ func TestSlotListCutoffWriteSeesConcurrentCommitDespiteRequestCache(t *testing.T
 		Value:      json.RawMessage(`"15:30"`),
 	}
 	override.SetTenantID(tenantID)
-	require.NoError(t, repository.Upsert(
-		testpkg.ContextForTenant(context.Background(), tenantID), override,
-	))
+	require.NoError(t, testpkg.TenantCommand1(t, testpkg.ContextForTenant(context.Background(), tenantID), db, repository.Upsert, override))
 
 	// The first request now writes long=15:15. Against its stale cache entry
 	// (short=15:00) the pair looks valid; against the committed 15:30 it is
 	// inverted and must be rejected.
 	err = testpkg.WithinTenantContext(t, requestCtx, db, tenantID, func(txCtx context.Context) error {
-		return service.SetValue(txCtx, config.KeySlotListLongDayCutoff, "15:15", nil, nil)
+		return testpkg.TenantCommand4(t, txCtx, db, service.SetValue, config.KeySlotListLongDayCutoff, "15:15", nil, nil)
 	})
 	require.Error(t, err, "the inverted pair must be rejected despite the request cache")
 	var invalid *config.InvalidValueError
@@ -89,8 +87,8 @@ func TestResolveStringForTenantInTxBypassesRequestCache(t *testing.T) {
 	registerTestSetting(registry, config.KeyMFAMode, config.FieldText, config.MFAModeOff)
 
 	// The login gate reads the mode and memoizes "off" for this request.
-	requestCtx := config.WithSettingsRequestCache(context.Background())
-	mode, err := service.ResolveStringForTenant(requestCtx, tenantID, config.KeyMFAMode)
+	requestCtx := config.WithSettingsRequestCache(testpkg.ContextForTenant(context.Background(), tenantID))
+	mode, err := testpkg.TenantQuery2(t, requestCtx, db, service.ResolveStringForTenant, tenantID, config.KeyMFAMode)
 	require.NoError(t, err)
 	require.Equal(t, config.MFAModeOff, mode)
 
@@ -101,12 +99,10 @@ func TestResolveStringForTenantInTxBypassesRequestCache(t *testing.T) {
 		Value:      json.RawMessage(`"` + config.MFAModeRequiredAll + `"`),
 	}
 	override.SetTenantID(tenantID)
-	require.NoError(t, repository.Upsert(
-		testpkg.ContextForTenant(context.Background(), tenantID), override,
-	))
+	require.NoError(t, testpkg.TenantCommand1(t, testpkg.ContextForTenant(context.Background(), tenantID), db, repository.Upsert, override))
 
 	// The cached path still answers with the pre-flip value...
-	cached, err := service.ResolveStringForTenant(requestCtx, tenantID, config.KeyMFAMode)
+	cached, err := testpkg.TenantQuery2(t, requestCtx, db, service.ResolveStringForTenant, tenantID, config.KeyMFAMode)
 	require.NoError(t, err)
 	require.Equal(t, config.MFAModeOff, cached,
 		"precondition: the request cache still serves the stale value")
@@ -114,7 +110,7 @@ func TestResolveStringForTenantInTxBypassesRequestCache(t *testing.T) {
 	// ...while the in-transaction read, on the mint's own transaction, sees the
 	// committed state and refuses to mint an MFA-free session.
 	err = testpkg.WithinAdminContext(t, requestCtx, db, func(txCtx context.Context) error {
-		fresh, resolveErr := service.ResolveStringForTenantInTx(txCtx, tenantID, config.KeyMFAMode)
+		fresh, resolveErr := testpkg.TenantQuery2(t, txCtx, db, service.ResolveStringForTenantInTx, tenantID, config.KeyMFAMode)
 		require.NoError(t, resolveErr)
 		assert.Equal(t, config.MFAModeRequiredAll, fresh,
 			"the in-transaction re-read must observe the concurrent commit")
@@ -156,20 +152,20 @@ func TestLockClassCollectionPairFlushesGradeLevelMax(t *testing.T) {
 	)
 
 	err := testpkg.WithinTenantContext(t, requestCtx, db, tenantID, func(txCtx context.Context) error {
-		value, resolveErr := service.ResolveInt(txCtx, config.KeyEnrollmentGradeLevelMax)
+		value, resolveErr := testpkg.TenantQuery1(t, txCtx, db, service.ResolveInt, config.KeyEnrollmentGradeLevelMax)
 		require.NoError(t, resolveErr)
 		require.Equal(t, 4, value)
 		require.Equal(t, int32(1), selectCount())
 
 		// Cached: no additional query.
-		_, resolveErr = service.ResolveInt(txCtx, config.KeyEnrollmentGradeLevelMax)
+		_, resolveErr = testpkg.TenantQuery1(t, txCtx, db, service.ResolveInt, config.KeyEnrollmentGradeLevelMax)
 		require.NoError(t, resolveErr)
 		require.Equal(t, int32(1), selectCount())
 
-		require.NoError(t, service.LockClassCollectionPair(txCtx))
+		require.NoError(t, testpkg.TenantCommand0(t, txCtx, db, service.LockClassCollectionPair))
 
 		// Post-lock read must hit the database again.
-		_, resolveErr = service.ResolveInt(txCtx, config.KeyEnrollmentGradeLevelMax)
+		_, resolveErr = testpkg.TenantQuery1(t, txCtx, db, service.ResolveInt, config.KeyEnrollmentGradeLevelMax)
 		require.NoError(t, resolveErr)
 		assert.Equal(t, int32(2), selectCount(),
 			"LockClassCollectionPair must flush grade_level_max from the request cache")
@@ -194,13 +190,13 @@ func TestMFAModeWriteAndMintLockAreMutuallyExclusive(t *testing.T) {
 	writerCtx := testpkg.ContextForTenant(context.Background(), tenantID)
 
 	err := testpkg.WithinTenantContext(t, writerCtx, db, tenantID, func(txCtx context.Context) error {
-		require.NoError(t, service.SetValue(txCtx, config.KeyMFAMode, config.MFAModeRequiredAll, nil, nil))
+		require.NoError(t, testpkg.TenantCommand4(t, txCtx, db, service.SetValue, config.KeyMFAMode, config.MFAModeRequiredAll, nil, nil))
 
 		// A school login reaching its mint takes the shared side of the same
 		// lock on its own transaction.
 		go func() {
 			mintLock <- testpkg.WithinAdminContext(t, context.Background(), db, func(mintCtx context.Context) error {
-				return service.LockMFAPolicySharedForTenant(mintCtx, tenantID)
+				return testpkg.TenantCommand1(t, mintCtx, db, service.LockMFAPolicySharedForTenant, tenantID)
 			})
 		}()
 
@@ -248,21 +244,21 @@ func TestParentPickupChangePolicyWriteAndGuardianLockAreMutuallyExclusive(t *tes
 
 			if tc.reset {
 				require.NoError(t, testpkg.WithinTenantContext(t, writerCtx, db, tenantID, func(txCtx context.Context) error {
-					return service.SetValue(txCtx, tc.key, tc.value, nil, nil)
+					return testpkg.TenantCommand4(t, txCtx, db, service.SetValue, tc.key, tc.value, nil, nil)
 				}))
 			}
 
 			guardianLock := make(chan error, 1)
 			err := testpkg.WithinTenantContext(t, writerCtx, db, tenantID, func(txCtx context.Context) error {
 				if tc.reset {
-					require.NoError(t, service.ResetValue(txCtx, tc.key, nil, nil))
+					require.NoError(t, testpkg.TenantCommand3(t, txCtx, db, service.ResetValue, tc.key, nil, nil))
 				} else {
-					require.NoError(t, service.SetValue(txCtx, tc.key, tc.value, nil, nil))
+					require.NoError(t, testpkg.TenantCommand4(t, txCtx, db, service.SetValue, tc.key, tc.value, nil, nil))
 				}
 
 				go func() {
 					guardianLock <- testpkg.WithinAdminContext(t, context.Background(), db, func(guardianCtx context.Context) error {
-						return service.LockParentPickupChangePolicySharedForTenant(guardianCtx, tenantID)
+						return testpkg.TenantCommand1(t, guardianCtx, db, service.LockParentPickupChangePolicySharedForTenant, tenantID)
 					})
 				}()
 
@@ -299,11 +295,11 @@ func TestNonMFASettingWriteDoesNotBlockTheMintLock(t *testing.T) {
 	writerCtx := testpkg.ContextForTenant(context.Background(), tenantID)
 
 	err := testpkg.WithinTenantContext(t, writerCtx, db, tenantID, func(txCtx context.Context) error {
-		require.NoError(t, service.SetValue(txCtx, "test.unrelated", 45, nil, nil))
+		require.NoError(t, testpkg.TenantCommand4(t, txCtx, db, service.SetValue, "test.unrelated", 45, nil, nil))
 
 		go func() {
 			mintLock <- testpkg.WithinAdminContext(t, context.Background(), db, func(mintCtx context.Context) error {
-				return service.LockMFAPolicySharedForTenant(mintCtx, tenantID)
+				return testpkg.TenantCommand1(t, mintCtx, db, service.LockMFAPolicySharedForTenant, tenantID)
 			})
 		}()
 

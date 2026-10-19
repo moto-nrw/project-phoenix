@@ -123,7 +123,11 @@ func staffAccountFilter(query *bun.SelectQuery, staffAccountIDs []int64) *bun.Se
 // addressed, while the existing conversation history stays readable.
 func (r *MessageableStaffRepository) ListMessageableStaff(ctx context.Context, viewerAccountID int64) ([]*users.MessageableStaff, error) {
 	var rows []*users.MessageableStaff
-	query, err := r.colleagueQuery(ctx, r.runtime.DB(ctx).NewSelect().
+	ambientDB1, databaseErr1 := r.runtime.DB(ctx)
+	if databaseErr1 != nil {
+		return *new([]*users.MessageableStaff), databaseErr1
+	}
+	query, err := r.colleagueQuery(ctx, ambientDB1.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`users.persons AS "person"`).
 		ColumnExpr(`person.account_id AS account_id`).
@@ -156,7 +160,11 @@ func (r *MessageableStaffRepository) ListMessageableStaff(ctx context.Context, v
 // The method is deliberately not called IsActiveTenantMember any more: that name
 // described the query, not the question, and invited exactly this gap.
 func (r *MessageableStaffRepository) IsMessageableStaff(ctx context.Context, accountID int64) (bool, error) {
-	query, err := r.colleagueQuery(ctx, r.runtime.DB(ctx).NewSelect().
+	ambientDB2, databaseErr2 := r.runtime.DB(ctx)
+	if databaseErr2 != nil {
+		return *new(bool), databaseErr2
+	}
+	query, err := r.colleagueQuery(ctx, ambientDB2.NewSelect().
 		TableExpr(`users.persons AS "person"`).
 		ColumnExpr(`1`).
 		Where(`person.account_id = ?`, accountID).

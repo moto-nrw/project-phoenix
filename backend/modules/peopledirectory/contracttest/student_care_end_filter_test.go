@@ -58,7 +58,7 @@ func TestStudentRepository_EndedCareExcludedFromRosterReads(t *testing.T) {
 	testpkg.SetStudentLifecycle(t, db, departed.ID, testpkg.StudentStatusActive, nil, &yesterday)
 
 	t.Run("FindAllWithGroups keeps the last care day and drops the day after", func(t *testing.T) {
-		infos, err := repos.Student.FindAllWithGroups(ctx)
+		infos, err := testpkg.TenantQuery0(t, ctx, db, repos.Student.FindAllWithGroups)
 		require.NoError(t, err)
 		ids := make([]int64, 0, len(infos))
 		for _, info := range infos {
@@ -72,7 +72,7 @@ func TestStudentRepository_EndedCareExcludedFromRosterReads(t *testing.T) {
 	})
 
 	t.Run("FindByTeacherIDWithGroups excludes the departed child", func(t *testing.T) {
-		infos, err := repos.Student.FindByTeacherIDWithGroups(ctx, teacher.ID)
+		infos, err := testpkg.TenantQuery1(t, ctx, db, repos.Student.FindByTeacherIDWithGroups, teacher.ID)
 		require.NoError(t, err)
 		ids := make([]int64, 0, len(infos))
 		for _, info := range infos {

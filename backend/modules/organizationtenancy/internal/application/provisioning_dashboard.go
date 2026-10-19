@@ -169,7 +169,7 @@ func (p *Provisioning) GetSchoolPWAUsage(ctx context.Context, schoolID int64) (*
 // ListPWAUsage returns every school's PWA usage buckets within window.
 func (p *Provisioning) ListPWAUsage(ctx context.Context, window time.Duration) ([]organizationtenancy.SchoolPWAUsageRow, error) {
 	return adminValue(ctx, p, func(adminCtx context.Context) ([]organizationtenancy.SchoolPWAUsageRow, error) {
-		rows, err := p.dashboard.PWAUsage(adminCtx, 0, window)
+		rows, err := p.dashboard.AllSchoolsPWAUsage(adminCtx, window)
 		if err != nil {
 			return nil, err
 		}

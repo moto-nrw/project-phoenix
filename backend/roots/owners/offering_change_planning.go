@@ -41,7 +41,11 @@ func (q PlanningQuery) ListManualPlanningOccurrences(ctx context.Context, studen
 	if err != nil {
 		return nil, err
 	}
-	db := carePlanCompose.TenantAmbientDatabase(q.DB.Pool())(ctx)
+	ambientDB1, databaseErr1 := carePlanCompose.TenantAmbientDatabase(q.DB.Pool())(ctx)
+	if databaseErr1 != nil {
+		return *new([]carePlanCompose.ManualPlanningOccurrence), databaseErr1
+	}
+	db := ambientDB1
 	rows, err := presenceProjection.New().ListManualPlanningOccurrences(ctx, db, tenant.FromContext(ctx), studentID, fromDate, toDate)
 	if err != nil {
 		return nil, err
@@ -55,7 +59,11 @@ func (q PlanningQuery) ListManualPlanningOccurrences(ctx context.Context, studen
 
 // LockCourseGroups locks the course groups for the caller's capacity check.
 func (q PlanningQuery) LockCourseGroups(ctx context.Context, groupIDs []int64) ([]carePlanCompose.CourseGroup, error) {
-	db := carePlanCompose.TenantAmbientDatabase(q.DB.Pool())(ctx)
+	ambientDB2, databaseErr2 := carePlanCompose.TenantAmbientDatabase(q.DB.Pool())(ctx)
+	if databaseErr2 != nil {
+		return *new([]carePlanCompose.CourseGroup), databaseErr2
+	}
+	db := ambientDB2
 	groups, err := timetableProjection.New().LockCourseGroups(ctx, db, tenant.FromContext(ctx), groupIDs)
 	if err != nil {
 		return nil, err
@@ -70,7 +78,11 @@ func (q PlanningQuery) LockCourseGroups(ctx context.Context, groupIDs []int64) (
 // CountActiveCourseEnrollments counts the active enrollments per course group
 // in the window, without the excluded child.
 func (q PlanningQuery) CountActiveCourseEnrollments(ctx context.Context, groupIDs []int64, from, until calendar.Date, excludeStudentID int64) (map[int64]int, error) {
-	db := carePlanCompose.TenantAmbientDatabase(q.DB.Pool())(ctx)
+	ambientDB3, databaseErr3 := carePlanCompose.TenantAmbientDatabase(q.DB.Pool())(ctx)
+	if databaseErr3 != nil {
+		return *new(map[int64]int), databaseErr3
+	}
+	db := ambientDB3
 	return timetableProjection.New().CountActiveCourseEnrollments(ctx, db, tenant.FromContext(ctx), groupIDs, from, until, excludeStudentID)
 }
 

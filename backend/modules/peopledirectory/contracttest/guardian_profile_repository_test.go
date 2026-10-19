@@ -43,7 +43,7 @@ func TestGuardianProfileRepository_Create(t *testing.T) {
 			LanguagePreference:     "de",
 		}
 
-		err := repo.Create(ctx, profile)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, profile)
 		require.NoError(t, err)
 		assert.NotZero(t, profile.ID)
 
@@ -58,7 +58,7 @@ func TestGuardianProfileRepository_Create(t *testing.T) {
 			LanguagePreference: "de",
 		}
 
-		err := repo.Create(ctx, profile)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, profile)
 		require.NoError(t, err)
 		assert.NotZero(t, profile.ID)
 
@@ -76,14 +76,14 @@ func TestGuardianProfileRepository_FindByID(t *testing.T) {
 	t.Run("finds existing guardian profile", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "findbyid")
 
-		found, err := repo.FindByID(ctx, profile.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, profile.ID)
 		require.NoError(t, err)
 		assert.Equal(t, profile.ID, found.ID)
 		assert.Equal(t, profile.FirstName, found.FirstName)
 	})
 
 	t.Run("returns error for non-existent profile", func(t *testing.T) {
-		_, err := repo.FindByID(ctx, int64(999999))
+		_, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, int64(999999))
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
@@ -100,7 +100,7 @@ func TestGuardianProfileRepository_FindByEmail(t *testing.T) {
 	t.Run("finds guardian profile by email", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "byemail")
 
-		found, err := repo.FindByEmail(ctx, *profile.Email)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByEmail, *profile.Email)
 		require.NoError(t, err)
 		assert.Equal(t, profile.ID, found.ID)
 	})
@@ -109,13 +109,13 @@ func TestGuardianProfileRepository_FindByEmail(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "casetest")
 
 		// Search with the email
-		found, err := repo.FindByEmail(ctx, *profile.Email)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByEmail, *profile.Email)
 		require.NoError(t, err)
 		assert.Equal(t, profile.ID, found.ID)
 	})
 
 	t.Run("returns error for non-existent email", func(t *testing.T) {
-		_, err := repo.FindByEmail(ctx, "nonexistent@test.local")
+		_, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByEmail, "nonexistent@test.local")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
@@ -131,16 +131,16 @@ func TestGuardianProfileRepository_Update(t *testing.T) {
 
 	t.Run("updates guardian profile", func(t *testing.T) {
 		profileFixture := testpkg.CreateTestGuardianProfile(t, db, "update")
-		profile, err := repo.FindByID(ctx, profileFixture.ID)
+		profile, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, profileFixture.ID)
 		require.NoError(t, err)
 
 		profile.FirstName = "Updated"
 		profile.LastName = "Name"
 
-		err = repo.Update(ctx, profile)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Update, profile)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, profile.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, profile.ID)
 		require.NoError(t, err)
 		assert.Equal(t, "Updated", found.FirstName)
 		assert.Equal(t, "Name", found.LastName)
@@ -156,7 +156,7 @@ func TestGuardianProfileRepository_Update(t *testing.T) {
 		}
 		profile.ID = int64(999999)
 
-		err := repo.Update(ctx, profile)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Update, profile)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
@@ -173,17 +173,17 @@ func TestGuardianProfileRepository_Delete(t *testing.T) {
 	t.Run("deletes existing guardian profile", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "delete")
 
-		err := repo.Delete(ctx, profile.ID)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Delete, profile.ID)
 		require.NoError(t, err)
 
 		// Verify profile is deleted
-		_, err = repo.FindByID(ctx, profile.ID)
+		_, err = testpkg.TenantQuery1(t, ctx, db, repo.FindByID, profile.ID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
 
 	t.Run("returns error for non-existent profile", func(t *testing.T) {
-		err := repo.Delete(ctx, int64(999999))
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Delete, int64(999999))
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
@@ -207,7 +207,7 @@ func TestGuardianProfileRepository_ListWithOptions(t *testing.T) {
 		options := peoplePorts.NewQueryOptions()
 		options.WithPagination(1, 10)
 
-		profiles, err := repo.ListWithOptions(ctx, options)
+		profiles, err := testpkg.TenantQuery1(t, ctx, db, repo.ListWithOptions, options)
 		require.NoError(t, err)
 		assert.NotEmpty(t, profiles)
 	})
@@ -215,7 +215,7 @@ func TestGuardianProfileRepository_ListWithOptions(t *testing.T) {
 	t.Run("lists with nil options", func(t *testing.T) {
 		testpkg.CreateTestGuardianProfile(t, db, "listnil")
 
-		profiles, err := repo.ListWithOptions(ctx, nil)
+		profiles, err := testpkg.TenantQuery1(t, ctx, db, repo.ListWithOptions, nil)
 		require.NoError(t, err)
 		assert.NotEmpty(t, profiles)
 	})
@@ -233,7 +233,7 @@ func TestGuardianProfileRepository_FindWithoutAccount(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "noaccount")
 
 		// Profile should not have an account
-		profiles, err := repo.FindWithoutAccount(ctx)
+		profiles, err := testpkg.TenantQuery0(t, ctx, db, repo.FindWithoutAccount)
 		require.NoError(t, err)
 
 		var found bool
@@ -259,7 +259,7 @@ func TestGuardianProfileRepository_FindInvitable(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "invitable")
 
 		// Profile has email and no account - should be invitable
-		profiles, err := repo.FindInvitable(ctx)
+		profiles, err := testpkg.TenantQuery0(t, ctx, db, repo.FindInvitable)
 		require.NoError(t, err)
 
 		var found bool
@@ -274,18 +274,18 @@ func TestGuardianProfileRepository_FindInvitable(t *testing.T) {
 
 	t.Run("returns profiles ordered by last name", func(t *testing.T) {
 		profile1Fixture := testpkg.CreateTestGuardianProfile(t, db, "orderz")
-		profile1, err := repo.FindByID(ctx, profile1Fixture.ID)
+		profile1, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, profile1Fixture.ID)
 		require.NoError(t, err)
 		profile1.LastName = "Zebra"
-		_ = repo.Update(ctx, profile1)
+		_ = testpkg.TenantCommand1(t, ctx, db, repo.Update, profile1)
 
 		profile2Fixture := testpkg.CreateTestGuardianProfile(t, db, "ordera")
-		profile2, err := repo.FindByID(ctx, profile2Fixture.ID)
+		profile2, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, profile2Fixture.ID)
 		require.NoError(t, err)
 		profile2.LastName = "Alpha"
-		_ = repo.Update(ctx, profile2)
+		_ = testpkg.TenantCommand1(t, ctx, db, repo.Update, profile2)
 
-		profiles, err := repo.FindInvitable(ctx)
+		profiles, err := testpkg.TenantQuery0(t, ctx, db, repo.FindInvitable)
 		require.NoError(t, err)
 		assert.NotEmpty(t, profiles)
 		// Just verify the query works - ordering is tested implicitly
@@ -317,7 +317,7 @@ func TestGuardianProfileRepository_LinkAccount(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "linkaccount")
 
 		// Use non-existent profile ID with real account ID
-		err := repo.LinkAccount(ctx, int64(999999), account.ID)
+		err := testpkg.TenantCommand2(t, ctx, db, repo.LinkAccount, int64(999999), account.ID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
@@ -329,11 +329,11 @@ func TestGuardianProfileRepository_LinkAccount(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "linkprofile")
 
 		// Link the account
-		err := repo.LinkAccount(ctx, profile.ID, account.ID)
+		err := testpkg.TenantCommand2(t, ctx, db, repo.LinkAccount, profile.ID, account.ID)
 		require.NoError(t, err)
 
 		// Verify the link
-		found, err := repo.FindByID(ctx, profile.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, profile.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, found.AccountID)
 		assert.Equal(t, account.ID, *found.AccountID)
@@ -350,7 +350,7 @@ func TestGuardianProfileRepository_FindByAccountID(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for non-existent account ID", func(t *testing.T) {
-		_, err := repo.FindByAccountID(ctx, int64(999999))
+		_, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByAccountID, int64(999999))
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
@@ -372,7 +372,7 @@ func TestGuardianProfileRepository_LoadProfileWithChildren_FiltersPortalAccess(t
 	account := testpkg.CreateTestAccount(t, db, "profilechildren")
 	visible := testpkg.CreateTestStudent(t, db, "Visible", "Child", "1a")
 	hidden := testpkg.CreateTestStudent(t, db, "Hidden", "Child", "1b")
-	require.NoError(t, repo.LinkAccount(ctx, profile.ID, account.ID))
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, db, repo.LinkAccount, profile.ID, account.ID))
 
 	visibleRel := &peopleValues.GuardianRelationshipSnapshot{
 		StudentID:         visible.ID,
@@ -394,7 +394,7 @@ func TestGuardianProfileRepository_LoadProfileWithChildren_FiltersPortalAccess(t
 	require.NoError(t, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).StudentGuardian.Create(ctx, visibleRel))
 	require.NoError(t, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).StudentGuardian.Create(ctx, hiddenRel))
 
-	loaded, err := repo.LoadProfileWithChildren(ctx, account.ID)
+	loaded, err := testpkg.TenantQuery1(t, ctx, db, repo.LoadProfileWithChildren, account.ID)
 	require.NoError(t, err)
 	require.NotNil(t, loaded)
 	require.Len(t, loaded.Children, 1)
@@ -414,7 +414,7 @@ func seedNamedGuardian(t *testing.T, db *bun.DB, ctx context.Context, repo peopl
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	require.NoError(t, repo.Create(ctx, profile))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), repo.Create, profile))
 	return profile
 }
 
@@ -436,7 +436,7 @@ func TestGuardianProfileRepository_SearchByText(t *testing.T) {
 		other := seedNamedGuardian(t, db, ctx, repo, fmt.Sprintf("Zzother%d", time.Now().UnixNano()), "Beta")
 
 		// Lower-cased query must still match (SearchByText lower-cases both sides).
-		results, err := repo.SearchByText(ctx, token, 50)
+		results, err := testpkg.TenantQuery2(t, ctx, db, repo.SearchByText, token, 50)
 		require.NoError(t, err)
 
 		var sawMatch, sawOther bool
@@ -453,7 +453,7 @@ func TestGuardianProfileRepository_SearchByText(t *testing.T) {
 	})
 
 	t.Run("whitespace-only query returns an empty result without error", func(t *testing.T) {
-		results, err := repo.SearchByText(ctx, "   ", 50)
+		results, err := testpkg.TenantQuery2(t, ctx, db, repo.SearchByText, "   ", 50)
 		require.NoError(t, err)
 		assert.Empty(t, results, "a query with no real tokens must not match anything")
 	})
@@ -464,7 +464,7 @@ func TestGuardianProfileRepository_SearchByText(t *testing.T) {
 
 		// limit <= 0 must not mean "return nothing"; it falls back to the method's
 		// internal default rather than passing LIMIT 0 to the query.
-		results, err := repo.SearchByText(ctx, token, 0)
+		results, err := testpkg.TenantQuery2(t, ctx, db, repo.SearchByText, token, 0)
 		require.NoError(t, err)
 
 		var found bool
@@ -488,7 +488,7 @@ func TestGuardianProfileRepository_SearchByText(t *testing.T) {
 			manyTokens += " " + token
 		}
 
-		results, err := repo.SearchByText(ctx, manyTokens, 50)
+		results, err := testpkg.TenantQuery2(t, ctx, db, repo.SearchByText, manyTokens, 50)
 		require.NoError(t, err, "a many-token query must be handled gracefully, never error")
 
 		var found bool
@@ -520,9 +520,9 @@ func TestGuardianProfileRepository_FindByAccountID_ReturnsLinkedProfile(t *testi
 
 	account := testpkg.CreateTestAccount(t, db, "findbyaccount")
 
-	require.NoError(t, repo.LinkAccount(ctx, profile.ID, account.ID))
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, db, repo.LinkAccount, profile.ID, account.ID))
 
-	found, err := repo.FindByAccountID(ctx, account.ID)
+	found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByAccountID, account.ID)
 	require.NoError(t, err)
 	require.NotNil(t, found)
 	assert.Equal(t, profile.ID, found.ID, "FindByAccountID must resolve to the linked profile")
@@ -551,7 +551,7 @@ func TestGuardianProfileRepository_FindByAccountID_PrefersExplicitPortalLocale(t
 
 	// Older row in tenant 1, no portal language chosen (portal_locale NULL).
 	older := testpkg.CreateTestGuardianProfile(t, db, "localeordering-a")
-	require.NoError(t, repo.LinkAccount(ctx, older.ID, account.ID))
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, db, repo.LinkAccount, older.ID, account.ID))
 
 	// Newer row in a second tenant with an explicit "en". Different tenant_id
 	// so it doesn't collide with the per-(tenant_id, account_id) UNIQUE index.
@@ -575,10 +575,15 @@ func TestGuardianProfileRepository_FindByAccountID_PrefersExplicitPortalLocale(t
 		ExcludeColumn("id", "created_at", "updated_at", "phone_numbers").Returning("*").
 		Scan(context.Background())
 	require.NoError(t, err, "failed to insert second-tenant guardian profile")
-	require.NoError(t, repo.LinkAccount(testpkg.ContextForTenant(ctx, tenantB), newer.ID, account.ID))
+	require.NoError(t, testpkg.TenantCommand2(t, testpkg.ContextForTenant(ctx, tenantB), db, repo.LinkAccount, newer.ID, account.ID))
 	require.Greater(t, newer.ID, older.ID, "explicit row must have the higher id for the test to be meaningful")
 
-	found, err := repo.FindByAccountID(ctx, account.ID)
+	var found *peopleValues.GuardianProfileSnapshot
+	err = testpkg.WithinAdminContext(t, ctx, db, func(adminCtx context.Context) error {
+		var readErr error
+		found, readErr = repo.FindByAccountID(adminCtx, account.ID)
+		return readErr
+	})
 	require.NoError(t, err)
 	require.NotNil(t, found.PortalLocale, "the row with an explicit portal_locale must win over the NULL one")
 	assert.Equal(t, "en", *found.PortalLocale)
@@ -602,7 +607,7 @@ func TestGuardianProfileRepository_LockByIDForUpdate(t *testing.T) {
 		// The full-delete flow takes this lock inside a tenant tx; exercise the
 		// real contract rather than a bare autocommit call.
 		err := testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-			return repo.LockByIDForUpdate(txCtx, guardian.ID)
+			return testpkg.TenantCommand1(t, txCtx, db, repo.LockByIDForUpdate, guardian.ID)
 		})
 		require.NoError(t, err)
 	})
@@ -611,7 +616,7 @@ func TestGuardianProfileRepository_LockByIDForUpdate(t *testing.T) {
 		// A non-existent id must surface as the typed not-found error, not a raw
 		// sql.ErrNoRows — the delete handler maps it to a clean 404/409.
 		err := testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-			return repo.LockByIDForUpdate(txCtx, 999999999)
+			return testpkg.TenantCommand1(t, txCtx, db, repo.LockByIDForUpdate, 999999999)
 		})
 		assert.ErrorIs(t, err, peopleValues.ErrGuardianProfileNotFound)
 	})

@@ -87,7 +87,7 @@ func TestGradeTransitionWorkflow_Apply_RemapsClassTeachers(t *testing.T) {
 
 	// Every delete and insert is ledgered so the revert replays exactly what
 	// happened rather than reversing the renames.
-	ledger, err := f.deps.Structure.ListTransitionClassTeacherLedger(ctx, transitionID)
+	ledger, err := testpkg.TenantQuery1(t, ctx, db, f.deps.Structure.ListTransitionClassTeacherLedger, transitionID)
 	require.NoError(t, err)
 	assert.Equal(t, 3, countLedgerAction(ledger, schoolstructure.LedgerActionRemoved),
 		"all three affected assignments are ledgered as removed")

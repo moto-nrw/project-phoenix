@@ -25,7 +25,8 @@ func TestListTemplatesQueryBudget(t *testing.T) {
 	sources, err := RootCompositions.OfferingSources(t, s.db)
 	require.NoError(t, err)
 	s.res.OfferingSourceOptions = sources
-	router := templateQueryBudgetRouter(t, s.ctx, s.res)
+	counter := testpkg.CaptureQueries(t, s.db)
+	router := testpkg.MeasuredTenantRequest(t, s.db, testpkg.TenantIDFromContext(s.ctx), counter, templateQueryBudgetRouter(t, s.ctx, s.res))
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Query-Budget-Period")
 
 	created := 0
@@ -39,7 +40,6 @@ func TestListTemplatesQueryBudget(t *testing.T) {
 		}
 	}
 
-	counter := testpkg.CaptureQueries(t, s.db)
 	run := func() int {
 		counter.Reset()
 		w := doTemplateJSON(t, router, http.MethodGet, fmt.Sprintf("/templates?period_id=%d", period.ID), nil)

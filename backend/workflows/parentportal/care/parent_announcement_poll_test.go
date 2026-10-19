@@ -58,26 +58,26 @@ func seedPublishedPollWithTargets(
 		CreatedBy:        createdBy,
 	}
 	a.TenantID = tenantID
-	require.NoError(t, repo.Create(ctx, a))
-	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID, targets))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), repo.Create, a))
+	require.NoError(t, testpkg.TenantCommand3(t, ctx, testpkg.SetupTestDB(t), repo.ReplaceTargets, tenantID, a.ID, targets))
 
 	options := make([]*communication.ParentAnnouncementOptionFixture, 0, len(labels))
 	for i, label := range labels {
 		options = append(options, &communication.ParentAnnouncementOptionFixture{Label: label, Position: i})
 	}
-	require.NoError(t, repo.ReplaceOptions(ctx, tenantID, a.ID, options))
+	require.NoError(t, testpkg.TenantCommand3(t, ctx, testpkg.SetupTestDB(t), repo.ReplaceOptions, tenantID, a.ID, options))
 
 	now := time.Now().Add(-time.Minute)
-	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
-	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, testpkg.SetupTestDB(t), repo.SetPublished, a.ID, &now))
+	t.Cleanup(func() { _ = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), repo.Delete, a.ID) })
 
 	// Re-read so PublishedAt matches the DB value to the microsecond — the
 	// service's version guard compares with Equal().
-	persisted, err := repo.FindByID(ctx, a.ID)
+	persisted, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), repo.FindByID, a.ID)
 	require.NoError(t, err)
 	require.NotNil(t, persisted)
 	a.PublishedAt = persisted.PublishedAt
-	stored, err := repo.ListOptions(ctx, a.ID)
+	stored, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), repo.ListOptions, a.ID)
 	require.NoError(t, err)
 	a.Options = stored
 	return a
@@ -124,7 +124,7 @@ func TestAnnouncementPoll_AnswerAppearsInFeedAndResults(t *testing.T) {
 
 	// The staff evaluation counts children, and the answered child drops out of
 	// the reminder audience.
-	results, err := repos.ParentAnnouncement.PollResults(seedCtx, chain.TenantID, poll.ID)
+	results, err := testpkg.TenantQuery2(t, seedCtx, db, repos.ParentAnnouncement.PollResults, chain.TenantID, poll.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 1, results.ChildCount)
 	assert.Equal(t, 1, results.AnsweredCount)
@@ -132,12 +132,12 @@ func TestAnnouncementPoll_AnswerAppearsInFeedAndResults(t *testing.T) {
 	assert.Equal(t, 1, results.Options[0].Count)
 	assert.Equal(t, 0, results.Options[1].Count)
 
-	children, err := repos.ParentAnnouncement.PollChildren(seedCtx, chain.TenantID, poll.ID)
+	children, err := testpkg.TenantQuery2(t, seedCtx, db, repos.ParentAnnouncement.PollChildren, chain.TenantID, poll.ID)
 	require.NoError(t, err)
 	require.Len(t, children, 1)
 	assert.Equal(t, []string{"Ja"}, children[0].AnswerLabels)
 
-	pending, err := repos.ParentAnnouncement.UnansweredReminderRecipients(seedCtx, chain.TenantID, poll.ID)
+	pending, err := testpkg.TenantQuery2(t, seedCtx, db, repos.ParentAnnouncement.UnansweredReminderRecipients, chain.TenantID, poll.ID)
 	require.NoError(t, err)
 	assert.Empty(t, pending, "an answered child must not be reminded")
 }
@@ -180,18 +180,18 @@ func TestAnnouncementPoll_IneligibleChildIsNotOutstanding(t *testing.T) {
 		chain.StudentID, chain.GuardianProfileID)
 	require.NoError(t, err)
 
-	results, err := repos.ParentAnnouncement.PollResults(seedCtx, chain.TenantID, poll.ID)
+	results, err := testpkg.TenantQuery2(t, seedCtx, db, repos.ParentAnnouncement.PollResults, chain.TenantID, poll.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 1, results.TargetChildCount)
 	assert.Zero(t, results.ChildCount)
 	assert.Zero(t, results.AnsweredCount)
 
-	children, err := repos.ParentAnnouncement.PollChildren(seedCtx, chain.TenantID, poll.ID)
+	children, err := testpkg.TenantQuery2(t, seedCtx, db, repos.ParentAnnouncement.PollChildren, chain.TenantID, poll.ID)
 	require.NoError(t, err)
 	require.Len(t, children, 1)
 	assert.False(t, children[0].CanAnswer)
 
-	pending, err := repos.ParentAnnouncement.UnansweredReminderRecipients(seedCtx, chain.TenantID, poll.ID)
+	pending, err := testpkg.TenantQuery2(t, seedCtx, db, repos.ParentAnnouncement.UnansweredReminderRecipients, chain.TenantID, poll.ID)
 	require.NoError(t, err)
 	assert.Empty(t, pending)
 }
@@ -212,7 +212,7 @@ func TestAnnouncementPoll_ReAnswerReplacesSelection(t *testing.T) {
 	require.NoError(t, svc.RespondToAnnouncement(ctx, chain.AccountID, poll.ID, chain.StudentID, []int64{poll.Options[0].ID}, *poll.PublishedAt))
 	require.NoError(t, svc.RespondToAnnouncement(ctx, chain.AccountID, poll.ID, chain.StudentID, []int64{poll.Options[1].ID}, *poll.PublishedAt))
 
-	results, err := repos.ParentAnnouncement.PollResults(seedCtx, chain.TenantID, poll.ID)
+	results, err := testpkg.TenantQuery2(t, seedCtx, db, repos.ParentAnnouncement.PollResults, chain.TenantID, poll.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 1, results.AnsweredCount)
 	assert.Equal(t, 0, results.Options[0].Count, "the first answer must be replaced")
@@ -220,7 +220,7 @@ func TestAnnouncementPoll_ReAnswerReplacesSelection(t *testing.T) {
 
 	// An empty selection withdraws the answer entirely.
 	require.NoError(t, svc.RespondToAnnouncement(ctx, chain.AccountID, poll.ID, chain.StudentID, nil, *poll.PublishedAt))
-	results, err = repos.ParentAnnouncement.PollResults(seedCtx, chain.TenantID, poll.ID)
+	results, err = testpkg.TenantQuery2(t, seedCtx, db, repos.ParentAnnouncement.PollResults, chain.TenantID, poll.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 0, results.AnsweredCount)
 }

@@ -6,13 +6,10 @@ import "github.com/uptrace/bun"
 // id, tenant_id, school_class, and first_name and last_name while a live
 // person row exists (NULL otherwise). Like Query it executes no statement: an
 // owner joins it as a subquery, so its search, count and page window stay in
-// the owner's one statement. Zero tenant is reserved for operator/admin reads.
+// the owner's one statement. The school is required.
 func StudentDisplayQuery(db bun.IDB, tenantID int64) *bun.SelectQuery {
-	query := db.NewSelect().TableExpr(studentSource).
+	query := Query(db, tenantID).
 		ColumnExpr(`"student".id, "student".tenant_id, "student".school_class, "person".first_name, "person".last_name`).
 		Join(`LEFT JOIN users.persons AS "person" ON "person".tenant_id = "student".tenant_id AND "person".id = "student".person_id AND "person".deleted_at IS NULL`)
-	if tenantID > 0 {
-		query = query.Where(`"student".tenant_id = ?`, tenantID)
-	}
 	return query
 }

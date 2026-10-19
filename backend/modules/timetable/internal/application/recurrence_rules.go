@@ -7,7 +7,7 @@ import (
 )
 
 func (s *Service) FindRecurrenceRule(ctx context.Context, id int64) (result domain.RecurrenceRule, err error) {
-	err = s.run("find_recurrence_rule", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_recurrence_rule", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, findErr := s.store.FindRecurrenceRule(ctx, id)
 		stats.Add(queryStats)
 		if findErr != nil {
@@ -23,7 +23,7 @@ func (s *Service) FindRecurrenceRule(ctx context.Context, id int64) (result doma
 }
 
 func (s *Service) ListRecurrenceRules(ctx context.Context, filter domain.RecurrenceRuleFilter) (result []domain.RecurrenceRule, err error) {
-	err = s.run("list_recurrence_rules", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_recurrence_rules", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListRecurrenceRules(ctx, filter)
 		stats.Add(queryStats)
 		result = values

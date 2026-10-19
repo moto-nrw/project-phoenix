@@ -36,7 +36,7 @@ func TestActivityPersonalDataReadsRequirePermission(t *testing.T) {
 	)
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Private roster")
 	student := testpkg.CreateTestStudent(t, ctx.db, studentFirstName, studentLastName, "1a")
-	require.NoError(t, ctx.resource.ActivityService.EnrollStudent(testpkg.Ctx(t), activity.ID, student.ID))
+	require.NoError(t, testpkg.TenantCommand2(t, testpkg.Ctx(t), testpkg.SetupTestDB(t), ctx.resource.ActivityService.EnrollStudent, activity.ID, student.ID))
 
 	testpkg.CreateTestStaff(t, ctx.db, staffFirstName, staffLastName)
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Unauthorised", "Reader")
@@ -74,7 +74,7 @@ func TestActivityRosterReadAllowsAuthorisedStaff(t *testing.T) {
 	)
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Authorised roster")
 	student := testpkg.CreateTestStudent(t, ctx.db, studentFirstName, studentLastName, "1a")
-	require.NoError(t, ctx.resource.ActivityService.EnrollStudent(testpkg.Ctx(t), activity.ID, student.ID))
+	require.NoError(t, testpkg.TenantCommand2(t, testpkg.Ctx(t), testpkg.SetupTestDB(t), ctx.resource.ActivityService.EnrollStudent, activity.ID, student.ID))
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Authorised", "Reader")
 
 	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/activities/%d/students", activity.ID), nil)
@@ -103,7 +103,7 @@ func TestActivityRosterReadFiltersNonStaffPersonalData(t *testing.T) {
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Filtered roster")
 	student := testpkg.CreateTestStudent(t, ctx.db, "FilteredSecretFirst", "FilteredSecretLast", "1a")
-	require.NoError(t, ctx.resource.ActivityService.EnrollStudent(testpkg.Ctx(t), activity.ID, student.ID))
+	require.NoError(t, testpkg.TenantCommand2(t, testpkg.Ctx(t), testpkg.SetupTestDB(t), ctx.resource.ActivityService.EnrollStudent, activity.ID, student.ID))
 	account := testpkg.CreateTestAccount(t, ctx.db, "activity-roster-non-staff")
 
 	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/activities/%d/students", activity.ID), nil)
@@ -168,7 +168,7 @@ func enrollmentWriteCases(t *testing.T, ctx *testContext, activityID int64) []ac
 	t.Helper()
 	existing := testpkg.CreateTestStudent(t, ctx.db, "ExistingSecret", "Student", "1a")
 	target := testpkg.CreateTestStudent(t, ctx.db, "TargetSecret", "Student", "1b")
-	require.NoError(t, ctx.resource.ActivityService.EnrollStudent(testpkg.Ctx(t), activityID, existing.ID))
+	require.NoError(t, testpkg.TenantCommand2(t, testpkg.Ctx(t), testpkg.SetupTestDB(t), ctx.resource.ActivityService.EnrollStudent, activityID, existing.ID))
 
 	return []activityWriteCase{
 		{name: "enroll student", method: http.MethodPost, path: fmt.Sprintf("/activities/%d/students/%d", activityID, target.ID)},

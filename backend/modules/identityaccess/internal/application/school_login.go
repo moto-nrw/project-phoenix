@@ -213,7 +213,7 @@ func (s *AccountAuthentication) SwitchSchool(ctx context.Context, accountID int6
 // ErrAccountNotFound; a database failure propagates as a retryable error
 // instead of telling a Lehrkraft their credentials were wrong.
 func (s *AccountAuthentication) loadActiveAccountForSchoolMint(ctx context.Context, op string, accountID int64) (domain.LoginAccount, error) {
-	account, found, _, err := s.store.FindLoginAccount(ctx, accountID, false)
+	account, found, _, err := findLoginAccount(ctx, s.runtime, s.store, accountID, false)
 	if err != nil {
 		return domain.LoginAccount{}, failed(op, fmt.Errorf("look up account %d: %w", accountID, err))
 	}
@@ -326,7 +326,7 @@ func (s *AccountAuthentication) lockMFAPolicyForMint(ctx context.Context, accoun
 // checkSchoolMintPreconditions runs the four checks under their locks and
 // hands back the locked account row.
 func (s *AccountAuthentication) checkSchoolMintPreconditions(ctx context.Context, accountID, tenantID int64) (domain.LoginAccount, error) {
-	account, found, _, err := s.store.FindLoginAccount(ctx, accountID, true)
+	account, found, _, err := findLoginAccount(ctx, s.runtime, s.store, accountID, true)
 	if err != nil {
 		return domain.LoginAccount{}, fmt.Errorf("re-check account %d at school token mint: %w", accountID, err)
 	}
@@ -510,7 +510,7 @@ func (s *AccountAuthentication) findSchoolPortalTenantForAccount(ctx context.Con
 // A revoked fact answers (false, nil); lookup errors propagate so a database
 // blip is not a revocation.
 func (s *AccountAuthentication) HasSchoolPortalAccess(ctx context.Context, accountID, tenantID int64) (bool, error) {
-	account, found, _, err := s.store.FindLoginAccount(ctx, accountID, false)
+	account, found, _, err := findLoginAccount(ctx, s.runtime, s.store, accountID, false)
 	if err != nil {
 		return false, fmt.Errorf("look up account %d for school portal access: %w", accountID, err)
 	}

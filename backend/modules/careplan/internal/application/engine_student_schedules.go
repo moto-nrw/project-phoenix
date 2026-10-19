@@ -4,12 +4,16 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
 func (e *ExceptionQueryService) FindArrivalSchedule(ctx context.Context, id int64) (careplan.ArrivalSchedule, error) {
 	started := time.Now()
-	value, found, stats, err := e.statusQueries.FindArrivalSchedule(ctx, id)
+	value, found, stats, err := scopedRecordFind(ctx, func(txCtx context.Context) (careplan.ArrivalSchedule, bool, domain.OperationStats, error) {
+		return e.statusQueries.FindArrivalSchedule(txCtx, id)
+	})
 	if err == nil && !found {
 		err = careplan.ErrStudentScheduleNotFound
 	}
@@ -20,7 +24,9 @@ func (e *ExceptionQueryService) FindArrivalSchedule(ctx context.Context, id int6
 }
 func (e *ExceptionQueryService) ListArrivalSchedules(ctx context.Context, f careplan.StudentScheduleFilter) ([]careplan.ArrivalSchedule, error) {
 	started := time.Now()
-	value, stats, err := e.statusQueries.ListArrivalSchedules(ctx, f)
+	value, stats, err := scopedRecordRead(ctx, func(txCtx context.Context) ([]careplan.ArrivalSchedule, domain.OperationStats, error) {
+		return e.statusQueries.ListArrivalSchedules(txCtx, f)
+	})
 
 	err = MapError(err)
 	e.observeRequest("list_arrival_schedules", started, stats, err)
@@ -46,7 +52,9 @@ func (e Engine) DeleteArrivalSchedulesByStudent(ctx context.Context, id int64) e
 
 func (e *ExceptionQueryService) FindArrivalException(ctx context.Context, id int64, lock bool) (careplan.ArrivalException, error) {
 	started := time.Now()
-	value, found, stats, err := e.statusQueries.FindArrivalException(ctx, id, lock)
+	value, found, stats, err := scopedRecordFind(ctx, func(txCtx context.Context) (careplan.ArrivalException, bool, domain.OperationStats, error) {
+		return e.statusQueries.FindArrivalException(txCtx, id, lock)
+	})
 	if err == nil && !found {
 		err = careplan.ErrStudentScheduleNotFound
 	}
@@ -57,7 +65,9 @@ func (e *ExceptionQueryService) FindArrivalException(ctx context.Context, id int
 }
 func (e *ExceptionQueryService) ListArrivalExceptions(ctx context.Context, f careplan.StudentScheduleFilter) ([]careplan.ArrivalException, error) {
 	started := time.Now()
-	value, stats, err := e.statusQueries.ListArrivalExceptions(ctx, f)
+	value, stats, err := scopedRecordRead(ctx, func(txCtx context.Context) ([]careplan.ArrivalException, domain.OperationStats, error) {
+		return e.statusQueries.ListArrivalExceptions(txCtx, f)
+	})
 
 	err = MapError(err)
 	e.observeRequest("list_arrival_exceptions", started, stats, err)
@@ -83,7 +93,9 @@ func (e Engine) DeleteArrivalExceptionsBefore(ctx context.Context, d careplan.Da
 
 func (e *ExceptionQueryService) FindArrivalNote(ctx context.Context, id int64) (careplan.ArrivalNote, error) {
 	started := time.Now()
-	value, found, stats, err := e.statusQueries.FindArrivalNote(ctx, id)
+	value, found, stats, err := scopedRecordFind(ctx, func(txCtx context.Context) (careplan.ArrivalNote, bool, domain.OperationStats, error) {
+		return e.statusQueries.FindArrivalNote(txCtx, id)
+	})
 	if err == nil && !found {
 		err = careplan.ErrStudentScheduleNotFound
 	}
@@ -94,7 +106,9 @@ func (e *ExceptionQueryService) FindArrivalNote(ctx context.Context, id int64) (
 }
 func (e *ExceptionQueryService) ListArrivalNotes(ctx context.Context, f careplan.StudentScheduleFilter) ([]careplan.ArrivalNote, error) {
 	started := time.Now()
-	value, stats, err := e.statusQueries.ListArrivalNotes(ctx, f)
+	value, stats, err := scopedRecordRead(ctx, func(txCtx context.Context) ([]careplan.ArrivalNote, domain.OperationStats, error) {
+		return e.statusQueries.ListArrivalNotes(txCtx, f)
+	})
 
 	err = MapError(err)
 	e.observeRequest("list_arrival_notes", started, stats, err)
@@ -120,7 +134,9 @@ func (e Engine) DeleteArrivalNotesBefore(ctx context.Context, d careplan.Date) (
 
 func (e *ExceptionQueryService) FindPickupSchedule(ctx context.Context, id int64) (careplan.PickupSchedule, error) {
 	started := time.Now()
-	value, found, stats, err := e.statusQueries.FindPickupSchedule(ctx, id)
+	value, found, stats, err := scopedRecordFind(ctx, func(txCtx context.Context) (careplan.PickupSchedule, bool, domain.OperationStats, error) {
+		return e.statusQueries.FindPickupSchedule(txCtx, id)
+	})
 	if err == nil && !found {
 		err = careplan.ErrStudentScheduleNotFound
 	}
@@ -131,7 +147,9 @@ func (e *ExceptionQueryService) FindPickupSchedule(ctx context.Context, id int64
 }
 func (e *ExceptionQueryService) ListPickupSchedules(ctx context.Context, f careplan.StudentScheduleFilter) ([]careplan.PickupSchedule, error) {
 	started := time.Now()
-	value, stats, err := e.statusQueries.ListPickupSchedules(ctx, f)
+	value, stats, err := scopedRecordRead(ctx, func(txCtx context.Context) ([]careplan.PickupSchedule, domain.OperationStats, error) {
+		return e.statusQueries.ListPickupSchedules(txCtx, f)
+	})
 
 	err = MapError(err)
 	e.observeRequest("list_pickup_schedules", started, stats, err)
@@ -157,7 +175,9 @@ func (e Engine) DeletePickupSchedulesByStudent(ctx context.Context, id int64) er
 
 func (e *ExceptionQueryService) FindPickupException(ctx context.Context, id int64, lock bool) (careplan.PickupException, error) {
 	started := time.Now()
-	value, found, stats, err := e.statusQueries.FindPickupException(ctx, id, lock)
+	value, found, stats, err := scopedRecordFind(ctx, func(txCtx context.Context) (careplan.PickupException, bool, domain.OperationStats, error) {
+		return e.statusQueries.FindPickupException(txCtx, id, lock)
+	})
 	if err == nil && !found {
 		err = careplan.ErrStudentScheduleNotFound
 	}
@@ -168,7 +188,9 @@ func (e *ExceptionQueryService) FindPickupException(ctx context.Context, id int6
 }
 func (e *ExceptionQueryService) ListPickupExceptions(ctx context.Context, f careplan.StudentScheduleFilter) ([]careplan.PickupException, error) {
 	started := time.Now()
-	value, stats, err := e.statusQueries.ListPickupExceptions(ctx, f)
+	value, stats, err := scopedRecordRead(ctx, func(txCtx context.Context) ([]careplan.PickupException, domain.OperationStats, error) {
+		return e.statusQueries.ListPickupExceptions(txCtx, f)
+	})
 
 	err = MapError(err)
 	e.observeRequest("list_pickup_exceptions", started, stats, err)
@@ -194,7 +216,9 @@ func (e Engine) DeletePickupExceptionsBefore(ctx context.Context, d careplan.Dat
 
 func (e *ExceptionQueryService) FindPickupNote(ctx context.Context, id int64) (careplan.PickupNote, error) {
 	started := time.Now()
-	value, found, stats, err := e.statusQueries.FindPickupNote(ctx, id)
+	value, found, stats, err := scopedRecordFind(ctx, func(txCtx context.Context) (careplan.PickupNote, bool, domain.OperationStats, error) {
+		return e.statusQueries.FindPickupNote(txCtx, id)
+	})
 	if err == nil && !found {
 		err = careplan.ErrStudentScheduleNotFound
 	}
@@ -205,7 +229,9 @@ func (e *ExceptionQueryService) FindPickupNote(ctx context.Context, id int64) (c
 }
 func (e *ExceptionQueryService) ListPickupNotes(ctx context.Context, f careplan.StudentScheduleFilter) ([]careplan.PickupNote, error) {
 	started := time.Now()
-	value, stats, err := e.statusQueries.ListPickupNotes(ctx, f)
+	value, stats, err := scopedRecordRead(ctx, func(txCtx context.Context) ([]careplan.PickupNote, domain.OperationStats, error) {
+		return e.statusQueries.ListPickupNotes(txCtx, f)
+	})
 
 	err = MapError(err)
 	e.observeRequest("list_pickup_notes", started, stats, err)
@@ -242,7 +268,9 @@ func (e Engine) DeletePickupNotesBefore(ctx context.Context, d careplan.Date) (r
 
 func (e *ExceptionQueryService) CountStudentScheduleRows(ctx context.Context, studentID int64) (int, error) {
 	started := time.Now()
-	value, stats, err := e.statusQueries.CountStudentScheduleRows(ctx, studentID)
+	value, stats, err := scopedRecordRead(ctx, func(txCtx context.Context) (int, domain.OperationStats, error) {
+		return e.statusQueries.CountStudentScheduleRows(txCtx, studentID)
+	})
 
 	err = MapError(err)
 	e.observeRequest("count_student_schedule_rows", started, stats, err)

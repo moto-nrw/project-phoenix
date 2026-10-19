@@ -42,7 +42,7 @@ func TestDataImportRepository_Create(t *testing.T) {
 			CompletedAt:  &completedAt,
 		}
 
-		err := repo.Create(ctx, dataImport)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, dataImport)
 		require.NoError(t, err)
 		assert.NotZero(t, dataImport.ID)
 
@@ -63,7 +63,7 @@ func TestDataImportRepository_Create(t *testing.T) {
 			StartedAt:    now,
 		}
 
-		err := repo.Create(ctx, dataImport)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, dataImport)
 		require.NoError(t, err)
 		assert.NotZero(t, dataImport.ID)
 		assert.True(t, dataImport.DryRun)
@@ -88,7 +88,7 @@ func TestDataImportRepository_Create(t *testing.T) {
 			},
 		}
 
-		err := repo.Create(ctx, dataImport)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, dataImport)
 		require.NoError(t, err)
 		assert.NotZero(t, dataImport.ID)
 
@@ -116,17 +116,17 @@ func TestDataImportRepository_FindByID(t *testing.T) {
 			ImportedBy:   account.ID,
 			StartedAt:    now,
 		}
-		err := repo.Create(ctx, dataImport)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, dataImport)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, dataImport.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, dataImport.ID)
 		require.NoError(t, err)
 		assert.Equal(t, dataImport.ID, found.ID)
 		assert.Equal(t, "find_test.csv", found.Filename)
 	})
 
 	t.Run("returns error for non-existent import", func(t *testing.T) {
-		_, err := repo.FindByID(ctx, int64(999999))
+		_, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, int64(999999))
 		require.Error(t, err)
 	})
 }
@@ -156,10 +156,10 @@ func TestDataImportRepository_List(t *testing.T) {
 			StartedAt:    now,
 		}
 
-		err := repo.Create(ctx, dataImport)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, dataImport)
 		require.NoError(t, err)
 
-		imports, err := repo.List(ctx, nil)
+		imports, err := testpkg.TenantQuery1(t, ctx, db, repo.List, nil)
 		require.NoError(t, err)
 		assert.NotEmpty(t, imports)
 	})
@@ -175,13 +175,13 @@ func TestDataImportRepository_List(t *testing.T) {
 			StartedAt:    now,
 		}
 
-		err := repo.Create(ctx, dataImport)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, dataImport)
 		require.NoError(t, err)
 
 		filters := map[string]interface{}{
 			"entity_type": "room",
 		}
-		imports, err := repo.List(ctx, filters)
+		imports, err := testpkg.TenantQuery1(t, ctx, db, repo.List, filters)
 		require.NoError(t, err)
 
 		for _, imp := range imports {
@@ -201,13 +201,13 @@ func TestDataImportRepository_List(t *testing.T) {
 			StartedAt:    now,
 		}
 
-		err := repo.Create(ctx, dryRunImport)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, dryRunImport)
 		require.NoError(t, err)
 
 		filters := map[string]interface{}{
 			"dry_run": true,
 		}
-		imports, err := repo.List(ctx, filters)
+		imports, err := testpkg.TenantQuery1(t, ctx, db, repo.List, filters)
 		require.NoError(t, err)
 
 		for _, imp := range imports {
@@ -226,13 +226,13 @@ func TestDataImportRepository_List(t *testing.T) {
 			StartedAt:    now,
 		}
 
-		err := repo.Create(ctx, dataImport)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, dataImport)
 		require.NoError(t, err)
 
 		filters := map[string]interface{}{
 			"imported_by": account.ID,
 		}
-		imports, err := repo.List(ctx, filters)
+		imports, err := testpkg.TenantQuery1(t, ctx, db, repo.List, filters)
 		require.NoError(t, err)
 
 		for _, imp := range imports {

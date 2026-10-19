@@ -11,5 +11,6 @@ import (
 // permissions (#2756) as a row source the inbox joins in its own statement.
 // The roots bind it to the guardian-link projection.
 type GuardianLinks interface {
+	AllSchoolsGuardianLinkRows(db bun.IDB) *bun.SelectQuery
 	GuardianLinkRows(db bun.IDB, tenantID int64) *bun.SelectQuery
 }

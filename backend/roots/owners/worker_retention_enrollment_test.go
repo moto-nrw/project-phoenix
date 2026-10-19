@@ -43,7 +43,7 @@ func (s retentionSuite) enrollments(t *testing.T, tenantID int64) enrollmentFixt
 		CareOfferingSelectionMode: enrollment.PhaseCareOfferingSelectionOptional,
 		IsActive:                  true,
 	}
-	require.NoError(t, owner.InsertPhase(ctx, phase))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), owner.InsertPhase, phase))
 	creator := testpkg.CreateTestAccount(t, s.admin, fmt.Sprintf("late-invite-%d@example.com", tenantID)).ID
 	return enrollmentFixture{admin: s.admin, tenantID: tenantID, ctx: ctx, owner: owner, phaseID: phase.ID, creator: creator}
 }
@@ -76,7 +76,7 @@ func (f enrollmentFixture) phase(t *testing.T, name string, start, end calendar.
 		CareOverflowMode:          enrollment.PhaseCareOverflowWaitlist,
 		CareOfferingSelectionMode: enrollment.PhaseCareOfferingSelectionOptional,
 	}
-	require.NoError(t, f.owner.InsertPhase(f.ctx, phase))
+	require.NoError(t, testpkg.TenantCommand1(t, f.ctx, testpkg.SetupTestDB(t), f.owner.InsertPhase, phase))
 	return phase.ID
 }
 
@@ -96,7 +96,7 @@ func (f enrollmentFixture) requestIn(t *testing.T, phaseID int64, label string, 
 		StatusToken:       fmt.Sprintf("%s-token-%d", label, f.tenantID),
 		SubmittedAt:       time.Now(),
 	}
-	require.NoError(t, f.owner.InsertRequest(f.ctx, request))
+	require.NoError(t, testpkg.TenantCommand1(t, f.ctx, testpkg.SetupTestDB(t), f.owner.InsertRequest, request))
 	childIDs := make([]int64, 0, len(children))
 	for i, settled := range children {
 		child := &enrollment.RequestChild{
@@ -115,7 +115,7 @@ func (f enrollmentFixture) requestIn(t *testing.T, phaseID int64, label string, 
 		if settled.source > 0 {
 			child.RolloverSourceChildID = &settled.source
 		}
-		require.NoError(t, f.owner.InsertChild(f.ctx, child))
+		require.NoError(t, testpkg.TenantCommand1(t, f.ctx, testpkg.SetupTestDB(t), f.owner.InsertChild, child))
 		childIDs = append(childIDs, child.ID)
 		_, err := f.admin.ExecContext(context.Background(), `UPDATE enrollment.request_children
 			SET reviewed_at = CASE WHEN ? THEN NULL ELSE CURRENT_TIMESTAMP - make_interval(days => ?) END,
@@ -142,7 +142,7 @@ func (f enrollmentFixture) lateInvite(t *testing.T, label string, daysAgo int, u
 		PhaseID: f.phaseID, TokenHash: fmt.Sprintf("%s-hash-%d", label, f.tenantID),
 		GuardianEmail: fmt.Sprintf("%s-%d@example.invalid", label, f.tenantID), ExpiresAt: time.Now().Add(time.Hour), CreatedBy: f.creator,
 	}
-	require.NoError(t, f.owner.InsertLateInvite(f.ctx, invite))
+	require.NoError(t, testpkg.TenantCommand1(t, f.ctx, testpkg.SetupTestDB(t), f.owner.InsertLateInvite, invite))
 	_, err := f.admin.ExecContext(context.Background(), `UPDATE enrollment.late_invites
 		SET created_at = CURRENT_TIMESTAMP - make_interval(days => ? + 30),
 			expires_at = CURRENT_TIMESTAMP - make_interval(days => ?),

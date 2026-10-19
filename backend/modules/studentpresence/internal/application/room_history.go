@@ -9,7 +9,7 @@ import (
 )
 
 func (s *Service) ListRoomSessionHistory(ctx context.Context, roomID int64, start, end time.Time, staffID *int64) (result []ports.RoomSessionHistory, err error) {
-	err = s.run("list_room_session_history", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "list_room_session_history", func(ctx context.Context) (ports.Stats, error) {
 		if roomID <= 0 || start.After(end) || staffID != nil && *staffID <= 0 {
 			return ports.Stats{}, errors.New("student presence: invalid room session history query")
 		}

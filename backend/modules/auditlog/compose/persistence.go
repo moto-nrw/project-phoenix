@@ -30,10 +30,8 @@ type (
 	Persistence = audit.Repositories
 )
 
-// NewFixedRuntime reads and appends on db for the tenant that tenantID
-// resolves, outside any ambient transaction: for read-only roots and the
-// typed root's test graphs. Production append commands use the ambient
-// runtime NewPersistence builds.
+// NewFixedRuntime resolves the ambient transaction and validates the supplied
+// school selector. The database is not a fallback connection.
 var NewFixedRuntime = audit.NewRuntime
 
 // PersistenceDependencies configure the Audit persistence a composition
@@ -42,7 +40,7 @@ type PersistenceDependencies struct {
 	// DB backs the ambient runtime used when Reads or Appends is nil.
 	DB *bun.DB
 	// Reads binds the retained repositories; nil reads through the Audit
-	// handoff on the context with DB as the fallback.
+	// handoff on the context, rejecting a missing transaction.
 	Reads Runtime
 	// Appends binds the append store; nil appends through Reads.
 	Appends Runtime

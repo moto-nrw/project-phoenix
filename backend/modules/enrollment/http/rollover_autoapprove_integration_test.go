@@ -134,7 +134,7 @@ func seedApprovedChildWithStudent(
 	dob := calendar.NewDate(2018, 4, 15)
 	person.Birthday = &dob
 	person.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.Person.Create(ctx, person))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), env.repos.Person.Create, person))
 
 	startDate := calendar.Date(env.sourcePhase.ServiceStartDate)
 	endDate := calendar.Date(env.sourcePhase.ServiceEndDate)
@@ -150,10 +150,8 @@ func seedApprovedChildWithStudent(
 	require.NoError(t, env.repos.Student.Create(ctx, student))
 
 	// 3. Link the source child to the student and stamp approved.
-	require.NoError(t, env.repos.Enrollment().LinkCreatedStudent(ctx, sourceChildID, student.ID))
-	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(
-		ctx, sourceChildID, enrollmentNative.ChildStatusApproved, nil, env.creatorID,
-	))
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, env.db, env.repos.Enrollment().LinkCreatedStudent, sourceChildID, student.ID))
+	require.NoError(t, testpkg.TenantCommand4(t, ctx, env.db, env.repos.Enrollment().UpdateChildStatus, sourceChildID, enrollmentNative.ChildStatusApproved, nil, env.creatorID))
 
 	loaded, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), sourceChildID)
 	require.NoError(t, err)
@@ -177,7 +175,7 @@ func classForGrade(grade int16) string {
 func countStudentsForPerson(t *testing.T, env *rolloverTestEnv, personID int64) int {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	rows, err := env.repos.Student.List(ctx, map[string]interface{}{
+	rows, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.List, map[string]interface{}{
 		"person_id": personID,
 	})
 	require.NoError(t, err)
@@ -212,10 +210,7 @@ func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T
 	require.Equal(t, 1, result.RequestCount)
 
 	// Sanity: before the worker runs, the new row is auto_renewed.
-	preWorker, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
-		ctx, result.Phase.ID,
-		[]string{enrollmentNative.ChildStatusAutoRenewed},
-	)
+	preWorker, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{enrollmentNative.ChildStatusAutoRenewed})
 	require.NoError(t, err)
 	require.Len(t, preWorker, 1)
 	require.NotNil(t, preWorker[0].RolloverSourceChildID)
@@ -224,17 +219,14 @@ func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T
 	// Tick the deadline worker — auto_approve flag should route the
 	// row through DecisionService.Decide(approved) which in turn
 	// runs applyApprovalRollover (no new Person/Student rows).
-	summary, err := env.rolloverSvc.RunDeadlineWorker(ctx, time.Now())
+	summary, err := testpkg.TenantQuery1(t, ctx, env.db, env.rolloverSvc.RunDeadlineWorker, time.Now())
 	require.NoError(t, err)
 	assert.Equal(t, 1, summary.AutoRenewedToApproved, "auto_approve must promote to approved")
 	assert.Equal(t, 0, summary.AutoRenewedToSubmitted, "no bulk-submitted fallback")
 	assert.Equal(t, 0, summary.AutoApproveErrors)
 
 	// The new row is now approved AND linked to the SAME student id.
-	approved, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
-		ctx, result.Phase.ID,
-		[]string{enrollmentNative.ChildStatusApproved},
-	)
+	approved, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{enrollmentNative.ChildStatusApproved})
 	require.NoError(t, err)
 	require.Len(t, approved, 1)
 	require.NotNil(t, approved[0].CreatedStudentID, "rollover approval must link to a student")
@@ -246,7 +238,7 @@ func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T
 	// and enrollment start until the new phase begins, and only the
 	// window's end reaches into the new year. We re-read the student
 	// rather than trusting the in-memory copy.
-	refreshed, err := env.repos.Student.FindByID(ctx, existing.ID)
+	refreshed, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(existing.ID))
 	require.NoError(t, err)
 	assert.Equal(t, peopledirectory.StudentStatusActive, refreshed.Status,
 		"already-active rollover students must stay active even for a future phase")
@@ -265,17 +257,17 @@ func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T
 	// The day before the new school year nothing moves; on its first day
 	// the tick switches the class: grade bumped 1 → 2.
 	startDay := calendar.Date(result.Phase.ServiceStartDate)
-	summary, err = env.rolloverSvc.RunDeadlineWorker(ctx, startDay.AddDays(-1).BerlinMidnight())
+	summary, err = testpkg.TenantQuery1(t, ctx, env.db, env.rolloverSvc.RunDeadlineWorker, startDay.AddDays(-1).BerlinMidnight())
 	require.NoError(t, err)
 	assert.Equal(t, 0, summary.ClassSwitchesApplied)
-	refreshed, err = env.repos.Student.FindByID(ctx, existing.ID)
+	refreshed, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(existing.ID))
 	require.NoError(t, err)
 	assert.Equal(t, classForGrade(1), refreshed.SchoolClass)
 
-	summary, err = env.rolloverSvc.RunDeadlineWorker(ctx, startDay.BerlinMidnight())
+	summary, err = testpkg.TenantQuery1(t, ctx, env.db, env.rolloverSvc.RunDeadlineWorker, startDay.BerlinMidnight())
 	require.NoError(t, err)
 	assert.Equal(t, 1, summary.ClassSwitchesApplied)
-	refreshed, err = env.repos.Student.FindByID(ctx, existing.ID)
+	refreshed, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(existing.ID))
 	require.NoError(t, err)
 	assert.Equal(t, classForGrade(2), refreshed.SchoolClass,
 		"grade was bumped 1 → 2; school_class follows when the new school year starts")
@@ -283,7 +275,7 @@ func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T
 	assert.Equal(t, *existing.EnrolledFrom, *refreshed.EnrolledFrom)
 
 	// The plan is consumed: a later tick changes nothing.
-	summary, err = env.rolloverSvc.RunDeadlineWorker(ctx, startDay.AddDays(1).BerlinMidnight())
+	summary, err = testpkg.TenantQuery1(t, ctx, env.db, env.rolloverSvc.RunDeadlineWorker, startDay.AddDays(1).BerlinMidnight())
 	require.NoError(t, err)
 	assert.Equal(t, 0, summary.ClassSwitchesApplied)
 }
@@ -309,20 +301,20 @@ func TestRolloverService_AutoApprove_ClassSwitchSkipsClassChangedSinceApproval(t
 	req.Name = "class-switch-skip-target"
 	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, req)
 	require.NoError(t, err)
-	summary, err := env.rolloverSvc.RunDeadlineWorker(ctx, time.Now())
+	summary, err := testpkg.TenantQuery1(t, ctx, env.db, env.rolloverSvc.RunDeadlineWorker, time.Now())
 	require.NoError(t, err)
 	require.Equal(t, 1, summary.AutoRenewedToApproved)
 
-	student, err := env.repos.Student.FindByID(ctx, existing.ID)
+	student, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(existing.ID))
 	require.NoError(t, err)
 	require.Equal(t, classForGrade(1), student.SchoolClass)
 	student.SchoolClass = "1b"
-	require.NoError(t, env.repos.Student.Update(ctx, student))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.Update, student))
 
-	summary, err = env.rolloverSvc.RunDeadlineWorker(ctx, calendar.Date(result.Phase.ServiceStartDate).BerlinMidnight())
+	summary, err = testpkg.TenantQuery1(t, ctx, env.db, env.rolloverSvc.RunDeadlineWorker, calendar.Date(result.Phase.ServiceStartDate).BerlinMidnight())
 	require.NoError(t, err)
 	assert.Equal(t, 0, summary.ClassSwitchesApplied)
-	student, err = env.repos.Student.FindByID(ctx, existing.ID)
+	student, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(existing.ID))
 	require.NoError(t, err)
 	assert.Equal(t, "1b", student.SchoolClass, "the admin's edit must survive the planned switch")
 }
@@ -343,7 +335,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentImmediateBecomesActi
 		int16(1),
 	)
 	existing.Status = peopledirectory.StudentStatusInactive
-	require.NoError(t, env.repos.Student.Update(ctx, existing))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.Update, existing))
 
 	req := validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true)
 	req.RolloverAutoApprove = true
@@ -352,21 +344,18 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentImmediateBecomesActi
 	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, req)
 	require.NoError(t, err)
 
-	summary, err := env.rolloverSvc.RunDeadlineWorker(ctx, time.Now())
+	summary, err := testpkg.TenantQuery1(t, ctx, env.db, env.rolloverSvc.RunDeadlineWorker, time.Now())
 	require.NoError(t, err)
 	assert.Equal(t, 1, summary.AutoRenewedToApproved)
 	assert.Equal(t, 0, summary.AutoApproveErrors)
 
-	approved, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
-		ctx, result.Phase.ID,
-		[]string{enrollmentNative.ChildStatusApproved},
-	)
+	approved, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{enrollmentNative.ChildStatusApproved})
 	require.NoError(t, err)
 	require.Len(t, approved, 1)
 	assert.Equal(t, enrollmentNative.ChildActivationImmediate, approved[0].ActivationMode)
 	assert.Nil(t, approved[0].ActivateOn)
 
-	refreshed, err := env.repos.Student.FindByID(ctx, existing.ID)
+	refreshed, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(existing.ID))
 	require.NoError(t, err)
 	assert.Equal(t, peopledirectory.StudentStatusActive, refreshed.Status)
 }
@@ -387,7 +376,7 @@ func TestRolloverService_AutoApprove_StatusChangeWritesSystemAudit(t *testing.T)
 		int16(1),
 	)
 	existing.Status = peopledirectory.StudentStatusInactive
-	require.NoError(t, env.repos.Student.Update(ctx, existing))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.Update, existing))
 
 	req := validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true)
 	req.RolloverAutoApprove = true
@@ -396,12 +385,12 @@ func TestRolloverService_AutoApprove_StatusChangeWritesSystemAudit(t *testing.T)
 	_, err := env.rolloverSvc.CreatePhaseFromSource(ctx, req)
 	require.NoError(t, err)
 
-	summary, err := env.rolloverSvc.RunDeadlineWorker(ctx, time.Now())
+	summary, err := testpkg.TenantQuery1(t, ctx, env.db, env.rolloverSvc.RunDeadlineWorker, time.Now())
 	require.NoError(t, err)
 	assert.Equal(t, 1, summary.AutoRenewedToApproved)
 	assert.Equal(t, 0, summary.AutoApproveErrors)
 
-	history, err := env.reposAudit.StudentFieldEdit.GetByStudentID(ctx, existing.ID)
+	history, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.reposAudit.StudentFieldEdit.GetByStudentID, existing.ID)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
 	assert.Equal(t, peopledirectory.StudentFieldStatus, history[0].FieldName)
@@ -423,7 +412,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentFutureScheduledBecom
 		int16(1),
 	)
 	existing.Status = peopledirectory.StudentStatusInactive
-	require.NoError(t, env.repos.Student.Update(ctx, existing))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.Update, existing))
 
 	req := validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true)
 	req.RolloverAutoApprove = true
@@ -432,19 +421,16 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentFutureScheduledBecom
 	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, req)
 	require.NoError(t, err)
 
-	summary, err := env.rolloverSvc.RunDeadlineWorker(ctx, time.Now())
+	summary, err := testpkg.TenantQuery1(t, ctx, env.db, env.rolloverSvc.RunDeadlineWorker, time.Now())
 	require.NoError(t, err)
 	assert.Equal(t, 1, summary.AutoRenewedToApproved)
 	assert.Equal(t, 0, summary.AutoApproveErrors)
 
-	refreshed, err := env.repos.Student.FindByID(ctx, existing.ID)
+	refreshed, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(existing.ID))
 	require.NoError(t, err)
 	assert.Equal(t, peopledirectory.StudentStatusPending, refreshed.Status)
 
-	approved, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
-		ctx, result.Phase.ID,
-		[]string{enrollmentNative.ChildStatusApproved},
-	)
+	approved, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{enrollmentNative.ChildStatusApproved})
 	require.NoError(t, err)
 	require.Len(t, approved, 1)
 	assert.Equal(t, enrollmentNative.ChildActivationScheduled, approved[0].ActivationMode)
@@ -466,7 +452,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentPastScheduledBecomes
 		int16(1),
 	)
 	existing.Status = peopledirectory.StudentStatusInactive
-	require.NoError(t, env.repos.Student.Update(ctx, existing))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.Update, existing))
 
 	req := validRolloverRequest(env, enrollmentNative.PhaseRolloverModeOptOut, true)
 	req.RolloverAutoApprove = true
@@ -478,19 +464,16 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentPastScheduledBecomes
 	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, req)
 	require.NoError(t, err)
 
-	summary, err := env.rolloverSvc.RunDeadlineWorker(ctx, now)
+	summary, err := testpkg.TenantQuery1(t, ctx, env.db, env.rolloverSvc.RunDeadlineWorker, now)
 	require.NoError(t, err)
 	assert.Equal(t, 1, summary.AutoRenewedToApproved)
 	assert.Equal(t, 0, summary.AutoApproveErrors)
 
-	refreshed, err := env.repos.Student.FindByID(ctx, existing.ID)
+	refreshed, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(existing.ID))
 	require.NoError(t, err)
 	assert.Equal(t, peopledirectory.StudentStatusActive, refreshed.Status)
 
-	approved, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
-		ctx, result.Phase.ID,
-		[]string{enrollmentNative.ChildStatusApproved},
-	)
+	approved, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{enrollmentNative.ChildStatusApproved})
 	require.NoError(t, err)
 	require.Len(t, approved, 1)
 	assert.Equal(t, enrollmentNative.ChildActivationScheduled, approved[0].ActivationMode)
@@ -522,7 +505,7 @@ func TestRolloverService_AutoApprove_DoesNotDuplicateStudents(t *testing.T) {
 	_, createErr := env.rolloverSvc.CreatePhaseFromSource(ctx, req)
 	require.NoError(t, createErr)
 
-	_, workerErr := env.rolloverSvc.RunDeadlineWorker(ctx, time.Now())
+	_, workerErr := testpkg.TenantQuery1(t, ctx, env.db, env.rolloverSvc.RunDeadlineWorker, time.Now())
 	require.NoError(t, workerErr)
 
 	afterCount := countStudentsForPerson(t, env, existing.PersonID)
@@ -599,11 +582,7 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 		Exec(ctx)
 	require.NoError(t, updErr)
 
-	rolled, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
-		ctx,
-		result.Phase.ID,
-		[]string{enrollmentNative.ChildStatusAutoRenewed},
-	)
+	rolled, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{enrollmentNative.ChildStatusAutoRenewed})
 	require.NoError(t, err)
 	require.Len(t, rolled, 1)
 	rolledChildID := rolled[0].ID
@@ -619,7 +598,7 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 	assert.Equal(t, 0, summary.AutoRenewedToApproved)
 	assert.Equal(t, 1, summary.AutoApproveErrors)
 
-	refreshed, err := env.repos.Student.FindByID(ctx, existing.ID)
+	refreshed, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(existing.ID))
 	require.NoError(t, err)
 	assert.Equal(t, originalClass, refreshed.SchoolClass,
 		"failed approval must not commit the target grade/class")

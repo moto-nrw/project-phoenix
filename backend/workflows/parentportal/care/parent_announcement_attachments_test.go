@@ -77,10 +77,9 @@ func TestGuardianAnnouncementTenant_DraftAndDisabledFeatureHideTheFile(t *testin
 		CreatedBy: chain.AccountID,
 	}
 	draft.TenantID = chain.TenantID
-	require.NoError(t, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement).Create(seedCtx, draft))
-	require.NoError(t, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement).ReplaceTargets(seedCtx, chain.TenantID, draft.ID,
-		[]*communication.ParentAnnouncementTargetFixture{{TargetType: "school_all"}}))
-	t.Cleanup(func() { _ = repos.ParentAnnouncement.Delete(seedCtx, draft.ID) })
+	require.NoError(t, testpkg.TenantCommand1(t, seedCtx, db, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement).Create, draft))
+	require.NoError(t, testpkg.TenantCommand3(t, seedCtx, db, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement).ReplaceTargets, chain.TenantID, draft.ID, []*communication.ParentAnnouncementTargetFixture{{TargetType: "school_all"}}))
+	t.Cleanup(func() { _ = testpkg.TenantCommand1(t, seedCtx, db, repos.ParentAnnouncement.Delete, draft.ID) })
 
 	tenantID, err := svc.GuardianAnnouncementTenant(ctx, chain.AccountID, draft.ID)
 	require.NoError(t, err)
@@ -90,7 +89,7 @@ func TestGuardianAnnouncementTenant_DraftAndDisabledFeatureHideTheFile(t *testin
 	// either, so its attachments stay out of reach until it actually goes out.
 	scheduled := seedPublishedAnnouncement(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, false)
 	future := time.Now().Add(time.Hour)
-	require.NoError(t, repos.ParentAnnouncement.SetPublished(seedCtx, scheduled.ID, &future))
+	require.NoError(t, testpkg.TenantCommand2(t, seedCtx, db, repos.ParentAnnouncement.SetPublished, scheduled.ID, &future))
 
 	tenantID, err = svc.GuardianAnnouncementTenant(ctx, chain.AccountID, scheduled.ID)
 	require.NoError(t, err)

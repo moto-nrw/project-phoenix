@@ -40,7 +40,11 @@ func (r presenceProjectionReads) OpenParticipants(ctx context.Context, studentID
 	if err != nil {
 		return nil, err
 	}
-	rows, err := presenceProjection.New().ListOpenParticipants(ctx, carePlanCompose.TenantAmbientDatabase(r.db.Pool())(ctx), tenantID, studentIDs)
+	ambientDB1, databaseErr1 := carePlanCompose.TenantAmbientDatabase(r.db.Pool())(ctx)
+	if databaseErr1 != nil {
+		return *new([]careexit.OpenParticipant), databaseErr1
+	}
+	rows, err := presenceProjection.New().ListOpenParticipants(ctx, ambientDB1, tenantID, studentIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +62,11 @@ func (r presenceProjectionReads) LatestAttendedBlockDate(ctx context.Context, st
 	if err != nil {
 		return nil, err
 	}
-	return presenceProjection.New().LatestAttendedBlockDate(ctx, carePlanCompose.TenantAmbientDatabase(r.db.Pool())(ctx), tenantID, studentID)
+	ambientDB2, databaseErr2 := carePlanCompose.TenantAmbientDatabase(r.db.Pool())(ctx)
+	if databaseErr2 != nil {
+		return *new(*timezone.Date), databaseErr2
+	}
+	return presenceProjection.New().LatestAttendedBlockDate(ctx, ambientDB2, tenantID, studentID)
 }
 
 // courseStatistics serves the Statistik report's course inputs.
@@ -73,7 +81,11 @@ func (c courseStatistics) CourseInstances(ctx context.Context, from, to, today t
 	if err != nil {
 		return nil, err
 	}
-	values, err := presenceProjection.New().CourseInstances(ctx, carePlanCompose.TenantAmbientDatabase(c.reads.db.Pool())(ctx), tenantID, from, to, today)
+	ambientDB3, databaseErr3 := carePlanCompose.TenantAmbientDatabase(c.reads.db.Pool())(ctx)
+	if databaseErr3 != nil {
+		return *new([]presenceCompose.CourseInstance), databaseErr3
+	}
+	values, err := presenceProjection.New().CourseInstances(ctx, ambientDB3, tenantID, from, to, today)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +101,11 @@ func (c courseStatistics) CourseParticipation(ctx context.Context, from, to, tod
 	if err != nil {
 		return nil, err
 	}
-	values, err := presenceProjection.New().CourseParticipation(ctx, carePlanCompose.TenantAmbientDatabase(c.reads.db.Pool())(ctx), tenantID, from, to, today)
+	ambientDB4, databaseErr4 := carePlanCompose.TenantAmbientDatabase(c.reads.db.Pool())(ctx)
+	if databaseErr4 != nil {
+		return *new([]presenceCompose.CourseParticipation), databaseErr4
+	}
+	values, err := presenceProjection.New().CourseParticipation(ctx, ambientDB4, tenantID, from, to, today)
 	if err != nil {
 		return nil, err
 	}

@@ -640,8 +640,15 @@ func TestCareExitEnrollmentLifecycleIsReversibleAndIdempotent(t *testing.T) {
 	closedEnd := "2026-09-01"
 	closed := insertCareExitEnrollment(t, db, testpkg.Tenant(t), student.ID, group.ID, "2026-08-01", &closedEnd)
 
-	require.NoError(t, module.LockStudentEnrollmentsForCareExit(ctx, []int64{student.ID}, "2026-09-10"))
-	changes, err := module.EndStudentEnrollmentsForCareExit(ctx, []int64{student.ID}, "2026-09-10")
+	var changes timetable.CareExitEnrollmentChanges
+	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		if err := module.LockStudentEnrollmentsForCareExit(txCtx, []int64{student.ID}, "2026-09-10"); err != nil {
+			return err
+		}
+		var err error
+		changes, err = module.EndStudentEnrollmentsForCareExit(txCtx, []int64{student.ID}, "2026-09-10")
+		return err
+	})
 	require.NoError(t, err)
 	require.Len(t, changes.Deleted, 1)
 	require.Len(t, changes.Capped, 1)

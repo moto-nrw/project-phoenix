@@ -183,9 +183,7 @@ func (s *Store) parentAccountSelect(ctx context.Context, db bun.IDB) *bun.Select
 	query := db.NewSelect().
 		TableExpr(`auth.accounts_parents AS "account_parent"`).
 		ColumnExpr(parentAccountColumns)
-	if scope := s.scope(ctx); scope.TenantID > 0 {
-		query = query.Where(`"account_parent".tenant_id = ?`, scope.TenantID)
-	}
+	query = scopeTenantQuery(s.scope(ctx), query, `"account_parent".tenant_id = ?`)
 	return query
 }
 
@@ -271,9 +269,7 @@ func (s *Store) UpdateParentAccount(ctx context.Context, account domain.ParentAc
 		Set("password_hash = ?", hash).
 		Set("updated_at = NOW()").
 		Where(`"account_parent".id = ?`, account.ID)
-	if scope := s.scope(ctx); scope.TenantID > 0 {
-		query = query.Where(`"account_parent".tenant_id = ?`, scope.TenantID)
-	}
+	query = scopeTenantQuery(s.scope(ctx), query, `"account_parent".tenant_id = ?`)
 	started := time.Now()
 	result, err := query.Exec(ctx)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}

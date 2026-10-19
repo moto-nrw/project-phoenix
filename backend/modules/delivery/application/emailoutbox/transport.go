@@ -13,6 +13,7 @@ import (
 // IntentTransactions binds a render or delivery record to the intent's scope.
 type IntentTransactions interface {
 	WithinTenant(context.Context, int64, func(context.Context) error) error
+	WithinSystem(context.Context, func(context.Context) error) error
 }
 
 // Transport renders mail snapshots, sends them, and records actual attempts.
@@ -25,7 +26,7 @@ type Transport struct {
 
 func (p Transport) Send(ctx context.Context, intent *Intent, renderer Renderer, recipient email.Email) error {
 	var message *email.Message
-	err := p.Tenants.WithinTenant(ctx, intent.TenantID, func(tenantCtx context.Context) error {
+	err := p.withinIntent(ctx, intent, func(tenantCtx context.Context) error {
 		var renderErr error
 		message, renderErr = renderer.Render(tenantCtx, intent)
 		if renderErr == nil {
@@ -44,7 +45,7 @@ func (p Transport) Send(ctx context.Context, intent *Intent, renderer Renderer, 
 		// or the caller's cancellation ended the sending context.
 		recordCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		if err := p.Tenants.WithinTenant(recordCtx, intent.TenantID, func(recordCtx context.Context) error {
+		if err := p.withinIntent(recordCtx, intent, func(recordCtx context.Context) error {
 			return reporter.RecordDelivery(recordCtx, intent, sendErr)
 		}); err != nil {
 			p.Logger.Error("record email delivery failed",
@@ -88,4 +89,13 @@ func (p *Transport) applyReplyTo(ctx context.Context, intent *Intent, message *e
 	if !identity.IsZero() {
 		message.ReplyTo = email.NewEmail(identity.Name, identity.Address)
 	}
+}
+
+// A persisted NULL school denotes system identity mail, not an unscoped
+// school operation. Tenant steps call the required-school API directly.
+func (p Transport) withinIntent(ctx context.Context, intent *Intent, fn func(context.Context) error) error {
+	if intent.TenantID == 0 {
+		return p.Tenants.WithinSystem(ctx, fn)
+	}
+	return p.Tenants.WithinTenant(ctx, intent.TenantID, fn)
 }

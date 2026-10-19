@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
@@ -70,4 +72,15 @@ func NewScheduleReviewSchedules(queries *ExceptionQueryService) ScheduleReviewSc
 type scheduleReviewQueries struct {
 	*ExceptionQueryService
 	*Service
+}
+
+// Owner reads keep transaction acquisition in the application layer. The raw
+// records receive the same ambient unit of work as their calling workflow.
+func scopedRecordRead[T any](ctx context.Context, read func(context.Context) (T, domain.OperationStats, error)) (value T, stats domain.OperationStats, err error) {
+	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error { value, stats, err = read(txCtx); return err })
+	return
+}
+func scopedRecordFind[T any](ctx context.Context, read func(context.Context) (T, bool, domain.OperationStats, error)) (value T, found bool, stats domain.OperationStats, err error) {
+	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error { value, found, stats, err = read(txCtx); return err })
+	return
 }

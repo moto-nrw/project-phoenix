@@ -44,10 +44,7 @@ func TestCareRequestHistory_ServesFrozenDecisionDiff(t *testing.T) {
 	upsertPickup(15, 0)
 
 	// The guardian requests Monday pickup 16:00.
-	pending, err := tc.careRequests.CreateRequest(
-		tenantCtx, chain.StudentID, chain.AccountID,
-		json.RawMessage(`{"weekdays":[{"weekday":1,"pickup":"16:00"}]}`),
-	)
+	pending, err := testpkg.TenantQuery3(t, tenantCtx, tc.db, tc.careRequests.CreateRequest, chain.StudentID, chain.AccountID, json.RawMessage(`{"weekdays":[{"weekday":1,"pickup":"16:00"}]}`))
 	require.NoError(t, err)
 
 	// Approve through the production decide route.

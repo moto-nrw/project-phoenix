@@ -398,7 +398,7 @@ func TestUnregisteredTagScan_KeepsPersistenceFailuresVisible(t *testing.T) {
 
 	db := testpkg.SetupClosableTestDB(t)
 	fleet := newScanFleet(t, db)
-	ctx := testpkg.Ctx(t)
+	ctx := testpkg.ContextWithTenantRuntime(testpkg.Ctx(t), testpkg.TenantRuntime(t, db))
 	require.NoError(t, db.Close())
 
 	_, err := fleet.FindUnregisteredTagScan(ctx, int64(999999))
@@ -410,7 +410,6 @@ func TestUnregisteredTagScan_KeepsPersistenceFailuresVisible(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "list unregistered tag scans")
 
-	// Writes open their transaction through the ambient unit of work, which
-	// the test harness binds to the package pool rather than this closed
-	// handle; their failure paths are covered by the rollback tests above.
+	// The runtime belongs to this closable pool; both reads and writes now
+	// fail at the same transaction boundary. Rollback behavior is covered above.
 }

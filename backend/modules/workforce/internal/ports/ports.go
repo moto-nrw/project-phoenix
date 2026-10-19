@@ -40,6 +40,7 @@ type Store interface {
 	CurrentStaffSchedule(context.Context, int64) ([]domain.StaffWorkSchedule, domain.OperationStats, error)
 	StaffScheduleOn(ctx context.Context, staffID int64, date string) ([]domain.StaffWorkSchedule, domain.OperationStats, error)
 	StaffSchedulesInRange(ctx context.Context, staffIDs []int64, from, to string) ([]domain.StaffWorkSchedule, domain.OperationStats, error)
+	StaffPlanningProfiles(ctx context.Context, staffIDs []int64, from, to string) ([]domain.StaffPlanningProfile, domain.OperationStats, error)
 	HasStaffScheduleHistory(context.Context, int64) (bool, domain.OperationStats, error)
 	StaffIDsWithScheduleHistory(context.Context, []int64) (map[int64]bool, domain.OperationStats, error)
 
@@ -269,6 +270,7 @@ type StaffAssignments interface {
 // Transaction runs a unit of work on the caller's ambient transaction or, when
 // there is none, opens one.
 type Transaction interface {
+	RunRead(context.Context, func(context.Context) error) error
 	RunWrite(context.Context, func(context.Context) error) error
 	// LockStaffQualifications serializes list replacements per staff member.
 	LockStaffQualifications(ctx context.Context, staffID int64) error

@@ -18,13 +18,13 @@ func (s *studentDirectoryReads) selectStudentRecords(
 	operation string,
 	narrow func(*bun.SelectQuery) *bun.SelectQuery,
 ) ([]directory.StudentRecord, directoryStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, directoryStats{}, err
 	}
 	rows := []directoryRecordRow{}
-	query := withStudentTenant(s.rows.StudentRows(db, 0).
-		ColumnExpr(studentRecordColumns), tenantID)
+	query := withStudentTenant(s.studentRows(db, scope).
+		ColumnExpr(studentRecordColumns), scope)
 	query = narrow(query).OrderExpr(`"student".id ASC`)
 
 	stats := directoryStats{Queries: 1}
@@ -128,14 +128,14 @@ func (s *studentDirectoryReads) LockRecordsByIDs(
 	ctx context.Context,
 	ids []int64,
 ) ([]directory.StudentRecord, directoryStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, directoryStats{}, err
 	}
 	rows := []directoryRecordRow{}
-	query := withStudentTenant(s.rows.StudentRows(db, 0).
+	query := withStudentTenant(s.studentRows(db, scope).
 		ColumnExpr(studentRecordColumns).
-		Where(`"student".id IN (?)`, bun.List(ids)), tenantID).
+		Where(`"student".id IN (?)`, bun.List(ids)), scope).
 		OrderExpr(`"student".id ASC`).
 		For("UPDATE")
 
@@ -159,7 +159,7 @@ func (s *studentDirectoryReads) CountByGroups(
 	ctx context.Context,
 	groupIDs []int64,
 ) (map[int64]int, directoryStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, directoryStats{}, err
 	}
@@ -167,12 +167,12 @@ func (s *studentDirectoryReads) CountByGroups(
 		GroupID int64 `bun:"group_id"`
 		Count   int   `bun:"count"`
 	}
-	query := withStudentTenant(s.rows.StudentRows(db, 0).
+	query := withStudentTenant(s.studentRows(db, scope).
 		ColumnExpr(`"student".group_id`).
 		ColumnExpr(`COUNT(*) AS count`).
 		Where(`"student".group_id IN (?)`, bun.List(groupIDs)).
 		Where(`"student".status <> ?`, directory.StudentStatusAlumnus).
-		GroupExpr(`"student".group_id`), tenantID)
+		GroupExpr(`"student".group_id`), scope)
 
 	stats := directoryStats{Queries: 1}
 	started := time.Now()
@@ -205,7 +205,7 @@ func (s *studentDirectoryReads) ListEnrolledIDsByNameAndBirthday(
 		return nil, directoryStats{}, err
 	}
 	ids := []int64{}
-	query := s.rows.StudentRows(db, 0).
+	query := s.rows.StudentRows(db, tenantID).
 		ColumnExpr(`"student".id`).
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
 		Where(`"student".tenant_id = ?`, tenantID).
@@ -239,13 +239,13 @@ func lowerTrimmed(values []string) []string {
 // who is actually present today still has to be reachable, so this deliberately
 // applies no lifecycle filter — unlike the staff directory's own id list.
 func (s *studentDirectoryReads) ListAllIDs(ctx context.Context) ([]int64, directoryStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, directoryStats{}, err
 	}
 	ids := []int64{}
-	query := withStudentTenant(s.rows.StudentRows(db, 0).
-		ColumnExpr(`"student".id`), tenantID).
+	query := withStudentTenant(s.studentRows(db, scope).
+		ColumnExpr(`"student".id`), scope).
 		OrderExpr(`"student".id ASC`)
 
 	stats := directoryStats{Queries: 1}

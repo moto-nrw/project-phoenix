@@ -24,8 +24,8 @@ import (
 )
 
 // AuditOwner is the Audit Platform as the roots compose it: every retained
-// query adapter bound to the caller's transaction, tenant and read-only root
-// DB fallback, and the append store routed through the fail-closed command
+// query adapter bound to the caller's transaction and tenant, and the append
+// store routed through the fail-closed command
 // (ADR 0049, #4013).
 type auditCommand interface {
 	auditRecords.Command
@@ -43,7 +43,7 @@ type AuditOwner struct {
 // tenant runtime's ambient transaction itself; writes are routed through the
 // command before any service captures them.
 func BuildAuditOwner(db transactionruntime.Database, env RootEnvironment) (AuditOwner, error) {
-	audits, err := auditCompose.NewTenantPersistence(db.Pool(), env.AllowAuditRootWrites)
+	audits, err := auditCompose.NewTenantPersistence(db.Pool())
 	if err != nil {
 		return AuditOwner{}, err
 	}

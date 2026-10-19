@@ -56,7 +56,7 @@ func TestStatusDayStudents_MissingAuthorizeFailsClosed(t *testing.T) {
 	require.Error(t, err, "a status-day adapter without an authorization callback must refuse the write")
 
 	guarded := api.StatusDayStudentsFromRepository(repoFactory.Student, api.AllowAllStatusDayWrites)
-	record, err := guarded.LockForStatusWrite(ctx, student.ID, absencerecords.StudentStatusDaySick)
+	record, err := testpkg.TenantQuery2(t, ctx, db, guarded.LockForStatusWrite, student.ID, absencerecords.StudentStatusDaySick)
 	require.NoError(t, err)
 	assert.Equal(t, student.ID, record.ID)
 }

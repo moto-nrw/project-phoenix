@@ -30,7 +30,11 @@ func (r *SettingAuditRepository) Create(ctx context.Context, entry *config.Setti
 		return err
 	}
 
-	_, err := r.runtime.DB(ctx).NewInsert().
+	ambientDB1, databaseErr1 := r.runtime.DB(ctx)
+	if databaseErr1 != nil {
+		return databaseErr1
+	}
+	_, err := ambientDB1.NewInsert().
 		Model(entry).
 		ModelTableExpr(tableSettingAudit).
 		Exec(ctx)

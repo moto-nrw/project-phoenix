@@ -273,10 +273,16 @@ func TestStudentEnrollmentListQueryBudgetStaysFlat(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("enrollment-owner-budget-%d", i))
 		createOwnedEnrollment(t, module, ctx, student.ID, group.ID, "2026-09-01")
 	}
-	counter := testpkg.CaptureQueries(t, db)
-	_, err := module.ListStudentEnrollments(ctx, timetable.StudentEnrollmentFilter{StudentIDs: []int64{student.ID}})
-	require.NoError(t, err)
-	testpkg.AssertQueryBudget(t, "modules.timetable.enrollments.list", counter.Queries())
+	// The owner read runs inside the HTTP/workflow unit of work. The budget
+	// still measures every business query, not connection/role setup.
+	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
+		counter := testpkg.CaptureQueries(t, db)
+		_, err := module.ListStudentEnrollments(ctx, timetable.StudentEnrollmentFilter{StudentIDs: []int64{student.ID}})
+		require.NoError(t, err)
+		testpkg.AssertQueryBudget(t, "modules.timetable.enrollments.list", counter.Queries())
+
+		return nil
+	}))
 }
 
 func createOwnedEnrollment(t *testing.T, module *timetable.Module, ctx context.Context, studentID, groupID int64, validFrom string) timetable.StudentEnrollment {

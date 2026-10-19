@@ -56,7 +56,7 @@ func TestListInstancesQueryBudget(t *testing.T) {
 	}
 
 	counter := testpkg.CaptureQueries(t, s.db)
-	router := listRouter(s.ctx, s.res)
+	router := testpkg.MeasuredTenantRequest(t, s.db, testpkg.TenantIDFromContext(s.ctx), counter, listRouter(s.ctx, s.res))
 
 	run := func() int {
 		counter.Reset()

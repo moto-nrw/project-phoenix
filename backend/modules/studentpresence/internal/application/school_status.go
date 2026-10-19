@@ -18,7 +18,7 @@ type SchoolStatus struct {
 }
 
 func (s *Service) ListSchoolStatuses(ctx context.Context, ids []int64, date string) (result []SchoolStatus, err error) {
-	err = s.run("list_school_statuses", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "list_school_statuses", func(ctx context.Context) (ports.Stats, error) {
 		if date == "" || !validIDs(ids) {
 			return ports.Stats{}, errors.New("student presence: invalid school status query")
 		}

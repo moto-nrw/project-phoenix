@@ -37,22 +37,22 @@ func readUnreadView(t *testing.T, f *fixture, accountID int64, studentIDs ...int
 	ctx := adminCtx(t, accountID)
 	view := unreadView{inbox: map[int64]int{}, onlyUnread: map[int64]int{}, cards: map[int64]int{}}
 
-	count, err := f.svc.UnreadMessageCount(ctx)
+	count, err := testpkg.TenantQuery0(t, ctx, f.db, f.svc.UnreadMessageCount)
 	require.NoError(t, err)
 	view.badge = count
 
-	inbox, err := f.svc.ListInbox(ctx, false)
+	inbox, err := testpkg.TenantQuery1(t, ctx, f.db, f.svc.ListInbox, false)
 	require.NoError(t, err)
 	for _, row := range inbox {
 		view.inbox[row.ThreadID] = row.UnreadCount
 	}
-	onlyUnread, err := f.svc.ListInbox(ctx, true)
+	onlyUnread, err := testpkg.TenantQuery1(t, ctx, f.db, f.svc.ListInbox, true)
 	require.NoError(t, err)
 	for _, row := range onlyUnread {
 		view.onlyUnread[row.ThreadID] = row.UnreadCount
 	}
 	for _, studentID := range studentIDs {
-		threads, err := f.svc.ListStudentThreads(ctx, studentID)
+		threads, err := testpkg.TenantQuery1(t, ctx, f.db, f.svc.ListStudentThreads, studentID)
 		require.NoError(t, err)
 		for _, row := range threads {
 			view.cards[row.ThreadID] = row.UnreadCount
@@ -65,7 +65,7 @@ func readUnreadView(t *testing.T, f *fixture, accountID int64, studentIDs ...int
 // questions nobody has read yet. It returns the thread and its newest question.
 func startThreadWithQuestions(t *testing.T, f *fixture, chain testpkg.ParentChain, questions ...string) (int64, *messaging.ParentMessage) {
 	t.Helper()
-	started, err := f.svc.StartThread(adminCtx(t, f.staffAccount), chain.StudentID, chain.AccountID, "Hallo")
+	started, err := testpkg.TenantQuery3(t, adminCtx(t, f.staffAccount), f.db, f.svc.StartThread, chain.StudentID, chain.AccountID, "Hallo")
 	require.NoError(t, err)
 	var newest *messaging.ParentMessage
 	for _, question := range questions {
@@ -77,7 +77,7 @@ func startThreadWithQuestions(t *testing.T, f *fixture, chain testpkg.ParentChai
 // markAllRead runs the action and returns the unread count it reports.
 func markAllRead(t *testing.T, f *fixture, ctx context.Context) int {
 	t.Helper()
-	count, err := f.svc.MarkAllRead(ctx)
+	count, err := testpkg.TenantQuery0(t, ctx, f.db, f.svc.MarkAllRead)
 	require.NoError(t, err)
 	return count
 }
@@ -225,7 +225,7 @@ func TestMarkAllRead_BoundaryNeverMovesBackward(t *testing.T) {
 		VALUES (?, ?, ?, '1970-01-01', 0, ?, ?)
 	`, f.chain.TenantID, threadID, f.staffAccount, ahead, question.ID+1000)
 	require.NoError(t, err)
-	require.NoError(t, f.svc.MarkUnread(adminCtx(t, colleague.ID), threadID))
+	require.NoError(t, testpkg.TenantCommand1(t, adminCtx(t, colleague.ID), f.db, f.svc.MarkUnread, threadID))
 
 	markAllRead(t, f, adminCtx(t, f.staffAccount))
 	cleared := clearBoundaryOf(t, threadID, f.staffAccount)
@@ -290,7 +290,7 @@ func TestMarkAllRead_DisabledDoesNotAdvanceOrBroadcast(t *testing.T) {
 	f.svc.Logger = slog.Default()
 	f.bc.Reset()
 
-	count, err := f.svc.MarkAllRead(adminCtx(t, f.staffAccount))
+	count, err := testpkg.TenantQuery0(t, adminCtx(t, f.staffAccount), f.db, f.svc.MarkAllRead)
 	require.ErrorIs(t, err, messaging.ErrMessagingDisabled)
 	assert.Zero(t, count)
 	assert.Nil(t, cursorOf(t, threadID, f.staffAccount))
@@ -360,14 +360,14 @@ func TestMarkAllRead_KeepsTeamMark(t *testing.T) {
 	f := newFixture(t, true)
 	_, colleague := testpkg.CreateTestStaffWithAccount(t, f.db, "Miriam", "Klein")
 	threadID := startReadThread(t, f)
-	require.NoError(t, f.svc.MarkUnread(adminCtx(t, colleague.ID), threadID))
+	require.NoError(t, testpkg.TenantCommand1(t, adminCtx(t, colleague.ID), f.db, f.svc.MarkUnread, threadID))
 	createGuardianMessage(t, f.db, f.chain, threadID, "Noch eine Frage")
 
 	assert.Equal(t, 1, markAllRead(t, f, adminCtx(t, f.staffAccount)),
 		"the reported count keeps the team mark, so the client can explain it")
 
 	repos := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, f.db))
-	thread, err := messaging.NewThreadRepository(repos.ParentMessageThread).FindByID(adminCtx(t, f.staffAccount), threadID)
+	thread, err := testpkg.TenantQuery1(t, adminCtx(t, f.staffAccount), testpkg.SetupTestDB(t), messaging.NewThreadRepository(repos.ParentMessageThread).FindByID, threadID)
 	require.NoError(t, err)
 	assert.NotNil(t, thread.StaffMarkedUnreadAt, "the team mark stays")
 	assertTeamUnread(t, f, f.staffAccount, 1)
@@ -388,9 +388,12 @@ func TestMarkAllRead_LeavesParentReadReceipt(t *testing.T) {
 
 	readByStaff := func() bool {
 		t.Helper()
-		messages, err := messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)).ListByThread(guardianCtx, threadID, 0)
+		messages, err := testpkg.TenantQuery2(t, guardianCtx, testpkg.SetupTestDB(t), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)).ListByThread, threadID, 0)
 		require.NoError(t, err)
-		messaging.DecorateReadReceipts(guardianCtx, messaging.NewReadRepository(repos.ParentMessageRead), nil, threadID, f.chain.AccountID, messages)
+		require.NoError(t, testpkg.WithinTenantContext(t, guardianCtx, f.db, f.chain.TenantID, func(txCtx context.Context) error {
+			messaging.DecorateReadReceipts(txCtx, messaging.NewReadRepository(repos.ParentMessageRead), nil, threadID, f.chain.AccountID, messages)
+			return nil
+		}))
 		return messages[len(messages)-1].ReadByStaff
 	}
 
@@ -398,7 +401,7 @@ func TestMarkAllRead_LeavesParentReadReceipt(t *testing.T) {
 	markAllRead(t, f, adminCtx(t, f.staffAccount))
 	assert.False(t, readByStaff(), "clearing the own numbers tells the parents nothing")
 
-	_, err := f.svc.GetThread(adminCtx(t, f.staffAccount), threadID)
+	_, err := testpkg.TenantQuery1(t, adminCtx(t, f.staffAccount), f.db, f.svc.GetThread, threadID)
 	require.NoError(t, err)
 	assert.True(t, readByStaff(), "opening the conversation is a read")
 }

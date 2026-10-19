@@ -247,7 +247,7 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 
 		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 
-		stored, err := tc.resource.ArrivalScheduleService.GetStudentArrivalSchedules(testpkg.Ctx(t), student.ID)
+		stored, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), tc.db, tc.resource.ArrivalScheduleService.GetStudentArrivalSchedules, student.ID)
 		require.NoError(t, err)
 		require.Len(t, stored, 1)
 		assert.True(t, stored[0].InheritsClassTime(),

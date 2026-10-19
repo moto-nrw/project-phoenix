@@ -2,6 +2,9 @@ package owners
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -27,5 +30,13 @@ func (s schoolSettingsStore) FindSettings(ctx context.Context, schoolID int64) (
 }
 
 func (s schoolSettingsStore) UpdateSettings(ctx context.Context, schoolID int64, update func(string) (string, error)) error {
-	return s.schools.UpdateSchoolSettings(ctx, schoolID, update)
+	if schoolID <= 0 {
+		return tenant.ErrTenantRequired
+	}
+	if id, err := tenant.TenantFromContext(ctx); err == nil && id.Int64() != schoolID {
+		return fmt.Errorf("school settings: school does not match caller")
+	}
+	return tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+		return s.schools.UpdateSchoolSettings(adminCtx, schoolID, update)
+	})
 }

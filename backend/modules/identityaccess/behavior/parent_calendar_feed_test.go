@@ -16,7 +16,7 @@ import (
 func TestNativeParentFeedConcurrentCreationKeepsOneWinner(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	feeds, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	feeds, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	account := testpkg.CreateTestAccount(t, db, "parent-feed-race")
 	ctx := testpkg.Ctx(t)
@@ -63,7 +63,7 @@ func TestNativeParentFeedConcurrentCreationKeepsOneWinner(t *testing.T) {
 func TestNativeParentFeedRotationUsesAmbientTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	feeds, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	feeds, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	account := testpkg.CreateTestAccount(t, db, "parent-feed-rollback")
 	ctx := testpkg.Ctx(t)

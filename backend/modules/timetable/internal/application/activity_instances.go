@@ -9,7 +9,7 @@ import (
 )
 
 func (s *Service) FindActivityInstance(ctx context.Context, id int64) (result domain.ActivityInstance, err error) {
-	err = s.run("find_activity_instance", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_activity_instance", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, findErr := s.store.FindActivityInstance(ctx, id)
 		stats.Add(queryStats)
 		if findErr != nil {
@@ -25,7 +25,7 @@ func (s *Service) FindActivityInstance(ctx context.Context, id int64) (result do
 }
 
 func (s *Service) ListActivityInstances(ctx context.Context, filter domain.ActivityInstanceFilter) (result []domain.ActivityInstance, err error) {
-	err = s.run("list_activity_instances", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_activity_instances", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListActivityInstances(ctx, filter)
 		stats.Add(queryStats)
 		result = values
@@ -35,7 +35,7 @@ func (s *Service) ListActivityInstances(ctx context.Context, filter domain.Activ
 }
 
 func (s *Service) MaxActivityInstanceID(ctx context.Context) (result int64, err error) {
-	err = s.run("max_activity_instance_id", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "max_activity_instance_id", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, queryStats, findErr := s.store.MaxActivityInstanceID(ctx)
 		stats.Add(queryStats)
 		result = value
@@ -45,7 +45,7 @@ func (s *Service) MaxActivityInstanceID(ctx context.Context) (result int64, err 
 }
 
 func (s *Service) CountActivityInstances(ctx context.Context, before *string) (result int, err error) {
-	err = s.run("count_activity_instances", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "count_activity_instances", func(ctx context.Context, stats *domain.OperationStats) error {
 		count, queryStats, countErr := s.store.CountActivityInstances(ctx, before)
 		stats.Add(queryStats)
 		result = count
@@ -55,7 +55,7 @@ func (s *Service) CountActivityInstances(ctx context.Context, before *string) (r
 }
 
 func (s *Service) OldestActivityInstanceBefore(ctx context.Context, before *string) (result *string, err error) {
-	err = s.run("oldest_activity_instance", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "oldest_activity_instance", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, queryStats, findErr := s.store.OldestActivityInstanceBefore(ctx, before)
 		stats.Add(queryStats)
 		result = value

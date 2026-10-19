@@ -237,14 +237,16 @@ type Transaction interface {
 	// in context.
 	RunWrite(context.Context, func(context.Context) error) error
 	// RunRead joins the caller's transaction, else opens a tenant
-	// transaction, else an admin transaction for tenantless readers.
+	// transaction. A missing school is an error.
 	RunRead(context.Context, func(context.Context) error) error
 	// RunPlatform joins the caller's transaction when one is active and
-	// otherwise runs on the root connection. Operator rows are platform-wide
+	// otherwise opens an explicit administrative transaction. Operator rows are platform-wide
 	// and carry no tenant, so no tenant transaction is opened for them; the
 	// operator flows open their own administrative transaction where several
 	// writes must commit together.
 	RunPlatform(context.Context, func(context.Context) error) error
+	// RunAdmin is the explicit operator/cross-school worker boundary.
+	RunAdmin(context.Context, func(context.Context) error) error
 }
 
 type Observation struct {

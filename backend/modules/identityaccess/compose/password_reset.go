@@ -34,7 +34,7 @@ func newPasswordReset(auth *application.AccountAuthentication, store *postgres.S
 	attach := sessions.TenantRuntime
 	var delivery identityPorts.PasswordResetDelivery
 	if deps.DeliveryFor != nil {
-		delivery = deps.DeliveryFor(application.NewPasswordResetDeliveryRecords(store, attach))
+		delivery = deps.DeliveryFor(application.NewPasswordResetDeliveryRecords(store, attach, tenantRuntime{attach: attach, runner: newTransactionRunner()}))
 	}
 	if delivery == nil || deps.Passwords == nil {
 		return nil, errors.New("identity access compose: every password reset dependency is required")

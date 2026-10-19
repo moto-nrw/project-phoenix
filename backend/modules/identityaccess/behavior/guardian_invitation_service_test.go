@@ -301,7 +301,7 @@ func TestGuardianInvitationService_Accept_HappyPath(t *testing.T) {
 	assert.NotNil(t, updated.AcceptedAt, "invitation should be marked accepted")
 
 	// Profile must point at the new account.
-	updatedProfile, err := env.repos.GuardianProfile.FindByID(context.Background(), profile.ID)
+	updatedProfile, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), env.db, env.repos.GuardianProfile.FindByID, profile.ID)
 	require.NoError(t, err)
 	require.NotNil(t, updatedProfile.AccountID, "guardian_profile.account_id should be linked")
 	assert.Equal(t, account.ID, *updatedProfile.AccountID)
@@ -701,7 +701,7 @@ func createEnrollmentAwaitingGuardian(t *testing.T, env *guardianTestEnv, email 
 
 func requireGuardianEnrollmentClaimed(t *testing.T, env *guardianTestEnv, requestID, accountID int64) {
 	t.Helper()
-	linkedRequest, err := env.reposEnrollment.Enrollment().RequestByID(testpkg.Ctx(t), requestID, false)
+	linkedRequest, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), env.db, env.reposEnrollment.Enrollment().RequestByID, requestID, false)
 	require.NoError(t, err)
 	require.NotNil(t, linkedRequest.GuardianAccountID)
 	assert.Equal(t, accountID, *linkedRequest.GuardianAccountID)
@@ -832,7 +832,7 @@ func TestGuardianInvitationService_Accept_BackfillErrorDoesNotBreakAccept(t *tes
 
 	updated := testpkg.GuardianInvitationByID(t, env.db, invitation.ID)
 	assert.NotNil(t, updated.AcceptedAt, "invitation must remain accepted after backfill error")
-	unlinked, err := env.reposEnrollment.Enrollment().RequestByID(testpkg.Ctx(t), requestID, false)
+	unlinked, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), env.db, env.reposEnrollment.Enrollment().RequestByID, requestID, false)
 	require.NoError(t, err)
 	assert.Nil(t, unlinked.GuardianAccountID, "failed backfill write must be rolled back")
 }

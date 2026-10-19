@@ -22,7 +22,7 @@ type Observation = ports.Observation
 // PersistenceRuntime exposes the compose-owned ambient tenant transaction to
 // legacy School Calendar persistence adapters during the migration.
 type PersistenceRuntime struct {
-	Database func(context.Context) bun.IDB
+	Database func(context.Context) (bun.IDB, error)
 	TenantID func(context.Context) int64
 }
 
@@ -33,22 +33,12 @@ func PersistenceRuntimeFor(db *bun.DB) PersistenceRuntime {
 		panic("school calendar compose: database is required")
 	}
 	return PersistenceRuntime{
-		Database: func(ctx context.Context) bun.IDB {
-			transaction, ok := tenant.TransactionFromContext(ctx)
-			if !ok {
-				return db
+		Database: func(ctx context.Context) (bun.IDB, error) {
+			db, err := tenant.CurrentTransaction[bun.IDB](ctx)
+			if err != nil {
+				return nil, fmt.Errorf("school calendar repository: tenant is required for the ambient transaction: %w", err)
 			}
-			switch tx := transaction.(type) {
-			case bun.Tx:
-				return tx
-			case *bun.Tx:
-				if tx != nil {
-					return tx
-				}
-				return db
-			default:
-				panic(fmt.Sprintf("school calendar compose: unsupported transaction %T", transaction))
-			}
+			return db, nil
 		},
 		TenantID: tenant.FromContext,
 	}
@@ -116,22 +106,9 @@ func NewAdministration(records *schoolcalendar.Records, dependencies Administrat
 
 func newService(db *bun.DB, observe func(Observation), administration application.Administration) *application.Service {
 	store := postgres.New(func(ctx context.Context) (bun.IDB, int64, error) {
-		tenantID := tenant.FromContext(ctx)
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return db, tenantID, nil
-		}
-		switch tx := transaction.(type) {
-		case bun.Tx:
-			return tx, tenantID, nil
-		case *bun.Tx:
-			if tx != nil {
-				return tx, tenantID, nil
-			}
-			return db, tenantID, nil
-		default:
-			return nil, 0, fmt.Errorf("school calendar postgres: unsupported transaction %T", transaction)
-		}
+		id, scopeErr := tenant.TenantFromContext(ctx)
+		raw, ok := tenant.TransactionFromContext(ctx)
+		return postgres.ResolveDatabase(raw, ok, id.Int64(), scopeErr)
 	})
 	return application.New(store, func(observation Observation) {
 		observation.Err = mapError(observation.Err)
@@ -169,6 +146,9 @@ func berlinToday() string { return time.Now().In(berlinLocation).Format(schoolca
 func writeTransaction(ctx context.Context, fn func(context.Context) error) error {
 	if _, ok := tenant.TransactionFromContext(ctx); ok {
 		return fn(ctx)
+	}
+	if _, err := tenant.TenantFromContext(ctx); err != nil {
+		return fmt.Errorf("school calendar: tenant is required: %w", err)
 	}
 	return tenant.WithinCurrentTenant(ctx, fn)
 }

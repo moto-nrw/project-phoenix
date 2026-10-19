@@ -34,7 +34,11 @@ func (r *PushSubscriptionRepository) RegisterSubscription(ctx context.Context, s
 	if sub.TenantID == 0 {
 		sub.TenantID = tenant.FromContext(ctx)
 	}
-	_, err := r.database(ctx).NewInsert().
+	ambientDB1, databaseErr1 := r.database(ctx)
+	if databaseErr1 != nil {
+		return databaseErr1
+	}
+	_, err := ambientDB1.NewInsert().
 		Model((*pushSubscription)(sub)).
 		ModelTableExpr(tablePushSubscriptions).
 		On("CONFLICT (tenant_id, portal, endpoint) DO UPDATE").
@@ -66,14 +70,21 @@ func (r *PushSubscriptionRepository) DeleteParentByAccountEndpoint(ctx context.C
 }
 
 func (r *PushSubscriptionRepository) deleteByEndpointPortal(ctx context.Context, accountID int64, endpoint, portal, op string) error {
-	query := r.database(ctx).NewDelete().
+	ambientDB2, databaseErr2 := r.database(ctx)
+	if databaseErr2 != nil {
+		return databaseErr2
+	}
+	query := ambientDB2.NewDelete().
 		Model((*pushSubscription)(nil)).
 		ModelTableExpr(tablePushSubscriptions).
 		Where("account_id = ?", accountID).
 		Where("endpoint = ?", endpoint).
 		Where("portal = ?", portal)
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
+	id, scopeErr := tenant.TenantFromContext(ctx)
+	if scopeErr != nil {
+		query = query.Err(scopeErr)
+	} else {
+		query = query.Where("tenant_id = ?", id.Int64())
 	}
 	if _, err := query.Exec(ctx); err != nil {
 		return &databaseError{Op: op, Err: translateNotFound(err)}
@@ -94,7 +105,11 @@ func (r *PushSubscriptionRepository) DeleteSchoolByEndpoint(ctx context.Context,
 // school registration; without this, the row of the school a person left keeps
 // receiving her notifications. The caller must supply an admin transaction.
 func (r *PushSubscriptionRepository) DeleteSchoolByEndpointAcrossTenants(ctx context.Context, endpoint string) error {
-	db := r.database(ctx)
+	ambientDB3, databaseErr3 := r.database(ctx)
+	if databaseErr3 != nil {
+		return databaseErr3
+	}
+	db := ambientDB3
 	if _, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", endpoint); err != nil {
 		return &databaseError{Op: "lock school push subscription endpoint", Err: translateNotFound(err)}
 	}
@@ -114,7 +129,11 @@ func (r *PushSubscriptionRepository) DeleteSchoolByEndpointAcrossTenants(ctx con
 // matches the snapshot sent to the push service. A concurrent refresh or
 // account rebind changes at least one predicate and preserves the current row.
 func (r *PushSubscriptionRepository) DeleteExpiredIfUnchanged(ctx context.Context, sub *deliveryModels.PushSubscription) (bool, error) {
-	query := r.database(ctx).NewDelete().
+	ambientDB4, databaseErr4 := r.database(ctx)
+	if databaseErr4 != nil {
+		return *new(bool), databaseErr4
+	}
+	query := ambientDB4.NewDelete().
 		Model((*pushSubscription)(nil)).
 		ModelTableExpr(tablePushSubscriptions).
 		Where("id = ?", sub.ID).
@@ -124,8 +143,11 @@ func (r *PushSubscriptionRepository) DeleteExpiredIfUnchanged(ctx context.Contex
 		Where("p256dh = ?", sub.P256dh).
 		Where("auth = ?", sub.Auth).
 		Where("updated_at = ?", sub.UpdatedAt)
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
+	id, scopeErr := tenant.TenantFromContext(ctx)
+	if scopeErr != nil {
+		query = query.Err(scopeErr)
+	} else {
+		query = query.Where("tenant_id = ?", id.Int64())
 	}
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -142,7 +164,11 @@ func (r *PushSubscriptionRepository) DeleteExpiredIfUnchanged(ctx context.Contex
 // binding for an endpoint across tenants. The caller must supply an admin
 // transaction because a parent device can be linked to several schools.
 func (r *PushSubscriptionRepository) DeleteParentByEndpoint(ctx context.Context, endpoint string) error {
-	db := r.database(ctx)
+	ambientDB5, databaseErr5 := r.database(ctx)
+	if databaseErr5 != nil {
+		return databaseErr5
+	}
+	db := ambientDB5
 	if _, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", endpoint); err != nil {
 		return &databaseError{Op: "lock parent push subscription endpoint", Err: translateNotFound(err)}
 	}
@@ -180,7 +206,11 @@ func (r *PushSubscriptionRepository) DeleteParentByAccountID(ctx context.Context
 }
 
 func (r *PushSubscriptionRepository) deleteByAccountPortal(ctx context.Context, accountID int64, portal, op string) error {
-	_, err := r.database(ctx).NewDelete().
+	ambientDB6, databaseErr6 := r.database(ctx)
+	if databaseErr6 != nil {
+		return databaseErr6
+	}
+	_, err := ambientDB6.NewDelete().
 		TableExpr(tablePushSubscriptions).
 		Where("account_id = ?", accountID).
 		Where(pushPortalFilter, portal).
@@ -198,7 +228,11 @@ func (r *PushSubscriptionRepository) DeleteByTokenFamilyID(ctx context.Context, 
 	if familyID == "" {
 		return nil
 	}
-	_, err := r.database(ctx).NewDelete().
+	ambientDB7, databaseErr7 := r.database(ctx)
+	if databaseErr7 != nil {
+		return databaseErr7
+	}
+	_, err := ambientDB7.NewDelete().
 		TableExpr(tablePushSubscriptions).
 		Where("account_id = ?", accountID).
 		Where("token_family_id = ?", familyID).
@@ -244,7 +278,11 @@ func (r *PushSubscriptionRepository) DeleteUnboundByAccountForPortal(ctx context
 }
 
 func (r *PushSubscriptionRepository) DeleteOrphanedSubscriptions(ctx context.Context) error {
-	_, err := r.database(ctx).NewDelete().
+	ambientDB8, databaseErr8 := r.database(ctx)
+	if databaseErr8 != nil {
+		return databaseErr8
+	}
+	_, err := ambientDB8.NewDelete().
 		TableExpr(tablePushSubscriptions + ` AS "push_subscription"`).
 		Where(`"push_subscription".id IN (
 			SELECT "delivery_subscription".id
@@ -259,14 +297,19 @@ func (r *PushSubscriptionRepository) DeleteOrphanedSubscriptions(ctx context.Con
 }
 
 func (r *PushSubscriptionRepository) deleteUnboundByAccount(ctx context.Context, accountID, tenantID int64, portal, op string) error {
-	query := r.database(ctx).NewDelete().
+	ambientDB9, databaseErr9 := r.database(ctx)
+	if databaseErr9 != nil {
+		return databaseErr9
+	}
+	query := ambientDB9.NewDelete().
 		TableExpr(tablePushSubscriptions).
 		Where("account_id = ?", accountID).
 		Where("token_family_id = ?", "").
 		Where(pushPortalFilter, portal)
-	if tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
+	if tenantID <= 0 {
+		return tenant.ErrTenantRequired
 	}
+	query = query.Where("tenant_id = ?", tenantID)
 	if _, err := query.Exec(ctx); err != nil {
 		return &databaseError{Op: op, Err: translateNotFound(err)}
 	}
@@ -281,11 +324,15 @@ func (r *PushSubscriptionRepository) deleteUnboundByAccount(ctx context.Context,
 // delivery-time authorization check, not a convenience filter: a subscription
 // must stop receiving pushes the moment the account is deactivated or its
 // mapping to this school ends, and that has to hold for every finder equally.
-func (r *PushSubscriptionRepository) staffSubscriptionQuery(ctx context.Context, subs *[]*pushSubscription, portals ...string) *bun.SelectQuery {
+func (r *PushSubscriptionRepository) staffSubscriptionQuery(ctx context.Context, subs *[]*pushSubscription, portals ...string) (*bun.SelectQuery, error) {
 	if len(portals) == 0 {
 		portals = []string{deliveryModels.PushPortalStaff}
 	}
-	query := r.database(ctx).NewSelect().
+	db, err := r.database(ctx)
+	if err != nil {
+		return nil, err
+	}
+	query := db.NewSelect().
 		Model(subs).
 		ModelTableExpr(viewPushSubscriptions+` AS "push_subscription"`).
 		Where(`"push_subscription".portal IN (?)`, bun.List(portals)).
@@ -293,13 +340,17 @@ func (r *PushSubscriptionRepository) staffSubscriptionQuery(ctx context.Context,
 		Where(`"push_subscription".tenant_active`).
 		Where(`"push_subscription".has_staff_role`)
 
-	return withTenantFilter(ctx, query, "push_subscription")
+	return withTenantFilter(ctx, query, "push_subscription"), nil
 }
 
 // FindForTenantStaff returns all staff-portal subscriptions of the current tenant.
 func (r *PushSubscriptionRepository) FindForTenantStaff(ctx context.Context) ([]*deliveryModels.PushSubscription, error) {
 	var subs []*pushSubscription
-	if err := r.staffSubscriptionQuery(ctx, &subs).Scan(ctx); err != nil {
+	ambientDB1, databaseErr1 := r.staffSubscriptionQuery(ctx, &subs)
+	if databaseErr1 != nil {
+		return *new([]*deliveryModels.PushSubscription), databaseErr1
+	}
+	if err := ambientDB1.Scan(ctx); err != nil {
 		return nil, &databaseError{Op: "find staff push subscriptions", Err: translateNotFound(err)}
 	}
 	return subscriptionValues(subs), nil
@@ -317,7 +368,11 @@ func (r *PushSubscriptionRepository) FindForStaffAccounts(ctx context.Context, a
 		return nil, nil
 	}
 	var subs []*pushSubscription
-	query := r.staffSubscriptionQuery(ctx, &subs, deliveryModels.PushPortalStaff).
+	ambientDB2, databaseErr2 := r.staffSubscriptionQuery(ctx, &subs, deliveryModels.PushPortalStaff)
+	if databaseErr2 != nil {
+		return *new([]*deliveryModels.PushSubscription), databaseErr2
+	}
+	query := ambientDB2.
 		Where(`"push_subscription".account_id IN (?)`, bun.List(accountIDs))
 	if err := query.Scan(ctx); err != nil {
 		return nil, &databaseError{Op: "find staff account push subscriptions", Err: translateNotFound(err)}
@@ -337,7 +392,11 @@ func (r *PushSubscriptionRepository) FindForSchoolAccounts(ctx context.Context, 
 		return nil, nil
 	}
 	var subs []*pushSubscription
-	query := r.staffSubscriptionQuery(ctx, &subs, deliveryModels.PushPortalSchool).
+	ambientDB3, databaseErr3 := r.staffSubscriptionQuery(ctx, &subs, deliveryModels.PushPortalSchool)
+	if databaseErr3 != nil {
+		return *new([]*deliveryModels.PushSubscription), databaseErr3
+	}
+	query := ambientDB3.
 		Where(`"push_subscription".account_id IN (?)`, bun.List(accountIDs)).
 		Where(`"push_subscription".has_school_role`)
 	if err := query.Scan(ctx); err != nil {
@@ -351,7 +410,11 @@ func (r *PushSubscriptionRepository) FindForSchoolAccounts(ctx context.Context, 
 // directly or through a tenant role. This mirrors the SSE authorization scope.
 func (r *PushSubscriptionRepository) FindForTenantAdmins(ctx context.Context) ([]*deliveryModels.PushSubscription, error) {
 	var subs []*pushSubscription
-	query := r.database(ctx).NewSelect().
+	ambientDB10, databaseErr10 := r.database(ctx)
+	if databaseErr10 != nil {
+		return *new([]*deliveryModels.PushSubscription), databaseErr10
+	}
+	query := ambientDB10.NewSelect().
 		Model(&subs).
 		ModelTableExpr(viewPushSubscriptions+` AS "push_subscription"`).
 		Where(pushPortalFilter, deliveryModels.PushPortalStaff).
@@ -381,7 +444,11 @@ func (r *PushSubscriptionRepository) FindForGuardians(ctx context.Context, guard
 		return nil, nil
 	}
 	var subs []*pushSubscription
-	query := r.database(ctx).NewSelect().
+	ambientDB11, databaseErr11 := r.database(ctx)
+	if databaseErr11 != nil {
+		return *new([]*deliveryModels.PushSubscription), databaseErr11
+	}
+	query := ambientDB11.NewSelect().
 		Model(&subs).
 		ModelTableExpr(viewPushSubscriptions+` AS "push_subscription"`).
 		Where(pushPortalFilter, deliveryModels.PushPortalParent).
@@ -423,26 +490,31 @@ func subscriptionValues(rows []*pushSubscription) []*deliveryModels.PushSubscrip
 	}
 	return values
 }
-func (r *PushSubscriptionRepository) database(ctx context.Context) bun.IDB {
+func (r *PushSubscriptionRepository) database(ctx context.Context) (bun.IDB, error) {
+	if _, err := tenant.TenantFromContext(ctx); err != nil && !tenant.IsAdminTx(ctx) {
+		return nil, err
+	}
 	raw, ok := tenant.TransactionFromContext(ctx)
 	if !ok {
-		return r.DB
+		return nil, fmt.Errorf("push subscription repository: transaction is required")
 	}
 	switch tx := raw.(type) {
 	case bun.Tx:
-		return tx
+		return tx, nil
 	case *bun.Tx:
 		if tx != nil {
-			return tx
+			return tx, nil
 		}
 	}
-	panic(fmt.Sprintf("base repository: unsupported transaction type %T", raw))
+	return nil, fmt.Errorf("push subscription repository: unsupported transaction %T", raw)
 }
+
 func withTenantFilter(ctx context.Context, query *bun.SelectQuery, alias string) *bun.SelectQuery {
-	if id := tenant.FromContext(ctx); id > 0 {
-		return query.Where("?.tenant_id = ?", bun.Ident(alias), id)
+	id, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		return query.Err(err)
 	}
-	return query
+	return query.Where("?.tenant_id = ?", bun.Ident(alias), id.Int64())
 }
 func translateNotFound(err error) error {
 	if !errors.Is(err, sql.ErrNoRows) {

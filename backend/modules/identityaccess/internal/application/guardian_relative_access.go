@@ -32,9 +32,6 @@ type resolvedProfile struct {
 	created bool
 }
 
-// InviteToStudent resolves an email against existing data and either links an
-// existing account to the child, (re)sends an invitation, or queues a parent
-// request for staff approval. Tenant comes from context.
 func (l *AccountLifecycle) InviteToStudent(ctx context.Context, req domain.InviteToStudentRequest) (*domain.InviteToStudentResult, error) {
 	if req.StudentID <= 0 {
 		return nil, invalidGuardianInvitation(opGuardianInviteToStudent, fmt.Errorf("student ID is required"))
@@ -374,10 +371,6 @@ func (l *AccountLifecycle) closeSupersededApprovalRequests(ctx context.Context, 
 	return nil
 }
 
-// ApproveInvitation resolves a pending parent-initiated request: it links the
-// child and either grants access to an existing account or dispatches the
-// invitation email. A promised role upgrade that can no longer be applied
-// aborts the approval: the request stays pending so staff can reject it.
 func (l *AccountLifecycle) ApproveInvitation(ctx context.Context, invitationID, approverAccountID int64) error {
 	invitation, err := l.pendingInvitation(ctx, opGuardianInviteApprove, invitationID)
 	if err != nil {
@@ -444,8 +437,6 @@ func (l *AccountLifecycle) ApproveInvitation(ctx context.Context, invitationID, 
 	return nil
 }
 
-// RejectInvitation marks a pending parent-initiated request as rejected. No
-// access is granted. A profile created solely for this request is cleaned up.
 func (l *AccountLifecycle) RejectInvitation(ctx context.Context, invitationID, approverAccountID int64) error {
 	invitation, err := l.pendingInvitation(ctx, opGuardianInviteReject, invitationID)
 	if err != nil {
@@ -468,9 +459,6 @@ func (l *AccountLifecycle) RejectInvitation(ctx context.Context, invitationID, a
 	return nil
 }
 
-// PendingInvitationStudentID returns the child targeted by a pending approval
-// request, for the per-student authorization gate staff handlers apply
-// before approve/reject mutates anything.
 func (l *AccountLifecycle) PendingInvitationStudentID(ctx context.Context, invitationID int64) (int64, error) {
 	invitation, err := l.pendingInvitation(ctx, opGuardianInviteApprove, invitationID)
 	if err != nil {
@@ -591,9 +579,6 @@ func (l *AccountLifecycle) expireInvitations(ctx context.Context, invitations []
 	return nil
 }
 
-// ListPendingApprovalsDetailed returns the approval queue with guardian,
-// child, and requester names resolved. Name resolution is best-effort: a
-// failed batch read logs and leaves the names empty.
 func (l *AccountLifecycle) ListPendingApprovalsDetailed(ctx context.Context) ([]domain.PendingApprovalView, error) {
 	invitations, err := l.invitations.ListPendingGuardianApprovals(ctx)
 	if err != nil {
@@ -691,9 +676,6 @@ func (l *AccountLifecycle) ListPendingApprovalsDetailed(ctx context.Context) ([]
 	return views, nil
 }
 
-// RevokeAccess removes one account's link to one child. Parents may not
-// remove the primary guardian; staff may remove anyone. The account/profile
-// and sibling links are untouched.
 func (l *AccountLifecycle) RevokeAccess(ctx context.Context, req domain.RevokeAccessRequest) error {
 	return l.runtime.WithTenantTx(ctx, l.runtime.TenantID(ctx), func(txCtx context.Context) error {
 		if err := l.guardians.LockStudent(txCtx, req.StudentID); err != nil {

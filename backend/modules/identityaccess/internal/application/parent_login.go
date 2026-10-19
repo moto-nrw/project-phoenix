@@ -124,7 +124,7 @@ func (s *AccountAuthentication) isGuardianOnlyAccountInTx(ctx context.Context, a
 // replaces its session with the returned pair (#2952). An empty
 // presentedFamilyID skips the retirement.
 func (s *AccountAuthentication) SwitchTenant(ctx context.Context, accountID int64, tenantSlug, presentedFamilyID string) (string, string, error) {
-	account, found, _, err := s.store.FindLoginAccount(ctx, accountID, false)
+	account, found, _, err := findLoginAccount(ctx, s.runtime, s.store, accountID, false)
 	if err != nil || !found {
 		s.logger.Warn("switch-tenant: account not found",
 			slog.Int64("account_id", accountID),
@@ -157,6 +157,11 @@ func (s *AccountAuthentication) SwitchTenant(ctx context.Context, accountID int6
 // VerifyAccountTenantMembership reports whether the account has an active
 // mapping for the school.
 func (s *AccountAuthentication) VerifyAccountTenantMembership(ctx context.Context, accountID, tenantID int64) (bool, error) {
-	exists, _, err := s.store.HasActiveAccountTenant(ctx, accountID, tenantID)
+	var exists bool
+	err := globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error {
+		var err error
+		exists, _, err = s.store.HasActiveAccountTenant(txCtx, accountID, tenantID)
+		return err
+	})
 	return exists, err
 }

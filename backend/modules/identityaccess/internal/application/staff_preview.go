@@ -55,7 +55,7 @@ func (l *AccountLifecycle) StartStaffPreview(ctx context.Context, adminAccountID
 	err := l.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
 		var found bool
 		var err error
-		account, found, _, err = l.logins.FindLoginAccount(txCtx, targetAccountID, true)
+		account, found, _, err = findLoginAccount(txCtx, l.runtime, l.logins, targetAccountID, true)
 		if err != nil {
 			return failed(op, err)
 		}
@@ -161,15 +161,6 @@ func (l *AccountLifecycle) StartStaffPreview(ctx context.Context, adminAccountID
 	}, nil
 }
 
-// EndStaffPreview records that the admin left the preview. The signed preview
-// token IS the credential: admin, school, target and preview instance are all
-// read from its claims, never from anything the client picks. Expiry is
-// deliberately not checked: a preview left open past the access expiry must
-// still end with an audit row. Ending is one-shot per preview instance, and
-// the database is what makes it so (partial unique index over account and
-// preview id for this event type).
-//
-// Returns the previewed account id for the caller's response and logs.
 func (l *AccountLifecycle) EndStaffPreview(ctx context.Context, previewToken, ipAddress, userAgent string) (int64, error) {
 	const op = "end staff preview"
 
@@ -285,15 +276,6 @@ func newPreviewID() (string, error) {
 	return hex.EncodeToString(buf), nil
 }
 
-// ListStaffPreviewCandidates returns the staff members an admin can preview
-// at tenantID, excluding the caller. Runs inside the route's tenant
-// transaction (RLS-scoped).
-//
-// The listing carries aggregated role NAMES, and a name alone cannot tell the
-// lehrkraft SYSTEM role from a school's own custom role carrying the same
-// label. So the name check is only a prefilter: a candidate it would drop
-// gets its actual role assignments loaded and decided by the same rule the
-// start path uses, so the picker and StartStaffPreview never disagree.
 func (l *AccountLifecycle) ListStaffPreviewCandidates(ctx context.Context, tenantID, excludeAccountID int64) ([]domain.StaffPreviewCandidate, error) {
 	const op = "list staff preview candidates"
 	accounts, _, err := l.store.ListTenantAccounts(ctx, tenantID)

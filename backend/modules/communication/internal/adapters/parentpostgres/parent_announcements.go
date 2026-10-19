@@ -150,12 +150,12 @@ func (s *AnnouncementStore) Create(ctx context.Context, announcement *domain.Par
 	if announcement == nil {
 		return errors.New("create parent announcement: announcement is required")
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
 	if announcement.TenantID == 0 {
-		announcement.TenantID = tenantID
+		announcement.TenantID = scope.TenantID
 	}
 	row := announcementRow(announcement)
 	if _, err := db.NewInsert().
@@ -188,7 +188,7 @@ func (s *AnnouncementStore) FindByIDForUpdate(ctx context.Context, id int64) (*d
 }
 
 func (s *AnnouncementStore) find(ctx context.Context, id int64, lock bool) (*domain.ParentAnnouncement, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +198,7 @@ func (s *AnnouncementStore) find(ctx context.Context, id int64, lock bool) (*dom
 		ModelTableExpr(parentAnnouncementTableExpr).
 		Where(`"parent_announcement".id = ?`, id).
 		Limit(1)
-	query = withTenant(query, parentAnnouncementAlias, tenantID)
+	query = withTenant(query, parentAnnouncementAlias, scope)
 	if lock {
 		query = query.For("UPDATE")
 	}
@@ -214,7 +214,7 @@ func (s *AnnouncementStore) find(ctx context.Context, id int64, lock bool) (*dom
 // Delete removes the announcement by id; targets, options, reads, and
 // responses cascade in the database.
 func (s *AnnouncementStore) Delete(ctx context.Context, id int64) error {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
@@ -222,7 +222,7 @@ func (s *AnnouncementStore) Delete(ctx context.Context, id int64) error {
 		Model((*parentAnnouncementRow)(nil)).
 		ModelTableExpr(parentAnnouncementTableExpr).
 		Where(`"parent_announcement".id = ?`, id)
-	query = withTenant(query, parentAnnouncementAlias, tenantID)
+	query = withTenant(query, parentAnnouncementAlias, scope)
 	if _, err := query.Exec(ctx); err != nil {
 		return fmt.Errorf("delete parent announcement: %w", err)
 	}
@@ -232,7 +232,7 @@ func (s *AnnouncementStore) Delete(ctx context.Context, id int64) error {
 // ListForTenant returns the school's announcements newest-first, each with
 // its target rows attached through one batched query.
 func (s *AnnouncementStore) ListForTenant(ctx context.Context, includeInactive bool) ([]*domain.ParentAnnouncement, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -244,7 +244,7 @@ func (s *AnnouncementStore) ListForTenant(ctx context.Context, includeInactive b
 	if !includeInactive {
 		query = query.Where(`"parent_announcement".active`)
 	}
-	query = withTenant(query, parentAnnouncementAlias, tenantID)
+	query = withTenant(query, parentAnnouncementAlias, scope)
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list parent announcements for tenant: %w", err)
 	}
@@ -253,7 +253,7 @@ func (s *AnnouncementStore) ListForTenant(ctx context.Context, includeInactive b
 		value := rows[i].value()
 		announcements = append(announcements, value)
 	}
-	if err := s.attachTargets(ctx, db, tenantID, announcements); err != nil {
+	if err := s.attachTargets(ctx, db, scope.TenantID, announcements); err != nil {
 		return nil, err
 	}
 	return announcements, nil
@@ -279,7 +279,7 @@ func (s *AnnouncementStore) attachTargets(ctx context.Context, db bun.IDB, tenan
 		ModelTableExpr(parentTargetTableExpr).
 		Where(`"pat".announcement_id IN (?)`, bun.List(ids)).
 		OrderExpr(`"pat".id ASC`)
-	targetQuery = withTenant(targetQuery, "pat", tenantID)
+	targetQuery = withTenant(targetQuery, "pat", TenantScope{TenantID: tenantID})
 	if err := targetQuery.Scan(ctx); err != nil {
 		return fmt.Errorf("list parent announcement targets for tenant: %w", err)
 	}
@@ -301,7 +301,7 @@ func (s *AnnouncementStore) UpdateDraft(ctx context.Context, announcement *domai
 	if announcement == nil || announcement.ID <= 0 {
 		return errors.New("update parent announcement draft: announcement id is required")
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
@@ -325,7 +325,7 @@ func (s *AnnouncementStore) UpdateDraft(ctx context.Context, announcement *domai
 		Set("updated_at = ?", now).
 		Where(`"parent_announcement".id = ?`, announcement.ID).
 		Where(`"parent_announcement".published_at IS NULL`)
-	query = withTenant(setDeclarationColumns(query, announcement.Declaration), parentAnnouncementAlias, tenantID)
+	query = withTenant(setDeclarationColumns(query, announcement.Declaration), parentAnnouncementAlias, scope)
 	result, err := query.Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("update parent announcement draft: %w", err)
@@ -368,7 +368,7 @@ func (s *AnnouncementStore) ClearEngagement(ctx context.Context, announcementID 
 // SetPublished sets (or clears, when publishedAt is nil) the publication
 // timestamp. RLS pins the update to the current tenant.
 func (s *AnnouncementStore) SetPublished(ctx context.Context, id int64, publishedAt *time.Time) error {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
@@ -385,7 +385,7 @@ func (s *AnnouncementStore) SetPublished(ctx context.Context, id int64, publishe
 			Set("reminder_text = NULL").
 			Set("reminder_sent_at = NULL")
 	}
-	query = withTenant(query, parentAnnouncementAlias, tenantID)
+	query = withTenant(query, parentAnnouncementAlias, scope)
 	if _, err := query.Exec(ctx); err != nil {
 		return fmt.Errorf("set parent announcement published_at: %w", err)
 	}
@@ -397,7 +397,7 @@ func (s *AnnouncementStore) SetPublished(ctx context.Context, id int64, publishe
 // lock, re-reads a now non-null published_at, and returns false, so the
 // caller enqueues the opt-in e-mails only once.
 func (s *AnnouncementStore) PublishIfDraft(ctx context.Context, id int64, publishedAt time.Time) (bool, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -407,7 +407,7 @@ func (s *AnnouncementStore) PublishIfDraft(ctx context.Context, id int64, publis
 		Set("published_at = ?", publishedAt).
 		Where(`"parent_announcement".id = ?`, id).
 		Where(`"parent_announcement".published_at IS NULL`)
-	query = withTenant(query, parentAnnouncementAlias, tenantID)
+	query = withTenant(query, parentAnnouncementAlias, scope)
 	result, err := query.Exec(ctx)
 	if err != nil {
 		return false, fmt.Errorf("publish parent announcement: %w", err)
@@ -435,7 +435,7 @@ const reminderLivePredicate = `"parent_announcement".reminder_at IS NOT NULL
 // nil reminderAt removes the reminder together with its text (the CHECK
 // constraint would refuse a text without a moment anyway).
 func (s *AnnouncementStore) SetReminder(ctx context.Context, id int64, reminderAt *time.Time, reminderText *string) (bool, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -450,7 +450,7 @@ func (s *AnnouncementStore) SetReminder(ctx context.Context, id int64, reminderA
 		Set("updated_at = ?", time.Now()).
 		Where(`"parent_announcement".id = ?`, id).
 		Where(`"parent_announcement".reminder_sent_at IS NULL`)
-	query = withTenant(query, parentAnnouncementAlias, tenantID)
+	query = withTenant(query, parentAnnouncementAlias, scope)
 	result, err := query.Exec(ctx)
 	if err != nil {
 		return false, fmt.Errorf("set parent announcement reminder: %w", err)
@@ -466,7 +466,7 @@ func (s *AnnouncementStore) SetReminder(ctx context.Context, id int64, reminderA
 // due in (notBefore, dueBefore], oldest first, with targets attached. RLS and
 // the tenant filter pin the scan to the current tenant.
 func (s *AnnouncementStore) ListDueReminders(ctx context.Context, notBefore, dueBefore time.Time) ([]*domain.ParentAnnouncement, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -478,7 +478,7 @@ func (s *AnnouncementStore) ListDueReminders(ctx context.Context, notBefore, due
 		Where(`"parent_announcement".reminder_at > ?`, notBefore).
 		Where(`"parent_announcement".reminder_at <= ?`, dueBefore).
 		OrderExpr(`"parent_announcement".reminder_at ASC, "parent_announcement".id ASC`)
-	query = withTenant(query, parentAnnouncementAlias, tenantID)
+	query = withTenant(query, parentAnnouncementAlias, scope)
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list due parent announcement reminders: %w", err)
 	}
@@ -486,7 +486,7 @@ func (s *AnnouncementStore) ListDueReminders(ctx context.Context, notBefore, due
 	for i := range rows {
 		announcements = append(announcements, rows[i].value())
 	}
-	if err := s.attachTargets(ctx, db, tenantID, announcements); err != nil {
+	if err := s.attachTargets(ctx, db, scope.TenantID, announcements); err != nil {
 		return nil, err
 	}
 	return announcements, nil
@@ -497,7 +497,7 @@ func (s *AnnouncementStore) ListDueReminders(ctx context.Context, notBefore, due
 // race to an overlapping tick, to an unpublish, or to the expiry matches
 // nothing and must not send.
 func (s *AnnouncementStore) ClaimReminder(ctx context.Context, id int64, sentAt time.Time) (bool, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -508,7 +508,7 @@ func (s *AnnouncementStore) ClaimReminder(ctx context.Context, id int64, sentAt 
 		Where(`"parent_announcement".id = ?`, id).
 		Where(reminderLivePredicate, sentAt).
 		Where(`"parent_announcement".reminder_at <= ?`, sentAt)
-	query = withTenant(query, parentAnnouncementAlias, tenantID)
+	query = withTenant(query, parentAnnouncementAlias, scope)
 	result, err := query.Exec(ctx)
 	if err != nil {
 		return false, fmt.Errorf("claim parent announcement reminder: %w", err)
@@ -525,7 +525,7 @@ func (s *AnnouncementStore) ClaimReminder(ctx context.Context, id int64, sentAt 
 // suppression, which queued no delivery and must be retried after the window
 // opens without rolling back later reminders in the tenant batch.
 func (s *AnnouncementStore) ReleaseReminderClaim(ctx context.Context, id int64, sentAt time.Time) (bool, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -535,7 +535,7 @@ func (s *AnnouncementStore) ReleaseReminderClaim(ctx context.Context, id int64, 
 		Set("reminder_sent_at = NULL").
 		Where(`"parent_announcement".id = ?`, id).
 		Where(`"parent_announcement".reminder_sent_at = ?`, sentAt)
-	query = withTenant(query, parentAnnouncementAlias, tenantID)
+	query = withTenant(query, parentAnnouncementAlias, scope)
 	result, err := query.Exec(ctx)
 	if err != nil {
 		return false, fmt.Errorf("release parent announcement reminder claim: %w", err)
@@ -614,7 +614,7 @@ func (s *AnnouncementStore) ReplaceTargets(ctx context.Context, tenantID, announ
 
 // ListTargets returns an announcement's target rows.
 func (s *AnnouncementStore) ListTargets(ctx context.Context, announcementID int64) ([]*domain.ParentAnnouncementTarget, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -624,7 +624,7 @@ func (s *AnnouncementStore) ListTargets(ctx context.Context, announcementID int6
 		ModelTableExpr(parentTargetTableExpr).
 		Where(`"pat".announcement_id = ?`, announcementID).
 		OrderExpr(`"pat".id ASC`)
-	query = withTenant(query, "pat", tenantID)
+	query = withTenant(query, "pat", scope)
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list parent announcement targets: %w", err)
 	}
@@ -682,7 +682,7 @@ func (s *AnnouncementStore) ReplaceOptions(ctx context.Context, tenantID, announ
 
 // ListOptions returns a poll's options in display order.
 func (s *AnnouncementStore) ListOptions(ctx context.Context, announcementID int64) ([]*domain.ParentAnnouncementOption, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -692,7 +692,7 @@ func (s *AnnouncementStore) ListOptions(ctx context.Context, announcementID int6
 		ModelTableExpr(parentOptionTableExpr).
 		Where(`"pao".announcement_id = ?`, announcementID).
 		OrderExpr(`"pao".position ASC, "pao".id ASC`)
-	query = withTenant(query, "pao", tenantID)
+	query = withTenant(query, "pao", scope)
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list parent announcement options: %w", err)
 	}

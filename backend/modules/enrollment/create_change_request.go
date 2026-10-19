@@ -18,5 +18,8 @@ func (m *Module) InsertChangeRequest(ctx context.Context, row *ChangeRequest) er
 	if row.Diff == nil {
 		row.Diff = []byte("{}")
 	}
-	return m.transactions.RunInTx(ctx, func(ctx context.Context) error { return m.engine.InsertChangeRequest(ctx, row) })
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return err
+	}
+	return m.engine.InsertChangeRequest(ctx, row)
 }

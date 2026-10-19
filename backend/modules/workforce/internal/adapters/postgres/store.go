@@ -20,10 +20,9 @@ const (
 	tableStaffWorkSchedules   = "config.staff_work_schedules"
 )
 
-// Database resolves the connection and the tenant of the current request. A
-// zero tenant means no tenant is bound, which keeps the bootstrap and CLI
-// reads unscoped exactly as the legacy repositories were.
-type Database func(context.Context) (bun.IDB, int64, error)
+// Database resolves an existing transaction and an explicit school or
+// administrative cross-school scope.
+type Database func(context.Context) (bun.IDB, TenantScope, error)
 
 type Store struct{ database Database }
 
@@ -130,7 +129,7 @@ type staffWorkScheduleRow struct {
 // --- work-time templates ---
 
 func (s *Store) ListWorkTimeModels(ctx context.Context) ([]domain.WorkTimeModel, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -138,7 +137,7 @@ func (s *Store) ListWorkTimeModels(ctx context.Context) ([]domain.WorkTimeModel,
 	query := withTenant(db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(tableWorkTimeModels+` AS "work_time_model"`).
-		OrderExpr(`"work_time_model".name ASC`), "work_time_model", tenantID)
+		OrderExpr(`"work_time_model".name ASC`), "work_time_model", scope)
 
 	stats, err := scanAll(ctx, query, "list work-time models")
 	if err != nil {
@@ -148,7 +147,7 @@ func (s *Store) ListWorkTimeModels(ctx context.Context) ([]domain.WorkTimeModel,
 }
 
 func (s *Store) FindWorkTimeModel(ctx context.Context, id int64) (domain.WorkTimeModel, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.WorkTimeModel{}, false, domain.OperationStats{}, err
 	}
@@ -156,7 +155,7 @@ func (s *Store) FindWorkTimeModel(ctx context.Context, id int64) (domain.WorkTim
 	query := withTenant(db.NewSelect().
 		Model(row).
 		ModelTableExpr(tableWorkTimeModels+` AS "work_time_model"`).
-		Where(`"work_time_model".id = ?`, id), "work_time_model", tenantID)
+		Where(`"work_time_model".id = ?`, id), "work_time_model", scope)
 
 	found, stats, err := scanOne(ctx, query, "find work-time model")
 	if err != nil || !found {
@@ -173,7 +172,7 @@ func (s *Store) ListWorkTimeModelsByIDs(ctx context.Context, ids []int64) ([]dom
 	if len(ids) == 0 {
 		return nil, domain.OperationStats{}, nil
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -181,7 +180,7 @@ func (s *Store) ListWorkTimeModelsByIDs(ctx context.Context, ids []int64) ([]dom
 	query := withTenant(db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(tableWorkTimeModels+` AS "work_time_model"`).
-		Where(`"work_time_model".id IN (?)`, bun.List(ids)), "work_time_model", tenantID)
+		Where(`"work_time_model".id IN (?)`, bun.List(ids)), "work_time_model", scope)
 
 	stats, err := scanAll(ctx, query, "find work-time models by ids")
 	if err != nil {
@@ -233,12 +232,12 @@ func (s *Store) attachEntries(
 }
 
 func (s *Store) CreateWorkTimeModel(ctx context.Context, fields domain.WorkTimeModelFields) (domain.WorkTimeModel, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.WorkTimeModel{}, domain.OperationStats{}, err
 	}
 	row := &workTimeModelRow{
-		TenantID:           tenantID,
+		TenantID:           scope.TenantID,
 		Name:               fields.Name,
 		RotationLength:     fields.RotationLength,
 		RotationAnchorDate: calendarDate(fields.RotationAnchorDate),
@@ -261,11 +260,11 @@ func (s *Store) CreateWorkTimeModel(ctx context.Context, fields domain.WorkTimeM
 }
 
 func (s *Store) UpdateWorkTimeModel(ctx context.Context, id int64, fields domain.WorkTimeModelFields) (domain.WorkTimeModel, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.WorkTimeModel{}, false, domain.OperationStats{}, err
 	}
-	row := &workTimeModelRow{ID: id, TenantID: tenantID}
+	row := &workTimeModelRow{ID: id, TenantID: scope.TenantID}
 	query := db.NewUpdate().
 		Model(row).
 		ModelTableExpr(tableWorkTimeModels).
@@ -274,9 +273,7 @@ func (s *Store) UpdateWorkTimeModel(ctx context.Context, id int64, fields domain
 		Set("rotation_anchor_date = ?", calendarDate(fields.RotationAnchorDate)).
 		Set("updated_at = NOW()").
 		Where("id = ?", id)
-	if tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
-	}
+	query = scopeQuery(scope, query, "tenant_id = ?")
 
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -362,9 +359,7 @@ func (s *Store) reload(
 		Model(reloaded).
 		ModelTableExpr(tableWorkTimeModels+` AS "work_time_model"`).
 		Where(`"work_time_model".id = ?`, row.ID)
-	if row.TenantID > 0 {
-		query = query.Where(`"work_time_model".tenant_id = ?`, row.TenantID)
-	}
+	query = query.Where(`"work_time_model".tenant_id = ?`, row.TenantID)
 	found, readStats, err := scanOne(ctx, query, "reload work-time model")
 	stats.Add(readStats)
 	if err != nil {
@@ -381,7 +376,7 @@ func (s *Store) reload(
 }
 
 func (s *Store) DeleteWorkTimeModel(ctx context.Context, id int64) (bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
@@ -389,9 +384,7 @@ func (s *Store) DeleteWorkTimeModel(ctx context.Context, id int64) (bool, domain
 		Model((*workTimeModelRow)(nil)).
 		ModelTableExpr(tableWorkTimeModels).
 		Where("id = ?", id)
-	if tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
-	}
+	query = scopeQuery(scope, query, "tenant_id = ?")
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := query.Exec(ctx)
@@ -410,7 +403,7 @@ func (s *Store) DeleteWorkTimeModel(ctx context.Context, id int64) (bool, domain
 // --- staff schedules ---
 
 func (s *Store) CurrentStaffSchedule(ctx context.Context, staffID int64) ([]domain.StaffWorkSchedule, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -420,7 +413,7 @@ func (s *Store) CurrentStaffSchedule(ctx context.Context, staffID int64) ([]doma
 		ModelTableExpr(tableStaffWorkSchedules+` AS "staff_work_schedule"`).
 		Where("staff_id = ?", staffID).
 		Where("valid_until IS NULL").
-		OrderExpr("day_of_week ASC"), "staff_work_schedule", tenantID)
+		OrderExpr("day_of_week ASC"), "staff_work_schedule", scope)
 
 	stats, err := scanAll(ctx, query, "get current schedule")
 	if err != nil {
@@ -430,7 +423,7 @@ func (s *Store) CurrentStaffSchedule(ctx context.Context, staffID int64) ([]doma
 }
 
 func (s *Store) StaffScheduleOn(ctx context.Context, staffID int64, date string) ([]domain.StaffWorkSchedule, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -442,7 +435,7 @@ func (s *Store) StaffScheduleOn(ctx context.Context, staffID int64, date string)
 		Where("staff_id = ?", staffID).
 		Where("valid_from <= ?", value).
 		Where("(valid_until IS NULL OR valid_until > ?)", value).
-		OrderExpr("day_of_week ASC"), "staff_work_schedule", tenantID)
+		OrderExpr("day_of_week ASC"), "staff_work_schedule", scope)
 
 	stats, err := scanAll(ctx, query, "get schedule for date")
 	if err != nil {
@@ -455,7 +448,7 @@ func (s *Store) StaffSchedulesInRange(ctx context.Context, staffIDs []int64, fro
 	if len(staffIDs) == 0 {
 		return nil, domain.OperationStats{}, nil
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -466,7 +459,7 @@ func (s *Store) StaffSchedulesInRange(ctx context.Context, staffIDs []int64, fro
 		Where("staff_id IN (?)", bun.List(staffIDs)).
 		Where("valid_from <= ?", nullableDate(to)).
 		Where("(valid_until IS NULL OR valid_until > ?)", nullableDate(from)).
-		OrderExpr("staff_id ASC, day_of_week ASC"), "staff_work_schedule", tenantID)
+		OrderExpr("staff_id ASC, day_of_week ASC"), "staff_work_schedule", scope)
 
 	stats, err := scanAll(ctx, query, "get schedules for staff range")
 	if err != nil {
@@ -476,14 +469,14 @@ func (s *Store) StaffSchedulesInRange(ctx context.Context, staffIDs []int64, fro
 }
 
 func (s *Store) HasStaffScheduleHistory(ctx context.Context, staffID int64) (bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewSelect().
 		Model((*staffWorkScheduleRow)(nil)).
 		ModelTableExpr(tableStaffWorkSchedules+` AS "staff_work_schedule"`).
-		Where("staff_id = ?", staffID), "staff_work_schedule", tenantID)
+		Where("staff_id = ?", staffID), "staff_work_schedule", scope)
 
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -504,7 +497,7 @@ func (s *Store) StaffIDsWithScheduleHistory(ctx context.Context, staffIDs []int6
 		// bun renders an empty IN list as invalid SQL.
 		return result, domain.OperationStats{}, nil
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -514,7 +507,7 @@ func (s *Store) StaffIDsWithScheduleHistory(ctx context.Context, staffIDs []int6
 	query := withTenant(db.NewSelect().
 		ColumnExpr("DISTINCT staff_id").
 		TableExpr(tableStaffWorkSchedules).
-		Where("staff_id IN (?)", bun.List(staffIDs)), "", tenantID)
+		Where("staff_id IN (?)", bun.List(staffIDs)), "", scope)
 
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -536,7 +529,7 @@ func (s *Store) CloseStaffSchedules(ctx context.Context, staffIDs []int64, until
 	if len(staffIDs) == 0 {
 		return domain.OperationStats{}, nil
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -546,9 +539,7 @@ func (s *Store) CloseStaffSchedules(ctx context.Context, staffIDs []int64, until
 		Set("updated_at = ?", time.Now()).
 		Where("staff_id IN (?)", bun.List(staffIDs)).
 		Where("valid_until IS NULL")
-	if tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
-	}
+	query = scopeQuery(scope, query, "tenant_id = ?")
 
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -569,7 +560,7 @@ func (s *Store) InsertStaffSchedules(ctx context.Context, values []domain.StaffW
 	if len(values) == 0 {
 		return domain.OperationStats{}, nil
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -581,7 +572,7 @@ func (s *Store) InsertStaffSchedules(ctx context.Context, values []domain.StaffW
 			return domain.OperationStats{}, clockErr
 		}
 		rows = append(rows, staffWorkScheduleRow{
-			TenantID:           tenantID,
+			TenantID:           scope.TenantID,
 			StaffID:            value.StaffID,
 			WeekIndex:          value.WeekIndex,
 			RotationLength:     value.RotationLength,
@@ -640,14 +631,20 @@ func staffSchedulesToDomain(rows []staffWorkScheduleRow) []domain.StaffWorkSched
 	return result
 }
 
-func withTenant[Q interface{ Where(string, ...any) Q }](query Q, alias string, tenantID int64) Q {
-	if tenantID <= 0 {
+func withTenant[Q interface {
+	Where(string, ...any) Q
+	Err(error) Q
+}](query Q, alias string, scope TenantScope) Q {
+	if err := scope.Validate(); err != nil {
+		return query.Err(err)
+	}
+	if scope.AcrossSchools {
 		return query
 	}
 	if alias == "" {
-		return query.Where("tenant_id = ?", tenantID)
+		return query.Where("tenant_id = ?", scope.TenantID)
 	}
-	return query.Where(`"`+alias+`".tenant_id = ?`, tenantID)
+	return query.Where(`"`+alias+`".tenant_id = ?`, scope.TenantID)
 }
 
 func scanOne(ctx context.Context, query *bun.SelectQuery, operation string) (bool, domain.OperationStats, error) {

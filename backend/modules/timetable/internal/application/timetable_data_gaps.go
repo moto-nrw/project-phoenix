@@ -8,10 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// ListUnderstaffedInstances loads the window's planned and running blocks
-// with one read, their staff rows with a second, and returns the
-// understaffed ones with their counts. Completed and cancelled blocks are
-// history and never reported.
 func (d *timetableData) ListUnderstaffedInstances(ctx context.Context, from, to calendar.Date) ([]timetable.UnderstaffedInstance, error) {
 	instances, err := d.deps.Instances.FindByTenantAndDateRange(ctx, calendar.Date(from), calendar.Date(to))
 	if err != nil {

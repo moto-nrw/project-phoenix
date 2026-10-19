@@ -47,7 +47,7 @@ func validIDs(ids []int64) bool {
 }
 
 func (s *Service) ListOpenPresence(ctx context.Context, ids []int64) (result []int64, err error) {
-	err = s.run("list_open_presence", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "list_open_presence", func(ctx context.Context) (ports.Stats, error) {
 		if !validIDs(ids) {
 			return ports.Stats{}, errors.New("student presence: invalid student ID")
 		}
@@ -101,7 +101,7 @@ func (s *Service) CloseOpenPresence(ctx context.Context, ids []int64, at time.Ti
 }
 
 func (s *Service) LatestPresenceDate(ctx context.Context, studentID int64) (result *string, err error) {
-	err = s.run("latest_presence_date", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "latest_presence_date", func(ctx context.Context) (ports.Stats, error) {
 		if studentID <= 0 {
 			return ports.Stats{}, errors.New("student presence: invalid student ID")
 		}
@@ -113,7 +113,7 @@ func (s *Service) LatestPresenceDate(ctx context.Context, studentID int64) (resu
 }
 
 func (s *Service) CountAttendanceRecords(ctx context.Context, studentID int64) (result int, err error) {
-	err = s.run("count_attendance_records", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "count_attendance_records", func(ctx context.Context) (ports.Stats, error) {
 		if studentID <= 0 {
 			return ports.Stats{}, errors.New("student presence: invalid student ID")
 		}
@@ -125,7 +125,7 @@ func (s *Service) CountAttendanceRecords(ctx context.Context, studentID int64) (
 }
 
 func (s *Service) CountStudentVisitsForDeletion(ctx context.Context, studentID int64) (result int, err error) {
-	err = s.run("count_student_visits_for_deletion", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "count_student_visits_for_deletion", func(ctx context.Context) (ports.Stats, error) {
 		if studentID <= 0 {
 			return ports.Stats{}, errors.New("student presence: invalid student ID")
 		}
@@ -155,4 +155,11 @@ func (s *Service) LockGroupSupervisions(ctx context.Context) error {
 		}
 		return s.store.LockGroupSupervisions(ctx)
 	})
+}
+
+func (s *Service) runQuery(ctx context.Context, forUpdate bool, operation string, fn func(context.Context) (ports.Stats, error)) error {
+	if forUpdate {
+		return s.run(operation, func() (ports.Stats, error) { return fn(ctx) })
+	}
+	return s.runWrite(ctx, operation, fn)
 }

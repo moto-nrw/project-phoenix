@@ -32,13 +32,13 @@ type sweepPush struct{ PushSubscriptionCleanup }
 func (sweepPush) DeleteOrphaned(context.Context) error { return nil }
 
 // The unit of work passed in Dependencies is bound at construction: the
-// session sweep's administrative follow-up opens its transaction under it.
-// Without it the follow-up fails for want of a runtime and only logs.
+// session sweep opens every transaction under it. Without it the sweep
+// fails before modifying tokens instead of performing an unscoped pool write.
 func TestNew_BindsTheTenantRuntimeDependency(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 
-	sweep := func(deps Dependencies) string {
+	sweep := func(deps Dependencies) (string, error) {
 		var logs bytes.Buffer
 		deps.DB, deps.Observe = db, func(Observation) {}
 		deps.Sessions = &SessionDependencies{
@@ -49,10 +49,13 @@ func TestNew_BindsTheTenantRuntimeDependency(t *testing.T) {
 		module, err := New(deps)
 		require.NoError(t, err)
 		_, err = module.CleanupExpiredTokens(context.Background())
-		require.NoError(t, err)
-		return logs.String()
+		return logs.String(), err
 	}
 
-	require.Contains(t, sweep(Dependencies{}), "runtime is required")
-	require.NotContains(t, sweep(Dependencies{TenantRuntime: testpkg.TenantRuntime(t, db)}), "reconciliation failed")
+	logs, err := sweep(Dependencies{})
+	require.ErrorContains(t, err, "runtime is required")
+	require.Empty(t, logs, "no unscoped sweep or deferred reconciliation may run")
+	logs, err = sweep(Dependencies{TenantRuntime: testpkg.TenantRuntime(t, db)})
+	require.NoError(t, err)
+	require.NotContains(t, logs, "reconciliation failed")
 }

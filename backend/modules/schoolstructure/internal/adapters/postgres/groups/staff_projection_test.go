@@ -80,7 +80,7 @@ func TestGroupSubstitutionsCarryTheirStaffMembers(t *testing.T) {
 
 	// This test owns its tenant, so the substitution above is the only row
 	// the listing can see.
-	listed, err := factory.GroupSubstitution.ListWithRelations(ctx, schoolStructureCompose.HandoverQuery{})
+	listed, err := testpkg.TenantQuery1(t, ctx, db, factory.GroupSubstitution.ListWithRelations, schoolStructureCompose.HandoverQuery{})
 	require.NoError(t, err)
 	require.Len(t, listed, 1)
 	require.NotNil(t, listed[0].Group)

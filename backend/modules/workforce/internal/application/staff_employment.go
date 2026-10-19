@@ -27,10 +27,7 @@ func (e staffEmployment) read(ctx context.Context, operation string, queries int
 		if _, ok := tenant.TransactionFromContext(ctx); ok {
 			return callback(ctx)
 		}
-		if _, err := tenant.TenantFromContext(ctx); err == nil {
-			return tenant.WithinCurrentTenant(ctx, callback)
-		}
-		return tenant.WithinAdmin(ctx, callback)
+		return tenant.WithinCurrentTenant(ctx, callback)
 	})
 }
 

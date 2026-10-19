@@ -71,6 +71,7 @@ type StaffMonthCloseService interface {
 }
 
 type staffMonthCloseService struct {
+	runInTx      func(context.Context, func(context.Context) error) error
 	snapshotRepo MonthSnapshots
 	monthService WorkTimeMonthService
 	staffLister  MonthCloseStaffQuery
@@ -96,6 +97,9 @@ func NewStaffMonthCloseService(
 	}
 	for _, opt := range opts {
 		opt(service)
+	}
+	if service.runInTx != nil {
+		return &monthCloseCommands{service, service}
 	}
 	return service
 }
@@ -336,4 +340,9 @@ func (s *staffMonthCloseService) ListMonthStatus(ctx context.Context, year, mont
 		return nil, fmt.Errorf("%w: %s", ErrMonthCloseInvalid, err.Error())
 	}
 	return s.snapshotRepo.ClosedMonthSnapshots(ctx, year, month)
+}
+
+type monthCloseCommands struct {
+	StaffMonthCloseService
+	commands *staffMonthCloseService
 }

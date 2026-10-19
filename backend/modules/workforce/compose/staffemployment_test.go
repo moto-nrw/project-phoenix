@@ -208,6 +208,9 @@ func TestStaffEmploymentIsTenantScoped(t *testing.T) {
 	require.ErrorIs(t, employment.SaveStaffEmployment(otherCtx, workforce.StaffEmployment{MembershipID: staff.ID}),
 		workforce.ErrStaffEmploymentNotFound, "another school must not take over the profile, and must be told so")
 
+	_, err = employment.StaffEmployments(testpkg.WithPackageTenantRuntime(context.Background()), []int64{staff.ID})
+	require.EqualError(t, err, "tenant: tenant ID is required")
+
 	stored, err := employment.StaffEmployments(ctx, []int64{staff.ID})
 	require.NoError(t, err)
 	assert.Equal(t, "vertraulich", stored[staff.ID].StaffNotes)

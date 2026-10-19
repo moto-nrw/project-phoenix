@@ -27,7 +27,7 @@ func (s *Service) LockGroup(ctx context.Context, groupID int64) (result ports.Li
 // runs in its own, like the visit commands the takeover paths call next to it.
 func (s *Service) EndGroup(ctx context.Context, groupID int64, at time.Time) error {
 	if groupID <= 0 || at.IsZero() {
-		return s.run("end_group", func() (ports.Stats, error) {
+		return s.runWrite(ctx, "end_group", func(ctx context.Context) (ports.Stats, error) {
 			return ports.Stats{}, errors.New("student presence: invalid group end")
 		})
 	}

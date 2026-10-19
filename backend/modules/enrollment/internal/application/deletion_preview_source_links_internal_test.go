@@ -64,7 +64,7 @@ func sourceLinkPreview(counts func(context.Context, int64, *int64) (int, error))
 		CountAuditAdjustments:  func(context.Context, int64, *int64) (int, error) { return 0, nil },
 		CountBookings:          func(context.Context, []int64) (int, error) { return 0, nil },
 		CountSourceEnrollments: counts,
-		Runtime:                Runtime{TenantID: func(context.Context) int64 { return 7 }},
+		Runtime:                Runtime{Transactions: sourceLinkTransactions{}, TenantID: func(context.Context) int64 { return 7 }},
 	})
 }
 
@@ -108,4 +108,10 @@ func TestDeletionPreviewRequiresTheSourceEnrollmentCount(t *testing.T) {
 	require.ErrorContains(t, err, "source enrollment count capability is required")
 	_, err = preview.PreviewChild(context.Background(), 5, 12)
 	require.ErrorContains(t, err, "source enrollment count capability is required")
+}
+
+type sourceLinkTransactions struct{}
+
+func (sourceLinkTransactions) RunInTx(ctx context.Context, fn func(context.Context) error) error {
+	return fn(ctx)
 }

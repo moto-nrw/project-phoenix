@@ -8,7 +8,7 @@ import (
 )
 
 func (s *Service) FindStudentEnrollment(ctx context.Context, id int64) (result domain.StudentEnrollment, err error) {
-	err = s.run("find_student_enrollment", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_student_enrollment", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, findErr := s.store.FindStudentEnrollment(ctx, id)
 		stats.Add(queryStats)
 		if findErr != nil {
@@ -24,7 +24,7 @@ func (s *Service) FindStudentEnrollment(ctx context.Context, id int64) (result d
 }
 
 func (s *Service) ListStudentEnrollments(ctx context.Context, filter domain.StudentEnrollmentFilter) (result []domain.StudentEnrollment, err error) {
-	err = s.run("list_student_enrollments", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_student_enrollments", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListStudentEnrollments(ctx, filter)
 		stats.Add(queryStats)
 		result = values

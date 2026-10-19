@@ -29,7 +29,7 @@ func TestValidateSessionTokens(t *testing.T) {
 	require.NotNil(t, service, "the composed module validates session hand-offs")
 	signer, err := sessiontoken.NewTokenAuthWithDurations(config.JWTSecret, config.JWTExpiry, config.JWTRefreshExpiry)
 	require.NoError(t, err)
-	sessions, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	sessions, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	for _, portal := range []string{"tenant", "parent", "school", "platform"} {

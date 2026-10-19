@@ -218,7 +218,7 @@ func TestGroupSubstitutionsAreTenantIsolated(t *testing.T) {
 	require.Len(t, listed, 1)
 	assert.Equal(t, local.ID, listed[0].ID)
 
-	explicitForeign, err := capability.ListGroupSubstitutions(ctx, workforce.GroupSubstitutionFilter{TenantID: foreignTenantID})
+	explicitForeign, err := capability.ListGroupSubstitutions(ctx, workforce.GroupSubstitutionFilter{TenantID: &foreignTenantID})
 	require.NoError(t, err)
 	assert.Empty(t, explicitForeign, "an explicit tenant predicate never widens the ambient tenant")
 
