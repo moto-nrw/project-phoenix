@@ -5,11 +5,10 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -43,7 +42,7 @@ func NewScheduleReviews(db *bun.DB, observe func(Observation), deps ScheduleRevi
 	if err != nil {
 		return nil, err
 	}
-	queries := application.NewExceptionQueryService(postgres.New(carePlanDatabase(db)), observe)
+	queries := application.NewExceptionQueryService(postgres.New(postgres.CarePlanDatabase(db)), observe)
 	return application.NewScheduleReviews(application.ScheduleReviewDependencies{RunInTx: tenant.NewTransactionRunner().RunInTx,
 		Requests: requests, Schedules: application.NewScheduleReviewSchedules(queries),
 		People: deps.People, Bookings: deps.Bookings, Classes: deps.Classes, Scope: deps.Scope,

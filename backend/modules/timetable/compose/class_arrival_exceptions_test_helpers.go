@@ -14,17 +14,17 @@ import (
 
 // classArrivalExceptionRepository serves the retained contract over Timetable (#3220).
 type classArrivalExceptionRepository struct {
-	store *postgres.Store
+	Store *postgres.Store
 }
 
 // NewClassArrivalExceptionRepository binds Timetable-owned education.class_arrival_exceptions.
 func NewClassArrivalExceptionRepository(db *bun.DB) ports.ClassArrivalExceptionRecords {
-	return classArrivalExceptionRepository{store: postgres.New(databaseRuntime(db))}
+	return classArrivalExceptionRepository{Store: postgres.New(postgres.DatabaseRuntime(db))}
 }
 
 // Upsert replaces the exception of one class and date.
 func (r classArrivalExceptionRepository) Upsert(ctx context.Context, row *schedule.ClassArrivalException) error {
-	if err := (transaction{}).RunWrite(ctx, false, func(txCtx context.Context) error { return r.store.UpsertClassArrivalException(txCtx, row) }); err != nil {
+	if err := (transaction{}).RunWrite(ctx, false, func(txCtx context.Context) error { return r.Store.UpsertClassArrivalException(txCtx, row) }); err != nil {
 		return &domain.StoreError{Op: "upsert class arrival exception", Err: postgres.TranslateNotFound(err)}
 	}
 	return nil

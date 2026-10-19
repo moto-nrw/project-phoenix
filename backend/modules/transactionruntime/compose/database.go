@@ -1,10 +1,9 @@
 package compose
 
 import (
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime/internal/adapters/database"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Database is the one database value the composition roots hold: the opened
@@ -36,10 +35,7 @@ func OpenDatabase() (Database, error) {
 // OpenServeDatabase opens the least-privilege phoenix_auth pool of the HTTP
 // server with the tenant unit of work and reports lock waits to its observer.
 func OpenServeDatabase() (Database, error) {
-	return openDatabase(OpenServePool, func(pool *bun.DB) (Database, error) {
-		ObserveLockWaits(pool)
-		return NewDatabase(pool)
-	})
+	return openDatabase(OpenServePool, database.ObservedBinder(NewDatabase, ObserveLockWaits))
 }
 
 // OpenDemoDatabase opens the standing demo's restricted pool with its unit of

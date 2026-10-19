@@ -6,28 +6,25 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanBindingPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -197,14 +194,14 @@ func (d IdentityAccountDirectory) AccountEmail(ctx context.Context, accountID in
 func StaffMessageIdentity(accounts identityaccess.StaffAccountQueries) peopleCompose.StaffMessageIdentity {
 	return peopleCompose.StaffMessageIdentity{
 		ActiveSchoolAccounts: accounts.ListActiveAccountIDsForTenant,
-		RoleClasses: func(ctx context.Context, tenantID int64, accountIDs []int64) ([]peopleCompose.StaffMessageRole, error) {
+		RoleClasses: func(ctx context.Context, tenantID int64, accountIDs []int64) ([]peoplePorts.StaffMessageRole, error) {
 			rows, err := accounts.ClassifySchoolRoles(ctx, tenantID, accountIDs)
 			if err != nil {
 				return nil, err
 			}
-			result := make([]peopleCompose.StaffMessageRole, 0, len(rows))
+			result := make([]peoplePorts.StaffMessageRole, 0, len(rows))
 			for _, row := range rows {
-				result = append(result, peopleCompose.StaffMessageRole{AccountID: row.AccountID, IsAdmin: row.IsAdmin, IsLehrkraft: row.IsLehrkraft})
+				result = append(result, peoplePorts.StaffMessageRole{AccountID: row.AccountID, IsAdmin: row.IsAdmin, IsLehrkraft: row.IsLehrkraft})
 			}
 			return result, nil
 		},
@@ -260,14 +257,14 @@ func (d ParentPortalDirectory) ListParentPortalPersons(ctx context.Context, ids 
 // school ports from the Organisation & Tenancy owner.
 type ParentPortalSchools struct{ Schools organizationtenancy.Query }
 
-func (d ParentPortalSchools) ListParentPortalSchools(ctx context.Context, ids []int64) ([]carePlanCompose.ParentPortalSchool, error) {
+func (d ParentPortalSchools) ListParentPortalSchools(ctx context.Context, ids []int64) ([]carePlanBindingPorts.ParentPortalSchool, error) {
 	schools, err := d.Schools.ListSchoolsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]carePlanCompose.ParentPortalSchool, 0, len(schools))
+	result := make([]carePlanBindingPorts.ParentPortalSchool, 0, len(schools))
 	for _, school := range schools {
-		result = append(result, carePlanCompose.ParentPortalSchool{
+		result = append(result, carePlanBindingPorts.ParentPortalSchool{
 			ID: school.ID, Name: school.Name, Slug: school.Slug, Subdomain: school.Subdomain,
 			Active: school.Active, Hidden: school.Hidden, Deleted: school.IsDeleted(),
 		})

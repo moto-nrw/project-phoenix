@@ -6,29 +6,21 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // The Workforce deletions of the nightly cleanup. Each runs on the tenant
 // transaction of the school in context.
 
 // NewRetiredStaffRecords erases a retired staff member's records (#3963).
-func NewRetiredStaffRecords() workforce.RetiredStaffRecords { return postgres.New(retentionDatabase) }
+func NewRetiredStaffRecords() workforce.RetiredStaffRecords {
+	return postgres.New(postgres.RetentionDatabase)
+}
 
 // NewCleanupRetention composes the staff cleanup-job retention of the nightly
 // cleanup (#4046). It runs on the tenant transaction of the school in
 // context and needs no object store.
 func NewCleanupRetention() workforce.CleanupRetention {
-	return application.NewCleanupRetention(postgres.New(retentionDatabase))
-}
-
-// retentionDatabase is the transaction of the school in context; without one
-// the retention refuses to run instead of falling back to a pool.
-func retentionDatabase(ctx context.Context) (bun.IDB, postgres.TenantScope, error) {
-	id, err := tenant.TenantFromContext(ctx)
-	raw, ok := tenant.TransactionFromContext(ctx)
-	return postgres.ResolveDatabase(raw, ok, id.Int64(), err, false)
+	return application.NewCleanupRetention(postgres.New(postgres.RetentionDatabase))
 }
 
 // SickNoteRetentionWindow resolves the staff sick note retention window of
@@ -44,5 +36,5 @@ func NewSickNoteRetention(window SickNoteRetentionWindow) workforce.SickNoteRete
 	if window == nil {
 		panic("workforce compose: sick note retention requires settings")
 	}
-	return application.NewSickNoteRetention(postgres.New(retentionDatabase), window)
+	return application.NewSickNoteRetention(postgres.New(postgres.RetentionDatabase), window)
 }

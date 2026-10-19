@@ -11,8 +11,6 @@ package compose
 import (
 	"context"
 	"errors"
-	"fmt"
-	"io"
 	"log/slog"
 	"time"
 
@@ -20,10 +18,7 @@ import (
 	apiDocuments "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/documents"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -34,9 +29,7 @@ type Observation = ports.Observation
 // ObjectBackend is the object store the module writes bytes to, keyed
 // {kind}/{tenant}/{stored name} below the uploads root the root supplies.
 type ObjectBackend interface {
-	SavePrivate(ctx context.Context, kind string, tenantID int64, storedName string, source io.Reader) (int64, error)
-	OpenPrivate(ctx context.Context, kind string, tenantID int64, storedName string) (ports.Object, error)
-	RemovePrivate(ctx context.Context, kind string, tenantID int64, storedName string) error
+	application.ObjectBackend
 }
 
 const (
@@ -49,15 +42,10 @@ const (
 )
 
 // Identity is the Identity & Access surface the module consumes.
-type Identity interface {
-	identityaccess.SchoolMembershipQuery
-	identityaccess.SchoolRoleQuery
-}
+type Identity interface{ application.Identity }
 
 // People is the People Directory surface the module consumes.
-type People interface {
-	ListPersonsByAccount(context.Context, []int64) ([]peopledirectory.Person, error)
-}
+type People interface{ application.People }
 
 // Settings is the Settings Platform surface the module consumes.
 type Settings = ports.Settings
@@ -115,13 +103,13 @@ func NewAttachmentPurger(dependencies AttachmentPurgerDependencies) (filestorage
 	if dependencies.DB == nil || dependencies.Objects == nil || dependencies.Observe == nil {
 		return nil, errors.New("file storage compose: all dependencies are required")
 	}
-	runtime := databaseRuntime(dependencies.DB)
+	runtime := postgres.DatabaseRuntime(dependencies.DB)
 	return application.NewPublicPurger(application.NewAttachmentPurger(application.AttachmentPurgerDependencies{
 		Attachments:        postgres.NewAttachmentStore(runtime),
 		AttachmentCleanups: postgres.NewAttachmentCleanupStore(runtime),
-		AttachmentObjects:  objectStore{kind: attachmentObjectKind, backend: dependencies.Objects},
+		AttachmentObjects:  application.ObjectStore{Kind: attachmentObjectKind, Backend: dependencies.Objects},
 		Tx:                 transaction{},
-		Observe:            observer(dependencies.Observe),
+		Observe:            application.Observer(dependencies.Observe),
 		Now:                dependencies.Now,
 	})), nil
 }
@@ -134,59 +122,58 @@ func New(dependencies Dependencies) (*filestorage.Module, error) {
 		dependencies.Observe == nil || dependencies.Logger == nil || dependencies.HasPermission == nil {
 		return nil, errors.New("file storage compose: all dependencies are required")
 	}
-	runtime := databaseRuntime(dependencies.DB)
+	runtime := postgres.DatabaseRuntime(dependencies.DB)
 	service := application.New(application.Dependencies{
 		Folders:            postgres.NewFolderStore(runtime),
 		Files:              postgres.NewFileStore(runtime),
 		FileCleanups:       postgres.NewFileCleanupStore(runtime),
 		Attachments:        postgres.NewAttachmentStore(runtime),
 		AttachmentCleanups: postgres.NewAttachmentCleanupStore(runtime),
-		FileObjects:        objectStore{kind: fileObjectKind, backend: dependencies.Objects},
-		AttachmentObjects:  objectStore{kind: attachmentObjectKind, backend: dependencies.Objects},
-		Identity:           identity{module: dependencies.Identity},
-		People:             people{query: dependencies.People},
+		FileObjects:        application.ObjectStore{Kind: fileObjectKind, Backend: dependencies.Objects},
+		AttachmentObjects:  application.ObjectStore{Kind: attachmentObjectKind, Backend: dependencies.Objects},
+		Identity:           application.IdentityAdapter{Module: dependencies.Identity},
+		People:             application.PeopleAdapter{Query: dependencies.People},
 		Settings:           dependencies.Settings,
 		Events:             dependencies.Events,
 		Announcements:      dependencies.Announcements,
 		GuardianAudience:   dependencies.GuardianAudience,
 		Tx:                 transaction{},
 		StoredNames:        apiDocuments.NewStoredName,
-		Observe:            observer(dependencies.Observe),
+		Observe:            application.Observer(dependencies.Observe),
 		Logger:             dependencies.Logger,
 		Now:                dependencies.Now,
 	})
 	return filestorage.NewModule(application.NewPublicEngine(service, dependencies.HasPermission)), nil
 }
 
-// observer reports every observation with the public error.
-func observer(observe func(Observation)) func(Observation) {
-	return func(observation Observation) {
-		observation.Err = application.MapPublicError(observation.Err)
-		observe(observation)
-	}
+// --- tenant runtime ------------------------------------------------------------
+
+// --- object store --------------------------------------------------------------
+
+// newStoredName generates the storage name for a validated content type.
+// NewDocumentCoordinator constructs the existing object-store adapter.
+func NewDocumentCoordinator(kind string, backend apiDocuments.Objects, store apiDocuments.Store, logger *slog.Logger) *apiDocuments.Coordinator {
+	return &apiDocuments.Coordinator{Kind: kind, Backend: backend, Store: store, Logger: logger}
 }
 
-func databaseRuntime(db *bun.DB) postgres.Database { return tenant.CurrentTenantTransaction[bun.IDB] }
+// --- foreign facts -------------------------------------------------------------
 
-// --- tenant runtime ------------------------------------------------------------
+// NewUploadCleanup uses the existing file cleanup outbox, partitioned by kind.
+func NewUploadCleanup(db *bun.DB, kind filestorage.UploadCleanupKind) *filestorage.UploadCleanup {
+	cleanup := application.NewUploadCleanup(postgres.NewUploadCleanupStore(postgres.DatabaseRuntime(db), string(kind)), transaction{}, string(kind))
+	return filestorage.NewUploadCleanup(cleanup.Queue, cleanup.Sweep)
+}
 
 type transaction struct{}
 
 func (transaction) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
 
 func (transaction) RunWrite(ctx context.Context, callback func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return callback(ctx)
-	}
-	return tenant.WithinCurrentTenant(ctx, callback)
+	return postgres.TransactionRunWriteBinding(ctx, callback, tenant.WithinCurrentTenant)
 }
 
 func (transaction) RunInTenant(ctx context.Context, tenantID int64, callback func(context.Context) error) error {
-	id, err := tenant.NewTenantID(tenantID)
-	if err != nil {
-		return err
-	}
-	return tenant.WithinTenant(ctx, id, callback)
+	return postgres.TransactionRunInTenantBinding(ctx, tenantID, callback, tenant.WithinTenant)
 }
 
 func (transaction) AcquireLock(ctx context.Context, key string) error {
@@ -198,93 +185,5 @@ func (transaction) AfterCommit(ctx context.Context, fn func()) {
 }
 
 func (transaction) Detach(ctx context.Context) context.Context {
-	return context.WithoutCancel(tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx)))
-}
-
-// --- object store --------------------------------------------------------------
-
-type objectStore struct {
-	kind    string
-	backend ObjectBackend
-}
-
-func (s objectStore) Save(ctx context.Context, tenantID int64, storedName string, source io.Reader) (int64, error) {
-	return s.backend.SavePrivate(ctx, s.kind, tenantID, storedName, source)
-}
-
-func (s objectStore) Open(ctx context.Context, tenantID int64, storedName string) (ports.Object, error) {
-	return s.backend.OpenPrivate(ctx, s.kind, tenantID, storedName)
-}
-
-func (s objectStore) Remove(ctx context.Context, tenantID int64, storedName string) error {
-	return s.backend.RemovePrivate(ctx, s.kind, tenantID, storedName)
-}
-
-// newStoredName generates the storage name for a validated content type.
-// NewDocumentCoordinator constructs the existing object-store adapter.
-func NewDocumentCoordinator(kind string, backend apiDocuments.Objects, store apiDocuments.Store, logger *slog.Logger) *apiDocuments.Coordinator {
-	return &apiDocuments.Coordinator{Kind: kind, Backend: backend, Store: store, Logger: logger}
-}
-
-// --- foreign facts -------------------------------------------------------------
-
-type identity struct{ module Identity }
-
-func (i identity) HasActiveMembership(ctx context.Context, accountID int64) (bool, error) {
-	return i.module.HasActiveSchoolMembership(ctx, accountID)
-}
-
-func (i identity) ListAccountRoleIDs(ctx context.Context, accountID int64) ([]int64, error) {
-	return i.module.ListAccountRoleIDs(ctx, accountID)
-}
-
-// ListShareableRoles drops the guardian tier: parents never reach the tenant
-// portal, so a folder shared with them would be shared with nobody.
-func (i identity) ListShareableRoles(ctx context.Context) ([]domain.AudienceRole, error) {
-	roles, err := i.module.ListSchoolRoles(ctx)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]domain.AudienceRole, 0, len(roles))
-	for _, role := range roles {
-		if role == nil || role.Name == "guardian" || (role.BaseRole != nil && *role.BaseRole == "guardian") {
-			continue
-		}
-		result = append(result, domain.AudienceRole{ID: role.ID, Name: role.Name})
-	}
-	return result, nil
-}
-
-func (i identity) ListActiveAccountIDs(ctx context.Context) ([]int64, error) {
-	return i.module.ListActiveSchoolAccountIDs(ctx)
-}
-
-type people struct{ query People }
-
-func (p people) PersonNames(ctx context.Context, accountIDs []int64) (map[int64]ports.PersonName, error) {
-	persons, err := p.query.ListPersonsByAccount(ctx, accountIDs)
-	if err != nil {
-		return nil, fmt.Errorf("load persons by account: %w", err)
-	}
-	newest := make(map[int64]peopledirectory.Person, len(persons))
-	for _, person := range persons {
-		if person.AccountID == nil {
-			continue
-		}
-		current, found := newest[*person.AccountID]
-		if !found || person.UpdatedAt.After(current.UpdatedAt) {
-			newest[*person.AccountID] = person
-		}
-	}
-	result := make(map[int64]ports.PersonName, len(newest))
-	for accountID, person := range newest {
-		result[accountID] = ports.PersonName{FirstName: person.FirstName, LastName: person.LastName}
-	}
-	return result, nil
-}
-
-// NewUploadCleanup uses the existing file cleanup outbox, partitioned by kind.
-func NewUploadCleanup(db *bun.DB, kind filestorage.UploadCleanupKind) *filestorage.UploadCleanup {
-	cleanup := application.NewUploadCleanup(postgres.NewUploadCleanupStore(databaseRuntime(db), string(kind)), transaction{}, string(kind))
-	return filestorage.NewUploadCleanup(cleanup.Queue, cleanup.Sweep)
+	return postgres.DetachedContext(ctx)
 }

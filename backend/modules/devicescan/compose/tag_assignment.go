@@ -24,19 +24,11 @@ func NewTagAssignments(users PersonDirectory, logger *slog.Logger, principal dev
 }
 
 func (p tagPeople) FindStaff(ctx context.Context, staffID int64) (*ports.StaffMember, error) {
-	staff, err := p.GetStaffByID(ctx, staffID)
-	if err != nil || staff == nil {
-		return nil, err
-	}
-	return &ports.StaffMember{ID: staff.ID, PersonID: staff.PersonID}, nil
+	return application.FindStaffBinding(ctx, p.PersonDirectory, staffID)
 }
 
 func (p tagPeople) FindPerson(ctx context.Context, personID int64) (*ports.Person, error) {
-	person, err := p.Get(ctx, personID)
-	if err != nil || person == nil {
-		return nil, err
-	}
-	return &ports.Person{ID: person.ID, FirstName: person.FirstName, LastName: person.LastName, HasTag: person.TagID != nil, TagID: person.TagID}, nil
+	return application.FindPersonBinding(ctx, p.PersonDirectory, personID)
 }
 
 func (p tagPeople) LinkTag(ctx context.Context, personID int64, tag string) error {
@@ -50,9 +42,5 @@ func (p tagPeople) UnlinkTag(ctx context.Context, personID int64) error {
 type tagPeople struct{ people }
 
 func (p tagPeople) TeacherRole(ctx context.Context, staffID int64) (string, string, bool, error) {
-	teacher, err := p.GetTeacherByStaffID(ctx, staffID)
-	if err != nil || teacher == nil {
-		return "", "", false, err
-	}
-	return teacher.Role, teacher.Specialization, true, nil
+	return application.TeacherRoleBinding(ctx, p.PersonDirectory, staffID)
 }

@@ -3,11 +3,10 @@ package compose
 import (
 	"errors"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application"
+	"github.com/uptrace/bun"
 )
 
 // NewStaffEmployment composes the Workforce owner of the staff employment
@@ -23,7 +22,7 @@ func NewStaffEmployment(db *bun.DB, observe func(Observation)) (workforce.StaffE
 	if observe == nil {
 		observe = func(Observation) {}
 	}
-	return application.NewStaffEmployment(postgres.New(databaseRuntime(db)), observe), nil
+	return application.NewStaffEmployment(postgres.New(postgres.DatabaseRuntime(db)), observe), nil
 }
 
 // MustNewStaffEmployment composes the staff employment owner without

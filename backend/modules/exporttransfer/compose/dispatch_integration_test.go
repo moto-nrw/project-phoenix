@@ -9,10 +9,9 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer"
-	"github.com/moto-nrw/project-phoenix/tenant"
-
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/adapters/sftp"
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/adapters/sftp/sftptest"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -85,7 +84,7 @@ func TestFailedTransferIsTerminalAndNeverReplacesThePreviousFile(t *testing.T) {
 	assert.Equal(t, "terminal", state)
 	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		var token string
-		tx, _, err := database()(txCtx)
+		tx, _, err := retainedDatabase()(txCtx)
 		if err != nil {
 			return err
 		}
@@ -202,7 +201,7 @@ func auditedTransferRequest(t *testing.T, db *bun.DB) exporttransfer.Request {
 	request := transferRequest()
 	request.ActorAccountID = account.ID
 	request.PrepareFile = func(ctx context.Context) (string, []byte, error) {
-		tx, tenantID, err := database()(ctx)
+		tx, tenantID, err := retainedDatabase()(ctx)
 		if err != nil {
 			return "", nil, err
 		}

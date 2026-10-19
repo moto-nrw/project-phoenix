@@ -206,7 +206,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063 and by ADR 0064 (3,011 to 3,091), and by ADR 0073 (one each
 // for modules/communication and modules/schoolcalendar).
-const modulePassthroughOwnerBudgetTotal = 2974
+const modulePassthroughOwnerBudgetTotal = 2933
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -220,23 +220,23 @@ const modulePassthroughOwnerBudgetTotal = 2974
 var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/appointments": 65,
 	"modules/auditlog":     1,
-	"modules/careplan":     289,
+	"modules/careplan":     285,
 	"modules/classday":     18,
 	// Raised by ADR 0073: the composition forwards the parent announcement
 	// retention to its service.
 	"modules/communication":       72,
 	"modules/dataimport":          1,
-	"modules/delivery":            15,
+	"modules/delivery":            12,
 	"modules/devicefleet":         58,
-	"modules/devicescan":          48,
+	"modules/devicescan":          41,
 	"modules/enrollment":          35,
-	"modules/exporttransfer":      4,
+	"modules/exporttransfer":      1,
 	"modules/facilities":          18,
 	"modules/feedback":            14,
 	"modules/filestorage":         27,
-	"modules/identityaccess":      556,
+	"modules/identityaccess":      553,
 	"modules/mealplan":            15,
-	"modules/organizationtenancy": 60,
+	"modules/organizationtenancy": 42,
 	"modules/peopledirectory":     303,
 	"modules/requestreview":       17,
 	"modules/schedulerruntime":    4,
@@ -247,8 +247,8 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/schoolstructure":  70,
 	"modules/settings":         19,
 	"modules/studentpresence":  240,
-	"modules/timetable":        482,
-	"modules/workforce":        392,
+	"modules/timetable":        480,
+	"modules/workforce":        391,
 	"workflows/openroommove":   1,
 	"workflows/parentportal":   19,
 	"workflows/shiftplansync":  3,

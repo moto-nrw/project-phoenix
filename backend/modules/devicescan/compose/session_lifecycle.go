@@ -22,18 +22,10 @@ func NewSessionLifecycle(active studentpresence.Presence, presence SupervisionQu
 	if principal == nil {
 		panic("device scan composition: principal is required")
 	}
-	return application.NewSessionLifecycle(lifecycleStore{active: active, presence: presence}, lifecyclePeople{people}, principal, heartbeat, mirror, clock{now: time.Now}, logger)
+	return application.NewSessionLifecycle(lifecycleStore{active: active, presence: presence}, lifecyclePeople{people: people}, principal, heartbeat, mirror, clock{now: time.Now}, logger)
 }
 
-type SupervisionQuery interface {
-	ActiveSupervisions(context.Context, int64) ([]Supervision, error)
-}
-
-type Supervision struct {
-	StaffID int64
-	Role    string
-	Ended   bool
-}
+type SupervisionQuery interface{ devicescan.SupervisionQuery }
 
 type nativeSupervisionQuery interface {
 	QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
@@ -45,16 +37,16 @@ func NewSupervisionQuery(source nativeSupervisionQuery) SupervisionQuery {
 
 type supervisionQuery struct{ source nativeSupervisionQuery }
 
-func (q supervisionQuery) ActiveSupervisions(ctx context.Context, sessionID int64) ([]Supervision, error) {
+func (q supervisionQuery) ActiveSupervisions(ctx context.Context, sessionID int64) ([]devicescan.Supervision, error) {
 	today := calendar.TodayDate()
 	day := today.String()
 	rows, err := q.source.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{sessionID}, ActiveOn: &day})
 	if err != nil {
 		return nil, &studentpresence.OperationError{Op: "FindSupervisorsByActiveGroupID", Err: studentpresence.ErrDatabaseOperation}
 	}
-	result := make([]Supervision, 0, len(rows))
+	result := make([]devicescan.Supervision, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, Supervision{StaffID: row.StaffID, Role: row.Role, Ended: supervisionEnded(row.EndDate, today.String())})
+		result = append(result, devicescan.Supervision{StaffID: row.StaffID, Role: row.Role, Ended: supervisionEnded(row.EndDate, today.String())})
 	}
 	return result, nil
 }
@@ -90,18 +82,7 @@ func lifecycleSupervisors(rows []studentpresence.GroupSupervision) []application
 // supervisionEnded matches ActiveOn: a row is over only when end_date <= today.
 // A planned future end_date is still supervising and must stay on the kiosk roster.
 func supervisionEnded(endDate *string, today string) bool {
-	if endDate == nil {
-		return false
-	}
-	end, err := calendar.ParseDate(*endDate)
-	if err != nil {
-		return false
-	}
-	day, err := calendar.ParseDate(today)
-	if err != nil {
-		return false
-	}
-	return !day.Before(end)
+	return application.SupervisionEnded(endDate, today)
 }
 
 func (s lifecycleStore) Start(ctx context.Context, deviceID int64, command devicescan.StartSessionCommand) (application.LifecycleSession, error) {
@@ -149,15 +130,7 @@ func (s lifecycleStore) Conflict(ctx context.Context, activityID, deviceID int64
 }
 
 func (s lifecycleStore) Supervisors(ctx context.Context, sessionID int64) ([]application.LifecycleSupervisor, error) {
-	rows, err := s.presence.ActiveSupervisions(ctx, sessionID)
-	if err != nil {
-		return []application.LifecycleSupervisor{}, err
-	}
-	result := make([]application.LifecycleSupervisor, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, application.LifecycleSupervisor{StaffID: row.StaffID, Role: row.Role, Ended: row.Ended})
-	}
-	return result, nil
+	return application.LifecycleSupervisorsBinding(ctx, s.presence, sessionID)
 }
 
 func (s lifecycleStore) ReplaceSupervisors(ctx context.Context, sessionID int64, ids []int64) (application.LifecycleSession, error) {
@@ -200,15 +173,5 @@ func (s lifecycleStore) TimeoutInfo(ctx context.Context, deviceID int64) (device
 type lifecyclePeople struct{ people PersonDirectory }
 
 func (p lifecyclePeople) StaffNames(ctx context.Context, ids []int64) (map[int64]ports.Person, error) {
-	staff, err := p.people.GetStaffWithPersonByIDs(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[int64]ports.Person, len(staff))
-	for id, row := range staff {
-		if row != nil && row.Person != nil {
-			result[id] = ports.Person{ID: row.Person.ID, FirstName: row.Person.FirstName, LastName: row.Person.LastName}
-		}
-	}
-	return result, nil
+	return application.StaffNamesBinding(ctx, p.people, ids)
 }

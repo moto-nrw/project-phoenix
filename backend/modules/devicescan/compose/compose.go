@@ -8,7 +8,6 @@ package compose
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"time"
 
@@ -120,7 +119,7 @@ func New(deps Dependencies) DeviceScan {
 		Presence:   deps.Presence,
 		Rooms:      deps.Rooms,
 		Principals: deps.Principal,
-		People:     people{deps.Users},
+		People:     people{PersonDirectory: deps.Users},
 		Visits:     visits{active: deps.Active, clock: clock},
 		Sessions:   sessions{active: deps.Active, presence: deps.Presence, clock: clock},
 		Attendance: attendance{active: deps.Active},
@@ -146,11 +145,7 @@ func (c clock) Day(instant time.Time) calendar.Date { return calendar.DateFromTi
 type unitOfWork struct{}
 
 func (unitOfWork) RequireTransaction(ctx context.Context) error {
-	if _, ok := tenant.TransactionFromContext(ctx); !ok {
-		return errors.New("device scan requires a tenant transaction")
-	}
-	_, err := tenant.TenantFromContext(ctx)
-	return err
+	return application.RequireTransaction(ctx, tenant.TransactionFromContext, tenant.TenantFromContext)
 }
 
 func (unitOfWork) MarkRollback(ctx context.Context) { tenant.MarkRollback(ctx) }

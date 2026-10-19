@@ -30,8 +30,8 @@ type planSyncEnv struct {
 	deviations api.TimetableDeviationAudit
 	timetable  api.TimetableTestModule
 	shifts     workforce.Capability
-	planning   workforce.StaffShiftPlanning
-	lock       func(context.Context, int64) error
+	Planning   workforce.StaffShiftPlanning
+	Lock       func(context.Context, int64) error
 	// cascade and substitution are the workflow's two halves, bound the way
 	// the composition root binds them.
 	cascade      shiftplansync.SickCascade
@@ -118,8 +118,8 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 		deviations:   deviations,
 		timetable:    timetable,
 		shifts:       capability,
-		planning:     planning,
-		lock:         lock,
+		Planning:     planning,
+		Lock:         lock,
 		cascade:      cascade,
 		substitution: substitution,
 	}

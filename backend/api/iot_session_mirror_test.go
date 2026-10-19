@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/roots/owners"
+
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -33,7 +35,7 @@ func TestSessionStartMirrorsTenantAndWallClock(t *testing.T) {
 	resource.DeviceAuthenticator = deviceAuth.Device()
 	resource.DeviceOnlyAuthenticator = deviceAuth.DeviceOnly()
 	// Mirroring must survive a failure of the trailing best-effort response read.
-	resource.SessionLifecycle = devicescanCompose.NewSessionLifecycle(activePresence.Active, iotUnavailableMirrorSupervisions{}, NewDeviceScanPeople(activePeople.Users), active.IoT, mirror, nil, DeviceScanPrincipal)
+	resource.SessionLifecycle = devicescanCompose.NewSessionLifecycle(activePresence.Active, owners.UnavailableMirrorSupervisions{}, NewDeviceScanPeople(activePeople.Users), active.IoT, mirror, nil, DeviceScanPrincipal)
 	handler := testpkg.TenantRuntimeMiddleware(t, db)(resource.Router())
 	request := testutil.NewAuthenticatedRequest(t, "POST", "/session/start", map[string]any{
 		"activity_id": activity.ID, "room_id": room.ID, "supervisor_ids": []int64{staff.ID},

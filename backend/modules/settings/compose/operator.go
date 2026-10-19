@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	configSvc "github.com/moto-nrw/project-phoenix/modules/settings/internal/application"
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -63,34 +62,17 @@ type operatorSchoolSettings struct {
 
 // Schema passes nil permissions: operators see every setting.
 func (s *operatorSchoolSettings) Schema(ctx context.Context, schoolID int64) (json.RawMessage, error) {
-	var schema *configModel.SettingsSchema
-	err := s.runtime.WithinTenant(ctx, schoolID, func(ctx context.Context) error {
-		var schemaErr error
-		schema, schemaErr = s.settings.GetSchemaForOperator(ctx, nil)
-		return schemaErr
-	})
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(schema)
+	return configSvc.OperatorSettingSchema(ctx, schoolID, s.runtime.WithinTenant, func() configModel.SettingsService { return s.settings })
 }
 
 func (s *operatorSchoolSettings) Reveal(ctx context.Context, schoolID int64, key string) (any, error) {
-	var value any
-	err := s.runtime.WithinTenant(ctx, schoolID, func(ctx context.Context) error {
-		var resolveErr error
-		value, resolveErr = s.settings.Resolve(ctx, key)
-		return resolveErr
-	})
-	return value, err
+	return configSvc.OperatorSettingReveal(ctx, schoolID, key, s.runtime.WithinTenant, func() configModel.SettingsService { return s.settings })
 }
 
 type operatorSettingsRuntime struct{ db *bun.DB }
 
 func (r operatorSettingsRuntime) WithinTenant(ctx context.Context, schoolID int64, fn func(context.Context) error) error {
-	return tenant.WithTenantTx(ctx, r.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
-		return fn(txCtx)
-	})
+	return tenant.WithTenantTx(ctx, r.db, schoolID, configSvc.SettingContextCallback[bun.Tx](fn))
 }
 
 func (operatorSettingsRuntime) AfterCommit(ctx context.Context, fn func()) {
@@ -98,6 +80,5 @@ func (operatorSettingsRuntime) AfterCommit(ctx context.Context, fn func()) {
 }
 
 func (operatorSettingsRuntime) Today() configModel.CalendarDate {
-	today := calendar.TodayDate()
-	return configModel.NewCalendarDate(today.Year(), today.Month(), today.Day())
+	return configSvc.OperatorSettingToday()
 }

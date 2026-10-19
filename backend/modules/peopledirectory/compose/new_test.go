@@ -20,7 +20,7 @@ func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) *p
 	if len(observations) > 0 {
 		observe = observations[0]
 	}
-	module, err := NewWithGuardianMemberships(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: observe, GuardianLinkOwners: testGuardianLinkOwners{db: db}, GuardianLinkRows: testpkg.GuardianLinks{}}, testPortalMemberships(db))
+	module, err := NewWithGuardianMemberships(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: observe, GuardianLinkOwners: testGuardianLinkOwners{Db: db}, GuardianLinkRows: testpkg.GuardianLinks{}}, testPortalMemberships(db))
 	require.NoError(t, err)
 	return module
 }
@@ -55,13 +55,13 @@ func testPortalMemberships(db *bun.DB) GuardianMembershipQuery {
 // Access's portal access of a link in the caller's transaction, as the
 // composition root's owner commands do (#2756). The module's own contracts are
 // under test here; the owners are tested with their modules.
-type testGuardianLinkOwners struct{ db *bun.DB }
+type testGuardianLinkOwners struct{ Db *bun.DB }
 
 func (o testGuardianLinkOwners) queryDB(ctx context.Context) bun.IDB {
 	if transaction, ok := tenant.TransactionFromContext(ctx); ok {
 		return transaction.(bun.Tx)
 	}
-	return o.db
+	return o.Db
 }
 
 func (o testGuardianLinkOwners) LockLiveGuardianAccount(ctx context.Context, accountID int64) (bool, error) {

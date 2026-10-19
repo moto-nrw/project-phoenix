@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/dataimport"
+	app "github.com/moto-nrw/project-phoenix/modules/dataimport/internal/adapters/runtimebinding"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -15,8 +16,7 @@ type transactions struct{}
 func (transactions) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
 
 func (transactions) HasTransaction(ctx context.Context) bool {
-	_, active := tenant.TransactionFromContext(ctx)
-	return active
+	return app.ImportTransactionPresent(ctx, tenant.TransactionFromContext)
 }
 
 func (transactions) WithinCurrent(ctx context.Context, fn func(context.Context) error) error {
@@ -24,11 +24,7 @@ func (transactions) WithinCurrent(ctx context.Context, fn func(context.Context) 
 }
 
 func (transactions) WithinRetry(ctx context.Context, fn func(context.Context) error) error {
-	id, err := tenant.TenantFromContext(ctx)
-	if err != nil {
-		return err
-	}
-	return tenant.WithinTenantRetry(ctx, id, fn)
+	return app.RetryImportTransaction(ctx, fn, tenant.TenantFromContext, tenant.WithinTenantRetry)
 }
 
 func (transactions) Savepoint(ctx context.Context, fn func(context.Context) error) error {
@@ -41,17 +37,6 @@ func (transactions) AcquireLock(ctx context.Context, key string) error {
 
 func (transactions) Observe(ctx context.Context, observe func(dataimport.TransactionObservation)) context.Context {
 	return tenant.WithAdditionalUnitOfWorkObserver(ctx, func(event tenant.UnitOfWorkEvent) {
-		var observation dataimport.TransactionObservation
-		switch event.Kind {
-		case tenant.UnitOfWorkPoolWait:
-			observation.PoolWait = event.Duration
-		case tenant.UnitOfWorkLockWait:
-			observation.LockWait = event.Duration
-		case tenant.UnitOfWorkTransaction:
-			observation.Retries = event.Retries
-		default:
-			return
-		}
-		observe(observation)
+		app.ObserveImportTransaction(observe, event.Kind, event.Duration, event.Retries, tenant.UnitOfWorkPoolWait, tenant.UnitOfWorkLockWait, tenant.UnitOfWorkTransaction)
 	})
 }

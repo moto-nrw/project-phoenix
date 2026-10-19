@@ -7,6 +7,7 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	postgresNative "github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/postgres"
 	workforcePostgres "github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/workforcepostgres"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	"github.com/uptrace/bun"
@@ -49,7 +50,7 @@ func NewStaffAbsenceTypeAllowanceChangeRepository(db *bun.DB) *StaffAbsenceTypeA
 
 func staffAllowanceTestDatabase(db *bun.DB) workforcePostgres.Database {
 	return func(ctx context.Context) (bun.IDB, int64, error) {
-		connection, scope, err := databaseRuntime(db)(ctx)
+		connection, scope, err := postgresNative.DatabaseRuntime(db)(ctx)
 		if err != nil {
 			return nil, 0, err
 		}

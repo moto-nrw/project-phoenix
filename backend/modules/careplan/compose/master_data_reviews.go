@@ -3,11 +3,10 @@ package compose
 import (
 	"errors"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
+	"github.com/uptrace/bun"
 )
 
 type MasterDataDirectory = careplan.MasterDataDirectory
@@ -27,7 +26,7 @@ func NewStudentDataRequestQueries(db *bun.DB, directory StudentDirectory, observ
 	if db == nil || directory == nil || observe == nil {
 		return nil, errors.New("care plan student data request queries: database, student directory and observer are required")
 	}
-	return application.NewRequestQueueQueries(postgres.NewRequestStore(postgres.New(carePlanDatabase(db)), directory), observe), nil
+	return application.NewRequestQueueQueries(postgres.NewRequestStore(postgres.New(postgres.CarePlanDatabase(db)), directory), observe), nil
 }
 
 // NewCareScheduleRequestQueries binds only the storage reads of the next
@@ -36,7 +35,7 @@ func NewCareScheduleRequestQueries(db *bun.DB, directory StudentDirectory, obser
 	if db == nil || directory == nil || observe == nil {
 		return nil, errors.New("care plan schedule request queries: database, student directory and observer are required")
 	}
-	return application.NewRequestQueueQueries(postgres.NewRequestStore(postgres.New(carePlanDatabase(db)), directory), observe), nil
+	return application.NewRequestQueueQueries(postgres.NewRequestStore(postgres.New(postgres.CarePlanDatabase(db)), directory), observe), nil
 }
 
 func NewMasterDataReviews(deps MasterDataReviewDependencies) (careplan.MasterDataReviewQuery, error) {

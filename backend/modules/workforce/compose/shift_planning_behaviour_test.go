@@ -6,11 +6,10 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -27,21 +26,21 @@ import (
 // owner's public vocabulary (#3424); the calendar periods and the rooms are
 // the School Calendar and Facilities owners the root binds.
 
-type planningStaffDirectory struct{ staff *workforce.PlanStaff }
+type planningStaffDirectory struct{ Staff *workforce.PlanStaff }
 
 func (d planningStaffDirectory) FindByID(_ context.Context, id any) (*workforce.PlanStaff, error) {
-	if value, ok := id.(int64); ok && value == d.staff.ID {
-		return d.staff, nil
+	if value, ok := id.(int64); ok && value == d.Staff.ID {
+		return d.Staff, nil
 	}
 	return nil, sql.ErrNoRows
 }
 
 func (d planningStaffDirectory) ListAllWithPerson(context.Context) ([]*workforce.PlanStaff, error) {
-	return []*workforce.PlanStaff{d.staff}, nil
+	return []*workforce.PlanStaff{d.Staff}, nil
 }
 
 func (d planningStaffDirectory) FindWithPersonByIDs(_ context.Context, _ []int64) (map[int64]*workforce.PlanStaff, error) {
-	return map[int64]*workforce.PlanStaff{d.staff.ID: d.staff}, nil
+	return map[int64]*workforce.PlanStaff{d.Staff.ID: d.Staff}, nil
 }
 
 // planningTimetable stands in for the Timetable owner: the Dienstplan reads
@@ -96,7 +95,7 @@ func planningDependencies(t *testing.T, ctx context.Context, db *bun.DB, capabil
 	staff := staffByID[staffID]
 	require.NotNil(t, staff)
 	return compose.ShiftPlanningDependencies{
-		Workforce: capability, Staff: planningStaffDirectory{staff: staff},
+		Workforce: capability, Staff: planningStaffDirectory{Staff: staff},
 		CalendarPeriods: calendarOwner, Instances: planningTimetable{},
 		InstanceStaff: planningInstanceStaff{}, Rooms: owners.NewTimetableRoomNames(ownersRooms), ActivityGroups: planningGroups{},
 		DB: db,
