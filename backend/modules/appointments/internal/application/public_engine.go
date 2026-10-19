@@ -10,8 +10,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/appointments/internal/domain"
 )
 
-func NewPublicModule(service *Service) *appointments.Module {
-	return appointments.NewModule(engine{service: service})
+func NewPublicModule(service *Service, retention ...appointments.AppointmentRetention) *appointments.Module {
+	return appointments.NewModule(engine{service: service}, retention...)
 }
 
 type engine struct{ service *Service }

@@ -1104,7 +1104,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionPublishesOccurrenceAndDelet
 	assert.Contains(t, afterDelete, "SEQUENCE:")
 }
 
-func TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren(t *testing.T) {
+func TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesDeletesStaffTombstones(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupIsolatedTestDB(t)
@@ -1175,23 +1175,20 @@ func TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren
 
 	deleted, err := testpkg.TenantQuery0(t, testpkg.Ctx(t), db, service.CleanupExpiredFeedTombstones)
 	require.NoError(t, err)
-	assert.Equal(t, 3, deleted)
+	assert.Equal(t, 1, deleted, "the feed cleanup deletes the staff feed tombstone only")
 
-	checks := []struct {
-		table  string
-		column string
-		id     int64
-	}{
-		{table: "calendar.appointments", column: "id", id: detail.Appointment.ID},
-		{table: "calendar.recurrence_rules", column: "appointment_id", id: detail.Appointment.ID},
-		{table: "calendar.appointments", column: "id", id: cancelledDetail.Appointment.ID},
-		{table: "calendar.recurrence_rules", column: "appointment_id", id: cancelledDetail.Appointment.ID},
-		{table: "calendar.staff_feed_tombstones", column: "source_id", id: instance.ID},
-	}
-	for _, check := range checks {
-		var count int
-		require.NoError(t, db.NewSelect().Table(check.table).ColumnExpr("COUNT(*)").Where(check.column+" = ?", check.id).Scan(context.Background(), &count))
-		assert.Zero(t, count, check.table)
+	var staffTombstones int
+	require.NoError(t, db.NewSelect().Table("calendar.staff_feed_tombstones").ColumnExpr("COUNT(*)").
+		Where("source_id = ?", instance.ID).Scan(context.Background(), &staffTombstones))
+	assert.Zero(t, staffTombstones)
+	// Cancelled and deleted appointments go in the nightly retention of the
+	// Appointments owner, which logs them (#4045,
+	// TestNightlyRetentionDeletesCancelledAppointmentsAfterTheFeedWindow).
+	for _, id := range []int64{detail.Appointment.ID, cancelledDetail.Appointment.ID} {
+		var appointments int
+		require.NoError(t, db.NewSelect().Table("calendar.appointments").ColumnExpr("COUNT(*)").
+			Where("id = ?", id).Scan(context.Background(), &appointments))
+		assert.Equal(t, 1, appointments, "the feed cleanup leaves appointment %d to the nightly retention", id)
 	}
 }
 

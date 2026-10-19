@@ -31,7 +31,7 @@ func New(dependencies Dependencies) (*appointments.Module, error) {
 		observation.Err = application.MapPublicError(observation.Err)
 		dependencies.Observe(observation)
 	}, withinTenant)
-	return application.NewPublicModule(service), nil
+	return application.NewPublicModule(service, application.NewRetention(store)), nil
 }
 
 func database(db *bun.DB) postgres.Database {

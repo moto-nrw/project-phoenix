@@ -67,7 +67,12 @@ func workerRetentionOf(
 	db transactionruntime.Database, logger *slog.Logger, settings settingsCompose.BatchSettingsService, audit auditCommand,
 	fleet devicefleet.Capability, carePlan *carePlanModule.Module, parentMessages communication.ParentMessageCleanup,
 	rejected enrollmentOwner.RejectedEnrollmentCleaner, studentDeletion *studentdeletion.Workflow, identity *identityaccess.Module,
+	announcements communication.ParentAnnouncementCapability,
 ) (workerRetention, error) {
+	announcementRetention, ok := announcements.(communication.ParentAnnouncementRetention)
+	if !ok {
+		return workerRetention{}, fmt.Errorf("compose worker retention: parent announcements %T lack their retention", announcements)
+	}
 	students, err := newStudentRetention(studentDeletion, settings, logger.With("service", "student_retention"))
 	if err != nil {
 		return workerRetention{}, fmt.Errorf("compose worker student retention: %w", err)
@@ -88,6 +93,11 @@ func workerRetentionOf(
 		filestorageCompose.NewCleanupRetention(), workforceCompose.NewCleanupRetention(),
 		carePlanCompose.NewCleanupRetention(), enrollmentCompose.New(),
 	)...)
+	contentSteps, err := newSchoolContentRetentionSteps(db, settings, announcementRetention)
+	if err != nil {
+		return workerRetention{}, err
+	}
+	steps = append(steps, contentSteps...)
 	attendance, err := presenceCompose.New(presenceCompose.Dependencies{DB: db.Pool(), Observe: presenceCompose.FailureLogger()})
 	if err != nil {
 		return workerRetention{}, fmt.Errorf("compose worker attendance retention: %w", err)
@@ -542,5 +552,5 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 	return NewWorker(db, env.Logger, tracer, hub, settings.Service, audit.Command, deviceFleet, carePlan, persons, people,
 		organizations, identity, facilities, timetableRepos, workTime, staffAdmin, workforce, active, reports, lifecycle, days,
 		materialization, schedules, requests.Documents, services, studentAudit, notices, flows, studentDeletion, feedback, calendarApp,
-		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore)
+		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements)
 }

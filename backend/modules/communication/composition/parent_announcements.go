@@ -109,6 +109,10 @@ func (a parentAnnouncementDeliveryAdapter) ListForEntity(ctx context.Context, te
 
 type parentAnnouncements struct{ service staff.Service }
 
+func (p *parentAnnouncements) DeleteExpiredParentAnnouncements(ctx context.Context, retentionDays int) (int, error) {
+	return p.service.DeleteExpiredParentAnnouncements(ctx, retentionDays)
+}
+
 func (p *parentAnnouncements) ListParentAnnouncements(ctx context.Context, includeInactive bool) ([]communication.ParentAnnouncement, error) {
 	rows, err := p.service.List(ctx, includeInactive)
 	if err != nil {
