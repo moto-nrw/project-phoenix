@@ -158,10 +158,6 @@ func (d StaffDirectory) FindStaffByPerson(ctx context.Context, personID int64) (
 	return domain.StaffMember(staff), found, err
 }
 
-func (d StaffDirectory) HasRetiredStaffMembership(ctx context.Context, personID int64) (bool, error) {
-	return d.Source.HasRetiredStaffMembership(ctx, personID)
-}
-
 func (d StaffDirectory) CreateStaff(ctx context.Context, tenantID, personID int64) (int64, error) {
 	return d.Source.CreateStaff(ctx, tenantID, personID)
 }

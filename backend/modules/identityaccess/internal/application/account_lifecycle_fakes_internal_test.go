@@ -328,21 +328,20 @@ func (d *lifecycleStaff) IsStudentPerson(_ context.Context, personID int64) (boo
 }
 
 func (d *lifecycleStaff) FindStaffByPerson(_ context.Context, personID int64) (domain.StaffMember, bool, error) {
+	var retired *domain.StaffMember
 	for _, member := range d.staff {
-		if member.PersonID == personID && !member.Deleted {
+		if member.PersonID != personID {
+			continue
+		}
+		if !member.Deleted {
 			return member, true, nil
 		}
+		retired = &member
+	}
+	if retired != nil {
+		return *retired, true, nil
 	}
 	return domain.StaffMember{}, false, nil
-}
-
-func (d *lifecycleStaff) HasRetiredStaffMembership(_ context.Context, personID int64) (bool, error) {
-	for _, member := range d.staff {
-		if member.PersonID == personID && member.Deleted {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 func (d *lifecycleStaff) CreateStaff(_ context.Context, tenantID, personID int64) (int64, error) {

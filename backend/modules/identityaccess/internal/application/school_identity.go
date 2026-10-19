@@ -188,12 +188,12 @@ func (l *AccountLifecycle) moveToHintedPerson(ctx context.Context, in domain.Sch
 	if in.PersonID == nil || *in.PersonID == current.ID {
 		return nil, nil
 	}
-	if _, live, err := l.staff.FindStaffByPerson(ctx, current.ID); err != nil || live {
+	staff, found, err := l.staff.FindStaffByPerson(ctx, current.ID)
+	if err != nil {
 		return nil, err
 	}
-	retired, err := l.staff.HasRetiredStaffMembership(ctx, current.ID)
-	if err != nil || !retired {
-		return nil, err
+	if !found || !staff.Deleted {
+		return nil, nil
 	}
 	hinted, err := l.qualifyingHint(ctx, in)
 	if err != nil || hinted == nil || hinted.AccountID != nil {

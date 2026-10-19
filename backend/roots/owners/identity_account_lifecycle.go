@@ -190,34 +190,24 @@ func (d staffDirectory) IsStudentPerson(ctx context.Context, personID int64) (bo
 }
 
 func (d staffDirectory) FindStaffByPerson(ctx context.Context, personID int64) (identityPorts.StaffMember, bool, error) {
-	staff, err := d.repos.Staff.FindByPersonID(ctx, personID)
-	if err != nil {
-		if peoplePorts.RowMissing(err) {
-			return identityPorts.StaffMember{}, false, nil
-		}
-		return identityPorts.StaffMember{}, false, err
-	}
-	if staff == nil {
-		return identityPorts.StaffMember{}, false, nil
-	}
-	return staffMember(staff), true, nil
-}
-
-func (d staffDirectory) HasRetiredStaffMembership(ctx context.Context, personID int64) (bool, error) {
 	staff, err := d.repos.Membership.ListStaff(ctx, schoolmembership.StaffFilter{
 		PersonIDs:      []int64{personID},
 		IncludeDeleted: true,
 		MembershipOnly: true,
 	})
 	if err != nil {
-		return false, err
+		return identityPorts.StaffMember{}, false, err
+	}
+	if len(staff) == 0 {
+		return identityPorts.StaffMember{}, false, nil
 	}
 	for _, member := range staff {
-		if member.IsDeleted() {
-			return true, nil
+		if !member.IsDeleted() {
+			return identityPorts.StaffMember{ID: member.ID, TenantID: member.TenantID, PersonID: member.PersonID}, true, nil
 		}
 	}
-	return false, nil
+	member := staff[0]
+	return identityPorts.StaffMember{ID: member.ID, TenantID: member.TenantID, PersonID: member.PersonID, Deleted: true}, true, nil
 }
 
 // CreateStaff creates the staff row at the school in context, which is the

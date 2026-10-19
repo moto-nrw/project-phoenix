@@ -50,10 +50,9 @@ type StaffDirectory interface {
 	UnlinkPersonFromAccount(ctx context.Context, personID int64) error
 	LinkPersonToRFIDCard(ctx context.Context, personID int64, tagID string) error
 	IsStudentPerson(ctx context.Context, personID int64) (bool, error)
+	// FindStaffByPerson returns the live membership, or a retired one when no
+	// live membership exists, at the school in context.
 	FindStaffByPerson(ctx context.Context, personID int64) (StaffMember, bool, error)
-	// HasRetiredStaffMembership reports whether the person has a soft-deleted
-	// staff membership at the school in context.
-	HasRetiredStaffMembership(ctx context.Context, personID int64) (bool, error)
 	CreateStaff(ctx context.Context, tenantID, personID int64) (int64, error)
 	FindCaregiverProfile(ctx context.Context, staffID int64) (CaregiverProfile, bool, error)
 	CreateCaregiverProfile(ctx context.Context, tenantID, staffID int64, position string) (int64, error)
