@@ -1,10 +1,10 @@
-package compose
+package postgres
 
 import (
 	"context"
 	"testing"
 
-	communicationPostgres "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/modules/communication/internal/ports"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
@@ -24,8 +24,8 @@ func TestObserveResultReportsDatabaseWork(t *testing.T) {
 	mock.ExpectExec("UPDATE").WillReturnResult(sqlmock.NewResult(0, 3))
 	mock.ExpectClose()
 
-	var observed Observation
-	result, err := observeResult(context.Background(), func(got Observation) {
+	var observed ports.Observation
+	result, err := observeResult(context.Background(), func(got ports.Observation) {
 		observed = got
 	}, "staff_messages.test", func(ctx context.Context) (int, error) {
 		_, execErr := db.ExecContext(ctx, "UPDATE users.staff_messages SET body = body")
@@ -67,8 +67,8 @@ func TestMessageQueryInstrumentationLeavesSharedDatabaseUnchanged(t *testing.T) 
 			require.NotSame(t, db, rootDB)
 			require.Same(t, db.DB, rootDB.DB, "roots share the SQL connection pool")
 
-			var observed Observation
-			_, err := observeResult(context.Background(), func(got Observation) {
+			var observed ports.Observation
+			_, err := observeResult(context.Background(), func(got ports.Observation) {
 				observed = got
 			}, "staff_messages.test", func(ctx context.Context) (int, error) {
 				_, execErr := rootDB.ExecContext(ctx, "UPDATE users.staff_messages SET body = body")
@@ -78,7 +78,7 @@ func TestMessageQueryInstrumentationLeavesSharedDatabaseUnchanged(t *testing.T) 
 			require.Equal(t, 1, observed.Stats.Queries)
 			require.EqualValues(t, 3, observed.Stats.Rows)
 
-			_, err = observeResult(context.Background(), func(got Observation) {
+			_, err = observeResult(context.Background(), func(got ports.Observation) {
 				observed = got
 			}, "staff_messages.test", func(ctx context.Context) (int, error) {
 				_, execErr := db.ExecContext(ctx, "UPDATE users.staff_messages SET body = body")
@@ -92,7 +92,7 @@ func TestMessageQueryInstrumentationLeavesSharedDatabaseUnchanged(t *testing.T) 
 
 // observeResult binds the production operation observer around the test query.
 func observeResult[T any](ctx context.Context, observe func(Observation), operation string, run func(context.Context) (T, error)) (result T, err error) {
-	runCtx, finish := communicationPostgres.NewMessageObservation(observe)(ctx, operation)
+	runCtx, finish := NewMessageObservation(observe)(ctx, operation)
 	defer func() { finish(err) }()
 	return run(runCtx)
 }

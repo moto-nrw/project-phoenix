@@ -212,7 +212,6 @@ Round 9 set A, base `12608383f0f793e811f4379ec293f61efd6150c9`. Runtime retained
 
 | Function | Source | Classification | Calls |
 |---|---|---|---|
-| `observeResult` | [query_observer_test.go](../../../backend/modules/communication/composition/query_observer_test.go) | test-only construction | binds production `NewMessageObservation` around the test query |
 | `transaction.RunAdmin` | [new.go:55](../../../backend/modules/communication/composition/new.go#L55) | runtime retained | `tenant.TransactionFromContext`, `callback`, `tenant.WithinAdminRetry` |
 | `AudienceMapping` | [new.go:62](../../../backend/modules/communication/composition/new.go#L62) | construction/binding | `domain.Announcement`, `domain.AnnouncementViewDetail` |
 | `AnnouncementDatabase` | [new.go:76](../../../backend/modules/communication/composition/new.go#L76) | construction/binding | `postgres.NewAnnouncementDatabase` |
