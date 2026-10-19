@@ -77,6 +77,16 @@
     },
     {
       "scope": "test",
+      "file": "api/worker_process_test.go",
+      "declaration": "TestStandaloneWorkerComposesItsJobsWithoutTheAPIRouter",
+      "target": "api.WithRuntime",
+      "lines": [
+        142
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "modules/schedulerruntime/internal/application/worker_test.go",
       "declaration": "TestNewWorkerRejectsMissingJobs",
       "target": "services/scheduler.NewWorker",

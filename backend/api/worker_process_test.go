@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -130,4 +132,26 @@ func TestStandaloneWorkerServesItsProbesAndStopsTheWorker(t *testing.T) {
 	default:
 		t.Fatal("shutdown must stop the worker")
 	}
+}
+
+// The real standalone composition must bind every job without building the server router.
+func TestStandaloneWorkerComposesItsJobsWithoutTheAPIRouter(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupTestDB(t)
+	called := false
+	err := WithRuntime(context.Background(), ServeConfig{
+		Port: "127.0.0.1:0", FrontendURL: "http://localhost:3000", PublicAPIURL: "http://api.invalid",
+		Logger: slog.New(slog.DiscardHandler), Process: ServeWorkerOnly,
+	}, func(runtime *Runtime) error {
+		called = true
+		require.NotNil(t, runtime.worker)
+		require.Nil(t, runtime.Handler(), "the worker builds no API router")
+		code, _ := probe(t, runtime.server.Handler, "/health", "")
+		require.Equal(t, http.StatusOK, code)
+		code, _ = probe(t, runtime.server.Handler, "/api/groups", "")
+		require.Equal(t, http.StatusNotFound, code)
+		return nil
+	})
+	require.NoError(t, err)
+	require.True(t, called)
 }
