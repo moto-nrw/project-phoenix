@@ -395,6 +395,9 @@ func TestEnsureSchoolIdentity_HintWinsOverFormerStaffPerson(t *testing.T) {
 	t.Parallel()
 	f := newLifecycleFixture(t)
 	former := f.seedAccountPerson("Frühere", "Kraft", nil)
+	retiredRow := f.staff.addStaff(former.ID)
+	retiredRow.Deleted = true
+	f.staff.staff[retiredRow.ID] = retiredRow
 	imported := f.staff.addPerson(domain.PersonRecord{FirstName: "Importierte", LastName: "Kraft"})
 	staffRow := f.staff.addStaff(imported.ID)
 
@@ -405,7 +408,7 @@ func TestEnsureSchoolIdentity_HintWinsOverFormerStaffPerson(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, imported.ID, identity.PersonID, "the import's person carries the account")
 	require.Equal(t, staffRow.ID, identity.StaffID)
-	require.Len(t, f.staff.staffRows(), 1, "no second live staff row")
+	require.Len(t, f.staff.staffRows(), 2, "the retired row stays retired and no second live staff row is created")
 	require.Nil(t, f.staff.persons[former.ID].AccountID, "the link moved off the former person")
 	require.Equal(t, in.AccountID, *f.staff.persons[imported.ID].AccountID)
 }
@@ -426,6 +429,41 @@ func TestEnsureSchoolIdentity_HintNeverMovesLiveStaff(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, current.ID, identity.PersonID)
 	require.Equal(t, liveRow.ID, identity.StaffID)
+	require.Nil(t, f.staff.persons[imported.ID].AccountID)
+}
+
+func TestEnsureSchoolIdentity_HintNeverMovesStudentPerson(t *testing.T) {
+	t.Parallel()
+	f := newLifecycleFixture(t)
+	student := f.seedAccountPerson("Kind", "Datensatz", nil)
+	f.staff.students[student.ID] = true
+	imported := f.staff.addPerson(domain.PersonRecord{FirstName: "Importierte", LastName: "Kraft"})
+	f.staff.addStaff(imported.ID)
+
+	in := identityInput(customRole("Betreuung", "user"))
+	in.PersonID = &imported.ID
+
+	_, err := ensureIdentity(t, f, in)
+	require.ErrorIs(t, err, domain.ErrSchoolIdentityPersonIsStudent)
+	require.Equal(t, in.AccountID, *f.staff.persons[student.ID].AccountID)
+	require.Nil(t, f.staff.persons[imported.ID].AccountID)
+}
+
+func TestEnsureSchoolIdentity_HintNeverMovesPersonWithoutRetiredStaff(t *testing.T) {
+	t.Parallel()
+	f := newLifecycleFixture(t)
+	current := f.seedAccountPerson("Bestehende", "Person", nil)
+	imported := f.staff.addPerson(domain.PersonRecord{FirstName: "Importierte", LastName: "Kraft"})
+	staffRow := f.staff.addStaff(imported.ID)
+
+	in := identityInput(customRole("Betreuung", "user"))
+	in.PersonID = &imported.ID
+
+	identity, err := ensureIdentity(t, f, in)
+	require.NoError(t, err)
+	require.Equal(t, current.ID, identity.PersonID)
+	require.NotEqual(t, staffRow.ID, identity.StaffID)
+	require.Equal(t, in.AccountID, *f.staff.persons[current.ID].AccountID)
 	require.Nil(t, f.staff.persons[imported.ID].AccountID)
 }
 

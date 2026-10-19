@@ -118,14 +118,15 @@ func (l *AccountLifecycle) resolveIdentityPerson(ctx context.Context, in domain.
 // continueAccountPerson completes the chain on the account's live person, or
 // on the import's hinted person when the account's person is former staff.
 func (l *AccountLifecycle) continueAccountPerson(ctx context.Context, in domain.SchoolIdentityInput, person domain.PersonRecord, tagID *string) (*domain.PersonRecord, error) {
+	if err := l.refuseStudentPerson(ctx, person.ID); err != nil {
+		return nil, err
+	}
 	moved, err := l.moveToHintedPerson(ctx, in, person)
 	if err != nil {
 		return nil, err
 	}
 	if moved != nil {
 		person = *moved
-	} else if err := l.refuseStudentPerson(ctx, person.ID); err != nil {
-		return nil, err
 	}
 	if err := l.applyIdentityTag(ctx, &person, tagID); err != nil {
 		return nil, err
@@ -188,6 +189,10 @@ func (l *AccountLifecycle) moveToHintedPerson(ctx context.Context, in domain.Sch
 		return nil, nil
 	}
 	if _, live, err := l.staff.FindStaffByPerson(ctx, current.ID); err != nil || live {
+		return nil, err
+	}
+	retired, err := l.staff.HasRetiredStaffMembership(ctx, current.ID)
+	if err != nil || !retired {
 		return nil, err
 	}
 	hinted, err := l.qualifyingHint(ctx, in)

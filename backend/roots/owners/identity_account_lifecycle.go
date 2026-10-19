@@ -31,9 +31,10 @@ type lifecyclePeople interface {
 	DeleteStudentGuardianLink(ctx context.Context, linkID int64) error
 }
 
-// LifecycleMembership are the School Membership commands the lifecycle
-// creates staff and caregiver profiles through.
+// LifecycleMembership are the School Membership facts and commands the
+// lifecycle reads and creates staff and caregiver profiles through.
 type LifecycleMembership interface {
+	ListStaff(context.Context, schoolmembership.StaffFilter) ([]schoolmembership.Staff, error)
 	CreateStaff(context.Context, schoolmembership.CreateStaff) (schoolmembership.Staff, error)
 	CreateTeacher(context.Context, schoolmembership.CreateTeacher) (schoolmembership.Teacher, error)
 }
@@ -200,6 +201,23 @@ func (d staffDirectory) FindStaffByPerson(ctx context.Context, personID int64) (
 		return identityPorts.StaffMember{}, false, nil
 	}
 	return staffMember(staff), true, nil
+}
+
+func (d staffDirectory) HasRetiredStaffMembership(ctx context.Context, personID int64) (bool, error) {
+	staff, err := d.repos.Membership.ListStaff(ctx, schoolmembership.StaffFilter{
+		PersonIDs:      []int64{personID},
+		IncludeDeleted: true,
+		MembershipOnly: true,
+	})
+	if err != nil {
+		return false, err
+	}
+	for _, member := range staff {
+		if member.IsDeleted() {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // CreateStaff creates the staff row at the school in context, which is the
