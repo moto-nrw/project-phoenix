@@ -40,30 +40,13 @@ func (l *AccountLifecycle) CreateGuardianInvitation(ctx context.Context, request
 		profile    domain.GuardianProfile
 	)
 	err := l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		locked, lockErr := l.guardians.LockGuardianProfile(txCtx, request.GuardianProfileID)
-		if lockErr != nil {
-			return failed(opGuardianInviteCreate, lockErr)
+		var profileErr error
+		profile, profileErr = l.lockInvitationProfile(txCtx, request.GuardianProfileID)
+		if profileErr != nil {
+			return failed(opGuardianInviteCreate, profileErr)
 		}
-		if !locked {
-			return failed(opGuardianInviteCreate, fmt.Errorf("guardian profile not found"))
-		}
-		var found bool
-		var findErr error
-		profile, found, findErr = l.guardians.FindGuardianProfile(txCtx, request.GuardianProfileID)
-		if findErr != nil {
-			return failed(opGuardianInviteCreate, findErr)
-		}
-		if !found {
-			return failed(opGuardianInviteCreate, fmt.Errorf("guardian profile not found"))
-		}
-		if strings.TrimSpace(profile.Email) == "" {
-			return failed(opGuardianInviteCreate, fmt.Errorf("guardian has no email on file"))
-		}
-		if profile.HasAccount {
-			return failed(opGuardianInviteCreate, fmt.Errorf("guardian already has an account"))
-		}
-		if _, _, _, lockErr := l.logins.LockLoginAccountByEmail(txCtx, profile.Email); lockErr != nil {
-			return failed(opGuardianInviteCreate, lockErr)
+		if _, _, _, err := l.logins.LockLoginAccountByEmail(txCtx, profile.Email); err != nil {
+			return failed(opGuardianInviteCreate, err)
 		}
 		var insertErr error
 		invitation, insertErr = l.invitations.InsertGuardianInvitation(txCtx, domain.GuardianInvitation{
@@ -90,6 +73,23 @@ func (l *AccountLifecycle) CreateGuardianInvitation(ctx context.Context, request
 	)
 	l.mailNewInvitation(ctx, invitation, profile)
 	return invitation, nil
+}
+
+func (l *AccountLifecycle) lockInvitationProfile(ctx context.Context, profileID int64) (domain.GuardianProfile, error) {
+	profile, locked, err := l.guardians.LockGuardianProfile(ctx, profileID)
+	if err != nil {
+		return domain.GuardianProfile{}, err
+	}
+	if !locked {
+		return domain.GuardianProfile{}, fmt.Errorf("guardian profile not found")
+	}
+	if strings.TrimSpace(profile.Email) == "" {
+		return domain.GuardianProfile{}, fmt.Errorf("guardian has no email on file")
+	}
+	if profile.HasAccount {
+		return domain.GuardianProfile{}, fmt.Errorf("guardian already has an account")
+	}
+	return profile, nil
 }
 
 // mailNewInvitation queues the mail of a new token invitation and the

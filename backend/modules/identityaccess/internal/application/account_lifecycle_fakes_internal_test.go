@@ -597,10 +597,10 @@ func (g *lifecycleGuardians) FindGuardianProfile(_ context.Context, id int64) (d
 	return profile, ok, nil
 }
 
-func (g *lifecycleGuardians) LockGuardianProfile(_ context.Context, id int64) (bool, error) {
+func (g *lifecycleGuardians) LockGuardianProfile(_ context.Context, id int64) (domain.GuardianProfile, bool, error) {
 	g.lockedProfiles = append(g.lockedProfiles, id)
-	_, found := g.profiles[id]
-	return found, nil
+	profile, found := g.profiles[id]
+	return profile, found, nil
 }
 
 func (g *lifecycleGuardians) FindGuardianProfiles(_ context.Context, ids []int64) (map[int64]domain.GuardianProfile, error) {

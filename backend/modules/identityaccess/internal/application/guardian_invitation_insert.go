@@ -13,19 +13,13 @@ func (l *AccountLifecycle) insertStudentInvitation(ctx context.Context, req doma
 	studentID := req.StudentID
 	var invitation domain.GuardianInvitation
 	err := l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		locked, lockErr := l.guardians.LockGuardianProfile(txCtx, profile.ID)
+		var locked bool
+		var lockErr error
+		profile, locked, lockErr = l.guardians.LockGuardianProfile(txCtx, profile.ID)
 		if lockErr != nil {
 			return failed(opGuardianInviteToStudent, lockErr)
 		}
 		if !locked {
-			return failed(opGuardianInviteToStudent, fmt.Errorf("guardian profile not found"))
-		}
-		var found bool
-		profile, found, lockErr = l.guardians.FindGuardianProfile(txCtx, profile.ID)
-		if lockErr != nil {
-			return failed(opGuardianInviteToStudent, lockErr)
-		}
-		if !found {
 			return failed(opGuardianInviteToStudent, fmt.Errorf("guardian profile not found"))
 		}
 		if _, _, _, lockErr := l.logins.LockLoginAccountByEmail(txCtx, profile.Email); lockErr != nil {
