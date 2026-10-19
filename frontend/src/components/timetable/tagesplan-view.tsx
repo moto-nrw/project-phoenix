@@ -34,7 +34,6 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-style";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
@@ -200,10 +199,11 @@ function TagesplanRow({
     ended ||
     (cancelled && (dayIsPast || (isToday && instance.endTime <= nowHHMM)));
   const staff = staffLine(instance);
-  // Eigener Block (#4350): als Wort, weil der linke Rand schon die Farbe der
-  // Planungsspur trägt. isAssigned gilt auch für eine Vertretung, nur wer
-  // abwesend gemeldet ist, fällt heraus. Sieht jemand ohnehin nur die eigene
-  // Einteilung, trüge jede Zeile das Etikett und es sagte nichts mehr.
+  // Eigener Block (#4350): die Zeile ist in ihrer Blockfarbe hinterlegt, wie
+  // ein PlanBlock im Raster; Vorleseprogramme hören "Mein Block". isAssigned
+  // gilt auch für eine Vertretung, nur wer abwesend gemeldet ist, fällt
+  // heraus. Sieht jemand ohnehin nur die eigene Einteilung, wäre jede Zeile
+  // hinterlegt und die Farbe sagte nichts mehr.
   const mine = showMine && instance.isAssigned;
 
   // Der Raum trägt sein Konzeptsymbol mitten in der Metazeile. Die Symbole
@@ -235,20 +235,14 @@ function TagesplanRow({
         </span>
       </span>
       <span className={`min-w-0 flex-1 ${over ? "opacity-50" : ""}`}>
-        <span className="flex min-w-0 items-center gap-2">
-          <span
-            className={`min-w-0 truncate text-sm text-gray-900 ${running ? "font-semibold" : "font-medium"}`}
-          >
-            {instance.title}
-            {instance.planningTrackName ? (
-              <span className="ml-2 text-xs font-normal text-gray-500">
-                {instance.planningTrackName}
-              </span>
-            ) : null}
-          </span>
-          {mine ? (
-            <span className="shrink-0">
-              <StatusBadge label="Mein Block" tone="blue" compact />
+        <span
+          className={`block truncate text-sm text-gray-900 ${running ? "font-semibold" : "font-medium"}`}
+        >
+          {instance.title}
+          {mine ? <span className="sr-only"> · Mein Block</span> : null}
+          {instance.planningTrackName ? (
+            <span className="ml-2 text-xs font-normal text-gray-500">
+              {instance.planningTrackName}
             </span>
           ) : null}
         </span>
@@ -282,10 +276,14 @@ function TagesplanRow({
     </>
   );
 
+  const edgeColor = cancelled
+    ? LOCATION_COLORS.DANGER
+    : (instance.planningTrackColor ?? TIMETABLE_UNTYPED_EDGE_COLOR);
   const edgeStyle = {
-    borderLeftColor: cancelled
-      ? LOCATION_COLORS.DANGER
-      : (instance.planningTrackColor ?? TIMETABLE_UNTYPED_EDGE_COLOR),
+    borderLeftColor: edgeColor,
+    // Dieselbe Tönung wie PlanBlock (ui/plan-block.tsx); eine Absage bleibt
+    // dort wie hier ungetönt.
+    ...(mine && !cancelled ? { backgroundColor: `${edgeColor}1A` } : {}),
     ...(over ? { opacity: 0.9 } : {}),
   };
 

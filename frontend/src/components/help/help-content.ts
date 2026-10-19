@@ -1264,7 +1264,7 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "`Läuft` heißt: der Block ist gerade aktiv. `Beendet` und `Nicht gestartet` können Sie nur ansehen.",
       "`Fällt aus` zeigt zusätzlich den Grund.",
       "Ein `Dienst` ist eine Aufgabe ohne Kinder, etwa die Busaufsicht. Er hat keinen Knopf `Starten`.",
-      "`Mein Block` steht an Blöcken, für die Sie eingeteilt sind. Das gilt auch für eine Vertretung.",
+      "Blöcke, für die Sie eingeteilt sind, sind in ihrer Farbe hinterlegt. Das gilt auch für eine Vertretung.",
       "Welche Blöcke Sie sehen, legt Ihre OGS fest. Manche sehen den ganzen Tag der Schule, andere nur die eigene Einteilung.",
       "Ob Sie nur eigene oder alle Blöcke starten dürfen, legt Ihre OGS fest. Wer einen fremden Block startet, wird nicht zur Aufsicht.",
       ...(presenceMode === "unknown"

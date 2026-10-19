@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { berlinTodayISO } from "~/lib/date-helpers";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
+import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-style";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import {
   useOperationalOverviewScope,
@@ -193,10 +194,15 @@ describe("TagesplanView", () => {
 
   // #4350: der eigene Block ist auf einen Blick zu finden, als Wort statt
   // nur als Farbe. Eine Vertretung ist auch eine eigene Einteilung.
-  it("labels the caller's own blocks, substitutions included (#4350)", () => {
+  it("tints the caller's own blocks in their block colour, substitutions included (#4350)", () => {
     setSWR({
       data: [
-        makeInstance({ id: "1", title: "Basteln", isAssigned: true }),
+        makeInstance({
+          id: "1",
+          title: "Basteln",
+          isAssigned: true,
+          planningTrackColor: "#5080D8",
+        }),
         makeInstance({
           id: "2",
           title: "Hausaufgaben",
@@ -215,10 +221,16 @@ describe("TagesplanView", () => {
     const rows = screen.getAllByRole("listitem");
     const rowOf = (title: string) =>
       rows.find((row) => row.textContent?.includes(title));
+    // Sichtbar ist nur die Tönung in der Kantenfarbe; den Text "Mein Block"
+    // hören nur Vorleseprogramme, damit die Markierung nicht allein Farbe ist.
+    expect(rowOf("Basteln")).toHaveStyle({ backgroundColor: "#5080D81A" });
+    expect(rowOf("Hausaufgaben")).toHaveStyle({
+      backgroundColor: `${TIMETABLE_UNTYPED_EDGE_COLOR}1A`,
+    });
+    expect(rowOf("Fußball-AG")?.style.backgroundColor).toBe("");
     expect(rowOf("Basteln")).toHaveTextContent("Mein Block");
     expect(rowOf("Hausaufgaben")).toHaveTextContent("Mein Block");
     expect(rowOf("Fußball-AG")).not.toHaveTextContent("Mein Block");
-    expect(screen.getAllByText("Mein Block")).toHaveLength(2);
   });
 
   it("marks room and staff with their concept symbols (#4350)", () => {
@@ -256,7 +268,7 @@ describe("TagesplanView", () => {
 
   // Wer nur die eigene Einteilung sieht (#2380), hätte das Etikett an jeder
   // Zeile; dort sagt es nichts und fällt weg.
-  it("leaves the own-block label out when only own blocks are shown (#4350)", () => {
+  it("leaves the own-block tint out when only own blocks are shown (#4350)", () => {
     vi.mocked(useOperationalOverviewScope).mockReturnValue("own");
     setSWR({
       data: [makeInstance({ id: "1", title: "Basteln", isAssigned: true })],
@@ -266,8 +278,10 @@ describe("TagesplanView", () => {
 
     render(<TagesplanView />);
 
-    expect(screen.getByText("Basteln")).toBeInTheDocument();
-    expect(screen.queryByText("Mein Block")).not.toBeInTheDocument();
+    const row = screen.getByRole("listitem");
+    expect(row).toHaveTextContent("Basteln");
+    expect(row).not.toHaveTextContent("Mein Block");
+    expect(row.style.backgroundColor).toBe("");
   });
 
   it("opens the live list of a running block on tap", () => {
