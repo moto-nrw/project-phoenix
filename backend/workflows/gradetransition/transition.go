@@ -460,23 +460,9 @@ func (w *Workflow) History(ctx context.Context, id int64) (result []HistoryEntry
 		if err != nil {
 			return translateStructureError(err)
 		}
-		ids := make([]int64, 0, len(entries))
-		for _, entry := range entries {
-			ids = append(ids, entry.StudentID)
-		}
-		states := make(map[int64]string, len(ids))
-		if len(ids) > 0 {
-			students, err := w.deps.Directory.ListStudentsByID(txCtx, ids)
-			if err != nil {
-				return err
-			}
-			for _, student := range students {
-				state := GraduateStateRestored
-				if student.IsAlumnus() {
-					state = GraduateStateAlumnus
-				}
-				states[student.ID] = state
-			}
+		states, err := w.transitionStudentStates(txCtx, entries)
+		if err != nil {
+			return err
 		}
 		result = make([]HistoryEntry, 0, len(entries))
 		for _, entry := range entries {
@@ -522,4 +508,26 @@ func translateStructureError(err error) error {
 		return fmt.Errorf("%w: %s", ErrInvalidTransitionData, invalid.Reason)
 	}
 	return err
+}
+
+func (w *Workflow) transitionStudentStates(txCtx context.Context, entries []schoolstructure.TransitionHistoryEntry) (map[int64]string, error) {
+	ids := make([]int64, 0, len(entries))
+	for _, entry := range entries {
+		ids = append(ids, entry.StudentID)
+	}
+	states := make(map[int64]string, len(ids))
+	if len(ids) > 0 {
+		students, err := w.deps.Directory.ListStudentsByID(txCtx, ids)
+		if err != nil {
+			return nil, err
+		}
+		for _, student := range students {
+			state := GraduateStateRestored
+			if student.IsAlumnus() {
+				state = GraduateStateAlumnus
+			}
+			states[student.ID] = state
+		}
+	}
+	return states, nil
 }

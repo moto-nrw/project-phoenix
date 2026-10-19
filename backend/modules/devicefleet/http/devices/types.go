@@ -95,7 +95,7 @@ type NetworkScanResponse struct {
 // newDeviceResponse converts a device model to a response object. The
 // online/offline decision is resolved by the IoT service (issue #586, Rule 12)
 // rather than the model.
-func newDeviceResponse(ctx context.Context, svc devicefleet.Administration, device *devicefleet.Device) DeviceResponse {
+func newDeviceResponse(ctx context.Context, svc devicefleet.DeviceOnlineMonitoring, device *devicefleet.Device) DeviceResponse {
 	response := DeviceResponse{
 		ID:             device.ID,
 		DeviceID:       device.DeviceID,
@@ -118,7 +118,7 @@ func newDeviceResponse(ctx context.Context, svc devicefleet.Administration, devi
 }
 
 // newDeviceResponses converts a slice of device models to response objects
-func newDeviceResponses(ctx context.Context, svc devicefleet.Administration, devices []*devicefleet.Device) []DeviceResponse {
+func newDeviceResponses(ctx context.Context, svc devicefleet.DeviceOnlineMonitoring, devices []*devicefleet.Device) []DeviceResponse {
 	responses := make([]DeviceResponse, 0, len(devices))
 	for _, device := range devices {
 		responses = append(responses, newDeviceResponse(ctx, svc, device))
@@ -127,7 +127,7 @@ func newDeviceResponses(ctx context.Context, svc devicefleet.Administration, dev
 }
 
 // newDeviceCreationResponse converts a device model to a creation response object with API key
-func newDeviceCreationResponse(ctx context.Context, svc devicefleet.Administration, device *devicefleet.Device) DeviceCreationResponse {
+func newDeviceCreationResponse(ctx context.Context, svc devicefleet.DeviceOnlineMonitoring, device *devicefleet.Device) DeviceCreationResponse {
 	response := DeviceCreationResponse{
 		DeviceResponse: newDeviceResponse(ctx, svc, device),
 	}

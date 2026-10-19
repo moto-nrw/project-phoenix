@@ -564,27 +564,10 @@ func (w *Workflow) loadCounts(ctx context.Context, studentID, personID int64) (c
 	if err := w.loadEnrollmentRefs(ctx, studentID, &counts); err != nil {
 		return countSnapshot{}, err
 	}
-	rosterRemovals, err := w.deps.Timetable.CountStudentRosterRemovals(ctx, studentID)
+	counts.OtherRecords, err = w.countOtherStudentRecords(ctx, studentID)
 	if err != nil {
 		return countSnapshot{}, err
 	}
-	history, err := w.deps.Structure.CountStudentTransitionHistory(ctx, studentID)
-	if err != nil {
-		return countSnapshot{}, err
-	}
-	appointments, err := w.deps.CountAppointments(ctx, studentID)
-	if err != nil {
-		return countSnapshot{}, err
-	}
-	auditReferences, err := w.deps.CountAuditReferences(ctx, studentID)
-	if err != nil {
-		return countSnapshot{}, err
-	}
-	feedback, err := w.deps.CountFeedback(ctx, studentID)
-	if err != nil {
-		return countSnapshot{}, err
-	}
-	counts.OtherRecords = rosterRemovals + history + appointments + auditReferences + feedback
 	return counts, nil
 }
 
@@ -608,20 +591,9 @@ func (w *Workflow) lockCompanionGraph(ctx context.Context, subjectID int64) ([]i
 	for _, link := range links[subjectID] {
 		ids = append(ids, link.CompanionStudentID)
 	}
-	held := make(map[int64]bool, len(ids))
-	var maxHeld int64
-	for _, id := range ascending(ids) {
-		found, err := w.lockStudent(ctx, id, "update")
-		if err != nil {
-			return nil, err
-		}
-		if !found && id == subjectID {
-			return nil, ErrStudentNotFound
-		}
-		held[id] = true
-		if id > maxHeld {
-			maxHeld = id
-		}
+	held, maxHeld, err := w.lockInitialCompanions(ctx, subjectID, ids)
+	if err != nil {
+		return nil, err
 	}
 	links, err = w.deps.CarePlan.ListCompanionLinks(ctx, []int64{subjectID})
 	if err != nil {
@@ -686,23 +658,8 @@ func (w *Workflow) checkCompanionStranding(ctx context.Context, subjectID int64)
 		return err
 	}
 	for _, id := range removed {
-		// The rows are already held by lockCompanionGraph; this read only
-		// fetches the plan under the lock this transaction owns.
-		companion, err := w.deps.Directory.ReadEnrollmentStudent(ctx, id, "")
-		if errors.Is(err, peopledirectory.ErrStudentNotFound) {
-			continue // deleted or another tenant: nothing left to strand
-		}
-		if err != nil {
+		if err := w.requireCompanionUnstranded(ctx, id, removedDays[id], covered[id]); err != nil {
 			return err
-		}
-		if companion.DepartureCompanionNote != nil && strings.TrimSpace(*companion.DepartureCompanionNote) != "" {
-			continue // the free-text note carries the detail for every day
-		}
-		accompanied := accompaniedWeekdays(companion.AllowedDepartureModes, companion.DepartureDays)
-		for _, day := range removedDays[id] {
-			if accompanied[day] && !covered[id][day] {
-				return ErrCompanionWouldLoseDeparture
-			}
 		}
 	}
 	return nil

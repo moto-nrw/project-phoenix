@@ -83,23 +83,8 @@ func (s *Service) ResolveDashboard(ctx context.Context, rawToken string) (Dashbo
 		if err != nil {
 			return err
 		}
-		// A disabled or offboarded school must not keep serving live tenant
-		// data to already-open displays. Not found — not "inactive": the link
-		// is dead and the response must not reveal the school's state.
-		if school.Deleted || !school.Active {
-			return domain.ErrDisplayNotFound
-		}
-		// The feature is opt-in and defaults off. A token for a school that
-		// never enabled it must behave exactly like an unknown token.
-		enabled, err := s.deps.Tenants.DisplayEnabled(ctx, display.TenantID)
-		if err != nil {
-			return fmt.Errorf("failed to resolve display.enabled: %w", err)
-		}
-		if !enabled {
-			return domain.ErrDisplayNotFound
-		}
-		if !display.IsActive {
-			return domain.ErrDisplayInactive
+		if err := s.requireDashboardDisplay(ctx, display, school); err != nil {
+			return err
 		}
 		if err := s.deps.Tx.TenantScope(ctx, display.TenantID, func(tenantCtx context.Context) error {
 			built, aggErr := s.aggregate(tenantCtx)
@@ -421,4 +406,26 @@ func (s *Service) buildPickupBuckets(
 	}
 	sort.Slice(buckets, func(i, j int) bool { return buckets[i].Time < buckets[j].Time })
 	return buckets
+}
+
+func (s *Service) requireDashboardDisplay(ctx context.Context, display domain.Display, school domain.School) error {
+	// A disabled or offboarded school must not keep serving live tenant
+	// data to already-open displays. Not found — not "inactive": the link
+	// is dead and the response must not reveal the school's state.
+	if school.Deleted || !school.Active {
+		return domain.ErrDisplayNotFound
+	}
+	// The feature is opt-in and defaults off. A token for a school that
+	// never enabled it must behave exactly like an unknown token.
+	enabled, err := s.deps.Tenants.DisplayEnabled(ctx, display.TenantID)
+	if err != nil {
+		return fmt.Errorf("failed to resolve display.enabled: %w", err)
+	}
+	if !enabled {
+		return domain.ErrDisplayNotFound
+	}
+	if !display.IsActive {
+		return domain.ErrDisplayInactive
+	}
+	return nil
 }

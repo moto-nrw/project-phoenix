@@ -119,19 +119,7 @@ func (s *Service) DailyParticipants(ctx context.Context, date domain.Date) (list
 			return stats, findErr
 		}
 		list = domain.DailyList{Date: date, CutoffTime: cutoffTime, Participants: make([]domain.DailyParticipant, 0, len(candidates))}
-		for _, candidate := range candidates {
-			state := participation[candidate.StudentID]
-			participating := state.Regular
-			if state.Override != nil {
-				participating = *state.Override
-			}
-			if state.SickReportedAt != nil && sickAtCutoff(*state.SickReportedAt, state.SickClearedAt, cutoff) {
-				participating = false
-			}
-			if participating {
-				list.Participants = append(list.Participants, domain.DailyParticipant(candidate))
-			}
-		}
+		appendDailyParticipants(&list, candidates, participation, cutoff)
 		domain.SortDailyParticipants(list.Participants)
 		return stats, nil
 	})
@@ -222,17 +210,7 @@ func (s *Service) resolveParticipation(data domain.ParticipationData, from, to d
 	for _, override := range data.Overrides {
 		overrides[override.Date] = override.Participating
 	}
-	sickDays := make(map[domain.Date]domain.SickDay, len(data.SickDays))
-	for _, sick := range data.SickDays {
-		cutoff := domain.CutoffAt(sick.Date, cutoffTime)
-		if sick.ChangedAt.After(cutoff) {
-			continue
-		}
-		current, exists := sickDays[sick.Date]
-		if !exists || sick.ChangedAt.After(current.ChangedAt) || (sick.ChangedAt.Equal(current.ChangedAt) && sick.ID > current.ID) {
-			sickDays[sick.Date] = sick
-		}
-	}
+	sickDays := effectiveSickDays(data.SickDays, cutoffTime)
 	plan := domain.ParticipationPlan{CutoffTime: cutoffTime, Days: make([]domain.ParticipationDay, 0, from.DaysUntil(to)+1)}
 	for date := from; !date.After(to); date = date.AddDays(1) {
 		if date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
@@ -303,4 +281,35 @@ func (s *Service) run(ctx context.Context, operation string, fn func(context.Con
 		stats.Rows = 0
 	}
 	return err
+}
+
+func appendDailyParticipants(list *domain.DailyList, candidates []domain.DailyCandidate, participation map[int64]domain.DailyParticipation, cutoff time.Time) {
+	for _, candidate := range candidates {
+		state := participation[candidate.StudentID]
+		participating := state.Regular
+		if state.Override != nil {
+			participating = *state.Override
+		}
+		if state.SickReportedAt != nil && sickAtCutoff(*state.SickReportedAt, state.SickClearedAt, cutoff) {
+			participating = false
+		}
+		if participating {
+			list.Participants = append(list.Participants, domain.DailyParticipant(candidate))
+		}
+	}
+}
+
+func effectiveSickDays(days []domain.SickDay, cutoffTime string) map[domain.Date]domain.SickDay {
+	sickDays := make(map[domain.Date]domain.SickDay, len(days))
+	for _, sick := range days {
+		cutoff := domain.CutoffAt(sick.Date, cutoffTime)
+		if sick.ChangedAt.After(cutoff) {
+			continue
+		}
+		current, exists := sickDays[sick.Date]
+		if !exists || sick.ChangedAt.After(current.ChangedAt) || (sick.ChangedAt.Equal(current.ChangedAt) && sick.ID > current.ID) {
+			sickDays[sick.Date] = sick
+		}
+	}
+	return sickDays
 }

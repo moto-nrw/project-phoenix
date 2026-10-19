@@ -136,19 +136,9 @@ func (s *service) UpdateReminder(ctx context.Context, id int64, in ReminderInput
 	if a.ReminderSent() {
 		return nil, ErrReminderAlreadySent
 	}
-	text := normalizeReminderText(in.ReminderText)
-	if in.ReminderAt != nil {
-		if a.IsPoll() {
-			return nil, fmt.Errorf("%w: polls do not support a scheduled reminder", ErrValidation)
-		}
-		if text != nil && len([]rune(*text)) > maxReminderTextLen {
-			return nil, fmt.Errorf("%w: reminder_text is at most %d characters", ErrValidation, maxReminderTextLen)
-		}
-		if err := validateReminder(in.ReminderAt, a.ExpiresAt, time.Now()); err != nil {
-			return nil, err
-		}
-	} else {
-		text = nil
+	text, err := reminderUpdateText(a, in)
+	if err != nil {
+		return nil, err
 	}
 	applied, err := s.repo.SetReminder(ctx, id, in.ReminderAt, text)
 	if err != nil {
@@ -192,54 +182,23 @@ func (s *service) SendDueReminders(ctx context.Context, notBefore, dueBefore tim
 	sent := 0
 	var retryFrom *time.Time
 	for _, a := range due {
-		claimed, err := s.repo.ClaimReminder(ctx, a.ID, dueBefore)
+		fresh, err := s.claimDueReminder(ctx, a, dueBefore)
 		if err != nil {
-			return sent, retryFrom, fmt.Errorf("announcement: claim reminder: %w", err)
-		}
-		if !claimed {
-			// An overlapping tick won, or the announcement was retracted or
-			// expired since the scan. Nothing to send.
-			continue
-		}
-		// ClaimReminder serializes the post-publish edit. Re-read after its
-		// guarded UPDATE so a text or time moved just before the claim cannot be
-		// delivered from the stale due-scan snapshot.
-		fresh, err := s.repo.FindByID(ctx, a.ID)
-		if err != nil {
-			return sent, retryFrom, fmt.Errorf("announcement: reload claimed reminder: %w", err)
+			return sent, retryFrom, err
 		}
 		if fresh == nil {
-			return sent, retryFrom, fmt.Errorf("announcement: reload claimed reminder: row not found")
+			continue
 		}
 		delivery, err := s.deliverReminder(ctx, fresh)
 		if err != nil {
 			return sent, retryFrom, err
 		}
-		if delivery == reminderDeliveryDeferred {
-			released, err := s.repo.ReleaseReminderClaim(ctx, fresh.ID, dueBefore)
-			if err != nil {
-				return sent, retryFrom, fmt.Errorf("announcement: release suppressed reminder claim: %w", err)
-			}
-			if !released {
-				s.logger.Info("parent announcement reminder claim was no longer current",
-					slog.Int64("announcement_id", fresh.ID),
-				)
-			}
-			if fresh.ReminderAt != nil && (retryFrom == nil || fresh.ReminderAt.Before(*retryFrom)) {
-				retryAt := *fresh.ReminderAt
-				retryFrom = &retryAt
-			}
-			continue
+		counted, nextRetry, err := s.finishDueReminder(ctx, fresh, dueBefore, delivery, retryFrom)
+		retryFrom = nextRetry
+		if err != nil {
+			return sent, retryFrom, err
 		}
-		if delivery == reminderDeliverySkipped {
-			// ClaimReminder is the terminal marker for this one fixed reminder
-			// moment. A live announcement can lose every current recipient or
-			// delivery channel after publication; retrying that unchanged state
-			// every five minutes would block the tenant's later reminders without
-			// creating a delivery. Keep the claim and continue this batch.
-			s.logger.Info("parent announcement reminder skipped without delivery target",
-				slog.Int64("announcement_id", fresh.ID),
-			)
+		if !counted {
 			continue
 		}
 		sent++
@@ -257,19 +216,9 @@ func (s *service) deliverReminder(ctx context.Context, a *StaffParentAnnouncemen
 	if err != nil && !pushDeferred && !s.deliveryPolicy.IsNotificationsDisabled(err) {
 		return reminderDeliverySkipped, fmt.Errorf("announcement: reminder push notifications: %w", err)
 	}
-	emailAccepted := 0
-	if a.SendEmail {
-		if needsDeliveryTracking(a) {
-			emailAccepted, err = s.enqueueTrackedReminderEmails(ctx, a)
-			if err != nil {
-				return reminderDeliverySkipped, err
-			}
-		} else {
-			emailAccepted, err = s.enqueueAnnouncementEmailsAs(ctx, a, reminderMailSpec(a))
-			if err != nil {
-				return reminderDeliverySkipped, err
-			}
-		}
+	emailAccepted, err := s.deliverReminderEmails(ctx, a)
+	if err != nil {
+		return reminderDeliverySkipped, err
 	}
 	if pushDeferred && emailAccepted == 0 {
 		return reminderDeliveryDeferred, nil
@@ -389,4 +338,104 @@ func (s *service) enqueueTrackedReminderEmails(ctx context.Context, a *StaffPare
 	}
 	s.applyEmailOptOuts(ctx, a, recipients)
 	return s.queueLetterMailsAs(ctx, a, recipients, reminderLetterMailSpec(a))
+}
+
+func reminderUpdateText(a *StaffParentAnnouncement, in ReminderInput) (*string, error) {
+	text := normalizeReminderText(in.ReminderText)
+	if in.ReminderAt != nil {
+		if a.IsPoll() {
+			return nil, fmt.Errorf("%w: polls do not support a scheduled reminder", ErrValidation)
+		}
+		if text != nil && len([]rune(*text)) > maxReminderTextLen {
+			return nil, fmt.Errorf("%w: reminder_text is at most %d characters", ErrValidation, maxReminderTextLen)
+		}
+		if err := validateReminder(in.ReminderAt, a.ExpiresAt, time.Now()); err != nil {
+			return nil, err
+		}
+	} else {
+		text = nil
+	}
+	return text, nil
+}
+
+func (s *service) deliverReminderEmails(ctx context.Context, a *StaffParentAnnouncement) (int, error) {
+	emailAccepted := 0
+	var err error
+	if a.SendEmail {
+		if needsDeliveryTracking(a) {
+			emailAccepted, err = s.enqueueTrackedReminderEmails(ctx, a)
+			if err != nil {
+				return 0, err
+			}
+		} else {
+			emailAccepted, err = s.enqueueAnnouncementEmailsAs(ctx, a, reminderMailSpec(a))
+			if err != nil {
+				return 0, err
+			}
+		}
+	}
+	return emailAccepted, nil
+}
+
+func (s *service) claimDueReminder(ctx context.Context, a *StaffParentAnnouncement, dueBefore time.Time) (*StaffParentAnnouncement, error) {
+	claimed, err := s.repo.ClaimReminder(ctx, a.ID, dueBefore)
+	if err != nil {
+		return nil, fmt.Errorf("announcement: claim reminder: %w", err)
+	}
+	if !claimed {
+		// An overlapping tick won, or the announcement was retracted or
+		// expired since the scan. Nothing to send.
+		return nil, nil
+	}
+	// ClaimReminder serializes the post-publish edit. Re-read after its
+	// guarded UPDATE so a text or time moved just before the claim cannot be
+	// delivered from the stale due-scan snapshot.
+	fresh, err := s.repo.FindByID(ctx, a.ID)
+	if err != nil {
+		return nil, fmt.Errorf("announcement: reload claimed reminder: %w", err)
+	}
+	if fresh == nil {
+		return nil, fmt.Errorf("announcement: reload claimed reminder: row not found")
+	}
+	return fresh, nil
+}
+
+func (s *service) releaseDeferredReminder(ctx context.Context, fresh *StaffParentAnnouncement, dueBefore time.Time, retryFrom *time.Time) (*time.Time, error) {
+	released, err := s.repo.ReleaseReminderClaim(ctx, fresh.ID, dueBefore)
+	if err != nil {
+		return retryFrom, fmt.Errorf("announcement: release suppressed reminder claim: %w", err)
+	}
+	if !released {
+		s.logger.Info("parent announcement reminder claim was no longer current",
+			slog.Int64("announcement_id", fresh.ID),
+		)
+	}
+	if fresh.ReminderAt != nil && (retryFrom == nil || fresh.ReminderAt.Before(*retryFrom)) {
+		retryAt := *fresh.ReminderAt
+		retryFrom = &retryAt
+	}
+	return retryFrom, nil
+}
+
+func (s *service) finishDueReminder(ctx context.Context, fresh *StaffParentAnnouncement, dueBefore time.Time, delivery reminderDeliveryResult, retryFrom *time.Time) (bool, *time.Time, error) {
+	var err error
+	if delivery == reminderDeliveryDeferred {
+		retryFrom, err = s.releaseDeferredReminder(ctx, fresh, dueBefore, retryFrom)
+		if err != nil {
+			return false, retryFrom, err
+		}
+		return false, retryFrom, nil
+	}
+	if delivery == reminderDeliverySkipped {
+		// ClaimReminder is the terminal marker for this one fixed reminder
+		// moment. A live announcement can lose every current recipient or
+		// delivery channel after publication; retrying that unchanged state
+		// every five minutes would block the tenant's later reminders without
+		// creating a delivery. Keep the claim and return false, retryFrom, nil this batch.
+		s.logger.Info("parent announcement reminder skipped without delivery target",
+			slog.Int64("announcement_id", fresh.ID),
+		)
+		return false, retryFrom, nil
+	}
+	return true, retryFrom, nil
 }

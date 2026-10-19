@@ -271,14 +271,11 @@ func (s *Service) GetChildConversation(ctx context.Context, accountID, studentID
 // PostChildMessage appends a guardian message to the child's conversation,
 // creating the conversation on the first message (get-or-create).
 func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int64, body string) (*MessageThreadView, error) {
-	body = strings.TrimSpace(body)
-	if body == "" {
-		return nil, care.ErrEmptyNote
+	var err error
+	body, err = normalizeParentMessageBody(body)
+	if err != nil {
+		return nil, err
 	}
-	if utf8.RuneCountInString(body) > care.MaxParentNoteLen {
-		return nil, care.ErrNoteTooLong
-	}
-
 	// Posting a message is a per-child WRITE, so it requires parent_portal.notes.write
 	// — NOT merely parent_portal.access (visibility). A pickup-only/emergency-contact
 	// guardian has access but no write authority; the compose box is hidden for them
@@ -312,53 +309,11 @@ func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int
 		SchoolName:  child.SchoolName,
 	}
 	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
-		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
-		if err != nil {
-			return err
-		}
-		if student.CareEndedOn(s.todayDate()) {
-			return care.ErrChildCareEnded
-		}
-		thread, err := s.MessageThreadRepo.GetOrCreate(txCtx, child.TenantID, studentID, accountID)
-		if err != nil {
-			return err
-		}
-		message, err := s.appendGuardianMessage(txCtx, thread, accountID, senderName, body)
-		if err != nil {
-			return err
-		}
-		view.ThreadID = thread.ID
-		messages, err := s.MessageRepo.ListByThread(txCtx, thread.ID, 0)
-		if err != nil {
-			return err
-		}
-		// The frontend replaces its thread state with this returned view, so it must
-		// carry the same "OGS hat gelesen" markers GetChildConversation produces —
-		// otherwise existing receipts blink off until the next full GET/SSE refresh.
-		s.decorateReadReceipts(txCtx, thread.ID, accountID, messages)
-		view.Messages = messages
-		// Advance the guardian's read cursor over this returned snapshot, exactly as
-		// GetChildConversation does. The guardian is now viewing this list, so any
-		// staff message that became visible since the last GET (e.g. a reply that
-		// arrived while an SSE refresh was missed) must count as read — otherwise the
-		// sidebar badge keeps counting a message already on screen until a separate
-		// read-marking GET runs. Bounded to the newest STAFF row in the snapshot
-		// (never NOW(), never our own just-sent message), so it can't leap the cursor
-		// to ~now and swallow a staff message committing concurrently in a still-open
-		// tx. See parentmessaging.MarkReadToNewest.
-		if _, err := s.Conversations.MarkReadToNewest(txCtx, thread.TenantID, thread.ID, accountID, false, messages); err != nil {
+		if err := s.postGuardianReply(txCtx, child, accountID, studentID, senderName, body, view); err != nil {
 			return err
 		}
 		captured := child.TenantID
 		capturedThread := view.ThreadID
-		if s.ParentMessageNotifier != nil {
-			if err := s.ParentMessageNotifier.NotifyStaffParentMessage(txCtx, care.StaffParentMessageReport{
-				TenantID: captured, ThreadID: capturedThread, MessageID: message.ID,
-				StudentID: studentID, ActorAccountID: accountID,
-			}); err != nil {
-				return err
-			}
-		}
 		s.Runtime.RegisterAfterCommit(txCtx, func() {
 			s.broadcastParentMessage(captured, accountID, capturedThread, studentID)
 		})
@@ -450,4 +405,71 @@ func (s *Service) broadcastParentMessage(tenantID, guardianAccountID, threadID, 
 // with the receipt refetch it triggers.
 func (s *Service) broadcastReadReceipt(tenantID, guardianAccountID, threadID, studentID int64) {
 	s.Conversations.BroadcastRead(tenantID, guardianAccountID, threadID, studentID)
+}
+
+func (s *Service) finishGuardianReply(txCtx context.Context, child *Child, thread *ParentMessageThread, accountID, studentID, messageID int64, messages []*ParentMessage, view *MessageThreadView) error {
+	// The frontend replaces its thread state with this returned view, so it must
+	// carry the same "OGS hat gelesen" markers GetChildConversation produces —
+	// otherwise existing receipts blink off until the next full GET/SSE refresh.
+	s.decorateReadReceipts(txCtx, thread.ID, accountID, messages)
+	view.Messages = messages
+	// Advance the guardian's read cursor over this returned snapshot, exactly as
+	// GetChildConversation does. The guardian is now viewing this list, so any
+	// staff message that became visible since the last GET (e.g. a reply that
+	// arrived while an SSE refresh was missed) must count as read — otherwise the
+	// sidebar badge keeps counting a message already on screen until a separate
+	// read-marking GET runs. Bounded to the newest STAFF row in the snapshot
+	// (never NOW(), never our own just-sent message), so it can't leap the cursor
+	// to ~now and swallow a staff message committing concurrently in a still-open
+	// tx. See parentmessaging.MarkReadToNewest.
+	if _, err := s.Conversations.MarkReadToNewest(txCtx, thread.TenantID, thread.ID, accountID, false, messages); err != nil {
+		return err
+	}
+	captured := child.TenantID
+	capturedThread := view.ThreadID
+	if s.ParentMessageNotifier != nil {
+		if err := s.ParentMessageNotifier.NotifyStaffParentMessage(txCtx, care.StaffParentMessageReport{
+			TenantID: captured, ThreadID: capturedThread, MessageID: messageID,
+			StudentID: studentID, ActorAccountID: accountID,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) postGuardianReply(txCtx context.Context, child *Child, accountID, studentID int64, senderName, body string, view *MessageThreadView) error {
+	student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+	if err != nil {
+		return err
+	}
+	if student.CareEndedOn(s.todayDate()) {
+		return care.ErrChildCareEnded
+	}
+	thread, err := s.MessageThreadRepo.GetOrCreate(txCtx, child.TenantID, studentID, accountID)
+	if err != nil {
+		return err
+	}
+	message, err := s.appendGuardianMessage(txCtx, thread, accountID, senderName, body)
+	if err != nil {
+		return err
+	}
+	view.ThreadID = thread.ID
+	messages, err := s.MessageRepo.ListByThread(txCtx, thread.ID, 0)
+	if err != nil {
+		return err
+	}
+	return s.finishGuardianReply(txCtx, child, thread, accountID, studentID, message.ID, messages, view)
+}
+
+func normalizeParentMessageBody(body string) (string, error) {
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return "", care.ErrEmptyNote
+	}
+	if utf8.RuneCountInString(body) > care.MaxParentNoteLen {
+		return "", care.ErrNoteTooLong
+	}
+
+	return body, nil
 }

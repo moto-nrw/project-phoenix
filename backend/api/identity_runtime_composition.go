@@ -107,7 +107,7 @@ func enrollmentGuardianInvitations(invitations identityaccess.GuardianInvitation
 // SchoolPortalAuth binds the school portal's session runtime. A nil
 // capability yields the zero runtime, which the portal reports as not
 // composed.
-func SchoolPortalAuth(sessions identityaccess.AccountAuthentication) schoolPortal.AuthRuntime {
+func SchoolPortalAuth(sessions identityaccess.SchoolAccountLogin) schoolPortal.AuthRuntime {
 	if sessions == nil {
 		return schoolPortal.AuthRuntime{}
 	}
@@ -177,7 +177,7 @@ func SchoolPortalMFA(mfa identityaccess.AccountMFA) schoolPortal.MFARuntime {
 }
 
 // parentPortalLogin binds the parents portal's login runtime.
-func parentPortalLogin(sessions identityaccess.AccountAuthentication) parentAPI.LoginRuntime {
+func parentPortalLogin(sessions identityaccess.ParentAccountLogin) parentAPI.LoginRuntime {
 	if sessions == nil {
 		return parentAPI.LoginRuntime{}
 	}

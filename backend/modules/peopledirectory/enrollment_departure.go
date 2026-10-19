@@ -18,40 +18,12 @@ func normalizeEnrollmentDeparture(input *EnrollmentProfilePatch) error {
 	allowed := map[string][]string{}
 	accompanied, pickup := false, false
 	for day, modes := range input.AllowedDepartureModes {
-		if day != "mon" && day != "tue" && day != "wed" && day != "thu" && day != "fri" {
-			return &InvalidStudentError{Reason: "invalid departure weekday"}
+		dayAccompanied, dayPickup, err := normalizeEnrollmentDepartureDay(input, day, modes, allowed)
+		if err != nil {
+			return err
 		}
-		seen := map[string]bool{}
-		for _, mode := range modes {
-			if (mode != "alone" && mode != "bus" && mode != "pickup" && mode != "accompanied") || seen[mode] {
-				return &InvalidStudentError{Reason: "invalid or duplicate departure mode"}
-			}
-			seen[mode] = true
-		}
-		for _, mode := range []string{"alone", "bus", "pickup", "accompanied"} {
-			if seen[mode] {
-				allowed[day] = append(allowed[day], mode)
-			}
-		}
-		if seen["bus"] {
-			input.BusDays[day] = true
-		}
-		if seen["pickup"] {
-			input.PickupDays[day] = true
-			pickup = true
-		}
-		if seen["accompanied"] {
-			accompanied = true
-			if (input.DepartureCompanionNote == nil || strings.TrimSpace(*input.DepartureCompanionNote) == "") && !input.DepartureCompanionDays[day] {
-				return &InvalidStudentError{Reason: "departure companion detail is required"}
-			}
-		}
-		for _, mode := range []string{"pickup", "bus", "accompanied"} {
-			if seen[mode] {
-				input.DepartureDays[day] = mode
-				break
-			}
-		}
+		accompanied = accompanied || dayAccompanied
+		pickup = pickup || dayPickup
 	}
 	input.AllowedDepartureModes = allowed
 	if accompanied {
@@ -73,4 +45,52 @@ func normalizeEnrollmentDeparture(input *EnrollmentProfilePatch) error {
 		}
 	}
 	return nil
+}
+
+func normalizeEnrollmentDepartureDay(input *EnrollmentProfilePatch, day string, modes []string, allowed map[string][]string) (accompanied, pickup bool, err error) {
+	switch day {
+	case "mon", "tue", "wed", "thu", "fri":
+	default:
+		return accompanied, pickup, &InvalidStudentError{Reason: "invalid departure weekday"}
+	}
+	seen, err := enrollmentDepartureModeSet(modes)
+	if err != nil {
+		return accompanied, pickup, err
+	}
+	for _, mode := range []string{"alone", "bus", "pickup", "accompanied"} {
+		if seen[mode] {
+			allowed[day] = append(allowed[day], mode)
+		}
+	}
+	if seen["bus"] {
+		input.BusDays[day] = true
+	}
+	if seen["pickup"] {
+		input.PickupDays[day] = true
+		pickup = true
+	}
+	if seen["accompanied"] {
+		accompanied = true
+		if (input.DepartureCompanionNote == nil || strings.TrimSpace(*input.DepartureCompanionNote) == "") && !input.DepartureCompanionDays[day] {
+			return accompanied, pickup, &InvalidStudentError{Reason: "departure companion detail is required"}
+		}
+	}
+	for _, mode := range []string{"pickup", "bus", "accompanied"} {
+		if seen[mode] {
+			input.DepartureDays[day] = mode
+			break
+		}
+	}
+	return accompanied, pickup, nil
+}
+
+func enrollmentDepartureModeSet(modes []string) (map[string]bool, error) {
+	seen := map[string]bool{}
+	for _, mode := range modes {
+		if (mode != "alone" && mode != "bus" && mode != "pickup" && mode != "accompanied") || seen[mode] {
+			return nil, &InvalidStudentError{Reason: "invalid or duplicate departure mode"}
+		}
+		seen[mode] = true
+	}
+	return seen, nil
 }

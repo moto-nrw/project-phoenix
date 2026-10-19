@@ -32,24 +32,9 @@ func (s *Service) ListFolders(ctx context.Context, actor domain.Actor) (overview
 		}
 		overview.CanUpload = overview.CanManage || overview.StaffUploadEnabled
 
-		var audiences map[int64]domain.Audience
-		if overview.CanManage {
-			ids := make([]int64, 0, len(items))
-			for _, item := range items {
-				ids = append(ids, item.ID)
-			}
-			var stats domain.OperationStats
-			if audiences, stats, err = s.deps.Folders.GetAudience(ctx, ids); err != nil {
-				return err
-			}
-			o.add(stats)
-			if overview.UsedBytes, stats, err = s.deps.Files.TotalStoredBytes(ctx); err != nil {
-				return err
-			}
-			o.add(stats)
-			if overview.MaxBytes, err = s.deps.Settings.MaxStorageBytes(ctx); err != nil {
-				return err
-			}
+		audiences, err := s.folderManagementOverview(ctx, o, &overview, items)
+		if err != nil {
+			return err
 		}
 		for _, item := range items {
 			overview.Folders = append(overview.Folders, domain.FolderView{FolderListItem: item, Audience: audiences[item.ID]})
@@ -107,31 +92,9 @@ func (s *Service) UpdateFolder(ctx context.Context, folderID int64, input domain
 		}
 		audience := input.Audience()
 		return s.write(ctx, o, func(txCtx context.Context, o *op) error {
-			existing, found, stats, err := s.deps.Folders.FindByID(txCtx, folderID)
-			o.add(stats)
-			if err != nil {
-				return err
-			}
-			if !found {
-				return domain.ErrNotFound
-			}
-			if err := s.validateAudience(txCtx, audience); err != nil {
-				return err
-			}
-			existing.Name = input.Name
-			existing.Visibility = input.Visibility
-			folder, stats, err := s.deps.Folders.Update(txCtx, existing)
-			o.add(stats)
-			if err != nil {
-				return err
-			}
-			stats, err = s.deps.Folders.ReplaceAudience(txCtx, folder.ID, audience)
-			o.add(stats)
-			if err != nil {
-				return err
-			}
-			view = domain.FolderView{FolderListItem: domain.FolderListItem{Folder: folder}, Audience: audience}
-			return s.record(txCtx, actor, ports.EventFolderUpdated, &folder.ID, nil, nil, folderEventDetail(folder, audience))
+			var updateErr error
+			view, updateErr = s.updateFolderRecord(txCtx, o, folderID, input, actor, audience)
+			return updateErr
 		})
 	})
 	return view, err
@@ -148,39 +111,7 @@ func (s *Service) DeleteFolder(ctx context.Context, folderID int64, actor domain
 			return err
 		}
 		return s.write(ctx, o, func(txCtx context.Context, o *op) error {
-			folder, found, stats, err := s.deps.Folders.FindByID(txCtx, folderID)
-			o.add(stats)
-			if err != nil {
-				return err
-			}
-			if !found {
-				return domain.ErrNotFound
-			}
-			// Every object still on disk gets an immediately eligible intent
-			// BEFORE the rows cascade away; the intents are all that survive.
-			pending, stats, err := s.deps.Files.ListPendingCleanupByOwner(txCtx, folderID)
-			o.add(stats)
-			if err != nil {
-				return err
-			}
-			now := s.deps.Now()
-			for _, file := range pending {
-				stats, err := s.deps.FileCleanups.Queue(txCtx, folderID, file.FilenameStored, now)
-				o.add(stats)
-				if err != nil {
-					return err
-				}
-			}
-			stats, err = s.deps.Folders.Delete(txCtx, folderID)
-			o.add(stats)
-			if err != nil {
-				return err
-			}
-			s.deps.Logger.Info("folder deleted",
-				"folder_id", folderID,
-				"files_pending_cleanup", len(pending))
-			return s.record(txCtx, actor, ports.EventFolderDeleted, &folderID, nil, nil,
-				fmt.Sprintf("Ordner „%s“ gelöscht (%d Dateien)", folder.Name, len(pending)))
+			return s.deleteFolderRecord(txCtx, o, folderID, actor)
 		})
 	})
 }
@@ -248,20 +179,8 @@ func (s *Service) audienceAccounts(ctx context.Context) ([]domain.AudienceAccoun
 // validateAudience refuses roles and accounts that are not shareable at this
 // school, so a share list can never point outside the tenant.
 func (s *Service) validateAudience(ctx context.Context, audience domain.Audience) error {
-	if len(audience.RoleIDs) > 0 {
-		roles, err := s.audienceRoles(ctx)
-		if err != nil {
-			return err
-		}
-		allowed := make(map[int64]struct{}, len(roles))
-		for _, role := range roles {
-			allowed[role.ID] = struct{}{}
-		}
-		for _, id := range audience.RoleIDs {
-			if _, ok := allowed[id]; !ok {
-				return fmt.Errorf("%w: unknown role", domain.ErrInvalid)
-			}
-		}
+	if err := s.validateAudienceRoles(ctx, audience.RoleIDs); err != nil {
+		return err
 	}
 	if len(audience.AccountIDs) > 0 {
 		accounts, err := s.audienceAccounts(ctx)
@@ -290,4 +209,111 @@ func folderEventDetail(folder domain.Folder, audience domain.Audience) string {
 	default:
 		return fmt.Sprintf("Ordner „%s“: Alle Mitarbeitenden", folder.Name)
 	}
+}
+
+func (s *Service) validateAudienceRoles(ctx context.Context, roleIDs []int64) error {
+	if len(roleIDs) > 0 {
+		roles, err := s.audienceRoles(ctx)
+		if err != nil {
+			return err
+		}
+		allowed := make(map[int64]struct{}, len(roles))
+		for _, role := range roles {
+			allowed[role.ID] = struct{}{}
+		}
+		for _, id := range roleIDs {
+			if _, ok := allowed[id]; !ok {
+				return fmt.Errorf("%w: unknown role", domain.ErrInvalid)
+			}
+		}
+	}
+	return nil
+}
+
+func (s *Service) folderManagementOverview(ctx context.Context, o *op, overview *domain.Overview, items []domain.FolderListItem) (map[int64]domain.Audience, error) {
+	var audiences map[int64]domain.Audience
+	var err error
+	if overview.CanManage {
+		ids := make([]int64, 0, len(items))
+		for _, item := range items {
+			ids = append(ids, item.ID)
+		}
+		var stats domain.OperationStats
+		if audiences, stats, err = s.deps.Folders.GetAudience(ctx, ids); err != nil {
+			return nil, err
+		}
+		o.add(stats)
+		if overview.UsedBytes, stats, err = s.deps.Files.TotalStoredBytes(ctx); err != nil {
+			return nil, err
+		}
+		o.add(stats)
+		if overview.MaxBytes, err = s.deps.Settings.MaxStorageBytes(ctx); err != nil {
+			return nil, err
+		}
+	}
+	return audiences, nil
+}
+
+func (s *Service) deleteFolderRecord(txCtx context.Context, o *op, folderID int64, actor domain.Actor) error {
+	folder, found, stats, err := s.deps.Folders.FindByID(txCtx, folderID)
+	o.add(stats)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return domain.ErrNotFound
+	}
+	// Every object still on disk gets an immediately eligible intent
+	// BEFORE the rows cascade away; the intents are all that survive.
+	pending, stats, err := s.deps.Files.ListPendingCleanupByOwner(txCtx, folderID)
+	o.add(stats)
+	if err != nil {
+		return err
+	}
+	now := s.deps.Now()
+	for _, file := range pending {
+		stats, err := s.deps.FileCleanups.Queue(txCtx, folderID, file.FilenameStored, now)
+		o.add(stats)
+		if err != nil {
+			return err
+		}
+	}
+	stats, err = s.deps.Folders.Delete(txCtx, folderID)
+	o.add(stats)
+	if err != nil {
+		return err
+	}
+	s.deps.Logger.Info("folder deleted",
+		"folder_id", folderID,
+		"files_pending_cleanup", len(pending))
+	return s.record(txCtx, actor, ports.EventFolderDeleted, &folderID, nil, nil,
+		fmt.Sprintf("Ordner „%s“ gelöscht (%d Dateien)", folder.Name, len(pending)))
+}
+
+func (s *Service) updateFolderRecord(txCtx context.Context, o *op, folderID int64, input domain.FolderInput, actor domain.Actor, audience domain.Audience) (view domain.FolderView, err error) {
+	existing, found, stats, err := s.deps.Folders.FindByID(txCtx, folderID)
+	o.add(stats)
+	if err != nil {
+		return view, err
+	}
+	if !found {
+		return view, domain.ErrNotFound
+	}
+	if err := s.validateAudience(txCtx, audience); err != nil {
+		return view, err
+	}
+	existing.Name = input.Name
+	existing.Visibility = input.Visibility
+	folder, stats, err := s.deps.Folders.Update(txCtx, existing)
+	o.add(stats)
+	if err != nil {
+		return view, err
+	}
+	stats, err = s.deps.Folders.ReplaceAudience(txCtx, folder.ID, audience)
+	o.add(stats)
+	if err != nil {
+		return view, err
+	}
+	view = domain.FolderView{FolderListItem: domain.FolderListItem{Folder: folder}, Audience: audience}
+	return view, s.record(txCtx, actor, ports.EventFolderUpdated, &folder.ID, nil, nil, folderEventDetail(folder, audience))
 }

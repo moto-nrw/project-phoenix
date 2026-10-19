@@ -212,6 +212,14 @@ func TypesForPortal(portal string) []TypeDefinition {
 }
 
 func init() {
+	registerPickupTypes()
+	registerActivityTypes()
+	registerStaffMessageTypes()
+	registerParentMessageTypes()
+	registerParentStatusTypes()
+}
+
+func registerPickupTypes() {
 	RegisterType(TypeDefinition{
 		Key:         TypePickupUpcoming,
 		Label:       "Anstehende Abholung",
@@ -230,6 +238,9 @@ func init() {
 		TenantGate:  settingRemindersPickupOverdueEnabled,
 		SortOrder:   2,
 	})
+}
+
+func registerActivityTypes() {
 
 	// The two activity types read almost alike, so their labels name the
 	// relation rather than the event: one is about the room you are watching,
@@ -260,6 +271,9 @@ func init() {
 		Portal:      PortalStaff,
 		SortOrder:   3,
 	})
+}
+
+func registerStaffMessageTypes() {
 
 	RegisterType(TypeDefinition{
 		Key:         TypeStudentAbsenceReported,
@@ -293,6 +307,9 @@ func init() {
 		SortOrder:    2,
 		SchoolPortal: true,
 	})
+}
+
+func registerParentMessageTypes() {
 
 	RegisterType(TypeDefinition{
 		Key:         TypeParentAnnouncement,
@@ -318,6 +335,9 @@ func init() {
 		TenantGate:  settingParentNotesEnabled,
 		SortOrder:   2,
 	})
+}
+
+func registerParentStatusTypes() {
 
 	// No tenant gate: whether guardians hear about an appointment is decided per
 	// appointment by its organizer ("Eltern benachrichtigen"), not school-wide.

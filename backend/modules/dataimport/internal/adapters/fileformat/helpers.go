@@ -271,76 +271,55 @@ func MapStudentRow(mapper *ColumnMapper) (importModels.StudentImportRow, error) 
 		row.DataRetentionDays = retention
 	}
 
-	// AUTO-DETECT GUARDIANS (Erz1, Erz2, Erz3, ...) — gaps in the numbering
-	// are skipped, not treated as the end of the list.
-	maxGuardian := mapper.MaxNumberedPrefix("erz")
-	for guardianNum := 1; guardianNum <= maxGuardian; guardianNum++ {
-		emailKey := fmt.Sprintf("erz%d.email", guardianNum)
-		phoneKey := fmt.Sprintf("erz%d.telefon", guardianNum)
-		mobileKey := fmt.Sprintf("erz%d.mobil", guardianNum)
+	if err := mapStudentGuardians(mapper, &row); err != nil {
+		return row, err
+	}
+	mapStudentSchedules(mapper, &row)
+	return row, nil
+}
 
-		contactKeys := []string{
-			emailKey, phoneKey, mobileKey,
-			fmt.Sprintf("erz%d.telefon2", guardianNum),
-			fmt.Sprintf("erz%d.mobil2", guardianNum),
-			fmt.Sprintf("erz%d.dienstlich", guardianNum),
-			fmt.Sprintf("erz%d.dienstlich2", guardianNum),
-		}
-		hasContactColumn := false
-		for _, key := range contactKeys {
-			if mapper.HasColumn(key) {
-				hasContactColumn = true
-				break
-			}
-		}
-		if !hasContactColumn {
-			continue // No contact columns for this number
-		}
+// PhoneMapping defines a phone column mapping
+type PhoneMapping struct {
+	Suffix    string
+	PhoneType string
+	Label     string
+}
 
-		primaryValue := mapper.GetCol(fmt.Sprintf("erz%d.hauptansprechpartner", guardianNum))
-		emergencyValue := mapper.GetCol(fmt.Sprintf("erz%d.notfall", guardianNum))
-		pickupValue := mapper.GetCol(fmt.Sprintf("erz%d.abholberechtigt", guardianNum))
-		guardian := importModels.GuardianImportData{
-			FirstName:             mapper.GetCol(fmt.Sprintf("erz%d.vorname", guardianNum)),
-			LastName:              mapper.GetCol(fmt.Sprintf("erz%d.nachname", guardianNum)),
-			Email:                 mapper.GetCol(emailKey),
-			Phone:                 mapper.GetRawCol(phoneKey),
-			MobilePhone:           mapper.GetRawCol(mobileKey),
-			RelationshipType:      mapper.GetCol(fmt.Sprintf("erz%d.verhältnis", guardianNum)),
-			IsPrimary:             ParseBool(primaryValue),
-			IsPrimarySet:          primaryValue != "",
-			IsEmergencyContact:    ParseBool(emergencyValue),
-			IsEmergencyContactSet: emergencyValue != "",
-			CanPickup:             ParseBool(pickupValue),
-			CanPickupSet:          pickupValue != "",
-			GuardianRole:          mapper.GetCol(fmt.Sprintf("erz%d.rolle", guardianNum)),
-			PickupNotes:           mapper.GetCol(fmt.Sprintf("erz%d.abholhinweis", guardianNum)),
-		}
-		if prio := mapper.GetCol(fmt.Sprintf("erz%d.notfallpriorität", guardianNum)); prio != "" {
-			n, err := strconv.Atoi(prio)
-			if err != nil || n < 1 {
-				return row, fmt.Errorf("ungültige Notfallpriorität '%s' für Erz%d. Bitte eine ganze Zahl ab 1 verwenden (1 = zuerst anrufen)", prio, guardianNum)
-			}
-			guardian.EmergencyPriority = n
-		}
+// DefaultPhoneMappings returns the standard phone column mappings
+func DefaultPhoneMappings() []PhoneMapping {
+	return []PhoneMapping{
+		{"telefon", "home", ""},
+		{"telefon2", "home", ""},
+		{"mobil", "mobile", ""},
+		{"mobil2", "mobile", ""},
+		{"dienstlich", "work", "Dienstlich"},
+		{"dienstlich2", "work", "Dienstlich"},
+	}
+}
 
-		// Parse flexible phone numbers into PhoneNumbers array
-		guardian.PhoneNumbers = ParseGuardianPhoneNumbers(guardianNum, mapper.GetRawCol)
+// ParseGuardianPhoneNumbers extracts phone numbers from columns into PhoneImportData array
+func ParseGuardianPhoneNumbers(guardianNum int, getCol func(string) string) []importModels.PhoneImportData {
+	var phones []importModels.PhoneImportData
+	priority := 1
 
-		// Guardian profile fields (address, notes, language)
-		guardian.AddressStreet = mapper.GetCol(fmt.Sprintf("erz%d.straße", guardianNum))
-		guardian.AddressCity = mapper.GetCol(fmt.Sprintf("erz%d.stadt", guardianNum))
-		guardian.AddressPostalCode = mapper.GetCol(fmt.Sprintf("erz%d.plz", guardianNum))
-		guardian.Notes = mapper.GetCol(fmt.Sprintf("erz%d.notizen", guardianNum))
-		guardian.LanguagePreference = mapper.GetCol(fmt.Sprintf("erz%d.sprache", guardianNum))
-
-		// Only add if has contact info (skip empty guardians)
-		hasPhoneNumbers := len(guardian.PhoneNumbers) > 0
-		if guardian.Email != "" || guardian.Phone != "" || guardian.MobilePhone != "" || hasPhoneNumbers {
-			row.Guardians = append(row.Guardians, guardian)
+	for _, mapping := range DefaultPhoneMappings() {
+		colKey := fmt.Sprintf("erz%d.%s", guardianNum, mapping.Suffix)
+		value := getCol(colKey)
+		if value != "" {
+			phones = append(phones, importModels.PhoneImportData{
+				PhoneNumber: value,
+				PhoneType:   mapping.PhoneType,
+				Label:       mapping.Label,
+				IsPrimary:   priority == 1,
+			})
+			priority++
 		}
 	}
 
+	return phones
+}
+
+func mapStudentSchedules(mapper *ColumnMapper, row *importModels.StudentImportRow) {
 	// Parse pickup schedule (Mon-Fri) with per-day notes
 	dayColumns := []struct {
 		key      string
@@ -389,46 +368,94 @@ func MapStudentRow(mapper *ColumnMapper) (importModels.StudentImportRow, error) 
 		}
 	}
 
-	return row, nil
 }
 
-// PhoneMapping defines a phone column mapping
-type PhoneMapping struct {
-	Suffix    string
-	PhoneType string
-	Label     string
-}
+func mapStudentGuardian(mapper *ColumnMapper, guardianNum int) (importModels.GuardianImportData, bool, error) {
+	emailKey := fmt.Sprintf("erz%d.email", guardianNum)
+	phoneKey := fmt.Sprintf("erz%d.telefon", guardianNum)
+	mobileKey := fmt.Sprintf("erz%d.mobil", guardianNum)
 
-// DefaultPhoneMappings returns the standard phone column mappings
-func DefaultPhoneMappings() []PhoneMapping {
-	return []PhoneMapping{
-		{"telefon", "home", ""},
-		{"telefon2", "home", ""},
-		{"mobil", "mobile", ""},
-		{"mobil2", "mobile", ""},
-		{"dienstlich", "work", "Dienstlich"},
-		{"dienstlich2", "work", "Dienstlich"},
+	hasContactColumn := hasGuardianContactColumn(mapper, guardianNum, emailKey, phoneKey, mobileKey)
+	if !hasContactColumn {
+		return importModels.GuardianImportData{}, false, nil // No contact columns for this number
 	}
+
+	primaryValue := mapper.GetCol(fmt.Sprintf("erz%d.hauptansprechpartner", guardianNum))
+	emergencyValue := mapper.GetCol(fmt.Sprintf("erz%d.notfall", guardianNum))
+	pickupValue := mapper.GetCol(fmt.Sprintf("erz%d.abholberechtigt", guardianNum))
+	guardian := importModels.GuardianImportData{
+		FirstName:             mapper.GetCol(fmt.Sprintf("erz%d.vorname", guardianNum)),
+		LastName:              mapper.GetCol(fmt.Sprintf("erz%d.nachname", guardianNum)),
+		Email:                 mapper.GetCol(emailKey),
+		Phone:                 mapper.GetRawCol(phoneKey),
+		MobilePhone:           mapper.GetRawCol(mobileKey),
+		RelationshipType:      mapper.GetCol(fmt.Sprintf("erz%d.verhältnis", guardianNum)),
+		IsPrimary:             ParseBool(primaryValue),
+		IsPrimarySet:          primaryValue != "",
+		IsEmergencyContact:    ParseBool(emergencyValue),
+		IsEmergencyContactSet: emergencyValue != "",
+		CanPickup:             ParseBool(pickupValue),
+		CanPickupSet:          pickupValue != "",
+		GuardianRole:          mapper.GetCol(fmt.Sprintf("erz%d.rolle", guardianNum)),
+		PickupNotes:           mapper.GetCol(fmt.Sprintf("erz%d.abholhinweis", guardianNum)),
+	}
+	if prio := mapper.GetCol(fmt.Sprintf("erz%d.notfallpriorität", guardianNum)); prio != "" {
+		n, err := strconv.Atoi(prio)
+		if err != nil || n < 1 {
+			return guardian, false, fmt.Errorf("ungültige Notfallpriorität '%s' für Erz%d. Bitte eine ganze Zahl ab 1 verwenden (1 = zuerst anrufen)", prio, guardianNum)
+		}
+		guardian.EmergencyPriority = n
+	}
+
+	// Parse flexible phone numbers into PhoneNumbers array
+	guardian.PhoneNumbers = ParseGuardianPhoneNumbers(guardianNum, mapper.GetRawCol)
+
+	// Guardian profile fields (address, notes, language)
+	guardian.AddressStreet = mapper.GetCol(fmt.Sprintf("erz%d.straße", guardianNum))
+	guardian.AddressCity = mapper.GetCol(fmt.Sprintf("erz%d.stadt", guardianNum))
+	guardian.AddressPostalCode = mapper.GetCol(fmt.Sprintf("erz%d.plz", guardianNum))
+	guardian.Notes = mapper.GetCol(fmt.Sprintf("erz%d.notizen", guardianNum))
+	guardian.LanguagePreference = mapper.GetCol(fmt.Sprintf("erz%d.sprache", guardianNum))
+
+	return guardian, true, nil
 }
 
-// ParseGuardianPhoneNumbers extracts phone numbers from columns into PhoneImportData array
-func ParseGuardianPhoneNumbers(guardianNum int, getCol func(string) string) []importModels.PhoneImportData {
-	var phones []importModels.PhoneImportData
-	priority := 1
+func hasGuardianContactColumn(mapper *ColumnMapper, guardianNum int, emailKey, phoneKey, mobileKey string) bool {
+	contactKeys := []string{
+		emailKey, phoneKey, mobileKey,
+		fmt.Sprintf("erz%d.telefon2", guardianNum),
+		fmt.Sprintf("erz%d.mobil2", guardianNum),
+		fmt.Sprintf("erz%d.dienstlich", guardianNum),
+		fmt.Sprintf("erz%d.dienstlich2", guardianNum),
+	}
+	hasContactColumn := false
+	for _, key := range contactKeys {
+		if mapper.HasColumn(key) {
+			hasContactColumn = true
+			break
+		}
+	}
+	return hasContactColumn
+}
 
-	for _, mapping := range DefaultPhoneMappings() {
-		colKey := fmt.Sprintf("erz%d.%s", guardianNum, mapping.Suffix)
-		value := getCol(colKey)
-		if value != "" {
-			phones = append(phones, importModels.PhoneImportData{
-				PhoneNumber: value,
-				PhoneType:   mapping.PhoneType,
-				Label:       mapping.Label,
-				IsPrimary:   priority == 1,
-			})
-			priority++
+func mapStudentGuardians(mapper *ColumnMapper, row *importModels.StudentImportRow) error {
+	// AUTO-DETECT GUARDIANS (Erz1, Erz2, Erz3, ...) — gaps in the numbering
+	// are skipped, not treated as the end of the list.
+	maxGuardian := mapper.MaxNumberedPrefix("erz")
+	for guardianNum := 1; guardianNum <= maxGuardian; guardianNum++ {
+		guardian, present, err := mapStudentGuardian(mapper, guardianNum)
+		if err != nil {
+			return err
+		}
+		if !present {
+			continue
+		}
+		// Only add if has contact info (skip empty guardians)
+		hasPhoneNumbers := len(guardian.PhoneNumbers) > 0
+		if guardian.Email != "" || guardian.Phone != "" || guardian.MobilePhone != "" || hasPhoneNumbers {
+			row.Guardians = append(row.Guardians, guardian)
 		}
 	}
 
-	return phones
+	return nil
 }

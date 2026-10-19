@@ -603,17 +603,9 @@ func redactPlannedPickupTimes(instances []PlannedInstance) {
 // loadPresenceSections projects the selected session and every released room
 // together. Student-specific reads therefore run once over their union.
 func (s *service) loadPresenceSections(ctx context.Context, projection *Projection, caller Caller, selectedGroupID *int64, openRooms openRoomInputs, staffID *int64, businessDay Date) error {
-	selectedRows := make([]VisitRecord, 0)
-	if selectedGroupID != nil {
-		rows, err := s.deps.Presence.GroupVisits(ctx, *selectedGroupID)
-		if err != nil {
-			return fmt.Errorf("load group visits: %w", err)
-		}
-		for _, row := range rows {
-			if row.ExitTime == nil {
-				selectedRows = append(selectedRows, row)
-			}
-		}
+	selectedRows, err := s.selectedGroupVisits(ctx, selectedGroupID)
+	if err != nil {
+		return err
 	}
 	studentIDs := unionStudentIDs(selectedRows, openRooms.studentIDs())
 
@@ -778,4 +770,20 @@ func arrivalTimeFromEffective(studentID int64, effective Arrival) ArrivalTime {
 		ExpectedArrival: effective.ArrivalTime, IsException: effective.IsException, Notes: effective.Notes,
 		DayNotes: effective.DayNotes,
 	}
+}
+
+func (s *service) selectedGroupVisits(ctx context.Context, selectedGroupID *int64) ([]VisitRecord, error) {
+	selectedRows := make([]VisitRecord, 0)
+	if selectedGroupID != nil {
+		rows, err := s.deps.Presence.GroupVisits(ctx, *selectedGroupID)
+		if err != nil {
+			return nil, fmt.Errorf("load group visits: %w", err)
+		}
+		for _, row := range rows {
+			if row.ExitTime == nil {
+				selectedRows = append(selectedRows, row)
+			}
+		}
+	}
+	return selectedRows, nil
 }

@@ -27,12 +27,8 @@ func (w *Workflow) Revert(ctx context.Context, id int64) (result Result, err err
 		if err := validateCanRevert(transition); err != nil {
 			return err
 		}
-		latest, found, err := w.deps.Structure.LockLatestAppliedTransition(txCtx)
-		if err != nil {
-			return fmt.Errorf("failed to resolve latest applied transition: %w", translateStructureError(err))
-		}
-		if !found || latest.ID != id {
-			return ErrNotLatestApplied
+		if err := w.requireLatestAppliedTransition(txCtx, id); err != nil {
+			return err
 		}
 		history, err := w.deps.Structure.ListTransitionHistory(txCtx, id)
 		if err != nil {
@@ -201,12 +197,7 @@ func (w *Workflow) restoreGraduateTags(ctx context.Context, graduated []schoolst
 	for _, id := range restored {
 		restoredSet[id] = true
 	}
-	candidates := make([]int64, 0, len(graduated))
-	for _, entry := range graduated {
-		if entry.RFIDTag != nil && *entry.RFIDTag != "" && restoredSet[entry.StudentID] {
-			candidates = append(candidates, entry.StudentID)
-		}
-	}
+	candidates := graduateTagCandidates(graduated, restoredSet)
 	if len(candidates) == 0 {
 		return nil
 	}
@@ -241,4 +232,25 @@ func (w *Workflow) restoreGraduateTags(ctx context.Context, graduated []schoolst
 			fmt.Sprintf("%d RFID tags could not be re-linked (reassigned to another child since graduation)", reissued))
 	}
 	return nil
+}
+
+func (w *Workflow) requireLatestAppliedTransition(txCtx context.Context, id int64) error {
+	latest, found, err := w.deps.Structure.LockLatestAppliedTransition(txCtx)
+	if err != nil {
+		return fmt.Errorf("failed to resolve latest applied transition: %w", translateStructureError(err))
+	}
+	if !found || latest.ID != id {
+		return ErrNotLatestApplied
+	}
+	return nil
+}
+
+func graduateTagCandidates(graduated []schoolstructure.TransitionHistoryEntry, restoredSet map[int64]bool) []int64 {
+	candidates := make([]int64, 0, len(graduated))
+	for _, entry := range graduated {
+		if entry.RFIDTag != nil && *entry.RFIDTag != "" && restoredSet[entry.StudentID] {
+			candidates = append(candidates, entry.StudentID)
+		}
+	}
+	return candidates
 }

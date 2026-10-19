@@ -128,24 +128,9 @@ func (s *AccountProvisioning) RegisterSchoolAccount(ctx context.Context, request
 	// matches the transaction's tenant, so a code bug cannot silently create
 	// a cross-tenant role assignment.
 	err = s.runtime.WithTenantTx(ctx, request.TenantID, func(txCtx context.Context) error {
-		account, _, insertErr := s.accounts.InsertSchoolAccount(txCtx, newAccount)
-		if insertErr != nil {
-			return insertErr
-		}
-		if _, mappingErr := s.accounts.InsertTenantMappingIfAbsent(txCtx, account.ID, request.TenantID); mappingErr != nil {
-			return fmt.Errorf("failed to create account-tenant mapping: %w", mappingErr)
-		}
-		if assignsRole(request.RoleID) {
-			if _, _, roleErr := s.roleStore.AssignAccountRole(txCtx, account.ID, *request.RoleID, request.TenantID); roleErr != nil {
-				return fmt.Errorf("failed to assign role to account: %w", roleErr)
-			}
-		}
-		provisioned, identityErr := s.provisionIdentity(txCtx, account.ID, request.TenantID, role, request.Identity)
-		if identityErr != nil {
-			return identityErr
-		}
-		result = domain.ProvisionedAccount{Account: account, Identity: provisioned}
-		return nil
+		var err error
+		result, err = s.insertTenantAccount(txCtx, request, newAccount, role)
+		return err
 	})
 	if err != nil {
 		return domain.ProvisionedAccount{}, err
@@ -184,37 +169,9 @@ func (s *AccountProvisioning) LinkSchoolAccount(ctx context.Context, request dom
 
 	var identity *domain.SchoolIdentity
 	err = s.runtime.WithTenantTx(ctx, request.TenantID, func(txCtx context.Context) error {
-		if _, mappingErr := s.accounts.InsertTenantMappingIfAbsent(txCtx, account.ID, request.TenantID); mappingErr != nil {
-			return fmt.Errorf("failed to create account-tenant mapping: %w", mappingErr)
-		}
-		// Unlike a registration this account already exists, and it may
-		// already carry an identity at this school — from an earlier link, or
-		// from a revoke that deliberately left person/staff/teacher behind.
-		// Handing it the Lehrkraft role while that identity holds a live
-		// caregiver profile strands users.teachers and its group supervisions
-		// under a JWT that only carries class_day permissions (#1772). The
-		// same rule the tenant RBAC endpoint and both operator paths apply,
-		// so this endpoint cannot be the way around them.
-		if role != nil && s.policy.IsLehrkraftSystemRole(role.Facts()) {
-			hasProfile, profileErr := s.profiles.HasLiveCaregiverProfile(txCtx, account.ID)
-			if profileErr != nil {
-				return profileErr
-			}
-			if hasProfile {
-				return domain.ErrRoleLehrkraftCaregiverProfile
-			}
-		}
-		if assignsRole(request.RoleID) {
-			if _, _, roleErr := s.roleStore.AssignAccountRole(txCtx, account.ID, *request.RoleID, request.TenantID); roleErr != nil {
-				return fmt.Errorf("failed to assign role to account: %w", roleErr)
-			}
-		}
-		provisioned, identityErr := s.provisionIdentity(txCtx, account.ID, request.TenantID, role, request.Identity)
-		if identityErr != nil {
-			return identityErr
-		}
-		identity = provisioned
-		return nil
+		var err error
+		identity, err = s.linkTenantAccount(txCtx, request, account.ID, role)
+		return err
 	})
 	if err != nil {
 		// Reported as the caller's own error, unwrapped: prefixing "link
@@ -324,3 +281,58 @@ func (s *AccountProvisioning) provisionIdentity(
 func assignsRole(roleID *int64) bool { return roleID != nil && *roleID > 0 }
 
 func normalizeEmail(email string) string { return strings.TrimSpace(strings.ToLower(email)) }
+
+func (s *AccountProvisioning) insertTenantAccount(txCtx context.Context, request domain.SchoolAccountRegistration, newAccount domain.NewSchoolAccount, role *domain.ManagedRole) (result domain.ProvisionedAccount, err error) {
+	account, _, insertErr := s.accounts.InsertSchoolAccount(txCtx, newAccount)
+	if insertErr != nil {
+		return result, insertErr
+	}
+	if _, mappingErr := s.accounts.InsertTenantMappingIfAbsent(txCtx, account.ID, request.TenantID); mappingErr != nil {
+		return result, fmt.Errorf("failed to create account-tenant mapping: %w", mappingErr)
+	}
+	if assignsRole(request.RoleID) {
+		if _, _, roleErr := s.roleStore.AssignAccountRole(txCtx, account.ID, *request.RoleID, request.TenantID); roleErr != nil {
+			return result, fmt.Errorf("failed to assign role to account: %w", roleErr)
+		}
+	}
+	provisioned, identityErr := s.provisionIdentity(txCtx, account.ID, request.TenantID, role, request.Identity)
+	if identityErr != nil {
+		return result, identityErr
+	}
+	result = domain.ProvisionedAccount{Account: account, Identity: provisioned}
+	return result, nil
+}
+
+func (s *AccountProvisioning) linkTenantAccount(txCtx context.Context, request domain.SchoolAccountLink, accountID int64, role *domain.ManagedRole) (identity *domain.SchoolIdentity, err error) {
+	if _, mappingErr := s.accounts.InsertTenantMappingIfAbsent(txCtx, accountID, request.TenantID); mappingErr != nil {
+		return identity, fmt.Errorf("failed to create account-tenant mapping: %w", mappingErr)
+	}
+	// Unlike a registration this account already exists, and it may
+	// already carry an identity at this school — from an earlier link, or
+	// from a revoke that deliberately left person/staff/teacher behind.
+	// Handing it the Lehrkraft role while that identity holds a live
+	// caregiver profile strands users.teachers and its group supervisions
+	// under a JWT that only carries class_day permissions (#1772). The
+	// same rule the tenant RBAC endpoint and both operator paths apply,
+	// so this endpoint cannot be the way around them.
+	if role != nil && s.policy.IsLehrkraftSystemRole(role.Facts()) {
+		hasProfile, profileErr := s.profiles.HasLiveCaregiverProfile(txCtx, accountID)
+		if profileErr != nil {
+			return identity, profileErr
+		}
+		if hasProfile {
+			return identity, domain.ErrRoleLehrkraftCaregiverProfile
+		}
+	}
+	if assignsRole(request.RoleID) {
+		if _, _, roleErr := s.roleStore.AssignAccountRole(txCtx, accountID, *request.RoleID, request.TenantID); roleErr != nil {
+			return identity, fmt.Errorf("failed to assign role to account: %w", roleErr)
+		}
+	}
+	provisioned, identityErr := s.provisionIdentity(txCtx, accountID, request.TenantID, role, request.Identity)
+	if identityErr != nil {
+		return identity, identityErr
+	}
+	identity = provisioned
+	return identity, nil
+}
