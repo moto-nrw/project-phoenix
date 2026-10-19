@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -20,16 +19,16 @@ func TestStaffPlanningProfilesRequireSchoolAndIsolateAllJoinedRows(t *testing.T)
 	foreignStaff := testpkg.CreateTestStaffForTenant(t, db, foreign.TenantID, "Planning", "Foreign")
 	employment := buildStaffEmployment(t, db)
 	for _, entry := range []struct {
-		ctx    context.Context
-		id     int64
-		anchor string
+		ctx        context.Context
+		id, school int64
+		anchor     string
 	}{
-		{testpkg.Ctx(t), staff.ID, "2026-01-05"}, {foreign.Context(), foreignStaff.ID, "2026-01-12"},
+		{testpkg.Ctx(t), staff.ID, testpkg.Tenant(t), "2026-01-05"}, {foreign.Context(), foreignStaff.ID, foreign.TenantID, "2026-01-12"},
 	} {
 		require.NoError(t, employment.SaveStaffEmployment(entry.ctx, workforce.StaffEmployment{MembershipID: entry.id, RotationAnchorDate: entry.anchor}))
 		_, err := db.NewRaw(`INSERT INTO config.staff_work_schedules
    (tenant_id, staff_id, week_index, rotation_length, day_of_week, target_minutes, valid_from)
-   VALUES (?, ?, 0, 1, 0, 300, '2026-01-01')`, tenant.FromContext(entry.ctx), entry.id).Exec(context.Background())
+   VALUES (?, ?, 0, 1, 0, 300, '2026-01-01')`, entry.school, entry.id).Exec(context.Background())
 		require.NoError(t, err)
 	}
 	ids := []int64{staff.ID, foreignStaff.ID}

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 	"github.com/uptrace/bun"
@@ -27,16 +28,26 @@ func (s *Store) StaffPlanningProfiles(ctx context.Context, staffIDs []int64, fro
 		RotationAnchorDate *calendarDate
 		Schedule           staffWorkScheduleRow `bun:"embed:schedule_"`
 	}
-	query := db.NewSelect().Model(&rows).
-		TableExpr("unnest(ARRAY[?]::bigint[]) AS member(id)", bun.List(staffIDs)).
-		ColumnExpr("member.id AS membership_id, profile.work_time_model_id, profile.rotation_anchor_date").
-		Join("LEFT JOIN users.staff_employment_profiles AS profile ON profile.membership_id = member.id AND profile.tenant_id = ?", scope.TenantID).
-		Join("LEFT JOIN config.staff_work_schedules AS staff_work_schedule ON staff_work_schedule.staff_id = member.id AND staff_work_schedule.tenant_id = ? AND staff_work_schedule.valid_from <= ? AND (staff_work_schedule.valid_until IS NULL OR staff_work_schedule.valid_until > ?)", scope.TenantID, nullableDate(to), nullableDate(from)).
-		OrderExpr("member.id ASC, staff_work_schedule.day_of_week ASC, staff_work_schedule.id ASC")
-	for _, column := range []string{"id", "tenant_id", "staff_id", "week_index", "rotation_length", "day_of_week", "target_minutes", "start_time", "rotation_anchor_date", "valid_from", "valid_until", "created_at", "updated_at"} {
-		query.ColumnExpr("? AS ?", bun.Ident("staff_work_schedule."+column), bun.Ident("schedule_"+column))
-	}
-	stats, err := scanAll(ctx, query, "get staff planning profiles")
+	query := db.NewRaw(`WITH member AS (SELECT unnest(ARRAY[?]::bigint[]) AS id)
+ SELECT member.id AS membership_id, profile.work_time_model_id, profile.rotation_anchor_date,
+  staff_work_schedule.id AS schedule_id, staff_work_schedule.tenant_id AS schedule_tenant_id,
+  staff_work_schedule.staff_id AS schedule_staff_id, staff_work_schedule.week_index AS schedule_week_index,
+  staff_work_schedule.rotation_length AS schedule_rotation_length, staff_work_schedule.day_of_week AS schedule_day_of_week,
+  staff_work_schedule.target_minutes AS schedule_target_minutes, staff_work_schedule.start_time AS schedule_start_time,
+  staff_work_schedule.rotation_anchor_date AS schedule_rotation_anchor_date, staff_work_schedule.valid_from AS schedule_valid_from,
+  staff_work_schedule.valid_until AS schedule_valid_until, staff_work_schedule.created_at AS schedule_created_at,
+  staff_work_schedule.updated_at AS schedule_updated_at
+ FROM member
+ LEFT JOIN users.staff_employment_profiles AS profile ON profile.membership_id = member.id AND profile.tenant_id = ?
+ LEFT JOIN config.staff_work_schedules AS staff_work_schedule ON staff_work_schedule.staff_id = member.id
+  AND staff_work_schedule.tenant_id = ? AND staff_work_schedule.valid_from <= ?
+  AND (staff_work_schedule.valid_until IS NULL OR staff_work_schedule.valid_until > ?)
+ ORDER BY member.id, staff_work_schedule.day_of_week, staff_work_schedule.id`,
+		bun.List(staffIDs), scope.TenantID, scope.TenantID, nullableDate(to), nullableDate(from))
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = query.Scan(ctx, &rows)
+	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return nil, stats, err
 	}

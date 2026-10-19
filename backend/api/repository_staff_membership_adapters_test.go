@@ -365,6 +365,14 @@ func TestTeacherMembershipAdapter_ActiveCaregiversResolveInAdminContext(t *testi
 	testpkg.EnsureAccountTenant(t, db, account.ID, foreignTenant)
 	assignSystemCaregiverRole(t, db, account.ID, foreignTenant)
 
+	_, err = factory.Teacher.ListActiveCaregivers(context.Background())
+	require.Error(t, err, "tenantless requests must not select the administrative projection")
+	local, err := factory.Teacher.ListActiveCaregivers(testpkg.Ctx(t))
+	require.NoError(t, err)
+	for _, caregiver := range local {
+		require.NotEqual(t, teacherID, caregiver.TeacherID)
+	}
+
 	err = testpkg.WithinAdminContext(t, context.Background(), db, func(adminCtx context.Context) error {
 		caregivers, err := factory.Teacher.ListActiveCaregivers(adminCtx)
 		if err != nil {

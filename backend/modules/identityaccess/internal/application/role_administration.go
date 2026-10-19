@@ -174,12 +174,9 @@ func (r *RoleAdministration) AssignRoleToAccount(ctx context.Context, accountID,
 		// System roles have tenant_id NULL and must remain resolvable while the
 		// assignment itself is written for the caller's tenant. Custom roles are
 		// still restricted to that tenant.
-		role, found, err := r.store.FindRoleIgnoringTenant(txCtx, roleID)
-		if err != nil || !found {
-			return failed("assign role", errors.New("role not found"))
-		}
-		if tenantID := r.runtime.TenantID(txCtx); tenantID > 0 && role.TenantID != nil && *role.TenantID != tenantID {
-			return failed("assign role", errors.New("role not found"))
+		role, err := r.roleForAssignment(txCtx, roleID)
+		if err != nil {
+			return err
 		}
 		facts := role.Facts()
 
