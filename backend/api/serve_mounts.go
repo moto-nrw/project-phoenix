@@ -170,7 +170,7 @@ func newRuntimeTracer(logger *slog.Logger) *observability.Tracer {
 
 // setupBasicMiddleware configures basic router middleware
 func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *httpMetrics) {
-	router.Use(middleware.ClientIPFromXFF())
+	router.Use(middleware.ClientIPFromXFFTrustedProxies(1))
 	router.Use(syncClientIPToRemoteAddr)
 	if httpMetrics != nil {
 		router.Use(httpMetrics.middleware)

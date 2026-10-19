@@ -347,7 +347,7 @@ func TestSyncClientIPToRemoteAddrUsesChiClientIP(t *testing.T) {
 	t.Parallel()
 
 	router := chi.NewRouter()
-	router.Use(chimiddleware.ClientIPFromXFF())
+	router.Use(chimiddleware.ClientIPFromXFFTrustedProxies(1))
 	router.Use(syncClientIPToRemoteAddr)
 	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "203.0.113.10", r.RemoteAddr)
