@@ -14,10 +14,11 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   useStudentHistoryBreadcrumb: vi.fn(),
 }));
 
-vi.mock("~/components/ui/back-button", () => ({
-  BackButton: ({ referrer }: { referrer: string }) => (
-    <a data-testid="back-button" href={referrer}>
-      Zurück
+// Der Rückweg der Kopfkarte (TenantPage) als Link mit seinem Ziel.
+vi.mock("~/components/ui/back-link", () => ({
+  BackLink: ({ href, label }: { href: string; label: string }) => (
+    <a data-testid="back-button" href={href}>
+      {label}
     </a>
   ),
 }));
@@ -102,7 +103,7 @@ describe("StudentChangeHistoryPage", () => {
     ).toBeInTheDocument();
     expect(screen.getByTestId("back-button")).toHaveAttribute(
       "href",
-      "/students/search",
+      "/test-tenant/students/search",
     );
   });
 

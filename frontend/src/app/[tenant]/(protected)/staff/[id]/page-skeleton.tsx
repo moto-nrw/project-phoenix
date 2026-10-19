@@ -1,6 +1,6 @@
 "use client";
 
-import { BackButton } from "~/components/ui/back-button";
+import { TenantBackLink } from "~/components/ui/tenant-page";
 import { Skeleton } from "~/components/ui/skeleton";
 import { TenantPageHeaderSkeleton } from "~/components/ui/page-skeletons";
 import { UebersichtTabSkeleton } from "~/components/staff/uebersicht-tab-skeleton";
@@ -37,7 +37,11 @@ export function StaffDetailSkeleton() {
       data-testid="staff-detail-skeleton"
       className="w-full"
     >
-      <BackButton referrer="/staff" />
+      <TenantBackLink
+        href="/staff"
+        label="Zurück zu den Mitarbeitenden"
+        className="mb-3"
+      />
 
       <StaffHeaderSkeleton />
 

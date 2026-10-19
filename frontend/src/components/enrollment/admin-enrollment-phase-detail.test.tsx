@@ -66,8 +66,8 @@ vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: () => "demo",
 }));
 
-vi.mock("~/components/ui/mobile-back-button", () => ({
-  MobileBackButton: () => null,
+vi.mock("~/components/ui/back-link", () => ({
+  BackLink: () => null,
 }));
 
 // Load errors run through the real hooks (#2515); only the toast surface and

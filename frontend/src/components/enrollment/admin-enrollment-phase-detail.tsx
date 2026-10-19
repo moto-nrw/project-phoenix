@@ -10,7 +10,6 @@ import {
   useState,
 } from "react";
 import {
-  ArrowLeft,
   Check,
   ChevronDown,
   Clock,
@@ -391,7 +390,6 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   );
 
   const overviewPath = "/admin/enrollments";
-  const overviewHref = tenantPath(overviewPath);
 
   const requestHref = useCallback(
     (requestId: string) =>
@@ -890,17 +888,6 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
           title: "Anmeldephase nicht gefunden",
           description:
             "Die Phase wurde gelöscht oder gehört zu einer anderen Schule.",
-          action: (
-            <ButtonLink
-              href={overviewHref}
-              variant="outline"
-              size="md"
-              className="inline-flex items-center gap-2"
-            >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              Zurück zum Überblick
-            </ButtonLink>
-          ),
         }}
       />
     );

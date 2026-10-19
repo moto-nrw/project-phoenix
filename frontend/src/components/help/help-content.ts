@@ -503,7 +503,7 @@ function studentSearchTopic(
       },
     ],
     result:
-      "Sie sehen jetzt die Angaben des Kindes. Auf dem Handy wählen Sie `Zurück`. Am Computer nutzen Sie die Navigation oben.",
+      "Sie sehen jetzt die Angaben des Kindes. Über dem Namen steht `Zurück zur Kinderübersicht`. Damit kommen Sie zur Liste zurück.",
     differences: [
       "Haben Sie einen anderen Tag gewählt? Dann sehen Sie die geplante Anwesenheit. Ein aktueller Aufenthaltsort wird nicht gezeigt.",
       "Ansicht und Spalten bleiben auf diesem Gerät so, wie Sie sie gewählt haben.",

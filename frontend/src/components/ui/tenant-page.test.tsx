@@ -12,6 +12,50 @@ vi.mock("next/link", () => ({
 }));
 
 describe("TenantPage", () => {
+  // Der Rückweg einer Unterseite steht über dem Titel, auf jeder Breite, mit
+  // Pfeil und dem Ziel als Text (#4364).
+  it("zeigt den Rückweg als Link mit Ziel über dem Titel", () => {
+    render(
+      <TenantPage
+        title="Raum 1"
+        back
+        backHref="/rooms?tab=belegt"
+        backLabel="Zurück zu den Räumen"
+      />,
+    );
+
+    const link = screen.getByRole("link", { name: "Zurück zu den Räumen" });
+    expect(link).toHaveAttribute("href", "/test-tenant/rooms?tab=belegt");
+    expect(link.closest("header")).toBe(
+      screen.getByRole("heading", { level: 1 }).closest("header"),
+    );
+    expect(link.className).not.toMatch(/(^|\s)(sm|md|lg|xl):hidden/);
+    expect(link.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("führt ohne Ziel zur Datenverwaltung und sagt das", () => {
+    render(<TenantPage title="Klassenliste" back />);
+
+    expect(
+      screen.getByRole("link", { name: "Zurück zur Datenverwaltung" }),
+    ).toHaveAttribute("href", "/test-tenant/database");
+  });
+
+  it("nennt kein falsches Ziel, wenn nur das Ziel gesetzt ist", () => {
+    render(<TenantPage title="Raum 1" back backHref="/rooms" />);
+
+    expect(screen.getByRole("link", { name: "Zurück" })).toHaveAttribute(
+      "href",
+      "/test-tenant/rooms",
+    );
+  });
+
+  it("zeigt ohne `back` keinen Rückweg", () => {
+    render(<TenantPage title="Kinder" />);
+
+    expect(screen.queryByRole("link", { name: /Zurück/ })).toBeNull();
+  });
+
   it("rendert Titel als einzige h1, Statuszeile und Aktionen in der Kopfkarte", () => {
     render(
       <TenantPage
