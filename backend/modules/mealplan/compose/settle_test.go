@@ -116,10 +116,10 @@ func TestOrdersNeverOrderAPastDay(t *testing.T) {
 	assert.Zero(t, monday.Total)
 	assert.Equal(t, mealplan.OrderOrdered, orderDay(t, week, "2026-09-09").Status, "today after its deadline is ordered")
 	assert.Equal(t, 1, orderCountOf(t, db, student.TenantID))
-	assert.Empty(t, week.MealsPerChild()[0:0])
-	for _, child := range week.MealsPerChild() {
-		assert.Equal(t, 1, child.Meals, "only Wednesday is billed")
-	}
+	billed := week.MealsPerChild()
+	require.Len(t, billed, 1)
+	assert.Equal(t, student.ID, billed[0].Child.StudentID)
+	assert.Equal(t, 1, billed[0].Meals, "only Wednesday is billed, not the unordered Monday")
 }
 
 // A school switching from daily to weekly orders keeps the days already
@@ -235,4 +235,30 @@ func TestRegistrationChangesAreLogged(t *testing.T) {
 	require.NotNil(t, school.Participating)
 	assert.True(t, *school.Participating)
 	assert.Nil(t, entries[6].Participating)
+}
+
+// A write records only its own changes under its author: a sick note that
+// arrived since the last settling stays without one, even for the same child.
+func TestAWriteDoesNotClaimAnEarlierAbsence(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	settings := singleDeadlineSettings("09:00")
+	settings.SickAfterDeadline = "cancelled"
+	student := testpkg.CreateTestStudent(t, db, "Nora", "Autorin", "2c")
+	parent := testpkg.CreateTestAccount(t, db, "meal-author-parent")
+	staff := testpkg.CreateTestAccount(t, db, "meal-author-staff")
+	ctx := testpkg.Ctx(t)
+	require.NoError(t, buildModuleWithRules(t, db, settings, time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin)).
+		SetParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: student.ID, GuardianAccountID: parent.ID, Date: "2026-09-08", Participating: true}))
+	require.NoError(t, buildModuleWithRules(t, db, settings, time.Date(2026, 9, 8, 10, 0, 0, 0, testBerlin)).SettleOrders(ctx))
+	createSickStatusDay(t, db, student.TenantID, student.ID, "2026-09-08", time.Date(2026, 9, 8, 10, 30, 0, 0, testBerlin))
+
+	school := buildModuleWithRules(t, db, settings, time.Date(2026, 9, 8, 10, 32, 0, 0, testBerlin))
+	_, err := school.ReplaceScheduleBySchool(ctx, mealplan.SchoolSchedule{StudentID: student.ID, StaffAccountID: staff.ID, Weekdays: []mealplan.Weekday{mealplan.Friday}, EffectiveFrom: "2026-09-14"})
+	require.NoError(t, err)
+
+	changes := orderChangesOf(t, db, student.TenantID)
+	require.Len(t, changes, 1)
+	assert.Equal(t, -1, changes[0].Delta)
+	assert.Nil(t, changes[0].ChangedBy, "the sick note is nobody's change of the order")
 }

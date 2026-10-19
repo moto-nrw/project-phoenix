@@ -85,15 +85,22 @@ func (s *Service) SettleOrders(ctx context.Context) error {
 	})
 }
 
-// settleWrite runs a registration write between fixing the due orders of
-// [from, to], as they stood before it, and recording what it changed in
-// them. The changes of the written child name its author.
+// settleWrite runs a registration write between settling the orders of
+// [from, to] as they stood before it and recording what it changed in them.
+// Settling first records what changed before the write (a sick note since
+// the last run) without an author, so only the write's own changes name it.
 func (s *Service) settleWrite(ctx context.Context, rules domain.OrderingRules, from, to domain.Date, author changeAuthor, write func() (domain.OperationStats, error)) (domain.OperationStats, error) {
 	now := s.now()
 	window, stats, err := s.lockedWindow(ctx, rules, from, to, now)
 	if err != nil {
 		return stats, err
 	}
+	_, pending, pendingStats, err := s.recordWindow(ctx, rules, window, from, to, now, nil, false)
+	stats = addStats(stats, pendingStats)
+	if err != nil {
+		return stats, err
+	}
+	window.state.Changes = append(window.state.Changes, pending...)
 	writeStats, err := write()
 	stats = addStats(stats, writeStats)
 	if err != nil {

@@ -16,7 +16,7 @@ import {
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
-import { formatDate } from "~/lib/date-helpers";
+import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import { createLogger } from "~/lib/logger";
@@ -150,11 +150,19 @@ export function MealRegistrationChangeModal({
     void loadSchedule(child);
   }
 
+  // Die Schule legt feste Tage höchstens ein Jahr im Voraus fest.
+  const latestStart = useMemo(() => {
+    const date = parseISODate(today);
+    date.setDate(date.getDate() + 365);
+    return toISODate(date);
+  }, [today]);
   const ready =
     studentId !== "" &&
     (scope === "day"
       ? choice !== null
-      : effectiveFrom >= today && scheduleState === "loaded");
+      : effectiveFrom >= today &&
+        effectiveFrom <= latestStart &&
+        scheduleState === "loaded");
   const childName = useMemo(() => {
     const child = [...participants, ...others].find(
       (candidate) => candidate.studentId === studentId,
@@ -287,6 +295,7 @@ export function MealRegistrationChangeModal({
               value={effectiveFrom}
               onChange={setEffectiveFrom}
               min={today}
+              max={latestStart}
               hideClearButton
               required
               {...datePicker}

@@ -170,7 +170,12 @@ export function MealOrderWeek({
           const added = day.changes.filter((change) => change.delta > 0);
           const removed = day.changes.filter((change) => change.delta < 0);
           if (added.length === 0 && removed.length === 0) {
-            return <span aria-label={t("noChanges")}>–</span>;
+            return (
+              <>
+                <span aria-hidden="true">–</span>
+                <span className="sr-only">{t("noChanges")}</span>
+              </>
+            );
           }
           const label = [
             added.length > 0
@@ -183,14 +188,17 @@ export function MealOrderWeek({
             .filter(Boolean)
             .join(", ");
           return (
-            <span aria-label={label} title={label}>
-              {[
-                added.length > 0 ? `+${added.length}` : null,
-                removed.length > 0 ? `−${removed.length}` : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </span>
+            <>
+              <span aria-hidden="true" title={label}>
+                {[
+                  added.length > 0 ? `+${added.length}` : null,
+                  removed.length > 0 ? `−${removed.length}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+              <span className="sr-only">{label}</span>
+            </>
           );
         },
       },

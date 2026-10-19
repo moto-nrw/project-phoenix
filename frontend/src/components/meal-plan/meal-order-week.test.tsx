@@ -79,9 +79,9 @@ describe("MealOrderWeek", () => {
     expect(screen.getAllByText("2a: 7 · 3b: 5")).not.toHaveLength(0);
     expect(screen.getAllByText("+2 · −1")).not.toHaveLength(0);
     // The test catalog mock leaves ICU plurals unrendered; the words remain.
-    expect(
-      screen.getAllByLabelText(/Kinder mehr.*Kind weniger/),
-    ).not.toHaveLength(0);
+    expect(screen.getAllByText(/Kinder mehr.*Kind weniger/)).not.toHaveLength(
+      0,
+    );
     expect(screen.getAllByText(/^Offen bis /)).not.toHaveLength(0);
     expect(screen.getAllByText("OGS geschlossen")).not.toHaveLength(0);
   });
