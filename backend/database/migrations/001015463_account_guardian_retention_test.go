@@ -134,6 +134,9 @@ func TestAccountReferencesWaitForErasureAndRejectTheTombstone(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "account-reference-lock")
 	testpkg.UnclaimTestAccount(t, db, account.ID)
 	person := testpkg.CreateTestPerson(t, db, "Person", "Link")
+	guardian := testpkg.CreateTestGuardianProfileForTenant(t, db, tenantID, "Guardian", "Link", "account-reference-guardian")
+	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Student", "Link", "1a")
+	guardianAccess := testpkg.CreateTestStudentGuardianLinkForTenant(t, db, tenantID, student.ID, guardian.ID, "parent")
 	role := testpkg.CreateTestRoleForTenant(t, db, "account-reference-role", tenantID)
 	permission := testpkg.CreateTestPermission(t, db, "account-reference", "account-reference", "read")
 
@@ -179,12 +182,26 @@ func TestAccountReferencesWaitForErasureAndRejectTheTombstone(t *testing.T) {
 				VALUES (?, ?, 'active', NOW(), NOW(), NOW())`,
 			args: []any{account.ID, tenantID},
 		},
+		"guardian profile": {
+			query: `UPDATE users.guardian_profiles SET account_id = ?, has_account = TRUE WHERE id = ?`,
+			args:  []any{account.ID, guardian.ID},
+		},
+		"guardian access": {
+			query: `UPDATE auth.guardian_student_access SET account_id = ? WHERE tenant_id = ? AND relationship_id = ?`,
+			args:  []any{account.ID, tenantID, guardianAccess.ID},
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, writeErr := db.ExecContext(ctx, write.query, write.args...)
 			require.ErrorContains(t, writeErr, "cannot reference an erased account")
 		})
 	}
+
+	var guardianAccountID, accessAccountID *int64
+	require.NoError(t, db.NewRaw(`SELECT account_id FROM users.guardian_profiles WHERE id = ?`, guardian.ID).Scan(ctx, &guardianAccountID))
+	require.NoError(t, db.NewRaw(`SELECT account_id FROM auth.guardian_student_access WHERE relationship_id = ?`, guardianAccess.ID).Scan(ctx, &accessAccountID))
+	assert.Nil(t, guardianAccountID)
+	assert.Nil(t, accessAccountID)
 }
 
 func TestOnlyTheAdminRoleMayEraseUnusedAccounts(t *testing.T) {

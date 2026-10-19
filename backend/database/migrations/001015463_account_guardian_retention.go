@@ -101,6 +101,10 @@ const accountGuardianRetentionUpSQL = `
 		CREATE TRIGGER lock_live_account_reference
 			BEFORE INSERT OR UPDATE OF account_id ON users.persons
 			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference();
+		DROP TRIGGER IF EXISTS lock_live_account_reference ON users.guardian_profiles;
+		CREATE TRIGGER lock_live_account_reference
+			BEFORE INSERT OR UPDATE OF account_id ON users.guardian_profiles
+			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference();
 		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.account_roles;
 		CREATE TRIGGER lock_live_account_reference
 			BEFORE INSERT OR UPDATE ON auth.account_roles
@@ -112,6 +116,10 @@ const accountGuardianRetentionUpSQL = `
 		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.account_tenants;
 		CREATE TRIGGER lock_live_account_reference
 			BEFORE INSERT OR UPDATE ON auth.account_tenants
+			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference();
+		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.guardian_student_access;
+		CREATE TRIGGER lock_live_account_reference
+			BEFORE INSERT OR UPDATE OF account_id ON auth.guardian_student_access
 			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference();
 
 		CREATE OR REPLACE FUNCTION auth.account_is_unused(target_id BIGINT, target_email TEXT)
@@ -348,9 +356,11 @@ const accountGuardianRetentionDownSQL = `
 				)
 			);
 
+		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.guardian_student_access;
 		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.account_tenants;
 		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.account_permissions;
 		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.account_roles;
+		DROP TRIGGER IF EXISTS lock_live_account_reference ON users.guardian_profiles;
 		DROP TRIGGER IF EXISTS lock_live_account_reference ON users.persons;
 		DROP FUNCTION IF EXISTS auth.lock_live_account_reference();
 		DROP FUNCTION IF EXISTS auth.erase_unused_accounts();
