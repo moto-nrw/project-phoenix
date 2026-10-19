@@ -55,6 +55,12 @@ func TestEraseUnusedAccountsKeepsEveryAccountASchoolStillNeeds(t *testing.T) {
 	teamRole := testpkg.CreateTestRoleForTenant(t, db, "Team", school)
 	team := testpkg.CreateTestAccount(t, db, "team")
 	exec(`INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)`, team.ID, teamRole.ID, school)
+	directPermission := testpkg.CreateTestAccount(t, db, "direct-permission")
+	exec(`INSERT INTO auth.account_roles (account_id, role_id, tenant_id)
+		SELECT ?, id, ? FROM auth.roles WHERE name = 'guardian'`, directPermission.ID, school)
+	permission := testpkg.CreateTestPermission(t, db, "direct-retention", "direct-retention", "read")
+	exec(`INSERT INTO auth.account_permissions (account_id, permission_id, tenant_id, granted)
+		VALUES (?, ?, ?, TRUE)`, directPermission.ID, permission.ID, school)
 	invited := testpkg.CreateTestAccount(t, db, "invited")
 	testpkg.UnclaimTestAccount(t, db, invited.ID)
 	exec(`INSERT INTO auth.invitation_tokens (tenant_id, email, token, role_id, created_by, expires_at)
@@ -72,7 +78,7 @@ func TestEraseUnusedAccountsKeepsEveryAccountASchoolStillNeeds(t *testing.T) {
 	assert.Equal(t, map[int64][]string{
 		formerParent.ID: {"/uploads/avatars/former-profile.png", "/uploads/avatars/former.png"},
 		orphan.ID:       nil,
-	}, pick(erased, formerParent.ID, orphan.ID, roleless.ID, parent.AccountID, staff.ID, pending.ID, team.ID, invited.ID, relative.ID),
+	}, pick(erased, formerParent.ID, orphan.ID, roleless.ID, parent.AccountID, staff.ID, pending.ID, team.ID, directPermission.ID, invited.ID, relative.ID),
 		"only accounts no school needs are erased; their avatar files come back for removal")
 
 	var tombstone struct {

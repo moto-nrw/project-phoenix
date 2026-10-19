@@ -100,6 +100,15 @@ const accountGuardianRetentionUpSQL = `
 									AND LOWER(granted.name) <> 'guardian'
 							)
 						)
+						OR (
+							membership.status = 'active'
+							AND EXISTS (
+								SELECT 1 FROM auth.account_permissions AS permission
+								WHERE permission.account_id = membership.account_id
+									AND permission.tenant_id = membership.tenant_id
+									AND permission.granted
+							)
+						)
 					)
 			)
 			AND NOT EXISTS (SELECT 1 FROM users.persons AS person WHERE person.account_id = target_id)
