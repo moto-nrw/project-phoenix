@@ -312,6 +312,20 @@ describe("Startseite", () => {
     expect(screen.queryByTestId("home-now")).not.toBeInTheDocument();
   });
 
+  // „Anpassen" ist auf allen Breiten ein Symbolknopf (#4346): kein
+  // sichtbarer Text, der Name und der Tooltip sagen „Anpassen".
+  it("zeigt Anpassen als Symbolknopf mit Tooltip", async () => {
+    render(<HomePage />);
+
+    const button = await screen.findByRole("button", { name: "Anpassen" });
+    expect(button).toHaveTextContent(/^$/);
+    const tooltipId = button.getAttribute("aria-describedby");
+    expect(tooltipId).toBeTruthy();
+    const tooltip = document.getElementById(tooltipId ?? "");
+    expect(tooltip).toHaveAttribute("role", "tooltip");
+    expect(tooltip).toHaveTextContent("Anpassen");
+  });
+
   // Das Issue verlangt für Mischrollen die Vereinigung: die Leitung, die
   // selbst betreut, behält ihren eigenen Tag vor der Lage der Schule.
   it("gibt der Leitung, die selbst betreut, den eigenen Tag dazu", async () => {
