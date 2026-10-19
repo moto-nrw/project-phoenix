@@ -125,15 +125,17 @@ func TestEraseUnusedAccountsDeletesEveryTableThatGoesWithTheAccount(t *testing.T
 	}
 }
 
-func TestPersonAccountReferenceWaitsForErasureAndRejectsTheTombstone(t *testing.T) {
+func TestAccountReferencesWaitForErasureAndRejectTheTombstone(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := context.Background()
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	account := testpkg.CreateTestAccount(t, db, "person-account-lock")
+	account := testpkg.CreateTestAccount(t, db, "account-reference-lock")
 	testpkg.UnclaimTestAccount(t, db, account.ID)
 	person := testpkg.CreateTestPerson(t, db, "Person", "Link")
+	role := testpkg.CreateTestRoleForTenant(t, db, "account-reference-role", tenantID)
+	permission := testpkg.CreateTestPermission(t, db, "account-reference", "account-reference", "read")
 
 	erasure, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
@@ -154,11 +156,35 @@ func TestPersonAccountReferenceWaitsForErasureAndRejectsTheTombstone(t *testing.
 	_, err = erasure.ExecContext(ctx, `UPDATE auth.accounts SET personal_data_erased_at = NOW() WHERE id = ?`, account.ID)
 	require.NoError(t, err)
 	require.NoError(t, erasure.Commit())
-	require.ErrorContains(t, <-linked, "cannot link a person to an erased account")
+	require.ErrorContains(t, <-linked, "cannot reference an erased account")
 
 	var linkedAccountID *int64
 	require.NoError(t, db.NewRaw(`SELECT account_id FROM users.persons WHERE id = ?`, person.ID).Scan(ctx, &linkedAccountID))
 	assert.Nil(t, linkedAccountID)
+
+	for name, write := range map[string]struct {
+		query string
+		args  []any
+	}{
+		"role": {
+			query: `INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)`,
+			args:  []any{account.ID, role.ID, tenantID},
+		},
+		"permission": {
+			query: `INSERT INTO auth.account_permissions (account_id, permission_id, granted, tenant_id) VALUES (?, ?, TRUE, ?)`,
+			args:  []any{account.ID, permission.ID, tenantID},
+		},
+		"tenant mapping": {
+			query: `INSERT INTO auth.account_tenants (account_id, tenant_id, status, activated_at, created_at, updated_at)
+				VALUES (?, ?, 'active', NOW(), NOW(), NOW())`,
+			args: []any{account.ID, tenantID},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, writeErr := db.ExecContext(ctx, write.query, write.args...)
+			require.ErrorContains(t, writeErr, "cannot reference an erased account")
+		})
+	}
 }
 
 func TestOnlyTheAdminRoleMayEraseUnusedAccounts(t *testing.T) {

@@ -72,11 +72,11 @@ const accountGuardianRetentionUpSQL = `
 
 		ALTER TABLE auth.accounts ADD COLUMN IF NOT EXISTS personal_data_erased_at TIMESTAMPTZ;
 
-		-- A person reference keeps an account. Take the same account-row lock as
-		-- erasure before every new reference, then verify that the account still
-		-- is live. This lives at the database boundary so legacy and native
-		-- People Directory writers cannot bypass the retention fence.
-		CREATE OR REPLACE FUNCTION users.lock_live_person_account()
+		-- Every account reference keeps an account. Take the same account-row
+		-- lock as erasure before writing one, then verify that the account still
+		-- is live. This lives at the database boundary so account administration,
+		-- provisioning and both People Directory writers cannot bypass the fence.
+		CREATE OR REPLACE FUNCTION auth.lock_live_account_reference()
 		RETURNS TRIGGER
 		LANGUAGE plpgsql
 		SECURITY DEFINER
@@ -90,17 +90,29 @@ const accountGuardianRetentionUpSQL = `
 			WHERE id = NEW.account_id AND personal_data_erased_at IS NULL
 			FOR KEY SHARE;
 			IF NOT FOUND THEN
-				RAISE EXCEPTION 'cannot link a person to an erased account'
+				RAISE EXCEPTION 'cannot reference an erased account'
 					USING ERRCODE = '23503';
 			END IF;
 			RETURN NEW;
 		END;
 		$$;
-		REVOKE ALL ON FUNCTION users.lock_live_person_account() FROM PUBLIC;
-		DROP TRIGGER IF EXISTS lock_live_person_account ON users.persons;
-		CREATE TRIGGER lock_live_person_account
+		REVOKE ALL ON FUNCTION auth.lock_live_account_reference() FROM PUBLIC;
+		DROP TRIGGER IF EXISTS lock_live_account_reference ON users.persons;
+		CREATE TRIGGER lock_live_account_reference
 			BEFORE INSERT OR UPDATE OF account_id ON users.persons
-			FOR EACH ROW EXECUTE FUNCTION users.lock_live_person_account();
+			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference();
+		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.account_roles;
+		CREATE TRIGGER lock_live_account_reference
+			BEFORE INSERT OR UPDATE ON auth.account_roles
+			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference();
+		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.account_permissions;
+		CREATE TRIGGER lock_live_account_reference
+			BEFORE INSERT OR UPDATE ON auth.account_permissions
+			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference();
+		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.account_tenants;
+		CREATE TRIGGER lock_live_account_reference
+			BEFORE INSERT OR UPDATE ON auth.account_tenants
+			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference();
 
 		CREATE OR REPLACE FUNCTION auth.account_is_unused(target_id BIGINT, target_email TEXT)
 		RETURNS BOOLEAN
@@ -336,8 +348,11 @@ const accountGuardianRetentionDownSQL = `
 				)
 			);
 
-		DROP TRIGGER IF EXISTS lock_live_person_account ON users.persons;
-		DROP FUNCTION IF EXISTS users.lock_live_person_account();
+		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.account_tenants;
+		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.account_permissions;
+		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.account_roles;
+		DROP TRIGGER IF EXISTS lock_live_account_reference ON users.persons;
+		DROP FUNCTION IF EXISTS auth.lock_live_account_reference();
 		DROP FUNCTION IF EXISTS auth.erase_unused_accounts();
 		DROP FUNCTION IF EXISTS auth.account_is_unused(BIGINT, TEXT);
 		ALTER TABLE auth.accounts DROP COLUMN IF EXISTS personal_data_erased_at;
