@@ -1238,9 +1238,9 @@ func TestOffboardStaff_ReleasesTransponderForTheNextPerson(t *testing.T) {
 	testpkg.MapAccountToTenant(t, sc.db, account.ID, testpkg.Tenant(t))
 	card := testpkg.CreateTestRFIDCard(t, sc.db, "OFFBOARD")
 	persons := sc.reposPeople.Person
-	require.NoError(t, persons.LinkToRFIDCard(sc.ctx, staff.PersonID, card.ID))
+	require.NoError(t, testpkg.TenantCommand2(t, sc.ctx, sc.db, persons.LinkToRFIDCard, staff.PersonID, card.ID))
 
-	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
+	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
 
 	var tagID *string
 	require.NoError(t, sc.db.NewSelect().
@@ -1251,8 +1251,8 @@ func TestOffboardStaff_ReleasesTransponderForTheNextPerson(t *testing.T) {
 	assert.Nil(t, tagID, "the offboarded person must give the transponder back")
 
 	next := testpkg.CreateTestPerson(t, sc.db, "Next", "Holder")
-	require.NoError(t, persons.LinkToRFIDCard(sc.ctx, next.ID, card.ID), "the card must be assignable to the next person")
-	holder, err := persons.FindByTagID(sc.ctx, card.ID)
+	require.NoError(t, testpkg.TenantCommand2(t, sc.ctx, sc.db, persons.LinkToRFIDCard, next.ID, card.ID), "the card must be assignable to the next person")
+	holder, err := testpkg.TenantQuery1(t, sc.ctx, sc.db, persons.FindByTagID, card.ID)
 	require.NoError(t, err)
 	require.NotNil(t, holder)
 	assert.Equal(t, next.ID, holder.ID)
