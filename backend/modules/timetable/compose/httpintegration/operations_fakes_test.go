@@ -9,10 +9,10 @@ import (
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -67,7 +67,7 @@ func instanceWithTimes(id int64, status string, start, end time.Time) *scheduleM
 
 func instanceWithRoomAndTimes(id, roomID int64, status string, start, end time.Time) *scheduleModels.ActivityInstance {
 	inst := &scheduleModels.ActivityInstance{
-		Date:      scheduleModels.NewDate(start.Year(), start.Month(), start.Day()),
+		Date:      calendar.NewDate(start.Year(), start.Month(), start.Day()),
 		Title:     "Lernzeit",
 		StartTime: start,
 		EndTime:   end,
@@ -191,14 +191,15 @@ type fakeOpsInstanceRepo struct {
 	findByDateErr error
 }
 
-func (r *fakeOpsInstanceRepo) FindByID(_ context.Context, id any) (*scheduleModels.ActivityInstance, error) {
+func (r *fakeOpsInstanceRepo) FindByID(_ context.Context, nativeRecordID int64) (*scheduleModels.ActivityInstance, error) {
+	var id any = nativeRecordID
 	if r.err != nil {
 		return nil, r.err
 	}
 	return r.byID[id.(int64)], nil
 }
 
-func (r *fakeOpsInstanceRepo) FindByTenantAndDate(_ context.Context, _ scheduleModels.Date) ([]*scheduleModels.ActivityInstance, error) {
+func (r *fakeOpsInstanceRepo) FindByTenantAndDate(_ context.Context, _ calendar.Date) ([]*scheduleModels.ActivityInstance, error) {
 	if r.findByDateErr != nil {
 		return nil, r.findByDateErr
 	}
@@ -269,7 +270,7 @@ type fakeOpsInstanceStudentRepo struct {
 	parallelPresenceCall int
 }
 
-func (r *fakeOpsInstanceStudentRepo) FindPresentInOtherActiveInstances(_ context.Context, excludeInstanceID int64, _ scheduleModels.Date, studentIDs []int64) ([]scheduleModels.ParallelPresence, error) {
+func (r *fakeOpsInstanceStudentRepo) FindPresentInOtherActiveInstances(_ context.Context, excludeInstanceID int64, _ calendar.Date, studentIDs []int64) ([]scheduleModels.ParallelPresence, error) {
 	r.parallelPresenceCall++
 	if r.parallelPresenceErr != nil {
 		return nil, r.parallelPresenceErr
@@ -386,11 +387,11 @@ func (r *fakeOpsTemplates) FindTargetsByGroupIDs(_ context.Context, groupIDs []i
 	return result, nil
 }
 
-func (r *fakeOpsTemplates) FindByID(_ context.Context, id any) (*activityContract.Group, error) {
+func (r *fakeOpsTemplates) FindByID(_ context.Context, id int64) (*activityContract.Group, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
-	group := r.byID[id.(int64)]
+	group := r.byID[id]
 	if group == nil {
 		return nil, notFoundError{}
 	}

@@ -6,9 +6,10 @@ import (
 	"time"
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -50,7 +51,7 @@ func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.
 	assert.Equal(t, single.ID, updatedSingle.ID)
 	exceptions := loadExceptions(t, s, s.template.ID)
 	require.Len(t, exceptions, 1)
-	assert.Equal(t, scheduleModels.Date(singleDate), exceptions[0].ExceptionDate)
+	assert.Equal(t, calendar.Date(singleDate), exceptions[0].ExceptionDate)
 	assert.Equal(t, scheduleModels.ActivityExceptionCancelled, exceptions[0].ExceptionType)
 
 	// "Ab jetzt dauerhaft": split at the next Monday.

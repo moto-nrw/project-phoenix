@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
@@ -16,7 +16,7 @@ import (
 // change request repository over the Care Plan records (#3351).
 type CareScheduleRequestRows struct{ rows ports.CarePlanRows }
 
-var _ scheduleModels.CareScheduleChangeRequestRepository = CareScheduleRequestRows{}
+var _ ports.CareScheduleChangeRequestRecords = CareScheduleRequestRows{}
 
 // NewCareScheduleRequestRows binds the request rows to the records.
 func NewCareScheduleRequestRows(rows ports.CarePlanRows) CareScheduleRequestRows {
@@ -42,7 +42,8 @@ func (r CareScheduleRequestRows) Create(ctx context.Context, row *scheduleModels
 	return err
 }
 
-func (r CareScheduleRequestRows) FindByID(ctx context.Context, raw any) (*scheduleModels.CareScheduleChangeRequest, error) {
+func (r CareScheduleRequestRows) FindByID(ctx context.Context, nativeRecordID int64) (*scheduleModels.CareScheduleChangeRequest, error) {
+	var raw any = nativeRecordID
 	id, err := legacyScheduleID(raw)
 	if err != nil {
 		return nil, err

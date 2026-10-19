@@ -24,8 +24,8 @@ import (
 	"testing"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -43,7 +43,7 @@ func windowInstance(id, roomID int64, startHHMM, endHHMM, status string) *schedu
 		return t
 	}
 	inst := &scheduleModels.ActivityInstance{
-		Date:      scheduleModels.Date(windowTestDate),
+		Date:      calendar.Date(windowTestDate),
 		Title:     "Block",
 		StartTime: parse(startHHMM),
 		EndTime:   parse(endHHMM),
@@ -310,7 +310,7 @@ func TestDetectWindowConflicts_DifferentDaysNeverConflict(t *testing.T) {
 	shared := []*scheduleModels.InstanceStudent{studentRow(200, scheduleModels.AttendanceStatusExpected)}
 	a := windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned)
 	b := windowInstance(2, 11, "14:00", "15:00", scheduleModels.InstanceStatusPlanned)
-	b.Date = scheduleModels.Date(windowTestDate.AddDays(1))
+	b.Date = calendar.Date(windowTestDate.AddDays(1))
 
 	out := detectWindowConflicts([]windowConflictInput{
 		{Instance: a, Students: shared},
@@ -366,8 +366,8 @@ func TestDetectWindowConflicts_FingerprintChangesWithTimeDateAndInstances(t *tes
 	assert.NotEqual(t, base, shifted, "a changed overlap window must re-surface the warning")
 
 	movedDay := windowStudentFingerprint(t, func(a, b *scheduleModels.ActivityInstance) {
-		a.Date = scheduleModels.Date(windowTestDate.AddDays(7))
-		b.Date = scheduleModels.Date(windowTestDate.AddDays(7))
+		a.Date = calendar.Date(windowTestDate.AddDays(7))
+		b.Date = calendar.Date(windowTestDate.AddDays(7))
 	})
 	assert.NotEqual(t, base, movedDay, "another date is another conflict")
 

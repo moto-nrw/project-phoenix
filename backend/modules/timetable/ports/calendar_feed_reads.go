@@ -4,12 +4,13 @@ import (
 	"context"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // CalendarAssignmentRows are a staff member's instance assignments.
 type CalendarAssignmentRows interface {
-	FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to scheduleModels.Date) ([]*scheduleModels.InstanceStaff, error)
+	FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to calendar.Date) ([]*scheduleModels.InstanceStaff, error)
 }
 
 // CalendarInstanceRows are the activity instances by ID.
@@ -19,7 +20,7 @@ type CalendarInstanceRows interface {
 
 // CalendarShiftRows are a staff member's planned shifts.
 type CalendarShiftRows interface {
-	FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end scheduleModels.Date) ([]*scheduleModels.StaffShift, error)
+	FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end calendar.Date) ([]*scheduleModels.StaffShift, error)
 }
 
 // CalendarShiftTypeRows are the Schichtarten the feed labels shifts with.

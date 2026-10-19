@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"log/slog"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -203,7 +204,7 @@ func (d *conflictDetection) loadActiveStaffConflicts(ctx context.Context, assign
 // bridged-instance lookup needs; the instance repository serves it beside
 // ConflictInstances.
 type activeGroupInstanceLister interface {
-	List(ctx context.Context, options *domain.ListOptions) ([]*scheduleModels.ActivityInstance, error)
+	ListInstances(ctx context.Context, filter ports.LegacyInstanceFilter) ([]*scheduleModels.ActivityInstance, error)
 }
 
 func (d *conflictDetection) loadActiveStaffConflictRooms(ctx context.Context, result activeStaffConflicts, groupIDs []int64) activeStaffConflicts {
@@ -243,11 +244,7 @@ func (d *conflictDetection) bridgedInstances(ctx context.Context, groupIDs []int
 	if !ok {
 		return nil, fmt.Errorf("legacy list capability is not configured for %T", d.deps.Instances)
 	}
-	args := make([]any, len(groupIDs))
-	for i, id := range groupIDs {
-		args[i] = id
-	}
-	return lister.List(ctx, &domain.ListOptions{Filter: domain.NewListFilter().In("active_group_id", args...)})
+	return lister.ListInstances(ctx, ports.LegacyInstanceFilter{ActiveGroupIDs: groupIDs})
 }
 
 func distinctPresentStaffIDs(rows []*scheduleModels.InstanceStaff) []int64 {

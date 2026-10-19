@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activitiesModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/activityrecords"
 )
 
 // enrichGroupNames fills a display name on every row from the School
@@ -53,8 +55,8 @@ func optionalGroupID(id *int64) int64 {
 // activityGroupTargets is the shape the timetable services type-assert on
 // the activity group repository; the decorator keeps both halves reachable.
 type activityGroupTargets interface {
-	activitiesModels.GroupRepository
-	activitiesModels.GroupTargetRepository
+	ports.ActivityGroupRecords
+	ports.ActivityGroupTargets
 }
 
 type groupActivityGroupRepository struct {

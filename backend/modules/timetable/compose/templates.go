@@ -4,8 +4,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -33,9 +31,9 @@ func NewTemplateAdministration(deps ports.TemplateAdministrationDependencies) (t
 }
 
 func NewRosterReconciler(
-	instanceRepo schedule.ActivityInstanceRepository,
-	instanceStudentRepo schedule.InstanceStudentRepository,
-	enrollmentRepo activities.StudentEnrollmentRepository,
+	instanceRepo ports.ActivityInstanceRecords,
+	instanceStudentRepo ports.InstanceStudentRecords,
+	enrollmentRepo ports.ActivityEnrollmentRecords,
 	logger *slog.Logger,
 	now ...func() time.Time,
 ) ports.RosterReconciler {

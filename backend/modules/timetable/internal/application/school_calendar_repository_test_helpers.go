@@ -7,23 +7,25 @@ import (
 	"errors"
 	"fmt"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 )
 
 // NewClosingDayRepository serves the legacy closing day repository over the
 // School Calendar owner (#2666).
-func NewClosingDayRepository(calendar schoolcalendar.Capability) scheduleModels.ClosingDayRepository {
+func NewClosingDayRepository(calendar schoolcalendar.Capability) ports.ClosingDayRecords {
 	return newClosingDayCalendarRepository(calendar)
 }
 
 // NewDateframeRepository serves the legacy dateframe repository over the
 // School Calendar owner (#2666).
-func NewDateframeRepository(calendar schoolcalendar.Capability) scheduleModels.DateframeRepository {
+func NewDateframeRepository(calendar schoolcalendar.Capability) ports.DateframeRecords {
 	return newDateframeCalendarRepository(calendar)
 }
 
-// closingDayCalendarRepository serves the legacy schedule.ClosingDayRepository
+// closingDayCalendarRepository serves the legacy schedule.ClosingDayRecords
 // over the School Calendar capability (#2666).
 type closingDayCalendarRepository struct {
 	UnfilteredListing[*scheduleModels.ClosingDay]
@@ -79,7 +81,8 @@ func (r closingDayCalendarRepository) Create(ctx context.Context, day *scheduleM
 	return nil
 }
 
-func (r closingDayCalendarRepository) FindByID(ctx context.Context, id any) (*scheduleModels.ClosingDay, error) {
+func (r closingDayCalendarRepository) FindByID(ctx context.Context, nativeRecordID int64) (*scheduleModels.ClosingDay, error) {
+	var id any = nativeRecordID
 	dayID, err := membershipID(id)
 	if err != nil {
 		return nil, calendarWrapError(opFindByID, err)
@@ -109,7 +112,8 @@ func (r closingDayCalendarRepository) Update(ctx context.Context, day *scheduleM
 }
 
 // Delete stays idempotent like the base repository it replaces.
-func (r closingDayCalendarRepository) Delete(ctx context.Context, id any) error {
+func (r closingDayCalendarRepository) Delete(ctx context.Context, nativeRecordID int64) error {
+	var id any = nativeRecordID
 	dayID, err := membershipID(id)
 	if err != nil {
 		return calendarWrapError("delete", err)
@@ -137,7 +141,7 @@ func (r closingDayCalendarRepository) listOverlappingRange(ctx context.Context, 
 	return toLegacyClosingDays(values), nil
 }
 
-// dateframeCalendarRepository serves the legacy schedule.DateframeRepository
+// dateframeCalendarRepository serves the legacy schedule.DateframeRecords
 // over the School Calendar capability (#2666). Dateframes are instants, so
 // the legacy midnight normalisation of the lookups stays here.
 type dateframeCalendarRepository struct {
@@ -194,7 +198,8 @@ func (r dateframeCalendarRepository) Create(ctx context.Context, dateframe *sche
 	return nil
 }
 
-func (r dateframeCalendarRepository) FindByID(ctx context.Context, id any) (*scheduleModels.Dateframe, error) {
+func (r dateframeCalendarRepository) FindByID(ctx context.Context, nativeRecordID int64) (*scheduleModels.Dateframe, error) {
+	var id any = nativeRecordID
 	dateframeID, err := membershipID(id)
 	if err != nil {
 		return nil, calendarWrapError(opFindByID, err)
@@ -224,7 +229,8 @@ func (r dateframeCalendarRepository) Update(ctx context.Context, dateframe *sche
 }
 
 // Delete stays idempotent like the base repository it replaces.
-func (r dateframeCalendarRepository) Delete(ctx context.Context, id any) error {
+func (r dateframeCalendarRepository) Delete(ctx context.Context, nativeRecordID int64) error {
+	var id any = nativeRecordID
 	dateframeID, err := membershipID(id)
 	if err != nil {
 		return calendarWrapError("delete", err)
@@ -265,6 +271,6 @@ func (r dateframeCalendarRepository) FindByName(ctx context.Context, name string
 }
 
 var (
-	_ scheduleModels.ClosingDayRepository = closingDayCalendarRepository{}
-	_ scheduleModels.DateframeRepository  = dateframeCalendarRepository{}
+	_ ports.ClosingDayRecords = closingDayCalendarRepository{}
+	_ ports.DateframeRecords  = dateframeCalendarRepository{}
 )

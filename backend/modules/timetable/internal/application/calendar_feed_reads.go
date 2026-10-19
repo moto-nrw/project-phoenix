@@ -3,8 +3,9 @@ package application
 import (
 	"context"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The staff calendar feed reads the retained Timetable and Dienstplan rows
@@ -13,7 +14,7 @@ import (
 
 // FindCalendarAssignments lists the staff member's assignments in the range.
 func FindCalendarAssignments(ctx context.Context, rows ports.CalendarAssignmentRows, staffID int64, from, to string) ([]ports.CalendarAssignment, error) {
-	values, err := rows.FindByStaffAndDateRange(ctx, staffID, scheduleModels.Date(from), scheduleModels.Date(to))
+	values, err := rows.FindByStaffAndDateRange(ctx, staffID, calendar.Date(from), calendar.Date(to))
 	return calendarRecords(values, func(v *scheduleModels.InstanceStaff) ports.CalendarAssignment {
 		return ports.CalendarAssignment{InstanceID: v.InstanceID, RoomID: v.RoomID, UpdatedAt: v.UpdatedAt}
 	}), err
@@ -32,7 +33,7 @@ func FindCalendarInstances(ctx context.Context, rows ports.CalendarInstanceRows,
 
 // FindCalendarShifts lists the staff member's planned shifts in the range.
 func FindCalendarShifts(ctx context.Context, rows ports.CalendarShiftRows, staffID int64, from, to string) ([]ports.CalendarShift, error) {
-	values, err := rows.FindByStaffAndDateRange(ctx, staffID, scheduleModels.Date(from), scheduleModels.Date(to))
+	values, err := rows.FindByStaffAndDateRange(ctx, staffID, calendar.Date(from), calendar.Date(to))
 	return calendarRecords(values, func(v *scheduleModels.StaffShift) ports.CalendarShift {
 		return ports.CalendarShift{
 			ID: v.ID, Date: string(v.Date), StartTime: v.StartTime, EndTime: v.EndTime, UpdatedAt: v.UpdatedAt,

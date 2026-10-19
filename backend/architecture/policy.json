@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 82,
+  "policy_epoch": 83,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -1262,13 +1262,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/activities",
-      "owner": "timetable-activities",
-      "role": "legacy-model",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/auditlog/records",
       "owner": "audit-platform",
       "role": "port",
@@ -1363,13 +1356,6 @@
       "path": "modules/careplan/internal/rows",
       "owner": "care-plan",
       "role": "domain",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "models/schedule",
-      "owner": "timetable-activities",
-      "role": "legacy-model",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -2284,7 +2270,7 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "services/scheduler",
+      "path": "modules/schedulerruntime/internal/application",
       "owner": "scheduler-runtime",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -3526,6 +3512,41 @@
       "path": "modules/delivery/runtime",
       "owner": "delivery-platform",
       "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/internal/domain/activityrecords",
+      "owner": "timetable-activities",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/fixturetest",
+      "owner": "timetable-activities",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/internal/adapters/postgres/runtime",
+      "owner": "people-directory",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolstructure/internal/adapters/postgres/runtime",
+      "owner": "school-structure",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/internal/domain/schedulerecords",
+      "owner": "timetable-activities",
+      "role": "domain",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     }
@@ -15414,19 +15435,6 @@
       "target_package": "modules/timetable/activitycontract"
     },
     {
-      "id": "timetable-activities.legacy-model.production.activity-contract",
-      "description": "Actual native activity values and capability replace retained model and compose declarations.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "legacy-model",
-      "target_owner": "timetable-activities",
-      "target_role": "contract",
-      "target_package": "modules/timetable/activitycontract",
-      "source_package": "models/activities"
-    },
-    {
       "id": "timetable-activities.workflow-integration-test.internal_test.activity-contract",
       "description": "Actual native activity values and capability replace retained model and compose declarations.",
       "scopes": [
@@ -15634,6 +15642,18 @@
       "source_role": "workflow-integration-test",
       "target_owner": "delivery-platform",
       "target_role": "contract"
+    },
+    {
+      "id": "timetable-activities.test-support.activity-contract",
+      "description": "The owner fixture seam accepts the standing activity contract; precedent delivery.test-support.native-contracts (#4086).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "test-support",
+      "target_owner": "timetable-activities",
+      "target_role": "contract",
+      "target_package": "modules/timetable/activitycontract"
     }
   ],
   "relocations": [
@@ -15810,6 +15830,11 @@
     {
       "from": "services/parentmessaging",
       "to": "modules/communication/internal/application/parentmessaging",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "services/scheduler",
+      "to": "modules/schedulerruntime/internal/application",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     }
   ]

@@ -8,7 +8,7 @@ import (
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,7 +26,7 @@ func classBlockInstance(id, groupID int64, start string, status string) *schedul
 	}
 	return &scheduleModels.ActivityInstance{
 		ID:              id,
-		Date:            scheduleModels.NewDate(2026, 9, 7),
+		Date:            calendar.NewDate(2026, 9, 7),
 		ActivityGroupID: &groupID,
 		StartTime:       parsed,
 		Status:          status,
@@ -74,7 +74,7 @@ func TestEarliestPlannedBlockStartForClassIsEmptyWithoutABlock(t *testing.T) {
 
 	// Spontaneous blocks carry no template and therefore no class.
 	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
-		{ID: 20, Date: scheduleModels.Date(date), StartTime: time.Date(0, 1, 1, 9, 0, 0, 0, time.UTC), Status: scheduleModels.InstanceStatusPlanned},
+		{ID: 20, Date: calendar.Date(date), StartTime: time.Date(0, 1, 1, 9, 0, 0, 0, time.UTC), Status: scheduleModels.InstanceStatusPlanned},
 	}
 
 	start, err := deps.service.EarliestPlannedBlockStartForClass(context.Background(), "4a", date)

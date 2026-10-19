@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -212,7 +212,7 @@ func (f startConflictsFunc) DetectStartConflicts(ctx context.Context, subject ti
 
 func autoStartInstance(id int64, status string, startHour, startMinute, endHour, endMinute int) *scheduleModel.ActivityInstance {
 	inst := &scheduleModel.ActivityInstance{
-		Date:      scheduleModel.NewDate(2026, 4, 20),
+		Date:      calendar.NewDate(2026, 4, 20),
 		Title:     "Auto-start test",
 		StartTime: time.Date(1, 1, 1, startHour, startMinute, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, endHour, endMinute, 0, 0, time.UTC),
@@ -226,12 +226,13 @@ func autoStartInstance(id int64, status string, startHour, startMinute, endHour,
 // autoStartInstanceRepo answers the reads of the auto start and the auto
 // end; every other repository method is unused.
 type autoStartInstanceRepo struct {
-	scheduleModel.ActivityInstanceRepository
+	ports.ActivityInstanceRecords
 	instances      []*scheduleModel.ActivityInstance
 	findStatusByID map[int64]string
 }
 
-func (r *autoStartInstanceRepo) FindByID(_ context.Context, rawID any) (*scheduleModel.ActivityInstance, error) {
+func (r *autoStartInstanceRepo) FindByID(_ context.Context, nativeRecordID int64) (*scheduleModel.ActivityInstance, error) {
+	var rawID any = nativeRecordID
 	id, ok := rawID.(int64)
 	if !ok {
 		return nil, nil
@@ -249,11 +250,11 @@ func (r *autoStartInstanceRepo) FindByID(_ context.Context, rawID any) (*schedul
 	return nil, nil
 }
 
-func (r *autoStartInstanceRepo) List(context.Context, *domain.ListOptions) ([]*scheduleModel.ActivityInstance, error) {
+func (r *autoStartInstanceRepo) ListInstances(context.Context, ports.LegacyInstanceFilter) ([]*scheduleModel.ActivityInstance, error) {
 	return r.instances, nil
 }
 
-func (r *autoStartInstanceRepo) FindByTenantAndDate(context.Context, scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (r *autoStartInstanceRepo) FindByTenantAndDate(context.Context, calendar.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return r.instances, nil
 }
 
@@ -281,7 +282,7 @@ func (r *autoStartRoomRepo) RoomNamesByID(_ context.Context, ids []int64) (map[i
 }
 
 type autoStartStaffRepo struct {
-	scheduleModel.InstanceStaffRepository
+	ports.InstanceStaffRecords
 	counts       map[int64]int
 	requestedIDs []int64
 }

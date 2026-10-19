@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 )
 
 const legacyActivityExceptionDateColumn = "exception_date"
@@ -30,7 +32,7 @@ func (r timetableActivityExceptionRepository) Create(ctx context.Context, value 
 	return replaceLegacyActivityException(value, created)
 }
 
-func (r timetableActivityExceptionRepository) FindByID(ctx context.Context, id any) (*scheduleModels.ActivityException, error) {
+func (r timetableActivityExceptionRepository) FindByID(ctx context.Context, id int64) (*scheduleModels.ActivityException, error) {
 	exceptionID, ok := LegacyGroupID(id)
 	if !ok {
 		return nil, WrapDatabaseError("find by id", fmt.Errorf("invalid activity exception id %T", id))
@@ -56,7 +58,7 @@ func (r timetableActivityExceptionRepository) Update(ctx context.Context, value 
 	return replaceLegacyActivityException(value, updated)
 }
 
-func (r timetableActivityExceptionRepository) Delete(ctx context.Context, id any) error {
+func (r timetableActivityExceptionRepository) Delete(ctx context.Context, id int64) error {
 	exceptionID, ok := LegacyGroupID(id)
 	if !ok {
 		return WrapDatabaseError("delete", fmt.Errorf("invalid activity exception id %T", id))
@@ -81,7 +83,7 @@ func (r timetableActivityExceptionRepository) FindByActivityGroupID(ctx context.
 	return r.list(ctx, timetable.ActivityExceptionFilter{ActivityGroupID: &groupID, OrderByDate: true}, "find by activity group id")
 }
 
-func (r timetableActivityExceptionRepository) FindByActivityGroupAndDate(ctx context.Context, groupID int64, date ActivityExceptionDate) (*scheduleModels.ActivityException, error) {
+func (r timetableActivityExceptionRepository) FindByActivityGroupAndDate(ctx context.Context, groupID int64, date calendar.Date) (*scheduleModels.ActivityException, error) {
 	text := date.String()
 	values, err := r.timetable.ListActivityExceptions(ctx, timetable.ActivityExceptionFilter{
 		ActivityGroupID: &groupID, ExceptionDate: &text, Limit: 1,
@@ -99,14 +101,14 @@ func (r timetableActivityExceptionRepository) FindByActivityGroupAndDate(ctx con
 	return result, nil
 }
 
-func (r timetableActivityExceptionRepository) FindByActivityGroupAndDateRange(ctx context.Context, groupID int64, from, to ActivityExceptionDate) ([]*scheduleModels.ActivityException, error) {
+func (r timetableActivityExceptionRepository) FindByActivityGroupAndDateRange(ctx context.Context, groupID int64, from, to calendar.Date) ([]*scheduleModels.ActivityException, error) {
 	fromText, toText := from.String(), to.String()
 	return r.list(ctx, timetable.ActivityExceptionFilter{
 		ActivityGroupID: &groupID, FromDate: &fromText, ToDate: &toText, OrderByDate: true,
 	}, "find by activity group and date range")
 }
 
-func (r timetableActivityExceptionRepository) FindByDateRange(ctx context.Context, from, to ActivityExceptionDate) ([]*scheduleModels.ActivityException, error) {
+func (r timetableActivityExceptionRepository) FindByDateRange(ctx context.Context, from, to calendar.Date) ([]*scheduleModels.ActivityException, error) {
 	fromText, toText := from.String(), to.String()
 	return r.list(ctx, timetable.ActivityExceptionFilter{
 		FromDate: &fromText, ToDate: &toText, OrderByDate: true,
@@ -125,7 +127,7 @@ func (r timetableActivityExceptionRepository) CountWithOptions(ctx context.Conte
 	return count, nil
 }
 
-func (r timetableActivityExceptionRepository) OldestBefore(ctx context.Context, column string, cutoff *ActivityExceptionDate) (*ActivityExceptionDate, error) {
+func (r timetableActivityExceptionRepository) OldestBefore(ctx context.Context, column string, cutoff *calendar.Date) (*calendar.Date, error) {
 	if column != legacyActivityExceptionDateColumn {
 		return nil, WrapDatabaseError("oldest before", fmt.Errorf("unsupported activity exception date column %q", column))
 	}
@@ -144,7 +146,7 @@ func (r timetableActivityExceptionRepository) OldestBefore(ctx context.Context, 
 	return &result, nil
 }
 
-func (r timetableActivityExceptionRepository) DeleteOlderThan(ctx context.Context, column string, cutoff ActivityExceptionDate) (int64, error) {
+func (r timetableActivityExceptionRepository) DeleteOlderThan(ctx context.Context, column string, cutoff calendar.Date) (int64, error) {
 	if column != legacyActivityExceptionDateColumn {
 		return 0, WrapDatabaseError("delete older than", fmt.Errorf("unsupported activity exception date column %q", column))
 	}
@@ -225,7 +227,7 @@ func publicOptionalClock(value *time.Time) *string {
 	return &text
 }
 
-func publicOptionalDate(value *ActivityExceptionDate) *string {
+func publicOptionalDate(value *calendar.Date) *string {
 	if value == nil {
 		return nil
 	}

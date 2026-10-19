@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -34,7 +34,7 @@ func sessionBlocksFixture(t *testing.T) (*timetableOpsTestDeps, calendar.Date, m
 		inst := instanceWithTimes(id, status,
 			time.Date(1, time.January, 1, start, 0, 0, 0, time.UTC),
 			time.Date(1, time.January, 1, end, 0, 0, 0, time.UTC))
-		inst.Date = scheduleModels.Date(day.String())
+		inst.Date = calendar.Date(day.String())
 		inst.Title = "GT"
 		if activeGroupID > 0 {
 			inst.ActiveGroupID = &activeGroupID

@@ -6,9 +6,9 @@ import (
 	"slices"
 	"sort"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -80,7 +80,7 @@ func (d *conflictDetection) loadStaffPoolFacts(ctx context.Context, instance *sc
 		return nil, false, nil, fmt.Errorf("load shifts: %w", err)
 	}
 	weekFrom, weekTo := timetable.ContainingCalendarWeek(calendar.Date(date))
-	usedWeeks, err := d.deps.Shifts.FindUsedCalendarWeeks(ctx, scheduleModels.Date(weekFrom), scheduleModels.Date(weekTo))
+	usedWeeks, err := d.deps.Shifts.FindUsedCalendarWeeks(ctx, calendar.Date(weekFrom), calendar.Date(weekTo))
 	if err != nil {
 		return nil, false, nil, fmt.Errorf("load used shift weeks: %w", err)
 	}

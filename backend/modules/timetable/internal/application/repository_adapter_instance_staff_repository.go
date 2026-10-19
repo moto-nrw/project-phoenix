@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 )
 
 type timetableInstanceStaffRepository struct {
@@ -28,7 +30,7 @@ func (r timetableInstanceStaffRepository) Create(ctx context.Context, value *sch
 	return nil
 }
 
-func (r timetableInstanceStaffRepository) FindByID(ctx context.Context, id any) (*scheduleModels.InstanceStaff, error) {
+func (r timetableInstanceStaffRepository) FindByID(ctx context.Context, id int64) (*scheduleModels.InstanceStaff, error) {
 	rowID, ok := LegacyGroupID(id)
 	if !ok {
 		return nil, WrapDatabaseError("find by id", fmt.Errorf("invalid instance staff id %T", id))
@@ -55,7 +57,7 @@ func (r timetableInstanceStaffRepository) Update(ctx context.Context, value *sch
 	return nil
 }
 
-func (r timetableInstanceStaffRepository) Delete(ctx context.Context, id any) error {
+func (r timetableInstanceStaffRepository) Delete(ctx context.Context, id int64) error {
 	rowID, ok := LegacyGroupID(id)
 	if !ok {
 		return WrapDatabaseError("delete", fmt.Errorf("invalid instance staff id %T", id))
@@ -99,12 +101,12 @@ func (r timetableInstanceStaffRepository) FindByInstanceIDs(ctx context.Context,
 	return r.list(ctx, timetable.InstanceStaffFilter{InstanceIDs: instanceIDs, OrderByInstanceAndCreated: true}, "find by instance ids")
 }
 
-func (r timetableInstanceStaffRepository) FindByStaffAndDate(ctx context.Context, staffID int64, date InstanceStaffDate) ([]*scheduleModels.InstanceStaff, error) {
+func (r timetableInstanceStaffRepository) FindByStaffAndDate(ctx context.Context, staffID int64, date calendar.Date) ([]*scheduleModels.InstanceStaff, error) {
 	text := date.String()
 	return r.list(ctx, timetable.InstanceStaffFilter{StaffIDs: []int64{staffID}, Date: &text, OrderByActivityTime: true}, "find by staff and date")
 }
 
-func (r timetableInstanceStaffRepository) FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date InstanceStaffDate) ([]*scheduleModels.InstanceStaff, error) {
+func (r timetableInstanceStaffRepository) FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date calendar.Date) ([]*scheduleModels.InstanceStaff, error) {
 	if len(staffIDs) == 0 {
 		return []*scheduleModels.InstanceStaff{}, nil
 	}
@@ -112,7 +114,7 @@ func (r timetableInstanceStaffRepository) FindByStaffIDsAndDate(ctx context.Cont
 	return r.list(ctx, timetable.InstanceStaffFilter{StaffIDs: staffIDs, Date: &text, OrderByActivityTime: true}, "find by staff ids and date")
 }
 
-func (r timetableInstanceStaffRepository) FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to InstanceStaffDate) ([]*scheduleModels.InstanceStaff, error) {
+func (r timetableInstanceStaffRepository) FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to calendar.Date) ([]*scheduleModels.InstanceStaff, error) {
 	fromText, toText := from.String(), to.String()
 	return r.list(ctx, timetable.InstanceStaffFilter{
 		StaffIDs: []int64{staffID}, FromDate: &fromText, ToDate: &toText, OrderByActivityDateTime: true,

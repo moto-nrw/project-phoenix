@@ -7,11 +7,9 @@ import (
 	"testing"
 	"time"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-
-	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -418,7 +416,7 @@ func TestPeriodSelection(t *testing.T) {
 	}
 
 	mkPeriod := func(id int64, start, end calendar.Date) *schedule.CalendarPeriod {
-		p := &schedule.CalendarPeriod{StartDate: schedule.Date(start), EndDate: schedule.Date(end), IsActive: true}
+		p := &schedule.CalendarPeriod{StartDate: calendar.Date(start), EndDate: calendar.Date(end), IsActive: true}
 		p.ID = id
 		return p
 	}
@@ -522,7 +520,7 @@ func TestIsoWeekday(t *testing.T) {
 }
 
 type materializationFakeGroupRepo struct {
-	activities.GroupRepository
+	ports.ActivityGroupRecords
 	templates []*activityContract.Group
 	err       error
 }
@@ -535,7 +533,7 @@ func (r materializationFakeGroupRepo) FindAllTemplates(context.Context) ([]*acti
 }
 
 type materializationFakeScheduleRepo struct {
-	activities.ScheduleRepository
+	ports.ActivityScheduleRecords
 	schedules []*activityContract.Schedule
 	err       error
 }
@@ -548,7 +546,7 @@ func (r materializationFakeScheduleRepo) FindByGroupID(context.Context, int64) (
 }
 
 type materializationFakeEnrollmentRepo struct {
-	activities.StudentEnrollmentRepository
+	ports.ActivityEnrollmentRecords
 	err error
 }
 
@@ -560,7 +558,7 @@ func (r materializationFakeEnrollmentRepo) FindByGroupID(context.Context, int64)
 }
 
 type materializationFakeSupervisorRepo struct {
-	activities.SupervisorPlannedRepository
+	ports.PlannedSupervisorRecords
 	err error
 }
 
@@ -572,7 +570,7 @@ func (r materializationFakeSupervisorRepo) FindByGroupID(context.Context, int64)
 }
 
 type materializationFakePeriodRepo struct {
-	schedule.CalendarPeriodRepository
+	ports.CalendarPeriodRecords
 	periods []*schedule.CalendarPeriod
 	err     error
 }
@@ -585,13 +583,13 @@ func (r materializationFakePeriodRepo) FindActiveByTenantID(context.Context) ([]
 }
 
 type materializationFakeInstanceRepo struct {
-	schedule.ActivityInstanceRepository
+	ports.ActivityInstanceRecords
 	inserted bool
 	err      error
 	findErr  error
 }
 
-func (r materializationFakeInstanceRepo) FindByTenantAndDateRange(context.Context, schedule.Date, schedule.Date) ([]*schedule.ActivityInstance, error) {
+func (r materializationFakeInstanceRepo) FindByTenantAndDateRange(context.Context, calendar.Date, calendar.Date) ([]*schedule.ActivityInstance, error) {
 	if r.findErr != nil {
 		return nil, r.findErr
 	}
@@ -603,7 +601,7 @@ func (r materializationFakeInstanceRepo) CreateTemplateBackedIfAbsent(context.Co
 }
 
 type materializationFakeStaffRepo struct {
-	schedule.InstanceStaffRepository
+	ports.InstanceStaffRecords
 }
 
 func (r materializationFakeStaffRepo) Create(context.Context, *schedule.InstanceStaff) error {
@@ -611,7 +609,7 @@ func (r materializationFakeStaffRepo) Create(context.Context, *schedule.Instance
 }
 
 type materializationFakeStudentRepo struct {
-	schedule.InstanceStudentRepository
+	ports.InstanceStudentRecords
 }
 
 func (r materializationFakeStudentRepo) Create(context.Context, *schedule.InstanceStudent) error {
@@ -619,11 +617,11 @@ func (r materializationFakeStudentRepo) Create(context.Context, *schedule.Instan
 }
 
 type materializationFakeExceptionRepo struct {
-	schedule.ActivityExceptionRepository
+	ports.ActivityExceptionRecords
 	err error
 }
 
-func (r materializationFakeExceptionRepo) FindByDateRange(context.Context, schedule.Date, schedule.Date) ([]*schedule.ActivityException, error) {
+func (r materializationFakeExceptionRepo) FindByDateRange(context.Context, calendar.Date, calendar.Date) ([]*schedule.ActivityException, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -631,7 +629,7 @@ func (r materializationFakeExceptionRepo) FindByDateRange(context.Context, sched
 }
 
 type materializationFakeTimeframeRepo struct {
-	schedule.TimeframeRepository
+	ports.TimeframeRecords
 	timeframes []*schedule.Timeframe
 	err        error
 }
@@ -789,8 +787,8 @@ func TestMaterializeForTenant_PreconditionWarnings(t *testing.T) {
 			materializationFakeEnrollmentRepo{},
 			materializationFakeSupervisorRepo{},
 			materializationFakePeriodRepo{periods: []*schedule.CalendarPeriod{{
-				StartDate: schedule.Date(date.AddDays(-30)),
-				EndDate:   schedule.Date(date.AddDays(30)),
+				StartDate: calendar.Date(date.AddDays(-30)),
+				EndDate:   calendar.Date(date.AddDays(30)),
 				IsActive:  true,
 				ID:        401,
 			}}},
@@ -818,8 +816,8 @@ func TestMaterializeForTenant_ErrorBranches(t *testing.T) {
 
 	date := calendar.NewDate(2026, 4, 20)
 	period := &schedule.CalendarPeriod{
-		StartDate: schedule.Date(date.AddDays(-30)),
-		EndDate:   schedule.Date(date.AddDays(30)),
+		StartDate: calendar.Date(date.AddDays(-30)),
+		EndDate:   calendar.Date(date.AddDays(30)),
 		IsActive:  true,
 		ID:        405,
 	}
@@ -1049,7 +1047,7 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 }
 
 type materializationCountingStudentRepo struct {
-	schedule.InstanceStudentRepository
+	ports.InstanceStudentRecords
 	rows []*schedule.InstanceStudent
 	err  error
 }
@@ -1062,16 +1060,16 @@ func (r *materializationCountingStudentRepo) Create(_ context.Context, row *sche
 	return nil
 }
 
-func (r *materializationCountingStudentRepo) ApplyActiveStatusDaysForInstance(context.Context, int64, schedule.Date) (int, error) {
+func (r *materializationCountingStudentRepo) ApplyActiveStatusDaysForInstance(context.Context, int64, calendar.Date) (int, error) {
 	return 0, nil
 }
 
-func (r *materializationCountingStudentRepo) ApplyActivePartialAbsencesForInstance(context.Context, int64, schedule.Date) (int, error) {
+func (r *materializationCountingStudentRepo) ApplyActivePartialAbsencesForInstance(context.Context, int64, calendar.Date) (int, error) {
 	return 0, nil
 }
 
 type materializationCountingStaffRepo struct {
-	schedule.InstanceStaffRepository
+	ports.InstanceStaffRecords
 	rows []*schedule.InstanceStaff
 	err  error
 }
@@ -1118,8 +1116,8 @@ func newMaterializationBranchServiceForSchedule(
 		materializationFakePeriodRepo{periods: []*schedule.CalendarPeriod{{
 			Name:            "Schuljahr",
 			PeriodType:      schedule.PeriodTypeSchoolYear,
-			StartDate:       schedule.Date(date.AddDays(-30)),
-			EndDate:         schedule.Date(date.AddDays(30)),
+			StartDate:       calendar.Date(date.AddDays(-30)),
+			EndDate:         calendar.Date(date.AddDays(30)),
 			WeekCycleLength: 1,
 			IsActive:        true,
 			ID:              400,
@@ -1186,16 +1184,16 @@ func TestScheduleNotStartedOn(t *testing.T) {
 // newMaterializationForTest composes the materialization over fakes;
 // transactions and staffing may be nil.
 func newMaterializationForTest(
-	groupRepo activities.GroupRepository,
-	scheduleRepo activities.ScheduleRepository,
-	enrollmentRepo activities.StudentEnrollmentRepository,
-	supervisorRepo activities.SupervisorPlannedRepository,
-	periodRepo schedule.CalendarPeriodRepository,
-	instanceRepo schedule.ActivityInstanceRepository,
-	staffRepo schedule.InstanceStaffRepository,
-	studentRepo schedule.InstanceStudentRepository,
-	exceptionRepo schedule.ActivityExceptionRepository,
-	timeframeRepo schedule.TimeframeRepository,
+	groupRepo ports.ActivityGroupRecords,
+	scheduleRepo ports.ActivityScheduleRecords,
+	enrollmentRepo ports.ActivityEnrollmentRecords,
+	supervisorRepo ports.PlannedSupervisorRecords,
+	periodRepo ports.CalendarPeriodRecords,
+	instanceRepo ports.ActivityInstanceRecords,
+	staffRepo ports.InstanceStaffRecords,
+	studentRepo ports.InstanceStudentRecords,
+	exceptionRepo ports.ActivityExceptionRecords,
+	timeframeRepo ports.TimeframeRecords,
 	transactions ports.TenantTransactions,
 	staffing ports.StaffingAnnouncer,
 	logger *slog.Logger,

@@ -11,12 +11,12 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -131,7 +131,7 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	return setup
 }
 
-func instanceServiceWithBroadcaster(t *testing.T, s *lifecycleSetup, broadcaster realtime.Broadcaster, recovery ...scheduleModels.ActivityRecoveryRepository) timetablePorts.InstanceLifecycle {
+func instanceServiceWithBroadcaster(t *testing.T, s *lifecycleSetup, broadcaster realtime.Broadcaster, recovery ...timetablePorts.ActivityRecoveryRecords) timetablePorts.InstanceLifecycle {
 	t.Helper()
 	return newLifecycle(t, lifecycleDependencies(s, broadcaster, recovery...))
 }
@@ -145,7 +145,7 @@ func newLifecycle(t *testing.T, deps timetablePorts.InstanceLifecycleDependencie
 
 // newLifecycleAutoEnd composes the scheduler's auto end over the lifecycle,
 // as the composition root does.
-func newLifecycleAutoEnd(t *testing.T, instances scheduleModels.ActivityInstanceRepository, lifecycle timetable.InstanceLifecycle) timetable.InstanceAutoEnd {
+func newLifecycleAutoEnd(t *testing.T, instances timetablePorts.ActivityInstanceRecords, lifecycle timetable.InstanceLifecycle) timetable.InstanceAutoEnd {
 	t.Helper()
 	autoEnd, err := compose.NewInstanceAutoEnd(instances, lifecycle)
 	require.NoError(t, err)
@@ -154,7 +154,7 @@ func newLifecycleAutoEnd(t *testing.T, instances scheduleModels.ActivityInstance
 
 // lifecycleDependencies is the dependency set instanceServiceWithBroadcaster
 // wires, for tests that add an optional collaborator before construction.
-func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, recovery ...scheduleModels.ActivityRecoveryRepository) timetablePorts.InstanceLifecycleDependencies {
+func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, recovery ...timetablePorts.ActivityRecoveryRecords) timetablePorts.InstanceLifecycleDependencies {
 	recoveryRepo := compose.NewRetainedActivityRecoveryRepository(s.db, s.timetable.InstanceStudent)
 	if len(recovery) > 0 {
 		recoveryRepo = recovery[0]
@@ -224,15 +224,15 @@ type unusedShiftRows struct{}
 
 var errShiftRowsNotUsed = errors.New("the start check reads no Dienstplan rows")
 
-func (unusedShiftRows) FindByDateRange(context.Context, scheduleModels.Date, scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
+func (unusedShiftRows) FindByDateRange(context.Context, calendar.Date, calendar.Date) ([]*scheduleModels.StaffShift, error) {
 	return nil, errShiftRowsNotUsed
 }
 
-func (unusedShiftRows) FindByStaffIDsAndDates(context.Context, []int64, []scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
+func (unusedShiftRows) FindByStaffIDsAndDates(context.Context, []int64, []calendar.Date) ([]*scheduleModels.StaffShift, error) {
 	return nil, errShiftRowsNotUsed
 }
 
-func (unusedShiftRows) FindUsedCalendarWeeks(context.Context, scheduleModels.Date, scheduleModels.Date) ([]scheduleModels.Date, error) {
+func (unusedShiftRows) FindUsedCalendarWeeks(context.Context, calendar.Date, calendar.Date) ([]calendar.Date, error) {
 	return nil, errShiftRowsNotUsed
 }
 

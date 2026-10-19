@@ -7,8 +7,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,8 +25,7 @@ import (
 
 func presenceCutoverInstance(t *testing.T, title string, activityID *int64, roomID, activeGroupID int64, startHour int) *scheduleModels.ActivityInstance {
 	t.Helper()
-	instance := buildInstance(testpkg.Tenant(t), roomID, activityID, scheduleModels.NewDate(2026, 9, 22),
-		time.Date(2000, 1, 1, startHour, 0, 0, 0, time.UTC), time.Date(2000, 1, 1, startHour+1, 0, 0, 0, time.UTC), title)
+	instance := buildInstance(testpkg.Tenant(t), roomID, activityID, calendar.NewDate(2026, 9, 22), time.Date(2000, 1, 1, startHour, 0, 0, 0, time.UTC), time.Date(2000, 1, 1, startHour+1, 0, 0, 0, time.UTC), title)
 	instance.Status = scheduleModels.InstanceStatusActive
 	instance.ActiveGroupID = &activeGroupID
 	return instance

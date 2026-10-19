@@ -4,6 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
+	"github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
 	"github.com/stretchr/testify/assert"
@@ -11,10 +15,10 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -119,7 +123,7 @@ func replaceScenarioTarget(t *testing.T, s *scenarioSetup, targetType string) {
 			Exec(s.ctx)
 		require.NoError(t, err)
 	}
-	targetRepo, ok := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.(activitiesModels.GroupTargetRepository)
+	targetRepo, ok := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.(fixturetest.GroupTargets)
 	require.True(t, ok)
 	require.NoError(t, targetRepo.ReplaceTargets(s.ctx, s.template.ID, []*activityContract.GroupTarget{target}))
 }
@@ -421,7 +425,7 @@ func TestDetectEditedInWindow_DeletedOccurrence(t *testing.T) {
 	reason := "Einzeltermin gelöscht"
 	exc := &scheduleModels.ActivityException{
 		ActivityGroupID: s.template.ID,
-		ExceptionDate:   scheduleModels.Date(editWindowStart),
+		ExceptionDate:   calendar.Date(editWindowStart),
 		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 		Reason:          &reason,
 	}
@@ -479,7 +483,7 @@ func TestDetectEditedInWindow_ExceptionShiftedStartNotFlagged(t *testing.T) {
 	newStart := time.Date(1, 1, 1, 13, 0, 0, 0, time.UTC)
 	exc := &scheduleModels.ActivityException{
 		ActivityGroupID: s.template.ID,
-		ExceptionDate:   scheduleModels.Date(editWindowStart),
+		ExceptionDate:   calendar.Date(editWindowStart),
 		ExceptionType:   scheduleModels.ActivityExceptionModified,
 		StartTime:       &newStart,
 	}
@@ -538,7 +542,7 @@ func setInstanceStaffAbsent(t *testing.T, s *scenarioSetup, instanceID, staffID 
 	require.NoError(t, err)
 }
 
-func testInstanceStudents(db *bun.DB) scheduleModels.InstanceStudentRepository {
+func testInstanceStudents(db *bun.DB) ports.InstanceStudentRecords {
 	factory := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	return factory.InstanceStudent
 }

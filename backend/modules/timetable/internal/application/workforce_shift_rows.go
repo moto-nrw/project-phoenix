@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The adapters in this file serve the retained models/schedule Dienstplan
@@ -44,7 +45,7 @@ func (r *WorkforceShiftRows) Create(ctx context.Context, shift *scheduleModels.S
 	return nil
 }
 
-func (r *WorkforceShiftRows) FindByID(ctx context.Context, id any) (*scheduleModels.StaffShift, error) {
+func (r *WorkforceShiftRows) FindByID(ctx context.Context, id int64) (*scheduleModels.StaffShift, error) {
 	shiftID, err := shiftRowID(id)
 	if err != nil {
 		return nil, r.errs.WrapRecordError("find by id", err)
@@ -74,7 +75,7 @@ func (r *WorkforceShiftRows) Update(ctx context.Context, shift *scheduleModels.S
 	return nil
 }
 
-func (r *WorkforceShiftRows) Delete(ctx context.Context, id any) error {
+func (r *WorkforceShiftRows) Delete(ctx context.Context, id int64) error {
 	shiftID, err := shiftRowID(id)
 	if err != nil {
 		return r.errs.WrapRecordError("delete", err)
@@ -85,21 +86,21 @@ func (r *WorkforceShiftRows) Delete(ctx context.Context, id any) error {
 	return nil
 }
 
-func (r *WorkforceShiftRows) FindByDateRange(ctx context.Context, start, end scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
+func (r *WorkforceShiftRows) FindByDateRange(ctx context.Context, start, end calendar.Date) ([]*scheduleModels.StaffShift, error) {
 	return r.list(ctx, "find staff shifts by date range", ports.WorkforceShiftFilter{
 		From: start.String(), To: end.String(),
 		Order: shiftOrder(ports.WorkforceShiftOrderDate, ports.WorkforceShiftOrderStaffID, ports.WorkforceShiftOrderStartTime),
 	})
 }
 
-func (r *WorkforceShiftRows) FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
+func (r *WorkforceShiftRows) FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end calendar.Date) ([]*scheduleModels.StaffShift, error) {
 	return r.list(ctx, "find staff shifts by staff and date range", ports.WorkforceShiftFilter{
 		StaffID: staffID, From: start.String(), To: end.String(),
 		Order: shiftOrder(ports.WorkforceShiftOrderDate, ports.WorkforceShiftOrderStartTime),
 	})
 }
 
-func (r *WorkforceShiftRows) FindByStaffIDsAndDates(ctx context.Context, staffIDs []int64, dates []scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
+func (r *WorkforceShiftRows) FindByStaffIDsAndDates(ctx context.Context, staffIDs []int64, dates []calendar.Date) ([]*scheduleModels.StaffShift, error) {
 	if len(staffIDs) == 0 || len(dates) == 0 {
 		return nil, nil
 	}
@@ -113,14 +114,14 @@ func (r *WorkforceShiftRows) FindByStaffIDsAndDates(ctx context.Context, staffID
 	})
 }
 
-func (r *WorkforceShiftRows) FindUsedCalendarWeeks(ctx context.Context, start, end scheduleModels.Date) ([]scheduleModels.Date, error) {
+func (r *WorkforceShiftRows) FindUsedCalendarWeeks(ctx context.Context, start, end calendar.Date) ([]calendar.Date, error) {
 	weeks, err := r.workforce.UsedStaffShiftWeeks(ctx, start.String(), end.String())
 	if err != nil {
 		return nil, shiftReadError(r.errs, "find used staff-shift calendar weeks", err, nil)
 	}
-	result := make([]scheduleModels.Date, 0, len(weeks))
+	result := make([]calendar.Date, 0, len(weeks))
 	for _, week := range weeks {
-		result = append(result, scheduleModels.Date(week))
+		result = append(result, calendar.Date(week))
 	}
 	return result, nil
 }

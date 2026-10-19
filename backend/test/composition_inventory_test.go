@@ -345,7 +345,7 @@ type callerAggregate struct {
 func discoverConstructorCallers(t *testing.T, backendRoot string, policy *compositionPolicy) []constructorCaller {
 	t.Helper()
 	aggregates := make(map[string]*callerAggregate)
-	for _, root := range []string{"api", "cmd", "services", filepath.Join("database", "repositories"), "test"} {
+	for _, root := range []string{"api", "cmd", filepath.Join("modules", "schedulerruntime", "internal", "application"), filepath.Join("database", "repositories"), "test"} {
 		scanConstructorRoot(t, backendRoot, root, policy, aggregates)
 	}
 	result := make([]constructorCaller, 0, len(aggregates))

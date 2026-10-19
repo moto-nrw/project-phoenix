@@ -7,8 +7,6 @@ import (
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -30,7 +28,7 @@ const (
 // EARLIER (#2226).
 type TemplateUpdateInput struct {
 	TemplateID       int64
-	Fields           activitiesModel.TemplateFieldsUpdate
+	Fields           timetable.TemplateUpdate
 	Weekdays         []int
 	TimeframeID      int64
 	WeekPattern      int
@@ -280,7 +278,7 @@ func (s *TemplateService) writeTemplateFields(ctx context.Context, in TemplateUp
 		return err
 	}
 	if targetsProvided {
-		targetRepo, ok := s.deps.ActivityGroupRepo.(activitiesModel.GroupTargetRepository)
+		targetRepo, ok := s.deps.ActivityGroupRepo.(ports.ActivityGroupTargets)
 		if !ok {
 			return &ports.ScheduleError{Op: "update template: replace targets", Err: errors.New("target repository is not configured")}
 		}
@@ -468,8 +466,8 @@ func unionStudentIDs(left, right []int64) []int64 {
 	return ids
 }
 
-func loadExistingDynamicTargets(ctx context.Context, repo activitiesModel.GroupRepository, groupID int64) ([]*activityContract.GroupTarget, error) {
-	targetRepo, ok := repo.(activitiesModel.GroupTargetRepository)
+func loadExistingDynamicTargets(ctx context.Context, repo ports.ActivityGroupRecords, groupID int64) ([]*activityContract.GroupTarget, error) {
+	targetRepo, ok := repo.(ports.ActivityGroupTargets)
 	if !ok {
 		return nil, nil
 	}
@@ -650,7 +648,7 @@ func (s *TemplateService) propagateListKindToInstances(
 		return nil
 	}
 	if _, err := s.deps.ActivityInstanceRepo.PropagateListKindToFutureInstances(
-		ctx, templateID, previousKind, newKind, scheduleModel.Date(s.deps.Today()),
+		ctx, templateID, previousKind, newKind, calendar.Date(s.deps.Today()),
 	); err != nil {
 		return &ports.ScheduleError{Op: "update template: propagate list kind", Err: err}
 	}

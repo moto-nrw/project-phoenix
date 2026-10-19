@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type AttendanceHistory struct {
@@ -16,7 +16,7 @@ func NewAttendanceHistory(records ports.AttendanceHistoryRecords) *AttendanceHis
 }
 
 func (r *AttendanceHistory) Slots(ctx context.Context, studentID int64, from, to string) ([]*ports.AttendanceHistorySlot, error) {
-	rows, err := r.records.FindInstancesWithAttendanceByStudentAndDateRange(ctx, studentID, schedule.Date(from), schedule.Date(to))
+	rows, err := r.records.FindInstancesWithAttendanceByStudentAndDateRange(ctx, studentID, calendar.Date(from), calendar.Date(to))
 	if rows == nil {
 		return nil, err
 	}
@@ -44,5 +44,5 @@ func (r *AttendanceHistory) Slots(ctx context.Context, studentID int64, from, to
 }
 
 func (r *AttendanceHistory) HasPlannedSlots(ctx context.Context, from, to string) (bool, error) {
-	return r.records.HasPlannedSlotsInRange(ctx, schedule.Date(from), schedule.Date(to))
+	return r.records.HasPlannedSlotsInRange(ctx, calendar.Date(from), calendar.Date(to))
 }

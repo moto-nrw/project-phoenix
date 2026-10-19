@@ -6,8 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/stretchr/testify/require"
 )
 
@@ -64,56 +66,56 @@ type queryListRepository[T any] interface {
 }
 
 type arrivalScheduleQueryRepository interface {
-	scheduleModels.StudentArrivalScheduleRepository
+	ports.StudentArrivalScheduleRecords
 	queryListRepository[*scheduleModels.StudentArrivalSchedule]
 }
 
 type arrivalExceptionQueryRepository interface {
-	scheduleModels.StudentArrivalExceptionRepository
+	ports.StudentArrivalExceptionRecords
 	queryListRepository[*scheduleModels.StudentArrivalException]
 }
 
 type arrivalNoteQueryRepository interface {
-	scheduleModels.StudentArrivalNoteRepository
+	ports.StudentArrivalNoteRecords
 	queryListRepository[*scheduleModels.StudentArrivalNote]
 }
 
 type pickupScheduleQueryRepository interface {
-	scheduleModels.StudentPickupScheduleRepository
+	ports.StudentPickupScheduleRecords
 	queryListRepository[*scheduleModels.StudentPickupSchedule]
 }
 
 type pickupExceptionQueryRepository interface {
-	scheduleModels.StudentPickupExceptionRepository
+	ports.StudentPickupExceptionRecords
 	queryListRepository[*scheduleModels.StudentPickupException]
 }
 
 type pickupNoteQueryRepository interface {
-	scheduleModels.StudentPickupNoteRepository
+	ports.StudentPickupNoteRecords
 	queryListRepository[*scheduleModels.StudentPickupNote]
 }
 
 type instanceStaffQueryRepository interface {
-	scheduleModels.InstanceStaffRepository
+	ports.InstanceStaffRecords
 	queryListRepository[*scheduleModels.InstanceStaff]
 }
 
 type activityExceptionQueryRepository interface {
-	scheduleModels.ActivityExceptionRepository
+	ports.ActivityExceptionRecords
 	queryListRepository[*scheduleModels.ActivityException]
 }
 
 type dateframeQueryRepository interface {
-	scheduleModels.DateframeRepository
+	ports.DateframeRecords
 	queryListRepository[*scheduleModels.Dateframe]
 }
 
 type recurrenceRuleQueryRepository interface {
-	scheduleModels.RecurrenceRuleRepository
+	ports.RecurrenceRuleRecords
 	queryListRepository[*scheduleModels.RecurrenceRule]
 }
 
 type timeframeQueryRepository interface {
-	scheduleModels.TimeframeRepository
+	ports.TimeframeRecords
 	queryListRepository[*scheduleModels.Timeframe]
 }

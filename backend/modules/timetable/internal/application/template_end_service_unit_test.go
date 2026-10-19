@@ -8,8 +8,6 @@ import (
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -146,7 +144,7 @@ func TestTemplateEndFromDate_ReturnsSummaryAndDeletesOpenEndedWindow(t *testing.
 	assert.Equal(t, group.ID, supervisorRepo.groupID)
 	require.NotNil(t, instanceRepo.activityGroupID)
 	assert.Equal(t, group.ID, *instanceRepo.activityGroupID)
-	assert.Equal(t, scheduleModel.Date(future), instanceRepo.from)
+	assert.Equal(t, calendar.Date(future), instanceRepo.from)
 	assert.Nil(t, instanceRepo.to)
 	// #1840: ending a series is destructive — it must hard-delete deviated
 	// rows too, so preservation is OFF.
@@ -267,13 +265,13 @@ func templateEndUnitGroup(id int64) *activityContract.Group {
 }
 
 type templateEndUnitGroupRepo struct {
-	activitiesModel.GroupRepository
+	ports.ActivityGroupRecords
 	group     *activityContract.Group
 	err       error
 	findCalls int
 }
 
-func (r *templateEndUnitGroupRepo) FindByID(_ context.Context, _ any) (*activityContract.Group, error) {
+func (r *templateEndUnitGroupRepo) FindByID(_ context.Context, _ int64) (*activityContract.Group, error) {
 	r.findCalls++
 	if r.err != nil {
 		return nil, r.err
@@ -292,7 +290,7 @@ func (r *templateEndUnitGroupRepo) FindTemplateSeries(_ context.Context, _ int64
 }
 
 type templateEndUnitScheduleRepo struct {
-	activitiesModel.ScheduleRepository
+	ports.ActivityScheduleRecords
 	schedules  []*activityContract.Schedule
 	findErr    error
 	capped     int64
@@ -325,7 +323,7 @@ func (r *templateEndUnitScheduleRepo) CapValidUntil(_ context.Context, groupID i
 }
 
 type templateEndUnitEnrollmentRepo struct {
-	activitiesModel.StudentEnrollmentRepository
+	ports.ActivityEnrollmentRecords
 	capped  int64
 	err     error
 	groupID int64
@@ -344,7 +342,7 @@ func (r *templateEndUnitEnrollmentRepo) CapActiveByGroup(_ context.Context, grou
 }
 
 type templateEndUnitSupervisorRepo struct {
-	activitiesModel.SupervisorPlannedRepository
+	ports.PlannedSupervisorRecords
 	capped  int64
 	err     error
 	groupID int64
@@ -363,16 +361,16 @@ func (r *templateEndUnitSupervisorRepo) CapActiveByGroup(_ context.Context, grou
 }
 
 type templateEndUnitInstanceRepo struct {
-	scheduleModel.ActivityInstanceRepository
+	ports.ActivityInstanceRecords
 	deleted            int64
 	err                error
-	from               scheduleModel.Date
-	to                 *scheduleModel.Date
+	from               calendar.Date
+	to                 *calendar.Date
 	activityGroupID    *int64
 	preserveDeviations bool
 }
 
-func (r *templateEndUnitInstanceRepo) DeletePlannedNonSpontaneousInWindow(_ context.Context, from scheduleModel.Date, to *scheduleModel.Date, activityGroupID *int64, preserveDeviations bool) (int64, error) {
+func (r *templateEndUnitInstanceRepo) DeletePlannedNonSpontaneousInWindow(_ context.Context, from calendar.Date, to *calendar.Date, activityGroupID *int64, preserveDeviations bool) (int64, error) {
 	r.from = from
 	r.to = to
 	r.activityGroupID = activityGroupID
@@ -383,6 +381,6 @@ func (r *templateEndUnitInstanceRepo) DeletePlannedNonSpontaneousInWindow(_ cont
 	return r.deleted, nil
 }
 
-func (r *templateEndUnitInstanceRepo) PropagateListKindToFutureInstances(context.Context, int64, *string, *string, scheduleModel.Date) (int64, error) {
+func (r *templateEndUnitInstanceRepo) PropagateListKindToFutureInstances(context.Context, int64, *string, *string, calendar.Date) (int64, error) {
 	return 0, nil
 }

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 )
@@ -13,7 +13,7 @@ func TestEvaluateLifecycleAvailability_PlannedBoundaries(t *testing.T) {
 	t.Parallel()
 
 	instance := &scheduleModel.ActivityInstance{
-		Date:      scheduleModel.NewDate(2026, 8, 13),
+		Date:      calendar.NewDate(2026, 8, 13),
 		StartTime: time.Date(1, 1, 1, 13, 45, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 14, 30, 0, 0, time.UTC),
 	}
@@ -34,7 +34,7 @@ func TestEvaluateLifecycleAvailability_SettingsAndSpontaneous(t *testing.T) {
 	t.Parallel()
 
 	instance := &scheduleModel.ActivityInstance{
-		Date:      scheduleModel.NewDate(2026, 8, 13),
+		Date:      calendar.NewDate(2026, 8, 13),
 		StartTime: time.Date(1, 1, 1, 13, 45, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 14, 30, 0, 0, time.UTC),
 	}
@@ -55,7 +55,7 @@ func TestEvaluateLifecycleAvailability_CompleteLead(t *testing.T) {
 	t.Parallel()
 
 	instance := &scheduleModel.ActivityInstance{
-		Date:      scheduleModel.NewDate(2026, 10, 2),
+		Date:      calendar.NewDate(2026, 10, 2),
 		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 	}

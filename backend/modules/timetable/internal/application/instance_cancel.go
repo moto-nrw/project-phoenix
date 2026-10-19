@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"time"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -167,7 +167,7 @@ func (s *InstanceLifecycleService) deleteInstance(ctx context.Context, instanceI
 // several materialized slots that date: the cancellation exception is
 // date-wide and would consume all of them.
 func (s *InstanceLifecycleService) rejectAmbiguousTemplateDelete(ctx context.Context, activityGroupID int64, date calendar.Date) error {
-	rows, err := s.deps.InstanceRepo.FindByActivityGroupAndDate(ctx, activityGroupID, scheduleModel.Date(date))
+	rows, err := s.deps.InstanceRepo.FindByActivityGroupAndDate(ctx, activityGroupID, calendar.Date(date))
 	if err != nil {
 		return &ports.ScheduleError{Op: "delete instance: check same-day template slots", Err: err}
 	}
@@ -186,7 +186,7 @@ func (s *InstanceLifecycleService) rejectAmbiguousTemplateDelete(ctx context.Con
 // ensureCancelledSlotException consumes the slot with a cancelled
 // exception, converting an existing modified one.
 func (s *InstanceLifecycleService) ensureCancelledSlotException(ctx context.Context, activityGroupID int64, date calendar.Date, reason string) error {
-	existing, err := s.deps.ExceptionRepo.FindByActivityGroupAndDate(ctx, activityGroupID, scheduleModel.Date(date))
+	existing, err := s.deps.ExceptionRepo.FindByActivityGroupAndDate(ctx, activityGroupID, calendar.Date(date))
 	if err != nil {
 		return &ports.ScheduleError{Op: "delete instance: check slot exception", Err: err}
 	}
@@ -210,7 +210,7 @@ func (s *InstanceLifecycleService) ensureCancelledSlotException(ctx context.Cont
 	}
 	exc := &scheduleModel.ActivityException{
 		ActivityGroupID: activityGroupID,
-		ExceptionDate:   scheduleModel.Date(date),
+		ExceptionDate:   calendar.Date(date),
 		ExceptionType:   scheduleModel.ActivityExceptionCancelled,
 		Reason:          &reason,
 	}

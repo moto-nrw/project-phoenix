@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -63,7 +62,7 @@ func (s *InstanceLifecycleService) BulkCancelPlanned(ctx context.Context, from, 
 // bulkCancelCandidates loads the occurrences of [from, to] with the closing
 // day flag and name of their series: one instance and one group query.
 func (s *InstanceLifecycleService) bulkCancelCandidates(ctx context.Context, from, to calendar.Date) ([]timetable.BulkCancelCandidate, error) {
-	rows, err := s.deps.InstanceRepo.FindByTenantAndDateRange(ctx, scheduleModel.Date(from), scheduleModel.Date(to))
+	rows, err := s.deps.InstanceRepo.FindByTenantAndDateRange(ctx, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "bulk cancel: load instances", Err: err}
 	}

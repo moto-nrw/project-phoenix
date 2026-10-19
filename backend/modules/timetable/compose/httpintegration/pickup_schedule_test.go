@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -439,7 +439,7 @@ func TestStudentPickupExceptionRepository_Create(t *testing.T) {
 
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: scheduleModels.NewDate(2024, 2, 14),
+			ExceptionDate: calendar.NewDate(2024, 2, 14),
 			Reason:        testpkg.StrPtr("Doctor appointment"),
 			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
@@ -469,9 +469,9 @@ func TestStudentPickupExceptionRepository_FindByStudentID(t *testing.T) {
 	t.Run("finds all exceptions for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 
-		dates := []scheduleModels.Date{
-			scheduleModels.NewDate(2024, 2, 14),
-			scheduleModels.NewDate(2024, 2, 15),
+		dates := []calendar.Date{calendar.
+			NewDate(2024, 2, 14), calendar.
+			NewDate(2024, 2, 15),
 		}
 
 		for _, date := range dates {
@@ -506,7 +506,7 @@ func TestStudentPickupExceptionRepository_FindUpcomingByStudentID(t *testing.T) 
 
 		pastException := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: scheduleModels.Date(calendar.TodayDate()).AddDays(-7),
+			ExceptionDate: calendar.Date(calendar.TodayDate()).AddDays(-7),
 			Reason:        testpkg.StrPtr("Past exception"),
 			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
@@ -515,7 +515,7 @@ func TestStudentPickupExceptionRepository_FindUpcomingByStudentID(t *testing.T) 
 
 		futureException := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: scheduleModels.Date(calendar.TodayDate()).AddDays(7),
+			ExceptionDate: calendar.Date(calendar.TodayDate()).AddDays(7),
 			Reason:        testpkg.StrPtr("Future exception"),
 			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
@@ -542,7 +542,7 @@ func TestStudentPickupExceptionRepository_FindByStudentIDAndDate(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 
 		// Use Berlin timezone for consistent date handling
-		exceptionDate := scheduleModels.NewDate(2024, 3, 20)
+		exceptionDate := calendar.NewDate(2024, 3, 20)
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
@@ -560,7 +560,7 @@ func TestStudentPickupExceptionRepository_FindByStudentIDAndDate(t *testing.T) {
 	})
 
 	t.Run("returns nil when not found", func(t *testing.T) {
-		result, err := repo.FindByStudentIDAndDate(ctx, int64(99999999), scheduleModels.Date(calendar.TodayDate()))
+		result, err := repo.FindByStudentIDAndDate(ctx, int64(99999999), calendar.Date(calendar.TodayDate()))
 
 		require.NoError(t, err)
 		assert.Nil(t, result)
@@ -581,7 +581,7 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate(t *testing.T) 
 		staff := testpkg.CreateTestStaff(t, db, "PickupStaff", "BulkLookup")
 
 		// Use Berlin timezone for consistent date handling
-		exceptionDate := scheduleModels.NewDate(2024, 4, 10)
+		exceptionDate := calendar.NewDate(2024, 4, 10)
 
 		for _, studentID := range []int64{student1.ID, student2.ID} {
 			exception := &scheduleModels.StudentPickupException{
@@ -601,7 +601,7 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate(t *testing.T) 
 	})
 
 	t.Run("returns empty slice for empty student IDs", func(t *testing.T) {
-		results, err := repo.FindByStudentIDsAndDate(ctx, []int64{}, scheduleModels.Date(calendar.TodayDate()))
+		results, err := repo.FindByStudentIDsAndDate(ctx, []int64{}, calendar.Date(calendar.TodayDate()))
 
 		require.NoError(t, err)
 		assert.Empty(t, results)
@@ -628,7 +628,7 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate_MatchesDateInB
 			return err
 		}
 
-		day := scheduleModels.NewDate(2026, 4, 24)
+		day := calendar.NewDate(2026, 4, 24)
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: day,
@@ -679,7 +679,7 @@ func TestStudentPickupExceptionRepository_FindByID(t *testing.T) {
 
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: scheduleModels.NewDate(2024, 5, 20),
+			ExceptionDate: calendar.NewDate(2024, 5, 20),
 			Reason:        testpkg.StrPtr("Test reason"),
 			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
@@ -715,7 +715,7 @@ func TestStudentPickupExceptionRepository_Update(t *testing.T) {
 		pickupTime := time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC)
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: scheduleModels.NewDate(2024, 6, 15),
+			ExceptionDate: calendar.NewDate(2024, 6, 15),
 			PickupTime:    &pickupTime,
 			Reason:        testpkg.StrPtr("Original reason"),
 			CreatedBy:     createRepositoryTestStaffID(t, db),
@@ -747,7 +747,7 @@ func TestStudentPickupExceptionRepository_Update(t *testing.T) {
 	t.Run("fails validation on invalid exception", func(t *testing.T) {
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     0, // Invalid
-			ExceptionDate: scheduleModels.NewDate(2024, 6, 15),
+			ExceptionDate: calendar.NewDate(2024, 6, 15),
 			Reason:        testpkg.StrPtr("Test"),
 			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
@@ -772,7 +772,7 @@ func TestStudentPickupExceptionRepository_List(t *testing.T) {
 		for i := 1; i <= 3; i++ {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
-				ExceptionDate: scheduleModels.NewDate(2099, time.March, i),
+				ExceptionDate: calendar.NewDate(2099, time.March, i),
 				Reason:        testpkg.StrPtr("Test exception"),
 				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
@@ -792,7 +792,7 @@ func TestStudentPickupExceptionRepository_List(t *testing.T) {
 		results, err = repo.List(ctx, options)
 		require.NoError(t, err)
 		require.Len(t, results, 1)
-		assert.Equal(t, scheduleModels.NewDate(2099, time.March, 3), results[0].ExceptionDate)
+		assert.Equal(t, calendar.NewDate(2099, time.March, 3), results[0].ExceptionDate)
 	})
 
 	t.Run("lists with nil options", func(t *testing.T) {
@@ -817,7 +817,7 @@ func TestStudentPickupExceptionRepository_DeleteByStudentID(t *testing.T) {
 		for i := 0; i < 3; i++ {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
-				ExceptionDate: scheduleModels.Date(calendar.TodayDate()).AddDays(i),
+				ExceptionDate: calendar.Date(calendar.TodayDate()).AddDays(i),
 				Reason:        testpkg.StrPtr("Exception"),
 				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
@@ -851,7 +851,7 @@ func TestStudentPickupExceptionRepository_DeletePastExceptions(t *testing.T) {
 		for i := -10; i < -5; i++ {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
-				ExceptionDate: scheduleModels.NewDate(2026, 8, 24).AddDays(i),
+				ExceptionDate: calendar.NewDate(2026, 8, 24).AddDays(i),
 				Reason:        testpkg.StrPtr("Past exception"),
 				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
@@ -865,7 +865,7 @@ func TestStudentPickupExceptionRepository_DeletePastExceptions(t *testing.T) {
 		for i := 1; i <= 5; i++ {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
-				ExceptionDate: scheduleModels.NewDate(2026, 8, 24).AddDays(i),
+				ExceptionDate: calendar.NewDate(2026, 8, 24).AddDays(i),
 				Reason:        testpkg.StrPtr("Future exception"),
 				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
@@ -874,7 +874,7 @@ func TestStudentPickupExceptionRepository_DeletePastExceptions(t *testing.T) {
 			futureExceptionCount++
 		}
 
-		cutoffDate := scheduleModels.NewDate(2026, 8, 24)
+		cutoffDate := calendar.NewDate(2026, 8, 24)
 		rowsAffected, err := repo.DeletePastExceptions(ctx, cutoffDate)
 
 		require.NoError(t, err)
@@ -908,7 +908,7 @@ func TestStudentPickupNoteRepository_Create(t *testing.T) {
 
 		note := &scheduleModels.StudentPickupNote{
 			StudentID: student.ID,
-			NoteDate:  scheduleModels.NewDate(2024, 2, 14),
+			NoteDate:  calendar.NewDate(2024, 2, 14),
 			Content:   "Please call before pickup",
 			CreatedBy: createRepositoryTestStaffID(t, db),
 		}
@@ -929,7 +929,7 @@ func TestStudentPickupNoteRepository_Create(t *testing.T) {
 	t.Run("fails validation on invalid note", func(t *testing.T) {
 		note := &scheduleModels.StudentPickupNote{
 			StudentID: 0, // Invalid
-			NoteDate:  scheduleModels.NewDate(2024, 2, 14),
+			NoteDate:  calendar.NewDate(2024, 2, 14),
 			Content:   "Test",
 			CreatedBy: createRepositoryTestStaffID(t, db),
 		}
@@ -953,7 +953,7 @@ func TestStudentPickupNoteRepository_FindByID(t *testing.T) {
 
 		note := &scheduleModels.StudentPickupNote{
 			StudentID: student.ID,
-			NoteDate:  scheduleModels.NewDate(2024, 5, 20),
+			NoteDate:  calendar.NewDate(2024, 5, 20),
 			Content:   "Test note",
 			CreatedBy: createRepositoryTestStaffID(t, db),
 		}
@@ -986,10 +986,10 @@ func TestStudentPickupNoteRepository_FindByStudentID(t *testing.T) {
 	t.Run("finds all notes for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 
-		dates := []scheduleModels.Date{
-			scheduleModels.NewDate(2024, 2, 14),
-			scheduleModels.NewDate(2024, 2, 15),
-			scheduleModels.NewDate(2024, 2, 16),
+		dates := []calendar.Date{calendar.
+			NewDate(2024, 2, 14), calendar.
+			NewDate(2024, 2, 15), calendar.
+			NewDate(2024, 2, 16),
 		}
 
 		for _, date := range dates {
@@ -1030,7 +1030,7 @@ func TestStudentPickupNoteRepository_FindByStudentIDAndDate(t *testing.T) {
 	t.Run("finds notes for specific date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 
-		targetDate := scheduleModels.NewDate(2024, 3, 20)
+		targetDate := calendar.NewDate(2024, 3, 20)
 
 		// Create multiple notes for target date
 		for i := 0; i < 2; i++ {
@@ -1065,7 +1065,7 @@ func TestStudentPickupNoteRepository_FindByStudentIDAndDate(t *testing.T) {
 	})
 
 	t.Run("returns empty slice when no notes found", func(t *testing.T) {
-		result, err := repo.FindByStudentIDAndDate(ctx, int64(99999999), scheduleModels.Date(calendar.TodayDate()))
+		result, err := repo.FindByStudentIDAndDate(ctx, int64(99999999), calendar.Date(calendar.TodayDate()))
 
 		require.NoError(t, err)
 		assert.Empty(t, result)
@@ -1084,7 +1084,7 @@ func TestStudentPickupNoteRepository_FindByStudentIDsAndDate(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1b")
 
-		noteDate := scheduleModels.NewDate(2024, 4, 10)
+		noteDate := calendar.NewDate(2024, 4, 10)
 
 		for _, studentID := range []int64{student1.ID, student2.ID} {
 			note := &scheduleModels.StudentPickupNote{
@@ -1104,7 +1104,7 @@ func TestStudentPickupNoteRepository_FindByStudentIDsAndDate(t *testing.T) {
 	})
 
 	t.Run("returns empty slice for empty student IDs", func(t *testing.T) {
-		results, err := repo.FindByStudentIDsAndDate(ctx, []int64{}, scheduleModels.Date(calendar.TodayDate()))
+		results, err := repo.FindByStudentIDsAndDate(ctx, []int64{}, calendar.Date(calendar.TodayDate()))
 
 		require.NoError(t, err)
 		assert.Empty(t, results)
@@ -1124,7 +1124,7 @@ func TestStudentPickupNoteRepository_Update(t *testing.T) {
 
 		note := &scheduleModels.StudentPickupNote{
 			StudentID: student.ID,
-			NoteDate:  scheduleModels.NewDate(2024, 6, 15),
+			NoteDate:  calendar.NewDate(2024, 6, 15),
 			Content:   "Original content",
 			CreatedBy: createRepositoryTestStaffID(t, db),
 		}
@@ -1152,7 +1152,7 @@ func TestStudentPickupNoteRepository_Update(t *testing.T) {
 	t.Run("fails validation on invalid note", func(t *testing.T) {
 		note := &scheduleModels.StudentPickupNote{
 			StudentID: 0, // Invalid
-			NoteDate:  scheduleModels.NewDate(2024, 6, 15),
+			NoteDate:  calendar.NewDate(2024, 6, 15),
 			Content:   "Test",
 			CreatedBy: createRepositoryTestStaffID(t, db),
 		}
@@ -1177,7 +1177,7 @@ func TestStudentPickupNoteRepository_List(t *testing.T) {
 		for i := 1; i <= 3; i++ {
 			note := &scheduleModels.StudentPickupNote{
 				StudentID: student.ID,
-				NoteDate:  scheduleModels.NewDate(2099, time.April, i),
+				NoteDate:  calendar.NewDate(2099, time.April, i),
 				Content:   "Test note",
 				CreatedBy: createRepositoryTestStaffID(t, db),
 			}
@@ -1197,7 +1197,7 @@ func TestStudentPickupNoteRepository_List(t *testing.T) {
 		results, err = repo.List(ctx, options)
 		require.NoError(t, err)
 		require.Len(t, results, 1)
-		assert.Equal(t, scheduleModels.NewDate(2099, time.April, 3), results[0].NoteDate)
+		assert.Equal(t, calendar.NewDate(2099, time.April, 3), results[0].NoteDate)
 	})
 
 	t.Run("lists with nil options", func(t *testing.T) {
@@ -1222,7 +1222,7 @@ func TestStudentPickupNoteRepository_DeleteByStudentID(t *testing.T) {
 		for i := 0; i < 3; i++ {
 			note := &scheduleModels.StudentPickupNote{
 				StudentID: student.ID,
-				NoteDate:  scheduleModels.Date(calendar.TodayDate()).AddDays(i),
+				NoteDate:  calendar.Date(calendar.TodayDate()).AddDays(i),
 				Content:   "Note",
 				CreatedBy: createRepositoryTestStaffID(t, db),
 			}
@@ -1262,7 +1262,7 @@ func TestStudentPickupNoteRepository_DeletePastNotes(t *testing.T) {
 		for i := -10; i < -5; i++ {
 			note := &scheduleModels.StudentPickupNote{
 				StudentID: student.ID,
-				NoteDate:  scheduleModels.NewDate(2026, 8, 24).AddDays(i),
+				NoteDate:  calendar.NewDate(2026, 8, 24).AddDays(i),
 				Content:   "Past note",
 				CreatedBy: createRepositoryTestStaffID(t, db),
 			}
@@ -1276,7 +1276,7 @@ func TestStudentPickupNoteRepository_DeletePastNotes(t *testing.T) {
 		for i := 1; i <= 5; i++ {
 			note := &scheduleModels.StudentPickupNote{
 				StudentID: student.ID,
-				NoteDate:  scheduleModels.NewDate(2026, 8, 24).AddDays(i),
+				NoteDate:  calendar.NewDate(2026, 8, 24).AddDays(i),
 				Content:   "Future note",
 				CreatedBy: createRepositoryTestStaffID(t, db),
 			}
@@ -1285,7 +1285,7 @@ func TestStudentPickupNoteRepository_DeletePastNotes(t *testing.T) {
 			futureNoteCount++
 		}
 
-		cutoffDate := scheduleModels.NewDate(2026, 8, 24)
+		cutoffDate := calendar.NewDate(2026, 8, 24)
 		rowsAffected, err := repo.DeletePastNotes(ctx, cutoffDate)
 
 		require.NoError(t, err)
