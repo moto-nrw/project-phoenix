@@ -34,6 +34,7 @@ def main():
         "NEXT_PUBLIC_OPERATOR_HOSTNAME": "operator.demo.moto-app.de",
         "NEXT_PUBLIC_PARENTS_HOSTNAME": "eltern.demo.moto-app.de",
         "NEXT_PUBLIC_SCHOOL_HOSTNAME": "schule.demo.moto-app.de",
+        "NEXT_PUBLIC_CATERER_HOSTNAME": "caterer.demo.moto-app.de",
         "FRONTEND_URL": "https://demo.moto-app.de", "PARENTS_URL": "https://eltern.demo.moto-app.de",
         "SCHOOL_URL": "https://schule.demo.moto-app.de", "CATERER_URL": "https://caterer.demo.moto-app.de", "EMAIL_FROM_NAME": "moto Demo",
         "ADMIN_EMAIL": "admin@demo.moto-app.de", "OPERATOR_EMAIL": "operator@demo.moto-app.de",

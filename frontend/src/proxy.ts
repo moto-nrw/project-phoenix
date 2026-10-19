@@ -39,6 +39,14 @@ if (!SCHOOL_HOSTNAME) {
   );
 }
 
+const CATERER_HOSTNAME = process.env.NEXT_PUBLIC_CATERER_HOSTNAME;
+if (!CATERER_HOSTNAME) {
+  throw new Error(
+    "NEXT_PUBLIC_CATERER_HOSTNAME is not set. " +
+      "Add it to your .env.local or docker-compose environment.",
+  );
+}
+
 const TENANT_DOMAIN: string = (() => {
   const val = process.env.TENANT_DOMAIN;
   if (!val) {
@@ -354,7 +362,8 @@ function handleParentsSubdomain(request: NextRequest): NextResponse {
   // ever leaked them.
   if (
     pathname.startsWith("/api/auth/") ||
-    pathname.startsWith("/api/operator/auth/")
+    pathname.startsWith("/api/operator/auth/") ||
+    pathname.startsWith("/api/caterer/")
   ) {
     return withSecurityHeaders(new NextResponse(null, { status: 404 }));
   }
@@ -488,6 +497,56 @@ function handleSchoolSubdomain(request: NextRequest): NextResponse {
 
   // Anything else → redirect to root. Keeps the school host from leaking
   // access to tenant, operator, or parents paths.
+  const url = request.nextUrl.clone();
+  url.pathname = "/";
+  return withSecurityHeaders(NextResponse.redirect(url));
+}
+
+// --- Caterer subdomain handling (caterer portal, ADR 0074) ---
+
+/** Paths the caterer host serves (without /caterer prefix); the overview
+ * itself lives at the root ("/" → /caterer). */
+const CATERER_PATHS = ["/login", "/reset-password", "/einladung"];
+
+function isCatererHost(hostname: string): boolean {
+  return hostname === CATERER_HOSTNAME;
+}
+
+function handleCatererSubdomain(request: NextRequest): NextResponse {
+  const { pathname } = request.nextUrl;
+
+  // Only the caterer portal's BFF routes run on this host: every other
+  // portal's session and API stay out (defense-in-depth on top of the
+  // host-only cookies).
+  if (
+    pathname.startsWith("/api/caterer/") ||
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/monitoring")
+  ) {
+    return secureNext(request);
+  }
+  if (pathname.startsWith("/api/")) {
+    return withSecurityHeaders(new NextResponse(null, { status: 404 }));
+  }
+
+  // The caterer portal is German-only, like the school portal.
+  if (pathname === "/") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/caterer";
+    return secureRewrite(request, url);
+  }
+  if (
+    CATERER_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = `/caterer${pathname}`;
+    return secureRewrite(request, url);
+  }
+  if (pathname === "/caterer" || pathname.startsWith("/caterer/")) {
+    return secureNext(request);
+  }
+
+  // Anything else → the overview: the caterer host leaks no other portal.
   const url = request.nextUrl.clone();
   url.pathname = "/";
   return withSecurityHeaders(NextResponse.redirect(url));
@@ -757,6 +816,11 @@ function routeRequest(request: NextRequest): NextResponse {
     return handleSchoolSubdomain(request);
   }
 
+  // 1e. Caterer subdomain gets its own routing (ADR 0074)
+  if (isCatererHost(hostname)) {
+    return handleCatererSubdomain(request);
+  }
+
   // Object links from panes that existed before #3115 need the whole
   // collection query nested in `from`, which static next.config redirects
   // cannot express. Handle both tenant-subdomain and path-routing URLs here.
@@ -811,7 +875,15 @@ function routeRequest(request: NextRequest): NextResponse {
     return withSecurityHeaders(NextResponse.redirect(redirectUrl));
   }
 
-  // 3d. Bookmark bridge for the old Lehrkraft-Klassenansicht (#2207 PR 3).
+  // 3d. Caterer guard on non-caterer hosts: /caterer/* elsewhere goes to
+  // the caterer host. Exact-segment match, as for the school guard.
+  if (pathname === "/caterer" || pathname.startsWith("/caterer/")) {
+    const cleanPath = pathname.replace(/^\/caterer/, "") || "/";
+    const redirectUrl = `${request.nextUrl.protocol}//${CATERER_HOSTNAME}${cleanPath}${request.nextUrl.search}`;
+    return withSecurityHeaders(NextResponse.redirect(redirectUrl));
+  }
+
+  // 3e. Bookmark bridge for the old Lehrkraft-Klassenansicht (#2207 PR 3).
   // Until the cutover the view lived at {slug}.{TENANT_DOMAIN}/klassen; the
   // page is gone and a Lehrkraft-only account can no longer log in here at
   // all. A 404 would look like the school lost its access, so send the

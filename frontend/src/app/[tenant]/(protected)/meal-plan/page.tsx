@@ -47,6 +47,7 @@ import { useNavigationGuard } from "~/lib/hooks/use-navigation-guard";
 import { useMealRegistrationEnabled } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { MealParticipantList } from "~/components/meal-plan/meal-participant-list";
+import { MealCaterer } from "~/components/meal-plan/meal-caterer";
 import { MealOrderWeek } from "~/components/meal-plan/meal-order-week";
 
 const logger = createLogger({ component: "MealPlanPage" });
@@ -807,6 +808,10 @@ export default function MealPlanPage() {
       {canReadParticipants ? (
         <MealParticipantList canRegister={canRegister} />
       ) : null}
+
+      {/* Der Caterer der Schule (ADR 0074): nur wer den Essensplan
+          verwaltet, lädt ihn ein oder beendet die Belieferung. */}
+      {canEdit && mealRegistrationEnabled === true ? <MealCaterer /> : null}
 
       {/* Sticky save bar — only while there are unsaved changes. */}
       {canEdit && isDirty && !loading && !hasLoadError && (

@@ -385,6 +385,58 @@ export async function performParentLogin(
   }
 }
 
+/**
+ * Caterer login against POST /caterer/auth/login (ADR 0074). The backend
+ * answers every refusal of the account like a wrong password, so only the
+ * status and the code travel back.
+ */
+export async function performCatererLogin(
+  email: string,
+  password: string,
+  forwardHeaders?: Record<string, string>,
+): Promise<{
+  access_token: string;
+  refresh_token: string;
+  status?: number;
+  code?: string;
+} | null> {
+  try {
+    const response = await fetch(`${getServerApiUrl()}/caterer/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...forwardHeaders },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!response.ok) {
+      let code: string | undefined;
+      try {
+        const parsed = (await response.json()) as { code?: unknown };
+        if (typeof parsed.code === "string") code = parsed.code;
+      } catch {
+        // Non-JSON body (a gateway error page): no code to report.
+      }
+      logger.warn("caterer login refused", { status: response.status });
+      return {
+        access_token: "",
+        refresh_token: "",
+        status: response.status,
+        code,
+      };
+    }
+    const envelope = (await response.json()) as {
+      data: { access_token: string; refresh_token: string };
+    };
+    return {
+      access_token: envelope.data.access_token,
+      refresh_token: envelope.data.refresh_token,
+    };
+  } catch (error) {
+    logger.error("caterer authentication error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
 export async function performSchoolLogin(
   email: string,
   password: string,

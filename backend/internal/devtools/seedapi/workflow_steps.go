@@ -255,6 +255,8 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 	}
 	steps = append(steps,
 		seedParentEngagementStep{},
+		// After the parents: it orders lunch for a child of the first one.
+		seedMealOrdersStep{},
 		seedGradeTransitionStep{},
 		seedParentLetterStep{},
 		seedParentPollStep{},

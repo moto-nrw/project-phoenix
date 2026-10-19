@@ -531,7 +531,7 @@ describe("getParentHelpTopicForPath", () => {
     // einem Kind.
     // 83 seit #3821: der eigene Dienstplan ist ein geteilter Artikel.
     // 84 seit #3873: die Fristen für das Mittagessen.
-    expect(leadTopics).toHaveLength(84);
+    expect(leadTopics).toHaveLength(85);
     expect(
       leadTopics.every(
         (topic) =>

@@ -7,6 +7,7 @@ import {
   TRACKED_PARENT_ROUTE_TEMPLATES,
   TRACKED_PUBLIC_ROUTE_TEMPLATES,
   TRACKED_SCHOOL_ROUTE_TEMPLATES,
+  TRACKED_CATERER_ROUTE_TEMPLATES,
   TRACKED_TENANT_PUBLIC_ROUTE_TEMPLATES,
   TRACKED_TENANT_ROUTE_TEMPLATES,
   type AnalyticsRouteSurface,
@@ -84,10 +85,22 @@ const PORTAL_PAGE_TREES: ReadonlyArray<{
     templates: TRACKED_SCHOOL_ROUTE_TEMPLATES,
   },
   {
+    name: "caterer portal",
+    directory: "caterer",
+    templates: TRACKED_CATERER_ROUTE_TEMPLATES,
+  },
+  {
     name: "public pages",
     directory: ".",
     // Portals above; the operator portal has no analytics.
-    skip: new Set(["[tenant]", "parents", "school", "operator", "api"]),
+    skip: new Set([
+      "[tenant]",
+      "parents",
+      "school",
+      "caterer",
+      "operator",
+      "api",
+    ]),
     templates: TRACKED_PUBLIC_ROUTE_TEMPLATES,
   },
 ];
@@ -118,6 +131,7 @@ const SURFACE_TEMPLATES: ReadonlyArray<
   ],
   ["parents", TRACKED_PARENT_ROUTE_TEMPLATES],
   ["school", TRACKED_SCHOOL_ROUTE_TEMPLATES],
+  ["caterer", TRACKED_CATERER_ROUTE_TEMPLATES],
   ["public", TRACKED_PUBLIC_ROUTE_TEMPLATES],
 ];
 

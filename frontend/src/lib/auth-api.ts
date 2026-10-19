@@ -184,18 +184,49 @@ export async function confirmSchoolPasswordReset(
   password: string,
   confirmPassword: string,
 ): Promise<{ message: string }> {
-  const response = await transportFetch(
+  return confirmPasswordResetAt(
     "/api/school/auth/password-reset/confirm",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        token,
-        new_password: password,
-        confirm_password: confirmPassword,
-      }),
-    },
+    token,
+    password,
+    confirmPassword,
   );
+}
+
+/** The caterer portal's reset: the link lands on the caterer host (ADR 0074). */
+export async function requestCatererPasswordReset(
+  email: string,
+): Promise<{ message: string }> {
+  return requestPasswordResetAt("/api/caterer/auth/password-reset", email);
+}
+
+export async function confirmCatererPasswordReset(
+  token: string,
+  password: string,
+  confirmPassword: string,
+): Promise<{ message: string }> {
+  return confirmPasswordResetAt(
+    "/api/caterer/auth/password-reset/confirm",
+    token,
+    password,
+    confirmPassword,
+  );
+}
+
+async function confirmPasswordResetAt(
+  endpoint: string,
+  token: string,
+  password: string,
+  confirmPassword: string,
+): Promise<{ message: string }> {
+  const response = await transportFetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      token,
+      new_password: password,
+      confirm_password: confirmPassword,
+    }),
+  });
 
   if (!response.ok) {
     throw await buildApiError(

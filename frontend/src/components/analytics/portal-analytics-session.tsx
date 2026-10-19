@@ -7,6 +7,7 @@ import { clearPortalSession, registerPortalSession } from "~/lib/analytics";
 const PORTALS = {
   parents: { scope: "parent", role: "guardian" },
   school: { scope: "school", role: "lehrkraft" },
+  caterer: { scope: "caterer", role: "caterer" },
 } as const;
 
 /**
@@ -22,7 +23,7 @@ export function PortalAnalyticsSession({
   const { data: session, status } = useSession();
   const { scope, role } = PORTALS[surface];
   const inScope = session?.user?.scope === scope;
-  // Parent tokens carry no school: a guardian can have children in several.
+  // Parent and caterer tokens carry no school: both reach several.
   const schoolId = session?.user?.tenantId?.toString() ?? null;
   const registeredRef = useRef<string | null>(null);
 

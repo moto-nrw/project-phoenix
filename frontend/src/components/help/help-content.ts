@@ -4065,6 +4065,47 @@ function mealOrderingTopic(): HelpTopic {
 }
 
 /**
+ * Der Caterer der Schule (ADR 0074): Einladung per E-Mail unter
+ * `Essensplan`, Ende der Belieferung, und was der Caterer sieht.
+ */
+function mealCatererTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadMealCaterer,
+    title: "Caterer einladen",
+    question: "Wie sieht unser Caterer die Bestellungen?",
+    summary:
+      "Sie laden Ihren Caterer per E-Mail ein. Er sieht dann die Bestellungen.",
+    group: "elternarbeit",
+    audience: "lead",
+    icon: "Truck",
+    requirements: [
+      "`Anmeldung zum Mittagessen` ist eingeschaltet.",
+      "Ihr Konto darf den Essensplan bearbeiten.",
+    ],
+    steps: [
+      "Öffnen Sie in der Seitenleiste `Essensplan`.",
+      "Gehen Sie unten zur Karte `Caterer`.",
+      "Tragen Sie `Name des Caterers` und `E-Mail-Adresse des Caterers` ein. Die Lieferadresse ist freiwillig.",
+      "Wählen Sie `Einladung senden`.",
+    ],
+    result:
+      "Der Caterer bekommt eine E-Mail mit einem Link. Damit legt er sein Passwort fest. Danach sieht er die Bestellungen Ihrer Schule.",
+    notes: [
+      "Den Link sieht nur der Caterer. Er gilt 14 Tage.",
+      "Der Caterer sieht nur Zahlen: je Tag und, wenn Sie so bestellen, je Klasse. Namen sieht er nur, wenn Sie unter `Einstellungen` → `Datenschutz` `Namen der Kinder für den Caterer` einschalten.",
+      "Der Caterer kann eine Bestellung nur bestätigen. Dann steht bei Ihnen `Vom Caterer bestätigt`.",
+      "Beliefert der Caterer schon andere Schulen, bestätigt er mit seinem Passwort. Ihre Schule kommt dann zu seinen Schulen dazu.",
+      "Mit `Belieferung beenden` sieht der Caterer Ihre Schule sofort nicht mehr. Danach können Sie einen neuen Caterer einladen.",
+    ],
+    troubleshootingDetails: [
+      "Kam keine E-Mail an? Nehmen Sie die Einladung mit `Zurücknehmen` zurück und senden Sie eine neue.",
+      "Fehlt die Karte `Caterer`? Dann ist `Anmeldung zum Mittagessen` aus, oder Ihr Konto darf den Essensplan nicht bearbeiten.",
+    ],
+    related: [HELP_TOPICS.leadMealOrdering, HELP_TOPICS.leadMealPlan],
+  };
+}
+
+/**
  * Bankverbindungen unter `/eltern/bankverbindungen`. Reine Leseansicht mit
  * Export; die IBAN pflegen die Eltern selbst im Portal. Sichtbar nur mit
  * `guardians:financial` (sidebar.tsx, PARENT_SUB_PAGES-Filter).
@@ -5809,6 +5850,7 @@ function leadTopics(
     parentDeclarationTopic(),
     mealPlanTopic(),
     mealOrderingTopic(),
+    mealCatererTopic(),
     bankDetailsTopic(),
 
     // --- Anmeldungen ---

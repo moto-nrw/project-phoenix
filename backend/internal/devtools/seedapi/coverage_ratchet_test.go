@@ -59,6 +59,10 @@ var seedCoverageExemptions = map[string]string{
 
 	"auth.accounts_parents":                     "empty in prod too",
 	"auth.demo_accesses":                        "prospect contact data of the public demo; its routes exist under APP_ENV=demo only and the seeder must not invent prospects",
+	"auth.caterer_accounts":                     "a caterer exists only through the link its school mails to it, which no API returns (ADR 0074); the seeder cannot accept an invitation it never receives",
+	"auth.caterer_invitations":                  "a caterer exists only through the link its school mails to it, which no API returns (ADR 0074); the seeder cannot accept an invitation it never receives",
+	"auth.caterer_schools":                      "a caterer exists only through the link its school mails to it, which no API returns (ADR 0074); the seeder cannot accept an invitation it never receives",
+	"auth.caterers":                             "a caterer exists only through the link its school mails to it, which no API returns (ADR 0074); the seeder cannot accept an invitation it never receives",
 	"auth.mfa_credentials":                      "empty in prod too",
 	"auth.mfa_email_challenges":                 "empty in prod too",
 	"auth.mfa_overrides":                        "empty in prod too",
@@ -100,6 +104,7 @@ var seedCoverageExemptions = map[string]string{
 	"platform.operator_passkey_sessions":    "short-lived WebAuthn challenge state; fake challenges would be invalid",
 
 	"schedule.dateframes":                       "empty in prod too",
+	"schedule.meal_caterer_supplies":            "a caterer exists only through the link its school mails to it, which no API returns (ADR 0074); the seeder cannot accept an invitation it never receives",
 	"schedule.grade_transition_roster_removals": "empty in prod too",
 	"schedule.recurrence_rules":                 "empty in prod too",
 	"schedule.staff_shift_series_exceptions":    "empty in prod too",
