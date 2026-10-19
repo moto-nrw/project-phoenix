@@ -462,3 +462,17 @@ func catererError(err error) error {
 	}
 	return invitationError(err)
 }
+
+// refuseCatererAccount keeps a caterer account out of schools and families
+// (ADR 0074): an invitation to its address answers like an address that is
+// taken.
+func refuseCatererAccount(ctx context.Context, logins ports.AccountLoginStore, accountID int64, op string) error {
+	_, isCaterer, _, err := logins.FindCatererOfAccount(ctx, accountID)
+	if err != nil {
+		return failed(op, err)
+	}
+	if isCaterer {
+		return failed(op, domain.ErrEmailAlreadyExists)
+	}
+	return nil
+}

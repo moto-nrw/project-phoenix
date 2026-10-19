@@ -219,9 +219,19 @@ func (p *Portal) DeliveryExport(ctx context.Context, accountID int64, from, to m
 			lines = append(lines, schoolLines...)
 			return linesErr
 		})
+		if skipsDelivery(err) {
+			continue
+		}
 		if err != nil {
 			return mealplan.ListExport{}, err
 		}
 	}
 	return mealplan.DeliveryExport(from, to, lines)
+}
+
+// skipsDelivery reports a school that has nothing to deliver right now: it
+// switched its meal plan or registration off, or ended the supply during
+// the export. The other schools' lines still go out.
+func skipsDelivery(err error) bool {
+	return errors.Is(err, mealplan.ErrDisabled) || errors.Is(err, mealplan.ErrRegistrationDisabled) || errors.Is(err, mealplan.ErrNotSupplied)
 }

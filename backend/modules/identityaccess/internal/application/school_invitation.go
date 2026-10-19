@@ -350,6 +350,9 @@ func (s *SchoolInvitation) AcceptInvitation(ctx context.Context, token string, r
 			restore      bool
 		)
 		if hasAccount {
+			if catererErr := refuseCatererAccount(txCtx, s.logins, account.ID, opAcceptInvitation); catererErr != nil {
+				return catererErr
+			}
 			dormant, dormantErr := s.accountDormant(txCtx, account)
 			if dormantErr != nil {
 				return failed(opAcceptInvitation, dormantErr)

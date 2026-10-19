@@ -211,3 +211,15 @@ func TestDeliveryExportCoversEverySuppliedSchool(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, school.Lines, 1, "the school's list is its own")
 }
+
+// A school that switched its registration off drops out of the caterer's
+// delivery list; the export of the others goes on.
+func TestDeliveryExportSkipsASchoolWithoutOrders(t *testing.T) {
+	t.Parallel()
+	caterers := &fakeCaterers{caterer: identityaccess.Caterer{ID: 7}, schools: []int64{11}}
+	supplies := &fakeSupplies{err: mealplan.ErrRegistrationDisabled}
+	var opened schoolsOpened
+	export, err := newTestPortal(t, caterers, supplies, &opened).DeliveryExport(context.Background(), 3, "2026-09-07", "2026-09-11")
+	require.NoError(t, err)
+	assert.Empty(t, export.Lines)
+}

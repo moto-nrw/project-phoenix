@@ -3,7 +3,7 @@
 // and delete a day; the feature is gated per tenant by the backend.
 
 import { apiErrorFromResponse } from "./api-error";
-import { downloadBlob } from "./file-download";
+import { downloadBlob, filenameFromDisposition } from "./file-download";
 import { sessionFetch } from "./session-cache";
 import { parseISODate, toISODate } from "./date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -392,6 +392,7 @@ export async function downloadMealDeliveries(
   }
   downloadBlob(
     await response.blob(),
-    `lieferliste-${from}-bis-${to}.${format}`,
+    filenameFromDisposition(response) ??
+      `lieferliste-${from}-bis-${to}.${format}`,
   );
 }

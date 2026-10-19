@@ -20,6 +20,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
+import { apiErrorFromResponse } from "~/lib/api-error";
 import {
   downloadCatererDeliveries,
   fetchCatererOrders,
@@ -63,12 +64,18 @@ function berlinDateTime(instant: string): string {
   });
 }
 
-function netChange(day: CatererOrderDay): number {
-  return day.changes.reduce((sum, change) => sum + change.delta, 0);
-}
-
-function signed(change: number): string {
-  return change > 0 ? `+${change}` : `−${-change}`;
+/** The children added and removed after the deadline, each counted. */
+function changeCounts(day: CatererOrderDay): {
+  added: number;
+  removed: number;
+} {
+  let added = 0;
+  let removed = 0;
+  for (const change of day.changes) {
+    if (change.delta > 0) added += change.delta;
+    else removed -= change.delta;
+  }
+  return { added, removed };
 }
 
 function counts(day: CatererOrderDay | undefined): number {
@@ -144,11 +151,16 @@ export default function CatererOverviewPage() {
   const { show: showActionError } = useApiErrorDisplay();
   const reloadRef = useRef<() => void>(() => undefined);
 
+  const requestRef = useRef(0);
   const loadOrders = useCallback(
     async (list: readonly CatererSchool[]) => {
+      // Only the newest request lands: a slow answer for the previous
+      // period never overwrites the one now chosen.
+      const request = ++requestRef.current;
       const results = await Promise.allSettled(
         list.map((school) => fetchCatererOrders(school.id, from, to)),
       );
+      if (request !== requestRef.current) return;
       const next: Record<string, CatererOrders | null> = {};
       results.forEach((result, index) => {
         const school = list[index]!;
@@ -216,7 +228,9 @@ export default function CatererOverviewPage() {
       const response = await fetch(
         `/api/caterer/orders/export?${params.toString()}`,
       );
-      if (!response.ok) throw new Error(`print failed: ${response.status}`);
+      if (!response.ok) {
+        throw await apiErrorFromResponse(response, "caterer print failed");
+      }
       openBlobForPrint(await response.blob(), target);
     } catch (cause) {
       target?.close();
@@ -276,16 +290,24 @@ export default function CatererOverviewPage() {
           return <span className="font-semibold">{daySum(date)}</span>;
         const day = dayOf(row, date);
         if (!day || day.closed || day.status === "unordered") return "–";
-        const change = netChange(day);
+        const { added, removed } = changeCounts(day);
         return (
           <span className="inline-flex items-center justify-end gap-1">
             {day.total}
-            {change !== 0 ? (
+            {added > 0 ? (
               <StatusBadge
-                label={signed(change)}
+                label={`+${added}`}
                 tone="orange"
                 compact
-                title="Änderung nach der Frist"
+                title="Nach der Frist dazugekommen"
+              />
+            ) : null}
+            {removed > 0 ? (
+              <StatusBadge
+                label={`−${removed}`}
+                tone="orange"
+                compact
+                title="Nach der Frist abgemeldet"
               />
             ) : null}
           </span>

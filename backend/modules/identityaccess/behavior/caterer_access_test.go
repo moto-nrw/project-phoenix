@@ -341,3 +341,30 @@ func TestCatererPasswordResetServesCaterersOnly(t *testing.T) {
 		_, _ = db.NewRaw(`DELETE FROM audit.auth_events WHERE account_id = ?`, acceptance.AccountID).Exec(context.Background())
 	})
 }
+
+// ADR 0074: a caterer account joins no school: a staff invitation to its
+// address answers like an address that is taken.
+func TestCatererAccountJoinsNoSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	factory := setupAuthFactory(t, db)
+	caterers := factory.Caterers()
+	school := testpkg.Tenant(t)
+	staff := testpkg.CreateTestAccount(t, db, "caterer-joins-no-school")
+	email := fmt.Sprintf("kueche-schule-%d@example.com", time.Now().UnixNano())
+	acceptance, err := accept(t, db, caterers, school, invite(t, db, caterers, school, staff.ID, email), identityaccess.CatererRegistration{Password: catererPassword, ConfirmPassword: catererPassword})
+	require.NoError(t, err)
+	forgetCaterer(t, db, acceptance)
+
+	invitations := &fixtureOwnedInvitationService{InvitationCapability: factory, t: t, db: db}
+	role := testpkg.CreateTestRoleForTenant(t, db, "caterer-staff-role", school)
+	invitation, err := invitations.CreateSchoolInvitation(testpkg.TenantContext(school), identityaccess.SchoolInvitationRequest{
+		Email: email, RoleID: role.ID, TenantID: school, CreatedBy: staff.ID,
+		FirstName: testpkg.StrPtr("Küche"), LastName: testpkg.StrPtr("Markt"),
+	})
+	require.NoError(t, err)
+	_, err = invitations.AcceptSchoolInvitation(context.Background(), invitation.Token, identityaccess.InvitationRegistration{
+		FirstName: "Küche", LastName: "Markt", Password: catererPassword, ConfirmPassword: catererPassword,
+	})
+	require.ErrorIs(t, err, identityaccess.ErrEmailAlreadyExists)
+}
