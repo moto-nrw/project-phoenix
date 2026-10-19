@@ -48,8 +48,8 @@ export function DatabaseCardGridSkeleton() {
 export function DatabaseIndexSkeleton() {
   return (
     <div className="w-full space-y-6">
-      {/* Titel ist statisch, die Statuszeile kommt mit den Zahlen. */}
-      <TenantPageHeaderSkeleton />
+      {/* Ohne Statuszeile: die Zahlen stehen auf den Kacheln (#4385). */}
+      <TenantPageHeaderSkeleton stats={false} info />
       <DatabaseCardGridSkeleton />
     </div>
   );

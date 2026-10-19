@@ -53,6 +53,7 @@ export function AnchoredPopover({
   const panelId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const hasFocusedOnOpenRef = useRef(false);
   const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null);
   const portalContainer =
     typeof document === "undefined"
@@ -162,8 +163,14 @@ export function AnchoredPopover({
   }, [close, open, panelId]);
 
   useEffect(() => {
-    if (!open || !panelStyle) return;
+    if (!open) {
+      hasFocusedOnOpenRef.current = false;
+      return;
+    }
+    if (!panelStyle || hasFocusedOnOpenRef.current) return;
+
     initialFocusRef?.current?.focus();
+    hasFocusedOnOpenRef.current = true;
   }, [initialFocusRef, open, panelStyle]);
 
   const panel =
