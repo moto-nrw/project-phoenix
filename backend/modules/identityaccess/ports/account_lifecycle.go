@@ -54,6 +54,9 @@ type StaffDirectory interface {
 	// live membership exists, at the school in context.
 	FindStaffByPerson(ctx context.Context, personID int64) (StaffMember, bool, error)
 	CreateStaff(ctx context.Context, tenantID, personID int64) (int64, error)
+	// CreateStaffFromRetired starts a new membership with the employment profile
+	// of the retired membership.
+	CreateStaffFromRetired(ctx context.Context, tenantID, personID, retiredStaffID int64) (int64, error)
 	FindCaregiverProfile(ctx context.Context, staffID int64) (CaregiverProfile, bool, error)
 	CreateCaregiverProfile(ctx context.Context, tenantID, staffID int64, position string) (int64, error)
 	// HasLiveCaregiverProfile reports whether the account's live person at the

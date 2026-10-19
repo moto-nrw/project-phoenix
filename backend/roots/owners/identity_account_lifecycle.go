@@ -3,6 +3,7 @@ package owners
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
@@ -214,6 +215,38 @@ func (d staffDirectory) FindStaffByPerson(ctx context.Context, personID int64) (
 // school tenantID names.
 func (d staffDirectory) CreateStaff(ctx context.Context, _, personID int64) (int64, error) {
 	staff, err := d.repos.Membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: personID}})
+	if err != nil {
+		return 0, err
+	}
+	return staff.ID, nil
+}
+
+// CreateStaffFromRetired continues a former employment on a fresh membership.
+// School Membership composes the Workforce-owned profile, then creates both
+// halves in its savepoint so the new membership never survives without it.
+func (d staffDirectory) CreateStaffFromRetired(ctx context.Context, _, personID, retiredStaffID int64) (int64, error) {
+	retired, err := d.repos.Membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: []int64{retiredStaffID}, IncludeDeleted: true})
+	if err != nil {
+		return 0, err
+	}
+	if len(retired) != 1 || !retired[0].IsDeleted() || retired[0].PersonID != personID {
+		return 0, fmt.Errorf("identity access: retired staff membership %d is not available for person %d", retiredStaffID, personID)
+	}
+
+	fields := schoolmembership.StaffFields{
+		PersonID:              personID,
+		StaffNotes:            retired[0].StaffNotes,
+		EmploymentType:        retired[0].EmploymentType,
+		WorkTimeModelID:       retired[0].WorkTimeModelID,
+		PersonnelNumber:       retired[0].PersonnelNumber,
+		RotationAnchorDate:    retired[0].RotationAnchorDate,
+		BirthdayDisplayOptOut: retired[0].BirthdayDisplayOptOut,
+	}
+	staff, err := d.repos.Membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: fields})
+	if errors.Is(err, schoolmembership.ErrPersonnelNumberConflict) && fields.PersonnelNumber != nil {
+		fields.PersonnelNumber = nil
+		staff, err = d.repos.Membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: fields})
+	}
 	if err != nil {
 		return 0, err
 	}

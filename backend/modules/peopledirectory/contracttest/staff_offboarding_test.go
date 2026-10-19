@@ -576,6 +576,21 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	staff := testpkg.CreateTestStaffForPerson(t, sc.db, person.ID)
 	testpkg.MapAccountToTenant(t, sc.db, account.ID, testpkg.Tenant(t))
 	role := testpkg.CreateTestSystemRole(t, sc.db, "user")
+	model, err := sc.workTime.CreateWorkTimeModel(sc.ctx, workforce.CreateWorkTimeModel{WorkTimeModelFields: workforce.WorkTimeModelFields{
+		Name:               fmt.Sprintf("reinvite-model-%d", time.Now().UnixNano()),
+		RotationLength:     1,
+		RotationAnchorDate: "2026-01-05",
+		Entries:            []workforce.WorkTimeModelEntry{{WeekIndex: 0, DayOfWeek: 0, TargetMinutes: 300}},
+	}})
+	require.NoError(t, err)
+	_, err = sc.db.ExecContext(context.Background(),
+		`UPDATE users.staff_employment_profiles SET work_time_model_id = ? WHERE membership_id = ?`, model.ID, staff.ID)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		ctx := context.Background()
+		_, _ = sc.db.ExecContext(ctx, `DELETE FROM config.work_time_model_entries WHERE work_time_model_id = ?`, model.ID)
+		_, _ = sc.db.ExecContext(ctx, `DELETE FROM config.work_time_models WHERE id = ?`, model.ID)
+	})
 
 	t.Cleanup(func() {
 		ctx := context.Background()
@@ -584,7 +599,7 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	})
 
 	// Before offboarding the re-invite is blocked (current production behavior).
-	_, err := invSvc.CreateSchoolInvitation(sc.ctx, api.SchoolInvitationRequest{
+	_, err = invSvc.CreateSchoolInvitation(sc.ctx, api.SchoolInvitationRequest{
 		Email:     emailAddr,
 		RoleID:    role.ID,
 		TenantID:  testpkg.Tenant(t),
@@ -625,6 +640,16 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 		Scan(context.Background(), &staffCount)
 	require.NoError(t, err)
 	assert.Equal(t, 1, staffCount, "the restored Betreuer has a live staff record again")
+	var restoredWorkTimeModelID *int64
+	require.NoError(t, sc.db.NewSelect().
+		TableExpr(`users.staff_employment_profiles AS "profile"`).
+		ColumnExpr(`"profile".work_time_model_id`).
+		Join(`JOIN users.staff_school_memberships AS "staff" ON "staff".id = "profile".membership_id`).
+		Join(`JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
+		Where(`"person".account_id = ? AND "staff".deleted_at IS NULL`, account.ID).
+		Scan(context.Background(), &restoredWorkTimeModelID))
+	require.NotNil(t, restoredWorkTimeModelID, "the Wiederaufnahme must keep the former work-time model")
+	assert.Equal(t, model.ID, *restoredWorkTimeModelID)
 
 	// The kept account link lets the identity path find the old person, so no
 	// second person row appears for the same human (ADR 0021, #3400).

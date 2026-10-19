@@ -203,6 +203,7 @@ type lifecycleStaff struct {
 	mu       sync.Mutex
 	persons  map[int64]domain.PersonRecord
 	staff    map[int64]domain.StaffMember
+	rehired  map[int64]int64
 	teachers map[int64]domain.CaregiverProfile
 	students map[int64]bool
 	nextID   int64
@@ -216,7 +217,7 @@ type lifecycleStaff struct {
 
 func newLifecycleStaff() *lifecycleStaff {
 	return &lifecycleStaff{
-		persons: map[int64]domain.PersonRecord{}, staff: map[int64]domain.StaffMember{},
+		persons: map[int64]domain.PersonRecord{}, staff: map[int64]domain.StaffMember{}, rehired: map[int64]int64{},
 		teachers: map[int64]domain.CaregiverProfile{}, students: map[int64]bool{}, nextID: 100,
 	}
 }
@@ -352,6 +353,14 @@ func (d *lifecycleStaff) CreateStaff(_ context.Context, tenantID, personID int64
 	member.TenantID = tenantID
 	d.staff[member.ID] = member
 	return member.ID, nil
+}
+
+func (d *lifecycleStaff) CreateStaffFromRetired(ctx context.Context, tenantID, personID, retiredStaffID int64) (int64, error) {
+	id, err := d.CreateStaff(ctx, tenantID, personID)
+	if err == nil {
+		d.rehired[id] = retiredStaffID
+	}
+	return id, err
 }
 
 func (d *lifecycleStaff) FindCaregiverProfile(_ context.Context, staffID int64) (domain.CaregiverProfile, bool, error) {

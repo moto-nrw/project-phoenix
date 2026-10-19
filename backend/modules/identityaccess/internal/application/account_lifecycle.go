@@ -162,6 +162,10 @@ func (d StaffDirectory) CreateStaff(ctx context.Context, tenantID, personID int6
 	return d.Source.CreateStaff(ctx, tenantID, personID)
 }
 
+func (d StaffDirectory) CreateStaffFromRetired(ctx context.Context, tenantID, personID, retiredStaffID int64) (int64, error) {
+	return d.Source.CreateStaffFromRetired(ctx, tenantID, personID, retiredStaffID)
+}
+
 func (d StaffDirectory) FindCaregiverProfile(ctx context.Context, staffID int64) (domain.CaregiverProfile, bool, error) {
 	profile, found, err := d.Source.FindCaregiverProfile(ctx, staffID)
 	return domain.CaregiverProfile(profile), found, err

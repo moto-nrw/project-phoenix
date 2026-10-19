@@ -387,6 +387,20 @@ func TestEnsureSchoolIdentity_AdoptsHintedImportedPerson(t *testing.T) {
 	require.NotZero(t, identity.TeacherID, "the caregiver profile is completed on acceptance")
 }
 
+func TestEnsureSchoolIdentity_RehiresFromRetiredStaff(t *testing.T) {
+	t.Parallel()
+	f := newLifecycleFixture(t)
+	former := f.seedAccountPerson("Frühere", "Kraft", nil)
+	retired := f.staff.addStaff(former.ID)
+	retired.Deleted = true
+	f.staff.staff[retired.ID] = retired
+
+	identity, err := ensureIdentity(t, f, identityInput(customRole("Betreuung", tierUser)))
+
+	require.NoError(t, err)
+	require.Equal(t, retired.ID, f.staff.rehired[identity.StaffID], "the new membership must inherit the retired employment profile")
+}
+
 // A former staff member keeps its account link (ADR 0021, #3400). When the
 // staff import files the returning person anew, the import's hint still wins:
 // the link moves to the imported person instead of a second live staff row
