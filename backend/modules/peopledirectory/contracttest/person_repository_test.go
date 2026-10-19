@@ -515,7 +515,7 @@ func TestPersonRepository_FindWithAccount(t *testing.T) {
 		account.IsPasswordOTP = true
 		err := db.NewUpdate().Model(account).ModelTableExpr(`auth.accounts AS "account"`).
 			Column("username", "avatar", "last_login", "active", "is_password_otp").
-			WherePK().Returning("updated_at").Scan(ctx)
+			WherePK().Returning("last_login, updated_at").Scan(ctx)
 		require.NoError(t, err)
 
 		found, err := repo.FindWithAccount(ctx, person.ID)
