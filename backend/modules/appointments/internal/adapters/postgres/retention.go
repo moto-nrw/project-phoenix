@@ -14,6 +14,22 @@ import (
 // the last day an occurrence override moves one of its occurrences to
 // (#4045).
 func (s *Store) ListRetentionCandidates(ctx context.Context, cutoff appointments.Date) ([]appointments.RetentionCandidate, error) {
+	return s.retentionCandidates(ctx, cutoff, nil, false)
+}
+
+// LockRetentionCandidates rereads candidates immediately before deletion and
+// keeps every row that can move an appointment's last day locked until the
+// enclosing tenant transaction commits. New rules and overrides need a key
+// share lock on the appointment, so its UPDATE lock also prevents them from
+// appearing after the reread.
+func (s *Store) LockRetentionCandidates(ctx context.Context, cutoff appointments.Date, ids []int64) ([]appointments.RetentionCandidate, error) {
+	if len(ids) == 0 {
+		return []appointments.RetentionCandidate{}, nil
+	}
+	return s.retentionCandidates(ctx, cutoff, ids, true)
+}
+
+func (s *Store) retentionCandidates(ctx context.Context, cutoff appointments.Date, ids []int64, lock bool) ([]appointments.RetentionCandidate, error) {
 	db, tenantID, err := s.databaseForTenant(ctx, "list appointment retention candidates")
 	if err != nil {
 		return nil, err
@@ -29,21 +45,30 @@ func (s *Store) ListRetentionCandidates(ctx context.Context, cutoff appointments
 			WHERE endless.tenant_id = "appointment".tenant_id AND endless.appointment_id = "appointment".id
 			  AND endless.ends_on IS NULL AND endless.occurrence_count IS NULL)`).
 		OrderExpr(`"appointment".id`)
+	if len(ids) > 0 {
+		query = query.Where(`"appointment".id IN (?)`, bun.List(ids))
+	}
+	if lock {
+		query = query.For("UPDATE")
+	}
 	if _, err := scanAll(ctx, withTenant(query, "appointment", tenantID), "list appointment retention candidates"); err != nil || len(rows) == 0 {
 		return nil, err
 	}
-	ids := make([]int64, 0, len(rows))
+	appointmentIDs := make([]int64, 0, len(rows))
 	for _, row := range rows {
-		ids = append(ids, row.ID)
+		appointmentIDs = append(appointmentIDs, row.ID)
 	}
 	rules := []recurrenceRuleRow{}
 	ruleQuery := db.NewSelect().Model(&rules).
 		ModelTableExpr(`calendar.recurrence_rules AS "recurrence_rule"`).
-		Where(`"recurrence_rule".appointment_id IN (?)`, bun.List(ids))
+		Where(`"recurrence_rule".appointment_id IN (?)`, bun.List(appointmentIDs))
+	if lock {
+		ruleQuery = ruleQuery.For("UPDATE")
+	}
 	if _, err := scanAll(ctx, withTenant(ruleQuery, "recurrence_rule", tenantID), "list retention recurrence rules"); err != nil {
 		return nil, err
 	}
-	overrides, err := latestOverrideDays(ctx, db, tenantID, ids)
+	overrides, err := latestOverrideDays(ctx, db, tenantID, appointmentIDs, lock)
 	if err != nil {
 		return nil, err
 	}
@@ -77,27 +102,38 @@ func publicDate(value *domain.Date) *appointments.Date {
 }
 
 type latestOverrideRow struct {
-	AppointmentID int64       `bun:"appointment_id"`
-	LastDay       domain.Date `bun:"last_day,type:date"`
+	AppointmentID  int64        `bun:"appointment_id"`
+	OccurrenceDate domain.Date  `bun:"occurrence_date,type:date"`
+	StartDate      *domain.Date `bun:"start_date,type:date"`
+	EndDate        *domain.Date `bun:"end_date,type:date"`
 }
 
 // latestOverrideDays returns, per appointment, the latest day an occurrence
 // override starts or ends on, or the overridden occurrence itself.
-func latestOverrideDays(ctx context.Context, db bun.IDB, tenantID int64, ids []int64) (map[int64]appointments.Date, error) {
+func latestOverrideDays(ctx context.Context, db bun.IDB, tenantID int64, ids []int64, lock bool) (map[int64]appointments.Date, error) {
 	rows := []latestOverrideRow{}
-	if err := db.NewSelect().
-		ColumnExpr(`"override".appointment_id`).
-		ColumnExpr(`MAX(GREATEST("override".occurrence_date, "override".start_date, "override".end_date)) AS last_day`).
+	query := db.NewSelect().
+		ColumnExpr(`"override".appointment_id, "override".occurrence_date, "override".start_date, "override".end_date`).
 		TableExpr(`calendar.appointment_occurrence_overrides AS "override"`).
 		Where(`"override".tenant_id = ?`, tenantID).
-		Where(`"override".appointment_id IN (?)`, bun.List(ids)).
-		GroupExpr(`"override".appointment_id`).
-		Scan(ctx, &rows); err != nil {
+		Where(`"override".appointment_id IN (?)`, bun.List(ids))
+	if lock {
+		query = query.For("UPDATE")
+	}
+	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("appointments postgres: list latest occurrence overrides: %w", err)
 	}
 	days := make(map[int64]appointments.Date, len(rows))
 	for _, row := range rows {
-		days[row.AppointmentID] = appointments.Date(row.LastDay)
+		day := appointments.Date(row.OccurrenceDate)
+		for _, date := range []*domain.Date{row.StartDate, row.EndDate} {
+			if date != nil && appointments.Date(*date).After(day) {
+				day = appointments.Date(*date)
+			}
+		}
+		if day.After(days[row.AppointmentID]) {
+			days[row.AppointmentID] = day
+		}
 	}
 	return days, nil
 }

@@ -15,6 +15,9 @@ type RetentionStore interface {
 	// cutoff, are neither cancelled nor deleted and are no endless series,
 	// with their rules and latest override days.
 	ListRetentionCandidates(ctx context.Context, cutoff appointments.Date) ([]appointments.RetentionCandidate, error)
+	// LockRetentionCandidates rereads the selected candidates and locks their
+	// appointments, rules and overrides until the tenant transaction commits.
+	LockRetentionCandidates(ctx context.Context, cutoff appointments.Date, ids []int64) ([]appointments.RetentionCandidate, error)
 	DeleteAppointments(ctx context.Context, ids []int64) (int, error)
 }
 
@@ -41,6 +44,19 @@ func (r *Retention) DeleteExpiredAppointments(ctx context.Context, retentionDays
 	}
 	var expired []int64
 	for _, candidate := range candidates {
+		if last, ok := candidate.LastDay(); ok && last.Before(cutoff) {
+			expired = append(expired, candidate.Appointment.ID)
+		}
+	}
+	if len(expired) == 0 {
+		return 0, nil
+	}
+	locked, err := r.store.LockRetentionCandidates(ctx, cutoff, expired)
+	if err != nil {
+		return 0, err
+	}
+	expired = expired[:0]
+	for _, candidate := range locked {
 		if last, ok := candidate.LastDay(); ok && last.Before(cutoff) {
 			expired = append(expired, candidate.Appointment.ID)
 		}
