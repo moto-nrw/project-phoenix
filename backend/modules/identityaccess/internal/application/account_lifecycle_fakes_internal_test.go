@@ -345,22 +345,17 @@ func (d *lifecycleStaff) FindStaffByPerson(_ context.Context, personID int64) (d
 	return domain.StaffMember{}, false, nil
 }
 
-func (d *lifecycleStaff) CreateStaff(_ context.Context, tenantID, personID int64) (int64, error) {
+func (d *lifecycleStaff) CreateStaff(_ context.Context, tenantID, personID int64, retiredStaffID *int64) (int64, error) {
 	if d.createStaffErr != nil {
 		return 0, d.createStaffErr
 	}
 	member := d.addStaff(personID)
 	member.TenantID = tenantID
 	d.staff[member.ID] = member
-	return member.ID, nil
-}
-
-func (d *lifecycleStaff) CreateStaffFromRetired(ctx context.Context, tenantID, personID, retiredStaffID int64) (int64, error) {
-	id, err := d.CreateStaff(ctx, tenantID, personID)
-	if err == nil {
-		d.rehired[id] = retiredStaffID
+	if retiredStaffID != nil {
+		d.rehired[member.ID] = *retiredStaffID
 	}
-	return id, err
+	return member.ID, nil
 }
 
 func (d *lifecycleStaff) FindCaregiverProfile(_ context.Context, staffID int64) (domain.CaregiverProfile, bool, error) {

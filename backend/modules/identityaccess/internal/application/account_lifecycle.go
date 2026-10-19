@@ -158,12 +158,8 @@ func (d StaffDirectory) FindStaffByPerson(ctx context.Context, personID int64) (
 	return domain.StaffMember(staff), found, err
 }
 
-func (d StaffDirectory) CreateStaff(ctx context.Context, tenantID, personID int64) (int64, error) {
-	return d.Source.CreateStaff(ctx, tenantID, personID)
-}
-
-func (d StaffDirectory) CreateStaffFromRetired(ctx context.Context, tenantID, personID, retiredStaffID int64) (int64, error) {
-	return d.Source.CreateStaffFromRetired(ctx, tenantID, personID, retiredStaffID)
+func (d StaffDirectory) CreateStaff(ctx context.Context, tenantID, personID int64, retiredStaffID *int64) (int64, error) {
+	return d.Source.CreateStaff(ctx, tenantID, personID, retiredStaffID)
 }
 
 func (d StaffDirectory) FindCaregiverProfile(ctx context.Context, staffID int64) (domain.CaregiverProfile, bool, error) {
