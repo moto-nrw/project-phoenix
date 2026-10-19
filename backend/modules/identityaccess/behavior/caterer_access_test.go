@@ -153,7 +153,8 @@ func TestCatererInvitationAcceptanceAndLogin(t *testing.T) {
 func TestCatererSuppliesSeveralSchools(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	caterers := setupAuthFactory(t, db).Caterers()
+	module := setupAuthFactory(t, db)
+	caterers := module.Caterers()
 	first := testpkg.Tenant(t)
 	second, _ := testpkg.CreateTestTenant(t, db)
 	staff := testpkg.CreateTestAccount(t, db, "caterer-two-schools")
@@ -179,6 +180,11 @@ func TestCatererSuppliesSeveralSchools(t *testing.T) {
 	_, schools, err := caterers.CatererSchools(context.Background(), acceptance.AccountID)
 	require.NoError(t, err)
 	assert.Equal(t, []int64{first, second}, schools)
+	t.Cleanup(func() {
+		_, _ = db.NewRaw(`DELETE FROM audit.auth_events WHERE account_id = ?`, acceptance.AccountID).Exec(context.Background())
+	})
+	_, refresh, err := caterers.LoginCatererWithAudit(context.Background(), email, catererPassword, "192.0.2.11", "test")
+	require.NoError(t, err)
 
 	require.NoError(t, inSchool(t, db, first, func(ctx context.Context) error {
 		_, err := caterers.EndCatererSchool(ctx)
@@ -187,6 +193,16 @@ func TestCatererSuppliesSeveralSchools(t *testing.T) {
 	_, schools, err = caterers.CatererSchools(context.Background(), acceptance.AccountID)
 	require.NoError(t, err)
 	assert.Equal(t, []int64{second}, schools, "the first school's end leaves the second")
+
+	// The session pinned to the first school moves to the second on refresh,
+	// so the first school no longer logs the caterer's sign-ins.
+	_, _, err = module.RefreshTokenWithAudit(context.Background(), refresh, "", "192.0.2.11", "test")
+	require.NoError(t, err)
+	var pinned, refreshedAt int64
+	require.NoError(t, db.NewRaw(`SELECT tenant_id FROM auth.tokens WHERE account_id = ? ORDER BY id DESC LIMIT 1`, acceptance.AccountID).Scan(context.Background(), &pinned))
+	assert.Equal(t, second, pinned)
+	require.NoError(t, db.NewRaw(`SELECT tenant_id FROM audit.auth_events WHERE account_id = ? AND success ORDER BY id DESC LIMIT 1`, acceptance.AccountID).Scan(context.Background(), &refreshedAt))
+	assert.Equal(t, second, refreshedAt, "the refresh is logged at the school that still supplies the caterer")
 	_, _, err = caterers.LoginCatererWithAudit(context.Background(), email, catererPassword, "", "")
 	require.NoError(t, err)
 }

@@ -51,7 +51,9 @@ tenant transaction.
    separated by RLS, and #4088 allows no new administrative transaction.
    The caterer therefore never searches across schools:
    - The invitation goes to the caterer by mail only; the school never sees
-     the link, so only the owner of the address can accept.
+     the link, so only the owner of the address can accept. Identity stores
+     the link's hash; the queued mail holds the link until the outbox's
+     delivery retention removes it, as with the guardian invitation.
    - The invitation link names its school. Preview and acceptance open that
      school's transaction; the account, the caterer, its link to the school,
      the spent invitation and the Meal Plan's supply commit there together.

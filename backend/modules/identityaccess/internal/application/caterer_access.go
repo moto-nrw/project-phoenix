@@ -102,8 +102,10 @@ func (c *CatererAccess) createInvitation(ctx context.Context, request domain.Cat
 	if err != nil {
 		return domain.CatererInvitation{}, "", err
 	}
-	if active, _, err := c.store.HasActiveCatererSchool(ctx); err != nil || active {
-		return domain.CatererInvitation{}, "", errors.Join(domain.ErrCatererAlreadySupplies, err)
+	if active, _, err := c.store.HasActiveCatererSchool(ctx); err != nil {
+		return domain.CatererInvitation{}, "", fmt.Errorf("check caterer supply: %w", err)
+	} else if active {
+		return domain.CatererInvitation{}, "", domain.ErrCatererAlreadySupplies
 	}
 	if err := c.revokeOpen(ctx); err != nil {
 		return domain.CatererInvitation{}, "", err

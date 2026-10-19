@@ -44,7 +44,7 @@ type CatererInvitationRequest struct {
 }
 
 // CatererInvitation is a school's invitation as the school sees it. The link
-// goes to the caterer by mail only and is never stored.
+// goes to the caterer by mail only; identity stores just its hash.
 type CatererInvitation struct {
 	ID              int64
 	Email           string

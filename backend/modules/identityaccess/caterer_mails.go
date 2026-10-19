@@ -3,6 +3,7 @@ package identityaccess
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 )
@@ -15,8 +16,9 @@ const (
 	MailRelatedCatererInvitation = "caterer_invitation"
 )
 
-// CatererMail is the invitation mail as the outbox stores it. The link
-// exists only here: the school never sees it, so only the owner of the
+// CatererMail is the invitation mail as the outbox stores it. Identity
+// keeps only the link's hash; the outbox keeps the mail until its delivery
+// retention ends. No school-facing read returns it, so only the owner of the
 // address can accept.
 type CatererMail struct {
 	Recipient     string
@@ -37,7 +39,7 @@ func CatererInvitationMailOf(recipient, catererName, schoolName, origin string, 
 		SchoolName:    strings.TrimSpace(schoolName),
 		InvitationURL: fmt.Sprintf("%s/einladung/%d/%s", origin, schoolID, token),
 		LogoURL:       origin + motoLogoPath,
-		ExpiryDays:    max(int(time.Until(expiresAt)/(24*time.Hour)), 1),
+		ExpiryDays:    max(int(math.Ceil(time.Until(expiresAt).Hours()/24)), 1),
 	}
 }
 

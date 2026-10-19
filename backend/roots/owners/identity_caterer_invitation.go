@@ -22,8 +22,8 @@ const (
 )
 
 // CatererInvitationDelivery queues a school's invitation to its caterer in
-// the outbox (ADR 0074). The link points at the caterer portal and exists
-// only in the mail.
+// the outbox (ADR 0074). The link points at the caterer portal; the school
+// never sees it.
 func CatererInvitationDelivery(schools schoolFinder, outbox MailResultOutbox, catererURL string) (identityPorts.CatererInvitationDelivery, error) {
 	if schools == nil || outbox == nil {
 		return nil, errors.New("identity access composition: the caterer invitation needs the school directory and the e-mail outbox")
