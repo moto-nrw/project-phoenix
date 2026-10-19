@@ -97,6 +97,36 @@ func TestLinkInvitedGuardianWritesTheDefaultPresetOnce(t *testing.T) {
 	assert.Equal(t, "pickup_only", readGuardianLink(t, db, student.ID, guardian.ID).GuardianRole, "an existing link stays untouched")
 }
 
+func TestLinkGuardianProfileToAccountRefusesAnErasedAccount(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildLifecycleModule(t, db)
+	ctx := testpkg.Ctx(t)
+	guardian := testpkg.CreateTestGuardianProfileForTenant(t, db, testpkg.Tenant(t), "Erased", "Account", "lifecycle-erased-account")
+	account := testpkg.CreateTestAccount(t, db, "lifecycle-erased-account")
+	_, err := db.NewRaw(`UPDATE auth.accounts SET personal_data_erased_at = NOW() WHERE id = ?`, account.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	require.ErrorIs(t, module.LinkGuardianProfileToAccount(ctx, guardian.ID, account.ID), peopledirectory.ErrGuardianAccountConflict)
+	assert.Nil(t, readGuardianProfile(t, db, guardian.ID).AccountID)
+}
+
+func TestLinkInvitedGuardianReportsADeletedProfile(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildLifecycleModule(t, db)
+	ctx := testpkg.Ctx(t)
+	student := testpkg.CreateTestStudentForTenant(t, db, testpkg.Tenant(t), "Deleted", "Profile", "1a")
+	guardian := testpkg.CreateTestGuardianProfileForTenant(t, db, testpkg.Tenant(t), "Deleted", "Profile", "lifecycle-deleted-profile")
+	_, err := db.NewRaw(`DELETE FROM users.guardian_profiles WHERE id = ?`, guardian.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	_, err = module.LinkInvitedGuardian(ctx, peopledirectory.InvitedGuardianLink{
+		StudentID: student.ID, GuardianProfileID: guardian.ID, RelationshipType: "parent",
+	})
+	require.ErrorIs(t, err, peopledirectory.ErrGuardianNotFound)
+}
+
 func TestGuardianLifecycleRoleWritesRefuseWithoutPresets(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

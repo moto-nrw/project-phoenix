@@ -18,6 +18,14 @@ type GuardianStudentAccessRecord struct {
 	Permissions    json.RawMessage
 }
 
+// GuardianStudentAccessStore is Identity & Access's persistence surface for
+// the guardian relationship owner command.
+type GuardianStudentAccessStore interface {
+	LockLiveGuardianAccount(context.Context, int64) (bool, error)
+	GrantGuardianStudentAccess(context.Context, GuardianStudentAccessRecord) (domain.OperationStats, error)
+	SetGuardianStudentPermissions(context.Context, int64, int64, json.RawMessage) (bool, domain.OperationStats, error)
+}
+
 // guardianStudentAccessDatabase resolves the caller's transaction for a
 // command that names its school. A tenant transaction must be scoped to the
 // same school; an administrative transaction writes the named one.

@@ -66,7 +66,8 @@ func (s *Store) FindAccount(ctx context.Context, id int64) (domain.Account, bool
 	}
 	var rows []accountRow
 	started := time.Now()
-	err = db.NewRaw(`SELECT id, email FROM auth.accounts WHERE id = ?`, id).Scan(ctx, &rows)
+	err = db.NewRaw(`SELECT id, email FROM auth.accounts
+		WHERE id = ? AND personal_data_erased_at IS NULL`, id).Scan(ctx, &rows)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return domain.Account{}, false, stats, fmt.Errorf("identity access postgres: find account: %w", err)
@@ -86,7 +87,9 @@ func (s *Store) FindAccountByEmail(ctx context.Context, email string) (domain.Ac
 	}
 	var rows []accountRow
 	started := time.Now()
-	err = db.NewRaw(`SELECT id, email FROM auth.accounts WHERE LOWER(email) = ? ORDER BY id LIMIT 1`, email).Scan(ctx, &rows)
+	err = db.NewRaw(`SELECT id, email FROM auth.accounts
+		WHERE LOWER(email) = ? AND personal_data_erased_at IS NULL
+		ORDER BY id LIMIT 1`, email).Scan(ctx, &rows)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return domain.Account{}, false, stats, fmt.Errorf("identity access postgres: find account by email: %w", err)
@@ -109,7 +112,8 @@ func (s *Store) FindAccountsByEmails(ctx context.Context, emails []string) (map[
 	}
 	var rows []accountRow
 	started := time.Now()
-	err = db.NewRaw(`SELECT id, email FROM auth.accounts WHERE LOWER(email) IN (?)`, bun.List(emails)).Scan(ctx, &rows)
+	err = db.NewRaw(`SELECT id, email FROM auth.accounts
+		WHERE LOWER(email) IN (?) AND personal_data_erased_at IS NULL`, bun.List(emails)).Scan(ctx, &rows)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return nil, stats, fmt.Errorf("identity access postgres: find accounts by email: %w", err)
@@ -118,6 +122,22 @@ func (s *Store) FindAccountsByEmails(ctx context.Context, emails []string) (map[
 		accounts[strings.ToLower(row.Email)] = domain.Account{ID: row.ID, Email: row.Email}
 	}
 	return accounts, stats, nil
+}
+
+// LockLiveGuardianAccount takes a shared row lock so guardian-profile linking
+// serializes with account retention's exclusive account lock.
+func (s *Store) LockLiveGuardianAccount(ctx context.Context, accountID int64) (bool, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return false, err
+	}
+	var accountIDs []int64
+	err = db.NewRaw(`SELECT id FROM auth.accounts
+		WHERE id = ? AND personal_data_erased_at IS NULL FOR KEY SHARE`, accountID).Scan(ctx, &accountIDs)
+	if err != nil {
+		return false, fmt.Errorf("identity access postgres: lock live guardian account: %w", err)
+	}
+	return len(accountIDs) == 1, nil
 }
 
 // EnsureActiveTenantMapping is an upsert on the (account, tenant) key: a

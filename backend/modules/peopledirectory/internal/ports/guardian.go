@@ -38,6 +38,9 @@ type GuardianStore interface {
 // relationship (#2756): Care Plan's pickup permission and Identity & Access's
 // portal access. A link is written as all three halves in one unit of work.
 type GuardianLinkOwners interface {
+	// LockLiveGuardianAccount takes Identity & Access's shared account-row
+	// lock and reports whether the account remains usable for a guardian link.
+	LockLiveGuardianAccount(ctx context.Context, accountID int64) (bool, error)
 	CreateGuardianPickupPermission(ctx context.Context, tenantID, relationshipID int64, canPickup bool, notes *string) error
 	ChangeGuardianPickupPermission(ctx context.Context, tenantID, relationshipID int64, canPickup *bool, setNotes bool, notes *string) (bool, error)
 	GrantGuardianStudentAccess(ctx context.Context, tenantID, relationshipID int64, accountID *int64, permissions json.RawMessage) error

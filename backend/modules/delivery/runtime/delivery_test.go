@@ -12,14 +12,16 @@ import (
 )
 
 type recordingEngine struct {
-	pushCalled bool
+	pushCalled   bool
+	deferredPush *deliveryContract.DeferredPushIntent
 }
 
 func (*recordingEngine) EnqueueEmail(context.Context, deliveryContract.EmailIntent) (deliveryContract.Enqueued, error) {
 	return deliveryContract.Enqueued{}, nil
 }
 
-func (*recordingEngine) EnqueueDeferredPush(context.Context, deliveryContract.DeferredPushIntent) (deliveryContract.Enqueued, error) {
+func (e *recordingEngine) EnqueueDeferredPush(_ context.Context, intent deliveryContract.DeferredPushIntent) (deliveryContract.Enqueued, error) {
+	e.deferredPush = &intent
 	return deliveryContract.Enqueued{}, nil
 }
 
@@ -117,4 +119,19 @@ func TestEnqueuePushRejectsUntrustedEndpoint(t *testing.T) {
 
 	require.Error(t, err)
 	assert.False(t, engine.pushCalled)
+}
+
+func TestEnqueueDeferredPushNormalizesPersistedFields(t *testing.T) {
+	t.Parallel()
+
+	engine := &recordingEngine{}
+	_, err := NewModule(engine).EnqueueDeferredPush(context.Background(), deliveryContract.DeferredPushIntent{
+		TenantID: 42, Template: " reminder ", IdempotencyKey: " reminder:42 ",
+		Related: deliveryContract.RelatedEntity{Type: " appointment ", ID: 42}, Payload: []byte(`{"title":"Termin"}`),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, engine.deferredPush)
+	assert.Equal(t, "reminder", engine.deferredPush.Template)
+	assert.Equal(t, "reminder:42", engine.deferredPush.IdempotencyKey)
+	assert.Equal(t, "appointment", engine.deferredPush.Related.Type)
 }

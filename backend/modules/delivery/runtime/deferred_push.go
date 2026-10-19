@@ -10,7 +10,10 @@ import (
 )
 
 func (m *Module) EnqueueDeferredPush(ctx context.Context, intent deliveryContract.DeferredPushIntent) (deliveryContract.Enqueued, error) {
-	if intent.TenantID <= 0 || strings.TrimSpace(intent.Template) == "" || strings.TrimSpace(intent.IdempotencyKey) == "" {
+	intent.Template = strings.TrimSpace(intent.Template)
+	intent.IdempotencyKey = strings.TrimSpace(intent.IdempotencyKey)
+	intent.Related.Type = strings.TrimSpace(intent.Related.Type)
+	if intent.TenantID <= 0 || intent.Template == "" || intent.IdempotencyKey == "" {
 		return deliveryContract.Enqueued{}, errors.New("delivery: deferred push requires tenant, template, and idempotency key")
 	}
 	if len(intent.Payload) == 0 || !json.Valid(intent.Payload) {

@@ -288,8 +288,13 @@ type guardianAccessPort struct {
 // guardianStudentAccess is Identity & Access's relationship access command
 // the relationship's unit of work writes.
 type guardianStudentAccess interface {
+	LockLiveGuardianAccount(context.Context, int64) (bool, error)
 	GrantGuardianStudentAccess(context.Context, identityaccess.GuardianStudentAccessGrant) error
 	SetGuardianStudentPermissions(ctx context.Context, tenantID, relationshipID int64, permissions json.RawMessage) (bool, error)
+}
+
+func (p guardianAccessPort) LockLiveGuardianAccount(ctx context.Context, accountID int64) (bool, error) {
+	return p.owner.LockLiveGuardianAccount(ctx, accountID)
 }
 
 func (p guardianAccessPort) GrantGuardianStudentAccess(ctx context.Context, tenantID, relationshipID int64, accountID *int64, permissions json.RawMessage) error {

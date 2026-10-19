@@ -127,6 +127,16 @@ func (s *GuardianLifecycle) linkAccount(ctx context.Context, guardianID, account
 	if err != nil {
 		return err
 	}
+	if s.guardians.owners == nil {
+		return domain.ErrGuardianLinkOwnersUnbound
+	}
+	live, err := s.guardians.owners.LockLiveGuardianAccount(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	if !live {
+		return domain.ErrGuardianAccountUnavailable
+	}
 	holders, readStats, err := store.LockAccountHolders(ctx, guardianID, accountID)
 	stats.Add(readStats)
 	if err != nil {
@@ -282,6 +292,8 @@ func lifecycleError(err error) error {
 		return &peopledirectory.InvalidGuardianError{Reason: invalid.Reason}
 	case errors.Is(err, domain.ErrGuardianNotFound):
 		return peopledirectory.ErrGuardianNotFound
+	case errors.Is(err, domain.ErrGuardianAccountUnavailable):
+		return peopledirectory.ErrGuardianAccountConflict
 	default:
 		return err
 	}
