@@ -19,5 +19,5 @@ func NewStudentAuditService(actor peoplePorts.RequestAuditActor, recorder people
 	if actor == nil {
 		panic("request audit actor is required")
 	}
-	return &applicationBindings.StudentAuditActorPort{Recorder: recorder, Actor: actor}
+	return &applicationBindings.StudentAuditActorPort{StudentAuditRecorder: recorder, Actor: actor}
 }

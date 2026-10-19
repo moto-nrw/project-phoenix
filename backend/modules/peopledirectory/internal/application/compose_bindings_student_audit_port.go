@@ -8,18 +8,10 @@ import (
 )
 
 type StudentAuditActorPort struct {
-	Recorder peoplePorts.StudentAuditRecorder
-	Actor    peoplePorts.RequestAuditActor
+	peoplePorts.StudentAuditRecorder
+	Actor peoplePorts.RequestAuditActor
 }
 
-func (s *StudentAuditActorPort) RecordChanges(
-	ctx context.Context,
-	before, after *directory.StudentState,
-	editedBy int64,
-	editedByName string,
-) error {
-	return s.Recorder.RecordChanges(ctx, before, after, editedBy, editedByName)
-}
 func (s *StudentAuditActorPort) RecordChangesForActor(
 	ctx context.Context,
 	before, after *directory.StudentState,
@@ -33,15 +25,8 @@ func (s *StudentAuditActorPort) RecordPickupPlanForActor(
 	before, after, result, reason string,
 	editedBy int64,
 ) error {
-	return s.Recorder.RecordPickupPlan(
+	return s.RecordPickupPlan(
 		ctx, studentID, before, after, result, reason, editedBy, s.actorDisplayName(ctx, editedBy))
-}
-func (s *StudentAuditActorPort) RecordSystemStatusChange(
-	ctx context.Context,
-	studentID int64,
-	before, after string,
-) error {
-	return s.Recorder.RecordSystemStatusChange(ctx, studentID, before, after)
 }
 
 // actorDisplayName resolves the editor's display name from the authenticated
@@ -65,7 +50,7 @@ func (s *StudentAuditActorPort) RecordStudentChangesForActor(ctx context.Context
 	if accountID != editedBy {
 		name = ""
 	}
-	return s.Recorder.RecordStudentChanges(ctx, *before, *after, editedBy, name)
+	return s.RecordStudentChanges(ctx, *before, *after, editedBy, name)
 }
 func StudentAuditSnapshot(value *directory.StudentState) *directory.StudentAuditSnapshot {
 	if value == nil {
