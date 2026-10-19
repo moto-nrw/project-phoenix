@@ -85,17 +85,32 @@ describe("SchoolCheckinModeMobile", () => {
       expect(wrapper?.className).toContain("left-0");
     });
 
-    it("shows a compact ready state before the first action", () => {
+    it("shows no status text before the first action", () => {
       render(
         <SchoolCheckinModeMobile
           isActive
           onToggle={() => undefined}
           successCount={0}
           pendingCount={0}
+          onSelectionActiveChange={() => undefined}
         />,
       );
 
-      expect(screen.getByText("Bereit")).toBeInTheDocument();
+      expect(screen.queryByText("Bereit")).not.toBeInTheDocument();
+      expect(screen.queryByText(/bearbeitet|laufen/)).not.toBeInTheDocument();
+    });
+
+    it("shows only the pending count while the first taps are in flight", () => {
+      render(
+        <SchoolCheckinModeMobile
+          isActive
+          onToggle={() => undefined}
+          successCount={0}
+          pendingCount={2}
+        />,
+      );
+
+      expect(screen.getByText("2 laufen")).toBeInTheDocument();
     });
 
     it("names the active mode and explains Direkt taps", () => {

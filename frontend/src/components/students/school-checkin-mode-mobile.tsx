@@ -117,6 +117,22 @@ export function SchoolCheckinModeMobile({
     );
   }
 
+  // Before the first tap the line stays empty: the mode line above already
+  // says what is going on, and a lone „Bereit“ next to the switcher read like
+  // a third option (#4358).
+  const statusText = selectionActive
+    ? ""
+    : [
+        successCount > 0 ? `${successCount} bearbeitet` : null,
+        pendingCount > 0 ? `${pendingCount} laufen` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+  const showStatusRow =
+    onSelectionActiveChange !== undefined ||
+    statusText !== "" ||
+    pendingCount > 0;
+
   // Sticky bar sits above the mobile bottom nav. The nav's actual visible
   // height is ~4.75rem (pill min-h-44px + py-2 + outer pb-4) plus its own
   // safe-area-inset. Offset = 5.5rem (nav + breathing gap) + safe-area so
@@ -164,38 +180,33 @@ export function SchoolCheckinModeMobile({
           </Button>
         </div>
 
-        <div className="mt-2 flex items-center gap-2">
-          {onSelectionActiveChange ? (
-            <SegmentedControl
-              ariaLabel="Tipp-Verhalten"
-              items={[
-                { value: "immediate", label: "Direkt", disabled },
-                { value: "select", label: "Mehrere", disabled },
-              ]}
-              value={selectionActive ? "select" : "immediate"}
-              onChange={(next) => onSelectionActiveChange(next === "select")}
-              className="shrink-0"
-            />
-          ) : null}
+        {showStatusRow ? (
+          <div className="mt-2 flex items-center gap-2">
+            {onSelectionActiveChange ? (
+              <SegmentedControl
+                ariaLabel="Tipp-Verhalten"
+                items={[
+                  { value: "immediate", label: "Direkt", disabled },
+                  { value: "select", label: "Mehrere", disabled },
+                ]}
+                value={selectionActive ? "select" : "immediate"}
+                onChange={(next) => onSelectionActiveChange(next === "select")}
+                className="shrink-0"
+              />
+            ) : null}
 
-          <span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-500 tabular-nums">
-            {selectionActive
-              ? null
-              : successCount === 0
-                ? "Bereit"
-                : `${successCount} bearbeitet`}
-            {!selectionActive && pendingCount > 0
-              ? ` · ${pendingCount} laufen`
-              : ""}
-          </span>
+            <span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-500 tabular-nums">
+              {statusText}
+            </span>
 
-          {pendingCount > 0 ? (
-            <Loader2
-              className="size-3.5 shrink-0 animate-spin text-gray-500"
-              aria-hidden
-            />
-          ) : null}
-        </div>
+            {pendingCount > 0 ? (
+              <Loader2
+                className="size-3.5 shrink-0 animate-spin text-gray-500"
+                aria-hidden
+              />
+            ) : null}
+          </div>
+        ) : null}
 
         {selectionActive ? (
           <div className="mt-1.5 flex items-center justify-end gap-1.5 border-t border-gray-100 pt-1.5 max-[359px]:grid max-[359px]:grid-cols-2">
