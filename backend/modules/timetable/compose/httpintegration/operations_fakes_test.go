@@ -7,9 +7,9 @@ import (
 	"time"
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -58,28 +58,31 @@ func wireAssignedStaff(deps *timetableOpsTestDeps, accountID, personID, staffID,
 	deps.personService.accountPerson.ID = personID
 	deps.personService.staffByPersonID[personID] = &timetable.StaffMember{}
 	deps.personService.staffByPersonID[personID].ID = staffID
-	deps.staffRepo.assign(instanceID, &scheduleModels.InstanceStaff{StaffID: staffID})
+	deps.staffRepo.assign(instanceID, fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = staffID
+	}))
 }
 
-func instanceWithTimes(id int64, status string, start, end time.Time) *scheduleModels.ActivityInstance {
+func instanceWithTimes(id int64, status string, start, end time.Time) *fixtures.ActivityInstance {
 	return instanceWithRoomAndTimes(id, 810, status, start, end)
 }
 
-func instanceWithRoomAndTimes(id, roomID int64, status string, start, end time.Time) *scheduleModels.ActivityInstance {
-	inst := &scheduleModels.ActivityInstance{
-		Date:      scheduleModels.NewDate(start.Year(), start.Month(), start.Day()),
-		Title:     "Lernzeit",
-		StartTime: start,
-		EndTime:   end,
-		RoomID:    roomID,
-		Status:    status,
-	}
+func instanceWithRoomAndTimes(id, roomID int64, status string, start, end time.Time) *fixtures.ActivityInstance {
+	inst := fixtures.NewActivityInstance(func(fixtureRow *fixtures.ActivityInstance) {
+		fixtureRow.Date = calendar.NewDate(start.Year(), start.Month(), start.Day())
+		fixtureRow.Title = "Lernzeit"
+		fixtureRow.StartTime = start
+		fixtureRow.EndTime = end
+		fixtureRow.RoomID = roomID
+		fixtureRow.Status = status
+	})
+
 	inst.ID = id
 	return inst
 }
 
-func activeInstance(id, activeGroupID int64) *scheduleModels.ActivityInstance {
-	inst := instanceWithTimes(id, scheduleModels.InstanceStatusActive, time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC), time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC))
+func activeInstance(id, activeGroupID int64) *fixtures.ActivityInstance {
+	inst := instanceWithTimes(id, fixtures.InstanceStatusActive(), time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC), time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC))
 	inst.ID = id
 	inst.ActiveGroupID = &activeGroupID
 	return inst
@@ -117,9 +120,9 @@ type timetableOpsTestDeps struct {
 
 func newTimetableOpsDeps() *timetableOpsTestDeps {
 	deps := &timetableOpsTestDeps{
-		instanceRepo:    &fakeOpsInstanceRepo{byID: map[int64]*scheduleModels.ActivityInstance{}},
-		staffRepo:       &fakeOpsStaffRepo{byInstance: map[int64][]*scheduleModels.InstanceStaff{}},
-		studentRepo:     &fakeOpsInstanceStudentRepo{byInstance: map[int64][]*scheduleModels.InstanceStudent{}, byInstanceStudent: map[instanceStudentKey]*scheduleModels.InstanceStudent{}},
+		instanceRepo:    &fakeOpsInstanceRepo{byID: map[int64]*fixtures.ActivityInstance{}},
+		staffRepo:       &fakeOpsStaffRepo{byInstance: map[int64][]*fixtures.InstanceStaff{}},
+		studentRepo:     &fakeOpsInstanceStudentRepo{byInstance: map[int64][]*fixtures.InstanceStudent{}, byInstanceStudent: map[instanceStudentKey]*fixtures.InstanceStudent{}},
 		instanceService: &fakeOpsLifecycle{},
 		activeGroups:    &fakeOpsSessions{lastActivity: map[int64]time.Time{}},
 		activityGroups:  &fakeOpsTemplates{byID: map[int64]*activityContract.Group{}, targetsByGroup: map[int64][]*activityContract.GroupTarget{}},
@@ -154,9 +157,9 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 // clock as in production.
 func (deps *timetableOpsTestDeps) dependencies() timetablePorts.OperationDependencies {
 	return timetablePorts.OperationDependencies{
-		Instances:            deps.instanceRepo,
-		InstanceStaff:        deps.staffRepo,
-		Participants:         deps.studentRepo,
+		Instances:            fixtures.IntoOperationInstances(deps.instanceRepo),
+		InstanceStaff:        fixtures.IntoOperationInstanceStaff(deps.staffRepo),
+		Participants:         fixtures.IntoOperationParticipants(deps.studentRepo),
 		Templates:            deps.activityGroups,
 		PlanningTracks:       deps.tracks,
 		Sessions:             deps.activeGroups,
@@ -185,27 +188,28 @@ func (deps *timetableOpsTestDeps) dependencies() timetablePorts.OperationDepende
 }
 
 type fakeOpsInstanceRepo struct {
-	byID          map[int64]*scheduleModels.ActivityInstance
-	byDate        []*scheduleModels.ActivityInstance
+	byID          map[int64]*fixtures.ActivityInstance
+	byDate        []*fixtures.ActivityInstance
 	err           error
 	findByDateErr error
 }
 
-func (r *fakeOpsInstanceRepo) FindByID(_ context.Context, id any) (*scheduleModels.ActivityInstance, error) {
+func (r *fakeOpsInstanceRepo) FindByID(_ context.Context, nativeRecordID int64) (*fixtures.ActivityInstance, error) {
+	var id any = nativeRecordID
 	if r.err != nil {
 		return nil, r.err
 	}
 	return r.byID[id.(int64)], nil
 }
 
-func (r *fakeOpsInstanceRepo) FindByTenantAndDate(_ context.Context, _ scheduleModels.Date) ([]*scheduleModels.ActivityInstance, error) {
+func (r *fakeOpsInstanceRepo) FindByTenantAndDate(_ context.Context, _ calendar.Date) ([]*fixtures.ActivityInstance, error) {
 	if r.findByDateErr != nil {
 		return nil, r.findByDateErr
 	}
 	return r.byDate, nil
 }
 
-func (r *fakeOpsInstanceRepo) FindByActiveGroupID(_ context.Context, activeGroupID int64) (*scheduleModels.ActivityInstance, error) {
+func (r *fakeOpsInstanceRepo) FindByActiveGroupID(_ context.Context, activeGroupID int64) (*fixtures.ActivityInstance, error) {
 	for _, inst := range r.byID {
 		if inst != nil && inst.ActiveGroupID != nil && *inst.ActiveGroupID == activeGroupID {
 			return inst, nil
@@ -215,11 +219,11 @@ func (r *fakeOpsInstanceRepo) FindByActiveGroupID(_ context.Context, activeGroup
 }
 
 type fakeOpsStaffRepo struct {
-	byInstance map[int64][]*scheduleModels.InstanceStaff
+	byInstance map[int64][]*fixtures.InstanceStaff
 	err        error
 }
 
-func (r *fakeOpsStaffRepo) FindByInstanceID(_ context.Context, instanceID int64) ([]*scheduleModels.InstanceStaff, error) {
+func (r *fakeOpsStaffRepo) FindByInstanceID(_ context.Context, instanceID int64) ([]*fixtures.InstanceStaff, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -228,11 +232,11 @@ func (r *fakeOpsStaffRepo) FindByInstanceID(_ context.Context, instanceID int64)
 
 // FindByInstanceIDs answers the batched read with the seeded rows, stamped
 // with their instance the way the repository returns them.
-func (r *fakeOpsStaffRepo) FindByInstanceIDs(_ context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStaff, error) {
+func (r *fakeOpsStaffRepo) FindByInstanceIDs(_ context.Context, instanceIDs []int64) ([]*fixtures.InstanceStaff, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
-	var rows []*scheduleModels.InstanceStaff
+	var rows []*fixtures.InstanceStaff
 	for _, instanceID := range instanceIDs {
 		for _, row := range r.byInstance[instanceID] {
 			stamped := *row
@@ -244,7 +248,7 @@ func (r *fakeOpsStaffRepo) FindByInstanceIDs(_ context.Context, instanceIDs []in
 }
 
 // assign seeds the staff rows FindByInstanceID returns for one instance.
-func (r *fakeOpsStaffRepo) assign(instanceID int64, rows ...*scheduleModels.InstanceStaff) {
+func (r *fakeOpsStaffRepo) assign(instanceID int64, rows ...*fixtures.InstanceStaff) {
 	r.byInstance[instanceID] = rows
 }
 
@@ -255,21 +259,21 @@ type instanceStudentKey struct {
 
 type attendanceUpdate struct {
 	rowID int64
-	patch scheduleModels.AttendanceFieldPatch
+	patch fixtures.AttendanceFieldPatch
 }
 
 type fakeOpsInstanceStudentRepo struct {
-	byInstance           map[int64][]*scheduleModels.InstanceStudent
-	byInstanceStudent    map[instanceStudentKey]*scheduleModels.InstanceStudent
+	byInstance           map[int64][]*fixtures.InstanceStudent
+	byInstanceStudent    map[instanceStudentKey]*fixtures.InstanceStudent
 	err                  error
 	updateErr            error
 	updates              []attendanceUpdate
-	parallelPresence     []scheduleModels.ParallelPresence
+	parallelPresence     []fixtures.ParallelPresence
 	parallelPresenceErr  error
 	parallelPresenceCall int
 }
 
-func (r *fakeOpsInstanceStudentRepo) FindPresentInOtherActiveInstances(_ context.Context, excludeInstanceID int64, _ scheduleModels.Date, studentIDs []int64) ([]scheduleModels.ParallelPresence, error) {
+func (r *fakeOpsInstanceStudentRepo) FindPresentInOtherActiveInstances(_ context.Context, excludeInstanceID int64, _ calendar.Date, studentIDs []int64) ([]fixtures.ParallelPresence, error) {
 	r.parallelPresenceCall++
 	if r.parallelPresenceErr != nil {
 		return nil, r.parallelPresenceErr
@@ -278,7 +282,7 @@ func (r *fakeOpsInstanceStudentRepo) FindPresentInOtherActiveInstances(_ context
 	for _, id := range studentIDs {
 		requested[id] = true
 	}
-	rows := make([]scheduleModels.ParallelPresence, 0, len(r.parallelPresence))
+	rows := make([]fixtures.ParallelPresence, 0, len(r.parallelPresence))
 	for _, row := range r.parallelPresence {
 		if row.InstanceID != excludeInstanceID && requested[row.StudentID] {
 			rows = append(rows, row)
@@ -287,18 +291,18 @@ func (r *fakeOpsInstanceStudentRepo) FindPresentInOtherActiveInstances(_ context
 	return rows, nil
 }
 
-func (r *fakeOpsInstanceStudentRepo) FindByInstanceID(_ context.Context, instanceID int64) ([]*scheduleModels.InstanceStudent, error) {
+func (r *fakeOpsInstanceStudentRepo) FindByInstanceID(_ context.Context, instanceID int64) ([]*fixtures.InstanceStudent, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
 	return r.byInstance[instanceID], nil
 }
 
-func (r *fakeOpsInstanceStudentRepo) FindByInstanceIDs(_ context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStudent, error) {
+func (r *fakeOpsInstanceStudentRepo) FindByInstanceIDs(_ context.Context, instanceIDs []int64) ([]*fixtures.InstanceStudent, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
-	var rows []*scheduleModels.InstanceStudent
+	var rows []*fixtures.InstanceStudent
 	for _, instanceID := range instanceIDs {
 		for _, row := range r.byInstance[instanceID] {
 			stamped := *row
@@ -309,14 +313,14 @@ func (r *fakeOpsInstanceStudentRepo) FindByInstanceIDs(_ context.Context, instan
 	return rows, nil
 }
 
-func (r *fakeOpsInstanceStudentRepo) FindByInstanceAndStudent(_ context.Context, instanceID, studentID int64) (*scheduleModels.InstanceStudent, error) {
+func (r *fakeOpsInstanceStudentRepo) FindByInstanceAndStudent(_ context.Context, instanceID, studentID int64) (*fixtures.InstanceStudent, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
 	return r.byInstanceStudent[instanceStudentKey{instanceID, studentID}], nil
 }
 
-func (r *fakeOpsInstanceStudentRepo) UpdateAttendanceFields(_ context.Context, id int64, patch scheduleModels.AttendanceFieldPatch) error {
+func (r *fakeOpsInstanceStudentRepo) UpdateAttendanceFields(_ context.Context, id int64, patch fixtures.AttendanceFieldPatch) error {
 	if r.updateErr != nil {
 		return r.updateErr
 	}
@@ -338,16 +342,16 @@ func (s *fakeOpsLifecycle) CreateSpontaneous(context.Context, timetable.Spontane
 
 func (s *fakeOpsLifecycle) Start(_ context.Context, instanceID, staffID int64, _ bool) (*timetable.StartedOperation, error) {
 	s.started = append(s.started, startCall{instanceID: instanceID, staffID: staffID})
-	return &timetable.StartedOperation{InstanceID: instanceID, Status: scheduleModels.InstanceStatusActive, ActiveGroupID: 910}, nil
+	return &timetable.StartedOperation{InstanceID: instanceID, Status: fixtures.InstanceStatusActive(), ActiveGroupID: 910}, nil
 }
 
 func (s *fakeOpsLifecycle) Complete(_ context.Context, instanceID, _ int64) (*timetable.ScheduledInstance, error) {
 	s.completed = append(s.completed, instanceID)
-	return &timetable.ScheduledInstance{ID: instanceID, Status: scheduleModels.InstanceStatusCompleted}, nil
+	return &timetable.ScheduledInstance{ID: instanceID, Status: fixtures.InstanceStatusCompleted()}, nil
 }
 
 func (s *fakeOpsLifecycle) Reopen(_ context.Context, instanceID, _ int64, _ bool) (*timetable.StartedOperation, error) {
-	return &timetable.StartedOperation{InstanceID: instanceID, Status: scheduleModels.InstanceStatusActive, ActiveGroupID: 911}, nil
+	return &timetable.StartedOperation{InstanceID: instanceID, Status: fixtures.InstanceStatusActive(), ActiveGroupID: 911}, nil
 }
 
 type fakeOpsSessions struct {
@@ -386,11 +390,11 @@ func (r *fakeOpsTemplates) FindTargetsByGroupIDs(_ context.Context, groupIDs []i
 	return result, nil
 }
 
-func (r *fakeOpsTemplates) FindByID(_ context.Context, id any) (*activityContract.Group, error) {
+func (r *fakeOpsTemplates) FindByID(_ context.Context, id int64) (*activityContract.Group, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
-	group := r.byID[id.(int64)]
+	group := r.byID[id]
 	if group == nil {
 		return nil, notFoundError{}
 	}

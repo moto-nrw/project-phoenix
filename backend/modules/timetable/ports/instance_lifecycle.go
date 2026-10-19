@@ -5,10 +5,9 @@ import (
 	"log/slog"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 )
 
 // LifecyclePresence is the Student Presence slice the transitions read and
@@ -81,14 +80,14 @@ type LifecycleStudents interface {
 // notice); Settings is required with EnforceTimePolicy; Logger and Now
 // default. Every other field is required.
 type InstanceLifecycleDependencies struct {
-	InstanceRepo        scheduleModels.ActivityInstanceRepository
-	IdempotencyRepo     scheduleModels.InstanceIdempotencyRepository
-	InstanceStaffRepo   scheduleModels.InstanceStaffRepository
-	InstanceStudents    scheduleModels.InstanceStudentRepository
-	ExceptionRepo       scheduleModels.ActivityExceptionRepository
-	CalendarPeriodRepo  scheduleModels.CalendarPeriodRepository
-	RecoveryRepo        scheduleModels.ActivityRecoveryRepository
-	ActivityGroupRepo   activitiesModels.GroupRepository
+	InstanceRepo        ActivityInstanceRecords
+	IdempotencyRepo     InstanceIdempotencyRecords
+	InstanceStaffRepo   InstanceStaffRecords
+	InstanceStudents    InstanceStudentRecords
+	ExceptionRepo       ActivityExceptionRecords
+	CalendarPeriodRepo  CalendarPeriodRecords
+	RecoveryRepo        ActivityRecoveryRecords
+	ActivityGroupRepo   LifecycleActivityGroups
 	StaffRepo           LifecycleStaff
 	StudentRepo         LifecycleStudents
 	ActiveGroupRepo     studentpresence.SessionRecords
@@ -113,4 +112,10 @@ type InstanceLifecycleDependencies struct {
 	Logger            *slog.Logger
 	Now               func() time.Time
 	EnforceTimePolicy bool
+}
+
+// LifecycleActivityGroups resolves the templates whose sessions are being started.
+type LifecycleActivityGroups interface {
+	FindByID(context.Context, int64) (*activityContract.Group, error)
+	FindByIDs(context.Context, []int64) ([]*activityContract.Group, error)
 }

@@ -3,8 +3,7 @@ package application
 import (
 	"context"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -23,13 +22,14 @@ func (s *InstanceLifecycleService) matchRegeneratedInstances(
 		return matches, nil
 	}
 	groupIDs, dates := regeneratedMatchKeys(snapshots, targetActivityGroupID)
-	options := domain.NewListOptions()
-	options.Filter = domain.NewListFilter().
-		In("activity_group_id", anyArgs(groupIDs)...).
-		In("date", anyArgs(dates)...).
-		Equal("status", scheduleModel.InstanceStatusPlanned).
-		Equal("is_spontaneous", false)
-	candidates, err := legacyList[*scheduleModel.ActivityInstance](ctx, s.deps.InstanceRepo, options)
+	dateKeys := make([]string, len(dates))
+	for i, day := range dates {
+		dateKeys[i] = day.String()
+	}
+	spontaneous := false
+	candidates, err := listInstances(ctx, s.deps.InstanceRepo, ports.LegacyInstanceFilter{
+		ActivityGroupIDs: groupIDs, Dates: dateKeys, Status: scheduleModel.InstanceStatusPlanned, IsSpontaneous: &spontaneous,
+	})
 	if err != nil {
 		return nil, err
 	}

@@ -7,7 +7,6 @@ import (
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
@@ -30,7 +29,7 @@ func (r timetableActivityCategoryRepository) Create(ctx context.Context, value *
 	return nil
 }
 
-func (r timetableActivityCategoryRepository) FindByID(ctx context.Context, id any) (*activityContract.Category, error) {
+func (r timetableActivityCategoryRepository) FindByID(ctx context.Context, id int64) (*activityContract.Category, error) {
 	categoryID, ok := LegacyGroupID(id)
 	if !ok {
 		return nil, legacyDatabaseError("find by id", fmt.Errorf("invalid category id %T", id))
@@ -64,13 +63,6 @@ func (r timetableActivityCategoryRepository) FindByIDForShare(ctx context.Contex
 		return nil, legacyCategoryError("find category by id for share", err)
 	}
 	return legacyCategory(value), nil
-}
-
-func (r timetableActivityCategoryRepository) List(ctx context.Context, options *activitiesModels.QueryOptions) ([]*activityContract.Category, error) {
-	if options != nil && (len(options.StudentIDs) > 0 || options.Limit != 0 || options.Offset != 0) {
-		return nil, legacyDatabaseError("list", errors.New("category list options are unsupported"))
-	}
-	return r.ListAll(ctx)
 }
 
 func (r timetableActivityCategoryRepository) ListAll(ctx context.Context) ([]*activityContract.Category, error) {
@@ -128,7 +120,7 @@ func (r timetableActivityCategoryRepository) UpdateColumns(ctx context.Context, 
 	return 1, nil
 }
 
-func (r timetableActivityCategoryRepository) Delete(ctx context.Context, id any) error {
+func (r timetableActivityCategoryRepository) Delete(ctx context.Context, id int64) error {
 	categoryID, ok := LegacyGroupID(id)
 	if !ok {
 		return legacyDatabaseError("delete", fmt.Errorf("invalid category id %T", id))

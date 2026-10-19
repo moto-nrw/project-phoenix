@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
@@ -15,7 +17,7 @@ import (
 // children: a row stays when it records an observed presence, or a hand-set
 // status on a block that already started. The attendance each parked row
 // carried travels into the archive with it.
-func (r timetableInstanceStudentRepository) ArchivePlannedByStudentIDsFrom(ctx context.Context, transitionID int64, studentIDs []int64, from InstanceStudentDate, at time.Time) (int, error) {
+func (r timetableInstanceStudentRepository) ArchivePlannedByStudentIDsFrom(ctx context.Context, transitionID int64, studentIDs []int64, from calendar.Date, at time.Time) (int, error) {
 	studentIDs = positiveInstanceStudentIDs(studentIDs)
 	if len(studentIDs) == 0 {
 		return 0, nil
@@ -59,7 +61,7 @@ func (r timetableInstanceStudentRepository) ArchivePlannedByStudentIDsFrom(ctx c
 // RestoreArchivedByTransition replays the parked rows: the participant comes
 // back through Timetable, a non-booking or hand-set status is restored as
 // archived, and every other row takes today's day statuses and excusals.
-func (r timetableInstanceStudentRepository) RestoreArchivedByTransition(ctx context.Context, transitionID int64, studentIDs []int64, from InstanceStudentDate) (int, error) {
+func (r timetableInstanceStudentRepository) RestoreArchivedByTransition(ctx context.Context, transitionID int64, studentIDs []int64, from calendar.Date) (int, error) {
 	restored, err := r.timetable.RestoreArchivedInstanceStudents(ctx, transitionID, positiveInstanceStudentIDs(studentIDs), from.String())
 	if err != nil {
 		return 0, WrapDatabaseError("restore archived rows by transition", err)

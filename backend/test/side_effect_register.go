@@ -50,16 +50,54 @@ type losableSideEffectNotice struct {
 }
 
 func sideEffectRegisterSubset(current, previous map[string]losableSideEffectNotice) error {
-	var added []string
-	for key, notice := range current {
-		old, ok := previous[key]
-		if !ok || old.Fingerprint != notice.Fingerprint {
-			added = append(added, key)
+	// Only removed entries can supply a relocation. Consume each once so a
+	// copied notice cannot become an additional allowance at another path.
+	relocations := map[sideEffectNoticeIdentity]int{}
+	for key, notice := range previous {
+		if _, retained := current[key]; retained {
+			continue
 		}
+		if identity, ok := sideEffectNoticeIdentityAt(key, notice); ok {
+			relocations[identity]++
+		}
+	}
+	keys := make([]string, 0, len(current))
+	for key := range current {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	var added []string
+	for _, key := range keys {
+		notice := current[key]
+		old, ok := previous[key]
+		if ok {
+			if old != notice {
+				added = append(added, key)
+			}
+			continue
+		}
+		identity, validPath := sideEffectNoticeIdentityAt(key, notice)
+		if !validPath || relocations[identity] == 0 {
+			added = append(added, key)
+			continue
+		}
+		relocations[identity]--
 	}
 	sort.Strings(added)
 	if len(added) > 0 {
-		return fmt.Errorf("losable-notice register may only shrink, not add or replace entries: %s", strings.Join(added, ", "))
+		return fmt.Errorf("losable-notice register may only shrink or relocate unchanged entries: %s", strings.Join(added, ", "))
 	}
 	return nil
+}
+
+type sideEffectNoticeIdentity struct {
+	operation, reason, fingerprint string
+}
+
+func sideEffectNoticeIdentityAt(key string, notice losableSideEffectNotice) (sideEffectNoticeIdentity, bool) {
+	file, operation, ok := strings.Cut(key, ":")
+	if !ok || filepath.Ext(file) != ".go" || operation == "" {
+		return sideEffectNoticeIdentity{}, false
+	}
+	return sideEffectNoticeIdentity{operation, notice.Reason, notice.Fingerprint}, true
 }

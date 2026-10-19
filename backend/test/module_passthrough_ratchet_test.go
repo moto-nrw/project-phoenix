@@ -179,6 +179,8 @@ const modulePassthroughMaxBodyLines = 14
 // into internal/planning (#4240), and the root-facing seam and record types
 // into the owners' ports packages (#4174, #4182, #4210, #4227, #4236, #4238).
 var modulePassthroughMovedTrees = []struct{ path, owner string }{
+	{"modules/schoolstructure/internal/adapters/postgres/runtime/", "modules/schoolstructure"},
+	{"modules/peopledirectory/internal/adapters/postgres/runtime/", "modules/peopledirectory"},
 	// ADR 0064: consumer glue moved to the root, but its delegations stay
 	// attributed to the consumer. These entries expand the scan, not allowances.
 	{"api/device_scan_catalog.go", "modules/devicescan"},
@@ -200,7 +202,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063 and by ADR 0064 (3,011 to 3,091).
-const modulePassthroughOwnerBudgetTotal = 3037
+const modulePassthroughOwnerBudgetTotal = 3019
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -235,10 +237,10 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/schoolcalendar":      44,
 	"modules/schoolmembership":    82,
 	"modules/schoolsetup":         2,
-	"modules/schoolstructure":     85,
+	"modules/schoolstructure":     70,
 	"modules/settings":            19,
 	"modules/studentpresence":     240,
-	"modules/timetable":           491,
+	"modules/timetable":           488,
 	"modules/workforce":           393,
 	"workflows/openroommove":      1,
 	"workflows/parentportal":      19,

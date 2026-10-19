@@ -7,7 +7,6 @@ import (
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -134,7 +133,7 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 	if err := s.deps.GroupRepo.Create(ctx, group); err != nil {
 		return nil, &ports.ScheduleError{Op: "split template: create successor template", Err: err}
 	}
-	targetRepo, ok := s.deps.GroupRepo.(activitiesModel.GroupTargetRepository)
+	targetRepo, ok := s.deps.GroupRepo.(ports.ActivityGroupTargets)
 	if !ok && len(in.Targets) > 0 {
 		return nil, &ports.ScheduleError{Op: "split template: create successor targets", Err: errors.New("target repository is not configured")}
 	}

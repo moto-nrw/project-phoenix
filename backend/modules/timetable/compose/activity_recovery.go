@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/uptrace/bun"
 )
 
@@ -56,7 +58,7 @@ func (r *ActivityRecoveryRepository) Restore(ctx context.Context, instanceID int
 // NewRetainedActivityRecoveryRepository composes the completion and reopen
 // support of a block over the database from the participant adapter's two
 // owners (#2762).
-func NewRetainedActivityRecoveryRepository(db *bun.DB, assignments scheduleModel.InstanceStudentRepository) scheduleModel.ActivityRecoveryRepository {
+func NewRetainedActivityRecoveryRepository(db *bun.DB, assignments ports.InstanceStudentRecords) ports.ActivityRecoveryRecords {
 	recoveryAssignments, recoveryPresence := application.RetainedActivityRecovery(assignments)
 	return NewActivityRecoveryRepository(db, recoveryAssignments, recoveryPresence)
 }

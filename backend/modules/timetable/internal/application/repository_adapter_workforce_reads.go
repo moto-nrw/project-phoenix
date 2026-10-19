@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -23,12 +24,12 @@ import (
 // TimetableInstanceReads serves the activity instances with their session
 // state.
 type TimetableInstanceReads struct {
-	instances scheduleModels.ActivityInstanceRepository
+	instances ports.ActivityInstanceRecords
 }
 
 // NewTimetableInstanceReads binds the instance reads to the retained
 // presence-aware instance repository.
-func NewTimetableInstanceReads(instances scheduleModels.ActivityInstanceRepository) TimetableInstanceReads {
+func NewTimetableInstanceReads(instances ports.ActivityInstanceRecords) TimetableInstanceReads {
 	if instances == nil {
 		panic("timetable instance reads: the activity instance repository is required")
 	}
@@ -38,7 +39,7 @@ func NewTimetableInstanceReads(instances scheduleModels.ActivityInstanceReposito
 // FindByTenantAndDateRange returns the tenant's instances within the
 // inclusive date range, ordered by date and time.
 func (r TimetableInstanceReads) FindByTenantAndDateRange(ctx context.Context, from, to calendar.Date) ([]*timetable.ScheduledInstance, error) {
-	rows, err := r.instances.FindByTenantAndDateRange(ctx, scheduleModels.Date(from), scheduleModels.Date(to))
+	rows, err := r.instances.FindByTenantAndDateRange(ctx, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return nil, err
 	}
@@ -85,12 +86,12 @@ func scheduledInstances(rows []*scheduleModels.ActivityInstance) []*timetable.Sc
 // TimetableInstanceStaffReads serves the staff assignments of the activity
 // instances and the sick-report provenance stamp on them (#1843).
 type TimetableInstanceStaffReads struct {
-	staff scheduleModels.InstanceStaffRepository
+	staff ports.InstanceStaffRecords
 }
 
 // NewTimetableInstanceStaffReads binds the assignment reads to the retained
 // instance staff repository.
-func NewTimetableInstanceStaffReads(staff scheduleModels.InstanceStaffRepository) TimetableInstanceStaffReads {
+func NewTimetableInstanceStaffReads(staff ports.InstanceStaffRecords) TimetableInstanceStaffReads {
 	if staff == nil {
 		panic("timetable instance staff reads: the instance staff repository is required")
 	}
@@ -119,13 +120,13 @@ func (r TimetableInstanceStaffReads) FindByInstanceIDs(ctx context.Context, inst
 
 // FindByStaffAndDate returns one staff member's assignments on a day.
 func (r TimetableInstanceStaffReads) FindByStaffAndDate(ctx context.Context, staffID int64, date calendar.Date) ([]*timetable.InstanceStaff, error) {
-	return instanceStaffRows(r.staff.FindByStaffAndDate(ctx, staffID, scheduleModels.Date(date)))
+	return instanceStaffRows(r.staff.FindByStaffAndDate(ctx, staffID, calendar.Date(date)))
 }
 
 // FindByStaffAndDateRange returns one staff member's assignments in the
 // inclusive date range.
 func (r TimetableInstanceStaffReads) FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to calendar.Date) ([]*timetable.InstanceStaff, error) {
-	return instanceStaffRows(r.staff.FindByStaffAndDateRange(ctx, staffID, scheduleModels.Date(from), scheduleModels.Date(to)))
+	return instanceStaffRows(r.staff.FindByStaffAndDateRange(ctx, staffID, calendar.Date(from), calendar.Date(to)))
 }
 
 // instanceStaffFilterLister is the owner-filtered listing the retained
@@ -178,12 +179,12 @@ func publicInstanceStaff(row *scheduleModels.InstanceStaff) *timetable.InstanceS
 // TimetableGroupReads serves the activity groups (Angebote) an assignment
 // belongs to.
 type TimetableGroupReads struct {
-	groups activitiesModels.GroupRepository
+	groups ports.ActivityGroupRecords
 }
 
 // NewTimetableGroupReads binds the group reads to the retained activity
 // group repository.
-func NewTimetableGroupReads(groups activitiesModels.GroupRepository) TimetableGroupReads {
+func NewTimetableGroupReads(groups ports.ActivityGroupRecords) TimetableGroupReads {
 	if groups == nil {
 		panic("timetable group reads: the activity group repository is required")
 	}
@@ -205,7 +206,11 @@ func (r TimetableGroupReads) FindByIDs(ctx context.Context, ids []int64) ([]*tim
 
 // FindByID returns the group with the given ID.
 func (r TimetableGroupReads) FindByID(ctx context.Context, id any) (*timetable.Group, error) {
-	row, err := r.groups.FindByID(ctx, id)
+	groupID, ok := LegacyGroupID(id)
+	if !ok {
+		return nil, legacyDatabaseError("find by id", fmt.Errorf("invalid activity group id %T", id))
+	}
+	row, err := r.groups.FindByID(ctx, groupID)
 	return publicGroup(row), err
 }
 

@@ -1,12 +1,11 @@
 package application
 
 import (
-	"context"
 	"fmt"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The retained models/schedule student-schedule repositories over the Care
@@ -51,34 +50,8 @@ func legacyScheduleID(raw any) (int64, error) {
 // careScheduleListFilter reads the retained listing options: the page, the
 // sort order and one student_id equality, the shape the retained callers
 // list with. Any other condition is refused rather than dropped.
-func careScheduleListFilter(options *domain.ListOptions) (ports.CareScheduleFilter, error) {
-	return narrowListOptions(options, "care schedule",
-		func(f *ports.CareScheduleFilter, limit, offset int) { f.Limit, f.Offset = limit, offset },
-		func(f *ports.CareScheduleFilter, field domain.ListSortField) {
-			f.Sort = append(f.Sort, ports.CareScheduleSort{Field: field.Field, Descending: field.Direction == domain.ListSortDesc})
-		},
-		func(f *ports.CareScheduleFilter, condition domain.ListCondition) error {
-			id, ok := condition.Value.(int64)
-			if condition.Field != "student_id" || condition.Operator != domain.ListOpEqual || !ok || f.StudentIDs != nil {
-				return fmt.Errorf("unsupported care schedule filter %s %s", condition.Field, condition.Operator)
-			}
-			f.StudentIDs = []int64{id}
-			return nil
-		})
-}
 
 // listWithOptions serves a retained List over one of the owner's listings.
-func listWithOptions[T, R any](ctx context.Context, rows ports.CarePlanRows, options *domain.ListOptions, list func(context.Context, ports.CareScheduleFilter) ([]T, error), convert func(T) R) ([]R, error) {
-	filter, err := careScheduleListFilter(options)
-	var values []T
-	if err == nil {
-		values, err = list(ctx, filter)
-	}
-	if err != nil {
-		return nil, rows.ScheduleError("list with options", err)
-	}
-	return mapRows(values, convert), nil
-}
 
 func mapRows[T any, R any](values []T, convert func(T) R) []R {
 	result := make([]R, 0, len(values))
@@ -110,7 +83,7 @@ func arrivalExceptionToLegacy(v ports.CareArrivalException) *scheduleModels.Stud
 }
 func applyArrivalException(r *scheduleModels.StudentArrivalException, v ports.CareArrivalException) {
 	r.ID, r.TenantID, r.CreatedAt, r.UpdatedAt = v.ID, v.TenantID, v.CreatedAt, v.UpdatedAt
-	r.StudentID, r.ExceptionDate, r.ExpectedArrival, r.Reason, r.Source, r.CreatedBy, r.CreatedByGuardian = v.StudentID, scheduleModels.Date(v.ExceptionDate), v.ExpectedArrival, v.Reason, v.Source, v.CreatedBy, v.CreatedByGuardian
+	r.StudentID, r.ExceptionDate, r.ExpectedArrival, r.Reason, r.Source, r.CreatedBy, r.CreatedByGuardian = v.StudentID, calendar.Date(v.ExceptionDate), v.ExpectedArrival, v.Reason, v.Source, v.CreatedBy, v.CreatedByGuardian
 }
 func pickupScheduleToPublic(v *scheduleModels.StudentPickupSchedule) ports.CarePickupSchedule {
 	return ports.CarePickupSchedule{ID: v.ID, TenantID: v.TenantID, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, StudentID: v.StudentID, Weekday: v.Weekday, PickupTime: v.PickupTime, Notes: v.Notes, CreatedBy: v.CreatedBy, Source: v.Source, CareOfferingID: v.CareOfferingID}
@@ -134,14 +107,14 @@ func pickupExceptionToLegacy(v ports.CarePickupException) *scheduleModels.Studen
 }
 func applyPickupException(r *scheduleModels.StudentPickupException, v ports.CarePickupException) {
 	r.ID, r.TenantID, r.CreatedAt, r.UpdatedAt = v.ID, v.TenantID, v.CreatedAt, v.UpdatedAt
-	r.StudentID, r.ExceptionDate, r.PickupTime, r.Reason = v.StudentID, scheduleModels.Date(v.ExceptionDate), v.PickupTime, v.Reason
+	r.StudentID, r.ExceptionDate, r.PickupTime, r.Reason = v.StudentID, calendar.Date(v.ExceptionDate), v.PickupTime, v.Reason
 	r.ExcusedFrom, r.ExcusedReason, r.ExcusedCreatedBy, r.ExcusedOwnsPickupTime, r.ExcusedAuto = v.ExcusedFrom, v.ExcusedReason, v.ExcusedCreatedBy, v.ExcusedOwnsPickupTime, v.ExcusedAuto
 	r.Source, r.CreatedBy, r.CreatedByGuardian = v.Source, v.CreatedBy, v.CreatedByGuardian
 }
 
 var (
-	_ scheduleModels.StudentArrivalScheduleRepository  = CareArrivalScheduleRows{}
-	_ scheduleModels.StudentArrivalExceptionRepository = CareArrivalExceptionRows{}
-	_ scheduleModels.StudentPickupScheduleRepository   = CarePickupScheduleRows{}
-	_ scheduleModels.StudentPickupExceptionRepository  = CarePickupExceptionRows{}
+	_ ports.StudentArrivalScheduleRecords  = CareArrivalScheduleRows{}
+	_ ports.StudentArrivalExceptionRecords = CareArrivalExceptionRows{}
+	_ ports.StudentPickupScheduleRecords   = CarePickupScheduleRows{}
+	_ ports.StudentPickupExceptionRecords  = CarePickupExceptionRows{}
 )

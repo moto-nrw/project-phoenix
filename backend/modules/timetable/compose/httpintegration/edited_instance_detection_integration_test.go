@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
 	"github.com/stretchr/testify/assert"
@@ -11,8 +13,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -42,7 +43,7 @@ func materializeSingleInstance(t *testing.T, s *scenarioSetup) *testpkg.Activity
 func setInstanceColumn(t *testing.T, s *scenarioSetup, instanceID int64, col string, val any) {
 	t.Helper()
 	_, err := s.db.NewUpdate().
-		Model((*scheduleModels.ActivityInstance)(nil)).
+		Model((*fixtures.ActivityInstance)(nil)).
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Set(col+" = ?", val).
 		Where(`"activity_instance".id = ?`, instanceID).
@@ -119,7 +120,7 @@ func replaceScenarioTarget(t *testing.T, s *scenarioSetup, targetType string) {
 			Exec(s.ctx)
 		require.NoError(t, err)
 	}
-	targetRepo, ok := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.(activitiesModels.GroupTargetRepository)
+	targetRepo, ok := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.(fixtures.GroupTargets)
 	require.True(t, ok)
 	require.NoError(t, targetRepo.ReplaceTargets(s.ctx, s.template.ID, []*activityContract.GroupTarget{target}))
 }
@@ -215,7 +216,7 @@ func TestDetectEditedInWindow_StudentRosterEdit(t *testing.T) {
 	extra := &testpkg.InstanceStudent{
 		InstanceID: inst.ID,
 		StudentID:  s.students[2],
-		Status:     scheduleModels.AttendanceStatusExpected,
+		Status:     fixtures.AttendanceStatusExpected(),
 	}
 	extra.TenantID = s.tenantID
 	testpkg.InsertInstanceStudentRow(t, s.ctx, s.db, extra)
@@ -233,7 +234,7 @@ func TestDetectEditedInWindow_StudentRosterRemoval(t *testing.T) {
 	inst := materializeSingleInstance(t, s)
 
 	_, err := s.db.NewDelete().
-		Model((*scheduleModels.InstanceStudent)(nil)).
+		Model((*fixtures.InstanceStudent)(nil)).
 		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
 		Where(`"instance_student".instance_id = ?`, inst.ID).
 		Where(`"instance_student".student_id = ?`, s.students[0]).
@@ -254,9 +255,9 @@ func TestDetectEditedInWindow_StatusDayAbsenceIsRosterMembership(t *testing.T) {
 		status    string
 		substatus string
 	}{
-		{name: "sick", status: absencerecords.StudentStatusDaySick, substatus: scheduleModels.AttendanceSubstatusSick},
-		{name: "excused", status: absencerecords.StudentStatusDayExcused, substatus: scheduleModels.AttendanceSubstatusExcused},
-		{name: "class trip", status: absencerecords.StudentStatusDayClassTrip, substatus: scheduleModels.AttendanceSubstatusFieldTrip},
+		{name: "sick", status: absencerecords.StudentStatusDaySick, substatus: fixtures.AttendanceSubstatusSick()},
+		{name: "excused", status: absencerecords.StudentStatusDayExcused, substatus: fixtures.AttendanceSubstatusExcused()},
+		{name: "class trip", status: absencerecords.StudentStatusDayClassTrip, substatus: fixtures.AttendanceSubstatusFieldTrip()},
 	}
 
 	for _, tc := range statuses {
@@ -279,7 +280,7 @@ func TestDetectEditedInWindow_StatusDayAbsenceIsRosterMembership(t *testing.T) {
 			studentRepo := testInstanceStudents(s.db)
 			before, err := studentRepo.FindByInstanceAndStudent(s.ctx, inst.ID, s.students[0])
 			require.NoError(t, err)
-			assert.Equal(t, scheduleModels.AttendanceStatusAbsent, before.Status)
+			assert.Equal(t, fixtures.AttendanceStatusAbsent(), before.Status)
 			require.NotNil(t, before.Substatus)
 			assert.Equal(t, tc.substatus, *before.Substatus)
 			require.NotNil(t, before.StudentStatusDayID)
@@ -294,7 +295,7 @@ func TestDetectEditedInWindow_StatusDayAbsenceIsRosterMembership(t *testing.T) {
 
 			after, err := studentRepo.FindByInstanceAndStudent(s.ctx, regenerated[0].ID, s.students[0])
 			require.NoError(t, err)
-			assert.Equal(t, scheduleModels.AttendanceStatusAbsent, after.Status)
+			assert.Equal(t, fixtures.AttendanceStatusAbsent(), after.Status)
 			require.NotNil(t, after.Substatus)
 			assert.Equal(t, tc.substatus, *after.Substatus)
 			require.NotNil(t, after.StudentStatusDayID)
@@ -308,20 +309,20 @@ func TestDetectEditedInWindow_AttendanceStateDoesNotChangeRosterMembership(t *te
 
 	tests := []struct {
 		name  string
-		apply func(*scheduleModels.InstanceStudent)
+		apply func(*fixtures.InstanceStudent)
 	}{
-		{name: "observed present", apply: func(row *scheduleModels.InstanceStudent) {
+		{name: "observed present", apply: func(row *fixtures.InstanceStudent) {
 			now := time.Now()
-			row.Status = scheduleModels.AttendanceStatusPresent
+			row.Status = fixtures.AttendanceStatusPresent()
 			row.CheckedInAt = &now
 		}},
-		{name: "manual absent", apply: func(row *scheduleModels.InstanceStudent) {
+		{name: "manual absent", apply: func(row *fixtures.InstanceStudent) {
 			now := time.Now()
-			row.Status = scheduleModels.AttendanceStatusAbsent
+			row.Status = fixtures.AttendanceStatusAbsent()
 			row.ManualStatusAt = &now
 		}},
-		{name: "not scheduled", apply: func(row *scheduleModels.InstanceStudent) {
-			row.Status = scheduleModels.AttendanceStatusExpected
+		{name: "not scheduled", apply: func(row *fixtures.InstanceStudent) {
+			row.Status = fixtures.AttendanceStatusExpected()
 			row.NotScheduled = true
 		}},
 	}
@@ -350,7 +351,7 @@ func TestDetectEditedInWindow_AttendanceStateDoesNotChangeRosterMembership(t *te
 
 			after, err := studentRepo.FindByInstanceAndStudent(s.ctx, regenerated[0].ID, s.students[0])
 			require.NoError(t, err)
-			assert.Equal(t, scheduleModels.AttendanceStatusExpected, after.Status)
+			assert.Equal(t, fixtures.AttendanceStatusExpected(), after.Status)
 			assert.False(t, after.NotScheduled)
 			assert.Nil(t, after.ManualStatusAt)
 			assert.Nil(t, after.CheckedInAt)
@@ -367,7 +368,7 @@ func TestDetectEditedInWindow_StaffRosterEdit(t *testing.T) {
 
 	// Remove the only planned supervisor row → the planned roster diverges.
 	_, err := s.db.NewDelete().
-		Model((*scheduleModels.InstanceStaff)(nil)).
+		Model((*fixtures.InstanceStaff)(nil)).
 		ModelTableExpr(`schedule.instance_staff AS "instance_staff"`).
 		Where(`"instance_staff".instance_id = ?`, inst.ID).
 		Where("tenant_id = ?", s.tenantID).
@@ -393,11 +394,12 @@ func TestDetectEditedInWindow_SubstituteDeviationNotFlagged(t *testing.T) {
 	subStaff := testpkg.CreateTestStaffForTenant(t, s.db, s.tenantID, "Ersatz", "Kraft-1875")
 	s.extraCleanups = append(s.extraCleanups, func() {
 	})
-	sub := &scheduleModels.InstanceStaff{
-		InstanceID:   inst.ID,
-		StaffID:      subStaff.ID,
-		IsSubstitute: true,
-	}
+	sub := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.InstanceID = inst.ID
+		fixtureRow.StaffID = subStaff.ID
+		fixtureRow.IsSubstitute = true
+	})
+
 	sub.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(sub).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 	require.NoError(t, err)
@@ -419,17 +421,18 @@ func TestDetectEditedInWindow_DeletedOccurrence(t *testing.T) {
 	// Delete the occurrence: a cancelled exception is written and the row removed
 	// (mirrors DeleteCancelled). Materialization then skips the date.
 	reason := "Einzeltermin gelöscht"
-	exc := &scheduleModels.ActivityException{
-		ActivityGroupID: s.template.ID,
-		ExceptionDate:   scheduleModels.Date(editWindowStart),
-		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
-		Reason:          &reason,
-	}
+	exc := fixtures.NewActivityException(func(fixtureRow *fixtures.ActivityException) {
+		fixtureRow.ActivityGroupID = s.template.ID
+		fixtureRow.ExceptionDate = calendar.Date(editWindowStart)
+		fixtureRow.ExceptionType = fixtures.ActivityExceptionCancelled()
+		fixtureRow.Reason = &reason
+	})
+
 	exc.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(exc).ModelTableExpr(`schedule.activity_exceptions`).Exec(s.ctx)
 	require.NoError(t, err)
 	_, err = s.db.NewDelete().
-		Model((*scheduleModels.ActivityInstance)(nil)).
+		Model((*fixtures.ActivityInstance)(nil)).
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Where(`"activity_instance".id = ?`, inst.ID).
 		Where("tenant_id = ?", s.tenantID).
@@ -477,12 +480,13 @@ func TestDetectEditedInWindow_ExceptionShiftedStartNotFlagged(t *testing.T) {
 
 	// Modified exception: shift the start to 13:00 for the target date.
 	newStart := time.Date(1, 1, 1, 13, 0, 0, 0, time.UTC)
-	exc := &scheduleModels.ActivityException{
-		ActivityGroupID: s.template.ID,
-		ExceptionDate:   scheduleModels.Date(editWindowStart),
-		ExceptionType:   scheduleModels.ActivityExceptionModified,
-		StartTime:       &newStart,
-	}
+	exc := fixtures.NewActivityException(func(fixtureRow *fixtures.ActivityException) {
+		fixtureRow.ActivityGroupID = s.template.ID
+		fixtureRow.ExceptionDate = calendar.Date(editWindowStart)
+		fixtureRow.ExceptionType = fixtures.ActivityExceptionModified()
+		fixtureRow.StartTime = &newStart
+	})
+
 	exc.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(exc).ModelTableExpr(`schedule.activity_exceptions`).Exec(s.ctx)
 	require.NoError(t, err)
@@ -528,7 +532,7 @@ func TestDetectEditedInWindow_OffRecurrenceDateFlagged(t *testing.T) {
 func setInstanceStaffAbsent(t *testing.T, s *scenarioSetup, instanceID, staffID int64) {
 	t.Helper()
 	_, err := s.db.NewUpdate().
-		Model((*scheduleModels.InstanceStaff)(nil)).
+		Model((*fixtures.InstanceStaff)(nil)).
 		ModelTableExpr(`schedule.instance_staff AS "instance_staff"`).
 		Set("is_absent = ?", true).
 		Where(`"instance_staff".instance_id = ?`, instanceID).
@@ -538,7 +542,7 @@ func setInstanceStaffAbsent(t *testing.T, s *scenarioSetup, instanceID, staffID 
 	require.NoError(t, err)
 }
 
-func testInstanceStudents(db *bun.DB) scheduleModels.InstanceStudentRepository {
+func testInstanceStudents(db *bun.DB) fixtures.InstanceStudentRecords {
 	factory := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
-	return factory.InstanceStudent
+	return fixtures.FromInstanceStudentRecords(factory.InstanceStudent)
 }

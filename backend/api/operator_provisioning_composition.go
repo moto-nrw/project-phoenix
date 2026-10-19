@@ -338,6 +338,6 @@ func operatorPersonStudentMembership(db transactionruntime.Database) operatorPer
 	runtime := peopleCompose.NewLegacyRepositoryRuntime(db.Pool())
 	students := studentDirectoryView.NewReader()
 	return func(ctx context.Context, personIDs []int64) (map[int64]bool, error) {
-		return runtime.OperatorPersonStudentMembership(ctx, students, personIDs)
+		return peopleCompose.OperatorPersonStudentMembership(ctx, runtime, students, personIDs)
 	}
 }

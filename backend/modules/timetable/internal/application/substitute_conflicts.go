@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -17,8 +19,8 @@ import (
 
 // SubstituteConflictDependencies wires the advisory read.
 type SubstituteConflictDependencies struct {
-	Instances     scheduleModel.ActivityInstanceRepository
-	InstanceStaff scheduleModel.InstanceStaffRepository
+	Instances     ports.ActivityInstanceRecords
+	InstanceStaff ports.InstanceStaffRecords
 }
 
 // NewSubstituteConflicts composes the substitute time-overlap advisories.
@@ -30,8 +32,8 @@ func NewSubstituteConflicts(deps SubstituteConflictDependencies) (timetable.Subs
 }
 
 type substituteConflicts struct {
-	instances scheduleModel.ActivityInstanceRepository
-	staff     scheduleModel.InstanceStaffRepository
+	instances ports.ActivityInstanceRecords
+	staff     ports.InstanceStaffRecords
 }
 
 // substitutionWarningProbe is one person whose other same-day assignments
@@ -69,7 +71,7 @@ func (c substituteConflicts) loadSubstitutionWarnings(
 	for _, probe := range probes {
 		staffIDs = append(staffIDs, probe.staffID)
 	}
-	rows, err := c.staff.FindByStaffIDsAndDate(ctx, staffIDs, scheduleModel.Date(date))
+	rows, err := c.staff.FindByStaffIDsAndDate(ctx, staffIDs, calendar.Date(date))
 	if err != nil {
 		return nil, err
 	}

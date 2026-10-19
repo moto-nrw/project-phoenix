@@ -7,11 +7,10 @@ import (
 	"sort"
 	"time"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -421,7 +420,7 @@ func selectPeriod(
 func pinnedPeriodOn(periods []*schedule.CalendarPeriod, pinned int64, date calendar.Date) *schedule.CalendarPeriod {
 	for _, p := range periods {
 		if p.ID == pinned {
-			if p.ContainsDay(schedule.Date(date)) {
+			if p.ContainsDay(calendar.Date(date)) {
 				return p
 			}
 			return nil
@@ -435,7 +434,7 @@ func pinnedPeriodOn(periods []*schedule.CalendarPeriod, pinned int64, date calen
 func periodsContaining(periods []*schedule.CalendarPeriod, date calendar.Date) []*schedule.CalendarPeriod {
 	var matches []*schedule.CalendarPeriod
 	for _, p := range periods {
-		if p.ContainsDay(schedule.Date(date)) {
+		if p.ContainsDay(calendar.Date(date)) {
 			matches = append(matches, p)
 		}
 	}

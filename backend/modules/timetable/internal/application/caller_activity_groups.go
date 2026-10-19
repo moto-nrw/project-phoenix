@@ -3,20 +3,20 @@ package application
 import (
 	"context"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 )
 
 // CallerActivityGroups serves the Identity & Access caller context and the
 // rows it renders the planned activity groups a staff member supervises,
 // read from the retained activity group rows (#3501).
 type CallerActivityGroups struct {
-	groups activitiesModels.GroupRepository
+	groups ports.ActivityGroupRecords
 }
 
 // NewCallerActivityGroups binds the reads to the retained activity groups.
-func NewCallerActivityGroups(groups activitiesModels.GroupRepository) CallerActivityGroups {
+func NewCallerActivityGroups(groups ports.ActivityGroupRecords) CallerActivityGroups {
 	return CallerActivityGroups{groups: groups}
 }
 

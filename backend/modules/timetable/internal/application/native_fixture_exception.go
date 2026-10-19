@@ -3,8 +3,8 @@
 package application
 
 import (
-	models "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	models "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
@@ -12,8 +12,8 @@ type nativeFixtureException struct {
 	fixtureRecord[timetable.ActivityException, models.ActivityException]
 }
 
-func NativeExceptionRecords(rows models.ActivityExceptionRepository) ports.NativeExceptionRecords {
-	return nativeFixtureException{fixtureRecord: fixtureRecord[timetable.ActivityException, models.ActivityException]{rows: rows, encode: encodeFixtureException, decode: decodeFixtureException}}
+func NativeExceptionRecords(rows ports.ActivityExceptionRecords) ports.NativeExceptionRecords {
+	return nativeFixtureException{fixtureRecord: fixtureRecord[timetable.ActivityException, models.ActivityException]{rows: rows, find: fixtureFind(rows.FindByID), encode: encodeFixtureException, decode: decodeFixtureException}}
 }
 func encodeFixtureException(value *timetable.ActivityException) (*models.ActivityException, error) {
 	if value == nil {

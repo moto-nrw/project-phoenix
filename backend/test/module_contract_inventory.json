@@ -103,9 +103,9 @@
   },
   {
     "module": "scheduler-runtime",
-    "contract_package": "services/scheduler",
-    "test_file": "services/scheduler/public_contract_test.go",
-    "test": "TestPublicSchedulerContractStartsRequiredJobsInOrderAndOwnsInventory"
+    "contract_package": "modules/schedulerruntime/ports",
+    "test_file": "modules/schedulerruntime/ports/worker_lease_test.go",
+    "test": "TestNewWorkerLeaseOwnsTheTimingAndAFreshHolder"
   },
   {
     "module": "school-calendar",

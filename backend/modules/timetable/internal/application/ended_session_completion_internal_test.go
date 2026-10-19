@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -26,7 +26,7 @@ type endedSessionInstancesStub struct {
 	updated   []endedSessionUpdate
 }
 
-func (f *endedSessionInstancesStub) List(context.Context, *ActivityInstanceQueryOptions) ([]*scheduleModels.ActivityInstance, error) {
+func (f *endedSessionInstancesStub) ListInstances(context.Context, ports.LegacyInstanceFilter) ([]*scheduleModels.ActivityInstance, error) {
 	return f.instances, nil
 }
 
@@ -105,7 +105,7 @@ func (careDaysStub) ExemptFromAbsence(status timetable.CareDayStatus) bool {
 }
 
 func endedInstance(id int64, date calendar.Date) *scheduleModels.ActivityInstance {
-	instance := &scheduleModels.ActivityInstance{Date: scheduleModels.Date(date), Title: "Hausaufgaben"}
+	instance := &scheduleModels.ActivityInstance{Date: calendar.Date(date), Title: "Hausaufgaben"}
 	instance.ID = id
 	return instance
 }

@@ -8,9 +8,9 @@ import (
 	"log/slog"
 	"slices"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -106,7 +106,7 @@ func newActivityInstance(tenantID int64, req timetable.CreateInstanceInput, idem
 		isSpontaneous = *req.IsSpontaneous
 	}
 	inst := &scheduleModel.ActivityInstance{
-		Date:                   scheduleModel.Date(req.Date),
+		Date:                   calendar.Date(req.Date),
 		StartTime:              req.StartTime,
 		EndTime:                req.EndTime,
 		Title:                  req.Title,
@@ -202,9 +202,7 @@ func (s *InstanceLifecycleService) insertCreatedInstance(ctx context.Context, in
 }
 
 func (s *InstanceLifecycleService) findCreateByIdempotencyKey(ctx context.Context, key string) (*scheduleModel.ActivityInstance, error) {
-	options := domain.NewListOptions().WithPagination(1, 1)
-	options.Filter.Equal("idempotency_key", key)
-	instances, err := legacyList[*scheduleModel.ActivityInstance](ctx, s.deps.InstanceRepo, options)
+	instances, err := listInstances(ctx, s.deps.InstanceRepo, ports.LegacyInstanceFilter{IdempotencyKey: key, Limit: 1})
 	if err != nil || len(instances) == 0 {
 		return nil, err
 	}

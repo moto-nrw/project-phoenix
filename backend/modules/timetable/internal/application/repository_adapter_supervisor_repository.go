@@ -7,8 +7,8 @@ import (
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	activitiesModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/activityrecords"
 )
 
 type timetableActivitySupervisorRepository struct{ timetable timetable.Capability }
@@ -28,7 +28,7 @@ func (r timetableActivitySupervisorRepository) Create(ctx context.Context, super
 	return nil
 }
 
-func (r timetableActivitySupervisorRepository) FindByID(ctx context.Context, id any) (*activityContract.SupervisorPlanned, error) {
+func (r timetableActivitySupervisorRepository) FindByID(ctx context.Context, id int64) (*activityContract.SupervisorPlanned, error) {
 	supervisorID, ok := LegacyGroupID(id)
 	if !ok {
 		return nil, legacyDatabaseError("find by id", fmt.Errorf("invalid planned supervisor id %T", id))
@@ -55,7 +55,7 @@ func (r timetableActivitySupervisorRepository) Update(ctx context.Context, super
 	return nil
 }
 
-func (r timetableActivitySupervisorRepository) Delete(ctx context.Context, id any) error {
+func (r timetableActivitySupervisorRepository) Delete(ctx context.Context, id int64) error {
 	supervisorID, ok := LegacyGroupID(id)
 	if !ok {
 		return legacyDatabaseError("delete", fmt.Errorf("invalid planned supervisor id %T", id))
@@ -64,17 +64,6 @@ func (r timetableActivitySupervisorRepository) Delete(ctx context.Context, id an
 		return legacyDatabaseError("delete", err)
 	}
 	return nil
-}
-
-func (r timetableActivitySupervisorRepository) List(ctx context.Context, options *activitiesModels.SupervisorQueryOptions) ([]*activityContract.SupervisorPlanned, error) {
-	if options != nil {
-		return nil, legacyDatabaseError("list", errors.New("planned supervisor filters are unsupported"))
-	}
-	values, err := r.timetable.ListPlannedSupervisors(ctx, timetable.PlannedSupervisorFilter{})
-	if err != nil {
-		return nil, legacyPlannedSupervisorError("list", err)
-	}
-	return legacyPlannedSupervisors(values), nil
 }
 
 func (r timetableActivitySupervisorRepository) FindByStaffID(ctx context.Context, staffID int64) ([]*activityContract.SupervisorPlanned, error) {

@@ -6,10 +6,10 @@ import (
 	"time"
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -49,17 +49,21 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	foreignRoom := testpkg.CreateTestRoomForTenant(t, db, foreignTenantID, "Coverage-Foreign")
 	repos, err := api.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
-	shiftRows := repos.StaffShift
+	shiftRows := fixtures.FromWorkforceShiftRows(repos.StaffShift)
 	localCtx := testpkg.Ctx(t)
 	foreignCtx := testpkg.TenantContext(foreignTenantID)
 
-	period := &scheduleModel.CalendarPeriod{
-		Name:       fmt.Sprintf("Coverage projection %d", time.Now().UnixNano()),
-		PeriodType: scheduleModel.PeriodTypeSchoolYear,
-		StartDate:  scheduleModel.Date(monday), EndDate: scheduleModel.Date(nextWednesday), WeekCycleLength: 1, IsActive: true,
-	}
+	period := fixtures.NewCalendarPeriod(func(fixtureRow *fixtures.CalendarPeriod) {
+		fixtureRow.Name = fmt.Sprintf("Coverage projection %d", time.Now().UnixNano())
+		fixtureRow.PeriodType = fixtures.PeriodTypeSchoolYear()
+		fixtureRow.StartDate = calendar.Date(monday)
+		fixtureRow.EndDate = calendar.Date(nextWednesday)
+		fixtureRow.WeekCycleLength = 1
+		fixtureRow.IsActive = true
+	})
+
 	period.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.CalendarPeriod.Create(localCtx, period))
+	require.NoError(t, fixtures.FromCalendarPeriodRecords(repos.CalendarPeriod).Create(localCtx, period))
 	validFrom := activityContract.Date(friday)
 	localSchedule := &activityContract.Schedule{
 		Weekday: activityContract.WeekdayMonday, ActivityGroupID: localGroup.ID,
@@ -75,57 +79,84 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 
 	for _, date := range []calendar.Date{monday, nextMonday} {
 		groupID := localGroup.ID
-		instance := &scheduleModel.ActivityInstance{
-			Date: scheduleModel.Date(date), ActivityGroupID: &groupID, Title: "Coverage block",
-			StartTime: seriesClock(t, "09:00"), EndTime: seriesClock(t, "10:00"),
-			RoomID: localRoom.ID, Status: scheduleModel.InstanceStatusPlanned,
-		}
+		instance := fixtures.NewActivityInstance(func(fixtureRow *fixtures.ActivityInstance) {
+			fixtureRow.Date = calendar.Date(date)
+			fixtureRow.ActivityGroupID = &groupID
+			fixtureRow.Title = "Coverage block"
+			fixtureRow.StartTime = seriesClock(t, "09:00")
+			fixtureRow.EndTime = seriesClock(t, "10:00")
+			fixtureRow.RoomID = localRoom.ID
+			fixtureRow.Status = fixtures.InstanceStatusPlanned()
+		})
+
 		instance.SetTenantID(testpkg.Tenant(t))
-		require.NoError(t, repos.ActivityInstance.Create(localCtx, instance))
-		for _, assignment := range []*scheduleModel.InstanceStaff{
-			{InstanceID: instance.ID, StaffID: localBase.ID, IsAbsent: true},
-			{InstanceID: instance.ID, StaffID: localSub.ID, IsSubstitute: true},
+		require.NoError(t, fixtures.FromActivityInstanceRecords(repos.ActivityInstance).Create(localCtx, instance))
+		for _, assignment := range []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+			fixtureRow.InstanceID = instance.ID
+			fixtureRow.StaffID = localBase.ID
+			fixtureRow.IsAbsent = true
+		}), fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+			fixtureRow.InstanceID = instance.ID
+			fixtureRow.StaffID = localSub.ID
+			fixtureRow.IsSubstitute = true
+		}),
 		} {
 			assignment.SetTenantID(testpkg.Tenant(t))
-			require.NoError(t, repos.InstanceStaff.Create(localCtx, assignment))
+			require.NoError(t, fixtures.FromInstanceStaffRecords(repos.InstanceStaff).Create(localCtx, assignment))
 		}
-		shift := &scheduleModel.StaffShift{
-			StaffID: localSub.ID, Date: scheduleModel.Date(date),
-			StartTime: seriesClock(t, "09:00"), EndTime: seriesClock(t, "10:00"),
-			CreatedBy: localSub.ID,
-		}
+		shift := fixtures.NewStaffShift(func(fixtureRow *fixtures.StaffShift) {
+			fixtureRow.StaffID = localSub.ID
+			fixtureRow.Date = calendar.Date(date)
+			fixtureRow.StartTime = seriesClock(t, "09:00")
+			fixtureRow.EndTime = seriesClock(t, "10:00")
+			fixtureRow.CreatedBy = localSub.ID
+		})
+
 		shift.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, shiftRows.Create(localCtx, shift))
 	}
-	localException := &scheduleModel.ActivityException{
-		ActivityGroupID: localGroup.ID, ExceptionDate: scheduleModel.Date(friday),
-		ExceptionType: scheduleModel.ActivityExceptionCancelled,
-	}
+	localException := fixtures.NewActivityException(func(fixtureRow *fixtures.ActivityException) {
+		fixtureRow.ActivityGroupID = localGroup.ID
+		fixtureRow.ExceptionDate = calendar.Date(friday)
+		fixtureRow.ExceptionType = fixtures.ActivityExceptionCancelled()
+	})
+
 	localException.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.ActivityException.Create(localCtx, localException))
+	require.NoError(t, fixtures.FromActivityExceptionRecords(repos.ActivityException).Create(localCtx, localException))
 
 	foreignGroupID := foreignGroup.ID
-	foreignInstance := &scheduleModel.ActivityInstance{
-		Date: scheduleModel.Date(monday), ActivityGroupID: &foreignGroupID, Title: "Foreign coverage block",
-		StartTime: seriesClock(t, "09:00"), EndTime: seriesClock(t, "10:00"),
-		RoomID: foreignRoom.ID, Status: scheduleModel.InstanceStatusPlanned,
-	}
-	foreignInstance.SetTenantID(foreignTenantID)
-	require.NoError(t, repos.ActivityInstance.Create(foreignCtx, foreignInstance))
-	foreignAssignment := &scheduleModel.InstanceStaff{InstanceID: foreignInstance.ID, StaffID: foreignStaff.ID, IsSubstitute: true}
-	foreignAssignment.SetTenantID(foreignTenantID)
-	require.NoError(t, repos.InstanceStaff.Create(foreignCtx, foreignAssignment))
-	foreignException := &scheduleModel.ActivityException{
-		ActivityGroupID: foreignGroup.ID, ExceptionDate: scheduleModel.Date(wednesday),
-		ExceptionType: scheduleModel.ActivityExceptionCancelled,
-	}
-	foreignException.SetTenantID(foreignTenantID)
-	require.NoError(t, repos.ActivityException.Create(foreignCtx, foreignException))
+	foreignInstance := fixtures.NewActivityInstance(func(fixtureRow *fixtures.ActivityInstance) {
+		fixtureRow.Date = calendar.Date(monday)
+		fixtureRow.ActivityGroupID = &foreignGroupID
+		fixtureRow.Title = "Foreign coverage block"
+		fixtureRow.StartTime = seriesClock(t, "09:00")
+		fixtureRow.EndTime = seriesClock(t, "10:00")
+		fixtureRow.RoomID = foreignRoom.ID
+		fixtureRow.Status = fixtures.InstanceStatusPlanned()
+	})
 
-	foreignInstances, err := repos.ActivityInstance.FindByActivityGroupAndDateRange(localCtx, foreignGroup.ID, scheduleModel.Date(monday), scheduleModel.Date(nextWednesday))
+	foreignInstance.SetTenantID(foreignTenantID)
+	require.NoError(t, fixtures.FromActivityInstanceRecords(repos.ActivityInstance).Create(foreignCtx, foreignInstance))
+	foreignAssignment := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.InstanceID = foreignInstance.ID
+		fixtureRow.StaffID = foreignStaff.ID
+		fixtureRow.IsSubstitute = true
+	})
+	foreignAssignment.SetTenantID(foreignTenantID)
+	require.NoError(t, fixtures.FromInstanceStaffRecords(repos.InstanceStaff).Create(foreignCtx, foreignAssignment))
+	foreignException := fixtures.NewActivityException(func(fixtureRow *fixtures.ActivityException) {
+		fixtureRow.ActivityGroupID = foreignGroup.ID
+		fixtureRow.ExceptionDate = calendar.Date(wednesday)
+		fixtureRow.ExceptionType = fixtures.ActivityExceptionCancelled()
+	})
+
+	foreignException.SetTenantID(foreignTenantID)
+	require.NoError(t, fixtures.FromActivityExceptionRecords(repos.ActivityException).Create(foreignCtx, foreignException))
+
+	foreignInstances, err := fixtures.FromActivityInstanceRecords(repos.ActivityInstance).FindByActivityGroupAndDateRange(localCtx, foreignGroup.ID, calendar.Date(monday), calendar.Date(nextWednesday))
 	require.NoError(t, err)
 	assert.Empty(t, foreignInstances, "superuser test connection must still honor tenant filtering")
-	foreignExceptions, err := repos.ActivityException.FindByActivityGroupAndDateRange(localCtx, foreignGroup.ID, scheduleModel.Date(monday), scheduleModel.Date(nextWednesday))
+	foreignExceptions, err := fixtures.FromActivityExceptionRecords(repos.ActivityException).FindByActivityGroupAndDateRange(localCtx, foreignGroup.ID, calendar.Date(monday), calendar.Date(nextWednesday))
 	require.NoError(t, err)
 	assert.Empty(t, foreignExceptions, "foreign exceptions must not cross the tenant boundary")
 	foreignSchedules, err := repos.ActivitySchedule.FindByGroupID(localCtx, foreignGroup.ID)

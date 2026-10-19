@@ -15,8 +15,8 @@ import (
 // unnoticed (deleted in slice A3). This ratchet re-runs the audit's detection
 // continuously.
 //
-// Mechanism: every method declared in a models/*/repository.go interface (plus
-// models/config/setting_value_repository.go) must have at least one textual
+// Mechanism: every method declared in the native Timetable persistence
+// interfaces (relocated from the final models repositories) must have a textual
 // caller `.Name(` in non-test Go outside models/ and database/ — i.e. a
 // service, api, cmd, seed, or scheduler call site. A method with ZERO textual
 // hits anywhere is either dead or test-only and must appear in the allowlist
@@ -93,14 +93,14 @@ func TestRepoInterfaceMethodCallerRatchet(t *testing.T) {
 }
 
 // collectRepoInterfaceMethods parses method declarations out of every
-// interface block in models/*/repository.go (+ the config setting-value
-// repository file), returning the deduplicated, sorted method-name list.
+// interface block in the two native persistence files (+ the historical
+// config path), returning the deduplicated, sorted method-name list.
 func collectRepoInterfaceMethods(t *testing.T, backendRoot string) []string {
 	t.Helper()
 
-	files, globErr := filepath.Glob(filepath.Join(backendRoot, "models", "*", "repository.go"))
+	files, globErr := filepath.Glob(filepath.Join(backendRoot, "modules", "timetable", "ports", "*_persistence.go"))
 	if globErr != nil {
-		t.Fatalf("glob models repositories: %v", globErr)
+		t.Fatalf("glob native persistence capabilities: %v", globErr)
 	}
 	files = append(files, filepath.Join(backendRoot, "models", "config", "setting_value_repository.go"))
 

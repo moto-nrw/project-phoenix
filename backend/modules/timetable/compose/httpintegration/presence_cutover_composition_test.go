@@ -7,8 +7,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,11 +23,10 @@ import (
 // transaction, so an abort after the last command, or a Presence command
 // that fails after the plan was written, leaves neither half behind.
 
-func presenceCutoverInstance(t *testing.T, title string, activityID *int64, roomID, activeGroupID int64, startHour int) *scheduleModels.ActivityInstance {
+func presenceCutoverInstance(t *testing.T, title string, activityID *int64, roomID, activeGroupID int64, startHour int) *fixtures.ActivityInstance {
 	t.Helper()
-	instance := buildInstance(testpkg.Tenant(t), roomID, activityID, scheduleModels.NewDate(2026, 9, 22),
-		time.Date(2000, 1, 1, startHour, 0, 0, 0, time.UTC), time.Date(2000, 1, 1, startHour+1, 0, 0, 0, time.UTC), title)
-	instance.Status = scheduleModels.InstanceStatusActive
+	instance := buildInstance(testpkg.Tenant(t), roomID, activityID, calendar.NewDate(2026, 9, 22), time.Date(2000, 1, 1, startHour, 0, 0, 0, time.UTC), time.Date(2000, 1, 1, startHour+1, 0, 0, 0, time.UTC), title)
+	instance.Status = fixtures.InstanceStatusActive()
 	instance.ActiveGroupID = &activeGroupID
 	return instance
 }
@@ -46,7 +46,7 @@ func TestActivityInstanceCreateInExecutionStateJoinsTheCallerTransaction(t *test
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance
+	repo := fixtures.FromActivityInstanceRecords(api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance)
 	fx := newActivityInstanceFixtures(t, db, "cutover-uow")
 	defer fx.cleanup()
 	group := testpkg.CreateTestActiveGroup(t, db, fx.activityID, fx.roomID)
@@ -55,7 +55,7 @@ func TestActivityInstanceCreateInExecutionStateJoinsTheCallerTransaction(t *test
 	err := testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
 		instance := presenceCutoverInstance(t, "UoW abort", &fx.activityID, fx.roomID, group.ID, 14)
 		require.NoError(t, repo.Create(txCtx, instance))
-		require.Equal(t, scheduleModels.InstanceStatusActive, instance.Status, "the reloaded DTO shows the execution")
+		require.Equal(t, fixtures.InstanceStatusActive(), instance.Status, "the reloaded DTO shows the execution")
 		require.NotNil(t, instance.ActiveGroupID)
 		require.Equal(t, group.ID, *instance.ActiveGroupID)
 		instances, sessions := countPresenceCutoverRows(t, tx, txCtx, "UoW abort")
@@ -73,7 +73,7 @@ func TestActivityInstanceCreateRollsBackThePlanWhenTheSessionCannotStart(t *test
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance
+	repo := fixtures.FromActivityInstanceRecords(api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance)
 	fx := newActivityInstanceFixtures(t, db, "cutover-failure")
 	defer fx.cleanup()
 	group := testpkg.CreateTestActiveGroup(t, db, fx.activityID, fx.roomID)

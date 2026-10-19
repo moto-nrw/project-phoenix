@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -70,7 +70,7 @@ func edPristineInstance() *scheduleModel.ActivityInstance {
 	return &scheduleModel.ActivityInstance{
 		Title:            edTitle,
 		Notes:            nil,
-		Date:             scheduleModel.Date(edWednesday),
+		Date:             calendar.Date(edWednesday),
 		StartTime:        edClock(15, 0),
 		EndTime:          edClock(16, 0),
 		RoomID:           edRoomA,

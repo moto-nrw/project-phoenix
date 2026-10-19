@@ -7,9 +7,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -43,7 +43,7 @@ func TestTimetableOperationsPlannedNowQueryBudget(t *testing.T) {
 			})
 			student := testpkg.CreateTestStudent(t, db, "PlannedBudget", fmt.Sprintf("Student%d", created), "PB1")
 			testpkg.CreateTestInstanceStaff(t, db, instance.ID, staff.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
-			testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, scheduleModels.AttendanceStatusExpected)
+			testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, fixtures.AttendanceStatusExpected())
 			created++
 		}
 	}
@@ -87,9 +87,9 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testp
 	deps.PlanningTracks = nil
 	deps.Now = func() time.Time { return now }
 	rows := compose.OwnerRows{
-		Instances:       timetableRepos.ActivityInstance,
-		InstanceStaff:   timetableRepos.InstanceStaff,
-		Participants:    timetableRepos.InstanceStudent,
+		Instances:       fixtures.IntoActivityInstanceRecords(fixtures.FromActivityInstanceRecords(timetableRepos.ActivityInstance)),
+		InstanceStaff:   fixtures.IntoInstanceStaffRecords(fixtures.FromInstanceStaffRecords(timetableRepos.InstanceStaff)),
+		Participants:    fixtures.IntoInstanceStudentRecords(fixtures.FromInstanceStudentRecords(timetableRepos.InstanceStudent)),
 		Templates:       timetableRepos.ActivityGroup,
 		Students:        api.NewTimetableRosterStudents(repos.Student),
 		EducationGroups: api.TimetableEducationGroupNames(reposStructure.Group),
@@ -97,7 +97,7 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testp
 	}
 	templates, err := rows.OperationTemplates()
 	require.NoError(t, err)
-	deps.Instances, deps.InstanceStaff, deps.Participants = rows.Instances, rows.InstanceStaff, rows.Participants
+	deps.Instances, deps.InstanceStaff, deps.Participants = fixtures.IntoOperationInstances(fixtures.FromActivityInstanceRecords(rows.Instances)), fixtures.IntoOperationInstanceStaff(fixtures.FromInstanceStaffRecords(rows.InstanceStaff)), fixtures.IntoOperationParticipants(fixtures.FromInstanceStudentRecords(rows.Participants))
 	deps.Templates, deps.Students = templates, rows.Students
 	deps.EducationGroups, deps.Rooms = rows.EducationGroups, rows.Rooms
 	operations, err := compose.NewOperations(deps, api.TimetableOperationCaller{RequestSession: deps.Session})
