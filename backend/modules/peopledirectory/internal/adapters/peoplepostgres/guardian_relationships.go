@@ -201,6 +201,10 @@ const insertRelationshipIfAbsentSQL = `INSERT INTO users.student_guardian_relati
 // portal account the guardian profile names, which the access row binds.
 func (r *GuardianRelationshipRepository) insertRelationship(ctx context.Context, rel *users.StudentGuardian, ifAbsent bool) (int64, *int64, error) {
 	db := r.runtime.DB(ctx)
+	if _, err := db.NewRaw(`UPDATE users.guardian_profiles SET childless_since = NULL
+		WHERE tenant_id = ? AND id = ?`, rel.TenantID, rel.GuardianProfileID).Exec(ctx); err != nil {
+		return 0, nil, fmt.Errorf("clear linked guardian retention mark: %w", err)
+	}
 	if rel.IsPrimary {
 		demote := func() error { return demoteOtherPrimaries(ctx, db, rel.TenantID, rel.StudentID, 0) }
 		if ifAbsent {

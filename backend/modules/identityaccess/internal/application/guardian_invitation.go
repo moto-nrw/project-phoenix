@@ -40,6 +40,13 @@ func (l *AccountLifecycle) CreateGuardianInvitation(ctx context.Context, request
 		profile    domain.GuardianProfile
 	)
 	err := l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		locked, lockErr := l.guardians.LockGuardianProfile(txCtx, request.GuardianProfileID)
+		if lockErr != nil {
+			return failed(opGuardianInviteCreate, lockErr)
+		}
+		if !locked {
+			return failed(opGuardianInviteCreate, fmt.Errorf("guardian profile not found"))
+		}
 		var found bool
 		var findErr error
 		profile, found, findErr = l.guardians.FindGuardianProfile(txCtx, request.GuardianProfileID)

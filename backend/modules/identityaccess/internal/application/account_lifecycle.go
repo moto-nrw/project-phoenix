@@ -218,6 +218,10 @@ func (d GuardianDirectory) FindGuardianProfile(ctx context.Context, id int64) (d
 	return domain.GuardianProfile(profile), found, err
 }
 
+func (d GuardianDirectory) LockGuardianProfile(ctx context.Context, id int64) (bool, error) {
+	return d.Source.LockGuardianProfile(ctx, id)
+}
+
 func (d GuardianDirectory) FindGuardianProfiles(ctx context.Context, ids []int64) (map[int64]domain.GuardianProfile, error) {
 	profiles, err := d.Source.FindGuardianProfiles(ctx, ids)
 	if err != nil {

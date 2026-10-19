@@ -59,12 +59,15 @@ func TestLinkInvitedGuardianWritesTheDefaultPresetOnce(t *testing.T) {
 	guardian := testpkg.CreateTestGuardianProfileForTenant(t, db, tenantID, "Invited", "Parent", "lifecycle-invited")
 	account := testpkg.CreateTestAccount(t, db, "lifecycle-invited-account")
 	require.NoError(t, module.LinkGuardianProfileToAccount(ctx, guardian.ID, account.ID))
+	_, err := db.NewRaw(`UPDATE users.guardian_profiles SET childless_since = NOW() - INTERVAL '120 days' WHERE id = ?`, guardian.ID).Exec(ctx)
+	require.NoError(t, err)
 
 	created, err := module.LinkInvitedGuardian(ctx, peopledirectory.InvitedGuardianLink{
 		StudentID: student.ID, GuardianProfileID: guardian.ID, RelationshipType: "Parent",
 	})
 	require.NoError(t, err)
 	require.True(t, created)
+	assert.Nil(t, childlessSince(t, db, guardian.ID), "a new child link starts a future childless period anew")
 	require.Equal(t, 3, countLinkHalves(t, db, student.ID, guardian.ID))
 	stored := readGuardianLink(t, db, student.ID, guardian.ID)
 	assert.Equal(t, tenantID, stored.TenantID)

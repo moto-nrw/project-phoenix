@@ -526,12 +526,13 @@ func (a *lifecycleAdmin) DeactivateAccount(_ context.Context, accountID int64) e
 // --- guardian directory, invitations, delivery -----------------------------------
 
 type lifecycleGuardians struct {
-	profiles map[int64]domain.GuardianProfile
-	links    map[int64]domain.StudentGuardianLink
-	students map[int64]domain.Student
-	names    map[int64]domain.PersonName
-	locked   []int64
-	nextID   int64
+	profiles       map[int64]domain.GuardianProfile
+	links          map[int64]domain.StudentGuardianLink
+	students       map[int64]domain.Student
+	names          map[int64]domain.PersonName
+	locked         []int64
+	lockedProfiles []int64
+	nextID         int64
 
 	findProfileErr   error
 	createProfileErr error
@@ -594,6 +595,12 @@ func (g *lifecycleGuardians) FindGuardianProfile(_ context.Context, id int64) (d
 	}
 	profile, ok := g.profiles[id]
 	return profile, ok, nil
+}
+
+func (g *lifecycleGuardians) LockGuardianProfile(_ context.Context, id int64) (bool, error) {
+	g.lockedProfiles = append(g.lockedProfiles, id)
+	_, found := g.profiles[id]
+	return found, nil
 }
 
 func (g *lifecycleGuardians) FindGuardianProfiles(_ context.Context, ids []int64) (map[int64]domain.GuardianProfile, error) {

@@ -105,6 +105,7 @@ type PasswordPolicy interface {
 type GuardianDirectory interface {
 	FindGuardianProfileByEmail(ctx context.Context, email string) (domain.GuardianProfile, bool, error)
 	FindGuardianProfile(ctx context.Context, id int64) (domain.GuardianProfile, bool, error)
+	LockGuardianProfile(ctx context.Context, id int64) (bool, error)
 	FindGuardianProfiles(ctx context.Context, ids []int64) (map[int64]domain.GuardianProfile, error)
 	CreateGuardianProfile(ctx context.Context, profile domain.GuardianProfile) (int64, error)
 	DeleteGuardianProfile(ctx context.Context, id int64) error

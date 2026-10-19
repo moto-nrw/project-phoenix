@@ -81,6 +81,22 @@ func (s *GuardianStore) GuardianHasLinks(ctx context.Context, guardianID int64) 
 	return linked, stats, nil
 }
 
+// ClearChildlessSince marks a profile as linked before the relationship is
+// inserted. The row lock serializes this write with retention's SKIP LOCKED
+// selection, so an unlink later starts the retention window at its next run.
+func (s *GuardianStore) ClearChildlessSince(ctx context.Context, guardianID int64) (domain.OperationStats, error) {
+	db, tenantID, err := s.tenantDB(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	_, stats, err := exec(ctx, "clear linked guardian retention mark", db.NewUpdate().
+		TableExpr("users.guardian_profiles").
+		Set("childless_since = NULL").
+		Where("tenant_id = ?", tenantID).
+		Where("id = ?", guardianID).Exec)
+	return stats, err
+}
+
 // SetGuardianAccount writes account_id and has_account together.
 func (s *GuardianStore) SetGuardianAccount(ctx context.Context, guardianID int64, accountID *int64) (bool, domain.OperationStats, error) {
 	db, tenantID, err := s.tenantDB(ctx)

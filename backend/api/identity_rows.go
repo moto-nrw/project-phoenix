@@ -47,6 +47,7 @@ type guardianProfileRows interface {
 	FindByID(ctx context.Context, id int64) (*peopleValues.GuardianProfileSnapshot, error)
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.GuardianProfileSnapshot, error)
 	FindByEmail(ctx context.Context, email string) (*peopleValues.GuardianProfileSnapshot, error)
+	LockByIDForUpdate(ctx context.Context, id int64) error
 }
 
 type studentGuardianRows interface {

@@ -246,6 +246,8 @@ func TestGuardianLinkCommandsInsertOnceAndPatchOnlySuppliedColumns(t *testing.T)
 	tenantID := testpkg.Tenant(t)
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Lina", "Link", "1a")
 	guardian := testpkg.CreateTestGuardianProfileForTenant(t, db, tenantID, "Lars", "Link", "portal-link")
+	_, err := db.NewRaw(`UPDATE users.guardian_profiles SET childless_since = NOW() - INTERVAL '120 days' WHERE id = ?`, guardian.ID).Exec(ctx)
+	require.NoError(t, err)
 
 	link := peopledirectory.GuardianContactLink{
 		StudentID: student.ID, GuardianProfileID: guardian.ID, RelationshipType: "Relative",
@@ -254,6 +256,7 @@ func TestGuardianLinkCommandsInsertOnceAndPatchOnlySuppliedColumns(t *testing.T)
 	linkID, inserted, err := module.LinkGuardianContact(ctx, link)
 	require.NoError(t, err)
 	require.True(t, inserted)
+	assert.Nil(t, childlessSince(t, db, guardian.ID), "a new child link starts a future childless period anew")
 	stored := readGuardianLink(t, db, student.ID, guardian.ID)
 	assert.Equal(t, stored.ID, linkID, "the new relationship's ID is returned")
 	assert.Equal(t, tenantID, stored.TenantID)
