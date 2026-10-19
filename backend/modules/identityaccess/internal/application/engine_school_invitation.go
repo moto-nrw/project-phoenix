@@ -45,6 +45,30 @@ func (e engine) ValidateSchoolInvitation(ctx context.Context, token string) (ide
 	}, invitationError(err)
 }
 
+func (e engine) FindFormerEmployment(ctx context.Context, email string) (identityaccess.FormerEmployment, bool, error) {
+	if e.invitations == nil {
+		return identityaccess.FormerEmployment{}, false, errSchoolInvitationUnavailable
+	}
+	former, found, err := e.invitations.FindFormerEmployment(e.attach(ctx), email)
+	if err != nil || !found {
+		return identityaccess.FormerEmployment{}, false, invitationError(err)
+	}
+	return identityaccess.FormerEmployment{
+		StartedOn: former.StartedOn, EndedOn: former.EndedOn,
+		Resumes: []identityaccess.FormerEmploymentPart{
+			identityaccess.FormerEmploymentMasterData,
+			identityaccess.FormerEmploymentQualifications,
+			identityaccess.FormerEmploymentWorkTime,
+			identityaccess.FormerEmploymentPastShiftsAndAbsences,
+		},
+		NotReturning: []identityaccess.FormerEmploymentPart{
+			identityaccess.FormerEmploymentStaffDocuments,
+			identityaccess.FormerEmploymentFutureShiftsAndAbsences,
+			identityaccess.FormerEmploymentGroupsClassesSubstitutions,
+		},
+	}, true, nil
+}
+
 func (e engine) AcceptSchoolInvitation(ctx context.Context, token string, registration identityaccess.InvitationRegistration) (identityaccess.Account, error) {
 	if e.invitations == nil {
 		return identityaccess.Account{}, errSchoolInvitationUnavailable

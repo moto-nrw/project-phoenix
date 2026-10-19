@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Account lifecycle facts and decisions (#3225): the admin staff-view preview,
@@ -12,12 +14,24 @@ import (
 // contract the retained auth service established.
 
 // StaffMember is the users.staff fact the module reads through the staff
-// directory port.
+// directory port. FindStaffByPerson also reports when the membership was
+// created and retired, and Erased for a retired membership the automatic
+// deletion of staff erased, which no invitation continues.
 type StaffMember struct {
-	ID       int64
-	TenantID int64
-	PersonID int64
-	Deleted  bool
+	ID        int64
+	TenantID  int64
+	PersonID  int64
+	Deleted   bool
+	StartedAt time.Time
+	RetiredAt *time.Time
+	Erased    bool
+}
+
+// FormerEmployment is the retired membership an invitation to the person's
+// address would continue at the school (ADR 0021).
+type FormerEmployment struct {
+	StartedOn calendar.Date
+	EndedOn   calendar.Date
 }
 
 // PersonRecord is the users.persons fact the module reads and, for the school

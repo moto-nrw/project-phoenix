@@ -19,6 +19,7 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
 
 const mockGetRoles = vi.fn();
 const mockCreateInvitation = vi.fn();
+const mockFindFormerEmployment = vi.fn();
 
 vi.mock("~/lib/auth-service", () => ({
   authService: {
@@ -28,6 +29,8 @@ vi.mock("~/lib/auth-service", () => ({
 
 vi.mock("~/lib/invitation-api", () => ({
   createInvitation: (data: unknown): unknown => mockCreateInvitation(data),
+  findFormerEmployment: (email: unknown): unknown =>
+    mockFindFormerEmployment(email),
 }));
 
 vi.mock("~/lib/auth-helpers", () => {
@@ -65,6 +68,7 @@ describe("InvitationForm", () => {
       email: "test@example.com",
       token: "abc123",
     });
+    mockFindFormerEmployment.mockResolvedValue(null);
   });
 
   it("shows loading state while fetching roles", async () => {
@@ -573,5 +577,132 @@ describe("InvitationForm", () => {
         );
       });
     });
+  });
+});
+
+// Before an invitation goes out, the dialog says whether the address belongs
+// to a former employment at this school and what a Wiederaufnahme brings
+// back (ADR 0021, #3402).
+describe("InvitationForm former employment hint", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetRoles.mockResolvedValue(mockRoles);
+    mockFindFormerEmployment.mockResolvedValue(null);
+  });
+
+  const typeEmail = async (value: string) => {
+    render(<InvitationForm />);
+    await waitFor(() => {
+      expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
+    });
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value },
+    });
+  };
+
+  it("names the period, what comes back and what does not", async () => {
+    mockFindFormerEmployment.mockResolvedValue({
+      startedOn: "2024-08-01",
+      endedOn: "2026-07-31",
+      resumes: [
+        "master_data",
+        "qualifications",
+        "work_time",
+        "past_shifts_and_absences",
+      ],
+      notReturning: [
+        "staff_documents",
+        "future_shifts_and_absences",
+        "groups_classes_substitutions",
+      ],
+    });
+
+    await typeEmail(" Former@Example.com ");
+
+    expect(
+      await screen.findByText("Diese Person war schon bei Ihnen beschäftigt"),
+    ).toBeInTheDocument();
+    expect(mockFindFormerEmployment).toHaveBeenCalledWith("former@example.com");
+    expect(
+      screen.getByText("In moto eingetragen vom 01.08.2024 bis 31.07.2026."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Stammdaten, Qualifikationen, Stundenkonto, Urlaub und Arbeitszeitmodell, vergangene Schichten und Abwesenheiten",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Dokumente, künftige Schichten und Abwesenheiten, Gruppen, Klassen und Vertretungen",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("looks nothing like a hint when there is no former employment", async () => {
+    await typeEmail("new@example.com");
+
+    await waitFor(() => {
+      expect(mockFindFormerEmployment).toHaveBeenCalledWith("new@example.com");
+    });
+    expect(
+      screen.queryByText("Diese Person war schon bei Ihnen beschäftigt"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not ask for an incomplete address", async () => {
+    await typeEmail("new@exa");
+
+    // Longer than the debounce: a lookup would have started by now.
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(mockFindFormerEmployment).not.toHaveBeenCalled();
+  });
+
+  it("drops the hint when the address changes to one without", async () => {
+    mockFindFormerEmployment.mockImplementation((email: string) =>
+      Promise.resolve(
+        email === "former@example.com"
+          ? {
+              startedOn: "2024-08-01",
+              endedOn: "2026-07-31",
+              resumes: ["master_data"],
+              notReturning: ["staff_documents"],
+            }
+          : null,
+      ),
+    );
+
+    await typeEmail("former@example.com");
+    expect(
+      await screen.findByText("Diese Person war schon bei Ihnen beschäftigt"),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "other@example.com" },
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText("Diese Person war schon bei Ihnen beschäftigt"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("keeps the dialog usable when the lookup fails", async () => {
+    mockFindFormerEmployment.mockRejectedValue(new Error("network"));
+    mockCreateInvitation.mockResolvedValue({
+      id: 1,
+      email: "former@example.com",
+      token: "abc123",
+    });
+
+    await typeEmail("former@example.com");
+    await waitFor(() => {
+      expect(mockFindFormerEmployment).toHaveBeenCalled();
+    });
+
+    expect(
+      screen.queryByText("Diese Person war schon bei Ihnen beschäftigt"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Einladung senden")).not.toBeDisabled();
   });
 });

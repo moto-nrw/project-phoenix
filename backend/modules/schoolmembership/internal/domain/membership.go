@@ -30,6 +30,9 @@ type Staff struct {
 	RotationAnchorDate    string
 	BirthdayDisplayOptOut bool
 	DeletedAt             *time.Time
+	// PersonalDataErasedAt marks a retired membership the automatic deletion
+	// of staff erased (#3963); no Wiederaufnahme continues it.
+	PersonalDataErasedAt *time.Time
 	// IsGuest marks an external caregiver without a moto account (#3823);
 	// GuestOrganization is the optional organization they come from.
 	IsGuest           bool

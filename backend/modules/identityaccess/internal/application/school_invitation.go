@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/mail"
 	"strings"
 	"time"
 
@@ -23,6 +22,8 @@ const (
 	opResendInvitation = "resend invitation"
 	opRevokeInvitation = "revoke invitation"
 	opFetchInvitation  = "fetch invitation"
+
+	opFindFormerEmployment = "find former employment"
 )
 
 // maxInvitationEmailLength is the column limit an address must fit.
@@ -45,7 +46,7 @@ type SchoolInvitation struct {
 	roles     ports.RoleStore
 	policy    ports.RoleAssignmentPolicy
 	grants    ports.InvitationGrantPolicy
-	identity  ports.SchoolIdentity
+	identity  ports.InvitationIdentity
 	schools   ports.SchoolDirectory
 	owners    ports.InvitationOwnerTokens
 	passwords ports.PasswordPolicy
@@ -63,7 +64,7 @@ type SchoolInvitationDependencies struct {
 	Roles     ports.RoleStore
 	Policy    ports.RoleAssignmentPolicy
 	Grants    ports.InvitationGrantPolicy
-	Identity  ports.SchoolIdentity
+	Identity  ports.InvitationIdentity
 	Schools   ports.SchoolDirectory
 	Owners    ports.InvitationOwnerTokens
 	Passwords ports.PasswordPolicy
@@ -182,12 +183,11 @@ func (s *SchoolInvitation) logCreated(invitation domain.SchoolInvitation, create
 
 // validateRequest checks the address and the role the request asks for.
 func (s *SchoolInvitation) validateRequest(ctx context.Context, request domain.SchoolInvitationRequest) (string, domain.ManagedRole, error) {
-	email := strings.TrimSpace(strings.ToLower(request.Email))
+	email, err := invitationAddress(request.Email)
+	if err != nil {
+		return "", domain.ManagedRole{}, failed(opCreateInvitation, err)
+	}
 	switch {
-	case email == "":
-		return "", domain.ManagedRole{}, failed(opCreateInvitation, fmt.Errorf("email is required"))
-	case len(email) > maxInvitationEmailLength:
-		return "", domain.ManagedRole{}, failed(opCreateInvitation, fmt.Errorf("email address too long"))
 	case request.RoleID <= 0:
 		return "", domain.ManagedRole{}, failed(opCreateInvitation, fmt.Errorf("role id is required"))
 	case request.CreatedBy < 0:
@@ -195,11 +195,6 @@ func (s *SchoolInvitation) validateRequest(ctx context.Context, request domain.S
 	case request.TenantID < 0:
 		return "", domain.ManagedRole{}, failed(opCreateInvitation, fmt.Errorf("tenant id is invalid"))
 	}
-	parsed, err := mail.ParseAddress(email)
-	if err != nil {
-		return "", domain.ManagedRole{}, failed(opCreateInvitation, fmt.Errorf("invalid email address"))
-	}
-	email = parsed.Address
 
 	role, err := s.ensureRoleAssignable(ctx, request)
 	if err != nil {

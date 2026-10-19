@@ -435,6 +435,9 @@ func (rs *Resource) mountInvitationAndParentAccountRoutes(r chi.Router) {
 		// The UI already gates this screen on the admin role.
 		r.With(common.RequiresPermission(permUsersManage)).Post("/", rs.createInvitation)
 		r.With(common.RequiresPermission(permUsersList)).Get("/", rs.listPendingInvitations)
+		// The Einladen dialog's question before an invitation goes out
+		// (#3402), under the permission that sends it.
+		r.With(common.RequiresPermission(permUsersManage)).Post("/former-employment", rs.findFormerEmployment)
 		r.Route("/{id}", func(r chi.Router) {
 			r.With(common.RequiresPermission(permUsersManage)).Post("/resend", rs.resendInvitation)
 			r.With(common.RequiresPermission(permUsersManage)).Delete("/", rs.revokeInvitation)
