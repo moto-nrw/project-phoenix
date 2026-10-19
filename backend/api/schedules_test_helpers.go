@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/http/activities"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -26,11 +27,11 @@ func NewScheduleTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return ScheduleTestModule{}, nil, err
 	}
-	settings, err := NewSettingsTestModule(db, unit)
+	settings, err := owners.NewSettingsTestModule(db, unit)
 	if err != nil {
 		return ScheduleTestModule{}, nil, err
 	}
-	recurrenceLock, err := newTimetableTestRecurrenceLock(db)
+	recurrenceLock, err := owners.NewTimetableTestRecurrenceLock(db)
 	if err != nil {
 		return ScheduleTestModule{}, nil, err
 	}

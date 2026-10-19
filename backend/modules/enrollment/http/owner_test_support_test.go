@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"

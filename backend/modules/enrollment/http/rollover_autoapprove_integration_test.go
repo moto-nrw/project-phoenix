@@ -14,6 +14,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -42,7 +43,7 @@ func setupAutoApproveIntegrationEnv(t *testing.T) (*rolloverTestEnv, func()) {
 
 func setupAutoApproveIntegrationEnvWithSettings(
 	t *testing.T,
-	settings api.EnrollmentDecisionSettings,
+	settings owners.EnrollmentDecisionSettings,
 ) (*rolloverTestEnv, func()) {
 	t.Helper()
 	env, cleanup := setupRolloverTest(t)
@@ -57,18 +58,18 @@ func setupAutoApproveIntegrationEnvWithSettings(
 		Offerings:      enrollmentCompose.NewCareOfferingRecords(repoFactoryCare.CarePlan),
 		Bookings:       testBookings(t, env, settings),
 		GuardianAccess: testGuardianAccess(env.db),
-		People: api.EnrollmentDecisionPeopleDirectory(
+		People: owners.EnrollmentDecisionPeopleDirectory(
 			repoFactory.Person, repoFactory.Staff, repoFactory.Student, repoFactory.StudentGuardian, repoFactory.GuardianProfile, nil, studentEnrollment,
 		),
 		StudentEnrollment: studentEnrollment,
-		Companions:        api.EnrollmentDecisionCompanions(api.NewStudentCompanionRepository(repoFactoryCare.CarePlan), repoFactoryCare.CarePlan.DeleteCompanionEdges),
-		StudentAudit:      api.EnrollmentDecisionStudentAudit(api.NewEnrollmentFlowStudentAudit(testpkg.NewDatabase(t, env.db), testpkg.RequestAuditActor)),
-		ParentsURL:        api.EnrollmentDecisionParentsURL("http://parents.localhost:3000", "http://localhost:3000"),
+		Companions:        owners.EnrollmentDecisionCompanions(owners.NewStudentCompanionRepository(repoFactoryCare.CarePlan), repoFactoryCare.CarePlan.DeleteCompanionEdges),
+		StudentAudit:      owners.EnrollmentDecisionStudentAudit(api.NewEnrollmentFlowStudentAudit(testpkg.NewDatabase(t, env.db), testpkg.RequestAuditActor)),
+		ParentsURL:        owners.EnrollmentDecisionParentsURL("http://parents.localhost:3000", "http://localhost:3000"),
 		Logger:            slog.Default(),
 	}, settings, env.outbox)
 
 	// Rebuild the rollover service so DecisionService is injected.
-	env.rolloverSvc = newTestRolloverService(api.EnrollmentRolloverSources{
+	env.rolloverSvc = newTestRolloverService(owners.EnrollmentRolloverSources{
 		Bookings:   requestTestBookingCommands(),
 		Phases:     env.repos.Enrollment(),
 		Requests:   env.repos.Enrollment(),

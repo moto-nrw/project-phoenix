@@ -7,7 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"time"
+
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
@@ -23,21 +24,6 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
-// CareWithdrawalTestRows are the care-withdrawal completions the suites read
-// back and resolve over the Care Plan owner (NewCareWithdrawalCompletionRepository).
-type CareWithdrawalTestRows interface {
-	FindByID(ctx context.Context, id int64) (*careplan.WithdrawalCompletion, error)
-	ListPending(ctx context.Context, filter careplan.WithdrawalListFilter) ([]*careplan.WithdrawalCompletion, int, error)
-	ListResolved(ctx context.Context, filter careplan.WithdrawalListFilter) ([]*careplan.WithdrawalCompletion, int, error)
-	MarkResolved(ctx context.Context, id, actorAccountID int64, at time.Time) (bool, error)
-	MarkObsoleteForRebooking(ctx context.Context, studentID int64, careStartsOn owner0.Date, at time.Time) (bool, error)
-	MarkPendingObsoleteForWeeklyPlans(ctx context.Context, at time.Time) (int, error)
-	ReopenAfterCancelledExit(ctx context.Context, completionID, studentID int64, at time.Time) (bool, error)
-	ListParticipationBoundaries(
-		ctx context.Context, students map[int64]*peopleValues.StudentState, includeBookingBoundaries bool,
-	) (map[int64]owner0.Date, error)
-}
-
 // CareLifecycleTestRepositories are the Care Plan rows the care-lifecycle
 // suites run on, with the lifecycle's owners bound the way the production
 // graph binds them.
@@ -51,25 +37,25 @@ type CareLifecycleTestRepositories struct {
 
 // CareWithdrawal is the People Directory's withdrawal completion port over
 // the Care Plan rows.
-func (r CareLifecycleTestRepositories) CareWithdrawal() CareWithdrawalRecords {
-	return NewCareWithdrawalCompletionRepository(r.carePlan)
+func (r CareLifecycleTestRepositories) CareWithdrawal() owners.CareWithdrawalRecords {
+	return owners.NewCareWithdrawalCompletionRepository(r.carePlan)
 }
 
-func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories) (CareLifecycleTestRepositories, error) {
-	tt, err := NewTimetableTestRepositoriesWithMembers(db, members)
+func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database, members owners.MembershipTestRepositories) (CareLifecycleTestRepositories, error) {
+	tt, err := owners.NewTimetableTestRepositoriesWithMembers(db, members)
 	if err != nil {
 		return CareLifecycleTestRepositories{}, err
 	}
-	carePlan, err := NewTimetableCarePlanRows(db, tt, members)
+	carePlan, err := owners.NewTimetableCarePlanRows(db, tt, members)
 	if err != nil {
 		return CareLifecycleTestRepositories{}, err
 	}
 	people := members.People
-	membership, err := NewSchoolMembership(db)
+	membership, err := owners.NewSchoolMembership(db)
 	if err != nil {
 		return CareLifecycleTestRepositories{}, err
 	}
-	calendar, err := NewSchoolCalendar(db)
+	calendar, err := owners.NewSchoolCalendar(db)
 	if err != nil {
 		return CareLifecycleTestRepositories{}, err
 	}
@@ -78,9 +64,9 @@ func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database,
 		lifecycle: carePlanCompose.CareLifecycleDependencies{
 			StudentDirectory: studentDirectoryView.NewReader(),
 			DB:               db.Pool(), Records: carePlan.CarePlan,
-			Owners: NewCareLifecycleOwners(
+			Owners: owners.NewCareLifecycleOwners(
 				members.Student, members.Person, membership, people, tt.Timetable, calendar,
-				NewUnloggedStudentPresence(db), newPresenceProjectionReads(db), tt.Enrollment(), nil,
+				owners.NewUnloggedStudentPresence(db), owners.NewPresenceProjectionReads(db), tt.Enrollment(), nil,
 			),
 			Fingerprint: securityruntime.Fingerprint,
 			Logger:      slog.Default(),
@@ -91,7 +77,7 @@ func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database,
 // CareLifecycleTestConfig tunes the composed lifecycle for one suite.
 type CareLifecycleTestConfig struct {
 	// Audit records the care-end history; companion suites share it.
-	Audit                 StudentChangeAudit
+	Audit                 owners.StudentChangeAudit
 	BookingsAuthoritative func(context.Context) (bool, error)
 	// LockCareBookingWrites is the booking-write gate. nil takes none.
 	LockCareBookingWrites func(context.Context) error
@@ -107,7 +93,7 @@ func (r CareLifecycleTestRepositories) NewCareLifecycle(config CareLifecycleTest
 		lock = func(context.Context) error { return nil }
 	}
 	deps := r.lifecycle
-	deps.Owners.ChangeTrail = NewCareEndRecorder(config.Audit)
+	deps.Owners.ChangeTrail = owners.NewCareEndRecorder(config.Audit)
 	deps.LockCareBookingWrites = lock
 	deps.BookingsAuthoritative = config.BookingsAuthoritative
 	deps.Today = config.Today
@@ -117,8 +103,8 @@ func (r CareLifecycleTestRepositories) NewCareLifecycle(config CareLifecycleTest
 // MustNewStudentCompanions composes the companion capability over a test
 // graph's Care Plan records, student repository and People Directory. audit
 // may be nil when the suite never widens a plan.
-func MustNewStudentCompanions(records careplan.Capability, students peoplePorts.StudentRepository, people CompanionStudentLock, audit StudentChangeAudit) careplan.StudentCompanions {
-	companions, err := carePlanCompose.NewCompanions(records, NewCompanionStudents(students, people, audit))
+func MustNewStudentCompanions(records careplan.Capability, students peoplePorts.StudentRepository, people owners.CompanionStudentLock, audit owners.StudentChangeAudit) careplan.StudentCompanions {
+	companions, err := carePlanCompose.NewCompanions(records, owners.NewCompanionStudents(students, people, audit))
 	if err != nil {
 		panic(err)
 	}
@@ -130,7 +116,7 @@ func MustNewStudentCompanions(records careplan.Capability, students peoplePorts.
 // NewStudentCompanionRepository. It stages departure-companion fixtures for
 // suites that may not name Care Plan's edge type; production writes go
 // through the companion capability's rules instead.
-func ReplaceStudentCompanions(ctx context.Context, links CompanionRepository, studentID int64, edges []*careplan.CompanionEdge) error {
+func ReplaceStudentCompanions(ctx context.Context, links owners.CompanionRepository, studentID int64, edges []*careplan.CompanionEdge) error {
 	repository := links
 	values := make([]careplan.CompanionEdge, 0, len(edges))
 	for _, edge := range edges {
@@ -142,7 +128,7 @@ func ReplaceStudentCompanions(ctx context.Context, links CompanionRepository, st
 			StudentLowID: edge.StudentLowID, StudentHighID: edge.StudentHighID, Weekday: edge.Weekday,
 		})
 	}
-	return WrapRetainedError("replace student companions", repository.Capability.ReplaceCompanionEdges(ctx, studentID, values))
+	return owners.WrapRetainedError("replace student companions", repository.Capability.ReplaceCompanionEdges(ctx, studentID, values))
 }
 
 // NewStudentCompanionEdge builds one stored "walks home with" edge between two

@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	substitution "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -115,7 +116,7 @@ func TestScheduleSubstitutionExternalInterfaceActiveAppointmentSyncsOnce(t *test
 	})
 	require.NoError(t, err)
 
-	presence, err := api.NewTimetablePresenceRows(testpkg.NewDatabase(t, db), repos, api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	presence, err := api.NewTimetablePresenceRows(testpkg.NewDatabase(t, db), repos, owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	activeSupervisors, err := presence.GroupSupervisor.FindByActiveGroupID(testpkg.Ctx(t), activeGroup.ID, true)
 	require.NoError(t, err)
@@ -502,7 +503,7 @@ func scheduleSubstitutionCaller(t *testing.T) substitution.Caller {
 // newScheduleSubstitutionModule drives the substitution module's schedule half
 // through the composed workflow: the module keeps its own authorization and
 // transaction handling, the workflow performs the deviation writes.
-func newScheduleSubstitutionModule(t *testing.T) (*bun.DB, api.TimetableTestRepositories, substitution.SubstitutionModule) {
+func newScheduleSubstitutionModule(t *testing.T) (*bun.DB, owners.TimetableTestRepositories, substitution.SubstitutionModule) {
 	t.Helper()
 	env := newPlanSyncEnv(t, nil, nil)
 	return env.db, env.repos, api.NewScheduleSubstitutionSuiteModule(env.substitution, testpkg.TenantTransactionRuntime{}, slog.Default())

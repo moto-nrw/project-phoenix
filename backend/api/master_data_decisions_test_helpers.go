@@ -6,6 +6,8 @@ import (
 	"errors"
 	"log/slog"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
 
 	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -32,7 +34,7 @@ type MasterDataDecisionTestOptions struct {
 // MasterDataDecisionTestPeople are the People Directory rows and recorders
 // the decision binds. Nil effects are skipped.
 type MasterDataDecisionTestPeople struct {
-	People   MasterDataPeople
+	People   owners.MasterDataPeople
 	Students peoplePorts.StudentRepository
 	Persons  peoplePorts.PersonRepository
 	Audit    peoplePorts.StudentChangeRecorder
@@ -53,7 +55,7 @@ func NewTestMasterDataDecisions(
 	if scope == nil {
 		scope = schoolWideReviewScope
 	}
-	return NewMasterDataDecisions(
+	return owners.NewMasterDataDecisions(
 		options.CarePlan, people.People, people.Students, people.Persons, people.Audit, scope,
 		emitter, broadcaster, people.Events, options.Shares, options.Logger, options.Today,
 	)

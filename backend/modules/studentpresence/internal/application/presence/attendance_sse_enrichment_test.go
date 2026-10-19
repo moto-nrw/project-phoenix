@@ -22,6 +22,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -45,10 +46,10 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	reposStructure := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposStructure := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
-	mirrorRepos := api.NewAttendanceSyncTestRepositories(testpkg.MustDatabase(db), api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)))
+	mirrorRepos := api.NewAttendanceSyncTestRepositories(testpkg.MustDatabase(db), owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
@@ -64,15 +65,15 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		GroupRepo:          sessionGroups(reposPresence.ActiveGroup),
 		SupervisorRepo:     sessionSupervisors(reposPresence.ActiveGroup),
 		SchoolPresence:     testSchoolPresence(t, db),
-		StudentRepo:        api.PresenceStudents(testpkg.MustDatabase(db), repos.Student),
-		StaffRepo:          api.NewAttendanceStaffDirectory(repos.Staff),
+		StudentRepo:        owners.PresenceStudents(testpkg.MustDatabase(db), repos.Student),
+		StaffRepo:          owners.NewAttendanceStaffDirectory(repos.Staff),
 		RoomRepo:           api.NewAttendanceRooms(api.NewRoomRepository(rooms)),
-		ActivityGroupRepo:  api.NewSessionActivities(timetableRepos.GroupReads()),
+		ActivityGroupRepo:  owners.NewSessionActivities(timetableRepos.GroupReads()),
 		ActivityCatRepo:    api.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
-		EducationGroupRepo: api.NewAttendanceEducationGroups(reposStructure.Group, repos.Student),
-		DeviceRepo:         api.NewSessionDeviceDirectory(devices, nil, nil),
+		EducationGroupRepo: owners.NewAttendanceEducationGroups(reposStructure.Group, repos.Student),
+		DeviceRepo:         owners.NewSessionDeviceDirectory(devices, nil, nil),
 		DB:                 db,
-		Broadcaster:        api.NewPresenceEvents(broadcaster, nil),
+		Broadcaster:        owners.NewPresenceEvents(broadcaster, nil),
 		AttendanceSyncer:   syncer,
 		Logger:             slog.Default(),
 	})
@@ -204,10 +205,10 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	reposStructure := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposStructure := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
-	mirrorRepos := api.NewAttendanceSyncTestRepositories(testpkg.MustDatabase(db), api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)))
+	mirrorRepos := api.NewAttendanceSyncTestRepositories(testpkg.MustDatabase(db), owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)))
 	suffix := time.Now().UnixNano()
 	syncer := newAttendanceMirror(t, api.TimetableOwnerRows{Instances: mirrorRepos.Instances, Participants: mirrorRepos.Participants}, slog.Default())
 	broadcaster := testpkg.NewRecordingBroadcaster()
@@ -220,15 +221,15 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 		GroupRepo:          sessionGroups(reposPresence.ActiveGroup),
 		SupervisorRepo:     sessionSupervisors(reposPresence.ActiveGroup),
 		SchoolPresence:     testSchoolPresence(t, db),
-		StudentRepo:        api.PresenceStudents(testpkg.MustDatabase(db), repos.Student),
-		StaffRepo:          api.NewAttendanceStaffDirectory(repos.Staff),
+		StudentRepo:        owners.PresenceStudents(testpkg.MustDatabase(db), repos.Student),
+		StaffRepo:          owners.NewAttendanceStaffDirectory(repos.Staff),
 		RoomRepo:           api.NewAttendanceRooms(api.NewRoomRepository(rooms)),
-		ActivityGroupRepo:  api.NewSessionActivities(timetableRepos.GroupReads()),
+		ActivityGroupRepo:  owners.NewSessionActivities(timetableRepos.GroupReads()),
 		ActivityCatRepo:    api.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
-		EducationGroupRepo: api.NewAttendanceEducationGroups(reposStructure.Group, repos.Student),
-		DeviceRepo:         api.NewSessionDeviceDirectory(devices, nil, nil),
+		EducationGroupRepo: owners.NewAttendanceEducationGroups(reposStructure.Group, repos.Student),
+		DeviceRepo:         owners.NewSessionDeviceDirectory(devices, nil, nil),
 		DB:                 db,
-		Broadcaster:        api.NewPresenceEvents(broadcaster, nil),
+		Broadcaster:        owners.NewPresenceEvents(broadcaster, nil),
 		AttendanceSyncer:   syncer,
 		Logger:             slog.Default(),
 	})

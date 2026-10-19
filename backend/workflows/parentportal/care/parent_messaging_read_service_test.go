@@ -19,6 +19,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -37,7 +38,7 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier parentpor
 	// it before the school projections, as the service graph does.
 	repos, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	organizationTenancy, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
+	organizationTenancy, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	reposCare := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).WithSchoolProjections(organizationTenancy)
 	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db)).WithSchoolProjections(organizationTenancy)
@@ -54,19 +55,19 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier parentpor
 		},
 	}
 	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
-		GuardianPolicy:        api.NewParentGuardianPolicy(),
-		Fingerprints:          api.SecurityFingerprints{},
-		Declarations:          api.ParentDeclarationPolicy(),
-		Runtime:               api.ParentPortalRuntime{},
-		MessagingEnabled:      api.BindParentMessagingGate(settings, slog.Default()),
+		GuardianPolicy:        owners.NewParentGuardianPolicy(),
+		Fingerprints:          owners.SecurityFingerprints{},
+		Declarations:          owners.ParentDeclarationPolicy(),
+		Runtime:               owners.ParentPortalRuntime{},
+		MessagingEnabled:      owners.BindParentMessagingGate(settings, slog.Default()),
 		Children:              childResolver(db, reposCare, repos),
 		ChildRepo:             reposCare.ParentChildReads(),
-		StudentRepo:           api.NewParentStudentReads(repos.Student),
-		GuardianProfileRepo:   api.NewParentGuardianProfileReads(repos.GuardianProfile),
+		StudentRepo:           owners.NewParentStudentReads(repos.Student),
+		GuardianProfileRepo:   owners.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Settings:              settings,
-		MessageThreadRepo:     api.BindParentMessageThreadAccess(reposMessages.ParentMessageThread),
-		MessageRepo:           api.BindParentMessageReads(messageStores.Message),
-		MessageReadRepo:       api.BindParentMessageInboxReads(reposMessages.ParentMessageRead),
+		MessageThreadRepo:     owners.BindParentMessageThreadAccess(reposMessages.ParentMessageThread),
+		MessageRepo:           owners.BindParentMessageReads(messageStores.Message),
+		MessageReadRepo:       owners.BindParentMessageInboxReads(reposMessages.ParentMessageRead),
 		Conversations:         api.NewParentConversationCore(reposMessages.ParentMessageThread, messageStores.Message, reposMessages.ParentMessageRead, bc, slog.Default()),
 		ParentMessageNotifier: notifier,
 		Logger:                slog.Default(),

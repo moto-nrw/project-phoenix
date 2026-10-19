@@ -26,6 +26,7 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -115,7 +116,7 @@ func setupOfferingGuardRouterTest(
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repos, repoErr := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, db), api.NewTestAuditStore(testpkg.NewDatabase(t, db)))
+	repos, repoErr := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, db), owners.NewTestAuditStore(testpkg.NewDatabase(t, db)))
 	reposCare := api.NewEnrollmentCarePlanRows(testpkg.NewDatabase(t, db))
 	reposTimetable := api.NewEnrollmentTimetableRows(testpkg.NewDatabase(t, db))
 	require.NoError(t, repoErr)
@@ -129,7 +130,7 @@ func setupOfferingGuardRouterTest(
 	}
 	guardianAccess, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
-	studentEnrollment, err := api.NewPeopleDirectory(testpkg.MustDatabase(db))
+	studentEnrollment, err := owners.NewPeopleDirectory(testpkg.MustDatabase(db))
 	require.NoError(t, err)
 	bookings := newBookingMaterialization(t, db,
 		api.WithBookingCatalog(newCareOfferingCatalog(t, db).Catalog),
@@ -190,7 +191,7 @@ func createOfferingGuardChild(t *testing.T, repos api.EnrollmentTestRepositories
 	return request, child
 }
 
-func attachOfferingGuardLink(t *testing.T, repos api.EnrollmentTestRepositories, reposCare api.TimetableCarePlanRows, ctx context.Context, phase *enrollmentNative.Phase, childID int64, fixture offeringLinkFixture) {
+func attachOfferingGuardLink(t *testing.T, repos api.EnrollmentTestRepositories, reposCare owners.TimetableCarePlanRows, ctx context.Context, phase *enrollmentNative.Phase, childID int64, fixture offeringLinkFixture) {
 	t.Helper()
 	if fixture == noOffering {
 		return
@@ -243,14 +244,14 @@ func datePointers(from, until calendar.Date) (*enrollmentNative.Date, *enrollmen
 	return &start, &end
 }
 
-func newOfferingGuardDecisionService(repos api.EnrollmentTestRepositories, reposCare api.TimetableCarePlanRows, reposTimetable api.TimetableTestRepositories, offeringsEnabled bool, children TestDecisionChildren, guardianAccess TestDecisionGuardianAccess, studentEnrollment api.EnrollmentDecisionPeople, bookings TestDecisionBookings) enrollmentAPI.DecisionService {
+func newOfferingGuardDecisionService(repos api.EnrollmentTestRepositories, reposCare owners.TimetableCarePlanRows, reposTimetable owners.TimetableTestRepositories, offeringsEnabled bool, children TestDecisionChildren, guardianAccess TestDecisionGuardianAccess, studentEnrollment owners.EnrollmentDecisionPeople, bookings TestDecisionBookings) enrollmentAPI.DecisionService {
 	return enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(newOfferingGuardDecisions(repos, reposCare, reposTimetable, offeringsEnabled, children, guardianAccess, studentEnrollment, bookings)))
 }
 
 // newOfferingGuardDecisions composes the decision flow the guard suites
 // drive, the way the root binds it.
-func newOfferingGuardDecisions(repos api.EnrollmentTestRepositories, reposCare api.TimetableCarePlanRows, reposTimetable api.TimetableTestRepositories, offeringsEnabled bool, children TestDecisionChildren, guardianAccess TestDecisionGuardianAccess, studentEnrollment api.EnrollmentDecisionPeople, bookings TestDecisionBookings) *TestDecisions {
-	return api.NewEnrollmentDecisions(enrollmentCompose.DecisionDependencies{
+func newOfferingGuardDecisions(repos api.EnrollmentTestRepositories, reposCare owners.TimetableCarePlanRows, reposTimetable owners.TimetableTestRepositories, offeringsEnabled bool, children TestDecisionChildren, guardianAccess TestDecisionGuardianAccess, studentEnrollment owners.EnrollmentDecisionPeople, bookings TestDecisionBookings) *TestDecisions {
+	return owners.NewEnrollmentDecisions(enrollmentCompose.DecisionDependencies{
 		Requests:       repos.Enrollment(),
 		Children:       children,
 		Guardians:      repos.Enrollment(),
@@ -261,14 +262,14 @@ func newOfferingGuardDecisions(repos api.EnrollmentTestRepositories, reposCare a
 		Notifications:  NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: offeringGuardSettings(offeringsEnabled)}, discardingOutbox{}, nil),
 		Bookings:       bookings,
 		GuardianAccess: guardianAccess,
-		People: api.EnrollmentDecisionPeopleDirectory(
+		People: owners.EnrollmentDecisionPeopleDirectory(
 			repos.Person, repos.Staff, repos.Student, repos.StudentGuardian, repos.GuardianProfile, repos.GuardianPhoneNumber, studentEnrollment,
 		),
 		StudentEnrollment: studentEnrollment,
 		PickupSchedules:   reposTimetable.EnrollmentPickupSchedules(),
 		ArrivalSchedules:  reposTimetable.EnrollmentArrivalSchedules(),
-		ParentsURL:        api.EnrollmentDecisionParentsURL("http://parents.localhost:3000", ""),
-		Settings:          api.EnrollmentDecisionSettingValues(offeringGuardSettings(offeringsEnabled)),
+		ParentsURL:        owners.EnrollmentDecisionParentsURL("http://parents.localhost:3000", ""),
+		Settings:          owners.EnrollmentDecisionSettingValues(offeringGuardSettings(offeringsEnabled)),
 		Logger:            slog.Default(),
 	})
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -17,7 +18,7 @@ import (
 func TestFactoryOperatorMFARefusesChallengeWithoutSMTP(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	cfg := api.ServiceConfig{
+	cfg := owners.ServiceConfig{
 		JWTSecret:        "configured-operator-mfa-secret-at-least-32-chars",
 		JWTExpiry:        15 * time.Minute,
 		JWTRefreshExpiry: 24 * time.Hour,

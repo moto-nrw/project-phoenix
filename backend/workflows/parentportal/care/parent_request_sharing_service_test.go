@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -34,15 +35,15 @@ func TestRequestSharingRejectsUnlinkedRecipientAndNonOwner(t *testing.T) {
 	request.TenantID = author.TenantID
 	require.NoError(t, api.CreateParentDataRequestFixture(repos.CarePlan(), ctx, request))
 	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
-		GuardianPolicy: api.NewParentGuardianPolicy(),
-		Fingerprints:   api.SecurityFingerprints{},
-		Declarations:   api.ParentDeclarationPolicy(),
-		Runtime:        api.ParentPortalRuntime{},
+		GuardianPolicy: owners.NewParentGuardianPolicy(),
+		Fingerprints:   owners.SecurityFingerprints{},
+		Declarations:   owners.ParentDeclarationPolicy(),
+		Runtime:        owners.ParentPortalRuntime{},
 		Children:       childResolver(db, repos, reposPeople),
-		ChildRepo:      repos.ParentChildReads(), GuardianProfileRepo: api.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
-		StudentGuardianRepo: api.NewParentStudentGuardianReads(reposPeople.StudentGuardian), StudentRepo: api.NewParentStudentReads(reposPeople.Student),
-		ChangeRequestRepo:      api.NewParentDataRequestReads(repos.CarePlan()),
-		FamilyProtectionEvents: api.BindParentFamilyProtectionReads(reposPeople.FamilyProtection), ParentRequestShares: api.BindParentRequestShareRecords(reposPeople.ParentRequestShare),
+		ChildRepo:      repos.ParentChildReads(), GuardianProfileRepo: owners.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
+		StudentGuardianRepo: owners.NewParentStudentGuardianReads(reposPeople.StudentGuardian), StudentRepo: owners.NewParentStudentReads(reposPeople.Student),
+		ChangeRequestRepo:      owners.NewParentDataRequestReads(repos.CarePlan()),
+		FamilyProtectionEvents: owners.BindParentFamilyProtectionReads(reposPeople.FamilyProtection), ParentRequestShares: owners.BindParentRequestShareRecords(reposPeople.ParentRequestShare),
 		Logger: slog.Default(),
 	})
 	sharing := parentportal.RequestSharingService(svc)

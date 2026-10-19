@@ -3,13 +3,15 @@ package api
 import (
 	"context"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // GroupLiveCaller serves the caller context to the live-group adapters in
 // their own group records.
-type GroupLiveCaller struct{ *CallerRows }
+type GroupLiveCaller struct{ *owners.CallerRows }
 
 func (c GroupLiveCaller) MyGroupRecords(ctx context.Context) ([]grouplive.GroupRecord, error) {
 	groups, err := c.GetMyGroups(ctx)
@@ -27,7 +29,7 @@ func (c GroupLiveCaller) MyGroupRecords(ctx context.Context) ([]grouplive.GroupR
 
 // SupervisionCaller serves the caller context to the supervision adapters
 // in their own group records.
-type SupervisionCaller struct{ *CallerRows }
+type SupervisionCaller struct{ *owners.CallerRows }
 
 // CurrentStaffID resolves the caller's staff record; nil, without an error,
 // for a caller who is no staff member.

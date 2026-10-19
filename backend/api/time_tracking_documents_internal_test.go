@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/stretchr/testify/assert"
@@ -71,7 +73,7 @@ func TestPayrollExportSettings_ProjectsResolvedConfiguration(t *testing.T) {
 	status.Categories = append(status.Categories[:0], category)
 
 	var received context.Context
-	adapter := PayrollExportSettings{Source: newFixedPayrollStatus(status, nil, &received)}
+	adapter := owners.PayrollExportSettings{Source: newFixedPayrollStatus(status, nil, &received)}
 	got, err := adapter.GetPayrollConfiguration(ctx)
 	require.NoError(t, err)
 	require.Same(t, ctx, received)
@@ -91,7 +93,7 @@ func TestPayrollExportSettings_PropagatesResolutionFailure(t *testing.T) {
 	status, err := unconfiguredPayrollStatus(t).GetPayrollStatus(context.Background())
 	require.NoError(t, err)
 	want := errors.New("settings unavailable")
-	adapter := PayrollExportSettings{Source: newFixedPayrollStatus(noPayrollStatus(status), want, nil)}
+	adapter := owners.PayrollExportSettings{Source: newFixedPayrollStatus(noPayrollStatus(status), want, nil)}
 	got, err := adapter.GetPayrollConfiguration(context.Background())
 	require.ErrorIs(t, err, want)
 	assert.Nil(t, got)
@@ -101,7 +103,7 @@ func TestPayrollExportSettings_RejectsMissingConfiguration(t *testing.T) {
 	t.Parallel()
 	status, err := unconfiguredPayrollStatus(t).GetPayrollStatus(context.Background())
 	require.NoError(t, err)
-	adapter := PayrollExportSettings{Source: newFixedPayrollStatus(noPayrollStatus(status), nil, nil)}
+	adapter := owners.PayrollExportSettings{Source: newFixedPayrollStatus(noPayrollStatus(status), nil, nil)}
 	got, err := adapter.GetPayrollConfiguration(context.Background())
 	require.Error(t, err)
 	assert.Nil(t, got)

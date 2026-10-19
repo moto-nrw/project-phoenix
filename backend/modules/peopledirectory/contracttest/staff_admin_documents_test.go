@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -37,12 +38,12 @@ func newStaffDocumentScenario(t *testing.T) *staffDocumentScenario {
 
 	db := testpkg.SetupTestDB(t)
 
-	ownersWorkforce := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
+	ownersWorkforce := owners.MustNewWorkforce(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	reposPeopleMembership := api.NewSchoolMembershipSuiteRepositories(testpkg.NewDatabase(t, db))
 	admin, err := api.NewStaffAdmin(testpkg.NewDatabase(t, db), reposPeople.Staff, reposPeople.Person, reposPeopleMembership.SchoolMembership(), api.StaffAdminDependencies{
-		MasterDataAudit: api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StaffMasterDataChange, PersonnelNumber: api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).PersonnelNumberChange, DataAccessLog: api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataAccessLog,
+		MasterDataAudit: owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StaffMasterDataChange, PersonnelNumber: owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).PersonnelNumberChange, DataAccessLog: owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataAccessLog,
 	})
 	require.NoError(t, err)
 

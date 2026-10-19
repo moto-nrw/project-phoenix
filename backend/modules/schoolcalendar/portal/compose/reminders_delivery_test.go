@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 
@@ -65,7 +66,7 @@ func TestCalendarServiceIntegration_ReminderPushSurvivesAnEditBeforeDispatch(t *
 	cfg.Preferences = reminderPreferences{}
 	baseRepo := cfg.Appointments
 	cfg.Appointments = &revisingCandidateLock{Capability: baseRepo, db: db, on: 2}
-	service := api.NewCalendarPortal(cfg)
+	service := owners.NewCalendarPortal(cfg)
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Revised")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -154,7 +155,7 @@ func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAcce
 	require.Contains(t, reminder.Payload, "student_ids")
 
 	runtime := calendarCompose.NewTenantRuntime(db)
-	guardians := api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)).StudentGuardian
+	guardians := owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)).StudentGuardian
 	render := func() (bool, error) {
 		return api.RenderCalendarMailForTest(testpkg.WithPackageTenantRuntime(context.Background()), runtime, guardians, parentChain.TenantID, reminder.Kind, reminder.Payload)
 	}

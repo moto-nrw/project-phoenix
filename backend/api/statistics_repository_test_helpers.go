@@ -5,6 +5,8 @@ package api
 import (
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
@@ -15,13 +17,13 @@ type StatisticsTestRepositories struct {
 	CarePlan careplan.StudentStatusDaysQuery
 }
 
-func NewStatisticsTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories, clocks ...func() time.Time) (StatisticsTestRepositories, error) {
-	timetable, err := NewTimetableTestRepositoriesWithMembers(db, members, clocks...)
+func NewStatisticsTestRepositoriesWithMembers(db transactionruntime.Database, members owners.MembershipTestRepositories, clocks ...func() time.Time) (StatisticsTestRepositories, error) {
+	timetable, err := owners.NewTimetableTestRepositoriesWithMembers(db, members, clocks...)
 	if err != nil {
 		return StatisticsTestRepositories{}, err
 	}
 	persons := members.People
-	carePlan, err := NewCarePlan(db, persons, timetable.InstanceStudent)
+	carePlan, err := owners.NewCarePlan(db, persons, timetable.InstanceStudent)
 	if err != nil {
 		return StatisticsTestRepositories{}, err
 	}

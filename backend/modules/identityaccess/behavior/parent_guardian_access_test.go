@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,7 +37,7 @@ func TestParentGuardianAccessRevokesAsParent(t *testing.T) {
 	t.Parallel()
 
 	owner := &recordingRelativeAccess{}
-	access := api.NewParentGuardianAccess(owner)
+	access := owners.NewParentGuardianAccess(owner)
 	require.NotNil(t, access)
 
 	require.NoError(t, access.RevokeAccess(context.Background(), api.GuardianAccessRevocation{
@@ -57,7 +58,7 @@ func TestParentGuardianAccessMarksTheRequestingParent(t *testing.T) {
 	t.Parallel()
 
 	owner := &recordingRelativeAccess{}
-	access := api.NewParentGuardianAccess(owner)
+	access := owners.NewParentGuardianAccess(owner)
 	require.NotNil(t, access)
 
 	outcome, err := access.InviteToStudent(context.Background(), api.GuardianInviteRequest{
@@ -78,5 +79,5 @@ func TestParentGuardianAccessMarksTheRequestingParent(t *testing.T) {
 // portal reports as unavailable instead of panicking.
 func TestParentGuardianAccessWithoutCapability(t *testing.T) {
 	t.Parallel()
-	assert.Nil(t, api.NewParentGuardianAccess(nil))
+	assert.Nil(t, owners.NewParentGuardianAccess(nil))
 }

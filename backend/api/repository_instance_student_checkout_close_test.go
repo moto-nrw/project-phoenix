@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,7 +36,7 @@ func TestCloseOpenCheckoutsByActiveGroupIDsStampsTheOpenCheckout(t *testing.T) {
 	presentRow := testpkg.CreateTestInstanceStudent(t, db, instance.ID, presentStudent.ID, "present")
 	checkedInAt := time.Now().Add(-2 * time.Hour)
 	testpkg.UpdateSessionAttendance(t, ctx, db, presentRow.ID, map[string]any{"checked_in_at": checkedInAt})
-	repos, err := NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	repos, err := owners.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 
 	closed, err := repos.InstanceStudent.CloseOpenCheckoutsByActiveGroupIDs(ctx, []int64{activeGroup.ID}, time.Now())

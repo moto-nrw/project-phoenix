@@ -99,5 +99,5 @@
     }
   },
   "rollback_and_cleanup": "Revert the PR; api/auth, its policy entry, the three setters and the three baseline entries return together, and the relocation declaration stops being active. No data cleanup.",
-  "exit_criterion": "backend/api/auth no longer exists, no file imports github.com/moto-nrw/project-phoenix/api/auth, and the listed keys are absent from legacy.jsonl."
+  "exit_criterion": "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/auth no longer exists, no file imports github.com/moto-nrw/project-phoenix/api/auth, and the listed keys are absent from legacy.jsonl."
 }

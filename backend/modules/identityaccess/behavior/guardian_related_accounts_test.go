@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -282,7 +283,7 @@ func TestRevokeAccess_PayerStaysWithoutFinancialPermission(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t, func(db *bun.DB, cfg *api.GuardianInvitationTestConfig) {
-		cfg.Audit = testpkg.NewAuditCommand(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianFinancialChange.Create)
+		cfg.Audit = testpkg.NewAuditCommand(owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianFinancialChange.Create)
 	})
 	defer env.cleanup()
 

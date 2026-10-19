@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -48,12 +50,12 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}
-	members := MustNewMembershipTestRepositories(db)
+	members := owners.MustNewMembershipTestRepositories(db)
 	presence, err := NewTimetablePresenceRows(db, r, members, clocks...)
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}
-	rooms, err := NewTimetableRoomRows(db)
+	rooms, err := owners.NewTimetableRoomRows(db)
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}
@@ -61,11 +63,11 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}
-	settings, err := NewSettingsTestModule(db, unit)
+	settings, err := owners.NewSettingsTestModule(db, unit)
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}
-	recurrenceLock, err := newTimetableTestRecurrenceLock(db)
+	recurrenceLock, err := owners.NewTimetableTestRecurrenceLock(db)
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}
@@ -73,11 +75,11 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	today := timezone.CalendarDateClock(now)
 	logger := slog.Default()
 	hub := deliveryCompose.NewRealtimeHub(logger)
-	students, err := NewPeopleDirectory(db)
+	students, err := owners.NewPeopleDirectory(db)
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}
-	carePlan, err := NewCarePlan(db, students, r.InstanceStudent)
+	carePlan, err := owners.NewCarePlan(db, students, r.InstanceStudent)
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}
@@ -91,7 +93,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}
-	arrival, err := NewArrivalBaselines(carePlan, students, classArrivalQueries, approvedOfferings, func(ctx context.Context) (bool, error) {
+	arrival, err := owners.NewArrivalBaselines(carePlan, students, classArrivalQueries, approvedOfferings, func(ctx context.Context) (bool, error) {
 		return settings.Settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 	})
 	if err != nil {
@@ -108,11 +110,11 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}
-	bridge, err := NewTimetableEndedSessionCompletion(r.OwnerRows(), careDay)
+	bridge, err := owners.NewTimetableEndedSessionCompletion(r.OwnerRows(), careDay)
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}
-	attendanceMirror, err := NewTimetableAttendanceMirror(r.OwnerRows(), logger)
+	attendanceMirror, err := owners.NewTimetableAttendanceMirror(r.OwnerRows(), logger)
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}
@@ -121,11 +123,11 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(presence.ActiveGroup)
 	ender := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader: AttendancePrincipal,
-		SchoolPresence:  NewLoggedStudentPresence(db, logger),
+		SchoolPresence:  owners.NewLoggedStudentPresence(db, logger),
 		GroupRepo:       sessionGroups, SupervisorRepo: sessionSupervisors,
-		StudentRepo: PresenceStudents(db, members.Student), RoomRepo: facilitiesCompose.NewAttendanceRooms(rooms.Room), ActivityGroupRepo: NewSessionActivities(r.GroupReads()),
-		EducationGroupRepo: NewAttendanceEducationGroups(NewSchoolStructureSuiteRepositories(db).Group, members.Student), StaffRepo: NewAttendanceStaffDirectory(members.Staff),
-		DB: db.Pool(), Broadcaster: NewPresenceEvents(hub, logger), Logger: logger, Now: now,
+		StudentRepo: owners.PresenceStudents(db, members.Student), RoomRepo: facilitiesCompose.NewAttendanceRooms(rooms.Room), ActivityGroupRepo: owners.NewSessionActivities(r.GroupReads()),
+		EducationGroupRepo: owners.NewAttendanceEducationGroups(owners.NewSchoolStructureSuiteRepositories(db).Group, members.Student), StaffRepo: owners.NewAttendanceStaffDirectory(members.Staff),
+		DB: db.Pool(), Broadcaster: owners.NewPresenceEvents(hub, logger), Logger: logger, Now: now,
 		AttendanceSyncer:         attendanceMirror,
 		TimetableBridgeCompleter: bridge,
 	}, presenceservice.WithPresenceSettings(settingsCompose.PresenceSettings(settings.Settings)))
@@ -142,18 +144,18 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		return TimetableTestModule{}, nil, nil, err
 	}
 	rows := r.TimetableTemplateRows()
-	materializationDeps := TimetableMaterializationDependencies(rows, members.Student, calendar, recurrenceLock, hub, logger)
+	materializationDeps := owners.TimetableMaterializationDependencies(rows, members.Student, calendar, recurrenceLock, hub, logger)
 	materializationDeps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
 	materialization, err := arrivalTimetable.NewMaterialization(materializationDeps)
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}
 	recovery := arrivalTimetable.NewRetainedActivityRecoveryRepository(db.Pool(), r.InstanceStudent)
-	conflicts, err := NewTimetableConflictDetection(timetablePorts.ConflictDetectionDependencies{
+	conflicts, err := owners.NewTimetableConflictDetection(timetablePorts.ConflictDetectionDependencies{
 		Instances: r.ActivityInstance, InstanceStaff: r.InstanceStaff, InstanceStudents: r.InstanceStudent,
-		Exceptions: r.ActivityException, Schedules: r.ActivitySchedule, Staff: NewTimetableStaff(members.Staff), CalendarPeriods: r.CalendarPeriod,
+		Exceptions: r.ActivityException, Schedules: r.ActivitySchedule, Staff: owners.NewTimetableStaff(members.Staff), CalendarPeriods: r.CalendarPeriod,
 		ArrivalExceptions: r.StudentArrivalException, Sessions: presence.ActiveGroup, Shifts: r.StaffShift,
-		Presence: NewLoggedStudentPresence(db, logger), Logger: logger,
+		Presence: owners.NewLoggedStudentPresence(db, logger), Logger: logger,
 	}, arrival)
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
@@ -164,10 +166,10 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	}
 	lifecycleRows := r.OwnerRows()
 	lifecycleRows.Locks = recovery
-	instance, err := NewTimetableLifecycle(timetablePorts.InstanceLifecycleDependencies{
+	instance, err := owners.NewTimetableLifecycle(timetablePorts.InstanceLifecycleDependencies{
 		IdempotencyRepo: r.InstanceIdempotency, ExceptionRepo: r.ActivityException, CalendarPeriodRepo: r.CalendarPeriod, Database: arrivalTimetable.NewTenantDatabase(db.Pool()),
-		StaffRepo: NewTimetableStaff(members.Staff), ActiveGroupRepo: presence.ActiveGroup, SupervisorRepo: presence.GroupSupervisor,
-		Presence: NewLoggedStudentPresence(db, logger), ActiveService: ender, CareDayLocks: carePlan,
+		StaffRepo: owners.NewTimetableStaff(members.Staff), ActiveGroupRepo: presence.ActiveGroup, SupervisorRepo: presence.GroupSupervisor,
+		Presence: owners.NewLoggedStudentPresence(db, logger), ActiveService: ender, CareDayLocks: carePlan,
 		Materialization: materialization, RecurrenceLock: recurrenceLock,
 		StartConflicts: conflicts, SubstituteConflicts: substituteConflicts, Logger: logger, Now: now,
 	}, lifecycleRows, careDay, nil, settings.Settings, hub)
@@ -176,7 +178,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	}
 	dataRows := r.OwnerRows()
 	dataRows.Locks = recovery
-	timetableData, err := NewTimetableData(dataRows, arrival, pickup, NewLoggedStudentPresence(db, logger), r.Timetable, presence.ActiveGroup,
+	timetableData, err := NewTimetableData(dataRows, arrival, pickup, owners.NewLoggedStudentPresence(db, logger), r.Timetable, presence.ActiveGroup,
 		r.Timetable, arrivalTimetable.NewBlockDisplayMetadata(db.Pool(), blockDisplayCompose.List), true, logger)
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
@@ -191,7 +193,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}
-	deviationDeps, err := TimetableStaffDeviationDependencies(r.OwnerRows(), NewTimetableStaff(members.Staff), presence.GroupSupervisor,
+	deviationDeps, err := owners.TimetableStaffDeviationDependencies(r.OwnerRows(), owners.NewTimetableStaff(members.Staff), presence.GroupSupervisor,
 		instance.DeviationLifecycle(), hub, logger, now)
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err

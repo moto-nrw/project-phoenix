@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	appointments "github.com/moto-nrw/project-phoenix/modules/appointments"
 	portal "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +25,7 @@ func TestCalendarLifecyclePushJoinsTriggeringTransaction(t *testing.T) {
 			require.NoError(t, err)
 			cfg := calendarTestConfig(t, db)
 			cfg.Notifier, cfg.Preferences = api.CalendarOutboxNotifierForTest(notifications), reminderPreferences{}
-			calendar := api.NewCalendarPortal(cfg)
+			calendar := owners.NewCalendarPortal(cfg)
 			_, organizer := testpkg.CreateTestCalendarStaff(t, db, "Atomic", "Calendar")
 			parent := testpkg.CreateTestParentGuardianChain(t, db)
 			ctx := calendarContext(t, organizer.ID)

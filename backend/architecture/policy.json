@@ -3549,6 +3549,13 @@
       "role": "domain",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "roots/owners",
+      "owner": "root-composition",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     }
   ],
   "data_objects": [
@@ -15595,6 +15602,17 @@
       "source_package": "modules/timetable/fixturetest",
       "target_owner": "school-calendar",
       "target_role": "public"
+    },
+    {
+      "id": "root-composition.reach.compose.self-compose",
+      "description": "ADR 0053 point 2: the typed roots compose their own owner builders.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "root-composition",
+      "target_role": "compose"
     },
     {
       "id": "root-composition.reach.cli.middleware",

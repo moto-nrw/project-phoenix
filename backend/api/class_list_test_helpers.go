@@ -6,6 +6,7 @@ import (
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 )
 
 // ClassListTestModule is the School Membership owner with its class-list
@@ -17,11 +18,11 @@ type ClassListTestModule struct {
 }
 
 func NewClassListTestModule(db transactionruntime.Database) (ClassListTestModule, error) {
-	persons, err := NewPeopleDirectory(db)
+	persons, err := owners.NewPeopleDirectory(db)
 	if err != nil {
 		return ClassListTestModule{}, err
 	}
-	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
+	command, err := auditCompose.NewCommand(owners.NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return ClassListTestModule{}, err
 	}

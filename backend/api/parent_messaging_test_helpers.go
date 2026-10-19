@@ -5,6 +5,8 @@ package api
 import (
 	"context"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -14,7 +16,7 @@ import (
 // NewMessageableGuardianRepository binds the recipient lookup to the native
 // Identity capability for focused repository tests.
 func NewMessageableGuardianRepository(db transactionruntime.Database) *peopleCompose.RetainedMessageableGuardians {
-	return peopleCompose.NewMessageableGuardians(db.Pool(), guardianLinkView.NewReader(), NewPeopleIdentityAccess(db, nil).FindActiveSchoolMemberships)
+	return peopleCompose.NewMessageableGuardians(db.Pool(), guardianLinkView.NewReader(), owners.NewPeopleIdentityAccess(db, nil).FindActiveSchoolMemberships)
 }
 
 // ParentMessagingTestRepositories is the parent-conversation data layer for
@@ -33,11 +35,11 @@ type ParentMessagingTestRepositories struct {
 // #2580, so a test that only needs three repositories must not add another
 // caller that builds all of them.
 func NewParentMessagingTestRepositories(db transactionruntime.Database) (ParentMessagingTestRepositories, error) {
-	membership, err := NewSchoolMembership(db)
+	membership, err := owners.NewSchoolMembership(db)
 	if err != nil {
 		return ParentMessagingTestRepositories{}, err
 	}
-	persons := NewPersonRepository(db)
+	persons := owners.NewPersonRepository(db)
 	personAccounts := func(ctx context.Context, ids []int64) (map[int64]*parentStore.StaffPersonAccount, error) {
 		rows, err := persons.FindByIDs(ctx, ids)
 		if rows == nil {
@@ -54,10 +56,10 @@ func NewParentMessagingTestRepositories(db transactionruntime.Database) (ParentM
 		return out, err
 	}
 	return ParentMessagingTestRepositories{
-		Thread:  parentStore.NewParentMessageThreadRepository(db.Pool(), newParentGuardianLister(db, NewPeopleIdentityAccess(db, nil).FindActiveSchoolMemberships)),
+		Thread:  parentStore.NewParentMessageThreadRepository(db.Pool(), owners.NewParentGuardianLister(db, owners.NewPeopleIdentityAccess(db, nil).FindActiveSchoolMemberships)),
 		Message: parentStore.NewParentMessageRepository(db.Pool()),
 		// The three guardian-facing projections resolve the school's staff
 		// accounts through School Membership, exactly as the service graph binds them.
-		Read: parentStore.NewStaffParentMessageReadRepository(db.Pool(), newParentMessageInbox(db), ParentStaffMembers{Membership: membership}.List, personAccounts),
+		Read: parentStore.NewStaffParentMessageReadRepository(db.Pool(), owners.NewParentMessageInbox(db), owners.ParentStaffMembers{Membership: membership}.List, personAccounts),
 	}, nil
 }

@@ -7,7 +7,7 @@ import (
 
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	"github.com/moto-nrw/project-phoenix/tenant"

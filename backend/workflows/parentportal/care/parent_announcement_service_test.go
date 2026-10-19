@@ -22,6 +22,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -40,15 +41,15 @@ func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*pa
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
-		GuardianPolicy:        api.NewParentGuardianPolicy(),
-		Fingerprints:          api.SecurityFingerprints{},
-		Declarations:          api.ParentDeclarationPolicy(),
-		Runtime:               api.ParentPortalRuntime{},
+		GuardianPolicy:        owners.NewParentGuardianPolicy(),
+		Fingerprints:          owners.SecurityFingerprints{},
+		Declarations:          owners.ParentDeclarationPolicy(),
+		Runtime:               owners.ParentPortalRuntime{},
 		Children:              childResolver(db, repos, reposPeople),
 		ChildRepo:             repos.ParentChildReads(),
 		EnrollmentRequestRepo: repos.ParentEnrollmentReads(),
-		AnnouncementRepo:      api.BindParentAnnouncementAccess(reposMessages.ParentAnnouncement),
-		StudentRepo:           api.NewParentStudentReads(reposPeople.Student),
+		AnnouncementRepo:      owners.BindParentAnnouncementAccess(reposMessages.ParentAnnouncement),
+		StudentRepo:           owners.NewParentStudentReads(reposPeople.Student),
 		Settings: messagingSettingsStub{
 			boolValues: map[string]bool{parentportal.KeyParentNewsEnabled: newsEnabled},
 		},

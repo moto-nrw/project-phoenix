@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
@@ -23,7 +24,7 @@ func TestPresenceStudents_UpdateLiveStatusFailsOnUnknownStudent(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repoFactory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	students := api.PresenceStudents(testpkg.MustDatabase(db), repoFactory.Student)
+	students := owners.PresenceStudents(testpkg.MustDatabase(db), repoFactory.Student)
 
 	sick := true
 	now := time.Now()
@@ -67,7 +68,7 @@ func TestPresenceStudents_UpdateLiveStatusPersistsFlags(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repoFactory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	students := api.PresenceStudents(testpkg.MustDatabase(db), repoFactory.Student)
+	students := owners.PresenceStudents(testpkg.MustDatabase(db), repoFactory.Student)
 	student := testpkg.CreateTestStudent(t, db, "Live", "Status", "LS1")
 	ctx := testpkg.Ctx(t)
 

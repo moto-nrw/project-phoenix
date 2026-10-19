@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	api "github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -68,7 +69,7 @@ func tenantIDsOf(calls []testpkg.BroadcastCall) []int64 {
 func newPhotoSeam(
 	t *testing.T,
 	directory *stubPhotoDirectory,
-	broadcaster api.PhotoBroadcaster,
+	broadcaster owners.PhotoBroadcaster,
 	unlinker peoplePorts.PhotoUnlinker,
 	logger *slog.Logger,
 ) peoplePorts.StudentPhotoService {
@@ -197,9 +198,9 @@ func TestPhotoRoutesRequireATenantContext(t *testing.T) {
 
 	require.ErrorIs(t,
 		seam.CommitUpload(context.Background(), peoplePorts.CommitUploadRequest{StudentID: 1}),
-		api.ErrPhotoNoTenant)
+		owners.ErrPhotoNoTenant)
 	_, err := seam.CommitDelete(context.Background(), 1)
-	require.ErrorIs(t, err, api.ErrPhotoNoTenant)
+	require.ErrorIs(t, err, owners.ErrPhotoNoTenant)
 	_, err = seam.LookupForRead(context.Background(), 1, "a.jpg")
-	require.ErrorIs(t, err, api.ErrPhotoNoTenant)
+	require.ErrorIs(t, err, owners.ErrPhotoNoTenant)
 }

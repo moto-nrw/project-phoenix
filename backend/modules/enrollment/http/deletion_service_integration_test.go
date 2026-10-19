@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"log/slog"
 	"os"
@@ -30,9 +31,9 @@ import (
 type deletionTestFixture struct {
 	t          *testing.T
 	db         *bun.DB
-	repos      *api.EnrollmentFlowTestRepositories
-	reposAudit *api.EnrollmentFlowAuditRows
-	reposCare  api.TimetableCarePlanRows
+	repos      *owners.EnrollmentFlowTestRepositories
+	reposAudit *owners.EnrollmentFlowAuditRows
+	reposCare  owners.TimetableCarePlanRows
 	scope      testpkg.TenantScope
 	actor      int64
 	phase      int64
@@ -96,20 +97,20 @@ func (f *deletionTestFixture) child(requestID int64, label, status string, creat
 	return child
 }
 
-func (f *deletionTestFixture) service(auditRepo api.EnrollmentFlowDeletionAudits, requestRepo api.EnrollmentDeletionOwner) enrollmentAPI.EnrollmentDeletionService {
-	return api.NewEnrollmentDeletionModule(f.sources(auditRepo, requestRepo)).Deletions
+func (f *deletionTestFixture) service(auditRepo api.EnrollmentFlowDeletionAudits, requestRepo owners.EnrollmentDeletionOwner) enrollmentAPI.EnrollmentDeletionService {
+	return owners.NewEnrollmentDeletionModule(f.sources(auditRepo, requestRepo)).Deletions
 }
 
 // sources binds the admin deletion and the retention cleanup the way the
 // root does; requestRepo replaces the owner's request lock.
-func (f *deletionTestFixture) sources(auditRepo api.EnrollmentFlowDeletionAudits, requestRepo api.EnrollmentDeletionOwner) api.EnrollmentDeletionSources {
+func (f *deletionTestFixture) sources(auditRepo api.EnrollmentFlowDeletionAudits, requestRepo owners.EnrollmentDeletionOwner) owners.EnrollmentDeletionSources {
 	if auditRepo == nil {
 		auditRepo = f.reposAudit.EnrollmentDeletionAudit
 	}
 	if requestRepo == nil {
 		requestRepo = f.repos.Enrollment()
 	}
-	return api.EnrollmentDeletionSources{
+	return owners.EnrollmentDeletionSources{
 		Owner:                 requestRepo,
 		Guardians:             f.guardians(),
 		CountAuditAdjustments: f.reposAudit.EnrollmentOfferingAdjustment.CountForDeletion,
@@ -390,7 +391,7 @@ func TestEnrollmentDeletion_RLSDeniesOtherTenant(t *testing.T) {
 }
 
 type deletionLockSignalRepository struct {
-	api.EnrollmentDeletionOwner
+	owners.EnrollmentDeletionOwner
 	targetID int64
 	started  chan struct{}
 	once     sync.Once
@@ -458,7 +459,7 @@ func TestRejectedEnrollmentCleanup_WritesSystemDeletionAudit(t *testing.T) {
 
 	sources := f.sources(nil, nil)
 	sources.Settings = cleanupRetentionSettings{days: 90}
-	cleaner := api.NewEnrollmentDeletionModule(sources).Cleanup
+	cleaner := owners.NewEnrollmentDeletionModule(sources).Cleanup
 	result, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (enrollmentNative.RejectedEnrollmentCleanupResult, error) {
 		return cleaner.CleanupRejectedEnrollments(ctx)
 	})
@@ -486,7 +487,7 @@ func TestRejectedEnrollmentCleanup_WritesSystemDeletionAudit(t *testing.T) {
 
 func (f *deletionTestFixture) guardians() deletionTestGuardians {
 	f.t.Helper()
-	people, err := api.NewPeopleDirectory(testpkg.MustDatabase(f.db))
+	people, err := owners.NewPeopleDirectory(testpkg.MustDatabase(f.db))
 	require.NoError(f.t, err)
 	return deletionTestGuardians{
 		byAccount: func(ctx context.Context, ids []int64) ([]TestDirectoryGuardian, error) {

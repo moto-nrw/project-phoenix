@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 )
 
 // deviceOnlineWindowMinutesKey is the Settings Platform registry key the
@@ -77,7 +79,7 @@ func TestNewOnlineWindowResolver(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			resolve := NewOnlineWindowResolver(tt.resolver, nil)
+			resolve := owners.NewOnlineWindowResolver(tt.resolver, nil)
 			if got := resolve(context.Background()); got != tt.want {
 				t.Errorf("online window = %v, want %v", got, tt.want)
 			}

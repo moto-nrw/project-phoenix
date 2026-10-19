@@ -3,6 +3,8 @@ package api
 import (
 	"testing"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,7 +17,7 @@ func TestNewRepositoryFactory(t *testing.T) {
 
 	factory := NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	factoryPeople := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	factoryPeopleStructure := NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
+	factoryPeopleStructure := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	factoryAccounts := NewAccountSuiteRepositories(testpkg.NewDatabase(t, db))
 	factorySchedules := NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
 	factoryPresence := NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))

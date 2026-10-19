@@ -76,7 +76,7 @@
   "runtime_evidence": {
     "source": "Local runs on the #2746 branch on 2026-10-02 against the local postgres-test server.",
     "sources": [
-      "backend/api/scheduler_ports.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/scheduler_ports.go",
       "backend/realtime/events.go",
       "backend/modules/schedulerruntime/jobruntime/runtime.go",
       "backend/modules/settings/compose/tenant_snapshots.go",

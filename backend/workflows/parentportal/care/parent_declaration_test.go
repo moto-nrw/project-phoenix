@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -86,7 +87,7 @@ func freezeTestVersion(t *testing.T, ctx context.Context, repo api.ParentAnnounc
 		TenantID: a.TenantID, AnnouncementID: a.ID, VersionNo: number, Title: a.Title,
 		Body: a.Body + " " + string(rune('A'+number)), Kind: a.Declaration.Kind, PublishedAt: time.Now(),
 	}
-	version.ContentHash = api.SecurityFingerprints{}.Content(api.ParentDeclarationCanonicalContent(version))
+	version.ContentHash = owners.SecurityFingerprints{}.Content(api.ParentDeclarationCanonicalContent(version))
 	require.NoError(t, repo.InsertDeclarationVersion(ctx, version))
 	return version
 }
@@ -136,7 +137,7 @@ func TestDeclaration_ConsentIsRecordedOnceAndShownInFeed(t *testing.T) {
 	assert.True(t, created)
 	assert.Equal(t, 1, first.VersionNo)
 	assert.Equal(t, s.version.ContentHash, first.ContentHash)
-	assert.Equal(t, api.SecurityFingerprints{}.Content(api.ParentDeclarationCanonicalRecord(first)), first.RecordHash)
+	assert.Equal(t, owners.SecurityFingerprints{}.Content(api.ParentDeclarationCanonicalRecord(first)), first.RecordHash)
 
 	// A double click stores nothing new and answers with the same proof.
 	again, created, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
@@ -150,7 +151,7 @@ func TestDeclaration_ConsentIsRecordedOnceAndShownInFeed(t *testing.T) {
 	assert.Equal(t, "Sabine Schneider", stored.SignerName)
 	assert.Equal(t, "primary_guardian", stored.GuardianRole)
 	assert.Equal(t, "simple_electronic", stored.Method)
-	assert.Equal(t, stored.RecordHash, api.SecurityFingerprints{}.Content(api.ParentDeclarationCanonicalRecord(stored)),
+	assert.Equal(t, stored.RecordHash, owners.SecurityFingerprints{}.Content(api.ParentDeclarationCanonicalRecord(stored)),
 		"the record hash must survive the database round trip")
 
 	after := s.feedDeclaration(t, s.chain.AccountID)
@@ -482,7 +483,7 @@ func TestDeclaration_ProofContainsOnlyTheOwnDeclarations(t *testing.T) {
 	// validation.
 	tampered := *proof.Submissions[0]
 	tampered.ContentHash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	tampered.RecordHash = api.SecurityFingerprints{}.Content(api.ParentDeclarationCanonicalRecord(&tampered))
+	tampered.RecordHash = owners.SecurityFingerprints{}.Content(api.ParentDeclarationCanonicalRecord(&tampered))
 	_, err = s.db.ExecContext(s.ctx,
 		`UPDATE users.parent_announcement_declaration_submissions SET content_hash = ?, record_hash = ? WHERE id = ?`,
 		tampered.ContentHash, tampered.RecordHash, tampered.ID)
@@ -502,7 +503,7 @@ func TestDeclarationProofAttachmentAccessRequiresTheOwnFrozenVersion(t *testing.
 	s.version.Attachments = []parentportal.DeclarationAttachmentDigest{{
 		AttachmentID: 91, Filename: "Ausflug.pdf", ContentType: "application/pdf", SizeBytes: 2048,
 	}}
-	s.version.ContentHash = api.SecurityFingerprints{}.Content(api.ParentDeclarationCanonicalContent(s.version))
+	s.version.ContentHash = owners.SecurityFingerprints{}.Content(api.ParentDeclarationCanonicalContent(s.version))
 	attachments, err := json.Marshal(s.version.Attachments)
 	require.NoError(t, err)
 	_, err = s.db.ExecContext(s.seedCtx,
@@ -521,7 +522,7 @@ func TestDeclarationProofAttachmentAccessRequiresTheOwnFrozenVersion(t *testing.
 	newer.Attachments = []parentportal.DeclarationAttachmentDigest{{
 		AttachmentID: 92, Filename: "Spätere Fassung.pdf", ContentType: "application/pdf", SizeBytes: 1024,
 	}}
-	newer.ContentHash = api.SecurityFingerprints{}.Content(api.ParentDeclarationCanonicalContent(newer))
+	newer.ContentHash = owners.SecurityFingerprints{}.Content(api.ParentDeclarationCanonicalContent(newer))
 	attachments, err = json.Marshal(newer.Attachments)
 	require.NoError(t, err)
 	_, err = s.db.ExecContext(s.seedCtx,

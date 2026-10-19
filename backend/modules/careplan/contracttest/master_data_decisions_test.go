@@ -15,6 +15,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
@@ -70,7 +71,7 @@ func (f masterDataFixture) decisions(t *testing.T, configure ...func(*api.Master
 func (f masterDataFixture) decisionInputs() (api.MasterDataDecisionTestOptions, api.MasterDataDecisionTestPeople) {
 	return api.MasterDataDecisionTestOptions{CarePlan: f.reposCare.CarePlan(), Logger: slog.Default()},
 		api.MasterDataDecisionTestPeople{
-			People:   api.MustNewPeopleDirectory(testpkg.MustDatabase(f.db)),
+			People:   owners.MustNewPeopleDirectory(testpkg.MustDatabase(f.db)),
 			Students: f.repos.Student, Persons: f.repos.Person,
 		}
 }
@@ -80,7 +81,7 @@ func (f masterDataFixture) queue(t *testing.T, scope careplanCompose.ReviewScope
 	t.Helper()
 	queue, err := api.NewRequestReviewMasterData(testpkg.NewDatabase(t, f.db),
 		testpkg.StudentDirectory{},
-		api.MustNewPeopleDirectory(testpkg.MustDatabase(f.db)),
+		owners.MustNewPeopleDirectory(testpkg.MustDatabase(f.db)),
 		scope,
 		careplan.Today,
 		ignoreReviewObservation)

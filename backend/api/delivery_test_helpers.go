@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 
 	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
@@ -46,7 +48,7 @@ func NewEnrollmentAdminSubscribersForTests(db transactionruntime.Database) (enro
 	if err != nil {
 		return nil, nil, err
 	}
-	return NewEnrollmentAdminSubscribers(consent, identity), consent, nil
+	return owners.NewEnrollmentAdminSubscribers(consent, identity), consent, nil
 }
 
 type DeliveryTestModule struct {
@@ -66,7 +68,7 @@ func NewPushSubscriptionTestService(db transactionruntime.Database, unit tenant.
 }
 
 func NewDeliveryTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (DeliveryTestModule, error) {
-	settings, err := NewSettingsTestModule(db, unit)
+	settings, err := owners.NewSettingsTestModule(db, unit)
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}
@@ -74,7 +76,7 @@ func NewDeliveryTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}
-	organizations, err := NewOrganizationTenancy(db)
+	organizations, err := owners.NewOrganizationTenancy(db)
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}
@@ -85,13 +87,13 @@ func NewDeliveryTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		return DeliveryTestModule{}, err
 	}
 	pushRepo := deliveryCompose.NewPushSubscriptionRepository(db.Pool())
-	identity := deliveryCompose.NewTenantMailIdentity(SchoolContactDirectory{Schools: organizations},
+	identity := deliveryCompose.NewTenantMailIdentity(owners.SchoolContactDirectory{Schools: organizations},
 		func(ctx context.Context, tenantID int64) (string, error) {
 			return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 		}, logger)
 	guardians := peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{GuardianProfileRepo: NewGuardianProfileTestRepository(db)}, db.Pool())
 	delivery, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
-		DB: db.Pool(), People: GuardianDisplayResolver{Query: guardians}, Observe: func(deliveryContract.Observation) {},
+		DB: db.Pool(), People: owners.GuardianDisplayResolver{Query: guardians}, Observe: func(deliveryContract.Observation) {},
 	})
 	if err != nil {
 		return DeliveryTestModule{}, err
@@ -106,7 +108,7 @@ func NewDeliveryTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}
-	parentMembers := MustNewMembershipTestRepositories(db)
+	parentMembers := owners.MustNewMembershipTestRepositories(db)
 	sse, err := deliveryCompose.NewTenantSSEChannel(unit, deliveryCompose.NewRealtimeHub(logger), db.Pool(), parentMembers.StudentGuardian, logger)
 	if err != nil {
 		return DeliveryTestModule{}, err

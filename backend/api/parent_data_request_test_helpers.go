@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
@@ -16,7 +18,7 @@ func CreateParentDataRequestFixture(source careplan.CareRequestsCommand, ctx con
 	if value == nil {
 		return errors.New("StudentDataChangeRequest cannot be nil or zero value")
 	}
-	created, err := NewParentDataRequestCommands(source).CreateStudentDataRequest(ctx, *value)
+	created, err := owners.NewParentDataRequestCommands(source).CreateStudentDataRequest(ctx, *value)
 	if err == nil {
 		*value = created
 	}

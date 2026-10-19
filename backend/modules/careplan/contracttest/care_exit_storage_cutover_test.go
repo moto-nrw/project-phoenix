@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"

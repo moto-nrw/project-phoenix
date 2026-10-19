@@ -31,8 +31,8 @@
     "source": "Assigned localhost5547 test database, pinned toolchain and fresh /tmp/gocache-4073 after merged4226. Immutable source base693b4174c31a43d05ed0e48f1143fb5d65ed14ff.",
     "sources": [
       "backend/api/care_plan_test_helpers.go",
-      "backend/api/care_plan_schedule_records.go",
-      "backend/api/care_plan_pickup_excusal_timetable.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/care_plan_schedule_records.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/care_plan_pickup_excusal_timetable.go",
       "backend/modules/timetable/internal/application/care_plan_pickup_rows.go",
       "backend/modules/timetable/internal/application/care_plan_arrival_rows.go",
       "backend/modules/timetable/internal/application/care_plan_schedule_rows.go",

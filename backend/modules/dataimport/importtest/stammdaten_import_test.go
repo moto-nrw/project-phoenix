@@ -14,6 +14,7 @@ import (
 	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
 	importService "github.com/moto-nrw/project-phoenix/modules/dataimport/internal/application/importservice"
 	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -25,7 +26,7 @@ import (
 func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations importModels.StaffInviter) (*importService.StaffImportConfig, *api.PeopleRepositorySuiteFactory) {
 	t.Helper()
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	organizations, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
+	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
@@ -36,9 +37,9 @@ func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations importModels
 		Roles:               identity,
 		FindRolePermissions: identity.FindRolePermissions,
 		SchoolName:          api.NewImportSchoolName(organizations),
-		Persons:             api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
-		Membership:          api.MustNewSchoolMembership(testpkg.NewDatabase(t, db)),
-		Records:             api.MustNewWorkforce(testpkg.NewDatabase(t, db)),
+		Persons:             owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
+		Membership:          owners.MustNewSchoolMembership(testpkg.NewDatabase(t, db)),
+		Records:             owners.MustNewWorkforce(testpkg.NewDatabase(t, db)),
 	})
 	return config, reposPeople
 }
@@ -62,7 +63,7 @@ func TestStaffImportConfig_Create_FilesStammdatensatzAndInvitation(t *testing.T)
 		},
 	}
 	config, repos := newStammdatenStaffConfig(t, db, invitations)
-	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
+	workTime := owners.MustNewWorkforce(testpkg.NewDatabase(t, db))
 	role := testpkg.CreateTestRoleForTenant(t, db, "Betreuungskraft", testpkg.Tenant(t))
 
 	email := fmt.Sprintf("import.%d@example.test", role.ID)
@@ -145,7 +146,7 @@ func TestStaffImportConfig_Create_WithoutEmailSkipsInvitation(t *testing.T) {
 		},
 	}
 	config, repos := newStammdatenStaffConfig(t, db, invitations)
-	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
+	workTime := owners.MustNewWorkforce(testpkg.NewDatabase(t, db))
 	role := testpkg.CreateTestRoleForTenant(t, db, "Kueche", testpkg.Tenant(t))
 
 	var staffID int64
@@ -170,7 +171,7 @@ func TestStaffImportConfig_Update_PatchesOnlyGivenCells(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	config, repos := newStammdatenStaffConfig(t, db, nil)
-	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
+	workTime := owners.MustNewWorkforce(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 
 	person := testpkg.CreateTestPerson(t, db, "Bernd", "Schulz")
@@ -231,10 +232,10 @@ func newStammdatenStudentConfig(t *testing.T, db *bun.DB) (*importService.Studen
 	// binds; the guardian-bearing cutover tests therefore live in the
 	// services package (import_cutover_test.go). This config covers the
 	// person, student, schedule and consent paths.
-	students := api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
+	students := owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	groups, err := api.NewSchoolStructure(testpkg.NewDatabase(t, db))
+	groups, err := owners.NewSchoolStructure(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)

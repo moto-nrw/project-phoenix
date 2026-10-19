@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -12,10 +13,10 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func setupClassTeacherService(t *testing.T, db *bun.DB) (Service, *api.SchoolStructureSuiteRepositories, *api.PeopleRepositorySuiteFactory) {
+func setupClassTeacherService(t *testing.T, db *bun.DB) (Service, *owners.SchoolStructureSuiteRepositories, *api.PeopleRepositorySuiteFactory) {
 	t.Helper()
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	reposStructure := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposStructure := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	// Same wiring the service factory uses: assignment rewrites must land in
 	// the Stammdaten audit trail.
 	return api.NewEducationSuiteService(repos, testpkg.NewDatabase(t, db)), reposStructure, repos

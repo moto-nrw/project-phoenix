@@ -11,6 +11,7 @@ import (
 	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -26,7 +27,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func setupPhaseTest(t *testing.T) (enrollmentNative.PhaseAdministration, *api.EnrollmentFlowTestRepositories, api.TimetableCarePlanRows, api.TimetableSchoolCalendar, *bun.DB, func()) {
+func setupPhaseTest(t *testing.T) (enrollmentNative.PhaseAdministration, *owners.EnrollmentFlowTestRepositories, owners.TimetableCarePlanRows, api.TimetableSchoolCalendar, *bun.DB, func()) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
@@ -648,7 +649,7 @@ func (r findByIDErrorPhaseRepo) Phase(context.Context, int64) (*enrollmentNative
 
 // phaseServiceWithCalendarPeriods wires the optional CalendarPeriods dep
 // on top of the standard setup so the link validation actually runs.
-func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentNative.PhaseAdministration, *api.EnrollmentFlowTestRepositories, *bun.DB, func()) {
+func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentNative.PhaseAdministration, *owners.EnrollmentFlowTestRepositories, *bun.DB, func()) {
 	t.Helper()
 	_, repoFactory, repoFactoryCare, repoFactoryCalendar, db, cleanup := setupPhaseTest(t)
 	svc := NewTestPhases(TestPhaseDependencies{

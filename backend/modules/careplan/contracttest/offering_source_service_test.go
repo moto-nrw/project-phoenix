@@ -18,6 +18,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
@@ -2305,7 +2306,7 @@ func TestSourcedRosterRows_AppearInTemplateListReads(t *testing.T) {
 	))
 
 	ctx := testpkg.Ctx(t)
-	repo := api.MustNewUnobservedTimetable(testpkg.MustDatabase(env.db))
+	repo := owners.MustNewUnobservedTimetable(testpkg.MustDatabase(env.db))
 
 	rows, err := repo.ListTemplateRows(ctx, &template.ID)
 	require.NoError(t, err)

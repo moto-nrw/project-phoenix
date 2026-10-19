@@ -5,6 +5,7 @@ package api
 import (
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -14,23 +15,23 @@ func (f *CarePlanSuiteRepositories) ParentChildReads() parentportal.ChildReads {
 	if f.ParentChild == nil {
 		return nil
 	}
-	return NewParentChildReads(careplanCompose.NewParentChildQueries(f.ParentChild, securityruntime.GuardianPermissionGranted))
+	return owners.NewParentChildReads(careplanCompose.NewParentChildQueries(f.ParentChild, securityruntime.GuardianPermissionGranted))
 }
 func (f *CarePlanSuiteRepositories) ParentPhaseReads() parentportal.EnrollablePhaseReads {
 	if f.ParentEnrollablePhase == nil {
 		return nil
 	}
-	return NewParentPhaseReads(careplanCompose.NewParentPhaseQueries(f.ParentEnrollablePhase))
+	return owners.NewParentPhaseReads(careplanCompose.NewParentPhaseQueries(f.ParentEnrollablePhase))
 }
 func (f *CarePlanSuiteRepositories) ParentEnrollmentReads() parentportal.EnrollmentRequestReads {
 	if f.ParentEnrollmentRequest == nil {
 		return nil
 	}
-	return NewParentEnrollmentReads(careplanCompose.NewParentEnrollmentQueries(f.ParentEnrollmentRequest))
+	return owners.NewParentEnrollmentReads(careplanCompose.NewParentEnrollmentQueries(f.ParentEnrollmentRequest))
 }
 func (r ParentRouteTestRepositories) ParentChildReads() parentportal.ChildReads {
 	if r.ParentChild == nil {
 		return nil
 	}
-	return NewParentChildReads(careplanCompose.NewParentChildQueries(r.ParentChild, securityruntime.GuardianPermissionGranted))
+	return owners.NewParentChildReads(careplanCompose.NewParentChildQueries(r.ParentChild, securityruntime.GuardianPermissionGranted))
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -39,7 +40,7 @@ func (m *cancelingMFAMailer) SendContext(_ context.Context, _ testpkg.EmailMessa
 func newSynchronousDeliveryMFAService(
 	t *testing.T,
 	mailer testpkg.Mailer,
-) (identityaccess.AccountMFA, api.MembershipTestRepositories, *bun.DB, *sessiontoken.TokenAuth) {
+) (identityaccess.AccountMFA, owners.MembershipTestRepositories, *bun.DB, *sessiontoken.TokenAuth) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	module := newMFATestModule(t, db,
@@ -48,7 +49,7 @@ func newSynchronousDeliveryMFAService(
 		// fails the issuance, not how long the retries take.
 		api.WithAuthTestMFABackoff(time.Millisecond),
 	)
-	return module.MFA, api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)), db, challengeTokenAuth(t, module)
+	return module.MFA, owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)), db, challengeTokenAuth(t, module)
 }
 
 func TestMFAStartChallengeFailsClosedAndInvalidatesCodeAfterCancellation(t *testing.T) {

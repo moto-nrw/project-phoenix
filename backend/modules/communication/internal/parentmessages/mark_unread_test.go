@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -328,7 +329,7 @@ func TestMarkUnread_DisabledSchoolShowsNoUnread(t *testing.T) {
 	reposAccounts := api.NewAccountSuiteRepositories(testpkg.NewDatabase(t, f.db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, f.db))
 	disabled := messaging.NewService(messaging.Config{
-		UserContext: api.StaffStudentReads{},
+		UserContext: owners.StaffStudentReads{},
 		Session:     api.CommunicationSession{},
 		ThreadRepo:  messaging.NewThreadRepository(reposMessages.ParentMessageThread), MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)), ReadRepo: messaging.NewReadRepository(reposMessages.ParentMessageRead),
 		Persons:     newPersons(reposPeople, reposAccounts, f.db),

@@ -129,7 +129,7 @@
     "sources": [
       "backend/modules/schoolstructure/internal/adapters/postgres/groups/group.go",
       "backend/modules/schoolstructure/internal/adapters/postgres/groups/runtime.go",
-      "backend/api/education_service_ports_repositories.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/education_service_ports_repositories.go",
       "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/modules/schoolstructure/compose/legacy_repository_runtime.go",
       "backend/modules/schoolstructure/http/api.go",
       "backend/modules/schoolstructure/internal/application/groups/ports.go",
