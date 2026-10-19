@@ -3,6 +3,7 @@ package owners
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
@@ -21,6 +22,7 @@ import (
 type lifecyclePeople interface {
 	CreateSchoolIdentityPerson(context.Context, peopledirectory.SchoolIdentityPerson) (int64, error)
 	LinkAccount(ctx context.Context, personID, accountID int64) error
+	UnlinkAccount(ctx context.Context, personID int64) error
 	LinkTag(ctx context.Context, personID int64, tagID string) error
 	CreateInvitedGuardian(context.Context, peopledirectory.InvitedGuardian) (int64, error)
 	DeleteGuardianProfile(ctx context.Context, guardianID int64) error
@@ -30,9 +32,10 @@ type lifecyclePeople interface {
 	DeleteStudentGuardianLink(ctx context.Context, linkID int64) error
 }
 
-// LifecycleMembership are the School Membership commands the lifecycle
-// creates staff and caregiver profiles through.
+// LifecycleMembership are the School Membership facts and commands the
+// lifecycle reads and creates staff and caregiver profiles through.
 type LifecycleMembership interface {
+	ListStaff(context.Context, schoolmembership.StaffFilter) ([]schoolmembership.Staff, error)
 	CreateStaff(context.Context, schoolmembership.CreateStaff) (schoolmembership.Staff, error)
 	CreateTeacher(context.Context, schoolmembership.CreateTeacher) (schoolmembership.Teacher, error)
 }
@@ -166,6 +169,10 @@ func (d staffDirectory) LinkPersonToAccount(ctx context.Context, personID, accou
 	return d.repos.People.LinkAccount(ctx, personID, accountID)
 }
 
+func (d staffDirectory) UnlinkPersonFromAccount(ctx context.Context, personID int64) error {
+	return d.repos.People.UnlinkAccount(ctx, personID)
+}
+
 func (d staffDirectory) LinkPersonToRFIDCard(ctx context.Context, personID int64, tagID string) error {
 	return d.repos.People.LinkTag(ctx, personID, tagID)
 }
@@ -184,23 +191,60 @@ func (d staffDirectory) IsStudentPerson(ctx context.Context, personID int64) (bo
 }
 
 func (d staffDirectory) FindStaffByPerson(ctx context.Context, personID int64) (identityPorts.StaffMember, bool, error) {
-	staff, err := d.repos.Staff.FindByPersonID(ctx, personID)
+	staff, err := d.repos.Membership.ListStaff(ctx, schoolmembership.StaffFilter{
+		PersonIDs:      []int64{personID},
+		IncludeDeleted: true,
+		MembershipOnly: true,
+	})
 	if err != nil {
-		if peoplePorts.RowMissing(err) {
-			return identityPorts.StaffMember{}, false, nil
-		}
 		return identityPorts.StaffMember{}, false, err
 	}
-	if staff == nil {
+	if len(staff) == 0 {
 		return identityPorts.StaffMember{}, false, nil
 	}
-	return staffMember(staff), true, nil
+	// A person can have several former employments. Continue the latest one
+	// rather than relying on ListStaff's ascending order.
+	var latestRetired schoolmembership.Staff
+	for _, member := range staff {
+		if !member.IsDeleted() {
+			return identityPorts.StaffMember{ID: member.ID, TenantID: member.TenantID, PersonID: member.PersonID}, true, nil
+		}
+		if member.ID > latestRetired.ID {
+			latestRetired = member
+		}
+	}
+	return identityPorts.StaffMember{ID: latestRetired.ID, TenantID: latestRetired.TenantID, PersonID: latestRetired.PersonID, Deleted: true}, true, nil
 }
 
 // CreateStaff creates the staff row at the school in context, which is the
-// school tenantID names.
-func (d staffDirectory) CreateStaff(ctx context.Context, _, personID int64) (int64, error) {
-	staff, err := d.repos.Membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: personID}})
+// school tenantID names. A retired source continues its employment on a fresh
+// membership. School Membership creates the membership and its Workforce-owned
+// profile in one savepoint.
+func (d staffDirectory) CreateStaff(ctx context.Context, _, personID int64, retiredStaffID *int64) (int64, error) {
+	fields := schoolmembership.StaffFields{PersonID: personID}
+	if retiredStaffID != nil {
+		retired, err := d.repos.Membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: []int64{*retiredStaffID}, IncludeDeleted: true})
+		if err != nil {
+			return 0, err
+		}
+		if len(retired) != 1 || !retired[0].IsDeleted() || retired[0].PersonID != personID {
+			return 0, fmt.Errorf("identity access: retired staff membership %d is not available for person %d", *retiredStaffID, personID)
+		}
+		fields = schoolmembership.StaffFields{
+			PersonID:              personID,
+			StaffNotes:            retired[0].StaffNotes,
+			EmploymentType:        retired[0].EmploymentType,
+			WorkTimeModelID:       retired[0].WorkTimeModelID,
+			PersonnelNumber:       retired[0].PersonnelNumber,
+			RotationAnchorDate:    retired[0].RotationAnchorDate,
+			BirthdayDisplayOptOut: retired[0].BirthdayDisplayOptOut,
+		}
+	}
+	staff, err := d.repos.Membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: fields})
+	if errors.Is(err, schoolmembership.ErrPersonnelNumberConflict) && fields.PersonnelNumber != nil {
+		fields.PersonnelNumber = nil
+		staff, err = d.repos.Membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: fields})
+	}
 	if err != nil {
 		return 0, err
 	}

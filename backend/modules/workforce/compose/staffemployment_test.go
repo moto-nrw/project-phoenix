@@ -95,21 +95,44 @@ func TestStaffEmploymentAppendsNotesAndTogglesTheBirthdayOptOut(t *testing.T) {
 	require.ErrorIs(t, employment.SetStaffBirthdayDisplayOptOut(ctx, 9_223_372_036_854_775_000, true), workforce.ErrStaffEmploymentNotFound)
 }
 
-func TestStaffEmploymentClearsTheWorkTimeModelOfARetiredMembership(t *testing.T) {
+// A retired membership keeps its template for a Wiederaufnahme (ADR 0021).
+// Deleting the template releases that binding, while a live assignee still
+// blocks the deletion (#3400).
+func TestDeletingAWorkTimeModelReleasesRetiredMembershipsOnly(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	employment := buildStaffEmployment(t, db)
+	capability := buildWorkforce(t, db)
 	ctx := testpkg.Ctx(t)
-	staff := testpkg.CreateTestStaff(t, db, "Offboarded", "Colleague")
-	modelID := employmentWorkTimeModel(t, db, "Vollzeit")
-	require.NoError(t, employment.SaveStaffEmployment(ctx, workforce.StaffEmployment{MembershipID: staff.ID, WorkTimeModelID: &modelID}))
-	retireMembership(t, db, staff.ID)
-
-	require.NoError(t, employment.ClearStaffWorkTimeModel(ctx, staff.ID), "offboarding detaches the template after the tombstone")
-	stored, err := employment.StaffEmployments(ctx, []int64{staff.ID})
+	model, err := capability.CreateWorkTimeModel(ctx, workforce.CreateWorkTimeModel{WorkTimeModelFields: workforce.WorkTimeModelFields{
+		Name: "Vollzeit", RotationLength: 1, RotationAnchorDate: "2026-01-05",
+	}})
 	require.NoError(t, err)
-	assert.Nil(t, stored[staff.ID].WorkTimeModelID)
-	require.ErrorIs(t, employment.ClearStaffWorkTimeModel(ctx, 9_223_372_036_854_775_000), workforce.ErrStaffEmploymentNotFound)
+	live := testpkg.CreateTestStaff(t, db, "Live", "Colleague")
+	retired := testpkg.CreateTestStaff(t, db, "Offboarded", "Colleague")
+	for _, id := range []int64{live.ID, retired.ID} {
+		require.NoError(t, employment.SaveStaffEmployment(ctx, workforce.StaffEmployment{MembershipID: id, WorkTimeModelID: &model.ID}))
+	}
+	retireMembership(t, db, retired.ID)
+
+	otherTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, otherTenantID)
+	require.ErrorIs(t, capability.DeleteWorkTimeModel(testpkg.TenantContext(otherTenantID), model.ID), workforce.ErrWorkTimeModelNotFound,
+		"another school neither deletes the template nor releases its bindings")
+	stored, err := employment.StaffEmployments(ctx, []int64{retired.ID})
+	require.NoError(t, err)
+	assert.Equal(t, &model.ID, stored[retired.ID].WorkTimeModelID)
+
+	require.ErrorIs(t, capability.DeleteWorkTimeModel(ctx, model.ID), workforce.ErrWorkTimeModelAssigned)
+	stored, err = employment.StaffEmployments(ctx, []int64{retired.ID})
+	require.NoError(t, err)
+	assert.Equal(t, &model.ID, stored[retired.ID].WorkTimeModelID, "a refused deletion releases nothing")
+
+	require.NoError(t, employment.SaveStaffEmployment(ctx, workforce.StaffEmployment{MembershipID: live.ID}))
+	require.NoError(t, capability.DeleteWorkTimeModel(ctx, model.ID), "the retired binding does not block the template")
+	stored, err = employment.StaffEmployments(ctx, []int64{retired.ID})
+	require.NoError(t, err)
+	assert.Nil(t, stored[retired.ID].WorkTimeModelID)
 }
 
 func TestStaffEmploymentRebasesTheAnchorOfLiveAssigneesOnly(t *testing.T) {
@@ -182,7 +205,6 @@ func TestStaffEmploymentIsTenantScoped(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, visible, "another school must not read the profile")
 	require.ErrorIs(t, employment.SetStaffBirthdayDisplayOptOut(otherCtx, staff.ID, true), workforce.ErrStaffEmploymentNotFound)
-	require.ErrorIs(t, employment.ClearStaffWorkTimeModel(otherCtx, staff.ID), workforce.ErrStaffEmploymentNotFound)
 	require.ErrorIs(t, employment.SaveStaffEmployment(otherCtx, workforce.StaffEmployment{MembershipID: staff.ID}),
 		workforce.ErrStaffEmploymentNotFound, "another school must not take over the profile, and must be told so")
 

@@ -1,7 +1,7 @@
 # Löschfristen je Datenart
 
 **Stand:** 19.10.2026\
-**Quelle für:** Löschkonzept und TOM (Anlage zum AVV). Entscheidungen: [ADR 0048](../adr/0048-loeschfristen-traegt-das-moto-team-je-schule-ein.md), für Inhalte der Schule [ADR 0072](../adr/0072-inhalte-der-schule-folgen-der-frist-ihrer-datenart.md). Begründungen der Fristen: [Recherche Aufbewahrungsfristen](../research/aufbewahrungsfristen-2026-10-12.md). Umsetzung: Spec [#3949](https://github.com/moto-nrw/project-phoenix/issues/3949).
+**Quelle für:** Löschkonzept und TOM (Anlage zum AVV). Entscheidungen: [ADR 0048](../adr/0048-loeschfristen-traegt-das-moto-team-je-schule-ein.md), für Inhalte der Schule [ADR 0073](../adr/0073-inhalte-der-schule-folgen-der-frist-ihrer-datenart.md). Begründungen der Fristen: [Recherche Aufbewahrungsfristen](../research/aufbewahrungsfristen-2026-10-12.md). Umsetzung: Spec [#3949](https://github.com/moto-nrw/project-phoenix/issues/3949).
 
 Diese Liste nennt jede Datenart mit Personenbezug, ihre Löschfrist, den Startzeitpunkt, wer die Frist einstellt und welcher Owner im Code löscht. Der Wächtertest `TestEveryTableHasARetentionPath` (`backend/database/migrations/retention_coverage_test.go`) hält die Tabellen dazu im Code fest: Jede Tabelle hat einen Löschweg, eine begründete Ausnahme oder steht als offene Lücke mit Ticket. Die Lückenliste darf nur schrumpfen.
 

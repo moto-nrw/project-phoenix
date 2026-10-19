@@ -197,12 +197,14 @@ type DeviceSession struct {
 	RoomName     *string
 }
 
-// Person is the part of a person the soft delete reads.
+// Person is the part of a person the soft delete reads. FormerStaff is true
+// when the person holds retired staff memberships and no live one.
 type Person struct {
 	ID          int64
 	TenantID    int64
 	AccountID   *int64
 	HasRFIDCard bool
+	FormerStaff bool
 }
 
 // PersonListing is one person of the operator person listings.

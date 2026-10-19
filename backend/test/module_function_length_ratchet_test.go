@@ -135,7 +135,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/identityaccess/internal/application/operator_passkey_flow.go:(*OperatorPasskeyFlows).verifyLogin":                                  63,
 	"modules/identityaccess/internal/application/operator_provisioning.go:(*OperatorProvisioning).InitiateOperatorEmailChange":                  90,
 	"modules/identityaccess/internal/application/role_administration.go:(*RoleAdministration).AssignRoleToAccount":                              99,
-	"modules/identityaccess/internal/application/school_identity.go:(*AccountLifecycle).resolveIdentityPerson":                                  61,
 	"modules/identityaccess/internal/application/school_invitation.go:(*SchoolInvitation).AcceptInvitation":                                     65,
 	"modules/identityaccess/internal/application/school_login.go:(*AccountAuthentication).loginSchoolWithMFAGate":                               107,
 	"modules/identityaccess/internal/application/session_revocation.go:(*AccountAuthentication).finishScheduledAccountWideWipe":                 66,

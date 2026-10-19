@@ -79,8 +79,11 @@ func (p *Provisioning) listPersons(ctx context.Context, schools []organizationte
 
 // SoftDeletePerson anonymises and soft-deletes a person of any school: the
 // RFID card and the account are unlinked, the account is deactivated and its
-// e-mail anonymised. A staff member who still supervises a group cannot be
-// deleted.
+// e-mail anonymised. A former staff member keeps its account link for a
+// Wiederaufnahme (ADR 0021), but the offboarding already closed that login at
+// this school and the account may still serve another school or the parents
+// portal, so it is only unlinked. A staff member who still supervises a group
+// cannot be deleted.
 func (p *Provisioning) SoftDeletePerson(ctx context.Context, personID int64, operatorID int64, clientIP net.IP) error {
 	if personID <= 0 {
 		return invalidData("person id is required")
@@ -101,10 +104,8 @@ func (p *Provisioning) SoftDeletePerson(ctx context.Context, personID int64, ope
 				return fmt.Errorf("SoftDeletePerson: unlink rfid: %w", err)
 			}
 		}
-		if person.AccountID != nil {
-			if err := p.retireAccount(adminCtx, personID, *person.AccountID); err != nil {
-				return err
-			}
+		if err := p.releaseAccount(adminCtx, person); err != nil {
+			return err
 		}
 		if err := p.people.AnonymizeAndSoftDelete(adminCtx, personID); err != nil {
 			return fmt.Errorf("SoftDeletePerson: anonymize and soft delete: %w", err)
@@ -143,6 +144,22 @@ func (p *Provisioning) ensureNoActiveSupervision(ctx context.Context, personID i
 		return &organizationtenancy.PersonHasActiveSupervisionsError{PersonID: personID, Count: count}
 	}
 	return nil
+}
+
+// releaseAccount unlinks the person's account. A former staff member's
+// account is left as it is; any other account is retired with the person.
+func (p *Provisioning) releaseAccount(ctx context.Context, person domain.Person) error {
+	switch {
+	case person.AccountID == nil:
+		return nil
+	case person.FormerStaff:
+		if err := p.people.UnlinkAccount(ctx, person.ID); err != nil {
+			return fmt.Errorf("SoftDeletePerson: unlink account: %w", err)
+		}
+		return nil
+	default:
+		return p.retireAccount(ctx, person.ID, *person.AccountID)
+	}
 }
 
 // retireAccount deactivates the person's account, anonymises its e-mail and

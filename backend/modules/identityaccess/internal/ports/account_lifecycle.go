@@ -48,10 +48,13 @@ type StaffDirectory interface {
 	FindPersonNames(ctx context.Context, accountIDs []int64) (map[int64]domain.PersonName, error)
 	CreatePerson(ctx context.Context, person domain.PersonRecord) (int64, error)
 	LinkPersonToAccount(ctx context.Context, personID, accountID int64) error
+	// MoveAccountLink unlinks the account from one person and links it to
+	// another of the same school.
+	MoveAccountLink(ctx context.Context, fromPersonID, toPersonID, accountID int64) error
 	LinkPersonToRFIDCard(ctx context.Context, personID int64, tagID string) error
 	IsStudentPerson(ctx context.Context, personID int64) (bool, error)
 	FindStaffByPerson(ctx context.Context, personID int64) (domain.StaffMember, bool, error)
-	CreateStaff(ctx context.Context, tenantID, personID int64) (int64, error)
+	CreateStaff(ctx context.Context, tenantID, personID int64, retiredStaffID *int64) (int64, error)
 	FindCaregiverProfile(ctx context.Context, staffID int64) (domain.CaregiverProfile, bool, error)
 	CreateCaregiverProfile(ctx context.Context, tenantID, staffID int64, position string) (int64, error)
 }

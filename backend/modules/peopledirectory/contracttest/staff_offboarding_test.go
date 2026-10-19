@@ -431,7 +431,9 @@ func TestOffboardStaff_WithAttendanceHistory(t *testing.T) {
 }
 
 // TestOffboardStaff_RevokesAccountAccess covers bug 1 of issue #695: after
-// deletion the Betreuer must no longer be able to log in.
+// deletion the Betreuer must no longer be able to log in. The person keeps its
+// account link for a Wiederaufnahme (ADR 0021, #3400); the login stays closed
+// because the account and its school access are retired, not because of it.
 func TestOffboardStaff_RevokesAccountAccess(t *testing.T) {
 	t.Parallel()
 
@@ -481,7 +483,8 @@ func TestOffboardStaff_RevokesAccountAccess(t *testing.T) {
 		Where(`id = ?`, person.ID).
 		Scan(context.Background(), &personAccountID)
 	require.NoError(t, err)
-	assert.Nil(t, personAccountID, "person must be unlinked from the account")
+	require.NotNil(t, personAccountID, "the person keeps its account link for a Wiederaufnahme")
+	assert.Equal(t, account.ID, *personAccountID)
 
 	var roleCount int
 	err = sc.db.NewSelect().
@@ -573,6 +576,21 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	staff := testpkg.CreateTestStaffForPerson(t, sc.db, person.ID)
 	testpkg.MapAccountToTenant(t, sc.db, account.ID, testpkg.Tenant(t))
 	role := testpkg.CreateTestSystemRole(t, sc.db, "user")
+	model, err := sc.workTime.CreateWorkTimeModel(sc.ctx, workforce.CreateWorkTimeModel{WorkTimeModelFields: workforce.WorkTimeModelFields{
+		Name:               fmt.Sprintf("reinvite-model-%d", time.Now().UnixNano()),
+		RotationLength:     1,
+		RotationAnchorDate: "2026-01-05",
+		Entries:            []workforce.WorkTimeModelEntry{{WeekIndex: 0, DayOfWeek: 0, TargetMinutes: 300}},
+	}})
+	require.NoError(t, err)
+	_, err = sc.db.ExecContext(context.Background(),
+		`UPDATE users.staff_employment_profiles SET work_time_model_id = ? WHERE membership_id = ?`, model.ID, staff.ID)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		ctx := context.Background()
+		_, _ = sc.db.ExecContext(ctx, `DELETE FROM config.work_time_model_entries WHERE work_time_model_id = ?`, model.ID)
+		_, _ = sc.db.ExecContext(ctx, `DELETE FROM config.work_time_models WHERE id = ?`, model.ID)
+	})
 
 	t.Cleanup(func() {
 		ctx := context.Background()
@@ -581,7 +599,7 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	})
 
 	// Before offboarding the re-invite is blocked (current production behavior).
-	_, err := invSvc.CreateSchoolInvitation(sc.ctx, api.SchoolInvitationRequest{
+	_, err = invSvc.CreateSchoolInvitation(sc.ctx, api.SchoolInvitationRequest{
 		Email:     emailAddr,
 		RoleID:    role.ID,
 		TenantID:  testpkg.Tenant(t),
@@ -622,6 +640,34 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 		Scan(context.Background(), &staffCount)
 	require.NoError(t, err)
 	assert.Equal(t, 1, staffCount, "the restored Betreuer has a live staff record again")
+	var restoredWorkTimeModelID *int64
+	require.NoError(t, sc.db.NewSelect().
+		TableExpr(`users.staff_employment_profiles AS "profile"`).
+		ColumnExpr(`"profile".work_time_model_id`).
+		Join(`JOIN users.staff_school_memberships AS "staff" ON "staff".id = "profile".membership_id`).
+		Join(`JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
+		Where(`"person".account_id = ? AND "staff".deleted_at IS NULL`, account.ID).
+		Scan(context.Background(), &restoredWorkTimeModelID))
+	require.NotNil(t, restoredWorkTimeModelID, "the Wiederaufnahme must keep the former work-time model")
+	assert.Equal(t, model.ID, *restoredWorkTimeModelID)
+
+	// The kept account link lets the identity path find the old person, so no
+	// second person row appears for the same human (ADR 0021, #3400).
+	var restoredPersonID int64
+	require.NoError(t, sc.db.NewSelect().
+		TableExpr(`users.staff_school_memberships AS "staff"`).
+		ColumnExpr(`"staff".person_id`).
+		Join(`JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
+		Where(`"person".account_id = ? AND "staff".deleted_at IS NULL`, account.ID).
+		Scan(context.Background(), &restoredPersonID))
+	assert.Equal(t, person.ID, restoredPersonID, "the Wiederaufnahme continues on the existing person")
+	var personCount int
+	require.NoError(t, sc.db.NewSelect().
+		TableExpr(`users.persons`).
+		ColumnExpr(`COUNT(*)`).
+		Where(`account_id = ? AND deleted_at IS NULL`, account.ID).
+		Scan(context.Background(), &personCount))
+	assert.Equal(t, 1, personCount, "no second person row for the same account")
 	stored, err := testpkg.ReadAccountState(context.Background(), sc.db, account.ID)
 	require.NoError(t, err)
 	assert.True(t, stored.Active)
@@ -947,10 +993,13 @@ func TestOffboardStaff_PreservesGuardianAccess(t *testing.T) {
 		ColumnExpr(`account_id`).
 		Where(`id = ?`, person.ID).
 		Scan(context.Background(), &personAccountID))
-	assert.Nil(t, personAccountID, "staff person must still be unlinked from the account")
+	require.NotNil(t, personAccountID, "the person keeps its account link for a Wiederaufnahme")
+	assert.Equal(t, account.ID, *personAccountID)
 
-	// Staff portal login is refused for the now guardian-only account; the
-	// parents portal remains the entry point.
+	// Staff portal login is refused for the now guardian-only account even
+	// though the account stays active and linked: the Account -> Person ->
+	// Staff chain skips the retired staff record. The parents portal remains
+	// the entry point.
 	_, _, err = sc.authSvc.LoginWithAudit(context.Background(), emailAddr, credential, "", "", "")
 	require.Error(t, err, "staff login must be refused for the guardian-only account")
 	assert.ErrorIs(t, err, api.ErrParentMustUseParentPortal)
@@ -1156,10 +1205,11 @@ func TestOffboardStaff_RemovesUpcomingStaffShifts(t *testing.T) {
 	assert.Equal(t, "2", auditedCount, "audit record must count the deleted staff shifts")
 }
 
-// TestOffboardStaff_ClearsWorkTimeModelAssignment: the soft-deleted staff row
-// must not keep its work_time_model_id, or the RESTRICT FK blocks model
-// deletion while the live-staff pre-check reports zero assignments.
-func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
+// TestOffboardStaff_KeepsWorkTimeModelAssignment: the retired staff row keeps
+// its work_time_model_id, which has no audit and a Wiederaufnahme needs back
+// (ADR 0021, #3400). The template stays deletable: the deletion releases the
+// retired binding instead of tripping the RESTRICT FK.
+func TestOffboardStaff_KeepsWorkTimeModelAssignment(t *testing.T) {
 	t.Parallel()
 
 	sc := newOffboardingScenario(t)
@@ -1184,16 +1234,53 @@ func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
 
 	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
 
-	var workTimeModelID *int64
-	require.NoError(t, sc.db.NewSelect().
-		TableExpr(`users.staff_employment_profiles`).
-		ColumnExpr(`work_time_model_id`).
-		Where(`membership_id = ?`, staff.ID).
-		Scan(context.Background(), &workTimeModelID))
-	assert.Nil(t, workTimeModelID, "work_time_model_id must be cleared on offboarding")
+	readWorkTimeModelID := func() *int64 {
+		var workTimeModelID *int64
+		require.NoError(t, sc.db.NewSelect().
+			TableExpr(`users.staff_employment_profiles`).
+			ColumnExpr(`work_time_model_id`).
+			Where(`membership_id = ?`, staff.ID).
+			Scan(context.Background(), &workTimeModelID))
+		return workTimeModelID
+	}
+	require.NotNil(t, readWorkTimeModelID(), "work_time_model_id must survive offboarding")
+	assert.Equal(t, model.ID, *readWorkTimeModelID())
 
 	require.NoError(t, owners.NewWorkTimeModelRepository(sc.workTime).Delete(sc.ctx, model.ID),
-		"work-time-model deletion must succeed once the offboarded staff no longer references it")
+		"work-time-model deletion must succeed while only offboarded staff reference it")
+	assert.Nil(t, readWorkTimeModelID(), "the deleted template releases the retired binding")
+}
+
+// TestOffboardStaff_ReleasesTransponderForTheNextPerson: the transponder is a
+// physical card the leaving person hands back, so the offboarding unlinks it
+// and the school can give it to someone else (ADR 0021, decision 3).
+func TestOffboardStaff_ReleasesTransponderForTheNextPerson(t *testing.T) {
+	t.Parallel()
+
+	sc := newOffboardingScenario(t)
+
+	staff, account := testpkg.CreateTestStaffWithAccount(t, sc.db, "Card", "Holder")
+	testpkg.MapAccountToTenant(t, sc.db, account.ID, testpkg.Tenant(t))
+	card := testpkg.CreateTestRFIDCard(t, sc.db, "OFFBOARD")
+	persons := sc.reposPeople.Person
+	require.NoError(t, testpkg.TenantCommand2(t, sc.ctx, sc.db, persons.LinkToRFIDCard, staff.PersonID, card.ID))
+
+	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
+
+	var tagID *string
+	require.NoError(t, sc.db.NewSelect().
+		TableExpr(`users.persons`).
+		ColumnExpr(`tag_id`).
+		Where(`id = ?`, staff.PersonID).
+		Scan(context.Background(), &tagID))
+	assert.Nil(t, tagID, "the offboarded person must give the transponder back")
+
+	next := testpkg.CreateTestPerson(t, sc.db, "Next", "Holder")
+	require.NoError(t, testpkg.TenantCommand2(t, sc.ctx, sc.db, persons.LinkToRFIDCard, next.ID, card.ID), "the card must be assignable to the next person")
+	holder, err := testpkg.TenantQuery1(t, sc.ctx, sc.db, persons.FindByTagID, card.ID)
+	require.NoError(t, err)
+	require.NotNil(t, holder)
+	assert.Equal(t, next.ID, holder.ID)
 }
 
 // TestOffboardStaff_LocksAccountBeforeRevokingRoles pins the LOCK ORDER the

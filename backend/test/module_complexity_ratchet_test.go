@@ -166,7 +166,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/identityaccess/internal/application/operator_provisioning.go:(*OperatorProvisioning).InitiateOperatorEmailChange":  25,
 	"modules/identityaccess/internal/application/permission_administration.go:(*RoleAdministration).ReplaceRolePermissions":     31,
 	"modules/identityaccess/internal/application/role_administration.go:(*RoleAdministration).AssignRoleToAccount":              47,
-	"modules/identityaccess/internal/application/school_identity.go:(*AccountLifecycle).resolveIdentityPerson":                  18,
 	"modules/identityaccess/internal/application/school_invitation.go:(*SchoolInvitation).AcceptInvitation":                     35,
 	"modules/identityaccess/internal/application/school_invitation.go:(*SchoolInvitation).grantAccess":                          17,
 	"modules/identityaccess/internal/application/school_login.go:(*AccountAuthentication).findSchoolPortalTenantForAccount":     21,
@@ -189,7 +188,7 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/mealplan/internal/application/service.go:(*Service).resolveParticipation": 20,
 
 	"modules/organizationtenancy/internal/application/provisioning_devices.go:(*Provisioning).listDevices":     27,
-	"modules/organizationtenancy/internal/application/provisioning_people.go:(*Provisioning).SoftDeletePerson": 19,
+	"modules/organizationtenancy/internal/application/provisioning_people.go:(*Provisioning).SoftDeletePerson": 16,
 	"modules/organizationtenancy/internal/application/provisioning_schools.go:(*Provisioning).schoolChangeSet": 23,
 	"modules/organizationtenancy/internal/application/school.go:(*Service).changeSchoolDeletion":               18,
 
@@ -231,7 +230,7 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/schoolmembership/internal/adapters/postgres/store.go:(*Store).ListGuests":                         18,
 	"modules/schoolmembership/internal/adapters/postgres/store.go:(*Store).ListTeachers":                       17,
 	"modules/schoolmembership/internal/adapters/postgres/teaching_assignment.go:(*Store).ListGroupAssignments": 16,
-	"modules/schoolmembership/internal/application/offboarding.go:(*Service).RetireStaff":                      22,
+	"modules/schoolmembership/internal/application/offboarding.go:(*Service).RetireStaff":                      17,
 	"modules/schoolmembership/internal/application/offboarding.go:(*Service).retirementSnapshot":               24,
 
 	"modules/schoolstructure/internal/adapters/postgres/transition_store.go:(*Store).ListTransitions": 16,

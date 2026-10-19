@@ -174,8 +174,7 @@ func TestStaffOwnersWorkOnContractedStorage(t *testing.T) {
 	assert.Equal(t, "2026-02-02", found.RotationAnchorDate)
 
 	require.NoError(t, membership.DeleteStaff(ctx, created.ID))
-	require.NoError(t, employment.ClearStaffWorkTimeModel(ctx, created.ID))
-	require.NoError(t, workTime.DeleteWorkTimeModel(ctx, model.ID), "the retired staff member no longer holds the template")
+	require.NoError(t, workTime.DeleteWorkTimeModel(ctx, model.ID), "the template releases the retired staff member's binding")
 }
 
 func staffOwnerRows(t *testing.T, db *bun.DB, personID int64) (memberships, profiles int) {
