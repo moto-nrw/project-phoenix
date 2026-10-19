@@ -39,7 +39,11 @@ func (r *HomeLayoutRepository) FindByAccount(ctx context.Context, accountID int6
 	}
 
 	layout := new(config.HomeLayout)
-	err := r.runtime.DB(ctx).NewSelect().
+	ambientDB1, databaseErr1 := r.runtime.DB(ctx)
+	if databaseErr1 != nil {
+		return *new(*config.HomeLayout), databaseErr1
+	}
+	err := ambientDB1.NewSelect().
 		Model(layout).
 		ModelTableExpr(tableHomeLayoutsAlias).
 		Where(`"home_layout".account_id = ?`, accountID).
@@ -68,7 +72,11 @@ func (r *HomeLayoutRepository) UpsertForAccount(ctx context.Context, layout *con
 		layout.Blocks = []config.HomeBlockPlacement{}
 	}
 
-	_, err := r.runtime.DB(ctx).NewInsert().
+	ambientDB2, databaseErr2 := r.runtime.DB(ctx)
+	if databaseErr2 != nil {
+		return databaseErr2
+	}
+	_, err := ambientDB2.NewInsert().
 		Model(layout).
 		ModelTableExpr(tableHomeLayouts).
 		On("CONFLICT (tenant_id, account_id) DO UPDATE").
@@ -89,7 +97,11 @@ func (r *HomeLayoutRepository) DeleteForAccount(ctx context.Context, accountID i
 		return fmt.Errorf("account ID is required")
 	}
 
-	_, err := r.runtime.DB(ctx).NewDelete().
+	ambientDB3, databaseErr3 := r.runtime.DB(ctx)
+	if databaseErr3 != nil {
+		return databaseErr3
+	}
+	_, err := ambientDB3.NewDelete().
 		Model((*config.HomeLayout)(nil)).
 		ModelTableExpr(tableHomeLayouts).
 		Where("account_id = ?", accountID).
@@ -104,7 +116,11 @@ func (r *HomeLayoutRepository) DeleteForAccount(ctx context.Context, accountID i
 // has never prescribed anything.
 func (r *HomeLayoutRepository) FindPolicies(ctx context.Context) (*config.HomeBlockPolicySet, error) {
 	policies := new(config.HomeBlockPolicySet)
-	err := r.runtime.DB(ctx).NewSelect().
+	ambientDB4, databaseErr4 := r.runtime.DB(ctx)
+	if databaseErr4 != nil {
+		return *new(*config.HomeBlockPolicySet), databaseErr4
+	}
+	err := ambientDB4.NewSelect().
 		Model(policies).
 		ModelTableExpr(tableHomeBlockPolicyAlias).
 		Limit(1).
@@ -130,7 +146,11 @@ func (r *HomeLayoutRepository) UpsertPolicies(ctx context.Context, policies *con
 		policies.Policies = map[string]config.BlockPolicy{}
 	}
 
-	_, err := r.runtime.DB(ctx).NewInsert().
+	ambientDB5, databaseErr5 := r.runtime.DB(ctx)
+	if databaseErr5 != nil {
+		return databaseErr5
+	}
+	_, err := ambientDB5.NewInsert().
 		Model(policies).
 		ModelTableExpr(tableHomeBlockPolicies).
 		On("CONFLICT (tenant_id) DO UPDATE").

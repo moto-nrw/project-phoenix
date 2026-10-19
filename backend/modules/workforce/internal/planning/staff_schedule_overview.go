@@ -2,7 +2,6 @@ package planning
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -92,10 +91,6 @@ type StaffShiftRangeReader interface {
 	FindByDateRange(ctx context.Context, start, end calendar.Date) ([]*StaffShift, error)
 }
 
-type StaffShiftWeekUsageReader interface {
-	FindUsedCalendarWeeks(ctx context.Context, start, end calendar.Date) ([]calendar.Date, error)
-}
-
 type ActivityInstanceRangeReader interface {
 	FindByTenantAndDateRange(ctx context.Context, from, to calendar.Date) ([]*timetable.ScheduledInstance, error)
 }
@@ -107,6 +102,7 @@ type RoomBatchReader interface {
 }
 
 type StaffOverviewReader interface {
+	ListMembershipsWithPerson(ctx context.Context) ([]*workforce.PlanStaff, error)
 	ListAllWithPerson(ctx context.Context) ([]*workforce.PlanStaff, error)
 	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*workforce.PlanStaff, error)
 }
@@ -129,13 +125,17 @@ type InstanceStaffBatchReader interface {
 	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*timetable.InstanceStaff, error)
 }
 
+type StaffPlanningProfilesReader interface {
+	StaffPlanningProfiles(ctx context.Context, staffIDs []int64, from, to string) ([]workforce.StaffPlanningProfile, error)
+}
+
 type StaffScheduleOverviewDependencies struct {
-	Shifts        StaffShiftRangeReader
-	ShiftWeeks    StaffShiftWeekUsageReader
-	Instances     ActivityInstanceRangeReader
-	InstanceStaff InstanceStaffBatchReader
-	Rooms         RoomBatchReader
-	Staff         StaffOverviewReader
+	PlanningProfiles StaffPlanningProfilesReader
+	Shifts           StaffShiftRangeReader
+	Instances        ActivityInstanceRangeReader
+	InstanceStaff    InstanceStaffBatchReader
+	Rooms            RoomBatchReader
+	Staff            StaffOverviewReader
 	// WorkSchedules and WorkModels feed the contractual weekly-target side of
 	// WeeklySummaries. Both are optional: a nil reader degrades to
 	// planned-minutes-only summaries (TargetMinutes stays nil).
@@ -162,11 +162,6 @@ type staffScheduleOverviewService struct {
 }
 
 func NewStaffScheduleOverviewService(deps StaffScheduleOverviewDependencies) StaffScheduleOverviewGetter {
-	if deps.ShiftWeeks == nil {
-		if reader, ok := deps.Shifts.(StaffShiftWeekUsageReader); ok {
-			deps.ShiftWeeks = reader
-		}
-	}
 	return &staffScheduleOverviewService{deps: deps}
 }
 
@@ -224,9 +219,6 @@ func (s *staffScheduleOverviewService) GetOverview(ctx context.Context, from, to
 }
 
 func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, from, to calendar.Date) (*staffScheduleOverviewData, error) {
-	if s.deps.ShiftWeeks == nil {
-		return nil, errors.New("staff-shift week usage reader is not wired")
-	}
 	firstWeekFrom, _ := containingCalendarWeek(from)
 	_, lastWeekTo := containingCalendarWeek(to)
 	// Load the full summarized weeks in one query; the viewport subset for the
@@ -237,12 +229,7 @@ func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, fro
 		return nil, fmt.Errorf("load staff shifts: %w", err)
 	}
 	shifts := shiftsWithinRange(weekShifts, from, to)
-	usedScheduleWeeks, err := s.deps.ShiftWeeks.FindUsedCalendarWeeks(ctx, firstWeekFrom, lastWeekTo)
-	if err != nil {
-		return nil, fmt.Errorf("load used staff-shift weeks: %w", err)
-	}
-	usedWeeks := make([]calendar.Date, len(usedScheduleWeeks))
-	copy(usedWeeks, usedScheduleWeeks)
+	usedWeeks := weeksWithShifts(weekShifts)
 	instances, err := s.deps.Instances.FindByTenantAndDateRange(ctx, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("load activity instances: %w", err)
@@ -255,13 +242,9 @@ func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, fro
 		return nil, err
 	}
 
-	var workSchedules []*workforce.ScheduleRow
-	if staffIDs := overviewStaffIDs(staff); s.deps.WorkSchedules != nil && len(staffIDs) > 0 && len(usedWeeks) > 0 {
-		schedules, err := s.deps.WorkSchedules.StaffSchedulesInRange(ctx, staffIDs, firstWeekFrom.String(), lastWeekTo.String())
-		if err != nil {
-			return nil, fmt.Errorf("load staff work schedules: %w", err)
-		}
-		workSchedules = scheduleRows(schedules)
+	workSchedules, err := s.loadPlanningProfiles(ctx, staff, usedWeeks, firstWeekFrom, lastWeekTo)
+	if err != nil {
+		return nil, err
 	}
 
 	return &staffScheduleOverviewData{
@@ -303,7 +286,11 @@ func (s *staffScheduleOverviewService) loadAssignmentData(
 // caregivers (#3823): they have no shifts to plan, so the duty roster carries
 // no row for them.
 func (s *staffScheduleOverviewService) loadPlannableStaff(ctx context.Context) ([]*workforce.PlanStaff, map[int64]struct{}, error) {
-	directory, err := s.deps.Staff.ListAllWithPerson(ctx)
+	readStaff := s.deps.Staff.ListAllWithPerson
+	if s.deps.PlanningProfiles != nil {
+		readStaff = s.deps.Staff.ListMembershipsWithPerson
+	}
+	directory, err := readStaff(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load staff directory: %w", err)
 	}

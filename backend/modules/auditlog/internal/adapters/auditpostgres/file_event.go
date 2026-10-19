@@ -27,14 +27,16 @@ func (r *fileEventRepository) ListRecent(ctx context.Context, limit int) ([]*aud
 		limit = 50
 	}
 	var rows []*audit.FileEvent
-	query := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB1, databaseErr1 := runtimeDB(ctx, r.runtime)
+	if databaseErr1 != nil {
+		return *new([]*audit.FileEvent), databaseErr1
+	}
+	query := ambientDB1.NewSelect().
 		Model(&rows).
 		ModelTableExpr(fileEventTableExpr).
 		OrderExpr(`"file_event".created_at DESC, "file_event".id DESC`).
 		Limit(int64(limit))
-	if tenantID := runtimeTenantID(ctx, r.runtime); tenantID > 0 {
-		query = query.Where(`"file_event".tenant_id = ?`, tenantID)
-	}
+	query = tenantQuery(ctx, r.runtime, query, "file_event")
 	if err := query.Scan(ctx); err != nil {
 		return nil, wrapDatabase("list file events", err)
 	}

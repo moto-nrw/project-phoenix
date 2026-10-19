@@ -10,7 +10,9 @@ import (
 
 // PersistenceRuntime supplies the ambient transaction the Settings Postgres
 // adapter runs in; tenant scoping is left to row-level security.
-type PersistenceRuntime interface{ DB(context.Context) bun.IDB }
+type PersistenceRuntime interface {
+	DB(context.Context) (bun.IDB, error)
+}
 
 // NewSettingValueRepository builds the tenant setting value store over the
 // caller's settings runtime (ADR 0049).
@@ -32,9 +34,9 @@ func NewHomeLayoutRepository(runtime PersistenceRuntime) configModel.HomeLayoutR
 	return configRepo.NewHomeLayoutRepository(runtime)
 }
 
-// NewStoredOverrideReader builds the reader over the CLI's superuser pool.
-func NewStoredOverrideReader(db *bun.DB) configRepo.StoredOverrideReader {
-	return configRepo.NewStoredOverrideReader(db)
+// NewStoredOverrideReader binds the CLI query to its caller's ambient runtime.
+func NewStoredOverrideReader(runtime PersistenceRuntime) configRepo.StoredOverrideReader {
+	return configRepo.NewStoredOverrideReader(runtime)
 }
 
 // NewSchoolSetupRepository builds the wizard's Settings-owned persistence.

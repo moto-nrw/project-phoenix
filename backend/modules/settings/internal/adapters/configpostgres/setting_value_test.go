@@ -26,15 +26,15 @@ func TestSettingValueRepository_Upsert_Insert(t *testing.T) {
 	repo := NewSettingValueRepository(testpkg.ConfigRuntime(db))
 	ctx := testpkg.Ctx(t)
 
-	err := repo.Upsert(ctx, newSV(t, "test.upsert_insert", `"hello"`))
+	err := testpkg.TenantCommand1(t, ctx, db, repo.Upsert, newSV(t, "test.upsert_insert", `"hello"`))
 	require.NoError(t, err)
 
-	found, err := repo.FindByTenantAndKey(ctx, testpkg.Tenant(t), "test.upsert_insert")
+	found, err := testpkg.TenantQuery2(t, ctx, db, repo.FindByTenantAndKey, testpkg.Tenant(t), "test.upsert_insert")
 	require.NoError(t, err)
 	require.NotNil(t, found)
 	assert.Equal(t, json.RawMessage(`"hello"`), found.Value)
 
-	t.Cleanup(func() { _ = repo.Delete(ctx, testpkg.Tenant(t), "test.upsert_insert") })
+	t.Cleanup(func() { _ = testpkg.TenantCommand2(t, ctx, db, repo.Delete, testpkg.Tenant(t), "test.upsert_insert") })
 }
 
 func TestSettingValueRepository_Upsert_Update(t *testing.T) {
@@ -44,15 +44,15 @@ func TestSettingValueRepository_Upsert_Update(t *testing.T) {
 	repo := NewSettingValueRepository(testpkg.ConfigRuntime(db))
 	ctx := testpkg.Ctx(t)
 
-	require.NoError(t, repo.Upsert(ctx, newSV(t, "test.upsert_update", `"first"`)))
-	require.NoError(t, repo.Upsert(ctx, newSV(t, "test.upsert_update", `"second"`)))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Upsert, newSV(t, "test.upsert_update", `"first"`)))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Upsert, newSV(t, "test.upsert_update", `"second"`)))
 
-	found, err := repo.FindByTenantAndKey(ctx, testpkg.Tenant(t), "test.upsert_update")
+	found, err := testpkg.TenantQuery2(t, ctx, db, repo.FindByTenantAndKey, testpkg.Tenant(t), "test.upsert_update")
 	require.NoError(t, err)
 	require.NotNil(t, found)
 	assert.Equal(t, json.RawMessage(`"second"`), found.Value)
 
-	t.Cleanup(func() { _ = repo.Delete(ctx, testpkg.Tenant(t), "test.upsert_update") })
+	t.Cleanup(func() { _ = testpkg.TenantCommand2(t, ctx, db, repo.Delete, testpkg.Tenant(t), "test.upsert_update") })
 }
 
 func TestSettingValueRepository_FindByTenantAndKey_NotFound(t *testing.T) {
@@ -62,7 +62,7 @@ func TestSettingValueRepository_FindByTenantAndKey_NotFound(t *testing.T) {
 	repo := NewSettingValueRepository(testpkg.ConfigRuntime(db))
 	ctx := testpkg.Ctx(t)
 
-	found, err := repo.FindByTenantAndKey(ctx, testpkg.Tenant(t), "nonexistent.key")
+	found, err := testpkg.TenantQuery2(t, ctx, db, repo.FindByTenantAndKey, testpkg.Tenant(t), "nonexistent.key")
 	require.NoError(t, err)
 	assert.Nil(t, found)
 }
@@ -74,14 +74,14 @@ func TestSettingValueRepository_FindByTenantAndKeys(t *testing.T) {
 	repo := NewSettingValueRepository(testpkg.ConfigRuntime(db))
 	ctx := testpkg.Ctx(t)
 
-	require.NoError(t, repo.Upsert(ctx, newSV(t, "test.batch_one", `true`)))
-	require.NoError(t, repo.Upsert(ctx, newSV(t, "test.batch_two", `false`)))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Upsert, newSV(t, "test.batch_one", `true`)))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Upsert, newSV(t, "test.batch_two", `false`)))
 	t.Cleanup(func() {
-		_ = repo.Delete(ctx, testpkg.Tenant(t), "test.batch_one")
-		_ = repo.Delete(ctx, testpkg.Tenant(t), "test.batch_two")
+		_ = testpkg.TenantCommand2(t, ctx, db, repo.Delete, testpkg.Tenant(t), "test.batch_one")
+		_ = testpkg.TenantCommand2(t, ctx, db, repo.Delete, testpkg.Tenant(t), "test.batch_two")
 	})
 
-	found, err := repo.FindByTenantAndKeys(ctx, testpkg.Tenant(t), []string{
+	found, err := testpkg.TenantQuery2(t, ctx, db, repo.FindByTenantAndKeys, testpkg.Tenant(t), []string{
 		"test.batch_one",
 		"test.batch_two",
 		"test.not_stored",
@@ -104,12 +104,12 @@ func TestSettingValueRepository_Delete(t *testing.T) {
 	repo := NewSettingValueRepository(testpkg.ConfigRuntime(db))
 	ctx := testpkg.Ctx(t)
 
-	require.NoError(t, repo.Upsert(ctx, newSV(t, "test.delete_me", `"bye"`)))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Upsert, newSV(t, "test.delete_me", `"bye"`)))
 
-	err := repo.Delete(ctx, testpkg.Tenant(t), "test.delete_me")
+	err := testpkg.TenantCommand2(t, ctx, db, repo.Delete, testpkg.Tenant(t), "test.delete_me")
 	require.NoError(t, err)
 
-	found, err := repo.FindByTenantAndKey(ctx, testpkg.Tenant(t), "test.delete_me")
+	found, err := testpkg.TenantQuery2(t, ctx, db, repo.FindByTenantAndKey, testpkg.Tenant(t), "test.delete_me")
 	require.NoError(t, err)
 	assert.Nil(t, found)
 }
@@ -137,34 +137,34 @@ func TestSettingValueRepository_TenantIsolation(t *testing.T) {
 		Value:      json.RawMessage(`"tenantA"`),
 	}
 	svA.TenantID = tenantA
-	require.NoError(t, repo.Upsert(ctxA, svA))
+	require.NoError(t, testpkg.TenantCommand1(t, ctxA, db, repo.Upsert, svA))
 
 	svB := &config.SettingValue{
 		SettingKey: "test.isolation",
 		Value:      json.RawMessage(`"tenantB"`),
 	}
 	svB.TenantID = tenantB
-	require.NoError(t, repo.Upsert(ctxB, svB))
+	require.NoError(t, testpkg.TenantCommand1(t, ctxB, db, repo.Upsert, svB))
 
 	// Each tenant's query scopes to its own data via tenant_id parameter
-	foundA, err := repo.FindByTenantAndKey(ctxA, tenantA, "test.isolation")
+	foundA, err := testpkg.TenantQuery2(t, ctxA, db, repo.FindByTenantAndKey, tenantA, "test.isolation")
 	require.NoError(t, err)
 	require.NotNil(t, foundA)
 	assert.Equal(t, json.RawMessage(`"tenantA"`), foundA.Value)
 
-	foundB, err := repo.FindByTenantAndKey(ctxB, tenantB, "test.isolation")
+	foundB, err := testpkg.TenantQuery2(t, ctxB, db, repo.FindByTenantAndKey, tenantB, "test.isolation")
 	require.NoError(t, err)
 	require.NotNil(t, foundB)
 	assert.Equal(t, json.RawMessage(`"tenantB"`), foundB.Value)
 
 	// Verify nonexistent key returns nil
-	notFound, err := repo.FindByTenantAndKey(ctxA, tenantA, "test.isolation_nonexistent")
+	notFound, err := testpkg.TenantQuery2(t, ctxA, db, repo.FindByTenantAndKey, tenantA, "test.isolation_nonexistent")
 	require.NoError(t, err)
 	assert.Nil(t, notFound)
 
 	t.Cleanup(func() {
-		_ = repo.Delete(ctxA, tenantA, "test.isolation")
-		_ = repo.Delete(ctxB, tenantB, "test.isolation")
+		_ = testpkg.TenantCommand2(t, ctxA, db, repo.Delete, tenantA, "test.isolation")
+		_ = testpkg.TenantCommand2(t, ctxB, db, repo.Delete, tenantB, "test.isolation")
 	})
 }
 
@@ -176,7 +176,7 @@ func TestSettingValueRepository_Validate_RejectsEmpty(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// Missing key
-	err := repo.Upsert(ctx, &config.SettingValue{
+	err := testpkg.TenantCommand1(t, ctx, db, repo.Upsert, &config.SettingValue{
 		Value: json.RawMessage(`"val"`),
 	})
 	assert.Error(t, err)
@@ -184,7 +184,7 @@ func TestSettingValueRepository_Validate_RejectsEmpty(t *testing.T) {
 	// Missing value
 	sv := &config.SettingValue{SettingKey: "test.empty"}
 	sv.TenantID = testpkg.Tenant(t)
-	err = repo.Upsert(ctx, sv)
+	err = testpkg.TenantCommand1(t, ctx, db, repo.Upsert, sv)
 	assert.Error(t, err)
 }
 

@@ -62,16 +62,16 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		requireStudentsDepartureDaysColumn(t, db)
 
 		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "Roundtrip", "1a")
-		student, err := repo.FindByID(ctx, studentFixture.ID)
+		student, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(studentFixture.ID))
 		require.NoError(t, err)
 
 		student.DepartureDays = departure.DepartureDays{
 			departure.PickupDayMonday:    departure.DepartureBus,
 			departure.PickupDayWednesday: departure.DeparturePickup,
 		}
-		require.NoError(t, repo.Update(ctx, student))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, student))
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		assert.Equal(t, departure.DepartureBus, found.DepartureDays.ModeFor(departure.PickupDayMonday))
 		assert.Equal(t, departure.DeparturePickup, found.DepartureDays.ModeFor(departure.PickupDayWednesday))
@@ -89,7 +89,7 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		requireStudentsAllowedDepartureModesColumn(t, db)
 
 		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "Fold", "2a")
-		student, err := repo.FindByID(ctx, studentFixture.ID)
+		student, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(studentFixture.ID))
 		require.NoError(t, err)
 
 		// A legacy state can still say bus AND pickup on Monday. The exclusive
@@ -97,9 +97,9 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		// must preserve both permissions.
 		student.BusDays = departure.BusDays{departure.PickupDayMonday: true, departure.PickupDayTuesday: true}
 		student.PickupDays = departure.PickupDays{departure.PickupDayMonday: true}
-		require.NoError(t, repo.Update(ctx, student))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, student))
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		assert.Equal(t, departure.DeparturePickup, found.DepartureDays.ModeFor(departure.PickupDayMonday))
 		assert.Equal(t, departure.DepartureBus, found.DepartureDays.ModeFor(departure.PickupDayTuesday))
@@ -120,7 +120,7 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		requireStudentsAllowedDepartureModesColumn(t, db)
 
 		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "Merge", "2b")
-		student, err := repo.FindByID(ctx, studentFixture.ID)
+		student, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(studentFixture.ID))
 		require.NoError(t, err)
 
 		student.AllowedDepartureModes = departure.AllowedDepartureModes{
@@ -132,17 +132,17 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 				departure.DeparturePickup,
 			},
 		}
-		require.NoError(t, repo.Update(ctx, student))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, student))
 
-		fresh, err := repo.FindByID(ctx, student.ID)
+		fresh, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		fresh.PickupDays = departure.PickupDays{
 			departure.PickupDayMonday:  true,
 			departure.PickupDayTuesday: true,
 		}
-		require.NoError(t, repo.Update(ctx, fresh))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, fresh))
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		assert.Equal(t, departure.AllowedDepartureModes{
 			departure.PickupDayMonday: []departure.DepartureMode{
@@ -156,9 +156,9 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		}, found.AllowedDepartureModes)
 
 		found.BusDays = departure.BusDays{}
-		require.NoError(t, repo.Update(ctx, found))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, found))
 
-		afterRemoval, err := repo.FindByID(ctx, student.ID)
+		afterRemoval, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		assert.Equal(t, departure.AllowedDepartureModes{
 			departure.PickupDayMonday: []departure.DepartureMode{
@@ -176,7 +176,7 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		requireStudentsAllowedDepartureModesColumn(t, db)
 
 		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "Accompanied", "2c")
-		student, err := repo.FindByID(ctx, studentFixture.ID)
+		student, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(studentFixture.ID))
 		require.NoError(t, err)
 
 		student.AllowedDepartureModes = departure.AllowedDepartureModes{
@@ -188,16 +188,16 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		// (it asserts the accompanied day survives a later legacy bus change).
 		companion := "Geschwisterkind"
 		student.DepartureCompanionNote = &companion
-		require.NoError(t, repo.Update(ctx, student))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, student))
 
-		fresh, err := repo.FindByID(ctx, student.ID)
+		fresh, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		// A legacy bus_days change must NOT drop the unrelated accompanied day
 		// (the legacy merge used to rebuild only alone/bus/pickup).
 		fresh.BusDays = departure.BusDays{departure.PickupDayTuesday: true}
-		require.NoError(t, repo.Update(ctx, fresh))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, fresh))
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		assert.Equal(t,
 			[]departure.DepartureMode{departure.DepartureAccompanied},
@@ -212,7 +212,7 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		requireStudentsAllowedDepartureModesColumn(t, db)
 
 		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "NoteClear", "2d")
-		student, err := repo.FindByID(ctx, studentFixture.ID)
+		student, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(studentFixture.ID))
 		require.NoError(t, err)
 
 		note := "Geschwisterkind Mia"
@@ -220,9 +220,9 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 			departure.PickupDayMonday: []departure.DepartureMode{departure.DepartureAccompanied},
 		}
 		student.DepartureCompanionNote = &note
-		require.NoError(t, repo.Update(ctx, student))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, student))
 
-		seeded, err := repo.FindByID(ctx, student.ID)
+		seeded, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		require.NotNil(t, seeded.DepartureCompanionNote, "note persists while accompanied is allowed")
 		assert.Equal(t, note, *seeded.DepartureCompanionNote)
@@ -231,9 +231,9 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		// so the "mit wem" note must not survive (#1694).
 		seeded.AllowedDepartureModes = nil
 		seeded.DepartureDays = departure.DepartureDays{departure.PickupDayMonday: departure.DepartureBus}
-		require.NoError(t, repo.Update(ctx, seeded))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, seeded))
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		assert.Nil(t, found.DepartureCompanionNote,
 			"the companion note must be cleared once no day allows accompanied")
@@ -250,13 +250,13 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		// fresh mirrors the updateStudent handler, which patches a locked row.
 		student := testpkg.CreateTestStudent(t, db, "Departure", "OrphanNote", "2e")
 
-		fresh, err := repo.FindByID(ctx, student.ID)
+		fresh, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		note := "Geschwisterkind Mia"
 		fresh.DepartureCompanionNote = &note
-		require.NoError(t, repo.Update(ctx, fresh))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, fresh))
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		assert.Nil(t, found.DepartureCompanionNote,
 			"a companion note must not survive on a student with no accompanied day")
@@ -271,7 +271,7 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		// otherwise bucket a child who leaves with a companion as going home alone,
 		// which is safety-sensitive state (#1694).
 		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "AccompaniedStatus", "5a")
-		student, err := repo.FindByID(ctx, studentFixture.ID)
+		student, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(studentFixture.ID))
 		require.NoError(t, err)
 
 		note := "Geschwisterkind"
@@ -279,9 +279,9 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 			departure.PickupDayMonday: []departure.DepartureMode{departure.DepartureAccompanied},
 		}
 		student.DepartureCompanionNote = &note
-		require.NoError(t, repo.Update(ctx, student))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, student))
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		require.NotNil(t, found.PickupStatus)
 		assert.Equal(t, departure.PickupStatusAccompanied, *found.PickupStatus,
@@ -300,7 +300,7 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		// signal and bucket the child as a self-goer (#1694). The companion note must
 		// also survive because an accompanied day remains in the plan.
 		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "BusAndAccompanied", "5c")
-		student, err := repo.FindByID(ctx, studentFixture.ID)
+		student, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(studentFixture.ID))
 		require.NoError(t, err)
 
 		note := "Geschwisterkind Mia"
@@ -308,9 +308,9 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 			departure.PickupDayMonday: []departure.DepartureMode{departure.DepartureBus, departure.DepartureAccompanied},
 		}
 		student.DepartureCompanionNote = &note
-		require.NoError(t, repo.Update(ctx, student))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, student))
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		require.NotNil(t, found.PickupStatus)
 		assert.Equal(t, departure.PickupStatusAccompanied, *found.PickupStatus,
@@ -331,7 +331,7 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 
 		// Seed an accompanied child with a coupled note.
 		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "LegacyDropAccompanied", "5b")
-		student, err := repo.FindByID(ctx, studentFixture.ID)
+		student, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(studentFixture.ID))
 		require.NoError(t, err)
 
 		note := "Geschwisterkind"
@@ -339,7 +339,7 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 			departure.PickupDayMonday: []departure.DepartureMode{departure.DepartureAccompanied},
 		}
 		student.DepartureCompanionNote = &note
-		require.NoError(t, repo.Update(ctx, student))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, student))
 
 		// A legacy client (one that never sends allowed_departure_modes) switches
 		// Monday to a non-accompanied mode via departure_days AND clears the note in
@@ -347,17 +347,17 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		// stale accompanied mode; validating against it used to reject the blank
 		// note before the repository could resolve precedence (#1694). Loading fresh
 		// and leaving allowed_departure_modes untouched mirrors that handler path.
-		fresh, err := repo.FindByID(ctx, student.ID)
+		fresh, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		require.True(t, fresh.AllowedDepartureModes.HasMode(departure.DepartureAccompanied),
 			"precondition: hydrated plan still carries the accompanied mode")
 		fresh.DepartureDays = departure.DepartureDays{departure.PickupDayMonday: departure.DepartureBus}
 		blank := ""
 		fresh.DepartureCompanionNote = &blank
-		require.NoError(t, repo.Update(ctx, fresh),
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, fresh),
 			"removing accompanied via departure_days while clearing the note must be accepted")
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		assert.Nil(t, found.DepartureCompanionNote, "note is cleared with the accompanied mode")
 		assert.Equal(t, departure.DepartureBus, found.DepartureDays.ModeFor(departure.PickupDayMonday))
@@ -369,22 +369,22 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		requireStudentsDepartureDaysColumn(t, db)
 
 		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "Replace", "3a")
-		student, err := repo.FindByID(ctx, studentFixture.ID)
+		student, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(studentFixture.ID))
 		require.NoError(t, err)
 
 		student.DepartureDays = departure.DepartureDays{departure.PickupDayMonday: departure.DepartureBus}
-		require.NoError(t, repo.Update(ctx, student))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, student))
 
 		// Replace with an empty plan via the unified field (re-fetch first so the
 		// working maps are populated, mirroring how a handler operates).
-		fresh, err := repo.FindByID(ctx, student.ID)
+		fresh, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		fresh.DepartureDays = departure.DepartureDays{}
 		fresh.BusDays = departure.BusDays{}
 		fresh.PickupDays = departure.PickupDays{}
-		require.NoError(t, repo.Update(ctx, fresh))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, fresh))
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		assert.False(t, found.DepartureDays.HasAny())
 		assert.False(t, found.BusDays.HasAny())
@@ -396,20 +396,20 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		requireStudentsDepartureDaysColumn(t, db)
 
 		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "HydratedReplace", "4a")
-		student, err := repo.FindByID(ctx, studentFixture.ID)
+		student, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(studentFixture.ID))
 		require.NoError(t, err)
 
 		student.DepartureDays = departure.DepartureDays{departure.PickupDayMonday: departure.DepartureBus}
-		require.NoError(t, repo.Update(ctx, student))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, student))
 
-		fresh, err := repo.FindByID(ctx, student.ID)
+		fresh, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		require.True(t, fresh.BusDays[departure.PickupDayMonday])
 
 		fresh.DepartureDays = departure.DepartureDays{departure.PickupDayThursday: departure.DeparturePickup}
-		require.NoError(t, repo.Update(ctx, fresh))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, fresh))
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		assert.Equal(t, departure.DepartureAlone, found.DepartureDays.ModeFor(departure.PickupDayMonday))
 		assert.Equal(t, departure.DeparturePickup, found.DepartureDays.ModeFor(departure.PickupDayThursday))
@@ -455,7 +455,7 @@ func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 		requireStudentsAllowedDepartureModesColumn(t, db)
 
 		studentFixture := testpkg.CreateTestStudent(t, db, "Companion", "Present", "1a")
-		student, err := repo.FindByID(ctx, studentFixture.ID)
+		student, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(studentFixture.ID))
 		require.NoError(t, err)
 
 		note := "Geschwisterkind Mia"
@@ -463,16 +463,16 @@ func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 			departure.PickupDayMonday: []departure.DepartureMode{departure.DepartureAccompanied},
 		}
 		student.DepartureCompanionNote = &note
-		require.NoError(t, repo.Update(ctx, student))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, student))
 
 		// FindByID hydrates the scanonly note (it is no longer in the generic
 		// model SELECT), and the bulk FindByIDs hydration path must surface it too.
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		require.NotNil(t, found.DepartureCompanionNote)
 		assert.Equal(t, note, *found.DepartureCompanionNote)
 
-		byIDs, err := repo.FindByIDs(ctx, []int64{student.ID})
+		byIDs, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByIDs, []int64{student.ID})
 		require.NoError(t, err)
 		require.Contains(t, byIDs, student.ID)
 		require.NotNil(t, byIDs[student.ID].DepartureCompanionNote)
@@ -483,7 +483,7 @@ func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 		// Create the fixture BEFORE dropping the column: the insert path itself
 		// never references the scanonly note column.
 		studentFixture := testpkg.CreateTestStudent(t, db, "Companion", "Absent", "1a")
-		student, err := repo.FindByID(ctx, studentFixture.ID)
+		student, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(studentFixture.ID))
 		require.NoError(t, err)
 
 		// Rename the owner column in this isolated database. PostgreSQL keeps
@@ -503,7 +503,7 @@ func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 
 		// The request paths assume the verified schema: hydration and the
 		// departure-plan write must fail loudly, never silently drop data.
-		_, err = repo.FindByID(ctx, student.ID)
+		_, err = testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.Error(t, err, "hydration must not silently skip a missing mandatory column")
 
 		note := "Geschwisterkind"
@@ -511,7 +511,7 @@ func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 			departure.PickupDayMonday: []departure.DepartureMode{departure.DepartureAccompanied},
 		}
 		student.DepartureCompanionNote = &note
-		require.Error(t, repo.Update(ctx, student),
+		require.Error(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, student),
 			"the departure-plan write must not silently drop the companion note")
 	})
 }
@@ -535,29 +535,29 @@ func TestStudentRepository_StaleDeparturePlanIsRebased(t *testing.T) {
 		requireStudentsAllowedDepartureModesColumn(t, db)
 
 		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "Stale", "3a")
-		student, err := repo.FindByID(ctx, studentFixture.ID)
+		student, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(studentFixture.ID))
 		require.NoError(t, err)
 
 		student.DepartureDays = departure.DepartureDays{departure.PickupDayMonday: departure.DepartureBus}
-		require.NoError(t, repo.Update(ctx, student))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, student))
 
 		// The unrelated caller (sickness auto-clear, status days, import) loads
 		// the child, hydrating the plan it will never touch.
-		stale, err := repo.FindByID(ctx, student.ID)
+		stale, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 
 		// Someone else changes the plan and commits.
-		fresh, err := repo.FindByID(ctx, student.ID)
+		fresh, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		fresh.DepartureDays = departure.DepartureDays{departure.PickupDayTuesday: departure.DeparturePickup}
-		require.NoError(t, repo.Update(ctx, fresh))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, fresh))
 
 		// The stale caller now writes its unrelated field.
 		sick := true
 		stale.Sick = &sick
-		require.NoError(t, repo.Update(ctx, stale))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, stale))
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		assert.Equal(t, departure.DepartureAlone, found.DepartureDays.ModeFor(departure.PickupDayMonday),
 			"the stale hydrated plan must not be re-persisted")
@@ -572,21 +572,21 @@ func TestStudentRepository_StaleDeparturePlanIsRebased(t *testing.T) {
 		requireStudentsAllowedDepartureModesColumn(t, db)
 
 		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "Intentional", "3b")
-		student, err := repo.FindByID(ctx, studentFixture.ID)
+		student, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(studentFixture.ID))
 		require.NoError(t, err)
 
 		student.DepartureDays = departure.DepartureDays{departure.PickupDayMonday: departure.DepartureBus}
-		require.NoError(t, repo.Update(ctx, student))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, student))
 
-		loaded, err := repo.FindByID(ctx, student.ID)
+		loaded, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		loaded.DepartureDays = departure.DepartureDays{departure.PickupDayFriday: departure.DeparturePickup}
 		loaded.AllowedDepartureModes = nil
 		loaded.BusDays = nil
 		loaded.PickupDays = nil
-		require.NoError(t, repo.Update(ctx, loaded))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, loaded))
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		assert.Equal(t, departure.DeparturePickup, found.DepartureDays.ModeFor(departure.PickupDayFriday))
 		assert.Equal(t, departure.DepartureAlone, found.DepartureDays.ModeFor(departure.PickupDayMonday))

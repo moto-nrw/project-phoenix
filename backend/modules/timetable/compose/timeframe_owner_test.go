@@ -138,10 +138,16 @@ func TestTimeframeListQueryBudgetStaysFlat(t *testing.T) {
 	for i := 0; i < 8; i++ {
 		createOwnedTimeframe(t, module, ctx, "08:00:00", "12:00:00", true, fmt.Sprintf("Budget %d", i))
 	}
-	counter := testpkg.CaptureQueries(t, db)
-	_, err := module.ListTimeframes(ctx, timetable.TimeframeFilter{})
-	require.NoError(t, err)
-	testpkg.AssertQueryBudget(t, "modules.timetable.timeframes.list", counter.Queries())
+	// The owner read runs inside the HTTP/workflow unit of work. The budget
+	// still measures every business query, not connection/role setup.
+	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
+		counter := testpkg.CaptureQueries(t, db)
+		_, err := module.ListTimeframes(ctx, timetable.TimeframeFilter{})
+		require.NoError(t, err)
+		testpkg.AssertQueryBudget(t, "modules.timetable.timeframes.list", counter.Queries())
+
+		return nil
+	}))
 }
 
 func createOwnedTimeframe(t *testing.T, module *timetable.Module, ctx context.Context, start, end string, active bool, description string) timetable.Timeframe {

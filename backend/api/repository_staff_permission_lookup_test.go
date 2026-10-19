@@ -53,7 +53,7 @@ func TestListStaffWithPermission_DirectGrant(t *testing.T) {
 			Where("account_id = ?", approverAccount.ID).Exec(context.Background())
 	})
 
-	result, err := repo.ListStaffWithPermission(ctx, "vacation:approve")
+	result, err := testpkg.TenantQuery1(t, ctx, db, repo.ListStaffWithPermission, "vacation:approve")
 	require.NoError(t, err)
 
 	ids := make(map[int64]string)
@@ -74,7 +74,7 @@ func TestGetStaffContactInfo_ReturnsNameAndEmail(t *testing.T) {
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Mila", "Muster")
 
-	info, err := repo.GetStaffContactInfo(ctx, staff.ID)
+	info, err := testpkg.TenantQuery1(t, ctx, db, repo.GetStaffContactInfo, staff.ID)
 	require.NoError(t, err)
 	assert.Equal(t, staff.ID, info.StaffID)
 	assert.Equal(t, "Mila", info.FirstName)

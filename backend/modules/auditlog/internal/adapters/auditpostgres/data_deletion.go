@@ -36,7 +36,11 @@ func (r *DataDeletionRepository) Create(ctx context.Context, deletion *audit.Dat
 
 func (r *DataDeletionRepository) FindByID(ctx context.Context, id interface{}) (*audit.DataDeletion, error) {
 	var deletion audit.DataDeletion
-	query := runtimeDB(ctx, r.runtime).NewSelect().Model(&deletion).
+	ambientDB1, databaseErr1 := runtimeDB(ctx, r.runtime)
+	if databaseErr1 != nil {
+		return *new(*audit.DataDeletion), databaseErr1
+	}
+	query := ambientDB1.NewSelect().Model(&deletion).
 		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
 		Where(`"data_deletion".id = ?`, id)
 	query = withDataDeletionTenant(ctx, r.runtime, query)
@@ -52,7 +56,11 @@ func (r *DataDeletionRepository) FindByID(ctx context.Context, id interface{}) (
 // FindByStudentID finds all deletion records for a specific student
 func (r *DataDeletionRepository) FindByStudentID(ctx context.Context, studentID int64) ([]*audit.DataDeletion, error) {
 	var deletions []*audit.DataDeletion
-	query := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB2, databaseErr2 := runtimeDB(ctx, r.runtime)
+	if databaseErr2 != nil {
+		return *new([]*audit.DataDeletion), databaseErr2
+	}
+	query := ambientDB2.NewSelect().
 		Model(&deletions).
 		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
 		Where("student_id = ?", studentID)
@@ -71,7 +79,11 @@ func (r *DataDeletionRepository) FindByStudentID(ctx context.Context, studentID 
 // FindByDateRange finds all deletion records within a date range
 func (r *DataDeletionRepository) FindByDateRange(ctx context.Context, startDate, endDate time.Time) ([]*audit.DataDeletion, error) {
 	var deletions []*audit.DataDeletion
-	query := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB3, databaseErr3 := runtimeDB(ctx, r.runtime)
+	if databaseErr3 != nil {
+		return *new([]*audit.DataDeletion), databaseErr3
+	}
+	query := ambientDB3.NewSelect().
 		Model(&deletions).
 		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
 		Where("deleted_at >= ?", startDate).
@@ -91,7 +103,11 @@ func (r *DataDeletionRepository) FindByDateRange(ctx context.Context, startDate,
 // FindByType finds all deletion records of a specific type
 func (r *DataDeletionRepository) FindByType(ctx context.Context, deletionType string) ([]*audit.DataDeletion, error) {
 	var deletions []*audit.DataDeletion
-	query := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB4, databaseErr4 := runtimeDB(ctx, r.runtime)
+	if databaseErr4 != nil {
+		return *new([]*audit.DataDeletion), databaseErr4
+	}
+	query := ambientDB4.NewSelect().
 		Model(&deletions).
 		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
 		Where(whereDeletionTypeEquals, deletionType)
@@ -110,7 +126,11 @@ func (r *DataDeletionRepository) FindByType(ctx context.Context, deletionType st
 // List overrides the base List method to apply proper filtering
 func (r *DataDeletionRepository) List(ctx context.Context, filters map[string]interface{}) ([]*audit.DataDeletion, error) {
 	var deletions []*audit.DataDeletion
-	query := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB5, databaseErr5 := runtimeDB(ctx, r.runtime)
+	if databaseErr5 != nil {
+		return *new([]*audit.DataDeletion), databaseErr5
+	}
+	query := ambientDB5.NewSelect().
 		Model(&deletions).
 		ModelTableExpr(`audit.data_deletions AS "data_deletion"`)
 
@@ -151,7 +171,11 @@ func (r *DataDeletionRepository) ListRecentRetentionSummaries(
 		return nil, errors.New("recent deletion summary limit must be positive")
 	}
 	var summaries []audit.RecentDeletionSummary
-	query := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB6, databaseErr6 := runtimeDB(ctx, r.runtime)
+	if databaseErr6 != nil {
+		return *new([]audit.RecentDeletionSummary), databaseErr6
+	}
+	query := ambientDB6.NewSelect().
 		TableExpr(`audit.data_deletions AS "data_deletion"`).
 		ColumnExpr(`TO_CHAR("data_deletion".deleted_at, 'YYYY-MM-DD') AS date`).
 		ColumnExpr(`SUM("data_deletion".records_deleted) AS records_deleted`).
@@ -169,8 +193,5 @@ func (r *DataDeletionRepository) ListRecentRetentionSummaries(
 }
 
 func withDataDeletionTenant(ctx context.Context, runtime Runtime, query *bun.SelectQuery) *bun.SelectQuery {
-	if tenantID := runtimeTenantID(ctx, runtime); tenantID > 0 {
-		return query.Where(`"data_deletion".tenant_id = ?`, tenantID)
-	}
-	return query
+	return tenantQuery(ctx, runtime, query, "data_deletion")
 }

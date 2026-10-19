@@ -86,7 +86,7 @@ func newCountScopeFixture(t *testing.T, groups groupsByAccount) *fixture {
 
 func setCountScope(t *testing.T, f *fixture, accountID int64, scope string) {
 	t.Helper()
-	require.NoError(t, f.svc.SetCountScope(adminCtx(t, accountID), scope))
+	require.NoError(t, testpkg.TenantCommand1(t, adminCtx(t, accountID), f.db, f.svc.SetCountScope, scope))
 }
 
 func TestCountScope_DefaultCountsAll(t *testing.T) {
@@ -95,7 +95,7 @@ func TestCountScope_DefaultCountsAll(t *testing.T) {
 	f := newCountScopeFixture(t, groupsByAccount{})
 	startThreadWithQuestions(t, f, f.chain, "Frage 1", "Frage 2")
 
-	scope, err := f.svc.CountScope(adminCtx(t, f.staffAccount))
+	scope, err := testpkg.TenantQuery0(t, adminCtx(t, f.staffAccount), f.db, f.svc.CountScope)
 	require.NoError(t, err)
 	assert.Equal(t, messaging.CountScopeAll, scope)
 	assert.Equal(t, 2, readUnreadView(t, f, f.staffAccount).badge)
@@ -129,7 +129,7 @@ func TestCountScope_NoneSkipsTeamMark(t *testing.T) {
 	f := newCountScopeFixture(t, groupsByAccount{})
 	_, colleague := testpkg.CreateTestStaffWithAccount(t, f.db, "Miriam", "Klein")
 	threadID := startReadThread(t, f)
-	require.NoError(t, f.svc.MarkUnread(adminCtx(t, colleague.ID), threadID))
+	require.NoError(t, testpkg.TenantCommand1(t, adminCtx(t, colleague.ID), f.db, f.svc.MarkUnread, threadID))
 
 	setCountScope(t, f, f.staffAccount, messaging.CountScopeNone)
 	view := readUnreadView(t, f, f.staffAccount)
@@ -158,9 +158,9 @@ func TestCountScope_OwnGroupsCountsOnlyOwnChildren(t *testing.T) {
 	startThreadWithQuestions(t, f, f.chain, "Frage 1", "Frage 2")
 	otherThread, _ := startThreadWithQuestions(t, f, other, "Frage 3")
 	startThreadWithQuestions(t, f, ungrouped, "Frage 4")
-	require.NoError(t, f.svc.MarkUnread(adminCtx(t, colleague.ID), otherThread))
+	require.NoError(t, testpkg.TenantCommand1(t, adminCtx(t, colleague.ID), f.db, f.svc.MarkUnread, otherThread))
 
-	hasOwnGroups, err := f.svc.HasOwnGroups(adminCtx(t, f.staffAccount))
+	hasOwnGroups, err := testpkg.TenantQuery0(t, adminCtx(t, f.staffAccount), f.db, f.svc.HasOwnGroups)
 	require.NoError(t, err)
 	assert.True(t, hasOwnGroups)
 
@@ -188,7 +188,7 @@ func TestCountScope_OwnGroupsCountsTeamMarkOfOwnChild(t *testing.T) {
 	testpkg.AssignStudentToGroup(t, f.db, f.chain.StudentID, ownGroup.ID)
 	groups[f.staffAccount] = []int64{ownGroup.ID}
 	threadID := startReadThread(t, f)
-	require.NoError(t, f.svc.MarkUnread(adminCtx(t, colleague.ID), threadID))
+	require.NoError(t, testpkg.TenantCommand1(t, adminCtx(t, colleague.ID), f.db, f.svc.MarkUnread, threadID))
 
 	setCountScope(t, f, f.staffAccount, messaging.CountScopeOwnGroups)
 	assert.Equal(t, 1, readUnreadView(t, f, f.staffAccount).badge)
@@ -207,7 +207,7 @@ func TestCountScope_OwnGroupsWithoutGroupCountsNothing(t *testing.T) {
 	setCountScope(t, f, f.staffAccount, messaging.CountScopeOwnGroups)
 	assert.Zero(t, readUnreadView(t, f, f.staffAccount).badge)
 
-	hasOwnGroups, err := f.svc.HasOwnGroups(adminCtx(t, f.staffAccount))
+	hasOwnGroups, err := testpkg.TenantQuery0(t, adminCtx(t, f.staffAccount), f.db, f.svc.HasOwnGroups)
 	require.NoError(t, err)
 	assert.False(t, hasOwnGroups, "the setting can say why the counter stays empty")
 }
@@ -220,7 +220,7 @@ func TestCountScope_MarkAllReadReportsScopedCount(t *testing.T) {
 	f := newCountScopeFixture(t, groupsByAccount{})
 	_, colleague := testpkg.CreateTestStaffWithAccount(t, f.db, "Miriam", "Klein")
 	threadID := startReadThread(t, f)
-	require.NoError(t, f.svc.MarkUnread(adminCtx(t, colleague.ID), threadID))
+	require.NoError(t, testpkg.TenantCommand1(t, adminCtx(t, colleague.ID), f.db, f.svc.MarkUnread, threadID))
 
 	assert.Equal(t, 1, markAllRead(t, f, adminCtx(t, f.staffAccount)), "the team mark remains under all")
 	setCountScope(t, f, f.staffAccount, messaging.CountScopeNone)
@@ -232,10 +232,10 @@ func TestCountScope_RejectsUnknownScope(t *testing.T) {
 
 	f := newCountScopeFixture(t, groupsByAccount{})
 	for _, scope := range []string{"", "ALL", "mine", "own-groups"} {
-		err := f.svc.SetCountScope(adminCtx(t, f.staffAccount), scope)
+		err := testpkg.TenantCommand1(t, adminCtx(t, f.staffAccount), f.db, f.svc.SetCountScope, scope)
 		require.ErrorIs(t, err, messaging.ErrInvalidCountScope, "scope %q", scope)
 	}
-	scope, err := f.svc.CountScope(adminCtx(t, f.staffAccount))
+	scope, err := testpkg.TenantQuery0(t, adminCtx(t, f.staffAccount), f.db, f.svc.CountScope)
 	require.NoError(t, err)
 	assert.Equal(t, messaging.CountScopeAll, scope, "a rejected value stores nothing")
 }

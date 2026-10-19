@@ -243,7 +243,7 @@ func (s *Service) RevokeAccountSessionsInTenant(ctx context.Context, accountID i
 }
 
 func (s *Service) RevokeAllAccountSessions(ctx context.Context, accountID int64) (result []domain.AccountSession, err error) {
-	err = s.run(ctx, s.tx.RunPlatform, "revoke_all_account_sessions", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.run(ctx, s.tx.RunAdmin, "revoke_all_account_sessions", func(txCtx context.Context, stats *domain.OperationStats) error {
 		deleted, queryStats, deleteErr := s.sessions.DeleteAccountSessionsByAccount(txCtx, accountID, false, time.Time{})
 		stats.Add(queryStats)
 		if deleteErr != nil {
@@ -256,7 +256,7 @@ func (s *Service) RevokeAllAccountSessions(ctx context.Context, accountID int64)
 }
 
 func (s *Service) RevokeAccountSessionsCreatedAtOrBefore(ctx context.Context, accountID int64, cutoff time.Time) (result []domain.AccountSession, err error) {
-	err = s.run(ctx, s.tx.RunPlatform, "revoke_account_sessions_created_at_or_before", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.run(ctx, s.tx.RunAdmin, "revoke_account_sessions_created_at_or_before", func(txCtx context.Context, stats *domain.OperationStats) error {
 		deleted, queryStats, deleteErr := s.sessions.DeleteAccountSessionsByAccount(txCtx, accountID, false, cutoff)
 		stats.Add(queryStats)
 		if deleteErr != nil {

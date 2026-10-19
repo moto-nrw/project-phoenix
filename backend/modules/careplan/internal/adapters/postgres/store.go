@@ -646,11 +646,14 @@ func offeringChangeToDomain(row offeringChangeRow) domain.OfferingChangeRequest 
 	}
 }
 
-func withTenant[Q interface{ Where(string, ...any) Q }](query Q, alias string, tenantID int64) Q {
-	if tenantID > 0 {
-		return query.Where(`"`+alias+`".tenant_id = ?`, tenantID)
+func withTenant[Q interface {
+	Where(string, ...any) Q
+	Err(error) Q
+}](query Q, alias string, tenantID int64) Q {
+	if tenantID <= 0 {
+		return query.Err(errors.New("careplan: tenant is required"))
 	}
-	return query
+	return query.Where(`"`+alias+`".tenant_id = ?`, tenantID)
 }
 
 func scanOne(ctx context.Context, query *bun.SelectQuery, operation string) (bool, domain.OperationStats, error) {

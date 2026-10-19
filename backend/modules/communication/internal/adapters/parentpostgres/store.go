@@ -17,14 +17,29 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Database resolves the caller's ambient transaction plus the tenant the
-// statement must be scoped to. The composition root supplies it, so this
-// package stays free of transaction- and tenant-runtime details.
-//
-// A zero tenant means "no tenant in this context" (administrative or
-// cross-tenant work); statements then rely on RLS alone, exactly as the
-// repositories they replace did.
-type Database func(context.Context) (bun.IDB, int64, error)
+// Database resolves the caller connection and school; school-specific queries
+// reject an absent school instead of removing the tenant predicate.
+type TenantScope struct {
+	TenantID      int64
+	AcrossSchools bool
+}
+
+// ScopeFor derives cross-school access only from an actual administrative
+// transaction. Missing school context alone never grants it.
+func ScopeFor(schoolID int64, admin bool) TenantScope {
+	return TenantScope{TenantID: schoolID, AcrossSchools: admin && schoolID == 0}
+}
+func (s TenantScope) Validate() error {
+	if s.AcrossSchools {
+		return nil
+	}
+	if s.TenantID <= 0 {
+		return errors.New("communication: tenant is required")
+	}
+	return nil
+}
+
+type Database func(context.Context) (bun.IDB, TenantScope, error)
 
 // ErrDatabaseRequired reports a store constructed without a database runtime.
 var ErrDatabaseRequired = errors.New("communication parent store: database runtime is required")
@@ -51,12 +66,36 @@ func assertOneRow(result sql.Result, operation string) error {
 	return nil
 }
 
-// withTenant applies the defense-in-depth tenant_id filter that complements
-// RLS. A zero tenant leaves the query untouched, matching the behaviour of the
-// repositories this package replaces.
-func withTenant[Q interface{ Where(string, ...any) Q }](query Q, alias string, tenantID int64) Q {
-	if tenantID <= 0 {
+// withTenant requires a school and adds its predicate on top of RLS.
+func withTenant[Q interface {
+	Where(string, ...any) Q
+	Err(error) Q
+}](query Q, alias string, scope TenantScope) Q {
+	if err := scope.Validate(); err != nil {
+		return query.Err(err)
+	}
+	if scope.AcrossSchools {
 		return query
 	}
-	return query.Where(`"`+alias+`".tenant_id = ?`, tenantID)
+	return query.Where(`"`+alias+`".tenant_id = ?`, scope.TenantID)
+}
+
+// ResolveDatabase validates the selected school/admin scope before resolving
+// the SQL handle. Unknown transaction values are never replaced with a pool.
+func ResolveDatabase(raw any, present bool, pool *bun.DB, scope TenantScope) (bun.IDB, TenantScope, error) {
+	if err := scope.Validate(); err != nil {
+		return nil, scope, err
+	}
+	if !present {
+		return nil, scope, fmt.Errorf("communication: transaction is required")
+	}
+	switch tx := raw.(type) {
+	case bun.Tx:
+		return tx, scope, nil
+	case *bun.Tx:
+		if tx != nil {
+			return *tx, scope, nil
+		}
+	}
+	return nil, scope, fmt.Errorf("communication: unsupported transaction %T", raw)
 }

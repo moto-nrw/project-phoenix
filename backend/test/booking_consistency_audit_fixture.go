@@ -104,7 +104,7 @@ func VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.
 	createApprovedBookingAuditChild(t, otherTenant.Context(), db, auditDate, otherStudent.ID,
 		enrollmentOwner.PhaseCareOfferingSelectionAtLeastOne)
 
-	report, err := runAudit(ctx, auditDate.String())
+	report, err := TenantQuery1(t, ctx, db, runAudit, auditDate.String())
 	require.NoError(t, err)
 	assert.Equal(t, Tenant(t), report.TenantID)
 	assert.Equal(t, 1, report.PickupProjectionMissingDays)
@@ -160,7 +160,7 @@ func VerifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, 
 	}
 	insertAuditOfferingSelection(t, db, ctx, tenant.FromContext(ctx), futureLink)
 
-	report, err := runAudit(ctx, auditDate.String())
+	report, err := TenantQuery1(t, ctx, db, runAudit, auditDate.String())
 	require.NoError(t, err)
 	assert.Equal(t, 0, report.PickupProjectionMissingDays)
 	assert.Equal(t, 1, report.ApprovedWithoutRequiredOffering)
@@ -198,7 +198,7 @@ func VerifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t *testing
 	}
 	insertTenantBookingAuditModel(t, db, ctx, arrival, &arrival.TenantID)
 
-	report, err := runAudit(ctx, auditDate.String())
+	report, err := TenantQuery1(t, ctx, db, runAudit, auditDate.String())
 	require.NoError(t, err)
 	assert.Equal(t, 0, report.ApprovedWithoutRequiredOffering)
 }
@@ -228,7 +228,7 @@ func createApprovedBookingAuditChild(
 		IsActive:                  true,
 	}
 	phase.TenantID = tenantID
-	require.NoError(t, enrollmentOwner.New().InsertPhase(WithTenantRuntime(t, ctx, db), phase))
+	require.NoError(t, TenantCommand1(t, ctx, db, enrollmentOwner.New().InsertPhase, phase))
 	request := &enrollmentOwner.Request{
 		PhaseID:           phase.ID,
 		GuardianFirstName: "Audit",
@@ -243,14 +243,14 @@ func createApprovedBookingAuditChild(
 	}
 	owner := enrollmentOwner.New()
 	ownerCtx := WithTenantRuntime(t, ctx, db)
-	require.NoError(t, owner.InsertRequest(ownerCtx, request))
+	require.NoError(t, TenantCommand1(t, ownerCtx, db, owner.InsertRequest, request))
 	child := &enrollmentOwner.RequestChild{
 		RequestID: request.ID, FirstName: "Audit", LastName: "Kind",
 		DateOfBirth: "2018-01-01", CustomData: []byte(`{}`),
 		Status: enrollmentOwner.ChildStatusApproved, ActivationMode: enrollmentOwner.ChildActivationImmediate,
 		CreatedStudentID: &studentID,
 	}
-	require.NoError(t, owner.InsertChild(ownerCtx, child))
+	require.NoError(t, TenantCommand1(t, ownerCtx, db, owner.InsertChild, child))
 	require.Equal(t, tenantID, child.TenantID)
 	return approvedBookingAuditChild{phase: phase, child: child}
 }

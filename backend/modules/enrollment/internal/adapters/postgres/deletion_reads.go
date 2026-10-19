@@ -14,30 +14,21 @@ import (
 // root binds it; Enrollment never reads activities.student_enrollments.
 type SourceEnrollmentCount func(ctx context.Context, db bun.IDB, tenantID, requestID int64, childID *int64) (int, error)
 
-// SourceEnrollments runs count for the tenant in context in the caller's
-// transaction, or in one the runner opens, like the owner's other deletion
-// reads.
-func (r *Store) SourceEnrollments(count SourceEnrollmentCount, transactions interface {
-	RunInTx(context.Context, func(context.Context) error) error
-}) func(context.Context, int64, *int64) (int, error) {
+// SourceEnrollments resolves rows on the caller's existing unit of work.
+func (r *Store) SourceEnrollments(count SourceEnrollmentCount) func(context.Context, int64, *int64) (int, error) {
 	return func(ctx context.Context, requestID int64, childID *int64) (int, error) {
 		if count == nil {
 			return 0, errors.New("enrollment postgres: source enrollment count is required")
 		}
-		var result int
-		err := transactions.RunInTx(ctx, func(ctx context.Context) error {
-			tenantID, err := r.tenantID(ctx)
-			if err != nil {
-				return err
-			}
-			db, err := r.resolve(ctx)
-			if err != nil {
-				return err
-			}
-			result, err = count(ctx, db, tenantID, requestID, childID)
-			return err
-		})
-		return result, err
+		tenantID, err := r.tenantID(ctx)
+		if err != nil {
+			return 0, err
+		}
+		db, err := r.resolve(ctx)
+		if err != nil {
+			return 0, err
+		}
+		return count(ctx, db, tenantID, requestID, childID)
 	}
 }
 

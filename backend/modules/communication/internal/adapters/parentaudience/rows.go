@@ -23,4 +23,5 @@ type PendingApplicants interface {
 // statements. The roots bind it to the guardian-link projection.
 type GuardianLinks interface {
 	GuardianLinkRows(db bun.IDB, tenantID int64) *bun.SelectQuery
+	AllSchoolsGuardianLinkRows(db bun.IDB) *bun.SelectQuery
 }

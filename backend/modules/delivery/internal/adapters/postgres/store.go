@@ -14,11 +14,11 @@ import (
 
 type TenantDatabase func(context.Context, int64) (bun.IDB, error)
 
-type AdminTransaction func(context.Context, func(context.Context, bun.IDB) error) error
+type AdminDatabase func(context.Context) (bun.IDB, error)
 
 type Store struct {
 	tenantDB TenantDatabase
-	adminTx  AdminTransaction
+	adminDB  AdminDatabase
 }
 
 const emailEnqueueSQL = `
@@ -244,11 +244,11 @@ type emailDeliveryStatusRow struct {
 	Attempts          int        `bun:"attempts"`
 }
 
-func New(tenantDB TenantDatabase, adminTx AdminTransaction) *Store {
-	if tenantDB == nil || adminTx == nil {
+func New(tenantDB TenantDatabase, adminDB AdminDatabase) *Store {
+	if tenantDB == nil || adminDB == nil {
 		panic("delivery postgres: tenant database and admin transaction are required")
 	}
-	return &Store{tenantDB: tenantDB, adminTx: adminTx}
+	return &Store{tenantDB: tenantDB, adminDB: adminDB}
 }
 
 func (s *Store) Enqueue(ctx context.Context, intent domain.Intent) (domain.Enqueued, error) {
@@ -304,7 +304,7 @@ func (s *Store) Enqueue(ctx context.Context, intent domain.Intent) (domain.Enque
 
 func (s *Store) Claim(ctx context.Context, transport domain.Transport, limit int, now, leaseExpiresAt time.Time) ([]domain.Intent, error) {
 	var rows []intentRow
-	err := s.adminTx(ctx, func(txCtx context.Context, db bun.IDB) error {
+	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
 		switch transport {
 		case domain.TransportEmail:
 			return db.NewRaw(emailClaimSQL, leaseExpiresAt, now, now, now, limit).Scan(txCtx, &rows)
@@ -326,7 +326,7 @@ func (s *Store) Claim(ctx context.Context, transport domain.Transport, limit int
 // letter keeps the intent visible for operators instead of leaving it claimed.
 func (s *Store) DeadLetterExpiredDispatches(ctx context.Context, transport domain.Transport, now time.Time) (int64, error) {
 	var affected int64
-	err := s.adminTx(ctx, func(txCtx context.Context, db bun.IDB) error {
+	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
 		var result sql.Result
 		var err error
 		switch transport {
@@ -356,7 +356,7 @@ func (s *Store) DeadLetterExpiredDispatches(ctx context.Context, transport domai
 // fence is the linearization point at which external delivery has begun.
 func (s *Store) StartDelivery(ctx context.Context, transport domain.Transport, id int64, token string, leaseExpiresAt time.Time) (string, bool, error) {
 	var dispatchToken string
-	err := s.adminTx(ctx, func(txCtx context.Context, db bun.IDB) error {
+	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
 		var scanErr error
 		switch transport {
 		case domain.TransportEmail:
@@ -385,7 +385,7 @@ func (s *Store) StartDelivery(ctx context.Context, transport domain.Transport, i
 
 func (s *Store) FinalizeSent(ctx context.Context, transport domain.Transport, id int64, token string, providerResult json.RawMessage, sentAt time.Time) (bool, error) {
 	var finalized bool
-	err := s.adminTx(ctx, func(txCtx context.Context, db bun.IDB) error {
+	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
 		var resultResult interface{ RowsAffected() (int64, error) }
 		var execErr error
 		switch transport {
@@ -411,7 +411,7 @@ func (s *Store) FinalizeSent(ctx context.Context, transport domain.Transport, id
 
 func (s *Store) FinalizeCancelled(ctx context.Context, transport domain.Transport, id int64, token, reason string, cancelledAt time.Time) (bool, error) {
 	var finalized bool
-	err := s.adminTx(ctx, func(txCtx context.Context, db bun.IDB) error {
+	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
 		args := []any{reason, cancelledAt, cancelledAt, id, token}
 		var result interface{ RowsAffected() (int64, error) }
 		var execErr error
@@ -439,7 +439,7 @@ func (s *Store) FinalizeCancelled(ctx context.Context, transport domain.Transpor
 func (s *Store) FinalizeDeferred(ctx context.Context, transport domain.Transport, id int64, token, reason string, nextRetryAt time.Time) (bool, error) {
 	now := time.Now()
 	var finalized bool
-	err := s.adminTx(ctx, func(txCtx context.Context, db bun.IDB) error {
+	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
 		args := []any{reason, nextRetryAt, now, id, token}
 		var result interface{ RowsAffected() (int64, error) }
 		var execErr error
@@ -471,7 +471,7 @@ func (s *Store) FinalizeFailure(ctx context.Context, transport domain.Transport,
 	}
 	now := time.Now()
 	var finalized bool
-	err := s.adminTx(ctx, func(txCtx context.Context, db bun.IDB) error {
+	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
 		args := []any{state, attempts, lastError, nextRetryAt, state, now, now, id, token}
 		var resultResult interface{ RowsAffected() (int64, error) }
 		var execErr error
@@ -558,7 +558,7 @@ func (s *Store) EmailStatus(ctx context.Context, tenantID, id int64) (domain.Int
 
 func (s *Store) Backlog(ctx context.Context) (int, error) {
 	var count int
-	err := s.adminTx(ctx, func(txCtx context.Context, db bun.IDB) error {
+	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
 		return db.NewRaw(`
 			SELECT
 				(SELECT COUNT(*) FROM platform.email_outbox WHERE status IN ('pending', 'claimed'))
@@ -573,7 +573,7 @@ func (s *Store) Backlog(ctx context.Context) (int, error) {
 
 func (s *Store) OldestPendingAge(ctx context.Context, now time.Time) (time.Duration, error) {
 	var oldest *time.Time
-	err := s.adminTx(ctx, func(txCtx context.Context, db bun.IDB) error {
+	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
 		return db.NewRaw(`
 			SELECT MIN(created_at) FROM (
 				SELECT created_at FROM platform.email_outbox WHERE status IN ('pending', 'claimed')

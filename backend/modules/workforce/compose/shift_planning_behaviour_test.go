@@ -91,7 +91,7 @@ func planningDependencies(t *testing.T, ctx context.Context, db *bun.DB, capabil
 	t.Helper()
 	ownersRooms := owners.MustNewUnobservedRooms(testpkg.NewDatabase(t, db))
 	calendarOwner := api.MustNewSchoolCalendar(testpkg.NewDatabase(t, db))
-	staffByID, err := owners.NewPlanStaffDirectory(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Staff).FindWithPersonByIDs(ctx, []int64{staffID})
+	staffByID, err := testpkg.TenantQuery1(t, ctx, db, owners.NewPlanStaffDirectory(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Staff).FindWithPersonByIDs, []int64{staffID})
 	require.NoError(t, err)
 	staff := staffByID[staffID]
 	require.NotNil(t, staff)
@@ -199,4 +199,8 @@ func TestShiftPlanningServesTheDienstplanOverTheCapability(t *testing.T) {
 		From: day.String(), To: day.String(), Template: "persons", Variant: "aushang", Format: "pdf",
 	})
 	require.EqualError(t, exportErr, "plan export is not configured")
+}
+
+func (d planningStaffDirectory) ListMembershipsWithPerson(ctx context.Context) ([]*workforce.PlanStaff, error) {
+	return d.ListAllWithPerson(ctx)
 }

@@ -63,10 +63,7 @@ func guardianInvitationRowOf(invitation domain.GuardianInvitation) guardianInvit
 }
 
 func guardianTenantFilter[Q tenantFilterable[Q]](scope TenantScope, query Q) Q {
-	if scope.TenantID > 0 {
-		return query.Where(`"guardian_invitation".tenant_id = ?`, scope.TenantID)
-	}
-	return query
+	return scopeTenantQuery(scope, query, `"guardian_invitation".tenant_id = ?`)
 }
 
 func (s *Store) FindGuardianInvitation(ctx context.Context, id int64) (domain.GuardianInvitation, bool, error) {

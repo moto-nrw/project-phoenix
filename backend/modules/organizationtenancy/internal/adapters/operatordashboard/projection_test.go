@@ -420,7 +420,11 @@ func pwaUsage(t *testing.T, db *bun.DB, projection *operatordashboard.Projection
 	var rows []contract.PWAUsageRow
 	withinAdmin(t, db, func(ctx context.Context) error {
 		var err error
-		rows, err = projection.PWAUsage(ctx, tenantID, window)
+		if tenantID == 0 {
+			rows, err = projection.AllSchoolsPWAUsage(ctx, window)
+		} else {
+			rows, err = projection.PWAUsage(ctx, tenantID, window)
+		}
 		return err
 	})
 	return rows

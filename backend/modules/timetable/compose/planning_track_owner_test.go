@@ -186,10 +186,16 @@ func TestPlanningTrackListQueryBudgetStaysFlat(t *testing.T) {
 	for i := 0; i < 8; i++ {
 		createOwnedPlanningTrack(t, module, ctx, string(rune('A'+i)), "#5080D8", i)
 	}
-	counter := testpkg.CaptureQueries(t, db)
-	_, err := module.ListPlanningTracks(ctx, timetable.PlanningTrackFilter{Ordered: true})
-	require.NoError(t, err)
-	testpkg.AssertQueryBudget(t, "modules.timetable.planning_tracks.list", counter.Queries())
+	// The owner read runs inside the HTTP/workflow unit of work. The budget
+	// still measures every business query, not connection/role setup.
+	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
+		counter := testpkg.CaptureQueries(t, db)
+		_, err := module.ListPlanningTracks(ctx, timetable.PlanningTrackFilter{Ordered: true})
+		require.NoError(t, err)
+		testpkg.AssertQueryBudget(t, "modules.timetable.planning_tracks.list", counter.Queries())
+
+		return nil
+	}))
 }
 
 func createOwnedPlanningTrack(t *testing.T, module *timetable.Module, ctx context.Context, name, color string, order int) timetable.PlanningTrack {

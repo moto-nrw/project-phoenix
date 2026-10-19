@@ -11,6 +11,7 @@ package staffinbox
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -19,9 +20,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Database resolves the caller's ambient transaction plus the tenant the
-// statement must be scoped to. A zero tenant leaves the query to RLS alone,
-// exactly as the repository this replaces did.
+// Database resolves the caller connection and school; school-specific queries
+// reject an absent school instead of removing the tenant predicate.
 type Database func(context.Context) (bun.IDB, int64, error)
 
 // Projection answers the staff-conversation reads that span owners.
@@ -61,11 +61,13 @@ const (
 		 AND um.sender_account_id <> ?`
 )
 
-// withTenant applies the defense-in-depth tenant_id filter that complements
-// RLS. A zero tenant leaves the query untouched.
-func withTenant[Q interface{ Where(string, ...any) Q }](query Q, alias string, tenantID int64) Q {
+// withTenant requires a school and adds its predicate on top of RLS.
+func withTenant[Q interface {
+	Where(string, ...any) Q
+	Err(error) Q
+}](query Q, alias string, tenantID int64) Q {
 	if tenantID <= 0 {
-		return query
+		return query.Err(errors.New("tenant is required"))
 	}
 	return query.Where(`"`+alias+`".tenant_id = ?`, tenantID)
 }

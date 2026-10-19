@@ -225,22 +225,10 @@ func TestPhaseExpiryProjection_ListSnapshots_RequiresEffectiveSuccessorBooking(t
 		"an approved rollover child must complete the warning despite a replacement student ID")
 
 	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, tenantID, func(ctx context.Context, tx bun.Tx) error {
-		if updateErr := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus(
-			ctx,
-			targetChild.ID,
-			capability.ChildStatusPendingRenewal,
-			nil,
-			0,
-		); updateErr != nil {
+		if updateErr := testpkg.TenantCommand4(t, ctx, db, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus, targetChild.ID, capability.ChildStatusPendingRenewal, nil, 0); updateErr != nil {
 			return updateErr
 		}
-		if updateErr := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus(
-			ctx,
-			unrelatedRejectedChild.ID,
-			capability.ChildStatusRejected,
-			nil,
-			0,
-		); updateErr != nil {
+		if updateErr := testpkg.TenantCommand4(t, ctx, db, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus, unrelatedRejectedChild.ID, capability.ChildStatusRejected, nil, 0); updateErr != nil {
 			return updateErr
 		}
 		if _, updateErr := tx.NewUpdate().

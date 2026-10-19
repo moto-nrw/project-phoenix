@@ -58,6 +58,6 @@ func TestStaffRepository_ReturnsCaregiverBindingLockFailure(t *testing.T) {
 	repo := newCaregiverBindingLocker(db)
 	require.NoError(t, db.Close())
 
-	err := repo.LockCaregiverCapabilityBindings(testpkg.Ctx(t))
+	err := testpkg.TenantCommand0(t, testpkg.Ctx(t), db, repo.LockCaregiverCapabilityBindings)
 	require.Error(t, err)
 }

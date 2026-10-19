@@ -12,7 +12,7 @@ import (
 // StaffAbsenceTypeEntitlements returns every yearly claim of one person for
 // one type, keyed by year. Carried-over rests need the older years too.
 func (s *Store) StaffAbsenceTypeEntitlements(ctx context.Context, staffID, absenceTypeID int64) (map[int]float64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -23,7 +23,7 @@ func (s *Store) StaffAbsenceTypeEntitlements(ctx context.Context, staffID, absen
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = db.NewSelect().TableExpr("active.staff_absence_type_allowances").Column("year", "entitled_days").
-		Where("tenant_id = ?", tenantID).Where("staff_id = ?", staffID).
+		Where("tenant_id = ?", scope.TenantID).Where("staff_id = ?", staffID).
 		Where("absence_type_id = ?", absenceTypeID).OrderExpr("year ASC").Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
@@ -47,11 +47,11 @@ type staffAbsenceAllowanceRow struct {
 }
 
 func (s *Store) UpsertStaffAbsenceTypeAllowance(ctx context.Context, input domain.SetAbsenceTypeAllowance) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
-	row := staffAbsenceAllowanceRow{TenantID: tenantID, StaffID: input.StaffID, AbsenceTypeID: input.AbsenceTypeID, Year: input.Year, EntitledDays: input.EntitledDays}
+	row := staffAbsenceAllowanceRow{TenantID: scope.TenantID, StaffID: input.StaffID, AbsenceTypeID: input.AbsenceTypeID, Year: input.Year, EntitledDays: input.EntitledDays}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	_, err = db.NewInsert().Model(&row).On("CONFLICT (tenant_id, staff_id, absence_type_id, year) DO UPDATE").
@@ -76,12 +76,12 @@ type staffAbsenceAllowanceChangeRow struct {
 }
 
 func (s *Store) RecordStaffAbsenceTypeAllowanceChange(ctx context.Context, input domain.SetAbsenceTypeAllowance, oldDays *float64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	row := staffAbsenceAllowanceChangeRow{
-		TenantID: tenantID, StaffID: input.StaffID, AbsenceTypeID: input.AbsenceTypeID, Year: input.Year,
+		TenantID: scope.TenantID, StaffID: input.StaffID, AbsenceTypeID: input.AbsenceTypeID, Year: input.Year,
 		OldEntitledDays: oldDays, NewEntitledDays: input.EntitledDays, Reason: strings.TrimSpace(input.Reason), ChangedBy: input.ChangedBy,
 	}
 	stats := domain.OperationStats{Queries: 1}

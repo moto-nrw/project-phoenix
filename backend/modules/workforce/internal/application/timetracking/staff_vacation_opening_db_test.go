@@ -64,7 +64,10 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 
 	svc := timetracking.NewStaffAbsenceService(
 		reposAbsences.StaffAbsence, workforceCompose.NewTimeTrackingTestRows(workTime).Sessions, workforceCompose.NewTimeTrackingTestRows(workTime).VacationQuotas,
-		workforceCompose.NewStaffAbsenceAuditRepository(workTime), wtmIntSettings{}, nil,
+		workforceCompose.NewStaffAbsenceAuditRepository(workTime), wtmIntSettings{}, nil, timetracking.WithAbsenceUnitOfWork(testpkg.
+			RunInTenantTransaction,
+		),
+
 		timetracking.WithAbsenceToday(func() calendar.Date { return calendar.NewDate(2026, 8, 24) }),
 		timetracking.WithAbsenceShiftPlanSyncer(noSickCascade{}),
 		// Wired exactly like services/factory.go does.

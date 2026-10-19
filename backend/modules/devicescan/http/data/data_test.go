@@ -51,7 +51,7 @@ func TestGetAvailableTeachers_NoDevice(t *testing.T) {
 	t.Parallel()
 	ctx := setupDataRoute(t)
 
-	router := ctx.resource.TeachersRouter()
+	router := dataTenantRoot(ctx.db, ctx.resource.TeachersRouter())
 
 	// Request without device context should return 401
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/", nil)
@@ -67,7 +67,7 @@ func TestGetAvailableTeachers_Success(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-1")
 
-	router := ctx.resource.TeachersRouter()
+	router := dataTenantRoot(ctx.db, ctx.resource.TeachersRouter())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/", nil,
 		testutil.WithDeviceContext(testDevice),
@@ -103,7 +103,7 @@ func TestGetAvailableTeachers_ReturnsTeacherRosterIndependentOfCaregiverState(t 
 	)
 	require.NoError(t, err)
 
-	router := ctx.resource.TeachersRouter()
+	router := dataTenantRoot(ctx.db, ctx.resource.TeachersRouter())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/", nil,
 		testutil.WithDeviceContext(testDevice),
@@ -140,7 +140,7 @@ func TestGetTeacherStudents_NoDevice(t *testing.T) {
 	t.Parallel()
 	ctx := setupDataRoute(t)
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	// Request without device context should return 401
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/students?teacher_ids=1", nil)
@@ -157,7 +157,7 @@ func TestGetTeacherStudents_NoTeacherIDs_ReturnsAllStudents(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-2")
 	student := testpkg.CreateTestStudent(t, ctx.db, "AllVis", "Student", "2c")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	// Request without teacher_ids parameter — should return all students
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/students", nil,
@@ -193,7 +193,7 @@ func TestGetTeacherStudents_InvalidTeacherID(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-3")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	// Request with invalid teacher ID
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/students?teacher_ids=invalid", nil,
@@ -213,7 +213,7 @@ func TestGetTeacherStudents_EmptyTeacherIDs_ReturnsEmptyList(t *testing.T) {
 	// Create a student to verify it is NOT returned
 	testpkg.CreateTestStudent(t, ctx.db, "ShouldNot", "Appear", "5x")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	// Explicit empty teacher_ids= (key present, value empty) — must NOT return all students.
 	// This distinguishes from the "key absent" case which returns all.
@@ -238,7 +238,7 @@ func TestGetTeacherStudents_NonExistentTeacher(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-5")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	// Request with non-existent teacher ID
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/students?teacher_ids=99999", nil,
@@ -259,7 +259,7 @@ func TestGetTeacherActivities_NoDevice(t *testing.T) {
 	t.Parallel()
 	ctx := setupDataRoute(t)
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	// Request without device context should return 401
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities", nil)
@@ -275,7 +275,7 @@ func TestGetTeacherActivities_Success(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-6")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities", nil,
 		testutil.WithDeviceContext(testDevice),
@@ -339,7 +339,7 @@ func TestGetAvailableRooms_NoDevice(t *testing.T) {
 	t.Parallel()
 	ctx := setupDataRoute(t)
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	// Request without device context should return 401
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/rooms/available", nil)
@@ -355,7 +355,7 @@ func TestGetAvailableRooms_Success(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-7")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/rooms/available", nil,
 		testutil.WithDeviceContext(testDevice),
@@ -372,7 +372,7 @@ func TestGetAvailableRooms_WithCapacityFilter(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-8")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	// Request with capacity filter
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/rooms/available?capacity=10", nil,
@@ -390,7 +390,7 @@ func TestGetAvailableRooms_InvalidCapacity(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-9")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	// Request with invalid capacity (ignored, treated as 0)
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/rooms/available?capacity=invalid", nil,
@@ -411,7 +411,7 @@ func TestCheckRFIDTagAssignment_NoDevice(t *testing.T) {
 	t.Parallel()
 	ctx := setupDataRoute(t)
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	// Request without device context should return 401
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/rfid/A1B2C3D4", nil)
@@ -427,7 +427,7 @@ func TestCheckRFIDTagAssignment_MissingTagID(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-10")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	// Request with empty tagId - Chi routing will 404
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/rfid/", nil,
@@ -446,7 +446,7 @@ func TestCheckRFIDTagAssignment_TagNotAssigned(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-11")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	// Request with non-existent tag
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/rfid/NONEXISTENT123", nil,
@@ -468,7 +468,7 @@ func TestCheckRFIDTagAssignment_AssignedToStudent(t *testing.T) {
 	rfidCard := testpkg.CreateTestRFIDCard(t, ctx.db, "TESTRFID002")
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/rfid/"+rfidCard.ID, nil,
 		testutil.WithDeviceContext(testDevice),
@@ -489,7 +489,7 @@ func TestCheckRFIDTagAssignment_AssignedToStaff(t *testing.T) {
 	// LinkRFIDToStudent works for any person (staff also have a person_id)
 	testpkg.LinkRFIDToStudent(t, ctx.db, staff.PersonID, rfidCard.ID)
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/rfid/"+rfidCard.ID, nil,
 		testutil.WithDeviceContext(testDevice),
@@ -525,7 +525,7 @@ func TestCheckRFIDTagAssignment_GraduatedStudentReadsAsUnassigned(t *testing.T) 
 		Exec(dbCtx)
 	require.NoError(t, err)
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/rfid/"+rfidCard.ID, nil,
 		testutil.WithDeviceContext(testDevice),

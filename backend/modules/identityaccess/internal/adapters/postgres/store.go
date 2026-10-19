@@ -6,6 +6,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -17,12 +18,12 @@ import (
 // Database resolves the connection of the current request.
 type Database func(context.Context) (bun.IDB, error)
 
-// TenantScope is the tenant filter of the current request: the tenant the
-// runtime scoped the caller to (zero for tenantless callers) and whether the
-// caller holds an administrative transaction.
+// TenantScope names a required school or explicit administrative cross-school
+// scope. AdminTransaction records privilege independently of the school ID.
 type TenantScope struct {
 	TenantID         int64
 	AdminTransaction bool
+	AcrossSchools    bool
 }
 
 // Scope resolves the tenant scope of the current request.
@@ -233,4 +234,57 @@ func (s *Store) AssignAccountRole(ctx context.Context, accountID, roleID, tenant
 	}
 	stats.Rows, _ = result.RowsAffected()
 	return stats.Rows > 0, stats, nil
+}
+
+// Validate rejects an absent school unless the caller explicitly selected
+// a cross-school administrative unit of work. Zero is never a query scope.
+func (s TenantScope) Validate() error {
+	if s.AcrossSchools {
+		if !s.AdminTransaction {
+			return domain.ErrTenantRequired
+		}
+		return nil
+	}
+	if s.TenantID <= 0 {
+		return domain.ErrTenantRequired
+	}
+	return nil
+}
+
+func scopeTenantQuery[Q interface {
+	Where(string, ...any) Q
+	Err(error) Q
+}](scope TenantScope, query Q, predicate string) Q {
+	if err := scope.Validate(); err != nil {
+		return query.Err(err)
+	}
+	if scope.AcrossSchools {
+		return query
+	}
+	return query.Where(predicate, scope.TenantID)
+}
+
+// ResolveDatabase validates explicit scope and requires the caller's SQL unit.
+func ResolveDatabase(raw any, present bool, scope TenantScope) (bun.IDB, error) {
+	if err := scope.Validate(); err != nil {
+		return nil, err
+	}
+	if !present {
+		return nil, errors.New("identity access postgres: transaction is required")
+	}
+	switch tx := raw.(type) {
+	case bun.Tx:
+		return tx, nil
+	case *bun.Tx:
+		if tx != nil {
+			return *tx, nil
+		}
+	}
+	return nil, fmt.Errorf("identity access postgres: unsupported transaction %T", raw)
+}
+
+// ScopeFor preserves privilege independently of the validated context school.
+// Only an actual administrative transaction can name a cross-school scope.
+func ScopeFor(schoolID int64, admin bool) TenantScope {
+	return TenantScope{TenantID: schoolID, AdminTransaction: admin, AcrossSchools: admin && schoolID == 0}
 }

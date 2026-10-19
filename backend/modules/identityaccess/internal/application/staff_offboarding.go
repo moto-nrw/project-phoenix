@@ -95,7 +95,7 @@ func (l *AccountLifecycle) ExecuteStaffOffboarding(ctx context.Context, accountI
 func (l *AccountLifecycle) staffOffboardingSnapshot(ctx context.Context, accountID int64) (domain.StaffOffboardingPreview, error) {
 	preview := domain.StaffOffboardingPreview{AccountID: accountID}
 	tenantID := l.runtime.TenantID(ctx)
-	account, found, _, err := l.logins.FindLoginAccount(ctx, accountID, true)
+	account, found, _, err := findLoginAccount(ctx, l.runtime, l.logins, accountID, true)
 	if err != nil {
 		return preview, err
 	}

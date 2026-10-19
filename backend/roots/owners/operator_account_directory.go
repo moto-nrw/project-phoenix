@@ -12,6 +12,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // TenantAccountInfo holds flattened account data for a given tenant, used by operator dashboard.
@@ -139,7 +141,15 @@ func (r operatorAccountDirectory) enrichAccounts(ctx context.Context) func([]acc
 	return func(entries []accountEntry) error { return r.attachAccountPersons(ctx, entries) }
 }
 
-func (r operatorAccountDirectory) ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]TenantAccountInfo, error) {
+func (r operatorAccountDirectory) ListAccountsByTenantID(ctx context.Context, tenantID int64) (rows []TenantAccountInfo, err error) {
+	err = tenant.WithinAdmin(ctx, func(txCtx context.Context) error {
+		rows, err = r.listAccountsByTenantID(txCtx, tenantID)
+		return err
+	})
+	return rows, err
+}
+
+func (r operatorAccountDirectory) listAccountsByTenantID(ctx context.Context, tenantID int64) ([]TenantAccountInfo, error) {
 	schoolRows, err := r.identityRows(ctx, []int64{tenantID})
 	rows := make([]TenantAccountInfo, 0, len(schoolRows))
 	for _, row := range schoolRows {
@@ -250,7 +260,15 @@ func (r operatorAccountDirectory) caregiverChains(ctx context.Context, persons m
 	return chains, nil
 }
 
-func (r operatorAccountDirectory) ListAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]OrgAccountInfo, error) {
+func (r operatorAccountDirectory) ListAccountsByOrganizationID(ctx context.Context, organizationID int64) (rows []OrgAccountInfo, err error) {
+	err = tenant.WithinAdmin(ctx, func(txCtx context.Context) error {
+		rows, err = r.listAccountsByOrganizationID(txCtx, organizationID)
+		return err
+	})
+	return rows, err
+}
+
+func (r operatorAccountDirectory) listAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]OrgAccountInfo, error) {
 	schools, err := r.schools.ListSchoolsByOrganization(ctx, organizationID)
 	if err != nil {
 		return nil, fmt.Errorf("load organization schools for accounts: %w", err)
@@ -258,7 +276,15 @@ func (r operatorAccountDirectory) ListAccountsByOrganizationID(ctx context.Conte
 	return r.listAccounts(ctx, nonDeletedSchoolIDs(schools))
 }
 
-func (r operatorAccountDirectory) ListAllAccounts(ctx context.Context) ([]OrgAccountInfo, error) {
+func (r operatorAccountDirectory) ListAllAccounts(ctx context.Context) (rows []OrgAccountInfo, err error) {
+	err = tenant.WithinAdmin(ctx, func(txCtx context.Context) error {
+		rows, err = r.listAllAccounts(txCtx)
+		return err
+	})
+	return rows, err
+}
+
+func (r operatorAccountDirectory) listAllAccounts(ctx context.Context) ([]OrgAccountInfo, error) {
 	schools, err := r.schools.ListNonDeletedSchools(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("load schools for accounts: %w", err)

@@ -33,5 +33,5 @@ func NewStaffNotices(deps StaffNoticeDependencies) timetable.StaffNotices {
 
 // NewStaffNoticeRepository builds the retained staff notice repository.
 func NewStaffNoticeRepository(db *bun.DB) ports.StaffNoticeRecords {
-	return postgres.NewStaffNoticeRepository(postgres.New(databaseRuntime(db)))
+	return application.NewStaffNoticeRecords(postgres.NewStaffNoticeRepository(postgres.New(databaseRuntime(db))), transaction{})
 }

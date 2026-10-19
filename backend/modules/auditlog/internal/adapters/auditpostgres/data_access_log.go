@@ -36,7 +36,11 @@ func (r *dataAccessLogRepository) ExistsSince(ctx context.Context, actorAccountI
 	if tenantID <= 0 {
 		return false, fmt.Errorf("data access log dedupe requires a tenant context")
 	}
-	query := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB1, databaseErr1 := runtimeDB(ctx, r.runtime)
+	if databaseErr1 != nil {
+		return *new(bool), databaseErr1
+	}
+	query := ambientDB1.NewSelect().
 		Model((*audit.DataAccessLog)(nil)).
 		ModelTableExpr(`audit.data_access_log AS "data_access_log"`).
 		Where(`"data_access_log".actor_account_id = ?`, actorAccountID).

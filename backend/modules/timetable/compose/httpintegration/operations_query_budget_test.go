@@ -1,6 +1,7 @@
 package httpintegration_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -49,22 +50,25 @@ func TestTimetableOperationsPlannedNowQueryBudget(t *testing.T) {
 		}
 	}
 
-	counter := testpkg.CaptureQueries(t, db)
-	run := func() int {
-		counter.Reset()
-		result, err := operations.PlannedNow(ctx, 1, false, date, now, timetable.PlannedNowOptions{})
-		require.NoError(t, err)
-		require.Len(t, result, created)
-		return counter.Total()
-	}
+	require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, testpkg.TenantIDFromContext(ctx), func(ctx context.Context) error {
+		counter := testpkg.CaptureQueries(t, db)
+		run := func() int {
+			counter.Reset()
+			result, err := operations.PlannedNow(ctx, 1, false, date, now, timetable.PlannedNowOptions{})
+			require.NoError(t, err)
+			require.Len(t, result, created)
+			return counter.Total()
+		}
 
-	addInstances(3)
-	smallCount := run()
-	addInstances(5)
-	largeCount := run()
-	t.Logf("query budget: 3 planned instances → %d queries, 8 planned instances → %d queries", smallCount, largeCount)
-	assert.Equal(t, smallCount, largeCount, "query count must not grow with the planned instance count")
-	testpkg.AssertQueryBudget(t, "services.schedule.planned_now", counter.Queries())
+		addInstances(3)
+		smallCount := run()
+		addInstances(5)
+		largeCount := run()
+		t.Logf("query budget: 3 planned instances → %d queries, 8 planned instances → %d queries", smallCount, largeCount)
+		assert.Equal(t, smallCount, largeCount, "query count must not grow with the planned instance count")
+		testpkg.AssertQueryBudget(t, "services.schedule.planned_now", counter.Queries())
+		return nil
+	}))
 }
 
 // newPlannedNowBudgetOperations composes the operational day over the
@@ -75,7 +79,7 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testp
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	reposStructure := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
-	staff, err := owners.NewTimetableStaff(repos.Staff).FindWithPerson(testpkg.Ctx(t), staffFixture.ID)
+	staff, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, owners.NewTimetableStaff(repos.Staff).FindWithPerson, staffFixture.ID)
 	require.NoError(t, err)
 	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	stand := newTimetableOpsDeps()

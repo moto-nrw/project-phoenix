@@ -15,50 +15,101 @@ import (
 // with the execution and attendance Student Presence owns since #2762. Each
 // read goes through the tenant-safe timetable projection inside the caller's
 // tenant transaction.
-type ProjectedPresenceReads struct{ ports.PresenceProjection }
+type ProjectedPresenceReads struct {
+	ports.PresenceProjection
+	runInTx func(context.Context, func(context.Context) error) error
+}
 
-func NewProjectedPresenceReads(projection ports.PresenceProjection) (ProjectedPresenceReads, error) {
+func NewProjectedPresenceReads(projection ports.PresenceProjection, runInTx func(context.Context, func(context.Context) error) error) (ProjectedPresenceReads, error) {
 	if projection == nil {
 		return ProjectedPresenceReads{}, errors.New("timetable presence reads: database is required")
 	}
-	return ProjectedPresenceReads{PresenceProjection: projection}, nil
+	return ProjectedPresenceReads{PresenceProjection: projection, runInTx: runInTx}, nil
 }
 
-func (r ProjectedPresenceReads) ListParallelPresence(ctx context.Context, excludedInstanceID int64, date string, studentIDs []int64) ([]scheduleModels.ParallelPresence, error) {
+func (r ProjectedPresenceReads) ListParallelPresence(ctx context.Context, excludedInstanceID int64, date string, studentIDs []int64) (value0 []scheduleModels.ParallelPresence, err error) {
+	err = r.runInTx(ctx, func(txCtx context.Context) error {
+		value0, err = r.inUnitListParallelPresence(txCtx, excludedInstanceID, date, studentIDs)
+		return err
+	})
+	return
+}
+
+func (r ProjectedPresenceReads) inUnitListParallelPresence(ctx context.Context, excludedInstanceID int64, date string, studentIDs []int64) ([]scheduleModels.ParallelPresence, error) {
 	rows, err := r.PresenceProjection.ListParallelPresence(ctx, excludedInstanceID, calendar.Date(date), studentIDs)
 	return convertRows(rows, func(row presenceContract.ParallelPresence) scheduleModels.ParallelPresence {
 		return scheduleModels.ParallelPresence(row)
 	}), err
 }
 
-func (r ProjectedPresenceReads) ListPartialAbsenceBlocks(ctx context.Context, studentID int64, date string, from time.Time, enrolled bool, autoExceptionIDs []int64) ([]scheduleModels.PartialAbsenceBlock, error) {
+func (r ProjectedPresenceReads) ListPartialAbsenceBlocks(ctx context.Context, studentID int64, date string, from time.Time, enrolled bool, autoExceptionIDs []int64) (value0 []scheduleModels.PartialAbsenceBlock, err error) {
+	err = r.runInTx(ctx, func(txCtx context.Context) error {
+		value0, err = r.inUnitListPartialAbsenceBlocks(txCtx, studentID, date, from, enrolled, autoExceptionIDs)
+		return err
+	})
+	return
+}
+
+func (r ProjectedPresenceReads) inUnitListPartialAbsenceBlocks(ctx context.Context, studentID int64, date string, from time.Time, enrolled bool, autoExceptionIDs []int64) ([]scheduleModels.PartialAbsenceBlock, error) {
 	rows, err := r.PresenceProjection.ListPartialAbsenceBlocks(ctx, studentID, calendar.Date(date), from, enrolled, autoExceptionIDs)
 	return convertRows(rows, func(row presenceContract.PartialAbsenceBlock) scheduleModels.PartialAbsenceBlock {
 		return scheduleModels.PartialAbsenceBlock(row)
 	}), err
 }
 
-func (r ProjectedPresenceReads) ListScheduledInstancesForStudent(ctx context.Context, studentID int64, from, to string) ([]*scheduleModels.ScheduledInstanceRow, error) {
+func (r ProjectedPresenceReads) ListScheduledInstancesForStudent(ctx context.Context, studentID int64, from, to string) (value0 []*scheduleModels.ScheduledInstanceRow, err error) {
+	err = r.runInTx(ctx, func(txCtx context.Context) error {
+		value0, err = r.inUnitListScheduledInstancesForStudent(txCtx, studentID, from, to)
+		return err
+	})
+	return
+}
+
+func (r ProjectedPresenceReads) inUnitListScheduledInstancesForStudent(ctx context.Context, studentID int64, from, to string) ([]*scheduleModels.ScheduledInstanceRow, error) {
 	rows, err := r.PresenceProjection.ListScheduledInstancesForStudent(ctx, studentID, calendar.Date(from), calendar.Date(to))
 	return convertRows(rows, func(row presenceContract.ScheduledInstance) *scheduleModels.ScheduledInstanceRow {
 		return &scheduleModels.ScheduledInstanceRow{Instance: legacyInstance(row.Instance), Attendance: legacyParticipant(row.Participant)}
 	}), err
 }
 
-func (r ProjectedPresenceReads) HasPlannedSlotsInRange(ctx context.Context, from, to string) (bool, error) {
+func (r ProjectedPresenceReads) HasPlannedSlotsInRange(ctx context.Context, from, to string) (value0 bool, err error) {
+	err = r.runInTx(ctx, func(txCtx context.Context) error {
+		value0, err = r.inUnitHasPlannedSlotsInRange(txCtx, from, to)
+		return err
+	})
+	return
+}
+
+func (r ProjectedPresenceReads) inUnitHasPlannedSlotsInRange(ctx context.Context, from, to string) (bool, error) {
 	return r.PresenceProjection.HasPlannedSlotsInRange(ctx, calendar.Date(from), calendar.Date(to))
 }
 
 // ListLegacyInstances lists activity instances joined with their execution
 // in one statement.
-func (r ProjectedPresenceReads) ListLegacyInstances(ctx context.Context, filter ports.LegacyInstanceFilter) ([]*scheduleModels.ActivityInstance, error) {
+func (r ProjectedPresenceReads) ListLegacyInstances(ctx context.Context, filter ports.LegacyInstanceFilter) (value0 []*scheduleModels.ActivityInstance, err error) {
+	err = r.runInTx(ctx, func(txCtx context.Context) error {
+		value0, err = r.inUnitListLegacyInstances(txCtx, filter)
+		return err
+	})
+	return
+}
+
+func (r ProjectedPresenceReads) inUnitListLegacyInstances(ctx context.Context, filter ports.LegacyInstanceFilter) ([]*scheduleModels.ActivityInstance, error) {
 	rows, err := r.PresenceProjection.ListLegacyInstances(ctx, presenceContract.LegacyInstanceFilter(filter))
 	return convertRows(rows, legacyInstance), err
 }
 
 // ListLegacyParticipants lists participants joined with their attendance in
 // one statement.
-func (r ProjectedPresenceReads) ListLegacyParticipants(ctx context.Context, filter ports.LegacyParticipantFilter) ([]*scheduleModels.InstanceStudent, error) {
+func (r ProjectedPresenceReads) ListLegacyParticipants(ctx context.Context, filter ports.LegacyParticipantFilter) (value0 []*scheduleModels.InstanceStudent, err error) {
+	err = r.runInTx(ctx, func(txCtx context.Context) error {
+		value0, err = r.inUnitListLegacyParticipants(txCtx, filter)
+		return err
+	})
+	return
+}
+
+func (r ProjectedPresenceReads) inUnitListLegacyParticipants(ctx context.Context, filter ports.LegacyParticipantFilter) ([]*scheduleModels.InstanceStudent, error) {
 	rows, err := r.PresenceProjection.ListLegacyParticipants(ctx, presenceContract.LegacyParticipantFilter(filter))
 	return convertRows(rows, legacyParticipant), err
 }

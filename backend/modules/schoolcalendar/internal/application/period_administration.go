@@ -24,7 +24,7 @@ type Administration struct {
 // it, two concurrent adds could both pass the overlap check before either
 // insert commits, violating the hard active/same-type invariant (#1837).
 func (s *Service) AddCalendarPeriod(ctx context.Context, fields domain.CalendarPeriodFields) (result domain.CalendarPeriod, err error) {
-	err = s.run("add_calendar_period", func(stats *domain.OperationStats) error {
+	err = s.observeOperation("add_calendar_period", func(_ context.Context, stats *domain.OperationStats) error {
 		return s.underRecurrenceGate(ctx, func(txCtx context.Context) error {
 			if err := s.ensureUniqueName(txCtx, fields.Name, 0, stats); err != nil {
 				return err
@@ -50,7 +50,7 @@ func (s *Service) AddCalendarPeriod(ctx context.Context, fields domain.CalendarP
 // already overlaps (legacy data from before the rule) stay possible; the
 // advisory overlap listing keeps surfacing those.
 func (s *Service) ChangeCalendarPeriod(ctx context.Context, id int64, fields domain.CalendarPeriodFields) (result domain.CalendarPeriod, err error) {
-	err = s.run("change_calendar_period", func(stats *domain.OperationStats) error {
+	err = s.observeOperation("change_calendar_period", func(_ context.Context, stats *domain.OperationStats) error {
 		return s.underRecurrenceGate(ctx, func(txCtx context.Context) error {
 			if err := s.ensureChangeAllowed(txCtx, id, fields, stats); err != nil {
 				return err
@@ -100,7 +100,7 @@ func schedulingFieldsChanged(current domain.CalendarPeriod, fields domain.Calend
 // RemoveCalendarPeriod deletes the period once no care offering needs it:
 // the guard sees the removal (a nil replacement) before the row goes.
 func (s *Service) RemoveCalendarPeriod(ctx context.Context, id int64) error {
-	return s.run("remove_calendar_period", func(stats *domain.OperationStats) error {
+	return s.observeOperation("remove_calendar_period", func(_ context.Context, stats *domain.OperationStats) error {
 		return s.underRecurrenceGate(ctx, func(txCtx context.Context) error {
 			if s.administration.CareOfferingGuard != nil {
 				if err := s.administration.CareOfferingGuard(txCtx, id, nil); err != nil {
@@ -122,7 +122,7 @@ func (s *Service) RemoveCalendarPeriod(ctx context.Context, id int64) error {
 // if-absent upsert, so two concurrent calls yield exactly one row and no
 // error.
 func (s *Service) EnsureDefaultSchoolYear(ctx context.Context, defaultYear func(today string) domain.CalendarPeriodFields) (periods []domain.CalendarPeriod, created bool, err error) {
-	err = s.run("ensure_default_school_year", func(stats *domain.OperationStats) error {
+	err = s.observeOperation("ensure_default_school_year", func(_ context.Context, stats *domain.OperationStats) error {
 		return s.underRecurrenceGate(ctx, func(txCtx context.Context) error {
 			var listStats domain.OperationStats
 			var listErr error

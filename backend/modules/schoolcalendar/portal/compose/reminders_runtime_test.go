@@ -72,7 +72,7 @@ func TestReminderRuntimeEvidence(t *testing.T) {
 				before := db.Stats()
 				started := time.Now()
 				if operation == "reminder-delivery.query.admin" {
-					_, err = reminders.Reminders.ComputeForCaller(measuredCtx, true)
+					_, err = testpkg.MeasuredTenantQuery1(t, measuredCtx, db, counter, reminders.Reminders.ComputeForCaller, true)
 				} else {
 					var queued int
 					queued, err = command.EnqueueDueAppointmentReminders(measuredCtx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))

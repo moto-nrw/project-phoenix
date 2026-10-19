@@ -57,3 +57,5 @@ func TestRenameSchemaStorageFailures(t *testing.T) {
 		})
 	}
 }
+
+func (renameTestTransaction) RequireTransaction(context.Context) error { return nil }

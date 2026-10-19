@@ -7,7 +7,7 @@ import (
 )
 
 func (s *Service) CountStudentAssignments(ctx context.Context, studentID int64) (count int, err error) {
-	err = s.run("count_student_assignments", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "count_student_assignments", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, queryStats, countErr := s.store.CountStudentAssignments(ctx, studentID)
 		stats.Add(queryStats)
 		count = value
@@ -17,7 +17,7 @@ func (s *Service) CountStudentAssignments(ctx context.Context, studentID int64) 
 }
 
 func (s *Service) CountStudentRosterRemovals(ctx context.Context, studentID int64) (count int, err error) {
-	err = s.run("count_student_roster_removals", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "count_student_roster_removals", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, queryStats, countErr := s.store.CountStudentRosterRemovals(ctx, studentID)
 		stats.Add(queryStats)
 		count = value

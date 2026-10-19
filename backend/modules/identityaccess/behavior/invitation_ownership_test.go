@@ -225,7 +225,7 @@ func TestInvitationLifecycleAndImportedSchoolIdentity(t *testing.T) {
 					require.ErrorIs(t, err, identityaccess.ErrInvitationUsed)
 				}
 				require.Zero(t, account.ID, "a refused acceptance hands back no account")
-				storedPerson, findErr := repos.Person.FindByID(ctx, person.ID)
+				storedPerson, findErr := testpkg.TenantQuery1(t, ctx, db, repos.Person.FindByID, any(person.ID))
 				require.NoError(t, findErr)
 				require.Nil(t, storedPerson.AccountID)
 				if owner == nil {
@@ -237,7 +237,7 @@ func TestInvitationLifecycleAndImportedSchoolIdentity(t *testing.T) {
 			}
 			require.NoError(t, err)
 			testpkg.OwnTestAccount(t, db, account.ID)
-			storedPerson, err := repos.Person.FindByID(ctx, person.ID)
+			storedPerson, err := testpkg.TenantQuery1(t, ctx, db, repos.Person.FindByID, any(person.ID))
 			require.NoError(t, err)
 			require.NotNil(t, storedPerson.AccountID)
 			require.Equal(t, account.ID, *storedPerson.AccountID)

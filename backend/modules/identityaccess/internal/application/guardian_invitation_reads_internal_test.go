@@ -37,7 +37,7 @@ func TestGuardianInvitationReads_ListThroughTheStore(t *testing.T) {
 		GuardianProfileID: profileID, ExpiresAt: time.Now().Add(time.Hour),
 		ApprovalStatus: domain.GuardianInvitationApprovalNotRequired,
 	})
-	reads := NewGuardianInvitationReads(store)
+	reads := NewGuardianInvitationReads(store, func(ctx context.Context, run func(context.Context) error) error { return run(ctx) })
 
 	all, err := reads.ListGuardianInvitations(ctx, profileID)
 	require.NoError(t, err)

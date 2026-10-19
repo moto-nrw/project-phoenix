@@ -66,7 +66,11 @@ func NewSchoolSetupRepository[S SchoolSetupState](runtime Runtime) *SchoolSetupR
 // Find returns the school's wizard state, or (nil, nil) for a new school.
 func (r *SchoolSetupRepository[S]) SetupOfSchool(ctx context.Context) (*S, error) {
 	stored := new(schoolSetupRow)
-	err := r.runtime.DB(ctx).NewSelect().
+	ambientDB1, databaseErr1 := r.runtime.DB(ctx)
+	if databaseErr1 != nil {
+		return *new(*S), databaseErr1
+	}
+	err := ambientDB1.NewSelect().
 		Model(stored).
 		ModelTableExpr(tableSchoolSetupsAlias).
 		Limit(1).
@@ -100,7 +104,11 @@ func (r *SchoolSetupRepository[S]) StoreSetup(ctx context.Context, stored *S) er
 		skipped = []string{}
 	}
 
-	_, err := r.runtime.DB(ctx).NewInsert().
+	ambientDB2, databaseErr2 := r.runtime.DB(ctx)
+	if databaseErr2 != nil {
+		return databaseErr2
+	}
+	_, err := ambientDB2.NewInsert().
 		Model(&schoolSetupRow{
 			TenantID:     state.TenantID,
 			SkippedSteps: skipped,
@@ -125,7 +133,11 @@ func (r *SchoolSetupRepository[S]) IsDismissed(ctx context.Context, accountID in
 	if accountID <= 0 {
 		return false, errors.New("account ID is required")
 	}
-	exists, err := r.runtime.DB(ctx).NewSelect().
+	ambientDB3, databaseErr3 := r.runtime.DB(ctx)
+	if databaseErr3 != nil {
+		return *new(bool), databaseErr3
+	}
+	exists, err := ambientDB3.NewSelect().
 		TableExpr(tableSchoolSetupDismissals).
 		Where("account_id = ?", accountID).
 		Exists(ctx)
@@ -141,7 +153,11 @@ func (r *SchoolSetupRepository[S]) SetDismissed(ctx context.Context, tenantID, a
 	if tenantID <= 0 || accountID <= 0 {
 		return errors.New("tenant ID and account ID are required")
 	}
-	db := r.runtime.DB(ctx)
+	ambientDB4, databaseErr4 := r.runtime.DB(ctx)
+	if databaseErr4 != nil {
+		return databaseErr4
+	}
+	db := ambientDB4
 	if dismissed {
 		_, err := db.NewRaw(
 			`INSERT INTO config.school_setup_dismissals (tenant_id, account_id)

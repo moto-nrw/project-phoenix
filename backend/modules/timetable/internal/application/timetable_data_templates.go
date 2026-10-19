@@ -25,8 +25,6 @@ func (d *timetableData) ListTemplateEntries(ctx context.Context, templateID *int
 	return d.templateEntries(ctx, rows, nil, distinctTemplateIDs(rows), childrenPerStaffRatio)
 }
 
-// ListTemplateEntriesForTemplatePeriod is the detail read model of one
-// editable template period, with period-scoped roster and capacity.
 func (d *timetableData) ListTemplateEntriesForTemplatePeriod(ctx context.Context, templateID, periodID int64, childrenPerStaffRatio int) ([]timetable.TemplateListEntry, error) {
 	rows, err := d.deps.Templates.ListTemplateRowsForTemplatePeriod(ctx, templateID, periodID)
 	if err != nil {
@@ -43,8 +41,6 @@ func (d *timetableData) ListTemplateEntriesForPeriod(ctx context.Context, period
 	return d.templateEntries(ctx, rows, periodID, distinctTemplateIDs(rows), childrenPerStaffRatio)
 }
 
-// ListTemplateWeekdayRoster is a thin read: grouping the rows into weekday
-// assignments is a presentation concern of the caller.
 func (d *timetableData) ListTemplateWeekdayRoster(ctx context.Context, templateID, calendarPeriodID *int64) ([]timetable.TemplateWeekdayRosterRow, error) {
 	rows, err := d.deps.Templates.ListTemplateWeekdayRoster(ctx, templateID, calendarPeriodID)
 	if err != nil {

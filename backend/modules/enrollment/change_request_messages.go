@@ -18,20 +18,18 @@ type ChangeRequestMessage struct {
 }
 
 func (m *Module) InsertChangeRequestMessage(ctx context.Context, message *ChangeRequestMessage) error {
-	return m.transactions.RunInTx(ctx, func(ctx context.Context) error {
-		return m.engine.InsertChangeRequestMessage(ctx, message)
-	})
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return err
+	}
+	return m.engine.InsertChangeRequestMessage(ctx, message)
 }
 
 func (m *Module) ChangeRequestMessages(ctx context.Context, ids []int64, includeInternal bool) ([]*ChangeRequestMessage, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	var messages []*ChangeRequestMessage
-	err := m.transactions.RunInTx(ctx, func(ctx context.Context) error {
-		var err error
-		messages, err = m.engine.ChangeRequestMessages(ctx, ids, includeInternal)
-		return err
-	})
-	return messages, err
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	return m.engine.ChangeRequestMessages(ctx, ids, includeInternal)
 }

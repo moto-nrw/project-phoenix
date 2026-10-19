@@ -34,10 +34,6 @@ type CompTimeBalancePreview struct {
 	ProjectedBalanceMinutes int `json:"projected_balance_minutes"`
 }
 
-// PreviewCompTimeBalance projects what a comp_time absence over [start, end]
-// does to the Stundenkonto (#2873). It replaces the former overdraft
-// rejection: the numbers inform the Leitung before the deliberate confirm in
-// the frontend, they never block the booking.
 func (s *staffAbsenceService) PreviewCompTimeBalance(
 	ctx context.Context,
 	staffID int64,

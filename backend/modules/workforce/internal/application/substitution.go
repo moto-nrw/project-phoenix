@@ -15,7 +15,7 @@ func (s *Service) LockGroupSubstitution(ctx context.Context, id int64) (domain.G
 }
 
 func (s *Service) findGroupSubstitution(ctx context.Context, operation string, id int64, lock bool) (result domain.GroupSubstitution, err error) {
-	err = s.run(operation, func(stats *domain.OperationStats) error {
+	err = s.run(ctx, operation, func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.FindGroupSubstitution(ctx, id, lock)
@@ -32,7 +32,7 @@ func (s *Service) ListGroupSubstitutions(ctx context.Context, filter domain.Grou
 	if validationErr := filter.Validate(); validationErr != nil {
 		return nil, validationErr
 	}
-	err = s.run("list_group_substitutions", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_group_substitutions", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListGroupSubstitutions(ctx, filter)
 		stats.Add(queryStats)
@@ -45,7 +45,7 @@ func (s *Service) CreateGroupSubstitution(ctx context.Context, value domain.Grou
 	if validationErr := value.Validate(); validationErr != nil {
 		return domain.GroupSubstitution{}, validationErr
 	}
-	err = s.run("create_group_substitution", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_group_substitution", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			if value.EndDate >= s.clock.Today() {
 				ids := []int64{value.SubstituteStaffID}
@@ -69,7 +69,7 @@ func (s *Service) UpdateGroupSubstitution(ctx context.Context, value domain.Grou
 	if validationErr := value.Validate(); validationErr != nil {
 		return domain.GroupSubstitution{}, validationErr
 	}
-	err = s.run("update_group_substitution", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "update_group_substitution", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			if value.EndDate >= s.clock.Today() {
 				ids := []int64{value.SubstituteStaffID}
@@ -94,7 +94,7 @@ func (s *Service) UpdateGroupSubstitution(ctx context.Context, value domain.Grou
 }
 
 func (s *Service) DeleteGroupSubstitution(ctx context.Context, id int64) error {
-	return s.run("delete_group_substitution", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "delete_group_substitution", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			writeStats, err := s.store.DeleteGroupSubstitution(txCtx, id)
 			stats.Add(writeStats)
@@ -104,7 +104,7 @@ func (s *Service) DeleteGroupSubstitution(ctx context.Context, id int64) error {
 }
 
 func (s *Service) LockGroupSubstitutions(ctx context.Context) error {
-	return s.run("lock_group_substitutions", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "lock_group_substitutions", func(ctx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.LockGroupSubstitutions(ctx)
 		stats.Add(queryStats)
 		return err
@@ -118,7 +118,7 @@ func (s *Service) DeleteGroupSubstitutionsForStaff(ctx context.Context, staffID 
 	if validationErr := domain.ValidateDate(from, "from"); validationErr != nil {
 		return 0, &domain.InvalidGroupSubstitutionError{Reason: validationErr.Error()}
 	}
-	err = s.run("delete_group_substitutions_for_staff", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "delete_group_substitutions_for_staff", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.DeleteGroupSubstitutionsForStaff(txCtx, staffID, from)

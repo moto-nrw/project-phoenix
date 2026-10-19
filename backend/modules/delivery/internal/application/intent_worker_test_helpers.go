@@ -58,3 +58,13 @@ func (s *fixtureIntentStore) Claim(ctx context.Context, transport domain.Transpo
 	s.finished = row.Status == string(domain.StateSent) || row.Status == string(domain.StateDeadLetter) || row.Status == string(domain.StateCancelled)
 	return nil, nil
 }
+
+// DeleteSystemEmailForTest owns cleanup's independent unit of work just as
+// worker transitions do. The row adapter requires the existing admin scope.
+func DeleteSystemEmailForTest(ctx context.Context, commands *WorkerCommands, id int64) error {
+	return commands.transactions.WithinAdmin(ctx, func(txCtx context.Context) error {
+		return commands.WorkerRecords.(interface {
+			DeleteSystemEmailForTest(context.Context, int64) error
+		}).DeleteSystemEmailForTest(txCtx, id)
+	})
+}

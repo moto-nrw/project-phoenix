@@ -93,7 +93,7 @@ func addGradedChild(
 	child.TargetGradeLevel = grade
 	child.Status = status
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return childRepo.InsertChild(ctx, child)
+		return testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), childRepo.InsertChild, child)
 	}))
 	t.Cleanup(func() {
 		bg := context.Background()
@@ -116,7 +116,7 @@ func requestIDOf(t *testing.T, db *bun.DB, tenantID, childID int64) int64 {
 	childRepo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	var requestID int64
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		child, err := childRepo.ChildByID(ctx, childID)
+		child, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), childRepo.ChildByID, childID)
 		if err != nil {
 			return err
 		}
@@ -175,17 +175,17 @@ func addRolloverSuccessorHolding(
 	var phaseID, childID int64
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		successor := makeOwnerEligibilityPhase(phaseName)
-		if err := phaseRepo.InsertPhase(ctx, successor); err != nil {
+		if err := testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), phaseRepo.InsertPhase, successor); err != nil {
 			return err
 		}
 		phaseID = successor.ID
 		req := makeOwnerRequest(successor.ID, token, "rolled@example.test")
-		if err := requestRepo.InsertRequest(ctx, req); err != nil {
+		if err := testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), requestRepo.InsertRequest, req); err != nil {
 			return err
 		}
 		rolled := makeChild(req.ID, "Rolled", "Kind")
 		rolled.TargetGradeLevel = grade
-		if err := childRepo.InsertChild(ctx, rolled); err != nil {
+		if err := testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), childRepo.InsertChild, rolled); err != nil {
 			return err
 		}
 		childID = rolled.ID

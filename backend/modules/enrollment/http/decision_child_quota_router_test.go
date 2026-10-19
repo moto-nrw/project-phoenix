@@ -46,7 +46,7 @@ func requireChildQuotaRefusal(t *testing.T, rec *httptest.ResponseRecorder, book
 
 func requireChildStillOpen(t *testing.T, harness offeringGuardHarness) {
 	t.Helper()
-	child, err := harness.repos.Enrollment().ChildByID(harness.ctx, harness.childID)
+	child, err := testpkg.TenantQuery1(t, harness.ctx, testpkg.SetupTestDB(t), harness.repos.Enrollment().ChildByID, harness.childID)
 	require.NoError(t, err)
 	assert.Equal(t, capability.ChildStatusSubmitted, child.Status, "the refused enrollment stays open")
 	assert.Nil(t, child.CreatedStudentID, "the refused enrollment links no student")
@@ -62,7 +62,7 @@ func matchExistingStudent(t *testing.T, db *bun.DB, harness offeringGuardHarness
 		Set("status = ?", string(status)).
 		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).Exec(harness.ctx)
 	require.NoError(t, err)
-	require.NoError(t, harness.repos.Enrollment().UpdateMatchedStudent(harness.ctx, harness.childID, &student.ID))
+	require.NoError(t, testpkg.TenantCommand2(t, harness.ctx, testpkg.SetupTestDB(t), harness.repos.Enrollment().UpdateMatchedStudent, harness.childID, &student.ID))
 	return student
 }
 
@@ -146,7 +146,7 @@ func TestGetAdminRequest_ShowsARenewalHeldForTheKinderkontingent(t *testing.T) {
 	_, err := testpkg.SetupTestDB(t).NewUpdate().TableExpr("enrollment.request_children").
 		Set("status = ?", capability.ChildStatusAutoRenewed).Where("id = ?", harness.childID).Exec(harness.ctx)
 	require.NoError(t, err)
-	held, err := harness.repos.Enrollment().HoldAutoRenewedChild(harness.ctx, harness.childID, capability.ReviewReasonChildQuotaReached)
+	held, err := testpkg.TenantQuery2(t, harness.ctx, testpkg.SetupTestDB(t), harness.repos.Enrollment().HoldAutoRenewedChild, harness.childID, capability.ReviewReasonChildQuotaReached)
 	require.NoError(t, err)
 	require.True(t, held)
 
@@ -196,7 +196,7 @@ func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testin
 		CareOfferingSelectionMode: capability.PhaseCareOfferingSelectionOptional,
 	}
 	phase.TenantID = testpkg.Tenant(t)
-	require.NoError(t, repos.Enrollment().InsertPhase(ctx, phase))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.Enrollment().InsertPhase, phase))
 
 	guardianAccess, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
@@ -208,7 +208,7 @@ func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testin
 	).Bookings
 	decisions := newOfferingGuardDecisions(repos, reposCare, reposTimetable, false, repos.Enrollment(), guardianAccess, studentEnrollment, bookings)
 	decision := enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(decisions))
-	requests := enrollmentAPI.NewRequestService(owners.NewEnrollmentIntake(owners.EnrollmentIntakeSources{
+	requests := newFixtureRequestRoot(owners.NewEnrollmentIntake(owners.EnrollmentIntakeSources{
 		Requests: repos.Enrollment(), Children: repos.Enrollment(), Guardians: repos.Enrollment(),
 		CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan), Catalog: repos.Enrollment(),
 		SchoolRepo: capabilitySchools{schools: reposSchools.School}, RateLimitRepo: repos.Enrollment(),

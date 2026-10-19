@@ -30,7 +30,7 @@ type groupSubstitutionRow struct {
 }
 
 func (s *Store) FindGroupSubstitution(ctx context.Context, id int64, lock bool) (domain.GroupSubstitution, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.GroupSubstitution{}, false, domain.OperationStats{}, err
 	}
@@ -38,7 +38,7 @@ func (s *Store) FindGroupSubstitution(ctx context.Context, id int64, lock bool) 
 	query := withTenant(db.NewSelect().
 		Model(row).
 		ModelTableExpr(tableGroupSubstitution+` AS "group_substitution"`).
-		Where(`"group_substitution".id = ?`, id), aliasGroupSubstitution, tenantID)
+		Where(`"group_substitution".id = ?`, id), aliasGroupSubstitution, scope)
 	if lock {
 		query = query.For("UPDATE")
 	}
@@ -50,16 +50,16 @@ func (s *Store) FindGroupSubstitution(ctx context.Context, id int64, lock bool) 
 }
 
 func (s *Store) ListGroupSubstitutions(ctx context.Context, filter domain.GroupSubstitutionFilter) ([]domain.GroupSubstitution, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []groupSubstitutionRow{}
 	query := withTenant(db.NewSelect().
 		Model(&rows).
-		ModelTableExpr(tableGroupSubstitution+` AS "group_substitution"`), aliasGroupSubstitution, tenantID)
-	if filter.TenantID > 0 {
-		query = query.Where(`"group_substitution".tenant_id = ?`, filter.TenantID)
+		ModelTableExpr(tableGroupSubstitution+` AS "group_substitution"`), aliasGroupSubstitution, scope)
+	if filter.TenantID != nil {
+		query = query.Where(`"group_substitution".tenant_id = ?`, *filter.TenantID)
 	}
 	if filter.GroupID > 0 {
 		query = query.Where(`"group_substitution".group_id = ?`, filter.GroupID)
@@ -117,13 +117,13 @@ func (s *Store) ListGroupSubstitutions(ctx context.Context, filter domain.GroupS
 }
 
 func (s *Store) CreateGroupSubstitution(ctx context.Context, value domain.GroupSubstitution) (domain.GroupSubstitution, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.GroupSubstitution{}, domain.OperationStats{}, err
 	}
 	row := groupSubstitutionFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -140,13 +140,13 @@ func (s *Store) CreateGroupSubstitution(ctx context.Context, value domain.GroupS
 }
 
 func (s *Store) UpdateGroupSubstitution(ctx context.Context, value domain.GroupSubstitution) (domain.GroupSubstitution, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.GroupSubstitution{}, false, domain.OperationStats{}, err
 	}
 	row := groupSubstitutionFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	query := db.NewUpdate().
 		Model(row).
@@ -155,9 +155,7 @@ func (s *Store) UpdateGroupSubstitution(ctx context.Context, value domain.GroupS
 		Set("updated_at = NOW()").
 		WherePK().
 		Returning("*")
-	if tenantID > 0 {
-		query = query.Where(`"group_substitution".tenant_id = ?`, tenantID)
-	}
+	query = scopeQuery(scope, query, `"group_substitution".tenant_id = ?`)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := query.Exec(ctx)
@@ -180,19 +178,19 @@ func (s *Store) UpdateGroupSubstitution(ctx context.Context, value domain.GroupS
 }
 
 func (s *Store) DeleteGroupSubstitution(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewDelete().
 		Model((*groupSubstitutionRow)(nil)).
 		ModelTableExpr(tableGroupSubstitution+` AS "group_substitution"`).
-		Where(`"group_substitution".id = ?`, id), aliasGroupSubstitution, tenantID)
+		Where(`"group_substitution".id = ?`, id), aliasGroupSubstitution, scope)
 	return execAffected(ctx, query, "delete group substitution")
 }
 
 func (s *Store) DeleteGroupSubstitutionsForStaff(ctx context.Context, staffID int64, from string) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
@@ -200,7 +198,7 @@ func (s *Store) DeleteGroupSubstitutionsForStaff(ctx context.Context, staffID in
 		Model((*groupSubstitutionRow)(nil)).
 		ModelTableExpr(tableGroupSubstitution+` AS "group_substitution"`).
 		Where(`("group_substitution".regular_staff_id = ? OR "group_substitution".substitute_staff_id = ?)`, staffID, staffID).
-		Where(`"group_substitution".end_date >= ?`, from), aliasGroupSubstitution, tenantID)
+		Where(`"group_substitution".end_date >= ?`, from), aliasGroupSubstitution, scope)
 	stats, err := execAffected(ctx, query, "delete group substitutions for staff")
 	return stats.Rows, stats, err
 }

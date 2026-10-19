@@ -110,7 +110,7 @@ func TestActiveGroupRepository_FindActiveSessionsOlderThanPreservesTenant(t *tes
 
 	_, err = repo.FindActiveSessionsOlderThan(context.Background(), time.Now().Add(-5*time.Minute))
 	require.Error(t, err, "missing school must fail closed")
-	sessions, err := repo.FindActiveSessionsOlderThan(ctx, time.Now().Add(-5*time.Minute))
+	sessions, err := testpkg.TenantQuery1(t, ctx, db, repo.FindActiveSessionsOlderThan, time.Now().Add(-5*time.Minute))
 	require.NoError(t, err)
 
 	var found *ports.ActiveGroup
@@ -130,13 +130,13 @@ func TestActiveGroupRepository_FindActiveSessionsOlderThanPreservesTenant(t *tes
 	assert.Equal(t, device.Name, found.Device.Name)
 	assert.Equal(t, string(device.Status), found.Device.Status)
 	assert.Equal(t, device.LastSeen, found.Device.LastSeen)
-	boundary, err := repo.FindActiveSessionsOlderThan(ctx, found.LastActivity)
+	boundary, err := testpkg.TenantQuery1(t, ctx, db, repo.FindActiveSessionsOlderThan, found.LastActivity)
 	require.NoError(t, err)
 	for _, row := range boundary {
 		require.NotEqual(t, group.ID, row.ID, "cutoff is exclusive")
 	}
 	manual := testpkg.CreateTestActiveGroupForTenant(t, db, tenantID)
-	rows, err := repo.FindActiveSessionsOlderThan(ctx, time.Now().Add(time.Hour))
+	rows, err := testpkg.TenantQuery1(t, ctx, db, repo.FindActiveSessionsOlderThan, time.Now().Add(time.Hour))
 	require.NoError(t, err)
 	for i, row := range rows {
 		require.NotEqual(t, manual.ID, row.ID, "manual sessions do not expire through device cleanup")

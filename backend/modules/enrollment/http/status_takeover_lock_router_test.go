@@ -147,9 +147,9 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) (*takeove
 		CareOverflowMode: capability.PhaseCareOverflowWaitlist,
 	}
 	phase.TenantID = tenantID
-	require.NoError(t, repos.Enrollment().InsertPhase(ctx, phase))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.Enrollment().InsertPhase, phase))
 
-	requestSvc := enrollmentAPI.NewRequestService(owners.NewEnrollmentIntake(owners.EnrollmentIntakeSources{
+	requestSvc := newFixtureRequestRoot(owners.NewEnrollmentIntake(owners.EnrollmentIntakeSources{
 		Requests:         repos.Enrollment(),
 		Children:         repos.Enrollment(),
 		Guardians:        repos.Enrollment(),

@@ -20,6 +20,7 @@ import (
 // StaffOverviewReader is the roster read the week grid needs: every staff
 // member of the tenant, plus the named ones an assignment refers to.
 type StaffOverviewReader interface {
+	ListMembershipsWithPerson(ctx context.Context) ([]*workforce.PlanStaff, error)
 	ListAllWithPerson(ctx context.Context) ([]*workforce.PlanStaff, error)
 	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*workforce.PlanStaff, error)
 }
@@ -67,6 +68,7 @@ type (
 // StaffScheduleOverviewDependencies are the narrow readers the Dienstplan
 // week grid is built from.
 type StaffScheduleOverviewDependencies struct {
+	PlanningProfiles planning.StaffPlanningProfilesReader
 	// Shifts serves the shift rows and the weeks the Dienstplan is in use.
 	// NewShiftPlanning binds the Workforce capability; a caller with a
 	// narrower transaction-scoped read (the plan export) binds its own.
@@ -96,13 +98,13 @@ func newStaffScheduleOverview(deps StaffScheduleOverviewDependencies) (workforce
 func newStaffScheduleOverviewService(deps StaffScheduleOverviewDependencies) planning.StaffScheduleOverviewGetter {
 	shifts := planning.NewShiftReadRows(deps.Shifts)
 	overview := planning.StaffScheduleOverviewDependencies{
-		Shifts:        shifts,
-		ShiftWeeks:    shifts,
-		Instances:     deps.Instances,
-		InstanceStaff: deps.InstanceStaff,
-		Rooms:         deps.Rooms,
-		Staff:         deps.Staff,
-		Holidays:      deps.Holidays,
+		PlanningProfiles: deps.PlanningProfiles,
+		Shifts:           shifts,
+		Instances:        deps.Instances,
+		InstanceStaff:    deps.InstanceStaff,
+		Rooms:            deps.Rooms,
+		Staff:            deps.Staff,
+		Holidays:         deps.Holidays,
 	}
 	if deps.TargetOverrides != nil {
 		overview.TargetOverrides = deps.TargetOverrides
@@ -213,7 +215,8 @@ func NewShiftPlanning(deps ShiftPlanningDependencies) (*ShiftPlanning, error) {
 	}, logger)
 
 	overviewQuery, overview := newStaffScheduleOverview(StaffScheduleOverviewDependencies{
-		Shifts: deps.Workforce, Instances: deps.Instances, InstanceStaff: deps.InstanceStaff,
+		PlanningProfiles: deps.Workforce,
+		Shifts:           deps.Workforce, Instances: deps.Instances, InstanceStaff: deps.InstanceStaff,
 		Rooms: deps.Rooms, Staff: deps.Staff, WorkSchedules: deps.WorkSchedules, WorkModels: deps.WorkModels,
 		Holidays: deps.Holidays, TargetOverrides: deps.Workforce,
 	})

@@ -12,11 +12,11 @@ import (
 
 // Class gates precede row locks, using the established grade-transition key.
 func (s *Store) ChangeStudentClass(ctx context.Context, ids []int64, from, to string) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	if tenantID <= 0 || tenantID > 0x7fffffff {
+	if scope.TenantID <= 0 || scope.TenantID > 0x7fffffff {
 		return 0, domain.OperationStats{}, errors.New("school membership: valid tenant is required")
 	}
 	stats := domain.OperationStats{Queries: 1}
@@ -25,7 +25,7 @@ func (s *Store) ChangeStudentClass(ctx context.Context, ids []int64, from, to st
 		result, writeErr := db.NewUpdate().TableExpr(`users.student_school_memberships AS "membership"`).
 			Set("school_class = ?", to).
 			Set("updated_at = NOW()").
-			Where("membership.tenant_id = ?", tenantID).
+			Where("membership.tenant_id = ?", scope.TenantID).
 			Where("membership.student_profile_id IN (?)", bun.List(ids)).
 			Where("membership.deleted_at IS NULL").
 			Where("membership.status <> 'alumnus'").
@@ -43,19 +43,19 @@ func (s *Store) ChangeStudentClass(ctx context.Context, ids []int64, from, to st
 }
 
 func (s *Store) LockStudentClassWrites(ctx context.Context, exclusive bool) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
-	if tenantID <= 0 || tenantID > 0x7fffffff {
+	if scope.TenantID <= 0 || scope.TenantID > 0x7fffffff {
 		return domain.OperationStats{}, errors.New("school membership: valid tenant is required")
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	if exclusive {
-		_, err = db.NewRaw("SELECT pg_advisory_xact_lock(?, ?)", int32(0x636c6173), int32(tenantID)).Exec(ctx)
+		_, err = db.NewRaw("SELECT pg_advisory_xact_lock(?, ?)", int32(0x636c6173), int32(scope.TenantID)).Exec(ctx)
 	} else {
-		_, err = db.NewRaw("SELECT pg_advisory_xact_lock_shared(?, ?)", int32(0x636c6173), int32(tenantID)).Exec(ctx)
+		_, err = db.NewRaw("SELECT pg_advisory_xact_lock_shared(?, ?)", int32(0x636c6173), int32(scope.TenantID)).Exec(ctx)
 	}
 	stats.StatementDuration = time.Since(started)
 	return stats, err

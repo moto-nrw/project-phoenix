@@ -103,6 +103,19 @@ func (r *PostgresUnitOfWork) WithinTenant(ctx context.Context, tenantID int64, f
 }
 
 func (r *PostgresUnitOfWork) WithinAdmin(ctx context.Context, fn func(context.Context, any) error) error {
+	return r.withinGlobal(ctx, true, fn)
+}
+
+// WithinDemo uses only the restricted demo login's existing grants for the
+// cross-school queue/expiry capability. It must never assume phoenix_admin.
+func (r *PostgresUnitOfWork) WithinDemo(ctx context.Context, fn func(context.Context, any) error) error {
+	if !r.skipTenantRole {
+		return fmt.Errorf("demo transaction requires the demo runtime")
+	}
+	return r.withinGlobal(ctx, false, fn)
+}
+
+func (r *PostgresUnitOfWork) withinGlobal(ctx context.Context, administrative bool, fn func(context.Context, any) error) error {
 	if fn == nil {
 		return fmt.Errorf("tenant runtime: callback is required")
 	}
@@ -113,8 +126,10 @@ func (r *PostgresUnitOfWork) WithinAdmin(ctx context.Context, fn func(context.Co
 		return fn(ctx, *tx)
 	}
 	return r.runInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		if _, err := tx.ExecContext(txCtx, "SET LOCAL ROLE phoenix_admin"); err != nil {
-			return fmt.Errorf("tenant runtime: set admin role: %w", err)
+		if administrative {
+			if _, err := tx.ExecContext(txCtx, "SET LOCAL ROLE phoenix_admin"); err != nil {
+				return fmt.Errorf("tenant runtime: set admin role: %w", err)
+			}
 		}
 		txCtx = context.WithValue(txCtx, adminTxKey{}, true)
 		txCtx = contextWithTransaction(txCtx, &tx)

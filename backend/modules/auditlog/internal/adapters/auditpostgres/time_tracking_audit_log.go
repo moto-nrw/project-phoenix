@@ -80,7 +80,11 @@ func (r *timeTrackingAuditLogRepository) ListEntries(ctx context.Context, filter
 	}
 
 	var entries []*auditModels.TimeTrackingAuditLogEntry
-	if err := runtimeDB(ctx, r.runtime).NewRaw(timeTrackingAuditLogViewQuery,
+	ambientDB1, databaseErr1 := runtimeDB(ctx, r.runtime)
+	if databaseErr1 != nil {
+		return *new([]*auditModels.TimeTrackingAuditLogEntry), databaseErr1
+	}
+	if err := ambientDB1.NewRaw(timeTrackingAuditLogViewQuery,
 		tenantID,
 		selected[0], selected[1], selected[2], selected[3], selected[4], selected[5], selected[6], selected[7], selected[8], selected[9],
 		from, from, to, to,

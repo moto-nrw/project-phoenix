@@ -61,7 +61,7 @@ func NewDemoAccessExpiry(db bun.IDB, now func() time.Time) (*identityaccess.Demo
 	if now == nil {
 		return nil, errors.New("identity access compose: demo access expiry requires a clock")
 	}
-	return identityaccess.NewDemoAccessExpiry(demoAccessExpiryEngine{store: postgres.NewDemoAccessExpiryStore(db), now: now}), nil
+	return identityaccess.NewDemoAccessExpiry(demoAccessExpiryEngine{db: db, now: now}), nil
 }
 
 // demoAccessExpiryEngine deletes demo accesses 14 days after their last use
@@ -70,10 +70,17 @@ func NewDemoAccessExpiry(db bun.IDB, now func() time.Time) (*identityaccess.Demo
 // data. The schools left without any access go back to the caller, which
 // hides them through their owner.
 type demoAccessExpiryEngine struct {
-	store *postgres.DemoAccessExpiryStore
-	now   func() time.Time
+	db  bun.IDB
+	now func() time.Time
 }
 
 func (e demoAccessExpiryEngine) ExpireDemoAccesses(ctx context.Context) (int, []string, error) {
-	return e.store.DeleteExpiredDemoAccesses(ctx, e.now())
+	var count int
+	var slugs []string
+	err := tenant.WithAdminTx(ctx, e.db, func(txCtx context.Context, tx bun.Tx) error {
+		var err error
+		count, slugs, err = postgres.NewDemoAccessExpiryStore(tx).DeleteExpiredDemoAccesses(txCtx, e.now())
+		return err
+	})
+	return count, slugs, err
 }

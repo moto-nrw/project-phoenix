@@ -16,7 +16,7 @@ import (
 // neither the tenant context nor the transaction protocol itself (#2742).
 type Runtime interface {
 	// DB is the ambient tenant transaction, or the pool outside one.
-	DB(ctx context.Context) bun.IDB
+	DB(ctx context.Context) (bun.IDB, error)
 	// TenantID is the school the caller acts for, 0 when none.
 	TenantID(ctx context.Context) int64
 }
@@ -30,11 +30,15 @@ func requireRuntime(runtime Runtime) Runtime {
 
 // withTenantFilter adds the defense-in-depth tenant_id filter for alias when
 // the context carries a school, on top of PostgreSQL RLS.
-func withTenantFilter[Q interface{ Where(string, ...any) Q }](ctx context.Context, runtime Runtime, q Q, alias string) Q {
-	if tenantID := runtime.TenantID(ctx); tenantID > 0 {
-		return q.Where(fmt.Sprintf(`"%s".tenant_id = ?`, alias), tenantID)
+func withTenantFilter[Q interface {
+	Where(string, ...any) Q
+	Err(error) Q
+}](ctx context.Context, runtime Runtime, q Q, alias string) Q {
+	tenantID := runtime.TenantID(ctx)
+	if tenantID <= 0 {
+		return q.Err(errors.New("school structure repository: tenant is required"))
 	}
-	return q
+	return q.Where(fmt.Sprintf(`"%s".tenant_id = ?`, alias), tenantID)
 }
 
 // translateNotFound joins the School Structure not-found sentinel onto a

@@ -10,11 +10,11 @@ import (
 )
 
 func (s *studentDirectoryReads) ListDepartureModes(ctx context.Context, ids []int64) (map[int64]map[string][]string, directoryStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, directoryStats{}, err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return nil, directoryStats{}, errors.New("people directory: departure modes require a tenant")
 	}
 	var rows []struct {
@@ -23,9 +23,9 @@ func (s *studentDirectoryReads) ListDepartureModes(ctx context.Context, ids []in
 	}
 	stats := directoryStats{Queries: 1}
 	started := time.Now()
-	err = s.rows.StudentRows(db, 0).
+	err = s.studentRows(db, scope).
 		ColumnExpr(`"student".id, "student".allowed_departure_modes`).
-		Where(`"student".tenant_id = ?`, tenantID).
+		Where(`"student".tenant_id = ?`, scope.TenantID).
 		Where(`"student".id IN (?)`, bun.List(ids)).
 		Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)

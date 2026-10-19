@@ -105,6 +105,7 @@ type ArrivalBaselines interface {
 // optional; without it the exception-conflict read fails once it needs a
 // recurring arrival.
 type ConflictDetectionDependencies struct {
+	RunInTx           func(context.Context, func(context.Context) error) error
 	Instances         ConflictInstances
 	InstanceStaff     ConflictInstanceStaff
 	InstanceStudents  ConflictInstanceStudents

@@ -150,15 +150,15 @@ func TestEnrollmentDeletionOwner_MismatchedRequestPreservesChildSelections(t *te
 	require.NoError(t, newCareOfferingFixtures(f.reposCare.CarePlan).Create(f.scope.Context(), offering))
 	selection := &enrollmentNative.RequestChildOffering{RequestChildID: child.ID, CareOfferingID: offering.ID, SelectedDays: []string{"mon"}}
 	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(f.scope.Context(), selection))
-	counts, err := f.repos.Enrollment().DeletionChildCounts(f.scope.Context(), other.ID, child.ID)
+	counts, err := testpkg.TenantQuery2(t, f.scope.Context(), db, f.repos.Enrollment().DeletionChildCounts, other.ID, child.ID)
 	require.NoError(t, err)
 	require.Zero(t, counts.Offerings)
-	require.NoError(t, f.repos.Enrollment().DeleteRequestChildTree(f.scope.Context(), other.ID, child.ID))
-	links, err := f.repos.Enrollment().RequestChildOfferingHistory(f.scope.Context(), child.ID)
+	require.NoError(t, testpkg.TenantCommand2(t, f.scope.Context(), db, f.repos.Enrollment().DeleteRequestChildTree, other.ID, child.ID))
+	links, err := testpkg.TenantQuery1(t, f.scope.Context(), db, f.repos.Enrollment().RequestChildOfferingHistory, child.ID)
 	require.NoError(t, err)
 	require.Len(t, links, 1)
 	require.Equal(t, selection.ID, links[0].ID)
-	stored, err := f.repos.Enrollment().ChildByID(f.scope.Context(), child.ID)
+	stored, err := testpkg.TenantQuery1(t, f.scope.Context(), db, f.repos.Enrollment().ChildByID, child.ID)
 	require.NoError(t, err)
 	require.Equal(t, request.ID, stored.RequestID)
 }
@@ -178,11 +178,11 @@ func TestEnrollmentDeletion_DeleteChildFromMixedRequestPreservesSharedData(t *te
 		Origin:         enrollmentNative.ChangeRequestOriginParent,
 		BaseSnapshot:   json.RawMessage("{}"), ProposedSnapshot: json.RawMessage("{}"), Diff: json.RawMessage("{}"),
 	}
-	require.NoError(t, f.repos.Enrollment().InsertChangeRequest(f.scope.Context(), change))
+	require.NoError(t, testpkg.TenantCommand1(t, f.scope.Context(), db, f.repos.Enrollment().InsertChangeRequest, change))
 	message := &enrollmentNative.ChangeRequestMessage{ChangeRequestID: change.ID, AuthorType: enrollmentNative.ChangeRequestMessageAuthorParent, Body: "remove with child"}
-	require.NoError(t, f.repos.Enrollment().InsertChangeRequestMessage(f.scope.Context(), message))
+	require.NoError(t, testpkg.TenantCommand1(t, f.scope.Context(), db, f.repos.Enrollment().InsertChangeRequestMessage, message))
 	guardian := &enrollmentNative.RequestGuardian{RequestID: request.ID, FirstName: "Other", LastName: "Guardian"}
-	require.NoError(t, f.repos.Enrollment().CreateRequestGuardian(f.scope.Context(), guardian))
+	require.NoError(t, testpkg.TenantCommand1(t, f.scope.Context(), db, f.repos.Enrollment().CreateRequestGuardian, guardian))
 	outbox := enqueueTestEnrollmentEmail(t, db, f.scope.TenantID, request.ID, fmt.Sprintf("mixed-%d", request.ID), map[string]any{})
 
 	impact, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*enrollmentNative.DeletionImpact, error) {
@@ -202,7 +202,7 @@ func TestEnrollmentDeletion_DeleteChildFromMixedRequestPreservesSharedData(t *te
 	assert.Zero(t, tableCount(t, db, "enrollment.change_request_messages", "id = ?", message.ID))
 	assert.Equal(t, 1, tableCount(t, db, "enrollment.request_guardians", "id = ?", guardian.ID))
 	assert.Equal(t, 1, tableCount(t, db, "platform.email_outbox", "id = ?", outbox.ID))
-	_, err = f.repos.Enrollment().RequestByToken(f.scope.Context(), request.StatusToken, false)
+	_, err = testpkg.TenantQuery2(t, f.scope.Context(), db, f.repos.Enrollment().RequestByToken, request.StatusToken, false)
 	require.NoError(t, err)
 	assert.Equal(t, 1, tableCount(t, db, "audit.enrollment_deletions", "tenant_id = ? AND request_id = ? AND child_id = ?", f.scope.TenantID, request.ID, target.ID))
 }
@@ -235,36 +235,36 @@ func TestEnrollmentDeletion_DeleteRequestCleansDependenciesAndPreservesPeople(t 
 	email := fmt.Sprintf("guardian-%d@example.invalid", f.scope.TenantID)
 	profile := &peopleValues.GuardianProfileSnapshot{FirstName: "Preserved", LastName: "Guardian", Email: &email, AccountID: &guardianAccount.ID, HasAccount: true, PreferredContactMethod: "email", LanguagePreference: "de"}
 	profile.SetTenantID(f.scope.TenantID)
-	require.NoError(t, f.repos.GuardianProfile.Create(f.scope.Context(), profile))
+	require.NoError(t, testpkg.TenantCommand1(t, f.scope.Context(), db, f.repos.GuardianProfile.Create, profile))
 	request := f.request("whole", &guardianAccount.ID)
 	child := f.child(request.ID, "ApprovedOrphan", enrollmentNative.ChildStatusApproved, nil)
 	coGuardian := &enrollmentNative.RequestGuardian{RequestID: request.ID, FirstName: "Preserved", LastName: "Guardian", GuardianProfileID: &profile.ID}
-	require.NoError(t, f.repos.Enrollment().CreateRequestGuardian(f.scope.Context(), coGuardian))
+	require.NoError(t, testpkg.TenantCommand1(t, f.scope.Context(), db, f.repos.Enrollment().CreateRequestGuardian, coGuardian))
 
 	offering := &offeringContract.CareOfferingRecord{PhaseID: f.phase, Name: "Test care", DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true, CountsAsCare: true, CountsAsCareSet: true, AutoAddGradeLevels: []int{}, SelectionRule: offeringContract.SelectionRuleOptional}
 	require.NoError(t, newCareOfferingFixtures(f.reposCare.CarePlan).Create(f.scope.Context(), offering))
-	require.NoError(t, f.repos.Enrollment().RecordSubmittedOfferingChoices(f.scope.Context(), child.ID, []enrollmentNative.SubmittedOfferingChoice{
+	require.NoError(t, testpkg.TenantCommand2(t, f.scope.Context(), db, f.repos.Enrollment().RecordSubmittedOfferingChoices, child.ID, []enrollmentNative.SubmittedOfferingChoice{
 		{CareOfferingID: offering.ID, SelectedDays: []string{"mon"}},
 	}))
 	start, until := calendar.NewDate(2026, 9, 1), calendar.NewDate(2027, 8, 1)
 	require.NoError(t, requestTestBookingCommands().RecordCareBookings(f.scope.Context(), child.ID, []enrollmentNative.CareBookingInput{
 		{CareOfferingID: offering.ID, ManualSelectedDays: []string{"mon"}, ValidFrom: &start, ValidUntil: &until},
 	}))
-	bookings, err := f.reposCare.CarePlan.CareOfferingBookingHistory(f.scope.Context(), []int64{child.ID})
+	bookings, err := testpkg.TenantQuery1(t, f.scope.Context(), db, f.reposCare.CarePlan.CareOfferingBookingHistory, []int64{child.ID})
 	require.NoError(t, err)
 	require.Len(t, bookings, 1)
 	childOffering := bookings[0]
 	change := &enrollmentNative.ChangeRequest{RequestID: request.ID, RequestChildID: &child.ID, Origin: enrollmentNative.ChangeRequestOriginParent, BaseSnapshot: json.RawMessage("{}"), ProposedSnapshot: json.RawMessage("{}"), Diff: json.RawMessage("{}")}
-	require.NoError(t, f.repos.Enrollment().InsertChangeRequest(f.scope.Context(), change))
+	require.NoError(t, testpkg.TenantCommand1(t, f.scope.Context(), db, f.repos.Enrollment().InsertChangeRequest, change))
 	message := &enrollmentNative.ChangeRequestMessage{ChangeRequestID: change.ID, AuthorType: enrollmentNative.ChangeRequestMessageAuthorStaff, AuthorAccountID: &f.actor, Body: "dependent message"}
-	require.NoError(t, f.repos.Enrollment().InsertChangeRequestMessage(f.scope.Context(), message))
+	require.NoError(t, testpkg.TenantCommand1(t, f.scope.Context(), db, f.repos.Enrollment().InsertChangeRequestMessage, message))
 	invite := &enrollmentNative.LateInvite{PhaseID: f.phase, TokenHash: fmt.Sprintf("invite-%d", f.scope.TenantID), GuardianEmail: request.GuardianEmail, ExpiresAt: time.Now().Add(time.Hour), CreatedBy: f.actor}
-	require.NoError(t, f.repos.Enrollment().InsertLateInvite(f.scope.Context(), invite))
-	require.NoError(t, f.repos.Enrollment().MarkLateInviteUsed(f.scope.Context(), invite.ID, request.ID, time.Now()))
+	require.NoError(t, testpkg.TenantCommand1(t, f.scope.Context(), db, f.repos.Enrollment().InsertLateInvite, invite))
+	require.NoError(t, testpkg.TenantCommand3(t, f.scope.Context(), db, f.repos.Enrollment().MarkLateInviteUsed, invite.ID, request.ID, time.Now()))
 	outbox := enqueueTestEnrollmentEmail(t, db, f.scope.TenantID, request.ID, fmt.Sprintf("request-%d", request.ID), map[string]any{"request_id": request.ID})
 	student := testpkg.CreateTestStudentForTenant(t, db, f.scope.TenantID, "Adjustment", "Student", "1a")
 	adjustment := &api.EnrollmentFlowOfferingAdjustmentAudit{RequestID: request.ID, RequestChildID: child.ID, StudentID: student.ID, ActorAccountID: f.actor, ActorRole: "admin", Reason: "test adjustment", Before: json.RawMessage(`{}`), After: json.RawMessage(`{}`), ChangedAt: time.Now()}
-	require.NoError(t, f.reposAudit.EnrollmentOfferingAdjustment.Create(f.scope.Context(), adjustment))
+	require.NoError(t, testpkg.TenantCommand1(t, f.scope.Context(), db, f.reposAudit.EnrollmentOfferingAdjustment.Create, adjustment))
 
 	preview, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*enrollmentNative.DeletionImpact, error) {
 		return f.service(nil, nil).PreviewRequest(ctx, request.ID)
@@ -304,7 +304,7 @@ func TestEnrollmentDeletion_DeleteRequestCleansDependenciesAndPreservesPeople(t 
 	assert.Equal(t, 1, tableCount(t, db, "users.student_profiles", "id = ?", student.ID))
 	assert.Equal(t, 1, tableCount(t, db, "users.guardian_profiles", "id = ?", profile.ID))
 	assert.Equal(t, 1, tableCount(t, db, "auth.accounts", "id = ?", guardianAccount.ID))
-	_, err = f.repos.Enrollment().RequestByToken(f.scope.Context(), request.StatusToken, false)
+	_, err = testpkg.TenantQuery2(t, f.scope.Context(), db, f.repos.Enrollment().RequestByToken, request.StatusToken, false)
 	require.Error(t, err)
 	assert.Equal(t, 1, tableCount(t, db, "audit.enrollment_deletions", "tenant_id = ? AND request_id = ?", f.scope.TenantID, request.ID))
 }

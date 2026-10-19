@@ -300,3 +300,35 @@ func TestUpdateDeviceLastSeen_ErrorDoesNotPreventSubsequentCalls(t *testing.T) {
 	debouncer.updateDeviceLastSeen(context.Background(), directory, device)
 	assert.True(t, directory.wasUpdated(), "Should retry write after previous error since lastPersisted is zero")
 }
+
+type heartbeatContextDirectory struct {
+	*mockDeviceDirectory
+	contexts []context.Context
+}
+
+func (d *heartbeatContextDirectory) RecordLastSeen(ctx context.Context, id int64, seen time.Time) error {
+	d.contexts = append(d.contexts, ctx)
+	return d.mockDeviceDirectory.RecordLastSeen(ctx, id, seen)
+}
+func TestDeferredLastSeenPreservesSchoolRuntimeAfterRequestCancellation(t *testing.T) {
+	t.Parallel()
+	type schoolRuntimeKey struct{}
+	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), schoolRuntimeKey{}, "authenticated school runtime"))
+	defer cancel()
+	directory := &heartbeatContextDirectory{mockDeviceDirectory: newMockDeviceDirectory()}
+	debouncer := NewLastSeenDebouncer()
+	device := &AuthenticatedDevice{ID: 99901, TenantID: 71}
+	debouncer.updateDeviceLastSeen(ctx, directory, device)
+	debouncer.updateDeviceLastSeen(ctx, directory, device)
+	state := debouncer.getOrCreateLastSeenState(device.ID)
+	state.mu.Lock()
+	if state.flushTimer != nil {
+		state.flushTimer.Stop()
+	}
+	state.mu.Unlock()
+	cancel()
+	debouncer.flushDeferredLastSeen(directory, device.ID, state)
+	require.Len(t, directory.contexts, 2)
+	require.NoError(t, directory.contexts[1].Err())
+	require.Equal(t, "authenticated school runtime", directory.contexts[1].Value(schoolRuntimeKey{}))
+}

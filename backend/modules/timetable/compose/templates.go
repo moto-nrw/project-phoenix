@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -15,6 +17,9 @@ import (
 // modules/timetable/ports.
 
 func NewConflictDetection(deps ports.ConflictDetectionDependencies) (timetable.ConflictDetectionCapability, error) {
+	if deps.RunInTx == nil {
+		deps.RunInTx = tenant.NewTransactionRunner().RunInTx
+	}
 	return application.NewConflictDetection(deps)
 }
 

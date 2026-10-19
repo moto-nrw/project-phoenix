@@ -28,21 +28,22 @@ func (RepositoryRuntime) InTransaction(ctx context.Context) bool {
 	return ok
 }
 
-// RunInTx joins the ambient transaction or opens one for the context's tenant.
-func (RepositoryRuntime) RunInTx(ctx context.Context, fn func(context.Context) error) error {
-	return tenant.NewTransactionRunner().RunInTx(ctx, fn)
-}
-
 // WithSavepoint runs fn behind a savepoint of the ambient transaction.
 func (RepositoryRuntime) WithSavepoint(ctx context.Context, fn func(context.Context) error) error {
 	return tenant.WithSavepoint(ctx, fn)
 }
 
-// WithinCurrentTenant opens a transaction for the context's tenant.
-func (RepositoryRuntime) WithinCurrentTenant(ctx context.Context, fn func(context.Context) error) error {
-	return tenant.WithinCurrentTenant(ctx, fn)
-}
-
 // MarkRollback asks the request's tenant transaction to roll back although
 // the handler answers.
 func (RepositoryRuntime) MarkRollback(ctx context.Context) { tenant.MarkRollback(ctx) }
+
+// AcrossSchools is available only in an explicit administrative transaction.
+func (RepositoryRuntime) AcrossSchools(ctx context.Context) bool {
+	_, err := tenant.TenantFromContext(ctx)
+	return err != nil && tenant.IsAdminTx(ctx)
+}
+
+// InTenantTx belongs to the application boundary, not the database resolver.
+func (RepositoryRuntime) InTenantTx(ctx context.Context, fn func(context.Context) error) error {
+	return tenant.NewTransactionRunner().RunInTx(ctx, fn)
+}

@@ -41,7 +41,7 @@ func TestStudentService_LockStudentsForUpdateBelow_RefusesDownwardLock(t *testin
 	testpkg.HoldStudentRowLock(t, db, busy.ID)
 
 	start := time.Now()
-	err := service.LockStudentsForUpdateBelow(ctx, []int64{busy.ID}, busy.ID+1)
+	err := testpkg.TenantCommand2(t, ctx, db, service.LockStudentsForUpdateBelow, []int64{busy.ID}, busy.ID+1)
 
 	assert.ErrorIs(t, err, careplan.ErrCompanionLockBusy)
 	// It must REFUSE, not wait: a downward lock that blocks is the deadlock the
@@ -68,7 +68,7 @@ func TestStudentService_LockStudentsForUpdateBelow_WaitsAtOrAboveBound(t *testin
 	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 750*time.Millisecond)
 	defer cancel()
 
-	err := service.LockStudentsForUpdateBelow(ctx, []int64{busy.ID}, busy.ID)
+	err := testpkg.TenantCommand2(t, ctx, db, service.LockStudentsForUpdateBelow, []int64{busy.ID}, busy.ID)
 
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, careplan.ErrCompanionLockBusy)
@@ -88,15 +88,15 @@ func TestStudentService_LockStudentsForUpdate_TakesFreeRows(t *testing.T) {
 	first := testpkg.CreateTestStudent(t, db, "LockFreeOne", "Companion", "1a")
 	second := testpkg.CreateTestStudent(t, db, "LockFreeTwo", "Companion", "1a")
 
-	require.NoError(t, service.LockStudentsForUpdate(ctx, []int64{second.ID, first.ID}))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, service.LockStudentsForUpdate, []int64{second.ID, first.ID}))
 	// A free row below the bound goes through the NOWAIT path and must still
 	// succeed — the refusal is about contention, not about the direction alone.
-	require.NoError(t, service.LockStudentsForUpdateBelow(ctx, []int64{first.ID}, second.ID))
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, db, service.LockStudentsForUpdateBelow, []int64{first.ID}, second.ID))
 
 	// An id that no longer exists is skipped, not an error: a companion can be
 	// deleted between the graph read and the lock pass, and the validation that
 	// follows distinguishes the two "gone" cases on its own.
-	require.NoError(t, service.LockStudentsForUpdateBelow(ctx, []int64{second.ID + 9_000_000}, second.ID))
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, db, service.LockStudentsForUpdateBelow, []int64{second.ID + 9_000_000}, second.ID))
 }
 
 // TestStudentService_LockCompanionGraph_CoversEverySubjectsFarEnds pins the
@@ -122,7 +122,7 @@ func TestStudentService_LockCompanionGraph_CoversEverySubjectsFarEnds(t *testing
 
 	setAccompaniedDepartureDays(t, ctx, studentPlans(db), secondSubject.ID, "mon")
 	setAccompaniedDepartureDays(t, ctx, studentPlans(db), farEnd.ID, "mon")
-	conflicts, err := service.ReplaceCompanions(ctx, secondSubject.ID, careplan.CompanionUpdate{
+	conflicts, err := testpkg.TenantQuery2(t, ctx, db, service.ReplaceCompanions, secondSubject.ID, careplan.CompanionUpdate{
 		Links: []careplan.CompanionLink{
 			{CompanionStudentID: farEnd.ID, Weekdays: []string{"mon"}},
 		},
@@ -131,14 +131,14 @@ func TestStudentService_LockCompanionGraph_CoversEverySubjectsFarEnds(t *testing
 	require.Empty(t, conflicts)
 
 	// Nobody holds anything: both subjects and the stored far end are free.
-	require.NoError(t, service.LockCompanionGraph(ctx, []int64{firstSubject.ID, secondSubject.ID}, nil))
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, db, service.LockCompanionGraph, []int64{firstSubject.ID, secondSubject.ID}, nil))
 
 	testpkg.HoldStudentRowLock(t, db, farEnd.ID)
 
 	lockCtx, cancel := context.WithTimeout(ctx, 750*time.Millisecond)
 	defer cancel()
 
-	err = service.LockCompanionGraph(lockCtx, []int64{firstSubject.ID, secondSubject.ID}, nil)
+	err = testpkg.TenantCommand2(t, lockCtx, db, service.LockCompanionGraph, []int64{firstSubject.ID, secondSubject.ID}, nil)
 	require.Error(t, err, "the far end of the second subject must be part of the pass")
 	assert.NotErrorIs(t, err, careplan.ErrCompanionLockBusy,
 		"nothing is held yet at that point, so the acquisition follows the ascending order and waits")

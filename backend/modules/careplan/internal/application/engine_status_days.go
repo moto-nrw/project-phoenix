@@ -24,7 +24,7 @@ type StatusDayStore interface {
 }
 
 func (e *ExceptionQueryService) FindStudentStatusDay(ctx context.Context, id int64, activeOnly bool) (careplan.StudentStatusDay, error) {
-	return requestValue(e, "find_student_status_day", func() (careplan.StudentStatusDay, domain.OperationStats, error) {
+	return requestValue(ctx, e, "find_student_status_day", func(ctx context.Context) (careplan.StudentStatusDay, domain.OperationStats, error) {
 		value, found, stats, err := e.statusQueries.FindStudentStatusDay(ctx, id, activeOnly)
 		if err == nil && !found {
 			err = careplan.ErrStudentStatusDayNotFound
@@ -34,37 +34,37 @@ func (e *ExceptionQueryService) FindStudentStatusDay(ctx context.Context, id int
 }
 
 func (e *ExceptionQueryService) ListStudentStatusDays(ctx context.Context, filter careplan.StudentStatusDayFilter) ([]careplan.StudentStatusDay, error) {
-	return requestValue(e, "list_student_status_days", func() ([]careplan.StudentStatusDay, domain.OperationStats, error) {
+	return requestValue(ctx, e, "list_student_status_days", func(ctx context.Context) ([]careplan.StudentStatusDay, domain.OperationStats, error) {
 		return e.statusQueries.ListStudentStatusDays(ctx, filter)
 	})
 }
 
 func (e Engine) CountStudentStatusDays(ctx context.Context, options *careplan.StudentScheduleQueryOptions) (int, error) {
-	return requestValue(e, "count_student_status_days", func() (int, domain.OperationStats, error) {
+	return requestValue(ctx, e, "count_student_status_days", func(ctx context.Context) (int, domain.OperationStats, error) {
 		return e.statusDays.CountStudentStatusDays(ctx, options)
 	})
 }
 
 func (e Engine) CountEffectiveStudentAbsences(ctx context.Context, date careplan.Date) (careplan.StudentStatusCounts, error) {
-	return requestValue(e, "count_effective_student_absences", func() (careplan.StudentStatusCounts, domain.OperationStats, error) {
+	return requestValue(ctx, e, "count_effective_student_absences", func(ctx context.Context) (careplan.StudentStatusCounts, domain.OperationStats, error) {
 		return e.statusDays.CountEffectiveStudentAbsences(ctx, date)
 	})
 }
 
 func (e Engine) ListStatusDaySummaries(ctx context.Context, from, to careplan.Date) ([]careplan.StatusDaySummary, error) {
-	return requestValue(e, "list_status_day_summaries", func() ([]careplan.StatusDaySummary, domain.OperationStats, error) {
+	return requestValue(ctx, e, "list_status_day_summaries", func(ctx context.Context) ([]careplan.StatusDaySummary, domain.OperationStats, error) {
 		return e.statusDays.ListStatusDaySummaries(ctx, from, to)
 	})
 }
 
 func (e Engine) ExistingStudentStatusDayIDs(ctx context.Context, ids []int64) ([]int64, error) {
-	return requestValue(e, "existing_student_status_day_ids", func() ([]int64, domain.OperationStats, error) {
+	return requestValue(ctx, e, "existing_student_status_day_ids", func(ctx context.Context) ([]int64, domain.OperationStats, error) {
 		return e.statusDays.ExistingStudentStatusDayIDs(ctx, ids)
 	})
 }
 
 func (e Engine) CountCarePlanDeletionRecords(ctx context.Context, studentID int64) (careplan.CarePlanDeletionCounts, error) {
-	return requestValue(e, "count_care_plan_deletion_records", func() (careplan.CarePlanDeletionCounts, domain.OperationStats, error) {
+	return requestValue(ctx, e, "count_care_plan_deletion_records", func(ctx context.Context) (careplan.CarePlanDeletionCounts, domain.OperationStats, error) {
 		return e.statusDays.CountCarePlanDeletionRecords(ctx, studentID)
 	})
 }

@@ -1,6 +1,7 @@
 package contracttest_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -34,11 +35,12 @@ func TestParentAnnouncement_TenantIsolation(t *testing.T) {
 		return databaseTimestamp(t, db)
 	}, repo, chain.AccountID, chain.TenantID,
 		userModels.ParentAnnouncementResponseSingleChoice)
-	live, err := repo.MarkRead(homeCtx, chain.TenantID, poll.ID, chain.AccountID, *poll.PublishedAt)
+	live, err := testpkg.TenantQuery4(t, homeCtx, db, repo.MarkRead, chain.TenantID, poll.ID, chain.AccountID, *poll.PublishedAt)
 	require.NoError(t, err)
 	require.True(t, live, "the fixture read must land in the owning school")
-	applied, err := repo.SetResponse(homeCtx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID,
-		[]int64{options[0]}, *poll.PublishedAt)
+	applied, err := testpkg.TenantQuery0(t, homeCtx, db, func(txCtx context.Context) (bool, error) {
+		return repo.SetResponse(txCtx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID, []int64{options[0]}, *poll.PublishedAt)
+	})
 	require.NoError(t, err)
 	require.True(t, applied, "the fixture answer must land in the owning school")
 
@@ -48,68 +50,69 @@ func TestParentAnnouncement_TenantIsolation(t *testing.T) {
 	foreignCtx := testpkg.TenantContext(otherTenant)
 
 	t.Run("announcement, target and option reads are scoped to the owning school", func(t *testing.T) {
-		found, err := repo.FindByID(foreignCtx, poll.ID)
+		found, err := testpkg.TenantQuery1(t, foreignCtx, db, repo.FindByID, poll.ID)
 		require.NoError(t, err)
 		assert.Nil(t, found, "another school must not load the announcement by id")
 
-		locked, err := repo.FindByIDForUpdate(foreignCtx, poll.ID)
+		locked, err := testpkg.TenantQuery1(t, foreignCtx, db, repo.FindByIDForUpdate, poll.ID)
 		require.NoError(t, err)
 		assert.Nil(t, locked, "another school must not lock the announcement row")
 
-		listed, err := repo.ListForTenant(foreignCtx, true)
+		listed, err := testpkg.TenantQuery1(t, foreignCtx, db, repo.ListForTenant, true)
 		require.NoError(t, err)
 		for _, row := range listed {
 			assert.NotEqual(t, poll.ID, row.ID, "another school must not list the announcement")
 		}
 
-		targets, err := repo.ListTargets(foreignCtx, poll.ID)
+		targets, err := testpkg.TenantQuery1(t, foreignCtx, db, repo.ListTargets, poll.ID)
 		require.NoError(t, err)
 		assert.Empty(t, targets, "another school must not read the audience selectors")
 
-		listedOptions, err := repo.ListOptions(foreignCtx, poll.ID)
+		listedOptions, err := testpkg.TenantQuery1(t, foreignCtx, db, repo.ListOptions, poll.ID)
 		require.NoError(t, err)
 		assert.Empty(t, listedOptions, "another school must not read the poll options")
 	})
 
 	t.Run("audience, poll and read projections are scoped to the owning school", func(t *testing.T) {
-		stats, err := repo.Stats(foreignCtx, otherTenant, poll.ID)
+		stats, err := testpkg.TenantQuery2(t, foreignCtx, db, repo.Stats, otherTenant, poll.ID)
 		require.NoError(t, err)
 		assert.Equal(t, api.ParentStoreEmptyStats(), stats, "another school must not count this audience or its reads")
 
-		recipients, err := repo.AudienceRecipients(foreignCtx, otherTenant, poll.ID)
+		recipients, err := testpkg.TenantQuery2(t, foreignCtx, db, repo.AudienceRecipients, otherTenant, poll.ID)
 		require.NoError(t, err)
 		assert.Empty(t, recipients, "another school must not read the guardians' names and read state")
 
-		results, err := repo.PollResults(foreignCtx, otherTenant, poll.ID)
+		results, err := testpkg.TenantQuery2(t, foreignCtx, db, repo.PollResults, otherTenant, poll.ID)
 		require.NoError(t, err)
 		assert.Zero(t, results.TargetChildCount)
 		assert.Zero(t, results.AnsweredCount)
 		assert.Empty(t, results.Options, "another school must not read the tally")
 
-		children, err := repo.PollChildren(foreignCtx, otherTenant, poll.ID)
+		children, err := testpkg.TenantQuery2(t, foreignCtx, db, repo.PollChildren, otherTenant, poll.ID)
 		require.NoError(t, err)
 		assert.Empty(t, children, "another school must not read the children's answers")
 
-		feed, err := repo.ListFeedForAccount(foreignCtx, chain.AccountID, api.ParentStoreFeedScopeValue(api.ParentStoreFeedScopeInput{TenantIDs: []int64{otherTenant}}))
+		feed, err := testpkg.TenantQuery2(t, foreignCtx, db, repo.ListFeedForAccount, chain.AccountID, api.ParentStoreFeedScopeValue(api.ParentStoreFeedScopeInput{TenantIDs: []int64{otherTenant}}))
 		require.NoError(t, err)
 		assert.Empty(t, feed, "a feed scoped to another school must not surface the announcement")
 
-		matched, err := repo.AccountMatchesAnnouncement(foreignCtx, otherTenant, poll.ID, chain.AccountID)
+		matched, err := testpkg.TenantQuery3(t, foreignCtx, db, repo.AccountMatchesAnnouncement, otherTenant, poll.ID, chain.AccountID)
 		require.NoError(t, err)
 		assert.False(t, matched, "another school must not place the guardian in this audience")
 	})
 
 	t.Run("read and answer writes are scoped to the owning school", func(t *testing.T) {
-		live, err := repo.MarkAcknowledged(foreignCtx, otherTenant, poll.ID, chain.AccountID, *poll.PublishedAt)
+		live, err := testpkg.TenantQuery4(t, foreignCtx, db, repo.MarkAcknowledged, otherTenant, poll.ID, chain.AccountID, *poll.PublishedAt)
 		require.NoError(t, err)
 		assert.False(t, live, "another school must not acknowledge on this announcement's behalf")
 
-		may, err := repo.AccountMayAnswerForStudent(foreignCtx, otherTenant, poll.ID, chain.AccountID, chain.StudentID)
+		may, err := testpkg.TenantQuery4(t, foreignCtx, db, repo.AccountMayAnswerForStudent, otherTenant, poll.ID, chain.AccountID, chain.StudentID)
 		require.NoError(t, err)
 		assert.False(t, may, "another school must not authorize an answer for this child")
 
-		applied, err := repo.SetResponse(foreignCtx, otherTenant, poll.ID, chain.StudentID, chain.AccountID,
-			[]int64{options[1]}, *poll.PublishedAt)
+		applied, err := testpkg.TenantQuery0(t, foreignCtx, db, func(txCtx context.Context) (bool, error) {
+			return repo.SetResponse(txCtx, otherTenant, poll.ID, chain.StudentID, chain.AccountID, []int64{options[1]}, *poll.PublishedAt)
+		})
 		require.NoError(t, err)
 		assert.False(t, applied, "another school must not replace the child's answer")
 		assert.Equal(t, []int64{options[0]}, storedAnswers(t, db, poll.ID, chain.StudentID),
@@ -119,20 +122,20 @@ func TestParentAnnouncement_TenantIsolation(t *testing.T) {
 	t.Run("the owning school still reads its own rows", func(t *testing.T) {
 		// The mirror assertion: without it a filter that excludes everything
 		// would pass every check above.
-		found, err := repo.FindByID(homeCtx, poll.ID)
+		found, err := testpkg.TenantQuery1(t, homeCtx, db, repo.FindByID, poll.ID)
 		require.NoError(t, err)
 		require.NotNil(t, found)
 
-		listedOptions, err := repo.ListOptions(homeCtx, poll.ID)
+		listedOptions, err := testpkg.TenantQuery1(t, homeCtx, db, repo.ListOptions, poll.ID)
 		require.NoError(t, err)
 		assert.Len(t, listedOptions, 2)
 
-		stats, err := repo.Stats(homeCtx, chain.TenantID, poll.ID)
+		stats, err := testpkg.TenantQuery2(t, homeCtx, db, repo.Stats, chain.TenantID, poll.ID)
 		require.NoError(t, err)
 		assert.Equal(t, 1, stats.TargetCount)
 		assert.Equal(t, 1, stats.ReadCount)
 
-		results, err := repo.PollResults(homeCtx, chain.TenantID, poll.ID)
+		results, err := testpkg.TenantQuery2(t, homeCtx, db, repo.PollResults, chain.TenantID, poll.ID)
 		require.NoError(t, err)
 		assert.Equal(t, 1, results.AnsweredCount)
 	})

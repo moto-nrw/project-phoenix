@@ -53,7 +53,7 @@ func grantTenantRole(t *testing.T, db *bun.DB, ctx context.Context, accountID, t
 func TestNativeEffectiveAdminsIncludeGrantedWildcardsWithoutSchoolLeakage(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	query, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	query, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	home := testpkg.Tenant(t)
@@ -117,7 +117,7 @@ func TestNativeEffectiveAdminAccountIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	repo, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 

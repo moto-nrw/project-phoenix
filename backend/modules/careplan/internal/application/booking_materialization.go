@@ -97,8 +97,9 @@ func NewCareOfferingCatalogWithBookings(catalogDeps CareOfferingCatalogDependenc
 	if err != nil {
 		return nil, nil, err
 	}
-	catalog.deps.SourcedTemplates, catalog.deps.Pickup = bookings, bookings
-	return catalog, bookings, nil
+	commands := NewBookingCommands(bookings)
+	catalog.deps.SourcedTemplates, catalog.deps.Pickup = commands, commands
+	return catalog, commands, nil
 }
 
 func (m *BookingMaterialization) todayDate() calendar.Date {

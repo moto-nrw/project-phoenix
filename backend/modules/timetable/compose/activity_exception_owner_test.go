@@ -199,10 +199,16 @@ func TestActivityExceptionListQueryBudgetStaysFlat(t *testing.T) {
 	for day := 1; day <= 8; day++ {
 		createOwnedActivityException(t, module, ctx, group.ID, fmt.Sprintf("2027-08-%02d", day))
 	}
-	counter := testpkg.CaptureQueries(t, db)
-	_, err := module.ListActivityExceptions(ctx, timetable.ActivityExceptionFilter{ActivityGroupID: &group.ID})
-	require.NoError(t, err)
-	testpkg.AssertQueryBudget(t, "modules.timetable.activity_exceptions.list", counter.Queries())
+	// The owner read runs inside the HTTP/workflow unit of work. The budget
+	// still measures every business query, not connection/role setup.
+	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
+		counter := testpkg.CaptureQueries(t, db)
+		_, err := module.ListActivityExceptions(ctx, timetable.ActivityExceptionFilter{ActivityGroupID: &group.ID})
+		require.NoError(t, err)
+		testpkg.AssertQueryBudget(t, "modules.timetable.activity_exceptions.list", counter.Queries())
+
+		return nil
+	}))
 }
 
 func createOwnedActivityException(t *testing.T, module *timetable.Module, ctx context.Context, groupID int64, date string) timetable.ActivityException {

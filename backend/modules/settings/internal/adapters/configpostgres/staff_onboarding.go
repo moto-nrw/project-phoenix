@@ -71,7 +71,11 @@ func (r *StaffOnboardingRepository[S]) StaffOnboardingOf(ctx context.Context, ac
 		return nil, errors.New("account ID is required")
 	}
 	stored := new(staffOnboardingRow)
-	err := r.runtime.DB(ctx).NewSelect().
+	ambientDB1, databaseErr1 := r.runtime.DB(ctx)
+	if databaseErr1 != nil {
+		return *new(*S), databaseErr1
+	}
+	err := ambientDB1.NewSelect().
 		Model(stored).
 		ModelTableExpr(tableStaffOnboardingsAlias).
 		Where(`"staff_onboarding_row".account_id = ?`, accountID).
@@ -111,7 +115,11 @@ func (r *StaffOnboardingRepository[S]) StoreStaffOnboarding(ctx context.Context,
 		skipped = []string{}
 	}
 
-	_, err := r.runtime.DB(ctx).NewInsert().
+	ambientDB2, databaseErr2 := r.runtime.DB(ctx)
+	if databaseErr2 != nil {
+		return databaseErr2
+	}
+	_, err := ambientDB2.NewInsert().
 		Model(&staffOnboardingRow{
 			TenantID:     state.TenantID,
 			AccountID:    state.AccountID,

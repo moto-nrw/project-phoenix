@@ -15,18 +15,6 @@ var schoolWideActionScopes = []struct{ key, reason string }{
 	{config.KeyBlockCompleteScope, "Das ganze Team darf nur beenden, wenn es alle Gruppen und Blöcke sieht. Erweitern Sie zuerst den Sichtbereich. Oder erlauben Sie das Beenden zuerst nur eingeplanten Kräften."},
 }
 
-func isOverviewScopeKey(key string) bool {
-	if key == config.KeyOperationalOverviewScope {
-		return true
-	}
-	for _, scope := range schoolWideActionScopes {
-		if scope.key == key {
-			return true
-		}
-	}
-	return false
-}
-
 // Both write directions hold the same lock until commit. Direct service
 // callers get a transaction too; an autocommit advisory lock cannot guard
 // the read/validate/write sequence.

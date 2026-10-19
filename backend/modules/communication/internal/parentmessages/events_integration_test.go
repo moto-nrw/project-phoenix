@@ -41,12 +41,12 @@ func threadPills(t *testing.T, db *bun.DB, repos *api.ParentMessagingSuiteReposi
 	var thread *messaging.ParentMessageThread
 	var msgs []*messaging.ParentMessage
 	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, c.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		th, ferr := messaging.NewThreadRepository(repos.ParentMessageThread).FindByStudentGuardian(txCtx, c.StudentID, c.AccountID)
+		th, ferr := testpkg.TenantQuery2(t, txCtx, testpkg.SetupTestDB(t), messaging.NewThreadRepository(repos.ParentMessageThread).FindByStudentGuardian, c.StudentID, c.AccountID)
 		if ferr != nil || th == nil {
 			return ferr
 		}
 		thread = th
-		ms, merr := messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)).ListByThread(txCtx, th.ID, 100)
+		ms, merr := testpkg.TenantQuery2(t, txCtx, testpkg.SetupTestDB(t), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)).ListByThread, th.ID, 100)
 		msgs = ms
 		return merr
 	})

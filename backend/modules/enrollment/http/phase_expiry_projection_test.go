@@ -33,7 +33,7 @@ func TestPhaseExpiryProjection_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 	request := makeOwnerRequest(0, uniqueToken("expiry-whole-cohort"), "cohort@example.test")
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		if err := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertPhase(ctx, phase); err != nil {
+		if err := testpkg.TenantCommand1(t, ctx, db, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertPhase, phase); err != nil {
 			return err
 		}
 		request.PhaseID = phase.ID
@@ -65,7 +65,7 @@ func TestPhaseExpiryProjection_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 			child := makeChild(request.ID, fixture.day, "Child")
 			child.Status = capability.ChildStatusApproved
 			child.CreatedStudentID = &fixture.student.ID
-			if err := childRepo.InsertChild(ctx, child); err != nil {
+			if err := testpkg.TenantCommand1(t, ctx, db, childRepo.InsertChild, child); err != nil {
 				return err
 			}
 			offering := makeOffering(phase.ID, uniqueOfferingName("cohort-"+fixture.day))

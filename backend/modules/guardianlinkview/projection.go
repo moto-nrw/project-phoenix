@@ -7,7 +7,11 @@
 // The projection only reads. Every write goes to the owner of the column.
 package guardianlinkview
 
-import "github.com/uptrace/bun"
+import (
+	"errors"
+
+	"github.com/uptrace/bun"
+)
 
 // linkSource is one row per relationship. Every relationship carries exactly
 // one pickup permission and one access row, created in the same unit of work,
@@ -26,26 +30,29 @@ const linkSource = `(SELECT r.id, r.tenant_id, r.student_id, r.guardian_profile_
 	JOIN auth.guardian_student_access AS a
 		ON a.tenant_id = r.tenant_id AND a.relationship_id = r.id) AS "student_guardian"`
 
-// Query is the relationship projection embedded by the callers' own joins,
-// typically as `JOIN (?) AS sg`. It executes no statement: the outer query
-// keeps its ambient transaction, result shape and statement budget. A
-// positive tenant scopes the rows explicitly; zero is reserved for the
-// explicit admin transactions that read across schools and filter tenants
-// themselves.
+// Query embeds the rows of one required school in the caller's statement.
 func Query(db bun.IDB, tenantID int64) *bun.SelectQuery {
-	query := db.NewSelect().TableExpr(linkSource)
-	if tenantID > 0 {
-		query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
+	query := AllSchoolsQuery(db)
+	if tenantID <= 0 {
+		return query.Err(errors.New("guardianlinkview: tenant is required"))
 	}
-	return query
+	return query.Where(`"student_guardian".tenant_id = ?`, tenantID)
 }
 
-// ModelQuery preserves BUN's model column selection over the projection for
-// the retained users.StudentGuardian row.
+// AllSchoolsQuery embeds an explicitly cross-school source. The caller owns
+// administrative/audience or outer school-correlation predicates; this executes no SQL.
+func AllSchoolsQuery(db bun.IDB) *bun.SelectQuery { return db.NewSelect().TableExpr(linkSource) }
+
+// ModelQuery preserves model column selection for one required school.
 func ModelQuery(db bun.IDB, tenantID int64, model any) *bun.SelectQuery {
-	query := db.NewSelect().Model(model).ModelTableExpr(linkSource)
-	if tenantID > 0 {
-		query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
+	query := AllSchoolsModelQuery(db, model)
+	if tenantID <= 0 {
+		return query.Err(errors.New("guardianlinkview: tenant is required"))
 	}
-	return query
+	return query.Where(`"student_guardian".tenant_id = ?`, tenantID)
+}
+
+// AllSchoolsModelQuery is the explicit cross-school model row source.
+func AllSchoolsModelQuery(db bun.IDB, model any) *bun.SelectQuery {
+	return db.NewSelect().Model(model).ModelTableExpr(linkSource)
 }

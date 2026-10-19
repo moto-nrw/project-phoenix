@@ -71,3 +71,13 @@ func planStaff(row *peopleValues.Staff) *workforce.PlanStaff {
 	}
 	return staff
 }
+
+// ListMembershipsWithPerson supplies the overview's name/assignment half;
+// its employment bindings arrive with schedules in one Workforce snapshot.
+func (d planStaffDirectory) ListMembershipsWithPerson(ctx context.Context) ([]*workforce.PlanStaff, error) {
+	if members, ok := d.rows.(StaffMembershipRepository); ok {
+		members.membershipOnly = true
+		d.rows = members
+	}
+	return d.ListAllWithPerson(ctx)
+}

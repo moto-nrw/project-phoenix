@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -25,12 +26,22 @@ func TestAcquireXactLockReportsContendedWait(t *testing.T) {
 	require.NoError(t, err)
 	ctx, evidence := testpkg.CaptureUnitOfWorkEvidence(ctx)
 	testpkg.AttachLockWaitEvidence(db)
-	release := time.AfterFunc(20*time.Millisecond, func() { _ = holder.Rollback() })
+	release := time.AfterFunc(40*time.Millisecond, func() { _ = holder.Rollback() })
 	defer release.Stop()
 
-	require.NoError(t, NewStaffShiftLock(db)(ctx, staff.ID))
+	require.NoError(t, testpkg.WithinTenantTransaction(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ testpkg.Tx) error { return NewStaffShiftLock(db)(txCtx, staff.ID) }))
 
-	events := evidence()
+	var events []testpkg.UnitOfWorkEvidence
+	committed := 0
+	for _, event := range evidence() {
+		if event.Kind == "lock_wait" {
+			events = append(events, event)
+		}
+		if event.Kind == "transaction" && event.Result == "commit" {
+			committed++
+		}
+	}
+	require.Equal(t, 1, committed)
 	require.Len(t, events, 1)
 	assert.Equal(t, "lock_wait", events[0].Kind)
 	assert.GreaterOrEqual(t, events[0].Duration, 15*time.Millisecond)

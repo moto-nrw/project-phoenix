@@ -73,4 +73,5 @@ type OperatorDashboard interface {
 	OrganizationSummaries(context.Context) ([]DashboardOrganization, error)
 	SchoolSummaries(context.Context, *int64) ([]DashboardSchool, error)
 	PWAUsage(context.Context, int64, time.Duration) ([]DashboardPWAUsage, error)
+	AllSchoolsPWAUsage(context.Context, time.Duration) ([]DashboardPWAUsage, error)
 }

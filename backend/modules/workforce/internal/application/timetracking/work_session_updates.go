@@ -37,9 +37,6 @@ func (uc *sessionUpdateContext) addAuditEdit(field string, oldVal, newVal *strin
 	})
 }
 
-// UpdateSession updates a work session with the provided fields and creates
-// audit entries. Self-edit path: the requesting staff must own the session.
-// Notes are only required when changing status (Vor Ort ↔ Homeoffice).
 func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates SessionUpdateRequest) (*WorkSession, error) {
 	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, err
@@ -113,14 +110,6 @@ func (s *workSessionService) selfEditChangesRecordedTimes(session *WorkSession, 
 	return len(updates.Breaks) > 0
 }
 
-// UpdateSessionAsAdmin applies an admin correction. editorStaffID is the
-// admin doing the edit (goes into edited_by). targetStaffID is the owner of
-// the session we expect to mutate, verified against session.StaffID so the
-// route can't be used to leak edits across staff in the same tenant.
-//
-// Notes are unconditionally required: BAG demands "Verlässlichkeit" of the
-// audit trail, and any foreign edit needs a reason. We're stricter than
-// self-edit on purpose.
 func (s *workSessionService) UpdateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID, sessionID int64, updates SessionUpdateRequest) (*WorkSession, error) {
 	if err := s.lockStaffBalanceWrites(ctx, targetStaffID); err != nil {
 		return nil, err
@@ -193,12 +182,6 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 	return session, nil
 }
 
-// CreateSessionAsAdmin records a "nachgetragene" session for another staff
-// member. Each field that ends up on the new row is also captured as an
-// audit edit (old_value = NULL, new_value = field) so the MA-side audit log
-// shows the create as a series of explicit "field war leer → field ist jetzt
-// X" entries. Notes are stored both on the session and on every audit row
-// (consistent with edit semantics).
 func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, req AdminCreateSessionRequest) (*WorkSession, error) {
 	if targetStaffID <= 0 {
 		return nil, workforce.ErrTargetStaffRequired

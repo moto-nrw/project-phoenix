@@ -68,7 +68,11 @@ func (r *studentRepository) FindBirthdaysOn(ctx context.Context, days []peopleBi
 	}
 
 	var rows []birthdayRow
-	query := r.students.StudentModelRows(r.runtime.DB(ctx), r.runtime.TenantID(ctx), &rows).
+	ambientDB1, databaseErr1 := r.runtime.DB(ctx)
+	if databaseErr1 != nil {
+		return *new([]peopleBirthday.BirthdayEntry), databaseErr1
+	}
+	query := r.students.StudentModelRows(ambientDB1, r.runtime.TenantID(ctx), &rows).
 		ColumnExpr(`"student".id AS id`).
 		ColumnExpr(`"person".first_name AS first_name, "person".last_name AS last_name`).
 		ColumnExpr(`"person".birthday AS birthday`).

@@ -97,7 +97,7 @@ func TestEndDailySessionsVisitLookupFailure(t *testing.T) {
 	assert.True(t, visitBefore.ExitTime == nil, "Visit should be active before cleanup")
 
 	// ACT: Run a normal cleanup and verify it works correctly
-	result, err := service.EndDailySessions(ctx)
+	result, err := testpkg.TenantQuery0(t, ctx, db, service.EndDailySessions)
 
 	// ASSERT: Verify cleanup succeeded
 	// Note: EndDailySessions cleans ALL active sessions, not just our test fixture
@@ -178,7 +178,7 @@ func TestEndDailySessionsConsistency(t *testing.T) {
 	require.NoError(t, err)
 
 	// ACT: Run cleanup
-	result, err := service.EndDailySessions(ctx)
+	result, err := testpkg.TenantQuery0(t, ctx, db, service.EndDailySessions)
 
 	// ASSERT: Verify cleanup succeeded
 	require.NoError(t, err)

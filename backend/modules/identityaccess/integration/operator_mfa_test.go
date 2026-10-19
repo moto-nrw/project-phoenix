@@ -17,7 +17,7 @@ import (
 
 func newOperatorMFARecords(t *testing.T, db *bun.DB) identityaccess.OperatorMFARecords {
 	t.Helper()
-	module, err := identityCompose.New(identityCompose.Dependencies{DB: db, Observe: func(identityCompose.Observation) {}})
+	module, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityCompose.Observation) {}})
 	require.NoError(t, err)
 	return module
 }
@@ -243,7 +243,7 @@ func TestOperatorMFARecordsAreVisibleFromEveryTenantContext(t *testing.T) {
 func TestOperatorMFADisableRollsBackAfterEachWrite(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module, err := identityCompose.New(identityCompose.Dependencies{DB: db, Observe: func(identityCompose.Observation) {}})
+	module, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityCompose.Observation) {}})
 	require.NoError(t, err)
 	operator := testpkg.CreateTestOperator(t, db)
 	plain := testpkg.Ctx(t)
@@ -310,7 +310,7 @@ func TestOperatorMFAObservationsUseStableOperations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	operator := testpkg.CreateTestOperator(t, db)
 	var observations []identityCompose.Observation
-	records, err := identityCompose.New(identityCompose.Dependencies{DB: db, Observe: func(observation identityCompose.Observation) {
+	records, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(observation identityCompose.Observation) {
 		observations = append(observations, observation)
 	}})
 	require.NoError(t, err)

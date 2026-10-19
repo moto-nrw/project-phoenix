@@ -102,16 +102,16 @@ func CountChildQuotaByTenant(ctx context.Context, db bun.IDB, on string) (map[in
 // would not do: two shared holders never wait for each other, so two
 // parallel enrollments could both count below the Kinderkontingent.
 func (s *Store) LockChildQuota(ctx context.Context) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
-	if tenantID <= 0 || tenantID > 0x7fffffff {
+	if scope.TenantID <= 0 || scope.TenantID > 0x7fffffff {
 		return domain.OperationStats{}, errors.New("school membership: valid tenant is required")
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	_, err = db.NewRaw("SELECT pg_advisory_xact_lock(?, ?)", childQuotaLockKey, int32(tenantID)).Exec(ctx)
+	_, err = db.NewRaw("SELECT pg_advisory_xact_lock(?, ?)", childQuotaLockKey, int32(scope.TenantID)).Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return stats, fmt.Errorf("school membership postgres: lock child quota: %w", err)
@@ -122,11 +122,11 @@ func (s *Store) LockChildQuota(ctx context.Context) (domain.OperationStats, erro
 // CountChildQuota counts the Kontingentzahl of the tenant in context on the
 // given calendar day.
 func (s *Store) CountChildQuota(ctx context.Context, on string) (int, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	if err := requireStudentWriteTenant(tenantID); err != nil {
+	if err := requireStudentWriteTenant(scope.TenantID); err != nil {
 		return 0, domain.OperationStats{}, err
 	}
 	day, err := calendar.ParseDate(on)
@@ -136,7 +136,7 @@ func (s *Store) CountChildQuota(ctx context.Context, on string) (int, domain.Ope
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	var count int
-	err = db.NewRaw(countChildQuotaSQL, tenantID, day, day, day).Scan(ctx, &count)
+	err = db.NewRaw(countChildQuotaSQL, scope.TenantID, day, day, day).Scan(ctx, &count)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return 0, stats, fmt.Errorf("school membership postgres: count child quota: %w", err)

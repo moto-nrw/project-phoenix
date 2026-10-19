@@ -66,3 +66,18 @@ func MissingPersonnelNumbers(personnelNumbers []*string) int {
 	}
 	return missing
 }
+
+// StaffPlanningProfile is one membership's template binding and every schedule
+// version intersecting the requested calendar window, read atomically.
+type StaffPlanningProfile struct {
+	MembershipID       int64
+	WorkTimeModelID    *int64
+	RotationAnchorDate string
+	Schedules          []StaffWorkSchedule
+}
+
+// StaffPlanningProfilesQuery supplies the complete Workforce-owned planning
+// snapshot, without a second facade that only forwards the same contract.
+type StaffPlanningProfilesQuery interface {
+	StaffPlanningProfiles(ctx context.Context, staffIDs []int64, from, to string) ([]StaffPlanningProfile, error)
+}

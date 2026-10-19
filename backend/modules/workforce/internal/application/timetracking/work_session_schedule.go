@@ -11,13 +11,10 @@ import (
 // Staff work-schedule operations (issue #584: moved verbatim out of api/staff)
 // ---------------------------------------------------------------------------
 
-// GetStaffIDsWithSupervisionToday returns staff IDs with supervision activity today.
 func (s *workSessionService) GetStaffIDsWithSupervisionToday(ctx context.Context) ([]int64, error) {
 	return s.supervisorRepo.GetStaffIDsWithSupervisionToday(ctx)
 }
 
-// AssignScheduleTemplate snapshots the template's entries as the staff
-// member's schedule and binds the template to the staff row.
 func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *StaffScheduleBinding, modelID int64) error {
 	model, err := s.workModelRepo.FindByID(ctx, modelID)
 	if err != nil {
@@ -39,8 +36,6 @@ func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *
 	return nil
 }
 
-// ApplyCustomScheduleRows replaces the schedule with custom rows and unbinds
-// any assigned template.
 func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff *StaffScheduleBinding, entries []*WorkScheduleRow, anchor, validFrom calendar.Date) error {
 	// An omitted anchor keeps the staff-level one; the new version must be
 	// stamped with that same effective anchor, or it would silently re-parity
@@ -72,8 +67,6 @@ func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff 
 	return nil
 }
 
-// SaveCustomScheduleAsTemplate persists the rows as a new reusable work time
-// model and binds it to the staff member.
 func (s *workSessionService) SaveCustomScheduleAsTemplate(ctx context.Context, staff *StaffScheduleBinding, name string, rotation int, anchor calendar.Date, entries []*WorkTimeTemplateEntry) error {
 	if anchor.IsZero() {
 		anchor = calendar.DateFromTime(s.now())
@@ -99,7 +92,6 @@ func (s *workSessionService) SaveCustomScheduleAsTemplate(ctx context.Context, s
 	return nil
 }
 
-// UpdateSchedule resolves the requested mode and applies the schedule change.
 func (s *workSessionService) UpdateSchedule(ctx context.Context, staff *StaffScheduleBinding, in ScheduleUpdateInput) error {
 	mode := in.Mode
 	if mode == "" {

@@ -14,7 +14,7 @@ var (
 )
 
 func (s *Service) ListSessionAttendance(ctx context.Context, participantIDs []int64) (result []ports.SessionAttendance, err error) {
-	err = s.run("list_session_attendance", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "list_session_attendance", func(ctx context.Context) (ports.Stats, error) {
 		if !validIDs(participantIDs) {
 			return ports.Stats{}, errInvalidParticipants
 		}
@@ -135,7 +135,7 @@ func validSessionAttendanceSubstatus(value string) bool {
 
 func (s *Service) TransitionParticipants(ctx context.Context, participantIDs []int64, from, to string, at time.Time) (int64, error) {
 	if !validSessionAttendanceStatus(from) || !validSessionAttendanceStatus(to) {
-		return 0, s.run("transition_participants", func() (ports.Stats, error) {
+		return 0, s.runWrite(ctx, "transition_participants", func(ctx context.Context) (ports.Stats, error) {
 			return ports.Stats{}, errors.New("student presence: invalid attendance transition")
 		})
 	}

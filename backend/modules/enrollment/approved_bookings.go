@@ -15,11 +15,8 @@ type ApprovedBooking struct {
 }
 
 func (m *Module) ApprovedBookings(ctx context.Context) ([]ApprovedBooking, error) {
-	var rows []ApprovedBooking
-	err := m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		var err error
-		rows, err = m.engine.ApprovedBookings(txCtx)
-		return err
-	})
-	return rows, err
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	return m.engine.ApprovedBookings(ctx)
 }

@@ -95,7 +95,7 @@ func affected(operation string) func(sql.Result, error) (int, error) {
 // DeleteExpiredSystemEmails applies the same retention window to global
 // identity mail, which cannot be visited by the tenant-scoped nightly sweep.
 func (s *Store) DeleteExpiredSystemEmails(ctx context.Context, before time.Time, limit int) (count int, err error) {
-	err = s.adminTx(ctx, func(txCtx context.Context, db bun.IDB) error {
+	err = s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
 		var deleteErr error
 		count, deleteErr = affected("delete expired system email intents")(db.ExecContext(txCtx, `DELETE FROM platform.email_outbox
    WHERE id IN (SELECT id FROM platform.email_outbox

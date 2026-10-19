@@ -65,7 +65,7 @@ func buildModule(t *testing.T, db *bun.DB, observe ...func(Observation)) *carepl
 	}
 	module, err := New(Dependencies{
 		StudentDirectory: testpkg.StudentDirectory{},
-		DB:               db, Observe: observer, AmbientDB: func(context.Context) bun.IDB { return db },
+		DB:               db, Observe: observer, AmbientDB: TenantAmbientDatabase(db),
 		People: emptyPeopleDirectory{}, StatusStudents: emptyPeopleDirectory{}, StatusSlots: emptyStatusSlots{},
 		StudentLock: func(context.Context, int64) error { return nil }, StudentNotFound: errors.New("student not found"),
 	})

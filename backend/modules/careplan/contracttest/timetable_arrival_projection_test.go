@@ -203,7 +203,7 @@ func TestTimetableRead_StudentWeekAppliesTheBookingMode(t *testing.T) {
 		assert.Equal(t, "11:45", booked.Time.Format("15:04"))
 		// The week carries the time only; the source stays with Care Plan's
 		// projection the week is built from.
-		projection, err := bookingModeArrivalBaseline(t, env, true).Project(ctx, []int64{studentID}, monday, thursday)
+		projection, err := testpkg.TenantQuery3(t, ctx, testpkg.SetupTestDB(t), bookingModeArrivalBaseline(t, env, true).Project, []int64{studentID}, monday, thursday)
 		require.NoError(t, err)
 		source := projection.ForDate(studentID, monday)
 		require.NotNil(t, source)

@@ -219,7 +219,7 @@ func TestEndDailySessions_WithActiveSessions(t *testing.T) {
 	require.NotNil(t, visit)
 
 	// ACT: End all daily sessions
-	result, err := service.EndDailySessions(ctx)
+	result, err := testpkg.TenantQuery0(t, ctx, db, service.EndDailySessions)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -240,11 +240,11 @@ func TestEndDailySessions_NoActiveSessions(t *testing.T) {
 	service := setupSessionService(t, db)
 
 	// ARRANGE: First, end any existing sessions to start with a clean slate
-	_, err := service.EndDailySessions(ctx)
+	_, err := testpkg.TenantQuery0(t, ctx, db, service.EndDailySessions)
 	require.NoError(t, err, "Failed to clean up existing sessions")
 
 	// ACT: End daily sessions with no active sessions (should be 0 now)
-	result, err := service.EndDailySessions(ctx)
+	result, err := testpkg.TenantQuery0(t, ctx, db, service.EndDailySessions)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -297,7 +297,7 @@ func TestEndDailySessions_WithOrphanedSupervisors(t *testing.T) {
 	require.NoError(t, err)
 
 	// ACT: End daily sessions should cleanup orphaned supervisors
-	result, err := service.EndDailySessions(ctx)
+	result, err := testpkg.TenantQuery0(t, ctx, db, service.EndDailySessions)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -487,7 +487,7 @@ func TestEndDailySessions_WithMultipleVisitsAndSupervisors(t *testing.T) {
 	require.NotNil(t, visit2)
 
 	// ACT: End all daily sessions (should end both visits, supervisor, and session)
-	result, err := service.EndDailySessions(ctx)
+	result, err := testpkg.TenantQuery0(t, ctx, db, service.EndDailySessions)
 
 	// ASSERT
 	require.NoError(t, err)

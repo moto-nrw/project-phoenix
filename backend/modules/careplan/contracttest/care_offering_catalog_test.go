@@ -28,7 +28,7 @@ import (
 // test database, served in enrollment rows, and creates a phase the offerings
 // can FK against. Phase model replaced calendar periods as the parent entity
 // for care offerings (migration 1.15.68).
-func setupCareTest(t *testing.T, options ...api.CareOfferingCatalogOption) (*bun.DB, *enrollmentTest.CareOfferingRows, *enrollmentTest.Phase, func()) {
+func setupCareTest(t *testing.T, options ...api.CareOfferingCatalogOption) (*bun.DB, *scopedCareOfferingRows, *enrollmentTest.Phase, func()) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	// Register pool closure before fixture cleanups. testing.Cleanup runs in
@@ -68,12 +68,12 @@ func setupCareTest(t *testing.T, options ...api.CareOfferingCatalogOption) (*bun
 // careOfferingRows composes the catalog in rows with a pickup resync bound
 // (as the old service tests always bound one) plus the given options, which
 // are applied after it and may replace it.
-func careOfferingRows(t *testing.T, db *bun.DB, options ...api.CareOfferingCatalogOption) *enrollmentTest.CareOfferingRows {
+func careOfferingRows(t *testing.T, db *bun.DB, options ...api.CareOfferingCatalogOption) *scopedCareOfferingRows {
 	t.Helper()
 	all := append([]api.CareOfferingCatalogOption{
 		api.WithCareOfferingPickupResync(&pickupResyncer{}),
 	}, options...)
-	return enrollmentTest.NewCareOfferingRows(testCareOfferingCatalog(t, db, all...))
+	return newScopedOfferingRows(testCareOfferingCatalog(t, db, all...))
 }
 
 func baseLinkedOffering(t *testing.T, phaseID int64, groupID int64) *offeringContract.CareOfferingRecord {
@@ -413,7 +413,7 @@ func TestCareOfferingCatalog_Create_RejectsAdvertisedDayAbsentFromShortPhase(t *
 	defer cleanup()
 	phase.ServiceStartDate = enrollmentTest.Date(calendar.NewDate(2026, time.April, 21)) // Tuesday
 	phase.ServiceEndDate = enrollmentTest.Date(calendar.NewDate(2026, time.April, 22))   // Wednesday
-	require.NoError(t, api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, db)).Enrollment().UpdatePhase(testpkg.Ctx(t), ownerPhaseForTest(phase)))
+	require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), db, api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, db)).Enrollment().UpdatePhase, ownerPhaseForTest(phase)))
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName("care-zero-occurrence-period"+"-"+
 		t.Name()),
 
@@ -478,7 +478,7 @@ func TestCareOfferingCatalog_Create_AllowsNonOccurrencePhaseBoundaries(t *testin
 	defer cleanup()
 	phase.ServiceStartDate = enrollmentTest.Date(calendar.NewDate(2026, time.April, 17)) // Friday
 	phase.ServiceEndDate = enrollmentTest.Date(calendar.NewDate(2026, time.April, 26))   // Sunday
-	require.NoError(t, api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, db)).Enrollment().UpdatePhase(testpkg.Ctx(t), ownerPhaseForTest(phase)))
+	require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), db, api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, db)).Enrollment().UpdatePhase, ownerPhaseForTest(phase)))
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName("care-boundary-period"+"-"+
 		t.Name()),
 
@@ -1112,12 +1112,12 @@ func newOfferingChanges(
 	tb.Helper()
 	changes, err := api.NewOfferingChanges(testpkg.NewDatabase(tb, db), settings, bookings, options...)
 	require.NoError(tb, err)
-	return changes
+	return offeringChangesFixtureRoot{changes}
 }
 
 func newOfferingReviewQuery(tb testing.TB, db *bun.DB, today func() calendar.Date) careplan.OfferingReviewQuery {
 	tb.Helper()
 	query, err := api.NewOfferingReviewTestQuery(testpkg.NewDatabase(tb, db), today)
 	require.NoError(tb, err)
-	return query
+	return offeringReviewFixtureRoot{query}
 }

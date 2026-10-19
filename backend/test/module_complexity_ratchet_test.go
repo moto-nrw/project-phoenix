@@ -156,7 +156,7 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/identityaccess/internal/application/operator_passkey_flow.go:(*OperatorPasskeyFlows).verifyLogin":                  22,
 	"modules/identityaccess/internal/application/operator_provisioning.go:(*OperatorProvisioning).InitiateOperatorEmailChange":  25,
 	"modules/identityaccess/internal/application/permission_administration.go:(*RoleAdministration).ReplaceRolePermissions":     31,
-	"modules/identityaccess/internal/application/role_administration.go:(*RoleAdministration).AssignRoleToAccount":              51,
+	"modules/identityaccess/internal/application/role_administration.go:(*RoleAdministration).AssignRoleToAccount":              47,
 	"modules/identityaccess/internal/application/school_identity.go:(*AccountLifecycle).resolveIdentityPerson":                  18,
 	"modules/identityaccess/internal/application/school_invitation.go:(*SchoolInvitation).AcceptInvitation":                     34,
 	"modules/identityaccess/internal/application/school_invitation.go:(*SchoolInvitation).grantAccess":                          17,

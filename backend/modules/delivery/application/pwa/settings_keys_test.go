@@ -16,6 +16,6 @@ func TestPWAUsageRetentionKeyMatchesTheRegistry(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	module, err := api.NewSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	_, err = module.Settings.ResolveInt(testpkg.Ctx(t), pwa.RestatedRetentionSettingKey)
+	_, err = testpkg.TenantQuery1(t, testpkg.Ctx(t), db, module.Settings.ResolveInt, pwa.RestatedRetentionSettingKey)
 	require.NoError(t, err, "PWA retention must use a registered integer setting")
 }

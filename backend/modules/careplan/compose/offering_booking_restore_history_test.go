@@ -24,7 +24,7 @@ func TestCareOfferingBookingsRestoreHistoricalWeekdays(t *testing.T) {
 	// Persisted legacy payloads can contain values that new commands reject.
 	_, err := db.NewRaw(`UPDATE enrollment.care_offering_bookings SET manual_selected_days = '["historical-day"]'::jsonb WHERE tenant_id = ? AND request_child_id = ?`, testpkg.Tenant(t), childID).Exec(ctx)
 	require.NoError(t, err)
-	before, err := module.CareOfferingBookingHistory(ctx, []int64{childID})
+	before, err := testpkg.TenantQuery1(t, ctx, db, module.CareOfferingBookingHistory, []int64{childID})
 	require.NoError(t, err)
 	require.Len(t, before, 2)
 	changed, err := module.EndCareOfferingBookings(ctx, []int64{childID}, until)
@@ -38,7 +38,7 @@ func TestCareOfferingBookingsRestoreHistoricalWeekdays(t *testing.T) {
 	require.NoError(t, err)
 	_, err = module.RestoreCareOfferingBookings(ctx, restores)
 	require.NoError(t, err, "historical restoration must allow an identical retry")
-	after, err := module.CareOfferingBookingHistory(ctx, []int64{childID})
+	after, err := testpkg.TenantQuery1(t, ctx, db, module.CareOfferingBookingHistory, []int64{childID})
 	require.NoError(t, err)
 	require.Len(t, after, len(before))
 	// Restoring a capped row is an update; a deleted row keeps snapshot timestamps.

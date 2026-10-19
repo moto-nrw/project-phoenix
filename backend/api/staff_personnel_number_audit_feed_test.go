@@ -36,7 +36,7 @@ func TestUpdatePersonnelNumber_AppearsInAuditFeed(t *testing.T) {
 	_, err = svc.UpdatePersonnelNumber(ctx, staff.ID, &value, actor.ID, "Feed-Test")
 	require.NoError(t, err)
 
-	entries, err := owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingAuditLog.ListEntries(ctx, auditModels.TimeTrackingAuditLogFilter{
+	entries, err := testpkg.TenantQuery1(t, ctx, db, owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingAuditLog.ListEntries, auditModels.TimeTrackingAuditLogFilter{
 		StaffID: staff.ID,
 		Sources: []string{testpkg.AuditLogSourcePersonnelNumber},
 	})

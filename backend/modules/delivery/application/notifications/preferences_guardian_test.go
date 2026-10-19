@@ -83,7 +83,7 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 
 	t.Run("the producer finds the guardian through the tenant-scoped filter", func(t *testing.T) {
 		tenantCtx := testpkg.TenantContext(chain.TenantID)
-		optedIn, err := svc.FilterOptedIn(tenantCtx, notifications.TypeParentAnnouncement, []int64{chain.AccountID})
+		optedIn, err := testpkg.TenantQuery2(t, tenantCtx, db, svc.FilterOptedIn, notifications.TypeParentAnnouncement, []int64{chain.AccountID})
 		require.NoError(t, err)
 		assert.Equal(t, []int64{chain.AccountID}, optedIn,
 			"what the parents app stored has to be what the announcement producer reads")
@@ -131,7 +131,7 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 		assert.Equal(t, 2, count, "the opt-out is recorded once per active school, not deleted")
 
 		tenantCtx := testpkg.TenantContext(chain.TenantID)
-		optedIn, err := svc.FilterOptedIn(tenantCtx, notifications.TypeParentAnnouncement, []int64{chain.AccountID})
+		optedIn, err := testpkg.TenantQuery2(t, tenantCtx, db, svc.FilterOptedIn, notifications.TypeParentAnnouncement, []int64{chain.AccountID})
 		require.NoError(t, err)
 		assert.Empty(t, optedIn, "an opt-out reaches nobody")
 	})

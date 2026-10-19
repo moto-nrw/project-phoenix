@@ -15,7 +15,7 @@ import (
 func TestSchoolRoleClassesRespectTenantAndRoleKind(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	access, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	access, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	home := testpkg.Tenant(t)
@@ -83,7 +83,7 @@ func TestSchoolRoleClassesRespectTenantAndRoleKind(t *testing.T) {
 func TestSchoolRoleClassesDatabaseFailure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	access, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	access, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	school := testpkg.Tenant(t)
 	require.NoError(t, db.Close())

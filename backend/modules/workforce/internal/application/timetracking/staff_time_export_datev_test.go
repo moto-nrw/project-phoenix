@@ -147,14 +147,14 @@ func TestDatevExport_GoldenFiles(t *testing.T) {
 	f.cleanupAccessLogs(t)
 	svc := f.newDatevExportService(datevFullConfig())
 
-	lodas, err := svc.Export(f.ctx, datevRequest(timetracking.ExportFormatDatevLodas), actorID, "admin")
+	lodas, err := testpkg.TenantQuery3(t, f.ctx, testpkg.SetupTestDB(t), svc.Export, datevRequest(timetracking.ExportFormatDatevLodas), actorID, "admin")
 	require.NoError(t, err)
 	assert.Equal(t, "datev_lodas_2026-06.txt", lodas.Filename)
 	assert.Equal(t, "text/plain; charset=windows-1252", lodas.ContentType)
 	assert.True(t, bytes.Contains(lodas.Data, []byte("\r\n")), "LODAS requires CR/LF")
 	checkDatevGolden(t, "datev_lodas.golden", lodas.Data)
 
-	lug, err := svc.Export(f.ctx, datevRequest(timetracking.ExportFormatDatevLug), actorID, "admin")
+	lug, err := testpkg.TenantQuery3(t, f.ctx, testpkg.SetupTestDB(t), svc.Export, datevRequest(timetracking.ExportFormatDatevLug), actorID, "admin")
 	require.NoError(t, err)
 	assert.Equal(t, "datev_lug_2026-06.txt", lug.Filename)
 	checkDatevGolden(t, "datev_lug.golden", lug.Data)
@@ -174,7 +174,7 @@ func TestDatevExport_PinsAgainstMonthSummary(t *testing.T) {
 	summary, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff[0], 2026, 6)
 	require.NoError(t, err)
 
-	file, err := svc.Export(f.ctx, datevRequest(timetracking.ExportFormatDatevLug), actorID, "admin")
+	file, err := testpkg.TenantQuery3(t, f.ctx, testpkg.SetupTestDB(t), svc.Export, datevRequest(timetracking.ExportFormatDatevLug), actorID, "admin")
 	require.NoError(t, err)
 
 	// Parse the LuG lines: Personalnummer;;;Lohnart;Stunden;Tage;...
@@ -224,7 +224,7 @@ func TestDatevExport_RefusesStaffWithoutPersonnelNumber(t *testing.T) {
 	f.cleanupAccessLogs(t)
 	svc := f.newDatevExportService(datevFullConfig())
 
-	report, err := svc.DatevReport(f.ctx, datevRequest(timetracking.ExportFormatDatevLug))
+	report, err := testpkg.TenantQuery1(t, f.ctx, testpkg.SetupTestDB(t), svc.DatevReport, datevRequest(timetracking.ExportFormatDatevLug))
 	require.NoError(t, err)
 	assert.Equal(t, 1, report.StaffExported)
 	require.Len(t, report.StaffSkipped, 1)
@@ -232,7 +232,7 @@ func TestDatevExport_RefusesStaffWithoutPersonnelNumber(t *testing.T) {
 	assert.Empty(t, report.UnconfiguredCategories)
 	assert.True(t, report.OpenMonth, "June was never closed — the report must say so")
 
-	file, err := svc.Export(f.ctx, datevRequest(timetracking.ExportFormatDatevLug), actorID, "admin")
+	file, err := testpkg.TenantQuery3(t, f.ctx, testpkg.SetupTestDB(t), svc.Export, datevRequest(timetracking.ExportFormatDatevLug), actorID, "admin")
 	require.ErrorIs(t, err, timetracking.ErrPayrollConfigIncomplete)
 	assert.Nil(t, file)
 
@@ -254,7 +254,7 @@ func TestDatevExport_RefusesIncompleteConfiguration(t *testing.T) {
 	svc := f.newDatevExportService(config)
 	_, err := svc.Export(f.ctx, datevRequest(timetracking.ExportFormatDatevLodas), actorID, "admin")
 	require.ErrorIs(t, err, timetracking.ErrPayrollConfigIncomplete)
-	_, err = svc.Export(f.ctx, datevRequest(timetracking.ExportFormatDatevLug), actorID, "admin")
+	_, err = testpkg.TenantQuery3(t, f.ctx, testpkg.SetupTestDB(t), svc.Export, datevRequest(timetracking.ExportFormatDatevLug), actorID, "admin")
 	require.NoError(t, err, "Lohn und Gehalt does not need the LODAS header")
 
 	// No configured category at all → refused for both.
@@ -270,7 +270,7 @@ func TestDatevExport_RefusesIncompleteConfiguration(t *testing.T) {
 	config = datevFullConfig()
 	config.EinheitKrank = ""
 	svc = f.newDatevExportService(config)
-	report, err := svc.DatevReport(f.ctx, datevRequest(timetracking.ExportFormatDatevLug))
+	report, err := testpkg.TenantQuery1(t, f.ctx, testpkg.SetupTestDB(t), svc.DatevReport, datevRequest(timetracking.ExportFormatDatevLug))
 	require.NoError(t, err)
 	assert.Contains(t, report.UnconfiguredCategories, "Krank")
 }

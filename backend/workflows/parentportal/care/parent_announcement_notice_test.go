@@ -63,14 +63,14 @@ func seedCareCancellationNotice(t *testing.T, ctx context.Context, repo api.Pare
 		SystemKind: &kind,
 	}
 	a.TenantID = tenantID
-	require.NoError(t, repo.Create(ctx, a))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), repo.Create, a))
 	id := studentID
-	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID, []*communication.ParentAnnouncementTargetFixture{
+	require.NoError(t, testpkg.TenantCommand3(t, ctx, testpkg.SetupTestDB(t), repo.ReplaceTargets, tenantID, a.ID, []*communication.ParentAnnouncementTargetFixture{
 		{TargetType: "student", TargetRefID: &id},
 	}))
 	now := time.Now().Add(-time.Minute)
-	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
-	persisted, err := repo.FindByID(ctx, a.ID)
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, testpkg.SetupTestDB(t), repo.SetPublished, a.ID, &now))
+	persisted, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), repo.FindByID, a.ID)
 	require.NoError(t, err)
 	require.NotNil(t, persisted)
 	return persisted

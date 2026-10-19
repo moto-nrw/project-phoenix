@@ -19,7 +19,11 @@ func NewBookingMaterialization(deps BookingMaterializationDependencies) (carepla
 	if !ok {
 		return nil, errors.New("booking materialization: the care-offering catalog must be composed by NewCareOfferingCatalog")
 	}
-	return application.NewBookingMaterialization(bookingDependencies(deps, catalog))
+	records, err := application.NewBookingMaterialization(bookingDependencies(deps, catalog))
+	if err != nil {
+		return nil, err
+	}
+	return application.NewBookingCommands(records), nil
 }
 
 // NewCareOfferingCatalog composes the Care Plan care-offering catalog.

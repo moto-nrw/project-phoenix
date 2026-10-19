@@ -403,3 +403,7 @@ func TestDienstplanRuntimeEvidence(t *testing.T) {
 		})
 	}
 }
+
+func (r txStaffRoster) ListMembershipsWithPerson(ctx context.Context) ([]*workforce.PlanStaff, error) {
+	return r.ListAllWithPerson(ctx)
+}

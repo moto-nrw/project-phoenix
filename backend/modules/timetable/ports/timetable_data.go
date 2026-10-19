@@ -106,6 +106,7 @@ type AdvisoryLocks interface {
 // only and callers that do not render blocks receive no display metadata.
 // Every other collaborator is required.
 type TimetableDataDependencies struct {
+	RunInTx           func(context.Context, func(context.Context) error) error
 	Instances         DataInstances
 	InstanceStaff     OperationInstanceStaff
 	Participants      DataParticipants

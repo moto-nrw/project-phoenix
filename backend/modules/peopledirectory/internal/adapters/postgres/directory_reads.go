@@ -34,11 +34,13 @@ type directoryStudentRow struct {
 // StudentDirectory is People Directory's reader port onto the student
 // directory projection (ADR 0058); the composition root binds it. Each row
 // source is aliased "student", joins the three student owners and runs in
-// the caller's statement and transaction; a zero tenant leaves the rows
-// unscoped, so the reads below add their own tenant predicate.
+// the caller's statement and transaction. Cross-school sources are explicit;
+// the school-specific methods reject an absent school.
 type StudentDirectory interface {
 	StudentRows(db bun.IDB, tenantID int64) *bun.SelectQuery
+	AllSchoolsStudentRows(db bun.IDB) *bun.SelectQuery
 	StudentModelRows(db bun.IDB, tenantID int64, model any) *bun.SelectQuery
+	AllSchoolsStudentModelRows(db bun.IDB, model any) *bun.SelectQuery
 }
 
 // studentDirectoryReads are the student reads over the projection's row
@@ -94,26 +96,26 @@ func isLockNotAvailable(err error) bool {
 }
 
 func (s *studentDirectoryReads) ListByIDs(ctx context.Context, ids []int64) ([]directory.Student, directoryStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, directoryStats{}, err
 	}
 	rows := []directoryStudentRow{}
-	query := withStudentTenant(s.rows.StudentModelRows(db, 0, &rows).Where(`"student".id IN (?)`, bun.List(ids)), tenantID)
+	query := withStudentTenant(s.studentModelRows(db, scope, &rows).Where(`"student".id IN (?)`, bun.List(ids)), scope)
 	return scanStudents(ctx, &rows, query.OrderExpr(`"student".id ASC`), "list students by id")
 }
 
 func (s *studentDirectoryReads) ListNamesByIDs(ctx context.Context, ids []int64) ([]directory.StudentName, directoryStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, directoryStats{}, err
 	}
 	rows := []directory.StudentName{}
-	query := withStudentTenant(s.rows.StudentRows(db, 0).
+	query := withStudentTenant(s.studentRows(db, scope).
 		ColumnExpr(`"student".id AS student_id, "person".first_name, "person".last_name`).
 		Join(`JOIN users.persons AS "person" ON "person".tenant_id = "student".tenant_id AND "person".id = "student".person_id`).
 		Where(`"student".id IN (?)`, bun.List(ids)).
-		Where(`"person".deleted_at IS NULL`), tenantID).
+		Where(`"person".deleted_at IS NULL`), scope).
 		OrderExpr(`"student".id ASC`)
 	stats := directoryStats{Queries: 1}
 	started := time.Now()
@@ -127,54 +129,54 @@ func (s *studentDirectoryReads) ListNamesByIDs(ctx context.Context, ids []int64)
 }
 
 func (s *studentDirectoryReads) ListByClasses(ctx context.Context, classes []string) ([]directory.Student, directoryStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, directoryStats{}, err
 	}
 	rows := []directoryStudentRow{}
-	query := withStudentTenant(s.rows.StudentModelRows(db, 0, &rows).
+	query := withStudentTenant(s.studentModelRows(db, scope, &rows).
 		Where(`"student".school_class IN (?)`, bun.List(classes)).
-		Where(`"student".status <> ?`, directory.StudentStatusAlumnus), tenantID)
+		Where(`"student".status <> ?`, directory.StudentStatusAlumnus), scope)
 	return scanStudents(ctx, &rows, query.OrderExpr(`"student".school_class ASC, "student".id ASC`), "list students by class")
 }
 
 func (s *studentDirectoryReads) ListByPersonIDs(ctx context.Context, personIDs []int64) ([]directory.Student, directoryStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, directoryStats{}, err
 	}
 	rows := []directoryStudentRow{}
-	query := withStudentTenant(s.rows.StudentModelRows(db, 0, &rows).Where(`"student".person_id IN (?)`, bun.List(personIDs)), tenantID)
+	query := withStudentTenant(s.studentModelRows(db, scope, &rows).Where(`"student".person_id IN (?)`, bun.List(personIDs)), scope)
 	return scanStudents(ctx, &rows, query.OrderExpr(`"student".id ASC`), "list students by person")
 }
 
 func (s *studentDirectoryReads) ListEnrolled(ctx context.Context) ([]directory.Student, directoryStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, directoryStats{}, err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return nil, directoryStats{}, errors.New("student directory projection: tenant is required to list enrolled students")
 	}
 	rows := []directoryStudentRow{}
-	query := withStudentTenant(s.rows.StudentModelRows(db, 0, &rows).
-		Where(`"student".status <> ?`, directory.StudentStatusAlumnus), tenantID)
+	query := withStudentTenant(s.studentModelRows(db, scope, &rows).
+		Where(`"student".status <> ?`, directory.StudentStatusAlumnus), scope)
 	return scanStudents(ctx, &rows, query.OrderExpr(`"student".id ASC`), "list enrolled students")
 }
 
 func (s *studentDirectoryReads) ListClasses(ctx context.Context) ([]string, directoryStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, directoryStats{}, err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return nil, directoryStats{}, errors.New("student directory projection: tenant is required to list classes")
 	}
 	var classes []string
-	query := withStudentTenant(s.rows.StudentRows(db, 0).
+	query := withStudentTenant(s.studentRows(db, scope).
 		ColumnExpr(`DISTINCT "student".school_class`).
 		Where(`"student".school_class IS NOT NULL AND "student".school_class <> ''`).
-		Where(`"student".status <> ?`, directory.StudentStatusAlumnus), tenantID).
+		Where(`"student".status <> ?`, directory.StudentStatusAlumnus), scope).
 		OrderExpr(`"student".school_class ASC`)
 	stats := directoryStats{Queries: 1}
 	started := time.Now()
@@ -190,15 +192,15 @@ func (s *studentDirectoryReads) ListClasses(ctx context.Context) ([]string, dire
 }
 
 func (s *studentDirectoryReads) ListByStatusFlag(ctx context.Context, status string) ([]directory.Student, directoryStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, directoryStats{}, err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return nil, directoryStats{}, errors.New("student directory projection: tenant is required to list students with a status flag")
 	}
 	rows := []directoryStudentRow{}
-	query := withStudentTenant(s.rows.StudentModelRows(db, 0, &rows), tenantID)
+	query := withStudentTenant(s.studentModelRows(db, scope, &rows), scope)
 	switch status {
 	case "sick":
 		query = query.Where(`"student".sick = TRUE`)
@@ -225,11 +227,17 @@ func scanStudents(ctx context.Context, rows *[]directoryStudentRow, query *bun.S
 	return result, stats, nil
 }
 
-func withStudentTenant[Q interface{ Where(string, ...any) Q }](query Q, tenantID int64) Q {
-	if tenantID > 0 {
-		return query.Where(`"student".tenant_id = ?`, tenantID)
+func withStudentTenant[Q interface {
+	Where(string, ...any) Q
+	Err(error) Q
+}](query Q, scope TenantScope) Q {
+	if err := scope.Validate(); err != nil {
+		return query.Err(err)
 	}
-	return query
+	if scope.AcrossSchools {
+		return query
+	}
+	return query.Where(`"student".tenant_id = ?`, scope.TenantID)
 }
 
 func toDirectoryStudent(row directoryStudentRow) directory.Student {
@@ -245,4 +253,17 @@ func toDirectoryStudent(row directoryStudentRow) directory.Student {
 		student.EnrolledUntil = row.EnrolledUntil.String()
 	}
 	return student
+}
+
+func (s *studentDirectoryReads) studentRows(db bun.IDB, scope TenantScope) *bun.SelectQuery {
+	if scope.AcrossSchools {
+		return s.rows.AllSchoolsStudentRows(db)
+	}
+	return s.rows.StudentRows(db, scope.TenantID)
+}
+func (s *studentDirectoryReads) studentModelRows(db bun.IDB, scope TenantScope, model any) *bun.SelectQuery {
+	if scope.AcrossSchools {
+		return s.rows.AllSchoolsStudentModelRows(db, model)
+	}
+	return s.rows.StudentModelRows(db, scope.TenantID, model)
 }

@@ -37,7 +37,7 @@ func TestTemplateUpdateStartDatePullForward(t *testing.T) {
 	}
 	s := buildTemplateModule(t, nil, clock)
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	newStart := futureMondayForPull()
 	oldStart := newStart.AddDays(7)

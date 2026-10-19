@@ -37,7 +37,7 @@ func createTestDeviationEvent(t *testing.T, repo auditModels.DeviationEventRepos
 		StartTime:       start,
 		EventType:       eventType,
 	}
-	require.NoError(t, repo.Create(scope.Context(), event))
+	require.NoError(t, testpkg.TenantCommand1(t, scope.Context(), testpkg.SetupTestDB(t), repo.Create, event))
 	return event
 }
 
@@ -57,12 +57,12 @@ func TestDeviationEventRepository_ListByRangeFiltersSlotAndRange(t *testing.T) {
 	createTestDeviationEvent(t, repo, scope, otherGroup.ID, day, "14:00", auditModels.DeviationEventCancellation)
 	createTestDeviationEvent(t, repo, scope, group.ID, day.AddDays(10), "14:00", auditModels.DeviationEventAbsence)
 
-	all, err := repo.ListByRange(scope.Context(), auditModels.Date(day), auditModels.Date(day.AddDays(4)), nil, nil)
+	all, err := testpkg.TenantQuery4(t, scope.Context(), db, repo.ListByRange, auditModels.Date(day), auditModels.Date(day.AddDays(4)), nil, nil)
 	require.NoError(t, err)
 	require.Len(t, all, 3)
 
 	startTime := "14:00"
-	slot, err := repo.ListByRange(scope.Context(), auditModels.Date(day), auditModels.Date(day), &group.ID, &startTime)
+	slot, err := testpkg.TenantQuery4(t, scope.Context(), db, repo.ListByRange, auditModels.Date(day), auditModels.Date(day), &group.ID, &startTime)
 	require.NoError(t, err)
 	require.Len(t, slot, 1)
 	require.Equal(t, inRange.ID, slot[0].ID)
@@ -83,7 +83,7 @@ func TestDeviationEventRepository_TenantIsolation(t *testing.T) {
 	createTestDeviationEvent(t, repoA, scopeA, groupA.ID, day, "14:00", auditModels.DeviationEventAbsence)
 
 	repo := newDeviationRepository(NewRuntime(db, func(context.Context) int64 { return scopeB.TenantID }))
-	rows, err := repo.ListByRange(scopeB.Context(), auditModels.Date(day), auditModels.Date(day), nil, nil)
+	rows, err := testpkg.TenantQuery4(t, scopeB.Context(), db, repo.ListByRange, auditModels.Date(day), auditModels.Date(day), nil, nil)
 	require.NoError(t, err)
 	require.Empty(t, rows)
 }
@@ -101,11 +101,11 @@ func TestDeviationEventRepository_DeleteOlderThan(t *testing.T) {
 	createTestDeviationEvent(t, repo, scope, group.ID, cutoff.AddDays(-30), "14:00", auditModels.DeviationEventAbsence)
 	recent := createTestDeviationEvent(t, repo, scope, group.ID, cutoff.AddDays(5), "14:00", auditModels.DeviationEventAbsence)
 
-	deleted, err := repo.DeleteOlderThan(scope.Context(), auditModels.Date(cutoff))
+	deleted, err := testpkg.TenantQuery1(t, scope.Context(), db, repo.DeleteOlderThan, auditModels.Date(cutoff))
 	require.NoError(t, err)
 	require.EqualValues(t, 1, deleted)
 
-	rows, err := repo.ListByRange(scope.Context(), auditModels.Date(cutoff.AddDays(-60)), auditModels.Date(cutoff.AddDays(60)), nil, nil)
+	rows, err := testpkg.TenantQuery4(t, scope.Context(), db, repo.ListByRange, auditModels.Date(cutoff.AddDays(-60)), auditModels.Date(cutoff.AddDays(60)), nil, nil)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	require.Equal(t, recent.ID, rows[0].ID)
@@ -144,9 +144,9 @@ func TestDeviationEventRepository_ListByRangeExcludesShiftAnchoredRows(t *testin
 		StaffShiftID:   &shift.ID,
 		EventType:      auditModels.DeviationEventShiftMoved,
 	}
-	require.NoError(t, repo.Create(scope.Context(), shiftEvent))
+	require.NoError(t, testpkg.TenantCommand1(t, scope.Context(), db, repo.Create, shiftEvent))
 
-	rows, err := repo.ListByRange(scope.Context(), auditModels.Date(day), auditModels.Date(day), nil, nil)
+	rows, err := testpkg.TenantQuery4(t, scope.Context(), db, repo.ListByRange, auditModels.Date(day), auditModels.Date(day), nil, nil)
 	require.NoError(t, err)
 	require.Len(t, rows, 1, "only the slot-anchored event surfaces")
 	require.Equal(t, slotEvent.ID, rows[0].ID)
@@ -160,7 +160,7 @@ func TestDeviationEventRepository_ListByRangeExcludesShiftAnchoredRows(t *testin
 		Exec(scope.Context())
 	require.NoError(t, err)
 
-	rows, err = repo.ListByRange(scope.Context(), auditModels.Date(day), auditModels.Date(day), nil, nil)
+	rows, err = testpkg.TenantQuery4(t, scope.Context(), db, repo.ListByRange, auditModels.Date(day), auditModels.Date(day), nil, nil)
 	require.NoError(t, err)
 	require.Len(t, rows, 1, "a deleted shift must not leak its event into slot history")
 	require.Equal(t, slotEvent.ID, rows[0].ID)

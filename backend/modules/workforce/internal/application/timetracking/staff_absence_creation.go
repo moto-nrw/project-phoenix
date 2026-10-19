@@ -12,13 +12,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// CreateAbsence creates a new absence record for the caller themself.
 func (s *staffAbsenceService) CreateAbsence(ctx context.Context, staffID int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
 	return s.CreateOwnAbsence(ctx, staffID, nil, req)
 }
 
-// CreateOwnAbsence is the self-service entry point. Comp-time absences change
-// the Stundenkonto and therefore require the manager-authorized staff route.
 func (s *staffAbsenceService) CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
 	if req.AbsenceType == AbsenceTypeCompTime {
 		return nil, ErrManagerControlledAbsence
@@ -38,11 +35,6 @@ func (s *staffAbsenceService) CreateOwnAbsence(ctx context.Context, staffID int6
 	return s.CreateAbsenceFor(ctx, staffID, staffID, actorAccountID, req)
 }
 
-// CreateAbsenceFor creates an absence for subjectStaffID on createdByStaffID's
-// behalf (#1843 admin sick reporting; self-service passes the same id twice).
-// A full-day sick absence cascades into the plans; the merge path cascades
-// over the MERGED range of the primary row, which the idempotency guards in
-// the syncer make safe to re-run.
 func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
 	// Resolve the school-defined art first (#2403): it, not the client, decides
 	// the canonical type every guard below and every later calculation reads.

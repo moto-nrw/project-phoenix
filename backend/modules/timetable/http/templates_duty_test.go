@@ -29,7 +29,7 @@ func TestTemplateDutyRoundTripWithoutRoom(t *testing.T) {
 
 	s := buildTemplateModule(t, &mockMaterializationService{})
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	w := doTemplateJSON(t, router, http.MethodPost, "/templates", dutyTemplateBody(s, "Tpl-Busaufsicht"))
 	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
@@ -62,7 +62,7 @@ func TestTemplateDutyRejectsChildrenAndRoomlessCare(t *testing.T) {
 
 	s := buildTemplateModule(t, &mockMaterializationService{})
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	cases := map[string]func(body map[string]any){
 		"children": func(body map[string]any) { body["student_ids"] = []int64{s.studentA} },

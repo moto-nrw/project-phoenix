@@ -11,18 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// ResyncOfferingSourcedTemplates re-reconciles EVERY offering-sourced
-// template of the tenant against its offering's approved children. Grade
-// transitions call it (apply AND revert) after rewriting school classes:
-// promotions move children between Jahrgänge, so a template with a grade
-// filter must lose the children that left its filter and gain the ones that
-// entered it — and graduations turn children into alumni, whose rows are
-// capped. History before effectiveFrom stays untouched.
-//
-// A template whose source has drifted invalid (offering deleted mid-flight,
-// phase outside the period) is skipped with a warning, mirroring the decision
-// fan-out: one broken template must not block a whole grade transition.
-// The caller must hold the tenant recurrence lock.
 func (m *BookingMaterialization) ResyncOfferingSourcedTemplates(ctx context.Context, effectiveFrom calendar.Date) error {
 	templates, err := m.tenantSourcedTemplates(ctx)
 	if err != nil {
@@ -49,17 +37,6 @@ func (m *BookingMaterialization) templatesSourcing(ctx context.Context, offering
 	return templates, nil
 }
 
-// ResyncTemplatesSourcedFromOffering re-reconciles every template sourcing
-// ONE offering. Care-offering updates and phase service-window updates call
-// it (#2147 review): editing the offering's days or phase changes the wanted
-// roster of every template fed by it, and without this resync the sourced
-// rows and already-materialized occurrences would keep the pre-edit shape
-// until an unrelated template save. A template whose source the pending edit
-// makes incompatible with its planning period surfaces as the Timetable's
-// offering-source refusal — the caller must reject the edit then (#2147
-// review round 7): swallowing it would commit a change whose sourced rows and
-// materialized occurrences can never be resynced again. The caller must hold
-// the tenant recurrence lock.
 func (m *BookingMaterialization) ResyncTemplatesSourcedFromOffering(ctx context.Context, offeringID int64, effectiveFrom calendar.Date) error {
 	templates, err := m.templatesSourcing(ctx, offeringID, "offering roster resync")
 	if err != nil {
@@ -68,22 +45,6 @@ func (m *BookingMaterialization) ResyncTemplatesSourcedFromOffering(ctx context.
 	return m.resyncSourcedTemplateList(ctx, templates, effectiveFrom, false)
 }
 
-// DetachTemplatesSourcedFromOffering removes ONE offering from the source set
-// of every template sourcing it. Templates left with other sources are
-// resynced against the remaining set — the diff-based reconcile retires the
-// departing offering's contribution and keeps (or re-shapes) the rest. A
-// template whose LAST source departs runs the cleanup-only resync: all
-// offering-derived enrollment rows are deleted (not yet effective) or capped
-// at effectiveFrom (already started), legacy-owned rows stay protected, and
-// the affected students' already-materialized future occurrences are
-// reconciled. Finally the template's source columns themselves are rewritten:
-// since the jsonb id array carries no FK, there is no ON DELETE backstop —
-// this call is the ONLY thing keeping the array free of deleted ids. The
-// care-offering and phase delete flows call it BEFORE the row delete (#2147
-// review round 11), while the provenance tags still exist. A remaining
-// source that has itself drifted invalid keeps the template's remaining
-// sources and skips only the roster resync instead of blocking the delete.
-// The caller must hold the tenant recurrence lock.
 func (m *BookingMaterialization) DetachTemplatesSourcedFromOffering(ctx context.Context, offeringID int64, effectiveFrom calendar.Date) error {
 	templates, err := m.templatesSourcing(ctx, offeringID, "offering roster detach")
 	if err != nil {

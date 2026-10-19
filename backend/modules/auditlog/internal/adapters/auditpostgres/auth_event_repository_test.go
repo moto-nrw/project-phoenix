@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -33,7 +34,7 @@ func TestAuthEventRepository_Create(t *testing.T) {
 			"192.168.1.1",
 		)
 
-		err := repo.Create(ctx, event)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, event)
 		require.NoError(t, err)
 		assert.NotZero(t, event.ID)
 
@@ -49,7 +50,7 @@ func TestAuthEventRepository_Create(t *testing.T) {
 		event.ErrorMessage = "Invalid credentials"
 		event.UserAgent = "Mozilla/5.0"
 
-		err := repo.Create(ctx, event)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, event)
 		require.NoError(t, err)
 		assert.NotZero(t, event.ID)
 		assert.False(t, event.Success)
@@ -65,7 +66,7 @@ func TestAuthEventRepository_Create(t *testing.T) {
 		)
 		event.SetMetadata("token_family", "family-123")
 
-		err := repo.Create(ctx, event)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, event)
 		require.NoError(t, err)
 		assert.NotZero(t, event.ID)
 
@@ -79,7 +80,7 @@ func TestAuthEventRepository_Create(t *testing.T) {
 			"192.168.1.100",
 		)
 
-		err := repo.Create(ctx, event)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, event)
 		require.NoError(t, err)
 		assert.NotZero(t, event.ID)
 
@@ -98,17 +99,17 @@ func TestAuthEventRepository_FindByID(t *testing.T) {
 
 	t.Run("finds existing auth event", func(t *testing.T) {
 		event := audit.NewAuthEvent(account.ID, audit.EventTypeLogin, true, "192.168.1.1")
-		err := repo.Create(ctx, event)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, event)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, event.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(event.ID))
 		require.NoError(t, err)
 		assert.Equal(t, event.ID, found.ID)
 		assert.Equal(t, account.ID, found.AccountID)
 	})
 
 	t.Run("returns error for non-existent event", func(t *testing.T) {
-		_, err := repo.FindByID(ctx, int64(999999))
+		_, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(int64(999999)))
 		require.Error(t, err)
 	})
 }
@@ -133,14 +134,14 @@ func TestAuthEventRepository_FindByAccountID(t *testing.T) {
 		event2 := audit.NewAuthEvent(account1.ID, audit.EventTypeLogout, true, "192.168.1.1")
 		event3 := audit.NewAuthEvent(account2.ID, audit.EventTypeLogin, true, "192.168.1.2")
 
-		err := repo.Create(ctx, event1)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, event1)
 		require.NoError(t, err)
-		err = repo.Create(ctx, event2)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Create, event2)
 		require.NoError(t, err)
-		err = repo.Create(ctx, event3)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Create, event3)
 		require.NoError(t, err)
 
-		events, err := repo.FindByAccountID(ctx, account1.ID, 10)
+		events, err := testpkg.TenantQuery2(t, ctx, db, repo.FindByAccountID, account1.ID, 10)
 		require.NoError(t, err)
 		assert.Len(t, events, 2)
 
@@ -154,14 +155,14 @@ func TestAuthEventRepository_FindByAccountID(t *testing.T) {
 		event2 := audit.NewAuthEvent(account1.ID, audit.EventTypeLogout, true, "192.168.1.1")
 		event3 := audit.NewAuthEvent(account1.ID, audit.EventTypeTokenRefresh, true, "192.168.1.1")
 
-		err := repo.Create(ctx, event1)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, event1)
 		require.NoError(t, err)
-		err = repo.Create(ctx, event2)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Create, event2)
 		require.NoError(t, err)
-		err = repo.Create(ctx, event3)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Create, event3)
 		require.NoError(t, err)
 
-		events, err := repo.FindByAccountID(ctx, account1.ID, 2)
+		events, err := testpkg.TenantQuery2(t, ctx, db, repo.FindByAccountID, account1.ID, 2)
 		require.NoError(t, err)
 		assert.Len(t, events, 2)
 	})
@@ -179,24 +180,24 @@ func TestAuthEventRepository_List(t *testing.T) {
 
 	t.Run("lists all events", func(t *testing.T) {
 		event := audit.NewAuthEvent(account.ID, audit.EventTypeLogin, true, "192.168.1.1")
-		err := repo.Create(ctx, event)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, event)
 		require.NoError(t, err)
 
-		events, err := repo.List(ctx, nil)
+		events, err := testpkg.TenantQuery1(t, ctx, db, repo.List, nil)
 		require.NoError(t, err)
 		assert.NotEmpty(t, events)
 	})
 
 	t.Run("lists with filters", func(t *testing.T) {
 		event := audit.NewAuthEvent(account.ID, audit.EventTypeLogout, true, "192.168.1.1")
-		err := repo.Create(ctx, event)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, event)
 		require.NoError(t, err)
 
 		filters := map[string]interface{}{
 			"event_type": audit.EventTypeLogout,
 			"success":    true,
 		}
-		events, err := repo.List(ctx, filters)
+		events, err := testpkg.TenantQuery1(t, ctx, db, repo.List, filters)
 		require.NoError(t, err)
 
 		for _, e := range events {
@@ -219,9 +220,9 @@ func TestAuthEventRepository_PendingAccountWideWipes(t *testing.T) {
 	event := audit.NewAuthEvent(account.ID, audit.EventTypeTokenRevoked, true, "0.0.0.0")
 	event.SetMetadata("reason", "password_reset")
 	event.SetMetadata("pending_account_wide_wipe", true)
-	require.NoError(t, repo.Create(ctx, event))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Create, event))
 
-	pending, err := repo.ListPendingAccountWideWipes(ctx, event.CreatedAt.Add(-time.Minute))
+	pending, err := testpkg.TenantQuery1(t, ctx, db, repo.ListPendingAccountWideWipes, event.CreatedAt.Add(-time.Minute))
 	require.NoError(t, err)
 	require.Len(t, pending, 1)
 	assert.Equal(t, account.ID, pending[0].AccountID)
@@ -230,8 +231,8 @@ func TestAuthEventRepository_PendingAccountWideWipes(t *testing.T) {
 
 	completed := audit.NewAuthEvent(account.ID, audit.EventTypeAccountWideWipeCompleted, true, "0.0.0.0")
 	completed.SetMetadata("pending_event_id", event.ID)
-	require.NoError(t, repo.Create(ctx, completed))
-	pending, err = repo.ListPendingAccountWideWipes(ctx, event.CreatedAt.Add(-time.Minute))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Create, completed))
+	pending, err = testpkg.TenantQuery1(t, ctx, db, repo.ListPendingAccountWideWipes, event.CreatedAt.Add(-time.Minute))
 	require.NoError(t, err)
 	assert.Empty(t, pending)
 }
@@ -255,11 +256,11 @@ func TestAuthEventRepository_ListPendingAccountWideWipesIncludesOlderThanSevenDa
 		_, _ = db.NewDelete().TableExpr("audit.auth_events").Where("account_id = ?", account.ID).Exec(ctx)
 	}()
 
-	recentOnly, err := repo.ListPendingAccountWideWipes(ctx, time.Now().Add(-7*24*time.Hour))
+	recentOnly, err := testpkg.TenantQuery1(t, ctx, db, repo.ListPendingAccountWideWipes, time.Now().Add(-7*24*time.Hour))
 	require.NoError(t, err)
 	assert.Empty(t, recentOnly)
 
-	all, err := repo.ListPendingAccountWideWipes(ctx, time.Time{})
+	all, err := testpkg.TenantQuery1(t, ctx, db, repo.ListPendingAccountWideWipes, time.Time{})
 	require.NoError(t, err)
 	require.Len(t, all, 1)
 	assert.Equal(t, account.ID, all[0].AccountID)
@@ -278,17 +279,27 @@ func TestAuthEventRepository_ClaimPendingAccountWideWipes(t *testing.T) {
 	event := audit.NewAuthEvent(account.ID, audit.EventTypeTokenRevoked, true, "0.0.0.0")
 	event.SetMetadata("reason", "account_deactivated")
 	event.SetMetadata("pending_account_wide_wipe", true)
-	require.NoError(t, repo.Create(ctx, event))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Create, event))
 
-	claimed, err := repo.ClaimPendingAccountWideWipes(ctx, account.ID)
+	var claimed []audit.PendingAccountWideWipe
+	err := testpkg.WithinAdminContext(t, ctx, db, func(adminCtx context.Context) error {
+		var err error
+		claimed, err = repo.ClaimPendingAccountWideWipes(adminCtx, account.ID)
+		return err
+	})
 	require.NoError(t, err)
 	require.Len(t, claimed, 1)
 	assert.Equal(t, "account_deactivated", claimed[0].Reason)
 	completed := audit.NewAuthEvent(account.ID, audit.EventTypeAccountWideWipeCompleted, true, "0.0.0.0")
 	completed.SetMetadata("pending_event_id", claimed[0].EventID)
-	require.NoError(t, repo.Create(ctx, completed))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Create, completed))
 
-	again, err := repo.ClaimPendingAccountWideWipes(ctx, account.ID)
+	var again []audit.PendingAccountWideWipe
+	err = testpkg.WithinAdminContext(t, ctx, db, func(adminCtx context.Context) error {
+		var err error
+		again, err = repo.ClaimPendingAccountWideWipes(adminCtx, account.ID)
+		return err
+	})
 	require.NoError(t, err)
 	assert.Empty(t, again)
 }

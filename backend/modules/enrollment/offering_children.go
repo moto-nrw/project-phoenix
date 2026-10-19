@@ -38,11 +38,10 @@ func (m *Module) ApprovedOfferingChildrenForStudents(ctx context.Context, studen
 	if len(studentIDs) == 0 {
 		return []OfferingChildFacts{}, nil
 	}
-	err = m.transactions.RunInTx(ctx, func(ctx context.Context) error {
-		rows, err = m.engine.ApprovedOfferingChildrenForStudents(ctx, studentIDs)
-		return err
-	})
-	return rows, err
+	if err = m.transactions.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	return m.engine.ApprovedOfferingChildrenForStudents(ctx, studentIDs)
 }
 
 func (m *Module) OfferingChildren(ctx context.Context, childIDs []int64) (rows []OfferingChildFacts, err error) {
@@ -53,9 +52,8 @@ func (m *Module) OfferingChildren(ctx context.Context, childIDs []int64) (rows [
 	if len(childIDs) == 0 {
 		return []OfferingChildFacts{}, nil
 	}
-	err = m.transactions.RunInTx(ctx, func(ctx context.Context) error {
-		rows, err = m.engine.OfferingChildren(ctx, childIDs)
-		return err
-	})
-	return rows, err
+	if err = m.transactions.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	return m.engine.OfferingChildren(ctx, childIDs)
 }

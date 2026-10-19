@@ -8,7 +8,7 @@ import (
 )
 
 func (s *Service) UnclaimedGroups(ctx context.Context, date ports.Date) (rows []ports.UnclaimedGroup, err error) {
-	err = s.run("unclaimed_groups", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "unclaimed_groups", func(ctx context.Context) (ports.Stats, error) {
 		var stats ports.Stats
 		rows, stats, err = s.store.UnclaimedGroups(ctx, date)
 		return stats, err

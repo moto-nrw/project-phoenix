@@ -62,3 +62,8 @@ func (Reader) ListCareStudents(ctx context.Context, db bun.IDB, tenantID int64, 
 	}
 	return nil
 }
+
+func (Reader) AllSchoolsStudentRows(db bun.IDB) *bun.SelectQuery { return AllSchoolsQuery(db) }
+func (Reader) AllSchoolsStudentModelRows(db bun.IDB, model any) *bun.SelectQuery {
+	return AllSchoolsModelQuery(db, model)
+}
