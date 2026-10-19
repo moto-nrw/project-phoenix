@@ -131,7 +131,7 @@ export function ChildMasterDataView({
   if (loading) {
     if (area === "details") {
       return (
-        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2 [&_.animate-pulse]:animate-none">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 [&_.animate-pulse]:animate-none">
           <ParentSectionSkeleton rows={2} />
           <ParentSectionSkeleton rows={2} />
         </div>
