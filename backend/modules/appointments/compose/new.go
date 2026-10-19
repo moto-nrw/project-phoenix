@@ -33,7 +33,7 @@ func New(dependencies Dependencies) (*appointments.Module, error) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
 	})
-	return appointments.NewModule(engine{service: service}), nil
+	return appointments.NewModule(engine{service: service}, application.NewRetention(store)), nil
 }
 
 func database(db *bun.DB) postgres.Database {

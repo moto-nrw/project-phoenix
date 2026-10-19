@@ -50,5 +50,5 @@ func New(dependencies Dependencies) (*schoolstructure.Module, error) {
 		observation.Err = application.MapError(observation.Err)
 		dependencies.Observe(observation)
 	})
-	return schoolstructure.NewModule(application.NewEngine(service)), nil
+	return schoolstructure.NewModule(application.NewEngine(service), application.NewTransitionRetention(store)), nil
 }

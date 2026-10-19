@@ -1,0 +1,52 @@
+package application
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/moto-nrw/project-phoenix/modules/appointments"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
+
+// RetentionStore reads and deletes the appointments of the school in context
+// for the nightly cleanup (#4045).
+type RetentionStore interface {
+	// ListRetentionCandidates returns the appointments that start before
+	// cutoff and are no endless series, with their rules and latest
+	// override days.
+	ListRetentionCandidates(ctx context.Context, cutoff appointments.Date) ([]appointments.RetentionCandidate, error)
+	DeleteAppointments(ctx context.Context, ids []int64) (int, error)
+}
+
+// Retention deletes the ended appointments of the school in context.
+type Retention struct{ store RetentionStore }
+
+func NewRetention(store RetentionStore) *Retention {
+	if store == nil {
+		panic("appointments application: retention requires its store")
+	}
+	return &Retention{store: store}
+}
+
+// DeleteExpiredAppointments deletes the appointments whose last day lies
+// before the first Berlin calendar day a window of retentionDays keeps.
+func (r *Retention) DeleteExpiredAppointments(ctx context.Context, retentionDays int) (int, error) {
+	if retentionDays <= 0 {
+		return 0, fmt.Errorf("%w, got %d", appointments.ErrAppointmentRetentionWindow, retentionDays)
+	}
+	cutoff := appointments.Date(calendar.TodayDate().AddDays(-retentionDays).String())
+	candidates, err := r.store.ListRetentionCandidates(ctx, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	var expired []int64
+	for _, candidate := range candidates {
+		if last, ok := candidate.LastDay(); ok && last.Before(cutoff) {
+			expired = append(expired, candidate.Appointment.ID)
+		}
+	}
+	if len(expired) == 0 {
+		return 0, nil
+	}
+	return r.store.DeleteAppointments(ctx, expired)
+}

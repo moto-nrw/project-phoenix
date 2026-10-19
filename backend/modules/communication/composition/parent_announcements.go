@@ -57,7 +57,7 @@ func NewParentAnnouncementsWithAttachments(cfg ParentAnnouncementConfig, attachm
 	if cfg.Deliveries != nil {
 		deliveries = parentAnnouncementDeliveryAdapter{ParentAnnouncementDeliveryRecorder: cfg.Deliveries}
 	}
-	return &parentAnnouncements{service: staff.NewService(staff.ServiceConfig{
+	return &parentAnnouncements{Service: staff.NewService(staff.ServiceConfig{
 		Repo: staff.NewRepository(cfg.Repo), Settings: cfg.Settings, Outbox: cfg.Outbox, PushOutbox: cfg.PushOutbox, Notifier: deliveryPorts.NewNotificationSender(cfg.Notifier),
 		ReminderNotifier: deliveryPorts.NewDurableNotificationSender(cfg.ReminderNotifier),
 		Preferences:      cfg.Preferences, Deliveries: deliveries,
@@ -107,10 +107,10 @@ func (a parentAnnouncementDeliveryAdapter) ListForEntity(ctx context.Context, te
 	return result, nil
 }
 
-type parentAnnouncements struct{ service staff.Service }
+type parentAnnouncements struct{ staff.Service }
 
 func (p *parentAnnouncements) ListParentAnnouncements(ctx context.Context, includeInactive bool) ([]communication.ParentAnnouncement, error) {
-	rows, err := p.service.List(ctx, includeInactive)
+	rows, err := p.List(ctx, includeInactive)
 	if err != nil {
 		return nil, mapParentAnnouncementError(err)
 	}
@@ -122,13 +122,13 @@ func (p *parentAnnouncements) ListParentAnnouncements(ctx context.Context, inclu
 }
 
 func (p *parentAnnouncements) GetParentAnnouncement(ctx context.Context, id int64) (*communication.ParentAnnouncement, error) {
-	row, err := p.service.Get(ctx, id)
+	row, err := p.Get(ctx, id)
 	if err != nil {
 		return nil, mapParentAnnouncementError(err)
 	}
 	announcement := mapParentAnnouncement(row)
 	if row.IsDeclaration() {
-		frozen, err := p.service.DeclarationFrozen(ctx, row)
+		frozen, err := p.DeclarationFrozen(ctx, row)
 		if err != nil {
 			return nil, err
 		}
@@ -138,31 +138,31 @@ func (p *parentAnnouncements) GetParentAnnouncement(ctx context.Context, id int6
 }
 
 func (p *parentAnnouncements) CreateParentAnnouncement(ctx context.Context, createdBy int64, input communication.ParentAnnouncementInput) (*communication.ParentAnnouncement, error) {
-	row, err := p.service.Create(ctx, createdBy, mapParentAnnouncementInput(input))
+	row, err := p.Create(ctx, createdBy, mapParentAnnouncementInput(input))
 	return mapParentAnnouncement(row), mapParentAnnouncementError(err)
 }
 
 func (p *parentAnnouncements) UpdateParentAnnouncement(ctx context.Context, id int64, input communication.ParentAnnouncementInput) (*communication.ParentAnnouncement, error) {
-	row, err := p.service.Update(ctx, id, mapParentAnnouncementInput(input))
+	row, err := p.Update(ctx, id, mapParentAnnouncementInput(input))
 	return mapParentAnnouncement(row), mapParentAnnouncementError(err)
 }
 
 func (p *parentAnnouncements) DeleteParentAnnouncement(ctx context.Context, id int64) error {
-	return mapParentAnnouncementError(p.service.Delete(ctx, id))
+	return mapParentAnnouncementError(p.Delete(ctx, id))
 }
 
 func (p *parentAnnouncements) PublishParentAnnouncement(ctx context.Context, id int64) (*communication.ParentAnnouncement, error) {
-	row, err := p.service.Publish(ctx, id)
+	row, err := p.Publish(ctx, id)
 	return mapParentAnnouncement(row), mapParentAnnouncementError(err)
 }
 
 func (p *parentAnnouncements) UnpublishParentAnnouncement(ctx context.Context, id int64) (*communication.ParentAnnouncement, error) {
-	row, err := p.service.Unpublish(ctx, id)
+	row, err := p.Unpublish(ctx, id)
 	return mapParentAnnouncement(row), mapParentAnnouncementError(err)
 }
 
 func (p *parentAnnouncements) ParentAnnouncementStats(ctx context.Context, id int64) (*communication.ParentAnnouncementStats, error) {
-	stats, err := p.service.Stats(ctx, id)
+	stats, err := p.Stats(ctx, id)
 	if stats == nil {
 		return nil, mapParentAnnouncementError(err)
 	}
@@ -172,7 +172,7 @@ func (p *parentAnnouncements) ParentAnnouncementStats(ctx context.Context, id in
 }
 
 func (p *parentAnnouncements) ParentAnnouncementRecipients(ctx context.Context, id int64) ([]communication.ParentAnnouncementRecipient, error) {
-	rows, err := p.service.Recipients(ctx, id)
+	rows, err := p.Recipients(ctx, id)
 	if err != nil {
 		return nil, mapParentAnnouncementError(err)
 	}
@@ -187,7 +187,7 @@ func (p *parentAnnouncements) ParentAnnouncementRecipients(ctx context.Context, 
 }
 
 func (p *parentAnnouncements) ParentAnnouncementPollResults(ctx context.Context, id int64) (*communication.ParentAnnouncementPollResults, error) {
-	rows, err := p.service.PollResults(ctx, id)
+	rows, err := p.PollResults(ctx, id)
 	if rows == nil {
 		return nil, mapParentAnnouncementError(err)
 	}
@@ -204,7 +204,7 @@ func (p *parentAnnouncements) ParentAnnouncementPollResults(ctx context.Context,
 }
 
 func (p *parentAnnouncements) ParentAnnouncementPollChildren(ctx context.Context, id int64) ([]communication.ParentAnnouncementPollChild, error) {
-	rows, err := p.service.PollChildren(ctx, id)
+	rows, err := p.PollChildren(ctx, id)
 	if err != nil {
 		return nil, mapParentAnnouncementError(err)
 	}
@@ -220,12 +220,12 @@ func (p *parentAnnouncements) ParentAnnouncementPollChildren(ctx context.Context
 }
 
 func (p *parentAnnouncements) RemindParentAnnouncement(ctx context.Context, id int64) (int, error) {
-	count, err := p.service.RemindOutstanding(ctx, id)
+	count, err := p.RemindOutstanding(ctx, id)
 	return count, mapParentAnnouncementError(err)
 }
 
 func (p *parentAnnouncements) ParentAnnouncementLetterStatus(ctx context.Context, id int64) (*communication.ParentAnnouncementLetterStatus, error) {
-	status, err := p.service.LetterStatus(ctx, id)
+	status, err := p.LetterStatus(ctx, id)
 	if status == nil {
 		return nil, mapParentAnnouncementError(err)
 	}
@@ -259,22 +259,22 @@ func (p *parentAnnouncements) ParentAnnouncementLetterStatus(ctx context.Context
 }
 
 func (p *parentAnnouncements) ResendParentAnnouncementEmails(ctx context.Context, id int64) (int, error) {
-	count, err := p.service.ResendFailedEmails(ctx, id)
+	count, err := p.ResendFailedEmails(ctx, id)
 	return count, mapParentAnnouncementError(err)
 }
 
 func (p *parentAnnouncements) UpdateParentAnnouncementReminder(ctx context.Context, id int64, input communication.ParentAnnouncementReminderInput) (*communication.ParentAnnouncement, error) {
-	row, err := p.service.UpdateReminder(ctx, id, staff.ReminderInput{ReminderAt: input.ReminderAt, ReminderText: input.ReminderText})
+	row, err := p.UpdateReminder(ctx, id, staff.ReminderInput{ReminderAt: input.ReminderAt, ReminderText: input.ReminderText})
 	return mapParentAnnouncement(row), mapParentAnnouncementError(err)
 }
 
 func (p *parentAnnouncements) SendDueParentAnnouncementReminders(ctx context.Context, notBefore, dueBefore time.Time) (int, *time.Time, error) {
-	count, retryFrom, err := p.service.SendDueReminders(ctx, notBefore, dueBefore)
+	count, retryFrom, err := p.SendDueReminders(ctx, notBefore, dueBefore)
 	return count, retryFrom, mapParentAnnouncementError(err)
 }
 
 func (p *parentAnnouncements) PublishCareCancellation(ctx context.Context, input communication.CareCancellationInput) (*communication.CareCancellationResult, error) {
-	result, err := p.service.PublishCareCancellation(ctx, staff.CareCancellationInput{
+	result, err := p.Service.PublishCareCancellation(ctx, staff.CareCancellationInput{
 		StudentIDs: input.StudentIDs, Title: input.Title, Body: input.Body, CreatedBy: input.CreatedBy,
 	})
 	if result == nil {
@@ -286,7 +286,7 @@ func (p *parentAnnouncements) PublishCareCancellation(ctx context.Context, input
 }
 
 func (p *parentAnnouncements) CareCancellationReachFor(ctx context.Context, studentIDs []int64) (*communication.CareCancellationReach, error) {
-	reach, err := p.service.CareCancellationReachFor(ctx, studentIDs)
+	reach, err := p.Service.CareCancellationReachFor(ctx, studentIDs)
 	if reach == nil {
 		return nil, mapParentAnnouncementError(err)
 	}
@@ -294,22 +294,22 @@ func (p *parentAnnouncements) CareCancellationReachFor(ctx context.Context, stud
 }
 
 func (p *parentAnnouncements) AnnouncementExists(ctx context.Context, id int64) (bool, error) {
-	exists, err := p.service.AnnouncementExists(ctx, id)
+	exists, err := p.Service.AnnouncementExists(ctx, id)
 	return exists, mapParentAnnouncementError(err)
 }
 
 func (p *parentAnnouncements) AnnouncementEditable(ctx context.Context, id int64) (bool, error) {
-	editable, err := p.service.AnnouncementEditable(ctx, id)
+	editable, err := p.Service.AnnouncementEditable(ctx, id)
 	return editable, mapParentAnnouncementError(err)
 }
 
 func (p *parentAnnouncements) LockAnnouncementForAttachmentChange(ctx context.Context, id int64) (bool, bool, error) {
-	exists, editable, err := p.service.LockAnnouncementForAttachmentChange(ctx, id)
+	exists, editable, err := p.Service.LockAnnouncementForAttachmentChange(ctx, id)
 	return exists, editable, mapParentAnnouncementError(err)
 }
 
 func (p *parentAnnouncements) ResetAnnouncementEngagement(ctx context.Context, id int64) error {
-	return mapParentAnnouncementError(p.service.ResetAnnouncementEngagement(ctx, id))
+	return mapParentAnnouncementError(p.Service.ResetAnnouncementEngagement(ctx, id))
 }
 
 func mapParentAnnouncementInput(input communication.ParentAnnouncementInput) staff.Input {

@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 
+	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
@@ -15,17 +17,22 @@ import (
 	enrollmentModule "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	fileStorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
+	fileStorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
@@ -409,6 +416,82 @@ func cleanupJobRetentionSteps(
 	return steps
 }
 
+// schoolContentRetentionSteps are the deletions of the content a school
+// creates itself (#4045): parent announcements and staff notices after the
+// school's message windows, ended appointments after its timetable window
+// and cancelled or deleted ones after the fixed feed window, grade
+// transitions after its window for children and the rows of removed files
+// after the fixed window of their cleanup intents. A missing owner leaves its
+// step out.
+func schoolContentRetentionSteps(
+	settings settingsModule.StatisticsRetentionSource, announcements communicationModule.ParentAnnouncementRetention,
+	staffNotices timetable.StaffNoticeRetention, appointments appointmentRetention,
+	transitions schoolstructure.GradeTransitionRetention, removedFiles fileStorageModule.CleanupRetention,
+) []schedulerPorts.RetentionStep {
+	var steps []schedulerPorts.RetentionStep
+	if announcements != nil {
+		steps = append(steps, windowRetentionStep(auditModels.DeletionTypeParentAnnouncementRetention,
+			settingsModule.ParentAnnouncementRetentionWindow(settings), nil,
+			announcements.DeleteExpiredParentAnnouncements))
+	}
+	if staffNotices != nil {
+		steps = append(steps, windowRetentionStep(auditModels.DeletionTypeStaffNoticeRetention,
+			settingsModule.StaffNoticeRetentionWindow(settings), timetable.ErrStaffNoticeRetentionWindow,
+			staffNotices.DeleteExpiredStaffNotices))
+	}
+	if appointments != nil {
+		steps = append(steps,
+			windowRetentionStep(auditModels.DeletionTypeAppointmentRetention,
+				settingsModule.AppointmentRetentionWindow(settings), appointmentsModule.ErrAppointmentRetentionWindow,
+				appointments.DeleteExpiredAppointments),
+			ownerRetentionStep(auditModels.DeletionTypeAppointmentTombstoneRetention, func(ctx context.Context) (int, int, error) {
+				deleted, err := appointments.DeleteFeedTombstonesBefore(ctx, time.Now().AddDate(0, 0, -appointmentsModule.TombstoneRetentionDays))
+				return deleted, appointmentsModule.TombstoneRetentionDays, err
+			}),
+		)
+	}
+	if transitions != nil {
+		steps = append(steps, windowRetentionStep(auditModels.DeletionTypeGradeTransitionRetention,
+			settingsModule.GradeTransitionRetentionWindow(settings), schoolstructure.ErrGradeTransitionRetentionWindow,
+			transitions.DeleteExpiredGradeTransitions))
+	}
+	if removedFiles != nil {
+		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeRemovedFileRetention, removedFiles.DeleteRemovedFiles))
+	}
+	return steps
+}
+
+// appointmentRetention deletes the ended appointments after the school's
+// timetable window and the cancelled or deleted ones after the fixed feed
+// window, which subscribed calendars rely on.
+type appointmentRetention interface {
+	appointmentsModule.AppointmentRetention
+	DeleteFeedTombstonesBefore(ctx context.Context, before time.Time) (int, error)
+}
+
+// windowRetentionStep runs an owner deletion over the school's window of one
+// setting. A window that is not positive deletes nothing; it and a window the
+// owner refuses (refused, if the owner names its refusal) name that setting.
+func windowRetentionStep(kind string, window settingsModule.RetentionWindow, refused error, deleteExpired func(context.Context, int) (int, error)) schedulerPorts.RetentionStep {
+	return schedulerPorts.RetentionStep{
+		Kind: kind,
+		Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
+			days, err := window.Days(ctx)
+			if err != nil {
+				return schedulerPorts.RetentionOutcome{}, err
+			}
+			if days <= 0 {
+				return schedulerPorts.RetentionOutcome{}, window.SettingError(fmt.Errorf("retention window must be positive, got %d", days))
+			}
+			deleted, err := deleteExpired(ctx, days)
+			if refused != nil && errors.Is(err, refused) {
+				return schedulerPorts.RetentionOutcome{}, window.SettingError(err)
+			}
+			return schedulerPorts.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
+		},
+	}
+}
+
 // ownerRetentionStep runs an owner deletion that reports its deleted rows and
 // the window it applied: the same for every school, or the school's window
 // the owner resolves itself.
@@ -420,4 +503,25 @@ func ownerRetentionStep(kind string, deleteExpired func(context.Context) (int, i
 			return schedulerPorts.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
 		},
 	}
+}
+
+// newSchoolContentRetentionSteps builds the owners of the content a school
+// creates itself (#4045) over db and returns their retention steps.
+func newSchoolContentRetentionSteps(db transactionruntime.Database, settings retentionSettings, announcements communicationModule.ParentAnnouncementRetention) ([]schedulerPorts.RetentionStep, error) {
+	built, err := BuildServeAppointments(db)
+	if err != nil {
+		return nil, fmt.Errorf("compose worker appointment retention: %w", err)
+	}
+	appointments, ok := built.(appointmentRetention)
+	if !ok {
+		return nil, fmt.Errorf("compose worker appointment retention: appointments %T lack their retention", built)
+	}
+	transitions, err := schoolStructureCompose.New(schoolStructureCompose.Dependencies{DB: db.Pool(), Observe: func(schoolStructureCompose.Observation) {}})
+	if err != nil {
+		return nil, fmt.Errorf("compose worker grade transition retention: %w", err)
+	}
+	return schoolContentRetentionSteps(
+		settings, announcements, timetable.NewStaffNoticeRetention(timetableCompose.NewStaffNoticeRepository(db.Pool()), calendar.TodayDate),
+		appointments, transitions, fileStorageCompose.NewCleanupRetention(),
+	), nil
 }

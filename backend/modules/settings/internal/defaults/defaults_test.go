@@ -964,7 +964,6 @@ func TestTimetableSettings_DependsOn(t *testing.T) {
 		"timetable.auto_end_enabled",
 		"timetable.overdue_threshold_minutes",
 		"timetable.show_expected_children_count",
-		"gdpr.timetable_retention_days",
 		"timetable.day_start_time",
 		"timetable.day_end_time",
 	}
@@ -1031,6 +1030,10 @@ func TestTimetableSettings_Permissions(t *testing.T) {
 
 	retentionDef := config.GetDefinition("gdpr.timetable_retention_days")
 	require.NotNil(t, retentionDef)
+	// Calendar appointments follow the timetable window and exist without
+	// the timetable (#4045), so the school always sees the window.
+	require.NotNil(t, retentionDef.DependsOn)
+	assert.Equal(t, "gdpr.data_cleanup_enabled", retentionDef.DependsOn.Key)
 	assert.Equal(t, "gdpr", retentionDef.Tab)
 	assert.Equal(t, "config:manage", retentionDef.WritePermission, "GDPR settings must use config:manage")
 }

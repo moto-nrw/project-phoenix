@@ -233,8 +233,8 @@ var timetable_init_stundenplan_0Definitions = []config.Definition{
 	},
 	{
 		Key:             config.KeyGDPRTimetableRetentionDays,
-		Label:           "Betreuungsplan aufbewahren (Tage)",
-		Description:     "So lange bleiben beendete oder abgesagte Termine gespeichert.",
+		Label:           "Betreuungsplan und Termine aufbewahren (Tage)",
+		Description:     "So lange bleiben beendete oder abgesagte Einträge im Betreuungsplan gespeichert. Vergangene Termine im Kalender löscht moto nach derselben Zeit.",
 		Type:            config.FieldNumber,
 		Default:         365,
 		ReadPermission:  "config:read",
@@ -244,7 +244,9 @@ var timetable_init_stundenplan_0Definitions = []config.Definition{
 		Category:        "stundenplan",
 		SortOrder:       30,
 		Validation:      config.Range(30, 1825),
-		DependsOn:       config.DependsOnEq(config.KeyTimetableEnabled, true),
+		// Termine im Kalender folgen derselben Frist (#4045) und gibt es auch
+		// ohne Betreuungsplan; die Schule sieht die Frist deshalb immer.
+		DependsOn: config.DependsOnEq(config.KeyDataCleanupEnabled, true),
 	},
 	{
 		Key:             config.KeyTimetableDayStartTime,

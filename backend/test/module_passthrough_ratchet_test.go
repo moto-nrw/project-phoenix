@@ -201,8 +201,9 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughOwnerBudgets: 3109 under ADR 0061, the 717 of
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
-// by ADR 0063 and by ADR 0064 (3,011 to 3,091).
-const modulePassthroughOwnerBudgetTotal = 3019
+// by ADR 0063 and by ADR 0064 (3,011 to 3,091), and by ADR 0072 (one for
+// modules/schoolcalendar).
+const modulePassthroughOwnerBudgetTotal = 3008
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -218,7 +219,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/auditlog":            1,
 	"modules/careplan":            293,
 	"modules/classday":            18,
-	"modules/communication":       71,
+	"modules/communication":       59,
 	"modules/dataimport":          1,
 	"modules/delivery":            15,
 	"modules/devicefleet":         58,
@@ -234,17 +235,18 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/peopledirectory":     307,
 	"modules/requestreview":       17,
 	"modules/schedulerruntime":    4,
-	"modules/schoolcalendar":      44,
-	"modules/schoolmembership":    82,
-	"modules/schoolsetup":         2,
-	"modules/schoolstructure":     70,
-	"modules/settings":            19,
-	"modules/studentpresence":     240,
-	"modules/timetable":           488,
-	"modules/workforce":           393,
-	"workflows/openroommove":      1,
-	"workflows/parentportal":      19,
-	"workflows/shiftplansync":     3,
+	// Raised by ADR 0072: the feed cleanup keeps only the staff feed tombstones.
+	"modules/schoolcalendar":   45,
+	"modules/schoolmembership": 82,
+	"modules/schoolsetup":      2,
+	"modules/schoolstructure":  70,
+	"modules/settings":         19,
+	"modules/studentpresence":  240,
+	"modules/timetable":        488,
+	"modules/workforce":        393,
+	"workflows/openroommove":   1,
+	"workflows/parentportal":   19,
+	"workflows/shiftplansync":  3,
 }
 
 func TestModulePassthroughRatchet(t *testing.T) {

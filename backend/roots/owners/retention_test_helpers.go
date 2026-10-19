@@ -5,12 +5,18 @@ package owners
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
+	"time"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
@@ -70,7 +76,61 @@ func NewRetentionTestOwners(db transactionruntime.Database, unit tenant.UnitOfWo
 		filestorageCompose.NewCleanupRetention(), workforceCompose.NewCleanupRetention(),
 		carePlanCompose.NewCleanupRetention(), enrollmentCompose.New(),
 	)...)
+	announcements, err := newRetentionTestAnnouncements(db, settings.Settings)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	contentSteps, err := newSchoolContentRetentionSteps(db, settings.Settings, announcements)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	steps = append(steps, contentSteps...)
 	return command, settings.Settings, steps, nil
+}
+
+// newRetentionTestAnnouncements composes the parent announcements the way
+// the roots do, over File Storage's attachment purger, and returns their
+// retention (#4045). No mail or push is wired: the announcements the tests
+// delete have nothing pending, and the purger only queues cleanup intents,
+// so the object store is never reached.
+func newRetentionTestAnnouncements(db transactionruntime.Database, settings settingsCompose.BatchSettingsService) (communication.ParentAnnouncementRetention, error) {
+	purger, err := filestorageCompose.NewAttachmentPurger(filestorageCompose.AttachmentPurgerDependencies{
+		DB: db.Pool(), Objects: unreachableObjects{}, Observe: func(filestorageCompose.Observation) {},
+	})
+	if err != nil {
+		return nil, err
+	}
+	announcements, err := communicationCompose.NewParentAnnouncementsWithAttachments(communicationCompose.ParentAnnouncementConfig{
+		Repo:     parentStore.NewParentAnnouncementRepository(db.Pool(), NewParentAnnouncementAudience(db, ParentAnnouncementApplicants(enrollmentCompose.New()))),
+		Settings: settingsModule.NewParentAnnouncementValues(settings), Logger: slog.Default(), Fingerprints: SecurityFingerprints{},
+	}, purger, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
+	if err != nil {
+		return nil, err
+	}
+	retention, ok := announcements.(communication.ParentAnnouncementRetention)
+	if !ok {
+		return nil, errors.New("parent announcements lack their retention")
+	}
+	return retention, nil
+}
+
+// unreachableObjects is the object store of a composition that never moves
+// bytes.
+type unreachableObjects struct{}
+
+func (unreachableObjects) SavePrivate(context.Context, string, int64, string, io.Reader) (int64, error) {
+	return 0, errors.New("retention test: no object store")
+}
+
+func (unreachableObjects) OpenPrivate(context.Context, string, int64, string) (interface {
+	io.ReadSeekCloser
+	ModTime() time.Time
+}, error) {
+	return nil, errors.New("retention test: no object store")
+}
+
+func (unreachableObjects) RemovePrivate(context.Context, string, int64, string) error {
+	return errors.New("retention test: no object store")
 }
 
 // newSettledEnrollmentTestRetention composes the cleanup of settled

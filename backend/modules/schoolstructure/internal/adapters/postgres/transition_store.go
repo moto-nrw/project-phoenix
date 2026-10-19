@@ -331,6 +331,31 @@ func (s *Store) DeleteTransition(ctx context.Context, tenantID, id int64) (int64
 	return stats.Rows, stats, nil
 }
 
+// DeleteTransitionsEndedBefore removes the transitions of the school that
+// ended before cutoff: an applied one at its application, a reverted one at
+// its reversal, a draft at its last change (#4045). Their child rows cascade.
+func (s *Store) DeleteTransitionsEndedBefore(ctx context.Context, tenantID int64, cutoff time.Time) (int64, domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return 0, domain.OperationStats{}, err
+	}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	result, err := db.NewDelete().TableExpr(transitionsTable).
+		Where(`"transition".tenant_id = ?`, tenantID).
+		Where(`COALESCE("transition".reverted_at, "transition".applied_at, "transition".updated_at) < ?`, cutoff).
+		Exec(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return 0, stats, storeError("delete ended transitions", err)
+	}
+	stats.Rows, err = result.RowsAffected()
+	if err != nil {
+		return 0, stats, storeError("delete ended transitions: count rows", err)
+	}
+	return stats.Rows, stats, nil
+}
+
 func (s *Store) LockTransitions(ctx context.Context, tenantID int64) (domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
