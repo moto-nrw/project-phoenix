@@ -973,7 +973,7 @@ function ownGroupsTopic(
         "Bei offener Betreuung gibt es keine festen eigenen Gruppen in moto.",
       group: "gruppen",
       audience: ["caregiver", "lead"],
-      icon: "Users",
+      icon: "UsersThree",
       steps: [
         "Öffnen Sie `Alle Kinder`.",
         "Nutzen Sie die Suche oder die Filter für die benötigten Kinder.",
@@ -992,7 +992,7 @@ function ownGroupsTopic(
         "Ob Sie eigene Gruppen sehen, hängt von der Arbeitsweise Ihrer OGS ab.",
       group: "gruppen",
       audience: ["caregiver", "lead"],
-      icon: "Users",
+      icon: "UsersThree",
       steps: [
         "Prüfen Sie, ob `Meine Gruppen` oder `Weitere Gruppen` in der Seitenleiste steht.",
         "Ist einer der Bereiche vorhanden? Öffnen Sie dort die gewünschte Gruppe.",
@@ -1016,7 +1016,7 @@ function ownGroupsTopic(
     summary: "Öffnen Sie Ihre festen Gruppen und die zugehörigen Kinder.",
     group: "gruppen",
     audience: ["caregiver", "lead"],
-    icon: "Users",
+    icon: "UsersThree",
     steps: [
       "Öffnen Sie `Meine Gruppen` oder `Weitere Gruppen` in der Seitenleiste.",
       "Wählen Sie die gewünschte Gruppe.",
@@ -2846,7 +2846,7 @@ function groupsCatalogTopic(groupMode: HelpGroupMode): HelpTopic {
       : "Legen Sie jede Gruppe an und geben Sie ihr Raum und Leitung.",
     group: "einrichten",
     audience: "lead",
-    icon: "Users",
+    icon: "UsersThree",
     steps: [],
     instructionGroups: [
       {
@@ -3000,7 +3000,7 @@ function createStudentTopic(): HelpTopic {
     summary: "Einzeln über ein Fenster. Viele auf einmal über eine Vorlage.",
     group: "einrichten",
     audience: "lead",
-    icon: "Student",
+    icon: "User",
     steps: [],
     instructionGroups: [
       {
@@ -6984,7 +6984,7 @@ function teacherClassDayTopic(): HelpTopic {
       "Die `Klassenansicht` zeigt Ihre Klassen und die Zahlen des Tages.",
     group: "klasse",
     audience: "teacher",
-    icon: "Users",
+    icon: "ChalkboardTeacher",
     steps: [
       "Melden Sie sich bei moto schule an.",
       "Sie landen in der `Klassenansicht`.",
@@ -7228,7 +7228,7 @@ function teacherSupervisionRosterTopic(): HelpTopic {
       "In einer laufenden Aufsicht sehen Sie Abholung und Notfallkontakt.",
     group: "aufsicht",
     audience: "teacher",
-    icon: "Users",
+    icon: "User",
     steps: [
       "Starten Sie Ihre Aufsicht.",
       "Wählen Sie ein Kind aus der Liste.",
