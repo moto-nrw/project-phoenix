@@ -122,7 +122,6 @@ type relayKiosk func(t *testing.T, name string) (apiKey, deviceID string, school
 // TestFullProductionRouterGolden built with fake's pyreportal DSN. It closes
 // fake at the end to take Sentry down.
 func checkIoTErrorReportsRelay(t *testing.T, router http.Handler, fake *fakeSentry, newKiosk relayKiosk) {
-	t.Parallel()
 	dsn := fake.dsn(relayTestProjectID)
 
 	recorder := make(recordedEvents, 256)
