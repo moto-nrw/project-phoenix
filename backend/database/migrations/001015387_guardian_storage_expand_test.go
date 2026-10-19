@@ -428,9 +428,13 @@ func TestGuardianStorageExpandCatalogAndDefaults(t *testing.T) {
 		var invalid int
 		require.NoError(t, db.NewRaw(`SELECT count(*) FROM pg_index WHERE indrelid = ?::regclass AND NOT indisvalid`, table).Scan(t.Context(), &invalid))
 		require.Zero(t, invalid)
-		var customTriggers int
-		require.NoError(t, db.NewRaw(`SELECT count(*) FROM pg_trigger WHERE tgrelid = ?::regclass AND NOT tgisinternal`, table).Scan(t.Context(), &customTriggers))
-		require.Zero(t, customTriggers, "Expand adds no routing or compatibility triggers")
+		var customTriggers []string
+		require.NoError(t, db.NewRaw(`SELECT tgname FROM pg_trigger WHERE tgrelid = ?::regclass AND NOT tgisinternal ORDER BY tgname`, table).Scan(t.Context(), &customTriggers))
+		if table == "auth.guardian_student_access" {
+			require.Equal(t, []string{"lock_live_account_reference"}, customTriggers, "the account-reference fence must remain the only trigger on this Expand target")
+		} else {
+			require.Empty(t, customTriggers, "Expand adds no routing or compatibility triggers")
+		}
 		for _, role := range []string{"phoenix_tenant", "phoenix_admin"} {
 			var granted bool
 			require.NoError(t, db.NewRaw(`SELECT has_table_privilege(?, ?::regclass, 'SELECT, INSERT, UPDATE, DELETE')`, role, table).Scan(t.Context(), &granted))
