@@ -144,7 +144,7 @@ func TestWorkflowRollsBackAfterEachOwnerCommand(t *testing.T) {
 						return result, err
 					}
 					return result, failure
-				}, nil)
+				}, nil, schoolmembership.Reinstatement{})
 			case "audit":
 				f.deps.AppendAudit = func(context.Context, staffoffboarding.Actor, staffoffboarding.Result) error { return failure }
 			case "cleanup":
