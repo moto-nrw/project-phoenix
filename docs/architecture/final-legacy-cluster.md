@@ -1,6 +1,6 @@
 # Final legacy cluster: round 7
 
-Base: `121b0ee5130db5ec6b289965f495acdca6285744` after PR #4344. The obsolete held follow-up is not part of this branch.
+Base: `121b0ee5130db5ec6b289965f495acdca6285744` after PR #4344. The obsolete held follow-up is not part of this branch. Integrated development `2fdb6d2c4cff1bd18069067f07316ed51dcae7c1` after the dependency-only PR #4375; backend source and policy are unchanged by that integration.
 
 ## Measured cutover
 
