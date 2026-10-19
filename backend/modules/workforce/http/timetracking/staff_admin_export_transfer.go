@@ -14,9 +14,10 @@ import (
 
 // Manual SFTP transfer of the cross-staff time export (#3050).
 //
-// The handler gives the Export Transfer capability the SAME Export() call the
-// download uses. The capability runs it in its committed intent transaction,
-// so the transferred file and its access audit cannot diverge.
+// The handler builds the file with the SAME Export() call the download uses
+// and hands the resulting bytes to the Export Transfer capability. That is why
+// the transferred file cannot drift from the downloaded one: there is one
+// file, produced once, either written to the response or sent onwards.
 
 // transferExportRequest is the POST body. The parameters travel in the body,
 // not the query: a POST proxy forwards the body, and relying on a forwarded
@@ -69,13 +70,11 @@ func (rs *StaffAdminResource) exportSFTPStatus(w http.ResponseWriter, r *http.Re
 
 // transferExportViaSFTP handles POST /api/staff/time-tracking/export/sftp.
 // Same permission as the export itself; the export parameters come from the
-// query, and the remote path never does.
+// body, and the remote path never does.
 //
-// A failed transfer answers 200 with success=false, not 5xx. That is not
-// cosmetic: TenantTxMiddleware rolls the tenant transaction back on a 5xx,
-// which would delete the journal row recording the failed attempt — the exact
-// row the audit requirement asks for. 5xx stays reserved for failures where
-// nothing was attempted or nothing could be recorded.
+// A transport failure answers 200 with transferred=false. Infrastructure
+// failures answer 5xx; the independently committed intent and access audit
+// survive any later request-transaction rollback.
 func (rs *StaffAdminResource) transferExportViaSFTP(w http.ResponseWriter, r *http.Request) {
 	req, err := parseTimeExportBody(r)
 	if err != nil {
@@ -111,9 +110,9 @@ func (rs *StaffAdminResource) transferExportViaSFTP(w http.ResponseWriter, r *ht
 		Kind:   exportTransferKindStaffTimeTracking,
 		Format: req.Format,
 		PrepareFile: func(ctx context.Context) (string, []byte, error) {
-			file, exportErr := rs.TimeExportService.ExportStaffTime(ctx, req, claims.AccountID, strings.Join(claims.Roles, ","))
-			if exportErr != nil {
-				return "", nil, exportErr
+			file, err := rs.TimeExportService.ExportStaffTime(ctx, req, claims.AccountID, strings.Join(claims.Roles, ","))
+			if err != nil {
+				return "", nil, err
 			}
 			return file.Filename, file.Data, nil
 		},

@@ -408,7 +408,7 @@ func TestResolveUnregisteredTagScanPersistenceFailuresAreInternal(t *testing.T) 
 		"adapter error with unwrap":       &wrappedDriverError{op: "resolve unregistered tag scan", err: rawErr},
 		"fmt wrapped adapter error":       fmt.Errorf("devicefleet postgres: resolve unregistered tag scan: %w", rawErr),
 		"raw":                             errors.New("resolve failed"),
-		"store failure with refusal text": &storeFailureError{err: errors.New("unregistered tag scan not found")},
+		"store failure with refusal text": &storeFailureError{err: devicefleet.ErrUnregisteredTagScanNotFound},
 	} {
 		rr := serve(t, newReview(&fakeScans{resolveErr: resolveErr}, &fakeDirectory{}, &testSurface{operatorID: 42}), http.MethodPost, "/123/resolve", `{}`)
 
@@ -458,11 +458,11 @@ func TestResolveUnregisteredTagScanKeepsOwnerRefusalsAsBadRequest(t *testing.T) 
 	t.Parallel()
 
 	for _, resolveErr := range []error{
-		errors.New("operator ID is required"),
-		errors.New("scan ID is required"),
-		errors.New("unregistered tag scan not found"),
-		errors.New("unregistered tag scan already resolved"),
-		errors.New("invalid unregistered tag scan"),
+		devicefleet.ErrTagScanOperatorIDRequired,
+		devicefleet.ErrTagScanIDRequired,
+		devicefleet.ErrUnregisteredTagScanNotFound,
+		devicefleet.ErrUnregisteredTagScanResolved,
+		devicefleet.ErrInvalidUnregisteredTagScan,
 		devicefleet.ErrUnregisteredTagScanNotFound,
 		devicefleet.ErrUnregisteredTagScanResolved,
 		devicefleet.ErrInvalidUnregisteredTagScan,

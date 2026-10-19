@@ -145,9 +145,9 @@ func ValidateOperatorDisplayName(displayName string) (string, error) {
 	displayName = strings.TrimSpace(displayName)
 	switch {
 	case displayName == "":
-		return "", InvalidInput("display name is required")
+		return "", &InvalidInputError{Err: ErrOperatorDisplayNameRequired}
 	case len(displayName) > maxOperatorDisplayNameLength:
-		return "", InvalidInput("display name must not exceed 100 characters")
+		return "", &InvalidInputError{Err: ErrOperatorDisplayNameTooLong}
 	}
 	return displayName, nil
 }

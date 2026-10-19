@@ -269,7 +269,7 @@ func filterDayLogGroups(r *http.Request, groups []*SchoolGroup) ([]*SchoolGroup,
 	}
 	groupID, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", errInvalidDayLogGroupID, err)
+		return nil, fmt.Errorf("%w: %w", errInvalidDayLogGroupID, err)
 	}
 	for _, group := range groups {
 		if group != nil && group.ID == groupID {

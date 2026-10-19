@@ -71,10 +71,14 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 	if err != nil {
 		return
 	}
+	// Parallel test roots share the SQL pool, not a mutable query-hook list.
+	messageDB, err := transactionruntime.NewDatabase(communicationCompose.InstrumentMessageQueries(db.Pool(), true))
+	if err != nil {
+		return
+	}
 	env.AllowAuditRootWrites = true
 	hub = deliveryCompose.NewRealtimeHub(logger.With("component", "sse-hub"))
 	unit := db.UnitOfWork()
-	communicationCompose.InstallMessageQueryInstrumentation(db.Pool())
 	var (
 		yard             FacilitiesYard
 		tokens           TokenAdapter
@@ -218,9 +222,9 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			return
 		},
 		func() (err error) {
-			messaging = NewParentMessagingRepositories(db, groups, membership, peopleIdentity, enrollmentCompose.New(), nil, organizations)
+			messaging = NewParentMessagingRepositories(messageDB, groups, membership, peopleIdentity, enrollmentCompose.New(), nil, organizations)
 			consent, err = communicationCompose.NewNotificationConsent(communicationCompose.NotificationConsentConfig{
-				DB: db.Pool(), Observe: env.Observe.Communication,
+				DB: messageDB.Pool(), Observe: env.Observe.Communication,
 			})
 			return
 		},
@@ -230,7 +234,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			return
 		},
 		func() (err error) {
-			emitter = buildParentEventEmitter(db, unit, env, hub, settings.Service, messaging, notifications)
+			emitter = buildParentEventEmitter(messageDB, messageDB.UnitOfWork(), env, hub, settings.Service, messaging, notifications)
 			purger, err = buildAttachmentPurger(db, env, objects)
 			return
 		},

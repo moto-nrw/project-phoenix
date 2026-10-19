@@ -7,6 +7,7 @@ run:
 linters:
   default: standard
   enable:
+    - errorlint
     - sloglint
     - forbidigo
   settings:
@@ -23,6 +24,11 @@ linters:
           msg: "UTC-truncating now() produces the wrong calendar day before 02:00 Berlin. Use calendar.TodayDate()."
   exclusions:
     rules:
+      # #4089 gates every HTTP role without exceptions. Non-HTTP errorlint
+      # findings are outside this wire-preserving boundary migration.
+      - path-except: '(^|/)(http|inbound)(/|$)|^api/(common|display|iot)/|^analytics/|^middleware/|^modules/(schoolportal|identityaccess/sessiontoken|devicefleet/deviceauth)/'
+        linters:
+          - errorlint
       # Test-file Truncate sites are enforced by TestDateColumnTypes'
       # no_truncate_24h_date_math sub-test (shrinking allowlist) instead.
       - path: '_test\.go$'

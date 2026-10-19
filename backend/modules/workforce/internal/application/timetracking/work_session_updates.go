@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -48,7 +50,7 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 	}
 
 	if session.StaffID != staffID {
-		return nil, fmt.Errorf("can only update own sessions")
+		return nil, workforce.ErrSessionUpdateNotOwned
 	}
 
 	// A status change (Vor Ort ↔ Homeoffice) carries audit weight and must be
@@ -56,7 +58,7 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 	// to send the reason in `notes` on the same request.
 	if updates.Status != nil && *updates.Status != session.Status {
 		if updates.Notes == nil || strings.TrimSpace(*updates.Notes) == "" {
-			return nil, fmt.Errorf("notes required when changing status")
+			return nil, workforce.ErrSessionStatusNoteRequired
 		}
 	}
 
@@ -75,7 +77,7 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 				return nil, err
 			}
 			if required {
-				return nil, fmt.Errorf("notes required when changing recorded times")
+				return nil, workforce.ErrSessionTimesNoteRequired
 			}
 		}
 	}
@@ -129,11 +131,11 @@ func (s *workSessionService) UpdateSessionAsAdmin(ctx context.Context, editorSta
 	}
 
 	if session.StaffID != targetStaffID {
-		return nil, fmt.Errorf("session does not belong to staff %d", targetStaffID)
+		return nil, &workforce.TimeTrackingError{Kind: workforce.ErrAdminSessionNotOwned, Cause: fmt.Errorf("session does not belong to staff %d", targetStaffID)}
 	}
 
 	if updates.Notes == nil || strings.TrimSpace(*updates.Notes) == "" {
-		return nil, fmt.Errorf("notes required for admin edits")
+		return nil, workforce.ErrAdminSessionNoteRequired
 	}
 
 	return s.applySessionUpdate(ctx, editorStaffID, session, updates)
@@ -199,22 +201,22 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 // (consistent with edit semantics).
 func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, req AdminCreateSessionRequest) (*WorkSession, error) {
 	if targetStaffID <= 0 {
-		return nil, fmt.Errorf("target staff id is required")
+		return nil, workforce.ErrTargetStaffRequired
 	}
 	if strings.TrimSpace(req.Notes) == "" {
-		return nil, fmt.Errorf("notes required for admin-created sessions")
+		return nil, workforce.ErrAdminSessionCreateNoteRequired
 	}
 	if req.CheckInTime.IsZero() || req.CheckOutTime.IsZero() {
 		return nil, fmt.Errorf("check-in and check-out are required")
 	}
 	if !req.CheckOutTime.After(req.CheckInTime) {
-		return nil, fmt.Errorf("check_out_time must be after check_in_time")
+		return nil, workforce.ErrSessionCheckoutOrder
 	}
 	if req.Status == "" {
 		req.Status = WorkSessionStatusPresent
 	}
 	if req.BreakMinutes < 0 {
-		return nil, fmt.Errorf("break_minutes must not be negative")
+		return nil, workforce.ErrAdminBreakMinutesNegative
 	}
 	if err := s.lockStaffBalanceWrites(ctx, targetStaffID); err != nil {
 		return nil, err
@@ -384,9 +386,9 @@ func assertNoBlockOverlapIn(siblings []*WorkSession, excludeID int64, checkIn ti
 		if sibling.CheckOutTime != nil && !sibling.CheckOutTime.After(checkIn) {
 			continue // sibling ends before (or exactly when) the new block starts
 		}
-		return fmt.Errorf("work session overlaps an existing block (%s–%s)",
+		return &workforce.TimeTrackingError{Kind: workforce.ErrWorkSessionOverlap, Cause: fmt.Errorf("work session overlaps an existing block (%s–%s)",
 			sibling.CheckInTime.In(calendar.Berlin).Format("15:04"),
-			formatBlockEnd(sibling.CheckOutTime))
+			formatBlockEnd(sibling.CheckOutTime))}
 	}
 	return nil
 }
@@ -400,7 +402,7 @@ func formatBlockEnd(checkOut *time.Time) string {
 
 func (s *workSessionService) handleSessionNotFoundError(err error) error {
 	if isRecordNotFound(err) {
-		return fmt.Errorf("session not found")
+		return workforce.ErrSessionNotFound
 	}
 	return fmt.Errorf("failed to get session: %w", err)
 }
@@ -497,14 +499,14 @@ func (s *workSessionService) processIndividualBreakUpdates(ctx context.Context, 
 func (s *workSessionService) updateSingleBreak(ctx context.Context, uc *sessionUpdateContext, breakMap map[int64]*WorkSessionBreak, bu BreakDurationUpdate, strPtr func(string) *string) error {
 	brk, ok := breakMap[bu.ID]
 	if !ok {
-		return fmt.Errorf("break %d does not belong to this session", bu.ID)
+		return &workforce.TimeTrackingError{Kind: workforce.ErrBreakNotOwned, Cause: fmt.Errorf("break %d does not belong to this session", bu.ID)}
 	}
 	if brk.EndedAt == nil {
-		return fmt.Errorf("cannot edit duration of an active break")
+		return workforce.ErrActiveBreakDurationEdit
 	}
 
 	if bu.DurationMinutes < 0 {
-		return fmt.Errorf("break duration cannot be negative")
+		return workforce.ErrBreakDurationNegative
 	}
 
 	if brk.DurationMinutes == bu.DurationMinutes {

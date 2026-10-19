@@ -1,6 +1,7 @@
 package timetracking
 
 import (
+	"errors"
 	"testing"
 
 	validation "github.com/go-ozzo/ozzo-validation"
@@ -15,7 +16,8 @@ func TestStammdatenPersonRequestReportsEveryBlankName(t *testing.T) {
 
 	err := (&StammdatenPersonRequest{StammdatenPersonPayload: StammdatenPersonPayload{FirstName: " ", LastName: ""}}).Bind(nil)
 
-	fields, ok := err.(validation.Errors)
+	var fields validation.Errors
+	ok := errors.As(err, &fields)
 	require.True(t, ok, "want validation.Errors, got %T", err)
 	assert.ElementsMatch(t, []string{"first_name", "last_name"}, keys(fields))
 }

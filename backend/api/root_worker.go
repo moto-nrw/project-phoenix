@@ -183,7 +183,7 @@ func workerTracer(tracer *observability.Tracer) schedulerPorts.WorkerTracer {
 // starts its embedded Worker with (#4083).
 func composeWorkerRoot(db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, tracer *observability.Tracer, tracker ProductEventTracker) (schedulerPorts.Worker, error) {
 	unit := db.UnitOfWork()
-	communicationCompose.InstallMessageQueryInstrumentation(db.Pool())
+	communicationCompose.InstrumentMessageQueries(db.Pool(), false)
 	renderer := lists.NewRendererService()
 	var (
 		tokens           TokenAdapter

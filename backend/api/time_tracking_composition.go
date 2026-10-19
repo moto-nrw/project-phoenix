@@ -63,8 +63,7 @@ func (p exportTransferPort) Status(ctx context.Context) (timeTrackingHTTP.Export
 func (p exportTransferPort) Transfer(ctx context.Context, request timeTrackingHTTP.ExportTransferRequest) (timeTrackingHTTP.ExportTransferOutcome, error) {
 	outcome, err := p.module.Transfer(ctx, exportTransferModule.Request{
 		Kind: request.Kind, Format: request.Format, Filename: request.Filename, Data: request.Data,
-		PrepareFile:    request.PrepareFile,
-		ActorAccountID: request.ActorAccountID, ActorName: request.ActorName,
+		ActorAccountID: request.ActorAccountID, ActorName: request.ActorName, PrepareFile: request.PrepareFile,
 	})
 	if err != nil {
 		return timeTrackingHTTP.ExportTransferOutcome{}, err

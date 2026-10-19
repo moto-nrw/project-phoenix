@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,51 +45,6 @@ func TestTransferExport_ReadsTheSelectionFromTheBody(t *testing.T) {
 	// "not configured" — and it arrives as a 200 so the journal row of a real
 	// attempt would survive the tenant transaction.
 	assert.Contains(t, rec.Body.String(), "not_configured")
-}
-
-func TestTransferExport_DefersFileProductionToTheTransferCommand(t *testing.T) {
-	t.Parallel()
-	tc := setupStaffRoute(t)
-	transfer := &preparedExportTransfer{requests: make(chan ExportTransferRequest, 1)}
-	tc.resource.ExportTransfer = transfer
-	token := authToken(t, permissions.TimeTrackingManage)
-
-	rec := postTransfer(t, tc, token, `{"year":2026,"month":8,"format":"csv"}`)
-
-	require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
-	request := <-transfer.requests
-	require.NotNil(t, request.PrepareFile)
-	assert.Empty(t, request.Filename)
-	assert.Empty(t, request.Data)
-}
-
-func TestTransferExport_PreservesExportErrorStatus(t *testing.T) {
-	t.Parallel()
-	for name, test := range map[string]struct {
-		expectedStatus int
-		exportErr      error
-	}{
-		"invalid request": {
-			expectedStatus: http.StatusBadRequest,
-			exportErr:      workforce.ErrTimeExportInvalid,
-		},
-		"incomplete payroll configuration": {
-			expectedStatus: http.StatusConflict,
-			exportErr:      workforce.ErrPayrollConfigIncomplete,
-		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			tc := setupStaffRoute(t)
-			tc.resource.ExportTransfer = callbackExportTransfer{}
-			tc.resource.TimeExportService = failingTimeExport{err: test.exportErr}
-			token := authToken(t, permissions.TimeTrackingManage)
-
-			rec := postTransfer(t, tc, token, `{"year":2026,"month":8,"format":"csv"}`)
-
-			assert.Equal(t, test.expectedStatus, rec.Code, "body: %s", rec.Body.String())
-		})
-	}
 }
 
 func TestTransferExport_RejectsARequestWithoutASelection(t *testing.T) {

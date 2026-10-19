@@ -9,7 +9,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const accountGuardianRetentionVersion = "1.15.463"
+const accountGuardianRetentionVersion = "1.15.464"
 
 func init() {
 	MigrationRegistry.Register(&Migration{

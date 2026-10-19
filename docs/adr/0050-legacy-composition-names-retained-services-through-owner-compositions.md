@@ -1,8 +1,11 @@
 ---
-status: accepted
+status: historical
 ---
 
 # The legacy composition names retained services through owner compositions
+
+> Historical record of a completed cutover. The rules that still hold
+> are in [ADR 0068](0068-principle-owners-compose-themselves-and-the-roots-only-wire.md).
 
 > Amended on 2026-10-15 by [ADR 0057](0057-only-the-target-is-a-rule.md): the
 > `compose/vocabulary` and `retained` aliases this decision left in place are

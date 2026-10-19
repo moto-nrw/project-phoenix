@@ -72,7 +72,7 @@ func TestHelperConsolidationRatchet(t *testing.T) {
 	}
 
 	counts23505, err := scanRatchetPattern(backendRoot, ".", unique23505Pattern, func(rel string) bool {
-		return strings.HasPrefix(rel, "modules/transactionruntime/internal/adapters/postgres/") || strings.HasPrefix(rel, "database/migrations/")
+		return strings.HasPrefix(rel, "modules/transactionruntime/internal/adapters/postgres/unique_violation.go") || strings.HasPrefix(rel, "database/migrations/")
 	})
 	if err != nil {
 		t.Fatalf("scanning for 23505 literals failed: %v", err)

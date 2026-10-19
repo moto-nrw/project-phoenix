@@ -54,15 +54,16 @@ type ExportTransferOutcome struct {
 	Reason          string `json:"reason,omitempty"`
 }
 
-// ExportTransferRequest is one transfer: which export and on whose behalf.
-// PrepareFile runs in the transfer command's committed intent transaction, so
-// producing the file and its access audit cannot be rolled back after upload.
+// ExportTransferRequest is one transfer: which export, which file, on whose
+// behalf.
 type ExportTransferRequest struct {
-	Kind           string
-	Format         string
-	Filename       string
-	Data           []byte
-	PrepareFile    func(context.Context) (string, []byte, error)
+	Kind     string
+	Format   string
+	Filename string
+	Data     []byte
+	// PrepareFile builds the file and records its access audit in the intent
+	// transaction. When set, it supplies Filename and Data before commit.
+	PrepareFile    func(context.Context) (filename string, data []byte, err error)
 	ActorAccountID int64
 	ActorName      string
 }
