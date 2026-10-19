@@ -81,12 +81,6 @@ var moduleFacadeNonRootDirs = map[string]bool{
 var moduleFacadeAllowlist = map[string]int{
 	"modules/appointments/appointments.go:Command":                               16,
 	"modules/appointments/appointments.go:Query":                                 20,
-	"modules/careplan/excusedrequests/contract.go:Service":                       18,
-	"modules/careplan/records.go:CareRecordsCommand":                             14,
-	"modules/careplan/records.go:CareRecordsQuery":                               15,
-	"modules/careplan/requests.go:CareRequestsCommand":                           16,
-	"modules/careplan/schedules.go:StudentSchedulesCommand":                      32,
-	"modules/careplan/schedules.go:StudentSchedulesQuery":                        13,
 	"modules/communication/parent_announcements.go:ParentAnnouncementCapability": 16,
 	"modules/devicefleet/administration.go:Administration":                       22,
 	"modules/devicefleet/devicefleet.go:DeviceQuery":                             13,

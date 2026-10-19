@@ -44,7 +44,7 @@ func fixtureRecordPointers[T any](values []T) []*T {
 }
 
 type ArrivalRecords struct {
-	records careplan.StudentSchedulesQuery
+	records careplan.ArrivalSchedulesQuery
 }
 
 func (r ArrivalRecords) FindByStudentID(ctx context.Context, id int64) ([]*careplan.ArrivalSchedule, error) {
@@ -53,7 +53,7 @@ func (r ArrivalRecords) FindByStudentID(ctx context.Context, id int64) ([]*carep
 }
 
 type ArrivalExceptionRecords struct {
-	records careplan.StudentSchedulesQuery
+	records careplan.ArrivalSchedulesQuery
 }
 
 func (r ArrivalExceptionRecords) FindByStudentID(ctx context.Context, id int64) ([]*careplan.ArrivalException, error) {
