@@ -70,7 +70,7 @@ func (s *StudentService) ApplyEnrollmentProfile(ctx context.Context, id int64, i
 		if err := s.owners.SaveCare(txCtx, membershipID, record, plan, record.DepartureCompanionNote, input.DepartureSet); err != nil {
 			return err
 		}
-		return s.syncLegacySupervisorNotes(txCtx, stats, record.ID, record.SupervisorNotes, input.SupervisorNotesSet)
+		return s.importPermanentHint(txCtx, stats, record.ID, input.PermanentHint)
 	})
 }
 
@@ -94,8 +94,10 @@ func (s *StudentService) CreateEnrollment(ctx context.Context, input domain.Enro
 		if err := s.owners.SaveCare(txCtx, membershipID, record, plan, record.DepartureCompanionNote, input.InitialProfile != nil && input.InitialProfile.DepartureSet); err != nil {
 			return err
 		}
-		return s.syncLegacySupervisorNotes(txCtx, stats, record.ID, record.SupervisorNotes,
-			input.InitialProfile != nil && input.InitialProfile.SupervisorNotesSet && hasLegacySupervisorNotes(record.SupervisorNotes))
+		if input.InitialProfile == nil {
+			return nil
+		}
+		return s.importPermanentHint(txCtx, stats, record.ID, input.InitialProfile.PermanentHint)
 	})
 	return result, err
 }

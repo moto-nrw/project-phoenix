@@ -59,7 +59,6 @@ func studentFromRecord(row peopleEnrollment.Record) *Student {
 		AddressCity:              row.AddressCity,
 		AddressPostalCode:        row.AddressPostalCode,
 		ExtraInfo:                row.ExtraInfo,
-		SupervisorNotes:          row.SupervisorNotes,
 		HealthInfo:               row.HealthInfo,
 		PickupStatus:             row.PickupStatus,
 		DepartureCompanionNote:   row.DepartureCompanionNote,

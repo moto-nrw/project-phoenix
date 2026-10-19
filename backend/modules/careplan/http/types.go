@@ -68,9 +68,8 @@ type StudentRequest struct {
 	AddressStreet     string  `json:"address_street,omitempty"`
 	AddressCity       string  `json:"address_city,omitempty"`
 	AddressPostalCode string  `json:"address_postal_code,omitempty"`
-	ExtraInfo         *string `json:"extra_info,omitempty"`       // Extra information visible to supervisors
-	HealthInfo        *string `json:"health_info,omitempty"`      // Static health and medical information
-	SupervisorNotes   *string `json:"supervisor_notes,omitempty"` // Notes from supervisors
+	ExtraInfo         *string `json:"extra_info,omitempty"`  // Extra information visible to supervisors
+	HealthInfo        *string `json:"health_info,omitempty"` // Static health and medical information
 	// DepartureDays is the authoritative per-weekday departure mode
 	// (alone/bus/pickup). When provided it supersedes the legacy PickupStatus /
 	// PickupDays / Bus / BusDays inputs below, which remain accepted for clients
@@ -112,9 +111,8 @@ type UpdateStudentRequest struct {
 	AddressStreet     *string `json:"address_street,omitempty"`
 	AddressCity       *string `json:"address_city,omitempty"`
 	AddressPostalCode *string `json:"address_postal_code,omitempty"`
-	HealthInfo        *string `json:"health_info,omitempty"`      // Static health and medical information
-	SupervisorNotes   *string `json:"supervisor_notes,omitempty"` // Notes from supervisors
-	ExtraInfo         *string `json:"extra_info,omitempty"`       // Extra information visible to supervisors
+	HealthInfo        *string `json:"health_info,omitempty"` // Static health and medical information
+	ExtraInfo         *string `json:"extra_info,omitempty"`  // Extra information visible to supervisors
 	// AllowedDepartureModes supersedes the legacy exclusive departure/pickup/bus
 	// inputs below when provided.
 	AllowedDepartureModes *departure.AllowedDepartureModes `json:"allowed_departure_modes,omitempty"`

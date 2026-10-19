@@ -97,8 +97,8 @@ func TestAbsenceWriter_GrouplessStudent(t *testing.T) {
 
 	t.Run("cannot_smuggle_stammdaten_alongside_the_absence", func(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), map[string]any{
-			"sick":             true,
-			"supervisor_notes": "smuggled",
+			"sick":        true,
+			"health_info": "smuggled",
 		})
 		testutil.AssertForbidden(t, authExec(t, tc, req, claims, absencePerms))
 	})

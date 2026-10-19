@@ -68,10 +68,6 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *peopleModule
 	if req.HealthInfo != nil {
 		student.HealthInfo = req.HealthInfo
 	}
-	if req.SupervisorNotes != nil {
-		student.SupervisorNotes = req.SupervisorNotes
-		student.SupervisorNotesSupplied = true
-	}
 	if req.DepartureCompanionNote != nil {
 		student.DepartureCompanionNote = req.DepartureCompanionNote
 	}

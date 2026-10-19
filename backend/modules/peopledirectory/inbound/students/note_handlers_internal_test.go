@@ -167,3 +167,20 @@ func TestBuildNoteResponseDoesNotOfferEditingForOrphanedLeadershipNote(t *testin
 }
 
 func int64Pointer(value int64) *int64 { return &value }
+
+func TestBuildNoteSubjectsResponse(t *testing.T) {
+	t.Parallel()
+
+	response := buildNoteSubjectsResponse([]peopleModule.StudentActivityGroup{
+		{ID: 7, Name: "Fußball-AG"}, {ID: 12, Name: "Schach"},
+	})
+	assert.Equal(t, []noteSubjectActivity{
+		{ID: "7", Name: "Fußball-AG"}, {ID: "12", Name: "Schach"},
+	}, response.Activities)
+
+	// A child without enrollments still answers with an empty list, so the
+	// picker renders "no activity" instead of failing on a null.
+	empty := buildNoteSubjectsResponse(nil)
+	require.NotNil(t, empty.Activities)
+	assert.Empty(t, empty.Activities)
+}

@@ -28,7 +28,7 @@ func TestIsAbsenceOnly(t *testing.T) {
 		{"empty payload", &UpdateStudentRequest{}, false},
 		{"nil request", nil, false},
 		{"sick plus school class", &UpdateStudentRequest{Sick: boolPtr(true), SchoolClass: strPtr("2b")}, false},
-		{"sick plus supervisor notes", &UpdateStudentRequest{Sick: boolPtr(true), SupervisorNotes: strPtr("x")}, false},
+		{"sick plus extra info", &UpdateStudentRequest{Sick: boolPtr(true), ExtraInfo: strPtr("x")}, false},
 		{"sick plus health info", &UpdateStudentRequest{Sick: boolPtr(true), HealthInfo: strPtr("x")}, false},
 		{"sick plus group move", &UpdateStudentRequest{Sick: boolPtr(true), GroupID: func() *int64 { id := int64(3); return &id }()}, false},
 		{"sick plus photo consent", &UpdateStudentRequest{Sick: boolPtr(true), PhotoConsentGiven: boolPtr(true)}, false},

@@ -44,6 +44,7 @@ func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/school-classes", rs.listSchoolClasses)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/change-history", rs.getStudentChangeHistory)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/notes", rs.listStudentNotes)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/note-subjects", rs.listStudentNoteSubjects)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/{id}/notes", rs.createStudentNote)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Put("/{id}/notes/{noteId}", rs.updateStudentNote)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Delete("/{id}/notes/{noteId}", rs.deleteStudentNote)

@@ -100,7 +100,6 @@ const sampleBackendStudent = buildBackendStudent({
   extra_info: "Allergies: None",
   birthday: "2015-06-15",
   health_info: "No health concerns",
-  supervisor_notes: "Good student",
   pickup_status: "parent",
 });
 
@@ -758,7 +757,6 @@ describe("mapUpdateRequestToBackend", () => {
       extra_info: "Notes",
       birthday: "2015-06-15",
       health_info: "None",
-      supervisor_notes: "Good",
       pickup_status: "parent",
       bus: true,
       bus_days: { tue: true },
@@ -778,7 +776,6 @@ describe("mapUpdateRequestToBackend", () => {
     expect(result.extra_info).toBe("Notes");
     expect(result.birthday).toBe("2015-06-15");
     expect(result.health_info).toBe("None");
-    expect(result.supervisor_notes).toBe("Good");
     expect(result.pickup_status).toBe("parent");
     // bus_days is the single source of truth (#1582); bus is no longer mapped.
     expect(result.bus).toBeUndefined();

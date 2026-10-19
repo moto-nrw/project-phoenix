@@ -566,25 +566,6 @@ func (s *FixedSeeder) seedStudents(_ context.Context, result *FixedResult) error
 		"Eierallergie - bitte bei Essen beachten",
 	}
 
-	// Supervisor notes samples - every student gets supervisor notes for demo
-	supervisorNotesSamples := []string{
-		"Sehr sportlich und aktiv",
-		"Braucht manchmal etwas mehr Zeit bei Übergängen",
-		"Freut sich besonders auf Bastelaktivitäten",
-		"Hat Schwierigkeiten mit lauten Geräuschen",
-		"Sehr hilfsbereit bei jüngeren Kindern",
-		"Muss um 15:30 Uhr abgeholt werden (Musikunterricht)",
-		"Liebt Bücher und liest gerne vor",
-		"Spielt gerne Fußball in der Pause",
-		"Braucht klare Strukturen und Ansagen",
-		"Ist sehr kreativ und malt gerne",
-		"Hilft gerne beim Aufräumen",
-		"Braucht regelmäßige Bewegungspausen",
-		"Arbeitet gut in kleinen Gruppen",
-		"Mag Musik und singt gerne",
-		"Ist manchmal schüchtern bei neuen Aktivitäten",
-	}
-
 	// Extra info samples - every student gets parent notes for demo
 	extraInfoSamples := []string{
 		"Vegetarische Ernährung",
@@ -646,12 +627,6 @@ func (s *FixedSeeder) seedStudents(_ context.Context, result *FixedResult) error
 		healthInfo := healthInfoSamples[i%len(healthInfoSamples)]
 		if healthInfo != "" {
 			body["health_info"] = healthInfo
-		}
-
-		// Add supervisor notes for some students
-		supervisorNotes := supervisorNotesSamples[i%len(supervisorNotesSamples)]
-		if supervisorNotes != "" {
-			body["supervisor_notes"] = supervisorNotes
 		}
 
 		// Add extra info for some students

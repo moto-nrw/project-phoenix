@@ -39,7 +39,6 @@ func fullyPopulatedStudentResponse() StudentResponse {
 		AddressPostalCode:        "50667",
 		ExtraInfo:                "Geschwisterkind",
 		HealthInfo:               "Laktoseintoleranz",
-		SupervisorNotes:          "Braucht mehr Zeit",
 		PickupStatus:             "Wird abgeholt",
 		PickupDays:               departure.PickupDays{"mon": true},
 		PickupTime:               str("15:30"),
