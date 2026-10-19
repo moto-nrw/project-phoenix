@@ -8,8 +8,10 @@ import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 
 const CHECKIN_BAR_OFFSET_VAR = "--moto-checkin-bar-offset";
-const CHECKIN_BAR_OFFSET = "4.5rem";
-const CHECKIN_SELECTION_BAR_OFFSET = "6.75rem";
+// Measured bar height plus the install hint's clearance (#4358): 106 px in
+// "Direkt", 151 px in "Mehrere" at 360 to 390 px viewport width.
+const CHECKIN_BAR_OFFSET = "7.25rem";
+const CHECKIN_SELECTION_BAR_OFFSET = "9.5rem";
 
 interface SchoolCheckinModeMobileProps {
   /** Whether the page is currently in check-in/out mode. */
@@ -132,6 +134,37 @@ export function SchoolCheckinModeMobile({
         aria-busy={disabled && runningAction !== null}
       >
         <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-start gap-1.5">
+            <CheckSquare
+              className="text-moto-green mt-0.5 size-4 shrink-0"
+              aria-hidden
+            />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-balance text-gray-900">
+                An- und Abmelde-Modus aktiv
+              </p>
+              {selectionActive ? null : (
+                <p className="text-xs text-gray-600">
+                  Jeder Tipp meldet sofort an oder ab.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={onToggle}
+            disabled={disabled}
+            aria-label="Fertig, An- und Abmelde-Modus beenden"
+            className="shrink-0"
+          >
+            Fertig
+          </Button>
+        </div>
+
+        <div className="mt-2 flex items-center gap-2">
           {onSelectionActiveChange ? (
             <SegmentedControl
               ariaLabel="Tipp-Verhalten"
@@ -143,12 +176,7 @@ export function SchoolCheckinModeMobile({
               onChange={(next) => onSelectionActiveChange(next === "select")}
               className="shrink-0"
             />
-          ) : (
-            <CheckSquare
-              className="text-moto-green size-4 shrink-0"
-              aria-hidden
-            />
-          )}
+          ) : null}
 
           <span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-500 tabular-nums">
             {selectionActive
@@ -167,18 +195,6 @@ export function SchoolCheckinModeMobile({
               aria-hidden
             />
           ) : null}
-
-          <Button
-            type="button"
-            variant="ghost"
-            size="compact"
-            onClick={onToggle}
-            disabled={disabled}
-            aria-label="Fertig, An- und Abmelde-Modus beenden"
-            className="shrink-0 rounded-full shadow-none"
-          >
-            Fertig
-          </Button>
         </div>
 
         {selectionActive ? (
