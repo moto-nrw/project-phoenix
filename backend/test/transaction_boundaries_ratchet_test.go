@@ -45,7 +45,7 @@ func TestTransactionBoundaryRatchet(t *testing.T) {
 		if site.Admin {
 			admin[site.Key] = true
 		}
-		if !site.Admin && site.Kind != "workflow" && site.Owner != "root-composition" {
+		if !site.Admin && site.Role != "migration" && (site.Kind != "workflow" || site.Role == "adapter") && site.Owner != "root-composition" {
 			commands[site.Key] = true
 		}
 	}
@@ -120,7 +120,7 @@ func transactionSites(root string) ([]transactionSite, error) {
 				break
 			}
 		}
-		if role == "migration" || role == "test-support" {
+		if role == "test-support" {
 			return nil
 		}
 		_, file, err := parseGoSourceCached(path, nil)
@@ -336,4 +336,34 @@ func scalarTransactionFields(dir string, decl *ast.FuncDecl, cache map[string]ma
 		}
 	}
 	return result
+}
+
+// Migrations can own their schema transaction, but that role must not hide
+// administrative API calls from the exact administrative register.
+func TestTransactionScannerIncludesAdministrativeMigrationCalls(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "architecture"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	policy := `{"owners":[{"ID":"schema","Kind":"infrastructure"}],"packages":[{"Path":"database/migrations","Owner":"schema","Role":"migration"}]}`
+	if err := os.WriteFile(filepath.Join(root, "architecture/policy.json"), []byte(policy), 0600); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(root, "database/migrations")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	source := `package migrations
+ func upgrade(){ tenant.WithinAdmin(ctx, callback); db.BeginTx(ctx,nil) }
+ `
+	if err := os.WriteFile(filepath.Join(dir, "upgrade.go"), []byte(source), 0600); err != nil {
+		t.Fatal(err)
+	}
+	sites, err := transactionSites(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sites) != 2 || !sites[0].Admin || sites[0].Role != "migration" {
+		t.Fatalf("migration administrative API escaped the register: %+v", sites)
+	}
 }
