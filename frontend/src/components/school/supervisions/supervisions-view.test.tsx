@@ -182,6 +182,23 @@ describe("SchoolSupervisionsView: Fehler beim Einchecken (#3633)", () => {
     mocks.onAddPresentStudents = undefined;
   });
 
+  it("shows the way back to the overview like every back link", () => {
+    mocks.instances = [
+      runningInstance,
+      { ...runningInstance, id: "12", status: "scheduled", startTime: "14:00" },
+    ];
+    render(<SchoolSupervisionsView />);
+
+    // In-page view without its own address: a button, not a link.
+    const back = screen.getByRole("button", {
+      name: "Zurück zu allen Aufsichten heute",
+    });
+    expect(back).toHaveAttribute("type", "button");
+    expect(
+      screen.queryByRole("link", { name: /Zurück/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it("offers no present-children picker outside the assigned roster", () => {
     render(<SchoolSupervisionsView />);
 

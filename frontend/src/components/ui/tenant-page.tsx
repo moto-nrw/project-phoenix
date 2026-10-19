@@ -21,13 +21,14 @@ import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import type { FormErrorDetail } from "~/components/ui/form-error";
 import { errorAlertActions } from "~/components/ui/form-error-alert";
-import { MobileBackButton } from "~/components/ui/mobile-back-button";
+import { BackLink } from "~/components/ui/back-link";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type { PageHeaderWithSearchProps } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -95,11 +96,14 @@ export interface TenantPageProps {
   readonly leading?: ReactNode;
   /** Hebt den Titel eine Stufe an (Startseiten mit Begrüßung). */
   readonly prominent?: boolean;
-  /** Blendet den mobilen Zurück-Knopf ein (Unterseiten). */
+  /**
+   * Blendet den Rückweg über dem Titel ein (Unterseiten), auf jeder Breite.
+   * Eine Seite baut keinen eigenen Zurück-Knopf in den Inhalt.
+   */
   readonly back?: boolean;
-  /** Ziel des Zurück-Knopfs. Ohne Angabe die Datenverwaltung. */
+  /** Ziel des Rückwegs (Pfad ohne Schulpräfix). Ohne Angabe die Datenverwaltung. */
   readonly backHref?: string;
-  /** Vorlesbarer Text des Zurück-Knopfs, passend zum Ziel. */
+  /** Sichtbarer Text des Rückwegs, nennt das Ziel („Zurück zu den Räumen"). */
   readonly backLabel?: string;
 
   /** Suchfeld in der Kopfkarte. */
@@ -335,6 +339,32 @@ export function TenantPageStats({
 const CONTROL_HEIGHT =
   "[&_button]:h-10 [&_select]:h-10 [&_input]:h-10 max-sm:[&_button]:h-11 max-sm:[&_select]:h-11 max-sm:[&_input]:h-11";
 
+/** Der Rückweg ohne eigenes Ziel: die Unterseiten der Datenverwaltung. */
+const DEFAULT_BACK_HREF = "/database";
+const DEFAULT_BACK_LABEL = "Zurück zur Datenverwaltung";
+
+/**
+ * `BackLink` im Tenant-Portal: löst den Pfad für die Schule auf. Das Gerüst
+ * setzt ihn über den Titel; nur eine Fläche ohne Kopfkarte (ein Skelett vor
+ * dem Gerüst) rendert ihn selbst.
+ */
+export function TenantBackLink({
+  href,
+  label,
+  className = "mb-2",
+}: Readonly<{ href?: string; label?: string; className?: string }>) {
+  const tenantPath = useTenantAwarePath();
+  return (
+    <BackLink
+      href={tenantPath(href ?? DEFAULT_BACK_HREF)}
+      // Ohne eigenen Text nennt der Rückweg die Datenverwaltung nur, wenn er
+      // auch dorthin führt.
+      label={label ?? (href ? "Zurück" : DEFAULT_BACK_LABEL)}
+      className={className}
+    />
+  );
+}
+
 export function TenantPage({
   title,
   stats,
@@ -398,14 +428,7 @@ export function TenantPage({
           Flächenklasse auch dann zuverlässig, wenn Tailwind-Utilities in
           einer CSS-Layer stehen. */}
       <header className="moto-content-surface compact:p-4 rounded-2xl border p-5 shadow-sm max-sm:p-4">
-        {back && (
-          <MobileBackButton
-            href={backHref}
-            // Ohne eigenen Text würde der Standardtext „Zurück zur
-            // Datenverwaltung" ein falsches Ziel ansagen.
-            ariaLabel={backLabel ?? (backHref ? "Zurück" : undefined)}
-          />
-        )}
+        {back && <TenantBackLink href={backHref} label={backLabel} />}
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
           {/* `flex-1 basis-0`: der Titelblock nimmt, was die Aktionen übrig
               lassen, statt mit seiner natürlichen Breite zu ringen. Vorher

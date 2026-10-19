@@ -9,11 +9,12 @@ vi.mock("./master-detail-skeleton", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/mobile-back-button", () => ({
-  MobileBackButton: () => (
-    <button type="button" data-testid="mobile-back">
-      Back
-    </button>
+// Der Rückweg der Kopfkarte (TenantPage) als Link mit seinem Ziel.
+vi.mock("~/components/ui/back-link", () => ({
+  BackLink: ({ href, label }: { href: string; label: string }) => (
+    <a data-testid="mobile-back" href={href}>
+      {label}
+    </a>
   ),
 }));
 

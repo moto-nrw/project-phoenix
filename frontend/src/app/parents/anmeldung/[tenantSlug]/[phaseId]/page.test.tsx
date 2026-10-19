@@ -140,7 +140,7 @@ describe("ParentEnrollFormPage", () => {
     // Eltern-Host schreibt der Proxy ohnehin um, und parentPath haelt die
     // Adresszeile sauber (siehe lib/parent-url.ts).
     expect(
-      screen.getByRole("link", { name: "Andere Anmeldung wählen" }),
+      screen.getByRole("link", { name: "Zurück zu Neue Anmeldung" }),
     ).toHaveAttribute("href", "/anmeldung");
     expect(form.closest(".w-full")).toBeInTheDocument();
     expect(form.closest(".max-w-4xl")).not.toBeInTheDocument();

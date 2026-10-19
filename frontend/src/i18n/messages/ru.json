@@ -719,6 +719,7 @@
       "errorObjectPickup": "порядок забора ребёнка"
     },
     "back": "Назад к Моим детям",
+    "backSingle": "Назад к «Мой ребёнок»",
     "today": {
       "title": "Сегодня",
       "description": "Самая важная информация и задачи на сегодня.",
@@ -990,7 +991,8 @@
       "holiday": "Уход на каникулах",
       "custom": "Другое"
     },
-    "backToPicker": "Выбрать другую запись",
+    "backToPicker": "Назад к выбору",
+    "backToParentPicker": "Назад к «Новая заявка»",
     "backToPortal": "Назад в родительский портал",
     "parentEmbeddedKicker": "Запись в группу продлённого дня",
     "formEyebrow": "Заполнить форму",
@@ -1329,6 +1331,7 @@
     "changeRequestReplySending": "Отправляется…",
     "changeRequestReplySubmit": "Отправить ответ",
     "backToStatus": "Назад к статусу",
+    "backToParentApp": "Назад в приложение для родителей",
     "nameLabel": "Имя",
     "emailLabel": "E-mail",
     "phoneLabel": "Телефон",
@@ -1968,7 +1971,7 @@
     "sent": "Отправлено",
     "readByOgs": "Прочитано продлёнкой",
     "aboutChild": "О {name}",
-    "back": "Назад",
+    "back": "Назад к сообщениям",
     "composerPlaceholder": "Напишите сообщение в продлёнку",
     "composerLabel": "Сообщение",
     "send": "Отправить",

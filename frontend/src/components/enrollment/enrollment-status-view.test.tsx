@@ -569,6 +569,42 @@ describe("EnrollmentStatusView", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("leads back to the parents app on the parents route", async () => {
+    mockFetchStatus.mockResolvedValueOnce(
+      status({ has_parent_account: true, parent_portal_access: "account" }),
+    );
+
+    render(<EnrollmentStatusView token="tok" parentAppHref="/" />);
+
+    expect(
+      await screen.findByRole("link", { name: "Zurück zur Eltern-App" }),
+    ).toHaveAttribute("href", "/");
+  });
+
+  it("offers no way back without a parents-app access or route", async () => {
+    mockFetchStatus.mockResolvedValueOnce(
+      status({ has_parent_account: false, parent_portal_access: "invitation" }),
+    );
+    const { unmount } = render(
+      <EnrollmentStatusView token="tok" parentAppHref="/" />,
+    );
+    expect(await screen.findByText("Lina Muster")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Zurück zur Eltern-App" }),
+    ).not.toBeInTheDocument();
+    unmount();
+
+    // The public status page on the school host has no page above it.
+    mockFetchStatus.mockResolvedValueOnce(
+      status({ has_parent_account: true, parent_portal_access: "account" }),
+    );
+    render(<EnrollmentStatusView token="tok" />);
+    expect(await screen.findByText("Lina Muster")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Zurück zur Eltern-App" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps the change form for a sibling and marks only the locked child", async () => {
     mockFetchStatus.mockResolvedValueOnce(
       status({

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 
+import { BackLink } from "~/components/ui/back-link";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
@@ -27,6 +28,8 @@ interface EntityHeaderCardProps {
   subtitle?: ReactNode;
   activeLabel?: string;
   inactiveLabel?: string;
+  /** Rückweg zur übergeordneten Seite, über dem Titel. */
+  back?: { href: string; label: string };
 }
 
 function formatYear(value: string | Date): string | null {
@@ -48,6 +51,7 @@ export function EntityHeaderCard({
   subtitle,
   activeLabel,
   inactiveLabel,
+  back,
 }: Readonly<EntityHeaderCardProps>) {
   const year = createdAt ? formatYear(createdAt) : null;
   const combinedStats: EntityHeaderStat[] = [...(stats ?? [])];
@@ -57,6 +61,9 @@ export function EntityHeaderCard({
 
   return (
     <section className="moto-content-surface rounded-xl border p-6 shadow-sm">
+      {back ? (
+        <BackLink href={back.href} label={back.label} className="mb-2" />
+      ) : null}
       <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
         <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-4">
           {concept ? (

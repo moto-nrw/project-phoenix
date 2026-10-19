@@ -360,10 +360,10 @@ describe("StudentRoomHistoryPage", () => {
       expect(screen.getByTestId("alert-error")).toBeInTheDocument();
     });
 
-    // Der Desktop-Rückweg ist die Breadcrumb; mobil bleibt der kit
-    // BackButton mit dem Referrer der Herkunftsliste.
-    fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
-    expect(mockPush).toHaveBeenCalledWith("/test-tenant/students/search");
+    // Der Rückweg der Kopfkarte führt auf jeder Breite zur Herkunftsliste.
+    expect(
+      screen.getByRole("link", { name: "Zurück zur Kinderübersicht" }),
+    ).toHaveAttribute("href", "/test-tenant/students/search");
   });
 
   it("shows a failed connection as unavailable, not as a crash", async () => {
