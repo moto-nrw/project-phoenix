@@ -49,7 +49,7 @@ Classification: **direct binding** has no local branch/loop and at most one dele
 | `modules/schoolcalendar/portal/compose` | `school-calendar` | 5 | 4 |
 | `modules/schoolmembership/compose` | `school-membership` | 2 | 0 |
 | `modules/schoolsetup/compose` | `school-setup` | 2 | 0 |
-| `modules/schoolstructure/compose` | `school-structure` | 22 | 0 |
+| `modules/schoolstructure/compose` | `school-structure` | 23 | 0 |
 | `modules/settings/compose` | `settings-platform` | 17 | 11 |
 | `modules/staffannouncementaudience` | `staff-announcement-audience` | 1 | 0 |
 | `modules/staffmessageinbox` | `staff-message-inbox` | 0 | 0 |
@@ -1063,6 +1063,7 @@ No non-constructor functions.
 | `*legacyGroupManagement.UpdateGroupTeachers` | [group_values_test_helpers.go:202](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L202) | test-only | `legacyGroupError`, `s.capability.UpdateGroupTeachers` |
 | `*legacyGroupManagement.GetStaffSchoolClasses` | [group_values_test_helpers.go:205](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L205) | test-only | `s.capability.GetStaffSchoolClasses`, `legacyGroupError` |
 | `*legacyGroupManagement.SetStaffSchoolClasses` | [group_values_test_helpers.go:209](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L209) | test-only | `legacyGroupError`, `s.capability.SetStaffSchoolClasses` |
+| `publicGroupError` | [group_values_test_helpers.go:242](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L242) | test-only | `groups.PublicGroupError` |
 | `*TeacherGroupIDs.TeacherGroupIDs` | [teacher_group_ids_test_helpers.go:21](../../../backend/modules/schoolstructure/compose/teacher_group_ids_test_helpers.go#L21) | test-only | `r.records.GetTeacherGroups`, `make`, `len`, `append` |
 
 ### `modules/settings/compose`
