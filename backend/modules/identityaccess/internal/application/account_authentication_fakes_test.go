@@ -1103,3 +1103,7 @@ func (f *authFixture) seedStaff(accountID, tenantID int64, roleNames ...string) 
 func lehrkraftRole() domain.RoleAssignment {
 	return domain.RoleAssignment{RoleID: 7, Name: "lehrkraft", IsSystem: true}
 }
+
+func (fakeTransaction) RunAdmin(ctx context.Context, fn func(context.Context) error) error {
+	return fn(ctx)
+}

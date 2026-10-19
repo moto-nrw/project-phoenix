@@ -24,6 +24,14 @@ var ErrArrivalBaselineMissing = errors.New("load arrival schedules: baseline pro
 // DetectExceptionConflicts computes the cancelled_instance_with_scheduled_arrivals
 // and modified_instance_time_mismatch conflicts in the inclusive [from, to]
 // window and returns them unsorted (the caller sorts before responding).
+func (d *conflictCommands) DetectExceptionConflicts(ctx context.Context, from, to calendar.Date) (value0 []timetable.ExceptionConflict, err error) {
+	err = d.conflictDetection.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.conflictDetection.DetectExceptionConflicts(txCtx, from, to)
+		return err
+	})
+	return
+}
+
 func (d *conflictDetection) DetectExceptionConflicts(ctx context.Context, from, to calendar.Date) ([]timetable.ExceptionConflict, error) {
 	exceptions, err := d.deps.Exceptions.FindByDateRange(ctx, calendar.Date(from), calendar.Date(to))
 	if err != nil {

@@ -53,7 +53,14 @@ type GuardianLinkRows interface {
 }
 
 func postgresDatabase(db *bun.DB) parentpostgres.Database {
-	return func(ctx context.Context) (bun.IDB, int64, error) { return resolve(ctx, db) }
+	return func(ctx context.Context) (bun.IDB, parentpostgres.TenantScope, error) {
+		connection, schoolID, err := resolve(ctx, db)
+		scope := parentpostgres.ScopeFor(schoolID, tenant.IsAdminTx(ctx))
+		if err != nil {
+			return nil, scope, err
+		}
+		return connection, scope, scope.Validate()
+	}
 }
 
 // ProjectionDatabase exposes this store's existing ambient runtime for root binding.

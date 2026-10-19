@@ -37,19 +37,26 @@ func (e engine) EndStaffPreview(ctx context.Context, previewToken, ipAddress, us
 	return accountID, lifecycleError(err)
 }
 
-func (e engine) ListStaffPreviewCandidates(ctx context.Context, tenantID, excludeAccountID int64) ([]identityaccess.StaffPreviewCandidate, error) {
+func (e engine) ListStaffPreviewCandidates(ctx context.Context, tenantID, excludeAccountID int64) (value0 []identityaccess.StaffPreviewCandidate, err error) {
 	if e.lifecycle == nil {
 		return nil, errAccountLifecycleUnavailable
 	}
-	candidates, err := e.lifecycle.ListStaffPreviewCandidates(e.attach(ctx), tenantID, excludeAccountID)
-	if err != nil {
-		return nil, lifecycleError(err)
+	operation := func(ctx context.Context) ([]identityaccess.StaffPreviewCandidate, error) {
+		candidates, err := e.lifecycle.ListStaffPreviewCandidates(e.attach(ctx), tenantID, excludeAccountID)
+		if err != nil {
+			return nil, lifecycleError(err)
+		}
+		result := make([]identityaccess.StaffPreviewCandidate, 0, len(candidates))
+		for _, candidate := range candidates {
+			result = append(result, identityaccess.StaffPreviewCandidate(candidate))
+		}
+		return result, nil
 	}
-	result := make([]identityaccess.StaffPreviewCandidate, 0, len(candidates))
-	for _, candidate := range candidates {
-		result = append(result, identityaccess.StaffPreviewCandidate(candidate))
-	}
-	return result, nil
+	err = e.lifecycle.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
 func (e engine) PreviewStaffOffboarding(ctx context.Context, accountID int64) (identityaccess.StaffOffboardingPreview, error) {
@@ -68,23 +75,30 @@ func (e engine) ExecuteStaffOffboarding(ctx context.Context, accountID int64, re
 	return identityaccess.StaffOffboardingResult(result), lifecycleError(err)
 }
 
-func (e engine) EnsureSchoolIdentity(ctx context.Context, input identityaccess.SchoolIdentityInput) (*identityaccess.SchoolIdentity, error) {
+func (e engine) EnsureSchoolIdentity(ctx context.Context, input identityaccess.SchoolIdentityInput) (value0 *identityaccess.SchoolIdentity, err error) {
 	if e.lifecycle == nil {
 		return nil, errAccountLifecycleUnavailable
 	}
-	identity, err := e.lifecycle.EnsureSchoolIdentity(e.attach(ctx), domain.SchoolIdentityInput{
-		AccountID: input.AccountID, TenantID: input.TenantID, Role: roleFacts(input.Role),
-		FirstName: input.FirstName, LastName: input.LastName, TagID: input.TagID, PersonID: input.PersonID,
-		Position: input.Position, CaregiverUpgrade: input.CaregiverUpgrade, CreatePerson: input.CreatePerson,
+	operation := func(ctx context.Context) (*identityaccess.SchoolIdentity, error) {
+		identity, err := e.lifecycle.EnsureSchoolIdentity(e.attach(ctx), domain.SchoolIdentityInput{
+			AccountID: input.AccountID, TenantID: input.TenantID, Role: roleFacts(input.Role),
+			FirstName: input.FirstName, LastName: input.LastName, TagID: input.TagID, PersonID: input.PersonID,
+			Position: input.Position, CaregiverUpgrade: input.CaregiverUpgrade, CreatePerson: input.CreatePerson,
+		})
+		if err != nil {
+			return nil, lifecycleError(err)
+		}
+		if identity == nil {
+			return nil, nil
+		}
+		result := identityaccess.SchoolIdentity(*identity)
+		return &result, nil
+	}
+	err = e.lifecycle.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
 	})
-	if err != nil {
-		return nil, lifecycleError(err)
-	}
-	if identity == nil {
-		return nil, nil
-	}
-	result := identityaccess.SchoolIdentity(*identity)
-	return &result, nil
+	return
 }
 
 func (e engine) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
@@ -102,106 +116,183 @@ func parentAccount(value domain.ParentAccount) identityaccess.ParentAccount {
 	}
 }
 
-func (e engine) CreateParentAccount(ctx context.Context, email, username, password string) (identityaccess.ParentAccount, error) {
+func (e engine) CreateParentAccount(ctx context.Context, email, username, password string) (value0 identityaccess.ParentAccount, err error) {
 	if e.lifecycle == nil {
 		return identityaccess.ParentAccount{}, errAccountLifecycleUnavailable
 	}
-	account, err := e.lifecycle.CreateParentAccount(e.attach(ctx), email, username, password)
-	return parentAccount(account), lifecycleError(err)
+	operation := func(ctx context.Context) (identityaccess.ParentAccount, error) {
+		account, err := e.lifecycle.CreateParentAccount(e.attach(ctx), email, username, password)
+		return parentAccount(account), lifecycleError(err)
+	}
+	err = e.lifecycle.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) GetParentAccountByID(ctx context.Context, id int64) (identityaccess.ParentAccount, error) {
+func (e engine) GetParentAccountByID(ctx context.Context, id int64) (value0 identityaccess.ParentAccount, err error) {
 	if e.lifecycle == nil {
 		return identityaccess.ParentAccount{}, errAccountLifecycleUnavailable
 	}
-	account, err := e.lifecycle.GetParentAccountByID(e.attach(ctx), id)
-	return parentAccount(account), lifecycleError(err)
+	operation := func(ctx context.Context) (identityaccess.ParentAccount, error) {
+		account, err := e.lifecycle.GetParentAccountByID(e.attach(ctx), id)
+		return parentAccount(account), lifecycleError(err)
+	}
+	err = e.lifecycle.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) GetParentAccountByEmail(ctx context.Context, email string) (identityaccess.ParentAccount, error) {
+func (e engine) GetParentAccountByEmail(ctx context.Context, email string) (value0 identityaccess.ParentAccount, err error) {
 	if e.lifecycle == nil {
 		return identityaccess.ParentAccount{}, errAccountLifecycleUnavailable
 	}
-	account, err := e.lifecycle.GetParentAccountByEmail(e.attach(ctx), email)
-	return parentAccount(account), lifecycleError(err)
+	operation := func(ctx context.Context) (identityaccess.ParentAccount, error) {
+		account, err := e.lifecycle.GetParentAccountByEmail(e.attach(ctx), email)
+		return parentAccount(account), lifecycleError(err)
+	}
+	err = e.lifecycle.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) UpdateParentAccount(ctx context.Context, account identityaccess.ParentAccount) error {
+func (e engine) UpdateParentAccount(ctx context.Context, account identityaccess.ParentAccount) (err error) {
 	if e.lifecycle == nil {
 		return errAccountLifecycleUnavailable
 	}
-	return lifecycleError(e.lifecycle.UpdateParentAccount(e.attach(ctx), domain.ParentAccount{
-		ID: account.ID, TenantID: account.TenantID, Email: account.Email, Username: account.Username, Active: account.Active,
-	}))
+	operation := func(ctx context.Context) error {
+		return lifecycleError(e.lifecycle.UpdateParentAccount(e.attach(ctx), domain.ParentAccount{
+			ID: account.ID, TenantID: account.TenantID, Email: account.Email, Username: account.Username, Active: account.Active,
+		}))
+	}
+	err = e.lifecycle.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) ActivateParentAccount(ctx context.Context, id int64) error {
+func (e engine) ActivateParentAccount(ctx context.Context, id int64) (err error) {
 	if e.lifecycle == nil {
 		return errAccountLifecycleUnavailable
 	}
-	return lifecycleError(e.lifecycle.ActivateParentAccount(e.attach(ctx), id))
+	operation := func(ctx context.Context) error {
+		return lifecycleError(e.lifecycle.ActivateParentAccount(e.attach(ctx), id))
+	}
+	err = e.lifecycle.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) DeactivateParentAccount(ctx context.Context, id int64) error {
+func (e engine) DeactivateParentAccount(ctx context.Context, id int64) (err error) {
 	if e.lifecycle == nil {
 		return errAccountLifecycleUnavailable
 	}
-	return lifecycleError(e.lifecycle.DeactivateParentAccount(e.attach(ctx), id))
+	operation := func(ctx context.Context) error {
+		return lifecycleError(e.lifecycle.DeactivateParentAccount(e.attach(ctx), id))
+	}
+	err = e.lifecycle.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) ListParentAccounts(ctx context.Context, filter identityaccess.ParentAccountFilter) ([]identityaccess.ParentAccount, error) {
+func (e engine) ListParentAccounts(ctx context.Context, filter identityaccess.ParentAccountFilter) (value0 []identityaccess.ParentAccount, err error) {
 	if e.lifecycle == nil {
 		return nil, errAccountLifecycleUnavailable
 	}
-	accounts, err := e.lifecycle.ListParentAccounts(e.attach(ctx), domain.ParentAccountFilter(filter))
-	if err != nil {
-		return nil, lifecycleError(err)
+	operation := func(ctx context.Context) ([]identityaccess.ParentAccount, error) {
+		accounts, err := e.lifecycle.ListParentAccounts(e.attach(ctx), domain.ParentAccountFilter(filter))
+		if err != nil {
+			return nil, lifecycleError(err)
+		}
+		result := make([]identityaccess.ParentAccount, 0, len(accounts))
+		for _, account := range accounts {
+			result = append(result, parentAccount(account))
+		}
+		return result, nil
 	}
-	result := make([]identityaccess.ParentAccount, 0, len(accounts))
-	for _, account := range accounts {
-		result = append(result, parentAccount(account))
-	}
-	return result, nil
+	err = e.lifecycle.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) InviteToStudent(ctx context.Context, req identityaccess.InviteToStudentRequest) (*identityaccess.InviteToStudentResult, error) {
+func (e engine) InviteToStudent(ctx context.Context, req identityaccess.InviteToStudentRequest) (value0 *identityaccess.InviteToStudentResult, err error) {
 	if e.lifecycle == nil {
 		return nil, errAccountLifecycleUnavailable
 	}
-	result, err := e.lifecycle.InviteToStudent(e.attach(ctx), domain.InviteToStudentRequest(req))
-	if err != nil {
-		return nil, lifecycleError(err)
+	operation := func(ctx context.Context) (*identityaccess.InviteToStudentResult, error) {
+		result, err := e.lifecycle.InviteToStudent(e.attach(ctx), domain.InviteToStudentRequest(req))
+		if err != nil {
+			return nil, lifecycleError(err)
+		}
+		public := identityaccess.InviteToStudentResult{
+			Outcome: identityaccess.InviteToStudentOutcome(result.Outcome), GuardianProfileID: result.GuardianProfileID,
+			InvitationID: result.InvitationID, ExistingRole: result.ExistingRole,
+		}
+		return &public, nil
 	}
-	public := identityaccess.InviteToStudentResult{
-		Outcome: identityaccess.InviteToStudentOutcome(result.Outcome), GuardianProfileID: result.GuardianProfileID,
-		InvitationID: result.InvitationID, ExistingRole: result.ExistingRole,
-	}
-	return &public, nil
+	err = e.lifecycle.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) ApproveInvitation(ctx context.Context, invitationID, approverAccountID int64) error {
+func (e engine) ApproveInvitation(ctx context.Context, invitationID, approverAccountID int64) (err error) {
 	if e.lifecycle == nil {
 		return errAccountLifecycleUnavailable
 	}
-	return lifecycleError(e.lifecycle.ApproveInvitation(e.attach(ctx), invitationID, approverAccountID))
+	operation := func(ctx context.Context) error {
+		return lifecycleError(e.lifecycle.ApproveInvitation(e.attach(ctx), invitationID, approverAccountID))
+	}
+	err = e.lifecycle.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) RejectInvitation(ctx context.Context, invitationID, approverAccountID int64) error {
+func (e engine) RejectInvitation(ctx context.Context, invitationID, approverAccountID int64) (err error) {
 	if e.lifecycle == nil {
 		return errAccountLifecycleUnavailable
 	}
-	return lifecycleError(e.lifecycle.RejectInvitation(e.attach(ctx), invitationID, approverAccountID))
+	operation := func(ctx context.Context) error {
+		return lifecycleError(e.lifecycle.RejectInvitation(e.attach(ctx), invitationID, approverAccountID))
+	}
+	err = e.lifecycle.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) CreateGuardianInvitation(ctx context.Context, request identityaccess.GuardianInvitationRequest) (identityaccess.GuardianInvitation, error) {
+func (e engine) CreateGuardianInvitation(ctx context.Context, request identityaccess.GuardianInvitationRequest) (value0 identityaccess.GuardianInvitation, err error) {
 	if e.lifecycle == nil {
 		return identityaccess.GuardianInvitation{}, errAccountLifecycleUnavailable
 	}
-	invitation, err := e.lifecycle.CreateGuardianInvitation(e.attach(ctx), domain.GuardianInvitationRequest(request))
-	if err != nil {
-		return identityaccess.GuardianInvitation{}, invitationError(err)
+	operation := func(ctx context.Context) (identityaccess.GuardianInvitation, error) {
+		invitation, err := e.lifecycle.CreateGuardianInvitation(e.attach(ctx), domain.GuardianInvitationRequest(request))
+		if err != nil {
+			return identityaccess.GuardianInvitation{}, invitationError(err)
+		}
+		return identityaccess.GuardianInvitation(invitation), nil
 	}
-	return identityaccess.GuardianInvitation(invitation), nil
+	err = e.lifecycle.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
 func (e engine) ValidateGuardianInvitation(ctx context.Context, token string) (identityaccess.GuardianInvitationPreview, error) {
@@ -226,11 +317,18 @@ func (e engine) AcceptGuardianInvitation(ctx context.Context, token string, regi
 	return identityaccess.Account{ID: account.ID, Email: account.Email}, nil
 }
 
-func (e engine) ResendGuardianInvitation(ctx context.Context, invitationID, actorAccountID int64) error {
+func (e engine) ResendGuardianInvitation(ctx context.Context, invitationID, actorAccountID int64) (err error) {
 	if e.lifecycle == nil {
 		return errAccountLifecycleUnavailable
 	}
-	return invitationError(e.lifecycle.ResendGuardianInvitation(e.attach(ctx), invitationID, actorAccountID))
+	operation := func(ctx context.Context) error {
+		return invitationError(e.lifecycle.ResendGuardianInvitation(e.attach(ctx), invitationID, actorAccountID))
+	}
+	err = e.lifecycle.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		err = operation(txCtx)
+		return err
+	})
+	return
 }
 
 func (e engine) ListGuardianInvitations(ctx context.Context, guardianProfileID int64) ([]identityaccess.GuardianInvitation, error) {
@@ -272,34 +370,55 @@ func (e engine) GuardianInvitationSchoolSlug(ctx context.Context, token string) 
 	return e.lifecycle.GuardianInvitationSchoolSlug(e.attach(ctx), token)
 }
 
-func (e engine) PendingInvitationStudentID(ctx context.Context, invitationID int64) (int64, error) {
+func (e engine) PendingInvitationStudentID(ctx context.Context, invitationID int64) (value0 int64, err error) {
 	if e.lifecycle == nil {
 		return 0, errAccountLifecycleUnavailable
 	}
-	studentID, err := e.lifecycle.PendingInvitationStudentID(e.attach(ctx), invitationID)
-	return studentID, lifecycleError(err)
+	operation := func(ctx context.Context) (int64, error) {
+		studentID, err := e.lifecycle.PendingInvitationStudentID(e.attach(ctx), invitationID)
+		return studentID, lifecycleError(err)
+	}
+	err = e.lifecycle.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) ListPendingApprovalsDetailed(ctx context.Context) ([]identityaccess.PendingApprovalView, error) {
+func (e engine) ListPendingApprovalsDetailed(ctx context.Context) (value0 []identityaccess.PendingApprovalView, err error) {
 	if e.lifecycle == nil {
 		return nil, errAccountLifecycleUnavailable
 	}
-	views, err := e.lifecycle.ListPendingApprovalsDetailed(e.attach(ctx))
-	if err != nil {
-		return nil, lifecycleError(err)
+	operation := func(ctx context.Context) ([]identityaccess.PendingApprovalView, error) {
+		views, err := e.lifecycle.ListPendingApprovalsDetailed(e.attach(ctx))
+		if err != nil {
+			return nil, lifecycleError(err)
+		}
+		result := make([]identityaccess.PendingApprovalView, 0, len(views))
+		for _, view := range views {
+			result = append(result, identityaccess.PendingApprovalView(view))
+		}
+		return result, nil
 	}
-	result := make([]identityaccess.PendingApprovalView, 0, len(views))
-	for _, view := range views {
-		result = append(result, identityaccess.PendingApprovalView(view))
-	}
-	return result, nil
+	err = e.lifecycle.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
 }
 
-func (e engine) RevokeAccess(ctx context.Context, req identityaccess.RevokeAccessRequest) error {
+func (e engine) RevokeAccess(ctx context.Context, req identityaccess.RevokeAccessRequest) (err error) {
 	if e.lifecycle == nil {
 		return errAccountLifecycleUnavailable
 	}
-	return lifecycleError(e.lifecycle.RevokeAccess(e.attach(ctx), domain.RevokeAccessRequest(req)))
+	operation := func(ctx context.Context) error {
+		return lifecycleError(e.lifecycle.RevokeAccess(e.attach(ctx), domain.RevokeAccessRequest(req)))
+	}
+	err = e.lifecycle.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		err = operation(txCtx)
+		return err
+	})
+	return
 }
 
 var lifecycleSentinels = []struct {

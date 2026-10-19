@@ -265,7 +265,7 @@ func TestCalendarPeriodAdapter_UsageCountsReturnDatabaseError(t *testing.T) {
 
 	db := testpkg.SetupClosableTestDB(t)
 	repo := NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db)).CalendarPeriod
-	ctx := testpkg.Ctx(t)
+	ctx := testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db)
 	require.NoError(t, db.Close())
 
 	usage, err := repo.UsageCounts(ctx)

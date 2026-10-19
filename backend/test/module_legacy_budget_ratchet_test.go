@@ -138,7 +138,7 @@ var moduleLegacyFileBudgets = map[string]int{}
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063.
-const moduleComposeBudgetTotal = 24712
+const moduleComposeBudgetTotal = 24652
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -149,10 +149,10 @@ const moduleComposeBudgetTotal = 24712
 var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose":                    528,
 	"modules/auditlog/compose":                        251,
-	"modules/careplan/compose":                        2500,
+	"modules/careplan/compose":                        2488,
 	"modules/careplan/requestfeed/compose":            68,
 	"modules/classday/compose":                        461,
-	"modules/communication/composition":               1434,
+	"modules/communication/composition":               1422,
 	"modules/dataimport/compose":                      253,
 	"modules/dataimport/compose/imports":              29,
 	"modules/delivery/compose":                        764,
@@ -168,7 +168,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/filestorage/compose":                     361,
 	"modules/grouplive/compose":                       14,
 	"modules/guardianlinkview/compose":                8,
-	"modules/identityaccess/compose":                  1754,
+	"modules/identityaccess/compose":                  1729,
 	"modules/mealplan/compose":                        242,
 	"modules/organizationtenancy/compose":             474,
 	"modules/parentrequestfeedprojection/compose":     11,
@@ -186,7 +186,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 621,
 	"modules/studentpresence/compose/presenceservice": 873,
 	"modules/supervisiondashboard/compose":            11,
-	"modules/timetable/compose":                       1716,
+	"modules/timetable/compose":                       1705,
 	"modules/timetableblockdisplay/compose":           9,
 	"modules/timetableenrollmentprovenance/compose":   10,
 	"modules/timetableprojection/compose":             7,

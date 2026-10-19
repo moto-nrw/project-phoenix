@@ -8,10 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
-// TemplateRosterMaintenanceFeeds resolves, for every requested template, the
-// source offerings, the offerings linked to any segment of its split series,
-// and the care-offerings setting (#3140). It costs a constant number of reads
-// regardless of how many templates are asked for.
 func (m *BookingMaterialization) TemplateRosterMaintenanceFeeds(ctx context.Context, templates []careplan.TemplateRosterFeedQuery) (map[int64]careplan.TemplateRosterFeeds, error) {
 	result := make(map[int64]careplan.TemplateRosterFeeds, len(templates))
 	if len(templates) == 0 {

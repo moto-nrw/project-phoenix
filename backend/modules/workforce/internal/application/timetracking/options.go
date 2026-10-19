@@ -1,6 +1,7 @@
 package timetracking
 
 import (
+	"context"
 	"log/slog"
 )
 
@@ -164,4 +165,40 @@ func WithOverviewTargetOverrides(reader TargetOverrideReader) StaffOverviewOptio
 // Without it the overview ignores takeovers.
 func WithOverviewVacationOpenings(repo StaffVacationOpeningRepository) StaffOverviewOption {
 	return func(s *staffOverviewService) { s.openingRepo = repo }
+}
+
+// WithAbsenceUnitOfWork binds the command boundary; pure record doubles can
+// leave it unset, while production composition always supplies it.
+func WithAbsenceUnitOfWork(run func(context.Context, func(context.Context) error) error) StaffAbsenceOption {
+	return func(s *staffAbsenceService) { s.runInTx = run }
+}
+func (s *staffAbsenceService) runCommand(ctx context.Context, fn func(context.Context) error) error {
+	if s.runInTx == nil {
+		return fn(ctx)
+	}
+	return s.runInTx(ctx, fn)
+}
+
+// WithAdjustmentUnitOfWork binds the command boundary; pure record doubles can
+// leave it unset, while production composition always supplies it.
+func WithAdjustmentUnitOfWork(run func(context.Context, func(context.Context) error) error) StaffBalanceAdjustmentOption {
+	return func(s *staffBalanceAdjustmentService) { s.runInTx = run }
+}
+func (s *staffBalanceAdjustmentService) runCommand(ctx context.Context, fn func(context.Context) error) error {
+	if s.runInTx == nil {
+		return fn(ctx)
+	}
+	return s.runInTx(ctx, fn)
+}
+
+// WithMonthCloseUnitOfWork binds the command boundary; pure record doubles can
+// leave it unset, while production composition always supplies it.
+func WithMonthCloseUnitOfWork(run func(context.Context, func(context.Context) error) error) StaffMonthCloseOption {
+	return func(s *staffMonthCloseService) { s.runInTx = run }
+}
+func (s *staffMonthCloseService) runCommand(ctx context.Context, fn func(context.Context) error) error {
+	if s.runInTx == nil {
+		return fn(ctx)
+	}
+	return s.runInTx(ctx, fn)
 }

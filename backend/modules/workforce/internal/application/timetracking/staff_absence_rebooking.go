@@ -70,11 +70,6 @@ type rebookedAbsence struct {
 	after  *StaffAbsence
 }
 
-// RebookAbsences changes the type of stored absences (#3258). The rows keep
-// their dates, their entry date and their status; the Stundenkonto, the
-// allowances and every view follow from the new type because all of them are
-// computed on read. A closed month blocks the change, since its frozen
-// closing balance would no longer match.
 func (s *staffAbsenceService) RebookAbsences(ctx context.Context, req RebookAbsencesRequest) (*AbsenceRebookingResult, error) {
 	reason := strings.TrimSpace(req.Reason)
 	ids, err := validateRebookingRequest(req, reason)

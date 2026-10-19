@@ -723,7 +723,10 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 	})
 
 	// Sanity: the exit really did take the plan apart.
-	rows, err := timetableRepos.InstanceStudent.FindByInstanceID(ctx, instance.ID)
+	rows, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.InstanceStudent.FindByInstanceID,
+
+		instance.ID)
+
 	require.NoError(t, err)
 	require.Empty(t, rows, "the exit removed the roster row")
 	pickupSchedules, err := careplantest.NewScheduleRecords(repos.CarePlan()).StudentPickupSchedule.FindByStudentID(ctx, student.ID)
@@ -738,7 +741,10 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 	require.Equal(t, 1, cancelled)
 
 	t.Run("the roster row is back, with the hand-set status intact", func(t *testing.T) {
-		restored, err := timetableRepos.InstanceStudent.FindByInstanceID(ctx, instance.ID)
+		restored, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.InstanceStudent.FindByInstanceID,
+
+			instance.ID)
+
 		require.NoError(t, err)
 		require.Len(t, restored, 1)
 		assert.Equal(t, student.ID, restored[0].StudentID)
@@ -812,7 +818,10 @@ func TestCareLifecycle_ChangingTheDayReplansFromTheBaseline(t *testing.T) {
 		LastCareDay: today.AddDays(5),
 		Reason:      careplan.CareExitReasonNoCareNeed,
 	})
-	rows, err := timetableRepos.InstanceStudent.FindByInstanceID(ctx, early.ID)
+	rows, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.InstanceStudent.FindByInstanceID,
+
+		early.ID)
+
 	require.NoError(t, err)
 	require.Empty(t, rows)
 
@@ -837,14 +846,20 @@ func TestCareLifecycle_ChangingTheDayReplansFromTheBaseline(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("the block inside the extended window is back", func(t *testing.T) {
-		restored, err := timetableRepos.InstanceStudent.FindByInstanceID(ctx, early.ID)
+		restored, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.InstanceStudent.FindByInstanceID,
+
+			early.ID)
+
 		require.NoError(t, err)
 		require.Len(t, restored, 1)
 		assert.Equal(t, student.ID, restored[0].StudentID)
 	})
 
 	t.Run("the block after the new day stays removed", func(t *testing.T) {
-		gone, err := timetableRepos.InstanceStudent.FindByInstanceID(ctx, late.ID)
+		gone, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.InstanceStudent.FindByInstanceID,
+
+			late.ID)
+
 		require.NoError(t, err)
 		assert.Empty(t, gone)
 	})
@@ -892,7 +907,10 @@ func TestCareLifecycle_ResumeDoesNotBringThePlanBack(t *testing.T) {
 		Checked:        true,
 	}))
 
-	rows, err := timetableRepos.InstanceStudent.FindByInstanceID(ctx, instance.ID)
+	rows, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.InstanceStudent.FindByInstanceID,
+
+		instance.ID)
+
 	require.NoError(t, err)
 	assert.Empty(t, rows, "the old plan stays off — the school sets it up again")
 
@@ -905,7 +923,10 @@ func TestCareLifecycle_ResumeDoesNotBringThePlanBack(t *testing.T) {
 	_, err = svc.Cancel(ctx, []int64{student.ID}, actorID)
 	require.NoError(t, err)
 
-	after, err := timetableRepos.InstanceStudent.FindByInstanceID(ctx, instance.ID)
+	after, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.InstanceStudent.FindByInstanceID,
+
+		instance.ID)
+
 	require.NoError(t, err)
 	assert.Empty(t, after, "a discarded ledger stays discarded")
 }

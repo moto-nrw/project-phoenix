@@ -770,6 +770,7 @@ func TestDetectShiftCoverageWarnings_MissingTenantPeriodIsValidationError(t *tes
 // start-check and planning readers stay unset because the probe never
 // touches them.
 func detectShiftCoverage(ctx context.Context, deps ports.ConflictDetectionDependencies, probe timetable.ShiftCoverageProbe) (timetable.ShiftCoverageResult, error) {
+	deps.RunInTx = func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }
 	detection := &conflictDetection{deps: deps, logger: slog.Default()}
 	return detection.DetectShiftCoverage(ctx, probe)
 }

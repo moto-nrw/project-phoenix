@@ -5,7 +5,6 @@ package compose
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/internal/careplanning"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -67,25 +66,8 @@ func bindCareLocks(dependencies Dependencies) {
 
 func carePlanDatabase(db *bun.DB) postgres.Database {
 	return func(ctx context.Context) (bun.IDB, int64, error) {
-		tenantID := tenant.FromContext(ctx)
-		if tenantID <= 0 {
-			return nil, 0, errors.New("care plan: tenant is required")
-		}
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return nil, 0, errors.New("care plan: transaction is required")
-		}
-		switch tx := transaction.(type) {
-		case bun.Tx:
-			return tx, tenantID, nil
-		case *bun.Tx:
-			if tx != nil {
-				return tx, tenantID, nil
-			}
-			return nil, 0, errors.New("care plan: transaction is required")
-		default:
-			return nil, 0, fmt.Errorf("care plan postgres: unsupported transaction %T", transaction)
-		}
+		raw, present := tenant.TransactionFromContext(ctx)
+		return postgres.ResolveDatabase(raw, present, tenant.FromContext(ctx))
 	}
 }
 

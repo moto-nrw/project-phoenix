@@ -118,16 +118,19 @@ type declarationSignerRow struct {
 // DeclarationSigners returns the guardians who may declare for the children
 // of one school.
 func (p *Projection) DeclarationSigners(ctx context.Context, schoolID int64, studentIDs []int64) ([]*contract.DeclarationSigner, error) {
-	return p.declarationSigners(ctx, schoolID, studentIDs)
+	if schoolID <= 0 {
+		return nil, errors.New("communication: school is required")
+	}
+	return p.declarationSigners(ctx, studentIDs, func(db bun.IDB) *bun.SelectQuery { return p.guardianLinks(db, schoolID) })
 }
 
 // DeclarationSignersForStudents is DeclarationSigners for children of several
 // schools; the ids come from an already authorized feed.
 func (p *Projection) DeclarationSignersForStudents(ctx context.Context, studentIDs []int64) ([]*contract.DeclarationSigner, error) {
-	return p.declarationSigners(ctx, 0, studentIDs)
+	return p.declarationSigners(ctx, studentIDs, p.links.AllSchoolsGuardianLinkRows)
 }
 
-func (p *Projection) declarationSigners(ctx context.Context, schoolID int64, studentIDs []int64) ([]*contract.DeclarationSigner, error) {
+func (p *Projection) declarationSigners(ctx context.Context, studentIDs []int64, links func(bun.IDB) *bun.SelectQuery) ([]*contract.DeclarationSigner, error) {
 	if len(studentIDs) == 0 {
 		return []*contract.DeclarationSigner{}, nil
 	}
@@ -136,7 +139,7 @@ func (p *Projection) declarationSigners(ctx context.Context, schoolID int64, stu
 		return nil, err
 	}
 	var rows []declarationSignerRow
-	if err := db.NewRaw(declarationSignersSQL, p.guardianLinks(db, schoolID), bun.List(studentIDs)).Scan(ctx, &rows); err != nil {
+	if err := db.NewRaw(declarationSignersSQL, links(db), bun.List(studentIDs)).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent declaration signers: %w", err)
 	}
 	out := make([]*contract.DeclarationSigner, 0, len(rows))
@@ -211,8 +214,8 @@ func (p *Projection) DeclarationChildrenForAccount(ctx context.Context, accountI
 	today := p.day()
 	var rows []declarationChildRow
 	if err := db.NewRaw(declarationChildrenForAccountSQL,
-		today, today, today, p.guardianLinks(db, 0), accountID, bun.List(announcementIDs),
-		historyJSON, p.guardianLinks(db, 0), accountID, bun.List(announcementIDs),
+		today, today, today, p.links.AllSchoolsGuardianLinkRows(db), accountID, bun.List(announcementIDs),
+		historyJSON, p.links.AllSchoolsGuardianLinkRows(db), accountID, bun.List(announcementIDs),
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent declaration children for account: %w", err)
 	}
@@ -405,7 +408,7 @@ func (p *Projection) HistoricalDeclarationFeed(ctx context.Context, accountID in
 	}
 	var rows []feedRow
 	if err := db.NewRaw(historicalDeclarationFeedSQL,
-		historyJSON, accountID, p.guardianLinks(db, 0), accountID,
+		historyJSON, accountID, p.links.AllSchoolsGuardianLinkRows(db), accountID,
 		feedScopeList(scope.TenantIDs), feedScopeList(scope.SystemOnlyTenantIDs),
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("list historical parent declaration feed: %w", err)

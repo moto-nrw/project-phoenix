@@ -1,6 +1,7 @@
 package behavior_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -29,17 +30,20 @@ func TestPendingInvitationsQueryBudget(t *testing.T) {
 	}
 	add(0, 3)
 
-	counter := testpkg.CaptureQueriesForContext(t, db)
-	ctx := counter.Context(testpkg.Ctx(t))
-	run := func() []string {
-		counter.Reset()
-		_, err := env.service.ListPendingSchoolInvitations(ctx)
-		require.NoError(t, err)
-		return counter.Operation("SELECT")
-	}
-	small := run()
-	add(3, 8)
-	large := run()
-	assert.Equal(t, len(small), len(large), "the listing must not grow a statement per invitation")
-	testpkg.AssertQueryBudget(t, "services.auth.pending_invitations.reads", large)
+	require.NoError(t, testpkg.WithinTenantContext(t, testpkg.Ctx(t), db, testpkg.TenantIDFromContext(testpkg.Ctx(t)), func(ctx context.Context) error {
+		counter := testpkg.CaptureQueriesForContext(t, db)
+		countedCtx := counter.Context(ctx)
+		run := func() []string {
+			counter.Reset()
+			_, err := env.service.ListPendingSchoolInvitations(countedCtx)
+			require.NoError(t, err)
+			return counter.Operation("SELECT")
+		}
+		small := run()
+		add(3, 8)
+		large := run()
+		assert.Equal(t, len(small), len(large), "the listing must not grow a statement per invitation")
+		testpkg.AssertQueryBudget(t, "services.auth.pending_invitations.reads", large)
+		return nil
+	}))
 }

@@ -20,6 +20,7 @@ type ScheduleReviewSchedules interface {
 }
 
 type ScheduleReviewDependencies struct {
+	RunInTx               func(context.Context, func(context.Context) error) error
 	Requests              careplan.CareScheduleRequestQuery
 	Schedules             ScheduleReviewSchedules
 	People                careplan.ScheduleReviewDirectory
@@ -35,11 +36,19 @@ type ScheduleReviewDependencies struct {
 
 type ScheduleReviews struct{ deps ScheduleReviewDependencies }
 
-func NewScheduleReviews(deps ScheduleReviewDependencies) *ScheduleReviews {
+func NewScheduleReviews(deps ScheduleReviewDependencies) careplan.CareScheduleReviewQuery {
 	if deps.Logger == nil {
 		deps.Logger = slog.Default()
 	}
-	return &ScheduleReviews{deps: deps}
+	return &scheduleReviewCommands{&ScheduleReviews{deps: deps}}
+}
+
+func (s *scheduleReviewCommands) ListPending(ctx context.Context, filter careplan.RequestQueueFilter) (value0 []*careplan.CareScheduleReviewItem, value1 *careplan.RequestCursor, err error) {
+	err = s.ScheduleReviews.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, value1, err = s.ScheduleReviews.ListPending(txCtx, filter)
+		return err
+	})
+	return
 }
 
 func (s *ScheduleReviews) ListPending(ctx context.Context, filter careplan.RequestQueueFilter) ([]*careplan.CareScheduleReviewItem, *careplan.RequestCursor, error) {
@@ -131,6 +140,14 @@ func (s *ScheduleReviews) people(ctx context.Context, rows []careplan.CareSchedu
 		return nil, nil, fmt.Errorf("schedule: load persons for %s: %w", operation, err)
 	}
 	return students, names, nil
+}
+
+func (s *scheduleReviewCommands) ListHistory(ctx context.Context, filter careplan.RequestQueueFilter) (value0 []*careplan.CareScheduleHistoryItem, value1 *careplan.RequestCursor, err error) {
+	err = s.ScheduleReviews.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, value1, err = s.ScheduleReviews.ListHistory(txCtx, filter)
+		return err
+	})
+	return
 }
 
 func (s *ScheduleReviews) ListHistory(ctx context.Context, filter careplan.RequestQueueFilter) ([]*careplan.CareScheduleHistoryItem, *careplan.RequestCursor, error) {
@@ -243,3 +260,5 @@ func (s *ScheduleReviews) plan(ctx context.Context, student careplan.ReviewStude
 	}
 	return facts, nil
 }
+
+type scheduleReviewCommands struct{ *ScheduleReviews }

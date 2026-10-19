@@ -26,8 +26,6 @@ const (
 	opGuardianInviteFetch    = "fetch guardian invitation"
 )
 
-// CreateGuardianInvitation issues a fresh invitation for a guardian contact
-// and queues its mail. The school comes from the tenant in context.
 func (l *AccountLifecycle) CreateGuardianInvitation(ctx context.Context, request domain.GuardianInvitationRequest) (domain.GuardianInvitation, error) {
 	if request.GuardianProfileID <= 0 {
 		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, fmt.Errorf("guardian profile ID is required"))
@@ -271,9 +269,6 @@ func (l *AccountLifecycle) claimGuardianEnrollments(ctx context.Context, account
 	return nil
 }
 
-// ResendGuardianInvitation queues the mail of a still redeemable invitation
-// again. The token and its expiry stay as issued; an expired or spent
-// invitation is never revived, it is replaced by a new one.
 func (l *AccountLifecycle) ResendGuardianInvitation(ctx context.Context, invitationID, actorAccountID int64) error {
 	invitation, found, err := l.invitations.FindGuardianInvitation(ctx, invitationID)
 	if err != nil {

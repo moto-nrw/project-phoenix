@@ -86,12 +86,12 @@ func (s *MessageStore) Create(ctx context.Context, message *domain.ParentMessage
 	if message == nil {
 		return errors.New("create parent message: message is required")
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
 	if message.TenantID == 0 {
-		message.TenantID = tenantID
+		message.TenantID = scope.TenantID
 	}
 	row := messageRow(message)
 	if _, err := db.NewInsert().
@@ -113,7 +113,7 @@ func (s *MessageStore) Update(ctx context.Context, message *domain.ParentMessage
 	if message == nil || message.ID <= 0 {
 		return errors.New("update parent message: message id is required")
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
@@ -121,7 +121,7 @@ func (s *MessageStore) Update(ctx context.Context, message *domain.ParentMessage
 		Model(messageRow(message)).
 		ModelTableExpr(parentMessageTableExpr).
 		WherePK()
-	query = withTenant(query, parentMessageAlias, tenantID)
+	query = withTenant(query, parentMessageAlias, scope)
 	result, err := query.Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("update parent message: %w", err)
@@ -141,7 +141,7 @@ func (s *MessageStore) FindByIDForUpdate(ctx context.Context, id int64) (*domain
 }
 
 func (s *MessageStore) findMessage(ctx context.Context, id int64, lock bool) (*domain.ParentMessage, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +154,7 @@ func (s *MessageStore) findMessage(ctx context.Context, id int64, lock bool) (*d
 	if lock {
 		query = query.For("UPDATE")
 	}
-	query = withTenant(query, parentMessageAlias, tenantID)
+	query = withTenant(query, parentMessageAlias, scope)
 	if err := query.Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -169,7 +169,7 @@ func (s *MessageStore) findMessage(ctx context.Context, id int64, lock bool) (*d
 // "request created" pill so a decision can mark it read without opening the
 // thread. Oldest match wins; there is at most one.
 func (s *MessageStore) FindEventByRef(ctx context.Context, threadID int64, eventType, refTable string, refID int64) (*domain.ParentMessage, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +184,7 @@ func (s *MessageStore) FindEventByRef(ctx context.Context, threadID int64, event
 		Where(`"parent_message".ref_id = ?`, refID).
 		OrderExpr(`"parent_message".id ASC`).
 		Limit(1)
-	query = withTenant(query, parentMessageAlias, tenantID)
+	query = withTenant(query, parentMessageAlias, scope)
 	if err := query.Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -203,7 +203,7 @@ func (s *MessageStore) FindEventByRef(ctx context.Context, threadID int64, event
 // message would be silently marked read though it was never shown. A capped
 // tail is only safe for a load-older UI that never feeds the read cursor.
 func (s *MessageStore) ListByThread(ctx context.Context, threadID int64, limit int) ([]*domain.ParentMessage, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -219,7 +219,7 @@ func (s *MessageStore) ListByThread(ctx context.Context, threadID int64, limit i
 	if limit > 0 {
 		query = query.Limit(int64(limit))
 	}
-	query = withTenant(query, parentMessageAlias, tenantID)
+	query = withTenant(query, parentMessageAlias, scope)
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list parent messages: %w", err)
 	}

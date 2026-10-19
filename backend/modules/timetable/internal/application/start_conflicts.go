@@ -26,6 +26,14 @@ import (
 // DetectStartConflicts checks the block's staff and expected students against
 // the live layer. Failures to load the expected students or their current
 // presence are returned; staff lookups degrade to fewer warnings.
+func (d *conflictCommands) DetectStartConflicts(ctx context.Context, subject timetable.StartConflictSubject) (value0 []timetable.InstanceConflictWarning, err error) {
+	err = d.conflictDetection.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.conflictDetection.DetectStartConflicts(txCtx, subject)
+		return err
+	})
+	return
+}
+
 func (d *conflictDetection) DetectStartConflicts(ctx context.Context, subject timetable.StartConflictSubject) ([]timetable.InstanceConflictWarning, error) {
 	// A room shared by two groups is not a conflict (#2139); only people can
 	// be double-booked.

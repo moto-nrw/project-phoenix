@@ -23,14 +23,6 @@ func newWorkerCommandsForTest(records *postgresadapter.Store, withinAdmin func(c
 	return &workerCommandsForTest{Store: records, withinAdmin: withinAdmin}
 }
 
-func (c *workerCommandsForTest) ClaimPush(ctx context.Context, tenantID, id int64, now, expires time.Time) (result0 domain.Intent, result1 bool, err error) {
-	err = c.withinAdmin(ctx, func(txCtx context.Context) error {
-		result0, result1, err = c.Store.ClaimPush(txCtx, tenantID, id, now, expires)
-		return err
-	})
-	return
-}
-
 func (c *workerCommandsForTest) Claim(ctx context.Context, transport domain.Transport, limit int, now, leaseExpiresAt time.Time) (result0 []domain.Intent, err error) {
 	err = c.withinAdmin(ctx, func(txCtx context.Context) error {
 		result0, err = c.Store.Claim(txCtx, transport, limit, now, leaseExpiresAt)
@@ -82,46 +74,6 @@ func (c *workerCommandsForTest) FinalizeDeferred(ctx context.Context, transport 
 func (c *workerCommandsForTest) FinalizeFailure(ctx context.Context, transport domain.Transport, id int64, token string, attempts int, lastError string, nextRetryAt time.Time, maxAttempts int) (result0 domain.FinalizeResult, err error) {
 	err = c.withinAdmin(ctx, func(txCtx context.Context) error {
 		result0, err = c.Store.FinalizeFailure(txCtx, transport, id, token, attempts, lastError, nextRetryAt, maxAttempts)
-		return err
-	})
-	return
-}
-
-func (c *workerCommandsForTest) Backlog(ctx context.Context) (result0 int, err error) {
-	err = c.withinAdmin(ctx, func(txCtx context.Context) error {
-		result0, err = c.Store.Backlog(txCtx)
-		return err
-	})
-	return
-}
-
-func (c *workerCommandsForTest) OldestPendingAge(ctx context.Context, now time.Time) (result0 time.Duration, err error) {
-	err = c.withinAdmin(ctx, func(txCtx context.Context) error {
-		result0, err = c.Store.OldestPendingAge(txCtx, now)
-		return err
-	})
-	return
-}
-
-func (c *workerCommandsForTest) ClaimEmail(ctx context.Context, tenantID, id int64, now, expires time.Time) (result0 domain.Intent, result1 bool, err error) {
-	err = c.withinAdmin(ctx, func(txCtx context.Context) error {
-		result0, result1, err = c.Store.ClaimEmail(txCtx, tenantID, id, now, expires)
-		return err
-	})
-	return
-}
-
-func (c *workerCommandsForTest) RecordEmailRetry(ctx context.Context, id int64, token string, attempts int, now time.Time) (result0 bool, err error) {
-	err = c.withinAdmin(ctx, func(txCtx context.Context) error {
-		result0, err = c.Store.RecordEmailRetry(txCtx, id, token, attempts, now)
-		return err
-	})
-	return
-}
-
-func (c *workerCommandsForTest) DeleteExpiredSystemEmails(ctx context.Context, before time.Time, limit int) (result0 int, err error) {
-	err = c.withinAdmin(ctx, func(txCtx context.Context) error {
-		result0, err = c.Store.DeleteExpiredSystemEmails(txCtx, before, limit)
 		return err
 	})
 	return

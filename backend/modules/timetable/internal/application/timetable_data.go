@@ -35,7 +35,7 @@ func NewTimetableData(deps ports.TimetableDataDependencies) (timetable.Timetable
 		deps.Rooms == nil || deps.RoomOccupancy == nil || deps.DeviationEvents == nil || deps.ConflictAcks == nil {
 		return nil, errors.New("timetable data: required dependency is nil")
 	}
-	return &timetableData{ConflictAckCapability: deps.ConflictAcks, DeviationEventReader: deps.DeviationEvents, deps: deps}, nil
+	return &timetableCommands{&timetableData{ConflictAckCapability: deps.ConflictAcks, DeviationEventReader: deps.DeviationEvents, deps: deps}}, nil
 }
 
 func (d *timetableData) FindScheduledInstance(ctx context.Context, id int64) (timetable.ScheduledInstance, error) {
@@ -60,10 +60,6 @@ func (d *timetableData) ListScheduledInstances(ctx context.Context, from, to cal
 	return scheduledInstancesOf(rows), nil
 }
 
-// ListScheduledInstanceRows loads the rows of the listed blocks with one
-// batched read per kind plus one cutoff read per distinct date, instead of
-// three reads per block (#2940). Participant rows keep the created_at order
-// of the single-block read.
 func (d *timetableData) ListScheduledInstanceRows(ctx context.Context, instances []timetable.ScheduledInstance) (*timetable.ScheduledInstanceRows, error) {
 	rows := &timetable.ScheduledInstanceRows{
 		Staff:        make(map[int64][]timetable.InstanceStaff, len(instances)),
@@ -174,11 +170,6 @@ func (d *timetableData) ListBlockParticipants(ctx context.Context, instanceID in
 	return scheduledParticipantsOf(rows), nil
 }
 
-// ListCareDayCandidates returns the rows whose care-day verdict can still
-// change something: still 'expected', plus rows a broad day status (sick,
-// excused, class trip) flipped to 'absent' and still owns. The status day
-// is written before anything knows whether the child was booked, so an
-// unbooked child can already sit there as absent (#1747).
 func (d *timetableData) ListCareDayCandidates(ctx context.Context, instanceIDs []int64) ([]timetable.ScheduledParticipant, error) {
 	rows, err := d.deps.Participants.FindNotScheduledCandidatesByInstanceIDs(ctx, instanceIDs)
 	if err != nil {
@@ -257,3 +248,5 @@ func instanceStaffOf(row *scheduleModels.InstanceStaff) timetable.InstanceStaff 
 		AbsenceReason: row.AbsenceReason, SickAbsenceID: row.SickAbsenceID,
 	}
 }
+
+type timetableCommands struct{ *timetableData }

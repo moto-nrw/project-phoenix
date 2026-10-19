@@ -17,6 +17,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // newOperatorProvisioning composes Organisation & Tenancy's provisioning
@@ -81,7 +82,12 @@ var _ organizationCompose.ProvisioningIdentity = provisioningIdentity{}
 var provisioningTenantScope identityaccessCompose.TenantUnitOfWork
 
 func (p provisioningIdentity) ListSystemRoles(ctx context.Context) ([]organizationCompose.ProvisioningRole, error) {
-	roles, err := p.roles.ListRoles(ctx, identityaccess.RoleFilter{})
+	var roles []identityaccess.Role
+	err := provisioningRoleRead(ctx, func(txCtx context.Context) error {
+		var err error
+		roles, err = p.roles.ListRoles(txCtx, identityaccess.RoleFilter{})
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +100,12 @@ func (p provisioningIdentity) ListSystemRoles(ctx context.Context) ([]organizati
 
 // FindSystemRole resolves the owner's platform system role with that name.
 func (p provisioningIdentity) FindSystemRole(ctx context.Context, name string) (organizationCompose.ProvisioningRole, bool, error) {
-	roles, err := p.roles.ListRoles(ctx, identityaccess.RoleFilter{})
+	var roles []identityaccess.Role
+	err := provisioningRoleRead(ctx, func(txCtx context.Context) error {
+		var err error
+		roles, err = p.roles.ListRoles(txCtx, identityaccess.RoleFilter{})
+		return err
+	})
 	if err != nil {
 		return organizationCompose.ProvisioningRole{}, false, err
 	}
@@ -108,7 +119,12 @@ func (p provisioningIdentity) FindSystemRole(ctx context.Context, name string) (
 // FindRole reports a missing role as not found rather than as a failure, so
 // provisioning answers 400 for an unknown role_id instead of 500.
 func (p provisioningIdentity) FindRole(ctx context.Context, id int64) (organizationCompose.ProvisioningRole, bool, error) {
-	role, err := p.roles.GetRole(ctx, id)
+	var role identityaccess.Role
+	err := provisioningRoleRead(ctx, func(txCtx context.Context) error {
+		var err error
+		role, err = p.roles.GetRole(txCtx, id)
+		return err
+	})
 	if errors.Is(err, identityaccess.ErrRoleNotFound) {
 		return organizationCompose.ProvisioningRole{}, false, nil
 	}
@@ -340,4 +356,13 @@ func operatorPersonStudentMembership(db transactionruntime.Database) operatorPer
 	return func(ctx context.Context, personIDs []int64) (map[int64]bool, error) {
 		return peopleCompose.OperatorPersonStudentMembership(ctx, runtime, students, personIDs)
 	}
+}
+
+// provisioningRoleRead joins the provisioning command, or explicitly reads
+// the platform role catalog before a target-school transaction exists.
+func provisioningRoleRead(ctx context.Context, fn func(context.Context) error) error {
+	if _, ok := tenant.TransactionFromContext(ctx); ok {
+		return fn(ctx)
+	}
+	return provisioningTenantScope.WithinAdmin(ctx, fn)
 }

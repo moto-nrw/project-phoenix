@@ -23,3 +23,27 @@ func (s *SchoolInvitation) CreateInvitation(ctx context.Context, request domain.
 	})
 	return result, err
 }
+
+func (s *SchoolInvitation) ListPendingInvitations(ctx context.Context) (value0 []domain.SchoolInvitation, err error) {
+	err = s.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = s.inUnitListPendingInvitations(txCtx)
+		return err
+	})
+	return
+}
+
+func (s *SchoolInvitation) RevokeInvitation(ctx context.Context, invitationID, actorAccountID int64) (err error) {
+	err = s.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		err = s.inUnitRevokeInvitation(txCtx, invitationID, actorAccountID)
+		return err
+	})
+	return
+}
+
+func (s *SchoolInvitation) InvitationDeliverySent(ctx context.Context, id int64) (value0 bool, err error) {
+	err = s.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = s.inUnitInvitationDeliverySent(txCtx, id)
+		return err
+	})
+	return
+}

@@ -85,6 +85,9 @@ func NewWorkSessionService(repo WorkSessionRepository, breakRepo WorkSessionBrea
 	for _, opt := range opts {
 		opt(service)
 	}
+	if db != nil {
+		return &workSessionCommands{service}
+	}
 	return service
 }
 
@@ -109,3 +112,5 @@ func (s *workSessionService) listSessionsByStaffAndDate(ctx context.Context, sta
 	}
 	return sessions, nil
 }
+
+type workSessionCommands struct{ *workSessionService }

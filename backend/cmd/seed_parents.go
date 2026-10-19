@@ -193,7 +193,7 @@ func promotableGuardians(ctx context.Context, repos guardianSeedRepositories, co
 		if email == "" {
 			continue
 		}
-		links, err := repos.StudentGuardian.FindByGuardianProfileID(ctx, profile.ID)
+		links, err := repos.StudentGuardian.FindByGuardianProfileID(tenant.WithTenantID(ctx, profile.GetTenantID()), profile.ID)
 		if err != nil {
 			return nil, fmt.Errorf("find student links of guardian %d: %w", profile.ID, err)
 		}

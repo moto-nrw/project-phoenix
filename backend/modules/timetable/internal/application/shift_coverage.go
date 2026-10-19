@@ -27,6 +27,14 @@ const maxReturnedShiftCoverageWarnings = 100
 // the group's recurrence envelope, group-scoped instances, group-scoped
 // exceptions, all concrete staff rows, all shifts, all tenant week usage, and
 // the warning names.
+func (d *conflictCommands) DetectShiftCoverage(ctx context.Context, probe timetable.ShiftCoverageProbe) (value0 timetable.ShiftCoverageResult, err error) {
+	err = d.conflictDetection.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.conflictDetection.DetectShiftCoverage(txCtx, probe)
+		return err
+	})
+	return
+}
+
 func (d *conflictDetection) DetectShiftCoverage(ctx context.Context, probe timetable.ShiftCoverageProbe) (timetable.ShiftCoverageResult, error) {
 	dates, staffIDs, err := normalizeShiftCoverageProbe(probe)
 	if err != nil {

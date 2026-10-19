@@ -436,3 +436,43 @@ func (TenantTransactionRuntime) TenantID(ctx context.Context) int64 { return ten
 
 // MarkRollback asks the request's tenant transaction to roll back.
 func (TenantTransactionRuntime) MarkRollback(ctx context.Context) { tenant.MarkRollback(ctx) }
+
+// TenantQuery0 arranges the explicit unit required by raw owner adapters.
+func TenantQuery0[T any](tb testing.TB, ctx context.Context, db *bun.DB, query func(context.Context) (T, error)) (value T, err error) {
+	tb.Helper()
+	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		value, err = query(txCtx)
+		return err
+	})
+	return value, err
+}
+
+// TenantQuery1 arranges the explicit unit required by raw owner adapters.
+func TenantQuery1[T any, A0 any](tb testing.TB, ctx context.Context, db *bun.DB, query func(context.Context, A0) (T, error), arg0 A0) (value T, err error) {
+	tb.Helper()
+	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		value, err = query(txCtx, arg0)
+		return err
+	})
+	return value, err
+}
+
+// TenantQuery2 arranges the explicit unit required by raw owner adapters.
+func TenantQuery2[T any, A0 any, A1 any](tb testing.TB, ctx context.Context, db *bun.DB, query func(context.Context, A0, A1) (T, error), arg0 A0, arg1 A1) (value T, err error) {
+	tb.Helper()
+	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		value, err = query(txCtx, arg0, arg1)
+		return err
+	})
+	return value, err
+}
+
+// TenantQuery3 arranges the explicit unit required by raw owner adapters.
+func TenantQuery3[T any, A0 any, A1 any, A2 any](tb testing.TB, ctx context.Context, db *bun.DB, query func(context.Context, A0, A1, A2) (T, error), arg0 A0, arg1 A1, arg2 A2) (value T, err error) {
+	tb.Helper()
+	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		value, err = query(txCtx, arg0, arg1, arg2)
+		return err
+	})
+	return value, err
+}

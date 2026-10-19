@@ -589,7 +589,8 @@ func (s *SchoolInvitation) ResendInvitation(ctx context.Context, invitationID, a
 
 // ListPendingInvitations returns the redeemable invitations of the school in
 // context.
-func (s *SchoolInvitation) ListPendingInvitations(ctx context.Context) ([]domain.SchoolInvitation, error) {
+
+func (s *SchoolInvitation) inUnitListPendingInvitations(ctx context.Context) ([]domain.SchoolInvitation, error) {
 	invitations, _, err := s.store.ListRedeemableSchoolInvitations(ctx, s.now())
 	if err != nil {
 		return nil, failed("list invitations", err)
@@ -598,7 +599,8 @@ func (s *SchoolInvitation) ListPendingInvitations(ctx context.Context) ([]domain
 }
 
 // RevokeInvitation spends an invitation so it can no longer be accepted.
-func (s *SchoolInvitation) RevokeInvitation(ctx context.Context, invitationID, actorAccountID int64) error {
+
+func (s *SchoolInvitation) inUnitRevokeInvitation(ctx context.Context, invitationID, actorAccountID int64) error {
 	invitation, found, _, err := s.store.FindSchoolInvitation(ctx, invitationID)
 	if err != nil {
 		return failed(opRevokeInvitation, err)
@@ -631,7 +633,8 @@ func (s *SchoolInvitation) RecordInvitationDelivery(ctx context.Context, id int6
 // redeemable invitation mail. The durable welcome renderer uses this to
 // preserve the invitation-before-welcome order and to cancel a welcome whose
 // invitation was spent or expired while it waited in the outbox.
-func (s *SchoolInvitation) InvitationDeliverySent(ctx context.Context, id int64) (bool, error) {
+
+func (s *SchoolInvitation) inUnitInvitationDeliverySent(ctx context.Context, id int64) (bool, error) {
 	if id <= 0 {
 		return false, failed("find invitation delivery", domain.ErrInvitationNotFound)
 	}

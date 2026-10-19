@@ -67,24 +67,24 @@ func (s *RetentionStore) DeleteMessagesBefore(ctx context.Context, cutoff time.T
 	if cutoff.IsZero() {
 		return 0, 0, errors.New("delete expired parent messages: cutoff is required")
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, 0, err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return 0, 0, errors.New("delete expired parent messages: tenant is required")
 	}
-	result, err := db.ExecContext(ctx, deleteExpiredParentMessagesSQL, tenantID, cutoff)
+	result, err := db.ExecContext(ctx, deleteExpiredParentMessagesSQL, scope.TenantID, cutoff)
 	if err != nil {
 		return 0, 0, fmt.Errorf("delete expired parent messages: %w", err)
 	}
 	if messages, err = result.RowsAffected(); err != nil {
 		return 0, 0, fmt.Errorf("count expired parent messages: %w", err)
 	}
-	if _, err := db.ExecContext(ctx, repairThreadPreviewSQL, tenantID); err != nil {
+	if _, err := db.ExecContext(ctx, repairThreadPreviewSQL, scope.TenantID); err != nil {
 		return 0, 0, fmt.Errorf("repair parent message thread previews: %w", err)
 	}
-	result, err = db.ExecContext(ctx, deleteEmptyParentThreadsSQL, tenantID, cutoff)
+	result, err = db.ExecContext(ctx, deleteEmptyParentThreadsSQL, scope.TenantID, cutoff)
 	if err != nil {
 		return 0, 0, fmt.Errorf("delete empty parent message threads: %w", err)
 	}

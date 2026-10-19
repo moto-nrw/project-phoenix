@@ -1,6 +1,7 @@
 package timetracking_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
@@ -43,17 +44,20 @@ func TestFutureCompTimeCommitmentQueryBudget(t *testing.T) {
 		}
 	}
 	add(0, 3)
-	counter := testpkg.CaptureQueriesForContext(t, db)
-	countedCtx := counter.Context(ctx)
-	run := func() []string {
-		counter.Reset()
-		_, err := service.GetFutureCompTimeCommitmentMinutes(countedCtx, staff.ID)
-		require.NoError(t, err)
-		return counter.Operation("SELECT")
-	}
-	small := run()
-	add(3, 8)
-	large := run()
-	assert.Equal(t, len(small), len(large))
-	testpkg.AssertQueryBudget(t, "services.active.future_comp_time_commitment.reads", large)
+	require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, testpkg.TenantIDFromContext(ctx), func(ctx context.Context) error {
+		counter := testpkg.CaptureQueriesForContext(t, db)
+		countedCtx := counter.Context(ctx)
+		run := func() []string {
+			counter.Reset()
+			_, err := service.GetFutureCompTimeCommitmentMinutes(countedCtx, staff.ID)
+			require.NoError(t, err)
+			return counter.Operation("SELECT")
+		}
+		small := run()
+		add(3, 8)
+		large := run()
+		assert.Equal(t, len(small), len(large))
+		testpkg.AssertQueryBudget(t, "services.active.future_comp_time_commitment.reads", large)
+		return nil
+	}))
 }

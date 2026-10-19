@@ -14,11 +14,11 @@ type AccountRoleQueries struct {
 }
 
 func NewAccountRoleQueries(service *Service, store ports.AccountRoleQueryStore, catalog ports.RoleCatalogStore) *AccountRoleQueries {
-	return &AccountRoleQueries{RoleCatalog: NewRoleCatalog(catalog), service: service, store: store}
+	return &AccountRoleQueries{RoleCatalog: NewRoleCatalog(catalog, service.tx.RunRead), service: service, store: store}
 }
 
 func (q *AccountRoleQueries) CountActiveAccountsBySchoolGroups(ctx context.Context, groups map[int64][]int64) (counts map[int64]int, err error) {
-	err = q.service.run(ctx, q.service.tx.RunPlatform, "count_active_accounts_by_school_groups", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = q.service.run(ctx, q.service.tx.RunAdmin, "count_active_accounts_by_school_groups", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		var queryErr error
 		counts, queryStats, queryErr = q.store.CountActiveAccountsBySchoolGroups(txCtx, groups)
@@ -40,7 +40,7 @@ func (q *AccountRoleQueries) ListEffectiveAdminAccountIDs(ctx context.Context) (
 }
 
 func (q *AccountRoleQueries) FindActiveSchoolMemberships(ctx context.Context, accountIDs, schoolIDs []int64) (result map[int64][]int64, err error) {
-	err = q.service.run(ctx, q.service.tx.RunPlatform, "find_active_school_memberships", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = q.service.run(ctx, q.service.tx.RunAdmin, "find_active_school_memberships", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		var queryErr error
 		result, queryStats, queryErr = q.store.FindActiveSchoolMemberships(txCtx, accountIDs, schoolIDs)
@@ -51,7 +51,7 @@ func (q *AccountRoleQueries) FindActiveSchoolMemberships(ctx context.Context, ac
 }
 
 func (q *AccountRoleQueries) ListActiveAccountSchoolIDs(ctx context.Context, accountID int64) (ids []int64, err error) {
-	err = q.service.run(ctx, q.service.tx.RunPlatform, "list_active_account_school_ids", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = q.service.run(ctx, q.service.tx.RunAdmin, "list_active_account_school_ids", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		var queryErr error
 		ids, queryStats, queryErr = q.store.ListActiveTenantIDs(txCtx, accountID)

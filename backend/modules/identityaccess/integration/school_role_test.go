@@ -23,7 +23,7 @@ func TestSchoolRoleQueriesPreferTenantRoleAndHideForeignPermissions(t *testing.T
 	permission := testpkg.CreateTestPermission(t, db, "import-role-permission", "users", "read")
 	_, err = db.NewRaw(`INSERT INTO auth.role_permissions (role_id, permission_id) VALUES (?, ?), (?, ?)`, local.ID, permission.ID, foreign.ID, permission.ID).Exec(context.Background())
 	require.NoError(t, err)
-	access, err := identityCompose.New(identityCompose.Dependencies{DB: db, Observe: func(identityCompose.Observation) {}})
+	access, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityCompose.Observation) {}})
 	require.NoError(t, err)
 
 	role, err := access.FindSchoolRoleByName(testpkg.Ctx(t), strings.ToUpper(system.Name))

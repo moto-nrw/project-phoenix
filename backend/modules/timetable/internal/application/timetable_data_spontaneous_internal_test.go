@@ -52,7 +52,7 @@ func (f *spontaneousCategories) Create(_ context.Context, category *activityCont
 }
 
 func spontaneousData(templates *spontaneousTemplates, categories *spontaneousCategories) *timetableData {
-	return &timetableData{deps: ports.TimetableDataDependencies{Templates: templates, Categories: categories}}
+	return &timetableData{deps: ports.TimetableDataDependencies{RunInTx: func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }, Templates: templates, Categories: categories}}
 }
 
 func TestResolveSpontaneousActivityReusesActivityByName(t *testing.T) {

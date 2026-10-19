@@ -165,7 +165,8 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 
 	// Delete staffB's adjustment through the real service path so the
 	// tombstone write is covered end to end.
-	adjustSvc := timetracking.NewStaffBalanceAdjustmentService(workforceCompose.NewTimeTrackingTestRows(workTime).Adjustments, nil, wtmIntSettings{accountStart: "2025-01-01"}, nil,
+	adjustSvc := timetracking.NewStaffBalanceAdjustmentService(workforceCompose.NewTimeTrackingTestRows(workTime).Adjustments, nil, wtmIntSettings{accountStart: "2025-01-01"}, nil, timetracking.WithAdjustmentUnitOfWork(testpkg.RunInTenantTransaction),
+
 		timetracking.WithAdjustmentDeletionAudit(api.NewTimeTrackingDeletionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingDeletion)))
 	require.NoError(t, adjustSvc.DeleteAdjustment(ctx, staffB.ID, doomed.ID, admin.ID))
 

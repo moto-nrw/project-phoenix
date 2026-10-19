@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -17,7 +19,7 @@ type PresenceReads interface {
 }
 
 func NewPresenceReads(projection ports.PresenceProjection) (PresenceReads, error) {
-	return application.NewProjectedPresenceReads(projection)
+	return application.NewProjectedPresenceReads(projection, tenant.NewTransactionRunner().RunInTx)
 }
 
 // PresenceDatabase exposes the existing runtime for root binding, not a projection dependency.

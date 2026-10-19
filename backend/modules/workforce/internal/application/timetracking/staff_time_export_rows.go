@@ -140,9 +140,6 @@ type DayExportRow struct {
 	Cells []string
 }
 
-// DayExportRows exposes the single-staff export's merged session/absence rows.
-// It delegates to the batched path so both export forms use the same loading
-// and rendering code.
 func (s *workSessionService) DayExportRows(ctx context.Context, staffID int64, from, to calendar.Date) ([]DayExportRow, error) {
 	rowsByStaff, err := s.DayExportRowsByStaffIDs(ctx, []int64{staffID}, from, to)
 	if err != nil {
@@ -151,9 +148,6 @@ func (s *workSessionService) DayExportRows(ctx context.Context, staffID int64, f
 	return rowsByStaff[staffID], nil
 }
 
-// DayExportRowsByStaffIDs builds all cross-staff evidence rows with a constant
-// number of repository calls. It intentionally skips weekly summaries because
-// the export only consumes the per-session cells.
 func (s *workSessionService) DayExportRowsByStaffIDs(ctx context.Context, staffIDs []int64, from, to calendar.Date) (map[int64][]DayExportRow, error) {
 	result := make(map[int64][]DayExportRow, len(staffIDs))
 	if len(staffIDs) == 0 {

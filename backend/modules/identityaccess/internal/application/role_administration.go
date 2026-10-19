@@ -61,7 +61,7 @@ func NewRoleAdministration(deps RoleAdministrationDependencies) (*RoleAdministra
 		logger = slog.Default()
 	}
 	return &RoleAdministration{
-		RoleCatalog: NewRoleCatalog(deps.Store),
+		RoleCatalog: NewRoleCatalog(deps.Store, deps.Runtime.RunInTx),
 		accounts:    deps.Accounts, store: deps.Store, profiles: deps.Profiles, policy: deps.Policy, identityRoles: deps.IdentityRoles,
 		identity: deps.Identity, sessions: deps.Sessions, runtime: deps.Runtime, logger: logger,
 	}, nil
@@ -69,9 +69,6 @@ func NewRoleAdministration(deps RoleAdministrationDependencies) (*RoleAdministra
 
 // --- roles -----------------------------------------------------------------
 
-// CreateRole creates a tenant-scoped role. baseRole is required: it maps the
-// custom role to a system role for announcement targeting. The store assigns
-// the tenant in context.
 func (r *RoleAdministration) CreateRole(ctx context.Context, name, description string, baseRole *string) (domain.ManagedRole, error) {
 	if baseRole == nil || *baseRole == "" {
 		return domain.ManagedRole{}, failed("create role", domain.ErrBaseRoleRequired)
@@ -94,11 +91,6 @@ func (r *RoleAdministration) GetRole(ctx context.Context, id int64) (domain.Mana
 	return role, nil
 }
 
-// ResolveAssignableSchoolRole returns the role, with its permission names,
-// only if it may be handed out for the given school. A lookup that failed for
-// any reason other than a missing role is not a verdict on the role and is
-// reported as is, so callers answer 500 instead of blaming the role. The
-// policy refuses a missing role (nil facts) as not assignable.
 func (r *RoleAdministration) ResolveAssignableSchoolRole(ctx context.Context, roleID, tenantID int64) (domain.ManagedRole, []string, error) {
 	if roleID <= 0 {
 		return domain.ManagedRole{}, nil, r.policy.ValidateAssignableSchoolRole(nil, tenantID)
@@ -124,8 +116,6 @@ func (r *RoleAdministration) ResolveAssignableSchoolRole(ctx context.Context, ro
 	return role, names, nil
 }
 
-// UpdateRole updates a custom role. System roles cannot be modified: the
-// stored row decides, never the caller's IsSystem value.
 func (r *RoleAdministration) UpdateRole(ctx context.Context, role domain.ManagedRole) error {
 	existing, found, err := r.store.FindRole(ctx, role.ID)
 	if err != nil || !found {
@@ -339,10 +329,6 @@ func (r *RoleAdministration) ensureIdentityForAssignedRole(ctx context.Context, 
 	return nil
 }
 
-// AccountHoldsLehrkraftRole reports whether the account already holds the
-// Lehrkraft system role at the tenant in context. The listing applies the
-// tenant filter to auth.account_roles, so a Lehrkraft assignment at another
-// school does not answer for this one. The store's failure is reported as is.
 func (r *RoleAdministration) AccountHoldsLehrkraftRole(ctx context.Context, accountID int64) (bool, error) {
 	return r.accountHoldsLehrkraftRole(ctx, accountID)
 }
@@ -394,8 +380,6 @@ func (r *RoleAdministration) RemoveRoleFromAccount(ctx context.Context, accountI
 	return nil
 }
 
-// GetAccountRoles returns the roles the account holds at the tenant in
-// context.
 func (r *RoleAdministration) GetAccountRoles(ctx context.Context, accountID int64) ([]domain.ManagedRole, error) {
 	if _, err := r.accounts.FindManageableAccount(ctx, accountID); err != nil {
 		return nil, failed("get account roles", domain.ErrAccountNotFound)
@@ -410,7 +394,6 @@ func (r *RoleAdministration) GetAccountRoles(ctx context.Context, accountID int6
 	return roles, nil
 }
 
-// GetAccountRoleNames batch-loads the primary role name per account.
 func (r *RoleAdministration) GetAccountRoleNames(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
 	names, err := r.store.ListAccountRoleNames(ctx, accountIDs)
 	if err != nil {
@@ -419,7 +402,6 @@ func (r *RoleAdministration) GetAccountRoleNames(ctx context.Context, accountIDs
 	return names, nil
 }
 
-// GetAccountEmails batch-loads the e-mail address per account.
 func (r *RoleAdministration) GetAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
 	emails, err := r.store.ListAccountEmails(ctx, accountIDs)
 	if err != nil {
@@ -428,7 +410,6 @@ func (r *RoleAdministration) GetAccountEmails(ctx context.Context, accountIDs []
 	return emails, nil
 }
 
-// GetAccountAvatars batch-loads the avatar path per account.
 func (r *RoleAdministration) GetAccountAvatars(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
 	avatars, err := r.store.ListAccountAvatars(ctx, accountIDs)
 	if err != nil {

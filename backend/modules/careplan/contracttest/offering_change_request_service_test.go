@@ -1192,7 +1192,12 @@ func createPlanningOccurrence(
 		NotScheduled: opts.notScheduled,
 	})
 	if opts.unplanned {
-		stored, err := env.timetable.InstanceStudent.FindByID(testpkg.Ctx(t), attendance.ID)
+		stored, err := testpkg.TenantQuery1(t, testpkg.
+			Ctx(
+				t), env.db,
+			env.timetable.InstanceStudent.
+				FindByID, attendance.ID)
+
 		require.NoError(t, err)
 		stored.IsUnplanned = true
 		require.NoError(t, env.timetable.InstanceStudent.Update(testpkg.Ctx(t), stored))

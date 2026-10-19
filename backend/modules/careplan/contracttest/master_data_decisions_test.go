@@ -121,7 +121,7 @@ func (f masterDataFixture) decide(t *testing.T, svc masterdatarequests.Decisions
 
 func (f masterDataFixture) person(t *testing.T) *peopledirectory.DirectoryPersonSnapshot {
 	t.Helper()
-	person, err := f.repos.Person.FindByID(context.Background(), f.chain.PersonID)
+	person, err := f.repos.Person.FindByID(testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.TenantID), f.chain.PersonID)
 	require.NoError(t, err)
 	return person
 }
@@ -294,7 +294,7 @@ func TestMasterDataReview_ApproveAppliesSchoolClass(t *testing.T) {
 	_, err := f.decide(t, svc, masterdatarequests.DecideInput{RequestID: row.ID, Approve: true, ReviewedBy: f.chain.AccountID})
 	require.NoError(t, err)
 
-	student, err := f.repos.Student.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.StudentID)
+	student, err := f.repos.Student.FindByID(testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.TenantID), f.chain.StudentID)
 	require.NoError(t, err)
 	assert.Equal(t, "2b", student.SchoolClass)
 }
@@ -355,7 +355,7 @@ func TestMasterDataReview_ConcurrentDecisionsKeepStatusAndRecordConsistent(t *te
 	require.Equal(t, 1, successes)
 	require.Equal(t, 1, conflicts)
 
-	decided, err := f.repos.StudentDataChangeRequest.FindByID(tenant.WithTenantID(context.Background(), f.chain.TenantID), row.ID)
+	decided, err := f.repos.StudentDataChangeRequest.FindByID(testpkg.WithPackageTenantRuntime(tenant.WithTenantID(context.Background(), f.chain.TenantID)), row.ID)
 	require.NoError(t, err)
 	switch decided.Status {
 	case peopledirectory.DataChangeStatusApproved:
@@ -416,12 +416,12 @@ func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
 	_, err := f.decide(t, svc, masterdatarequests.DecideInput{RequestID: row.ID, Approve: true, ReviewedBy: f.chain.AccountID})
 	require.NoError(t, err)
 
-	student, err := f.repos.Student.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.StudentID)
+	student, err := f.repos.Student.FindByID(testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.TenantID), f.chain.StudentID)
 	require.NoError(t, err)
 	assert.Equal(t, []peopledirectory.DepartureMode{peopledirectory.DepartureBus}, student.AllowedDepartureModes[peopledirectory.PickupDayMonday])
 	assert.Equal(t, []peopledirectory.DepartureMode{peopledirectory.DeparturePickup}, student.AllowedDepartureModes[peopledirectory.PickupDayWednesday])
 
-	history, err := trail.GetChangeHistory(tenant.WithTenantID(context.Background(), f.chain.TenantID), f.chain.StudentID)
+	history, err := trail.GetChangeHistory(testpkg.WithPackageTenantRuntime(tenant.WithTenantID(context.Background(), f.chain.TenantID)), f.chain.StudentID)
 	require.NoError(t, err)
 	require.NotEmpty(t, history)
 	var departureEditFound bool
@@ -441,7 +441,7 @@ func TestMasterDataReview_StalePersonApprovalConflicts(t *testing.T) {
 
 	person := f.person(t)
 	person.FirstName = "StaffEdit"
-	require.NoError(t, f.repos.Person.Update(context.Background(), person))
+	require.NoError(t, f.repos.Person.Update(testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.TenantID), person))
 
 	_, err := f.decide(t, f.decisions(t), masterdatarequests.DecideInput{RequestID: row.ID, Approve: true})
 	assert.ErrorIs(t, err, masterdatarequests.ErrReviewStaleValue)

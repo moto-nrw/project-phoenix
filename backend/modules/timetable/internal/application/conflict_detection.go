@@ -38,7 +38,7 @@ func NewConflictDetection(deps ports.ConflictDetectionDependencies) (timetable.C
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &conflictDetection{deps: deps, logger: logger}, nil
+	return &conflictCommands{&conflictDetection{deps: deps, logger: logger}}, nil
 }
 
 // germanDateLayout renders calendar dates as dd.mm.yyyy in user-facing copy.
@@ -78,3 +78,5 @@ func shiftWindowsOf(shifts []*scheduleModels.StaffShift) []timetable.ShiftWindow
 	}
 	return windows
 }
+
+type conflictCommands struct{ *conflictDetection }
