@@ -4,6 +4,7 @@ import (
 	"context"
 
 	usersRepo "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
+	peopleBindingPorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/uptrace/bun"
 )
 
@@ -14,13 +15,6 @@ func NewMessageableGuardians(db *bun.DB, links usersRepo.GuardianLinkRows, membe
 	return usersRepo.NewMessageableGuardianRepository(NewLegacyRepositoryRuntime(db), links, memberships)
 }
 
-// StaffMessageRole is the school role class of one account.
-type StaffMessageRole struct {
-	AccountID   int64
-	IsAdmin     bool
-	IsLehrkraft bool
-}
-
 // StaffMessageIdentity are the Identity & Access facts the colleague lookup
 // filters through.
 type StaffMessageIdentity struct {
@@ -28,7 +22,7 @@ type StaffMessageIdentity struct {
 	// with an active membership at the given school.
 	ActiveSchoolAccounts func(context.Context, int64, []int64) ([]int64, error)
 	// RoleClasses classifies the roles accounts hold at a school.
-	RoleClasses func(context.Context, int64, []int64) ([]StaffMessageRole, error)
+	RoleClasses func(context.Context, int64, []int64) ([]peopleBindingPorts.StaffMessageRole, error)
 }
 
 // NewMessageableStaff is the staff-messaging colleague lookup over the
@@ -38,16 +32,6 @@ type StaffMessageIdentity struct {
 func NewMessageableStaff(db *bun.DB, staffAccounts func(context.Context) ([]int64, error), identity StaffMessageIdentity) *usersRepo.MessageableStaffRepository {
 	return usersRepo.NewMessageableStaffRepository(NewLegacyRepositoryRuntime(db), staffAccounts, usersRepo.StaffMessageIdentity{
 		ActiveSchoolAccounts: identity.ActiveSchoolAccounts,
-		RoleClasses: func(ctx context.Context, tenantID int64, accountIDs []int64) ([]usersRepo.SchoolRoleClass, error) {
-			roles, err := identity.RoleClasses(ctx, tenantID, accountIDs)
-			if err != nil {
-				return nil, err
-			}
-			result := make([]usersRepo.SchoolRoleClass, 0, len(roles))
-			for _, role := range roles {
-				result = append(result, usersRepo.SchoolRoleClass(role))
-			}
-			return result, nil
-		},
+		RoleClasses:          usersRepo.NewStaffMessageRoles(identity.RoleClasses),
 	})
 }

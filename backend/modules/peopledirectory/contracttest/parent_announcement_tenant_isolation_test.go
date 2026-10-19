@@ -28,7 +28,7 @@ func TestParentAnnouncement_TenantIsolation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db))
 	homeCtx := tenantCtx(t)
 
 	poll, options := api.ParentStorePollAnnouncement(parentStoreFixtureChecks(t), homeCtx, func() time.Time {

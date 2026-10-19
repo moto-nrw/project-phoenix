@@ -228,6 +228,36 @@ func (s *Store) SoftDeleteStaff(ctx context.Context, id int64) (domain.Operation
 	return execOne(ctx, query, "soft delete staff", domain.ErrStaffNotFound)
 }
 
+// ReinstateStaff lifts the soft delete of a retired membership (ADR 0021). A
+// tombstone the automatic deletion of staff already erased stays retired: the
+// condition is re-checked on the locked row, so a concurrent erasure wins.
+func (s *Store) ReinstateStaff(ctx context.Context, id int64) (domain.Staff, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
+	if err != nil {
+		return domain.Staff{}, domain.OperationStats{}, err
+	}
+	row := staffRow{}
+	query := withTenant(db.NewUpdate().Model(&row).
+		ModelTableExpr(`users.staff_school_memberships AS "staff"`).
+		Set(`deleted_at = NULL`).
+		Set(`updated_at = NOW()`).
+		Where(`"staff".id = ?`, id).
+		Where(`"staff".deleted_at IS NOT NULL`).
+		Where(`"staff".personal_data_erased_at IS NULL`), "staff", scope)
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = query.Returning("*").Scan(ctx)
+	stats.StatementDuration = time.Since(started)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Staff{}, stats, domain.ErrStaffNotFound
+	}
+	if err != nil {
+		return domain.Staff{}, stats, wrapStaffWriteError("reinstate", err)
+	}
+	stats.Rows = 1
+	return staffToDomain(row), stats, nil
+}
+
 // --- teachers ---
 
 func (s *Store) FindTeacher(ctx context.Context, id int64, lock string) (domain.Teacher, bool, domain.OperationStats, error) {
@@ -381,6 +411,34 @@ func (s *Store) SoftDeleteTeacher(ctx context.Context, id int64) (domain.Operati
 		Where(`"teacher".id = ?`, id).
 		Where(`"teacher".deleted_at IS NULL`), "teacher", scope)
 	return execOne(ctx, query, "soft delete teacher", domain.ErrTeacherNotFound)
+}
+
+// ReinstateTeacher lifts the soft delete of a retired caregiver profile whose
+// staff membership is live again (ADR 0021).
+func (s *Store) ReinstateTeacher(ctx context.Context, id int64) (domain.Teacher, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
+	if err != nil {
+		return domain.Teacher{}, domain.OperationStats{}, err
+	}
+	row := teacherRow{}
+	query := withTenant(db.NewUpdate().Model(&row).
+		ModelTableExpr(`users.teachers AS "teacher"`).
+		Set(`deleted_at = NULL`).
+		Set(`updated_at = NOW()`).
+		Where(`"teacher".id = ?`, id).
+		Where(`"teacher".deleted_at IS NOT NULL`), "teacher", scope)
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = query.Returning("*").Scan(ctx)
+	stats.StatementDuration = time.Since(started)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Teacher{}, stats, domain.ErrTeacherNotFound
+	}
+	if err != nil {
+		return domain.Teacher{}, stats, wrapTeacherWriteError("reinstate", err)
+	}
+	stats.Rows = 1
+	return teacherToDomain(row), stats, nil
 }
 
 // --- guests ---
@@ -647,7 +705,7 @@ func guestRowFrom(id int64, fields domain.GuestFields) (guestRow, error) {
 func staffToDomain(row staffRow) domain.Staff {
 	return domain.Staff{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-		PersonID: row.PersonID, DeletedAt: row.DeletedAt,
+		PersonID: row.PersonID, DeletedAt: row.DeletedAt, PersonalDataErasedAt: row.PersonalDataErasedAt,
 		IsGuest: row.IsGuest, GuestOrganization: row.GuestOrganization,
 	}
 }

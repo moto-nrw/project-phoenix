@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	postgresNative "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -13,7 +14,7 @@ import (
 func TestTenantAmbientDatabaseJoinsTheCallersTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	resolve := TenantAmbientDatabase(db)
+	resolve := postgresNative.TenantAmbientDatabase(db)
 
 	t.Run("outside a transaction it fails", func(t *testing.T) {
 		resolved, err := resolve(testpkg.Ctx(t))
@@ -42,5 +43,5 @@ func TestTenantAmbientDatabaseJoinsTheCallersTransaction(t *testing.T) {
 
 func TestTenantAmbientDatabaseRequiresADatabase(t *testing.T) {
 	t.Parallel()
-	assert.Panics(t, func() { TenantAmbientDatabase(nil) })
+	assert.Panics(t, func() { postgresNative.TenantAmbientDatabase(nil) })
 }

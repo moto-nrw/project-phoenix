@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Delivery outbox kind of the staff welcome mail an accepted school
@@ -156,6 +158,38 @@ type InvitationPreview struct {
 	ExpiresAt            time.Time
 }
 
+// FormerEmployment is the employment an invitation to an address would
+// continue at the school in context (ADR 0021): the latest retired staff
+// membership of the address's person, unless the automatic deletion of staff
+// erased it. StartedOn and EndedOn are the days the membership was created
+// and retired.
+type FormerEmployment struct {
+	StartedOn    calendar.Date
+	EndedOn      calendar.Date
+	Resumes      []FormerEmploymentPart
+	NotReturning []FormerEmploymentPart
+}
+
+// FormerEmploymentPart names a part of a former employment the Einladen
+// dialog explains. The values are the wire contract.
+type FormerEmploymentPart string
+
+// What a Wiederaufnahme brings back with the staff membership.
+const (
+	FormerEmploymentMasterData            FormerEmploymentPart = "master_data"
+	FormerEmploymentQualifications        FormerEmploymentPart = "qualifications"
+	FormerEmploymentWorkTime              FormerEmploymentPart = "work_time"
+	FormerEmploymentPastShiftsAndAbsences FormerEmploymentPart = "past_shifts_and_absences"
+)
+
+// What never comes back (ADR 0021, decision 5): the exit deletes it, and the
+// school sets it anew. It is named, never offered.
+const (
+	FormerEmploymentStaffDocuments             FormerEmploymentPart = "staff_documents"
+	FormerEmploymentFutureShiftsAndAbsences    FormerEmploymentPart = "future_shifts_and_absences"
+	FormerEmploymentGroupsClassesSubstitutions FormerEmploymentPart = "groups_classes_substitutions"
+)
+
 // SchoolInvitationDeliveryRecorder records how an invitation mail fared; the
 // root's mail delivery reports through it.
 type SchoolInvitationDeliveryRecorder interface {
@@ -167,6 +201,11 @@ type SchoolInvitationDeliveryRecorder interface {
 type SchoolInvitations interface {
 	CreateSchoolInvitation(ctx context.Context, request SchoolInvitationRequest) (SchoolInvitation, error)
 	ValidateSchoolInvitation(ctx context.Context, token string) (InvitationPreview, error)
+	// FindFormerEmployment reports the former employment an invitation to the
+	// address would continue at the school in context. Found is false for an
+	// address without an account and for one without a former employment
+	// here alike, so the answer never tells whether an account exists.
+	FindFormerEmployment(ctx context.Context, email string) (FormerEmployment, bool, error)
 	// AcceptSchoolInvitation returns the account the invitee signs in with.
 	AcceptSchoolInvitation(ctx context.Context, token string, registration InvitationRegistration) (Account, error)
 	ResendSchoolInvitation(ctx context.Context, invitationID, actorAccountID int64) error
@@ -191,6 +230,10 @@ func (m *Module) CreateSchoolInvitation(ctx context.Context, request SchoolInvit
 
 func (m *Module) ValidateSchoolInvitation(ctx context.Context, token string) (InvitationPreview, error) {
 	return m.engine.ValidateSchoolInvitation(ctx, token)
+}
+
+func (m *Module) FindFormerEmployment(ctx context.Context, email string) (FormerEmployment, bool, error) {
+	return m.engine.FindFormerEmployment(ctx, email)
 }
 
 func (m *Module) AcceptSchoolInvitation(ctx context.Context, token string, registration InvitationRegistration) (Account, error) {

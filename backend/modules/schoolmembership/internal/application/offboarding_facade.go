@@ -20,5 +20,15 @@ func NewOffboardingFacade(service *Service) *schoolmembership.Offboarding {
 		func(ctx context.Context, retiredBefore time.Time, afterID int64) (schoolmembership.RetiredStaffErasure, bool, error) {
 			result, found, err := service.EraseNextRetiredStaff(ctx, retiredBefore, afterID)
 			return schoolmembership.RetiredStaffErasure(result), found, MapError(err)
+		},
+		schoolmembership.Reinstatement{
+			Staff: func(ctx context.Context, staffID int64) (schoolmembership.Staff, error) {
+				value, err := service.ReinstateStaff(ctx, staffID)
+				return staffToPublic(value), MapError(err)
+			},
+			Teacher: func(ctx context.Context, teacherID int64) (schoolmembership.Teacher, error) {
+				value, err := service.ReinstateTeacher(ctx, teacherID)
+				return teacherToPublic(value), MapError(err)
+			},
 		})
 }

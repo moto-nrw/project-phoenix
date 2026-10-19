@@ -18,7 +18,7 @@ import (
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
 
-func ComposePresenceSessionRecords(deps presenceCompose.SessionRecordDependencies) *presenceCompose.SessionRecords {
+func ComposePresenceSessionRecords(deps presenceCompose.SessionRecordDependencies) presenceCompose.SessionRecords {
 	deps.Observe = presenceCompose.FailureLogger()
 	deps.Errors = transactionruntime.RecordErrors{}
 	records, err := presenceCompose.NewSessionRecords(deps)

@@ -420,6 +420,7 @@ GET /api/students/{id}/documents/{documentId}/download
 GET /api/students/{id}/enrollment-extra-fields
 GET /api/students/{id}/family-protection
 GET /api/students/{id}/in-group-room
+GET /api/students/{id}/note-subjects
 GET /api/students/{id}/notes
 GET /api/students/{id}/partial-absences
 GET /api/students/{id}/photo/{filename}
@@ -884,6 +885,7 @@ POST /auth/accounts/{accountId}/roles/{roleId}
 POST /auth/guardian-invitations/{id}/resend
 POST /auth/guardian-invitations/{token}/accept
 POST /auth/invitations/
+POST /auth/invitations/former-employment
 POST /auth/invitations/{id}/resend
 POST /auth/invitations/{token}/accept
 POST /auth/link-to-tenant

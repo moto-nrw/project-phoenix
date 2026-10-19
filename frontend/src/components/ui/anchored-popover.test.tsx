@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AnchoredPopover } from "./anchored-popover";
@@ -9,12 +9,15 @@ function TestPopover({
   scoped = false,
   preferredWidth,
   align,
+  initialFocus = false,
 }: Readonly<{
   scoped?: boolean;
   preferredWidth?: number;
   align?: "start" | "end";
+  initialFocus?: boolean;
 }>) {
   const [open, setOpen] = useState(false);
+  const initialFocusRef = useRef<HTMLDivElement>(null);
   const popover = (
     <AnchoredPopover
       open={open}
@@ -22,13 +25,23 @@ function TestPopover({
       ariaLabel="Testauswahl"
       preferredWidth={preferredWidth}
       align={align}
+      initialFocusRef={initialFocus ? initialFocusRef : undefined}
       renderTrigger={({ ref, toggle }) => (
         <button ref={ref} type="button" onClick={toggle}>
           Öffnen
         </button>
       )}
     >
-      {() => <div>Inhalt</div>}
+      {() => (
+        <div
+          ref={initialFocus ? initialFocusRef : undefined}
+          tabIndex={-1}
+          data-testid={initialFocus ? "initial-focus" : undefined}
+        >
+          Inhalt
+          {initialFocus && <a href="#ziel">Zum Ziel</a>}
+        </div>
+      )}
     </AnchoredPopover>
   );
 
@@ -144,5 +157,17 @@ describe("AnchoredPopover", () => {
     expect(screen.getByRole("dialog", { name: "Testauswahl" })).toHaveStyle({
       left: "1552px",
     });
+  });
+
+  it("keeps focus in the popover when it is repositioned", () => {
+    render(<TestPopover initialFocus />);
+    fireEvent.click(screen.getByRole("button", { name: "Öffnen" }));
+
+    expect(screen.getByTestId("initial-focus")).toHaveFocus();
+    const link = screen.getByRole("link", { name: "Zum Ziel" });
+    link.focus();
+    fireEvent.resize(window);
+
+    expect(link).toHaveFocus();
   });
 });

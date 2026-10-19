@@ -2,14 +2,20 @@ package ports
 
 import (
 	"context"
+	"time"
 )
 
-// StaffMember is the users.staff fact of a school.
+// StaffMember is the users.staff fact of a school. FindStaffByPerson also
+// reports when the membership was created and retired, and Erased for a
+// retired membership the automatic deletion of staff erased.
 type StaffMember struct {
-	ID       int64
-	TenantID int64
-	PersonID int64
-	Deleted  bool
+	ID        int64
+	TenantID  int64
+	PersonID  int64
+	Deleted   bool
+	StartedAt time.Time
+	RetiredAt *time.Time
+	Erased    bool
 }
 
 // PersonRecord is the users.persons fact the lifecycle reads and, for the
@@ -53,10 +59,13 @@ type StaffDirectory interface {
 	// FindStaffByPerson returns the live membership, or a retired one when no
 	// live membership exists, at the school in context.
 	FindStaffByPerson(ctx context.Context, personID int64) (StaffMember, bool, error)
-	// CreateStaff starts a new membership. When retiredStaffID is set, it copies
-	// the employment profile of that retired membership.
+	// CreateStaff gives the person a live membership. When retiredStaffID is
+	// set, it continues that retired membership under its own ID (ADR 0021)
+	// and returns it, unless the automatic deletion of staff erased it.
 	CreateStaff(ctx context.Context, tenantID, personID int64, retiredStaffID *int64) (int64, error)
 	FindCaregiverProfile(ctx context.Context, staffID int64) (CaregiverProfile, bool, error)
+	// CreateCaregiverProfile gives the staff member a live caregiver profile,
+	// reviving a retired one of the same membership before creating one.
 	CreateCaregiverProfile(ctx context.Context, tenantID, staffID int64, position string) (int64, error)
 	// HasLiveCaregiverProfile reports whether the account's live person at the
 	// school carries a live staff record with a live caregiver profile.

@@ -8,10 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // CallerMembership is the School Membership seam: the staff member of a
@@ -52,7 +49,7 @@ type CallerLiveTopics interface {
 // Overview the school-wide subscription scope is never granted.
 type CallerContextDependencies struct {
 	Caller     func(context.Context) identityaccess.Caller
-	Memo       func(context.Context) CallerMemo
+	Memo       func(context.Context) identityPorts.CallerMemo
 	Accounts   identityaccess.AccountProfiles
 	People     identityPorts.CallerPeople
 	Membership CallerMembership
@@ -88,12 +85,8 @@ func NewCallerContext(deps CallerContextDependencies) (identityaccess.CallerCont
 		return identityaccess.CallerContext{}, errors.New("identity access compose: caller context dependencies are required")
 	}
 	appDeps := application.CallerContextDependencies{
-		Caller: func(ctx context.Context) domain.Caller {
-			caller := domain.Caller(deps.Caller(ctx))
-			caller.TenantID = tenant.FromContext(ctx)
-			return caller
-		},
-		Memo:       requestMemo(deps.Memo),
+		Caller:     application.NewCallerReader(deps.Caller),
+		Memo:       application.RequestMemo(deps.Memo),
 		Accounts:   application.CallerAccounts{Profiles: deps.Accounts},
 		People:     application.CallerPeople{People: deps.People},
 		Membership: deps.Membership,
@@ -131,9 +124,7 @@ func newParentRequestReview(caller *application.CallerContext, deps ParentReques
 		return application.ReviewEngine{}, errors.New("identity access compose: review permissions are required")
 	}
 	appDeps := application.ParentRequestReviewDependencies{
-		Permissions: func(permissions []string) domain.ReviewPermissions {
-			return domain.ReviewPermissions(deps.Permissions(permissions))
-		},
+		Permissions:           application.NewReviewPermissions(deps.Permissions),
 		GroupLeaderSettingKey: deps.GroupLeaderSettingKey,
 		RequestSettingKey:     deps.RequestSettingKey,
 		AbsenceSettingKey:     deps.AbsenceSettingKey,
@@ -144,26 +135,4 @@ func newParentRequestReview(caller *application.CallerContext, deps ParentReques
 	}
 	review, err := application.NewParentRequestReview(caller, appDeps)
 	return application.ReviewEngine{Review: review}, err
-}
-
-// CallerMemo is the request-scoped slot the caller context memoizes the
-// identity chain in (#2099): Entry returns the value kept for (tenant,
-// account), creating it on first use, and Evict drops it.
-type CallerMemo interface {
-	Entry(tenantID, accountID int64, create func() any) any
-	Evict(tenantID, accountID int64)
-}
-
-// requestMemo binds the application memo to the slot the root resolves
-// from the request context; a request without one is not memoized.
-func requestMemo(memo func(context.Context) CallerMemo) func(context.Context) ports.CallerMemo {
-	return func(ctx context.Context) ports.CallerMemo {
-		if memo == nil {
-			return nil
-		}
-		if slot := memo(ctx); slot != nil {
-			return slot
-		}
-		return nil
-	}
 }

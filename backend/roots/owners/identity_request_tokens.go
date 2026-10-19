@@ -5,6 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
@@ -50,7 +51,7 @@ type RequestMemo interface {
 
 // memo resolves the request identity memo, nil when the request carries
 // none.
-func (a TokenAdapter) memo(ctx context.Context) identityaccessCompose.CallerMemo {
+func (a TokenAdapter) memo(ctx context.Context) identityBindingPorts.CallerMemo {
 	if memo := a.Memo(ctx); memo != nil {
 		return memo
 	}

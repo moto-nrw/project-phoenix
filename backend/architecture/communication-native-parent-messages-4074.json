@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
   "ticket_kind": "migration",
-  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3021",
   "prerequisites": [
     "#4070"
   ],
@@ -43,10 +43,10 @@
       "backend/modules/communication/internal/application/parent_conversation_binding.go",
       "backend/modules/communication/internal/parentmessages/native_repository_adapters.go",
       "backend/modules/communication/internal/parentmessages/native_repository_adapters_internal_test.go",
-      "backend/modules/communication/parentstore/native_parent_records.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/12608383f0f793e811f4379ec293f61efd6150c9/backend/modules/communication/parentstore/native_parent_records.go",
       "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/communication_parent_message_people.go",
       "backend/modules/communication/internal/application/parent_native_contract_internal_test.go",
-      "backend/modules/communication/internal/staffannouncements/parent_native_declaration_policy_internal_test.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/12608383f0f793e811f4379ec293f61efd6150c9/backend/modules/communication/internal/staffannouncements/parent_native_declaration_policy_internal_test.go",
       "backend/modules/communication/internal/application/parent_message_receipts_internal_test.go",
       "backend/modules/communication/internal/application/parent_message_read_receipts_internal_test.go"
     ],

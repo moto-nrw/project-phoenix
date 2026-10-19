@@ -21,7 +21,7 @@ func TestLetterChildStatuses_DerivesFulfilmentFromAcknowledgement(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db))
 	ctx := tenantCtx(t)
 
 	letter := api.ParentStorePublishedAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
@@ -72,7 +72,7 @@ func TestLetterChildStatuses_TenantIsolation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db))
 	ctx := tenantCtx(t)
 
 	letter := api.ParentStorePublishedAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
@@ -104,7 +104,7 @@ func TestResolveDeliveryRecipients_IncludesGuardiansWithoutPortalAccess(t *testi
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db))
 	ctx := tenantCtx(t)
 
 	letter := api.ParentStorePublishedAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
@@ -155,7 +155,7 @@ func TestLetterChildStatuses_KeepsChildrenNobodyCanConfirmFor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db))
 	ctx := tenantCtx(t)
 
 	letter := api.ParentStorePublishedAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {

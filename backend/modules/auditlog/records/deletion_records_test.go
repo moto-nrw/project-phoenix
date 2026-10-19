@@ -18,11 +18,6 @@ func TestDeletionRecordConstructorsKeepTheirLogShape(t *testing.T) {
 	assert.Equal(t, map[string]interface{}{"student_note_id": noteID, "deleted_by_account_id": accountID}, note.Metadata)
 	require.NoError(t, note.Validate())
 
-	legacy := NewLegacyStudentNoteDeletion(studentID, noteID)
-	assert.Equal(t, "system", legacy.DeletedBy)
-	assert.Equal(t, "legacy supervisor notes cleared", legacy.DeletionReason)
-	assert.Equal(t, map[string]interface{}{"student_note_id": noteID, "source": "supervisor_notes"}, legacy.Metadata)
-
 	timetable := NewTimetableRetentionDeletion(tenantID, studentID, 3, 365, "2026-01-01", nil)
 	assert.Equal(t, tenantID, timetable.TenantID)
 	assert.Equal(t, DeletionTypeTimetableRetention, timetable.DeletionType)

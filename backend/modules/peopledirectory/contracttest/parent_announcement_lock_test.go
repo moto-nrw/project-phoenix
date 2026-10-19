@@ -24,7 +24,7 @@ func TestParentAnnouncementFindByIDForUpdateBlocksSecondWriter(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db))
 	ctx := tenantCtx(t)
 
 	draft := api.ParentStoreAnnouncementValue(api.ParentStoreAnnouncementInput{
@@ -80,7 +80,7 @@ func TestParentAnnouncementFindByIDForUpdateIsTenantScoped(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db))
 	ctx := tenantCtx(t)
 
 	draft := api.ParentStoreAnnouncementValue(api.ParentStoreAnnouncementInput{

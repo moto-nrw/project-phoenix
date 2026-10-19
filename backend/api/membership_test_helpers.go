@@ -29,8 +29,16 @@ func identityChainOf(db transactionruntime.Database, members owners.MembershipTe
 	return owners.LifecycleRepositories{
 		Persons: members.Person, Staff: members.Staff, Teachers: members.Teacher, Students: NewUnboundStudentRepository(db),
 		GuardianProfiles: members.GuardianProfile, StudentGuardians: members.StudentGuardian,
-		People: members.People, Membership: owners.MustNewSchoolMembership(db),
+		People: members.People, Membership: owners.MustNewSchoolMembership(db), Reinstatement: mustStaffReinstatement(db),
 	}
+}
+
+func mustStaffReinstatement(db transactionruntime.Database) *schoolmembership.Offboarding {
+	reinstatement, err := owners.ComposeStaffReinstatement(db)
+	if err != nil {
+		panic(err)
+	}
+	return reinstatement
 }
 
 // NewStudentDirectory adapts the People Directory's directory read to the

@@ -3,7 +3,8 @@ package owners
 import (
 	"context"
 
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
@@ -18,7 +19,7 @@ type AnnouncementEnrollmentQueries interface {
 // ParentAnnouncementApplicants feeds Communication's announcement audience
 // Enrollment's pending applicants as plain values; the caller composes the
 // store over it with parentstore.NewParentAnnouncementRepository.
-func ParentAnnouncementApplicants(enrollment AnnouncementEnrollmentQueries) parentStore.PendingApplicantSource {
+func ParentAnnouncementApplicants(enrollment AnnouncementEnrollmentQueries) recordports.PendingApplicantSource {
 	if enrollment == nil {
 		panic("parent announcements require Enrollment audience queries")
 	}
@@ -27,20 +28,20 @@ func ParentAnnouncementApplicants(enrollment AnnouncementEnrollmentQueries) pare
 
 type pendingApplicantSource struct{ enrollment AnnouncementEnrollmentQueries }
 
-func (s pendingApplicantSource) PendingAnnouncementApplicants(ctx context.Context) ([]parentStore.PendingAnnouncementApplicant, error) {
+func (s pendingApplicantSource) PendingAnnouncementApplicants(ctx context.Context) ([]recordports.PendingAnnouncementApplicant, error) {
 	rows, err := s.enrollment.PendingAnnouncementApplicants(ctx)
 	return pendingApplicants(rows), err
 }
 
-func (s pendingApplicantSource) PendingAnnouncementApplicantsForSchools(ctx context.Context, schoolIDs []int64) ([]parentStore.PendingAnnouncementApplicant, error) {
+func (s pendingApplicantSource) PendingAnnouncementApplicantsForSchools(ctx context.Context, schoolIDs []int64) ([]recordports.PendingAnnouncementApplicant, error) {
 	rows, err := s.enrollment.PendingAnnouncementApplicantsForSchools(ctx, schoolIDs)
 	return pendingApplicants(rows), err
 }
 
-func pendingApplicants(rows []enrollmentCapability.PendingAnnouncementApplicant) []parentStore.PendingAnnouncementApplicant {
-	values := make([]parentStore.PendingAnnouncementApplicant, 0, len(rows))
+func pendingApplicants(rows []enrollmentCapability.PendingAnnouncementApplicant) []recordports.PendingAnnouncementApplicant {
+	values := make([]recordports.PendingAnnouncementApplicant, 0, len(rows))
 	for _, row := range rows {
-		values = append(values, parentStore.PendingAnnouncementApplicant{
+		values = append(values, recordports.PendingAnnouncementApplicant{
 			TenantID: row.TenantID, GuardianFirstName: row.GuardianFirstName, GuardianLastName: row.GuardianLastName,
 			GuardianAccountID: row.GuardianAccountID, GuardianEmail: row.GuardianEmail,
 		})

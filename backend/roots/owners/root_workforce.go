@@ -34,7 +34,7 @@ func BuildWorkSessionSide(
 	db transactionruntime.Database, env RootEnvironment, mailFrom email.Email, hub *realtime.Hub, mailIdentity email.ReplyToResolver,
 	workTime workforceModule.Capability, membership schoolmembership.Capability, persons peopledirectory.Capability,
 	organizations organizationtenancy.Query, people PeopleRows, users peoplePorts.PersonDirectory, audit AuditOwner,
-	supervisions studentpresence.SupervisionRecords, sessions *presenceCompose.SessionRecords, calendar schoolcalendar.Days,
+	supervisions studentpresence.SupervisionRecords, sessions presenceCompose.SessionRecords, calendar schoolcalendar.Days,
 	settings settingsCompose.BatchSettingsService, payroll settingsCompose.PayrollStatusGetter, durable DurableMailOutbox,
 ) (*workforceCompose.WorkSessionSide, error) {
 	logger := env.Logger.With("service", "active")

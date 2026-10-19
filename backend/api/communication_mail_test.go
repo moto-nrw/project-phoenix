@@ -7,11 +7,12 @@ import (
 	"net"
 	"testing"
 
+	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	mail "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	"github.com/stretchr/testify/assert"
@@ -102,7 +103,7 @@ func TestCommunicationAnnouncementAuditPreservesOwnerBindingAndEncodingFailure(t
 		recorded = row
 		return failure
 	})
-	input := communicationCompose.AuditEntry{OperatorID: 13, Action: "publish", ResourceID: 17, RequestIP: net.IPv4(127, 0, 0, 1)}
+	input := recordports.AuditEntry{OperatorID: 13, Action: "publish", ResourceID: 17, RequestIP: net.IPv4(127, 0, 0, 1)}
 	assert.Same(t, failure, audit.AppendAnnouncementAudit(ctx, input))
 	assert.Equal(t, input.OperatorID, recorded.OperatorID)
 	assert.Equal(t, "publish", recorded.Action)

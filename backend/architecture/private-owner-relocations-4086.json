@@ -126,5 +126,5 @@
   "rollback_and_cleanup": "Revert the whole source/import/policy/register cutover together. No data, credential or environment rollback is required.",
   "exit_criterion": "All non-root production implementation Go packages are internal, old carriers and legacy-prefixed files are absent, and the zero baseline remains empty. The separate compose exit remains explicitly unproven by the complete audit.",
   "ticket_kind": "migration",
-  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020"
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3021"
 }

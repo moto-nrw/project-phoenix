@@ -17,7 +17,7 @@ import (
 )
 
 type Observation = ports.Observation
-type AmbientDatabase func(context.Context) (bun.IDB, error)
+
 type StatusStudentDirectory = postgres.StatusStudentDirectory
 type StatusStudent = postgres.StatusStudent
 type StatusSlotDirectory = postgres.StatusSlotDirectory
@@ -40,8 +40,8 @@ func New(dependencies Dependencies) (*careplan.Module, error) {
 		dependencies.People == nil || dependencies.StudentLock == nil || dependencies.StudentNotFound == nil || dependencies.StudentDirectory == nil {
 		return nil, errors.New("care plan compose: database, observer, ambient database resolver, people directory, status-student directory, status-slot directory, student lock, and student directory are required")
 	}
-	bindCareLocks(dependencies)
-	store := postgres.New(carePlanDatabase(dependencies.DB))
+	postgres.BindCareLocks(dependencies.DB, dependencies.StudentLock, dependencies.StudentNotFound, dependencies.AmbientDB)
+	store := postgres.New(postgres.CarePlanDatabase(dependencies.DB))
 	queries := application.NewExceptionQueryService(store, dependencies.Observe)
 	statusDays := postgres.NewStatusDayStore(store, dependencies.StatusStudents, dependencies.StatusSlots)
 	module := careplan.NewModule(application.NewEngine(application.EngineDependencies{
@@ -53,49 +53,16 @@ func New(dependencies Dependencies) (*careplan.Module, error) {
 	return module, nil
 }
 
-func bindCareLocks(dependencies Dependencies) {
-	careplanning.BindStudentLockForDB(dependencies.DB, dependencies.StudentLock, dependencies.StudentNotFound)
-	careplanning.BindExceptionDayLockForDB(dependencies.DB, func(ctx context.Context, studentID int64, date string) error {
-		tenantID := tenant.FromContext(ctx)
-		if tenantID <= 0 {
-			return errors.New("care plan: tenant is required for exception-day lock")
-		}
-		db, err := dependencies.AmbientDB(ctx)
-		if err != nil {
-			return err
-		}
-		return postgres.LockExceptionDay(ctx, db, tenantID, studentID, date)
-	})
-}
-
-func carePlanDatabase(db *bun.DB) postgres.Database {
-	return func(ctx context.Context) (bun.IDB, int64, error) {
-		raw, present := tenant.TransactionFromContext(ctx)
-		return postgres.ResolveDatabase(raw, present, tenant.FromContext(ctx))
-	}
-}
-
 // engineRuntime binds the engine's tenant commands and locks to the tenant
 // runtime and the database.
 type engineRuntime struct{ db *bun.DB }
 
 func (r engineRuntime) WithinTenant(ctx context.Context, command func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return command(ctx)
-	}
-	tenantID := tenant.FromContext(ctx)
-	validatedTenantID, err := tenant.NewTenantID(tenantID)
-	if err != nil {
-		return errors.New("care plan: tenant is required for commands")
-	}
-	return tenant.WithinTenant(ctx, validatedTenantID, command)
+	return postgres.EngineRuntimeWithinTenantBinding(ctx, command, tenant.WithinTenant)
 }
 
 func (r engineRuntime) LockStudentAndExceptionDay(ctx context.Context, studentID int64, date string) error {
-	if _, _, err := carePlanDatabase(r.db)(ctx); err != nil {
-		return err
-	}
-	return careplanning.LockStudentAndExceptionDay(ctx, r.db, studentID, date)
+	return postgres.LockEngineStudentDay(ctx, r.db, studentID, date)
 }
 
 func (r engineRuntime) LockExceptionDay(ctx context.Context, studentID int64, date string) error {
@@ -105,3 +72,5 @@ func (r engineRuntime) LockExceptionDay(ctx context.Context, studentID int64, da
 func (r engineRuntime) LockStudent(ctx context.Context, studentID int64) error {
 	return careplanning.LockStudent(ctx, r.db, studentID)
 }
+
+type AmbientDatabase func(context.Context) (bun.IDB, error)

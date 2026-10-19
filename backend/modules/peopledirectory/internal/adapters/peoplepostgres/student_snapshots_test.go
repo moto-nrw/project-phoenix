@@ -19,7 +19,7 @@ func TestNativeStudentSnapshotRetainsCompleteHydratedValue(t *testing.T) {
 	day := calendar.NewDate(2026, 10, 17)
 	row := &models.Student{
 		PersonID: 31, SchoolClass: "2a", AddressStreet: &text, AddressCity: &text, AddressPostalCode: &text,
-		ExtraInfo: &text, SupervisorNotes: &text, HealthInfo: &text, PickupStatus: &text,
+		ExtraInfo: &text, HealthInfo: &text, PickupStatus: &text,
 		DepartureDays:          models.DepartureDays{"mon": models.DeparturePickup},
 		AllowedDepartureModes:  models.AllowedDepartureModes{"mon": {models.DeparturePickup}, "tue": nil, "wed": {}},
 		DepartureCompanionNote: &text, DepartureCompanionDays: map[string]bool{"mon": true},

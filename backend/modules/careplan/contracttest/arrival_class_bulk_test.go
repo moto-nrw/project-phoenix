@@ -6,15 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
-	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
-
 	"github.com/moto-nrw/project-phoenix/api"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanBindingPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
+	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -28,7 +27,7 @@ func nativeClassArrivalPlans(t *testing.T) careplanCompose.ArrivalClassPlans {
 	return owners.ClassArrivalPlans(classes)
 }
 
-func nativeArrivalSchedules(t *testing.T, records careplanCompose.ArrivalScheduleRecords, baselines careplan.ArrivalBaselineReader, classes careplanCompose.ArrivalClassPlans, exceptions careplan.ClassArrivalExceptions) careplan.ArrivalScheduleService {
+func nativeArrivalSchedules(t *testing.T, records carePlanBindingPorts.ArrivalScheduleRecords, baselines careplan.ArrivalBaselineReader, classes careplanCompose.ArrivalClassPlans, exceptions careplan.ClassArrivalExceptions) careplan.ArrivalScheduleService {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	rules, deps, err := owners.ArrivalScheduleBinding(owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)), classes, exceptions, nil)

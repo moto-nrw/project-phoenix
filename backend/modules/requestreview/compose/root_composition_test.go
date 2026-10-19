@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	reviewbindings "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding"
+
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
@@ -16,17 +18,17 @@ import (
 // The typed root composes the owners the internal review tests run over. It
 // imports this package, so the binding lives in the external test package.
 func init() {
-	requestreviewcompose.ComposeReviewDecorations = func(t *testing.T, db *bun.DB, people requestreviewcompose.ReviewPeople, allowed func(context.Context) bool) (requestreviewcompose.ReviewDecorations, error) {
+	requestreviewcompose.ComposeReviewDecorations = func(t *testing.T, db *bun.DB, people reviewbindings.ReviewPeople, allowed func(context.Context) bool) (requestreviewcompose.ReviewDecorations, error) {
 		t.Helper()
 		groups, err := owners.NewSchoolStructure(testpkg.NewDatabase(t, db))
 		require.NoError(t, err)
-		students, err := requestreviewcompose.NewStudentDirectory(people, groups)
+		students, err := reviewbindings.NewStudentDirectory(people, groups)
 		if err != nil {
 			return requestreviewcompose.ReviewDecorations{}, err
 		}
 		queries, err := api.NewUnobservedCorrectionQueries(testpkg.NewDatabase(t, db))
 		require.NoError(t, err)
-		corrections, err := requestreviewcompose.NewCorrectionLog(queries, people, allowed)
+		corrections, err := reviewbindings.NewCorrectionLog(queries, people, allowed)
 		return requestreviewcompose.ReviewDecorations{Students: students, Corrections: corrections}, err
 	}
 	requestreviewcompose.ComposeReviewSources = func(t *testing.T, proof requestreviewcompose.ReviewProof) {
@@ -38,7 +40,7 @@ func init() {
 		require.NoError(t, err)
 		liveSettings := api.NewActiveTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 		svc := requestreviewcompose.ReviewComposition{
-			PeopleDirectory: people.PeopleDirectory, FamilyProtection: requestreviewcompose.NewFamilyProtection(people.PeopleDirectory),
+			PeopleDirectory: people.PeopleDirectory, FamilyProtection: reviewbindings.NewFamilyProtection(people.PeopleDirectory),
 			Settings: liveSettings.Settings, ExcusedRequests: module.ExcusedRequests,
 		}
 		masterData, err := api.NewRequestReviewMasterData(testpkg.NewDatabase(t, db),

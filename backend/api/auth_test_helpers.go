@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -22,6 +20,7 @@ import (
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -187,7 +186,7 @@ func WithAuthTestMFACapability(capability identityaccess.AccountMFA) AuthTestOpt
 // authTestRelyingParty is the passkey relying party the composed test module
 // runs its ceremonies under. The localhost value makes the module follow the
 // request's own origin, so every school subdomain works.
-var authTestRelyingParty = identityaccessCompose.PasskeyDependencies{
+var authTestRelyingParty = identityPorts.PasskeyDependencies{
 	RPID: "localhost", RPName: "moto",
 	TenantDomain: "localhost", OperatorFrontendURL: "http://operator.localhost",
 }

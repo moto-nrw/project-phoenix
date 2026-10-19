@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -39,7 +39,7 @@ func BuildIdentityAccess(
 	mailSender email.Mailer, mailDispatcher email.Dispatcher, mailFrom email.Email, deliveryRuntime *deliveryCompose.Runtime, mailIdentity email.ReplyToResolver, outbox MailResultOutbox,
 	people PeopleRows, guardianEnrollments guardianEnrollmentClaims,
 	groups EducationGroupRows, staffGroups schoolstructure.StaffGroupQuery, activityGroups timetablePorts.CallerActivityGroups,
-	sessions *presenceCompose.SessionRecords, presence *studentpresence.Module,
+	sessions presenceCompose.SessionRecords, presence *studentpresence.Module,
 ) (*identityaccess.Module, *CallerRows, error) {
 	durable, ok := outbox.(DurableMailOutbox)
 	if !ok {
@@ -56,10 +56,14 @@ func BuildIdentityAccess(
 	if err != nil {
 		return nil, nil, err
 	}
+	reinstatement, err := ComposeStaffReinstatement(db)
+	if err != nil {
+		return nil, nil, err
+	}
 	identityChain := LifecycleRepositories{
 		Persons: people.Persons, Staff: people.Staff, Teachers: people.Teachers, Students: people.Students,
 		GuardianProfiles: people.GuardianProfiles, StudentGuardians: people.StudentGuardians,
-		People: persons, Membership: membership,
+		People: persons, Membership: membership, Reinstatement: reinstatement,
 	}
 	operators, err := NewOperatorDependencies(OperatorRepositoriesOf(identityChain, operatorAuditLog), organizations, persons, membership, platformLogger)
 	if err != nil {
@@ -69,7 +73,7 @@ func BuildIdentityAccess(
 	if err != nil {
 		return nil, nil, err
 	}
-	mfa, err := NewMFADependencies(tokens.SessionTokens, settings, mfaMail, operatorAuditLog, cfg.JWTSecret, &identityaccessCompose.PasskeyDependencies{
+	mfa, err := NewMFADependencies(tokens.SessionTokens, settings, mfaMail, operatorAuditLog, cfg.JWTSecret, &identityBindingPorts.PasskeyDependencies{
 		RPID: tenantDomain, RPName: identityaccess.PasskeyRPName,
 		TenantDomain: tenantDomain, OperatorFrontendURL: operatorFrontendURL,
 	}, authLogger)

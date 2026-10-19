@@ -5,13 +5,12 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // lifecyclePresets stands in for the Security Runtime policy: parents default
@@ -38,7 +37,7 @@ func buildLifecycleModule(t *testing.T, db *bun.DB) *peopledirectory.Module {
 	t.Helper()
 	module, err := NewWithGuardianMemberships(Dependencies{
 		StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(Observation) {},
-		GuardianLinkOwners: testGuardianLinkOwners{db: db}, GuardianLinkRows: testpkg.GuardianLinks{},
+		GuardianLinkOwners: testGuardianLinkOwners{Db: db}, GuardianLinkRows: testpkg.GuardianLinks{},
 		GuardianRolePresets: lifecyclePresets(),
 	}, testPortalMemberships(db))
 	require.NoError(t, err)

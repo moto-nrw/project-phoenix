@@ -63,6 +63,17 @@ func ComposeSchoolMembership(db transactionruntime.Database) (*schoolMembershipM
 	return schoolMembershipCompose.New(dependencies)
 }
 
+// ComposeStaffReinstatement composes School Membership's observed staff
+// lifecycle for its Wiederaufnahme (ADR 0021), which the identity chain uses
+// when a former staff member is invited again.
+func ComposeStaffReinstatement(db transactionruntime.Database) (*schoolMembershipModule.Offboarding, error) {
+	dependencies, err := SchoolMembershipDependencies(db)
+	if err != nil {
+		return nil, err
+	}
+	return schoolMembershipCompose.NewOffboarding(dependencies)
+}
+
 // SchoolMembershipDependencies are the observed School Membership owner's
 // dependencies, shared by the owner and its audited class-list
 // administration.

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
 )
 
 // PickupInfo reads today's pickup time and notes of a student card without

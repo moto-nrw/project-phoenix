@@ -8,14 +8,14 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	postgresNative "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
 	careplanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 type observationLog struct {
@@ -65,7 +65,7 @@ func buildModule(t *testing.T, db *bun.DB, observe ...func(Observation)) *carepl
 	}
 	module, err := New(Dependencies{
 		StudentDirectory: testpkg.StudentDirectory{},
-		DB:               db, Observe: observer, AmbientDB: TenantAmbientDatabase(db),
+		DB:               db, Observe: observer, AmbientDB: postgresNative.TenantAmbientDatabase(db),
 		People: emptyPeopleDirectory{}, StatusStudents: emptyPeopleDirectory{}, StatusSlots: emptyStatusSlots{},
 		StudentLock: func(context.Context, int64) error { return nil }, StudentNotFound: errors.New("student not found"),
 	})

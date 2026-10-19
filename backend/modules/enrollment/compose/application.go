@@ -3,7 +3,6 @@ package compose
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -45,36 +44,6 @@ type (
 	// still-enrolled children, also for Care Plan's baselines.
 	ApprovedOfferingProjection = application.ApprovedOfferingProjection
 )
-
-func tenantRuntime() application.Runtime {
-	return application.Runtime{
-		Transactions: tenant.NewTransactionRunner(),
-		TenantID:     tenant.FromContext,
-		MarkRollback: tenant.MarkRollback,
-		NotFound:     func(err error) bool { return errors.Is(err, sql.ErrNoRows) },
-		NoRows:       sql.ErrNoRows,
-		InTransaction: func(ctx context.Context) bool {
-			_, ok := tenant.TransactionFromContext(ctx)
-			return ok
-		},
-		Savepoint:           tenant.WithSavepoint,
-		IsSavepointControl:  func(err error) bool { return errors.Is(err, tenant.ErrSavepointControl) },
-		WithinCurrentTenant: tenant.WithinCurrentTenant,
-		AfterCommit:         tenant.RegisterAfterCommit,
-		AdminTx: func(ctx context.Context, fn func(context.Context) error) error {
-			return tenant.WithAdminTx(ctx, (*bun.DB)(nil), func(txCtx context.Context, _ bun.Tx) error { return fn(txCtx) })
-		},
-		TenantTx: func(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
-			return tenant.WithTenantTx(ctx, (*bun.DB)(nil), tenantID, func(txCtx context.Context, _ bun.Tx) error { return fn(txCtx) })
-		},
-		WithTenant:         tenant.WithTenantID,
-		IsAdminTx:          tenant.IsAdminTx,
-		WithoutTransaction: tenant.ContextWithoutTransaction,
-		DetachTransaction: func(ctx context.Context) context.Context {
-			return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
-		},
-	}
-}
 
 // PhaseDependencies bind the phase administration to its owners. Calendar,
 // Settings and the three response ports are optional in focused tests.
@@ -170,4 +139,29 @@ func NewMailRenderers() enrollment.MailRenderers {
 // NewApprovedOfferingProjection composes the approved-offering projection.
 func NewApprovedOfferingProjection(selections ApprovedSelections, students OfferingStudentDirectory) *ApprovedOfferingProjection {
 	return application.NewApprovedOfferingProjection(selections, students)
+}
+
+func tenantRuntime() application.Runtime {
+	return application.Runtime{
+		Transactions:        tenant.NewTransactionRunner(),
+		TenantID:            tenant.FromContext,
+		MarkRollback:        tenant.MarkRollback,
+		NotFound:            application.NewErrorMatcher(sql.ErrNoRows),
+		NoRows:              sql.ErrNoRows,
+		InTransaction:       application.NewTransactionPresence(tenant.TransactionFromContext),
+		Savepoint:           tenant.WithSavepoint,
+		IsSavepointControl:  application.NewErrorMatcher(tenant.ErrSavepointControl),
+		WithinCurrentTenant: tenant.WithinCurrentTenant,
+		AfterCommit:         tenant.RegisterAfterCommit,
+		AdminTx: func(ctx context.Context, fn func(context.Context) error) error {
+			return tenant.WithAdminTx(ctx, (*bun.DB)(nil), func(txCtx context.Context, _ bun.Tx) error { return fn(txCtx) })
+		},
+		TenantTx: func(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
+			return tenant.WithTenantTx(ctx, (*bun.DB)(nil), tenantID, func(txCtx context.Context, _ bun.Tx) error { return fn(txCtx) })
+		},
+		WithTenant:         tenant.WithTenantID,
+		IsAdminTx:          tenant.IsAdminTx,
+		WithoutTransaction: tenant.ContextWithoutTransaction,
+		DetachTransaction:  application.NewDetachedContext(tenant.ContextWithoutAfterCommitHooks, tenant.ContextWithoutTransaction),
+	}
 }

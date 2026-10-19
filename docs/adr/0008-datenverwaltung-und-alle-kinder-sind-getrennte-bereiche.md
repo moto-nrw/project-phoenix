@@ -43,6 +43,10 @@ benennen, oder den ganzen Bereich in „Stammdaten" umbenennen.
   Datenverwaltungs-Übersicht sagt in einem Satz, dass hier angelegt und
   gepflegt wird und der laufende Tag unter `Alle Kinder` steht, mit Link
   dorthin.
+  Seit #4385 liegt der Satz hinter dem Info-Knopf neben dem Seitentitel
+  (`TenantPage` `info`), nicht mehr in einer eigenen Karte: er bleibt auf
+  der Seite und per Tipp, Tastatur und Screenreader erreichbar, kostet im
+  Alltag aber keine Zeile.
 - In der Seitenleiste steht `Alle Kinder` in der Gruppe Tagesbetrieb, die
   Datenverwaltung in der Gruppe Verwaltung (ADR 0009). Die beiden Listen
   stehen damit nie direkt untereinander.

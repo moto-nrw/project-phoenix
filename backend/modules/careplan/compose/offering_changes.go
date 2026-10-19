@@ -5,9 +5,8 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	boundaryBinding "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -106,9 +105,7 @@ type tenantUnitOfWork struct{}
 func (tenantUnitOfWork) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
 
 func (tenantUnitOfWork) RunInTenantTx(ctx context.Context, fn func(context.Context) error) error {
-	return tenant.WithTenantTx(ctx, (*bun.DB)(nil), tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
-		return fn(txCtx)
-	})
+	return boundaryBinding.TenantUnitOfWorkRunInTenantTxBinding(ctx, fn, tenant.WithTenantTx)
 }
 
 func (tenantUnitOfWork) MarkRollback(ctx context.Context) { tenant.MarkRollback(ctx) }

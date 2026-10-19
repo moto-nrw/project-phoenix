@@ -88,20 +88,18 @@ var moduleComplexityAllowlist = map[string]int{
 	// database/repositories/users; the scores crossed the boundary unchanged.
 	"modules/careplan/offeringrequests/diff.go:CorrectionDiff": 21,
 
-	"modules/communication/internal/parentmessages/events.go:(*EventEmitter).EmitChildEvent":     38,
-	"modules/communication/internal/staffannouncements/letter.go:(*service).ResendFailedEmails":  37,
-	"modules/communication/internal/staffannouncements/letter.go:(*service).queueLetterMailsAs":  22,
-	"modules/communication/internal/staffannouncements/poll.go:(*service).enqueueReminderEmails": 25,
-	"modules/communication/internal/staffannouncements/poll.go:(*service).pushPollReminder":      19,
-	"modules/communication/internal/staffannouncements/poll.go:normalizePollOptions":             18,
-	"modules/communication/internal/staffannouncements/reminder.go:(*service).SendDueReminders":  29,
-	"modules/communication/internal/staffannouncements/reminder.go:(*service).UpdateReminder":    16,
-	"modules/communication/internal/staffannouncements/reminder.go:(*service).deliverReminder":   16,
-	"modules/communication/internal/staffannouncements/service.go:normalizeDelivery":             17,
-
-	"modules/dataimport/compose/opening_references.go:NewOpeningReferences":                 21,
-	"modules/dataimport/internal/adapters/fileformat/helpers.go:MapStudentRow":              27,
-	"modules/dataimport/internal/adapters/fileformat/template_writer.go:(Decoder).Template": 19,
+	"modules/communication/internal/parentmessages/events.go:(*EventEmitter).EmitChildEvent":    38,
+	"modules/communication/internal/application/staff_letter.go:(*service).ResendFailedEmails":  37,
+	"modules/communication/internal/application/staff_letter.go:(*service).queueLetterMailsAs":  22,
+	"modules/communication/internal/application/staff_poll.go:(*service).enqueueReminderEmails": 25,
+	"modules/communication/internal/application/staff_poll.go:(*service).pushPollReminder":      19,
+	"modules/communication/internal/application/staff_poll.go:normalizePollOptions":             18,
+	"modules/communication/internal/application/staff_reminder.go:(*service).SendDueReminders":  29,
+	"modules/communication/internal/application/staff_reminder.go:(*service).UpdateReminder":    16,
+	"modules/communication/internal/application/staff_reminder.go:(*service).deliverReminder":   16,
+	"modules/communication/internal/application/staff_service.go:normalizeDelivery":             17,
+	"modules/dataimport/internal/adapters/fileformat/helpers.go:MapStudentRow":                  27,
+	"modules/dataimport/internal/adapters/fileformat/template_writer.go:(Decoder).Template":     19,
 
 	"modules/delivery/internal/notifications/preferences.go:(*preferenceService).FilterOptedInByType":   20,
 	"modules/delivery/internal/notifications/preferences.go:(*preferenceService).GetForParent":          27,
@@ -206,8 +204,8 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/planexport/dienstplan.go:(*dienstplanData).rowsByArea":        51,
 	"modules/planexport/service.go:(*service).nonWorkingDays":              28,
 
-	"modules/requestreview/compose/corrections.go:(correctionLog).History": 19,
-	"modules/requestreview/query.go:(*ListQuery).validate":                 23,
+	"roots/requestreviewbinding/corrections.go:(correctionLog).History": 19,
+	"modules/requestreview/query.go:(*ListQuery).validate":              23,
 
 	"modules/schoolcalendar/internal/adapters/postgres/store.go:(*Store).ListDateframes":                          18,
 	"modules/schoolcalendar/internal/domain/ical.go:formatRRULE":                                                  22,
@@ -381,6 +379,7 @@ func moduleComplexityViolations(scores, allowlist map[string]int) []string {
 	return violations
 }
 
+// Moved root bindings retain their original coverage and thresholds (ADR 0064).
 // moduleComplexityScan returns gocognit scores above the threshold for every
 // function in non-test .go files under modules/ and workflows/, keyed
 // "relpath:FuncName" with methods rendered like the gocognit CLI
@@ -388,7 +387,7 @@ func moduleComplexityViolations(scores, allowlist map[string]int) []string {
 // both registers speak the same key language.
 func moduleComplexityScan(backendRoot string) (map[string]int, error) {
 	scores := make(map[string]int)
-	for _, sub := range []string{"modules", "workflows"} {
+	for _, sub := range []string{"modules", "workflows", "roots/requestreviewbinding", "roots/sessionendbinding", "roots/openroommovebinding", "roots/owners/parent_announcement_audience_binding.go", "roots/owners/parent_inbox_binding.go", "roots/owners/staff_inbox_binding.go"} {
 		root := filepath.Join(backendRoot, sub)
 		err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 			if err != nil {

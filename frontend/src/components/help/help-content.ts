@@ -3176,9 +3176,10 @@ function dataManagementTopic(): HelpTopic {
       "Wählen Sie die Kachel des Bereichs, den Sie pflegen möchten.",
     ],
     result:
-      "Jede Kachel führt in ihre Liste. Oben steht, wie viele Einträge es gibt.",
+      "Jede Kachel führt in ihren Bereich. Auf manchen Kacheln steht, wie viele Einträge es gibt.",
     notes: [
       "In der Seitenleiste erreichen Sie jeden Bereich auch direkt unter `Datenverwaltung`.",
+      "Der Info-Knopf neben dem Seitennamen erklärt kurz, was hierher gehört.",
       "Die Kacheln `Terminkategorien`, `Planungsspuren`, `Schichtarten` und `Abwesenheitsarten` sind kurze Stammdaten-Listen.",
     ],
     differences: [
@@ -3407,8 +3408,10 @@ function manageStudentTopic(): HelpTopic {
  * Recht.
  *
  * Live geprueft: `Neue Notiz` oeffnet ein Formular im Reiter, kein Fenster.
- * Die Auswahl `Gruppenleitung` erscheint nur bei einer Notiz, die zu einem
- * Angebot oder einer Gruppe gehoert -- im Formular des Reiters also nicht.
+ * Unter `Bezug` stehen `Nur das Kind`, die OGS-Gruppe und die Angebote, in
+ * denen das Kind heute angemeldet ist (#4268). Die Leitungs-Reichweite
+ * erscheint erst mit einem Bezug: `Gruppenleitung` bei der OGS-Gruppe,
+ * `Angebotsleitung` bei einem Angebot. Der Bezug bleibt beim Bearbeiten fest.
  * An keine Einstellung gebunden.
  */
 function studentNotesTopic(): HelpTopic {
@@ -3430,16 +3433,27 @@ function studentNotesTopic(): HelpTopic {
           "Wählen Sie den Reiter `Notizen`.",
           "Wählen Sie `Neue Notiz`.",
           "Schreiben Sie kurz und sachlich, was war.",
+          "Wählen Sie unter `Bezug`, worum es geht: `Nur das Kind`, die OGS-Gruppe oder ein Angebot.",
           "Wählen Sie unter `Wer sieht die Notiz?` die Reichweite.",
           "Wählen Sie `Speichern`.",
         ],
+      },
+      {
+        title: "Eine Notiz zu einem Angebot",
+        steps: [
+          "Wählen Sie unter `Bezug` das Angebot, zum Beispiel eine AG.",
+          "Ein Eintrag mit Tag beschreibt dann diesen einen Termin.",
+          "In der Liste steht das Angebot neben dem Datum.",
+        ],
+        ordered: false,
       },
       {
         title: "Die drei Reichweiten",
         steps: [
           "`Ganzes Team`: alle, die das Kind sehen dürfen.",
           "`Betreuungsteam des Kindes`: wer das Kind wirklich hat, über seine Gruppe, seine Klasse oder ein Angebot.",
-          "`Gruppenleitung`: nur die Leitung der Gruppe, zu der die Notiz gehört.",
+          "`Gruppenleitung`: nur die Leitung der OGS-Gruppe, zu der die Notiz gehört.",
+          "`Angebotsleitung`: nur die Leitung des Angebots, zu dem die Notiz gehört.",
         ],
         ordered: false,
       },
@@ -3457,7 +3471,8 @@ function studentNotesTopic(): HelpTopic {
       "Eltern sehen Notizen nie.",
       "Gesundheitsangaben gehören nicht in eine Notiz, sondern in die `Gesundheitsinformationen` der Stammdaten.",
       "Ändern kann eine Notiz nur, wer sie geschrieben hat.",
-      "Entfernen kann sie die Leitung der Gruppe.",
+      "Entfernen kann sie die Leitung der Gruppe oder des Angebots.",
+      "Die `Bemerkung` an der Anwesenheit eines Angebots ist nur ein kurzer Satz zur Anwesenheit. Beobachtungen wie Verhalten oder einen Vorfall schreiben Sie als Notiz, mit dem Angebot als `Bezug`.",
     ],
     differences: [
       "Sie sehen weniger Notizen als eine Kollegin? Dann hat sie das Kind, Sie nicht. Die Reichweite entscheidet das je Notiz.",
@@ -3465,6 +3480,8 @@ function studentNotesTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "Es fehlt `Neue Notiz`? Dann dürfen Sie dieses Kind nur lesen.",
+      "Ein Angebot fehlt unter `Bezug`? Dort stehen nur Angebote, in denen das Kind heute angemeldet ist.",
+      "Es fehlt `Gruppenleitung` oder `Angebotsleitung`? Wählen Sie zuerst unter `Bezug` die Gruppe oder das Angebot.",
     ],
     related: [HELP_TOPICS.leadManageStudent, HELP_TOPICS.studentSearch],
   };
@@ -4431,6 +4448,7 @@ function inviteStaffTopic(): HelpTopic {
     notes: [
       "Die `Rolle` bestimmt, was die Person später sehen und tun darf.",
       "Nach der Annahme steht die Person unter `Mitarbeiter` und lässt sich einer Gruppe zuweisen.",
+      "War die Person schon einmal bei Ihnen beschäftigt? Dann sagt moto das direkt unter der `E-Mail-Adresse`, mit dem, was zurückkommt und was nicht. Gruppen, Klassen und Vertretungen legen Sie nach der Annahme neu fest.",
       "Das Blatt `Hinweise` in der Vorlage erklärt jede Spalte.",
     ],
     differences: [

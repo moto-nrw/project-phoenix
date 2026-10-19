@@ -13,5 +13,5 @@ func NewCourseGroupQueries(db *bun.DB, observe func(Observation)) (timetable.Cou
 	if db == nil || observe == nil {
 		return nil, errors.New("course group queries: database and observer are required")
 	}
-	return application.NewCourseGroupQueries(postgres.New(databaseRuntime(db)), transaction{}, observe), nil
+	return application.NewCourseGroupQueries(postgres.New(postgres.DatabaseRuntime(db)), transaction{}, observe), nil
 }

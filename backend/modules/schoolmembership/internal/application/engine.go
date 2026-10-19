@@ -222,7 +222,8 @@ func staffToPublic(value domain.Staff) schoolmembership.Staff {
 		PersonID: value.PersonID, StaffNotes: value.StaffNotes, EmploymentType: value.EmploymentType,
 		WorkTimeModelID: value.WorkTimeModelID, PersonnelNumber: value.PersonnelNumber,
 		RotationAnchorDate: value.RotationAnchorDate, BirthdayDisplayOptOut: value.BirthdayDisplayOptOut,
-		DeletedAt: value.DeletedAt, IsGuest: value.IsGuest, GuestOrganization: value.GuestOrganization,
+		DeletedAt: value.DeletedAt, PersonalDataErasedAt: value.PersonalDataErasedAt,
+		IsGuest: value.IsGuest, GuestOrganization: value.GuestOrganization,
 	}
 }
 

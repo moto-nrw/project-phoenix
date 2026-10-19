@@ -4,6 +4,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
 	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
@@ -15,7 +18,7 @@ import (
 )
 
 type announcementApplicants struct {
-	source parentStore.PendingApplicantSource
+	source recordports.PendingApplicantSource
 }
 
 func (a announcementApplicants) PendingAnnouncementApplicants(ctx context.Context) ([]audienceRows.PendingAnnouncementApplicant, error) {
@@ -28,7 +31,7 @@ func (a announcementApplicants) PendingAnnouncementApplicantsForSchools(ctx cont
 	return applicantRows(rows), err
 }
 
-func applicantRows(rows []parentStore.PendingAnnouncementApplicant) []audienceRows.PendingAnnouncementApplicant {
+func applicantRows(rows []recordports.PendingAnnouncementApplicant) []audienceRows.PendingAnnouncementApplicant {
 	if rows == nil {
 		return nil
 	}
@@ -39,14 +42,14 @@ func applicantRows(rows []parentStore.PendingAnnouncementApplicant) []audienceRo
 	return values
 }
 
-func NewParentAnnouncementAudience(db transactionruntime.Database, applicants parentStore.PendingApplicantSource, clocks ...func() time.Time) parentStore.AnnouncementAudienceReads {
-	return parentAudience.New(parentStore.ProjectionDatabase(db.Pool()), announcementApplicants{source: applicants}, guardianLinkView.NewReader(), clocks...)
+func NewParentAnnouncementAudience(db transactionruntime.Database, applicants recordports.PendingApplicantSource, clocks ...func() time.Time) recordports.AnnouncementAudienceReads {
+	return communicationAnnouncementAudience{source: parentAudience.New(parentStore.ProjectionDatabase(db.Pool()), announcementApplicants{source: applicants}, guardianLinkView.NewReader(), clocks...)}
 }
 
-func NewParentMessageInbox(db transactionruntime.Database) parentStore.ParentInbox {
-	return parentInbox.New(parentStore.ProjectionDatabase(db.Pool()), guardianLinkView.NewReader())
+func NewParentMessageInbox(db transactionruntime.Database) recordports.ParentInboxReads {
+	return communicationParentInbox{source: parentInbox.New(parentStore.ProjectionDatabase(db.Pool()), guardianLinkView.NewReader())}
 }
 
-func NewStaffMessageInbox(db transactionruntime.Database) staffStore.StaffInbox {
-	return staffInbox.New(staffStore.ProjectionDatabase(db.Pool()))
+func NewStaffMessageInbox(db transactionruntime.Database) communication.StaffInboxReads {
+	return communicationStaffInbox{source: staffInbox.New(staffStore.ProjectionDatabase(db.Pool()))}
 }

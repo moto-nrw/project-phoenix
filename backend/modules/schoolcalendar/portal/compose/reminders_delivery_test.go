@@ -7,12 +7,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
-
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,7 +23,7 @@ import (
 // landing exactly between a reminder's push claim and the push itself.
 type revisingCandidateLock struct {
 	appointments.Capability
-	db    *bun.DB
+	Db    *bun.DB
 	on    int
 	mu    sync.Mutex
 	calls int
@@ -39,7 +37,7 @@ func (r *revisingCandidateLock) FindReminderCandidateForUpdate(ctx context.Conte
 	if revise {
 		// Deliberately on its own connection and before the row lock is taken:
 		// this is another request editing the appointment, not this scan.
-		if _, err := r.db.ExecContext(context.Background(),
+		if _, err := r.Db.ExecContext(context.Background(),
 			`UPDATE calendar.appointments SET revision = revision + 1 WHERE id = ?`, id); err != nil {
 			return nil, err
 		}
@@ -65,7 +63,7 @@ func TestCalendarServiceIntegration_ReminderPushSurvivesAnEditBeforeDispatch(t *
 	cfg.ReminderNotifier = notifier
 	cfg.Preferences = reminderPreferences{}
 	baseRepo := cfg.Appointments
-	cfg.Appointments = &revisingCandidateLock{Capability: baseRepo, db: db, on: 2}
+	cfg.Appointments = &revisingCandidateLock{Capability: baseRepo, Db: db, on: 2}
 	service := owners.NewCalendarPortal(cfg)
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Revised")

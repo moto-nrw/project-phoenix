@@ -5,9 +5,11 @@ import (
 	"errors"
 	"testing"
 
+	reviewbindings "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding"
+
 	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	reviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,7 +30,7 @@ func TestRequestReviewIdentityPreservesEffectivePermissions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.WithValue(context.Background(), sessiontoken.CtxPermissions, tc.grants)
 			require.Equal(t, tc.want, RequestReviewPrincipal(ctx))
-			access, err := reviewcompose.NewAccess(RequestReviewPrincipal, nil)
+			access, err := reviewbindings.NewAccess(RequestReviewPrincipal, nil)
 			require.NoError(t, err)
 			caller, err := access.Caller(ctx)
 			require.NoError(t, err)
@@ -56,7 +58,7 @@ func TestRequestReviewAccessPreservesAbsenceOnlyCapability(t *testing.T) {
 	t.Parallel()
 	ctx := context.WithValue(context.Background(), sessiontoken.CtxPermissions, []string{"users:read", "users:absence"})
 	for _, level := range []string{"team", "group_leader", "none", "admin"} {
-		access, err := reviewcompose.NewAccess(RequestReviewPrincipal, func(received context.Context) (string, error) {
+		access, err := reviewbindings.NewAccess(RequestReviewPrincipal, func(received context.Context) (string, error) {
 			require.Equal(t, ctx, received)
 			return level, nil
 		})
@@ -69,7 +71,7 @@ func TestRequestReviewAccessPreservesAbsenceOnlyCapability(t *testing.T) {
 		require.False(t, caller.ReviewsWriteQueues, "absence review must not grant access to other queues")
 	}
 	failure := errors.New("review setting unavailable")
-	access, err := reviewcompose.NewAccess(RequestReviewPrincipal, func(context.Context) (string, error) {
+	access, err := reviewbindings.NewAccess(RequestReviewPrincipal, func(context.Context) (string, error) {
 		return "", failure
 	})
 	require.NoError(t, err)

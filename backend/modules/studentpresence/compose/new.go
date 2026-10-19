@@ -49,10 +49,10 @@ func sessionAttendancePorts(deps Dependencies) ports.AttendanceRulePorts {
 	var carePlan ports.CarePlanDirectory
 	var careDays ports.CareDayLocker
 	if deps.Roster != nil {
-		roster = plannedRoster{query: deps.Roster}
+		roster = application.NewPlannedRoster(deps.Roster)
 	}
 	if deps.CarePlan != nil {
-		carePlan = carePlanDirectory{query: deps.CarePlan}
+		carePlan = application.NewCarePlanDirectory(deps.CarePlan)
 	}
 	if deps.CareDays != nil {
 		careDays = deps.CareDays
@@ -62,18 +62,10 @@ func sessionAttendancePorts(deps Dependencies) ports.AttendanceRulePorts {
 
 func databaseRuntime(db *bun.DB) postgres.Database { return tenant.CurrentTenantTransaction[bun.IDB] }
 
-type transaction struct{}
+// transaction retains the registered runtime entry until its role-changing
+// extraction can retire rather than replace that exact command boundary.
+type transaction struct{ application.Transaction }
 
 func (transaction) Run(ctx context.Context, fn func(context.Context) error) error {
 	return tenant.NewTransactionRunner().RunInTx(ctx, fn)
-}
-
-func (transaction) Require(ctx context.Context) error {
-	if _, err := tenant.TenantFromContext(ctx); err != nil {
-		return err
-	}
-	if _, ok := tenant.TransactionFromContext(ctx); !ok {
-		return errors.New("student presence: transaction is required")
-	}
-	return nil
 }

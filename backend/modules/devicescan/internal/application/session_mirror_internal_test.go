@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -45,7 +47,7 @@ func TestSessionMirrorPreservesClockStaffAndPublication(t *testing.T) {
 	mirror := NewSessionMirror(store, func(_ context.Context, instance MirroredSession) { published = append(published, instance) }, nil)
 	groupID := int64(44)
 	startedAt := time.Date(2026, 5, 12, 21, 45, 0, 0, time.UTC)
-	mirror.MirrorSession(t.Context(), LifecycleSession{ID: 66, ActivityID: &groupID, RoomID: 55, StartTime: startedAt}, []int64{101, 0, 101, 202})
+	mirror.MirrorSession(t.Context(), ports.LifecycleSession{ID: 66, ActivityID: &groupID, RoomID: 55, StartTime: startedAt}, []int64{101, 0, 101, 202})
 	require.Len(t, store.created, 1)
 	instance := store.created[0]
 	assert.Equal(t, int64(77), instance.ID)
@@ -66,7 +68,7 @@ func TestSessionMirrorFallbacks(t *testing.T) {
 	t.Parallel()
 	store := &mirrorTimetableStub{}
 	mirror := NewSessionMirror(store, nil, nil)
-	mirror.MirrorSession(t.Context(), LifecycleSession{StartTime: time.Date(2026, 5, 12, 7, 5, 0, 0, time.UTC)}, []int64{-1, 0})
+	mirror.MirrorSession(t.Context(), ports.LifecycleSession{StartTime: time.Date(2026, 5, 12, 7, 5, 0, 0, time.UTC)}, []int64{-1, 0})
 	require.Len(t, store.created, 1)
 	assert.Equal(t, "RFID-Aktivität", store.created[0].Title)
 	assert.Equal(t, "09:05:00", store.created[0].StartTime)
@@ -92,7 +94,7 @@ func TestSessionMirrorFailureBoundaries(t *testing.T) {
 			store := tc.store
 			publications := 0
 			mirror := NewSessionMirror(&store, func(context.Context, MirroredSession) { publications++ }, nil)
-			mirror.MirrorSession(t.Context(), LifecycleSession{ID: 66, StartTime: fixedNow}, []int64{101, 202})
+			mirror.MirrorSession(t.Context(), ports.LifecycleSession{ID: 66, StartTime: fixedNow}, []int64{101, 202})
 			assert.Len(t, store.created, tc.creates)
 			assert.Len(t, store.staff, tc.staff)
 			assert.Equal(t, tc.publications, publications)

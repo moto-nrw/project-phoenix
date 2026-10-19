@@ -10,12 +10,11 @@ import (
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	ownerCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -43,7 +42,7 @@ func setupSchemaRepoTest(t *testing.T) (*bun.DB, *capability.Module, int64, int6
 			Exec(context.Background())
 	})
 
-	repo := enrollmentCompose.New()
+	repo := ownerCompose.New()
 	return db, repo, tenantID, account.ID
 }
 

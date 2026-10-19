@@ -69,7 +69,6 @@ type Student struct {
 	AddressCity       *string `bun:"address_city" json:"address_city,omitempty"`
 	AddressPostalCode *string `bun:"address_postal_code" json:"address_postal_code,omitempty"`
 	ExtraInfo         *string `bun:"extra_info" json:"extra_info,omitempty"`
-	SupervisorNotes   *string `bun:"supervisor_notes" json:"supervisor_notes,omitempty"`
 	HealthInfo        *string `bun:"health_info" json:"health_info,omitempty"`
 	PickupStatus      *string `bun:"pickup_status" json:"pickup_status,omitempty"`
 	// DepartureDays is the single source of truth for how a child leaves each

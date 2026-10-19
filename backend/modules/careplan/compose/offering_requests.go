@@ -14,5 +14,5 @@ func NewOfferingChangeRequestQueries(db *bun.DB, observe func(Observation)) (car
 	if db == nil || observe == nil {
 		return nil, errors.New("care plan offering request queries: database and observer are required")
 	}
-	return application.NewOfferingChangeRequestQueries(application.New(postgres.New(carePlanDatabase(db)), observe)), nil
+	return application.NewOfferingChangeRequestQueries(application.New(postgres.New(postgres.CarePlanDatabase(db)), observe)), nil
 }

@@ -5,6 +5,8 @@ package api
 import (
 	"context"
 
+	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
@@ -25,18 +27,18 @@ func NewStaffMessagingTestRepositories(db transactionruntime.Database, members o
 
 		return StaffMessagingTestRepositories{}, err
 	}
-	personAccounts := func(ctx context.Context, ids []int64) (map[int64]*parentStore.StaffPersonAccount, error) {
+	personAccounts := func(ctx context.Context, ids []int64) (map[int64]*recordports.StaffPersonAccount, error) {
 		rows, err := members.Person.FindByIDs(ctx, ids)
 		if rows == nil {
 			return nil, err
 		}
-		out := make(map[int64]*parentStore.StaffPersonAccount, len(rows))
+		out := make(map[int64]*recordports.StaffPersonAccount, len(rows))
 		for id, row := range rows {
 			if row == nil {
 				out[id] = nil
 				continue
 			}
-			out[id] = &parentStore.StaffPersonAccount{AccountID: row.AccountID}
+			out[id] = &recordports.StaffPersonAccount{AccountID: row.AccountID}
 		}
 		return out, err
 	}

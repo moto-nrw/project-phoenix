@@ -23,6 +23,11 @@ interface AlertProps extends HTMLAttributes<HTMLDivElement> {
    * request ID, which would otherwise wrap ragged at the right edge.
    */
   readonly actionLayout?: "responsive" | "inline" | "stacked";
+  /**
+   * Weiterer Inhalt unter Titel und Meldung, etwa eine kurze Aufzählung.
+   * Wird nur mit `title` gezeigt; das Icon steht dann oben statt mittig.
+   */
+  readonly details?: ReactNode;
   /** Zusätzliche Klassen für den Rahmen, z. B. Außenabstände. */
   readonly className?: string;
 }
@@ -34,6 +39,7 @@ export function Alert({
   announce,
   action,
   actionLayout = "responsive",
+  details,
   className = "",
   ...props
 }: Readonly<AlertProps>) {
@@ -127,7 +133,7 @@ export function Alert({
       }
       aria-live={announcement === "off" ? undefined : announcement}
       aria-atomic={announcement === "off" ? undefined : "true"}
-      className={`flex items-center rounded-lg border p-4 text-sm shadow-sm ${action ? "flex-wrap gap-y-2" : ""} ${styles[type]} ${className}`}
+      className={`flex ${title && details ? "items-start" : "items-center"} rounded-lg border p-4 text-sm shadow-sm ${action ? "flex-wrap gap-y-2" : ""} ${styles[type]} ${className}`}
     >
       {icons[type]}
       {/* Mit Aktion darf die Meldung schrumpfen (min-w-0 flex-1), sonst würde
@@ -136,6 +142,7 @@ export function Alert({
         <div className={action ? "min-w-0 flex-1" : undefined}>
           <p className="font-semibold">{title}</p>
           <p className="mt-0.5">{message}</p>
+          {details}
         </div>
       ) : (
         <span className={action ? "min-w-0 flex-1" : undefined}>{message}</span>

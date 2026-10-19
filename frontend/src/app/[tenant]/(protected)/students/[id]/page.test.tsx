@@ -479,7 +479,6 @@ interface MockStudent {
   buskind: boolean;
   birthday: string;
   health_info: string;
-  supervisor_notes: string;
   extra_info: string;
   pickup_status: string;
   sick: boolean;
@@ -580,7 +579,6 @@ const mockStudent = {
   address_postal_code: "50667",
   address_city: "Köln",
   health_info: "",
-  supervisor_notes: "",
   extra_info: "",
   pickup_status: "",
   sick: false,

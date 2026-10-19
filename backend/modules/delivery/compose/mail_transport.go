@@ -11,4 +11,7 @@ func NewMailTransport(config mail.MailerConfig) (mail.Mailer, error) { return em
 func NewMailDispatcher(mailer mail.Mailer, logger *slog.Logger, observers ...mail.DeliveryObserver) mail.Dispatcher {
 	return email.NewDispatcher(mailer, logger, observers...)
 }
-func IsLoggingMailTransport(mailer mail.Mailer) bool { _, ok := mailer.(*email.MockMailer); return ok }
+
+func IsLoggingMailTransport(mailer mail.Mailer) bool {
+	return email.IsLoggingMailTransport(mailer)
+}
