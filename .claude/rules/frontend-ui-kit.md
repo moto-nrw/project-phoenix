@@ -182,6 +182,22 @@ Green CTA shades (from `GROUP_ROOM_SHADES` in `location-helper.ts`): base `#83CD
 
 **Do NOT use the package color palette.** The `@moto-nrw/design-system` `@theme` ships a `steel` / `sage` / `warm` palette and `--color-brand-primary` (= sage `#7ba05b`). That is **not** the app's green. The app's brand green is `#83CD2D` (`LOCATION_COLORS.GROUP_ROOM` / the logo). Use `LOCATION_COLORS` for brand semantics and Tailwind `gray-*` for neutrals; never `bg-sage-*`, `bg-steel-*`, or `--color-brand-primary`, or you introduce a third, wrong green.
 
+### Concept icons — one symbol per domain concept
+
+`MOTO_CONCEPTS` in `lib/moto-concepts.ts` is the single source for which symbol and tone a concept gets. Render it with `<MotoConceptIcon concept="…" />` (`~/components/ui/moto-concept-icon`); never import the Phosphor glyph and pick a tone by hand. The people concepts:
+
+| Concept     | Key        | Phosphor glyph           | Tone         |
+| ----------- | ---------- | ------------------------ | ------------ |
+| Kind        | `children` | `UserIcon` (one head)    | `greenVivid` |
+| Eltern      | `parents`  | `UsersIcon` (two heads)  | `blue`       |
+| Gruppe      | `groups`   | `UsersThreeIcon` (three) | `greenDeep`  |
+| Personal    | `staff`    | `IdentificationCardIcon` | `orange`     |
+| Klassentag  | `classDay` | `ChalkboardTeacherIcon`  | `blue`       |
+
+- One head always means a child, two heads parents, three heads a group, also where the icon is monochrome (sidebar entries, tab triggers, help tiles in `HELP_ICONS`): keep the glyph, drop the tone.
+- Deliberate exceptions: the profile menu (`UserIcon` = the signed-in user) and the neutral gray meta icons on the child card (`tone="neutral"`, same glyph as the concept).
+- Need a new concept? Add it to `MOTO_CONCEPTS`; don't define a one-off glyph/tone pair.
+
 ### Spacing & padding
 
 Standard 4px scale — Tailwind `p-*` / `gap-*` / `m-*` map 1:1: `1`=4 · `2`=8 · `3`=12 · `4`=16 · `5`=20 · `6`=24 · `8`=32 · `10`=40 · `12`=48 · `16`=64 px. Canonical component padding (from the design-system component tokens):
