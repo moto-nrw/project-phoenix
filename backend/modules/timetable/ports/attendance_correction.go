@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
@@ -41,8 +40,8 @@ type CorrectionPeople interface {
 // serializes the write with the block's completion; both are optional in
 // read-only test facades.
 type AttendanceCorrectionDependencies struct {
-	Participants scheduleModels.InstanceStudentRepository
-	Instances    scheduleModels.ActivityInstanceRepository
+	Participants InstanceStudentRecords
+	Instances    ActivityInstanceRecords
 	Trail        AttendanceCorrectionTrail
 	People       CorrectionPeople
 	Locks        AttendanceLocks

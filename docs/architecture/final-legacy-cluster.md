@@ -1,3 +1,146 @@
+# Final legacy cluster: round 6
+
+Integrated base: `466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51` (development after PR #4341). The preserved work was committed before integration, as requested. Earlier rounds below are historical.
+
+## Current measured result
+
+| Surface | Before | After |
+|---|---:|---:|
+| Legacy keys | 1 | 1 |
+| Conventional production carriers | 3 | 0 |
+| Foreign compose aliases | 0 | 0 |
+| Production type aliases removed in this round | 0 | 12 |
+| Compose LOC budget | 27,061 | 24,971 |
+| Counted delegation budget | 3,037 | 3,019 |
+| Legacy-prefixed LOC budget | 2,666 | 0 |
+| `legacy_*.go` files, including tests | 18 | 0 |
+| Policy rules | 928 | 922 |
+| Composition field/setter targets | 0 | 0 |
+
+`services/scheduler`, `models/activities` and `models/schedule` have no production package or importer. `services/`, `database/repositories/` and `models/` have no production package; the existing test-only model interface pin remains. No `legacy/` directory remains. The deferred Data Import authorization key and baseline-free regression test are unchanged. No retirement key is removed, so there is no new retirement coverage to supply.
+
+## Owner cutover
+
+- Scheduler's 66 Go files move to `modules/schedulerruntime/internal/application`, retaining owner, application role, instance state, dependency injection, job IDs and test assertions. Compose only binds its constructor.
+- Timetable owns the actual activity and schedule rows in `internal/domain/{activityrecords,schedulerecords}`. Its persistence interfaces have typed IDs and bounded operations, without a generic repository or production query-options API. Runtime instance queries use the existing bounded presence filter; participant status narrowing still occurs after pagination.
+- The seven retained ActivityService files move to Timetable internal application. Its compose constructor returns the existing native activity contract. Canonical dates are `sharedkernel/calendar.Date`; the old date suites move with that capability, and retained parsing errors keep their exact text.
+- `fixturetest` owns the old suites' query construction and native row handles. Handles embed the canonical row, rather than aliasing it or defining another row schema. The live, typed fixture bridges preserve mutation and optional capabilities; deadcode removed unused bridge operations. Fixture interfaces split into planning, lookup, attendance, excusal, retention and lifecycle capabilities; per-capability files stay below 800 lines. A dead pending-request lookup is deleted; the closing-day range behavior remains in owner test support. External integration suites no longer import private domain/application code. Existing owner decision dependency literals continue to use their already-authorized ports, without a new port grant or graph factory.
+- People Directory and School Structure runtime context operations move into application; driver handling moves into the owner's Postgres adapter, with context operations supplied at construction. School Structure's redundant CRUD forwarding wrapper is deleted. Presence rows merge into the existing normal role file. Five test files receive byte-identical filename renames; the remaining test helper merges into its existing owner helper.
+- Two moved validations exceeded the target complexity ceiling. Their metadata/partial-absence validation is split into private helpers, preserving order, mutation and error strings. No complexity allowance is added.
+
+## One-to-one mechanical evidence
+
+| Old path/reference | New path/reference | Proof |
+|---|---|---|
+| `services/scheduler/worker.go` and registry paths in `test/composition_inventory_test.go` | `modules/schedulerruntime/internal/application/worker.go` and corresponding registry paths | Same 66 files, 7 constructor calls and 27 jobs; fixed historical constructor evidence stays unchanged. |
+| `services/scheduler/tenant_runtime.go:Scheduler.afterCommit:RegisterAfterCommit@0669f453e5ef89dcbbf01b3a0022619d#1` | `modules/schedulerruntime/internal/application/tenant_runtime.go:Scheduler.afterCommit:RegisterAfterCommit@0669f453e5ef89dcbbf01b3a0022619d#1` | Exactly one old entry and one new entry. Register 117 → 117; operation, reason and body fingerprint `0669f453e5ef89dcbbf01b3a0022619d` identical. Every other entry is byte-equivalent. |
+| `modules/timetable/compose/legacy_supervisor_operations.go:buildReplacementSupervisorIDs` | `modules/timetable/internal/application/activity_supervisor_operations.go:buildReplacementSupervisorIDs` | One existing complexity reference moves 1:1; cap remains 22. |
+| Scheduler source-discovery roots | Exact new Scheduler application subtree | Same scanned files; other removed roots are already covered by the existing `modules/` scan. |
+| People/School Structure runtime in compose | Exact new owner Postgres runtime subtrees | Both moved implementations remain in the existing delegation scan, under the same owners. |
+| Repository-interface scan `models/*/repository.go` | `modules/timetable/ports/*_persistence.go` | Two actual old files → two actual native capability files. Same two exception entries, none added; all 47 formerly scanned method names remain covered, with additional native methods checked. The obsolete optional config path is unchanged. |
+| Two pure schedule model suites | Same owner `activity_instance_internal_test.go`, `pickup_schedule_internal_test.go` | Both are database-free internal domain suites. File renames only; assertions and fixture literals unchanged. They use the existing internal-unit-test convention, not a new skip entry. |
+
+The approved notice guard extension only accepts removed entries as relocation sources. It consumes each source once and compares operation, reason and body fingerprint. Tests cover pure relocation, changed body/reason/operation, retained-entry mutation, duplicate relocation, an additional entry, and retirement alongside relocation. The old equal-sized opaque replacement regression stays unchanged. The additional repository scan repair changes only its source-path literal. No other checker logic changes.
+
+Historical evidence sources in six existing ticket JSONs are pinned to this immutable integrated base where the original files still exist, rather than rewriting their historical claims. `validate-ticket --all` checks every ticket and reports 0 removed keys / 0 uncovered retirements.
+
+## Rules and budget deltas
+
+Three new native test-support rules, with precedents:
+
+| Rule | Precedent / narrower boundary |
+|---|---|
+| `timetable-activities.test-support.activity-contract` | `delivery.test-support.native-contracts`: owner fixtures consume the actual owner contract. |
+| `timetable-activities.test-support.native-domain` | `security-runtime.test-support.domain`: the exact owner fixture package constructs canonical owner rows/errors. Explicitly authorized Round 6 owner test-support reach. |
+| `timetable-activities.test-support.school-calendar-public` | `timetable-activities.application.school-calendar.public`: the exact fixture package uses School Calendar's native dateframe filter, on the existing owner DAG edge. |
+
+Nine stale rules are removed: `domain.application-legacy-model`, `domain.postgres-legacy-model`, `internal-test.same-owner.legacy-model`, `owner-compose.domain.legacy-model`, `timetable-activities.http-integration-test.application`, `timetable-activities.http-integration-test.owner-domain`, `timetable-activities.legacy-model.production.activity-contract`, `timetable-activities.port.legacy-model`, and `timetable-activities.integration-test.legacy-model`.
+
+Compose caps: People Directory 2,576 → 2,504; School Structure 883 → 744; Timetable 3,777 → 1,898. Other caps do not rise. Delegation caps: School Structure 85 → 70; Timetable 491 → 488. Twelve production aliases and one test alias are deleted, none introduced.
+
+## Literal issue-exit audit
+
+| Issue | State / exact remaining condition |
+|---|---|
+| #4004 | Open. The last `dataimport/compose → auth/authorize` edge is explicitly deferred until the separate zero-ratchet cutover after #3021. |
+| #4076, #4077, #4085 | Already completed in earlier merged rounds; no state change requested here. |
+| #4084 | Open. All touched compose budgets are met and ActivityService is internal, but not every compose package only constructs/binds. For example `peopledirectory/compose/caregiver_capability_views.go` implements tenant execution/error mapping; `schoolstructure/compose/group_rooms.go:ListGroupRooms` maps rows; `timetable/compose/owner_rows.go:OperationTemplates` checks runtime capabilities. Passing the LOC ratchet does not prove their absence. |
+| #4086 | Open. Legacy trees/files and conventional production carriers are gone, but the literal “every implementation package under internal” condition is false. `auth/authorize` cannot become private while the explicitly deferred foreign Data Import edge remains. Projection physical locations/grants stay unchanged by instruction. Other outside-internal implementations are enumerated below, not silently declared exempt or reclassified. |
+
+## Remaining outside-internal implementation inventory
+
+This is a policy-role/source-file inventory, not a claim that every row needs the same migration. Root/dev CLI entry points and the earlier-round projection locations are included rather than inventing exemptions from the issue wording. No relocation grant is rewritten in this round.
+
+| Package | Owner | Role |
+|---|---|---|
+| `modules/studentdirectoryview` | `student-directory-view` | `postgres` |
+| `modules/peopledirectory/userscontract` | `people-directory` | `domain` |
+| `modules/filestorage/documents` | `file-storage` | `adapter` |
+| `applog` | `observability` | `adapter` |
+| `auth/authorize` | `security-runtime` | `application` |
+| `auth/device` | `device-fleet` | `adapter` |
+| `auth/userpass` | `security-runtime` | `domain` |
+| `cmd` | `root-composition` | `cli` |
+| `constants` | `legacy-shared` | `domain` |
+| `database` | `transaction-runtime` | `postgres` |
+| `email` | `delivery-platform` | `adapter` |
+| `localization` | `delivery-platform` | `adapter` |
+| `modules/dataimport/fileformat` | `data-import` | `adapter` |
+| `seed/api` | `dev-tools` | `cli` |
+| `modules/delivery/application/locales` | `delivery-platform` | `application` |
+| `modules/delivery/application/emailbranding` | `delivery-platform` | `application` |
+| `modules/delivery/application/emailoutbox` | `delivery-platform` | `application` |
+| `modules/timetableprojection` | `timetable-legacy-view` | `postgres` |
+| `modules/timetableblockdisplay` | `timetable-block-display` | `postgres` |
+| `modules/presenceprojection` | `presence-legacy-view` | `postgres` |
+| `modules/timetableenrollmentprovenance` | `timetable-enrollment-provenance` | `postgres` |
+| `modules/parentrequestfeedprojection` | `parent-request-feed-view` | `postgres` |
+| `modules/delivery/application/notifications` | `delivery-platform` | `application` |
+| `modules/delivery/application/pwa` | `delivery-platform` | `application` |
+| `modules/delivery/application/realtimeevents` | `delivery-platform` | `application` |
+| `workflows/parentportal/care` | `parent-portal` | `application` |
+| `workflows/parentportal/messaging` | `parent-portal` | `application` |
+| `modules/schedulerruntime/jobruntime` | `scheduler-runtime` | `postgres` |
+| `modules/schedulerruntime/cleanupruns` | `scheduler-runtime` | `postgres` |
+| `modules/schedulerruntime/workerlease` | `scheduler-runtime` | `postgres` |
+| `simulate` | `dev-tools` | `cli` |
+| `modules/guardianlinkview` | `guardian-link-view` | `postgres` |
+| `modules/schoolsetupview` | `school-setup` | `postgres` |
+
+## Importer inventory at the round-6 base
+
+The original owner/symbol inventory includes foreign users and the same-owner call sites needed for the atomic cutover. It is retained here as immutable pre-cutover evidence.
+
+| Scope | Consumer owner / package | Old boundary | Selected symbols |
+|---|---|---|---|
+| external_test | `care-plan` / `modules/careplan/contracttest` | `modules/timetable/compose` | `NativeEnrollmentRecords`, `NativeExceptionRecords`, `NativeGroupRecords`, `NativeScheduleRecords`, `NativeTimeframeRecords`, `NewClassArrivalQueries`, `NewClassArrivals`, `NewConflictDetection`, `NewEnrollmentArrivalSchedules`, `NewEnrollmentPickupSchedules`, `NewInstanceStatusSlots`, `NewTimetableData`, `Observation` |
+| external_test | `staff-offboarding` / `workflows/staffoffboarding` | `modules/timetable/compose` | `NewOffboarding`, `NewPresenceSessionFacts`, `Observation`, `OffboardingDependencies` |
+| external_test | `timetable-activities` / `modules/timetable/compose/httpintegration` | `models/activities` | `GroupRepository`, `GroupTargetRepository`, `StudentEnrollmentRepository`, `TemplateFieldsUpdate`, `TemplateWeekdayRosterKindEmpty`, `TemplateWeekdayRosterKindProtectedStudent`, `TemplateWeekdayRosterKindStaff`, `TemplateWeekdayRosterKindStudent`, `TemplateWeekdayRosterRow` |
+| external_test | `timetable-activities` / `modules/timetable/compose/httpintegration` | `models/schedule` | `ActivityCompletionSnapshot`, `ActivityExceptionCancelled`, `ActivityExceptionModified`, `ActivityExceptionRepository`, `ActivityException`, `ActivityInstanceRepository`, `ActivityInstance`, `ActivityRecoveryRepository`, `AttendanceFieldPatch`, `AttendanceStatusAbsent`, `AttendanceStatusExpected`, `AttendanceStatusPresent`, `AttendanceSubstatusExcused`, `AttendanceSubstatusFieldTrip`, `AttendanceSubstatusLate`, `AttendanceSubstatusSick`, `CalendarPeriodRepository`, `CalendarPeriod`, `ClosingDay`, `DateFromTime`, `Date`, `DateframeRepository`, `Dateframe`, `FrequencyDaily`, `FrequencyMonthly`, `FrequencyWeekly`, `InstanceIdempotencyRepository`, `InstanceStaffRepository`, `InstanceStaff`, `InstanceStatusActive`, `InstanceStatusCancelled`, `InstanceStatusCompleted`, `InstanceStatusPlanned`, `InstanceStudentKey`, `InstanceStudentNoteMaxLength`, `InstanceStudentRepository`, `InstanceStudent`, `NewDate`, `ParallelPresence`, `PartialAbsenceBlock`, `PeriodTypeCustom`, `PeriodTypeHoliday`, `PeriodTypeSchoolYear`, `PlanningTrackRepository`, `PlanningTrack`, `RecurrenceRuleRepository`, `RecurrenceRule`, `ScheduledInstanceRow`, `StaffShift`, `StudentArrivalExceptionRepository`, `StudentArrivalException`, `StudentArrivalNoteRepository`, `StudentArrivalNote`, `StudentArrivalScheduleRepository`, `StudentArrivalSchedule`, `StudentInstanceRef`, `StudentPickupExceptionRepository`, `StudentPickupException`, `StudentPickupNoteRepository`, `StudentPickupNote`, `StudentPickupScheduleRepository`, `StudentPickupSchedule`, `TimeframeRepository`, `Timeframe`, `WeekdayFriday`, `WeekdayMonday`, `WeekdayThursday`, `WeekdayTuesday`, `WeekdayWednesday` |
+| external_test | `timetable-activities` / `modules/timetable/compose/httpintegration` | `modules/timetable/compose` | `NewCalendarPeriodUsageRepository`, `NewInstanceAutoEnd`, `NewInstanceLifecycle`, `NewMaterialization`, `NewOperations`, `NewPlanningCalendarPeriodUsage`, `NewPlanningTrackAdministration`, `NewRetainedActivityRecoveryRepository`, `NewTenantDatabase`, `NewTenantTransactions`, `OwnerRows`, `Planning` |
+| external_test | `timetable-activities` / `modules/timetable/http` | `modules/timetable/compose` | `NewStaffNotices`, `StaffNoticeDependencies` |
+| internal_test | `timetable-activities` / `modules/timetable/compose` | `models/activities` | `TemplateWeekdayRosterKindEmpty`, `TemplateWeekdayRosterKindProtectedStudent`, `TemplateWeekdayRosterKindStaff`, `TemplateWeekdayRosterKindStudent` |
+| internal_test | `timetable-activities` / `modules/timetable/compose` | `models/schedule` | `ActivityExceptionCancelled`, `ActivityExceptionModified`, `ActivityInstanceIdempotencyKeyMaxLength`, `AttendanceStatusAbsent`, `AttendanceStatusExpected`, `AttendanceStatusPresent`, `AttendanceSubstatusExcused`, `AttendanceSubstatusFieldTrip`, `AttendanceSubstatusLate`, `AttendanceSubstatusOther`, `AttendanceSubstatusSick`, `ClassArrivalException`, `InstanceStaff`, `InstanceStatusActive`, `InstanceStatusCancelled`, `InstanceStatusCompleted`, `InstanceStatusPlanned`, `InstanceStudentNoteMaxLength`, `MaxTimetableReadRangeDays`, `StaffNoticePriorityImportant`, `StaffNoticePriorityInfo`, `StaffNotice` |
+| internal_test | `timetable-activities` / `modules/timetable/http` | `modules/timetable/compose` | `NewInstanceSeriesConversion`, `NewOperations`, `NewTenantTransactions`, `NewTimetableData`, `Repositories` |
+| internal_test | `timetable-activities` / `modules/timetable/internal/application` | `models/activities` | `CategoryRepository`, `ErrNotFound`, `GroupRepository`, `GroupTargetRepository`, `NullInt64`, `ScheduleRepository`, `StudentEnrollmentRepository`, `SupervisorPlannedRepository`, `TemplateCapacityOccurrence`, `TemplateFieldsUpdate`, `TemplateListRow`, `TemplateStartTime` |
+| internal_test | `timetable-activities` / `modules/timetable/internal/application` | `models/schedule` | `ActivityCompletionSnapshot`, `ActivityExceptionCancelled`, `ActivityExceptionModified`, `ActivityExceptionRepository`, `ActivityException`, `ActivityInstanceRepository`, `ActivityInstance`, `AttendanceStatusAbsent`, `AttendanceStatusExpected`, `AttendanceStatusPresent`, `AttendanceSubstatusExcused`, `AttendanceSubstatusLate`, `AttendanceSubstatusSick`, `CalendarPeriodRepository`, `CalendarPeriod`, `Date`, `Dateframe`, `InstanceStaffRepository`, `InstanceStaff`, `InstanceStatusActive`, `InstanceStatusCancelled`, `InstanceStatusCompleted`, `InstanceStatusPlanned`, `InstanceStudentRepository`, `InstanceStudent`, `NewDate`, `PeriodTypeHoliday`, `PeriodTypeSchoolYear`, `StaffNoticeAck`, `StaffNoticeAudienceAll`, `StaffNoticeAudienceLehrkraft`, `StaffNoticeAudienceStaff`, `StaffNoticePriorityInfo`, `StaffNotice`, `StaffShift`, `StudentInstanceRef`, `TimeframeRepository`, `Timeframe`, `WeekPatternA`, `WeekPatternB` |
+| production | `root-composition` / `api` | `modules/timetable/compose` | `ActivityInstanceDate`, `CalendarRows`, `CareScheduleRepositories`, `Dependencies`, `FindCalendarAssignments`, `FindCalendarInstances`, `FindCalendarShifts`, `ListCalendarShiftTypes`, `NativeMirrorRows`, `NewActivityCategorySeeder`, `NewActivityGroupRecords`, `NewActivityInstanceRepository`, `NewAttendanceCorrections`, `NewAttendanceHistory`, `NewAttendanceMirror`, `NewBlockDisplayMetadata`, `NewCalendarPeriodRepository`, `NewCallerActivityGroups`, `NewCareArrivalExceptionRows`, `NewCareArrivalScheduleRows`, `NewCarePickupExceptionRows`, `NewCarePickupNoteRows`, `NewCarePickupScheduleRows`, `NewCareScheduleRepositories`, `NewCatalog`, `NewCategoryCount`, `NewClassArrivalExceptionRepository`, `NewClassArrivalQueries`, `NewClassArrivals`, `NewClosingDayRepository`, `NewConflictDetection`, `NewCourseGroupQueries`, `NewDateframeRepository`, `NewEndedSessionCompletion`, `NewEnrollmentArrivalSchedules`, `NewEnrollmentPickupSchedules`, `NewInstanceLifecycle`, `NewInstanceSeriesConversion`, `NewInstanceStatusSlots`, `NewInstanceStudentRepository`, `NewLifecycleSchedulers`, `NewMaterialization`, `NewNativeMirrorRows`, `NewOffboarding`, `NewOperationLifecycle`, `NewOperations`, `NewPartialAbsencePreview`, `NewPlanningCalendarPeriodUsage`, `NewPlanningTrackAdministration`, `NewPresenceReads`, `NewPresenceSessionFacts`, `NewRecurrenceWriteLock`, `NewRepositories`, `NewRetainedActivityRecoveryRepository`, `NewRosterReconciler`, `NewSchoolCalendarRepositories`, `NewService`, `NewStaffDeviations`, `NewStaffNotices`, `NewSubstituteConflictsOverRows`, `NewTemplateAdministration`, `NewTenantDatabase`, `NewTenantTransactions`, `NewTimetableCleanup`, `NewTimetableData`, `NewTimetableGroupReads`, `NewTimetableInstanceReads`, `NewTimetableInstanceStaffReads`, `NewWorkforceShiftRows`, `NewWorkforceShiftTypeRows`, `New`, `Observation`, `OffboardingDependencies`, `OwnerRooms`, `OwnerRows`, `ParseActivityInstanceDate`, `PartialAbsencePreview`, `Planning`, `PresenceDatabase`, `PresenceReads`, `RecurrenceLockDependencies`, `Repositories`, `RepositoryDependencies`, `RosterStudents`, `SchoolCalendarRepositories`, `ShiftTypeCategoryLinker`, `StaffNoticeDependencies`, `StudentDirectoryFunc`, `StudentDirectory`, `SubstituteDayLock`, `TargetStudent`, `TemplateRows`, `WithMirrorAfterWrite`, `WrapDatabaseError` |
+| production | `scheduler-runtime` / `modules/schedulerruntime/compose` | `services/scheduler` | `NewWorker`, `SettingKeys` |
+| production | `test-support` / `modules/timetable/timetabletest` | `modules/timetable/compose` | `Dependencies`, `NewPresenceReads`, `New`, `Observation`, `PresenceReads`, `StudentDirectoryFunc`, `StudentDirectory`, `TargetStudent` |
+| production | `timetable-activities` / `modules/timetable/compose` | `models/activities` | `CategoryRepository`, `GroupRepository`, `ScheduleRepository`, `StudentEnrollmentRepository`, `SupervisorPlannedRepository` |
+| production | `timetable-activities` / `modules/timetable/compose` | `models/schedule` | `ActivityCompletionSnapshot`, `ActivityExceptionRepository`, `ActivityInstanceRepository`, `ActivityRecoveryRepository`, `CalendarPeriodRepository`, `CareScheduleChangeRequestRepository`, `ClassArrivalExceptionRepository`, `ClassArrivalException`, `ClosingDayRepository`, `Date`, `DateframeRepository`, `InstanceIdempotencyRepository`, `InstanceStaffRepository`, `InstanceStudentRepository`, `PartialAbsenceBlock`, `PlanningTrackRepository`, `RecurrenceRuleRepository`, `StaffNoticeRepository`, `StudentArrivalExceptionRepository`, `StudentArrivalNoteRepository`, `StudentArrivalScheduleRepository`, `StudentPickupExceptionRepository`, `StudentPickupNoteRepository`, `StudentPickupScheduleRepository`, `TenantRecurrenceLockKey`, `TimeframeRepository` |
+| production | `timetable-activities` / `modules/timetable/internal/adapters/postgres` | `models/schedule` | `ClassArrivalException`, `Date`, `StaffNoticeAck`, `StaffNoticeAudienceAll`, `StaffNoticePriorityImportant`, `StaffNoticeRepository`, `StaffNotice`, `ValidStaffNoticeReader` |
+| production | `timetable-activities` / `modules/timetable/internal/application` | `models/activities` | `CategoryRepository`, `GroupRepository`, `GroupTargetRepository`, `NullInt16`, `NullInt64`, `NullString`, `PlannedSupervisionBlocker`, `QueryOptions`, `ScheduleRepository`, `StudentEnrollmentQueryOptions`, `StudentEnrollmentRepository`, `SupervisorPlannedRepository`, `SupervisorQueryOptions`, `TemplateCapacityOccurrence`, `TemplateFieldsUpdate`, `TemplateListRow`, `TemplateStartTime`, `TemplateWeekdayRosterRow`, `WrapDatabaseError`, `WrapNotFoundDatabaseError` |
+| production | `timetable-activities` / `modules/timetable/internal/application` | `models/schedule` | `ActivityCompletionSnapshot`, `ActivityExceptionCancelled`, `ActivityExceptionModified`, `ActivityExceptionReasonMaxLength`, `ActivityExceptionRepository`, `ActivityException`, `ActivityInstanceRepository`, `ActivityInstance`, `AttendanceFieldPatch`, `AttendanceStatusAbsent`, `AttendanceStatusExpected`, `AttendanceStatusPresent`, `AttendanceSubstatusExcused`, `AttendanceSubstatusSick`, `CalendarPeriodRepository`, `CalendarPeriodUsage`, `CalendarPeriod`, `CareRequestDecisionSnapshot`, `CareRequestStatusPending`, `CareScheduleChangeRequestRepository`, `CareScheduleChangeRequest`, `ClosingDayRepository`, `ClosingDay`, `CompletionAttendanceSnapshot`, `Date`, `DateframeRepository`, `Dateframe`, `ErrCalendarPeriodNameConflict`, `ErrCareRequestNotDecided`, `ErrCareRequestNotFound`, `ErrCareRequestNotPending`, `InstanceIdempotencyRepository`, `InstanceStaffRepository`, `InstanceStaff`, `InstanceStatusActive`, `InstanceStatusCancelled`, `InstanceStatusCompleted`, `InstanceStatusPlanned`, `InstanceStudentKey`, `InstanceStudentRepository`, `InstanceStudent`, `ParallelPresence`, `ParseDate`, `PartialAbsenceBlock`, `PeriodTypeSchoolYear`, `PlanningTrackRepository`, `PlanningTrack`, `RecurrenceRuleRepository`, `RecurrenceRule`, `ScheduledInstanceRow`, `ShiftType`, `StaffNoticeAudienceAll`, `StaffNoticePriorityInfo`, `StaffNoticeRepository`, `StaffNotice`, `StaffShift`, `StudentArrivalExceptionRepository`, `StudentArrivalException`, `StudentArrivalNoteRepository`, `StudentArrivalNote`, `StudentArrivalScheduleRepository`, `StudentArrivalSchedule`, `StudentInstanceRef`, `StudentPickupExceptionRepository`, `StudentPickupException`, `StudentPickupNoteRepository`, `StudentPickupNote`, `StudentPickupScheduleRepository`, `StudentPickupSchedule`, `TimeframeRepository`, `Timeframe`, `ValidStaffNoticeReader`, `WeekPatternEvery`, `WeekdayFriday`, `WeekdayMonday` |
+| production | `timetable-activities` / `modules/timetable/ports` | `models/activities` | `CategoryRepository`, `GroupRepository`, `ScheduleRepository`, `StudentEnrollmentRepository`, `SupervisorPlannedRepository`, `TemplateCapacityOccurrence`, `TemplateListRow`, `TemplateStartTime`, `TemplateWeekdayRosterRow` |
+| production | `timetable-activities` / `modules/timetable/ports` | `models/schedule` | `ActivityExceptionRepository`, `ActivityException`, `ActivityInstanceRepository`, `ActivityInstance`, `ActivityRecoveryRepository`, `AttendanceFieldPatch`, `CalendarPeriodRepository`, `CalendarPeriodUsage`, `CalendarPeriod`, `CareScheduleChangeRequestRepository`, `Date`, `InstanceIdempotencyRepository`, `InstanceStaffRepository`, `InstanceStaff`, `InstanceStudentRepository`, `InstanceStudent`, `ParallelPresence`, `ScheduledInstanceRow`, `ShiftType`, `StaffShift`, `StudentArrivalExceptionRepository`, `StudentArrivalException`, `StudentArrivalScheduleRepository`, `StudentInstanceRef`, `StudentPickupExceptionRepository`, `StudentPickupException`, `StudentPickupNoteRepository`, `StudentPickupScheduleRepository`, `TimeframeRepository` |
+
+## Verification
+
+Architecture, all-ticket validation, the full affected suite without `--fast`, lint, deadcode and full hooks are required before publication. Final command outcomes and offline quorum evidence belong in the PR. No route, middleware, response or IoT golden is changed.
+
+---
+
 # Final legacy cluster: round 5
 
 Base: fresh development `b033bd74ff7f0c0c9d3377800818ecf49818f1ee` after PR #4338. The earlier rounds below are historical.

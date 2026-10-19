@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -42,7 +43,7 @@ func TestSessionEndSerializesWithTimetableCancel(t *testing.T) {
 			return err
 		}
 		go func() {
-			_, err := moduleTimetable.Instance.Cancel(ctx, instance.ID, nil, nil)
+			_, err := fixtures.FromInstanceLifecycle(moduleTimetable.Instance).Cancel(ctx, instance.ID, nil, nil)
 			cancelDone <- err
 		}()
 		require.Eventually(t, func() bool {

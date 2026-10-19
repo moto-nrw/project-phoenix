@@ -77,7 +77,7 @@
     },
     {
       "scope": "test",
-      "file": "services/scheduler/worker_test.go",
+      "file": "modules/schedulerruntime/internal/application/worker_test.go",
       "declaration": "TestNewWorkerRejectsMissingJobs",
       "target": "services/scheduler.NewWorker",
       "lines": [
@@ -87,7 +87,7 @@
     },
     {
       "scope": "test",
-      "file": "services/scheduler/worker_test.go",
+      "file": "modules/schedulerruntime/internal/application/worker_test.go",
       "declaration": "TestNewWorkerRejectsMissingRuntimeDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
@@ -97,7 +97,7 @@
     },
     {
       "scope": "test",
-      "file": "services/scheduler/worker_test.go",
+      "file": "modules/schedulerruntime/internal/application/worker_test.go",
       "declaration": "TestNewWorkerRejectsMissingTokenCleanupDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
@@ -107,7 +107,7 @@
     },
     {
       "scope": "test",
-      "file": "services/scheduler/worker_test.go",
+      "file": "modules/schedulerruntime/internal/application/worker_test.go",
       "declaration": "TestNewWorkerRejectsTypedNilDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [

@@ -4,11 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 )
 
 type timetableTimeframeRepository struct{ timetable timetable.TimeframeCapability }
@@ -27,7 +26,7 @@ func (r timetableTimeframeRepository) Create(ctx context.Context, value *schedul
 	return replaceLegacyTimeframe(value, created)
 }
 
-func (r timetableTimeframeRepository) FindByID(ctx context.Context, id any) (*scheduleModels.Timeframe, error) {
+func (r timetableTimeframeRepository) FindByID(ctx context.Context, id int64) (*scheduleModels.Timeframe, error) {
 	timeframeID, ok := LegacyGroupID(id)
 	if !ok {
 		return nil, WrapDatabaseError("find by id", fmt.Errorf("invalid timeframe id %T", id))
@@ -53,7 +52,7 @@ func (r timetableTimeframeRepository) Update(ctx context.Context, value *schedul
 	return replaceLegacyTimeframe(value, updated)
 }
 
-func (r timetableTimeframeRepository) Delete(ctx context.Context, id any) error {
+func (r timetableTimeframeRepository) Delete(ctx context.Context, id int64) error {
 	timeframeID, ok := LegacyGroupID(id)
 	if !ok {
 		return WrapDatabaseError("delete", fmt.Errorf("invalid timeframe id %T", id))
@@ -62,15 +61,6 @@ func (r timetableTimeframeRepository) Delete(ctx context.Context, id any) error 
 		return WrapDatabaseError("delete", err)
 	}
 	return nil
-}
-
-func (r timetableTimeframeRepository) List(ctx context.Context, options *TimeframeQueryOptions) ([]*scheduleModels.Timeframe, error) {
-	description, limit, offset, err := TimeframeListOptions(options)
-	if err != nil {
-		return nil, WrapDatabaseError("list with options", err)
-	}
-	description = strings.TrimSuffix(strings.TrimPrefix(description, "%"), "%")
-	return r.list(ctx, timetable.TimeframeFilter{DescriptionContains: description, Limit: limit, Offset: offset}, "list with options")
 }
 
 func (r timetableTimeframeRepository) ListAll(ctx context.Context) ([]*scheduleModels.Timeframe, error) {
@@ -142,4 +132,8 @@ func legacyTimeframeError(operation string, err error) error {
 		return WrapNotFoundDatabaseError(operation)
 	}
 	return WrapDatabaseError(operation, err)
+}
+
+func (r timetableTimeframeRepository) ListTimeframes(ctx context.Context, filter timetable.TimeframeFilter) ([]*scheduleModels.Timeframe, error) {
+	return r.list(ctx, filter, "list with options")
 }

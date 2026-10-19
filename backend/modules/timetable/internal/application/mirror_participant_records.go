@@ -2,10 +2,11 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"time"
 
-	models "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	models "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -45,7 +46,7 @@ func mirrorParticipantRow(value *timetable.ScheduledParticipant) *models.Instanc
 	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
 	return row
 }
-func NativeMirrorParticipants(rows models.InstanceStudentRepository) *ports.MirrorParticipantRecords {
+func NativeMirrorParticipants(rows ports.InstanceStudentRecords) *ports.MirrorParticipantRecords {
 	if rows == nil {
 		return nil
 	}
@@ -53,16 +54,16 @@ func NativeMirrorParticipants(rows models.InstanceStudentRepository) *ports.Mirr
 		value, err := rows.FindByInstanceAndStudent(ctx, instanceID, studentID)
 		return mirrorParticipant(value), err
 	}, FindCurrentCandidates: func(ctx context.Context, studentID int64, date calendar.Date, at time.Time) ([]*timetable.ScheduledParticipant, error) {
-		value, err := rows.FindCurrentCandidates(ctx, studentID, models.Date(date), at)
+		value, err := rows.FindCurrentCandidates(ctx, studentID, calendar.Date(date), at)
 		return mirrorParticipants(value), err
 	}, FindCurrentCandidatesByStudentIDs: func(ctx context.Context, studentIDs []int64, date calendar.Date, at time.Time) ([]*timetable.ScheduledParticipant, error) {
-		value, err := rows.FindCurrentCandidatesByStudentIDs(ctx, studentIDs, models.Date(date), at)
+		value, err := rows.FindCurrentCandidatesByStudentIDs(ctx, studentIDs, calendar.Date(date), at)
 		return mirrorParticipants(value), err
 	}, FindByStudentAndDateRange: func(ctx context.Context, studentID int64, from, to calendar.Date) ([]*timetable.ScheduledParticipant, error) {
-		value, err := rows.FindByStudentAndDateRange(ctx, studentID, models.Date(from), models.Date(to))
+		value, err := rows.FindByStudentAndDateRange(ctx, studentID, calendar.Date(from), calendar.Date(to))
 		return mirrorParticipants(value), err
 	}, FindByStudentIDsAndDate: func(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*timetable.ScheduledParticipant, error) {
-		value, err := rows.FindByStudentIDsAndDate(ctx, studentIDs, models.Date(date))
+		value, err := rows.FindByStudentIDsAndDate(ctx, studentIDs, calendar.Date(date))
 		return mirrorParticipants(value), err
 	}, CreateUnplannedPresentIfAbsent: func(ctx context.Context, instanceID, studentID int64, at time.Time) (*timetable.ScheduledParticipant, error) {
 		value, err := rows.CreateUnplannedPresentIfAbsent(ctx, instanceID, studentID, at)
@@ -79,10 +80,14 @@ func NativeMirrorParticipants(rows models.InstanceStudentRepository) *ports.Mirr
 		}
 		return err
 	}, FindByID: func(ctx context.Context, id any) (*timetable.ScheduledParticipant, error) {
-		row, err := rows.FindByID(ctx, id)
+		recordID, ok := LegacyGroupID(id)
+		if !ok {
+			return nil, WrapDatabaseError("find by id", fmt.Errorf("invalid instance student id %T", id))
+		}
+		row, err := rows.FindByID(ctx, recordID)
 		return mirrorParticipant(row), err
 	}, FindInstancesWithAttendanceByStudentAndDateRange: func(ctx context.Context, studentID int64, from, to calendar.Date) ([]*timetable.StudentWeekEntry, error) {
-		rows, err := rows.FindInstancesWithAttendanceByStudentAndDateRange(ctx, studentID, models.Date(from), models.Date(to))
+		rows, err := rows.FindInstancesWithAttendanceByStudentAndDateRange(ctx, studentID, calendar.Date(from), calendar.Date(to))
 		return mirrorWeekEntries(rows), err
 	}}
 }

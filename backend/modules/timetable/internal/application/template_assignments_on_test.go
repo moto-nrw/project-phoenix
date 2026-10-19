@@ -8,7 +8,6 @@ import (
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -18,7 +17,7 @@ import (
 var errConversionMock = errors.New("conversion mock failure")
 
 type conversionEnrollmentRepo struct {
-	activitiesModel.StudentEnrollmentRepository
+	ports.ActivityEnrollmentRecords
 	rows []*activityContract.StudentEnrollment
 	err  error
 }
@@ -28,7 +27,7 @@ func (r *conversionEnrollmentRepo) FindByGroupID(context.Context, int64) ([]*act
 }
 
 type conversionSupervisorRepo struct {
-	activitiesModel.SupervisorPlannedRepository
+	ports.PlannedSupervisorRecords
 	rows []*activityContract.SupervisorPlanned
 	err  error
 }
@@ -40,7 +39,7 @@ func (r *conversionSupervisorRepo) FindByGroupID(context.Context, int64) ([]*act
 // Implements both GroupRepository and GroupTargetRepository so the type
 // assertion in templateAssignmentsOn can exercise the target-student branch.
 type conversionGroupTargetRepo struct {
-	activitiesModel.GroupRepository
+	ports.ActivityGroupRecords
 	targetIDs []int64
 	err       error
 }
@@ -62,7 +61,7 @@ func (r *conversionGroupTargetRepo) FindTargetStudentIDsByGroupIDs(context.Conte
 }
 
 type conversionPlainGroupRepo struct {
-	activitiesModel.GroupRepository
+	ports.ActivityGroupRecords
 }
 
 func conversionValidFrom() calendar.Date {
@@ -204,4 +203,4 @@ func TestTemplateAssignmentsOn_SkipsTargetBranchWithoutTargetRepo(t *testing.T) 
 
 // Compile-time guard: conversionGroupTargetRepo must satisfy the target interface
 // the conversion roster path type-asserts against.
-var _ activitiesModel.GroupTargetRepository = (*conversionGroupTargetRepo)(nil)
+var _ ports.ActivityGroupTargets = (*conversionGroupTargetRepo)(nil)

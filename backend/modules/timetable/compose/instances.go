@@ -1,7 +1,6 @@
 package compose
 
 import (
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -16,7 +15,7 @@ func NewInstanceLifecycle(deps ports.InstanceLifecycleDependencies) (ports.Insta
 	return application.NewInstanceLifecycle(deps)
 }
 
-func NewInstanceAutoEnd(instances scheduleModel.ActivityInstanceRepository, completion timetable.InstanceLifecycle) (timetable.InstanceAutoEnd, error) {
+func NewInstanceAutoEnd(instances ports.ActivityInstanceRecords, completion timetable.InstanceLifecycle) (timetable.InstanceAutoEnd, error) {
 	return application.NewInstanceAutoEnd(instances, completion)
 }
 

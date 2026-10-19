@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 )
 
 type timetablePlanningTrackRepository struct {
@@ -28,7 +28,7 @@ func (r timetablePlanningTrackRepository) Create(ctx context.Context, value *sch
 	return nil
 }
 
-func (r timetablePlanningTrackRepository) FindByID(ctx context.Context, id any) (*scheduleModels.PlanningTrack, error) {
+func (r timetablePlanningTrackRepository) FindByID(ctx context.Context, id int64) (*scheduleModels.PlanningTrack, error) {
 	trackID, ok := LegacyGroupID(id)
 	if !ok {
 		return nil, WrapDatabaseError("find by id", fmt.Errorf("invalid planning track id %T", id))
@@ -55,7 +55,7 @@ func (r timetablePlanningTrackRepository) Update(ctx context.Context, value *sch
 	return nil
 }
 
-func (r timetablePlanningTrackRepository) Delete(ctx context.Context, id any) error {
+func (r timetablePlanningTrackRepository) Delete(ctx context.Context, id int64) error {
 	trackID, ok := LegacyGroupID(id)
 	if !ok {
 		return WrapDatabaseError("delete", fmt.Errorf("invalid planning track id %T", id))
@@ -64,15 +64,6 @@ func (r timetablePlanningTrackRepository) Delete(ctx context.Context, id any) er
 		return WrapDatabaseError("delete", err)
 	}
 	return nil
-}
-
-func (r timetablePlanningTrackRepository) List(ctx context.Context, filters map[string]any) ([]*scheduleModels.PlanningTrack, error) {
-	for _, value := range filters {
-		if value != nil {
-			return nil, WrapDatabaseError("list", errors.New("planning track filters are unsupported"))
-		}
-	}
-	return r.list(ctx, timetable.PlanningTrackFilter{}, "list")
 }
 
 func (r timetablePlanningTrackRepository) ListAll(ctx context.Context) ([]*scheduleModels.PlanningTrack, error) {

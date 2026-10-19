@@ -7,9 +7,11 @@ import (
 	"sort"
 	"strings"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -44,7 +46,7 @@ type StaffNoticeDependencies struct {
 }
 
 type staffNoticeService struct {
-	repo        scheduleModels.StaffNoticeRepository
+	repo        ports.StaffNoticeRecords
 	periods     StaffNoticePeriodLookup
 	names       func(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 	logger      *slog.Logger
@@ -52,13 +54,13 @@ type staffNoticeService struct {
 }
 
 // NewStaffNotices verdrahtet den Dienst auf dem eigenen Repository des Owners.
-func NewStaffNotices(repo scheduleModels.StaffNoticeRepository, deps StaffNoticeDependencies) timetable.StaffNotices {
+func NewStaffNotices(repo ports.StaffNoticeRecords, deps StaffNoticeDependencies) timetable.StaffNotices {
 	return newStaffNotices(repo, deps)
 }
 
 // newStaffNotices ist die Naht für die Logiktests: sie setzen ein anderes
 // Repository ein, ohne dass der Dienst eine Datenbank braucht.
-func newStaffNotices(repo scheduleModels.StaffNoticeRepository, deps StaffNoticeDependencies) *staffNoticeService {
+func newStaffNotices(repo ports.StaffNoticeRecords, deps StaffNoticeDependencies) *staffNoticeService {
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.Default()

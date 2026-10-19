@@ -1,7 +1,6 @@
 package compose
 
 import (
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
@@ -21,7 +20,7 @@ func NewPlanningCalendarPeriodUsage(enrollment application.EnrollmentPhaseQuerie
 // NewCalendarPeriodRepository serves the legacy calendar period repository
 // over the School Calendar owner; the reference counts come from usage
 // (#2666, #3124).
-func NewCalendarPeriodRepository(calendar schoolcalendar.Capability, usage ports.CalendarPeriodUsageRepository) scheduleModels.CalendarPeriodRepository {
+func NewCalendarPeriodRepository(calendar schoolcalendar.Capability, usage ports.CalendarPeriodUsageRepository) ports.CalendarPeriodRecords {
 	return application.NewCalendarPeriodRepository(calendar, usage)
 }
 
@@ -29,8 +28,8 @@ func NewCalendarPeriodRepository(calendar schoolcalendar.Capability, usage ports
 // reads (periods, closing days, date frames) and the class arrival
 // exceptions, as the test compositions hand them on.
 type CalendarRows struct {
-	CalendarPeriod        scheduleModels.CalendarPeriodRepository
-	ClosingDay            scheduleModels.ClosingDayRepository
-	Dateframe             scheduleModels.DateframeRepository
-	ClassArrivalException scheduleModels.ClassArrivalExceptionRepository
+	CalendarPeriod        ports.CalendarPeriodRecords
+	ClosingDay            ports.ClosingDayRecords
+	Dateframe             ports.DateframeRecords
+	ClassArrivalException ports.ClassArrivalExceptionRecords
 }

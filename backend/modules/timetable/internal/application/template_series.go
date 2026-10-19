@@ -6,7 +6,6 @@ import (
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -43,8 +42,8 @@ type templateSeriesSegment struct {
 // keep failing loudly.
 func loadTemplateSeriesSegments(
 	ctx context.Context,
-	groupRepo activitiesModel.GroupRepository,
-	scheduleRepo activitiesModel.ScheduleRepository,
+	groupRepo ports.ActivityGroupRecords,
+	scheduleRepo ports.ActivityScheduleRecords,
 	logger *slog.Logger,
 	templateID int64,
 ) ([]templateSeriesSegment, error) {

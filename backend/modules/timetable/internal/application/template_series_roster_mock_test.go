@@ -13,9 +13,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,7 +39,7 @@ func seriesMockUntil() calendar.Date { return calendar.NewDate(2026, 8, 24).AddD
 // ---------------------------------------------------------------- fakes ----
 
 type seriesMockGroupRepo struct {
-	activitiesModel.GroupRepository
+	ports.ActivityGroupRecords
 	groups []*activityContract.Group
 	err    error
 }
@@ -48,7 +49,7 @@ func (r *seriesMockGroupRepo) FindTemplateSeries(context.Context, int64) ([]*act
 }
 
 type seriesMockScheduleRepo struct {
-	activitiesModel.ScheduleRepository
+	ports.ActivityScheduleRecords
 	byGroup map[int64][]*activityContract.Schedule
 	err     error
 }
@@ -72,7 +73,7 @@ func (r *seriesMockScheduleRepo) FindByGroupIDs(_ context.Context, groupIDs []in
 }
 
 type seriesMockEnrollmentRepo struct {
-	activitiesModel.StudentEnrollmentRepository
+	ports.ActivityEnrollmentRecords
 	rows      []*activityContract.StudentEnrollment
 	findErr   error
 	createErr error
@@ -103,18 +104,16 @@ func (r *seriesMockEnrollmentRepo) SetValidUntilByID(_ context.Context, id int64
 	return nil
 }
 
-func (r *seriesMockEnrollmentRepo) Delete(_ context.Context, id any) error {
+func (r *seriesMockEnrollmentRepo) Delete(_ context.Context, id int64) error {
 	if r.deleteErr != nil {
 		return r.deleteErr
 	}
-	if numeric, ok := id.(int64); ok {
-		r.deleted = append(r.deleted, numeric)
-	}
+	r.deleted = append(r.deleted, id)
 	return nil
 }
 
 type seriesMockSupervisorRepo struct {
-	activitiesModel.SupervisorPlannedRepository
+	ports.PlannedSupervisorRecords
 	rows      []*activityContract.SupervisorPlanned
 	findErr   error
 	createErr error
@@ -145,13 +144,11 @@ func (r *seriesMockSupervisorRepo) SetValidUntilByID(_ context.Context, id int64
 	return nil
 }
 
-func (r *seriesMockSupervisorRepo) Delete(_ context.Context, id any) error {
+func (r *seriesMockSupervisorRepo) Delete(_ context.Context, id int64) error {
 	if r.deleteErr != nil {
 		return r.deleteErr
 	}
-	if numeric, ok := id.(int64); ok {
-		r.deleted = append(r.deleted, numeric)
-	}
+	r.deleted = append(r.deleted, id)
 	return nil
 }
 

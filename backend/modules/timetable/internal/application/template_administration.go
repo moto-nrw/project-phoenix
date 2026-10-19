@@ -7,7 +7,6 @@ import (
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -134,7 +133,7 @@ func (s *TemplateService) templateStudentsOn(ctx context.Context, templateID int
 		}
 		studentIDs = appendUnseen(studentIDs, seenStudents, enrollment.StudentID)
 	}
-	targetRepo, ok := s.deps.ActivityGroupRepo.(activitiesModel.GroupTargetRepository)
+	targetRepo, ok := s.deps.ActivityGroupRepo.(ports.ActivityGroupTargets)
 	if !ok {
 		return studentIDs, nil
 	}
@@ -238,31 +237,8 @@ func templateUpdateInput(cmd timetable.UpdateTemplateCommand) TemplateUpdateInpu
 	}
 }
 
-func templateFieldsUpdate(fields timetable.TemplateFields) activitiesModel.TemplateFieldsUpdate {
-	return activitiesModel.TemplateFieldsUpdate{
-		Name:                    fields.Name,
-		Type:                    fields.Type,
-		CategoryID:              fields.CategoryID,
-		PlanningTrackID:         fields.PlanningTrackID,
-		PlanningTrackIDProvided: fields.PlanningTrackIDProvided,
-		RoomID:                  fields.RoomID,
-		EducationGroupID:        fields.EducationGroupID,
-		MaxParticipants:         fields.MaxParticipants,
-		MaxParticipantsProvided: fields.MaxParticipantsProvided,
-		RequiredStaff:           fields.RequiredStaff,
-		CalendarPeriodID:        fields.CalendarPeriodID,
-		TargetGroupType:         fields.TargetGroupType,
-		TargetGradeLevel:        fields.TargetGradeLevel,
-		TargetSchoolClass:       fields.TargetSchoolClass,
-		ListKind:                fields.ListKind,
-		Notes:                   fields.Notes,
-		SourceCareOfferingIDs:   fields.SourceCareOfferingIDs,
-		SourceGradeLevels:       fields.SourceGradeLevels,
-		SourceSchoolClasses:     fields.SourceSchoolClasses,
-		IncludeClosingDays:      fields.IncludeClosingDays,
-		SeriesLastDay:           fields.SeriesLastDay,
-		SeriesLastDayProvided:   fields.SeriesLastDayProvided,
-	}
+func templateFieldsUpdate(fields timetable.TemplateFields) timetable.TemplateUpdate {
+	return timetable.TemplateUpdate(fields)
 }
 
 func templateSplitInput(cmd timetable.SplitTemplateCommand) TemplateSplitInput {

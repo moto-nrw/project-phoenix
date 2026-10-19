@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -75,9 +74,7 @@ func (c *endedSessionCompletion) CompleteActiveByActiveGroupIDs(ctx context.Cont
 // the timeout or the nightly close, and their mirrored block's end is only
 // the placeholder hour the mirror wrote.
 func (c *endedSessionCompletion) recordSpontaneousEnds(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) error {
-	instances, err := c.deps.Instances.List(ctx, &domain.ListOptions{
-		Filter: domain.NewListFilter().In("active_group_id", int64Args(activeGroupIDs)...),
-	})
+	instances, err := c.deps.Instances.ListInstances(ctx, ports.LegacyInstanceFilter{ActiveGroupIDs: activeGroupIDs})
 	if err != nil {
 		return fmt.Errorf("complete bridged instances: load spontaneous blocks: %w", err)
 	}
@@ -147,9 +144,7 @@ func (c *endedSessionCompletion) notScheduledForEndedSessions(ctx context.Contex
 // endedInstanceDates maps each block bridged to one of the sessions to its
 // date.
 func (c *endedSessionCompletion) endedInstanceDates(ctx context.Context, activeGroupIDs []int64) (map[int64]calendar.Date, error) {
-	instances, err := c.deps.Instances.List(ctx, &domain.ListOptions{
-		Filter: domain.NewListFilter().In("active_group_id", int64Args(activeGroupIDs)...),
-	})
+	instances, err := c.deps.Instances.ListInstances(ctx, ports.LegacyInstanceFilter{ActiveGroupIDs: activeGroupIDs})
 	if err != nil {
 		return nil, fmt.Errorf("complete bridged instances: load instances: %w", err)
 	}
@@ -187,13 +182,4 @@ func coveringCareDayWindow(rows []*scheduleModels.InstanceStudent, datesByInstan
 		}
 	}
 	return window, len(window.studentIDs) > 0
-}
-
-// int64Args widens ids for the persistence-neutral Filter.In API.
-func int64Args(ids []int64) []any {
-	args := make([]any, len(ids))
-	for i, id := range ids {
-		args[i] = id
-	}
-	return args
 }

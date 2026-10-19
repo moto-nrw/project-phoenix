@@ -7,7 +7,6 @@ import (
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -113,7 +112,7 @@ func (s *TemplateSplitService) deleteEndedInstances(
 	templateID int64,
 	effectiveDate, requestedFrom calendar.Date,
 ) (int64, error) {
-	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, scheduleModel.Date(effectiveDate), nil, &templateID, false)
+	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, calendar.Date(effectiveDate), nil, &templateID, false)
 	if err != nil {
 		return 0, &ports.ScheduleError{Op: "end template: delete planned instances", Err: err}
 	}
@@ -246,7 +245,7 @@ func (s *TemplateSplitService) endCascadedSegment(
 		)
 	}
 	segmentID := seg.Group.ID
-	n, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, scheduleModel.Date(capAt), nil, &segmentID, false)
+	n, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, calendar.Date(capAt), nil, &segmentID, false)
 	if err != nil {
 		return 0, &ports.ScheduleError{Op: "end template: delete cascaded segment planned instances", Err: err}
 	}

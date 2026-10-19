@@ -7,7 +7,6 @@ import (
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
@@ -33,7 +32,7 @@ func (r timetableStudentEnrollmentRepository) Create(ctx context.Context, enroll
 	return nil
 }
 
-func (r timetableStudentEnrollmentRepository) FindByID(ctx context.Context, id any) (*activityContract.StudentEnrollment, error) {
+func (r timetableStudentEnrollmentRepository) FindByID(ctx context.Context, id int64) (*activityContract.StudentEnrollment, error) {
 	enrollmentID, ok := LegacyGroupID(id)
 	if !ok {
 		return nil, legacyDatabaseError("find by id", fmt.Errorf("invalid student enrollment id %T", id))
@@ -63,7 +62,7 @@ func (r timetableStudentEnrollmentRepository) Update(ctx context.Context, enroll
 	return nil
 }
 
-func (r timetableStudentEnrollmentRepository) Delete(ctx context.Context, id any) error {
+func (r timetableStudentEnrollmentRepository) Delete(ctx context.Context, id int64) error {
 	enrollmentID, ok := LegacyGroupID(id)
 	if !ok {
 		return legacyDatabaseError("delete", fmt.Errorf("invalid student enrollment id %T", id))
@@ -74,12 +73,8 @@ func (r timetableStudentEnrollmentRepository) Delete(ctx context.Context, id any
 	return nil
 }
 
-func (r timetableStudentEnrollmentRepository) List(ctx context.Context, options *activitiesModels.StudentEnrollmentQueryOptions) ([]*activityContract.StudentEnrollment, error) {
-	filter, err := legacyStudentEnrollmentFilter(options)
-	if err != nil {
-		return nil, legacyDatabaseError("list with options", err)
-	}
-	values, err := r.timetable.ListStudentEnrollments(ctx, filter)
+func (r timetableStudentEnrollmentRepository) FindByStudentIDs(ctx context.Context, studentIDs []int64) ([]*activityContract.StudentEnrollment, error) {
+	values, err := r.timetable.ListStudentEnrollments(ctx, timetable.StudentEnrollmentFilter{StudentIDs: studentIDs})
 	if err != nil {
 		return nil, legacyStudentEnrollmentError("list with options", err)
 	}
@@ -210,19 +205,4 @@ func legacyStudentEnrollmentError(operation string, err error) error {
 		return legacyNotFoundError(operation)
 	}
 	return legacyDatabaseError(operation, err)
-}
-
-func legacyStudentEnrollmentFilter(options *activitiesModels.StudentEnrollmentQueryOptions) (timetable.StudentEnrollmentFilter, error) {
-	if options == nil {
-		return timetable.StudentEnrollmentFilter{}, nil
-	}
-	if options.Limit < 0 || options.Offset < 0 {
-		return timetable.StudentEnrollmentFilter{}, errors.New("student enrollment pagination cannot be negative")
-	}
-	for _, id := range options.StudentIDs {
-		if id <= 0 {
-			return timetable.StudentEnrollmentFilter{}, errors.New("student enrollment IDs must be positive")
-		}
-	}
-	return timetable.StudentEnrollmentFilter{StudentIDs: options.StudentIDs, Limit: options.Limit, Offset: options.Offset}, nil
 }

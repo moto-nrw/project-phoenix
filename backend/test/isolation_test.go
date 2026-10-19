@@ -399,7 +399,7 @@ func TestTenantIsolation_ActivityCategoryVisibility(t *testing.T) {
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
 
-	categories, err := repo.List(ctx42, nil)
+	categories, err := repo.ListAll(ctx42)
 	require.NoError(t, err)
 
 	for _, c := range categories {
@@ -414,7 +414,7 @@ func TestTenantIsolation_ActivityCategoryVisibility(t *testing.T) {
 	// --- Tenant B ---
 	ctx43 := ctxForTenant(tenantB)
 
-	categories, err = repo.List(ctx43, nil)
+	categories, err = repo.ListAll(ctx43)
 	require.NoError(t, err)
 
 	for _, c := range categories {

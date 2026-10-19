@@ -4,13 +4,13 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/uptrace/bun"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/uptrace/bun"
 )
 
 // StaffNoticeDependencies binds the staff notices (#2180) to the database
@@ -32,6 +32,6 @@ func NewStaffNotices(deps StaffNoticeDependencies) timetable.StaffNotices {
 }
 
 // NewStaffNoticeRepository builds the retained staff notice repository.
-func NewStaffNoticeRepository(db *bun.DB) schedule.StaffNoticeRepository {
+func NewStaffNoticeRepository(db *bun.DB) ports.StaffNoticeRecords {
 	return postgres.NewStaffNoticeRepository(postgres.New(databaseRuntime(db)))
 }

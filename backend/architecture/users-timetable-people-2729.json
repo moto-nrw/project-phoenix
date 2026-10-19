@@ -32,7 +32,7 @@
   "runtime_evidence": {
     "source": "Local verification on the #2729 timetable branch on 2026-10-16 against the local postgres-test server.",
     "sources": [
-      "backend/models/schedule/staff_notice.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/models/schedule/staff_notice.go",
       "backend/modules/timetable/people_views.go",
       "backend/api/timetable_people_views.go",
       "backend/modules/timetable/internal/application/instance_lifecycle.go"

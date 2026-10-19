@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -207,7 +207,7 @@ func (s *InstanceLifecycleService) planRelocation(ctx context.Context, plan *sta
 // rejectDayWideAbsence returns the staff_absent_on_date conflict when any
 // same-day row marks the person absent.
 func (s *InstanceLifecycleService) rejectDayWideAbsence(ctx context.Context, staffID int64, date calendar.Date) error {
-	dayRows, err := s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, staffID, scheduleModel.Date(date))
+	dayRows, err := s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, staffID, calendar.Date(date))
 	if err != nil {
 		return timetable.DeviationInternal("load same-day staff assignments failed", err)
 	}

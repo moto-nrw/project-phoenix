@@ -9,8 +9,8 @@ import (
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -19,8 +19,8 @@ import (
 // start. Conflicts is the owner's start check (#3550), the one the manual
 // start runs too.
 type InstanceAutoStartDependencies struct {
-	InstanceRepo      scheduleModel.ActivityInstanceRepository
-	InstanceStaffRepo scheduleModel.InstanceStaffRepository
+	InstanceRepo      ports.ActivityInstanceRecords
+	InstanceStaffRepo ports.InstanceStaffRecords
 	Lifecycle         timetable.InstanceLifecycle
 	Rooms             ports.LifecycleRooms
 	Conflicts         timetable.StartConflictQuery
@@ -51,7 +51,7 @@ func (s *instanceAutoStart) RunForTenant(ctx context.Context, now time.Time) (*t
 		result.DurationMS = time.Since(startedAt).Milliseconds()
 	}()
 	today := calendar.DateFromTime(now)
-	instances, err := s.InstanceRepo.FindByTenantAndDate(ctx, scheduleModel.Date(today))
+	instances, err := s.InstanceRepo.FindByTenantAndDate(ctx, calendar.Date(today))
 	if err != nil {
 		return result, fmt.Errorf("load today's activity instances: %w", err)
 	}

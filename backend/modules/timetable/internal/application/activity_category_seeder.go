@@ -3,19 +3,19 @@ package application
 import (
 	"context"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 )
 
 // ActivityCategorySeeder creates the default activity categories the
 // operator provisioning seeds into a new school.
 type ActivityCategorySeeder struct {
-	categories activitiesModels.CategoryRepository
+	categories ports.ActivityCategoryRecords
 }
 
 // NewActivityCategorySeeder binds the seeder to the retained category rows.
-func NewActivityCategorySeeder(categories activitiesModels.CategoryRepository) ActivityCategorySeeder {
+func NewActivityCategorySeeder(categories ports.ActivityCategoryRecords) ActivityCategorySeeder {
 	return ActivityCategorySeeder{categories: categories}
 }
 

@@ -9,7 +9,6 @@ import (
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -378,7 +377,7 @@ func (s *TemplateService) createTemplateGroup(
 	if err := s.deps.ActivityGroupRepo.Create(ctx, group); err != nil {
 		return nil, &ports.ScheduleError{Op: "create template: create group", Err: err}
 	}
-	targetRepo, ok := s.deps.ActivityGroupRepo.(activitiesModel.GroupTargetRepository)
+	targetRepo, ok := s.deps.ActivityGroupRepo.(ports.ActivityGroupTargets)
 	if !ok && len(targets) > 0 {
 		return nil, &ports.ScheduleError{Op: "create template: replace targets", Err: errors.New("target repository is not configured")}
 	}
