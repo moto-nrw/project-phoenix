@@ -56,7 +56,7 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		Fingerprints:           owners.SecurityFingerprints{},
 		Declarations:           owners.ParentDeclarationPolicy(),
 		Locales:                owners.ParentPortalLocales(),
-		Runtime:                api.ParentPortalRuntime{},
+		Runtime:                owners.ParentPortalRuntime{},
 		MessagingEnabled:       owners.BindParentMessagingGate(settings, slog.Default()),
 		CarePlan:               owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:                 owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),

@@ -52,7 +52,7 @@ func TestRequestShareVisibilityAnswersLikeThePortal(t *testing.T) {
 		GuardianChanges: owners.ParentGuardianChanges(), DeparturePolicy: owners.ParentDeparturePolicy(),
 		GuardianPolicy: owners.NewParentGuardianPolicy(), Fingerprints: owners.SecurityFingerprints{},
 		Declarations: owners.ParentDeclarationPolicy(), Locales: owners.ParentPortalLocales(),
-		Runtime: api.ParentPortalRuntime{}, CarePlanPolicy: owners.NewParentCarePlanPolicy(),
+		Runtime: owners.ParentPortalRuntime{}, CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 		FamilyProtectionEvents: protection, ParentRequestShares: shares, Logger: slog.Default(),
 	})
 	visibility, err := parentportalcompose.NewRequestShareVisibility(shares, protection)

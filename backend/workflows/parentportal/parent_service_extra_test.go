@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"testing"
 
-	host "github.com/moto-nrw/project-phoenix/api"
 	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/stretchr/testify/assert"
@@ -91,7 +90,7 @@ func newSvcWithChild(t *testing.T, child *stubChildRepo) *parentService.Portal {
 		Fingerprints:    api.SecurityFingerprints{},
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
-		Runtime:         host.ParentPortalRuntime{},
+		Runtime:         api.ParentPortalRuntime{},
 		ChildRepo:       child,
 		Logger:          slog.Default(),
 
@@ -109,7 +108,7 @@ func newSvcWithEnrollable(t *testing.T, enroll *stubEnrollableRepo) *parentServi
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
-		Runtime:             host.ParentPortalRuntime{},
+		Runtime:             api.ParentPortalRuntime{},
 		EnrollablePhaseRepo: enroll,
 		EnrollmentSettings:  stubEnrollmentSettings{},
 		Logger:              slog.Default(),
@@ -148,7 +147,7 @@ func TestService_ListEnrollableForAccount_FiltersDisabledTenantsThroughTypedSett
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
-		Runtime:             host.ParentPortalRuntime{},
+		Runtime:             api.ParentPortalRuntime{},
 		EnrollablePhaseRepo: repo,
 		EnrollmentSettings:  stubEnrollmentSettings{values: map[int64]bool{11: true, 22: false}},
 		Logger:              slog.Default(),
@@ -173,7 +172,7 @@ func TestService_ListEnrollableForAccount_PropagatesTypedSettingsFailure(t *test
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
-		Runtime:             host.ParentPortalRuntime{},
+		Runtime:             api.ParentPortalRuntime{},
 		EnrollablePhaseRepo: &stubEnrollableRepo{result: []*parentService.EnrollablePhase{{SchoolID: 11}}},
 		EnrollmentSettings:  stubEnrollmentSettings{err: want},
 		Logger:              slog.Default(),
@@ -334,7 +333,7 @@ func TestNewService_NilLoggerFallsBackToDefault(t *testing.T) {
 		Fingerprints:    api.SecurityFingerprints{},
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
-		Runtime:         host.ParentPortalRuntime{},
+		Runtime:         api.ParentPortalRuntime{},
 		ChildRepo:       &stubChildRepo{},
 		Logger:          nil,
 

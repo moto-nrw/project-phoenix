@@ -41,7 +41,7 @@ func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 		Fingerprints:    owners.SecurityFingerprints{},
 		Declarations:    owners.ParentDeclarationPolicy(),
 		Locales:         owners.ParentPortalLocales(),
-		Runtime:         api.ParentPortalRuntime{},
+		Runtime:         owners.ParentPortalRuntime{},
 		CarePlan: owners.NewParentCarePlanCommands(repos.CarePlan(), newPickupExcusal(t, db, repos.CarePlan(),
 			newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)),
 			timetableOwner, false,

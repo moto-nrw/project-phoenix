@@ -33,7 +33,7 @@ func buildNoticeFeedService(t *testing.T, newsEnabled bool) (*parentportal.Porta
 		GuardianPolicy:        owners.NewParentGuardianPolicy(),
 		Fingerprints:          owners.SecurityFingerprints{},
 		Declarations:          owners.ParentDeclarationPolicy(),
-		Runtime:               api.ParentPortalRuntime{},
+		Runtime:               owners.ParentPortalRuntime{},
 		Children:              childResolver(db, repos, reposPeople),
 		ChildRepo:             repos.ParentChildReads(),
 		EnrollmentRequestRepo: repos.ParentEnrollmentReads(),

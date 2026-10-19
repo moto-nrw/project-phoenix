@@ -245,13 +245,13 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			return
 		},
 		func() (err error) {
-			emitter = owners.BuildParentEventEmitter(messageDB, messageDB.UnitOfWork(), env, hub, settings.Service, messaging, notifications, NewCommunicationEventRuntime(messageDB.Pool() != nil, messageDB.UnitOfWork()))
+			emitter = owners.BuildParentEventEmitter(messageDB, messageDB.UnitOfWork(), env, hub, settings.Service, messaging, notifications)
 			purger, err = owners.BuildAttachmentPurger(db, env, objects)
 			return
 		},
 		func() (err error) {
 			announcements, err = owners.BuildParentAnnouncements(env, settings.Service, delivery.Outbox, owners.DeliveryModuleOf(delivery),
-				notifications, messaging, purger, CommunicationRequestRuntime{})
+				notifications, messaging, purger)
 			return
 		},
 		func() (err error) {

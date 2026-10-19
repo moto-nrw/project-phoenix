@@ -38,7 +38,7 @@ func NewParentEventEmitter(
 	logger *slog.Logger,
 ) eventContract.Emitter {
 	return communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
-		Runtime: NewCommunicationEventRuntime(db.Pool() != nil, runtime), ThreadRepo: threadRepo, MessageRepo: messageRepo,
+		Runtime: owners.NewCommunicationEventRuntime(db.Pool() != nil, runtime), ThreadRepo: threadRepo, MessageRepo: messageRepo,
 		Settings: settingsValues.NewParentEventValues(settings), Broadcaster: broadcaster, Logger: logger,
 	})
 }

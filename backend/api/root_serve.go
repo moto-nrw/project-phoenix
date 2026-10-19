@@ -307,13 +307,13 @@ func composeServeRoot(
 			return
 		},
 		func() (err error) {
-			emitter = owners.BuildParentEventEmitter(db, unit, env, hub, settings.Service, messaging, notifications, NewCommunicationEventRuntime(db.Pool() != nil, unit))
+			emitter = owners.BuildParentEventEmitter(db, unit, env, hub, settings.Service, messaging, notifications)
 			purger, err = owners.BuildAttachmentPurger(db, env, objects)
 			return
 		},
 		func() (err error) {
 			announcements, err = owners.BuildParentAnnouncements(env, settings.Service, delivery.Outbox, owners.DeliveryModuleOf(delivery),
-				notifications, messaging, purger, CommunicationRequestRuntime{})
+				notifications, messaging, purger)
 			return
 		},
 		func() (err error) {
@@ -415,14 +415,14 @@ func composeServeRoot(
 		},
 		func() error {
 			chat = owners.BuildCommunicationMessaging(db, env, hub, settings.Service, messaging, services.Users, owners.StaffStudentReads{Caller: caller.Caller()},
-				notifications, delivery.Outbox, people, owners.SchoolNameDirectory{Schools: organizations}, CommunicationSession{}, CommunicationRequestRuntime{})
+				notifications, delivery.Outbox, people, owners.SchoolNameDirectory{Schools: organizations}, CommunicationSession{})
 			calendarApp = owners.BuildCalendarApp(db, env, people, structure, portalReads, timetableRows, rooms, workTime, organizations,
 				identity, caller.Caller(), appointments, calendar, delivery, notifications, settings.Service, persons)
 			return nil
 		},
 		func() (err error) {
 			parent, err = owners.BuildParentPortal(db, env, hub, settings.Service, people, portalReads, messaging, presence, carePlanRows,
-				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices, ParentPortalRuntime{})
+				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices)
 			return
 		},
 		func() (err error) {

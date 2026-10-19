@@ -62,7 +62,7 @@ func buildParentService(t *testing.T, repo *stubEnrollmentRequestRepo) *parentSe
 		Fingerprints:          owners.SecurityFingerprints{},
 		Declarations:          owners.ParentDeclarationPolicy(),
 		Locales:               owners.ParentPortalLocales(),
-		Runtime:               api.ParentPortalRuntime{},
+		Runtime:               owners.ParentPortalRuntime{},
 		EnrollmentRequestRepo: repo,
 		Logger:                slog.Default(),
 
@@ -134,7 +134,7 @@ func TestService_ListEnrollmentsForAccount_NilRepoReturnsError(t *testing.T) {
 		Fingerprints:          owners.SecurityFingerprints{},
 		Declarations:          owners.ParentDeclarationPolicy(),
 		Locales:               owners.ParentPortalLocales(),
-		Runtime:               api.ParentPortalRuntime{},
+		Runtime:               owners.ParentPortalRuntime{},
 		EnrollmentRequestRepo: nil,
 		Logger:                slog.Default(),
 
@@ -282,7 +282,7 @@ func buildParentServiceWithGuardian(t *testing.T, repo *stubGuardianProfileRepo)
 		Fingerprints:        owners.SecurityFingerprints{},
 		Declarations:        owners.ParentDeclarationPolicy(),
 		Locales:             owners.ParentPortalLocales(),
-		Runtime:             api.ParentPortalRuntime{},
+		Runtime:             owners.ParentPortalRuntime{},
 		People:              portalLocalePeople{repo: repo, tenantIDs: []int64{testpkg.Tenant(t)}},
 		GuardianProfileRepo: api.NewParentGuardianProfileReadFixture(repo.FindByAccountID),
 		Logger:              slog.Default(),
@@ -409,7 +409,7 @@ func TestService_GetProfile_NilRepoReturnsError(t *testing.T) {
 		Fingerprints:        owners.SecurityFingerprints{},
 		Declarations:        owners.ParentDeclarationPolicy(),
 		Locales:             owners.ParentPortalLocales(),
-		Runtime:             api.ParentPortalRuntime{},
+		Runtime:             owners.ParentPortalRuntime{},
 		GuardianProfileRepo: nil,
 		Logger:              slog.Default(),
 
@@ -453,7 +453,7 @@ func TestService_UpdatePortalLocale_WritesEverySchool(t *testing.T) {
 		Fingerprints:        owners.SecurityFingerprints{},
 		Declarations:        owners.ParentDeclarationPolicy(),
 		Locales:             owners.ParentPortalLocales(),
-		Runtime:             api.ParentPortalRuntime{},
+		Runtime:             owners.ParentPortalRuntime{},
 		People:              portalLocalePeople{repo: repo, tenantIDs: []int64{testpkg.Tenant(t), otherTenant}},
 		GuardianProfileRepo: api.NewParentGuardianProfileReadFixture(repo.FindByAccountID),
 		Logger:              slog.Default(),
@@ -503,7 +503,7 @@ func TestService_UpdatePortalLocale_NilRepoReturnsError(t *testing.T) {
 		Fingerprints:        owners.SecurityFingerprints{},
 		Declarations:        owners.ParentDeclarationPolicy(),
 		Locales:             owners.ParentPortalLocales(),
-		Runtime:             api.ParentPortalRuntime{},
+		Runtime:             owners.ParentPortalRuntime{},
 		GuardianProfileRepo: nil,
 		Logger:              slog.Default(),
 

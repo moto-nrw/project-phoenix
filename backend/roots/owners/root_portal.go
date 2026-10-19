@@ -1,7 +1,6 @@
 package owners
 
 import (
-	"context"
 	"fmt"
 
 	realtime "github.com/moto-nrw/project-phoenix/realtime"
@@ -46,7 +45,7 @@ func BuildParentPortal(
 	presence PresenceOwner, carePlanRows CarePlanRows, carePlan careplan.Capability, persons peopledirectory.Capability,
 	mealPlan *mealplanModule.Module, schedules CarePlanSchedules, requests CarePlanRequests, services PeopleServices,
 	emitter eventContract.Emitter, notifications DeliveryNotifications, identity *identityaccess.Module,
-	enrollment EnrollmentRows, notices EnrollmentNotices, runtime parentPortalRuntime,
+	enrollment EnrollmentRows, notices EnrollmentNotices,
 ) (*parentportal.Portal, error) {
 	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewReader(), func(carePlanCompose.Observation) {})
 	if err != nil {
@@ -61,7 +60,7 @@ func BuildParentPortal(
 		Fingerprints:    SecurityFingerprints{},
 		Declarations:    ParentDeclarationPolicy(),
 		Locales:         ParentPortalLocales(),
-		Runtime:         runtime,
+		Runtime:         ParentPortalRuntime{},
 		CareProfiles:    profiles, ChildRepo: NewParentChildReads(carePlanCompose.NewParentChildQueries(portal.ParentChild, securityruntime.GuardianPermissionGranted)), EnrollablePhaseRepo: NewParentPhaseReads(carePlanCompose.NewParentPhaseQueries(portal.ParentEnrollablePhase)),
 		EnrollmentSettings: settings, EnrollmentRequestRepo: NewParentEnrollmentReads(carePlanCompose.NewParentEnrollmentQueries(portal.ParentEnrollmentRequest)),
 		GuardianProfileRepo: NewParentGuardianProfileReads(people.GuardianProfiles), Attendance: BindParentAttendance(presence.Presence), StatusDayRepo: carePlanRows.StatusDays,
@@ -109,12 +108,4 @@ func BuildFileStore(
 		HasPermission: securityruntime.HasPermission, Announcements: announcements,
 		GuardianAudience: parent, Observe: env.Observe.FileStorage, Logger: env.Logger.With("service", "filestore"), Now: env.Now,
 	})
-}
-
-// parentPortalRuntime is the HTTP host's request transaction and commit binding.
-type parentPortalRuntime interface {
-	WithinTenant(context.Context, int64, func(context.Context) error) error
-	WithinAdmin(context.Context, func(context.Context) error) error
-	RegisterAfterCommit(context.Context, func())
-	WithTenantID(context.Context, int64) context.Context
 }

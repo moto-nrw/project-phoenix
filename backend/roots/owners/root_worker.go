@@ -186,7 +186,7 @@ func workerTracer(tracer *observability.Tracer) schedulerPorts.WorkerTracer {
 func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, tracer *observability.Tracer, tracker ProductEventTracker, tokensFor func() (TokenAdapter, error), communicationSession interface {
 	AccountID(context.Context) int64
 	Permissions(context.Context) []string
-}, timetableSession timetablePorts.RequestSession, principal func(context.Context) studentpresence.RequestPrincipal, withStaff func(context.Context, int64, int64) context.Context, events communicationEventRuntime, requestsRuntime communicationRequestRuntime, portalRuntime parentPortalRuntime, documentPermissions carePlanCompose.StudentDocumentPermissions) (schedulerPorts.Worker, error) {
+}, timetableSession timetablePorts.RequestSession, principal func(context.Context) studentpresence.RequestPrincipal, withStaff func(context.Context, int64, int64) context.Context, documentPermissions carePlanCompose.StudentDocumentPermissions) (schedulerPorts.Worker, error) {
 	unit := db.UnitOfWork()
 	communicationCompose.InstrumentMessageQueries(db.Pool(), false)
 	renderer := lists.NewRendererService()
@@ -388,13 +388,13 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 			return
 		},
 		func() (err error) {
-			emitter = BuildParentEventEmitter(db, unit, env, hub, settings.Service, messaging, notifications, events)
+			emitter = BuildParentEventEmitter(db, unit, env, hub, settings.Service, messaging, notifications)
 			purger, err = BuildAttachmentPurger(db, env, objects)
 			return
 		},
 		func() (err error) {
 			announcements, err = BuildParentAnnouncements(env, settings.Service, delivery.Outbox, DeliveryModuleOf(delivery),
-				notifications, messaging, purger, requestsRuntime)
+				notifications, messaging, purger)
 			return
 		},
 		func() (err error) {
@@ -483,14 +483,14 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		},
 		func() error {
 			chat = BuildCommunicationMessaging(db, env, hub, settings.Service, messaging, services.Users, StaffStudentReads{Caller: caller.Caller()},
-				notifications, delivery.Outbox, people, SchoolNameDirectory{Schools: organizations}, communicationSession, requestsRuntime)
+				notifications, delivery.Outbox, people, SchoolNameDirectory{Schools: organizations}, communicationSession)
 			calendarApp = BuildCalendarApp(db, env, people, structure, portalReads, timetableRows, rooms, workTime, organizations,
 				identity, caller.Caller(), appointments, calendar, delivery, notifications, settings.Service, persons)
 			return nil
 		},
 		func() (err error) {
 			parent, err = BuildParentPortal(db, env, hub, settings.Service, people, portalReads, messaging, presence, carePlanRows,
-				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices, portalRuntime)
+				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices)
 			return
 		},
 		func() (err error) {

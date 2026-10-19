@@ -214,7 +214,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	}
 	pillEmitter := communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
 
-		Runtime:     NewCommunicationEventRuntime(db.Pool() != nil, unit),
+		Runtime:     owners.NewCommunicationEventRuntime(db.Pool() != nil, unit),
 		ThreadRepo:  messages.ParentMessageThread,
 		MessageRepo: messages.ParentMessage,
 		Settings:    settingsValues.NewParentEventValues(settingsService),

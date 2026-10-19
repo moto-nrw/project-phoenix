@@ -41,7 +41,7 @@ func NewParentCareScheduleTestService(db transactionruntime.Database, module Stu
 		Fingerprints:    owners.SecurityFingerprints{},
 		Declarations:    owners.ParentDeclarationPolicy(),
 		Locales:         owners.ParentPortalLocales(),
-		Runtime:         ParentPortalRuntime{},
+		Runtime:         owners.ParentPortalRuntime{},
 		ChildRepo:       parents.ParentChildReads(), StudentRepo: owners.NewParentStudentReads(repos.Student), PersonRepo: owners.NewParentPersonReads(repos.Person),
 		StudentGuardianRepo: owners.NewParentStudentGuardianReads(members.StudentGuardian), GuardianProfileRepo: owners.NewParentGuardianProfileReads(members.GuardianProfile),
 		Settings:         owners.BindParentSettings(liveSettings.Settings),

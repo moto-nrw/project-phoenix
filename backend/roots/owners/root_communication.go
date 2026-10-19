@@ -26,10 +26,10 @@ import (
 // flows (#1671).
 func BuildParentEventEmitter(
 	db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, hub *realtime.Hub,
-	settings settingsCompose.BatchSettingsService, messaging parentStore.MessagingRepositories, notifications DeliveryNotifications, runtime communicationEventRuntime,
+	settings settingsCompose.BatchSettingsService, messaging parentStore.MessagingRepositories, notifications DeliveryNotifications,
 ) eventContract.Emitter {
 	return communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
-		Runtime: runtime, ThreadRepo: messaging.ParentMessageThread,
+		Runtime: NewCommunicationEventRuntime(db.Pool() != nil, unit), ThreadRepo: messaging.ParentMessageThread,
 		MessageRepo: parentStore.NewParentMessageRepository(db.Pool()), Settings: settingsValues.NewParentEventValues(settings),
 		Broadcaster: hub, Logger: env.Logger.With("service", "parent-events"),
 		DecisionNotifier: deliveryCompose.NewRequestDecisionNotifier(notifications.Notifier, notifications.Preferences),
@@ -42,7 +42,7 @@ func BuildParentEventEmitter(
 func BuildParentAnnouncements(
 	env RootEnvironment, settings settingsCompose.BatchSettingsService, outbox *deliveryCompose.EmailOutbox, module *deliveryModule.Module,
 	notifications DeliveryNotifications, messaging parentStore.MessagingRepositories,
-	attachments communication.ParentAnnouncementAttachmentPurger, runtime communicationRequestRuntime,
+	attachments communication.ParentAnnouncementAttachmentPurger,
 ) (communication.ParentAnnouncementCapability, error) {
 	return communicationCompose.NewParentAnnouncementsWithAttachments(communicationCompose.ParentAnnouncementConfig{
 		Repo: messaging.ParentAnnouncement, Settings: settingsValues.NewParentAnnouncementValues(settings), Outbox: OutboxEnqueuer{Outbox: outbox},
@@ -50,7 +50,7 @@ func BuildParentAnnouncements(
 		ReminderNotifier: BindCommunicationDurableNotificationSender(notifications.Notifier), Preferences: notifications.Preferences,
 		Deliveries: announcementDeliveryAdapter{module: module}, ParentsURL: env.Links.ParentsURL,
 		Fingerprints: SecurityFingerprints{}, Logger: env.Logger.With("service", "announcement"),
-	}, attachments, runtime, deliveryPolicy.ParentDeliveryPolicy{})
+	}, attachments, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 }
 
 // CommunicationMessaging are the parent messenger and the OGS-internal
@@ -73,7 +73,7 @@ func BuildCommunicationMessaging(
 	}, session interface {
 		AccountID(context.Context) int64
 		Permissions(context.Context) []string
-	}, runtime communicationRequestRuntime,
+	},
 ) CommunicationMessaging {
 	logger := env.Logger
 	messaging := communicationCompose.NewParentMessaging(communicationCompose.ParentMessagingConfig{
@@ -85,28 +85,13 @@ func BuildCommunicationMessaging(
 		// der Rueckfall fuer alle, die Push nicht eingerichtet haben.
 		Outbox: OutboxEnqueuer{Outbox: outbox}, GuardianProfiles: BindParentMessageGuardianProfiles(people.GuardianProfiles), Schools: schools,
 		LoginImages: settings, ParentsURL: env.Links.ParentsURL, Observe: env.Observe.Communication,
-	}, runtime, deliveryPolicy.ParentDeliveryPolicy{})
+	}, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	staffMessaging := communicationCompose.NewStaffMessaging(communicationCompose.StaffMessagingConfig{
 		ThreadRepo:  staffStore.NewStaffMessageThreadRepository(db.Pool()),
 		MessageRepo: staffStore.NewStaffMessageRepository(db.Pool()), ReadRepo: portal.StaffMessageRead,
 		Persons: BindStaffSenderNames(users), Session: session, Settings: settingsValues.NewStaffMessagingValues(settings), Broadcaster: hub,
 		Logger: logger.With("service", "staffmessaging"), Notifier: BindCommunicationNotificationSender(notifications.Notifier),
 		Preferences: notifications.Preferences, Observe: env.Observe.Communication,
-	}, runtime, deliveryPolicy.ParentDeliveryPolicy{})
+	}, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	return CommunicationMessaging{Messaging: messaging, StaffMessaging: staffMessaging}
-}
-
-// communicationRequestRuntime is the ambient request and commit binding of the HTTP host.
-type communicationRequestRuntime interface {
-	TenantID(context.Context) int64
-	RegisterAfterCommit(context.Context, func())
-}
-
-// communicationEventRuntime carries the host's unit of work into detached notices.
-type communicationEventRuntime interface {
-	RegisterAfterCommit(context.Context, func())
-	Configured() bool
-	BackgroundContext() context.Context
-	InTransaction(context.Context) bool
-	WithinTenant(context.Context, int64, func(context.Context) error) error
 }

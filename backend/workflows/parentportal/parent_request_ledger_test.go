@@ -40,7 +40,7 @@ func buildLedgerServices(t *testing.T) (*parentService.Portal, careplan.ExcusedA
 		Fingerprints:    owners.SecurityFingerprints{},
 		Declarations:    owners.ParentDeclarationPolicy(),
 		Locales:         owners.ParentPortalLocales(),
-		Runtime:         api.ParentPortalRuntime{},
+		Runtime:         owners.ParentPortalRuntime{},
 		CarePlan:        owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:          owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:    careProfiles(t, db),

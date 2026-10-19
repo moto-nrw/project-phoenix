@@ -33,7 +33,7 @@ func buildTodayStatusService(t *testing.T) (*parentportal.ChildFlows, *bun.DB) {
 	return parentportal.NewChildFlows(parentportal.ChildConfig{
 		GuardianPolicy: owners.NewParentGuardianPolicy(),
 
-		Runtime:        api.ParentPortalRuntime{},
+		Runtime:        owners.ParentPortalRuntime{},
 		RequestSharing: unconfiguredRequestSharer{},
 		ChildRepo:      repos.ParentChildReads(),
 		Attendance:     parentAttendance(t, db),
@@ -69,7 +69,7 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (*parentportal.ChildFlows
 	return parentportal.NewChildFlows(parentportal.ChildConfig{
 		GuardianPolicy: owners.NewParentGuardianPolicy(),
 
-		Runtime:          api.ParentPortalRuntime{},
+		Runtime:          owners.ParentPortalRuntime{},
 		RequestSharing:   unconfiguredRequestSharer{},
 		ChildRepo:        repos.ParentChildReads(),
 		Attendance:       parentAttendance(t, db),

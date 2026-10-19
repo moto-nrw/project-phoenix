@@ -45,6 +45,6 @@ func NewStaffMessagingTestModule(db transactionruntime.Database, unit tenant.Uni
 		Persons: owners.BindStaffSenderNames(people), Session: CommunicationSession{}, Settings: settingsValues.NewStaffMessagingValues(settings.Settings), Broadcaster: deliveryCompose.NewRealtimeHub(slog.Default()),
 		Logger: slog.Default(), Notifier: owners.BindCommunicationNotificationSender(delivery.Notifications),
 		Preferences: delivery.NotificationPreferences, Observe: func(communicationCompose.Observation) {},
-	}, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
+	}, owners.CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	return StaffMessagingTestModule{StaffMessaging: messaging}, settings, nil
 }

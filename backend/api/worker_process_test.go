@@ -155,8 +155,7 @@ func TestStandaloneWorkerComposesItsJobsWithoutTheAPIRouter(t *testing.T) {
 	health, legal, fallback := carePlanHTTP.StudentDocumentPermissions()
 	worker, err := owners.ComposeWorker(db, env, hub, newRuntimeTracer(logger), analytics.NewNoop(),
 		newLegacyTokenAdapter, CommunicationSession{}, TimetableRequestSession{}, AttendancePrincipal,
-		deviceauth.WithAttendanceStaff, NewCommunicationEventRuntime(true, db.UnitOfWork()),
-		CommunicationRequestRuntime{}, ParentPortalRuntime{}, carePlanCompose.StudentDocumentPermissions{Health: health, Legal: legal, Default: fallback})
+		deviceauth.WithAttendanceStaff, carePlanCompose.StudentDocumentPermissions{Health: health, Legal: legal, Default: fallback})
 	require.NoError(t, err)
 	require.NotNil(t, worker)
 	handler := workerProbeHandler(worker.Ready, "metrics-token")

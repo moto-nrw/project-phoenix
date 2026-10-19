@@ -58,7 +58,7 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier parentpor
 		GuardianPolicy:        owners.NewParentGuardianPolicy(),
 		Fingerprints:          owners.SecurityFingerprints{},
 		Declarations:          owners.ParentDeclarationPolicy(),
-		Runtime:               api.ParentPortalRuntime{},
+		Runtime:               owners.ParentPortalRuntime{},
 		MessagingEnabled:      owners.BindParentMessagingGate(settings, slog.Default()),
 		Children:              childResolver(db, reposCare, repos),
 		ChildRepo:             reposCare.ParentChildReads(),
