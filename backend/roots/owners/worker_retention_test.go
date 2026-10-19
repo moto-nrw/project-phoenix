@@ -110,6 +110,8 @@ func TestWorkerRetentionPreloadsRetentionWindows(t *testing.T) {
 		settingsModule.KeyGDPRStatusDayRetentionDays,
 		settingsModule.KeyGDPRAttendanceRetentionDays,
 		settingsModule.KeyGDPRParentMessageRetentionDays,
+		settingsModule.KeyGDPRStaffMessageRetentionDays,
+		settingsModule.KeyGDPRTimetableRetentionDays,
 		settingsModule.KeyGDPRWithdrawnEnrollmentRetentionDays,
 		settingsModule.KeyGDPRStaffSickNoteRetentionDays,
 		settingsModule.KeyGDPRStudentRetentionDays,

@@ -3,7 +3,7 @@ package compose
 import (
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/applog"
+	"github.com/moto-nrw/project-phoenix/observability/internal/adapters/applog"
 )
 
 // InstallProcessLogger builds the process logger from the configured level, text

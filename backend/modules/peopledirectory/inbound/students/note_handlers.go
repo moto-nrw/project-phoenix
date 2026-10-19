@@ -8,6 +8,8 @@ import (
 	strconv "strconv"
 	time "time"
 
+	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
+
 	common "github.com/moto-nrw/project-phoenix/api/common"
 	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -232,23 +234,23 @@ func (rs *Resource) currentNoteDeleteAuthorization(
 // which of THIS child's notes they may see.
 func (rs *Resource) resolveNoteReader(
 	w http.ResponseWriter, r *http.Request,
-) (*peopleModule.StudentState, securityruntime.StudentNoteChild, securityruntime.StudentNoteAudience, bool) {
+) (*peopleModule.StudentState, securitycontract.StudentNoteChild, securitycontract.StudentNoteAudience, bool) {
 	if rs.StudentNotes == nil {
 		renderError(w, r, common.ErrorInternalServer(errors.New("student notes capability is not configured")))
-		return nil, securityruntime.StudentNoteChild{}, securityruntime.StudentNoteAudience{}, false
+		return nil, securitycontract.StudentNoteChild{}, securitycontract.StudentNoteAudience{}, false
 	}
 	student, ok := rs.parseAndGetStudent(w, r)
 	if !ok {
-		return nil, securityruntime.StudentNoteChild{}, securityruntime.StudentNoteAudience{}, false
+		return nil, securitycontract.StudentNoteChild{}, securitycontract.StudentNoteAudience{}, false
 	}
 	if !rs.checkStudentReadAccess(r, student) {
 		renderError(w, r, common.ErrorForbidden(errors.New("read access required to view notes")))
-		return nil, securityruntime.StudentNoteChild{}, securityruntime.StudentNoteAudience{}, false
+		return nil, securitycontract.StudentNoteChild{}, securitycontract.StudentNoteAudience{}, false
 	}
 	child, err := rs.noteChild(r.Context(), student)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
-		return nil, securityruntime.StudentNoteChild{}, securityruntime.StudentNoteAudience{}, false
+		return nil, securitycontract.StudentNoteChild{}, securitycontract.StudentNoteAudience{}, false
 	}
 	reader, err := rs.noteReader(r.Context())
 	if err != nil {
@@ -256,7 +258,7 @@ func (rs *Resource) resolveNoteReader(
 		// would leak, the empty one would render the child's card as empty —
 		// both are worse than an error the caller can retry.
 		renderError(w, r, common.ErrorInternalServer(err))
-		return nil, securityruntime.StudentNoteChild{}, securityruntime.StudentNoteAudience{}, false
+		return nil, securitycontract.StudentNoteChild{}, securitycontract.StudentNoteAudience{}, false
 	}
 	return student, child, securityruntime.ResolveStudentNoteAudience(
 		sessiontoken.PermissionsFromCtx(r.Context()), reader, child), true
@@ -266,28 +268,28 @@ func (rs *Resource) resolveNoteReader(
 // takes facts rather than fetching them. The school classes are normalized
 // here because the child's class is too, and both sides must use the rule the
 // class-scoped reads and their LOWER(BTRIM(...)) index already use.
-func (rs *Resource) noteReader(ctx context.Context) (securityruntime.StudentNoteReader, error) {
+func (rs *Resource) noteReader(ctx context.Context) (securitycontract.StudentNoteReader, error) {
 	groupIDs, err := rs.UserContextService.MyGroupIDs(ctx)
 	if err != nil {
-		return securityruntime.StudentNoteReader{}, err
+		return securitycontract.StudentNoteReader{}, err
 	}
 	ledGroupIDs, err := rs.UserContextService.MyTeacherGroupIDs(ctx)
 	if err != nil {
-		return securityruntime.StudentNoteReader{}, err
+		return securitycontract.StudentNoteReader{}, err
 	}
 	activityIDs, err := rs.UserContextService.MyActivityGroupIDs(ctx)
 	if err != nil {
-		return securityruntime.StudentNoteReader{}, err
+		return securitycontract.StudentNoteReader{}, err
 	}
 	classes, err := rs.UserContextService.MySchoolClasses(ctx)
 	if err != nil {
-		return securityruntime.StudentNoteReader{}, err
+		return securitycontract.StudentNoteReader{}, err
 	}
 	normalized := make([]string, 0, len(classes))
 	for _, class := range classes {
 		normalized = append(normalized, schoolClassKey(class))
 	}
-	return securityruntime.StudentNoteReader{
+	return securitycontract.StudentNoteReader{
 		GroupIDs: groupIDs, LedEducationGroupIDs: ledGroupIDs,
 		ActivityGroupIDs: activityIDs, Classes: normalized,
 	}, nil
@@ -296,8 +298,8 @@ func (rs *Resource) noteReader(ctx context.Context) (securityruntime.StudentNote
 // noteChild reads the child side of the audience question. The activity
 // enrollments are read for today: a note audience follows who has the child
 // now, not who had it last term.
-func (rs *Resource) noteChild(ctx context.Context, student *peopleModule.StudentState) (securityruntime.StudentNoteChild, error) {
-	child := securityruntime.StudentNoteChild{
+func (rs *Resource) noteChild(ctx context.Context, student *peopleModule.StudentState) (securitycontract.StudentNoteChild, error) {
+	child := securitycontract.StudentNoteChild{
 		GroupID: student.GroupID, SchoolClass: schoolClassKey(student.SchoolClass),
 	}
 	if rs.ActiveEnrollments == nil {
@@ -306,7 +308,7 @@ func (rs *Resource) noteChild(ctx context.Context, student *peopleModule.Student
 	groupsByStudent, err := rs.ActiveEnrollments.ActiveEnrollmentGroups(
 		ctx, []int64{student.ID}, calendar.TodayDate())
 	if err != nil {
-		return securityruntime.StudentNoteChild{}, err
+		return securitycontract.StudentNoteChild{}, err
 	}
 	for _, group := range groupsByStudent[student.ID] {
 		child.ActivityGroupIDs = append(child.ActivityGroupIDs, group.ID)
@@ -367,7 +369,7 @@ func parseNoteSubject(body studentNoteRequestBody) (peopleModule.StudentNoteSubj
 // the audience decision, so this adds no second cross-owner lookup.
 func validateNoteSubjectForChild(
 	subject peopleModule.StudentNoteSubject,
-	child securityruntime.StudentNoteChild,
+	child securitycontract.StudentNoteChild,
 ) error {
 	if subject.EducationGroupID != nil &&
 		(child.GroupID == nil || *subject.EducationGroupID != *child.GroupID) {
@@ -402,7 +404,7 @@ func callerAccountID(r *http.Request) int64 {
 // toModuleAudience turns the policy's facts into the owner's filter. The
 // visibility values are named here, in the one package that holds both sides,
 // so the policy never keeps a second copy of the owner's enum.
-func toModuleAudience(audience securityruntime.StudentNoteAudience, accountID int64) peopleModule.StudentNoteAudience {
+func toModuleAudience(audience securitycontract.StudentNoteAudience, accountID int64) peopleModule.StudentNoteAudience {
 	visibilities := []string{peopleModule.StudentNoteVisibilityAllStaff}
 	if audience.CareTeam {
 		visibilities = append(visibilities, peopleModule.StudentNoteVisibilityCareTeam)
@@ -421,7 +423,7 @@ func toModuleAudience(audience securityruntime.StudentNoteAudience, accountID in
 func (rs *Resource) renderNotes(
 	r *http.Request,
 	notes []peopleModule.StudentNote,
-	audience securityruntime.StudentNoteAudience,
+	audience securitycontract.StudentNoteAudience,
 	student *peopleModule.StudentState,
 ) []studentNoteResponse {
 	reader := callerAccountID(r)
@@ -435,7 +437,7 @@ func (rs *Resource) renderNotes(
 func (rs *Resource) renderNote(
 	r *http.Request,
 	note peopleModule.StudentNote,
-	audience securityruntime.StudentNoteAudience,
+	audience securitycontract.StudentNoteAudience,
 	student *peopleModule.StudentState,
 ) studentNoteResponse {
 	return buildNoteResponse(note, audience, student, callerAccountID(r))
@@ -443,7 +445,7 @@ func (rs *Resource) renderNote(
 
 func buildNoteResponse(
 	note peopleModule.StudentNote,
-	audience securityruntime.StudentNoteAudience,
+	audience securitycontract.StudentNoteAudience,
 	student *peopleModule.StudentState,
 	readerAccountID int64,
 ) studentNoteResponse {
@@ -489,7 +491,7 @@ func noteCanBeEdited(note peopleModule.StudentNote) bool {
 // original audience; only administration may remove the retained record.
 func noteCanBeDeleted(
 	note peopleModule.StudentNote,
-	audience securityruntime.StudentNoteAudience,
+	audience securitycontract.StudentNoteAudience,
 	childEducationGroupID *int64,
 ) bool {
 	if note.Visibility == peopleModule.StudentNoteVisibilityGroupLeads &&

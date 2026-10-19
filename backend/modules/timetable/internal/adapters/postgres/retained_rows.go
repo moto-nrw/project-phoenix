@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
@@ -213,6 +214,30 @@ func (s *Store) DeleteStaffNotice(ctx context.Context, id int64) error {
 		Where(`"staff_notice".tenant_id = ?`, tenantID).
 		Exec(ctx)
 	return err
+}
+
+// DeleteStaffNoticesEndedBefore removes the notices whose last valid day
+// lies before cutoff or that were switched off before its Berlin midnight;
+// acknowledgements cascade (#4045).
+func (s *Store) DeleteStaffNoticesEndedBefore(ctx context.Context, cutoff calendar.Date) (int, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return 0, err
+	}
+	result, err := db.NewDelete().
+		Model((*StaffNotice)(nil)).
+		ModelTableExpr(staffNoticeTable).
+		Where(`"staff_notice".tenant_id = ?`, tenantID).
+		WhereGroup(" AND ", func(q *bun.DeleteQuery) *bun.DeleteQuery {
+			return q.Where(`"staff_notice".valid_until < ?`, cutoff).
+				WhereOr(`NOT "staff_notice".active AND "staff_notice".updated_at < ?`, cutoff.BerlinMidnight())
+		}).
+		Exec(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("delete ended staff notices: %w", err)
+	}
+	deleted, err := result.RowsAffected()
+	return int(deleted), err
 }
 
 // ListStaffNotices returns the tenant's notices, newest first.

@@ -23,7 +23,8 @@ const (
 	// as a STATUS:CANCELLED tombstone. It is deliberately longer than feedPastDays
 	// so a subscriber that was offline past the normal lookback still receives the
 	// cancellation and purges the stale event, rather than retaining it forever.
-	feedTombstoneDays = 90
+	// The Appointments owner deletes the tombstones after the same window.
+	feedTombstoneDays = appointmentcap.TombstoneRetentionDays
 )
 
 // FeedAccountRepo is the slice of the account repository the calendar feed

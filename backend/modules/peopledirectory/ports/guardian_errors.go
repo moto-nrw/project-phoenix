@@ -3,7 +3,7 @@ package ports
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
 )
 
 var (

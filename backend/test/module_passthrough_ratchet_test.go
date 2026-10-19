@@ -179,11 +179,14 @@ const modulePassthroughMaxBodyLines = 14
 // into internal/planning (#4240), and the root-facing seam and record types
 // into the owners' ports packages (#4174, #4182, #4210, #4227, #4236, #4238).
 var modulePassthroughMovedTrees = []struct{ path, owner string }{
+	{"modules/schoolcalendar/internal/adapters/postgres/native_feed_history.go", "modules/schoolcalendar"},
+	{"modules/devicefleet/internal/adapters/repositoryadapter/", "modules/devicefleet"},
 	{"modules/schoolstructure/internal/adapters/postgres/runtime/", "modules/schoolstructure"},
 	{"modules/peopledirectory/internal/adapters/postgres/runtime/", "modules/peopledirectory"},
 	// ADR 0064: consumer glue moved to the root, but its delegations stay
 	// attributed to the consumer. These entries expand the scan, not allowances.
 	{"api/device_scan_catalog.go", "modules/devicescan"},
+	{"api/import_staff_invitation.go", "modules/dataimport"},
 	{"api/kiosk_timetable.go", "modules/devicescan"},
 	{"modules/careplan/ports/", "modules/careplan"},
 	{"modules/identityaccess/ports/", "modules/identityaccess"},
@@ -201,8 +204,9 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughOwnerBudgets: 3109 under ADR 0061, the 717 of
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
-// by ADR 0063 and by ADR 0064 (3,011 to 3,091).
-const modulePassthroughOwnerBudgetTotal = 2972
+// by ADR 0063 and by ADR 0064 (3,011 to 3,091), and by ADR 0072 (one each
+// for modules/communication and modules/schoolcalendar).
+const modulePassthroughOwnerBudgetTotal = 2974
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -214,11 +218,13 @@ const modulePassthroughOwnerBudgetTotal = 2972
 // readable. Shrink-only — an entry may fall or go, never rise, and no module
 // gets a new entry.
 var modulePassthroughOwnerBudgets = map[string]int{
-	"modules/appointments":        65,
-	"modules/auditlog":            1,
-	"modules/careplan":            289,
-	"modules/classday":            18,
-	"modules/communication":       71,
+	"modules/appointments": 65,
+	"modules/auditlog":     1,
+	"modules/careplan":     289,
+	"modules/classday":     18,
+	// Raised by ADR 0072: the composition forwards the parent announcement
+	// retention to its service.
+	"modules/communication":       72,
 	"modules/dataimport":          1,
 	"modules/delivery":            15,
 	"modules/devicefleet":         58,
@@ -234,17 +240,18 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/peopledirectory":     303,
 	"modules/requestreview":       17,
 	"modules/schedulerruntime":    4,
-	"modules/schoolcalendar":      44,
-	"modules/schoolmembership":    81,
-	"modules/schoolsetup":         2,
-	"modules/schoolstructure":     70,
-	"modules/settings":            19,
-	"modules/studentpresence":     240,
-	"modules/timetable":           482,
-	"modules/workforce":           392,
-	"workflows/openroommove":      1,
-	"workflows/parentportal":      19,
-	"workflows/shiftplansync":     3,
+	// Raised by ADR 0072: the feed cleanup keeps only the staff feed tombstones.
+	"modules/schoolcalendar":   45,
+	"modules/schoolmembership": 81,
+	"modules/schoolsetup":      2,
+	"modules/schoolstructure":  70,
+	"modules/settings":         19,
+	"modules/studentpresence":  240,
+	"modules/timetable":        482,
+	"modules/workforce":        392,
+	"workflows/openroommove":   1,
+	"workflows/parentportal":   19,
+	"workflows/shiftplansync":  3,
 }
 
 func TestModulePassthroughRatchet(t *testing.T) {

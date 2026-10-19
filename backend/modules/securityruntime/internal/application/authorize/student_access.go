@@ -1,0 +1,110 @@
+package authorize
+
+import (
+	"context"
+	"fmt"
+
+	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
+)
+
+type authorizationStudent interface{ IsAuthorizationStudent() bool }
+
+// securitycontract.StudentAccessUserContext is the narrow subset of the Identity & Access
+// caller context the student gates need: whether the caller has a verified
+// staff record. Defined here (not imported) so this package stays a
+// dependency of the caller context's consumers, not of Identity & Access.
+
+// CanReadStudent decides whether the caller is allowed to see unredacted
+// student data (profile, location, pickup/arrival schedules, day plan).
+//
+// Admin permissions (admin:* / *:*) or a verified staff record in the current
+// tenant grant access; every other authenticated role (guest, guardian) with
+// users:read stays redacted. Student access is tenant-wide for staff (#2329) —
+// the former per-group scoping and its gdpr.student_data_scope setting are
+// gone, the Betreuer/Admin split lives entirely in the permission catalog.
+func CanReadStudent(
+	ctx context.Context,
+	userPermissions []string,
+	student authorizationStudent,
+	userCtx securitycontract.StudentAccessUserContext,
+) bool {
+	if student == nil || !student.IsAuthorizationStudent() {
+		return false
+	}
+	if HasAdminWildcard(userPermissions) {
+		return true
+	}
+	return isVerifiedStaff(ctx, userCtx)
+}
+
+// CanModifyStudent decides whether the caller may write to this student row
+// (update, delete, photo change, ...): admin, or any verified staff member of
+// the tenant (#2329). Route-level permission middleware (users:update,
+// users:delete, ...) still decides WHICH writes the caller may reach; this
+// gate only keeps non-staff accounts (guests, guardians) out. The `operation`
+// parameter shapes the human-readable error so the caller can map it to the
+// right HTTP message ("update", "delete", ...).
+//
+// Returns (true, nil) when allowed; (false, error) with a stable error
+// message otherwise — handlers map the error string to the user-facing
+// 403 reason.
+func CanModifyStudent(
+	ctx context.Context,
+	userPermissions []string,
+	student authorizationStudent,
+	userCtx securitycontract.StudentAccessUserContext,
+	operation string,
+) (bool, error) {
+	if HasAdminWildcard(userPermissions) {
+		return true, nil
+	}
+	if student == nil || !student.IsAuthorizationStudent() {
+		return false, fmt.Errorf("insufficient permissions to %s this student's data", operation)
+	}
+	if !isVerifiedStaff(ctx, userCtx) {
+		return false, fmt.Errorf("only staff members can %s student data", operation)
+	}
+	return true, nil
+}
+
+// CanUpdateStudent is a convenience wrapper for update operations.
+func CanUpdateStudent(
+	ctx context.Context,
+	userPermissions []string,
+	student authorizationStudent,
+	userCtx securitycontract.StudentAccessUserContext,
+) (bool, error) {
+	return CanModifyStudent(ctx, userPermissions, student, userCtx, "update")
+}
+
+// CanDeleteStudent is a convenience wrapper for delete operations.
+func CanDeleteStudent(
+	ctx context.Context,
+	userPermissions []string,
+	student authorizationStudent,
+	userCtx securitycontract.StudentAccessUserContext,
+) (bool, error) {
+	return CanModifyStudent(ctx, userPermissions, student, userCtx, "delete")
+}
+
+// isVerifiedStaff reports whether the caller has a staff record in the current
+// tenant. Guests and guardians authenticate against the same tenant portal, so
+// the gates check this rather than trusting a permission alone.
+// StudentDataAccess decides whether the caller sees unredacted student data
+// (#2329): an admin permission (`admin:*` or `*:*`) or, for everyone else, a
+// verified staff record. The staff lookup runs only for non-admin callers.
+func StudentDataAccess(ctx context.Context, userPermissions []string, hasStaff func(context.Context) (bool, error)) (admin, staff bool) {
+	if HasAdminWildcard(userPermissions) {
+		return true, false
+	}
+	found, err := hasStaff(ctx)
+	return false, err == nil && found
+}
+
+func isVerifiedStaff(ctx context.Context, userCtx securitycontract.StudentAccessUserContext) bool {
+	if userCtx == nil {
+		return false
+	}
+	staff, err := userCtx.HasCurrentStaff(ctx)
+	return err == nil && staff
+}

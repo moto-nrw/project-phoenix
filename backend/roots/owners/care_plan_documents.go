@@ -5,6 +5,8 @@ import (
 	"errors"
 	"time"
 
+	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
+
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
@@ -18,7 +20,7 @@ import (
 // with the security runtime's rules over the People Directory row.
 type studentDocumentAccess struct {
 	students    studentDocumentStudents
-	userContext securityruntime.StudentAccessUserContext
+	userContext securitycontract.StudentAccessUserContext
 }
 
 func (a studentDocumentAccess) HasPermission(required string, granted []string) bool {
@@ -99,7 +101,7 @@ func (a studentDocumentAudit) RecordDocumentDownload(ctx context.Context, studen
 // adds its database handle to the dependencies they bind.
 func StudentDocumentDependencies(
 	records careplan.Capability, students studentDocumentStudents,
-	userContext securityruntime.StudentAccessUserContext,
+	userContext securitycontract.StudentAccessUserContext,
 	edits studentDocumentEdits, accessLog studentDocumentAccessLog, documentPermissions carePlanCompose.StudentDocumentPermissions,
 ) (carePlanCompose.StudentDocumentDependencies, error) {
 	if students == nil || userContext == nil {

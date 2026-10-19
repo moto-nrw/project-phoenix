@@ -3,21 +3,22 @@ package owners
 import (
 	"context"
 
+	directoryPorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
 
-func timetableStudents(students peopledirectory.StudentQuery) timetableCompose.StudentDirectory {
-	return timetableCompose.StudentDirectoryFunc(func(ctx context.Context) ([]timetableCompose.TargetStudent, error) {
+func timetableStudents(students peopledirectory.StudentQuery) directoryPorts.StudentDirectory {
+	return directoryPorts.StudentDirectoryFunc(func(ctx context.Context) ([]directoryPorts.TargetStudent, error) {
 		values, err := students.ListEnrolledStudents(ctx)
 		if err != nil {
 			return nil, err
 		}
-		result := make([]timetableCompose.TargetStudent, 0, len(values))
+		result := make([]directoryPorts.TargetStudent, 0, len(values))
 		for _, value := range values {
-			result = append(result, timetableCompose.TargetStudent{
+			result = append(result, directoryPorts.TargetStudent{
 				ID: value.ID, SchoolClass: value.SchoolClass, EducationGroupID: value.GroupID,
 				EnrolledUntil: value.EnrolledUntil,
 			})

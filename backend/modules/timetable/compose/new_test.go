@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	directoryPorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -34,7 +36,9 @@ func buildModule(t *testing.T, db *bun.DB, observers ...func(Observation)) *time
 	if len(observers) > 0 {
 		observe = observers[0]
 	}
-	students := StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) { return []TargetStudent{}, nil })
+	students := directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) {
+		return []directoryPorts.TargetStudent{}, nil
+	})
 	module, err := New(Dependencies{Provenance: testpkg.EnrollmentProvenance{}, DB: db, Students: students, Rooms: testRooms(), Sessions: &fixedSessions{}, LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: observe})
 	require.NoError(t, err)
 	return module
@@ -487,8 +491,8 @@ func TestModuleResolvesTargetStudentsThroughPeopleDirectory(t *testing.T) {
 	group := testpkg.CreateTestActivityGroup(t, db, "Target students")
 	member := testpkg.CreateTestStudent(t, db, "Target", "Member", " 2B ")
 	nonMember := testpkg.CreateTestStudent(t, db, "Target", "Other", "3a")
-	students := StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) {
-		return []TargetStudent{
+	students := directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) {
+		return []directoryPorts.TargetStudent{
 			{ID: member.ID, SchoolClass: member.SchoolClass},
 			{ID: nonMember.ID, SchoolClass: nonMember.SchoolClass},
 		}, nil
@@ -788,7 +792,9 @@ func (s *fixedSessions) RunningSessionsByInstance(context.Context, []int64) (map
 // buildModuleWithSessions composes the owner over the given session facts.
 func buildModuleWithSessions(t *testing.T, db *bun.DB, sessions timetable.SessionFacts) *timetable.Module {
 	t.Helper()
-	students := StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) { return []TargetStudent{}, nil })
+	students := directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) {
+		return []directoryPorts.TargetStudent{}, nil
+	})
 	module, err := New(Dependencies{Provenance: testpkg.EnrollmentProvenance{}, DB: db, Students: students, Rooms: testRooms(), Sessions: sessions, LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: func(Observation) {}})
 	require.NoError(t, err)
 	return module

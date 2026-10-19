@@ -1,6 +1,6 @@
 package notifications
 
-import "github.com/moto-nrw/project-phoenix/localization"
+import "github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/localization"
 
 const (
 	ParentAppointmentPublished  = "published"

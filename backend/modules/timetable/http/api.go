@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -108,8 +108,10 @@ type Dependencies struct {
 	// shift-coverage probe from the Timetable owner (#3550).
 	ConflictDetection  timetable.ConflictDetectionCapability
 	CareDayService     careplan.CareDayQuery
-	UserContextService securityruntime.StudentAccessUserContext
-	SettingsService    settings.Resolver
+	UserContextService interface {
+		HasCurrentStaff(context.Context) (bool, error)
+	}
+	SettingsService settings.Resolver
 	// OfferingSourceOptions serves the offering-source editor support
 	// endpoint, the empty-roster explanation of the instance list and the
 	// roster indicator of the template list (#2137, #3140).

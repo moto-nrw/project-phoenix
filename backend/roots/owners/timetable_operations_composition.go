@@ -29,7 +29,7 @@ func NewTimetableOperations(
 	settings TimetableSettings, careDays careplan.CareDayQuery, arrivals EffectiveArrivalTimes, pickups EffectivePickupTimes,
 	broadcaster realtime.Broadcaster, withStaff func(context.Context, int64, int64) context.Context,
 ) (timetable.OperationCapability, error) {
-	templates, err := rows.OperationTemplates()
+	templates, err := timetableCompose.NewOperationTemplates(rows.Templates)
 	if err != nil {
 		return nil, err
 	}

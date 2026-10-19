@@ -25,7 +25,7 @@ Eltern-Portal pro Kind zu oder lehnen ab.
 | Widerruf | Bei widerruflichen Einwilligungen jederzeit, auch nach Ablauf der Frist. Vor der Frist kann eine Antwort korrigiert werden; jede Änderung ist ein neuer Eintrag. |
 | Nachweis für Eltern | Seite im Eltern-Portal in der Sprache der Eltern und PDF im moto-Design (deutsch) mit vollständigem Text, Dateien und eigenem Verlauf. |
 | Nachweis für die Einrichtung | Statusansicht je Kind, vollständiger Verlauf, Bericht als PDF im moto-Design, CSV-Export. Nur der CSV-Export enthält die Prüfsummen, als maschinenlesbare Ablage für Support oder einen Streitfall. |
-| Löschung | Wird ein Kind nach den Aufbewahrungsregeln gelöscht, entfallen seine Nachweise mit. Wird eine Schule gelöscht, ebenso. |
+| Löschung | Wird ein Kind nach den Aufbewahrungsregeln gelöscht, entfallen seine Nachweise mit. Wird eine Schule gelöscht, ebenso. Das Einverständnis selbst bleibt, solange es Antworten hat; danach löscht es der nächtliche Lauf nach der Frist der Elternnachrichten (#4045, siehe [Löschfristen](loeschfristen.md)). |
 
 Grenzen des Nachweises: Eine Prüfsumme belegt, dass ein gespeicherter Eintrag
 nachträglich nicht verändert wurde, soweit die Prüfsumme selbst unverändert

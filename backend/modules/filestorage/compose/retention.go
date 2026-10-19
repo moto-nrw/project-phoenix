@@ -8,26 +8,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/filestorage"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
-// NewCleanupRetention composes the cleanup-intent retention of the nightly
-// cleanup (#4046). It runs on the tenant transaction of the school in
+// NewCleanupRetention composes the retention of the technical remains of the
+// nightly cleanup (#4046, #4045). It runs on the tenant transaction of the school in
 // context and needs neither the object store nor another owner.
 func NewCleanupRetention() filestorage.CleanupRetention {
-	return cleanupRetention{retention: application.NewCleanupRetention(postgres.NewCleanupRetentionStore(retentionDatabase))}
-}
-
-type cleanupRetention struct{ retention *application.CleanupRetention }
-
-func (r cleanupRetention) DeleteFinishedCleanups(ctx context.Context) (int, int, error) {
-	deleted, err := r.retention.DeleteFinished(ctx)
-	if err != nil {
-		return 0, 0, err
-	}
-	return deleted, int(domain.CleanupRetentionWindow.Hours() / 24), nil
+	return application.NewCleanupRetention(postgres.NewCleanupRetentionStore(retentionDatabase))
 }
 
 // retentionDatabase is the transaction of the school in context; without one

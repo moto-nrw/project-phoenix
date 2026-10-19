@@ -75,6 +75,18 @@ const (
 	DeletionTypeAttendanceRetention = "attendance_retention"
 	// Parent contacts without a child after the school's window (#4043).
 	DeletionTypeGuardianRetention = "guardian_retention"
+	// The content a school creates itself, each after its window (#4045):
+	// parent announcements and staff notices after the school's message
+	// windows, ended appointments after its timetable window and cancelled or
+	// deleted ones after the fixed feed window, grade transitions after its
+	// student window and removed file-storage rows after the fixed window of
+	// the cleanup intents.
+	DeletionTypeParentAnnouncementRetention   = "parent_announcement_retention"
+	DeletionTypeStaffNoticeRetention          = "staff_notice_retention"
+	DeletionTypeAppointmentRetention          = "appointment_retention"
+	DeletionTypeAppointmentTombstoneRetention = "appointment_tombstone_retention"
+	DeletionTypeGradeTransitionRetention      = "grade_transition_retention"
+	DeletionTypeRemovedFileRetention          = "removed_file_retention"
 	// The protocols of #4044 and the setting protocol, each after its fixed
 	// window.
 	DeletionTypeStudentDeletionLogRetention       = "student_deletion_log_retention"
@@ -118,6 +130,12 @@ func IsDataKindRetention(deletionType string) bool {
 		DeletionTypeAttendanceRetention,
 		DeletionTypeGuardianRetention,
 		DeletionTypeParentMessageRetention,
+		DeletionTypeParentAnnouncementRetention,
+		DeletionTypeStaffNoticeRetention,
+		DeletionTypeAppointmentRetention,
+		DeletionTypeAppointmentTombstoneRetention,
+		DeletionTypeGradeTransitionRetention,
+		DeletionTypeRemovedFileRetention,
 		DeletionTypeAuthEventRetention,
 		DeletionTypeDataAccessLogRetention,
 		DeletionTypeDeletionLogRetention,

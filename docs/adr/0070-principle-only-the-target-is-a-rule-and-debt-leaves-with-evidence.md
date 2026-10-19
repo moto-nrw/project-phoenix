@@ -37,8 +37,9 @@ and history; this ADR changes none of them.
    rejects a raise. A raise passes only under an ADR the same change adds and
    the raised entry cites; renaming or copying an existing ADR authorizes
    nothing (ADR 0057 point 5). The recorded raises are
-   [ADR 0063](0063-operator-status-lifecycle-raises-the-identity-compose-budget.md)
-   and [ADR 0064](0064-moved-code-stays-in-the-pass-through-scan.md).
+   [ADR 0063](0063-operator-status-lifecycle-raises-the-identity-compose-budget.md),
+   [ADR 0064](0064-moved-code-stays-in-the-pass-through-scan.md) and
+   [ADR 0072](0072-gocognit-upgrade-rebaselines-the-module-complexity-register.md).
 5. **A measurement follows the code, not its location.** Pass-throughs are
    counted per owner across its application layer and its compositions
    ([ADR 0061](0061-pass-throughs-are-counted-per-owner.md)); code moved into

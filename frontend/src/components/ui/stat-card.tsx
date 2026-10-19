@@ -40,8 +40,7 @@ import { Skeleton } from "~/components/ui/skeleton";
  * der Seite (Dunkelgrau): für eine Kennzahl, die nichts einfärben soll, weil
  * das Symbol daneben die Bedeutung schon trägt (Startseite, #2180).
  */
-export type StatCardTone =
-  "blue" | "green" | "orange" | "red" | "gray" | "neutral";
+type StatCardTone = "blue" | "green" | "orange" | "red" | "gray" | "neutral";
 
 const TONE_COLOR: Record<Exclude<StatCardTone, "neutral">, string> = {
   blue: LOCATION_COLORS.OTHER_ROOM,

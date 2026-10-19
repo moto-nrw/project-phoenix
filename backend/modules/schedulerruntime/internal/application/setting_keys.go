@@ -21,6 +21,8 @@ const (
 	settingAttendanceRetentionDays               = "gdpr.attendance_retention_days"
 	settingGuardianRetentionDays                 = "gdpr.guardian_retention_days"
 	settingParentMessageRetentionDays            = "gdpr.parent_message_retention_days"
+	settingStaffMessageRetentionDays             = "gdpr.staff_message_retention_days"
+	settingTimetableRetentionDays                = "gdpr.timetable_retention_days"
 	settingWithdrawnEnrollmentRetentionDays      = "gdpr.withdrawn_enrollment_retention_days"
 	settingEnrollmentRejectedRetentionDays       = "enrollment.rejected_retention_days"
 	settingStaffSickNoteRetentionDays            = "gdpr.staff_sick_note_retention_days"

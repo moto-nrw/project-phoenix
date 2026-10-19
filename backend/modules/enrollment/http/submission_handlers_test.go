@@ -495,7 +495,7 @@ func TestRemoteIPFromRequest_IPv6BracketsHandled(t *testing.T) {
 func remoteIPFromRequestThroughXFFMiddleware(req *http.Request) string {
 	var ip string
 	router := chi.NewRouter()
-	router.Use(chimiddleware.ClientIPFromXFF())
+	router.Use(chimiddleware.ClientIPFromXFFTrustedProxies(1))
 	router.Post("/x", func(w http.ResponseWriter, r *http.Request) {
 		ip = remoteIPFromRequest(r)
 		w.WriteHeader(http.StatusNoContent)

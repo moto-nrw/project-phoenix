@@ -160,6 +160,12 @@ type Service interface {
 	// scheduler's tenant transaction.
 	SendDueReminders(ctx context.Context, notBefore, dueBefore time.Time) (sent int, retryFrom *time.Time, err error)
 
+	// --- retention (#4045) ---
+	// DeleteExpiredParentAnnouncements deletes the announcements of the
+	// school that ended before the window of retentionDays and reports how
+	// many went. Runs inside the nightly cleanup's tenant transaction.
+	DeleteExpiredParentAnnouncements(ctx context.Context, retentionDays int) (int, error)
+
 	// --- cancellation notice (#2601) ---
 	CareCancellationPublisher
 

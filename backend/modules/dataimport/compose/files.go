@@ -2,7 +2,7 @@ package compose
 
 import (
 	"github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/fileformat"
+	"github.com/moto-nrw/project-phoenix/modules/dataimport/internal/adapters/fileformat"
 )
 
 // NewFileDecoder decodes uploaded CSV and Excel files and renders the import
