@@ -7,7 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
-// settingsChangedNotifier tells the school's open tenant tabs that a setting
+// SettingsChangedNotifier tells the school's open tenant tabs that a setting
 // changed, so they drop their settings caches across origins. It is nil
 // without a realtime hub, which disables the broadcast.
 func SettingsChangedNotifier(hub *realtime.Hub) settingsCompose.SettingsChangedNotifier {

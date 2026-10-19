@@ -21,6 +21,7 @@ import (
 	"time"
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 
 	"github.com/moto-nrw/project-phoenix/api"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -28,7 +29,6 @@ import (
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -265,21 +265,22 @@ func createLinkedCareOffering(
 	return offering
 }
 
-func createShortCalendarPeriod(t *testing.T, s *scenarioSetup, start, end calendar.Date) *scheduleModels.CalendarPeriod {
+func createShortCalendarPeriod(t *testing.T, s *scenarioSetup, start, end calendar.Date) *fixtures.CalendarPeriod {
 	t.Helper()
-	period := &scheduleModels.CalendarPeriod{
-		Name:            fmt.Sprintf("Short linked period %d", time.Now().UnixNano()),
-		PeriodType:      scheduleModels.PeriodTypeCustom,
-		StartDate:       scheduleModels.Date(start),
-		EndDate:         scheduleModels.Date(end),
-		WeekCycleLength: 1,
-		IsActive:        true,
-	}
+	period := fixtures.NewCalendarPeriod(func(fixtureRow *fixtures.CalendarPeriod) {
+		fixtureRow.Name = fmt.Sprintf("Short linked period %d", time.Now().UnixNano())
+		fixtureRow.PeriodType = fixtures.PeriodTypeCustom()
+		fixtureRow.StartDate = calendar.Date(start)
+		fixtureRow.EndDate = calendar.Date(end)
+		fixtureRow.WeekCycleLength = 1
+		fixtureRow.IsActive = true
+	})
+
 	createCalendarPeriodRow(t, s.db, s.ctx, period)
 	return period
 }
 
-func createCompatibleCalendarPeriod(t *testing.T, s *scenarioSetup) *scheduleModels.CalendarPeriod {
+func createCompatibleCalendarPeriod(t *testing.T, s *scenarioSetup) *fixtures.CalendarPeriod {
 	t.Helper()
 	period := createShortCalendarPeriod(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	period.Name = fmt.Sprintf("Compatible linked period %d", time.Now().UnixNano())
@@ -454,7 +455,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 	t.Run("update removes B-week occurrences", func(t *testing.T) {
 		s := makeScenario(t, activityContract.WeekdayMonday, effective)
 		defer s.runCleanup(t)
-		anchor := scheduleModels.Date(effective)
+		anchor := calendar.Date(effective)
 		s.period.WeekCycleLength = 2
 		s.period.WeekCycleAnchor = &anchor
 		updateCalendarPeriodRow(t, s.db, s.ctx, s.period)
@@ -669,14 +670,14 @@ func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {
 	require.Len(t, second, 1)
 
 	// First Monday's instance has started — history that must survive.
-	testpkg.SetActivityInstanceLifecycle(t, s.ctx, s.db, first[0].ID, scheduleModels.InstanceStatusActive)
+	testpkg.SetActivityInstanceLifecycle(t, s.ctx, s.db, first[0].ID, fixtures.InstanceStatusActive())
 
 	// Protected kinds inside the horizon (mirrors flow_d): completed,
 	// cancelled, spontaneous planned — all on the OLD template — plus a
 	// planned instance of a DIFFERENT group.
-	completedID := splitInsertInstance(t, s, &s.template.ID, effective, scheduleModels.InstanceStatusCompleted, false, 9)
-	cancelledID := splitInsertInstance(t, s, &s.template.ID, effective, scheduleModels.InstanceStatusCancelled, false, 10)
-	spontaneousID := splitInsertInstance(t, s, &s.template.ID, effective, scheduleModels.InstanceStatusPlanned, true, 11)
+	completedID := splitInsertInstance(t, s, &s.template.ID, effective, fixtures.InstanceStatusCompleted(), false, 9)
+	cancelledID := splitInsertInstance(t, s, &s.template.ID, effective, fixtures.InstanceStatusCancelled(), false, 10)
+	spontaneousID := splitInsertInstance(t, s, &s.template.ID, effective, fixtures.InstanceStatusPlanned(), true, 11)
 
 	roomID := s.roomID
 	otherGroup := &activityContract.Group{
@@ -691,7 +692,7 @@ func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {
 	require.NoError(t, err)
 	s.extraCleanups = append([]func(){func() {
 	}}, s.extraCleanups...)
-	otherPlannedID := splitInsertInstance(t, s, &otherGroup.ID, effective, scheduleModels.InstanceStatusPlanned, false, 12)
+	otherPlannedID := splitInsertInstance(t, s, &otherGroup.ID, effective, fixtures.InstanceStatusPlanned(), false, 12)
 
 	// --- Act ----------------------------------------------------------------
 	in := baseSplitInput(s, effective, fmt.Sprintf("Split-Nachfolger-%d", suffix))
@@ -907,11 +908,11 @@ func TestTemplateEndFromDate_CapsTemplateAndProtectsHistory(t *testing.T) {
 	second := listInstancesForDate(t, s.db, s.template.ID, secondMonday)
 	require.Len(t, second, 1)
 
-	testpkg.SetActivityInstanceLifecycle(t, s.ctx, s.db, first[0].ID, scheduleModels.InstanceStatusActive)
+	testpkg.SetActivityInstanceLifecycle(t, s.ctx, s.db, first[0].ID, fixtures.InstanceStatusActive())
 
-	completedID := splitInsertInstance(t, s, &s.template.ID, effective, scheduleModels.InstanceStatusCompleted, false, 9)
-	cancelledID := splitInsertInstance(t, s, &s.template.ID, effective, scheduleModels.InstanceStatusCancelled, false, 10)
-	spontaneousID := splitInsertInstance(t, s, &s.template.ID, effective, scheduleModels.InstanceStatusPlanned, true, 11)
+	completedID := splitInsertInstance(t, s, &s.template.ID, effective, fixtures.InstanceStatusCompleted(), false, 9)
+	cancelledID := splitInsertInstance(t, s, &s.template.ID, effective, fixtures.InstanceStatusCancelled(), false, 10)
+	spontaneousID := splitInsertInstance(t, s, &s.template.ID, effective, fixtures.InstanceStatusPlanned(), true, 11)
 
 	roomID := s.roomID
 	otherGroup := &activityContract.Group{
@@ -926,7 +927,7 @@ func TestTemplateEndFromDate_CapsTemplateAndProtectsHistory(t *testing.T) {
 	require.NoError(t, err)
 	s.extraCleanups = append([]func(){func() {
 	}}, s.extraCleanups...)
-	otherPlannedID := splitInsertInstance(t, s, &otherGroup.ID, effective, scheduleModels.InstanceStatusPlanned, false, 12)
+	otherPlannedID := splitInsertInstance(t, s, &otherGroup.ID, effective, fixtures.InstanceStatusPlanned(), false, 12)
 
 	res, err := s.timetableData.Templates.EndTemplateFromDate(s.ctx, timetable.EndTemplateCommand{
 		TemplateID:    s.template.ID,

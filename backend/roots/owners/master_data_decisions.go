@@ -140,7 +140,7 @@ type MasterDataPeople interface {
 	peopledirectory.PersonDetailsCommand
 }
 
-// masterDataRecords binds the decision's People Directory port to the
+// MasterDataRecords binds the decision's People Directory port to the
 // retained student and person reads, People Directory's audited student write
 // over the same rows and its person details write.
 type MasterDataRecords struct {

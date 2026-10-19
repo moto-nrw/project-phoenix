@@ -24,7 +24,7 @@ import (
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 )
 
-// buildWorkSessionSide binds the time-tracking side of Workforce (#3413)
+// BuildWorkSessionSide binds the time-tracking side of Workforce (#3413)
 // without the absences: stamps, history and edits, month balances and their
 // close, overview, exports, the audit feed and Student Presence's NFC
 // auto-check-in. The absences need the #1843 sick cascade, which needs the
@@ -88,7 +88,7 @@ type WorkforcePlanning struct {
 	TimeTrackingCleanup workforceCompose.TimeTrackingCleanupService
 }
 
-// buildWorkforcePlanning completes the time tracking with the sick cascade,
+// BuildWorkforcePlanning completes the time tracking with the sick cascade,
 // which runs over the staff shifts, the deviation writes and the timetable
 // rows.
 func BuildWorkforcePlanning(

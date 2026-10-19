@@ -45,7 +45,7 @@ type staffDataAccessTrail interface {
 	Create(context.Context, *auditModels.DataAccessLog) error
 }
 
-// composeStaffAdmin composes the personnel-record administration over the
+// ComposeStaffAdmin composes the personnel-record administration over the
 // retained staff and person rows, the People Directory's person details,
 // School Membership and the audit trail. admin carries what the caller binds
 // (the database, the observer, the logger and the clock); the subjects, the

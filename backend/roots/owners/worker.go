@@ -38,7 +38,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
-// newWorker starts the Worker over the owners a root built: the server root
+// NewWorker starts the Worker over the owners a root built: the server root
 // passes the owners it mounts, the Worker root the owners its jobs need.
 // Each argument is one owner's value or a single-owner bundle; the Worker's
 // own collaborators (lease, tenant runtime, settings snapshots, retention,

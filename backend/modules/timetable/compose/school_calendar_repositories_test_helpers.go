@@ -3,7 +3,6 @@
 package compose
 
 import (
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -11,9 +10,9 @@ import (
 
 // SchoolCalendarRepositories are the retained period, closing day and dateframe repositories.
 type SchoolCalendarRepositories struct {
-	CalendarPeriod scheduleModels.CalendarPeriodRepository
-	ClosingDay     scheduleModels.ClosingDayRepository
-	Dateframe      scheduleModels.DateframeRepository
+	CalendarPeriod ports.CalendarPeriodRecords
+	ClosingDay     ports.ClosingDayRecords
+	Dateframe      ports.DateframeRecords
 }
 
 // NewSchoolCalendarRepositories binds School Calendar; usage counts period references.
@@ -27,12 +26,12 @@ func NewSchoolCalendarRepositories(calendar schoolcalendar.Capability, usage por
 
 // NewClosingDayRepository serves the legacy closing day repository over the
 // School Calendar owner (#2666).
-func NewClosingDayRepository(calendar schoolcalendar.Capability) scheduleModels.ClosingDayRepository {
+func NewClosingDayRepository(calendar schoolcalendar.Capability) ports.ClosingDayRecords {
 	return application.NewClosingDayRepository(calendar)
 }
 
 // NewDateframeRepository serves the legacy dateframe repository over the
 // School Calendar owner (#2666).
-func NewDateframeRepository(calendar schoolcalendar.Capability) scheduleModels.DateframeRepository {
+func NewDateframeRepository(calendar schoolcalendar.Capability) ports.DateframeRecords {
 	return application.NewDateframeRepository(calendar)
 }

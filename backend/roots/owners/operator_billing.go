@@ -11,7 +11,7 @@ import (
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 )
 
-// newOperatorBilling composes Organisation & Tenancy's billing report
+// NewOperatorBilling composes Organisation & Tenancy's billing report
 // (#2791) over the two owners whose counts it captures. It needs no graph of
 // its own: the operator router and the worker each compose one, and both
 // read and write through the ambient administrative transaction.
@@ -25,7 +25,7 @@ func NewOperatorBilling(logger *slog.Logger) (organizationModule.BillingReport, 
 	})
 }
 
-// billingCounts binds the billing report's counts port to its owners:
+// BillingCounts binds the billing report's counts port to its owners:
 // School Membership counts the active students, Device Fleet the active
 // terminals.
 type BillingCounts struct {

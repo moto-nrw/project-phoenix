@@ -6,16 +6,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	activitiesModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/activityrecords"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type assignableCategoryRepo struct {
-	activitiesModel.CategoryRepository
+	ports.ActivityCategoryRecords
 	category *activityContract.Category
 	err      error
 }

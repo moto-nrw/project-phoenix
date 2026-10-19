@@ -7,7 +7,7 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
-// enrollmentCareBookings records and replaces an approved child's bookings
+// EnrollmentCareBookingsBinding records and replaces an approved child's bookings
 // in Care Plan for Enrollment's intake, change requests and rollover.
 type EnrollmentCareBookingsBinding struct {
 	Owner careplan.OfferingBookingCommands

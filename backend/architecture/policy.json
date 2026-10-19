@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 83,
+  "policy_epoch": 84,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -1262,13 +1262,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/activities",
-      "owner": "timetable-activities",
-      "role": "legacy-model",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/auditlog/records",
       "owner": "audit-platform",
       "role": "port",
@@ -1363,13 +1356,6 @@
       "path": "modules/careplan/internal/rows",
       "owner": "care-plan",
       "role": "domain",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "models/schedule",
-      "owner": "timetable-activities",
-      "role": "legacy-model",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -2284,7 +2270,7 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "services/scheduler",
+      "path": "modules/schedulerruntime/internal/application",
       "owner": "scheduler-runtime",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -3526,6 +3512,41 @@
       "path": "modules/delivery/runtime",
       "owner": "delivery-platform",
       "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/internal/domain/activityrecords",
+      "owner": "timetable-activities",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/fixturetest",
+      "owner": "timetable-activities",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/internal/adapters/postgres/runtime",
+      "owner": "people-directory",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolstructure/internal/adapters/postgres/runtime",
+      "owner": "school-structure",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/internal/domain/schedulerecords",
+      "owner": "timetable-activities",
+      "role": "domain",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -6661,17 +6682,6 @@
       "same_owner": true
     },
     {
-      "id": "domain.application-legacy-model",
-      "description": "domain application code may use its own domain. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner_kind": "domain",
-      "source_role": "application",
-      "target_role": "legacy-model",
-      "same_owner": true
-    },
-    {
       "id": "domain.application-port",
       "description": "domain application code may use its own consumer-owned ports.",
       "scopes": [
@@ -6691,17 +6701,6 @@
       "source_owner_kind": "domain",
       "source_role": "postgres",
       "target_role": "domain",
-      "same_owner": true
-    },
-    {
-      "id": "domain.postgres-legacy-model",
-      "description": "domain Postgres adapters may use their own domain. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner_kind": "domain",
-      "source_role": "postgres",
-      "target_role": "legacy-model",
       "same_owner": true
     },
     {
@@ -7894,16 +7893,6 @@
       "target_role": "domain"
     },
     {
-      "id": "internal-test.same-owner.legacy-model",
-      "description": "Internal tests may import their owner's domain packages. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_role": "module-internal-test",
-      "same_owner": true,
-      "target_role": "legacy-model"
-    },
-    {
       "id": "internal-test.same-owner.postgres",
       "description": "Internal tests may import their owner's postgres packages.",
       "scopes": [
@@ -8348,17 +8337,6 @@
       "same_owner": true
     },
     {
-      "id": "timetable-activities.port.legacy-model",
-      "description": "Timetable & Activities ports name the schedule and activity rows of the owner's legacy models in their dependency types (ADR 0058 addendum point 5, #4084); #4086 dissolves models/schedule and models/activities and with them this rule. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "port",
-      "target_owner": "timetable-activities",
-      "target_role": "legacy-model"
-    },
-    {
       "id": "timetable-activities.port.student-presence.public",
       "description": "Timetable & Activities ports name student-presence public values in their dependency types (ADR 0058 addendum, #4084).",
       "scopes": [
@@ -8477,39 +8455,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "timetable-activities",
       "target_role": "domain"
-    },
-    {
-      "id": "timetable-activities.integration-test.legacy-model",
-      "description": "Timetable integration tests create retained owner rows. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "timetable-activities",
-      "target_role": "legacy-model"
-    },
-    {
-      "id": "timetable-activities.http-integration-test.owner-domain",
-      "description": "Timetable HTTP integration tests build retained owner rows. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "timetable-activities",
-      "target_role": "legacy-model"
-    },
-    {
-      "id": "timetable-activities.http-integration-test.application",
-      "description": "Timetable HTTP integration tests pin retained application error contracts.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "timetable-activities",
-      "target_role": "application"
     },
     {
       "id": "timetable-block-display.timetable-public",
@@ -13007,17 +12952,6 @@
       "same_owner": true
     },
     {
-      "id": "owner-compose.domain.legacy-model",
-      "description": "ADR 0053 point 3: the composition of a domain owner imports its own domain role. The models/* packages carry the legacy-model role (ADR 0057).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner_kind": "domain",
-      "source_role": "compose",
-      "target_role": "legacy-model",
-      "same_owner": true
-    },
-    {
       "id": "owner-compose.domain.port",
       "description": "ADR 0053 point 3: the composition of a domain owner imports its own port role.",
       "scopes": [
@@ -15425,19 +15359,6 @@
       "target_package": "modules/timetable/activitycontract"
     },
     {
-      "id": "timetable-activities.legacy-model.production.activity-contract",
-      "description": "Actual native activity values and capability replace retained model and compose declarations.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "legacy-model",
-      "target_owner": "timetable-activities",
-      "target_role": "contract",
-      "target_package": "modules/timetable/activitycontract",
-      "source_package": "models/activities"
-    },
-    {
       "id": "timetable-activities.workflow-integration-test.internal_test.activity-contract",
       "description": "Actual native activity values and capability replace retained model and compose declarations.",
       "scopes": [
@@ -15647,6 +15568,42 @@
       "target_role": "contract"
     },
     {
+      "id": "timetable-activities.test-support.activity-contract",
+      "description": "The owner fixture seam accepts the standing activity contract; precedent delivery.test-support.native-contracts (#4086).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "test-support",
+      "target_owner": "timetable-activities",
+      "target_role": "contract",
+      "target_package": "modules/timetable/activitycontract"
+    },
+    {
+      "id": "timetable-activities.test-support.native-domain",
+      "description": "The owner fixture seam constructs its canonical native rows and error contracts (Round 6, ADR 0069). Same-owner shape: security-runtime.test-support.domain.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "test-support",
+      "source_package": "modules/timetable/fixturetest",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-activities.test-support.school-calendar-public",
+      "description": "The owner fixture queries use School Calendar native dateframe filters. Narrow fixture successor of timetable-activities.application.school-calendar.public, ADR 0071.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "test-support",
+      "source_package": "modules/timetable/fixturetest",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
       "id": "root-composition.reach.compose.self-compose",
       "description": "ADR 0053 point 2: the typed roots compose their own owner builders.",
       "scopes": [
@@ -15845,6 +15802,11 @@
     {
       "from": "services/parentmessaging",
       "to": "modules/communication/internal/application/parentmessaging",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "services/scheduler",
+      "to": "modules/schedulerruntime/internal/application",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     }
   ]

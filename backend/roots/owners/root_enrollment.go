@@ -21,7 +21,7 @@ type EnrollmentRows struct {
 	ParentOfferingHistory EnrollmentOfferingHistory
 }
 
-// buildEnrollmentRows binds Enrollment's booking projection to Care Plan's
+// BuildEnrollmentRows binds Enrollment's booking projection to Care Plan's
 // bookings and the People Directory.
 func BuildEnrollmentRows(bookings *enrollmentOwner.BookingProjection, carePlan careplan.Capability, persons peopledirectory.Capability) EnrollmentRows {
 	return EnrollmentRows{

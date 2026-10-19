@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -343,7 +345,7 @@ func (r StaffMembershipRepository) FindWithPersonByIDs(ctx context.Context, ids 
 func (r StaffMembershipRepository) staffDirectory() (*staffdirectoryview.Directory, error) {
 	return staffdirectoryview.New(staffdirectoryview.Dependencies{
 		Members: r.Membership, Persons: staffViewPersons{rows: r.Deps.persons}, Accounts: r.Deps.identity,
-		CallerTenant: peopleCompose.CallerTenantID, HasPermission: securityruntime.HasPermission,
+		CallerTenant: tenant.FromContext, HasPermission: securityruntime.HasPermission,
 	})
 }
 

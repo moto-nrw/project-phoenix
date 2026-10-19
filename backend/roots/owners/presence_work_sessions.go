@@ -8,7 +8,7 @@ import (
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
-// presenceAutoCheckIn binds Student Presence's automatic check-in to the
+// PresenceAutoCheckIn binds Student Presence's automatic check-in to the
 // Workforce time clock. Student Presence sits below Workforce (ADR 0058,
 // #3417), so it names the stamp channel in its own vocabulary and the root
 // maps it onto Workforce's stamp source.

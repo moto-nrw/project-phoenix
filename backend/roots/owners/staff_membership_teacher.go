@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/tenant"
 
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
@@ -324,7 +324,7 @@ func (r TeacherMembershipRepository) FindWithStaffAndPersonByIDs(ctx context.Con
 // caller's school over the People Directory persons and the Identity &
 // Access account facts, in the picker order.
 func (r TeacherMembershipRepository) activeCaregivers(ctx context.Context, accountID *int64) ([]*peopleValues.ActiveCaregiver, error) {
-	values, err := schoolmembership.ActiveCaregivers(ctx, r.Membership, caregiverDirectory{r.Deps}, peopleCompose.CallerTenantID(ctx), accountID)
+	values, err := schoolmembership.ActiveCaregivers(ctx, r.Membership, caregiverDirectory{r.Deps}, tenant.FromContext(ctx), accountID)
 	if err != nil {
 		return nil, err
 	}

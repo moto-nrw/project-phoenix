@@ -15,7 +15,7 @@ import (
 	studentdeletioncompose "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose"
 )
 
-// buildStudentDeletion binds the permanent child deletion (#2710), which
+// BuildStudentDeletion binds the permanent child deletion (#2710), which
 // unlinks a deleted child's photo through the photo lifecycle.
 func BuildStudentDeletion(
 	db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, persons peopledirectory.Capability,

@@ -4,9 +4,8 @@ import (
 	"testing"
 	"time"
 
+	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
 func TestInstanceRowIsStillPlanned(t *testing.T) {

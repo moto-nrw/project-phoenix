@@ -20,7 +20,7 @@ import (
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
-// buildActivities binds the activities service of the Timetable owner.
+// BuildActivities binds the activities service of the Timetable owner.
 func BuildActivities(owner TimetableOwner, timetableOwner timetable.Capability, sessions *presenceCompose.SessionRecords, people PeopleRows) (activityContract.ActivityService, error) {
 	repos := owner.Repositories
 	return arrivalTimetable.NewService(
@@ -29,7 +29,7 @@ func BuildActivities(owner TimetableOwner, timetableOwner timetable.Capability, 
 	)
 }
 
-// buildShiftPlanning binds the Dienstplan side of Workforce (#3418):
+// BuildShiftPlanning binds the Dienstplan side of Workforce (#3418):
 // shifts, series, shift types, the self-service assignments and the week
 // overview over the owner's native rows. The calendar period comes from the
 // School Calendar; the timetable blocks, their staffing and the Angebote
@@ -56,7 +56,7 @@ func BuildShiftPlanning(
 	})
 }
 
-// payrollStatus is the one payroll-status instance: the /payroll page and
+// PayrollStatus is the one payroll-status instance: the /payroll page and
 // the DATEV writers must judge completeness identically.
 func PayrollStatus(settings settingsCompose.BatchSettingsService, people PeopleRows) settingsCompose.PayrollStatusGetter {
 	staff := people.Staff

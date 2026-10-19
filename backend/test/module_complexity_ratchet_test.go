@@ -236,10 +236,10 @@ var moduleComplexityAllowlist = map[string]int{
 
 	"modules/supervisiondashboard/supervisiondashboard.go:(*service).loadPresenceSections": 17,
 
-	"modules/timetable/compose/legacy_supervisor_operations.go:buildReplacementSupervisorIDs":              22,
-	"modules/timetable/internal/application/activity_instances.go:(*Service).lockOperationalInstanceStaff": 20,
-	"modules/timetable/internal/application/pickup_extensions.go:(*Service).pickupExtensionBlocks":         23,
-	"modules/timetable/internal/application/recurrence_events.go:(*Service).GenerateRecurrenceEvents":      21,
+	"modules/timetable/internal/application/activity_supervisor_operations.go:buildReplacementSupervisorIDs": 22,
+	"modules/timetable/internal/application/activity_instances.go:(*Service).lockOperationalInstanceStaff":   20,
+	"modules/timetable/internal/application/pickup_extensions.go:(*Service).pickupExtensionBlocks":           23,
+	"modules/timetable/internal/application/recurrence_events.go:(*Service).GenerateRecurrenceEvents":        21,
 
 	// Moved in by #3996 from modules/workforce/legacy/absence_repositories.go;
 	// the scores crossed the boundary unchanged.

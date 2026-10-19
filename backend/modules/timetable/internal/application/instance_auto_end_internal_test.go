@@ -6,14 +6,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func newTestAutoEnd(t *testing.T, instances schedule.ActivityInstanceRepository, completion timetable.InstanceLifecycle) timetable.InstanceAutoEnd {
+func newTestAutoEnd(t *testing.T, instances ports.ActivityInstanceRecords, completion timetable.InstanceLifecycle) timetable.InstanceAutoEnd {
 	t.Helper()
 	svc, err := NewInstanceAutoEnd(instances, completion)
 	require.NoError(t, err)

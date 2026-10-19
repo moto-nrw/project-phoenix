@@ -4,14 +4,16 @@ import (
 	"context"
 	"testing"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 )
 
 // mirrorCreateRecorder records the row the mirror inserts; every other
 // repository method stays nil and panics if called.
 type mirrorCreateRecorder struct {
-	scheduleModel.ActivityInstanceRepository
+	ports.ActivityInstanceRecords
 	created *scheduleModel.ActivityInstance
 }
 

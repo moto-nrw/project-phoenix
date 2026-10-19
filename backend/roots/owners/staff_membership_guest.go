@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// guestMembershipRepository serves users.GuestRepository over the School
+// GuestMembershipRepository serves users.GuestRepository over the School
 // Membership capability.
 type GuestMembershipRepository struct {
 	Membership schoolmembership.Capability

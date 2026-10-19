@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -63,7 +63,10 @@ func TestInstance_UpdateSpontaneous_PreservesExternalCaregiver(t *testing.T) {
 	s := buildLifecycle(t)
 	instance := seedSpontaneousInstance(t, s, false)
 	external := testpkg.CreateTestGuest(t, s.db, "Musik")
-	staff := &scheduleModels.InstanceStaff{InstanceID: instance.ID, StaffID: external.StaffID}
+	staff := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.InstanceID = instance.ID
+		fixtureRow.StaffID = external.StaffID
+	})
 	staff.SetTenantID(testpkg.Tenant(t))
 	_, err := s.db.NewInsert().Model(staff).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 	require.NoError(t, err)
@@ -89,7 +92,10 @@ func TestInstance_UpdateSpontaneousToPlanned_RejectsExternalCaregiver(t *testing
 	s := buildLifecycle(t)
 	instance := seedSpontaneousInstance(t, s, false)
 	external := testpkg.CreateTestGuest(t, s.db, "Musik")
-	staff := &scheduleModels.InstanceStaff{InstanceID: instance.ID, StaffID: external.StaffID}
+	staff := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.InstanceID = instance.ID
+		fixtureRow.StaffID = external.StaffID
+	})
 	staff.SetTenantID(testpkg.Tenant(t))
 	_, err := s.db.NewInsert().Model(staff).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 	require.NoError(t, err)

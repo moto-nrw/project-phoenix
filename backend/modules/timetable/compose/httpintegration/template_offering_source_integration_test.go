@@ -14,12 +14,12 @@ import (
 	"time"
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -202,7 +202,7 @@ func TestTemplateOfferingSource_CreateAndMaterializeCopiesSourcedKids(t *testing
 	rows := testpkg.InstanceStudentsWhere(t, s.ctx, s.db, `"instance_student".instance_id = ?`, instances[0].ID)
 	require.Len(t, rows, 1, "materialize must copy the sourced child onto the occurrence")
 	assert.Equal(t, s.students[0], rows[0].StudentID)
-	assert.Equal(t, scheduleModels.AttendanceStatusExpected, rows[0].Status)
+	assert.Equal(t, fixtures.AttendanceStatusExpected(), rows[0].Status)
 }
 
 func TestTemplateOfferingSource_PullForwardWidensSourcedRoster(t *testing.T) {
@@ -882,16 +882,17 @@ func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.
 
 	// A period starting after the offering's phase begins — the phase no
 	// longer fits, so the successor could never materialize the source.
-	latePeriod := &scheduleModels.CalendarPeriod{
-		Name:            fmt.Sprintf("Spaetzeitraum-%d", time.Now().UnixNano()),
-		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       s.period.StartDate.AddDays(60),
-		EndDate:         s.period.EndDate,
-		WeekCycleLength: 1,
-		IsActive:        true,
-	}
+	latePeriod := fixtures.NewCalendarPeriod(func(fixtureRow *fixtures.CalendarPeriod) {
+		fixtureRow.Name = fmt.Sprintf("Spaetzeitraum-%d", time.Now().UnixNano())
+		fixtureRow.PeriodType = fixtures.PeriodTypeSchoolYear()
+		fixtureRow.StartDate = s.period.StartDate.AddDays(60)
+		fixtureRow.EndDate = s.period.EndDate
+		fixtureRow.WeekCycleLength = 1
+		fixtureRow.IsActive = true
+	})
+
 	latePeriod.SetTenantID(s.tenantID)
-	require.NoError(t, api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, s.db)).CalendarPeriod.Create(s.ctx, latePeriod))
+	require.NoError(t, fixtures.FromCalendarPeriodRecords(api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, s.db)).CalendarPeriod).Create(s.ctx, latePeriod))
 	s.extraCleanups = append([]func(){func() {
 	}}, s.extraCleanups...)
 
@@ -959,7 +960,7 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 		StartTime:        time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:          time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:           s.roomID,
-		Status:           scheduleModels.InstanceStatusPlanned,
+		Status:           fixtures.InstanceStatusPlanned(),
 	}
 	instance.TenantID = s.tenantID
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, instance)
@@ -990,7 +991,7 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 	rows := testpkg.InstanceStudentsWhere(t, s.ctx, s.db, `"instance_student".instance_id = ?`, instance.ID)
 	require.Len(t, rows, 1, "the manually re-picked child must land on the pre-existing occurrence")
 	assert.Equal(t, manualStudentID, rows[0].StudentID)
-	assert.Equal(t, scheduleModels.AttendanceStatusExpected, rows[0].Status)
+	assert.Equal(t, fixtures.AttendanceStatusExpected(), rows[0].Status)
 }
 
 // Converting a manual template to an offering-sourced one retires the manual
@@ -1035,7 +1036,7 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 		StartTime:        time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:          time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:           s.roomID,
-		Status:           scheduleModels.InstanceStatusPlanned,
+		Status:           fixtures.InstanceStatusPlanned(),
 	}
 	instance.TenantID = s.tenantID
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, instance)
@@ -1045,7 +1046,7 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 	instanceStudent := &testpkg.InstanceStudent{
 		InstanceID: instance.ID,
 		StudentID:  manualStudentID,
-		Status:     scheduleModels.AttendanceStatusExpected,
+		Status:     fixtures.AttendanceStatusExpected(),
 	}
 	instanceStudent.TenantID = s.tenantID
 	testpkg.InsertInstanceStudentRow(t, s.ctx, s.db, instanceStudent)

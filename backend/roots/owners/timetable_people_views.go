@@ -138,7 +138,7 @@ func timetableOperationStudent(row *peopleValues.StudentState) *timetable.Operat
 	return &timetable.OperationStudent{LifecycleStudent: *timetableLifecycleStudent(row), PersonID: row.PersonID, SchoolClass: row.SchoolClass, Person: TimetablePerson(row.Person)}
 }
 
-// mapRow maps the row of a read; an error passes through.
+// MapRow maps the row of a read; an error passes through.
 func MapRow[R, V any](convert func(R) *V) func(R, error) (*V, error) {
 	return func(row R, err error) (*V, error) {
 		if err != nil {
@@ -148,7 +148,7 @@ func MapRow[R, V any](convert func(R) *V) func(R, error) (*V, error) {
 	}
 }
 
-// mapRowsByID maps the rows of a read keyed by ID; an error passes through.
+// MapRowsByID maps the rows of a read keyed by ID; an error passes through.
 func MapRowsByID[R, V any](convert func(R) *V) func(map[int64]R, error) (map[int64]*V, error) {
 	return func(rows map[int64]R, err error) (map[int64]*V, error) {
 		if err != nil {

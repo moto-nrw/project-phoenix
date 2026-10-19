@@ -27,7 +27,7 @@ import (
 // welcome mails wait for the mail they follow (#4006).
 type IdentityMailState func(ctx context.Context, tenantID, id int64) (deliveryContract.State, bool, error)
 
-// buildIdentityAccess builds Identity & Access over the owners and the
+// BuildIdentityAccess builds Identity & Access over the owners and the
 // values the root built before it (#4006): sessions, the account lifecycle,
 // the second factor and both portals' passkey ceremonies, the operator
 // flows, the demo access and the caller context. Delivery is built first,
@@ -146,7 +146,7 @@ type guardianEnrollmentClaims interface {
 	BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error)
 }
 
-// identityDeliveryRenderers render the Identity & Access mail kinds of the
+// IdentityDeliveryRenderers render the Identity & Access mail kinds of the
 // Delivery outbox: the guardian invitation, the guardian welcome and the
 // staff welcome.
 func IdentityDeliveryRenderers(module *identityaccess.Module, defaultFrom email.Email, mailIdentity email.ReplyToResolver, mailState IdentityMailState, env RootEnvironment) map[string]deliveryCompose.MailRenderer {

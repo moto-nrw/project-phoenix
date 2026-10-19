@@ -38,7 +38,7 @@ func (d SchoolContactDirectory) FindSchoolContact(ctx context.Context, tenantID 
 	return &deliveryCompose.SchoolContact{Name: school.Name, Email: school.Email}, nil
 }
 
-// schoolNameDirectory answers the parent-message mail branding.
+// SchoolNameDirectory answers the parent-message mail branding.
 type SchoolNameDirectory struct {
 	Schools organizationtenancy.Query
 }

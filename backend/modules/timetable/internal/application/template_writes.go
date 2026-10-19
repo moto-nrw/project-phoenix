@@ -7,10 +7,9 @@ import (
 	"log/slog"
 	"time"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -77,7 +76,7 @@ func careOfferingValidationError(ctx context.Context, c ports.CareOfferingChecks
 // read is tenant-scoped, so all three cases share the same client-facing error.
 func validateAssignableCategory(
 	ctx context.Context,
-	repo activitiesModel.CategoryRepository,
+	repo ports.ActivityCategoryRecords,
 	categoryID int64,
 	op string,
 ) error {
@@ -132,7 +131,7 @@ func (s *TemplateService) FindOrCreateTimeframe(ctx context.Context, start, end 
 // only — lookups go by time window. Reusing existing timeframes keeps the
 // schedule.timeframes table from growing one row per template — common slots
 // (12:00–12:50) end up shared across templates.
-func findOrCreateTimeframe(ctx context.Context, repo scheduleModel.TimeframeRepository, start, end time.Time, descHint string) (int64, error) {
+func findOrCreateTimeframe(ctx context.Context, repo ports.TimeframeRecords, start, end time.Time, descHint string) (int64, error) {
 	existing, err := repo.FindByTimeRange(ctx, start, end)
 	if err == nil {
 		for _, tf := range existing {
@@ -188,16 +187,16 @@ func samePlanningTrackID(left, right *int64) bool {
 // with the offering's approved enrollments (#2137) and is Enrollment's,
 // bound late at the root.
 type TemplateServiceDependencies struct {
-	InstanceStudentRepo    scheduleModel.InstanceStudentRepository
-	ActivityInstanceRepo   scheduleModel.ActivityInstanceRepository
-	ActivityScheduleRepo   activitiesModel.ScheduleRepository
-	InstanceStaffRepo      scheduleModel.InstanceStaffRepository
-	ActivityCategoryRepo   activitiesModel.CategoryRepository
+	InstanceStudentRepo    ports.InstanceStudentRecords
+	ActivityInstanceRepo   ports.ActivityInstanceRecords
+	ActivityScheduleRepo   ports.ActivityScheduleRecords
+	InstanceStaffRepo      ports.InstanceStaffRecords
+	ActivityCategoryRepo   ports.ActivityCategoryRecords
 	PlanningTracks         ports.PlanningTrackAssignments
-	ActivityGroupRepo      activitiesModel.GroupRepository
-	ActivitySupervisorRepo activitiesModel.SupervisorPlannedRepository
-	StudentEnrollmentRepo  activitiesModel.StudentEnrollmentRepository
-	TimeframeRepo          scheduleModel.TimeframeRepository
+	ActivityGroupRepo      ports.ActivityGroupRecords
+	ActivitySupervisorRepo ports.PlannedSupervisorRecords
+	StudentEnrollmentRepo  ports.ActivityEnrollmentRecords
+	TimeframeRepo          ports.TimeframeRecords
 	EducationGroups        ports.EducationGroupDirectory
 	CareOfferings          ports.CareOfferingChecks
 	ResyncOfferingRoster   func(context.Context, timetable.OfferingRosterResyncInput) error

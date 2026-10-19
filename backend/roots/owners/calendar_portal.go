@@ -68,7 +68,7 @@ type calendarDeliveryOutbox interface {
 	CancelPendingByRelatedEntity(context.Context, string, int64, string) (int64, error)
 }
 
-// newCalendarOutbox binds the calendar's mail outbox to Delivery's; nil
+// NewCalendarOutbox binds the calendar's mail outbox to Delivery's; nil
 // without an outbox.
 func NewCalendarOutbox(outbox calendarDeliveryOutbox) CalendarOutbox {
 	if outbox == nil {
@@ -77,7 +77,7 @@ func NewCalendarOutbox(outbox calendarDeliveryOutbox) CalendarOutbox {
 	return calendarOutboxPort{calendarDeliveryOutbox: outbox}
 }
 
-// newCalendarNotifier binds the calendar's guardian notification to
+// NewCalendarNotifier binds the calendar's guardian notification to
 // Delivery's; nil without a notifier.
 func NewCalendarNotifier(source deliveryCompose.NotificationService) CalendarNotifier {
 	if source == nil {
@@ -86,7 +86,7 @@ func NewCalendarNotifier(source deliveryCompose.NotificationService) CalendarNot
 	return calendarNotificationPort{source}
 }
 
-// newCalendarReminderNotifier binds the calendar's reminder push to
+// NewCalendarReminderNotifier binds the calendar's reminder push to
 // Delivery's synchronous notification; nil without a notifier.
 func NewCalendarReminderNotifier(source deliveryCompose.SynchronousNotificationService) CalendarReminderNotifier {
 	if source == nil {

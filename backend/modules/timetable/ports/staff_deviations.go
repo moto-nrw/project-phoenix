@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -87,8 +86,8 @@ type DeviationStaff interface {
 // StaffDeviationDependencies wires the deviation writes. Every field but
 // Logger and Now is required.
 type StaffDeviationDependencies struct {
-	Instances       scheduleModels.ActivityInstanceRepository
-	InstanceStaff   scheduleModels.InstanceStaffRepository
+	Instances       ActivityInstanceRecords
+	InstanceStaff   InstanceStaffRecords
 	Staff           DeviationStaff
 	Supervisions    studentpresence.SupervisionRecords
 	Lifecycle       DeviationLifecycle

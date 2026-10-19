@@ -31,7 +31,7 @@ type PresenceOwner struct {
 	StatusDays                studentpresence.StatusDays
 }
 
-// buildPresenceOwner builds Student Presence, its session records and the
+// BuildPresenceOwner builds Student Presence, its session records and the
 // attendance reads over the owners (#4010).
 func BuildPresenceOwner(
 	db transactionruntime.Database, logger *slog.Logger, now func() time.Time, devices devicefleet.Capability,

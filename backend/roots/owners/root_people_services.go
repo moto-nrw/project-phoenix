@@ -43,7 +43,7 @@ type PeopleServices struct {
 	StudentChangeLogCleanup peoplePorts.StudentChangeLogCleanupService
 }
 
-// buildGuardianService binds the People Directory's guardian service over
+// BuildGuardianService binds the People Directory's guardian service over
 // the guardian rows and Identity & Access's invitation reads, which need
 // only the database: the People Directory module serves it as its guardian
 // provider (#2663), and Identity & Access is composed over the module.
@@ -64,7 +64,7 @@ func BuildGuardianService(db transactionruntime.Database, people PeopleRows, aud
 		}}, db.Pool()), nil
 }
 
-// guardianDirectoryProvider is the guardian provider of the People
+// GuardianDirectoryProvider is the guardian provider of the People
 // Directory module over the guardian service.
 func GuardianDirectoryProvider(db transactionruntime.Database, guardian peoplePorts.GuardianService) *peopleCompose.GuardianDirectoryProvider {
 	return &peopleCompose.GuardianDirectoryProvider{
@@ -73,7 +73,7 @@ func GuardianDirectoryProvider(db transactionruntime.Database, guardian peoplePo
 	}
 }
 
-// buildPeopleServices binds the person directory, the caregiver capability,
+// BuildPeopleServices binds the person directory, the caregiver capability,
 // the change history, the consents, the photo lifecycle and the
 // change-history retention. The staff and teacher lookups and the staff
 // writes are School Membership and Workforce territory (#3752); the person
@@ -118,7 +118,7 @@ func BuildPeopleServices(
 	}
 }
 
-// buildWorkforceStaffAdmin builds Workforce's personnel record (#1417, #1423,
+// BuildWorkforceStaffAdmin builds Workforce's personnel record (#1417, #1423,
 // #1424): the payroll number, the Stammdaten sections and the Dokumente tab;
 // the staff and person rows and the trail are bound here.
 func BuildWorkforceStaffAdmin(db transactionruntime.Database, env RootEnvironment, persons peopledirectory.Capability, membership schoolmembership.Capability, people PeopleRows, audit AuditOwner) (*workforceModule.StaffAdmin, error) {
@@ -132,7 +132,7 @@ func BuildWorkforceStaffAdmin(db transactionruntime.Database, env RootEnvironmen
 	return admin, nil
 }
 
-// buildStudentPhotoRuntime binds the five surfaces the People Directory photo
+// BuildStudentPhotoRuntime binds the five surfaces the People Directory photo
 // lifecycle needs beyond its own rows (#3349): the tenant feature flag, the
 // acting account, the stored-file cleanup with the live refresh and the
 // Audit Platform consent trail. None of them needs the directory, so the

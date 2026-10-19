@@ -35,7 +35,7 @@ type CareOfferingPhaseReads interface {
 	Phase(ctx context.Context, id int64) (*enrollmentOwner.Phase, error)
 }
 
-// careOfferingCatalogPhases serves the phase service windows. The Enrollment
+// CareOfferingCatalogPhases serves the phase service windows. The Enrollment
 // owner reports a missing phase as a plain error, which the catalog has
 // always treated as a failure rather than as a correctable input.
 type CareOfferingCatalogPhases struct{ Phases CareOfferingPhaseReads }
@@ -92,7 +92,7 @@ type CareOfferingTimetableReads interface {
 	ListActivityExceptions(context.Context, timetable.ActivityExceptionFilter) ([]timetable.ActivityException, error)
 }
 
-// careOfferingCatalogTimetable reads the Timetable rows a linked offering
+// CareOfferingCatalogTimetable reads the Timetable rows a linked offering
 // materializes from, with the filters the retained repositories used.
 type CareOfferingCatalogTimetable struct{ Timetable CareOfferingTimetableReads }
 
@@ -231,7 +231,7 @@ type CareOfferingCalendarReads interface {
 	FindCalendarPeriod(context.Context, int64) (schoolcalendar.CalendarPeriod, error)
 }
 
-// careOfferingCatalogCalendar reads planning periods and asks the School
+// CareOfferingCatalogCalendar reads planning periods and asks the School
 // Calendar's single A/B-week engine.
 type CareOfferingCatalogCalendar struct{ Calendar CareOfferingCalendarReads }
 
@@ -265,7 +265,7 @@ func (s CareOfferingCatalogSettings) GradeLevelMax(ctx context.Context) (int, er
 	return s.Settings.ResolveInt(ctx, configModels.KeyEnrollmentGradeLevelMax)
 }
 
-// careOfferingCatalogTranslations interprets the translation document of an
+// CareOfferingCatalogTranslations interprets the translation document of an
 // offering's name, description and selection group with Enrollment's rules
 // (#3377).
 type CareOfferingCatalogTranslations struct{}
@@ -274,7 +274,7 @@ func (CareOfferingCatalogTranslations) NormalizeTranslations(raw json.RawMessage
 	return enrollmentOwner.NormalizeOfferingTranslations(raw)
 }
 
-// careOfferingSourceRules is the Timetable owner's offering-source contract.
+// CareOfferingSourceRules is the Timetable owner's offering-source contract.
 type CareOfferingSourceRules struct{}
 
 func (CareOfferingSourceRules) MaxSourcesPerTemplate() int {

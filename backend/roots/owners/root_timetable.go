@@ -29,7 +29,7 @@ type TimetableOwner struct {
 	RosterReconciler    timetablePorts.RosterReconciler
 }
 
-// buildTimetableOwner binds the Timetable owner's retained rows. The
+// BuildTimetableOwner binds the Timetable owner's retained rows. The
 // calendar periods of the template rows come from the School Calendar with
 // Enrollment's period usage.
 func BuildTimetableOwner(

@@ -38,7 +38,7 @@ type TimetableLifecycle struct {
 	Operations      timetable.OperationCapability
 }
 
-// buildTimetableMaterialization binds the recurrence engine: it turns
+// BuildTimetableMaterialization binds the recurrence engine: it turns
 // activity templates into concrete instances with their staff and students
 // for a date window, for the scheduler task and the manual admin endpoint.
 // Holidays and closing days carry no series occurrences unless the series
@@ -54,7 +54,7 @@ func BuildTimetableMaterialization(db transactionruntime.Database, env RootEnvir
 	return materialization, nil
 }
 
-// buildTimetableLifecycle binds the conflict detection, the instance
+// BuildTimetableLifecycle binds the conflict detection, the instance
 // lifecycle and the deviation writes. The cancellation notice (#2601) rides
 // on the parent announcements, which are composed before the lifecycle.
 func BuildTimetableLifecycle(
@@ -118,7 +118,7 @@ func buildTimetableDeviations(db transactionruntime.Database, env RootEnvironmen
 	return deviations, nil
 }
 
-// buildTimetableDay binds the retention sweep, the automatic start and end
+// BuildTimetableDay binds the retention sweep, the automatic start and end
 // of instances and the operational day over Care Plan's schedules. The
 // operational day resolves the acting account's staff ID through School
 // Membership alone (#2753).
@@ -151,7 +151,7 @@ func BuildTimetableDay(
 	return lifecycle, nil
 }
 
-// workforceShiftRows serves the Timetable conflict detection's shift reads
+// WorkforceShiftRows serves the Timetable conflict detection's shift reads
 // from Workforce.
 func WorkforceShiftRows(workTime workforce.Capability) timetablePorts.ConflictShifts {
 	return newWorkforceShiftRows(workTime)

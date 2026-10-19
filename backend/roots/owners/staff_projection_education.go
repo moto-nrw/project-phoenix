@@ -184,7 +184,7 @@ func uniqueIDs(ids []int64) []int64 {
 	return unique
 }
 
-// GroupSubstitutionRepository is the retained contract of
+// GroupSubstitutions is the retained contract of
 // education.group_substitution: the Workforce rows, and the reads with
 // relations as School Structure values.
 type GroupSubstitutions interface {
@@ -237,7 +237,7 @@ func EducationHandover(row *workforceCompose.GroupSubstitution) *educationRepo.G
 	}
 }
 
-// handoverFilter selects the handovers of one school in the Workforce
+// HandoverFilter selects the handovers of one school in the Workforce
 // capability's filter: a start on or before and an end on or after the
 // bounds overlap the period.
 func HandoverFilter(query educationRepo.HandoverQuery) workforce.GroupSubstitutionFilter {

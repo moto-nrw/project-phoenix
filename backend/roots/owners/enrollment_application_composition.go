@@ -16,7 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
-// enrollmentSettingsReads is the slice of the settings service the
+// EnrollmentSettingsReads is the slice of the settings service the
 // Enrollment bindings resolve through.
 type EnrollmentSettingsReads interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
@@ -26,7 +26,7 @@ type EnrollmentSettingsReads interface {
 	LockClassCollectionPair(ctx context.Context) error
 }
 
-// enrollmentCollectionSettings resolves the grade and class collection
+// EnrollmentCollectionSettings resolves the grade and class collection
 // settings the phase and schema guards check.
 type EnrollmentCollectionSettings struct{ Settings EnrollmentSettingsReads }
 
@@ -72,7 +72,7 @@ func (s enrollmentNotificationSettings) NotifyPerDecision(ctx context.Context) (
 	return s.settings.ResolveString(ctx, configModels.KeyEnrollmentNotifyPerDecision)
 }
 
-// enrollmentCaptchaSettings resolves tenant overrides or registry defaults.
+// EnrollmentCaptchaSettings resolves tenant overrides or registry defaults.
 type EnrollmentCaptchaSettings struct {
 	Settings EnrollmentSettingsReads
 }

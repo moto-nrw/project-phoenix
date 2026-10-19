@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,14 +19,14 @@ import (
 // newListOptions mirrors the base package's options constructor for the
 // retained repositories' list options: an empty filter, no pagination, no
 // sorting.
-func newListOptions() *application.RecurrenceRuleQueryOptions {
-	options := &application.RecurrenceRuleQueryOptions{}
+func newListOptions() *fixtures.QueryOptions {
+	options := &fixtures.QueryOptions{}
 	options.Filter = fresh(options.Filter)
 	return options
 }
 
 // sortedBy sets the options' sort order to the single field.
-func sortedBy(options *application.RecurrenceRuleQueryOptions, field string, descending bool) {
+func sortedBy(options *fixtures.QueryOptions, field string, descending bool) {
 	options.Sorting = fresh(options.Sorting)
 	if descending {
 		options.Sorting.AddField(field, "DESC")
@@ -60,60 +60,71 @@ func isNotFound(err error) bool {
 }
 
 type queryListRepository[T any] interface {
-	List(context.Context, *application.RecurrenceRuleQueryOptions) ([]T, error)
+	List(context.Context, *fixtures.QueryOptions) ([]T, error)
 }
 
 type arrivalScheduleQueryRepository interface {
-	scheduleModels.StudentArrivalScheduleRepository
-	queryListRepository[*scheduleModels.StudentArrivalSchedule]
+	fixtures.
+		StudentArrivalScheduleRecords
+	queryListRepository[*fixtures.StudentArrivalSchedule]
 }
 
 type arrivalExceptionQueryRepository interface {
-	scheduleModels.StudentArrivalExceptionRepository
-	queryListRepository[*scheduleModels.StudentArrivalException]
+	fixtures.
+		StudentArrivalExceptionRecords
+	queryListRepository[*fixtures.StudentArrivalException]
 }
 
 type arrivalNoteQueryRepository interface {
-	scheduleModels.StudentArrivalNoteRepository
-	queryListRepository[*scheduleModels.StudentArrivalNote]
+	fixtures.
+		StudentArrivalNoteRecords
+	queryListRepository[*fixtures.StudentArrivalNote]
 }
 
 type pickupScheduleQueryRepository interface {
-	scheduleModels.StudentPickupScheduleRepository
-	queryListRepository[*scheduleModels.StudentPickupSchedule]
+	fixtures.
+		StudentPickupScheduleRecords
+	queryListRepository[*fixtures.StudentPickupSchedule]
 }
 
 type pickupExceptionQueryRepository interface {
-	scheduleModels.StudentPickupExceptionRepository
-	queryListRepository[*scheduleModels.StudentPickupException]
+	fixtures.
+		StudentPickupExceptionRecords
+	queryListRepository[*fixtures.StudentPickupException]
 }
 
 type pickupNoteQueryRepository interface {
-	scheduleModels.StudentPickupNoteRepository
-	queryListRepository[*scheduleModels.StudentPickupNote]
+	fixtures.
+		StudentPickupNoteRecords
+	queryListRepository[*fixtures.StudentPickupNote]
 }
 
 type instanceStaffQueryRepository interface {
-	scheduleModels.InstanceStaffRepository
-	queryListRepository[*scheduleModels.InstanceStaff]
+	fixtures.
+		InstanceStaffRecords
+	queryListRepository[*fixtures.InstanceStaff]
 }
 
 type activityExceptionQueryRepository interface {
-	scheduleModels.ActivityExceptionRepository
-	queryListRepository[*scheduleModels.ActivityException]
+	fixtures.
+		ActivityExceptionRecords
+	queryListRepository[*fixtures.ActivityException]
 }
 
 type dateframeQueryRepository interface {
-	scheduleModels.DateframeRepository
-	queryListRepository[*scheduleModels.Dateframe]
+	fixtures.
+		DateframeRecords
+	queryListRepository[*fixtures.Dateframe]
 }
 
 type recurrenceRuleQueryRepository interface {
-	scheduleModels.RecurrenceRuleRepository
-	queryListRepository[*scheduleModels.RecurrenceRule]
+	fixtures.
+		RecurrenceRuleRecords
+	queryListRepository[*fixtures.RecurrenceRule]
 }
 
 type timeframeQueryRepository interface {
-	scheduleModels.TimeframeRepository
-	queryListRepository[*scheduleModels.Timeframe]
+	fixtures.
+		TimeframeRecords
+	queryListRepository[*fixtures.Timeframe]
 }

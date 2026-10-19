@@ -21,7 +21,7 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
-// guardianRolePresets is the Security Runtime's role-preset policy as People
+// GuardianRolePresets is the Security Runtime's role-preset policy as People
 // Directory's preset port.
 var GuardianRolePresets = peoplePorts.GuardianRolePresetFuncs{
 	Default: securityruntime.DefaultStudentGuardianRole,

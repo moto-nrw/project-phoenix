@@ -47,7 +47,7 @@ func requestShareVisibility(db transactionruntime.Database) (eventContract.Share
 	)
 }
 
-// buildCarePlanRequests binds the parent request queues over the schedules,
+// BuildCarePlanRequests binds the parent request queues over the schedules,
 // the offerings, the caller context, the review policy and the effect sinks.
 func BuildCarePlanRequests(
 	db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, carePlan careplan.Capability,

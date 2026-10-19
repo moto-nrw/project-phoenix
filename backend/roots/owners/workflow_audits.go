@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 )
 
-// newWorkflowAuditCommand builds the fail-closed append command a workflow
+// NewWorkflowAuditCommand builds the fail-closed append command a workflow
 // writes in its caller's tenant transaction; a failed append is logged at
 // error level under message.
 func NewWorkflowAuditCommand(db transactionruntime.Database, logger *slog.Logger, message string) (auditModels.Command, error) {

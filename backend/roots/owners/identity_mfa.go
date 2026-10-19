@@ -21,7 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// newMFADependencies binds the second factor and the passkey ceremonies to
+// NewMFADependencies binds the second factor and the passkey ceremonies to
 // the challenge codec, the school settings, the mails and the operator
 // ledger. passkeys carries the relying-party facts; nil leaves the
 // ceremonies unavailable.
@@ -119,7 +119,7 @@ func (shortCodeHasher) VerifyShortCode(plain, encodedHash string) (bool, error) 
 	return securityruntime.VerifyPassword(plain, encodedHash)
 }
 
-// mfaMailer sends the code through synchronous delivery and the
+// MFAMailer sends the code through synchronous delivery and the
 // device-added notice asynchronously. A nil backoff uses the production
 // spacing of the send retries.
 type MFAMailer struct {

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -19,7 +19,7 @@ import (
 
 func plannedLifecycleInstance() *scheduleModel.ActivityInstance {
 	return &scheduleModel.ActivityInstance{
-		Date:      scheduleModel.NewDate(2026, 8, 13),
+		Date:      calendar.NewDate(2026, 8, 13),
 		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
 	}
@@ -234,7 +234,7 @@ func TestInstanceDelete_PlannedTemplateBackedCreatesCancellationException(t *tes
 	require.Len(t, exceptionRepo.created, 1)
 	created := exceptionRepo.created[0]
 	assert.Equal(t, groupID, created.ActivityGroupID)
-	assert.Equal(t, scheduleModel.Date(date), created.ExceptionDate)
+	assert.Equal(t, calendar.Date(date), created.ExceptionDate)
 	assert.Equal(t, scheduleModel.ActivityExceptionCancelled, created.ExceptionType)
 	require.NotNil(t, created.Reason)
 	assert.Equal(t, deletedSlotReason, *created.Reason)
@@ -293,7 +293,7 @@ func TestInstanceDelete_ExistingModifiedExceptionIsConvertedToCancellation(t *te
 	reason := "Raumwechsel"
 	existing := &scheduleModel.ActivityException{
 		ActivityGroupID: groupID,
-		ExceptionDate:   scheduleModel.Date(date),
+		ExceptionDate:   calendar.Date(date),
 		ExceptionType:   scheduleModel.ActivityExceptionModified,
 		StartTime:       &start,
 		EndTime:         &end,
@@ -401,7 +401,7 @@ func deleteUnitService(instanceRepo *deleteUnitInstanceRepo, exceptionRepo *dele
 
 func deleteUnitInstance(id int64, groupID *int64, date calendar.Date, status string, spontaneous bool) *scheduleModel.ActivityInstance {
 	inst := &scheduleModel.ActivityInstance{
-		Date:            scheduleModel.Date(date),
+		Date:            calendar.Date(date),
 		ActivityGroupID: groupID,
 		Title:           "Delete unit test",
 		StartTime:       time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC),
@@ -415,7 +415,7 @@ func deleteUnitInstance(id int64, groupID *int64, date calendar.Date, status str
 }
 
 type deleteUnitInstanceRepo struct {
-	scheduleModel.ActivityInstanceRepository
+	ports.ActivityInstanceRecords
 	instance         *scheduleModel.ActivityInstance
 	findErr          error
 	sameDayRows      []*scheduleModel.ActivityInstance
@@ -427,14 +427,14 @@ type deleteUnitInstanceRepo struct {
 	updateColumnsErr error
 }
 
-func (r *deleteUnitInstanceRepo) FindByID(_ context.Context, _ any) (*scheduleModel.ActivityInstance, error) {
+func (r *deleteUnitInstanceRepo) FindByID(_ context.Context, _ int64) (*scheduleModel.ActivityInstance, error) {
 	if r.findErr != nil {
 		return nil, r.findErr
 	}
 	return r.instance, nil
 }
 
-func (r *deleteUnitInstanceRepo) FindByActivityGroupAndDate(_ context.Context, _ int64, _ scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (r *deleteUnitInstanceRepo) FindByActivityGroupAndDate(_ context.Context, _ int64, _ calendar.Date) ([]*scheduleModel.ActivityInstance, error) {
 	r.sameDayCalls++
 	if r.sameDayErr != nil {
 		return nil, r.sameDayErr
@@ -442,7 +442,8 @@ func (r *deleteUnitInstanceRepo) FindByActivityGroupAndDate(_ context.Context, _
 	return r.sameDayRows, nil
 }
 
-func (r *deleteUnitInstanceRepo) Delete(_ context.Context, id any) error {
+func (r *deleteUnitInstanceRepo) Delete(_ context.Context, nativeRecordID int64) error {
+	var id any = nativeRecordID
 	if r.deleteErr != nil {
 		return r.deleteErr
 	}
@@ -453,7 +454,7 @@ func (r *deleteUnitInstanceRepo) Delete(_ context.Context, id any) error {
 }
 
 type deleteUnitExceptionRepo struct {
-	scheduleModel.ActivityExceptionRepository
+	ports.ActivityExceptionRecords
 	existing  *scheduleModel.ActivityException
 	findErr   error
 	createErr error
@@ -463,7 +464,7 @@ type deleteUnitExceptionRepo struct {
 	updated   []*scheduleModel.ActivityException
 }
 
-func (r *deleteUnitExceptionRepo) FindByActivityGroupAndDate(_ context.Context, _ int64, _ scheduleModel.Date) (*scheduleModel.ActivityException, error) {
+func (r *deleteUnitExceptionRepo) FindByActivityGroupAndDate(_ context.Context, _ int64, _ calendar.Date) (*scheduleModel.ActivityException, error) {
 	r.findCalls++
 	if r.findErr != nil {
 		return nil, r.findErr
@@ -513,7 +514,7 @@ func TestWeekendFollowsFridayOpensTheWeekend(t *testing.T) {
 
 	groupID := int64(7)
 	weekendOccurrence := plannedLifecycleInstance()
-	weekendOccurrence.Date = scheduleModel.Date(saturday)
+	weekendOccurrence.Date = calendar.Date(saturday)
 	weekendOccurrence.ActivityGroupID = &groupID
 	weekendOccurrence.Status = scheduleModel.InstanceStatusPlanned
 	assert.True(t, replannableOccurrence(weekendOccurrence, nil, true))

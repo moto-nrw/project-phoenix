@@ -38,7 +38,7 @@ type CarePlanRows struct {
 	ExcusedRequestRows     ExcusedRequestReads
 }
 
-// buildCarePlanRows binds Care Plan to the owners the root composed. The
+// BuildCarePlanRows binds Care Plan to the owners the root composed. The
 // class timetable supplies the regular arrival time of the arrival baselines
 // and schedules (#2414, ADR 0005); the enrollment change requests'
 // multi-child approval takes the companion lock order through the same
@@ -80,7 +80,7 @@ func BuildCarePlanRows(
 	}, nil
 }
 
-// buildClassArrivals builds the class timetable's arrival plans the arrival
+// BuildClassArrivals builds the class timetable's arrival plans the arrival
 // baselines and schedules read; their queries log at debug level.
 func BuildClassArrivals(db transactionruntime.Database, logger *slog.Logger) (timetable.ClassArrivals, error) {
 	return timetableCompose.NewClassArrivals(db.Pool(), func(observation timetableCompose.Observation) {
@@ -116,7 +116,7 @@ func bookingsAuthoritative(settings settingsCompose.SettingsService) func(contex
 	}
 }
 
-// buildCarePlanSchedules builds the care lifecycle first, so the care days
+// BuildCarePlanSchedules builds the care lifecycle first, so the care days
 // and the person directory receive its participation decision at
 // construction, then the baselines, the care days and the schedules. The
 // care days intersect the timetable assignments with the children's care

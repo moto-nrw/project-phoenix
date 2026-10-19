@@ -7,17 +7,17 @@ import (
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // OperationInstances reads the blocks of the retained activity instance
 // repository.
 type OperationInstances interface {
-	FindByID(ctx context.Context, id any) (*scheduleModels.ActivityInstance, error)
-	FindByTenantAndDate(ctx context.Context, date scheduleModels.Date) ([]*scheduleModels.ActivityInstance, error)
+	FindByID(ctx context.Context, id int64) (*scheduleModels.ActivityInstance, error)
+	FindByTenantAndDate(ctx context.Context, date calendar.Date) ([]*scheduleModels.ActivityInstance, error)
 	FindByActiveGroupID(ctx context.Context, activeGroupID int64) (*scheduleModels.ActivityInstance, error)
 }
 
@@ -32,13 +32,13 @@ type OperationParticipants interface {
 	FindByInstanceID(ctx context.Context, instanceID int64) ([]*scheduleModels.InstanceStudent, error)
 	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStudent, error)
 	FindByInstanceAndStudent(ctx context.Context, instanceID, studentID int64) (*scheduleModels.InstanceStudent, error)
-	FindPresentInOtherActiveInstances(ctx context.Context, excludeInstanceID int64, date scheduleModels.Date, studentIDs []int64) ([]scheduleModels.ParallelPresence, error)
+	FindPresentInOtherActiveInstances(ctx context.Context, excludeInstanceID int64, date calendar.Date, studentIDs []int64) ([]scheduleModels.ParallelPresence, error)
 	UpdateAttendanceFields(ctx context.Context, id int64, patch scheduleModels.AttendanceFieldPatch) error
 }
 
 // OperationTemplates reads the templates (activity groups) behind blocks.
 type OperationTemplates interface {
-	FindByID(ctx context.Context, id any) (*activityContract.Group, error)
+	FindByID(ctx context.Context, id int64) (*activityContract.Group, error)
 	FindByIDs(ctx context.Context, ids []int64) ([]*activityContract.Group, error)
 	FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*activityContract.GroupTarget, error)
 }

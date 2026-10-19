@@ -30,7 +30,7 @@ type lifecyclePeople interface {
 	DeleteStudentGuardianLink(ctx context.Context, linkID int64) error
 }
 
-// lifecycleMembership are the School Membership commands the lifecycle
+// LifecycleMembership are the School Membership commands the lifecycle
 // creates staff and caregiver profiles through.
 type LifecycleMembership interface {
 	CreateStaff(context.Context, schoolmembership.CreateStaff) (schoolmembership.Staff, error)
@@ -58,7 +58,7 @@ func (r LifecycleRepositories) complete() bool {
 		r.GuardianProfiles != nil && r.StudentGuardians != nil && r.AuthEvents != nil && r.People != nil && r.Membership != nil
 }
 
-// lifecycleDependencies binds the lifecycle seams to the identity chain in
+// LifecycleDependencies binds the lifecycle seams to the identity chain in
 // repos (the session repositories' Lifecycle, which carries the auth event
 // ledger), the audit command, the Lehrkraft guard the role administration
 // reads, and the guardian invitation delivery and enrollment claim.

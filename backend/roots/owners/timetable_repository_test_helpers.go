@@ -193,7 +193,7 @@ func (r TimetableTestRepositories) RosterMaintenance(logger *slog.Logger, now fu
 	return timetableCompose.NewRosterReconciler(r.ActivityInstance, r.InstanceStudent, r.StudentEnrollment, logger, now)
 }
 
-// newTimetableTestRecurrenceLock composes the Timetable owner's tenant
+// NewTimetableTestRecurrenceLock composes the Timetable owner's tenant
 // recurrence gate over the test database and School Structure's
 // grade-transition key, as the composition roots do.
 func NewTimetableTestRecurrenceLock(db transactionruntime.Database) (timetable.RecurrenceWriteLock, error) {

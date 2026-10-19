@@ -8,11 +8,10 @@ import (
 	"strings"
 	"time"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -58,7 +57,7 @@ func (s *materializationService) DetectEditedInWindow(
 	// cancelled ones are individually-deleted occurrences that a
 	// following-series split would rematerialize under the successor template
 	// — reported only when the caller asks for deletions (#1875 review).
-	exceptions, err := s.exceptionRepo.FindByActivityGroupAndDateRange(ctx, activityGroupID, schedule.Date(from), schedule.Date(to))
+	exceptions, err := s.exceptionRepo.FindByActivityGroupAndDateRange(ctx, activityGroupID, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "detect edited: load exceptions", Err: err}
 	}
@@ -108,7 +107,7 @@ func (s *materializationService) loadPlannedOccurrences(
 	templateID int64,
 	from, to calendar.Date,
 ) ([]*schedule.ActivityInstance, []int64, error) {
-	instances, err := s.instanceRepo.FindByActivityGroupAndDateRange(ctx, templateID, schedule.Date(from), schedule.Date(to))
+	instances, err := s.instanceRepo.FindByActivityGroupAndDateRange(ctx, templateID, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return nil, nil, &ports.ScheduleError{Op: "detect edited: load instances", Err: err}
 	}

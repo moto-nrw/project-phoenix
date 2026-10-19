@@ -13,20 +13,20 @@ import (
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
-// timeTrackingStaffRecords are the retained staff reads and the schedule
+// TimeTrackingStaffRecords are the retained staff reads and the schedule
 // binding write the time-tracking ports need from the People Directory.
 type TimeTrackingStaffRecords interface {
 	workSessionStaffRecords
 	staffListRecords
 }
 
-// timeTrackingStaffLookup resolves the staff record a schedule update is
+// TimeTrackingStaffLookup resolves the staff record a schedule update is
 // written for.
 type TimeTrackingStaffLookup interface {
 	GetStaffByID(ctx context.Context, id int64) (*peopleValues.Staff, error)
 }
 
-// timeTrackingSettings is the tenant-settings surface the time-tracking
+// TimeTrackingSettings is the tenant-settings surface the time-tracking
 // services read through Student Presence's named questions.
 type TimeTrackingSettings interface {
 	HasTenantOverride(ctx context.Context, key string) (bool, error)
@@ -35,7 +35,7 @@ type TimeTrackingSettings interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
 }
 
-// timeTrackingAudits are the four audit trails the time-tracking services
+// TimeTrackingAudits are the four audit trails the time-tracking services
 // write and read.
 type TimeTrackingAudits struct {
 	WorkSessionEdit      workSessionEditTrail
@@ -46,21 +46,21 @@ type TimeTrackingAudits struct {
 	TimeTrackingAuditLog timeTrackingAuditFeed
 }
 
-// timeTrackingWorkSchedules are the staff work schedules the session and
+// TimeTrackingWorkSchedules are the staff work schedules the session and
 // target ports read.
 type TimeTrackingWorkSchedules interface {
 	WorkSessionScheduleRecords
 	WorkScheduleTargetRecords
 }
 
-// timeTrackingWorkTimeModels are the work time models the session and target
+// TimeTrackingWorkTimeModels are the work time models the session and target
 // ports read.
 type TimeTrackingWorkTimeModels interface {
 	WorkSessionTimeModelRecords
 	WorkTimeTargetModelRecords
 }
 
-// timeTrackingPorts binds the time-tracking services' consumer-owned ports to
+// TimeTrackingPorts binds the time-tracking services' consumer-owned ports to
 // the retained repositories, audit trails, settings and renderers.
 func TimeTrackingPorts(
 	workforce workforceModule.Capability, bound workforceCompose.TimeTrackingPorts, audits TimeTrackingAudits,
@@ -90,7 +90,7 @@ func TimeTrackingPorts(
 	return ports
 }
 
-// staffScheduleBindings reads the work time model and rotation anchor a
+// StaffScheduleBindings reads the work time model and rotation anchor a
 // schedule update starts from.
 func StaffScheduleBindings(people TimeTrackingStaffLookup) workforceCompose.StaffScheduleBindingLookup {
 	return func(ctx context.Context, staffID int64) (workforceCompose.StaffScheduleBinding, error) {

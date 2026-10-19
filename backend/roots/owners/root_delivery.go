@@ -35,7 +35,7 @@ type DeliveryNotifications struct {
 	AbsenceNotifier     deliveryCompose.AbsenceNotifier
 }
 
-// buildDeliveryNotifications binds the notification router over the realtime
+// BuildDeliveryNotifications binds the notification router over the realtime
 // and web push channels, the consent-backed preferences, the staff
 // recipients and the absence notices, every one over the root's unit of work.
 // Consent rows back both the notification preferences and the opt-in "Neue
@@ -80,7 +80,7 @@ func BuildDeliveryNotifications(
 	}, nil
 }
 
-// buildDeliveryWorker composes the Worker that drains Delivery's outboxes:
+// BuildDeliveryWorker composes the Worker that drains Delivery's outboxes:
 // every outbox kind's renderer is known at startup, so the registry is
 // complete before the worker claims anything. Enrollment keeps one renderer
 // per kind so subjects and templates stay independent; calendar

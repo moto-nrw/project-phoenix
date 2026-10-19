@@ -66,7 +66,7 @@ func NewNativeAttendanceMirror(rows timetableCompose.NativeMirrorRows, logger *s
 	return PresenceAttendanceMirror{Mirror: mirror}, nil
 }
 
-// presenceAttendanceMirror maps Student Presence's visits onto the mirror's
+// PresenceAttendanceMirror maps Student Presence's visits onto the mirror's
 // own vocabulary. A missing visit is a no-op, as before the move.
 type PresenceAttendanceMirror struct {
 	Mirror timetable.AttendanceMirror

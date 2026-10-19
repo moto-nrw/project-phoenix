@@ -6,7 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
 
-// workforceLiveStaffIDs answers Workforce's one question to School
+// WorkforceLiveStaffIDs answers Workforce's one question to School
 // Membership: which of the memberships bound to a work-time template are still
 // live. Workforce never reads users.staff_school_memberships itself.
 func WorkforceLiveStaffIDs(membership schoolmembership.Query) func(context.Context, []int64) ([]int64, error) {
@@ -23,7 +23,7 @@ func WorkforceLiveStaffIDs(membership schoolmembership.Query) func(context.Conte
 	}
 }
 
-// workforceStaffAssignmentLock answers Workforce's lock on a staff
+// WorkforceStaffAssignmentLock answers Workforce's lock on a staff
 // assignment: the School Membership row of the staff member is locked for
 // the mutation the caller's unit of work is about to make.
 func WorkforceStaffAssignmentLock(membership schoolmembership.Query) func(context.Context, int64) error {

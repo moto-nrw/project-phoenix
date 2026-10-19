@@ -44,7 +44,7 @@ func NewDatabaseStatsTestReader(db transactionruntime.Database) (DatabaseStatsRe
 		},
 		Rooms: func(ctx context.Context) (int, error) { rows, err := rooms.Room.List(ctx, nil); return len(rows), err },
 		Activities: func(ctx context.Context) (int, error) {
-			rows, err := repos.ActivityGroup.List(ctx, nil)
+			rows, err := repos.ActivityGroup.ListAll(ctx)
 			return len(rows), err
 		},
 		Groups: func(ctx context.Context) (int, error) {

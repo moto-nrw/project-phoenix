@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func (r CarePickupScheduleRows) Create(ctx context.Context, row *scheduleModels.StudentPickupSchedule) error {
@@ -23,7 +23,7 @@ func (r CarePickupScheduleRows) Create(ctx context.Context, row *scheduleModels.
 	applyPickupSchedule(row, value)
 	return nil
 }
-func (r CarePickupScheduleRows) FindByID(ctx context.Context, raw any) (*scheduleModels.StudentPickupSchedule, error) {
+func (r CarePickupScheduleRows) FindByID(ctx context.Context, raw int64) (*scheduleModels.StudentPickupSchedule, error) {
 	id, err := legacyScheduleID(raw)
 	if err != nil {
 		return nil, r.rows.ScheduleError("find by id", err)
@@ -43,8 +43,12 @@ func (r CarePickupScheduleRows) Update(ctx context.Context, row *scheduleModels.
 	}
 	return r.rows.ScheduleError("update", r.rows.Records.UpdatePickupSchedule(ctx, pickupScheduleToPublic(row)))
 }
-func (r CarePickupScheduleRows) List(ctx context.Context, options *domain.ListOptions) ([]*scheduleModels.StudentPickupSchedule, error) {
-	return listWithOptions(ctx, r.rows, options, r.rows.Records.ListPickupSchedules, pickupScheduleToLegacy)
+func (r CarePickupScheduleRows) ListRows(ctx context.Context, filter ports.CareScheduleFilter) ([]*scheduleModels.StudentPickupSchedule, error) {
+	values, err := r.rows.Records.ListPickupSchedules(ctx, filter)
+	if err != nil {
+		return nil, r.rows.ScheduleError("list with options", err)
+	}
+	return mapRows(values, pickupScheduleToLegacy), nil
 }
 func (r CarePickupScheduleRows) FindByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentPickupSchedule, error) {
 	values, err := r.rows.Records.ListPickupSchedules(ctx, ports.CareScheduleFilter{StudentIDs: []int64{id}})
@@ -102,7 +106,7 @@ func (r CarePickupExceptionRows) Create(ctx context.Context, row *scheduleModels
 	applyPickupException(row, value)
 	return nil
 }
-func (r CarePickupExceptionRows) FindByID(ctx context.Context, raw any) (*scheduleModels.StudentPickupException, error) {
+func (r CarePickupExceptionRows) FindByID(ctx context.Context, raw int64) (*scheduleModels.StudentPickupException, error) {
 	id, err := legacyScheduleID(raw)
 	if err != nil {
 		return nil, r.rows.ScheduleError("find by id", err)
@@ -123,8 +127,12 @@ func (r CarePickupExceptionRows) Update(ctx context.Context, row *scheduleModels
 	}
 	return r.rows.ScheduleError("update", r.rows.Records.UpdatePickupException(ctx, pickupExceptionToPublic(row)))
 }
-func (r CarePickupExceptionRows) List(ctx context.Context, options *domain.ListOptions) ([]*scheduleModels.StudentPickupException, error) {
-	return listWithOptions(ctx, r.rows, options, r.rows.Records.ListPickupExceptions, pickupExceptionToLegacy)
+func (r CarePickupExceptionRows) ListRows(ctx context.Context, filter ports.CareScheduleFilter) ([]*scheduleModels.StudentPickupException, error) {
+	values, err := r.rows.Records.ListPickupExceptions(ctx, filter)
+	if err != nil {
+		return nil, r.rows.ScheduleError("list with options", err)
+	}
+	return mapRows(values, pickupExceptionToLegacy), nil
 }
 func (r CarePickupExceptionRows) FindByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentPickupException, error) {
 	return r.list(ctx, ports.CareScheduleFilter{StudentIDs: []int64{id}}, "find by student id")
@@ -132,17 +140,17 @@ func (r CarePickupExceptionRows) FindByStudentID(ctx context.Context, id int64) 
 func (r CarePickupExceptionRows) FindUpcomingByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentPickupException, error) {
 	return r.list(ctx, ports.CareScheduleFilter{StudentIDs: []int64{id}, UpcomingFrom: r.rows.Today()}, "find upcoming by student id")
 }
-func (r CarePickupExceptionRows) FindByStudentIDAndDate(ctx context.Context, id int64, d scheduleModels.Date) (*scheduleModels.StudentPickupException, error) {
+func (r CarePickupExceptionRows) FindByStudentIDAndDate(ctx context.Context, id int64, d calendar.Date) (*scheduleModels.StudentPickupException, error) {
 	values, err := r.list(ctx, ports.CareScheduleFilter{StudentIDs: []int64{id}, Date: ports.CareDate(d)}, "find by student id and date")
 	if err != nil || len(values) == 0 {
 		return nil, err
 	}
 	return values[0], nil
 }
-func (r CarePickupExceptionRows) FindByStudentIDsAndDate(ctx context.Context, ids []int64, d scheduleModels.Date) ([]*scheduleModels.StudentPickupException, error) {
+func (r CarePickupExceptionRows) FindByStudentIDsAndDate(ctx context.Context, ids []int64, d calendar.Date) ([]*scheduleModels.StudentPickupException, error) {
 	return r.list(ctx, ports.CareScheduleFilter{StudentIDs: ids, Date: ports.CareDate(d)}, "find by student ids and date")
 }
-func (r CarePickupExceptionRows) FindByStudentIDAndDateRange(ctx context.Context, id int64, from, to scheduleModels.Date) ([]*scheduleModels.StudentPickupException, error) {
+func (r CarePickupExceptionRows) FindByStudentIDAndDateRange(ctx context.Context, id int64, from, to calendar.Date) ([]*scheduleModels.StudentPickupException, error) {
 	return r.list(ctx, ports.CareScheduleFilter{StudentIDs: []int64{id}, From: ports.CareDate(from), To: ports.CareDate(to)}, "find by student id and date range")
 }
 func (r CarePickupExceptionRows) list(ctx context.Context, filter ports.CareScheduleFilter, op string) ([]*scheduleModels.StudentPickupException, error) {
@@ -155,7 +163,7 @@ func (r CarePickupExceptionRows) list(ctx context.Context, filter ports.CareSche
 func (r CarePickupExceptionRows) DeleteByStudentID(ctx context.Context, id int64) error {
 	return r.rows.ScheduleError("delete by student id", r.rows.Records.DeletePickupExceptionsByStudent(ctx, id))
 }
-func (r CarePickupExceptionRows) DeletePastExceptions(ctx context.Context, d scheduleModels.Date) (int64, error) {
+func (r CarePickupExceptionRows) DeletePastExceptions(ctx context.Context, d calendar.Date) (int64, error) {
 	rows, err := r.rows.Records.DeletePickupExceptionsBefore(ctx, ports.CareDate(d))
 	return rows, r.rows.ScheduleError("delete past exceptions", err)
 }

@@ -5,9 +5,10 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/uptrace/bun"
 )
 
@@ -17,7 +18,7 @@ type classArrivalExceptionRepository struct {
 }
 
 // NewClassArrivalExceptionRepository binds Timetable-owned education.class_arrival_exceptions.
-func NewClassArrivalExceptionRepository(db *bun.DB) schedule.ClassArrivalExceptionRepository {
+func NewClassArrivalExceptionRepository(db *bun.DB) ports.ClassArrivalExceptionRecords {
 	return classArrivalExceptionRepository{store: postgres.New(databaseRuntime(db))}
 }
 

@@ -4,14 +4,14 @@ import (
 	"testing"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func spontaneousBlock(id int64, date calendar.Date, startHour, startMinute int, spontaneous bool) *scheduleModels.ActivityInstance {
-	instance := &scheduleModels.ActivityInstance{Date: scheduleModels.Date(date), Title: "Hausaufgaben"}
+	instance := &scheduleModels.ActivityInstance{Date: calendar.Date(date), Title: "Hausaufgaben"}
 	instance.ID = id
 	instance.IsSpontaneous = spontaneous
 	instance.StartTime = time.Date(1, time.January, 1, startHour, startMinute, 0, 0, time.UTC)

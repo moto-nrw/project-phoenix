@@ -3,9 +3,10 @@ package owners
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/workflows/careexit"
 )
 
@@ -32,7 +33,7 @@ type careExitBookingWrites interface {
 func NewEnrollmentBookingProjection(projection *enrollment.BookingProjection) EnrollmentBookingProjection {
 	return EnrollmentBookingProjection{
 		BookingProjection: projection,
-		Bookings:          careexit.NewBookings(projection, carePlanCompose.NewOfferingBookings(), peopleCompose.CallerTenantID),
+		Bookings:          careexit.NewBookings(projection, carePlanCompose.NewOfferingBookings(), tenant.FromContext),
 	}
 }
 

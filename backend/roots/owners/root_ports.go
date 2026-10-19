@@ -42,7 +42,7 @@ type ExcusedRequestReads interface {
 	FindByID(ctx context.Context, id any) (*absencerecords.ExcusedAbsenceRequest, error)
 }
 
-// pickupStudentLocks takes the People Directory student lock a weekly pickup
+// PickupStudentLocks takes the People Directory student lock a weekly pickup
 // approval holds. A student that no longer exists reports not found.
 type PickupStudentLocks struct {
 	Students interface {

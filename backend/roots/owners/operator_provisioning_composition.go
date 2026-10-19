@@ -63,7 +63,7 @@ type ProvisioningRoles interface {
 	GetRole(context.Context, int64) (identityaccess.Role, error)
 }
 
-// provisioningIdentity binds provisioning to public identity capabilities.
+// ProvisioningIdentity binds provisioning to public identity capabilities.
 type ProvisioningIdentity struct {
 	Accounts       OperatorAccountDirectory
 	Sessions       identityaccess.AccountSessionMaintenance
@@ -335,6 +335,6 @@ func operatorPersonStudentMembership(db transactionruntime.Database) operatorPer
 	runtime := peopleCompose.NewLegacyRepositoryRuntime(db.Pool())
 	students := studentDirectoryView.NewReader()
 	return func(ctx context.Context, personIDs []int64) (map[int64]bool, error) {
-		return runtime.OperatorPersonStudentMembership(ctx, students, personIDs)
+		return peopleCompose.OperatorPersonStudentMembership(ctx, runtime, students, personIDs)
 	}
 }

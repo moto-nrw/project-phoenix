@@ -22,13 +22,13 @@ type GuardianEnrollmentClaims interface {
 	BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error)
 }
 
-// guardianInvitationDependencies binds the delivery and the enrollment claim
+// GuardianInvitationDependencies binds the delivery and the enrollment claim
 // the lifecycle flows consume: the settings that hold the tenant's token
 // lifetime, the school read for the mail subject, the outbox, the parents
 // portal origin of the accept and login links (a guardian signs in on the
 // parents portal, never on the staff frontend) and the deployment's
 // fallback expiry. A root composed without the guardian mail passes
-// unsentGuardianMail{} to the lifecycle instead.
+// UnsentGuardianMail{} to the lifecycle instead.
 func GuardianInvitationDependencies(settings settingsCompose.SettingsService, schools organizationtenancy.Query, outbox MailResultOutbox, enrollments GuardianEnrollmentClaims, parentsURL string, fallbackExpiry time.Duration, logger *slog.Logger) (identityPorts.GuardianInvitationDelivery, identityPorts.GuardianEnrollments, error) {
 	if schools == nil || outbox == nil || enrollments == nil {
 		return nil, nil, errors.New("identity access composition: the guardian invitation seams need the school directory, the e-mail outbox and the enrollment claim")

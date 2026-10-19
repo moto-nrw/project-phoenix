@@ -4,15 +4,14 @@ import (
 	"context"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 )
 
 // EndedSessionInstances is the slice of the retained activity instance
 // repository the completion reads and writes; its rows carry the Student
 // Presence session each block runs in.
 type EndedSessionInstances interface {
-	List(ctx context.Context, options *domain.ListOptions) ([]*scheduleModels.ActivityInstance, error)
+	ListInstances(ctx context.Context, filter LegacyInstanceFilter) ([]*scheduleModels.ActivityInstance, error)
 	CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
 	UpdateColumns(ctx context.Context, instance *scheduleModels.ActivityInstance, columns ...string) (int64, error)
 }

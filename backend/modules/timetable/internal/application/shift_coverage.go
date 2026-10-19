@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -112,7 +112,7 @@ func filterShiftCoverageDates(dates []calendar.Date, period *scheduleModels.Cale
 	cycle := schoolcalendar.WeekCycleOf(period.WeekCycleLength, period.WeekCycleAnchor)
 	filtered := make([]calendar.Date, 0, len(dates))
 	for _, date := range dates {
-		if period.ContainsDay(scheduleModels.Date(date)) && schoolcalendar.WeekPatternApplies(weekPattern, date.String(), cycle) {
+		if period.ContainsDay(calendar.Date(date)) && schoolcalendar.WeekPatternApplies(weekPattern, date.String(), cycle) {
 			filtered = append(filtered, date)
 		}
 	}
@@ -126,15 +126,15 @@ func containsCoverageDate(dates []calendar.Date, target calendar.Date) bool {
 func (d *conflictDetection) loadShiftCoverageData(ctx context.Context, dates []calendar.Date, staffIDs []int64) ([]*scheduleModels.StaffShift, map[calendar.Date]bool, error) {
 	firstWeekFrom, _ := timetable.ContainingCalendarWeek(dates[0])
 	_, lastWeekTo := timetable.ContainingCalendarWeek(dates[len(dates)-1])
-	scheduleDates := make([]scheduleModels.Date, len(dates))
+	scheduleDates := make([]calendar.Date, len(dates))
 	for index, date := range dates {
-		scheduleDates[index] = scheduleModels.Date(date)
+		scheduleDates[index] = calendar.Date(date)
 	}
 	rows, err := d.deps.Shifts.FindByStaffIDsAndDates(ctx, staffIDs, scheduleDates)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load staff shifts for coverage: %w", err)
 	}
-	weeks, err := d.deps.Shifts.FindUsedCalendarWeeks(ctx, scheduleModels.Date(firstWeekFrom), scheduleModels.Date(lastWeekTo))
+	weeks, err := d.deps.Shifts.FindUsedCalendarWeeks(ctx, calendar.Date(firstWeekFrom), calendar.Date(lastWeekTo))
 	if err != nil {
 		return nil, nil, fmt.Errorf("load used staff-shift weeks for coverage: %w", err)
 	}

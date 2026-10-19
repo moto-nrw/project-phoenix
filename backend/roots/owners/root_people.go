@@ -62,7 +62,7 @@ type TimetableCareRows struct {
 	ArrivalExceptions timetablePorts.CareArrivalExceptionRows
 }
 
-// buildPeopleRows builds the retained People Directory and School
+// BuildPeopleRows builds the retained People Directory and School
 // Membership rows over the owners and the Identity & Access reads the rows
 // filter through (#4007).
 func BuildPeopleRows(
@@ -79,7 +79,7 @@ func BuildPeopleRows(
 	}}, identity
 }
 
-// buildStructureRows builds School Structure's group rows and directories
+// BuildStructureRows builds School Structure's group rows and directories
 // over the People Directory, School Membership and Facilities.
 func BuildStructureRows(
 	db transactionruntime.Database, persons peopledirectory.Capability, people PeopleRows, peopleIdentity *identityaccess.Module,
@@ -97,7 +97,7 @@ func BuildStructureRows(
 	}
 }
 
-// buildPresencePeopleReads binds Student Presence's student, visitor and
+// BuildPresencePeopleReads binds Student Presence's student, visitor and
 // school reads to the People Directory, School Structure and Organisation &
 // Tenancy.
 func BuildPresencePeopleReads(db transactionruntime.Database, logger *slog.Logger, persons peopledirectory.Capability, groups schoolstructure.Query, organizations organizationtenancy.Query, people PeopleRows) PresencePeopleReads {
@@ -110,7 +110,7 @@ func BuildPresencePeopleReads(db transactionruntime.Database, logger *slog.Logge
 	}
 }
 
-// buildTimetableCareRows serves Care Plan's schedule rows in Timetable's
+// BuildTimetableCareRows serves Care Plan's schedule rows in Timetable's
 // retained vocabulary.
 func BuildTimetableCareRows(carePlan careplan.Capability) TimetableCareRows {
 	return TimetableCareRows{

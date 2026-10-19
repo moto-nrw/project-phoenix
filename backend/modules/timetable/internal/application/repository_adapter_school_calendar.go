@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 )
@@ -38,7 +38,7 @@ func NewPlanningCalendarPeriodUsage(enrollment EnrollmentPhaseQueries, planning 
 // NewCalendarPeriodRepository serves the legacy calendar period repository
 // over the School Calendar owner; the reference counts come from usage
 // (#2666, #3124).
-func NewCalendarPeriodRepository(calendar schoolcalendar.Capability, usage ports.CalendarPeriodUsageRepository) scheduleModels.CalendarPeriodRepository {
+func NewCalendarPeriodRepository(calendar schoolcalendar.Capability, usage ports.CalendarPeriodUsageRepository) ports.CalendarPeriodRecords {
 	return newCalendarPeriodCalendarRepository(calendar, usage)
 }
 
@@ -83,22 +83,20 @@ func optionalDateString[D ~string](value *D) string {
 // --- calendar periods ---
 
 // calendarPeriodCalendarRepository serves the legacy
-// schedule.CalendarPeriodRepository over the School Calendar capability
+// schedule.CalendarPeriodRecords over the School Calendar capability
 // (#2666). schedule.calendar_periods belongs to that owner; the reference
 // counts stay with the planning owner's usage repository.
 type calendarPeriodCalendarRepository struct {
-	UnfilteredListing[*scheduleModels.CalendarPeriod]
 	CalendarPeriodOverlapListing
 	calendar schoolcalendar.Capability
 	ports.CalendarPeriodUsageRepository
 }
 
-var _ scheduleModels.CalendarPeriodRepository = calendarPeriodCalendarRepository{}
+var _ ports.CalendarPeriodRecords = calendarPeriodCalendarRepository{}
 
 func newCalendarPeriodCalendarRepository(capability schoolcalendar.Capability, usage ports.CalendarPeriodUsageRepository) calendarPeriodCalendarRepository {
 	repo := calendarPeriodCalendarRepository{calendar: capability, CalendarPeriodUsageRepository: usage}
-	repo.UnfilteredListing.Source = repo.FindByTenantID
-	repo.CalendarPeriodOverlapListing.Source = repo.listActiveOverlapping
+	repo.Source = repo.listActiveOverlapping
 	return repo
 }
 
@@ -161,7 +159,7 @@ func (r calendarPeriodCalendarRepository) Create(ctx context.Context, period *sc
 	return nil
 }
 
-func (r calendarPeriodCalendarRepository) FindByID(ctx context.Context, id any) (*scheduleModels.CalendarPeriod, error) {
+func (r calendarPeriodCalendarRepository) FindByID(ctx context.Context, id int64) (*scheduleModels.CalendarPeriod, error) {
 	periodID, err := membershipID(id)
 	if err != nil {
 		return nil, calendarWrapError(opFindByID, err)
@@ -192,7 +190,7 @@ func (r calendarPeriodCalendarRepository) Update(ctx context.Context, period *sc
 
 // Delete stays idempotent like the base repository it replaces; a period
 // still referenced by a non-nullable foreign key keeps its driver error.
-func (r calendarPeriodCalendarRepository) Delete(ctx context.Context, id any) error {
+func (r calendarPeriodCalendarRepository) Delete(ctx context.Context, id int64) error {
 	periodID, err := membershipID(id)
 	if err != nil {
 		return calendarWrapError("delete", err)

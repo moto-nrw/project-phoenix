@@ -34,7 +34,7 @@ type EnrollmentNotices struct {
 	CareOfferings   *enrollmentCompose.CareOfferingRecords
 }
 
-// buildEnrollmentNotices binds Enrollment's notices, its deletions and Care
+// BuildEnrollmentNotices binds Enrollment's notices, its deletions and Care
 // Plan's offerings in the enrollment rows the decision flow, the intake, the
 // change requests, the capacity gate and the reports read.
 func BuildEnrollmentNotices(
@@ -55,7 +55,7 @@ func BuildEnrollmentNotices(
 	}
 }
 
-// buildEnrollmentPhases binds the phase administration. A phase
+// BuildEnrollmentPhases binds the phase administration. A phase
 // service-window change re-bounds every roster row derived from the phase's
 // offerings through the booking materialization (#2147 review).
 func BuildEnrollmentPhases(
@@ -75,7 +75,7 @@ func BuildEnrollmentPhases(
 	return phases, nil
 }
 
-// buildEnrollmentDecisions binds Enrollment's decision flow over the owners
+// BuildEnrollmentDecisions binds Enrollment's decision flow over the owners
 // and the retained rows.
 func BuildEnrollmentDecisions(
 	db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, enrollment EnrollmentRows, notices EnrollmentNotices,
@@ -140,7 +140,7 @@ type EnrollmentFlows struct {
 	Rollovers      enrollmentOwner.Rollovers
 }
 
-// buildEnrollmentFlows binds the intake, the reports, the change requests and
+// BuildEnrollmentFlows binds the intake, the reports, the change requests and
 // the rollover over the decision flow.
 func BuildEnrollmentFlows(
 	db transactionruntime.Database, env RootEnvironment, enrollment EnrollmentRows, notices EnrollmentNotices,

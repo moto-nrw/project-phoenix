@@ -3,24 +3,22 @@
 package compose
 
 import (
-	activities "github.com/moto-nrw/project-phoenix/models/activities"
-	schedule "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
-func NativeGroupRecords(rows activities.GroupRepository) ports.NativeGroupRecords {
+func NativeGroupRecords(rows ports.ActivityGroupRecords) ports.NativeGroupRecords {
 	return application.NativeGroupRecords(rows)
 }
-func NativeScheduleRecords(rows activities.ScheduleRepository) ports.NativeScheduleRecords {
+func NativeScheduleRecords(rows ports.ActivityScheduleRecords) ports.NativeScheduleRecords {
 	return application.NativeScheduleRecords(rows)
 }
-func NativeEnrollmentRecords(rows activities.StudentEnrollmentRepository) ports.NativeEnrollmentRecords {
+func NativeEnrollmentRecords(rows ports.ActivityEnrollmentRecords) ports.NativeEnrollmentRecords {
 	return application.NativeEnrollmentRecords(rows)
 }
-func NativeExceptionRecords(rows schedule.ActivityExceptionRepository) ports.NativeExceptionRecords {
+func NativeExceptionRecords(rows ports.ActivityExceptionRecords) ports.NativeExceptionRecords {
 	return application.NativeExceptionRecords(rows)
 }
-func NativeTimeframeRecords(rows schedule.TimeframeRepository) ports.NativeTimeframeRecords {
+func NativeTimeframeRecords(rows ports.TimeframeRecords) ports.NativeTimeframeRecords {
 	return application.NativeTimeframeRecords(rows)
 }

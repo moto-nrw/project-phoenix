@@ -94,7 +94,7 @@ type GroupTeacherRepositoryBinding struct {
 	Groups     GroupsByID
 }
 
-// groupsByID resolves the groups the teacher blockers name.
+// GroupsByID resolves the groups the teacher blockers name.
 type GroupsByID interface {
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*educationRepo.Group, error)
 }

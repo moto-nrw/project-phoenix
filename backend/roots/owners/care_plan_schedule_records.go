@@ -370,7 +370,7 @@ func legacyScheduleQueryFilter(filter peoplePorts.QueryFilter) *careplan.Student
 // noRowsError is the bare not-found sentinel pair without an operation.
 func noRowsError() error { return errors.Unwrap(RetainedNotFound("")) }
 
-// retainedNotFound is the retained repository's not-found error for op.
+// RetainedNotFound is the retained repository's not-found error for op.
 func RetainedNotFound(op string) error {
 	return transactionruntime.RecordErrors{}.MissingRecordError(op)
 }

@@ -29,7 +29,7 @@ import (
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
 
-// buildAttachmentPurger composes File Storage's side of the announcement
+// BuildAttachmentPurger composes File Storage's side of the announcement
 // attachments over the database and the uploads object store alone, so the
 // parent announcements receive it at construction.
 func BuildAttachmentPurger(db transactionruntime.Database, env RootEnvironment, objects filestorageCompose.ObjectBackend) (filestorageModule.AttachmentPurger, error) {
@@ -38,7 +38,7 @@ func BuildAttachmentPurger(db transactionruntime.Database, env RootEnvironment, 
 	})
 }
 
-// buildParentPortal binds the parents portal workflow over the owners, the
+// BuildParentPortal binds the parents portal workflow over the owners, the
 // rows and the services it reads and writes through.
 func BuildParentPortal(
 	db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, settings settingsCompose.BatchSettingsService,
@@ -92,7 +92,7 @@ func BuildParentPortal(
 	}), nil
 }
 
-// buildFileStore binds school file storage (#2596) and the attachments of
+// BuildFileStore binds school file storage (#2596) and the attachments of
 // Elternmitteilungen (#2890) through the public File Storage capability
 // (#2707). Die Datei gehört der Dateiablage, der Empfängerkreis der
 // Mitteilung: the announcements received the attachment side at

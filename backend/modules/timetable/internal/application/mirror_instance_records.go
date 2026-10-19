@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
-	models "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	models "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
@@ -18,7 +18,7 @@ func mirrorInstance(row *models.ActivityInstance) *timetable.ScheduledInstance {
 	value := ScheduledInstanceOf(row)
 	return &value
 }
-func NativeMirrorInstances(rows models.ActivityInstanceRepository) *ports.MirrorInstanceRecords {
+func NativeMirrorInstances(rows ports.ActivityInstanceRecords) *ports.MirrorInstanceRecords {
 	if rows == nil {
 		return nil
 	}
@@ -26,17 +26,7 @@ func NativeMirrorInstances(rows models.ActivityInstanceRepository) *ports.Mirror
 		row, err := rows.FindByActiveGroupID(ctx, id)
 		return mirrorInstance(row), err
 	}, FindByActiveGroups: func(ctx context.Context, ids []int64) ([]*timetable.ScheduledInstance, error) {
-		lister, ok := rows.(interface {
-			List(context.Context, *domain.ListOptions) ([]*models.ActivityInstance, error)
-		})
-		if !ok {
-			return nil, fmt.Errorf("legacy list capability is not configured for %T", rows)
-		}
-		values := make([]any, len(ids))
-		for i, id := range ids {
-			values[i] = id
-		}
-		rows, err := lister.List(ctx, &domain.ListOptions{Filter: domain.NewListFilter().In("active_group_id", values...)})
+		rows, err := listInstances(ctx, rows, ports.LegacyInstanceFilter{ActiveGroupIDs: ids})
 		if rows == nil {
 			return nil, err
 		}
@@ -48,7 +38,7 @@ func NativeMirrorInstances(rows models.ActivityInstanceRepository) *ports.Mirror
 	}}, Create: func(ctx context.Context, value *timetable.ScheduledInstance) error {
 		var row *models.ActivityInstance
 		if value != nil {
-			row = &models.ActivityInstance{Date: models.Date(value.Date), ActivityGroupID: value.ActivityGroupID, CalendarPeriodID: value.CalendarPeriodID, Title: value.Title, Description: value.Description, StartTime: value.StartTime, EndTime: value.EndTime, RoomID: value.RoomID, RequiredStaff: value.RequiredStaff, Status: value.Status, ActiveGroupID: value.ActiveGroupID, ListKind: value.ListKind, IsSpontaneous: value.IsSpontaneous, UnderstaffedAck: value.UnderstaffedAck, UnderstaffedNote: value.UnderstaffedNote, CancelReason: value.CancelReason, Notes: value.Notes, CreatedBy: value.CreatedBy, StartedBy: value.StartedBy, StartedAt: value.StartedAt, CompletedAt: value.CompletedAt, CompletedBy: value.CompletedBy, ReopenUntil: value.ReopenUntil}
+			row = &models.ActivityInstance{Date: calendar.Date(value.Date), ActivityGroupID: value.ActivityGroupID, CalendarPeriodID: value.CalendarPeriodID, Title: value.Title, Description: value.Description, StartTime: value.StartTime, EndTime: value.EndTime, RoomID: value.RoomID, RequiredStaff: value.RequiredStaff, Status: value.Status, ActiveGroupID: value.ActiveGroupID, ListKind: value.ListKind, IsSpontaneous: value.IsSpontaneous, UnderstaffedAck: value.UnderstaffedAck, UnderstaffedNote: value.UnderstaffedNote, CancelReason: value.CancelReason, Notes: value.Notes, CreatedBy: value.CreatedBy, StartedBy: value.StartedBy, StartedAt: value.StartedAt, CompletedAt: value.CompletedAt, CompletedBy: value.CompletedBy, ReopenUntil: value.ReopenUntil}
 			row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
 		}
 		err := rows.Create(ctx, row)
@@ -57,7 +47,11 @@ func NativeMirrorInstances(rows models.ActivityInstanceRepository) *ports.Mirror
 		}
 		return err
 	}, FindByID: func(ctx context.Context, id any) (*timetable.ScheduledInstance, error) {
-		row, err := rows.FindByID(ctx, id)
+		recordID, ok := LegacyGroupID(id)
+		if !ok {
+			return nil, WrapDatabaseError("find by id", fmt.Errorf("invalid activity instance id %T", id))
+		}
+		row, err := rows.FindByID(ctx, recordID)
 		return mirrorInstance(row), err
 	}}
 }

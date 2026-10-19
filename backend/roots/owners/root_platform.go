@@ -39,7 +39,7 @@ type AuditOwner struct {
 	Command     auditCommand
 }
 
-// buildAuditOwner builds the Audit Platform. The composition reads the
+// BuildAuditOwner builds the Audit Platform. The composition reads the
 // tenant runtime's ambient transaction itself; writes are routed through the
 // command before any service captures them.
 func BuildAuditOwner(db transactionruntime.Database, env RootEnvironment) (AuditOwner, error) {
@@ -54,7 +54,7 @@ func BuildAuditOwner(db transactionruntime.Database, env RootEnvironment) (Audit
 	return AuditOwner{Persistence: audits.WithRoutedWrites(command), Command: command}, nil
 }
 
-// buildMailTransport binds the process's realtime hub, builds the mail
+// BuildMailTransport binds the process's realtime hub, builds the mail
 // transport and the web push configuration. An invalid VAPID configuration fails startup.
 func BuildMailTransport(env RootEnvironment) (email.Mailer, email.Dispatcher, email.Email, deliveryCompose.VAPIDConfig, error) {
 	cfg, logger := env.Config, env.Logger
@@ -91,7 +91,7 @@ type SettingsOwner struct {
 	Service settingsCompose.BatchSettingsService
 }
 
-// tenantMailIdentity binds the reply-to of tenant-bound mail to the OGS, not
+// TenantMailIdentity binds the reply-to of tenant-bound mail to the OGS, not
 // to moto (#1936); one instance is shared by every tenant-bound sender.
 func TenantMailIdentity(schools organizationtenancy.Query, settings settingsCompose.SettingsService, env RootEnvironment) email.ReplyToResolver {
 	return deliveryCompose.NewTenantMailIdentity(SchoolContactDirectory{Schools: schools}, func(ctx context.Context, tenantID int64) (string, error) {
@@ -102,7 +102,7 @@ func TenantMailIdentity(schools organizationtenancy.Query, settings settingsComp
 // rootUnitOfWork is the unit of work a root composes its services over.
 type rootUnitOfWork = tenant.UnitOfWork
 
-// buildSettingsOwner builds the Settings Platform complete: the tenant
+// BuildSettingsOwner builds the Settings Platform complete: the tenant
 // runtime, the start-page composition (#2875) inside the same tenant
 // transaction as every other tenant-scoped setting, Enrollment's active
 // phase restrictions as the collection guards (#1663) and the lookup
@@ -125,7 +125,7 @@ func BuildSettingsOwner(db transactionruntime.Database, unit rootUnitOfWork, env
 	return SettingsOwner{Rows: rows, Service: service}, nil
 }
 
-// buildMealPlanSettings binds the Meal Plan's settings to the tenant
+// BuildMealPlanSettings binds the Meal Plan's settings to the tenant
 // settings it resolves per call.
 func BuildMealPlanSettings(settings settingsCompose.SettingsService) (*mealplanCompose.Settings, error) {
 	return mealplanCompose.NewBoundSettings(
@@ -141,7 +141,7 @@ func BuildMealPlanSettings(settings settingsCompose.SettingsService) (*mealplanC
 	)
 }
 
-// buildFeedbackSettings binds Feedback's settings to the tenant settings it
+// BuildFeedbackSettings binds Feedback's settings to the tenant settings it
 // resolves per call.
 func BuildFeedbackSettings(settings settingsCompose.SettingsService) (*feedbackCompose.Settings, error) {
 	return feedbackCompose.NewBoundSettings(
@@ -163,7 +163,7 @@ type DeliveryRuntime struct {
 	Outbox  *deliveryCompose.EmailOutbox
 }
 
-// buildDeliveryRuntime composes Delivery's module before Identity & Access;
+// BuildDeliveryRuntime composes Delivery's module before Identity & Access;
 // the recipients' names come from the People Directory's guardian rows.
 func BuildDeliveryRuntime(db transactionruntime.Database, env RootEnvironment, guardians GuardianDisplayQuery) (DeliveryRuntime, error) {
 	observe := env.Observe.DurableDelivery

@@ -36,7 +36,7 @@ type TimetableDays struct {
 	Bridge timetable.EndedSessionCompletion
 }
 
-// buildTimetableDays binds the Timetable owner rows over the retained
+// BuildTimetableDays binds the Timetable owner rows over the retained
 // repositories, the Care Plan exception rows and the Audit deviation trail,
 // and the ended-session completion over the care days.
 func BuildTimetableDays(owner TimetableOwner, people PeopleRows, rooms facilitiesModule.Catalog, careRows TimetableCareRows, audit AuditOwner, careDay careplan.CareDayQuery) (TimetableDays, error) {
@@ -56,7 +56,7 @@ func BuildTimetableDays(owner TimetableOwner, people PeopleRows, rooms facilitie
 	return TimetableDays{Rows: rows, Bridge: bridge}, nil
 }
 
-// buildActivePresence binds the active service: Student Presence with the
+// BuildActivePresence binds the active service: Student Presence with the
 // Timetable owner's attendance mirror (WP-B10, #3424 slice S3), the session
 // completion, the NFC auto-check-in and the parent event emitter that wakes
 // the guardians (#2252).
@@ -105,7 +105,7 @@ func BuildActivePresence(
 	), nil
 }
 
-// buildDeviceFleet composes the observed Device Fleet owner (#2676). It owns
+// BuildDeviceFleet composes the observed Device Fleet owner (#2676). It owns
 // iot.devices and display.displays; the info-point dashboard reads
 // Facilities and Student Presence through their public capabilities and the
 // remaining cross-owner facts through this owner's consumer-owned ports.

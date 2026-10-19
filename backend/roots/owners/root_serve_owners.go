@@ -37,7 +37,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/observability"
 )
 
-// buildServeOrganizations composes Organisation & Tenancy.
+// BuildServeOrganizations composes Organisation & Tenancy.
 func BuildServeOrganizations(db transactionruntime.Database) (organizationtenancy.Capability, error) {
 	return organizationCompose.New(organizationCompose.Dependencies{
 		DB: db.Pool(),
@@ -47,7 +47,7 @@ func BuildServeOrganizations(db transactionruntime.Database) (organizationtenanc
 	})
 }
 
-// buildServeSchoolStructure composes School Structure.
+// BuildServeSchoolStructure composes School Structure.
 func BuildServeSchoolStructure(db transactionruntime.Database) (*schoolstructure.Module, error) {
 	return schoolStructureCompose.New(schoolStructureCompose.Dependencies{
 		DB: db.Pool(),
@@ -57,18 +57,18 @@ func BuildServeSchoolStructure(db transactionruntime.Database) (*schoolstructure
 	})
 }
 
-// observeFacilities records one Facilities operation.
+// ObserveFacilities records one Facilities operation.
 func ObserveFacilities(observation facilitiesCompose.Observation) {
 	observability.ObserveFacilitiesOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, facilitiesModule.ErrorCode(observation.Err), observation.Err)
 }
 
-// buildServeRooms composes the Facilities room catalog every owner reads; the
+// BuildServeRooms composes the Facilities room catalog every owner reads; the
 // room deletion is composed once its guard exists.
 func BuildServeRooms(db transactionruntime.Database) (*facilitiesModule.Rooms, error) {
 	return facilitiesCompose.NewRooms(facilitiesCompose.Dependencies{DB: db.Pool(), Observe: ObserveFacilities})
 }
 
-// buildFacilitiesModule composes Facilities with its room deletion: the
+// BuildFacilitiesModule composes Facilities with its room deletion: the
 // deletion asks Student Presence for open sessions and Care Plan's
 // care-offering catalog for the rooms its offerings need (#4010).
 func BuildFacilitiesModule(db transactionruntime.Database, observe func(facilitiesCompose.Observation), lock timetable.RecurrenceWriteLock, sessions *studentpresence.Module, offerings careplan.CareOfferingGuards) (*facilitiesModule.Module, error) {
@@ -79,12 +79,12 @@ func BuildFacilitiesModule(db transactionruntime.Database, observe func(faciliti
 	})
 }
 
-// observeSchoolCalendar records one School Calendar operation.
+// ObserveSchoolCalendar records one School Calendar operation.
 func ObserveSchoolCalendar(observation schoolCalendarCompose.Observation) {
 	observability.ObserveSchoolCalendarOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolcalendar.ErrorCode(observation.Err), observation.Err)
 }
 
-// buildSchoolCalendarRecords composes the School Calendar every owner reads,
+// BuildSchoolCalendarRecords composes the School Calendar every owner reads,
 // over the tenant's federal state; the period administration is composed
 // once its guards exist.
 func BuildSchoolCalendarRecords(db transactionruntime.Database, observe func(schoolCalendarCompose.Observation), settings settingsCompose.SettingsService) (*schoolcalendar.Records, error) {
@@ -100,7 +100,7 @@ func BuildSchoolCalendarRecords(db transactionruntime.Database, observe func(sch
 	})
 }
 
-// buildServeWorkforce composes Workforce over School Membership; a
+// BuildServeWorkforce composes Workforce over School Membership; a
 // Sonderarbeitszeit never sets a target on a statutory holiday.
 func BuildServeWorkforce(db transactionruntime.Database, membership schoolmembership.Capability, calendar schoolcalendar.Days) (*workforceModule.Module, error) {
 	return workforceCompose.New(workforceCompose.Dependencies{
@@ -114,7 +114,7 @@ func BuildServeWorkforce(db transactionruntime.Database, membership schoolmember
 	})
 }
 
-// buildServeAppointments composes Appointments.
+// BuildServeAppointments composes Appointments.
 func BuildServeAppointments(db transactionruntime.Database) (appointmentsModule.Capability, error) {
 	return appointmentsCompose.New(appointmentsCompose.Dependencies{
 		DB: db.Pool(),
@@ -124,7 +124,7 @@ func BuildServeAppointments(db transactionruntime.Database) (appointmentsModule.
 	})
 }
 
-// buildPeopleDirectory composes the People Directory over its owners, the
+// BuildPeopleDirectory composes the People Directory over its owners, the
 // photo runtime and the guardian provider, both built before it. Care Plan's
 // companion slice and student profiles are constructible from the database
 // alone, so the directory's write path gets them here rather than waiting
@@ -152,12 +152,12 @@ func BuildPeopleDirectory(db transactionruntime.Database, observe func(peopleCom
 		NewPeopleIdentityAccess(db, nil).FindActiveGuardianMemberships)
 }
 
-// observePeopleDirectory records one People Directory operation.
+// ObservePeopleDirectory records one People Directory operation.
 func ObservePeopleDirectory(observation peopleCompose.Observation) {
 	observability.ObservePeopleDirectoryOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, peopledirectory.ErrorCode(observation.Err), observation.Err)
 }
 
-// buildServeMealPlan composes the Meal Plan over its settings and the
+// BuildServeMealPlan composes the Meal Plan over its settings and the
 // participants of the day.
 func BuildServeMealPlan(db transactionruntime.Database, settings *mealplanCompose.Settings, students StudentRootReads) (*mealplanModule.Module, error) {
 	return mealplanCompose.New(mealplanCompose.Dependencies{
@@ -171,12 +171,12 @@ func BuildServeMealPlan(db transactionruntime.Database, settings *mealplanCompos
 	})
 }
 
-// buildServeFeedback composes Feedback over its settings.
+// BuildServeFeedback composes Feedback over its settings.
 func BuildServeFeedback(db transactionruntime.Database, settings *feedbackCompose.Settings) (*feedbackModule.Module, error) {
 	return composeFeedback(db, settings)
 }
 
-// buildServeTimetable composes the observed Timetable owner over the People
+// BuildServeTimetable composes the observed Timetable owner over the People
 // Directory, the room catalog and School Membership.
 func BuildServeTimetable(db transactionruntime.Database, persons peopledirectory.StudentQuery, rooms facilitiesModule.Query, membership schoolmembership.Capability) (*timetable.Module, error) {
 	return newTimetable(db, persons, rooms, membership, func(observation timetableCompose.Observation) {

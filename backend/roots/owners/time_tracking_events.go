@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
-// timeTrackingEvents binds the time-tracking services' event port to the
+// TimeTrackingEvents binds the time-tracking services' event port to the
 // Delivery producer. The services announce a change; the producer defers the
 // tenant-wide broadcast until the surrounding transaction commits.
 func TimeTrackingEvents(broadcaster realtime.Broadcaster) workforceCompose.EventPublisher {

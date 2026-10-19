@@ -18,11 +18,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// offeringChangeOwners binds the offering-change review's ports over its
+// OfferingChangeOwners binds the offering-change review's ports over its
 // owners. A nil catalog reads the care offerings from carePlan. The caller
 // completes the dependencies with the planning, the booking materialization,
 // the share visibility, the clock and the logger, and composes them through
-// newOfferingChanges.
+// ComposeOfferingChanges.
 func OfferingChangeOwners(
 	carePlan careplan.Capability, catalog carePlanCompose.OfferingChangeCatalog, enrollment OfferingChangeEnrollmentReads,
 	students offeringChangeStudentRows, withdrawals offeringChangeWithdrawalRows, settings OfferingChangeSettingsReads,
@@ -55,8 +55,8 @@ func OfferingChangeOwners(
 	}, nil
 }
 
-// newOfferingChanges composes the offering-change review over deps from
-// offeringChangeOwners.
+// ComposeOfferingChanges composes the offering-change review over deps from
+// OfferingChangeOwners.
 func ComposeOfferingChanges(deps carePlanCompose.OfferingChangeDependencies) (careplan.OfferingChangeCapability, error) {
 	changes, err := carePlanCompose.NewOfferingChanges(deps)
 	if err != nil {
@@ -118,7 +118,7 @@ func mapOfferingLifecycleError(err error) error {
 	}
 }
 
-// newOfferingChangeConflicts presents the review to the cross-kind conflict
+// NewOfferingChangeConflicts presents the review to the cross-kind conflict
 // coordinator in the coordinator's own vocabulary.
 func NewOfferingChangeConflicts(changes careplan.OfferingChangeConflicts) carePlanCompose.ParentRequestConflicts {
 	return offeringChangeConflictPort{changes: changes}

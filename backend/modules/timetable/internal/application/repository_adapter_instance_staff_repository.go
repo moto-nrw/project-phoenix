@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 )
 
 type timetableInstanceStaffRepository struct {
@@ -28,7 +30,7 @@ func (r timetableInstanceStaffRepository) Create(ctx context.Context, value *sch
 	return nil
 }
 
-func (r timetableInstanceStaffRepository) FindByID(ctx context.Context, id any) (*scheduleModels.InstanceStaff, error) {
+func (r timetableInstanceStaffRepository) FindByID(ctx context.Context, id int64) (*scheduleModels.InstanceStaff, error) {
 	rowID, ok := LegacyGroupID(id)
 	if !ok {
 		return nil, WrapDatabaseError("find by id", fmt.Errorf("invalid instance staff id %T", id))
@@ -55,7 +57,7 @@ func (r timetableInstanceStaffRepository) Update(ctx context.Context, value *sch
 	return nil
 }
 
-func (r timetableInstanceStaffRepository) Delete(ctx context.Context, id any) error {
+func (r timetableInstanceStaffRepository) Delete(ctx context.Context, id int64) error {
 	rowID, ok := LegacyGroupID(id)
 	if !ok {
 		return WrapDatabaseError("delete", fmt.Errorf("invalid instance staff id %T", id))
@@ -64,17 +66,6 @@ func (r timetableInstanceStaffRepository) Delete(ctx context.Context, id any) er
 		return WrapDatabaseError("delete", err)
 	}
 	return nil
-}
-
-func (r timetableInstanceStaffRepository) List(ctx context.Context, options *InstanceStaffQueryOptions) ([]*scheduleModels.InstanceStaff, error) {
-	filter, err := InstanceStaffListOptions(options)
-	if err != nil {
-		return nil, WrapDatabaseError("list with options", err)
-	}
-	return r.list(ctx, timetable.InstanceStaffFilter{
-		IDs: filter.IDs, InstanceIDs: filter.InstanceIDs, StaffIDs: filter.StaffIDs,
-		SickAbsenceID: filter.SickAbsenceID, Limit: filter.Limit, Offset: filter.Offset,
-	}, "list with options")
 }
 
 func (r timetableInstanceStaffRepository) UpdateColumns(ctx context.Context, value *scheduleModels.InstanceStaff, columns ...string) (int64, error) {
@@ -99,12 +90,12 @@ func (r timetableInstanceStaffRepository) FindByInstanceIDs(ctx context.Context,
 	return r.list(ctx, timetable.InstanceStaffFilter{InstanceIDs: instanceIDs, OrderByInstanceAndCreated: true}, "find by instance ids")
 }
 
-func (r timetableInstanceStaffRepository) FindByStaffAndDate(ctx context.Context, staffID int64, date InstanceStaffDate) ([]*scheduleModels.InstanceStaff, error) {
+func (r timetableInstanceStaffRepository) FindByStaffAndDate(ctx context.Context, staffID int64, date calendar.Date) ([]*scheduleModels.InstanceStaff, error) {
 	text := date.String()
 	return r.list(ctx, timetable.InstanceStaffFilter{StaffIDs: []int64{staffID}, Date: &text, OrderByActivityTime: true}, "find by staff and date")
 }
 
-func (r timetableInstanceStaffRepository) FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date InstanceStaffDate) ([]*scheduleModels.InstanceStaff, error) {
+func (r timetableInstanceStaffRepository) FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date calendar.Date) ([]*scheduleModels.InstanceStaff, error) {
 	if len(staffIDs) == 0 {
 		return []*scheduleModels.InstanceStaff{}, nil
 	}
@@ -112,7 +103,7 @@ func (r timetableInstanceStaffRepository) FindByStaffIDsAndDate(ctx context.Cont
 	return r.list(ctx, timetable.InstanceStaffFilter{StaffIDs: staffIDs, Date: &text, OrderByActivityTime: true}, "find by staff ids and date")
 }
 
-func (r timetableInstanceStaffRepository) FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to InstanceStaffDate) ([]*scheduleModels.InstanceStaff, error) {
+func (r timetableInstanceStaffRepository) FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to calendar.Date) ([]*scheduleModels.InstanceStaff, error) {
 	fromText, toText := from.String(), to.String()
 	return r.list(ctx, timetable.InstanceStaffFilter{
 		StaffIDs: []int64{staffID}, FromDate: &fromText, ToDate: &toText, OrderByActivityDateTime: true,
@@ -175,4 +166,8 @@ func legacyInstanceStaffError(operation string, err error) error {
 		return WrapNotFoundDatabaseError(operation)
 	}
 	return WrapDatabaseError(operation, err)
+}
+
+func (r timetableInstanceStaffRepository) ListStaff(ctx context.Context, filter timetable.InstanceStaffFilter) ([]*scheduleModels.InstanceStaff, error) {
+	return r.list(ctx, filter, "list with options")
 }

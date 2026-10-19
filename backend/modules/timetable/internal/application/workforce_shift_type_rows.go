@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // WorkforceShiftTypeRows serves the tenant-defined Schichtarten.
@@ -36,7 +37,7 @@ func (r *WorkforceShiftTypeRows) Create(ctx context.Context, shiftType *schedule
 	return nil
 }
 
-func (r *WorkforceShiftTypeRows) Delete(ctx context.Context, id any) error {
+func (r *WorkforceShiftTypeRows) Delete(ctx context.Context, id int64) error {
 	typeID, err := shiftRowID(id)
 	if err != nil {
 		return r.errs.WrapRecordError("delete shift type", err)
@@ -88,7 +89,7 @@ func applyShiftToRow(shift *scheduleModels.StaffShift, value ports.WorkforceShif
 	shift.UpdatedAt = value.UpdatedAt
 	shift.TenantID = value.TenantID
 	shift.StaffID = value.StaffID
-	shift.Date = scheduleModels.Date(value.Date)
+	shift.Date = calendar.Date(value.Date)
 	shift.StartTime = shiftWallClockTime(value.StartTime)
 	shift.EndTime = shiftWallClockTime(value.EndTime)
 	shift.BreakMinutes = value.BreakMinutes
@@ -98,7 +99,7 @@ func applyShiftToRow(shift *scheduleModels.StaffShift, value ports.WorkforceShif
 	shift.Detached = value.Detached
 	shift.SeriesOccurrenceDate = nil
 	if value.SeriesOccurrenceDate != "" {
-		occurrence := scheduleModels.Date(value.SeriesOccurrenceDate)
+		occurrence := calendar.Date(value.SeriesOccurrenceDate)
 		shift.SeriesOccurrenceDate = &occurrence
 	}
 	shift.Cancelled = value.Cancelled

@@ -40,11 +40,11 @@ func NewEducationGroupStore(runtime educationRepo.LegacyRepositoryRuntime, optio
 		// No room owner bound: the room reads report the missing lookup.
 		deps.Rooms = func() educationRepo.GroupRoomLookup { return nil }
 	}
-	return &EducationGroupStore{GroupRepository: educationRepo.NewGroupRepository(runtime, deps)}
+	return &EducationGroupStore{LegacyGroupRepository: educationRepo.NewGroupRepository(runtime, deps)}
 }
 
 type EducationGroupStore struct {
-	*educationRepo.GroupRepository
+	educationRepo.LegacyGroupRepository
 }
 
 func groupTeachingAssignments(membership groupAssignmentLister) func(context.Context, []int64, []int64) ([]educationRepo.TeacherGroupID, error) {

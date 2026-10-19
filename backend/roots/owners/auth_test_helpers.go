@@ -10,7 +10,7 @@ import (
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
-// unsentGuardianMail serves a root composed without the guardian mail — a
+// UnsentGuardianMail serves a root composed without the guardian mail — a
 // CLI or a fixture that only reads. The flows still run; nothing is sent.
 type UnsentGuardianMail struct{}
 

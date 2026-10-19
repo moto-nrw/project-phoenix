@@ -20,7 +20,7 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
-// buildParentEventEmitter builds the chat-pill emitter (#1803) that also
+// BuildParentEventEmitter builds the chat-pill emitter (#1803) that also
 // wakes the guardians after enrollment and care writes that change a
 // child's live care data (#1725), with the decision notices of the request
 // flows (#1671).
@@ -36,7 +36,7 @@ func BuildParentEventEmitter(
 	})
 }
 
-// buildParentAnnouncements builds the staff-side parent broadcast news
+// BuildParentAnnouncements builds the staff-side parent broadcast news
 // (#1669), whose cancellation notices the instance lifecycle publishes
 // (#2601). File Storage hands it the attachment side at construction (#2890).
 func BuildParentAnnouncements(
@@ -61,7 +61,7 @@ type CommunicationMessaging struct {
 	StaffMessaging communication.StaffMessagingRuntime
 }
 
-// buildCommunicationMessaging binds the parent messenger and the colleague
+// BuildCommunicationMessaging binds the parent messenger and the colleague
 // chat over the person directory, the caller context, the settings, the
 // realtime hub and the notification router.
 func BuildCommunicationMessaging(

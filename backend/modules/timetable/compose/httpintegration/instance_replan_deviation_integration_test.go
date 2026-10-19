@@ -15,8 +15,8 @@ import (
 	"time"
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -31,7 +31,7 @@ import (
 func applyDeviation(t *testing.T, s *scenarioSetup, instanceID, absentStaffID, subStaffID int64) {
 	t.Helper()
 	_, err := s.db.NewUpdate().
-		Model((*scheduleModels.InstanceStaff)(nil)).
+		Model((*fixtures.InstanceStaff)(nil)).
 		ModelTableExpr(`schedule.instance_staff AS "instance_staff"`).
 		Set("is_absent = ?", true).
 		Where(`"instance_staff".instance_id = ?`, instanceID).
@@ -40,7 +40,11 @@ func applyDeviation(t *testing.T, s *scenarioSetup, instanceID, absentStaffID, s
 		Exec(s.ctx)
 	require.NoError(t, err)
 
-	sub := &scheduleModels.InstanceStaff{InstanceID: instanceID, StaffID: subStaffID, IsSubstitute: true}
+	sub := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.InstanceID = instanceID
+		fixtureRow.StaffID = subStaffID
+		fixtureRow.IsSubstitute = true
+	})
 	sub.SetTenantID(s.tenantID)
 	_, err = s.db.NewInsert().Model(sub).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 	require.NoError(t, err)
@@ -216,7 +220,12 @@ func TestInstance_ReplanWeek_DoesNotMoveDeletedSlotDeviationToSurvivor(t *testin
 	// scenario's 08:00), so the two occurrences disambiguate by start_time.
 	tf2Start := time.Date(2000, 1, 1, 10, 0, 0, 0, time.Local)
 	tf2End := time.Date(2000, 1, 1, 11, 0, 0, 0, time.Local)
-	tf2 := &scheduleModels.Timeframe{StartTime: tf2Start, EndTime: &tf2End, IsActive: true, Description: fmt.Sprintf("Slot2-%d", time.Now().UnixNano())}
+	tf2 := fixtures.NewTimeframe(func(fixtureRow *fixtures.Timeframe) {
+		fixtureRow.StartTime = tf2Start
+		fixtureRow.EndTime = &tf2End
+		fixtureRow.IsActive = true
+		fixtureRow.Description = fmt.Sprintf("Slot2-%d", time.Now().UnixNano())
+	})
 	tf2.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(tf2).ModelTableExpr(`schedule.timeframes`).Exec(s.ctx)
 	require.NoError(t, err)
@@ -313,7 +322,7 @@ func TestInstance_ReplanWeek_PreservesRequiredStaffPin(t *testing.T) {
 	// Pin this single occurrence to 5 — the persisted state of a
 	// "Nur diesen Termin" edit of Benötigtes Personal.
 	_, err = s.db.NewUpdate().
-		Model((*scheduleModels.ActivityInstance)(nil)).
+		Model((*fixtures.ActivityInstance)(nil)).
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Set("required_staff = ?", 5).
 		Where(`"activity_instance".id = ?`, instances[0].ID).
@@ -333,7 +342,7 @@ func TestInstance_ReplanWeek_PreservesRequiredStaffPin(t *testing.T) {
 	// A second re-plan after clearing the pin must leave the row NULL again —
 	// nothing stale in the snapshot path re-pins it.
 	_, err = s.db.NewUpdate().
-		Model((*scheduleModels.ActivityInstance)(nil)).
+		Model((*fixtures.ActivityInstance)(nil)).
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Set("required_staff = NULL").
 		Where(`"activity_instance".id = ?`, regen[0].ID).

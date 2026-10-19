@@ -23,7 +23,7 @@ type CallerSettings interface {
 	ResolveString(ctx context.Context, key string) (string, error)
 }
 
-// newCallerContext composes the Identity & Access caller context (#3501)
+// NewCallerContext composes the Identity & Access caller context (#3501)
 // over People Directory, School Membership, School Structure, Timetable and
 // Student Presence. tokens reads the verified principal and the request
 // identity memo (#2099) the request middleware attached; activities reads
@@ -70,7 +70,7 @@ func NewCallerContext(
 	return caller, nil
 }
 
-// callerPersons reads the caller's person from the retained rows and writes
+// CallerPersons reads the caller's person from the retained rows and writes
 // the names of the caller's own profile through the People Directory.
 type CallerPersons struct {
 	Rows   personRows

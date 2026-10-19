@@ -179,7 +179,7 @@ func workerTracer(tracer *observability.Tracer) schedulerPorts.WorkerTracer {
 	}
 }
 
-// composeWorkerRoot builds the owners the Worker's jobs need as local values,
+// ComposeWorker builds the owners the Worker's jobs need as local values,
 // in the build order of the owner graph, without the HTTP router, and starts
 // the Worker over them through newWorker, the function the server root
 // starts its embedded Worker with (#4083).

@@ -122,7 +122,7 @@ func (a StatisticsStatusDays) StatusDays(ctx context.Context, from, to timezone.
 	return result, nil
 }
 
-// accessLogLedger is the Audit Platform's data access log a report appends
+// AccessLogLedger is the Audit Platform's data access log a report appends
 // to and checks for a recent entry.
 type AccessLogLedger interface {
 	Create(context.Context, *auditModels.DataAccessLog) error

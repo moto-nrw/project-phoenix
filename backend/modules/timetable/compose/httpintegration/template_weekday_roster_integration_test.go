@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
 	"github.com/stretchr/testify/assert"
@@ -14,8 +16,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -61,7 +62,7 @@ type weekdayRosterScenario struct {
 	cleanup     []func()
 }
 
-func ownedStudentEnrollmentRepository(t *testing.T, db *bun.DB) activitiesModels.StudentEnrollmentRepository {
+func ownedStudentEnrollmentRepository(t *testing.T, db *bun.DB) fixtures.EnrollmentWriter {
 	t.Helper()
 	repos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	return repos.StudentEnrollment
@@ -292,7 +293,7 @@ func TestMaterialization_PrefersScopedPrimaryWithoutClearingLegacyFallback(t *te
 	require.NoError(t, err)
 	primaryByWeekdayAndStaff := make(map[int]map[int64]bool)
 	for _, row := range rosterRows {
-		if row.Kind == activitiesModels.TemplateWeekdayRosterKindStaff {
+		if row.Kind == timetable.TemplateWeekdayRosterKindStaff {
 			if primaryByWeekdayAndStaff[row.Weekday] == nil {
 				primaryByWeekdayAndStaff[row.Weekday] = make(map[int64]bool)
 			}
@@ -766,19 +767,19 @@ func TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments(t *
 	for _, row := range rows {
 		found[rosterKey{weekday: row.Weekday, kind: row.Kind, person: row.PersonID}] = true
 	}
-	assert.True(t, found[rosterKey{weekday: activityContract.WeekdayMonday, kind: activitiesModels.TemplateWeekdayRosterKindEmpty}],
+	assert.True(t, found[rosterKey{weekday: activityContract.WeekdayMonday, kind: timetable.TemplateWeekdayRosterKindEmpty}],
 		"an intentionally empty Monday needs an API marker")
-	assert.True(t, found[rosterKey{weekday: activityContract.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindEmpty}])
-	assert.True(t, found[rosterKey{weekday: activityContract.WeekdayMonday, kind: activitiesModels.TemplateWeekdayRosterKindStudent, person: s.studentA}],
+	assert.True(t, found[rosterKey{weekday: activityContract.WeekdayTuesday, kind: timetable.TemplateWeekdayRosterKindEmpty}])
+	assert.True(t, found[rosterKey{weekday: activityContract.WeekdayMonday, kind: timetable.TemplateWeekdayRosterKindStudent, person: s.studentA}],
 		"the protected child must remain visible on the weekday where it materializes")
-	assert.True(t, found[rosterKey{weekday: activityContract.WeekdayMonday, kind: activitiesModels.TemplateWeekdayRosterKindProtectedStudent, person: s.studentA}],
+	assert.True(t, found[rosterKey{weekday: activityContract.WeekdayMonday, kind: timetable.TemplateWeekdayRosterKindProtectedStudent, person: s.studentA}],
 		"the protected coverage must be exposed separately to the editor")
-	assert.False(t, found[rosterKey{weekday: activityContract.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindStudent, person: s.studentA}],
+	assert.False(t, found[rosterKey{weekday: activityContract.WeekdayTuesday, kind: timetable.TemplateWeekdayRosterKindStudent, person: s.studentA}],
 		"selected_weekdays must also limit a protected row carrying a weekday scope")
-	assert.False(t, found[rosterKey{weekday: activityContract.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindProtectedStudent, person: s.studentA}],
+	assert.False(t, found[rosterKey{weekday: activityContract.WeekdayTuesday, kind: timetable.TemplateWeekdayRosterKindProtectedStudent, person: s.studentA}],
 		"protected coverage must retain selected_weekdays")
-	assert.True(t, found[rosterKey{weekday: activityContract.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindStudent, person: s.studentB}])
-	assert.True(t, found[rosterKey{weekday: activityContract.WeekdayTuesday, kind: activitiesModels.TemplateWeekdayRosterKindStaff, person: s.staffB}])
+	assert.True(t, found[rosterKey{weekday: activityContract.WeekdayTuesday, kind: timetable.TemplateWeekdayRosterKindStudent, person: s.studentB}])
+	assert.True(t, found[rosterKey{weekday: activityContract.WeekdayTuesday, kind: timetable.TemplateWeekdayRosterKindStaff, person: s.staffB}])
 }
 
 func TestTemplateWeekdayRosterRead_ExpandsSharedRowsAcrossScopedDays(t *testing.T) {
@@ -842,12 +843,12 @@ func TestTemplateWeekdayRosterRead_ExpandsSharedRowsAcrossScopedDays(t *testing.
 			byWeekday[row.Weekday] = roster
 		}
 		switch row.Kind {
-		case activitiesModels.TemplateWeekdayRosterKindStaff:
+		case timetable.TemplateWeekdayRosterKindStaff:
 			roster.staff = append(roster.staff, row.PersonID)
 			if row.IsPrimary {
 				roster.primary = row.PersonID
 			}
-		case activitiesModels.TemplateWeekdayRosterKindStudent:
+		case timetable.TemplateWeekdayRosterKindStudent:
 			roster.students = append(roster.students, row.PersonID)
 		}
 	}
@@ -909,7 +910,7 @@ func TestTemplateWeekdayRosterRead_ExposesProtectedCoverageForSharedRoster(t *te
 	require.NoError(t, err)
 	protectedWeekdays := make([]int, 0)
 	for _, row := range rows {
-		if row.Kind == activitiesModels.TemplateWeekdayRosterKindProtectedStudent && row.PersonID == s.studentA {
+		if row.Kind == timetable.TemplateWeekdayRosterKindProtectedStudent && row.PersonID == s.studentA {
 			protectedWeekdays = append(protectedWeekdays, row.Weekday)
 		}
 	}
@@ -944,14 +945,15 @@ func TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods(t *testing.T) {
 	require.NoError(t, err)
 	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
 
-	periodB := &scheduleModels.CalendarPeriod{
-		Name:            fmt.Sprintf("Roster-B-%d", time.Now().UnixNano()),
-		PeriodType:      scheduleModels.PeriodTypeCustom,
-		StartDate:       scheduleModels.NewDate(2026, 1, 1),
-		EndDate:         scheduleModels.NewDate(2026, 12, 31),
-		WeekCycleLength: 1,
-		IsActive:        true,
-	}
+	periodB := fixtures.NewCalendarPeriod(func(fixtureRow *fixtures.CalendarPeriod) {
+		fixtureRow.Name = fmt.Sprintf("Roster-B-%d", time.Now().UnixNano())
+		fixtureRow.PeriodType = fixtures.PeriodTypeCustom()
+		fixtureRow.StartDate = calendar.NewDate(2026, 1, 1)
+		fixtureRow.EndDate = calendar.NewDate(2026, 12, 31)
+		fixtureRow.WeekCycleLength = 1
+		fixtureRow.IsActive = true
+	})
+
 	createCalendarPeriodRow(t, s.db, s.ctx, periodB)
 	s.cleanup = append(s.cleanup, func() {
 	})
@@ -1002,7 +1004,7 @@ func TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods(t *testing.T) {
 
 func assertWeekdayRosterPeople(
 	t *testing.T,
-	rows []activitiesModels.TemplateWeekdayRosterRow,
+	rows []timetable.TemplateWeekdayRosterRow,
 	wantStaff, wantStudents []int64,
 ) {
 	t.Helper()
@@ -1010,9 +1012,9 @@ func assertWeekdayRosterPeople(
 	students := make([]int64, 0)
 	for _, row := range rows {
 		switch row.Kind {
-		case activitiesModels.TemplateWeekdayRosterKindStaff:
+		case timetable.TemplateWeekdayRosterKindStaff:
 			staff = append(staff, row.PersonID)
-		case activitiesModels.TemplateWeekdayRosterKindStudent:
+		case timetable.TemplateWeekdayRosterKindStudent:
 			students = append(students, row.PersonID)
 		}
 	}
@@ -1040,14 +1042,15 @@ func makeWeekdayRosterScenario(t *testing.T, anchor calendar.Date) *weekdayRoste
 	ctx := testpkg.TenantContext(tenantID)
 	suffix := time.Now().UnixNano()
 
-	period := &scheduleModels.CalendarPeriod{
-		Name:            fmt.Sprintf("Schuljahr-%d", suffix),
-		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       scheduleModels.NewDate(anchor.Year()-1, 8, 1),
-		EndDate:         scheduleModels.NewDate(anchor.Year()+1, 7, 31),
-		WeekCycleLength: 1,
-		IsActive:        true,
-	}
+	period := fixtures.NewCalendarPeriod(func(fixtureRow *fixtures.CalendarPeriod) {
+		fixtureRow.Name = fmt.Sprintf("Schuljahr-%d", suffix)
+		fixtureRow.PeriodType = fixtures.PeriodTypeSchoolYear()
+		fixtureRow.StartDate = calendar.NewDate(anchor.Year()-1, 8, 1)
+		fixtureRow.EndDate = calendar.NewDate(anchor.Year()+1, 7, 31)
+		fixtureRow.WeekCycleLength = 1
+		fixtureRow.IsActive = true
+	})
+
 	createCalendarPeriodRow(t, db, ctx, period)
 
 	room := testpkg.CreateTestRoomForTenant(t, db, tenantID, fmt.Sprintf("Raum-%d", suffix))
@@ -1061,7 +1064,7 @@ func makeWeekdayRosterScenario(t *testing.T, anchor calendar.Date) *weekdayRoste
 		db:              db,
 		ctx:             ctx,
 		tenantID:        tenantID,
-		instance:        ttLifecycle.Instances,
+		instance:        fixtures.FromInstanceLifecycle(ttLifecycle.Instances),
 		timetableData:   ttPlanning.Planning,
 		active:          ttActive,
 		materialization: ttMaterialization,

@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -111,7 +113,7 @@ func (r StudentPhotoRuntime) RecordPhotoConsent(
 		ctx, beforeRow, afterRow, auditModels.StudentConsentSourceTenantPortal, actorAccountID, changedAt)
 }
 
-// studentPhotos adapts the owner capability to the retained contract the
+// StudentPhotos adapts the owner capability to the retained contract the
 // handlers still call. It owns no rules: the feature gate, the consent and the
 // row lock live with People Directory.
 type StudentPhotos struct {
@@ -130,21 +132,21 @@ type StudentPhotoCapability interface {
 }
 
 func (s StudentPhotos) CommitUpload(ctx context.Context, req peoplePorts.CommitUploadRequest) error {
-	if peopleCompose.CallerTenantID(ctx) <= 0 {
+	if tenant.FromContext(ctx) <= 0 {
 		return ErrPhotoNoTenant
 	}
 	return s.Directory.CommitStudentPhoto(ctx, req.StudentID, req.NewStoredURL, req.ConsentAck)
 }
 
 func (s StudentPhotos) CommitDelete(ctx context.Context, studentID int64) (string, error) {
-	if peopleCompose.CallerTenantID(ctx) <= 0 {
+	if tenant.FromContext(ctx) <= 0 {
 		return "", ErrPhotoNoTenant
 	}
 	return s.Directory.ClearStudentPhoto(ctx, studentID)
 }
 
 func (s StudentPhotos) LookupForRead(ctx context.Context, studentID int64, filename string) (string, error) {
-	if peopleCompose.CallerTenantID(ctx) <= 0 {
+	if tenant.FromContext(ctx) <= 0 {
 		return "", ErrPhotoNoTenant
 	}
 	return s.Directory.FindStudentPhoto(ctx, studentID, filename)

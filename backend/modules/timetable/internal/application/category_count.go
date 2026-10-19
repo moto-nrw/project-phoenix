@@ -4,12 +4,10 @@ import (
 	"context"
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-
-	"github.com/moto-nrw/project-phoenix/models/activities"
 )
 
 type CategoryCountRecords interface {
-	List(context.Context, *activities.QueryOptions) ([]*activityContract.Category, error)
+	ListAll(context.Context) ([]*activityContract.Category, error)
 }
 
 // CategoryCount supplies the category total from the tenant's category directory.
@@ -22,6 +20,6 @@ func NewCategoryCount(records CategoryCountRecords) *CategoryCount {
 }
 
 func (r *CategoryCount) CountCategories(ctx context.Context) (int, error) {
-	rows, err := r.records.List(ctx, nil)
+	rows, err := r.records.ListAll(ctx)
 	return len(rows), err
 }

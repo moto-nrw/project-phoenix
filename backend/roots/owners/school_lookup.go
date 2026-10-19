@@ -17,7 +17,7 @@ type schoolLister interface {
 	ListSchoolsByID(ctx context.Context, ids []int64) ([]organizationtenancy.School, error)
 }
 
-// lookupSchool reads one school through the owner query and reports a missing
+// LookupSchool reads one school through the owner query and reports a missing
 // row as found=false. Every other failure is returned unchanged.
 func LookupSchool(ctx context.Context, schools schoolFinder, id int64) (organizationtenancy.School, bool, error) {
 	school, err := schools.FindSchool(ctx, id)

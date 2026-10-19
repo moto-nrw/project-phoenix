@@ -20,7 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// bookingMaterializationOwners binds the materialization's ports over the
+// BookingMaterializationOwners binds the materialization's ports over the
 // owners it reads and writes. The caller completes the dependencies with the
 // catalog, the settings, Care Plan's bookings and withdrawals, the effects and
 // the clock, and composes them through newBookingMaterialization.
@@ -539,7 +539,7 @@ func (p bookingPickup) DeleteWeekdayRow(ctx context.Context, id int64) error {
 	return p.rows.DeletePickupSchedule(ctx, id)
 }
 
-// pickupScheduleBroadcaster wakes the staff pickup schedule views through the
+// PickupScheduleBroadcaster wakes the staff pickup schedule views through the
 // realtime hub.
 type PickupScheduleBroadcaster struct{ Broadcaster realtime.Broadcaster }
 

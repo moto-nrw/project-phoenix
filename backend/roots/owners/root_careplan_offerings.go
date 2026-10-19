@@ -28,7 +28,7 @@ type CarePlanOfferings struct {
 	Bookings careplan.BookingMaterializationCapability
 }
 
-// buildCarePlanOfferings binds the care-offering catalog and the booking
+// BuildCarePlanOfferings binds the care-offering catalog and the booking
 // materialization: the rosters an approval derives, the offering-sourced
 // Regeltermine, the dated offering adjustments and the offering pickup
 // times. Offering-sourced weekly Gehzeit changes re-derive the auto excusals

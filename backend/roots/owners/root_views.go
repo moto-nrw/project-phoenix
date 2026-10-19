@@ -48,7 +48,7 @@ type PresenceReports struct {
 	Statistics      studentpresence.StatisticsReports
 }
 
-// buildPresenceReports binds the presence cleanup, the absence overview, the
+// BuildPresenceReports binds the presence cleanup, the absence overview, the
 // student history and the statistics.
 func BuildPresenceReports(
 	db transactionruntime.Database, env RootEnvironment, presence PresenceOwner, carePlanRows CarePlanRows, carePlan careplan.Capability,
@@ -68,7 +68,7 @@ func BuildPresenceReports(
 	}
 }
 
-// buildCalendarApp binds the staff and parent personal calendars over the
+// BuildCalendarApp binds the staff and parent personal calendars over the
 // facts, the outbox and the notification router.
 func BuildCalendarApp(
 	db transactionruntime.Database, env RootEnvironment, people PeopleRows, structure StructureRows, portal carePlanCompose.ParentPortalRepositories,
@@ -95,13 +95,13 @@ func BuildCalendarApp(
 	return NewCalendarPortal(cfg)
 }
 
-// buildCalendarAppointmentRenderer renders the four appointment mail kinds
+// BuildCalendarAppointmentRenderer renders the four appointment mail kinds
 // of the calendars with one renderer.
 func BuildCalendarAppointmentRenderer(db transactionruntime.Database, mailFrom email.Email, people PeopleRows) deliveryCompose.MailRenderer {
 	return deliveryCompose.MailRendererFunc(NewCalendarAppointmentRenderer(mailFrom, calendarCompose.NewTenantRuntime(db.Pool()), people.StudentGuardians))
 }
 
-// buildReminders binds the reminder evaluation's readers to the owners and
+// BuildReminders binds the reminder evaluation's readers to the owners and
 // the reminder commands to the calendars and the parent announcements.
 func BuildReminders(
 	db transactionruntime.Database, env RootEnvironment, caller CareRequestStaff, settings settingsCompose.SettingsService,
@@ -136,7 +136,7 @@ func BuildReminders(
 	}
 }
 
-// buildProvisioning binds Organisation & Tenancy's operator
+// BuildProvisioning binds Organisation & Tenancy's operator
 // provisioning (#3253) over the owners it provisions and the device fleet.
 func BuildProvisioning(
 	db transactionruntime.Database, env RootEnvironment, organizations organizationtenancy.Capability, identity *identityaccess.Module,
@@ -166,7 +166,7 @@ type DeliveryDevices struct {
 	PWAUsage          deliveryCompose.PWAUsageService
 }
 
-// buildDeliveryDevices binds the push subscriptions and the PWA standalone
+// BuildDeliveryDevices binds the push subscriptions and the PWA standalone
 // usage over the root's unit of work.
 func BuildDeliveryDevices(db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, pushVAPID deliveryCompose.VAPIDConfig, identity *identityaccess.Module, provisioning organizationtenancy.Provisioning, settings settingsCompose.SettingsService) (DeliveryDevices, error) {
 	push, err := deliveryCompose.NewTenantPushSubscriptionService(unit, db.Pool(), deliveryCompose.NewPushSubscriptionRepository(db.Pool()), identity,
@@ -182,7 +182,7 @@ func BuildDeliveryDevices(db transactionruntime.Database, unit rootUnitOfWork, e
 	return DeliveryDevices{PushSubscriptions: push, PWAUsage: usage}, nil
 }
 
-// buildPlanExport binds the printable weekly plans (#2079, #2706): a pure
+// BuildPlanExport binds the printable weekly plans (#2079, #2706): a pure
 // projection over the reads the two planning screens use. It renders, it
 // never writes.
 func BuildPlanExport(env RootEnvironment, shifts *workforceCompose.ShiftPlanning, workTime workforce.Capability, owner TimetableOwner, rooms facilitiesModule.Catalog, people PeopleRows, timetableOwner timetable.Capability, calendar schoolcalendar.Days, renderer *lists.RendererService) planexport.Service {
@@ -198,7 +198,7 @@ func BuildPlanExport(env RootEnvironment, shifts *workforceCompose.ShiftPlanning
 	})
 }
 
-// deliveryModuleOf is Delivery's module of a runtime.
+// DeliveryModuleOf is Delivery's module of a runtime.
 func DeliveryModuleOf(delivery DeliveryRuntime) *deliveryModule.Module {
 	return delivery.Runtime.Module
 }
