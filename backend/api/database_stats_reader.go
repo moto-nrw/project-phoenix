@@ -50,7 +50,7 @@ func newDatabaseStats(people peopleCompose.Repositories, groups EducationGroupRe
 			return len(rows), err
 		},
 		Activities: func(ctx context.Context) (int, error) {
-			rows, err := timetable.ActivityGroup.List(ctx, nil)
+			rows, err := timetable.ActivityGroup.ListAll(ctx)
 			return len(rows), err
 		},
 		Groups: func(ctx context.Context) (int, error) {

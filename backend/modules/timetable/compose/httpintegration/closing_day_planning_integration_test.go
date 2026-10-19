@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -26,8 +26,8 @@ import (
 func insertScenarioClosingDay(t *testing.T, s *scenarioSetup, start, end calendar.Date) {
 	t.Helper()
 	row := &scheduleModels.ClosingDay{
-		StartDate: scheduleModels.Date(start),
-		EndDate:   scheduleModels.Date(end),
+		StartDate: calendar.Date(start),
+		EndDate:   calendar.Date(end),
 		Reason:    "Herbstferien",
 	}
 	row.TenantID = s.tenantID

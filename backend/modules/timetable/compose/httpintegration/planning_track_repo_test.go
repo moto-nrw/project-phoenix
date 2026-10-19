@@ -5,16 +5,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
-	model "github.com/moto-nrw/project-phoenix/models/schedule"
+	model "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
-func planningTrackRepository(t *testing.T, db *bun.DB) model.PlanningTrackRepository {
+func planningTrackRepository(t *testing.T, db *bun.DB) ports.PlanningTrackRecords {
 	t.Helper()
 	factory := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	return factory.PlanningTrack

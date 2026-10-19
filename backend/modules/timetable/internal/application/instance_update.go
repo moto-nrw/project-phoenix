@@ -7,9 +7,9 @@ import (
 	"slices"
 	"time"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -119,7 +119,7 @@ func (s *InstanceLifecycleService) editableInstance(ctx context.Context, instanc
 // follows the offering link; only the series conversion (the one caller
 // with a CalendarPeriodID) stamps the full materializer marker.
 func applyPlannedEdit(instance *scheduleModel.ActivityInstance, req timetable.UpdateInstanceInput) []string {
-	instance.Date = scheduleModel.Date(req.Date)
+	instance.Date = calendar.Date(req.Date)
 	instance.StartTime = req.StartTime
 	instance.EndTime = req.EndTime
 	instance.Title = req.Title
@@ -166,7 +166,7 @@ func (s *InstanceLifecycleService) validateInstanceDateInActiveCalendarPeriod(ct
 		return fmt.Errorf("find active calendar periods: %w", err)
 	}
 	for _, period := range periods {
-		if period.ContainsDay(scheduleModel.Date(date)) {
+		if period.ContainsDay(calendar.Date(date)) {
 			return nil
 		}
 	}
@@ -333,7 +333,7 @@ func (s *InstanceLifecycleService) consumeMovedSlot(ctx context.Context, orig ca
 	if orig.Date == req.Date && orig.StartHHMMSS == FormatTimeOfDay(req.StartTime) {
 		return nil // slot key unchanged — nothing vacated
 	}
-	existing, err := s.deps.ExceptionRepo.FindByActivityGroupAndDate(ctx, *orig.ActivityGroupID, scheduleModel.Date(orig.Date))
+	existing, err := s.deps.ExceptionRepo.FindByActivityGroupAndDate(ctx, *orig.ActivityGroupID, calendar.Date(orig.Date))
 	if err != nil {
 		return &ports.ScheduleError{Op: "update instance: check slot exception", Err: err}
 	}
@@ -348,7 +348,7 @@ func (s *InstanceLifecycleService) consumeMovedSlot(ctx context.Context, orig ca
 	reason := movedSlotReason
 	exc := &scheduleModel.ActivityException{
 		ActivityGroupID: *orig.ActivityGroupID,
-		ExceptionDate:   scheduleModel.Date(orig.Date),
+		ExceptionDate:   calendar.Date(orig.Date),
 		ExceptionType:   scheduleModel.ActivityExceptionCancelled,
 		Reason:          &reason,
 	}

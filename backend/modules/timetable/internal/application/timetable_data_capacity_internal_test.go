@@ -3,9 +3,7 @@ package application
 import (
 	"testing"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-
-	"github.com/moto-nrw/project-phoenix/models/activities"
+	activities "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/activityrecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +14,7 @@ func intPtr(v int) *int { return &v }
 func capacityOccurrence(date calendar.Date, children, staff int) activities.TemplateCapacityOccurrence {
 	return activities.TemplateCapacityOccurrence{
 		TemplateID:      42,
-		OccurrenceDate:  activityContract.Date(date),
+		OccurrenceDate:  calendar.Date(date),
 		EnrollmentCount: children,
 		SupervisorCount: staff,
 	}
@@ -96,7 +94,7 @@ func TestWorstTemplateOccurrenceRanking(t *testing.T) {
 			// separately in TestWorstTemplateOccurrence_WithOverride.
 			got, ok := worstTemplateOccurrence(tt.occurrences, nil, 12)
 			require.True(t, ok)
-			assert.Equal(t, activityContract.Date(tt.wantDate), got.OccurrenceDate)
+			assert.Equal(t, calendar.Date(tt.wantDate), got.OccurrenceDate)
 		})
 	}
 }
@@ -118,12 +116,12 @@ func TestWorstTemplateOccurrence_WithOverride(t *testing.T) {
 	// exact false "all good" state the reviewer flagged.
 	derived, ok := worstTemplateOccurrence(occurrences, nil, 10)
 	require.True(t, ok)
-	assert.Equal(t, activityContract.Date(jan1), derived.OccurrenceDate, "derived: empty day skipped, 3/3 day looks worst")
+	assert.Equal(t, calendar.Date(jan1), derived.OccurrenceDate, "derived: empty day skipped, 3/3 day looks worst")
 
 	// With the override the empty 0/3 day is correctly the worst.
 	overridden, ok := worstTemplateOccurrence(occurrences, intPtr(3), 10)
 	require.True(t, ok)
-	assert.Equal(t, activityContract.Date(jan1.AddDays(1)), overridden.OccurrenceDate, "override: 0/3 day is the worst")
+	assert.Equal(t, calendar.Date(jan1.AddDays(1)), overridden.OccurrenceDate, "override: 0/3 day is the worst")
 }
 
 func TestApplyWorstTemplateCapacity_OverrideParticipatesInScoring(t *testing.T) {
@@ -136,8 +134,8 @@ func TestApplyWorstTemplateCapacity_OverrideParticipatesInScoring(t *testing.T) 
 		{TemplateID: 1, RequiredStaff: activities.NullInt64{Int64: 3, Valid: true}},
 	}
 	occurrences := []activities.TemplateCapacityOccurrence{
-		{TemplateID: 1, OccurrenceDate: activityContract.Date(calendar.NewDate(2026, 1, 1)), EnrollmentCount: 30, SupervisorCount: 3},
-		{TemplateID: 1, OccurrenceDate: activityContract.Date(calendar.NewDate(2026, 1, 2)), EnrollmentCount: 0, SupervisorCount: 0},
+		{TemplateID: 1, OccurrenceDate: calendar.Date(calendar.NewDate(2026, 1, 1)), EnrollmentCount: 30, SupervisorCount: 3},
+		{TemplateID: 1, OccurrenceDate: calendar.Date(calendar.NewDate(2026, 1, 2)), EnrollmentCount: 0, SupervisorCount: 0},
 	}
 
 	applyWorstTemplateCapacity(rows, []int64{1}, occurrences, 10)
@@ -154,7 +152,7 @@ func TestApplyWorstTemplateCapacityClearsTemplatesWithoutOccurrences(t *testing.
 		{TemplateID: 2, CapacityEnrollmentCount: 9, CapacitySupervisorCount: 3},
 	}
 	occurrences := []activities.TemplateCapacityOccurrence{
-		{TemplateID: 1, OccurrenceDate: activityContract.Date(calendar.NewDate(2026, 1, 5)), EnrollmentCount: 4, SupervisorCount: 1},
+		{TemplateID: 1, OccurrenceDate: calendar.Date(calendar.NewDate(2026, 1, 5)), EnrollmentCount: 4, SupervisorCount: 1},
 	}
 
 	applyWorstTemplateCapacity(rows, []int64{1, 2}, occurrences, 12)
@@ -177,7 +175,7 @@ func TestApplyWorstTemplateCapacity_MarksOccurrenceFound(t *testing.T) {
 		{TemplateID: 2, RequiredStaff: activities.NullInt64{Int64: 3, Valid: true}},
 	}
 	occurrences := []activities.TemplateCapacityOccurrence{
-		{TemplateID: 1, OccurrenceDate: activityContract.Date(calendar.NewDate(2026, 1, 5)), EnrollmentCount: 4, SupervisorCount: 1},
+		{TemplateID: 1, OccurrenceDate: calendar.Date(calendar.NewDate(2026, 1, 5)), EnrollmentCount: 4, SupervisorCount: 1},
 	}
 
 	applyWorstTemplateCapacity(rows, []int64{1, 2}, occurrences, 12)

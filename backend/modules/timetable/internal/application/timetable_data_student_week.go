@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -41,7 +41,7 @@ func (d *timetableData) StudentWeek(ctx context.Context, studentID int64, from, 
 }
 
 func (d *timetableData) loadStudentWeekBlocks(ctx context.Context, week *timetable.StudentWeek, studentID int64, from, to calendar.Date) error {
-	enrolled, err := d.deps.Participants.FindInstancesWithAttendanceByStudentAndDateRange(ctx, studentID, scheduleModels.Date(from), scheduleModels.Date(to))
+	enrolled, err := d.deps.Participants.FindInstancesWithAttendanceByStudentAndDateRange(ctx, studentID, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return fmt.Errorf("load enrolled instances: %w", err)
 	}
@@ -51,7 +51,7 @@ func (d *timetableData) loadStudentWeekBlocks(ctx context.Context, week *timetab
 			Instance: ScheduledInstanceOf(row.Instance), Attendance: ScheduledParticipantOf(row.Attendance),
 		})
 	}
-	instances, err := d.deps.Instances.FindByTenantAndDateRange(ctx, scheduleModels.Date(from), scheduleModels.Date(to))
+	instances, err := d.deps.Instances.FindByTenantAndDateRange(ctx, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return fmt.Errorf("load all tenant instances: %w", err)
 	}
@@ -119,7 +119,7 @@ func (d *timetableData) loadStudentWeekBaselines(ctx context.Context, week *time
 // loadStudentWeekExceptions reads the window's dated arrival and pickup
 // exceptions, never the unbounded history.
 func (d *timetableData) loadStudentWeekExceptions(ctx context.Context, week *timetable.StudentWeek, studentID int64, from, to calendar.Date) error {
-	arrivals, err := d.deps.ArrivalExceptions.FindByStudentIDAndDateRange(ctx, studentID, scheduleModels.Date(from), scheduleModels.Date(to))
+	arrivals, err := d.deps.ArrivalExceptions.FindByStudentIDAndDateRange(ctx, studentID, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return fmt.Errorf("load arrival exceptions: %w", err)
 	}
@@ -129,7 +129,7 @@ func (d *timetableData) loadStudentWeekExceptions(ctx context.Context, week *tim
 		times.Exception = &timetable.StudentDayException{Time: exception.ExpectedArrival, Reason: exception.Reason}
 		week.ArrivalByDate[key] = times
 	}
-	pickups, err := d.deps.PickupExceptions.FindByStudentIDAndDateRange(ctx, studentID, scheduleModels.Date(from), scheduleModels.Date(to))
+	pickups, err := d.deps.PickupExceptions.FindByStudentIDAndDateRange(ctx, studentID, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return fmt.Errorf("load pickup exceptions: %w", err)
 	}

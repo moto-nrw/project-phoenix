@@ -7,8 +7,8 @@ import (
 	"sort"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -45,7 +45,7 @@ func (d *conflictDetection) DetectPlannedConflicts(ctx context.Context, probe ti
 // timezone.NormalizeWallClock because TIME columns scan with driver-chosen
 // date anchors.
 func (d *conflictDetection) loadOverlappingInstances(ctx context.Context, probe timetable.PlannedConflictProbe) []*scheduleModels.ActivityInstance {
-	day := scheduleModels.Date(probe.Date)
+	day := calendar.Date(probe.Date)
 	instances, err := d.deps.Instances.FindByTenantAndDateRange(ctx, day, day)
 	if err != nil {
 		d.logger.Warn("planned conflict detection: load day instances failed",

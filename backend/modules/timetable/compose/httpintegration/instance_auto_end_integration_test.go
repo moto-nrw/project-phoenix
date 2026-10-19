@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -172,7 +172,7 @@ func TestAutoEnd_IsTenantIsolated(t *testing.T) {
 	require.NoError(t, s.repos.ActiveGroup.CreateSession(foreignCtx, foreignGroup))
 
 	foreignInstance := &scheduleModels.ActivityInstance{
-		Date:          scheduleModels.DateFromTime(autoEndNow),
+		Date:          calendar.DateFromTime(autoEndNow),
 		Title:         "Foreign tenant active instance",
 		StartTime:     time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),

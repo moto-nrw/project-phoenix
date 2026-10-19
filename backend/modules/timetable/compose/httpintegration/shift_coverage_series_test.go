@@ -9,8 +9,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -56,7 +56,7 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	period := &scheduleModel.CalendarPeriod{
 		Name:       fmt.Sprintf("Coverage projection %d", time.Now().UnixNano()),
 		PeriodType: scheduleModel.PeriodTypeSchoolYear,
-		StartDate:  scheduleModel.Date(monday), EndDate: scheduleModel.Date(nextWednesday), WeekCycleLength: 1, IsActive: true,
+		StartDate:  calendar.Date(monday), EndDate: calendar.Date(nextWednesday), WeekCycleLength: 1, IsActive: true,
 	}
 	period.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.CalendarPeriod.Create(localCtx, period))
@@ -76,7 +76,7 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	for _, date := range []calendar.Date{monday, nextMonday} {
 		groupID := localGroup.ID
 		instance := &scheduleModel.ActivityInstance{
-			Date: scheduleModel.Date(date), ActivityGroupID: &groupID, Title: "Coverage block",
+			Date: calendar.Date(date), ActivityGroupID: &groupID, Title: "Coverage block",
 			StartTime: seriesClock(t, "09:00"), EndTime: seriesClock(t, "10:00"),
 			RoomID: localRoom.ID, Status: scheduleModel.InstanceStatusPlanned,
 		}
@@ -90,7 +90,7 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 			require.NoError(t, repos.InstanceStaff.Create(localCtx, assignment))
 		}
 		shift := &scheduleModel.StaffShift{
-			StaffID: localSub.ID, Date: scheduleModel.Date(date),
+			StaffID: localSub.ID, Date: calendar.Date(date),
 			StartTime: seriesClock(t, "09:00"), EndTime: seriesClock(t, "10:00"),
 			CreatedBy: localSub.ID,
 		}
@@ -98,7 +98,7 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 		require.NoError(t, shiftRows.Create(localCtx, shift))
 	}
 	localException := &scheduleModel.ActivityException{
-		ActivityGroupID: localGroup.ID, ExceptionDate: scheduleModel.Date(friday),
+		ActivityGroupID: localGroup.ID, ExceptionDate: calendar.Date(friday),
 		ExceptionType: scheduleModel.ActivityExceptionCancelled,
 	}
 	localException.SetTenantID(testpkg.Tenant(t))
@@ -106,7 +106,7 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 
 	foreignGroupID := foreignGroup.ID
 	foreignInstance := &scheduleModel.ActivityInstance{
-		Date: scheduleModel.Date(monday), ActivityGroupID: &foreignGroupID, Title: "Foreign coverage block",
+		Date: calendar.Date(monday), ActivityGroupID: &foreignGroupID, Title: "Foreign coverage block",
 		StartTime: seriesClock(t, "09:00"), EndTime: seriesClock(t, "10:00"),
 		RoomID: foreignRoom.ID, Status: scheduleModel.InstanceStatusPlanned,
 	}
@@ -116,16 +116,16 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	foreignAssignment.SetTenantID(foreignTenantID)
 	require.NoError(t, repos.InstanceStaff.Create(foreignCtx, foreignAssignment))
 	foreignException := &scheduleModel.ActivityException{
-		ActivityGroupID: foreignGroup.ID, ExceptionDate: scheduleModel.Date(wednesday),
+		ActivityGroupID: foreignGroup.ID, ExceptionDate: calendar.Date(wednesday),
 		ExceptionType: scheduleModel.ActivityExceptionCancelled,
 	}
 	foreignException.SetTenantID(foreignTenantID)
 	require.NoError(t, repos.ActivityException.Create(foreignCtx, foreignException))
 
-	foreignInstances, err := repos.ActivityInstance.FindByActivityGroupAndDateRange(localCtx, foreignGroup.ID, scheduleModel.Date(monday), scheduleModel.Date(nextWednesday))
+	foreignInstances, err := repos.ActivityInstance.FindByActivityGroupAndDateRange(localCtx, foreignGroup.ID, calendar.Date(monday), calendar.Date(nextWednesday))
 	require.NoError(t, err)
 	assert.Empty(t, foreignInstances, "superuser test connection must still honor tenant filtering")
-	foreignExceptions, err := repos.ActivityException.FindByActivityGroupAndDateRange(localCtx, foreignGroup.ID, scheduleModel.Date(monday), scheduleModel.Date(nextWednesday))
+	foreignExceptions, err := repos.ActivityException.FindByActivityGroupAndDateRange(localCtx, foreignGroup.ID, calendar.Date(monday), calendar.Date(nextWednesday))
 	require.NoError(t, err)
 	assert.Empty(t, foreignExceptions, "foreign exceptions must not cross the tenant boundary")
 	foreignSchedules, err := repos.ActivitySchedule.FindByGroupID(localCtx, foreignGroup.ID)

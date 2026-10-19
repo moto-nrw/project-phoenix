@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -18,17 +17,21 @@ type ActivityExceptionQueryOptions = domain.ListOptions
 type ActivityInstanceQueryOptions = domain.ListOptions
 type InstanceStaffQueryOptions = domain.ListOptions
 type InstanceStudentQueryOptions = domain.ListOptions
-type ActivityExceptionDate = scheduleModels.Date
-type ActivityInstanceDate = scheduleModels.Date
-type InstanceStaffDate = scheduleModels.Date
-type InstanceStudentDate = scheduleModels.Date
 
-func ParseActivityExceptionDate(value string) (ActivityExceptionDate, error) {
-	return scheduleModels.ParseDate(value)
+func ParseActivityExceptionDate(value string) (calendar.Date, error) {
+	parsed, err := calendar.ParseDate(value)
+	if err != nil {
+		return "", fmt.Errorf("invalid calendar date %q", value)
+	}
+	return parsed, nil
 }
 
-func ParseActivityInstanceDate(value string) (ActivityInstanceDate, error) {
-	return scheduleModels.ParseDate(value)
+func ParseActivityInstanceDate(value string) (calendar.Date, error) {
+	parsed, err := calendar.ParseDate(value)
+	if err != nil {
+		return "", fmt.Errorf("invalid calendar date %q", value)
+	}
+	return parsed, nil
 }
 
 type ActivityInstanceListFilter struct {

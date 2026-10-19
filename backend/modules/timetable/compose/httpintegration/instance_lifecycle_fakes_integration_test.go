@@ -9,12 +9,11 @@ import (
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -36,13 +35,13 @@ import (
 func newFakeLifecycle(t *testing.T, deps timetablePorts.InstanceLifecycleDependencies) timetablePorts.InstanceLifecycle {
 	t.Helper()
 	deps.IdempotencyRepo = struct {
-		scheduleModels.InstanceIdempotencyRepository
+		timetablePorts.InstanceIdempotencyRecords
 	}{}
 	deps.ExceptionRepo = struct {
-		scheduleModels.ActivityExceptionRepository
+		timetablePorts.ActivityExceptionRecords
 	}{}
 	deps.CalendarPeriodRepo = struct {
-		scheduleModels.CalendarPeriodRepository
+		timetablePorts.CalendarPeriodRecords
 	}{}
 	deps.StaffRepo = struct{ timetablePorts.LifecycleStaff }{}
 	deps.ActiveService = struct{ timetablePorts.SessionEnder }{}
@@ -93,7 +92,7 @@ func (noStartConflicts) DetectStartConflicts(context.Context, timetable.StartCon
 }
 
 type fakeNoInstanceStaff struct {
-	scheduleModels.InstanceStaffRepository
+	timetablePorts.InstanceStaffRecords
 }
 
 func (fakeNoInstanceStaff) FindByInstanceID(context.Context, int64) ([]*scheduleModels.InstanceStaff, error) {
@@ -110,7 +109,7 @@ func (fakeLockableRoom) LockRoom(context.Context, int64) (*int, bool, error) {
 }
 
 type fakeRecovery struct {
-	scheduleModels.ActivityRecoveryRepository
+	timetablePorts.ActivityRecoveryRecords
 }
 
 func (fakeRecovery) LockAttendance(context.Context, int64) error { return nil }
@@ -124,12 +123,12 @@ func (fakeRecovery) Restore(context.Context, int64, scheduleModels.ActivityCompl
 // absorbPlannedInstance is the planned block the absorption tests start;
 // the reload under the day lock returns it unchanged.
 type absorbInstanceRepo struct {
-	scheduleModels.ActivityInstanceRepository
+	timetablePorts.ActivityInstanceRecords
 	planned *scheduleModels.ActivityInstance
 	byGroup map[int64]*scheduleModels.ActivityInstance
 }
 
-func (r *absorbInstanceRepo) FindByID(_ context.Context, _ any) (*scheduleModels.ActivityInstance, error) {
+func (r *absorbInstanceRepo) FindByID(_ context.Context, _ int64) (*scheduleModels.ActivityInstance, error) {
 	planned := *r.planned
 	return &planned, nil
 }
@@ -144,7 +143,7 @@ func (r *absorbInstanceRepo) UpdateColumns(context.Context, *scheduleModels.Acti
 
 func absorbPlannedInstance(instanceID, roomID int64) *scheduleModels.ActivityInstance {
 	planned := &scheduleModels.ActivityInstance{
-		Date:      scheduleModels.NewDate(2026, 4, 20),
+		Date:      calendar.NewDate(2026, 4, 20),
 		Title:     "Absorb",
 		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -208,7 +207,7 @@ func (r *absorbVisitRepo) EndGroup(_ context.Context, id int64, _ time.Time) err
 }
 
 type absorbActivityGroupRepo struct {
-	activitiesModels.GroupRepository
+	timetablePorts.LifecycleActivityGroups
 	byID map[int64]*activityContract.Group
 }
 
@@ -246,7 +245,7 @@ func (r *absorbVisitRepo) ListVisits(_ context.Context, filter studentpresence.V
 }
 
 type absorbInstanceStudentRepo struct {
-	scheduleModels.InstanceStudentRepository
+	timetablePorts.InstanceStudentRecords
 	unplannedStudentID int64
 	updates            []absorbedAttendanceUpdate
 	lookups            []absorbedAttendanceUpdate
@@ -382,7 +381,7 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 	instanceStudents := &absorbInstanceStudentRepo{unplannedStudentID: unplannedStudentID}
 	instanceRepo := &absorbInstanceRepo{planned: absorbPlannedInstance(instanceID, 42), byGroup: map[int64]*scheduleModels.ActivityInstance{
 		13: {
-			Date:          scheduleModels.Date(calendar.TodayDate()),
+			Date:          calendar.Date(calendar.TodayDate()),
 			Status:        scheduleModels.InstanceStatusActive,
 			ActiveGroupID: &bridged.ID,
 		},
@@ -491,11 +490,11 @@ func (reopenSessionRepo) CheckRoomConflict(context.Context, int64, int64) (bool,
 // reopenCompletedInstance is a completed block of group 90 inside its reopen
 // window whose snapshot names the given closed visits.
 type reopenInstanceRepo struct {
-	scheduleModels.ActivityInstanceRepository
+	timetablePorts.ActivityInstanceRecords
 	completed *scheduleModels.ActivityInstance
 }
 
-func (r *reopenInstanceRepo) FindByID(context.Context, any) (*scheduleModels.ActivityInstance, error) {
+func (r *reopenInstanceRepo) FindByID(context.Context, int64) (*scheduleModels.ActivityInstance, error) {
 	completed := *r.completed
 	return &completed, nil
 }
@@ -510,7 +509,7 @@ func reopenCompletedInstance(t *testing.T, visitIDs []int64) *reopenInstanceRepo
 	require.NoError(t, err)
 	reopenUntil := time.Now().Add(time.Hour)
 	completed := &scheduleModels.ActivityInstance{
-		Date:               scheduleModels.NewDate(2026, 4, 20),
+		Date:               calendar.NewDate(2026, 4, 20),
 		Title:              "Reopen",
 		StartTime:          time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:            time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),

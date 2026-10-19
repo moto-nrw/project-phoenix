@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -127,7 +127,7 @@ func TestTimetableStartScopePreservesBoundaries(t *testing.T) {
 			d.settings.startScope = "unknown"
 		}, err: timetable.ErrTimetableOperationForbidden},
 		{name: "block on another day", change: func(d *timetableOpsTestDeps, _ *context.Context) {
-			d.instanceRepo.byID[startScopeInstance].Date = scheduleModels.Date(calendar.DateFromTime(startScopeNow).AddDays(1))
+			d.instanceRepo.byID[startScopeInstance].Date = calendar.Date(calendar.DateFromTime(startScopeNow).AddDays(1))
 		}, err: timetable.ErrTimetableOperationForbidden},
 		{name: "not staff", change: func(d *timetableOpsTestDeps, _ *context.Context) {
 			d.personService.accountPerson = nil
@@ -176,7 +176,7 @@ func TestTimetableRosterReportsCanStart(t *testing.T) {
 		t.Parallel()
 		deps, ctx := newStartScopeDeps(t, blockStartScopeAllStaff, startScopeActor{staff: []*scheduleModels.InstanceStaff{{StaffID: 9999}}})
 		deps.instanceRepo.byID[startScopeInstance] = activeInstance(startScopeInstance, 3628)
-		deps.instanceRepo.byID[startScopeInstance].Date = scheduleModels.Date(calendar.DateFromTime(startScopeNow))
+		deps.instanceRepo.byID[startScopeInstance].Date = calendar.Date(calendar.DateFromTime(startScopeNow))
 
 		roster, err := deps.service.Roster(ctx, startScopeAccount, false, startScopeInstance)
 
@@ -223,7 +223,7 @@ func TestTimetableSchoolWideScopeNeverAdmitsFewerThanOwn(t *testing.T) {
 
 func runningStartScopeInstance() *scheduleModels.ActivityInstance {
 	inst := activeInstance(startScopeInstance, 3629)
-	inst.Date = scheduleModels.Date(calendar.DateFromTime(startScopeNow))
+	inst.Date = calendar.Date(calendar.DateFromTime(startScopeNow))
 	return inst
 }
 

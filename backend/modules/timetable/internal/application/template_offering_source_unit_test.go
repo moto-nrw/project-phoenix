@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -208,7 +207,7 @@ func TestTemplateInputValidationRunsTheOfferingSourceContract(t *testing.T) {
 			Weekdays:        []int{activityContract.WeekdayMonday},
 			RosterValidFrom: calendar.NewDate(2026, 8, 10),
 			GradeLevelMax:   4,
-			Fields: activitiesModel.TemplateFieldsUpdate{
+			Fields: timetable.TemplateUpdate{
 				TargetGroupType:   activityContract.TargetGroupTypeAngebot,
 				SourceGradeLevels: []int{1},
 			},

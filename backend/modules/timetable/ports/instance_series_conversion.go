@@ -3,7 +3,6 @@ package ports
 import (
 	"context"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -20,7 +19,7 @@ type TemplateSeriesSeeding interface {
 // coordinates; it adds transactionality and ordering, not persistence rules.
 type InstanceSeriesConversionDependencies struct {
 	Transactions   TenantTransactions
-	InstanceRepo   scheduleModels.ActivityInstanceRepository
+	InstanceRepo   ActivityInstanceRecords
 	Lifecycle      timetable.InstancePlanning
 	Templates      TemplateSeriesSeeding
 	RecurrenceLock timetable.RecurrenceWriteLock

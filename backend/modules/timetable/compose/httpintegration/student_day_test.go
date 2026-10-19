@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,9 +25,9 @@ func TestInstanceStudentRepository_FindInstancesWithAttendanceByStudentAndDateRa
 
 	student := testpkg.CreateTestStudent(t, db, "Noah", fmt.Sprintf("SD-%d", time.Now().UnixNano()), "3a")
 
-	dayA := scheduleModels.NewDate(2026, 10, 5)
-	dayB := scheduleModels.NewDate(2026, 10, 6)
-	dayOutside := scheduleModels.NewDate(2026, 11, 1)
+	dayA := calendar.NewDate(2026, 10, 5)
+	dayB := calendar.NewDate(2026, 10, 6)
+	dayOutside := calendar.NewDate(2026, 11, 1)
 
 	instA, cleanA := createInstanceFixture(t, db, "sd-A", dayA)
 	defer cleanA()
@@ -92,9 +93,9 @@ func TestInstanceStudentRepository_FindInstancesWithAttendanceByStudentAndDateRa
 
 	t.Run("empty range returns empty slice", func(t *testing.T) {
 		rows, err := repo.FindInstancesWithAttendanceByStudentAndDateRange(
-			ctx, student.ID,
-			scheduleModels.NewDate(2027, 1, 1),
-			scheduleModels.NewDate(2027, 1, 2),
+			ctx, student.ID, calendar.
+				NewDate(2027, 1, 1), calendar.
+				NewDate(2027, 1, 2),
 		)
 		require.NoError(t, err)
 		assert.Empty(t, rows)
@@ -125,7 +126,7 @@ func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduled
 
 	student := testpkg.CreateTestStudent(t, db, "Lina", fmt.Sprintf("NSC-%d", time.Now().UnixNano()), "1b")
 
-	day := scheduleModels.NewDate(2034, 6, 5)
+	day := calendar.NewDate(2034, 6, 5)
 
 	completedInst, cleanCompleted := createInstanceFixture(t, db, "nsc-done", day)
 	defer cleanCompleted()
@@ -232,9 +233,9 @@ func TestInstanceStudentRepository_HasPlannedSlotsInRange(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "Mila", fmt.Sprintf("HP-%d", time.Now().UnixNano()), "2b")
 
-	from := scheduleModels.NewDate(2032, 3, 2)
-	to := scheduleModels.NewDate(2032, 3, 6)
-	dayOutside := scheduleModels.NewDate(2032, 4, 1)
+	from := calendar.NewDate(2032, 3, 2)
+	to := calendar.NewDate(2032, 3, 6)
+	dayOutside := calendar.NewDate(2032, 4, 1)
 
 	instIn, cleanIn := createInstanceFixture(t, db, "hp-in", from)
 	defer cleanIn()
@@ -307,8 +308,8 @@ func TestInstanceStudentRepository_HasPlannedSlotsInRange_CancelledInstance(t *t
 
 	student := testpkg.CreateTestStudent(t, db, "Emil", fmt.Sprintf("HPC-%d", time.Now().UnixNano()), "4c")
 
-	from := scheduleModels.NewDate(2033, 5, 2)
-	to := scheduleModels.NewDate(2033, 5, 6)
+	from := calendar.NewDate(2033, 5, 2)
+	to := calendar.NewDate(2033, 5, 6)
 
 	inst, cleanInst := createInstanceFixture(t, db, "hpc", from)
 	defer cleanInst()

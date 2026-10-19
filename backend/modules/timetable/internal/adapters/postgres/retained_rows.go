@@ -6,15 +6,16 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/schedule"
+	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+
+	// The rows below keep the retained persistence shapes of class arrival
+	// exceptions, staff notices and activity reopening that
+	// database/repositories/schedule served until #3220. The methods return
+	// driver errors unchanged so the compatibility composition keeps the legacy
+	// error contract of each operation.
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
-
-// The rows below keep the retained persistence shapes of class arrival
-// exceptions, staff notices and activity reopening that
-// database/repositories/schedule served until #3220. The methods return
-// driver errors unchanged so the compatibility composition keeps the legacy
-// error contract of each operation.
 
 const (
 	classArrivalExceptionTable = `education.class_arrival_exceptions AS "class_arrival_exception"`
@@ -24,7 +25,7 @@ const (
 
 // FindClassArrivalExceptions loads the exceptions of the normalized classes
 // inside [from, to], ordered by date and class.
-func (s *Store) FindClassArrivalExceptions(ctx context.Context, classes []string, from, to schedule.Date) ([]*schedule.ClassArrivalException, error) {
+func (s *Store) FindClassArrivalExceptions(ctx context.Context, classes []string, from, to calendar.Date) ([]*schedule.ClassArrivalException, error) {
 	rows := make([]*schedule.ClassArrivalException, 0)
 	query, err := s.classArrivalExceptionQuery(ctx, classes, from, to, &rows)
 	if err != nil {
@@ -34,7 +35,7 @@ func (s *Store) FindClassArrivalExceptions(ctx context.Context, classes []string
 	return rows, err
 }
 
-func (s *Store) classArrivalExceptionQuery(ctx context.Context, classes []string, from, to schedule.Date, rows *[]*schedule.ClassArrivalException) (*bun.SelectQuery, error) {
+func (s *Store) classArrivalExceptionQuery(ctx context.Context, classes []string, from, to calendar.Date, rows *[]*schedule.ClassArrivalException) (*bun.SelectQuery, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, err
@@ -83,7 +84,7 @@ func (s *Store) classArrivalExceptionUpsertQuery(ctx context.Context, row *sched
 
 // DeleteClassArrivalException removes the exception of one normalized class
 // and date and returns the number of deleted rows.
-func (s *Store) DeleteClassArrivalException(ctx context.Context, class string, date schedule.Date) (int64, error) {
+func (s *Store) DeleteClassArrivalException(ctx context.Context, class string, date calendar.Date) (int64, error) {
 	query, err := s.classArrivalExceptionDeleteQuery(ctx, class, date)
 	if err != nil {
 		return 0, err
@@ -95,7 +96,7 @@ func (s *Store) DeleteClassArrivalException(ctx context.Context, class string, d
 	return result.RowsAffected()
 }
 
-func (s *Store) classArrivalExceptionDeleteQuery(ctx context.Context, class string, date schedule.Date) (*bun.DeleteQuery, error) {
+func (s *Store) classArrivalExceptionDeleteQuery(ctx context.Context, class string, date calendar.Date) (*bun.DeleteQuery, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, err
@@ -121,8 +122,8 @@ type StaffNotice struct {
 	Body                    string         `bun:"body,notnull"`
 	Priority                string         `bun:"priority,notnull"`
 	Audience                string         `bun:"audience,notnull,default:'all'"`
-	ValidFrom               schedule.Date  `bun:"valid_from,notnull,type:date"`
-	ValidUntil              *schedule.Date `bun:"valid_until,type:date"`
+	ValidFrom               calendar.Date  `bun:"valid_from,notnull,type:date"`
+	ValidUntil              *calendar.Date `bun:"valid_until,type:date"`
 	Weekdays                []int16        `bun:"weekdays,array,notnull"`
 	WeekPattern             int            `bun:"week_pattern,notnull,default:0"`
 	RequiresAcknowledgement bool           `bun:"requires_acknowledgement,notnull"`
@@ -235,7 +236,7 @@ func (s *Store) ListStaffNotices(ctx context.Context, includeInactive bool) ([]*
 // ListStaffNoticesValidOn narrows to the active notices whose period contains
 // the day and whose audience is all or the reader. Important notices come
 // first.
-func (s *Store) ListStaffNoticesValidOn(ctx context.Context, date schedule.Date, reader, all, important string) ([]*StaffNotice, error) {
+func (s *Store) ListStaffNoticesValidOn(ctx context.Context, date calendar.Date, reader, all, important string) ([]*StaffNotice, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, err

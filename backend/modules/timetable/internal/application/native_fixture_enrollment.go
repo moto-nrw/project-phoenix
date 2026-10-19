@@ -7,18 +7,17 @@ import (
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	models "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 type nativeFixtureEnrollment struct {
 	fixtureRecord[timetable.StudentEnrollment, activityContract.StudentEnrollment]
-	rows models.StudentEnrollmentRepository
+	rows ports.ActivityEnrollmentRecords
 }
 
-func NativeEnrollmentRecords(rows models.StudentEnrollmentRepository) ports.NativeEnrollmentRecords {
-	return nativeFixtureEnrollment{fixtureRecord: fixtureRecord[timetable.StudentEnrollment, activityContract.StudentEnrollment]{rows: rows, encode: encodeFixtureEnrollment, decode: decodeFixtureEnrollment}, rows: rows}
+func NativeEnrollmentRecords(rows ports.ActivityEnrollmentRecords) ports.NativeEnrollmentRecords {
+	return nativeFixtureEnrollment{fixtureRecord: fixtureRecord[timetable.StudentEnrollment, activityContract.StudentEnrollment]{rows: rows, find: fixtureFind(rows.FindByID), encode: encodeFixtureEnrollment, decode: decodeFixtureEnrollment}, rows: rows}
 }
 func encodeFixtureEnrollment(value *timetable.StudentEnrollment) (*activityContract.StudentEnrollment, error) {
 	if value == nil {

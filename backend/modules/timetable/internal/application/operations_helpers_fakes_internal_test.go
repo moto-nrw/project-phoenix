@@ -6,8 +6,8 @@ import (
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -48,7 +48,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 
 func instanceWithTimes(id int64, status string, start, end time.Time) *scheduleModels.ActivityInstance {
 	inst := &scheduleModels.ActivityInstance{
-		Date:      scheduleModels.NewDate(start.Year(), start.Month(), start.Day()),
+		Date:      calendar.NewDate(start.Year(), start.Month(), start.Day()),
 		Title:     "Lernzeit",
 		StartTime: start,
 		EndTime:   end,
@@ -76,14 +76,15 @@ type helperInstances struct {
 	err  error
 }
 
-func (r *helperInstances) FindByID(_ context.Context, id any) (*scheduleModels.ActivityInstance, error) {
+func (r *helperInstances) FindByID(_ context.Context, nativeRecordID int64) (*scheduleModels.ActivityInstance, error) {
+	var id any = nativeRecordID
 	if r.err != nil {
 		return nil, r.err
 	}
 	return r.byID[id.(int64)], nil
 }
 
-func (r *helperInstances) FindByTenantAndDate(context.Context, scheduleModels.Date) ([]*scheduleModels.ActivityInstance, error) {
+func (r *helperInstances) FindByTenantAndDate(context.Context, calendar.Date) ([]*scheduleModels.ActivityInstance, error) {
 	return nil, nil
 }
 
@@ -117,11 +118,11 @@ type helperTemplates struct {
 	err  error
 }
 
-func (r *helperTemplates) FindByID(_ context.Context, id any) (*activityContract.Group, error) {
+func (r *helperTemplates) FindByID(_ context.Context, id int64) (*activityContract.Group, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
-	group := r.byID[id.(int64)]
+	group := r.byID[id]
 	if group == nil {
 		return nil, helperNotFound{}
 	}

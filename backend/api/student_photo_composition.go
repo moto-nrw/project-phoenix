@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -136,21 +138,21 @@ type StudentPhotoCapability interface {
 }
 
 func (s studentPhotos) CommitUpload(ctx context.Context, req peoplePorts.CommitUploadRequest) error {
-	if peopleCompose.CallerTenantID(ctx) <= 0 {
+	if tenant.FromContext(ctx) <= 0 {
 		return ErrPhotoNoTenant
 	}
 	return s.directory.CommitStudentPhoto(ctx, req.StudentID, req.NewStoredURL, req.ConsentAck)
 }
 
 func (s studentPhotos) CommitDelete(ctx context.Context, studentID int64) (string, error) {
-	if peopleCompose.CallerTenantID(ctx) <= 0 {
+	if tenant.FromContext(ctx) <= 0 {
 		return "", ErrPhotoNoTenant
 	}
 	return s.directory.ClearStudentPhoto(ctx, studentID)
 }
 
 func (s studentPhotos) LookupForRead(ctx context.Context, studentID int64, filename string) (string, error) {
-	if peopleCompose.CallerTenantID(ctx) <= 0 {
+	if tenant.FromContext(ctx) <= 0 {
 		return "", ErrPhotoNoTenant
 	}
 	return s.directory.FindStudentPhoto(ctx, studentID, filename)

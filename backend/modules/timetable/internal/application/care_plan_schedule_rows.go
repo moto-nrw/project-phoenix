@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The retained models/schedule student-schedule repositories over the Care
@@ -110,7 +111,7 @@ func arrivalExceptionToLegacy(v ports.CareArrivalException) *scheduleModels.Stud
 }
 func applyArrivalException(r *scheduleModels.StudentArrivalException, v ports.CareArrivalException) {
 	r.ID, r.TenantID, r.CreatedAt, r.UpdatedAt = v.ID, v.TenantID, v.CreatedAt, v.UpdatedAt
-	r.StudentID, r.ExceptionDate, r.ExpectedArrival, r.Reason, r.Source, r.CreatedBy, r.CreatedByGuardian = v.StudentID, scheduleModels.Date(v.ExceptionDate), v.ExpectedArrival, v.Reason, v.Source, v.CreatedBy, v.CreatedByGuardian
+	r.StudentID, r.ExceptionDate, r.ExpectedArrival, r.Reason, r.Source, r.CreatedBy, r.CreatedByGuardian = v.StudentID, calendar.Date(v.ExceptionDate), v.ExpectedArrival, v.Reason, v.Source, v.CreatedBy, v.CreatedByGuardian
 }
 func pickupScheduleToPublic(v *scheduleModels.StudentPickupSchedule) ports.CarePickupSchedule {
 	return ports.CarePickupSchedule{ID: v.ID, TenantID: v.TenantID, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, StudentID: v.StudentID, Weekday: v.Weekday, PickupTime: v.PickupTime, Notes: v.Notes, CreatedBy: v.CreatedBy, Source: v.Source, CareOfferingID: v.CareOfferingID}
@@ -134,14 +135,14 @@ func pickupExceptionToLegacy(v ports.CarePickupException) *scheduleModels.Studen
 }
 func applyPickupException(r *scheduleModels.StudentPickupException, v ports.CarePickupException) {
 	r.ID, r.TenantID, r.CreatedAt, r.UpdatedAt = v.ID, v.TenantID, v.CreatedAt, v.UpdatedAt
-	r.StudentID, r.ExceptionDate, r.PickupTime, r.Reason = v.StudentID, scheduleModels.Date(v.ExceptionDate), v.PickupTime, v.Reason
+	r.StudentID, r.ExceptionDate, r.PickupTime, r.Reason = v.StudentID, calendar.Date(v.ExceptionDate), v.PickupTime, v.Reason
 	r.ExcusedFrom, r.ExcusedReason, r.ExcusedCreatedBy, r.ExcusedOwnsPickupTime, r.ExcusedAuto = v.ExcusedFrom, v.ExcusedReason, v.ExcusedCreatedBy, v.ExcusedOwnsPickupTime, v.ExcusedAuto
 	r.Source, r.CreatedBy, r.CreatedByGuardian = v.Source, v.CreatedBy, v.CreatedByGuardian
 }
 
 var (
-	_ scheduleModels.StudentArrivalScheduleRepository  = CareArrivalScheduleRows{}
-	_ scheduleModels.StudentArrivalExceptionRepository = CareArrivalExceptionRows{}
-	_ scheduleModels.StudentPickupScheduleRepository   = CarePickupScheduleRows{}
-	_ scheduleModels.StudentPickupExceptionRepository  = CarePickupExceptionRows{}
+	_ ports.StudentArrivalScheduleRecords  = CareArrivalScheduleRows{}
+	_ ports.StudentArrivalExceptionRecords = CareArrivalExceptionRows{}
+	_ ports.StudentPickupScheduleRecords   = CarePickupScheduleRows{}
+	_ ports.StudentPickupExceptionRecords  = CarePickupExceptionRows{}
 )

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 )
 
 type timetableTimeframeRepository struct{ timetable timetable.TimeframeCapability }
@@ -27,7 +27,7 @@ func (r timetableTimeframeRepository) Create(ctx context.Context, value *schedul
 	return replaceLegacyTimeframe(value, created)
 }
 
-func (r timetableTimeframeRepository) FindByID(ctx context.Context, id any) (*scheduleModels.Timeframe, error) {
+func (r timetableTimeframeRepository) FindByID(ctx context.Context, id int64) (*scheduleModels.Timeframe, error) {
 	timeframeID, ok := LegacyGroupID(id)
 	if !ok {
 		return nil, WrapDatabaseError("find by id", fmt.Errorf("invalid timeframe id %T", id))
@@ -53,7 +53,7 @@ func (r timetableTimeframeRepository) Update(ctx context.Context, value *schedul
 	return replaceLegacyTimeframe(value, updated)
 }
 
-func (r timetableTimeframeRepository) Delete(ctx context.Context, id any) error {
+func (r timetableTimeframeRepository) Delete(ctx context.Context, id int64) error {
 	timeframeID, ok := LegacyGroupID(id)
 	if !ok {
 		return WrapDatabaseError("delete", fmt.Errorf("invalid timeframe id %T", id))

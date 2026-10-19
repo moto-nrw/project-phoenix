@@ -22,11 +22,11 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -607,13 +607,13 @@ func TestInstance_Reopen_RestoresAbsenceProvenance(t *testing.T) {
 }
 
 type failingRecoveryRestore struct {
-	scheduleModels.ActivityRecoveryRepository
+	timetablePorts.ActivityRecoveryRecords
 	afterRestore error
 	restores     int
 }
 
 func (r *failingRecoveryRestore) Restore(ctx context.Context, id int64, snapshot scheduleModels.ActivityCompletionSnapshot, now time.Time) error {
-	if err := r.ActivityRecoveryRepository.Restore(ctx, id, snapshot, now); err != nil {
+	if err := r.ActivityRecoveryRecords.Restore(ctx, id, snapshot, now); err != nil {
 		return err
 	}
 	r.restores++
@@ -666,7 +666,7 @@ func testReopenWriteRollback(t *testing.T, stage string) {
 		"second-assignment": {"active.activity_session_attendance", secondAttendanceID},
 		"instance":          {"active.activity_sessions", sessionID},
 	}
-	fault := &failingRecoveryRestore{ActivityRecoveryRepository: compose.NewRetainedActivityRecoveryRepository(s.db, s.timetable.InstanceStudent)}
+	fault := &failingRecoveryRestore{ActivityRecoveryRecords: compose.NewRetainedActivityRecoveryRepository(s.db, s.timetable.InstanceStudent)}
 	removeFault := func() {}
 	expectedRestores := 0
 	if stage == "complete" {
@@ -2002,7 +2002,7 @@ func TestInstance_Complete_MarksRemainingExpectedAsAbsent(t *testing.T) {
 // (#1747). Assigning a whole group or year to an activity puts every member on
 // every occurrence; stamping the ones who are not booked that weekday "absent"
 // claims they failed to show up to care they never had, and that claim then
-// travels into attendance statistics and exports.
+// travels into attendance statistics and extimetablePorts.
 func TestInstance_Complete_SkipsChildrenNotInCareThatDay(t *testing.T) {
 	t.Parallel()
 

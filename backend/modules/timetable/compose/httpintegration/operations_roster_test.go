@@ -8,9 +8,9 @@ import (
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -111,7 +111,7 @@ func TestTimetableOperationsRosterLoadsEffectivePickupTimesForBlockDate(t *testi
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 664, 489, 254, instanceID)
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
-	deps.instanceRepo.byID[instanceID].Date = scheduleModels.Date(blockDate)
+	deps.instanceRepo.byID[instanceID].Date = calendar.Date(blockDate)
 	deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{
 		{StudentID: 548, Status: scheduleModels.AttendanceStatusExpected},
 		{StudentID: 549, Status: scheduleModels.AttendanceStatusExpected},

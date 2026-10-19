@@ -7,9 +7,9 @@ import (
 	"slices"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -53,7 +53,7 @@ func (d *timetableData) FindScheduledInstance(ctx context.Context, id int64) (ti
 }
 
 func (d *timetableData) ListScheduledInstances(ctx context.Context, from, to calendar.Date) ([]timetable.ScheduledInstance, error) {
-	rows, err := d.deps.Instances.FindByTenantAndDateRange(ctx, scheduleModels.Date(from), scheduleModels.Date(to))
+	rows, err := d.deps.Instances.FindByTenantAndDateRange(ctx, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +141,7 @@ func (d *timetableData) partialAbsenceCutoffs(ctx context.Context, studentIDs []
 	if len(studentIDs) == 0 {
 		return map[int64]time.Time{}, nil
 	}
-	rows, err := d.deps.PickupExceptions.FindByStudentIDsAndDate(ctx, studentIDs, scheduleModels.Date(date))
+	rows, err := d.deps.PickupExceptions.FindByStudentIDsAndDate(ctx, studentIDs, calendar.Date(date))
 	if err != nil {
 		return nil, err
 	}

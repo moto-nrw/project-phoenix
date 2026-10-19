@@ -9,8 +9,6 @@ import (
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -47,14 +45,14 @@ import (
 // Enrollment's offering-source resync (#2137); a split that changes the
 // offering feed fails without it.
 type TemplateSplitDependencies struct {
-	GroupRepo            activitiesModel.GroupRepository
-	CategoryRepo         activitiesModel.CategoryRepository
+	GroupRepo            ports.ActivityGroupRecords
+	CategoryRepo         ports.ActivityCategoryRecords
 	PlanningTracks       ports.PlanningTrackAssignments
-	ScheduleRepo         activitiesModel.ScheduleRepository
-	EnrollmentRepo       activitiesModel.StudentEnrollmentRepository
-	SupervisorRepo       activitiesModel.SupervisorPlannedRepository
-	InstanceRepo         scheduleModel.ActivityInstanceRepository
-	TimeframeRepo        scheduleModel.TimeframeRepository
+	ScheduleRepo         ports.ActivityScheduleRecords
+	EnrollmentRepo       ports.ActivityEnrollmentRecords
+	SupervisorRepo       ports.PlannedSupervisorRecords
+	InstanceRepo         ports.ActivityInstanceRecords
+	TimeframeRepo        ports.TimeframeRecords
 	Materialization      timetable.MaterializationCapability
 	Deviations           ports.SeriesDeviations
 	CareOfferings        ports.CareOfferingChecks
@@ -397,7 +395,7 @@ func (s *TemplateSplitService) splitInTransaction(
 // from the new template's materialized successor and show as a duplicate
 // block (#1840).
 func (s *TemplateSplitService) deleteSplitSourceInstances(ctx context.Context, oldID int64, effectiveDate calendar.Date) (int64, error) {
-	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, scheduleModel.Date(effectiveDate), nil, &oldID, false)
+	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, calendar.Date(effectiveDate), nil, &oldID, false)
 	if err != nil {
 		return 0, &ports.ScheduleError{Op: "split template: delete planned instances", Err: err}
 	}

@@ -121,7 +121,7 @@ const moduleLegacyBudgetTotal = 0
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
-const moduleLegacyFileBudgetTotal = 2666
+const moduleLegacyFileBudgetTotal = 0
 
 // moduleLegacyFileBudgets maps every legacy_*.go file outside a legacy tree
 // to its LOC, first measured on 2026-10-15 on top of development c49b81c3a9:
@@ -134,25 +134,11 @@ const moduleLegacyFileBudgetTotal = 2666
 // name out of modules/timetable/internal/application/legacy_repository_options.go
 // into modules/timetable/ports/legacy_repository_options.go. Both halves keep
 // counting, and their sum stays below the old entry.
-var moduleLegacyFileBudgets = map[string]int{
-	"modules/peopledirectory/compose/legacy_repository_runtime.go":            98,
-	"modules/presenceprojection/legacy_rows.go":                               321,
-	"modules/schoolstructure/compose/legacy_group_catalog.go":                 71,
-	"modules/schoolstructure/compose/legacy_group_contract.go":                67,
-	"modules/schoolstructure/compose/legacy_group_management_test_helpers.go": 167,
-	"modules/schoolstructure/compose/legacy_repository_runtime.go":            53,
-	"modules/timetable/compose/legacy_activity_service.go":                    527,
-	"modules/timetable/compose/legacy_category_operations.go":                 94,
-	"modules/timetable/compose/legacy_enrollment_operations.go":               570,
-	"modules/timetable/compose/legacy_errors.go":                              10,
-	"modules/timetable/compose/legacy_group_update.go":                        47,
-	"modules/timetable/compose/legacy_schedule_operations.go":                 118,
-	"modules/timetable/compose/legacy_supervisor_operations.go":               523,
-}
+var moduleLegacyFileBudgets = map[string]int{}
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063.
-const moduleComposeBudgetTotal = 27061
+const moduleComposeBudgetTotal = 24988
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -186,7 +172,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/mealplan/compose":                        242,
 	"modules/organizationtenancy/compose":             474,
 	"modules/parentrequestfeedprojection/compose":     11,
-	"modules/peopledirectory/compose":                 2576,
+	"modules/peopledirectory/compose":                 2508,
 	"modules/presenceprojection/compose":              7,
 	"modules/requestreview/compose":                   988,
 	"modules/schedulerruntime/compose":                83,
@@ -194,13 +180,13 @@ var moduleComposeBudgets = map[string]int{
 	"modules/schoolcalendar/portal/compose":           155,
 	"modules/schoolmembership/compose":                343,
 	"modules/schoolsetup/compose":                     92,
-	"modules/schoolstructure/compose":                 883,
+	"modules/schoolstructure/compose":                 744,
 	"modules/settings/compose":                        558,
 	"modules/studentdirectoryview/compose":            9,
 	"modules/studentpresence/compose":                 621,
 	"modules/studentpresence/compose/presenceservice": 873,
 	"modules/supervisiondashboard/compose":            11,
-	"modules/timetable/compose":                       3777,
+	"modules/timetable/compose":                       1911,
 	"modules/timetableblockdisplay/compose":           9,
 	"modules/timetableenrollmentprovenance/compose":   10,
 	"modules/timetableprojection/compose":             7,

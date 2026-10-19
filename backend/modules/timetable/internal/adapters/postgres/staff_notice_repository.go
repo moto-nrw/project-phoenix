@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -21,7 +22,7 @@ type staffNoticeRepository struct {
 
 // NewStaffNoticeRepository serves the retained staff notice repository over
 // the owner's store.
-func NewStaffNoticeRepository(store *Store) schedule.StaffNoticeRepository {
+func NewStaffNoticeRepository(store *Store) ports.StaffNoticeRecords {
 	return staffNoticeRepository{store: store}
 }
 
@@ -110,7 +111,7 @@ func (r staffNoticeRepository) ListValidOn(ctx context.Context, date calendar.Da
 	}
 	// Wichtiges zuerst. Nicht nach der Spalte sortieren: alphabetisch käme
 	// 'info' vor 'important', der wichtige Hinweis stünde also unten.
-	rows, err := r.store.ListStaffNoticesValidOn(ctx, schedule.Date(date.String()), reader, schedule.StaffNoticeAudienceAll, schedule.StaffNoticePriorityImportant)
+	rows, err := r.store.ListStaffNoticesValidOn(ctx, calendar.Date(date.String()), reader, schedule.StaffNoticeAudienceAll, schedule.StaffNoticePriorityImportant)
 	if err != nil {
 		return nil, &domain.StoreError{Op: "list staff notices valid on date", Err: TranslateNotFound(err)}
 	}
@@ -198,7 +199,7 @@ func staffNoticeRow(notice *schedule.StaffNotice) *StaffNotice {
 		Body:                    notice.Body,
 		Priority:                notice.Priority,
 		Audience:                notice.Audience,
-		ValidFrom:               schedule.Date(notice.ValidFrom.String()),
+		ValidFrom:               calendar.Date(notice.ValidFrom.String()),
 		Weekdays:                notice.Weekdays,
 		WeekPattern:             notice.WeekPattern,
 		RequiresAcknowledgement: notice.RequiresAcknowledgement,
@@ -210,7 +211,7 @@ func staffNoticeRow(notice *schedule.StaffNotice) *StaffNotice {
 	row.UpdatedAt = notice.UpdatedAt
 	row.TenantID = notice.TenantID
 	if notice.ValidUntil != nil {
-		until := schedule.Date(notice.ValidUntil.String())
+		until := calendar.Date(notice.ValidUntil.String())
 		row.ValidUntil = &until
 	}
 	return row

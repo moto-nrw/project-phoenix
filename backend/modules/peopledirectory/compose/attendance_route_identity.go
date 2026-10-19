@@ -1,6 +1,10 @@
 package compose
 
-import "context"
+import (
+	"context"
+
+	"github.com/moto-nrw/project-phoenix/tenant"
+)
 
 type attendanceRouteStaffSource interface {
 	CurrentStaffID(context.Context) (int64, bool, error)
@@ -25,7 +29,7 @@ func (p AttendanceRouteStaff) GetCurrentStaff(ctx context.Context) (int64, int64
 	if err != nil || !found {
 		return 0, 0, false, err
 	}
-	return staffID, CallerTenantID(ctx), true, nil
+	return staffID, tenant.FromContext(ctx), true, nil
 }
 
 // HasCurrentStaff reports whether the caller is a staff member of the

@@ -259,6 +259,10 @@
     "fingerprint": "950e750b40035508c2cd3b4e0015e28b",
     "reason": "Optional immediate detached-photo deletion and realtime refresh. Each managed file is first queued in the existing cleanup outbox in the triggering transaction; the existing cleanup worker removes it if this fast path is lost."
   },
+  "modules/schedulerruntime/internal/application/tenant_runtime.go:Scheduler.afterCommit:RegisterAfterCommit@0669f453e5ef89dcbbf01b3a0022619d#1": {
+    "fingerprint": "0669f453e5ef89dcbbf01b3a0022619d",
+    "reason": "Forwarder for process-local scheduler cache updates after durable job/checkpoint commits. Losing a cache hint causes an idempotent rescan; the database leases and persisted cleanup-run/checkpoint records remain authoritative."
+  },
   "modules/schoolstructure/internal/application/groups/substitution_module.go:notifyScheduleChange:AfterCommit@add9a57e9f378aecd4b73f09f9e57b37#1": {
     "fingerprint": "add9a57e9f378aecd4b73f09f9e57b37",
     "reason": "Post-commit schedule notification returns only realtime activity/staffing invalidations. Schedule writes are in the transaction; losing the notification delays refetch, not materialization or persistence."
@@ -406,10 +410,6 @@
   "modules/workforce/internal/planning/time_tracking_events.go:queueStaffTimeTrackingChanged:RegisterAfterCommit@10a27cb9d276d6f9d3c11ba14eb054ba#1": {
     "fingerprint": "10a27cb9d276d6f9d3c11ba14eb054ba",
     "reason": "Optional immediate staff-document cleanup wake (or workforce SSE invalidation), backed by committed document/offboarding cleanup markers. Existing cleanup sweeps retry those durable rows, so no file-deletion intent depends on this callback."
-  },
-  "services/scheduler/tenant_runtime.go:Scheduler.afterCommit:RegisterAfterCommit@0669f453e5ef89dcbbf01b3a0022619d#1": {
-    "fingerprint": "0669f453e5ef89dcbbf01b3a0022619d",
-    "reason": "Forwarder for process-local scheduler cache updates after durable job/checkpoint commits. Losing a cache hint causes an idempotent rescan; the database leases and persisted cleanup-run/checkpoint records remain authoritative."
   },
   "workflows/parentportal/care/absences.go:Service.afterAbsenceCommit:RegisterAfterCommit@eed37765f420745f077b429a315a1847#1": {
     "fingerprint": "eed37765f420745f077b429a315a1847",

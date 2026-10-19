@@ -10,8 +10,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -112,7 +112,7 @@ func createPoolShift(t *testing.T, s *poolSetup, staffID int64, startHHMM, endHH
 	t.Helper()
 	shift := &scheduleModels.StaffShift{
 		StaffID:   staffID,
-		Date:      scheduleModels.Date(poolTestDate()),
+		Date:      calendar.Date(poolTestDate()),
 		StartTime: parsePoolClock(t, startHHMM),
 		EndTime:   parsePoolClock(t, endHHMM),
 		Cancelled: cancelled,

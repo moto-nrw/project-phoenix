@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -20,21 +18,21 @@ import (
 // Änderungsprotokoll the owner may not name itself arrive as the ports the
 // root binds over those owners.
 type OwnerRows struct {
-	Instances         scheduleModels.ActivityInstanceRepository
-	InstanceStaff     scheduleModels.InstanceStaffRepository
-	Participants      scheduleModels.InstanceStudentRepository
-	Templates         activitiesModels.GroupRepository
-	Categories        activitiesModels.CategoryRepository
+	Instances         ports.ActivityInstanceRecords
+	InstanceStaff     ports.InstanceStaffRecords
+	Participants      ports.InstanceStudentRecords
+	Templates         ports.ActivityGroupRecords
+	Categories        ports.ActivityCategoryRecords
 	Students          RosterStudents
 	EducationGroups   ports.EducationGroupNames
 	Rooms             OwnerRooms
-	PickupExceptions  scheduleModels.StudentPickupExceptionRepository
-	ArrivalExceptions scheduleModels.StudentArrivalExceptionRepository
+	PickupExceptions  ports.StudentPickupExceptionRecords
+	ArrivalExceptions ports.StudentArrivalExceptionRecords
 	// DeviationEvents reads and Deviations appends the Änderungsprotokoll.
 	DeviationEvents ports.DeviationEventReader
 	Deviations      ports.DeviationProtocol
 	// Locks serializes attendance writes with a completion; optional.
-	Locks scheduleModels.ActivityRecoveryRepository
+	Locks ports.ActivityRecoveryRecords
 }
 
 // OwnerRooms names and locks the Facilities rooms for the operational day
@@ -99,16 +97,16 @@ func (r SickCascadeTimetableRows) AcquireSubstituteDayLock(ctx context.Context, 
 // template writes and materialization run over (#3424 slice S2). The
 // composition root fills them from its repository set.
 type TemplateRows struct {
-	Groups          activitiesModels.GroupRepository
-	Categories      activitiesModels.CategoryRepository
-	Schedules       activitiesModels.ScheduleRepository
-	Enrollments     activitiesModels.StudentEnrollmentRepository
-	Supervisors     activitiesModels.SupervisorPlannedRepository
-	Instances       scheduleModels.ActivityInstanceRepository
-	InstanceStaff   scheduleModels.InstanceStaffRepository
-	Participants    scheduleModels.InstanceStudentRepository
-	Timeframes      scheduleModels.TimeframeRepository
-	CalendarPeriods scheduleModels.CalendarPeriodRepository
-	Exceptions      scheduleModels.ActivityExceptionRepository
+	Groups          ports.ActivityGroupRecords
+	Categories      ports.ActivityCategoryRecords
+	Schedules       ports.ActivityScheduleRecords
+	Enrollments     ports.ActivityEnrollmentRecords
+	Supervisors     ports.PlannedSupervisorRecords
+	Instances       ports.ActivityInstanceRecords
+	InstanceStaff   ports.InstanceStaffRecords
+	Participants    ports.InstanceStudentRecords
+	Timeframes      ports.TimeframeRecords
+	CalendarPeriods ports.CalendarPeriodRecords
+	Exceptions      ports.ActivityExceptionRecords
 	EducationGroups ports.EducationGroupDirectory
 }

@@ -1,7 +1,8 @@
 package httpintegration_test
 
 import (
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -12,7 +13,7 @@ import (
 func ownerPickupException(row *testpkg.StudentPickupException) *scheduleModels.StudentPickupException {
 	exception := &scheduleModels.StudentPickupException{
 		StudentID:             row.StudentID,
-		ExceptionDate:         scheduleModels.Date(row.ExceptionDate),
+		ExceptionDate:         calendar.Date(row.ExceptionDate),
 		PickupTime:            row.PickupTime,
 		Reason:                row.Reason,
 		ExcusedFrom:           row.ExcusedFrom,

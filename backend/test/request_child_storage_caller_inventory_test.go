@@ -25,7 +25,7 @@ func TestRequestChildStorageCallerInventory(t *testing.T) {
 		"request_child_storage_cutover.go":               true, // historical restore helper
 		"calendar_date_verification_test.go":             true, // renamed-column registry of historical migrations
 	}
-	for _, root := range []string{"api", "services", "modules", "database/repositories", "models", "seed", "test"} {
+	for _, root := range []string{"api", "modules", "database/repositories", "models", "seed", "test"} {
 		err := filepath.WalkDir(filepath.Join("..", root), func(path string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr

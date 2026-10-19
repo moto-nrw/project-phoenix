@@ -27,7 +27,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -269,8 +269,8 @@ func createShortCalendarPeriod(t *testing.T, s *scenarioSetup, start, end calend
 	period := &scheduleModels.CalendarPeriod{
 		Name:            fmt.Sprintf("Short linked period %d", time.Now().UnixNano()),
 		PeriodType:      scheduleModels.PeriodTypeCustom,
-		StartDate:       scheduleModels.Date(start),
-		EndDate:         scheduleModels.Date(end),
+		StartDate:       calendar.Date(start),
+		EndDate:         calendar.Date(end),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -453,7 +453,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 	t.Run("update removes B-week occurrences", func(t *testing.T) {
 		s := makeScenario(t, activityContract.WeekdayMonday, effective)
 		defer s.runCleanup(t)
-		anchor := scheduleModels.Date(effective)
+		anchor := calendar.Date(effective)
 		s.period.WeekCycleLength = 2
 		s.period.WeekCycleAnchor = &anchor
 		updateCalendarPeriodRow(t, s.db, s.ctx, s.period)

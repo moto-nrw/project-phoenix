@@ -7,8 +7,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +34,7 @@ func TestActivityExceptionRepository_Create_and_FindByActivityGroupID(t *testing
 
 	cancelled := &scheduleModels.ActivityException{
 		ActivityGroupID: activity.ID,
-		ExceptionDate:   scheduleModels.NewDate(2026, 12, 23),
+		ExceptionDate:   calendar.NewDate(2026, 12, 23),
 		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 	}
 	cancelled.SetTenantID(testpkg.Tenant(t))
@@ -43,7 +44,7 @@ func TestActivityExceptionRepository_Create_and_FindByActivityGroupID(t *testing
 	modifiedRoom := room.ID
 	modified := &scheduleModels.ActivityException{
 		ActivityGroupID: activity.ID,
-		ExceptionDate:   scheduleModels.NewDate(2026, 12, 24),
+		ExceptionDate:   calendar.NewDate(2026, 12, 24),
 		ExceptionType:   scheduleModels.ActivityExceptionModified,
 		RoomID:          &modifiedRoom,
 	}
@@ -78,7 +79,7 @@ func TestActivityExceptionRepository_Create_and_FindByActivityGroupID(t *testing
 	t.Run("Create rejects cancelled with overrides", func(t *testing.T) {
 		bad := &scheduleModels.ActivityException{
 			ActivityGroupID: activity.ID,
-			ExceptionDate:   scheduleModels.NewDate(2027, 1, 10),
+			ExceptionDate:   calendar.NewDate(2027, 1, 10),
 			ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 			RoomID:          &modifiedRoom,
 		}
@@ -91,7 +92,7 @@ func TestActivityExceptionRepository_Create_and_FindByActivityGroupID(t *testing
 	t.Run("Create rejects modified without overrides", func(t *testing.T) {
 		bad := &scheduleModels.ActivityException{
 			ActivityGroupID: activity.ID,
-			ExceptionDate:   scheduleModels.NewDate(2027, 1, 11),
+			ExceptionDate:   calendar.NewDate(2027, 1, 11),
 			ExceptionType:   scheduleModels.ActivityExceptionModified,
 		}
 		bad.SetTenantID(testpkg.Tenant(t))
@@ -111,7 +112,7 @@ func TestActivityExceptionRepository_FindByActivityGroupAndDate(t *testing.T) {
 
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Exc-By-Date-%d", time.Now().UnixNano()))
 
-	date := scheduleModels.NewDate(2027, 2, 3)
+	date := calendar.NewDate(2027, 2, 3)
 
 	exc := &scheduleModels.ActivityException{
 		ActivityGroupID: activity.ID,
@@ -129,7 +130,7 @@ func TestActivityExceptionRepository_FindByActivityGroupAndDate(t *testing.T) {
 	})
 
 	t.Run("returns nil when missing", func(t *testing.T) {
-		other := scheduleModels.NewDate(2027, 3, 15)
+		other := calendar.NewDate(2027, 3, 15)
 		got, err := repo.FindByActivityGroupAndDate(ctx, activity.ID, other)
 		require.NoError(t, err)
 		assert.Nil(t, got)
@@ -146,12 +147,12 @@ func TestActivityExceptionRepository_FindByDateRange(t *testing.T) {
 
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Exc-Range-%d", time.Now().UnixNano()))
 
-	from := scheduleModels.NewDate(2027, 4, 1)
-	mid := scheduleModels.NewDate(2027, 4, 10)
-	to := scheduleModels.NewDate(2027, 4, 30)
-	outside := scheduleModels.NewDate(2027, 6, 1)
+	from := calendar.NewDate(2027, 4, 1)
+	mid := calendar.NewDate(2027, 4, 10)
+	to := calendar.NewDate(2027, 4, 30)
+	outside := calendar.NewDate(2027, 6, 1)
 
-	mk := func(date scheduleModels.Date) *scheduleModels.ActivityException {
+	mk := func(date calendar.Date) *scheduleModels.ActivityException {
 		e := &scheduleModels.ActivityException{
 			ActivityGroupID: activity.ID,
 			ExceptionDate:   date,
@@ -191,7 +192,7 @@ func TestActivityExceptionRepository_Update(t *testing.T) {
 
 	exc := &scheduleModels.ActivityException{
 		ActivityGroupID: activity.ID,
-		ExceptionDate:   scheduleModels.NewDate(2027, 5, 1),
+		ExceptionDate:   calendar.NewDate(2027, 5, 1),
 		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 	}
 	exc.SetTenantID(testpkg.Tenant(t))
@@ -218,7 +219,7 @@ func TestActivityExceptionRepository_Update(t *testing.T) {
 	t.Run("rejects invalid payload", func(t *testing.T) {
 		bad := &scheduleModels.ActivityException{
 			ActivityGroupID: 0,
-			ExceptionDate:   scheduleModels.NewDate(2027, 5, 2),
+			ExceptionDate:   calendar.NewDate(2027, 5, 2),
 			ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 		}
 		bad.SetTenantID(testpkg.Tenant(t))
@@ -241,7 +242,7 @@ func TestActivityExceptionRepository_FindByID(t *testing.T) {
 
 	exc := &scheduleModels.ActivityException{
 		ActivityGroupID: activity.ID,
-		ExceptionDate:   scheduleModels.NewDate(2027, 5, 3),
+		ExceptionDate:   calendar.NewDate(2027, 5, 3),
 		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 	}
 	exc.SetTenantID(testpkg.Tenant(t))
@@ -274,7 +275,7 @@ func TestActivityExceptionRepository_List(t *testing.T) {
 
 	exc := &scheduleModels.ActivityException{
 		ActivityGroupID: activity.ID,
-		ExceptionDate:   scheduleModels.NewDate(2027, 5, 4),
+		ExceptionDate:   calendar.NewDate(2027, 5, 4),
 		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 	}
 	exc.SetTenantID(testpkg.Tenant(t))
@@ -321,7 +322,7 @@ func TestActivityExceptionRepository_ErrorBranches(t *testing.T) {
 	cancelledCtx, cancel := context.WithCancel(ctx)
 	cancel()
 
-	date := scheduleModels.NewDate(2027, 5, 5)
+	date := calendar.NewDate(2027, 5, 5)
 
 	t.Run("FindByActivityGroupID wraps driver errors", func(t *testing.T) {
 		rows, err := repo.FindByActivityGroupID(cancelledCtx, int64(999999))

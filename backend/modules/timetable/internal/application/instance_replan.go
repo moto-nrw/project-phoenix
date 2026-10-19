@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"time"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -59,7 +59,7 @@ func (s *InstanceLifecycleService) replanWeekLocked(ctx context.Context, tenantI
 	}
 	// Legacy weekend occurrences are deleted too: the materialization no
 	// longer recreates them.
-	fromDate, toDate := scheduleModel.Date(from), scheduleModel.Date(to)
+	fromDate, toDate := calendar.Date(from), calendar.Date(to)
 	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, fromDate, &toDate, activityGroupID, false)
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "replan week: delete planned", Err: err}
@@ -131,7 +131,7 @@ type groupDay struct {
 // counts ALL of them per (group, date), overridden or not: that original
 // cardinality is what tells a moved sole occurrence from a multi-slot day.
 func (s *InstanceLifecycleService) snapshotDeviations(ctx context.Context, from, to calendar.Date, activityGroupID *int64) ([]deviationSnapshot, map[groupDay]int, error) {
-	instances, err := s.deps.InstanceRepo.FindByTenantAndDateRange(ctx, scheduleModel.Date(from), scheduleModel.Date(to))
+	instances, err := s.deps.InstanceRepo.FindByTenantAndDateRange(ctx, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return nil, nil, err
 	}

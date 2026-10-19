@@ -7,8 +7,8 @@ import (
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	activitiesModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/activityrecords"
 )
 
 // timetableActivityScheduleRepository preserves the legacy service contract
@@ -30,7 +30,7 @@ func (r timetableActivityScheduleRepository) Create(ctx context.Context, schedul
 	return nil
 }
 
-func (r timetableActivityScheduleRepository) FindByID(ctx context.Context, id any) (*activityContract.Schedule, error) {
+func (r timetableActivityScheduleRepository) FindByID(ctx context.Context, id int64) (*activityContract.Schedule, error) {
 	scheduleID, ok := LegacyGroupID(id)
 	if !ok {
 		return nil, legacyDatabaseError("find by id", fmt.Errorf("invalid activity schedule id %T", id))
@@ -57,7 +57,7 @@ func (r timetableActivityScheduleRepository) Update(ctx context.Context, schedul
 	return nil
 }
 
-func (r timetableActivityScheduleRepository) Delete(ctx context.Context, id any) error {
+func (r timetableActivityScheduleRepository) Delete(ctx context.Context, id int64) error {
 	scheduleID, ok := LegacyGroupID(id)
 	if !ok {
 		return legacyDatabaseError("delete", fmt.Errorf("invalid activity schedule id %T", id))

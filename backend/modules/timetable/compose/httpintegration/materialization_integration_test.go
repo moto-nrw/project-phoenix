@@ -8,16 +8,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -95,8 +96,8 @@ func makeScenario(t *testing.T, weekday int, materializeDate calendar.Date) *sce
 	period := &scheduleModels.CalendarPeriod{
 		Name:            fmt.Sprintf("Schuljahr-%d", suffix),
 		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       scheduleModels.NewDate(materializeDate.Year()-1, 8, 1),
-		EndDate:         scheduleModels.NewDate(materializeDate.Year()+1, 7, 31),
+		StartDate:       calendar.NewDate(materializeDate.Year()-1, 8, 1),
+		EndDate:         calendar.NewDate(materializeDate.Year()+1, 7, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -299,7 +300,7 @@ func TestMaterializeForTenant_MultipleDynamicTargetsFollowClassChanges(t *testin
 
 	class3a := "3a"
 	class4a := "4a"
-	targetRepo, ok := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.(activitiesModels.GroupTargetRepository)
+	targetRepo, ok := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.(fixturetest.GroupTargets)
 	require.True(t, ok)
 	require.NoError(t, targetRepo.ReplaceTargets(s.ctx, s.template.ID, []*activityContract.GroupTarget{
 		{TargetGroupType: activityContract.TargetGroupTypeKlasse, TargetSchoolClass: &class3a},
@@ -338,7 +339,7 @@ func TestMaterializeForTenant_ExceptionCancelled_Skips(t *testing.T) {
 	// Insert a cancelled exception for the target date.
 	exc := &scheduleModels.ActivityException{
 		ActivityGroupID: s.template.ID,
-		ExceptionDate:   scheduleModels.Date(materializeDate),
+		ExceptionDate:   calendar.Date(materializeDate),
 		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 	}
 	exc.SetTenantID(s.tenantID)
@@ -364,7 +365,7 @@ func TestMaterializeForTenant_ExceptionModified_OverridesStartTime(t *testing.T)
 	newStart := time.Date(1, 1, 1, 13, 0, 0, 0, time.UTC)
 	exc := &scheduleModels.ActivityException{
 		ActivityGroupID: s.template.ID,
-		ExceptionDate:   scheduleModels.Date(materializeDate),
+		ExceptionDate:   calendar.Date(materializeDate),
 		ExceptionType:   scheduleModels.ActivityExceptionModified,
 		StartTime:       &newStart,
 	}
@@ -436,8 +437,8 @@ func TestMaterializeForTenant_NoTemplates_ReturnsWarning(t *testing.T) {
 	period := &scheduleModels.CalendarPeriod{
 		Name:            "No Templates Test 2025/2026",
 		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       scheduleModels.NewDate(2025, 8, 1),
-		EndDate:         scheduleModels.NewDate(2026, 7, 31),
+		StartDate:       calendar.NewDate(2025, 8, 1),
+		EndDate:         calendar.NewDate(2026, 7, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -493,8 +494,8 @@ func TestMaterializeForTenant_TemplateScheduleBoundToPeriod_OutOfRange_Skips(t *
 	holiday := &scheduleModels.CalendarPeriod{
 		Name:            fmt.Sprintf("Herbstferien-%d", time.Now().UnixNano()),
 		PeriodType:      scheduleModels.PeriodTypeHoliday,
-		StartDate:       scheduleModels.NewDate(2026, 10, 14),
-		EndDate:         scheduleModels.NewDate(2026, 10, 25),
+		StartDate:       calendar.NewDate(2026, 10, 14),
+		EndDate:         calendar.NewDate(2026, 10, 25),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}

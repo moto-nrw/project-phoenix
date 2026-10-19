@@ -9,9 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 )
 
 // The timetable HTTP adapter validates requests with the public owner
@@ -45,10 +44,10 @@ func TestHTTPVocabularyMatchesTheRetainedModels(t *testing.T) {
 	assert.Equal(t, activityContract.WeekdaySaturday, timetable.WeekdaySaturday)
 	assert.Equal(t, activityContract.WeekdaySunday, timetable.WeekdaySunday)
 
-	assert.Equal(t, activitiesModel.TemplateWeekdayRosterKindEmpty, timetable.TemplateWeekdayRosterKindEmpty)
-	assert.Equal(t, activitiesModel.TemplateWeekdayRosterKindStaff, timetable.TemplateWeekdayRosterKindStaff)
-	assert.Equal(t, activitiesModel.TemplateWeekdayRosterKindStudent, timetable.TemplateWeekdayRosterKindStudent)
-	assert.Equal(t, activitiesModel.TemplateWeekdayRosterKindProtectedStudent, timetable.TemplateWeekdayRosterKindProtectedStudent)
+	assert.Equal(t, timetable.TemplateWeekdayRosterKindEmpty, timetable.TemplateWeekdayRosterKindEmpty)
+	assert.Equal(t, timetable.TemplateWeekdayRosterKindStaff, timetable.TemplateWeekdayRosterKindStaff)
+	assert.Equal(t, timetable.TemplateWeekdayRosterKindStudent, timetable.TemplateWeekdayRosterKindStudent)
+	assert.Equal(t, timetable.TemplateWeekdayRosterKindProtectedStudent, timetable.TemplateWeekdayRosterKindProtectedStudent)
 
 	assert.Equal(t, scheduleModel.InstanceStatusPlanned, timetable.InstanceStatusPlanned)
 	assert.Equal(t, scheduleModel.InstanceStatusActive, timetable.InstanceStatusActive)

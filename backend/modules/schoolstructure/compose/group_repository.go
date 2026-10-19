@@ -22,9 +22,6 @@ type GroupRepositoryDependencies struct {
 
 // NewGroupRepository serves retained consumer-owned record ports from the
 // School Structure owner. No implementation handle escapes.
-func NewGroupRepository(runtime groups.Runtime, deps GroupRepositoryDependencies) *GroupRepository {
-	store := groups.NewGroupRepository(runtime, deps.Rooms, deps.TeachingAssignments, supervision.SupervisingStaff(supervision.SupervisionSources{TeacherStaffIDs: deps.TeacherStaffIDs, LiveStaffIDs: deps.LiveStaffIDs, GroupSubstitutes: deps.GroupSubstitutes}))
-	return &GroupRepository{store: store}
+func NewGroupRepository(runtime groups.Runtime, deps GroupRepositoryDependencies) LegacyGroupRepository {
+	return groups.NewGroupRepository(runtime, deps.Rooms, deps.TeachingAssignments, supervision.SupervisingStaff(supervision.SupervisionSources{TeacherStaffIDs: deps.TeacherStaffIDs, LiveStaffIDs: deps.LiveStaffIDs, GroupSubstitutes: deps.GroupSubstitutes}))
 }
-
-type GroupRepository struct{ store *groups.GroupRepository }

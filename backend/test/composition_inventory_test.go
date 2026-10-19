@@ -330,11 +330,11 @@ func receiverName(expression ast.Expr) string {
 }
 
 var compositionConstructors = map[string]map[string]string{
-	"github.com/moto-nrw/project-phoenix/api":                   {"New": "api.New", "NewServer": "api.NewServer", "WithRuntime": "api.WithRuntime"},
-	"github.com/moto-nrw/project-phoenix/api/testutil":          {"SetupAPITest": "api/testutil.SetupAPITest"},
-	"github.com/moto-nrw/project-phoenix/database/repositories": {"NewFactory": "database/repositories.NewFactory"},
-	"github.com/moto-nrw/project-phoenix/services":              {"NewFactory": "services.NewFactory"},
-	"github.com/moto-nrw/project-phoenix/services/scheduler":    {"NewScheduler": "services/scheduler.NewScheduler", "NewWorker": "services/scheduler.NewWorker"},
+	"github.com/moto-nrw/project-phoenix/api":                                           {"New": "api.New", "NewServer": "api.NewServer", "WithRuntime": "api.WithRuntime"},
+	"github.com/moto-nrw/project-phoenix/api/testutil":                                  {"SetupAPITest": "api/testutil.SetupAPITest"},
+	"github.com/moto-nrw/project-phoenix/database/repositories":                         {"NewFactory": "database/repositories.NewFactory"},
+	"github.com/moto-nrw/project-phoenix/services":                                      {"NewFactory": "services.NewFactory"},
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/internal/application": {"NewScheduler": "services/scheduler.NewScheduler", "NewWorker": "services/scheduler.NewWorker"},
 }
 
 type callerAggregate struct {
@@ -345,7 +345,7 @@ type callerAggregate struct {
 func discoverConstructorCallers(t *testing.T, backendRoot string, policy *compositionPolicy) []constructorCaller {
 	t.Helper()
 	aggregates := make(map[string]*callerAggregate)
-	for _, root := range []string{"api", "cmd", "services", filepath.Join("database", "repositories"), "test"} {
+	for _, root := range []string{"api", "cmd", filepath.Join("modules", "schedulerruntime", "internal", "application"), filepath.Join("database", "repositories"), "test"} {
 		scanConstructorRoot(t, backendRoot, root, policy, aggregates)
 	}
 	result := make([]constructorCaller, 0, len(aggregates))
@@ -501,7 +501,7 @@ func namedDataObjects(declaration ast.Decl, policy *compositionPolicy) []string 
 func discoverWorkerJobIDs(t *testing.T, backendRoot string) []string {
 	t.Helper()
 	jobs := make(map[string]struct{})
-	root := filepath.Join(backendRoot, "services", "scheduler")
+	root := filepath.Join(backendRoot, "modules", "schedulerruntime", "internal", "application")
 	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil || entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return walkErr
@@ -516,7 +516,7 @@ func discoverWorkerJobIDs(t *testing.T, backendRoot string) []string {
 
 func discoverRequiredWorkerJobIDs(t *testing.T, backendRoot string) []string {
 	t.Helper()
-	path := filepath.Join(backendRoot, "services", "scheduler", "worker.go")
+	path := filepath.Join(backendRoot, "modules", "schedulerruntime", "internal", "application", "worker.go")
 	_, file, err := parseGoSourceCached(path, nil)
 	if err != nil {
 		t.Fatalf("parse worker registry: %v", err)

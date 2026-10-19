@@ -419,7 +419,7 @@ func TestCapacityOccurrencesReadPeriodsThroughTheCalendarOwner(t *testing.T) {
 
 // readBack reads a fixture row through the adapter, as the owner row the
 // adapter writes.
-func readBack[M any](t *testing.T, ctx context.Context, find func(context.Context, any) (M, error), id int64) M {
+func readBack[M any](t *testing.T, ctx context.Context, find func(context.Context, int64) (M, error), id int64) M {
 	t.Helper()
 	row, err := find(ctx, id)
 	require.NoError(t, err)
