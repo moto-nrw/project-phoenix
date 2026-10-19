@@ -94,10 +94,7 @@ func TestUpdateMasterDataField_RecordsStudentAudit(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	edits, err := owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentFieldEdit.GetByStudentID(
-		tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID),
-		chain.StudentID,
-	)
+	edits, err := testpkg.TenantQuery1(t, tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID), db, owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentFieldEdit.GetByStudentID, chain.StudentID)
 	require.NoError(t, err)
 	require.NotEmpty(t, edits)
 	var healthEditFound bool
@@ -261,7 +258,7 @@ func TestMasterDataUsesSelectedChildGuardianProfile(t *testing.T) {
 	assert.Equal(t, secondProfile.ID, updated.GuardianProfileID)
 	assert.Equal(t, "selected-child@example.test", *updated.Email)
 
-	firstProfile, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile.FindByID(ctx, chain.GuardianProfileID)
+	firstProfile, err := testpkg.TenantQuery1(t, testpkg.ContextForTenant(ctx, chain.TenantID), db, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile.FindByID, chain.GuardianProfileID)
 	require.NoError(t, err)
 	require.NotNil(t, firstProfile.Email)
 	assert.Equal(t, chain.Email, *firstProfile.Email)
@@ -283,7 +280,7 @@ func TestUpdateMasterDataField_HealthInfo_AppliesAndAudits(t *testing.T) {
 	assert.Equal(t, "Penicillin-Allergie", *data.HealthInfo)
 
 	// The live student record was updated.
-	student, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student.FindByID(testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID), chain.StudentID)
+	student, err := testpkg.TenantQuery1(t, testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID), db, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student.FindByID, any(chain.StudentID))
 	require.NoError(t, err)
 	require.NotNil(t, student.HealthInfo)
 	assert.Equal(t, "Penicillin-Allergie", *student.HealthInfo)
@@ -384,7 +381,7 @@ func TestUpdateMasterDataField_GuardianProfile_NormalizesDisplayNameEmail(t *tes
 	require.NotNil(t, data.Email)
 	assert.Equal(t, newEmail, *data.Email)
 
-	profile, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile.FindByID(testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID), chain.GuardianProfileID)
+	profile, err := testpkg.TenantQuery1(t, testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID), db, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile.FindByID, chain.GuardianProfileID)
 	require.NoError(t, err)
 	require.NotNil(t, profile.Email)
 	assert.Equal(t, newEmail, *profile.Email)
