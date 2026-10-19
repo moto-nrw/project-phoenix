@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 86,
+  "policy_epoch": 87,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -3565,11 +3565,46 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "roots/communicationtest",
+      "owner": "root-composition",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/communication/internal/staffannouncements",
       "owner": "communication",
       "role": "adapter",
       "internal_test_role": "adapter-test",
       "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "roots/requestreviewbinding",
+      "owner": "root-composition",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "roots/openroommovebinding",
+      "owner": "root-composition",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "roots/sessionendbinding",
+      "owner": "root-composition",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/ports",
+      "owner": "communication",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     }
   ],
   "data_objects": [
@@ -5823,17 +5858,6 @@
       "target_role": "contract"
     },
     {
-      "id": "request-review-view.compose.audit-corrections.public",
-      "description": "Render the native Audit correction history without retained audit models (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_owner": "audit-platform",
-      "target_role": "public"
-    },
-    {
       "id": "audit-platform.native-corrections.compose.tenant",
       "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
       "scopes": [
@@ -6191,17 +6215,6 @@
       "source_owner": "session-end",
       "source_role": "compose",
       "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "session-end.compose.delivery-platform",
-      "description": "Session end composition announces the committed close over the realtime broadcaster.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "session-end",
-      "source_role": "compose",
-      "target_owner": "delivery-platform",
       "target_role": "public"
     },
     {
@@ -9133,17 +9146,6 @@
       "target_role": "domain"
     },
     {
-      "id": "communication.compose.organization-tenancy",
-      "description": "Communication composition validates announcement targets through Organization and Tenancy.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "compose",
-      "target_owner": "organization-tenancy",
-      "target_role": "public"
-    },
-    {
       "id": "communication.compose.orm-sql",
       "description": "Communication composition supplies the concrete Bun database dependency.",
       "scopes": [
@@ -10633,83 +10635,6 @@
       "target_role": "public"
     },
     {
-      "id": "request-review-view.compose.enrollment.public",
-      "description": "Bind native approved booking facts for care schedule reviews (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_owner": "enrollment",
-      "target_role": "public"
-    },
-    {
-      "id": "request-review-view.compose.timetable.public",
-      "description": "Bind native class dismissal and pickup impact facts (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_owner": "timetable-activities",
-      "target_role": "public"
-    },
-    {
-      "id": "request-review-view.compose.care-plan.public",
-      "description": "Request review binds native Care Plan queue facts and workflow ports (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
-      "id": "request-review-view.compose.care-plan.contract",
-      "description": "Request review binds native Care Plan queue facts and workflow ports (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "contract"
-    },
-    {
-      "id": "request-review-view.compose.production.identity-access.review-contract",
-      "description": "Bind native request-review identity and tenant-setting contracts without retained model dependencies (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_owner": "identity-access",
-      "target_role": "contract"
-    },
-    {
-      "id": "request-review-view.compose.people-directory.public",
-      "description": "Request review binds native owner capabilities through typed composition (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "public"
-    },
-    {
-      "id": "request-review-view.compose.school-structure.public",
-      "description": "Request review binds native owner capabilities through typed composition (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_owner": "school-structure",
-      "target_role": "public"
-    },
-    {
       "id": "request-review-view.integration.people-compose",
       "description": "Native directory integration tests exercise the public People Directory with PostgreSQL (#3179).",
       "scopes": [
@@ -11636,17 +11561,6 @@
       "source_role": "public",
       "target_owner": "care-plan",
       "target_role": "contract"
-    },
-    {
-      "id": "open-room-move.compose.student-presence-public",
-      "description": "The open-room move binds the public session detail and student move values (#3422).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "open-room-move",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "public"
     },
     {
       "id": "test-support.fixtures.student-presence-session-rows",
@@ -15091,19 +15005,6 @@
       "target_package": "modules/parentannouncementaudience/contract"
     },
     {
-      "id": "communication.compose.parentannouncementaudience.native-contract",
-      "description": "Native projection record successor to the retired private adapter reach.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "compose",
-      "source_package": "modules/communication/parentstore",
-      "target_owner": "parent-announcement-audience",
-      "target_role": "public",
-      "target_package": "modules/parentannouncementaudience/contract"
-    },
-    {
       "id": "parent-message-inbox.postgres.parentmessageinbox.native-contract",
       "description": "Native projection record successor to the retired private adapter reach.",
       "scopes": [
@@ -15117,19 +15018,6 @@
       "target_package": "modules/parentmessageinbox/contract"
     },
     {
-      "id": "communication.compose.parentmessageinbox.native-contract",
-      "description": "Native projection record successor to the retired private adapter reach.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "compose",
-      "source_package": "modules/communication/parentstore",
-      "target_owner": "parent-message-inbox",
-      "target_role": "public",
-      "target_package": "modules/parentmessageinbox/contract"
-    },
-    {
       "id": "staff-message-inbox.postgres.staffmessageinbox.native-contract",
       "description": "Native projection record successor to the retired private adapter reach.",
       "scopes": [
@@ -15138,19 +15026,6 @@
       "source_owner": "staff-message-inbox",
       "source_role": "postgres",
       "source_package": "modules/staffmessageinbox/internal/adapters/postgres",
-      "target_owner": "staff-message-inbox",
-      "target_role": "public",
-      "target_package": "modules/staffmessageinbox/contract"
-    },
-    {
-      "id": "communication.compose.staffmessageinbox.native-contract",
-      "description": "Native projection record successor to the retired private adapter reach.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "compose",
-      "source_package": "modules/communication/staffstore",
       "target_owner": "staff-message-inbox",
       "target_role": "public",
       "target_package": "modules/staffmessageinbox/contract"
@@ -15610,6 +15485,52 @@
       "target_owner": "security-runtime",
       "target_role": "port",
       "target_package": "modules/securityruntime/ports"
+    },
+    {
+      "id": "communication.postgres.port",
+      "description": "Native query observation binds Communication\u2019s own observer port; same-owner successor of composition wiring (ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "postgres",
+      "target_owner": "communication",
+      "target_role": "port"
+    },
+    {
+      "id": "communication.postgres.tenant-runtime.public",
+      "description": "Native ambient-transaction resolution moves from Communication composition to its owned persistence adapter (ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "communication.application.organization-tenancy.public",
+      "description": "Native organization target error mapping replaces composition mapping, preserving its existing owner direction (ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "application",
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.reach.internal-test.communication.port",
+      "description": "Exact native port successor of Communication composition audit values; same shape as existing Audit/Settings root test port bindings (ADR 0053).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "source_package": "api",
+      "target_owner": "communication",
+      "target_role": "port",
+      "target_package": "modules/communication/ports"
     }
   ],
   "relocations": [

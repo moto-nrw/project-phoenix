@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	compose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
@@ -22,8 +24,11 @@ func TestPublicCommunicationContractPersistsNormalizedAnnouncement(t *testing.T)
 	db := testpkg.SetupIsolatedTestDB(t)
 	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	var audited []compose.AuditEntry
-	module, err := api.NewCommunicationAnnouncements(compose.Dependencies{DB: db, Organizations: organizations, Viewers: noViewerNames{}, Audit: compose.AuditFunc(func(_ context.Context, entry compose.AuditEntry) error { audited = append(audited, entry); return nil }), Observe: func(compose.Observation) {}})
+	var audited []recordports.AuditEntry
+	module, err := api.NewCommunicationAnnouncements(compose.Dependencies{DB: db, Organizations: organizations, Viewers: noViewerNames{}, Audit: recordports.AuditFunc(func(_ context.Context, entry recordports.AuditEntry) error {
+		audited = append(audited, entry)
+		return nil
+	}), Observe: func(compose.Observation) {}})
 	require.NoError(t, err)
 	operator := testpkg.CreateTestOperator(t, db)
 	row := &communication.Announcement{Title: "  Wartung  ", Content: "  Heute Abend  ", Type: communication.TypeMaintenance, Severity: communication.SeverityWarning, CreatedBy: operator.ID}
