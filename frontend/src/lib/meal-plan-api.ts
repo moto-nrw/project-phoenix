@@ -3,6 +3,7 @@
 // and delete a day; the feature is gated per tenant by the backend.
 
 import { apiErrorFromResponse } from "./api-error";
+import { downloadBlob } from "./file-download";
 import { sessionFetch } from "./session-cache";
 import { parseISODate, toISODate } from "./date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -370,4 +371,27 @@ export async function downloadMealMonth(
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Downloads the school's delivery list of [from, to] (#3873): the same
+ * document its caterer gets, without names.
+ */
+export async function downloadMealDeliveries(
+  from: string,
+  to: string,
+  format: "pdf" | "xlsx" | "csv",
+): Promise<void> {
+  const params = new URLSearchParams({ from, to, format });
+  const response = await sessionFetch(
+    `/api/meal-caterer/orders/export?${params.toString()}`,
+    { credentials: "include" },
+  );
+  if (!response.ok) {
+    throw await apiErrorFromResponse(response, "meal delivery export failed");
+  }
+  downloadBlob(
+    await response.blob(),
+    `lieferliste-${from}-bis-${to}.${format}`,
+  );
 }

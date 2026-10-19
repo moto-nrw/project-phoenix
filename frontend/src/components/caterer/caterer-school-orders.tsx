@@ -1,16 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import {
   confirmCatererOrder,
-  fetchCatererOrders,
   type CatererOrderChild,
   type CatererOrderDay,
   type CatererOrders,
@@ -71,54 +68,30 @@ function firstDaysOfOrders(days: readonly CatererOrderDay[]): Set<string> {
 }
 
 /**
- * One school's orders of a week, as its caterer reads them (ADR 0074): per
- * day the state, the number of meals, by class when the school orders by
- * class, the names while the school shows them, and the changes after the
- * deadline. A fixed order can be confirmed once.
+ * One school's orders of the chosen days, as its caterer reads them (ADR
+ * 0074): per day the state, the number of meals, by class when the school
+ * orders by class, the names while the school shows them, and the changes
+ * after the deadline. A fixed order can be confirmed once; the overview
+ * loads the orders and reloads them after a confirmation.
  */
 export function CatererSchoolOrders({
   school,
-  mondayISO,
-  fridayISO,
-}: Readonly<{ school: CatererSchool; mondayISO: string; fridayISO: string }>) {
-  const [orders, setOrders] = useState<CatererOrders | null>(null);
-  const [loading, setLoading] = useState(true);
+  orders,
+  onConfirmed,
+}: Readonly<{
+  school: CatererSchool;
+  orders: CatererOrders;
+  onConfirmed: () => Promise<void>;
+}>) {
   const [confirming, setConfirming] = useState<string | null>(null);
-  const { error, show, clear } = useApiLoadError();
   const { show: showActionError } = useApiErrorDisplay();
-  const reloadRef = useRef<() => void>(() => undefined);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    clear();
-    try {
-      setOrders(await fetchCatererOrders(school.id, mondayISO, fridayISO));
-    } catch (cause) {
-      logger.error("caterer_orders_load_failed", {
-        error: cause instanceof Error ? cause.message : String(cause),
-      });
-      setOrders(null);
-      void show(cause, {
-        object: "die Bestellung",
-        retry: () => reloadRef.current(),
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [clear, fridayISO, mondayISO, school.id, show]);
-  useEffect(() => {
-    reloadRef.current = () => void load();
-  });
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   const confirm = useCallback(
     async (orderId: string) => {
       setConfirming(orderId);
       try {
         await confirmCatererOrder(school.id, orderId);
-        await load();
+        await onConfirmed();
       } catch (cause) {
         logger.error("caterer_order_confirm_failed", {
           error: cause instanceof Error ? cause.message : String(cause),
@@ -128,7 +101,7 @@ export function CatererSchoolOrders({
         setConfirming(null);
       }
     },
-    [load, school.id, showActionError],
+    [onConfirmed, school.id, showActionError],
   );
 
   const days = useMemo(() => orders?.days ?? [], [orders]);
@@ -225,26 +198,12 @@ export function CatererSchoolOrders({
   }, [byClass, confirm, confirming, firstDays, named]);
 
   return (
-    <SectionCard
-      title={school.name}
-      description={
-        orders?.deliveryAddress
-          ? `Lieferadresse: ${orders.deliveryAddress}`
-          : undefined
-      }
-    >
-      {error ? (
-        <LoadErrorAlert error={error} />
-      ) : (
-        <DataTable
-          columns={columns}
-          rows={days}
-          getRowKey={(day) => day.date}
-          isLoading={loading}
-          stackedOnMobile
-          caption={`Bestellung von ${school.name} in dieser Woche`}
-        />
-      )}
-    </SectionCard>
+    <DataTable
+      columns={columns}
+      rows={days}
+      getRowKey={(day) => day.date}
+      stackedOnMobile
+      caption={`Bestellung von ${school.name} an den gewählten Tagen`}
+    />
   );
 }

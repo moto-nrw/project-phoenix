@@ -10,10 +10,12 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
+  downloadMealDeliveries,
   downloadMealMonth,
   getMealOrders,
   type MealOrderDay,
@@ -85,6 +87,17 @@ export function MealOrderWeek({
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function downloadDeliveries(format: "pdf" | "xlsx" | "csv") {
+    try {
+      await downloadMealDeliveries(mondayISO, friday, format);
+    } catch (cause) {
+      logger.error("meal_delivery_export_failed", {
+        error: cause instanceof Error ? cause.message : String(cause),
+      });
+      void showActionError(cause, { object: t("errorObjectDelivery") });
+    }
+  }
 
   async function download(format: "pdf" | "xlsx") {
     setExporting(format);
@@ -211,51 +224,72 @@ export function MealOrderWeek({
       title={t("title")}
       description={t("description")}
       actions={
-        canExportMonth ? (
-          <div
-            role="group"
-            aria-label={t("monthGroup")}
-            className="flex flex-wrap items-center gap-2"
-          >
-            {months.length > 1 ? (
-              <SegmentedControl<string>
-                items={months.map((value) => ({
-                  value,
-                  label: monthName(value),
-                }))}
-                value={month}
-                onChange={setChosenMonth}
-                ariaLabel={t("monthChoice")}
-              />
-            ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              className="gap-2 bg-white"
-              onClick={() => void download("pdf")}
-              isLoading={exporting === "pdf"}
-              loadingText={t("downloadLoading")}
-              disabled={exporting !== null}
+        <div className="flex flex-wrap items-center gap-2">
+          {canExportMonth ? (
+            <div
+              role="group"
+              aria-label={t("monthGroup")}
+              className="flex flex-wrap items-center gap-2"
             >
-              <Download className="h-4 w-4" aria-hidden="true" />
-              {t("monthPdf", { month: monthName(month) })}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              className="gap-2 bg-white"
-              onClick={() => void download("xlsx")}
-              isLoading={exporting === "xlsx"}
-              loadingText={t("downloadLoading")}
-              disabled={exporting !== null}
-            >
-              <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
-              {t("monthExcel", { month: monthName(month) })}
-            </Button>
-          </div>
-        ) : undefined
+              {months.length > 1 ? (
+                <SegmentedControl<string>
+                  items={months.map((value) => ({
+                    value,
+                    label: monthName(value),
+                  }))}
+                  value={month}
+                  onChange={setChosenMonth}
+                  ariaLabel={t("monthChoice")}
+                />
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                className="gap-2 bg-white"
+                onClick={() => void download("pdf")}
+                isLoading={exporting === "pdf"}
+                loadingText={t("downloadLoading")}
+                disabled={exporting !== null}
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+                {t("monthPdf", { month: monthName(month) })}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                className="gap-2 bg-white"
+                onClick={() => void download("xlsx")}
+                isLoading={exporting === "xlsx"}
+                loadingText={t("downloadLoading")}
+                disabled={exporting !== null}
+              >
+                <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+                {t("monthExcel", { month: monthName(month) })}
+              </Button>
+            </div>
+          ) : null}
+          {/* Die Lieferliste ist dieselbe Vorlage, die der Caterer bekommt:
+              ohne Namen, darum schon mit meals:read (#3873). */}
+          <OverflowMenu
+            ariaLabel={t("deliveryMenu")}
+            items={[
+              {
+                label: t("deliveryPdf"),
+                onClick: () => void downloadDeliveries("pdf"),
+              },
+              {
+                label: t("deliveryExcel"),
+                onClick: () => void downloadDeliveries("xlsx"),
+              },
+              {
+                label: t("deliveryCsv"),
+                onClick: () => void downloadDeliveries("csv"),
+              },
+            ]}
+          />
+        </div>
       }
     >
       {error ? (

@@ -1,40 +1,110 @@
 "use client";
 
-// Overview of the caterer portal (ADR 0074): the orders of every school the
-// caterer supplies, one week at a time. Each school is read on its own, in
-// its own transaction; a school that ends the supply drops out at once.
+// Overview of the caterer portal (ADR 0074, #3873): one table of every
+// school the caterer supplies, the days of the chosen period as columns,
+// with a sum per school and per day. Each school opens to its days with
+// classes, names (if the school shows them) and the confirmation. Each
+// school is read on its own; a school that ends the supply drops out.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { signOut } from "next-auth/react";
+import { Download, FileSpreadsheet, Printer } from "lucide-react";
 import { MotoBrand } from "~/components/auth/auth-shell";
 import { CatererSchoolOrders } from "~/components/caterer/caterer-school-orders";
 import { Button } from "~/components/ui/button";
+import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Loading } from "~/components/ui/loading";
-import { PlanningContextBar } from "~/components/ui/planning-context-bar";
-import { useApiLoadError } from "~/contexts/ToastContext";
-import { fetchCatererSchools, type CatererSchools } from "~/lib/caterer-api";
+import { SectionCard } from "~/components/ui/section-card";
+import { SegmentedControl } from "~/components/ui/segmented-control";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
+import {
+  downloadCatererDeliveries,
+  fetchCatererOrders,
+  fetchCatererSchools,
+  type CatererOrderDay,
+  type CatererOrders,
+  type CatererSchool,
+  type CatererSchools,
+  type DeliveryExportFormat,
+} from "~/lib/caterer-api";
 import { catererAbsoluteUrl } from "~/lib/caterer-url";
-import { parseISODate, todayISO, toISODate } from "~/lib/date-helpers";
+import {
+  defaultPeriod,
+  periodDays,
+  PERIODS,
+  type Period,
+} from "~/lib/caterer-period";
+import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
+import { openBlobForPrint } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
-import { mondayOf } from "~/lib/meal-plan-api";
 import { DELIBERATE_LOGOUT_KEY, clearSessionCache } from "~/lib/session-cache";
 
 const logger = createLogger({ component: "CatererOverview" });
 
-function addDays(iso: string, days: number): string {
-  const date = parseISODate(iso);
-  date.setDate(date.getDate() + days);
-  return toISODate(date);
-}
-
-function shortDate(iso: string): string {
+function shortDay(iso: string): string {
   return parseISODate(iso).toLocaleDateString("de-DE", {
+    weekday: "short",
     day: "2-digit",
     month: "2-digit",
-    year: "numeric",
   });
+}
+
+function berlinDateTime(instant: string): string {
+  return new Date(instant).toLocaleString("de-DE", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Berlin",
+  });
+}
+
+function netChange(day: CatererOrderDay): number {
+  return day.changes.reduce((sum, change) => sum + change.delta, 0);
+}
+
+function signed(change: number): string {
+  return change > 0 ? `+${change}` : `−${-change}`;
+}
+
+function counts(day: CatererOrderDay | undefined): number {
+  if (!day || day.closed || day.status === "unordered") return 0;
+  return day.total;
+}
+
+/** Where a school's orders of the period stand, in one badge. */
+function SchoolState({ orders }: Readonly<{ orders: CatererOrders }>) {
+  const live = orders.days.filter(
+    (day) => !day.closed && day.status !== "unordered",
+  );
+  const open = live.filter((day) => day.status === "open");
+  if (open.length > 0) {
+    const first = open.reduce((a, b) => (a.deadline < b.deadline ? a : b));
+    return (
+      <StatusBadge
+        label={`Offen bis ${berlinDateTime(first.deadline)}`}
+        tone="gray"
+        compact
+      />
+    );
+  }
+  if (live.length === 0) return null;
+  return live.every((day) => day.status === "confirmed") ? (
+    <StatusBadge label="Bestätigt" tone="green" compact />
+  ) : (
+    <StatusBadge label="Bestellt" tone="blue" compact />
+  );
+}
+
+interface OverviewRow {
+  key: string;
+  school: CatererSchool | null;
+  orders: CatererOrders | null;
+  failed: boolean;
 }
 
 async function logout() {
@@ -59,19 +129,54 @@ async function logout() {
 }
 
 export default function CatererOverviewPage() {
-  const currentMonday = useMemo(() => mondayOf(parseISODate(todayISO())), []);
-  const [mondayISO, setMondayISO] = useState(currentMonday);
-  const fridayISO = addDays(mondayISO, 4);
+  const today = useMemo(() => berlinTodayISO(), []);
+  const [period, setPeriod] = useState<Period>(() => defaultPeriod(today));
+  const days = useMemo(() => periodDays(period, today), [period, today]);
+  const from = days[0]!;
+  const to = days[days.length - 1]!;
   const [schools, setSchools] = useState<CatererSchools | null>(null);
+  const [orders, setOrders] = useState<Record<string, CatererOrders | null>>(
+    {},
+  );
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState<string | null>(null);
   const { error, show, clear } = useApiLoadError();
+  const { show: showActionError } = useApiErrorDisplay();
   const reloadRef = useRef<() => void>(() => undefined);
+
+  const loadOrders = useCallback(
+    async (list: readonly CatererSchool[]) => {
+      const results = await Promise.allSettled(
+        list.map((school) => fetchCatererOrders(school.id, from, to)),
+      );
+      const next: Record<string, CatererOrders | null> = {};
+      results.forEach((result, index) => {
+        const school = list[index]!;
+        if (result.status === "fulfilled") {
+          next[school.id] = result.value;
+        } else {
+          next[school.id] = null;
+          logger.warn("caterer_orders_load_failed", {
+            school_id: school.id,
+            error:
+              result.reason instanceof Error
+                ? result.reason.message
+                : String(result.reason),
+          });
+        }
+      });
+      setOrders(next);
+    },
+    [from, to],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
     clear();
     try {
-      setSchools(await fetchCatererSchools());
+      const loaded = await fetchCatererSchools();
+      setSchools(loaded);
+      await loadOrders(loaded.schools);
     } catch (cause) {
       logger.error("caterer_schools_load_failed", {
         error: cause instanceof Error ? cause.message : String(cause),
@@ -83,13 +188,123 @@ export default function CatererOverviewPage() {
     } finally {
       setLoading(false);
     }
-  }, [clear, show]);
+  }, [clear, loadOrders, show]);
   useEffect(() => {
     reloadRef.current = () => void load();
   });
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function download(format: DeliveryExportFormat) {
+    setExporting(format);
+    try {
+      await downloadCatererDeliveries(from, to, format);
+    } catch (cause) {
+      void showActionError(cause, { object: "die Lieferliste" });
+    } finally {
+      setExporting(null);
+    }
+  }
+
+  async function print() {
+    // Opened inside the click: a tab opened after the download is blocked.
+    const target = window.open("", "_blank");
+    setExporting("print");
+    try {
+      const params = new URLSearchParams({ from, to, format: "pdf" });
+      const response = await fetch(
+        `/api/caterer/orders/export?${params.toString()}`,
+      );
+      if (!response.ok) throw new Error(`print failed: ${response.status}`);
+      openBlobForPrint(await response.blob(), target);
+    } catch (cause) {
+      target?.close();
+      void showActionError(cause, { object: "die Druckansicht" });
+    } finally {
+      setExporting(null);
+    }
+  }
+
+  const list = schools?.schools ?? [];
+  const rows: OverviewRow[] = [
+    ...list.map((school) => ({
+      key: school.id,
+      school,
+      orders: orders[school.id] ?? null,
+      failed: orders[school.id] === null,
+    })),
+    ...(list.length > 1
+      ? [{ key: "sum", school: null, orders: null, failed: false }]
+      : []),
+  ];
+  const dayOf = (row: OverviewRow, date: string) =>
+    row.orders?.days.find((day) => day.date === date);
+  const daySum = (date: string) =>
+    list.reduce(
+      (sum, school) =>
+        sum + counts(orders[school.id]?.days.find((day) => day.date === date)),
+      0,
+    );
+
+  const columns: DataTableColumn<OverviewRow>[] = [
+    {
+      key: "school",
+      header: "Schule",
+      stacked: "title",
+      render: (row) =>
+        row.school ? (
+          <div className="flex flex-col gap-1">
+            <span className="font-medium text-gray-900">{row.school.name}</span>
+            {row.orders ? <SchoolState orders={row.orders} /> : null}
+            {row.failed ? (
+              <span className="text-sm text-gray-600">
+                Bestellung nicht geladen
+              </span>
+            ) : null}
+          </div>
+        ) : (
+          <span className="font-semibold text-gray-900">Summe</span>
+        ),
+    },
+    ...days.map((date) => ({
+      key: date,
+      header: shortDay(date),
+      align: "right" as const,
+      render: (row: OverviewRow) => {
+        if (!row.school)
+          return <span className="font-semibold">{daySum(date)}</span>;
+        const day = dayOf(row, date);
+        if (!day || day.closed || day.status === "unordered") return "–";
+        const change = netChange(day);
+        return (
+          <span className="inline-flex items-center justify-end gap-1">
+            {day.total}
+            {change !== 0 ? (
+              <StatusBadge
+                label={signed(change)}
+                tone="orange"
+                compact
+                title="Änderung nach der Frist"
+              />
+            ) : null}
+          </span>
+        );
+      },
+    })),
+    {
+      key: "sum",
+      header: "Summe",
+      align: "right",
+      render: (row) => (
+        <span className="font-semibold">
+          {row.school
+            ? days.reduce((sum, date) => sum + counts(dayOf(row, date)), 0)
+            : days.reduce((sum, date) => sum + daySum(date), 0)}
+        </span>
+      ),
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -115,39 +330,123 @@ export default function CatererOverviewPage() {
       </header>
 
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-6">
-        <PlanningContextBar
-          dateLabel={`Woche vom ${shortDate(mondayISO)} bis ${shortDate(fridayISO)}`}
-          onPrevious={() => setMondayISO(addDays(mondayISO, -7))}
-          onNext={() => setMondayISO(addDays(mondayISO, 7))}
-          previousLabel="Vorherige Woche"
-          nextLabel="Nächste Woche"
-          todayLabel="Diese Woche"
-          onToday={
-            mondayISO === currentMonday
-              ? undefined
-              : () => setMondayISO(currentMonday)
-          }
-          withoutContextRow
-        />
-
-        {loading ? (
+        {loading && !schools ? (
           <Loading message="Wird geladen …" />
         ) : error ? (
           <LoadErrorAlert error={error} />
-        ) : schools && schools.schools.length > 0 ? (
-          schools.schools.map((school) => (
-            <CatererSchoolOrders
-              key={school.id}
-              school={school}
-              mondayISO={mondayISO}
-              fridayISO={fridayISO}
-            />
-          ))
-        ) : (
+        ) : list.length === 0 ? (
           <EmptyState
             title="Sie beliefern zurzeit keine Schule"
             description="Sobald eine Schule Sie einlädt, sehen Sie hier ihre Bestellungen."
           />
+        ) : (
+          <>
+            <SectionCard
+              title="Bestellungen"
+              description="Essen je Schule und Tag. Eine Zahl wie +2 ist eine Änderung nach der Frist."
+              actions={
+                <div className="flex flex-wrap items-center gap-2">
+                  <SegmentedControl<Period>
+                    items={PERIODS}
+                    value={period}
+                    onChange={setPeriod}
+                    ariaLabel="Zeitraum wählen"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    className="gap-2 bg-white"
+                    isLoading={exporting === "pdf"}
+                    loadingText="Wird erstellt …"
+                    disabled={exporting !== null}
+                    onClick={() => void download("pdf")}
+                  >
+                    <Download className="h-4 w-4" aria-hidden="true" />
+                    PDF
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    className="gap-2 bg-white"
+                    isLoading={exporting === "xlsx"}
+                    loadingText="Wird erstellt …"
+                    disabled={exporting !== null}
+                    onClick={() => void download("xlsx")}
+                  >
+                    <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+                    Excel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    className="gap-2 bg-white"
+                    isLoading={exporting === "csv"}
+                    loadingText="Wird erstellt …"
+                    disabled={exporting !== null}
+                    onClick={() => void download("csv")}
+                  >
+                    <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+                    CSV
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    className="gap-2 bg-white"
+                    isLoading={exporting === "print"}
+                    loadingText="Wird erstellt …"
+                    disabled={exporting !== null}
+                    onClick={() => void print()}
+                  >
+                    <Printer className="h-4 w-4" aria-hidden="true" />
+                    Drucken
+                  </Button>
+                </div>
+              }
+            >
+              <DataTable
+                columns={columns}
+                rows={rows}
+                getRowKey={(row) => row.key}
+                isLoading={loading}
+                stackedOnMobile
+                caption="Essen je Schule und Tag im gewählten Zeitraum"
+              />
+            </SectionCard>
+
+            {list.map((school) => {
+              const schoolOrders = orders[school.id];
+              return (
+                <SectionCard
+                  key={school.id}
+                  title={school.name}
+                  description={
+                    schoolOrders?.deliveryAddress
+                      ? `Lieferadresse: ${schoolOrders.deliveryAddress}`
+                      : undefined
+                  }
+                  collapsible
+                  defaultCollapsed
+                >
+                  {schoolOrders ? (
+                    <CatererSchoolOrders
+                      school={school}
+                      orders={schoolOrders}
+                      onConfirmed={() => loadOrders(list)}
+                    />
+                  ) : (
+                    <p className="text-sm text-gray-600">
+                      Die Bestellung dieser Schule ließ sich nicht laden. Bitte
+                      laden Sie die Seite neu.
+                    </p>
+                  )}
+                </SectionCard>
+              );
+            })}
+          </>
         )}
       </main>
     </div>

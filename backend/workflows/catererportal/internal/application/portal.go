@@ -15,10 +15,11 @@ import (
 
 // Dependencies are the owner capabilities and the runtime the portal uses.
 type Dependencies struct {
-	Caterers     ports.Caterers
-	Supplies     ports.Supplies
-	SchoolNames  ports.SchoolNames
-	WithinSchool ports.WithinSchool
+	Caterers      ports.Caterers
+	Supplies      ports.Supplies
+	SchoolNames   ports.SchoolNames
+	CurrentSchool ports.CurrentSchool
+	WithinSchool  ports.WithinSchool
 }
 
 // identityFlows are the Identity & Access flows the portal offers as they
@@ -39,7 +40,7 @@ var _ catererportal.Portal = (*Portal)(nil)
 
 // New builds the portal; every dependency is required.
 func New(deps Dependencies) (*Portal, error) {
-	if deps.Caterers == nil || deps.Supplies == nil || deps.SchoolNames == nil || deps.WithinSchool == nil {
+	if deps.Caterers == nil || deps.Supplies == nil || deps.SchoolNames == nil || deps.CurrentSchool == nil || deps.WithinSchool == nil {
 		return nil, errors.New("caterer portal: all dependencies are required")
 	}
 	return &Portal{identityFlows: deps.Caterers, deps: deps}, nil
@@ -166,4 +167,61 @@ func (p *Portal) supplier(ctx context.Context, accountID, schoolID int64) (ident
 		return identityaccess.Caterer{}, catererportal.ErrSchoolNotSupplied
 	}
 	return caterer, nil
+}
+
+// SchoolDeliveryExport lays out the school's own orders of [from, to] as the
+// delivery list, in the school's transaction.
+func (p *Portal) SchoolDeliveryExport(ctx context.Context, from, to mealplan.Date) (mealplan.ListExport, error) {
+	schoolID := p.deps.CurrentSchool(ctx)
+	names, err := p.deps.SchoolNames(ctx, []int64{schoolID})
+	if err != nil {
+		return mealplan.ListExport{}, err
+	}
+	supply, _, err := p.deps.Supplies.CurrentSupply(ctx)
+	if err != nil {
+		return mealplan.ListExport{}, err
+	}
+	week, err := p.deps.Supplies.Orders(ctx, from, to)
+	if err != nil {
+		return mealplan.ListExport{}, err
+	}
+	lines, err := week.DeliveryLines(names[schoolID], supply.DeliveryAddress)
+	if err != nil {
+		return mealplan.ListExport{}, err
+	}
+	return mealplan.DeliveryExport(from, to, lines)
+}
+
+// DeliveryExport lays out the orders of [from, to] of every school the
+// caterer supplies as one delivery list. Each school is read in its own
+// transaction, with what its caterer may see.
+func (p *Portal) DeliveryExport(ctx context.Context, accountID int64, from, to mealplan.Date) (mealplan.ListExport, error) {
+	caterer, schools, err := p.deps.Caterers.CatererSchools(ctx, accountID)
+	if err != nil {
+		return mealplan.ListExport{}, err
+	}
+	names, err := p.deps.SchoolNames(ctx, schools)
+	if err != nil {
+		return mealplan.ListExport{}, err
+	}
+	var lines [][]string
+	for _, schoolID := range schools {
+		err := p.deps.WithinSchool(ctx, schoolID, func(txCtx context.Context) error {
+			supply, _, supplyErr := p.deps.Supplies.CurrentSupply(txCtx)
+			if supplyErr != nil {
+				return supplyErr
+			}
+			week, ordersErr := p.deps.Supplies.CatererOrders(txCtx, caterer.ID, from, to)
+			if ordersErr != nil {
+				return ordersErr
+			}
+			schoolLines, linesErr := week.DeliveryLines(names[schoolID], supply.DeliveryAddress)
+			lines = append(lines, schoolLines...)
+			return linesErr
+		})
+		if err != nil {
+			return mealplan.ListExport{}, err
+		}
+	}
+	return mealplan.DeliveryExport(from, to, lines)
 }

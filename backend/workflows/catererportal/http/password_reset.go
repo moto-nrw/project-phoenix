@@ -56,12 +56,12 @@ func (rs *Resource) initiatePasswordReset(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("email is required")))
 		return
 	}
-	if !rs.resets.complete() {
+	if !rs.runtime.Resets.complete() {
 		common.RenderError(w, r, common.ErrorInternalServer(errResetUnavailable))
 		return
 	}
-	if err := rs.resets.Initiate(r.Context(), strings.ToLower(strings.TrimSpace(request.Email))); err != nil {
-		if seconds, limited := rs.resets.RetryAfter(err); limited {
+	if err := rs.runtime.Resets.Initiate(r.Context(), strings.ToLower(strings.TrimSpace(request.Email))); err != nil {
+		if seconds, limited := rs.runtime.Resets.RetryAfter(err); limited {
 			if seconds > 0 {
 				w.Header().Set("Retry-After", strconv.Itoa(seconds))
 			}
@@ -85,15 +85,15 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidOnField(errResetMismatch, common.CodeIdentityPasswordMismatch, "confirm_password"))
 		return
 	}
-	if !rs.resets.complete() {
+	if !rs.runtime.Resets.complete() {
 		common.RenderError(w, r, common.ErrorInternalServer(errResetUnavailable))
 		return
 	}
-	if err := rs.resets.Reset(r.Context(), request.Token, request.NewPassword); err != nil {
+	if err := rs.runtime.Resets.Reset(r.Context(), request.Token, request.NewPassword); err != nil {
 		switch {
-		case rs.resets.LinkUnusable(err):
+		case rs.runtime.Resets.LinkUnusable(err):
 			common.RenderError(w, r, common.ErrorGoneWithCode(errResetLinkUnusable, common.CodeIdentityPasswordResetLinkInvalid))
-		case rs.resets.TooWeak(err):
+		case rs.runtime.Resets.TooWeak(err):
 			common.RenderError(w, r, common.ErrorInvalidOnField(errResetTooWeak, common.CodeIdentityPasswordTooWeak, "new_password"))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServer(err))

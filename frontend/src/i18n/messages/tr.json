@@ -289,7 +289,12 @@
     "monthChoice": "Ay seçin",
     "noChanges": "Değişiklik yok",
     "changesAdded": "{count, plural, one {# çocuk fazla} other {# çocuk fazla}}",
-    "changesRemoved": "{count, plural, one {# çocuk eksik} other {# çocuk eksik}}"
+    "changesRemoved": "{count, plural, one {# çocuk eksik} other {# çocuk eksik}}",
+    "deliveryMenu": "Haftanın teslimat listesini indir",
+    "deliveryPdf": "PDF olarak teslimat listesi",
+    "deliveryExcel": "Excel olarak teslimat listesi",
+    "deliveryCsv": "CSV olarak teslimat listesi",
+    "errorObjectDelivery": "teslimat listesi"
   },
   "mealParticipantList": {
     "title": "Mutfak için günlük liste",

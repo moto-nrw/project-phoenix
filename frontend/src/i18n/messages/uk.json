@@ -289,7 +289,12 @@
     "monthChoice": "Виберіть місяць",
     "noChanges": "Змін немає",
     "changesAdded": "{count, plural, one {на # дитину більше} few {на # дитини більше} many {на # дітей більше} other {на # дитини більше}}",
-    "changesRemoved": "{count, plural, one {на # дитину менше} few {на # дитини менше} many {на # дітей менше} other {на # дитини менше}}"
+    "changesRemoved": "{count, plural, one {на # дитину менше} few {на # дитини менше} many {на # дітей менше} other {на # дитини менше}}",
+    "deliveryMenu": "Завантажити список постачання на тиждень",
+    "deliveryPdf": "Список постачання у PDF",
+    "deliveryExcel": "Список постачання в Excel",
+    "deliveryCsv": "Список постачання у CSV",
+    "errorObjectDelivery": "список постачання"
   },
   "mealParticipantList": {
     "title": "Денний список для кухні",

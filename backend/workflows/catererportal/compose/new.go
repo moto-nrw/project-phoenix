@@ -18,13 +18,13 @@ type Dependencies struct {
 	SchoolNames ports.SchoolNames
 }
 
-// New binds the portal. Each school's work runs in that school's tenant
-// transaction, joining an ambient one of the same school.
+// New binds the portal; each school runs in its own tenant transaction.
 func New(deps Dependencies) (catererportal.Portal, error) {
 	return application.New(application.Dependencies{
-		Caterers:    deps.Caterers,
-		Supplies:    deps.Supplies,
-		SchoolNames: deps.SchoolNames,
+		Caterers:      deps.Caterers,
+		Supplies:      deps.Supplies,
+		SchoolNames:   deps.SchoolNames,
+		CurrentSchool: tenant.FromContext,
 		WithinSchool: func(ctx context.Context, schoolID int64, fn func(context.Context) error) error {
 			id, err := tenant.NewTenantID(schoolID)
 			if err != nil {

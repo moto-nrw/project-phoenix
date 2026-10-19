@@ -289,7 +289,12 @@
     "monthChoice": "Wybierz miesiąc",
     "noChanges": "Brak zmian",
     "changesAdded": "{count, plural, one {# dziecko więcej} few {# dzieci więcej} many {# dzieci więcej} other {# dzieci więcej}}",
-    "changesRemoved": "{count, plural, one {# dziecko mniej} few {# dzieci mniej} many {# dzieci mniej} other {# dzieci mniej}}"
+    "changesRemoved": "{count, plural, one {# dziecko mniej} few {# dzieci mniej} many {# dzieci mniej} other {# dzieci mniej}}",
+    "deliveryMenu": "Pobierz listę dostaw na ten tydzień",
+    "deliveryPdf": "Lista dostaw jako PDF",
+    "deliveryExcel": "Lista dostaw jako Excel",
+    "deliveryCsv": "Lista dostaw jako CSV",
+    "errorObjectDelivery": "lista dostaw"
   },
   "mealParticipantList": {
     "title": "Lista dzienna dla kuchni",

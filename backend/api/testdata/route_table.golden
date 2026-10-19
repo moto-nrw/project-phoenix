@@ -291,6 +291,7 @@ GET /api/me/profile/avatar/{filename}
 GET /api/me/staff
 GET /api/me/teacher
 GET /api/meal-caterer/
+GET /api/meal-caterer/orders/export
 GET /api/meal-plan/
 GET /api/meal-plan/orders
 GET /api/meal-plan/orders/month/export
@@ -508,6 +509,7 @@ GET /auth/staff-preview/candidates
 GET /auth/tenant/resolve
 GET /auth/tenants
 GET /caterer/invitations/{schoolId}/{token}
+GET /caterer/orders/export
 GET /caterer/schools
 GET /caterer/schools/{schoolId}/orders
 GET /health

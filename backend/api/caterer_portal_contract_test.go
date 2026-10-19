@@ -72,7 +72,7 @@ func checkCatererPortal(t *testing.T, graph *goldenRuntime) {
 	db := testpkg.SetupTestDB(t)
 	school := testpkg.Tenant(t)
 	staff := testpkg.CreateTestAccount(t, db, fmt.Sprintf("caterer-staff-%d@test.local", time.Now().UnixNano()))
-	staffToken := testutil.MintTestJWT(t, testutil.TenantUserTestClaims(int(staff.ID), school, "meals:manage"))
+	staffToken := testutil.MintTestJWT(t, testutil.TenantUserTestClaims(int(staff.ID), school, "meals:manage", "meals:read"))
 	email := fmt.Sprintf("kueche-%d@example.com", time.Now().UnixNano())
 	forgetContractCaterer(t, db, email)
 	request := func(method, path, body, token string) (int, []byte) {
@@ -151,6 +151,31 @@ func checkCatererPortal(t *testing.T, graph *goldenRuntime) {
 	decodeCatererResponse(t, body, &page)
 	require.NotNil(t, page.Supply)
 	assert.Equal(t, "Küche am Markt", page.Supply.CatererName)
+
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO config.setting_values (tenant_id, setting_key, value)
+		VALUES (?, 'operations.meal_plan_enabled', 'true'::jsonb), (?, 'operations.meal_registration_enabled', 'true'::jsonb)
+		ON CONFLICT (tenant_id, setting_key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`, school, school)
+	require.NoError(t, err)
+	status, body = request(http.MethodGet, "/caterer/schools/"+schoolID+"/orders?from=2026-09-07&to=2026-09-11", "", catererToken)
+	require.Equal(t, http.StatusOK, status, string(body))
+	var orders struct {
+		DeliveryAddress string `json:"delivery_address"`
+		Days            []struct {
+			Date string `json:"date"`
+		} `json:"days"`
+	}
+	decodeCatererResponse(t, body, &orders)
+	assert.Equal(t, "Schulstraße 1", orders.DeliveryAddress)
+	assert.Empty(t, orders.Days, "a week before the supply started shows no day")
+	for _, export := range []struct{ path, token, contentType string }{
+		{"/caterer/orders/export?from=2026-09-07&to=2026-09-11&format=pdf", catererToken, "application/pdf"},
+		{"/api/meal-caterer/orders/export?from=2026-09-07&to=2026-09-11&format=csv", staffToken, "text/csv; charset=utf-8"},
+	} {
+		response := checkpointRequest(graph, checkpointScenario{Method: http.MethodGet, Path: export.path, Authenticated: true}, export.token)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		assert.Equal(t, export.contentType, response.Header().Get("Content-Type"))
+	}
 
 	status, body = request(http.MethodDelete, "/api/meal-caterer/supply", "", staffToken)
 	require.Equal(t, http.StatusNoContent, status, string(body))

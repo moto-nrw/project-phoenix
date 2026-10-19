@@ -112,13 +112,12 @@ what the caterer adds:
    the caterer flows beside the engine, as the demo access is, with the
    delivery of their invitation mail, and handing the authentication the
    caterer store for the refresh.
-3. `modulePassthroughOwnerBudgets["modules/mealplan"]` rises from 15 to 18,
-   and `modulePassthroughOwnerBudgetTotal` from 2,978 to 2,981: the supply's
-   end and read and the caterer's confirmation each run one statement in
-   the Meal Plan's unit of work. The supply methods already speak the public
-   types, so no engine method forwards them; the caterer portal hands the
-   invitation, its revocation and the sign-in through without a method of
-   its own.
+3. `modulePassthroughOwnerBudgets["modules/mealplan"]` rises from 15 to 17,
+   and `modulePassthroughOwnerBudgetTotal` from 2,978 to 2,980: the supply's
+   end and read each run one statement in the Meal Plan's unit of work. The
+   supply methods already speak the public types, so no engine method
+   forwards them; the caterer portal hands the invitation, its revocation
+   and the sign-in through without a method of its own.
 4. `moduleComposeBudgets` gains `workflows/catererportal/compose` with 36
    lines, and `moduleComposeBudgetTotal` rises by the same 36: binding the
    caterer portal to each school's tenant transaction.

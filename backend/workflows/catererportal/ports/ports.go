@@ -28,11 +28,16 @@ type Supplies interface {
 	EndSupply(ctx context.Context, accountID int64) (bool, error)
 	CurrentSupply(ctx context.Context) (mealplan.Supply, bool, error)
 	CatererOrders(ctx context.Context, catererID int64, from, to mealplan.Date) (mealplan.OrderWeek, error)
+	// Orders is the school's own view of its orders.
+	Orders(ctx context.Context, from, to mealplan.Date) (mealplan.OrderWeek, error)
 	ConfirmOrder(ctx context.Context, catererID, orderID, accountID int64) error
 }
 
 // SchoolNames names schools by ID in one read; an unknown school is absent.
 type SchoolNames func(ctx context.Context, ids []int64) (map[int64]string, error)
+
+// CurrentSchool is the school of the caller's transaction.
+type CurrentSchool func(ctx context.Context) int64
 
 // WithinSchool opens the named school's tenant transaction, or joins the
 // ambient one of the same school.

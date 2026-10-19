@@ -19,7 +19,7 @@ import {
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
-import { formatDate } from "~/lib/date-helpers";
+import { formatBerlinDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   endMealCatererSupply,
@@ -132,7 +132,7 @@ export function MealCaterer() {
   return (
     <SectionCard
       title="Caterer"
-      description="Ihr Caterer sieht hier die Bestellungen der Schule. Die Namen der Kinder sieht er nur, wenn Sie das in den Einstellungen einschalten."
+      description="Ihr Caterer sieht die Bestellungen der Schule in seinem eigenen Zugang bei moto. Namen der Kinder sieht er nur, wenn Sie das in den Einstellungen einschalten."
       actions={
         supply ? (
           <Button
@@ -154,7 +154,7 @@ export function MealCaterer() {
         <DataGrid>
           <DataField label="Caterer">{supply.catererName || "–"}</DataField>
           <DataField label="Beliefert seit">
-            {formatDate(supply.startedAt)}
+            {formatBerlinDate(supply.startedAt)}
           </DataField>
           <DataField label="Lieferadresse" fullWidth>
             {supply.deliveryAddress || "–"}
@@ -245,7 +245,7 @@ export function MealCaterer() {
                     </div>
                     <div className="flex items-center gap-2">
                       <StatusBadge
-                        label={`Gültig bis ${formatDate(invitation.expiresAt)}`}
+                        label={`Gültig bis ${formatBerlinDate(invitation.expiresAt)}`}
                         tone="gray"
                         compact
                       />

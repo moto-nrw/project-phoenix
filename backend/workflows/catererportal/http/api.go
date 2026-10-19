@@ -12,32 +12,53 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/workflows/catererportal"
 )
 
-// Resource serves the caterer portal. The root binds the caller's account
-// and the password reset.
+// ExportFile is a rendered list.
+type ExportFile struct {
+	Data        []byte
+	ContentType string
+	Filename    string
+}
+
+// Runtime is what the root binds: the caller's account, the list renderer
+// (PDF and Excel) and the password reset. A zero reset runtime answers its
+// routes as unavailable.
+type Runtime struct {
+	CurrentAccountID func(context.Context) int64
+	RenderList       func(mealplan.ListExport, string) (ExportFile, error)
+	Resets           PasswordResetRuntime
+}
+
+// Resource serves the caterer portal.
 type Resource struct {
-	portal           catererportal.Portal
-	currentAccountID func(context.Context) int64
-	resets           PasswordResetRuntime
+	portal  catererportal.Portal
+	runtime Runtime
 }
 
-// NewResource builds the resource; the portal and the account are required,
-// a zero reset runtime answers its routes as unavailable.
-func NewResource(portal catererportal.Portal, currentAccountID func(context.Context) int64, resets PasswordResetRuntime) *Resource {
-	if portal == nil || currentAccountID == nil {
-		panic("caterer portal HTTP: portal and account are required")
+// NewResource builds the resource; the portal, the account and the
+// renderer are required.
+func NewResource(portal catererportal.Portal, runtime Runtime) *Resource {
+	if portal == nil || runtime.CurrentAccountID == nil || runtime.RenderList == nil {
+		panic("caterer portal HTTP: portal, account and renderer are required")
 	}
-	return &Resource{portal: portal, currentAccountID: currentAccountID, resets: resets}
+	return &Resource{portal: portal, runtime: runtime}
 }
 
-// SchoolRouter serves the school's caterer under the tenant API. Every route
-// needs meals:manage and runs in the school's transaction.
-func (rs *Resource) SchoolRouter(protected func(chi.Router, func(chi.Router, common.Middleware)), manage common.Middleware) chi.Router {
+func (rs *Resource) currentAccountID(ctx context.Context) int64 {
+	return rs.runtime.CurrentAccountID(ctx)
+}
+
+// SchoolRouter serves the school's caterer under the tenant API, each route
+// in the school's transaction. The caterer needs meals:manage; the delivery
+// list holds no names and needs meals:read only.
+func (rs *Resource) SchoolRouter(protected func(chi.Router, func(chi.Router, common.Middleware)), manage, read common.Middleware) chi.Router {
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 	protected(router, func(r chi.Router, withTx common.Middleware) {
+		r.With(read, withTx).Get("/orders/export", rs.exportSchoolDeliveries)
 		r.With(manage, withTx).Get("/", rs.getSchoolCaterer)
 		r.With(manage, withTx).Post("/invitations", rs.inviteCaterer)
 		r.With(manage, withTx).Delete("/invitations/{invitationId}", rs.revokeInvitation)
@@ -64,6 +85,7 @@ func (rs *Resource) CatererRouter(authRateLimiter func(http.Handler) http.Handle
 	router.Group(func(r chi.Router) {
 		configureSession(r)
 		r.Get("/schools", rs.getSchools)
+		r.Get("/orders/export", rs.exportDeliveries)
 		r.Get("/schools/{schoolId}/orders", rs.getSchoolOrders)
 		r.Post("/schools/{schoolId}/orders/{orderId}/confirm", rs.confirmOrder)
 	})

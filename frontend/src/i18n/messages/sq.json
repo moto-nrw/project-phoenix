@@ -289,7 +289,12 @@
     "monthChoice": "Zgjidhni muajin",
     "noChanges": "Pa ndryshime",
     "changesAdded": "{count, plural, one {# fëmijë më shumë} other {# fëmijë më shumë}}",
-    "changesRemoved": "{count, plural, one {# fëmijë më pak} other {# fëmijë më pak}}"
+    "changesRemoved": "{count, plural, one {# fëmijë më pak} other {# fëmijë më pak}}",
+    "deliveryMenu": "Shkarko listën e dorëzimeve të javës",
+    "deliveryPdf": "Lista e dorëzimeve si PDF",
+    "deliveryExcel": "Lista e dorëzimeve si Excel",
+    "deliveryCsv": "Lista e dorëzimeve si CSV",
+    "errorObjectDelivery": "lista e dorëzimeve"
   },
   "mealParticipantList": {
     "title": "Lista ditore për kuzhinën",

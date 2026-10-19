@@ -3,12 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 const mocks = vi.hoisted(() => ({
-  fetchCatererOrders: vi.fn(),
   confirmCatererOrder: vi.fn(),
+  onConfirmed: vi.fn(),
 }));
 
 vi.mock("~/lib/caterer-api", () => ({
-  fetchCatererOrders: mocks.fetchCatererOrders,
   confirmCatererOrder: mocks.confirmCatererOrder,
 }));
 
@@ -33,12 +32,14 @@ function day(date: string, overrides: Record<string, unknown> = {}) {
   };
 }
 
-function renderOrders() {
+function renderOrders(
+  orders: Parameters<typeof CatererSchoolOrders>[0]["orders"],
+) {
   return render(
     <CatererSchoolOrders
       school={school}
-      mondayISO="2026-09-07"
-      fridayISO="2026-09-11"
+      orders={orders}
+      onConfirmed={mocks.onConfirmed}
     />,
     { wrapper: ToastProvider },
   );
@@ -48,30 +49,22 @@ describe("CatererSchoolOrders", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.confirmCatererOrder.mockResolvedValue(undefined);
+    mocks.onConfirmed.mockResolvedValue(undefined);
   });
 
   it("shows numbers only, and one confirmation per order (ADR 0074)", async () => {
     // A weekly order spans two days with one order ID.
-    mocks.fetchCatererOrders.mockResolvedValue({
+    renderOrders({
       school,
       deliveryAddress: "Schulstraße 1",
       rhythm: "weekly",
       detail: "total",
       days: [day("2026-09-07"), day("2026-09-08")],
-    });
-    renderOrders();
+    } as never);
 
-    expect(
-      await screen.findByText("Lieferadresse: Schulstraße 1"),
-    ).toBeInTheDocument();
-    expect(mocks.fetchCatererOrders).toHaveBeenCalledWith(
-      "42",
-      "2026-09-07",
-      "2026-09-11",
-    );
     expect(screen.queryByText("Je Klasse")).not.toBeInTheDocument();
     expect(screen.queryByText("Kinder")).not.toBeInTheDocument();
-    const buttons = screen.getAllByRole("button", {
+    const buttons = await screen.findAllByRole("button", {
       name: "Erhalten bestätigen",
     });
     // The table may render a desktop and a stacked mobile copy of each row:
@@ -84,11 +77,11 @@ describe("CatererSchoolOrders", () => {
     await waitFor(() =>
       expect(mocks.confirmCatererOrder).toHaveBeenCalledWith("42", "7"),
     );
-    expect(mocks.fetchCatererOrders).toHaveBeenCalledTimes(2);
+    expect(mocks.onConfirmed).toHaveBeenCalled();
   });
 
   it("shows classes and names only when the school shares them", async () => {
-    mocks.fetchCatererOrders.mockResolvedValue({
+    renderOrders({
       school,
       deliveryAddress: "",
       rhythm: "daily",
@@ -108,8 +101,7 @@ describe("CatererSchoolOrders", () => {
           ],
         }),
       ],
-    });
-    renderOrders();
+    } as never);
 
     expect(await screen.findAllByText("Lea Koch (4b)")).not.toHaveLength(0);
     expect(screen.getAllByText("4b: 1")).not.toHaveLength(0);

@@ -5,6 +5,7 @@
 
 import { authFetch } from "./api-helpers";
 import { apiErrorFromResponse, transportFetch } from "./api-error";
+import { downloadBlob, filenameFromDisposition } from "./file-download";
 
 interface ProxyResponse<T> {
   success: boolean;
@@ -240,4 +241,33 @@ export async function loginCaterer(
     accessToken: body.data.access_token,
     refreshToken: body.data.refresh_token,
   };
+}
+
+export type DeliveryExportFormat = "pdf" | "xlsx" | "csv";
+
+/**
+ * Downloads the delivery list of every school the caterer supplies for
+ * [from, to] (#3873): date, school, delivery address, class, meals, change.
+ */
+export async function downloadCatererDeliveries(
+  from: string,
+  to: string,
+  format: DeliveryExportFormat,
+): Promise<void> {
+  const params = new URLSearchParams({ from, to, format });
+  const response = await transportFetch(
+    `/api/caterer/orders/export?${params.toString()}`,
+    { credentials: "include" },
+  );
+  if (!response.ok) {
+    throw await apiErrorFromResponse(
+      response,
+      "caterer delivery export failed",
+    );
+  }
+  downloadBlob(
+    await response.blob(),
+    filenameFromDisposition(response) ??
+      `lieferliste-${from}-bis-${to}.${format}`,
+  );
 }

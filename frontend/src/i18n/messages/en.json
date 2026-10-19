@@ -289,7 +289,12 @@
     "monthChoice": "Choose month",
     "noChanges": "No late changes",
     "changesAdded": "{count, plural, one {# child more} other {# children more}}",
-    "changesRemoved": "{count, plural, one {# child fewer} other {# children fewer}}"
+    "changesRemoved": "{count, plural, one {# child fewer} other {# children fewer}}",
+    "deliveryMenu": "Download this week's delivery list",
+    "deliveryPdf": "Delivery list as PDF",
+    "deliveryExcel": "Delivery list as Excel",
+    "deliveryCsv": "Delivery list as CSV",
+    "errorObjectDelivery": "the delivery list"
   },
   "mealParticipantList": {
     "title": "Daily list for the kitchen",

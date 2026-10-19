@@ -289,7 +289,12 @@
     "monthChoice": "Monat wählen",
     "noChanges": "Keine Nachmeldungen",
     "changesAdded": "{count, plural, one {# Kind mehr} other {# Kinder mehr}}",
-    "changesRemoved": "{count, plural, one {# Kind weniger} other {# Kinder weniger}}"
+    "changesRemoved": "{count, plural, one {# Kind weniger} other {# Kinder weniger}}",
+    "deliveryMenu": "Lieferliste der Woche herunterladen",
+    "deliveryPdf": "Lieferliste als PDF",
+    "deliveryExcel": "Lieferliste als Excel",
+    "deliveryCsv": "Lieferliste als CSV",
+    "errorObjectDelivery": "die Lieferliste"
   },
   "mealParticipantList": {
     "title": "Tagesliste für die Küche",

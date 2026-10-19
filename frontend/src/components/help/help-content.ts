@@ -4096,6 +4096,7 @@ function mealCatererTopic(): HelpTopic {
       "Der Caterer kann eine Bestellung nur bestätigen. Dann steht bei Ihnen `Vom Caterer bestätigt`.",
       "Beliefert der Caterer schon andere Schulen, bestätigt er mit seinem Passwort. Ihre Schule kommt dann zu seinen Schulen dazu.",
       "Mit `Belieferung beenden` sieht der Caterer Ihre Schule sofort nicht mehr. Danach können Sie einen neuen Caterer einladen.",
+      "Die Lieferliste der Woche bekommen Sie bei `Bestellung` über das Menü mit den drei Punkten: `Lieferliste als PDF`, `Lieferliste als Excel` oder `Lieferliste als CSV`. Es ist dieselbe Liste, die Ihr Caterer sieht, ohne Namen.",
     ],
     troubleshootingDetails: [
       "Kam keine E-Mail an? Nehmen Sie die Einladung mit `Zurücknehmen` zurück und senden Sie eine neue.",

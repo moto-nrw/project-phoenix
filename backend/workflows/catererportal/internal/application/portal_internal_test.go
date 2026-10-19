@@ -59,6 +59,7 @@ type fakeSupplies struct {
 	ended       bool
 	read        int64
 	confirmedBy int64
+	week        mealplan.OrderWeek
 	err         error
 }
 
@@ -75,7 +76,13 @@ func (f *fakeSupplies) CurrentSupply(context.Context) (mealplan.Supply, bool, er
 }
 func (f *fakeSupplies) CatererOrders(_ context.Context, catererID int64, _, _ mealplan.Date) (mealplan.OrderWeek, error) {
 	f.read = catererID
+	if f.week.Days != nil {
+		return f.week, f.err
+	}
 	return mealplan.OrderWeek{Rhythm: "daily"}, f.err
+}
+func (f *fakeSupplies) Orders(context.Context, mealplan.Date, mealplan.Date) (mealplan.OrderWeek, error) {
+	return f.week, f.err
 }
 func (f *fakeSupplies) ConfirmOrder(_ context.Context, _, _, accountID int64) error {
 	f.confirmedBy = accountID
@@ -94,6 +101,7 @@ func newTestPortal(t *testing.T, caterers *fakeCaterers, supplies *fakeSupplies,
 	t.Helper()
 	portal, err := New(Dependencies{
 		Caterers: caterers, Supplies: supplies, WithinSchool: opened.within,
+		CurrentSchool: func(context.Context) int64 { return 11 },
 		SchoolNames: func(_ context.Context, ids []int64) (map[int64]string, error) {
 			names := map[int64]string{}
 			for _, id := range ids {
@@ -179,4 +187,27 @@ func TestSchoolCatererNamesTheSupplyingCaterer(t *testing.T) {
 	page, err = newTestPortal(t, caterers, &fakeSupplies{}, &opened).SchoolCaterer(context.Background())
 	require.NoError(t, err)
 	assert.Nil(t, page.Supply, "no supply, no caterer")
+}
+
+// #3873: the caterer's delivery list holds every school it supplies, each
+// read in its own transaction, in the fixed columns of the template.
+func TestDeliveryExportCoversEverySuppliedSchool(t *testing.T) {
+	t.Parallel()
+	caterers := &fakeCaterers{caterer: identityaccess.Caterer{ID: 7}, schools: []int64{11, 12}}
+	supplies := &fakeSupplies{active: true, supply: mealplan.Supply{DeliveryAddress: "Hof"}, week: mealplan.OrderWeek{
+		Detail: "total",
+		Days:   []mealplan.OrderDay{{Date: "2026-09-07", Status: mealplan.OrderOrdered, Total: 3}},
+	}}
+	var opened schoolsOpened
+	export, err := newTestPortal(t, caterers, supplies, &opened).DeliveryExport(context.Background(), 3, "2026-09-07", "2026-09-11")
+	require.NoError(t, err)
+	assert.Equal(t, schoolsOpened{11, 12}, opened)
+	assert.Equal(t, [][]string{
+		{"07.09.2026", "Schule", "Hof", "Alle", "3", ""},
+		{"07.09.2026", "Schule", "Hof", "Alle", "3", ""},
+	}, export.Lines)
+
+	school, err := newTestPortal(t, caterers, supplies, &opened).SchoolDeliveryExport(context.Background(), "2026-09-07", "2026-09-11")
+	require.NoError(t, err)
+	assert.Len(t, school.Lines, 1, "the school's list is its own")
 }

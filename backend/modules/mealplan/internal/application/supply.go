@@ -66,7 +66,7 @@ func (s *Service) CatererOrders(ctx context.Context, catererID int64, from, to s
 	err := s.run(ctx, "read_caterer_orders", func(txCtx context.Context) (domain.OperationStats, error) {
 		var stats domain.OperationStats
 		var supplyErr error
-		supply, stats, supplyErr = s.requireSupplier(txCtx, catererID)
+		supply, stats, supplyErr = s.requireSupplier(txCtx, catererID, false)
 		if supplyErr != nil {
 			return stats, supplyErr
 		}
@@ -102,7 +102,8 @@ func daysSince(days []domain.OrderDay, start domain.Date) []domain.OrderDay {
 // caterer's only write (ADR 0074); confirming twice keeps the first.
 func (s *Service) ConfirmOrder(ctx context.Context, catererID, orderID, accountID int64) error {
 	return mapPublicError(s.run(ctx, "confirm_order", func(txCtx context.Context) (domain.OperationStats, error) {
-		supply, stats, err := s.requireSupplier(txCtx, catererID)
+		// Locked: a supply ending at the same time waits, or wins.
+		supply, stats, err := s.requireSupplier(txCtx, catererID, true)
 		if err != nil {
 			return stats, err
 		}
@@ -115,9 +116,10 @@ func (s *Service) ConfirmOrder(ctx context.Context, catererID, orderID, accountI
 	}))
 }
 
-// requireSupplier is the running supply when the caterer runs it.
-func (s *Service) requireSupplier(ctx context.Context, catererID int64) (domain.Supply, domain.OperationStats, error) {
-	supply, active, stats, err := s.store.FindActiveSupply(ctx, false)
+// requireSupplier is the running supply when the caterer runs it; forUpdate
+// keeps it running until the unit of work ends.
+func (s *Service) requireSupplier(ctx context.Context, catererID int64, forUpdate bool) (domain.Supply, domain.OperationStats, error) {
+	supply, active, stats, err := s.store.FindActiveSupply(ctx, forUpdate)
 	if err != nil {
 		return domain.Supply{}, stats, err
 	}

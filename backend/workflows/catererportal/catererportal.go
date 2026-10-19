@@ -66,6 +66,9 @@ type SchoolSide interface {
 	// EndSupply ends the supply and the caterer's link to the school
 	// together; the caterer loses the school at once.
 	EndSupply(ctx context.Context, accountID int64) (bool, error)
+	// SchoolDeliveryExport is the school's delivery list of [from, to]: the
+	// same document its caterer gets.
+	SchoolDeliveryExport(ctx context.Context, from, to mealplan.Date) (mealplan.ListExport, error)
 }
 
 // Public is the caterer's way in: the invitation the link names and the
@@ -82,6 +85,9 @@ type CatererSide interface {
 	Schools(ctx context.Context, accountID int64) (CatererSchools, error)
 	SchoolOrders(ctx context.Context, accountID, schoolID int64, from, to mealplan.Date) (SchoolOrders, error)
 	ConfirmOrder(ctx context.Context, accountID, schoolID, orderID int64) error
+	// DeliveryExport is the delivery list of every school the caterer
+	// supplies, each read in its own transaction.
+	DeliveryExport(ctx context.Context, accountID int64, from, to mealplan.Date) (mealplan.ListExport, error)
 }
 
 // Portal is the whole workflow.

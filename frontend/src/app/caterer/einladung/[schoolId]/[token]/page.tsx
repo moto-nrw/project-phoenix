@@ -91,9 +91,9 @@ export default function CatererInvitationPage() {
       title={
         invitation?.schoolName
           ? `${invitation.schoolName} lädt Sie ein`
-          : "Einladung für Caterer"
+          : "Diese Einladung lässt sich nicht öffnen"
       }
-      subtitle="Danach sehen Sie hier, was die Schule bei Ihnen bestellt."
+      subtitle="Mit diesem Konto sehen Sie, was die Schule bei Ihnen bestellt."
       variant="tenant"
       brand={<MotoBrand />}
     >
@@ -186,7 +186,7 @@ function AcceptForm({
       <p className="text-left text-sm text-gray-700">
         {existing
           ? `Sie haben schon ein Caterer-Konto für ${invitation.email}. Bestätigen Sie mit Ihrem Passwort. Dann kommt ${invitation.schoolName} zu Ihren Schulen dazu.`
-          : `Ihr Konto meldet sich mit ${invitation.email} an. Legen Sie jetzt ein Passwort fest.`}
+          : `Sie melden sich mit ${invitation.email} an. Legen Sie jetzt ein Passwort fest.`}
       </p>
 
       <div className="space-y-4 text-left">
