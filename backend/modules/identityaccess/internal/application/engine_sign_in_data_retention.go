@@ -7,6 +7,11 @@ func (e engine) DeleteExpiredGuardianInvitations(ctx context.Context) (int, erro
 	return deleted, MapError(err)
 }
 
+func (e engine) DeleteExpiredCatererInvitations(ctx context.Context) (int, error) {
+	deleted, err := e.signInRetention.DeleteExpiredCatererInvitations(e.attach(ctx))
+	return deleted, MapError(err)
+}
+
 func (e engine) DeleteExpiredMFAEmailChallenges(ctx context.Context) (int, error) {
 	deleted, err := e.signInRetention.DeleteExpiredMFAEmailChallenges(e.attach(ctx))
 	return deleted, MapError(err)

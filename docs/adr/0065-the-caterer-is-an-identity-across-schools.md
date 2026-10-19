@@ -66,3 +66,15 @@ tenant transaction.
   TLS for the new host before the release that contains the portal.
 - A caterer account cannot sign in to any other portal, and no other account
   can sign in to the caterer portal.
+
+## Budgets
+
+The caterer reaches Identity & Access through its public module and engine,
+like every other flow there. [ADR 0057](0057-only-the-target-is-a-rule.md)
+point 5 lets the registers only fall; this decision raises them by exactly
+what the caterer adds:
+
+1. `modulePassthroughOwnerBudgets["modules/identityaccess"]` rises from 587
+   to 589, and `modulePassthroughOwnerBudgetTotal` with it: the module and
+   engine methods that delete expired caterer invitations, next to those of
+   the guardian invitations.

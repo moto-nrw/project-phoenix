@@ -3698,6 +3698,18 @@
       "write_owner": "identity-access"
     },
     {
+      "name": "auth.caterer_accounts",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.caterer_invitations",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.caterers",
+      "write_owner": "identity-access"
+    },
+    {
       "name": "auth.guardian_invitations",
       "write_owner": "identity-access"
     },
@@ -4103,6 +4115,10 @@
     },
     {
       "name": "schedule.meal_plan_entries",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_caterer_supplies",
       "write_owner": "meal-plan"
     },
     {

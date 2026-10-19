@@ -199,8 +199,8 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughOwnerBudgets: 3109 under ADR 0061, the 717 of
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
-// by ADR 0063 and by ADR 0064 (3,011 to 3,091).
-const modulePassthroughOwnerBudgetTotal = 3037
+// by ADR 0063 and by ADR 0064 (3,011 to 3,091), ADR 0065 raised it.
+const modulePassthroughOwnerBudgetTotal = 3039
 
 // ADR 0066 keeps modules/mealplan at its base: the engine methods of the meal
 // orders and their settling replace two rule delegations.
@@ -228,7 +228,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/facilities":          18,
 	"modules/feedback":            14,
 	"modules/filestorage":         27,
-	"modules/identityaccess":      587,
+	"modules/identityaccess":      589, // raised by ADR 0065
 	"modules/mealplan":            15,
 	"modules/organizationtenancy": 60,
 	"modules/peopledirectory":     307,

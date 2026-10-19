@@ -51,6 +51,17 @@ func (r *SignInDataRetention) DeleteExpiredGuardianInvitations(ctx context.Conte
 	return deleted, nil
 }
 
+// DeleteExpiredCatererInvitations keeps a school's invitation to its caterer
+// as long as one for parents (#3873): it holds the caterer's e-mail address.
+func (r *SignInDataRetention) DeleteExpiredCatererInvitations(ctx context.Context) (int, error) {
+	deleted, _, err := r.store.DeleteExpiredCatererInvitations(ctx, r.now().Add(-GuardianInvitationRetention))
+	if err != nil {
+		return 0, failed("delete expired caterer invitations", err)
+	}
+	r.logDeleted("expired caterer invitations deleted", deleted, GuardianInvitationRetention)
+	return deleted, nil
+}
+
 func (r *SignInDataRetention) DeleteExpiredMFAEmailChallenges(ctx context.Context) (int, error) {
 	before := r.now().Add(-SignInChallengeRetention)
 	accounts, _, err := r.store.DeleteExpiredAccountMFAEmailChallenges(ctx, before)
