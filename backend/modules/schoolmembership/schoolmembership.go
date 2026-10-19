@@ -70,6 +70,9 @@ type Staff struct {
 	RotationAnchorDate    string     `json:"rotation_anchor_date,omitempty"`
 	BirthdayDisplayOptOut bool       `json:"birthday_display_opt_out"`
 	DeletedAt             *time.Time `json:"-"`
+	// PersonalDataErasedAt marks a retired membership the automatic deletion
+	// of staff erased (#3963); no Wiederaufnahme continues it.
+	PersonalDataErasedAt *time.Time `json:"-"`
 	// IsGuest marks an external caregiver without a moto account, recorded
 	// as a guest profile (#3823). Time tracking and the duty roster leave
 	// these people out; supervision pickers offer them.

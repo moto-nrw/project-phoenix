@@ -3,17 +3,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Mail } from "lucide-react";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { authService } from "~/lib/auth-service";
 import { toAssignableRoleOptions, type RoleOption } from "~/lib/auth-helpers";
-import { createInvitation } from "~/lib/invitation-api";
-import type {
-  CreateInvitationRequest,
-  PendingInvitation,
+import { formatDate } from "~/lib/date-helpers";
+import { createInvitation, findFormerEmployment } from "~/lib/invitation-api";
+import {
+  FORMER_EMPLOYMENT_PART_LABELS,
+  type CreateInvitationRequest,
+  type FormerEmployment,
+  type FormerEmploymentPart,
+  type PendingInvitation,
 } from "~/lib/invitation-helpers";
 import { createLogger } from "~/lib/logger";
+import { useDebounce } from "~/lib/use-debounce";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 
 const logger = createLogger({ component: "InvitationForm" });
@@ -24,6 +30,84 @@ interface InvitationFormProps {
 }
 
 const EMPTY_POSITIONS: readonly string[] = [];
+
+// Only an address that could be complete is worth a lookup; a half-typed one
+// would ask once per keystroke pause.
+const COMPLETE_ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const FORMER_EMPLOYMENT_DEBOUNCE_MS = 400;
+
+/**
+ * The former employment an invitation to the typed address would continue
+ * at this school (ADR 0021, #3402), or null. A result belongs to the address
+ * it was asked for, so it disappears as soon as the address changes.
+ */
+function useFormerEmployment(email: string): FormerEmployment | null {
+  const current = email.trim().toLowerCase();
+  const address = useDebounce(current, FORMER_EMPLOYMENT_DEBOUNCE_MS);
+  const [answer, setAnswer] = useState<{
+    address: string;
+    formerEmployment: FormerEmployment | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!COMPLETE_ADDRESS.test(address)) return;
+    let cancelled = false;
+    findFormerEmployment(address)
+      .then((formerEmployment) => {
+        if (!cancelled) setAnswer({ address, formerEmployment });
+      })
+      .catch((err: unknown) => {
+        // Stays silent on purpose: the hint is extra information. Without
+        // it the dialog works as before, and sending the invitation reports
+        // its own errors on the form.
+        logger.warn("former_employment_lookup_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [address]);
+
+  return answer?.address === current ? answer.formerEmployment : null;
+}
+
+function formerEmploymentParts(parts: readonly FormerEmploymentPart[]): string {
+  return parts.map((part) => FORMER_EMPLOYMENT_PART_LABELS[part]).join(", ");
+}
+
+function FormerEmploymentHint({
+  formerEmployment,
+}: {
+  readonly formerEmployment: FormerEmployment;
+}) {
+  const resumes = formerEmploymentParts(formerEmployment.resumes);
+  const notReturning = formerEmploymentParts(formerEmployment.notReturning);
+  return (
+    <Alert
+      type="info"
+      title="Diese Person war schon bei Ihnen beschäftigt"
+      message={`In moto eingetragen vom ${formatDate(formerEmployment.startedOn)} bis ${formatDate(formerEmployment.endedOn)}.`}
+      details={
+        <div className="mt-2 space-y-2">
+          {resumes ? (
+            <p>
+              <span className="font-semibold">Kommt zurück:</span>{" "}
+              <span>{resumes}</span>
+            </p>
+          ) : null}
+          {notReturning ? (
+            <p>
+              <span className="font-semibold">Kommt nicht zurück:</span>{" "}
+              <span>{notReturning}</span>
+            </p>
+          ) : null}
+          <p>Gruppen, Klassen und Vertretungen legen Sie danach neu fest.</p>
+        </div>
+      }
+    />
+  );
+}
 
 const initialForm: CreateInvitationRequest = {
   email: "",
@@ -48,6 +132,8 @@ export function InvitationForm({
   const errors = useApiFormError(formRef);
   const showError = errors.show;
   const clearErrors = errors.clear;
+
+  const formerEmployment = useFormerEmployment(form.email);
 
   const [successInfo, setSuccessInfo] = useState<{
     email: string;
@@ -200,6 +286,10 @@ export function InvitationForm({
           required
           error={errors.fieldError("email")}
         />
+
+        {formerEmployment ? (
+          <FormerEmploymentHint formerEmployment={formerEmployment} />
+        ) : null}
 
         <div>
           <label

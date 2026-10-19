@@ -1771,6 +1771,24 @@ func TestInvitationManagement(t *testing.T) {
 		testutil.AssertForbidden(t, rr)
 	})
 
+	// The Einladen dialog's former-employment question (#3402) is gated
+	// like sending the invitation: users:list alone does not answer it.
+	t.Run("former employment forbidden without users:manage", func(t *testing.T) {
+		body := map[string]interface{}{"email": "former@example.com"}
+		req := testutil.NewJSONRequest(t, "POST", "/auth/invitations/former-employment", body)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:list"})
+
+		testutil.AssertForbidden(t, rr)
+	})
+
+	t.Run("former employment answers with users:manage", func(t *testing.T) {
+		body := map[string]interface{}{"email": "former@example.com"}
+		req := testutil.NewJSONRequest(t, "POST", "/auth/invitations/former-employment", body)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
+
+		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	})
+
 	t.Run("create invitation bad request with invalid email", func(t *testing.T) {
 		body := map[string]interface{}{
 			"email":      "invalid-email",

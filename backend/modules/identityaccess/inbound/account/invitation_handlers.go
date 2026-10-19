@@ -203,6 +203,67 @@ func toInvitationResponse(invitation identityaccess.SchoolInvitation) Invitation
 	}
 }
 
+// FormerEmploymentRequest names the address the Einladen dialog asks about.
+// The address travels in the body, not the URL, so it stays out of access
+// logs.
+type FormerEmploymentRequest struct {
+	Email string `json:"email"`
+}
+
+func (req *FormerEmploymentRequest) Bind(_ *http.Request) error {
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	return validation.ValidateStruct(req, validation.Field(&req.Email, validation.Required, is.Email))
+}
+
+// FormerEmploymentResponse answers the Einladen dialog (#3402): the former
+// employment an invitation would continue, or null.
+type FormerEmploymentResponse struct {
+	FormerEmployment *FormerEmploymentView `json:"former_employment"`
+}
+
+// FormerEmploymentView is a former employment on the wire; the parts are
+// FormerEmploymentPart values.
+type FormerEmploymentView struct {
+	StartedOn    string   `json:"started_on"`
+	EndedOn      string   `json:"ended_on"`
+	Resumes      []string `json:"resumes"`
+	NotReturning []string `json:"not_returning"`
+}
+
+func (rs *Resource) findFormerEmployment(w http.ResponseWriter, r *http.Request) {
+	if rs.Invitations == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
+		return
+	}
+	req := &FormerEmploymentRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	// The route's tenant transaction middleware supplies the school unit.
+	former, found, err := rs.Invitations.FindFormerEmployment(r.Context(), req.Email)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	response := FormerEmploymentResponse{}
+	if found {
+		response.FormerEmployment = &FormerEmploymentView{
+			StartedOn: former.StartedOn.String(), EndedOn: former.EndedOn.String(),
+			Resumes: formerEmploymentParts(former.Resumes), NotReturning: formerEmploymentParts(former.NotReturning),
+		}
+	}
+	common.Respond(w, r, http.StatusOK, response, "Former employment checked")
+}
+
+func formerEmploymentParts(parts []identityaccess.FormerEmploymentPart) []string {
+	values := make([]string, len(parts))
+	for i, part := range parts {
+		values[i] = string(part)
+	}
+	return values
+}
+
 func (rs *Resource) validateInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.Invitations == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))

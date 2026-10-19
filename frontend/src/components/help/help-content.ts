@@ -4447,6 +4447,7 @@ function inviteStaffTopic(): HelpTopic {
     notes: [
       "Die `Rolle` bestimmt, was die Person später sehen und tun darf.",
       "Nach der Annahme steht die Person unter `Mitarbeiter` und lässt sich einer Gruppe zuweisen.",
+      "War die Person schon einmal bei Ihnen beschäftigt? Dann sagt moto das direkt unter der `E-Mail-Adresse`, mit dem, was zurückkommt und was nicht. Gruppen, Klassen und Vertretungen legen Sie nach der Annahme neu fest.",
       "Das Blatt `Hinweise` in der Vorlage erklärt jede Spalte.",
     ],
     differences: [

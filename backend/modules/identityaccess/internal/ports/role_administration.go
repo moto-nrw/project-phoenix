@@ -71,6 +71,14 @@ type SchoolIdentity interface {
 	EnsureSchoolIdentity(ctx context.Context, input domain.SchoolIdentityInput) (*domain.SchoolIdentity, error)
 }
 
+// InvitationIdentity is the school identity chain as the invitation flows see
+// it: the chain an acceptance completes, and beforehand the retired
+// membership it would continue for an account at the school in context.
+type InvitationIdentity interface {
+	SchoolIdentity
+	FindFormerEmployment(ctx context.Context, accountID int64) (domain.FormerEmployment, bool, error)
+}
+
 // SessionRevocation revokes an account's sessions at the school on the
 // caller's transaction and queues the push cleanup once it committed.
 type SessionRevocation interface {

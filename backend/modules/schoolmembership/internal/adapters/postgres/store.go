@@ -705,7 +705,7 @@ func guestRowFrom(id int64, fields domain.GuestFields) (guestRow, error) {
 func staffToDomain(row staffRow) domain.Staff {
 	return domain.Staff{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-		PersonID: row.PersonID, DeletedAt: row.DeletedAt,
+		PersonID: row.PersonID, DeletedAt: row.DeletedAt, PersonalDataErasedAt: row.PersonalDataErasedAt,
 		IsGuest: row.IsGuest, GuestOrganization: row.GuestOrganization,
 	}
 }
