@@ -93,7 +93,11 @@ export default function CatererInvitationPage() {
           ? `${invitation.schoolName} lädt Sie ein`
           : "Diese Einladung lässt sich nicht öffnen"
       }
-      subtitle="Mit diesem Konto sehen Sie, was die Schule bei Ihnen bestellt."
+      subtitle={
+        invitation
+          ? "Mit diesem Konto sehen Sie, was die Schule bei Ihnen bestellt."
+          : "Die Einladung kommt von der Schule per E-Mail."
+      }
       variant="tenant"
       brand={<MotoBrand />}
     >

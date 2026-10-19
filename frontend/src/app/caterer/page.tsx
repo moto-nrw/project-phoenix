@@ -268,7 +268,7 @@ export default function CatererOverviewPage() {
       stacked: "title",
       render: (row) =>
         row.school ? (
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col items-start gap-1">
             <span className="font-medium text-gray-900">{row.school.name}</span>
             {row.orders ? <SchoolState orders={row.orders} /> : null}
             {row.failed ? (
@@ -365,7 +365,7 @@ export default function CatererOverviewPage() {
           <>
             <SectionCard
               title="Bestellungen"
-              description="Essen je Schule und Tag. Eine Zahl wie +2 ist eine Änderung nach der Frist."
+              description="Eine Zahl wie +2 ist eine Änderung nach der Frist."
               actions={
                 <div className="flex flex-wrap items-center gap-2">
                   <SegmentedControl<Period>
