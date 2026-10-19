@@ -62,7 +62,7 @@ func createSourceCareOfferingOnDays(
 	}
 	phase.TenantID = s.tenantID
 	repos := api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, s.db))
-	require.NoError(t, repos.Enrollment().InsertPhase(s.ctx, phase))
+	require.NoError(t, testpkg.TenantCommand1(t, s.ctx, testpkg.SetupTestDB(t), repos.Enrollment().InsertPhase, phase))
 
 	offering := testpkg.NewSourceCareOffering(phase.ID, fmt.Sprintf("Frühbetreuung %d", suffix), days, nil)
 	offering.TenantID = s.tenantID

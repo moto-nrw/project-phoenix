@@ -40,14 +40,7 @@ func TestServiceGraphStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 	consentedAt := time.Date(2026, time.September, 2, 8, 30, 0, 0, time.UTC)
 	after.PhotoConsentGivenAt = &consentedAt
 
-	err = services.StudentConsents.RecordTransitions(
-		testpkg.Ctx(t),
-		student,
-		&after,
-		"tenant_portal",
-		nil,
-		consentedAt,
-	)
+	err = testpkg.TenantCommand5(t, testpkg.Ctx(t), db, services.StudentConsents.RecordTransitions, student, &after, "tenant_portal", nil, consentedAt)
 	require.NoError(t, err)
 	assert.Equal(t, 1, observedAppends)
 }

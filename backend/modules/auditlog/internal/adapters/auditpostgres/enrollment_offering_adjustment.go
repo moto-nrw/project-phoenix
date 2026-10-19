@@ -33,7 +33,11 @@ func (r *enrollmentOfferingAdjustmentRepository) CountForDeletion(
 	if tenantID <= 0 {
 		return 0, fmt.Errorf("tenant context is required")
 	}
-	query := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB1, databaseErr1 := runtimeDB(ctx, r.runtime)
+	if databaseErr1 != nil {
+		return *new(int), databaseErr1
+	}
+	query := ambientDB1.NewSelect().
 		TableExpr(enrollmentOfferingAdjustmentTableExpr).
 		ColumnExpr(`COUNT(*)`).
 		Where(`"enrollment_offering_adjustment".tenant_id = ?`, tenantID).
@@ -53,7 +57,11 @@ func (r *enrollmentOfferingAdjustmentRepository) ListByRequestChildID(ctx contex
 		return nil, fmt.Errorf("request_child_id is required")
 	}
 	var rows []*audit.EnrollmentOfferingAdjustment
-	err := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB2, databaseErr2 := runtimeDB(ctx, r.runtime)
+	if databaseErr2 != nil {
+		return *new([]*audit.EnrollmentOfferingAdjustment), databaseErr2
+	}
+	err := ambientDB2.NewSelect().
 		Model(&rows).
 		ModelTableExpr(enrollmentOfferingAdjustmentTableExpr).
 		Where(`"enrollment_offering_adjustment".request_child_id = ?`, requestChildID).
@@ -76,7 +84,11 @@ func (r *enrollmentOfferingAdjustmentRepository) ListDirectForTenant(
 		return []*audit.EnrollmentOfferingAdjustment{}, nil
 	}
 	var rows []*audit.EnrollmentOfferingAdjustment
-	query := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB3, databaseErr3 := runtimeDB(ctx, r.runtime)
+	if databaseErr3 != nil {
+		return *new([]*audit.EnrollmentOfferingAdjustment), databaseErr3
+	}
+	query := ambientDB3.NewSelect().
 		Model(&rows).
 		ModelTableExpr(enrollmentOfferingAdjustmentTableExpr).
 		Where(`"enrollment_offering_adjustment".source = ?`, audit.OfferingAdjustmentSourceDirect)

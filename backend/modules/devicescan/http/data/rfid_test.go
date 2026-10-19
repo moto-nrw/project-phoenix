@@ -46,7 +46,7 @@ func TestAssignRFIDTag_NoDevice(t *testing.T) {
 	t.Parallel()
 	ctx := setupRFIDModule(t)
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"rfid_tag": "TESTRFID001",
@@ -66,7 +66,7 @@ func TestAssignRFIDTag_InvalidStaffID(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-1")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"rfid_tag": "TESTRFID001",
@@ -87,7 +87,7 @@ func TestAssignRFIDTag_InvalidJSON(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-2")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	// Send invalid JSON body
 	req := httptest.NewRequest("POST", "/1/rfid", bytes.NewBufferString("invalid json"))
@@ -106,7 +106,7 @@ func TestAssignRFIDTag_MissingRFIDTag(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-3")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	body := map[string]interface{}{} // Missing rfid_tag
 
@@ -125,7 +125,7 @@ func TestAssignRFIDTag_RFIDTagTooShort(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-4")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"rfid_tag": "SHORT", // Less than 8 characters
@@ -146,7 +146,7 @@ func TestAssignRFIDTag_StaffNotFound(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-5")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"rfid_tag": "TESTRFID001",
@@ -170,7 +170,7 @@ func TestAssignRFIDTag_Success(t *testing.T) {
 	// Create RFID card first (card ID must be hexadecimal)
 	rfidCard := testpkg.CreateTestRFIDCard(t, ctx.db, "A1B2C3D4E5F60001")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"rfid_tag": rfidCard.ID, // Use the created card ID
@@ -193,7 +193,7 @@ func TestUnassignRFIDTag_NoDevice(t *testing.T) {
 	t.Parallel()
 	ctx := setupRFIDModule(t)
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	// Request without device context should return 401
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/1/rfid", nil)
@@ -209,7 +209,7 @@ func TestUnassignRFIDTag_InvalidStaffID(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-7")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/invalid/rfid", nil,
 		testutil.WithDeviceContext(testDevice),
@@ -226,7 +226,7 @@ func TestUnassignRFIDTag_StaffNotFound(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-8")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/99999/rfid", nil,
 		testutil.WithDeviceContext(testDevice),
@@ -244,7 +244,7 @@ func TestUnassignRFIDTag_NoTagAssigned(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-9")
 	staff := testpkg.CreateTestStaff(t, ctx.db, "NoTag", "Staff")
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/%d/rfid", staff.ID), nil,
 		testutil.WithDeviceContext(testDevice),
@@ -265,7 +265,7 @@ func TestUnassignRFIDTag_Success(t *testing.T) {
 	// Link RFID to staff's person
 	testpkg.LinkRFIDToStudent(t, ctx.db, staff.PersonID, rfidCard.ID)
 
-	router := ctx.resource.Router()
+	router := dataTenantRoot(ctx.db, ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/%d/rfid", staff.ID), nil,
 		testutil.WithDeviceContext(testDevice),

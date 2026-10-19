@@ -27,12 +27,9 @@ func database(ctx context.Context, runtime Runtime) (bun.IDB, int64, error) {
 	return db, tenantID, nil
 }
 
-func runtimeDB(ctx context.Context, runtime Runtime) bun.IDB {
-	db, _ := requireRuntime(runtime)(ctx)
-	if db == nil {
-		panic("audit repository: database is required")
-	}
-	return db
+func runtimeDB(ctx context.Context, runtime Runtime) (bun.IDB, error) {
+	db, _, err := database(ctx, requireRuntime(runtime))
+	return db, err
 }
 
 func runtimeTenantID(ctx context.Context, runtime Runtime) int64 {

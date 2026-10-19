@@ -85,14 +85,14 @@ func (s *GuardianStore) GuardianHasLinks(ctx context.Context, guardianID int64) 
 // inserted. The row lock serializes this write with retention's SKIP LOCKED
 // selection, so an unlink later starts the retention window at its next run.
 func (s *GuardianStore) ClearChildlessSince(ctx context.Context, guardianID int64) (bool, domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDB(ctx)
+	db, scope, err := s.tenantDB(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
 	affected, stats, err := exec(ctx, "clear linked guardian retention mark", db.NewUpdate().
 		TableExpr("users.guardian_profiles").
 		Set("childless_since = NULL").
-		Where("tenant_id = ?", tenantID).
+		Where("tenant_id = ?", scope.TenantID).
 		Where("id = ?", guardianID).Exec)
 	return affected > 0, stats, err
 }
@@ -160,14 +160,14 @@ const guardianHasNoLink = `NOT EXISTS (SELECT 1 FROM users.student_guardian_rela
 // run calls it before it deletes, so a profile counts from the first run that
 // sees it without a child.
 func (s *GuardianStore) MarkChildlessGuardians(ctx context.Context) (domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDB(ctx)
+	db, scope, err := s.tenantDB(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	_, cleared, err := exec(ctx, "clear childless guardian marks", db.NewUpdate().
 		TableExpr("users.guardian_profiles AS guardian").
 		Set("childless_since = NULL").
-		Where("guardian.tenant_id = ?", tenantID).
+		Where("guardian.tenant_id = ?", scope.TenantID).
 		Where("guardian.childless_since IS NOT NULL").
 		Where("NOT ("+guardianHasNoLink+")").Exec)
 	if err != nil {
@@ -176,7 +176,7 @@ func (s *GuardianStore) MarkChildlessGuardians(ctx context.Context) (domain.Oper
 	_, marked, err := exec(ctx, "mark childless guardians", db.NewUpdate().
 		TableExpr("users.guardian_profiles AS guardian").
 		Set("childless_since = NOW()").
-		Where("guardian.tenant_id = ?", tenantID).
+		Where("guardian.tenant_id = ?", scope.TenantID).
 		Where("guardian.childless_since IS NULL").
 		Where(guardianHasNoLink).Exec)
 	cleared.Add(marked)
@@ -187,7 +187,7 @@ func (s *GuardianStore) MarkChildlessGuardians(ctx context.Context) (domain.Oper
 // before cutoff (#4043). SKIP LOCKED leaves a profile a concurrent write
 // holds, a relationship insert among them, to the next nightly run.
 func (s *GuardianStore) LockChildlessGuardiansBefore(ctx context.Context, cutoff time.Time) ([]int64, domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDB(ctx)
+	db, scope, err := s.tenantDB(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -196,7 +196,7 @@ func (s *GuardianStore) LockChildlessGuardiansBefore(ctx context.Context, cutoff
 	err = db.NewSelect().
 		TableExpr("users.guardian_profiles AS guardian").
 		ColumnExpr("guardian.id").
-		Where("guardian.tenant_id = ?", tenantID).
+		Where("guardian.tenant_id = ?", scope.TenantID).
 		Where("guardian.childless_since < ?", cutoff).
 		Where(guardianHasNoLink).
 		OrderExpr("guardian.id").
@@ -218,13 +218,13 @@ func (s *GuardianStore) DeleteChildlessGuardians(ctx context.Context, guardianID
 	if len(guardianIDs) == 0 {
 		return 0, domain.OperationStats{}, nil
 	}
-	db, tenantID, err := s.tenantDB(ctx)
+	db, scope, err := s.tenantDB(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
 	affected, stats, err := exec(ctx, "delete childless guardians", db.NewDelete().
 		TableExpr("users.guardian_profiles AS guardian").
-		Where("guardian.tenant_id = ?", tenantID).
+		Where("guardian.tenant_id = ?", scope.TenantID).
 		Where("guardian.id IN (?)", bun.List(guardianIDs)).
 		Where("guardian.childless_since < ?", cutoff).
 		Where(guardianHasNoLink).Exec)

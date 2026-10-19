@@ -47,7 +47,7 @@ func TestInstance_SetUnderstaffedAck_HappyPath(t *testing.T) {
 	ai := seedInstance(t, s, false, false)
 
 	note := "keine Vertretung verfügbar"
-	got, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, true, &note, nil)
+	got, err := testpkg.TenantQuery4(t, s.ctx, testpkg.SetupTestDB(t), svc.SetUnderstaffedAck, ai.ID, true, &note, nil)
 	require.NoError(t, err)
 	assert.True(t, got.UnderstaffedAck)
 	require.NotNil(t, got.UnderstaffedNote)
@@ -60,7 +60,7 @@ func TestInstance_SetUnderstaffedAck_HappyPath(t *testing.T) {
 	assert.Equal(t, note, *reloaded.UnderstaffedNote)
 
 	// Clearing the flag also clears the note so a stale reason cannot linger.
-	cleared, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, false, nil, nil)
+	cleared, err := testpkg.TenantQuery4(t, s.ctx, testpkg.SetupTestDB(t), svc.SetUnderstaffedAck, ai.ID, false, nil, nil)
 	require.NoError(t, err)
 	assert.False(t, cleared.UnderstaffedAck)
 	assert.Nil(t, cleared.UnderstaffedNote)
@@ -125,7 +125,7 @@ func TestInstance_SetUnderstaffedAck_AllowedWhilePartiallyStaffed(t *testing.T) 
 	testpkg.CreateTestInstanceStaff(t, s.db, ai.ID, absentStaff.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
 
 	note := "keine Vertretung für die zweite Position"
-	got, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, true, &note, nil)
+	got, err := testpkg.TenantQuery4(t, s.ctx, testpkg.SetupTestDB(t), svc.SetUnderstaffedAck, ai.ID, true, &note, nil)
 	require.NoError(t, err)
 	assert.True(t, got.UnderstaffedAck)
 	require.NotNil(t, got.UnderstaffedNote)

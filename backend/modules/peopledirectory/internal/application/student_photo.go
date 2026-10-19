@@ -316,7 +316,12 @@ func (s *StudentPhotoService) run(ctx context.Context, operation string, fn func
 // takes it first, in the same order the photo writes above do, so the two
 // never deadlock against each other.
 func (s *StudentPhotoService) LockFeature(ctx context.Context) error {
-	return observeRun(ctx, s.observe, "lock_student_photo_feature", s.tx.RunWrite,
+	return observeRun(ctx, s.observe, "lock_student_photo_feature", func(ctx context.Context, fn func(context.Context) error) error {
+		if err := s.tx.RequireTransaction(ctx); err != nil {
+			return err
+		}
+		return fn(ctx)
+	},
 		func(txCtx context.Context, stats *domain.OperationStats) error {
 			lockStats, err := s.store.LockPhotoFeature(txCtx)
 			stats.Add(lockStats)

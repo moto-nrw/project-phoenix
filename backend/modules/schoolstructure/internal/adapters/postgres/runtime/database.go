@@ -17,7 +17,6 @@ type ContextRuntime interface {
 
 type Database struct {
 	ContextRuntime
-	db          *bun.DB
 	transaction func(context.Context) (any, bool)
 }
 
@@ -25,22 +24,25 @@ func NewDatabase(contextRuntime ContextRuntime, db *bun.DB, transaction func(con
 	if db == nil {
 		panic("school structure compose: database is required")
 	}
-	return Database{ContextRuntime: contextRuntime, db: db, transaction: transaction}
+	return Database{ContextRuntime: contextRuntime, transaction: transaction}
 }
 
-// DB is the ambient tenant transaction, or the pool outside one.
-func (r Database) DB(ctx context.Context) bun.IDB {
-	transaction, ok := r.transaction(ctx)
-	if !ok {
-		return r.db
+// DB resolves only the caller's existing unit of work.
+func (r Database) DB(ctx context.Context) (bun.IDB, error) {
+	if r.TenantID(ctx) <= 0 {
+		return nil, fmt.Errorf("school structure repository: tenant is required")
 	}
-	switch tx := transaction.(type) {
+	raw, ok := r.transaction(ctx)
+	if !ok {
+		return nil, fmt.Errorf("school structure repository: transaction is required")
+	}
+	switch tx := raw.(type) {
 	case bun.Tx:
-		return tx
+		return tx, nil
 	case *bun.Tx:
 		if tx != nil {
-			return tx
+			return tx, nil
 		}
 	}
-	panic(fmt.Sprintf("school structure compose: unsupported transaction type %T", transaction))
+	return nil, fmt.Errorf("school structure repository: unsupported transaction %T", raw)
 }

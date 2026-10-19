@@ -194,18 +194,12 @@ const insertRelationshipIfAbsentSQL = `INSERT INTO users.student_guardian_relati
 // zero when ifAbsent is set and the pair is linked already, together with the
 // portal account the guardian profile names, which the access row binds.
 func (r *GuardianRelationshipRepository) insertRelationship(ctx context.Context, rel *users.StudentGuardian, ifAbsent bool) (int64, *int64, error) {
-	db := r.runtime.DB(ctx)
-	result, err := db.NewRaw(`UPDATE users.guardian_profiles SET childless_since = NULL
-		WHERE tenant_id = ? AND id = ?`, rel.TenantID, rel.GuardianProfileID).Exec(ctx)
+	db, err := r.runtime.DB(ctx)
 	if err != nil {
-		return 0, nil, fmt.Errorf("clear linked guardian retention mark: %w", err)
+		return 0, nil, err
 	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return 0, nil, fmt.Errorf("count linked guardian retention marks: %w", err)
-	}
-	if affected == 0 {
-		return 0, nil, directory.ErrGuardianNotFound
+	if err := clearLinkedGuardianRetentionMark(ctx, db, rel); err != nil {
+		return 0, nil, err
 	}
 	if rel.IsPrimary {
 		demote := func() error { return demoteOtherPrimaries(ctx, db, rel.TenantID, rel.StudentID, 0) }
@@ -257,7 +251,11 @@ func (r *GuardianRelationshipRepository) lockRelationship(ctx context.Context, i
 		TenantID  int64 `bun:"tenant_id"`
 		StudentID int64 `bun:"student_id"`
 	}
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB2, databaseErr2 := r.runtime.DB(ctx)
+	if databaseErr2 != nil {
+		return *new(int64), *new(int64), *new(bool), databaseErr2
+	}
+	query := ambientDB2.NewSelect().
 		TableExpr(`users.student_guardian_relationships AS "relationship"`).
 		ColumnExpr(`"relationship".tenant_id, "relationship".student_id`).
 		Where(`"relationship".id = ?`, id).
@@ -456,7 +454,11 @@ func (r *GuardianRelationshipRepository) updateColumns(ctx context.Context, rel 
 		return false, err
 	}
 	rel.TenantID = tenantID
-	db := r.runtime.DB(ctx)
+	ambientDB3, databaseErr3 := r.runtime.DB(ctx)
+	if databaseErr3 != nil {
+		return *new(bool), databaseErr3
+	}
+	db := ambientDB3
 	if err := updateGuardianRelationshipColumns(ctx, db, rel, named, studentID); err != nil {
 		return false, err
 	}
@@ -480,7 +482,11 @@ func (r *GuardianRelationshipRepository) updateColumns(ctx context.Context, rel 
 // Delete unlinks a guardian. The pickup permission and the portal access
 // follow the relationship through their foreign-key cascade.
 func (r *GuardianRelationshipRepository) Delete(ctx context.Context, id any) error {
-	query := r.runtime.DB(ctx).NewDelete().
+	ambientDB4, databaseErr4 := r.runtime.DB(ctx)
+	if databaseErr4 != nil {
+		return databaseErr4
+	}
+	query := ambientDB4.NewDelete().
 		TableExpr(`users.student_guardian_relationships AS "relationship"`).
 		Where(`"relationship".id = ?`, id)
 	query = withTenantFilter(ctx, r.runtime, query, "relationship")
@@ -501,7 +507,11 @@ func (r *GuardianRelationshipRepository) SetPrimary(ctx context.Context, id int6
 		if !found {
 			return assertRowsAffectedCount(0, 1, "set primary student_guardian")
 		}
-		db := r.runtime.DB(ctx)
+		ambientDB5, databaseErr5 := r.runtime.DB(ctx)
+		if databaseErr5 != nil {
+			return databaseErr5
+		}
+		db := ambientDB5
 		if isPrimary {
 			if err := demoteOtherPrimaries(ctx, db, tenantID, studentID, id); err != nil {
 				return err
@@ -534,7 +544,11 @@ func (r *GuardianRelationshipRepository) SetPrimary(ctx context.Context, id int6
 // update expresses. Returns ErrStudentGuardianNotFound when the named guardian
 // is not linked to the child.
 func (r *GuardianRelationshipRepository) SetPayer(ctx context.Context, studentID int64, guardianProfileID *int64) error {
-	db := r.runtime.DB(ctx)
+	ambientDB6, databaseErr6 := r.runtime.DB(ctx)
+	if databaseErr6 != nil {
+		return databaseErr6
+	}
+	db := ambientDB6
 
 	clear := db.NewUpdate().
 		TableExpr(`users.student_guardian_relationships AS "relationship"`).
@@ -600,6 +614,22 @@ func updateGuardianRelationshipColumns(ctx context.Context, db bun.IDB, rel *use
 	}
 	if _, err := query.Exec(ctx); err != nil {
 		return err
+	}
+	return nil
+}
+
+func clearLinkedGuardianRetentionMark(ctx context.Context, db bun.IDB, rel *users.StudentGuardian) error {
+	result, err := db.NewRaw(`UPDATE users.guardian_profiles SET childless_since = NULL
+		WHERE tenant_id = ? AND id = ?`, rel.TenantID, rel.GuardianProfileID).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("clear linked guardian retention mark: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("count linked guardian retention marks: %w", err)
+	}
+	if affected == 0 {
+		return directory.ErrGuardianNotFound
 	}
 	return nil
 }

@@ -151,11 +151,13 @@ type Module struct {
 	engine                  engine
 	transactions            interface {
 		RunInTx(context.Context, func(context.Context) error) error
+		RequireTransaction(context.Context) error
 	}
 }
 
 func NewModule(engine engine, transactions interface {
 	RunInTx(context.Context, func(context.Context) error) error
+	RequireTransaction(context.Context) error
 }, observers ...func(OfferingStorageObservation)) *Module {
 	if engine == nil || transactions == nil {
 		panic("enrollment: engine is required")
@@ -198,35 +200,26 @@ func (m *Module) DeleteExpiredSubmissionRateLimits(ctx context.Context) (int, in
 
 // Schema returns the immutable version pinned to a submission or phase.
 func (m *Module) Schema(ctx context.Context, id int64) (*FormSchema, error) {
-	var schema *FormSchema
-	err := m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		var queryErr error
-		schema, queryErr = m.engine.Schema(txCtx, id)
-		return queryErr
-	})
-	return schema, err
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	return m.engine.Schema(ctx, id)
 }
 
 // ActiveSchema returns the active form visible in the caller's tenant.
 func (m *Module) ActiveSchema(ctx context.Context) (*FormSchema, error) {
-	var schema *FormSchema
-	err := m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		var queryErr error
-		schema, queryErr = m.engine.ActiveSchema(txCtx)
-		return queryErr
-	})
-	return schema, err
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	return m.engine.ActiveSchema(ctx)
 }
 
 // SchemaVersions lists versions newest first within the caller's tenant.
 func (m *Module) SchemaVersions(ctx context.Context) ([]*FormSchema, error) {
-	var schemas []*FormSchema
-	err := m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		var queryErr error
-		schemas, queryErr = m.engine.SchemaVersions(txCtx)
-		return queryErr
-	})
-	return schemas, err
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	return m.engine.SchemaVersions(ctx)
 }
 
 // BackfillGuardianAccountID attaches previously anonymous requests after account

@@ -30,6 +30,6 @@ func TestGroupCompositionFailsWhileRoomOwnerIsUnbound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repo := NewEducationGroupRepository(testpkg.NewDatabase(t, db))
 	group := testpkg.CreateTestEducationGroup(t, db, "Missing room owner")
-	_, err := repo.FindWithRoom(testpkg.Ctx(t), group.ID)
+	_, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repo.FindWithRoom, group.ID)
 	require.EqualError(t, err, "database error during find with room: education repositories: room directory is not bound")
 }

@@ -76,7 +76,7 @@ func TestGradeTransitionWorkflow_Apply_ReleasesRFIDTag(t *testing.T) {
 	assert.Empty(t, tagOf(t, ctx, db, student.PersonID),
 		"graduation must free the bracelet so it can be issued to a current child")
 
-	history, err := f.deps.Structure.ListTransitionHistory(ctx, transitionID)
+	history, err := testpkg.TenantQuery1(t, ctx, db, f.deps.Structure.ListTransitionHistory, transitionID)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
 	require.Equal(t, student.ID, history[0].StudentID)

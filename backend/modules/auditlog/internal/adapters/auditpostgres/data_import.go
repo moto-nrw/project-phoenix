@@ -25,7 +25,11 @@ func (r *DataImportRepository) Create(ctx context.Context, dataImport *audit.Dat
 // FindByID finds a data import record by ID
 func (r *DataImportRepository) FindByID(ctx context.Context, id int64) (*audit.DataImport, error) {
 	dataImport := &audit.DataImport{}
-	err := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB1, databaseErr1 := runtimeDB(ctx, r.runtime)
+	if databaseErr1 != nil {
+		return *new(*audit.DataImport), databaseErr1
+	}
+	err := ambientDB1.NewSelect().
 		Model(dataImport).
 		ModelTableExpr(`audit.data_imports AS "data_import"`).
 		Where("id = ?", id).
@@ -39,7 +43,11 @@ func (r *DataImportRepository) FindByID(ctx context.Context, id int64) (*audit.D
 // List lists data imports with optional filters
 func (r *DataImportRepository) List(ctx context.Context, filters map[string]interface{}) ([]*audit.DataImport, error) {
 	var imports []*audit.DataImport
-	query := runtimeDB(ctx, r.runtime).NewSelect().Model(&imports).ModelTableExpr(`audit.data_imports AS "data_import"`)
+	ambientDB2, databaseErr2 := runtimeDB(ctx, r.runtime)
+	if databaseErr2 != nil {
+		return *new([]*audit.DataImport), databaseErr2
+	}
+	query := ambientDB2.NewSelect().Model(&imports).ModelTableExpr(`audit.data_imports AS "data_import"`)
 
 	// Apply filters
 	if entityType, ok := filters["entity_type"].(string); ok {

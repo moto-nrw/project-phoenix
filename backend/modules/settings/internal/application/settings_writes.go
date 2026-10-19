@@ -33,16 +33,7 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 	if tenantID <= 0 {
 		return &config.SettingsError{Op: "set_value", Err: fmt.Errorf("no tenant context")}
 	}
-	if isOverviewScopeKey(key) || isParentReportSettingKey(key) || isAttendanceWindowKey(key) {
-		if s.runtime == nil {
-			return &config.SettingsError{Op: "set_value", Err: config.ErrRuntimeUnavailable}
-		}
-		if !s.runtime.HasTransaction(ctx) {
-			return s.runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
-				return s.SetValue(txCtx, key, value, changedBy, userPermissions)
-			})
-		}
-	}
+
 	return s.setStoredValue(ctx, tenantID, key, value, valueJSON, changedBy, def)
 }
 
@@ -60,16 +51,7 @@ func (s *settingsService) ResetValue(ctx context.Context, key string, changedBy 
 	if parentReportApprovalKey(key) != "" && ctx.Value(parentReportResetContextKey{}) != true {
 		return s.resetParentReportMode(ctx, key, changedBy, userPermissions)
 	}
-	if isOverviewScopeKey(key) || isParentReportSettingKey(key) || isAttendanceWindowKey(key) {
-		if s.runtime == nil {
-			return &config.SettingsError{Op: "reset_value", Err: config.ErrRuntimeUnavailable}
-		}
-		if !s.runtime.HasTransaction(ctx) {
-			return s.runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
-				return s.ResetValue(txCtx, key, changedBy, userPermissions)
-			})
-		}
-	}
+
 	return s.resetStoredValue(ctx, tenantID, key, changedBy, def)
 }
 
@@ -113,7 +95,7 @@ func (s *settingsService) validateLockedSettingWrite(ctx context.Context, key st
 	return nil
 }
 
-func (s *settingsService) setStoredValue(ctx context.Context, tenantID int64, key string, value any, valueJSON json.RawMessage, changedBy *int64, def *config.Definition) error {
+func (s *settingsService) setStoredValueInTx(ctx context.Context, tenantID int64, key string, value any, valueJSON json.RawMessage, changedBy *int64, def *config.Definition) error {
 	if err := s.validateLockedSettingWrite(ctx, key, value, "set_value"); err != nil {
 		return err
 	}
@@ -157,7 +139,7 @@ func (s *settingsService) setStoredValue(ctx context.Context, tenantID int64, ke
 	return nil
 }
 
-func (s *settingsService) resetStoredValue(ctx context.Context, tenantID int64, key string, changedBy *int64, def *config.Definition) error {
+func (s *settingsService) resetStoredValueInTx(ctx context.Context, tenantID int64, key string, changedBy *int64, def *config.Definition) error {
 	if err := s.validateLockedSettingWrite(ctx, key, def.Default, "reset_value"); err != nil {
 		return err
 	}
@@ -205,4 +187,23 @@ func (s *settingsService) recordSettingAudit(ctx context.Context, tenantID int64
 			"error", err.Error(),
 		)
 	}
+}
+
+// Each standalone override command commits the locked validation, mutation and
+// audit together; a request/workflow transaction remains authoritative.
+func (s *settingsService) setStoredValue(ctx context.Context, tenantID int64, key string, value any, valueJSON json.RawMessage, changedBy *int64, def *config.Definition) error {
+	if s.runtime == nil {
+		return config.ErrRuntimeUnavailable
+	}
+	return s.runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+		return s.setStoredValueInTx(txCtx, tenantID, key, value, valueJSON, changedBy, def)
+	})
+}
+func (s *settingsService) resetStoredValue(ctx context.Context, tenantID int64, key string, changedBy *int64, def *config.Definition) error {
+	if s.runtime == nil {
+		return config.ErrRuntimeUnavailable
+	}
+	return s.runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+		return s.resetStoredValueInTx(txCtx, tenantID, key, changedBy, def)
+	})
 }

@@ -66,7 +66,7 @@ func setupArrivalExceptionRoute(t *testing.T) (*testpkg.DB, func(t *testing.T, c
 	db, factory := setupClassDayModule(t)
 	retainedMondayReport := func(t *testing.T, class string, accountID int64) []byte {
 		t.Helper()
-		report, err := factory.ClassDay.DayReport(testpkg.Ctx(t), class, classday.Date(arrivalExceptionMonday), classday.Actor{AccountID: accountID, Roles: "lehrkraft"})
+		report, err := testpkg.TenantQuery3(t, testpkg.Ctx(t), db, factory.ClassDay.DayReport, class, classday.Date(arrivalExceptionMonday), classday.Actor{AccountID: accountID, Roles: "lehrkraft"})
 		require.NoError(t, err)
 		body, err := json.Marshal(report)
 		require.NoError(t, err)

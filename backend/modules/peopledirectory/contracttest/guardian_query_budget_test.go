@@ -26,7 +26,7 @@ func TestListGuardiansQueryBudget(t *testing.T) {
 	counter := testpkg.CaptureQueries(t, db)
 	run := func() []string {
 		counter.Reset()
-		_, err := service.ListGuardians(testpkg.Ctx(t), nil)
+		_, err := testpkg.MeasuredTenantQuery1(t, testpkg.Ctx(t), db, counter, service.ListGuardians, nil)
 		require.NoError(t, err)
 		return counter.Operation("SELECT")
 	}
@@ -45,7 +45,7 @@ func TestStudentGuardiansQueryBudget(t *testing.T) {
 	add := func(from, to int) {
 		for i := from; i < to; i++ {
 			profile := testpkg.CreateTestGuardianProfile(t, db, fmt.Sprintf("student-guardian-budget-%d", i))
-			_, err := service.LinkGuardianToStudent(testpkg.Ctx(t), peoplePorts.StudentGuardianCreateRequest{
+			_, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, service.LinkGuardianToStudent, peoplePorts.StudentGuardianCreateRequest{
 				StudentID: student.ID, GuardianProfileID: profile.ID, RelationshipType: "guardian",
 			})
 			require.NoError(t, err)
@@ -58,7 +58,7 @@ func TestStudentGuardiansQueryBudget(t *testing.T) {
 		err := testpkg.WithinTenantTransaction(testpkg.Ctx(t), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 			// Measure owner reads inside the request unit of work, not its setup.
 			counter.Reset()
-			_, err := service.GetStudentGuardians(txCtx, student.ID)
+			_, err := testpkg.TenantQuery1(t, txCtx, db, service.GetStudentGuardians, student.ID)
 			statements = counter.Operation("SELECT")
 			return err
 		})

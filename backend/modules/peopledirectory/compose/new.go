@@ -147,6 +147,10 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 
 type transaction struct{}
 
+func (transaction) RequireTransaction(ctx context.Context) error {
+	return tenant.RequireTransaction(ctx)
+}
+
 // TenantID is the tenant the caller's request is scoped to.
 func (transaction) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
 
@@ -157,17 +161,11 @@ func (transaction) RegisterAfterCommit(ctx context.Context, callback func()) {
 }
 
 func (transaction) RunWrite(ctx context.Context, callback func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return callback(ctx)
-	}
-	return tenant.WithinCurrentTenant(ctx, callback)
+	return tenant.NewTransactionRunner().RunInTx(ctx, callback)
 }
 
 func (transaction) RunRead(ctx context.Context, callback func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return callback(ctx)
-	}
-	return tenant.WithinCurrentTenant(ctx, callback)
+	return tenant.NewTransactionRunner().RunInTx(ctx, callback)
 }
 
 func (transaction) RunSavepoint(ctx context.Context, callback func(context.Context) error) error {

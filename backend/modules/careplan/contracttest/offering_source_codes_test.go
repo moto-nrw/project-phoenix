@@ -38,7 +38,7 @@ func TestOfferingSourceRefusalsCarryTheirCode(t *testing.T) {
 
 	offering := createSourceOffering(t, env, "CodeQuelle", nil)
 	missing := int64(999999999)
-	err = env.offeringCatalog.ValidateTemplateOfferingSource(ctx, []int64{offering.ID, missing}, nil, nil)
+	err = testpkg.TenantCommand3(t, ctx, testpkg.SetupTestDB(t), env.offeringCatalog.ValidateTemplateOfferingSource, []int64{offering.ID, missing}, nil, nil)
 	require.ErrorIs(t, err, timetable.ErrOfferingSourceInvalid)
 	coded, ok = timetable.AsCoded(err)
 	require.True(t, ok)

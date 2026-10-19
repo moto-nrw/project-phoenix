@@ -33,7 +33,7 @@ func TestRestatedSettingKeysMatchTheRegistry(t *testing.T) {
 	module, err := api.NewSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	for _, key := range notifications.RestatedSettingKeys {
-		_, err := module.Settings.Resolve(testpkg.Ctx(t), key)
+		_, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, module.Settings.Resolve, key)
 		require.NoError(t, err, "Delivery must use a registered setting: %s", key)
 	}
 }

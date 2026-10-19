@@ -25,7 +25,11 @@ func (r *OperatorAuditLogRepository) Create(ctx context.Context, entry *auditMod
 
 func (r *OperatorAuditLogRepository) FindByOperatorID(ctx context.Context, operatorID int64, limit int) ([]*auditModels.OperatorAuditEntry, error) {
 	var entries []*auditModels.OperatorAuditEntry
-	query := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB1, databaseErr1 := runtimeDB(ctx, r.runtime)
+	if databaseErr1 != nil {
+		return *new([]*auditModels.OperatorAuditEntry), databaseErr1
+	}
+	query := ambientDB1.NewSelect().
 		Model(&entries).
 		ModelTableExpr(`platform.operator_audit_log AS "operator_audit_entry"`).
 		Where(`"operator_audit_entry".operator_id = ?`, operatorID).
@@ -41,7 +45,11 @@ func (r *OperatorAuditLogRepository) FindByOperatorID(ctx context.Context, opera
 
 func (r *OperatorAuditLogRepository) FindByDateRange(ctx context.Context, start, end time.Time, limit int) ([]*auditModels.OperatorAuditEntry, error) {
 	var entries []*auditModels.OperatorAuditEntry
-	query := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB2, databaseErr2 := runtimeDB(ctx, r.runtime)
+	if databaseErr2 != nil {
+		return *new([]*auditModels.OperatorAuditEntry), databaseErr2
+	}
+	query := ambientDB2.NewSelect().
 		Model(&entries).
 		ModelTableExpr(`platform.operator_audit_log AS "operator_audit_entry"`).
 		Where(`"operator_audit_entry".created_at >= ?`, start).

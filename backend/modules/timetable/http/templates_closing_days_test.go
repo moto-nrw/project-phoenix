@@ -17,7 +17,7 @@ func TestTemplateIncludeClosingDaysRoundTrip(t *testing.T) {
 
 	s := buildTemplateModule(t, &mockMaterializationService{})
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	body := createTemplateBody(s, "Tpl-Ferienbetreuung")
 	body["include_closing_days"] = true

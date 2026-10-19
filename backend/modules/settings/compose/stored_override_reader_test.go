@@ -18,27 +18,39 @@ func TestStoredOverrideReaderReportsOnlyStoredRows(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
+	ctx := testpkg.ContextForTenant(context.Background(), tenantID)
 	testpkg.SetTestTenantSetting(t, db, tenantID, settings.KeyGroupMode, `"open_care"`)
-	reader := settingsCompose.NewStoredOverrideReader(db)
-
-	value, found, err := reader.StoredOverride(context.Background(), tenantID, settings.KeyGroupMode)
+	reader := settingsCompose.NewStoredOverrideReader(settingsCompose.NewTenantSettingsRuntime(db, nil))
+	_, found, err := reader.StoredOverride(ctx, tenantID, settings.KeyGroupMode)
+	require.ErrorContains(t, err, "transaction is required")
+	assert.False(t, found)
+	err = testpkg.WithinTenantContext(t, ctx, db, tenantID, func(ctx context.Context) error {
+		value, found, err := reader.StoredOverride(ctx, tenantID, settings.KeyGroupMode)
+		require.NoError(t, err)
+		assert.True(t, found)
+		assert.JSONEq(t, `"open_care"`, string(value))
+		value, found, err = reader.StoredOverride(ctx, tenantID, settings.KeyAttendanceWebEnabled)
+		require.NoError(t, err)
+		assert.False(t, found, "a key without a stored row is not reported")
+		assert.Nil(t, value)
+		return nil
+	})
 	require.NoError(t, err)
-	assert.True(t, found)
-	assert.JSONEq(t, `"open_care"`, string(value))
-
-	value, found, err = reader.StoredOverride(context.Background(), tenantID, settings.KeyAttendanceWebEnabled)
-	require.NoError(t, err)
-	assert.False(t, found, "a key without a stored row is not reported")
-	assert.Nil(t, value)
 }
 
-// A read failure surfaces instead of reading as "no override".
+// An operational read failure is never interpreted as an absent override.
 func TestStoredOverrideReaderReportsReadFailures(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupClosableTestDB(t)
-	require.NoError(t, db.Close())
-
-	_, found, err := settingsCompose.NewStoredOverrideReader(db).StoredOverride(context.Background(), testpkg.Tenant(t), settings.KeyGroupMode)
-	require.Error(t, err)
-	assert.False(t, found)
+	db := testpkg.SetupTestDB(t)
+	reader := settingsCompose.NewStoredOverrideReader(settingsCompose.NewTenantSettingsRuntime(db, nil))
+	err := testpkg.WithinTenantContext(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(txCtx context.Context) error {
+		ctx, cancel := context.WithCancel(txCtx)
+		cancel()
+		_, found, err := reader.StoredOverride(ctx, testpkg.Tenant(t), settings.KeyGroupMode)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, context.Canceled)
+		assert.False(t, found)
+		return nil
+	})
+	require.NoError(t, err)
 }

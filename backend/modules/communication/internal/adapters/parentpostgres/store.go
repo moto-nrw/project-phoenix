@@ -87,7 +87,7 @@ func ResolveDatabase(raw any, present bool, pool *bun.DB, scope TenantScope) (bu
 		return nil, scope, err
 	}
 	if !present {
-		return pool, scope, nil
+		return nil, scope, fmt.Errorf("communication: transaction is required")
 	}
 	switch tx := raw.(type) {
 	case bun.Tx:

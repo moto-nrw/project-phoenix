@@ -18,11 +18,8 @@ func (l CareExitApplicationLink) IsApproved() bool { return l.Status == ChildSta
 // CareExitApplicationLinks returns links for the selected students. An empty
 // selection supplies the school's links for the scheduled expiry evaluation.
 func (m *Module) CareExitApplicationLinks(ctx context.Context, studentIDs []int64) ([]CareExitApplicationLink, error) {
-	var links []CareExitApplicationLink
-	err := m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		var err error
-		links, err = m.engine.CareExitApplicationLinks(txCtx, studentIDs)
-		return err
-	})
-	return links, err
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	return m.engine.CareExitApplicationLinks(ctx, studentIDs)
 }

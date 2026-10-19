@@ -55,7 +55,7 @@ func TestParentInvitationOutboxIsAtomicWithApproval(t *testing.T) {
 			bookings := newBookingMaterialization(t, db, api.WithBookingCatalog(newCareOfferingCatalog(t, db).Catalog), api.WithBookingSettings(offeringGuardSettings(false))).Bookings
 			decisions := newParentInvitationDecisions(repos, careRows, timetableRows, guardianAccess, students, bookings)
 			decision := enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(decisions))
-			requests := enrollmentAPI.NewRequestService(owners.NewEnrollmentIntake(owners.EnrollmentIntakeSources{
+			requests := newFixtureRequestRoot(owners.NewEnrollmentIntake(owners.EnrollmentIntakeSources{
 				Requests: repos.Enrollment(), Children: repos.Enrollment(), Guardians: repos.Enrollment(),
 				CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(careRows.CarePlan), Catalog: repos.Enrollment(),
 				SchoolRepo: capabilitySchools{schools: schoolRows.School}, RateLimitRepo: repos.Enrollment(),

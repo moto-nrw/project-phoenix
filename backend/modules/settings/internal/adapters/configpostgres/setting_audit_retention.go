@@ -25,7 +25,11 @@ func (r *SettingAuditRetention) DeleteChangedBefore(ctx context.Context, tenantI
 	if tenantID <= 0 {
 		return 0, fmt.Errorf("delete expired setting changes: tenant is required")
 	}
-	result, err := r.runtime.DB(ctx).NewDelete().
+	ambientDB1, databaseErr1 := r.runtime.DB(ctx)
+	if databaseErr1 != nil {
+		return *new(int), databaseErr1
+	}
+	result, err := ambientDB1.NewDelete().
 		TableExpr(tableSettingAudit).
 		Where("tenant_id = ?", tenantID).
 		Where("changed_at < ?", before).

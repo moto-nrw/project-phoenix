@@ -43,6 +43,8 @@ type Store interface {
 }
 
 type Transaction interface {
+	// RequireTransaction rejects lock operations without their caller's school unit.
+	RequireTransaction(context.Context) error
 	// RunWrite joins the caller's transaction or opens one for the tenant
 	// in context.
 	RunWrite(context.Context, func(context.Context) error) error

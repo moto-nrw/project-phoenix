@@ -16,7 +16,7 @@ import (
 // neither the tenant context nor the transaction protocol itself (#2742).
 type Runtime interface {
 	// DB is the ambient tenant transaction, or the pool outside one.
-	DB(ctx context.Context) bun.IDB
+	DB(ctx context.Context) (bun.IDB, error)
 	// TenantID is the school the caller acts for, 0 when none.
 	TenantID(ctx context.Context) int64
 }

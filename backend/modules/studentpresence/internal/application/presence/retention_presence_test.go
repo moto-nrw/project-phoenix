@@ -76,7 +76,7 @@ func testRetentionRollback(t *testing.T, stage string) {
 	group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
 	entry := time.Now().AddDate(0, 0, -45)
 	exit := entry.Add(time.Hour)
-	visit, err := presence.RecordVisit(ctx, studentpresence.Visit{
+	visit, err := testpkg.TenantQuery1(t, ctx, db, presence.RecordVisit, studentpresence.Visit{
 		CreatedAt: entry,
 		StudentID: consent.StudentID, ActiveGroupID: group.ID, EntryTime: entry, ExitTime: &exit,
 	})
@@ -95,9 +95,9 @@ func testRetentionRollback(t *testing.T, stage string) {
 		require.Equal(t, 1, fault.writes, "failure must follow the real audit append")
 	}
 	assert.Zero(t, failed.RecordsDeleted)
-	_, err = presence.FindVisit(ctx, visit.ID)
+	_, err = testpkg.TenantQuery1(t, ctx, db, presence.FindVisit, visit.ID)
 	require.NoError(t, err, "audit failure must roll back the authoritative delete")
-	audits, err := repos.Deletion.FindByStudentID(ctx, consent.StudentID)
+	audits, err := testpkg.TenantQuery1(t, ctx, db, repos.Deletion.FindByStudentID, consent.StudentID)
 	require.NoError(t, err)
 	assert.Empty(t, audits, "the audit append must roll back with its delete")
 
@@ -107,9 +107,9 @@ func testRetentionRollback(t *testing.T, stage string) {
 	require.NoError(t, err)
 	assert.True(t, result.Success)
 	assert.EqualValues(t, 1, result.RecordsDeleted)
-	_, err = presence.FindVisit(ctx, visit.ID)
+	_, err = testpkg.TenantQuery1(t, ctx, db, presence.FindVisit, visit.ID)
 	require.ErrorIs(t, err, studentpresence.ErrVisitNotFound)
-	audits, err = repos.Deletion.FindByStudentID(ctx, consent.StudentID)
+	audits, err = testpkg.TenantQuery1(t, ctx, db, repos.Deletion.FindByStudentID, consent.StudentID)
 	require.NoError(t, err)
 	require.Len(t, audits, 1)
 
@@ -117,12 +117,12 @@ func testRetentionRollback(t *testing.T, stage string) {
 	require.NoError(t, err)
 	assert.True(t, result.Success)
 	assert.Zero(t, result.RecordsDeleted)
-	audits, err = repos.Deletion.FindByStudentID(ctx, consent.StudentID)
+	audits, err = testpkg.TenantQuery1(t, ctx, db, repos.Deletion.FindByStudentID, consent.StudentID)
 	require.NoError(t, err)
 	require.Len(t, audits, 1, "an idempotent retry must not duplicate the audit")
 	assert.Equal(t, 1, audits[0].RecordsDeleted)
 	for _, id := range []int64{open.ID, recent.ID} {
-		_, err := presence.FindVisit(ctx, id)
+		_, err := testpkg.TenantQuery1(t, ctx, db, presence.FindVisit, id)
 		require.NoError(t, err, "retention must preserve open and recent visits")
 	}
 }

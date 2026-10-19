@@ -10,7 +10,7 @@ import (
 
 type stubSettingsRuntime struct{}
 
-func (stubSettingsRuntime) DB(context.Context) bun.IDB { return nil }
+func (stubSettingsRuntime) DB(context.Context) (bun.IDB, error) { return nil, nil }
 
 // The Settings composition builds the setting stores the repository factory
 // used to hold (ADR 0049).

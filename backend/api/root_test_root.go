@@ -84,7 +84,6 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 	if err != nil {
 		return
 	}
-	env.AllowAuditRootWrites = true
 	hub = deliveryCompose.NewRealtimeHub(logger.With("component", "sse-hub"))
 	unit := db.UnitOfWork()
 	var (

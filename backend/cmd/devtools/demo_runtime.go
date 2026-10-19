@@ -65,7 +65,7 @@ type DemoRuntime struct {
 	latestVisits func(ctx context.Context, webDeviceID int64, fromDate, untilDate string) ([]DemoVisit, error)
 }
 
-// NewDemoRuntime composes the sidecar on its privileged connection, the
+// NewDemoRuntime composes the sidecar on its restricted demo connection, the
 // standing demo's database with its own unit of work; now is the clock the
 // expiry of demo accesses reads (#3470).
 func NewDemoRuntime(db transactionruntime.Database, now func() time.Time) (*DemoRuntime, error) {

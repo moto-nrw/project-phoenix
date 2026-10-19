@@ -47,12 +47,12 @@ func TestAttendanceCorrectionRepository_CreateBatchAndList(t *testing.T) {
 	repo := newCorrectionRepo(t)
 	fixture := newCorrectionFixture(t, testpkg.Tenant(t))
 
-	require.NoError(t, repo.CreateBatch(ctx, []*audit.AttendanceCorrection{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), repo.CreateBatch, []*audit.AttendanceCorrection{
 		newCorrection(fixture, audit.AttendanceFieldStatus, "Verwechslung"),
 		newCorrection(fixture, audit.AttendanceFieldNote, "Verwechslung"),
 	}))
 
-	rows, err := repo.ListByInstanceAndStudent(ctx, fixture.instanceID, fixture.studentID)
+	rows, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), repo.ListByInstanceAndStudent, fixture.instanceID, fixture.studentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 	for _, row := range rows {
@@ -66,8 +66,8 @@ func TestAttendanceCorrectionRepository_CreateBatchEmptyIsNoOp(t *testing.T) {
 
 	repo := newCorrectionRepo(t)
 
-	require.NoError(t, repo.CreateBatch(testpkg.Ctx(t), nil))
-	require.NoError(t, repo.CreateBatch(testpkg.Ctx(t), []*audit.AttendanceCorrection{}))
+	require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), testpkg.SetupTestDB(t), repo.CreateBatch, nil))
+	require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), testpkg.SetupTestDB(t), repo.CreateBatch, []*audit.AttendanceCorrection{}))
 }
 
 // A row that would be unreadable must not reach the table — the repository
@@ -81,9 +81,9 @@ func TestAttendanceCorrectionRepository_CreateBatchRejectsInvalidRow(t *testing.
 	fixture := newCorrectionFixture(t, testpkg.Tenant(t))
 
 	noReason := newCorrection(fixture, audit.AttendanceFieldNote, "")
-	require.Error(t, repo.CreateBatch(ctx, []*audit.AttendanceCorrection{noReason}))
+	require.Error(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), repo.CreateBatch, []*audit.AttendanceCorrection{noReason}))
 
-	rows, err := repo.ListByInstanceAndStudent(ctx, fixture.instanceID, fixture.studentID)
+	rows, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), repo.ListByInstanceAndStudent, fixture.instanceID, fixture.studentID)
 	require.NoError(t, err)
 	assert.Empty(t, rows, "a rejected batch must leave nothing behind")
 }
@@ -96,18 +96,17 @@ func TestAttendanceCorrectionRepository_CountByInstanceAndStudents(t *testing.T)
 	fixture := newCorrectionFixture(t, testpkg.Tenant(t))
 	untouched := newCorrectionFixture(t, testpkg.Tenant(t))
 
-	require.NoError(t, repo.CreateBatch(ctx, []*audit.AttendanceCorrection{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), repo.CreateBatch, []*audit.AttendanceCorrection{
 		newCorrection(fixture, audit.AttendanceFieldStatus, "Grund"),
 		newCorrection(fixture, audit.AttendanceFieldNote, "Grund"),
 	}))
 
-	counts, err := repo.CountByInstanceAndStudents(ctx, fixture.instanceID,
-		[]int64{fixture.studentID, untouched.studentID})
+	counts, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), repo.CountByInstanceAndStudents, fixture.instanceID, []int64{fixture.studentID, untouched.studentID})
 	require.NoError(t, err)
 	assert.Equal(t, 2, counts[fixture.studentID])
 	assert.NotContains(t, counts, untouched.studentID, "a child without corrections is absent, not zero")
 
-	empty, err := repo.CountByInstanceAndStudents(ctx, fixture.instanceID, nil)
+	empty, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), repo.CountByInstanceAndStudents, fixture.instanceID, nil)
 	require.NoError(t, err)
 	assert.Empty(t, empty)
 }
@@ -121,22 +120,22 @@ func TestAttendanceCorrectionRepository_IsolatesTenants(t *testing.T) {
 
 	ownCtx := testpkg.Ctx(t)
 	own := newCorrectionFixture(t, testpkg.Tenant(t))
-	require.NoError(t, repo.CreateBatch(ownCtx, []*audit.AttendanceCorrection{
+	require.NoError(t, testpkg.TenantCommand1(t, ownCtx, testpkg.SetupTestDB(t), repo.CreateBatch, []*audit.AttendanceCorrection{
 		newCorrection(own, audit.AttendanceFieldNote, "eigener Mandant"),
 	}))
 
 	otherScope := testpkg.NewTenantScope(t, testpkg.SetupTestDB(t))
 	otherCtx := otherScope.Context()
 	other := newCorrectionFixture(t, otherScope.TenantID)
-	require.NoError(t, repo.CreateBatch(otherCtx, []*audit.AttendanceCorrection{
+	require.NoError(t, testpkg.TenantCommand1(t, otherCtx, testpkg.SetupTestDB(t), repo.CreateBatch, []*audit.AttendanceCorrection{
 		newCorrection(other, audit.AttendanceFieldNote, "fremder Mandant"),
 	}))
 
-	rows, err := repo.ListByInstanceAndStudent(ownCtx, other.instanceID, other.studentID)
+	rows, err := testpkg.TenantQuery2(t, ownCtx, testpkg.SetupTestDB(t), repo.ListByInstanceAndStudent, other.instanceID, other.studentID)
 	require.NoError(t, err)
 	assert.Empty(t, rows, "the other tenant's correction must not be readable")
 
-	counts, err := repo.CountByInstanceAndStudents(ownCtx, other.instanceID, []int64{other.studentID})
+	counts, err := testpkg.TenantQuery2(t, ownCtx, testpkg.SetupTestDB(t), repo.CountByInstanceAndStudents, other.instanceID, []int64{other.studentID})
 	require.NoError(t, err)
 	assert.Empty(t, counts)
 }

@@ -46,7 +46,11 @@ func (r *attendanceCorrectionRepository) ListByInstanceAndStudent(ctx context.Co
 		return nil, wrapDatabase("list attendance corrections", errors.New("instance_id and student_id are required"))
 	}
 	var rows []*audit.AttendanceCorrection
-	query := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB1, databaseErr1 := runtimeDB(ctx, r.runtime)
+	if databaseErr1 != nil {
+		return *new([]*audit.AttendanceCorrection), databaseErr1
+	}
+	query := ambientDB1.NewSelect().
 		Model(&rows).
 		ModelTableExpr(attendanceCorrectionTableExpr).
 		Where(`"attendance_correction".instance_id = ?`, instanceID).
@@ -73,7 +77,11 @@ func (r *attendanceCorrectionRepository) CountByInstanceAndStudents(ctx context.
 		StudentID int64 `bun:"student_id"`
 		Total     int   `bun:"total"`
 	}
-	query := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB2, databaseErr2 := runtimeDB(ctx, r.runtime)
+	if databaseErr2 != nil {
+		return *new(map[int64]int), databaseErr2
+	}
+	query := ambientDB2.NewSelect().
 		ModelTableExpr(attendanceCorrectionTableExpr).
 		ColumnExpr(`"attendance_correction".student_id AS student_id`).
 		ColumnExpr(`COUNT(*) AS total`).

@@ -22,7 +22,11 @@ func (s *Service) FindOperatorForUpdate(ctx context.Context, id int64) (domain.O
 }
 
 func (s *Service) findOperator(ctx context.Context, operation string, id int64, forUpdate bool) (result domain.Operator, err error) {
-	err = s.run(ctx, s.tx.RunAdmin, operation, func(txCtx context.Context, stats *domain.OperationStats) error {
+	run := s.tx.RunAdmin
+	if forUpdate {
+		run = func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }
+	}
+	err = s.run(ctx, run, operation, func(txCtx context.Context, stats *domain.OperationStats) error {
 		if id <= 0 {
 			return domain.ErrOperatorNotFound
 		}
@@ -167,7 +171,7 @@ func (s *Service) ResetOperatorMFAAttempts(ctx context.Context, id int64) error 
 }
 
 func (s *Service) FindOperatorSessionForUpdate(ctx context.Context, token string) (result domain.OperatorSession, err error) {
-	err = s.run(ctx, s.tx.RunAdmin, "find_operator_session_for_update", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.run(ctx, func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }, "find_operator_session_for_update", func(txCtx context.Context, stats *domain.OperationStats) error {
 		if token == "" {
 			return domain.ErrOperatorSessionNotFound
 		}

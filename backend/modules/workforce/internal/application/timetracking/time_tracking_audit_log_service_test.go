@@ -110,7 +110,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	for _, e := range edits {
 		e.SetTenantID(tenantID)
 	}
-	require.NoError(t, owners.NewWorkSessionAudit(owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).WorkSessionEdit).CreateBatch(ctx, edits))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, owners.NewWorkSessionAudit(owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).WorkSessionEdit).CreateBatch, edits))
 
 	// Absence + status-transition audit row (actor = ACCOUNT id).
 	absence := &timetracking.StaffAbsence{
@@ -191,7 +191,7 @@ func TestTimeTrackingAuditLog_MergedFeed(t *testing.T) {
 
 	f := newAuditLogFixture(t)
 
-	page, err := f.svc.ListAuditLog(f.ctx, timetracking.AuditLogListRequest{})
+	page, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.ListAuditLog, timetracking.AuditLogListRequest{})
 	require.NoError(t, err)
 	require.NotEmpty(t, page.RetentionCutoff)
 
@@ -269,7 +269,7 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 	f := newAuditLogFixture(t)
 
 	t.Run("staff filter keeps grouped events the person is part of", func(t *testing.T) {
-		page, err := f.svc.ListAuditLog(f.ctx, timetracking.AuditLogListRequest{StaffID: f.staffA})
+		page, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.ListAuditLog, timetracking.AuditLogListRequest{StaffID: f.staffA})
 		require.NoError(t, err)
 		bySource := eventsBySource(page.Events)
 		assert.Len(t, bySource[sourceSessionEdit], 1)
@@ -278,7 +278,7 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 	})
 
 	t.Run("actor filter", func(t *testing.T) {
-		page, err := f.svc.ListAuditLog(f.ctx, timetracking.AuditLogListRequest{ActorStaffID: f.admin})
+		page, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.ListAuditLog, timetracking.AuditLogListRequest{ActorStaffID: f.admin})
 		require.NoError(t, err)
 		require.NotEmpty(t, page.Events)
 		for _, e := range page.Events {
@@ -290,7 +290,7 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 	})
 
 	t.Run("source filter", func(t *testing.T) {
-		page, err := f.svc.ListAuditLog(f.ctx, timetracking.AuditLogListRequest{
+		page, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.ListAuditLog, timetracking.AuditLogListRequest{
 			Sources: []string{sourceAdjustment, sourceDeletion},
 		})
 		require.NoError(t, err)
@@ -300,7 +300,7 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 	t.Run("date range", func(t *testing.T) {
 		from := calendar.NewDate(2025, time.September, 1)
 		to := calendar.NewDate(2025, time.September, 1)
-		page, err := f.svc.ListAuditLog(f.ctx, timetracking.AuditLogListRequest{From: &from, To: &to})
+		page, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.ListAuditLog, timetracking.AuditLogListRequest{From: &from, To: &to})
 		require.NoError(t, err)
 		bySource := eventsBySource(page.Events)
 		assert.Len(t, bySource[sourceMonthClose], 1)
@@ -315,7 +315,7 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 			9001: finalFraction,
 			9002: nextMidnight,
 		} {
-			require.NoError(t, owners.NewTimeTrackingDeletionAudit(owners.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).TimeTrackingDeletion).Create(f.ctx, &timetracking.TimeTrackingDeletionEvent{
+			require.NoError(t, testpkg.TenantCommand1(t, f.ctx, testpkg.SetupTestDB(t), owners.NewTimeTrackingDeletionAudit(owners.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).TimeTrackingDeletion).Create, &timetracking.TimeTrackingDeletionEvent{
 				StaffID:    f.staffA,
 				Source:     "absence",
 				SourceID:   sourceID,
@@ -326,7 +326,7 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 			}))
 		}
 
-		page, err := f.svc.ListAuditLog(f.ctx, timetracking.AuditLogListRequest{
+		page, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.ListAuditLog, timetracking.AuditLogListRequest{
 			From:    &day,
 			To:      &day,
 			Sources: []string{sourceDeletion},
@@ -347,7 +347,7 @@ func TestTimeTrackingAuditLog_KeysetPagination(t *testing.T) {
 
 	f := newAuditLogFixture(t)
 
-	all, err := f.svc.ListAuditLog(f.ctx, timetracking.AuditLogListRequest{})
+	all, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.ListAuditLog, timetracking.AuditLogListRequest{})
 	require.NoError(t, err)
 	require.Len(t, all.Events, 6)
 	require.Empty(t, all.NextCursor)
@@ -358,7 +358,7 @@ func TestTimeTrackingAuditLog_KeysetPagination(t *testing.T) {
 	cursor := ""
 	var pages int
 	for {
-		page, err := f.svc.ListAuditLog(f.ctx, timetracking.AuditLogListRequest{Limit: 2, Cursor: cursor})
+		page, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.ListAuditLog, timetracking.AuditLogListRequest{Limit: 2, Cursor: cursor})
 		require.NoError(t, err)
 		for _, e := range page.Events {
 			require.False(t, seen[key(e)], "cursor pages must not overlap")

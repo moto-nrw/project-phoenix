@@ -30,7 +30,11 @@ func NewSettingValueRepository(runtime Runtime) config.SettingValueRepository {
 // Returns (nil, nil) if not found.
 func (r *SettingValueRepository) FindByTenantAndKey(ctx context.Context, tenantID int64, key string) (*config.SettingValue, error) {
 	sv := new(config.SettingValue)
-	err := r.runtime.DB(ctx).NewSelect().
+	ambientDB1, databaseErr1 := r.runtime.DB(ctx)
+	if databaseErr1 != nil {
+		return *new(*config.SettingValue), databaseErr1
+	}
+	err := ambientDB1.NewSelect().
 		Model(sv).
 		ModelTableExpr(tableSettingValuesAlias).
 		Where(`"setting_value".tenant_id = ?`, tenantID).
@@ -54,7 +58,11 @@ func (r *SettingValueRepository) FindByTenantAndKeys(ctx context.Context, tenant
 	}
 
 	var values []*config.SettingValue
-	err := r.runtime.DB(ctx).NewSelect().
+	ambientDB2, databaseErr2 := r.runtime.DB(ctx)
+	if databaseErr2 != nil {
+		return *new([]*config.SettingValue), databaseErr2
+	}
+	err := ambientDB2.NewSelect().
 		Model(&values).
 		ModelTableExpr(tableSettingValuesAlias).
 		Where(`"setting_value".tenant_id = ?`, tenantID).
@@ -75,7 +83,11 @@ func (r *SettingValueRepository) FindByTenantsAndKeys(ctx context.Context, tenan
 	}
 
 	var values []*config.SettingValue
-	err := r.runtime.DB(ctx).NewSelect().
+	ambientDB3, databaseErr3 := r.runtime.DB(ctx)
+	if databaseErr3 != nil {
+		return *new([]*config.SettingValue), databaseErr3
+	}
+	err := ambientDB3.NewSelect().
 		Model(&values).
 		ModelTableExpr(tableSettingValuesAlias).
 		Where(`"setting_value".tenant_id IN (?)`, bun.List(tenantIDs)).
@@ -96,7 +108,11 @@ func (r *SettingValueRepository) Upsert(ctx context.Context, sv *config.SettingV
 		return err
 	}
 
-	_, err := r.runtime.DB(ctx).NewInsert().
+	ambientDB4, databaseErr4 := r.runtime.DB(ctx)
+	if databaseErr4 != nil {
+		return databaseErr4
+	}
+	_, err := ambientDB4.NewInsert().
 		Model(sv).
 		ModelTableExpr(tableSettingValues).
 		On("CONFLICT (tenant_id, setting_key) DO UPDATE").
@@ -113,7 +129,11 @@ func (r *SettingValueRepository) Upsert(ctx context.Context, sv *config.SettingV
 
 // Delete removes a single setting value for a tenant and key.
 func (r *SettingValueRepository) Delete(ctx context.Context, tenantID int64, key string) error {
-	_, err := r.runtime.DB(ctx).NewDelete().
+	ambientDB5, databaseErr5 := r.runtime.DB(ctx)
+	if databaseErr5 != nil {
+		return databaseErr5
+	}
+	_, err := ambientDB5.NewDelete().
 		Model((*config.SettingValue)(nil)).
 		ModelTableExpr(tableSettingValues).
 		Where("tenant_id = ?", tenantID).
@@ -127,15 +147,14 @@ func (r *SettingValueRepository) Delete(ctx context.Context, tenantID int64, key
 }
 
 // StoredOverrideReader reads the overrides a school stored, without registry
-// defaults. The privileged settings CLI lists them outside a tenant
-// transaction.
+// defaults, inside the caller's explicit school transaction.
 type StoredOverrideReader struct {
 	values config.SettingValueRepository
 }
 
-// NewStoredOverrideReader builds the reader over the CLI's superuser pool.
-func NewStoredOverrideReader(db *bun.DB) StoredOverrideReader {
-	return StoredOverrideReader{values: NewSettingValueRepository(NewRuntime(db))}
+// NewStoredOverrideReader binds the stored-override query to its runtime.
+func NewStoredOverrideReader(runtime Runtime) StoredOverrideReader {
+	return StoredOverrideReader{values: NewSettingValueRepository(runtime)}
 }
 
 // StoredOverride returns the stored JSON value of key for the school, and

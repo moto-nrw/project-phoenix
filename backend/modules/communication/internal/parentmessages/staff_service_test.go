@@ -116,13 +116,13 @@ func TestOpenThreadIsGetOrCreate(t *testing.T) {
 	svc := newService(t, db)
 	anna, ben := twoColleagues(t, db)
 
-	first, err := svc.OpenThread(asAccount(t, anna), ben)
+	first, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, ben)
 	require.NoError(t, err)
 	require.NotZero(t, first.ThreadID)
 
 	// The same pair from the OTHER side must land in the SAME conversation —
 	// that is the entire point of the sorted participant key.
-	second, err := svc.OpenThread(asAccount(t, ben), anna)
+	second, err := testpkg.TenantQuery1(t, asAccount(t, ben), db, svc.OpenThread, anna)
 	require.NoError(t, err)
 	assert.Equal(t, first.ThreadID, second.ThreadID)
 
@@ -137,16 +137,16 @@ func TestPostMessageAndReadBack(t *testing.T) {
 	svc := newService(t, db)
 	anna, ben := twoColleagues(t, db)
 
-	thread, err := svc.OpenThread(asAccount(t, anna), ben)
+	thread, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, ben)
 	require.NoError(t, err)
 
-	sent, err := svc.PostMessage(asAccount(t, anna), thread.ThreadID, "  Kannst du heute die Gruppe 2a übernehmen?  ")
+	sent, err := testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "  Kannst du heute die Gruppe 2a übernehmen?  ")
 	require.NoError(t, err)
 	assert.Equal(t, "Kannst du heute die Gruppe 2a übernehmen?", sent.Body, "body must be trimmed")
 	assert.Equal(t, "Anna Mustermann", sent.SenderName, "sender name is frozen at send time")
 	require.False(t, sent.CreatedAt.IsZero(), "created_at must come back from the database")
 
-	detail, err := svc.GetThread(asAccount(t, ben), thread.ThreadID)
+	detail, err := testpkg.TenantQuery1(t, asAccount(t, ben), db, svc.GetThread, thread.ThreadID)
 	require.NoError(t, err)
 	require.Len(t, detail.Messages, 1)
 	assert.Equal(t, "Anna Mustermann", detail.Messages[0].SenderName)
@@ -160,9 +160,9 @@ func TestPostMessageRefreshesSchoolPortalWithoutNotificationConsent(t *testing.T
 	svc.Broadcaster = broadcaster
 	anna, ben := twoColleagues(t, db)
 
-	thread, err := svc.OpenThread(asAccount(t, anna), ben)
+	thread, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, ben)
 	require.NoError(t, err)
-	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Neue Nachricht")
+	_, err = testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "Neue Nachricht")
 	require.NoError(t, err)
 
 	staffCalls := broadcaster.CallsByMethod("staff")
@@ -179,29 +179,29 @@ func TestUnreadCountLifecycle(t *testing.T) {
 	svc := newService(t, db)
 	anna, ben := twoColleagues(t, db)
 
-	thread, err := svc.OpenThread(asAccount(t, anna), ben)
+	thread, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, ben)
 	require.NoError(t, err)
 
-	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Erste Nachricht")
+	_, err = testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "Erste Nachricht")
 	require.NoError(t, err)
-	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Zweite Nachricht")
+	_, err = testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "Zweite Nachricht")
 	require.NoError(t, err)
 
 	// The recipient has two unread…
-	benCount, err := svc.UnreadMessageCount(asAccount(t, ben))
+	benCount, err := testpkg.TenantQuery0(t, asAccount(t, ben), db, svc.UnreadMessageCount)
 	require.NoError(t, err)
 	assert.Equal(t, 2, benCount)
 
 	// …and the SENDER has none. A just-sent message must never count against
 	// its own author, which is what the cursor advance in PostMessage buys.
-	annaCount, err := svc.UnreadMessageCount(asAccount(t, anna))
+	annaCount, err := testpkg.TenantQuery0(t, asAccount(t, anna), db, svc.UnreadMessageCount)
 	require.NoError(t, err)
 	assert.Equal(t, 0, annaCount)
 
 	// Opening the thread clears it.
-	_, err = svc.GetThread(asAccount(t, ben), thread.ThreadID)
+	_, err = testpkg.TenantQuery1(t, asAccount(t, ben), db, svc.GetThread, thread.ThreadID)
 	require.NoError(t, err)
-	benCount, err = svc.UnreadMessageCount(asAccount(t, ben))
+	benCount, err = testpkg.TenantQuery0(t, asAccount(t, ben), db, svc.UnreadMessageCount)
 	require.NoError(t, err)
 	assert.Equal(t, 0, benCount)
 }
@@ -215,12 +215,12 @@ func TestUnreadCountSurvivesTimestampTie(t *testing.T) {
 	svc := newService(t, db)
 	anna, ben := twoColleagues(t, db)
 
-	thread, err := svc.OpenThread(asAccount(t, anna), ben)
+	thread, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, ben)
 	require.NoError(t, err)
 
-	first, err := svc.PostMessage(asAccount(t, anna), thread.ThreadID, "A")
+	first, err := testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "A")
 	require.NoError(t, err)
-	second, err := svc.PostMessage(asAccount(t, anna), thread.ThreadID, "B")
+	second, err := testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "B")
 	require.NoError(t, err)
 
 	// Force the tie the composite cursor exists for.
@@ -232,7 +232,7 @@ func TestUnreadCountSurvivesTimestampTie(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	count, err := svc.UnreadMessageCount(asAccount(t, ben))
+	count, err := testpkg.TenantQuery0(t, asAccount(t, ben), db, svc.UnreadMessageCount)
 	require.NoError(t, err)
 	assert.Equal(t, 2, count, "a message tied on created_at must still count as unread")
 }
@@ -244,22 +244,22 @@ func TestNonParticipantCannotReadThread(t *testing.T) {
 	anna, ben := twoColleagues(t, db)
 	_, outsiderAccount := testpkg.CreateTestStaffWithAccount(t, db, "Clara", "Colleague")
 
-	thread, err := svc.OpenThread(asAccount(t, anna), ben)
+	thread, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, ben)
 	require.NoError(t, err)
-	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Vertraulich")
+	_, err = testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "Vertraulich")
 	require.NoError(t, err)
 
 	// A colleague at the SAME school who is not in the conversation gets the
 	// same answer as for a thread that does not exist — no 403, so thread ids
 	// cannot be probed.
-	_, err = svc.GetThread(asAccount(t, outsiderAccount.ID), thread.ThreadID)
+	_, err = testpkg.TenantQuery1(t, asAccount(t, outsiderAccount.ID), db, svc.GetThread, thread.ThreadID)
 	require.ErrorIs(t, err, staffmessaging.ErrNotParticipant)
 
-	_, err = svc.PostMessage(asAccount(t, outsiderAccount.ID), thread.ThreadID, "Ich lese mit")
+	_, err = testpkg.TenantQuery2(t, asAccount(t, outsiderAccount.ID), db, svc.PostMessage, thread.ThreadID, "Ich lese mit")
 	require.ErrorIs(t, err, staffmessaging.ErrNotParticipant)
 
 	// And the outsider's inbox stays empty.
-	inbox, err := svc.ListInbox(asAccount(t, outsiderAccount.ID), false)
+	inbox, err := testpkg.TenantQuery1(t, asAccount(t, outsiderAccount.ID), db, svc.ListInbox, false)
 	require.NoError(t, err)
 	assert.Empty(t, inbox)
 }
@@ -278,11 +278,11 @@ func TestInactiveMemberIsNotAddressable(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	_, err = svc.OpenThread(asAccount(t, anna), ben)
+	_, err = testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, ben)
 	require.ErrorIs(t, err, staffmessaging.ErrRecipientNotAvailable)
 
 	// …and they disappear from the picker.
-	recipients, err := svc.ListMessageableStaff(asAccount(t, anna))
+	recipients, err := testpkg.TenantQuery0(t, asAccount(t, anna), db, svc.ListMessageableStaff)
 	require.NoError(t, err)
 	for _, r := range recipients {
 		assert.NotEqual(t, ben, r.AccountID, "an inactive member must not be offered as a recipient")
@@ -295,7 +295,7 @@ func TestSelfConversationRejected(t *testing.T) {
 	svc := newService(t, db)
 	anna, _ := twoColleagues(t, db)
 
-	_, err := svc.OpenThread(asAccount(t, anna), anna)
+	_, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, anna)
 	require.ErrorIs(t, err, staffmessaging.ErrSelfConversation)
 }
 
@@ -305,7 +305,7 @@ func TestRecipientPickerExcludesSelf(t *testing.T) {
 	svc := newService(t, db)
 	anna, ben := twoColleagues(t, db)
 
-	recipients, err := svc.ListMessageableStaff(asAccount(t, anna))
+	recipients, err := testpkg.TenantQuery0(t, asAccount(t, anna), db, svc.ListMessageableStaff)
 	require.NoError(t, err)
 
 	ids := make([]int64, 0, len(recipients))
@@ -322,16 +322,16 @@ func TestBodyValidation(t *testing.T) {
 	svc := newService(t, db)
 	anna, ben := twoColleagues(t, db)
 
-	thread, err := svc.OpenThread(asAccount(t, anna), ben)
+	thread, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, ben)
 	require.NoError(t, err)
 
-	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "   ")
+	_, err = testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "   ")
 	require.ErrorIs(t, err, staffmessaging.ErrEmptyMessage)
 
-	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, strings.Repeat("ü", 2001))
+	_, err = testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, strings.Repeat("ü", 2001))
 	require.ErrorIs(t, err, staffmessaging.ErrMessageTooLong, "the limit counts runes, not bytes")
 
-	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, strings.Repeat("ü", 2000))
+	_, err = testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, strings.Repeat("ü", 2000))
 	require.NoError(t, err, "exactly at the limit must still pass")
 }
 
@@ -343,17 +343,17 @@ func TestDisabledSchoolIsBlocked(t *testing.T) {
 	enabled := newService(t, db)
 	anna, ben := twoColleagues(t, db)
 
-	thread, err := enabled.OpenThread(asAccount(t, anna), ben)
+	thread, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, enabled.OpenThread, ben)
 	require.NoError(t, err)
 
 	disabled := newServiceWithEnabled(t, db, false, 365)
-	_, err = disabled.OpenThread(asAccount(t, anna), ben)
+	_, err = testpkg.TenantQuery1(t, asAccount(t, anna), db, disabled.OpenThread, ben)
 	require.ErrorIs(t, err, staffmessaging.ErrMessagingDisabled)
-	_, err = disabled.PostMessage(asAccount(t, anna), thread.ThreadID, "Hallo")
+	_, err = testpkg.TenantQuery2(t, asAccount(t, anna), db, disabled.PostMessage, thread.ThreadID, "Hallo")
 	require.ErrorIs(t, err, staffmessaging.ErrMessagingDisabled)
-	_, err = disabled.ListInbox(asAccount(t, anna), false)
+	_, err = testpkg.TenantQuery1(t, asAccount(t, anna), db, disabled.ListInbox, false)
 	require.ErrorIs(t, err, staffmessaging.ErrMessagingDisabled)
-	_, err = disabled.UnreadMessageCount(asAccount(t, anna))
+	_, err = testpkg.TenantQuery0(t, asAccount(t, anna), db, disabled.UnreadMessageCount)
 	require.ErrorIs(t, err, staffmessaging.ErrMessagingDisabled)
 }
 
@@ -363,19 +363,19 @@ func TestInboxShowsCounterpartAndPreview(t *testing.T) {
 	svc := newService(t, db)
 	anna, ben := twoColleagues(t, db)
 
-	thread, err := svc.OpenThread(asAccount(t, anna), ben)
+	thread, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, ben)
 	require.NoError(t, err)
 
 	// An empty conversation must NOT appear — a get-or-create that was never
 	// followed by a send is not a conversation yet.
-	inbox, err := svc.ListInbox(asAccount(t, anna), false)
+	inbox, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.ListInbox, false)
 	require.NoError(t, err)
 	assert.Empty(t, inbox, "a thread without messages must not clutter the inbox")
 
-	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Bis gleich")
+	_, err = testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "Bis gleich")
 	require.NoError(t, err)
 
-	inbox, err = svc.ListInbox(asAccount(t, anna), false)
+	inbox, err = testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.ListInbox, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1)
 	assert.Equal(t, ben, inbox[0].CounterpartAccountID)
@@ -383,7 +383,7 @@ func TestInboxShowsCounterpartAndPreview(t *testing.T) {
 	assert.Equal(t, "Bis gleich", inbox[0].LastMessageBody)
 	assert.Equal(t, 0, inbox[0].UnreadCount, "own message is not unread to the sender")
 
-	benInbox, err := svc.ListInbox(asAccount(t, ben), false)
+	benInbox, err := testpkg.TenantQuery1(t, asAccount(t, ben), db, svc.ListInbox, false)
 	require.NoError(t, err)
 	require.Len(t, benInbox, 1)
 	assert.Equal(t, anna, benInbox[0].CounterpartAccountID)
@@ -399,9 +399,9 @@ func TestStaffListInboxQueryBudgetStaysFlat(t *testing.T) {
 	_, dan := testpkg.CreateTestStaffWithAccount(t, db, "Dan", "Viertel")
 
 	for _, counterpartID := range []int64{ben, cara.ID, dan.ID} {
-		thread, err := svc.OpenThread(asAccount(t, anna), counterpartID)
+		thread, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, counterpartID)
 		require.NoError(t, err)
-		_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Nachricht")
+		_, err = testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "Nachricht")
 		require.NoError(t, err)
 	}
 
@@ -409,7 +409,7 @@ func TestStaffListInboxQueryBudgetStaysFlat(t *testing.T) {
 	err := testpkg.WithinTenantTransaction(asAccount(t, anna), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		// The HTTP root supplies this unit of work; measure only the projection.
 		ctx := counter.Context(txCtx)
-		inbox, err := svc.ListInbox(ctx, false)
+		inbox, err := testpkg.TenantQuery1(t, ctx, db, svc.ListInbox, false)
 		require.NoError(t, err)
 		require.Len(t, inbox, 3)
 		testpkg.AssertQueryBudget(t, "modules.communication.staff_messages.list_inbox", counter.Queries())
@@ -434,12 +434,12 @@ func TestInboxCounterpartNameUsesThreadTenant(t *testing.T) {
 		schoolB, "Falscher", "Tenant", ben)
 	require.NoError(t, err)
 
-	thread, err := svc.OpenThread(asAccount(t, anna), ben)
+	thread, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, ben)
 	require.NoError(t, err)
-	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Bis gleich")
+	_, err = testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "Bis gleich")
 	require.NoError(t, err)
 
-	inbox, err := svc.ListInbox(asAccount(t, anna), false)
+	inbox, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.ListInbox, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1)
 	assert.Equal(t, "Ben Beispiel", inbox[0].CounterpartName)
@@ -451,17 +451,17 @@ func TestInboxOnlyUnreadFilter(t *testing.T) {
 	svc := newService(t, db)
 	anna, ben := twoColleagues(t, db)
 
-	thread, err := svc.OpenThread(asAccount(t, anna), ben)
+	thread, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, ben)
 	require.NoError(t, err)
-	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Neu")
+	_, err = testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "Neu")
 	require.NoError(t, err)
 
-	unread, err := svc.ListInbox(asAccount(t, ben), true)
+	unread, err := testpkg.TenantQuery1(t, asAccount(t, ben), db, svc.ListInbox, true)
 	require.NoError(t, err)
 	assert.Len(t, unread, 1)
 
 	// The sender has nothing unread, so their filtered inbox is empty.
-	unread, err = svc.ListInbox(asAccount(t, anna), true)
+	unread, err = testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.ListInbox, true)
 	require.NoError(t, err)
 	assert.Empty(t, unread)
 }
@@ -481,36 +481,36 @@ func TestSendingDoesNotSwallowIncomingUnread(t *testing.T) {
 	svc := newService(t, db)
 	anna, ben := twoColleagues(t, db)
 
-	thread, err := svc.OpenThread(asAccount(t, anna), ben)
+	thread, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, ben)
 	require.NoError(t, err)
 
 	// Anna opens the conversation, so her cursor sits at the start.
-	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Kurze Frage")
+	_, err = testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "Kurze Frage")
 	require.NoError(t, err)
-	_, err = svc.GetThread(asAccount(t, ben), thread.ThreadID)
+	_, err = testpkg.TenantQuery1(t, asAccount(t, ben), db, svc.GetThread, thread.ThreadID)
 	require.NoError(t, err)
 
 	// Ben answers twice while Anna is typing.
-	_, err = svc.PostMessage(asAccount(t, ben), thread.ThreadID, "Antwort eins")
+	_, err = testpkg.TenantQuery2(t, asAccount(t, ben), db, svc.PostMessage, thread.ThreadID, "Antwort eins")
 	require.NoError(t, err)
-	_, err = svc.PostMessage(asAccount(t, ben), thread.ThreadID, "Antwort zwei")
+	_, err = testpkg.TenantQuery2(t, asAccount(t, ben), db, svc.PostMessage, thread.ThreadID, "Antwort zwei")
 	require.NoError(t, err)
 
-	before, err := svc.UnreadMessageCount(asAccount(t, anna))
+	before, err := testpkg.TenantQuery0(t, asAccount(t, anna), db, svc.UnreadMessageCount)
 	require.NoError(t, err)
 	require.Equal(t, 2, before, "Ben's two messages are unread to Anna")
 
 	// Anna sends her own message without having opened the thread.
-	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Ach, hat sich erledigt")
+	_, err = testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "Ach, hat sich erledigt")
 	require.NoError(t, err)
 
-	after, err := svc.UnreadMessageCount(asAccount(t, anna))
+	after, err := testpkg.TenantQuery0(t, asAccount(t, anna), db, svc.UnreadMessageCount)
 	require.NoError(t, err)
 	assert.Equal(t, 2, after,
 		"sending must not mark the counterpart's unseen messages as read")
 
 	// And her own message still is not unread to her - the predicate excludes it.
-	inbox, err := svc.ListInbox(asAccount(t, anna), false)
+	inbox, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.ListInbox, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1)
 	assert.Equal(t, 2, inbox[0].UnreadCount)

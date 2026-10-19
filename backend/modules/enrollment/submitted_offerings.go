@@ -53,9 +53,10 @@ func (m *Module) RecordSubmittedOfferingChoices(ctx context.Context, childID int
 			}
 		}
 	}
-	return m.transactions.RunInTx(ctx, func(ctx context.Context) error {
-		return m.engine.RecordSubmittedOfferingChoices(ctx, childID, choices)
-	})
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return err
+	}
+	return m.engine.RecordSubmittedOfferingChoices(ctx, childID, choices)
 }
 
 func (m *Module) SubmittedOfferingChoices(ctx context.Context, childIDs []int64) (choices []SubmittedOfferingChoice, err error) {
@@ -66,9 +67,8 @@ func (m *Module) SubmittedOfferingChoices(ctx context.Context, childIDs []int64)
 	if len(childIDs) == 0 {
 		return []SubmittedOfferingChoice{}, nil
 	}
-	err = m.transactions.RunInTx(ctx, func(ctx context.Context) error {
-		choices, err = m.engine.SubmittedOfferingChoices(ctx, childIDs)
-		return err
-	})
-	return choices, err
+	if err = m.transactions.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	return m.engine.SubmittedOfferingChoices(ctx, childIDs)
 }

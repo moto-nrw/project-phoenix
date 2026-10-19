@@ -85,7 +85,7 @@ func TestStaffStammdaten_PersonSection(t *testing.T) {
 	actor := testpkg.CreateTestStaff(t, s.db, "Stamm", "Aktor")
 
 	birthday := "1990-04-12"
-	err := s.svc.UpdateStaffStammdatenPerson(s.ctx, staff.ID, workforce.StammdatenPersonInput{
+	err := testpkg.TenantCommand4(t, s.ctx, s.db, s.svc.UpdateStaffStammdatenPerson, staff.ID, workforce.StammdatenPersonInput{
 		FirstName: "Stamm",
 		LastName:  "Geändert",
 		Birthday:  &birthday,
@@ -110,7 +110,7 @@ func TestStaffStammdaten_PersonSection(t *testing.T) {
 	require.Contains(t, fields, "gender")
 	assert.Equal(t, userModels.GenderFemale, fields["gender"].NewValue)
 
-	data, err := s.svc.StaffStammdaten(s.ctx, staff.ID)
+	data, err := testpkg.TenantQuery1(t, s.ctx, s.db, s.svc.StaffStammdaten, staff.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Geändert", data.Staff.LastName)
 	assert.Equal(t, "1990-04-12", data.Staff.Birthday)
@@ -119,7 +119,7 @@ func TestStaffStammdaten_PersonSection(t *testing.T) {
 	assert.Equal(t, userModels.GenderFemale, *data.MasterData.Gender)
 
 	// No-op submit writes no additional audit rows.
-	err = s.svc.UpdateStaffStammdatenPerson(s.ctx, staff.ID, workforce.StammdatenPersonInput{
+	err = testpkg.TenantCommand4(t, s.ctx, s.db, s.svc.UpdateStaffStammdatenPerson, staff.ID, workforce.StammdatenPersonInput{
 		FirstName: "Stamm",
 		LastName:  "Geändert",
 		Birthday:  &birthday,
@@ -129,11 +129,11 @@ func TestStaffStammdaten_PersonSection(t *testing.T) {
 	assert.Len(t, s.auditRows(t, staff.ID), 3)
 
 	// Validation
-	err = s.svc.UpdateStaffStammdatenPerson(s.ctx, staff.ID, workforce.StammdatenPersonInput{
+	err = testpkg.TenantCommand4(t, s.ctx, s.db, s.svc.UpdateStaffStammdatenPerson, staff.ID, workforce.StammdatenPersonInput{
 		FirstName: "", LastName: "X",
 	}, actor.ID, "")
 	require.ErrorIs(t, err, workforce.ErrStaffStammdatenInvalid)
-	err = s.svc.UpdateStaffStammdatenPerson(s.ctx, staff.ID, workforce.StammdatenPersonInput{
+	err = testpkg.TenantCommand4(t, s.ctx, s.db, s.svc.UpdateStaffStammdatenPerson, staff.ID, workforce.StammdatenPersonInput{
 		FirstName: "A", LastName: "B", Gender: stammdatenStrPtr("other"),
 	}, actor.ID, "")
 	require.ErrorIs(t, err, workforce.ErrStaffStammdatenInvalid)
@@ -146,7 +146,7 @@ func TestStaffStammdaten_KontaktSection(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, s.db, "Stamm", "Kontakt")
 	actor := testpkg.CreateTestStaff(t, s.db, "Stamm", "Aktor")
 
-	err := s.svc.UpdateStaffStammdatenKontakt(s.ctx, staff.ID, workforce.StammdatenKontaktInput{
+	err := testpkg.TenantCommand4(t, s.ctx, s.db, s.svc.UpdateStaffStammdatenKontakt, staff.ID, workforce.StammdatenKontaktInput{
 		AddressStreet:         stammdatenStrPtr("Musterweg 1"),
 		AddressPostalCode:     stammdatenStrPtr("48143"),
 		AddressCity:           stammdatenStrPtr("Münster"),
@@ -159,7 +159,7 @@ func TestStaffStammdaten_KontaktSection(t *testing.T) {
 	assert.Len(t, s.auditRows(t, staff.ID), 7)
 
 	// Clearing one field writes exactly one more row.
-	err = s.svc.UpdateStaffStammdatenKontakt(s.ctx, staff.ID, workforce.StammdatenKontaktInput{
+	err = testpkg.TenantCommand4(t, s.ctx, s.db, s.svc.UpdateStaffStammdatenKontakt, staff.ID, workforce.StammdatenKontaktInput{
 		AddressStreet:         stammdatenStrPtr("Musterweg 1"),
 		AddressPostalCode:     stammdatenStrPtr("48143"),
 		AddressCity:           stammdatenStrPtr("Münster"),
@@ -177,7 +177,7 @@ func TestStaffStammdaten_KontaktSection(t *testing.T) {
 	assert.Equal(t, "", last.NewValue)
 
 	// Malformed email is rejected.
-	err = s.svc.UpdateStaffStammdatenKontakt(s.ctx, staff.ID, workforce.StammdatenKontaktInput{
+	err = testpkg.TenantCommand4(t, s.ctx, s.db, s.svc.UpdateStaffStammdatenKontakt, staff.ID, workforce.StammdatenKontaktInput{
 		Email: stammdatenStrPtr("not-an-email"),
 	}, actor.ID, "")
 	require.ErrorIs(t, err, workforce.ErrStaffStammdatenInvalid)
@@ -193,7 +193,7 @@ func TestStaffStammdaten_ArbeitsvertragSection(t *testing.T) {
 	entry := "2024-08-01"
 	probation := "2025-01-31"
 	hours := 29.5
-	err := s.svc.UpdateStaffStammdatenArbeitsvertrag(s.ctx, staff.ID, workforce.StammdatenArbeitsvertragInput{
+	err := testpkg.TenantCommand4(t, s.ctx, s.db, s.svc.UpdateStaffStammdatenArbeitsvertrag, staff.ID, workforce.StammdatenArbeitsvertragInput{
 		EntryDate:        &entry,
 		ProbationEndDate: &probation,
 		WeeklyHours:      &hours,
@@ -204,7 +204,7 @@ func TestStaffStammdaten_ArbeitsvertragSection(t *testing.T) {
 	rows := s.auditRows(t, staff.ID)
 	require.Len(t, rows, 4)
 
-	data, err := s.svc.StaffStammdaten(s.ctx, staff.ID)
+	data, err := testpkg.TenantQuery1(t, s.ctx, s.db, s.svc.StaffStammdaten, staff.ID)
 	require.NoError(t, err)
 	require.NotNil(t, data.MasterData)
 	assert.Equal(t, "2024-08-01", data.MasterData.EntryDate)
@@ -215,7 +215,7 @@ func TestStaffStammdaten_ArbeitsvertragSection(t *testing.T) {
 
 	// Out-of-range hours rejected.
 	bad := 90.0
-	err = s.svc.UpdateStaffStammdatenArbeitsvertrag(s.ctx, staff.ID, workforce.StammdatenArbeitsvertragInput{
+	err = testpkg.TenantCommand4(t, s.ctx, s.db, s.svc.UpdateStaffStammdatenArbeitsvertrag, staff.ID, workforce.StammdatenArbeitsvertragInput{
 		WeeklyHours: &bad,
 	}, actor.ID, "")
 	require.ErrorIs(t, err, workforce.ErrStaffStammdatenInvalid)
@@ -230,13 +230,13 @@ func TestStaffStammdaten_Qualifikationen(t *testing.T) {
 
 	acquired := "2023-03-10"
 	expires := "2026-03-10"
-	err := s.svc.ReplaceStaffQualificationList(s.ctx, staff.ID, []workforce.StammdatenQualificationInput{
+	err := testpkg.TenantCommand4(t, s.ctx, s.db, s.svc.ReplaceStaffQualificationList, staff.ID, []workforce.StammdatenQualificationInput{
 		{Name: "Erste-Hilfe-Kurs", AcquiredOn: &acquired, ExpiresOn: &expires},
 		{Name: "Schwimmschein"},
 	}, actor.ID, "Nachweise erfasst")
 	require.NoError(t, err)
 
-	data, err := s.svc.StaffStammdaten(s.ctx, staff.ID)
+	data, err := testpkg.TenantQuery1(t, s.ctx, s.db, s.svc.StaffStammdaten, staff.ID)
 	require.NoError(t, err)
 	require.Len(t, data.Qualifications, 2)
 	assert.Equal(t, "Erste-Hilfe-Kurs", data.Qualifications[0].Name)
@@ -248,12 +248,12 @@ func TestStaffStammdaten_Qualifikationen(t *testing.T) {
 
 	// Changing only the acquisition date must persist and create an audit row.
 	updatedAcquired := "2023-04-10"
-	err = s.svc.ReplaceStaffQualificationList(s.ctx, staff.ID, []workforce.StammdatenQualificationInput{
+	err = testpkg.TenantCommand4(t, s.ctx, s.db, s.svc.ReplaceStaffQualificationList, staff.ID, []workforce.StammdatenQualificationInput{
 		{Name: "Erste-Hilfe-Kurs", AcquiredOn: &updatedAcquired, ExpiresOn: &expires},
 		{Name: "Schwimmschein"},
 	}, actor.ID, "Erwerbsdatum korrigiert")
 	require.NoError(t, err)
-	data, err = s.svc.StaffStammdaten(s.ctx, staff.ID)
+	data, err = testpkg.TenantQuery1(t, s.ctx, s.db, s.svc.StaffStammdaten, staff.ID)
 	require.NoError(t, err)
 	assert.Equal(t, updatedAcquired, data.Qualifications[0].AcquiredOn)
 	rows = s.auditRows(t, staff.ID)
@@ -262,18 +262,18 @@ func TestStaffStammdaten_Qualifikationen(t *testing.T) {
 	assert.Contains(t, rows[1].NewValue, "erworben 2023-04-10")
 
 	// Replace with a shorter list.
-	err = s.svc.ReplaceStaffQualificationList(s.ctx, staff.ID, []workforce.StammdatenQualificationInput{
+	err = testpkg.TenantCommand4(t, s.ctx, s.db, s.svc.ReplaceStaffQualificationList, staff.ID, []workforce.StammdatenQualificationInput{
 		{Name: "Schwimmschein"},
 	}, actor.ID, "Erste Hilfe abgelaufen")
 	require.NoError(t, err)
-	data, err = s.svc.StaffStammdaten(s.ctx, staff.ID)
+	data, err = testpkg.TenantQuery1(t, s.ctx, s.db, s.svc.StaffStammdaten, staff.ID)
 	require.NoError(t, err)
 	require.Len(t, data.Qualifications, 1)
 	assert.Equal(t, "Schwimmschein", data.Qualifications[0].Name)
 	require.Len(t, s.auditRows(t, staff.ID), 3)
 
 	// Expiry before acquisition is rejected.
-	err = s.svc.ReplaceStaffQualificationList(s.ctx, staff.ID, []workforce.StammdatenQualificationInput{
+	err = testpkg.TenantCommand4(t, s.ctx, s.db, s.svc.ReplaceStaffQualificationList, staff.ID, []workforce.StammdatenQualificationInput{
 		{Name: "Kaputt", AcquiredOn: &expires, ExpiresOn: &acquired},
 	}, actor.ID, "")
 	require.ErrorIs(t, err, workforce.ErrStaffStammdatenInvalid)
@@ -287,7 +287,7 @@ func TestStaffStammdaten_FinancialMaskingAndAudit(t *testing.T) {
 	actor, account := testpkg.CreateTestStaffWithAccount(t, s.db, "Stamm", "Lohn")
 
 	// Standard test IBAN with a valid mod-97 checksum.
-	err := s.svc.UpdateStaffFinancial(s.ctx, staff.ID, workforce.StammdatenFinancialInput{
+	err := testpkg.TenantCommand4(t, s.ctx, s.db, s.svc.UpdateStaffFinancial, staff.ID, workforce.StammdatenFinancialInput{
 		IBAN:                 stammdatenStrPtr("DE89 3704 0044 0532 0130 00"),
 		TaxID:                stammdatenStrPtr("12345678911"),
 		SocialSecurityNumber: stammdatenStrPtr("65 170839 J 003"),
@@ -304,7 +304,7 @@ func TestStaffStammdaten_FinancialMaskingAndAudit(t *testing.T) {
 	}
 
 	// Masked read: IBAN last 4 visible, others fully masked; access-logged.
-	masked, err := s.svc.StaffFinancialMasked(s.ctx, staff.ID, account.ID, "admin")
+	masked, err := testpkg.TenantQuery3(t, s.ctx, s.db, s.svc.StaffFinancialMasked, staff.ID, account.ID, "admin")
 	require.NoError(t, err)
 	require.NotNil(t, masked.IBANMasked)
 	assert.Equal(t, "•••• 3000", *masked.IBANMasked)
@@ -317,7 +317,7 @@ func TestStaffStammdaten_FinancialMaskingAndAudit(t *testing.T) {
 	assert.Equal(t, testpkg.AuditResourceTypeStaffFinancialView, logs[0].ResourceType)
 
 	// Reveal: full values, second access log row.
-	plain, err := s.svc.RevealStaffFinancial(s.ctx, staff.ID, account.ID, "admin")
+	plain, err := testpkg.TenantQuery3(t, s.ctx, s.db, s.svc.RevealStaffFinancial, staff.ID, account.ID, "admin")
 	require.NoError(t, err)
 	require.NotNil(t, plain.IBAN)
 	assert.Equal(t, "DE89370400440532013000", *plain.IBAN)
@@ -331,7 +331,7 @@ func TestStaffStammdaten_FinancialMaskingAndAudit(t *testing.T) {
 	assert.Equal(t, testpkg.AuditResourceTypeStaffFinancialReveal, logs[1].ResourceType)
 
 	// No-op write leaves no additional audit rows.
-	err = s.svc.UpdateStaffFinancial(s.ctx, staff.ID, workforce.StammdatenFinancialInput{
+	err = testpkg.TenantCommand4(t, s.ctx, s.db, s.svc.UpdateStaffFinancial, staff.ID, workforce.StammdatenFinancialInput{
 		IBAN:                 stammdatenStrPtr("DE89370400440532013000"),
 		TaxID:                stammdatenStrPtr("12345678911"),
 		SocialSecurityNumber: stammdatenStrPtr("65170839J003"),
@@ -348,17 +348,17 @@ func TestStaffStammdaten_FinancialValidation(t *testing.T) {
 	actor := testpkg.CreateTestStaff(t, s.db, "Stamm", "Aktor")
 
 	// Broken checksum
-	err := s.svc.UpdateStaffFinancial(s.ctx, staff.ID, workforce.StammdatenFinancialInput{
+	err := testpkg.TenantCommand4(t, s.ctx, s.db, s.svc.UpdateStaffFinancial, staff.ID, workforce.StammdatenFinancialInput{
 		IBAN: stammdatenStrPtr("DE89370400440532013001"),
 	}, actor.ID, "")
 	require.ErrorIs(t, err, workforce.ErrStaffStammdatenInvalid)
 
-	err = s.svc.UpdateStaffFinancial(s.ctx, staff.ID, workforce.StammdatenFinancialInput{
+	err = testpkg.TenantCommand4(t, s.ctx, s.db, s.svc.UpdateStaffFinancial, staff.ID, workforce.StammdatenFinancialInput{
 		TaxID: stammdatenStrPtr("123"),
 	}, actor.ID, "")
 	require.ErrorIs(t, err, workforce.ErrStaffStammdatenInvalid)
 
-	err = s.svc.UpdateStaffFinancial(s.ctx, staff.ID, workforce.StammdatenFinancialInput{
+	err = testpkg.TenantCommand4(t, s.ctx, s.db, s.svc.UpdateStaffFinancial, staff.ID, workforce.StammdatenFinancialInput{
 		SocialSecurityNumber: stammdatenStrPtr("XX"),
 	}, actor.ID, "")
 	require.ErrorIs(t, err, workforce.ErrStaffStammdatenInvalid)

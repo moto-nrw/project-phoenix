@@ -18,7 +18,7 @@ func TestAttendanceVisibleDaysNeverExceedRetention(t *testing.T) {
 	const retentionKey = configModel.KeyGDPRAttendanceRetentionDays
 	read := func(key string, want int) {
 		t.Helper()
-		got, err := settings.ResolveInt(ctx, key)
+		got, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), settings.ResolveInt, key)
 		require.NoError(t, err)
 		require.Equal(t, want, got)
 	}

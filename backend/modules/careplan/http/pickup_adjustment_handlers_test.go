@@ -125,7 +125,7 @@ func TestPickupAdjustmentProtectedRouterRequiresExplicitExceptionAndAuditsApply(
 	require.NoError(t, err)
 	require.NotNil(t, stored)
 	assert.Equal(t, "14:00", stored.PickupTime.Format("15:04"))
-	history, err := tc.resource.StudentAuditService.ListStudentChangeHistory(testpkg.Ctx(t), student.ID)
+	history, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), tc.db, tc.resource.StudentAuditService.ListStudentChangeHistory, student.ID)
 	require.NoError(t, err)
 	assert.Empty(t, history, "a stale preview must not write an audit row")
 
@@ -139,7 +139,7 @@ func TestPickupAdjustmentProtectedRouterRequiresExplicitExceptionAndAuditsApply(
 	)
 	require.Equal(t, http.StatusOK, confirmedRec.Code, confirmedRec.Body.String())
 
-	history, err = tc.resource.StudentAuditService.ListStudentChangeHistory(testpkg.Ctx(t), student.ID)
+	history, err = testpkg.TenantQuery1(t, testpkg.Ctx(t), tc.db, tc.resource.StudentAuditService.ListStudentChangeHistory, student.ID)
 	require.NoError(t, err)
 	require.NotEmpty(t, history)
 	assert.Equal(t, auditFieldPickupSchedule, history[0].FieldName)
@@ -221,7 +221,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 		t, tc, exceptionReq, testutil.AdminTestClaims(int(account.ID)), []string{"users:update"},
 	)
 	require.Equal(t, http.StatusOK, exceptionRec.Code, exceptionRec.Body.String())
-	links, err := tc.enrollmentDecision.ListChildOfferings(testpkg.Ctx(t), fixture.child.RequestID)
+	links, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), tc.db, tc.enrollmentDecision.ListChildOfferings, fixture.child.RequestID)
 	require.NoError(t, err)
 	require.Len(t, links[fixture.child.ID].Current, 1)
 	assert.Equal(t, fixture.ganztag.ID, links[fixture.child.ID].Current[0].OfferingID,
@@ -255,8 +255,8 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	)
 	assert.Equal(t, http.StatusConflict, futureRec.Code, futureRec.Body.String())
 	assert.Contains(t, futureRec.Body.String(), `"code":"pickup.future_manual_reset"`)
-	futureLinks, err := newStudentTestEnrollment(testpkg.NewDatabase(t, tc.db)).Enrollment().
-		RequestChildOfferingsAtDate(testpkg.Ctx(t), fixture.child.ID, owner.Date(futureDate))
+	futureLinks, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), testpkg.SetupTestDB(t), newStudentTestEnrollment(testpkg.NewDatabase(t, tc.db)).Enrollment().
+		RequestChildOfferingsAtDate, fixture.child.ID, owner.Date(futureDate))
 	require.NoError(t, err)
 	require.Len(t, futureLinks, 1)
 	assert.Equal(t, fixture.ganztag.ID, futureLinks[0].CareOfferingID,
@@ -278,7 +278,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	)
 	assert.Equal(t, http.StatusConflict, fullRec.Code, fullRec.Body.String())
 	assert.Contains(t, fullRec.Body.String(), `"code":"pickup.offering_capacity_full"`)
-	links, err = tc.enrollmentDecision.ListChildOfferings(testpkg.Ctx(t), fixture.child.RequestID)
+	links, err = testpkg.TenantQuery1(t, testpkg.Ctx(t), tc.db, tc.enrollmentDecision.ListChildOfferings, fixture.child.RequestID)
 	require.NoError(t, err)
 	require.Len(t, links[fixture.child.ID].Current, 1)
 	assert.Equal(t, fixture.ganztag.ID, links[fixture.child.ID].Current[0].OfferingID,
@@ -327,7 +327,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	)
 	require.Equal(t, http.StatusOK, applyRec.Code, applyRec.Body.String())
 
-	links, err = tc.enrollmentDecision.ListChildOfferings(testpkg.Ctx(t), fixture.child.RequestID)
+	links, err = testpkg.TenantQuery1(t, testpkg.Ctx(t), tc.db, tc.enrollmentDecision.ListChildOfferings, fixture.child.RequestID)
 	require.NoError(t, err)
 	require.Len(t, links[fixture.child.ID].Current, 1)
 	assert.Equal(t, fixture.mittag.ID, links[fixture.child.ID].Current[0].OfferingID)
@@ -344,7 +344,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	assert.Equal(t, arrivalRowsBefore, arrivalRows,
 		"an offering change must leave the existing arrival plan unchanged")
 
-	history, err := tc.resource.StudentAuditService.ListStudentChangeHistory(testpkg.Ctx(t), student.ID)
+	history, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), tc.db, tc.resource.StudentAuditService.ListStudentChangeHistory, student.ID)
 	require.NoError(t, err)
 	require.NotEmpty(t, history)
 	assert.Contains(t, valueOrEmpty(history[0].NewValue), "Angebot geändert")
@@ -391,7 +391,7 @@ func TestPickupAdjustmentProtectedRouterRollsBackKnownErrorAfterOfferingWrite(t 
 	rec := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"users:update"})
 	assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), `"code":"pickup.invalid"`)
-	links, err := tc.enrollmentDecision.ListChildOfferings(testpkg.Ctx(t), fixture.child.RequestID)
+	links, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), tc.db, tc.enrollmentDecision.ListChildOfferings, fixture.child.RequestID)
 	require.NoError(t, err)
 	require.Len(t, links[fixture.child.ID].Current, 1)
 	assert.Equal(t, fixture.ganztag.ID, links[fixture.child.ID].Current[0].OfferingID)
@@ -430,7 +430,7 @@ func TestBulkPickupAdjustmentRequiresAndAuditsExplicitExceptions(t *testing.T) {
 	require.Equal(t, http.StatusOK, confirmedRec.Code, confirmedRec.Body.String())
 
 	for _, studentID := range []int64{first.ID, second.ID} {
-		history, err := tc.resource.StudentAuditService.ListStudentChangeHistory(testpkg.Ctx(t), studentID)
+		history, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), tc.db, tc.resource.StudentAuditService.ListStudentChangeHistory, studentID)
 		require.NoError(t, err)
 		require.NotEmpty(t, history)
 		assert.Equal(t, auditFieldPickupSchedule, history[0].FieldName)

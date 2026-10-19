@@ -56,9 +56,9 @@ func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 			},
 		}
 
-		require.NoError(t, repo.Create(ctx, student))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Create, student))
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		assert.True(t, found.PickupDays[peopleValues.PickupDayMonday])
 		assert.True(t, found.PickupDays[peopleValues.PickupDayWednesday])
@@ -79,9 +79,9 @@ func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 			PickupStatus: &status,
 		}
 
-		require.NoError(t, repo.Create(ctx, student))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Create, student))
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		for _, day := range peopleValues.PickupDayOrder {
 			assert.True(t, found.PickupDays[day], "legacy picked-up should enable %s", day)
@@ -101,9 +101,9 @@ func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 			PickupStatus: &status,
 		}
 
-		require.NoError(t, repo.Create(ctx, student))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Create, student))
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		assert.False(t, found.PickupDays.HasAny())
 		assert.Empty(t, found.PickupDays.Normalize())
@@ -114,13 +114,13 @@ func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 		requireStudentsPickupDaysColumn(t, db)
 
 		studentFixture := testpkg.CreateTestStudent(t, db, "Pickup", "Update", "3a")
-		student, err := repo.FindByID(ctx, studentFixture.ID)
+		student, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(studentFixture.ID))
 		require.NoError(t, err)
 
 		student.PickupDays = peopleValues.PickupDays{peopleValues.PickupDayFriday: true}
-		require.NoError(t, repo.Update(ctx, student))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, student))
 
-		found, err := repo.FindByID(ctx, student.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.NoError(t, err)
 		assert.True(t, found.PickupDays[peopleValues.PickupDayFriday])
 		assert.False(t, found.PickupDays[peopleValues.PickupDayMonday])
@@ -137,15 +137,15 @@ func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 
 		t.Run("selected days derive picked-up", func(t *testing.T) {
 			studentFixture := testpkg.CreateTestStudent(t, db, "Pickup", "SyncPicked", "4a")
-			student, err := repo.FindByID(ctx, studentFixture.ID)
+			student, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(studentFixture.ID))
 			require.NoError(t, err)
 
 			// Set only the map, leave PickupStatus nil (the stale-write case).
 			student.PickupStatus = nil
 			student.PickupDays = peopleValues.PickupDays{peopleValues.PickupDayFriday: true}
-			require.NoError(t, repo.Update(ctx, student))
+			require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, student))
 
-			found, err := repo.FindByID(ctx, student.ID)
+			found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 			require.NoError(t, err)
 			require.NotNil(t, found.PickupStatus)
 			assert.Equal(t, userModels.PickupStatusPickedUp, *found.PickupStatus)
@@ -153,20 +153,20 @@ func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 
 		t.Run("explicit empty map derives goes-alone", func(t *testing.T) {
 			studentFixture := testpkg.CreateTestStudent(t, db, "Pickup", "SyncAlone", "4b")
-			student, err := repo.FindByID(ctx, studentFixture.ID)
+			student, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(studentFixture.ID))
 			require.NoError(t, err)
 
 			// Seed a picked-up student, then clear the map to the empty answer.
 			picked := userModels.PickupStatusPickedUp
 			student.PickupStatus = &picked
 			student.PickupDays = peopleValues.PickupDays{peopleValues.PickupDayMonday: true}
-			require.NoError(t, repo.Update(ctx, student))
+			require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, student))
 
 			student.PickupStatus = nil
 			student.PickupDays = peopleValues.PickupDays{}
-			require.NoError(t, repo.Update(ctx, student))
+			require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, student))
 
-			found, err := repo.FindByID(ctx, student.ID)
+			found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 			require.NoError(t, err)
 			require.NotNil(t, found.PickupStatus)
 			assert.Equal(t, userModels.PickupStatusGoesAlone, *found.PickupStatus)
@@ -183,7 +183,7 @@ func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 			PickupDays:  peopleValues.PickupDays{"sat": true},
 		}
 
-		err := repo.Create(ctx, student)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, student)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), `weekday "sat"`)
 		assert.Zero(t, student.ID)

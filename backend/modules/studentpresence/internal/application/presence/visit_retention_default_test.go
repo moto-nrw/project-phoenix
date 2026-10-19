@@ -105,12 +105,12 @@ func TestCleanupExpiredVisits_DeletesVisitsOfChildWithoutConsent(t *testing.T) {
 	recent := insertRetentionVisit(t, db, student.ID, group.ID, 10, true)
 	open := insertRetentionVisit(t, db, student.ID, group.ID, 45, false)
 
-	preview, err := cleanup.PreviewCleanup(ctx)
+	preview, err := testpkg.TenantQuery0(t, ctx, db, cleanup.PreviewCleanup)
 	require.NoError(t, err)
 	assert.Equal(t, 1, preview.StudentVisitCounts[student.ID], "the preview must count the child without consent")
 	assert.EqualValues(t, 1, preview.TotalVisits)
 
-	stats, err := cleanup.GetRetentionStatistics(ctx)
+	stats, err := testpkg.TenantQuery0(t, ctx, db, cleanup.GetRetentionStatistics)
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, stats.TotalExpiredVisits)
 	assert.Equal(t, 1, stats.StudentsAffected)
@@ -155,7 +155,7 @@ func TestCleanupExpiredVisits_TenantSettingAppliesWithoutAcceptedConsent(t *test
 	acceptedInside := insertRetentionVisit(t, db, accepted.ID, group.ID, 10, true)
 	acceptedPast := insertRetentionVisit(t, db, accepted.ID, group.ID, 25, true)
 
-	result, err := cleanup.CleanupExpiredVisits(ctx)
+	result, err := testpkg.TenantQuery0(t, ctx, db, cleanup.CleanupExpiredVisits)
 	require.NoError(t, err)
 	require.True(t, result.Success, "errors: %v", result.Errors)
 	assert.EqualValues(t, 3, result.RecordsDeleted)
@@ -190,7 +190,7 @@ func TestCleanupExpiredVisits_OverrideEqualToDefaultIsUsed(t *testing.T) {
 	expired := insertRetentionVisit(t, db, student.ID, group.ID, 31, true)
 	kept := insertRetentionVisit(t, db, student.ID, group.ID, 29, true)
 
-	result, err := cleanup.CleanupExpiredVisits(testpkg.Ctx(t))
+	result, err := testpkg.TenantQuery0(t, testpkg.Ctx(t), db, cleanup.CleanupExpiredVisits)
 	require.NoError(t, err)
 	require.True(t, result.Success, "errors: %v", result.Errors)
 	assert.False(t, visitExists(t, db, expired))

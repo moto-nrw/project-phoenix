@@ -15,7 +15,7 @@ import (
 // writes in its caller's tenant transaction; a failed append is logged at
 // error level under message.
 func NewWorkflowAuditCommand(db transactionruntime.Database, logger *slog.Logger, message string) (auditModels.Command, error) {
-	audits, err := auditCompose.NewTenantPersistence(db.Pool(), false)
+	audits, err := auditCompose.NewTenantPersistence(db.Pool())
 	if err != nil {
 		return nil, err
 	}

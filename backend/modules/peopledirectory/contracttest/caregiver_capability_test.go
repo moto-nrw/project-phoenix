@@ -297,13 +297,13 @@ func TestCaregiverCapability_EnableCreatesOperationalProfile(t *testing.T) {
 	assert.True(t, state.HasUserRole)
 	assert.True(t, state.IsActiveCaregiver)
 
-	person, err := factory.Users.FindByAccountID(ctx, account.ID)
+	person, err := testpkg.TenantQuery1(t, ctx, db, factory.Users.FindByAccountID, account.ID)
 	require.NoError(t, err)
 	require.NotNil(t, person)
 	assert.Equal(t, "Ada", person.FirstName)
 	assert.Equal(t, "Lovelace", person.LastName)
 
-	staff, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Staff.FindByPersonID(ctx, person.ID)
+	staff, err := testpkg.TenantQuery1(t, ctx, db, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Staff.FindByPersonID, person.ID)
 	require.NoError(t, err)
 	require.NotNil(t, staff)
 
@@ -364,7 +364,7 @@ func TestCaregiverCapability_DisableRemovesUserRoleWithoutDeletingProfile(t *tes
 	assert.False(t, state.IsActiveCaregiver)
 	assert.False(t, state.DisableBlocked)
 
-	reloaded, err := factory.CaregiverCapability.GetCaregiverCapability(ctx, account.ID)
+	reloaded, err := testpkg.TenantQuery1(t, ctx, db, factory.CaregiverCapability.GetCaregiverCapability, account.ID)
 	require.NoError(t, err)
 	assert.False(t, reloaded.HasUserRole)
 	assert.True(t, reloaded.HasTeacher)
@@ -414,7 +414,7 @@ func TestCaregiverCapability_DisableCommitsIndependentlyOfAmbientTransaction(t *
 	})
 	require.ErrorIs(t, err, outerRollback)
 
-	state, err := factory.CaregiverCapability.GetCaregiverCapability(testpkg.Ctx(t), account.ID)
+	state, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, factory.CaregiverCapability.GetCaregiverCapability, account.ID)
 	require.NoError(t, err)
 	assert.False(t, state.HasUserRole)
 }
@@ -451,7 +451,7 @@ func TestCaregiverCapability_DisableUsesTenantScopedRoles(t *testing.T) {
 	assignSystemRoleToAccount(t, db, account.ID, testpkg.Tenant(t), "user")
 	assignSystemRoleToAccount(t, db, account.ID, otherTenant, "admin")
 
-	state, err := factory.CaregiverCapability.GetCaregiverCapability(ctx, account.ID)
+	state, err := testpkg.TenantQuery1(t, ctx, db, factory.CaregiverCapability.GetCaregiverCapability, account.ID)
 	require.NoError(t, err)
 	require.NotNil(t, state)
 	assert.True(t, state.HasUserRole)
@@ -508,7 +508,7 @@ func TestCaregiverCapability_DisableAllowsCustomTenantRoleToRemain(t *testing.T)
 	)
 	require.NoError(t, err)
 
-	state, err := factory.CaregiverCapability.GetCaregiverCapability(ctx, account.ID)
+	state, err := testpkg.TenantQuery1(t, ctx, db, factory.CaregiverCapability.GetCaregiverCapability, account.ID)
 	require.NoError(t, err)
 	require.NotNil(t, state)
 	assert.False(t, state.DisableBlocked)
@@ -577,7 +577,7 @@ func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
 		activityGroup.ID,
 	)
 
-	state, err := factory.CaregiverCapability.GetCaregiverCapability(ctx, account.ID)
+	state, err := testpkg.TenantQuery1(t, ctx, db, factory.CaregiverCapability.GetCaregiverCapability, account.ID)
 	require.NoError(t, err)
 	require.NotNil(t, state)
 	assert.True(t, state.DisableBlocked)
@@ -651,7 +651,7 @@ func TestCaregiverCapability_DisableWaitsForConcurrentBindings(t *testing.T) {
 	require.Len(t, blockedErr.Reasons, 1)
 	assert.Equal(t, peopleValues.CaregiverCapabilityBlockerGroupAssignments, blockedErr.Reasons[0])
 
-	state, err := factory.CaregiverCapability.GetCaregiverCapability(ctx, account.ID)
+	state, err := testpkg.TenantQuery1(t, ctx, db, factory.CaregiverCapability.GetCaregiverCapability, account.ID)
 	require.NoError(t, err)
 	assert.True(t, state.HasUserRole)
 	assert.True(t, state.DisableBlocked)
@@ -742,7 +742,7 @@ func TestCaregiverCapability_GetSupportsPersonWithoutStaffProfile(t *testing.T) 
 		account.ID,
 	)
 
-	state, err := factory.CaregiverCapability.GetCaregiverCapability(ctx, account.ID)
+	state, err := testpkg.TenantQuery1(t, ctx, db, factory.CaregiverCapability.GetCaregiverCapability, account.ID)
 
 	require.NoError(t, err)
 	require.NotNil(t, state)
@@ -807,7 +807,7 @@ func TestCaregiverCapability_DisableBlocksLegacyTeacherOnlyAccount(t *testing.T)
 	ensureSystemRoleExists(t, db, "teacher")
 	assignSystemRoleToAccount(t, db, account.ID, testpkg.Tenant(t), "teacher")
 
-	state, err := factory.CaregiverCapability.GetCaregiverCapability(ctx, account.ID)
+	state, err := testpkg.TenantQuery1(t, ctx, db, factory.CaregiverCapability.GetCaregiverCapability, account.ID)
 	require.NoError(t, err)
 	require.NotNil(t, state)
 	assert.True(t, state.DisableBlocked)
@@ -874,32 +874,32 @@ func TestCaregiverDirectory_ListAndFindActiveCaregiversIncludingLegacyTeacherRol
 
 	directory := factory.Users
 
-	caregivers, err := directory.ListActiveCaregivers(ctx)
+	caregivers, err := testpkg.TenantQuery0(t, ctx, db, directory.ListActiveCaregivers)
 	require.NoError(t, err)
 	require.Len(t, caregivers, 2)
 
 	accountIDs := []int64{caregivers[0].AccountID, caregivers[1].AccountID}
 	assert.ElementsMatch(t, []int64{activeAccount.ID, legacyTeacherRoleAccount.ID}, accountIDs)
 
-	found, err := directory.FindActiveCaregiverByAccountID(ctx, activeAccount.ID)
+	found, err := testpkg.TenantQuery1(t, ctx, db, directory.FindActiveCaregiverByAccountID, activeAccount.ID)
 	require.NoError(t, err)
 	require.NotNil(t, found)
 	assert.Equal(t, activeTeacher.ID, found.TeacherID)
 
-	legacyFound, err := directory.FindActiveCaregiverByAccountID(ctx, legacyTeacherRoleAccount.ID)
+	legacyFound, err := testpkg.TenantQuery1(t, ctx, db, directory.FindActiveCaregiverByAccountID, legacyTeacherRoleAccount.ID)
 	require.NoError(t, err)
 	require.NotNil(t, legacyFound)
 	assert.Equal(t, legacyTeacherRoleTeacher.ID, legacyFound.TeacherID)
 
-	missing, err := directory.FindActiveCaregiverByAccountID(ctx, adminOnlyAccount.ID)
+	missing, err := testpkg.TenantQuery1(t, ctx, db, directory.FindActiveCaregiverByAccountID, adminOnlyAccount.ID)
 	require.NoError(t, err)
 	assert.Nil(t, missing)
 
-	inactive, err := directory.FindActiveCaregiverByAccountID(ctx, inactiveAccount.ID)
+	inactive, err := testpkg.TenantQuery1(t, ctx, db, directory.FindActiveCaregiverByAccountID, inactiveAccount.ID)
 	require.NoError(t, err)
 	assert.Nil(t, inactive)
 
-	inactiveMembership, err := directory.FindActiveCaregiverByAccountID(ctx, inactiveMembershipAccount.ID)
+	inactiveMembership, err := testpkg.TenantQuery1(t, ctx, db, directory.FindActiveCaregiverByAccountID, inactiveMembershipAccount.ID)
 	require.NoError(t, err)
 	assert.Nil(t, inactiveMembership)
 }
@@ -939,11 +939,11 @@ func TestCaregiverDirectory_ExcludesTenantScopedUserRole(t *testing.T) {
 
 	directory := factory.Users
 
-	caregivers, err := directory.ListActiveCaregivers(ctx)
+	caregivers, err := testpkg.TenantQuery0(t, ctx, db, directory.ListActiveCaregivers)
 	require.NoError(t, err)
 	assert.Empty(t, caregivers)
 
-	found, err := directory.FindActiveCaregiverByAccountID(ctx, account.ID)
+	found, err := testpkg.TenantQuery1(t, ctx, db, directory.FindActiveCaregiverByAccountID, account.ID)
 	require.NoError(t, err)
 	assert.Nil(t, found)
 }

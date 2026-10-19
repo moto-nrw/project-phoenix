@@ -14,7 +14,7 @@ import (
 // the actor's delete right. Objects whose prior post-commit removal did not
 // finish are retried after the caller's transaction commits.
 func (s *Service) ListFiles(ctx context.Context, folderID int64, actor domain.Actor) (folder domain.Folder, files []domain.FileView, err error) {
-	err = s.run("list_files", func(o *op) error {
+	err = s.runRead(ctx, "list_files", func(ctx context.Context, o *op) error {
 		var err error
 		if folder, err = s.requireVisible(ctx, o, folderID, actor); err != nil {
 			return err
@@ -61,7 +61,7 @@ func (s *Service) retryCleanups(ctx context.Context, o *op, folderID int64) {
 // writing anything, so an unauthorized request costs nothing but the request
 // itself. UploadFile repeats the check inside its transaction.
 func (s *Service) AuthorizeUpload(ctx context.Context, folderID int64, actor domain.Actor) error {
-	return s.run("authorize_upload", func(o *op) error {
+	return s.runRead(ctx, "authorize_upload", func(ctx context.Context, o *op) error {
 		return s.write(ctx, o, func(txCtx context.Context, o *op) error {
 			return s.requireUpload(txCtx, o, folderID, actor)
 		})

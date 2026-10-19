@@ -41,7 +41,7 @@ func TestCompanionFacadePreservesNamesIsolationAndQueryCount(t *testing.T) {
 	module, err := New(Dependencies{
 		StudentDirectory: testpkg.StudentDirectory{},
 		DB:               db, Observe: func(value Observation) { observations = append(observations, value) },
-		AmbientDB: func(context.Context) bun.IDB { return db }, People: people,
+		AmbientDB: TenantAmbientDatabase(db), People: people,
 		StatusStudents: emptyPeopleDirectory{}, StatusSlots: emptyStatusSlots{},
 		StudentLock:     func(context.Context, int64) error { return nil },
 		StudentNotFound: errors.New("student not found"),

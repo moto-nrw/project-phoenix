@@ -153,7 +153,7 @@ func TestOperatorSessionRotationHandoff(t *testing.T) {
 	err = access.MarkOperatorSessionRotated(ctx, predecessor.ID, successor.Token, proof, rotatedAt)
 	require.ErrorIs(t, err, identityaccess.ErrOperatorSessionRotated, "a second hand-off is a replay signal, never a silent re-rotation")
 
-	stored, err := access.FindOperatorSessionForUpdate(ctx, predecessor.Token)
+	stored, err := lockedOperatorSession(t, ctx, db, access, predecessor.Token)
 	require.NoError(t, err)
 	require.NotNil(t, stored.RotatedAt)
 	require.NotNil(t, stored.ReplacementToken)
@@ -163,14 +163,14 @@ func TestOperatorSessionRotationHandoff(t *testing.T) {
 	// A rotated predecessor stays as replay evidence until its refresh JWT
 	// expires.
 	require.NoError(t, access.DeleteExpiredRotatedOperatorSessions(ctx, familyID, time.Now()))
-	_, err = access.FindOperatorSessionForUpdate(ctx, predecessor.Token)
+	_, err = lockedOperatorSession(t, ctx, db, access, predecessor.Token)
 	require.NoError(t, err)
 	_, err = db.NewUpdate().Table("platform.operator_refresh_tokens").Set("expiry = ?", time.Now().Add(-time.Minute)).Where("id = ?", predecessor.ID).Exec(ctx)
 	require.NoError(t, err)
 	require.NoError(t, access.DeleteExpiredRotatedOperatorSessions(ctx, familyID, time.Now()))
-	_, err = access.FindOperatorSessionForUpdate(ctx, predecessor.Token)
+	_, err = lockedOperatorSession(t, ctx, db, access, predecessor.Token)
 	require.ErrorIs(t, err, identityaccess.ErrOperatorSessionNotFound)
-	kept, err := access.FindOperatorSessionForUpdate(ctx, successor.Token)
+	kept, err := lockedOperatorSession(t, ctx, db, access, successor.Token)
 	require.NoError(t, err)
 	assert.Equal(t, 1, kept.Generation)
 }
@@ -237,7 +237,7 @@ func TestOperatorSessionWritesJoinAmbientTransaction(t *testing.T) {
 		return errInjected
 	})
 	require.ErrorIs(t, err, errInjected)
-	_, err = access.FindOperatorSessionForUpdate(testpkg.Ctx(t), token.Token)
+	_, err = lockedOperatorSession(t, testpkg.Ctx(t), db, access, token.Token)
 	require.ErrorIs(t, err, identityaccess.ErrOperatorSessionNotFound, "the rolled-back session must not exist")
 	reloaded, err := access.FindOperator(testpkg.Ctx(t), operator.ID)
 	require.NoError(t, err)
@@ -248,7 +248,7 @@ func TestOperatorSessionWritesJoinAmbientTransaction(t *testing.T) {
 		return err
 	})
 	require.NoError(t, err, "the retry starts from a clean state")
-	stored, err := access.FindOperatorSessionForUpdate(testpkg.Ctx(t), token.Token)
+	stored, err := lockedOperatorSession(t, testpkg.Ctx(t), db, access, token.Token)
 	require.NoError(t, err)
 	assert.Equal(t, operator.ID, stored.OperatorID)
 }
@@ -270,7 +270,7 @@ func TestOperatorObservationsCountRows(t *testing.T) {
 	require.NoError(t, err)
 	_, err = access.RevokeOperatorSessions(ctx, operator.ID)
 	require.NoError(t, err)
-	_, err = access.FindOperatorSessionForUpdate(ctx, session.Token)
+	_, err = lockedOperatorSession(t, ctx, db, access, session.Token)
 	require.ErrorIs(t, err, identityaccess.ErrOperatorSessionNotFound)
 
 	require.Len(t, observations, 4)
@@ -311,7 +311,7 @@ func TestOperatorRowsAreVisibleFromEveryTenantContext(t *testing.T) {
 			found, err := access.FindOperator(ctx, operator.ID)
 			require.NoError(t, err)
 			assert.Equal(t, operator.Email, found.Email)
-			stored, err := access.FindOperatorSessionForUpdate(ctx, session.Token)
+			stored, err := lockedOperatorSession(t, ctx, db, access, session.Token)
 			require.NoError(t, err)
 			assert.Equal(t, operator.ID, stored.OperatorID)
 		})
@@ -376,12 +376,12 @@ func TestOperatorRefreshRollsBackAfterEachWrite(t *testing.T) {
 			})
 			require.ErrorIs(t, err, errInjected)
 
-			stored, err := access.FindOperatorSessionForUpdate(testpkg.Ctx(t), predecessor.Token)
+			stored, err := lockedOperatorSession(t, testpkg.Ctx(t), db, access, predecessor.Token)
 			require.NoError(t, err, "the predecessor must survive the rollback")
 			assert.Nil(t, stored.RotatedAt, "the rolled-back hand-off must not be recorded")
 			assert.Nil(t, stored.ReplacementToken)
 			if state.successor.Token != "" {
-				_, err = access.FindOperatorSessionForUpdate(testpkg.Ctx(t), state.successor.Token)
+				_, err = lockedOperatorSession(t, testpkg.Ctx(t), db, access, state.successor.Token)
 				require.ErrorIs(t, err, identityaccess.ErrOperatorSessionNotFound, "the rolled-back successor must not exist")
 			}
 			latest, err := access.LatestOperatorSessionInFamily(testpkg.Ctx(t), predecessor.FamilyID)
@@ -399,7 +399,7 @@ func TestOperatorRefreshRollsBackAfterEachWrite(t *testing.T) {
 				}
 				return nil
 			}), "the retry must succeed from the clean state")
-			rotated, err := access.FindOperatorSessionForUpdate(testpkg.Ctx(t), predecessor.Token)
+			rotated, err := lockedOperatorSession(t, testpkg.Ctx(t), db, access, predecessor.Token)
 			require.NoError(t, err)
 			require.NotNil(t, rotated.RotatedAt, "the retry records the hand-off")
 			reloaded, err = access.FindOperator(testpkg.Ctx(t), operator.ID)
@@ -449,5 +449,31 @@ func TestOperatorRevocationRollsBackWithItsCaller(t *testing.T) {
 		deleted, err := access.RevokeOperatorSessions(txCtx, operator.ID)
 		assert.Empty(t, deleted, "an idempotent retry deletes nothing")
 		return err
+	}))
+}
+
+func lockedOperatorSession(t *testing.T, ctx context.Context, db *bun.DB, access identityaccess.OperatorAccess, token string) (value identityaccess.OperatorSession, err error) {
+	t.Helper()
+	err = testpkg.WithinAdminContext(t, ctx, db, func(txCtx context.Context) error {
+		value, err = access.FindOperatorSessionForUpdate(txCtx, token)
+		return err
+	})
+	return value, err
+}
+
+func TestOperatorLocksRequireCallerTransaction(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	access := newOperatorAccess(t, db)
+	operator := testpkg.CreateTestOperator(t, db)
+	_, err := access.FindOperatorForUpdate(testpkg.Ctx(t), operator.ID)
+	require.ErrorContains(t, err, "transaction is required")
+	_, err = access.FindOperatorSessionForUpdate(testpkg.Ctx(t), "unscoped-session")
+	require.ErrorContains(t, err, "transaction is required")
+	require.NoError(t, testpkg.WithinAdminContext(t, testpkg.Ctx(t), db, func(txCtx context.Context) error {
+		row, err := access.FindOperatorForUpdate(txCtx, operator.ID)
+		require.NoError(t, err)
+		require.Equal(t, operator.ID, row.ID)
+		return nil
 	}))
 }

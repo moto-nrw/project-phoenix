@@ -22,7 +22,7 @@ type Observation = ports.Observation
 // PersistenceRuntime exposes the compose-owned ambient tenant transaction to
 // legacy School Calendar persistence adapters during the migration.
 type PersistenceRuntime struct {
-	Database func(context.Context) bun.IDB
+	Database func(context.Context) (bun.IDB, error)
 	TenantID func(context.Context) int64
 }
 
@@ -33,22 +33,12 @@ func PersistenceRuntimeFor(db *bun.DB) PersistenceRuntime {
 		panic("school calendar compose: database is required")
 	}
 	return PersistenceRuntime{
-		Database: func(ctx context.Context) bun.IDB {
-			transaction, ok := tenant.TransactionFromContext(ctx)
-			if !ok {
-				return db
+		Database: func(ctx context.Context) (bun.IDB, error) {
+			db, err := tenant.CurrentTransaction[bun.IDB](ctx)
+			if err != nil {
+				return nil, fmt.Errorf("school calendar repository: tenant is required for the ambient transaction: %w", err)
 			}
-			switch tx := transaction.(type) {
-			case bun.Tx:
-				return tx
-			case *bun.Tx:
-				if tx != nil {
-					return tx
-				}
-				return db
-			default:
-				panic(fmt.Sprintf("school calendar compose: unsupported transaction %T", transaction))
-			}
+			return db, nil
 		},
 		TenantID: tenant.FromContext,
 	}

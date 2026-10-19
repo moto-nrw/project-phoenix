@@ -23,7 +23,7 @@ func seedChildWithStatus(t *testing.T, env *rolloverTestEnv, phaseID int64, emai
 		return child
 	}
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(ctx, child.ID, status, nil, env.creatorID))
+	require.NoError(t, testpkg.TenantCommand4(t, ctx, env.db, env.repos.Enrollment().UpdateChildStatus, child.ID, status, nil, env.creatorID))
 	updated, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), child.ID)
 	require.NoError(t, err)
 	return updated

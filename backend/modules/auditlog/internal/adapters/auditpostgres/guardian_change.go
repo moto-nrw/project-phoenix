@@ -26,7 +26,11 @@ func (r *guardianChangeRepository) ListByStudentID(ctx context.Context, studentI
 		return nil, fmt.Errorf("student_id is required")
 	}
 	var rows []*audit.GuardianChange
-	err := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB1, databaseErr1 := runtimeDB(ctx, r.runtime)
+	if databaseErr1 != nil {
+		return *new([]*audit.GuardianChange), databaseErr1
+	}
+	err := ambientDB1.NewSelect().
 		Model(&rows).
 		ModelTableExpr(guardianChangeTableExpr).
 		Where(`"guardian_change".student_id = ?`, studentID).

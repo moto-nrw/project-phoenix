@@ -66,27 +66,27 @@ func TestBookingCapacityCutoverPreservesBoundariesAndTenantIsolation(t *testing.
 			{"2030-01-03", "2030-01-04", 3},
 			{"2030-01-04", "2030-01-05", 1},
 		} {
-			peak, err := projection.OfferingCapacityPeak(own.ctx, own.offeringID, nil, window.from, window.until)
+			peak, err := testpkg.TenantQuery4(t, own.ctx, db, projection.OfferingCapacityPeak, own.offeringID, nil, window.from, window.until)
 			require.NoError(t, err)
 			require.Equal(t, window.want, peak)
 		}
-		peaks, err := projection.OfferingCapacityPeaks(own.ctx, []int64{own.offeringID, foreign.offeringID}, "2030-01-01", "2030-01-05")
+		peaks, err := testpkg.TenantQuery3(t, own.ctx, db, projection.OfferingCapacityPeaks, []int64{own.offeringID, foreign.offeringID}, "2030-01-01", "2030-01-05")
 		require.NoError(t, err)
 		require.Equal(t, map[int64]int{own.offeringID: 3}, peaks)
-		peak, err := projection.OfferingCapacityPeak(own.ctx, own.offeringID, []int64{own.firstChildID}, "2030-01-01", "2030-01-05")
+		peak, err := testpkg.TenantQuery4(t, own.ctx, db, projection.OfferingCapacityPeak, own.offeringID, []int64{own.firstChildID}, "2030-01-01", "2030-01-05")
 		require.NoError(t, err)
 		require.Equal(t, 2, peak)
-		grades, err := projection.OfferingGradeCounts(own.ctx, []int64{own.offeringID, foreign.offeringID}, "2030-01-01", "2030-01-05")
+		grades, err := testpkg.TenantQuery3(t, own.ctx, db, projection.OfferingGradeCounts, []int64{own.offeringID, foreign.offeringID}, "2030-01-01", "2030-01-05")
 		require.NoError(t, err)
 		require.Equal(t, []*enrollmentTest.OfferingGradeCount{
 			{CareOfferingID: own.offeringID, GradeLevel: new(int16(1)), Count: 2},
 			{CareOfferingID: own.offeringID, GradeLevel: new(int16(2)), Count: 1},
 			{CareOfferingID: own.offeringID, Count: 1},
 		}, grades)
-		count, err := projection.MaterializableOfferingCount(own.ctx, own.offeringID, "2030-01-03")
+		count, err := testpkg.TenantQuery2(t, own.ctx, db, projection.MaterializableOfferingCount, own.offeringID, "2030-01-03")
 		require.NoError(t, err)
 		require.Equal(t, 3, count)
-		state, err := projection.OfferingCatalogState(own.ctx, own.phaseID, own.firstChildID, "2030-01-03", "2030-01-05")
+		state, err := testpkg.TenantQuery4(t, own.ctx, db, projection.OfferingCatalogState, own.phaseID, own.firstChildID, "2030-01-03", "2030-01-05")
 		require.NoError(t, err)
 		require.Equal(t, peaks, state.CapacityPeaks)
 		require.Len(t, state.Current, 1)

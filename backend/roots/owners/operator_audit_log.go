@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 )
 
@@ -27,7 +29,9 @@ func (r operatorAuditLogRepository) Create(ctx context.Context, entry *auditMode
 	if entry == nil {
 		return fmt.Errorf("database error during create audit log entry: audit log entry is required")
 	}
-	if err := r.entries.Create(ctx, entry); err != nil {
+	// This root is exclusive to platform-operator evidence, not school data.
+	// Standalone login/token flows have no surrounding school unit.
+	if err := tenant.WithinAdmin(ctx, func(txCtx context.Context) error { return r.entries.Create(txCtx, entry) }); err != nil {
 		return fmt.Errorf("database error during create audit log entry: %w", err)
 	}
 	return nil

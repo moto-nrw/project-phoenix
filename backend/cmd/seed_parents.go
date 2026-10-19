@@ -134,7 +134,12 @@ func seedParentAccounts(ctx context.Context, db transactionruntime.Database, cou
 	}
 	ctx = tenant.WithUnitOfWork(ctx, db.UnitOfWork())
 
-	candidates, err := promotableGuardians(ctx, repos, count)
+	var candidates []parentCandidate
+	err = tenant.WithinAdmin(ctx, func(txCtx context.Context) error {
+		var readErr error
+		candidates, readErr = promotableGuardians(txCtx, repos, count)
+		return readErr
+	})
 	if err != nil {
 		return err
 	}

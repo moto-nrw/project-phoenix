@@ -6,6 +6,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
@@ -45,14 +47,16 @@ func ParentStoreReminderAnnouncement(t ParentStoreFixtureChecks, ctx context.Con
 		ReminderText: &text,
 	}
 	a.TenantID = tenantID
-	t.NoError(repo.Create(ctx, a))
-	t.NoError(repo.ReplaceTargets(ctx, tenantID, a.ID, []*communication.PortalParentAnnouncementTarget{{TargetType: "school_all"}}))
+	t.NoError(tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error { return repo.Create(txCtx, a) }))
+	t.NoError(tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		return repo.ReplaceTargets(txCtx, tenantID, a.ID, []*communication.PortalParentAnnouncementTarget{{TargetType: "school_all"}})
+	}))
 	if published {
 		publishedAt := databaseTimestamp().Add(-7 * 24 * time.Hour)
-		t.NoError(repo.SetPublished(ctx, a.ID, &publishedAt))
+		t.NoError(tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error { return repo.SetPublished(txCtx, a.ID, &publishedAt) }))
 	}
 	t.Cleanup(func() {
-		_ = repo.Delete(ctx, a.ID)
+		_ = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error { return repo.Delete(txCtx, a.ID) })
 	})
 	return a
 }
@@ -77,17 +81,26 @@ func ParentStorePollAnnouncement(t ParentStoreFixtureChecks, ctx context.Context
 		ResponseType: responseType,
 	}
 	a.TenantID = tenantID
-	t.NoError(repo.Create(ctx, a))
-	t.NoError(repo.ReplaceTargets(ctx, tenantID, a.ID, []*communication.PortalParentAnnouncementTarget{{TargetType: "school_all"}}))
-	t.NoError(repo.ReplaceOptions(ctx, tenantID, a.ID, []*communication.PortalParentAnnouncementOption{{Label: "Ja"}, {Label: "Nein"}}))
-	options, err := repo.ListOptions(ctx, a.ID)
+	t.NoError(tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error { return repo.Create(txCtx, a) }))
+	t.NoError(tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		return repo.ReplaceTargets(txCtx, tenantID, a.ID, []*communication.PortalParentAnnouncementTarget{{TargetType: "school_all"}})
+	}))
+	t.NoError(tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		return repo.ReplaceOptions(txCtx, tenantID, a.ID, []*communication.PortalParentAnnouncementOption{{Label: "Ja"}, {Label: "Nein"}})
+	}))
+	var options []*communication.PortalParentAnnouncementOption
+	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		var err error
+		options, err = repo.ListOptions(txCtx, a.ID)
+		return err
+	})
 	t.NoError(err)
 	t.Len(options, 2)
 	now := databaseTimestamp()
-	t.NoError(repo.SetPublished(ctx, a.ID, &now))
+	t.NoError(tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error { return repo.SetPublished(txCtx, a.ID, &now) }))
 	a.PublishedAt = &now
 	t.Cleanup(func() {
-		_ = repo.Delete(ctx, a.ID)
+		_ = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error { return repo.Delete(txCtx, a.ID) })
 	})
 	return a, []int64{options[0].ID, options[1].ID}
 }
@@ -98,13 +111,13 @@ func ParentStorePublishedAnnouncement(t ParentStoreFixtureChecks, ctx context.Co
 	t.Helper()
 	a := &communication.PortalParentAnnouncement{Title: title, Body: "Testtext", Priority: "info", Active: true, CreatedBy: createdBy}
 	a.TenantID = tenantID
-	t.NoError(repo.Create(ctx, a))
-	t.NoError(repo.ReplaceTargets(ctx, tenantID, a.ID, targets))
+	t.NoError(tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error { return repo.Create(txCtx, a) }))
+	t.NoError(tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error { return repo.ReplaceTargets(txCtx, tenantID, a.ID, targets) }))
 	now := databaseTimestamp()
-	t.NoError(repo.SetPublished(ctx, a.ID, &now))
+	t.NoError(tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error { return repo.SetPublished(txCtx, a.ID, &now) }))
 	a.PublishedAt = &now
 	t.Cleanup(func() {
-		_ = repo.Delete(ctx, a.ID)
+		_ = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error { return repo.Delete(txCtx, a.ID) })
 	})
 	return a
 }

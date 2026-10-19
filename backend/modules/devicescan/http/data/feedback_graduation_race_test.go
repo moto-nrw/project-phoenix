@@ -62,7 +62,7 @@ func TestSubmitFeedback_GraduatedAfterUnlockedRead(t *testing.T) {
 		testutil.WithDeviceContext(testDevice),
 	)
 
-	rr := testutil.ExecuteRequest(resource.Router(), req)
+	rr := testutil.ExecuteRequest(dataTenantRoot(ctx.db, resource.Router()), req)
 
 	assert.True(t, locked, "feedback must read through the locked student interface")
 	testutil.AssertNotFound(t, rr)
@@ -99,7 +99,7 @@ func TestSubmitFeedback_LockedReaderRejectsGraduate(t *testing.T) {
 		testutil.WithDeviceContext(testDevice),
 	)
 
-	rr := testutil.ExecuteRequest(resource.Router(), req)
+	rr := testutil.ExecuteRequest(dataTenantRoot(ctx.db, resource.Router()), req)
 
 	testutil.AssertNotFound(t, rr)
 }

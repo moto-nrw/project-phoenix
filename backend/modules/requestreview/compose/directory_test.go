@@ -29,7 +29,7 @@ func TestDirectoryDecoratesOnlyRequestedChildrenInTheTenant(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, otherTenant)
 	foreign := testpkg.CreateTestStudentForTenant(t, db, otherTenant, "Foreign", "Child", "2a")
 
-	names, err := directory.GroupNames(testpkg.Ctx(t), []int64{grouped.ID, ungrouped.ID, foreign.ID, grouped.ID})
+	names, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, directory.GroupNames, []int64{grouped.ID, ungrouped.ID, foreign.ID, grouped.ID})
 	require.NoError(t, err)
 	require.Equal(t, map[int64]string{grouped.ID: group.Name}, names)
 	names, err = directory.GroupNames(testpkg.Ctx(t), []int64{ungrouped.ID})

@@ -241,7 +241,7 @@ func TestCalendarPeriodAdapter_UsageCountsComeFromThePlanningTables(t *testing.T
 	period := testpkg.CreateTestCalendarPeriod(t, db, "Genutzt", testpkg.Date(2030, time.August, 1), testpkg.Date(2031, time.July, 31))
 	unused := testpkg.CreateTestCalendarPeriod(t, db, "Ungenutzt", testpkg.Date(2031, time.August, 1), testpkg.Date(2032, time.July, 31))
 
-	usage, err := repo.UsageCounts(ctx)
+	usage, err := testpkg.TenantQuery0(t, ctx, db, repo.UsageCounts)
 	require.NoError(t, err)
 	assert.Empty(t, usage, "periods without references are omitted")
 
@@ -252,7 +252,7 @@ func TestCalendarPeriodAdapter_UsageCountsComeFromThePlanningTables(t *testing.T
 		Exec(ctx)
 	require.NoError(t, err)
 
-	usage, err = repo.UsageCounts(ctx)
+	usage, err = testpkg.TenantQuery0(t, ctx, db, repo.UsageCounts)
 	require.NoError(t, err)
 	require.Contains(t, usage, period.ID)
 	assert.Equal(t, 1, usage[period.ID].ActivityGroups)

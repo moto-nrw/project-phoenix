@@ -33,29 +33,29 @@ func TestParentMessage_FindByIDAndTail(t *testing.T) {
 	ctx := tenantCtx(t)
 
 	thread := api.ParentStoreThread(testpkg.Tenant(t), chain.StudentID, chain.AccountID)
-	require.NoError(t, threadRepo.Create(ctx, thread))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, threadRepo.Create, thread))
 
 	bodies := []string{"eins", "zwei", "drei"}
 	var lastID int64
 	for _, b := range bodies {
 		m := api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, chain.AccountID, owner0.ParentMessageSenderGuardian, b)
-		require.NoError(t, msgRepo.Create(ctx, m))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, m))
 		lastID = m.ID
 	}
 
 	// FindByID hit.
-	found, err := msgRepo.FindByID(ctx, lastID)
+	found, err := testpkg.TenantQuery1(t, ctx, db, msgRepo.FindByID, lastID)
 	require.NoError(t, err)
 	require.NotNil(t, found)
 	assert.Equal(t, "drei", found.Body)
 
 	// FindByID miss → nil, no error (an absent id is not a failure).
-	missing, err := msgRepo.FindByID(ctx, lastID+999999)
+	missing, err := testpkg.TenantQuery1(t, ctx, db, msgRepo.FindByID, lastID+999999)
 	require.NoError(t, err)
 	assert.Nil(t, missing)
 
 	// Positive-limit tail: the two MOST RECENT messages, returned oldest-first.
-	tail, err := msgRepo.ListByThread(ctx, thread.ID, 2)
+	tail, err := testpkg.TenantQuery2(t, ctx, db, msgRepo.ListByThread, thread.ID, 2)
 	require.NoError(t, err)
 	require.Len(t, tail, 2)
 	assert.Equal(t, "zwei", tail[0].Body)
@@ -77,7 +77,7 @@ func TestParentMessage_FindEventByRef(t *testing.T) {
 	ctx := tenantCtx(t)
 
 	thread := api.ParentStoreThread(testpkg.Tenant(t), chain.StudentID, chain.AccountID)
-	require.NoError(t, threadRepo.Create(ctx, thread))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, threadRepo.Create, thread))
 
 	const refTable = "schedule.care_schedule_change_requests"
 	refID := int64(4242)
@@ -88,7 +88,7 @@ func TestParentMessage_FindEventByRef(t *testing.T) {
 	pill.EventActorKind = owner0.ParentMessageSenderGuardian
 	pill.RefTable = refTable
 	pill.RefID = &refID
-	require.NoError(t, msgRepo.Create(ctx, pill))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, pill))
 
 	// Same ref, but a decision pill (different event_type) — must NOT match.
 	decision := api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, chain.AccountID, owner0.ParentMessageSenderSystem, "Anfrage bestätigt")
@@ -96,21 +96,21 @@ func TestParentMessage_FindEventByRef(t *testing.T) {
 	decision.EventType = "request_status"
 	decision.RefTable = refTable
 	decision.RefID = &refID
-	require.NoError(t, msgRepo.Create(ctx, decision))
-	require.NoError(t, msgRepo.Create(ctx, api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, chain.AccountID, owner0.ParentMessageSenderGuardian, "Frage")))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, decision))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, chain.AccountID, owner0.ParentMessageSenderGuardian, "Frage")))
 
-	found, err := msgRepo.FindEventByRef(ctx, thread.ID, "request_created", refTable, refID)
+	found, err := testpkg.TenantQuery4(t, ctx, db, msgRepo.FindEventByRef, thread.ID, "request_created", refTable, refID)
 	require.NoError(t, err)
 	require.NotNil(t, found)
 	assert.Equal(t, pill.ID, found.ID)
 
 	// Wrong ref_id → nil, no error.
-	other, err := msgRepo.FindEventByRef(ctx, thread.ID, "request_created", refTable, refID+1)
+	other, err := testpkg.TenantQuery4(t, ctx, db, msgRepo.FindEventByRef, thread.ID, "request_created", refTable, refID+1)
 	require.NoError(t, err)
 	assert.Nil(t, other)
 
 	// Wrong ref_table (a master-data request) → nil.
-	none, err := msgRepo.FindEventByRef(ctx, thread.ID, "request_created", "users.student_data_change_requests", refID)
+	none, err := testpkg.TenantQuery4(t, ctx, db, msgRepo.FindEventByRef, thread.ID, "request_created", "users.student_data_change_requests", refID)
 	require.NoError(t, err)
 	assert.Nil(t, none)
 }
@@ -137,25 +137,25 @@ func TestListInboxForStaff_ScopeFlag(t *testing.T) {
 	ctx := tenantCtx(t)
 
 	thread := api.ParentStoreThread(testpkg.Tenant(t), chain.StudentID, chain.AccountID)
-	require.NoError(t, threadRepo.Create(ctx, thread))
-	require.NoError(t, msgRepo.Create(ctx, api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, chain.AccountID, owner0.ParentMessageSenderGuardian, "Frage")))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, threadRepo.Create, thread))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, chain.AccountID, owner0.ParentMessageSenderGuardian, "Frage")))
 
 	// Verified staff → sees the conversation regardless of the child's group.
-	inbox, err := readRepo.ListInboxForStaff(ctx, staffAccount.ID, true, false)
+	inbox, err := testpkg.TenantQuery3(t, ctx, db, readRepo.ListInboxForStaff, staffAccount.ID, true, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1)
 	assert.Equal(t, 1, inbox[0].UnreadCount)
 
-	count, err := readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true)
+	count, err := testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, true)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
 
 	// Not admitted → the 1=0 guard yields nothing, never the whole tenant inbox.
-	inbox, err = readRepo.ListInboxForStaff(ctx, staffAccount.ID, false, false)
+	inbox, err = testpkg.TenantQuery3(t, ctx, db, readRepo.ListInboxForStaff, staffAccount.ID, false, false)
 	require.NoError(t, err)
 	assert.Empty(t, inbox, "a caller outside the staff scope must not read the tenant inbox")
 
-	count, err = readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, false)
+	count, err = testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, false)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)
 }

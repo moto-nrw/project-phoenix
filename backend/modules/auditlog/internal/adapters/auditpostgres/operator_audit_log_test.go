@@ -20,14 +20,18 @@ func TestOperatorAuditLogRepository_AppendsWithoutTenant(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	entry := &auditModels.OperatorAuditEntry{OperatorID: operator.ID, Action: "login", ResourceType: "operator", ResourceID: &operator.ID}
-	require.NoError(t, repo.Create(ctx, entry))
-	assert.NotZero(t, entry.ID)
-	assert.NotZero(t, entry.CreatedAt)
 
-	entries, err := repo.FindByOperatorID(ctx, operator.ID, 10)
+	require.ErrorContains(t, repo.Create(ctx, entry), "transaction is required")
+	err := testpkg.WithinAdminContext(t, ctx, db, func(ctx context.Context) error {
+		require.NoError(t, repo.Create(ctx, entry))
+		assert.NotZero(t, entry.ID)
+		assert.NotZero(t, entry.CreatedAt)
+		entries, err := repo.FindByOperatorID(ctx, operator.ID, 10)
+		require.NoError(t, err)
+		require.Len(t, entries, 1)
+		assert.Equal(t, entry.ID, entries[0].ID)
+		require.Error(t, repo.Create(ctx, nil))
+		return nil
+	})
 	require.NoError(t, err)
-	require.Len(t, entries, 1)
-	assert.Equal(t, entry.ID, entries[0].ID)
-
-	require.Error(t, repo.Create(ctx, nil))
 }

@@ -2,6 +2,9 @@ package enrollmenthttp_test
 
 import (
 	"context"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/tenant"
 
 	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
 
@@ -140,7 +143,7 @@ func newTestRequestService(cfg owners.EnrollmentIntakeSources) enrollmentAPI.Req
 		offerings, _ := cfg.CareOfferingRepo.(capacityOfferings)
 		cfg.Capacity = owners.NewEnrollmentOfferingCapacity(offerings, cfg.Children, cfg.Settings)
 	}
-	return enrollmentAPI.NewRequestService(owners.NewEnrollmentIntake(cfg))
+	return requestFixtureRoot{enrollmentAPI.NewRequestService(owners.NewEnrollmentIntake(cfg))}
 }
 
 func newTestChangeRequestService(cfg owners.EnrollmentChangeRequestSources) enrollmentAPI.ChangeRequestService {
@@ -169,7 +172,7 @@ func newTestRolloverService(src owners.EnrollmentRolloverSources) enrollmentAPI.
 			Resyncer: &recordingSourcedTemplateResyncer{}, Settings: collectionSettings{settings: src.Settings},
 		})
 	}
-	return enrollmentAPI.NewRolloverService(owners.NewEnrollmentRollovers(src))
+	return rolloverFixtureRoot{enrollmentAPI.NewRolloverService(owners.NewEnrollmentRollovers(src))}
 }
 
 // testNotifications composes Enrollment's parent mails for a flow under
@@ -179,4 +182,89 @@ func testNotifications(modes TestNotificationModePin, settings interface {
 	ResolveString(ctx context.Context, key string) (string, error)
 }, outbox testMailOutbox, schools enrollmentNative.SchoolDirectory) enrollmentNative.Notifications {
 	return NewTestFlowNotifications(modes, notificationModeSettings{settings: settings}, outbox, schools)
+}
+
+// Fixture roots supply the same outer units as the HTTP/worker roots. The
+// native owner and persistence tests exercise missing-transaction rejection.
+type requestFixtureRoot struct{ enrollmentAPI.RequestService }
+
+func (r requestFixtureRoot) Submit(ctx context.Context, req enrollmentAPI.SubmitRequest) (value *enrollmentAPI.SubmitResult, err error) {
+	id, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		id, err = tenant.NewTenantID(req.TenantID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	err = tenant.WithinTenant(ctx, id, func(txCtx context.Context) error { value, err = r.RequestService.Submit(txCtx, req); return err })
+	return value, err
+}
+func (r requestFixtureRoot) GetByStatusToken(ctx context.Context, token string) (value *enrollmentAPI.Request, children []*enrollmentAPI.RequestChild, err error) {
+	err = fixturePublicTokenRoot(ctx, func(txCtx context.Context) error {
+		value, children, err = r.RequestService.GetByStatusToken(txCtx, token)
+		return err
+	})
+	return value, children, err
+}
+func (r requestFixtureRoot) Edit(ctx context.Context, token string, patch enrollmentAPI.EditPatch) error {
+	return fixturePublicTokenRoot(ctx, func(txCtx context.Context) error { return r.RequestService.Edit(txCtx, token, patch) })
+}
+func (r requestFixtureRoot) ConfirmRenewal(ctx context.Context, token string) (value int, err error) {
+	err = fixturePublicTokenRoot(ctx, func(txCtx context.Context) error {
+		value, err = r.RequestService.ConfirmRenewal(txCtx, token)
+		return err
+	})
+	return value, err
+}
+func fixturePublicTokenRoot(ctx context.Context, fn func(context.Context) error) error {
+	if _, active := tenant.TransactionFromContext(ctx); active {
+		return fn(ctx)
+	}
+	return tenant.WithinAdmin(ctx, fn)
+}
+
+type rolloverFixtureRoot struct{ enrollmentAPI.RolloverService }
+
+func (r rolloverFixtureRoot) CreatePhaseFromSource(ctx context.Context, req enrollmentAPI.CreatePhaseFromSourceRequest) (value *enrollmentAPI.RolloverResult, err error) {
+	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		value, err = r.RolloverService.CreatePhaseFromSource(txCtx, req)
+		return err
+	})
+	return value, err
+}
+func (r rolloverFixtureRoot) PreviewPhaseFromSource(ctx context.Context, id int64, bumps bool) (value *enrollmentAPI.RolloverPreview, err error) {
+	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		value, err = r.RolloverService.PreviewPhaseFromSource(txCtx, id, bumps)
+		return err
+	})
+	return value, err
+}
+func (r rolloverFixtureRoot) ListReviewQueue(ctx context.Context, id int64) (value []*enrollmentAPI.ReviewQueueItem, err error) {
+	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		value, err = r.RolloverService.ListReviewQueue(txCtx, id)
+		return err
+	})
+	return value, err
+}
+func (r rolloverFixtureRoot) DecideReview(ctx context.Context, req enrollmentAPI.DecideReviewRequest) error {
+	return tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error { return r.RolloverService.DecideReview(txCtx, req) })
+}
+func (r rolloverFixtureRoot) RunDeadlineWorker(ctx context.Context, at time.Time) (value *enrollmentAPI.DeadlineWorkerSummary, err error) {
+	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		value, err = r.RolloverService.RunDeadlineWorker(txCtx, at)
+		return err
+	})
+	return value, err
+}
+
+func newFixtureRequestRoot(owner enrollmentAPI.IntakeOwner) enrollmentAPI.RequestService {
+	return requestFixtureRoot{enrollmentAPI.NewRequestService(owner)}
+}
+
+func (r requestFixtureRoot) CreateLateInvite(ctx context.Context, input enrollmentAPI.CreateLateInviteInput) (value *enrollmentAPI.CreateLateInviteResult, err error) {
+	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		value, err = r.RequestService.CreateLateInvite(txCtx, input)
+		return err
+	})
+	return value, err
 }

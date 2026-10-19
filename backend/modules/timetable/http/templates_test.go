@@ -271,7 +271,7 @@ func TestResolveTemplateGradeLevelMax_FailsClosed(t *testing.T) {
 	})
 }
 
-func templateRouter(parentCtx context.Context, res *Resource) chi.Router {
+func templateRouter(parentCtx context.Context, res *Resource, db *bun.DB) chi.Router {
 	tenantID := tenant.FromContext(parentCtx)
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -281,6 +281,7 @@ func templateRouter(parentCtx context.Context, res *Resource) chi.Router {
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})
+	r.Use(testpkg.TenantTxMiddleware(db))
 	r.Get("/templates", res.listTemplates)
 	r.Get("/templates/{id}", res.getTemplate)
 	r.Post("/templates", res.createTemplate)
@@ -343,7 +344,7 @@ func TestTemplateCreateRejectsArchivedCategory(t *testing.T) {
 
 	s := buildTemplateModule(t, &mockMaterializationService{})
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	_, err := s.db.NewUpdate().
 		Table("activities.categories").
@@ -365,7 +366,7 @@ func TestTemplateCreateListGetUpdateArchive(t *testing.T) {
 	}
 	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 	educationGroup := testpkg.CreateTestEducationGroup(t, s.db, "Tpl-EducationGroup")
 
 	body := createTemplateBody(s, "Tpl-CreateListUpdate")
@@ -464,7 +465,7 @@ func TestTemplateUpdatePropagatesListKindToFutureInstances(t *testing.T) {
 	}
 	s := buildTemplateModule(t, mat, clock)
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	// Create the series already classified as "mensa".
 	body := createTemplateBody(s, fmt.Sprintf("Tpl-ListKind-%d", time.Now().UnixNano()))
@@ -548,7 +549,7 @@ func TestListTemplates_CapacityFields(t *testing.T) {
 		nil,
 	)
 
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 	body := createTemplateBody(s, "Tpl-Capacity")
 	// Only one staff member assigned against two enrolled students, so at a
 	// ratio of 1 the required count (2) exceeds the assigned count (1).
@@ -586,7 +587,7 @@ func TestTemplateCreateUpdate_ZielgruppeRoundTrip(t *testing.T) {
 	mat := &mockMaterializationService{result: &timetable.MaterializationResult{}}
 	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	body := createTemplateBody(s, "Tpl-Zielgruppe")
 	body["target_group_type"] = timetable.TargetGroupTypeGrade
@@ -627,7 +628,7 @@ func TestTemplateCreate_MultipleTargetsRoundTrip(t *testing.T) {
 
 	s := buildTemplateModule(t, &mockMaterializationService{result: &timetable.MaterializationResult{}})
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Multiple-Targets-Read")
 
 	body := createTemplateBody(s, fmt.Sprintf("Tpl-Multiple-Targets-%d", time.Now().UnixNano()))
@@ -681,7 +682,7 @@ func TestTemplateCreate_MultipleTargetsRejectsCrossTenantEducationGroup(t *testi
 
 	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	otherTenant := testpkg.NewTenantScope(t, s.db)
 	otherGroup := testpkg.CreateTestEducationGroupForTenant(t, s.db, otherTenant.TenantID, "Tpl-Cross-Tenant")
@@ -704,7 +705,7 @@ func TestTemplateUpdate_MultipleTargetsRejectsCrossTenantEducationGroup(t *testi
 
 	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	currentGroup := testpkg.CreateTestEducationGroup(t, s.db, "Tpl-Update-Current-Group")
 	otherTenant := testpkg.NewTenantScope(t, s.db)
@@ -736,7 +737,7 @@ func TestTemplateCreate_RejectsInvalidZielgruppe(t *testing.T) {
 	mat := &mockMaterializationService{result: &timetable.MaterializationResult{}}
 	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	body := createTemplateBody(s, "Tpl-BadZielgruppe")
 	body["target_group_type"] = timetable.TargetGroupTypeGrade
@@ -751,7 +752,7 @@ func TestTemplateCreateRejectsForeignTopLevelEducationGroupWithDynamicTargets(t 
 
 	s := buildTemplateModule(t, &mockMaterializationService{})
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	foreignTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, s.db, foreignTenantID)
@@ -787,7 +788,7 @@ func TestTemplateCreate_EnforcesTenantGradeLevelMax(t *testing.T) {
 		s := buildTemplateModule(t, nil)
 		defer s.cleanupFn()
 		s.res.SettingsService = templateGradeSettings(4, nil)
-		router := templateRouter(s.ctx, s.res)
+		router := templateRouter(s.ctx, s.res, s.db)
 
 		name := fmt.Sprintf("Tpl-GradeCap-Create-%d", time.Now().UnixNano())
 		body := createTemplateBody(s, name)
@@ -813,7 +814,7 @@ func TestTemplateCreate_EnforcesTenantGradeLevelMax(t *testing.T) {
 		s := buildTemplateModule(t, nil)
 		defer s.cleanupFn()
 		s.res.SettingsService = templateGradeSettings(0, errors.New("settings unavailable"))
-		router := templateRouter(s.ctx, s.res)
+		router := templateRouter(s.ctx, s.res, s.db)
 
 		name := fmt.Sprintf("Tpl-GradeCap-Settings-%d", time.Now().UnixNano())
 		body := createTemplateBody(s, name)
@@ -838,7 +839,7 @@ func TestTemplateCreateValidationAndMaterializationFailure(t *testing.T) {
 	mat := &mockMaterializationService{err: errors.New("materializer unavailable")}
 	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	valid := createTemplateBody(s, "Tpl-MaterializeFailure")
 	valid["materialize_from"] = "2026-05-04"
@@ -876,7 +877,7 @@ func TestTemplateCreateReusesExistingTimeframe(t *testing.T) {
 
 	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	first := createTemplateBody(s, "Tpl-Reuse-A")
 	first["weekdays"] = []int{timetable.WeekdayMonday}
@@ -899,7 +900,7 @@ func TestTemplateUpdateValidationAndNotFound(t *testing.T) {
 
 	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	valid := createTemplateBody(s, "Tpl-UpdateValidation")
 	cases := []struct {
@@ -945,7 +946,7 @@ func TestTemplateUpdateValidationAndNotFound(t *testing.T) {
 	noTenant := doTemplateJSON(t, r, http.MethodPut, "/templates/500", valid)
 	assert.Equal(t, http.StatusInternalServerError, noTenant.Code)
 
-	unwired := templateRouter(s.ctx, NewResource(Dependencies{}))
+	unwired := templateRouter(s.ctx, NewResource(Dependencies{}), s.db)
 	unwiredW := doTemplateJSON(t, unwired, http.MethodPut, "/templates/500", valid)
 	assert.Equal(t, http.StatusInternalServerError, unwiredW.Code)
 }
@@ -955,7 +956,7 @@ func TestTemplateRoutesRejectBadIDsAndMissingContext(t *testing.T) {
 
 	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	assert.Equal(t, http.StatusBadRequest, doTemplateJSON(t, router, http.MethodGet, "/templates/not-number", nil).Code)
 	assert.Equal(t, http.StatusBadRequest, doTemplateJSON(t, router, http.MethodPut, "/templates/0", createTemplateBody(s, "Tpl-BadID")).Code)
@@ -969,7 +970,7 @@ func TestTemplateRoutesRejectBadIDsAndMissingContext(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, noTenantW.Code)
 
 	unwired := NewResource(Dependencies{})
-	unwiredRouter := templateRouter(s.ctx, unwired)
+	unwiredRouter := templateRouter(s.ctx, unwired, s.db)
 	assert.Equal(t, http.StatusInternalServerError, doTemplateJSON(t, unwiredRouter, http.MethodPost, "/templates", createTemplateBody(s, "Tpl-Unwired")).Code)
 	assert.Equal(t, http.StatusInternalServerError, doTemplateJSON(t, unwiredRouter, http.MethodGet, "/templates", nil).Code)
 }
@@ -979,7 +980,7 @@ func TestListTemplatesFiltersByPeriod(t *testing.T) {
 
 	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	periodA := createTemplateTestPeriod(t, s.db, "TplPeriodA")
 	periodB := createTemplateTestPeriod(t, s.db, "TplPeriodB")
@@ -1026,7 +1027,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 
 	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	suffix := time.Now().UnixNano()
 	studentC := testpkg.CreateTestStudent(t, s.db, "Tpl", fmt.Sprintf("StudentC-%d", suffix), "3a")
@@ -1142,7 +1143,7 @@ func TestUpdateTemplateCanMoveToAnotherCalendarPeriod(t *testing.T) {
 
 	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	periodA := createTemplateTestPeriod(t, s.db, "Tpl-Move-Period-A")
 	periodB := createTemplateTestPeriod(t, s.db, "Tpl-Move-Period-B")
@@ -1170,7 +1171,7 @@ func TestGetTemplateExposesProtectedStudentWeekdays(t *testing.T) {
 
 	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Protected-Read")
 
@@ -1219,7 +1220,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 		HasTenantOverrideFn: func(context.Context, string) (bool, error) { return true, nil },
 		ResolveIntFn:        func(context.Context, string) (int, error) { return 1, nil },
 	}
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	// Two OVERLAPPING active periods (createTemplateTestPeriod uses the same
 	// 2026-01-01..2026-12-31 range for both, is_active=true).
@@ -1408,7 +1409,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		HasTenantOverrideFn: func(context.Context, string) (bool, error) { return true, nil },
 		ResolveIntFn:        func(context.Context, string) (int, error) { return 1, nil },
 	}
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	t.Run("deduplicates explicit and dynamic class membership", func(t *testing.T) {
 		period := createTemplateTestPeriodRange(
@@ -1922,7 +1923,7 @@ func TestTemplate_WochennotizRoundTrip(t *testing.T) {
 	mat := &mockMaterializationService{result: &timetable.MaterializationResult{}}
 	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	notesOf := func(templateID int64) *string {
 		listW := doTemplateJSON(t, router, http.MethodGet, "/templates", nil)
@@ -1970,7 +1971,7 @@ func TestTemplate_CreateRejectsOverlongNotes(t *testing.T) {
 	mat := &mockMaterializationService{result: &timetable.MaterializationResult{}}
 	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	body := createTemplateBody(s, "Tpl-LongNote")
 	body["notes"] = strings.Repeat("x", 2001)
@@ -1987,7 +1988,7 @@ func TestTemplateList_IncludesShiftTypeBadge(t *testing.T) {
 	mat := &mockMaterializationService{result: &timetable.MaterializationResult{}}
 	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	stRepo := mustTimetableTestRepositories(s.db).ShiftType
 	st := newCreateArg(stRepo.Create)
@@ -2025,7 +2026,7 @@ func TestTemplateCreateWithStartDateStampsValidity(t *testing.T) {
 
 	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	period := createTemplateTestPeriod(t, s.db, "TplStartDatePeriod")
 
@@ -2053,7 +2054,7 @@ func TestTemplateCreateWithStartDateWithoutPeriod(t *testing.T) {
 
 	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	body := createTemplateBody(s, "Tpl-StartDate-NoPeriod")
 	body["start_date"] = "2026-08-13"
@@ -2078,7 +2079,7 @@ func TestTemplateCreateStartDateValidation(t *testing.T) {
 
 	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
-	router := templateRouter(s.ctx, s.res)
+	router := templateRouter(s.ctx, s.res, s.db)
 
 	period := createTemplateTestPeriod(t, s.db, "TplStartDateValidationPeriod")
 

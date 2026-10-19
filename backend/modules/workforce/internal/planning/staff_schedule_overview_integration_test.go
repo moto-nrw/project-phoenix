@@ -304,7 +304,7 @@ func TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport(t *te
 	// The Dienstplan grid requests Mon-Fri, but the contractual week is
 	// Mon-Sun: the Saturday shift must count toward the weekly total while
 	// staying out of the viewport-scoped grid payload.
-	overview, err := service.GetOverview(testpkg.TenantContext(tenantID), monday, friday)
+	overview, err := testpkg.TenantQuery2(t, testpkg.TenantContext(tenantID), db, service.GetOverview, monday, friday)
 	require.NoError(t, err)
 
 	var summary *planning.StaffWeeklySummary

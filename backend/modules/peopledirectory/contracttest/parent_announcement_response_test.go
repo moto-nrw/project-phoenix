@@ -56,22 +56,25 @@ func TestParentAnnouncementSetResponse_StoresReplacesAndWithdraws(t *testing.T) 
 	}, repo, chain.AccountID, chain.TenantID,
 		userModels.ParentAnnouncementResponseMultiChoice)
 
-	applied, err := repo.SetResponse(ctx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID,
-		[]int64{options[0]}, *poll.PublishedAt)
+	applied, err := testpkg.TenantQuery0(t, ctx, db, func(txCtx context.Context) (bool, error) {
+		return repo.SetResponse(txCtx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID, []int64{options[0]}, *poll.PublishedAt)
+	})
 	require.NoError(t, err)
 	require.True(t, applied)
 	assert.Equal(t, []int64{options[0]}, storedAnswers(t, db, poll.ID, chain.StudentID))
 
 	// A replacement is a full swap, not an append: the previous choice goes.
-	applied, err = repo.SetResponse(ctx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID,
-		[]int64{options[1]}, *poll.PublishedAt)
+	applied, err = testpkg.TenantQuery0(t, ctx, db, func(txCtx context.Context) (bool, error) {
+		return repo.SetResponse(txCtx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID, []int64{options[1]}, *poll.PublishedAt)
+	})
 	require.NoError(t, err)
 	require.True(t, applied)
 	assert.Equal(t, []int64{options[1]}, storedAnswers(t, db, poll.ID, chain.StudentID))
 
 	// An empty selection withdraws the answer entirely.
-	applied, err = repo.SetResponse(ctx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID,
-		nil, *poll.PublishedAt)
+	applied, err = testpkg.TenantQuery0(t, ctx, db, func(txCtx context.Context) (bool, error) {
+		return repo.SetResponse(txCtx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID, nil, *poll.PublishedAt)
+	})
 	require.NoError(t, err)
 	require.True(t, applied)
 	assert.Empty(t, storedAnswers(t, db, poll.ID, chain.StudentID))
@@ -91,8 +94,9 @@ func TestParentAnnouncementSetResponse_RejectsWithoutPollPermission(t *testing.T
 		userModels.ParentAnnouncementResponseSingleChoice)
 
 	// Sanity: the seeded primary guardian may answer.
-	applied, err := repo.SetResponse(ctx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID,
-		[]int64{options[0]}, *poll.PublishedAt)
+	applied, err := testpkg.TenantQuery0(t, ctx, db, func(txCtx context.Context) (bool, error) {
+		return repo.SetResponse(txCtx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID, []int64{options[0]}, *poll.PublishedAt)
+	})
 	require.NoError(t, err)
 	require.True(t, applied, "sanity: a primary guardian may answer")
 
@@ -104,12 +108,13 @@ func TestParentAnnouncementSetResponse_RejectsWithoutPollPermission(t *testing.T
 	// The guardian must still SEE the poll. Without this the refusal below could
 	// pass for the wrong reason — a guardian who lost portal access entirely
 	// would also be refused, and the test would no longer be about poll.response.
-	visible, err := repo.AccountMatchesAnnouncement(ctx, chain.TenantID, poll.ID, chain.AccountID)
+	visible, err := testpkg.TenantQuery3(t, ctx, db, repo.AccountMatchesAnnouncement, chain.TenantID, poll.ID, chain.AccountID)
 	require.NoError(t, err)
 	require.True(t, visible, "the guardian keeps portal access; only poll.response is gone")
 
-	applied, err = repo.SetResponse(ctx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID,
-		[]int64{options[1]}, *poll.PublishedAt)
+	applied, err = testpkg.TenantQuery0(t, ctx, db, func(txCtx context.Context) (bool, error) {
+		return repo.SetResponse(txCtx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID, []int64{options[1]}, *poll.PublishedAt)
+	})
 	require.NoError(t, err)
 	assert.False(t, applied, "a guardian without poll.response must not answer")
 	assert.Equal(t, []int64{options[0]}, storedAnswers(t, db, poll.ID, chain.StudentID),
@@ -117,8 +122,9 @@ func TestParentAnnouncementSetResponse_RejectsWithoutPollPermission(t *testing.T
 
 	// The refusal must also hold for a withdrawal: losing the grant must not let
 	// the guardian delete an answer either.
-	applied, err = repo.SetResponse(ctx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID,
-		nil, *poll.PublishedAt)
+	applied, err = testpkg.TenantQuery0(t, ctx, db, func(txCtx context.Context) (bool, error) {
+		return repo.SetResponse(txCtx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID, nil, *poll.PublishedAt)
+	})
 	require.NoError(t, err)
 	assert.False(t, applied, "a guardian without poll.response must not withdraw")
 	assert.Equal(t, []int64{options[0]}, storedAnswers(t, db, poll.ID, chain.StudentID))
@@ -145,16 +151,18 @@ func TestParentAnnouncementSetResponse_RejectsStaleVersionAndForeignOptions(t *t
 	// A version the announcement never had: the client loaded a wording that has
 	// since been corrected, so its answer belongs to text nobody is showing.
 	stale := poll.PublishedAt.Add(-time.Hour)
-	applied, err := repo.SetResponse(ctx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID,
-		[]int64{options[0]}, stale)
+	applied, err := testpkg.TenantQuery0(t, ctx, db, func(txCtx context.Context) (bool, error) {
+		return repo.SetResponse(txCtx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID, []int64{options[0]}, stale)
+	})
 	require.NoError(t, err)
 	assert.False(t, applied, "a stale version must not store an answer")
 	assert.Empty(t, storedAnswers(t, db, poll.ID, chain.StudentID))
 
 	// An option belonging to a different poll must not be storable against this
 	// one, or the tally would count a choice nobody was offered.
-	applied, err = repo.SetResponse(ctx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID,
-		[]int64{otherOptions[0]}, *poll.PublishedAt)
+	applied, err = testpkg.TenantQuery0(t, ctx, db, func(txCtx context.Context) (bool, error) {
+		return repo.SetResponse(txCtx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID, []int64{otherOptions[0]}, *poll.PublishedAt)
+	})
 	require.NoError(t, err)
 	assert.False(t, applied, "an option from another poll must be refused")
 	assert.Empty(t, storedAnswers(t, db, poll.ID, chain.StudentID))
@@ -173,8 +181,9 @@ func TestParentAnnouncementSetResponse_SingleChoiceRejectsMultipleOptions(t *tes
 	}, repo, chain.AccountID, chain.TenantID,
 		userModels.ParentAnnouncementResponseSingleChoice)
 
-	applied, err := repo.SetResponse(ctx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID,
-		options, *poll.PublishedAt)
+	applied, err := testpkg.TenantQuery0(t, ctx, db, func(txCtx context.Context) (bool, error) {
+		return repo.SetResponse(txCtx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID, options, *poll.PublishedAt)
+	})
 	require.NoError(t, err)
 	assert.False(t, applied, "single_choice must refuse two options")
 	assert.Empty(t, storedAnswers(t, db, poll.ID, chain.StudentID))

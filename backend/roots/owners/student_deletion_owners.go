@@ -40,7 +40,7 @@ func NewStudentDeletionOwners(db transactionruntime.Database) (studentdeletionco
 	if err != nil {
 		return studentdeletioncompose.Owners{}, err
 	}
-	audits, err := auditCompose.NewTenantPersistence(db.Pool(), false)
+	audits, err := auditCompose.NewTenantPersistence(db.Pool())
 	if err != nil {
 		return studentdeletioncompose.Owners{}, err
 	}

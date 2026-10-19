@@ -166,7 +166,7 @@ func transactionOperation(name string) (start, admin bool) {
 	switch name {
 	case "WithinSystem", "WithinAdmin", "WithinAdminRetry", "WithAdminTx", "WithAdminTxOrDirect", "AdminTx", "RunAdmin", "RunAdminRead", "AdminScope", "withinAdmin", "withinAdminRetry", "withAdminTx", "adminTx", "inAdmin":
 		return true, true
-	case "WithinTenant", "WithinTenantRetry", "WithinCurrentTenant", "WithTenantTx", "TenantTx", "RunTenant", "RunInTx", "RunInTxWithRetry", "RunInTransaction", "Begin", "BeginTx", "RunWrite", "RunRead", "RunPlatform", "withinTenant", "withinTenantRetry", "runInTx", "InTenantTx", "inTenantTx", "inTenant", "runInTenantTx", "runInSessionTx":
+	case "WithinDemo", "WithinTenant", "WithinTenantRetry", "WithinCurrentTenant", "WithTenantTx", "TenantTx", "RunTenant", "RunInTx", "RunInTxWithRetry", "RunInTransaction", "Begin", "BeginTx", "RunWrite", "RunRead", "RunPlatform", "withinTenant", "withinTenantRetry", "runInTx", "InTenantTx", "inTenantTx", "inTenant", "runInTenantTx", "runInSessionTx":
 		return true, false
 	}
 	return false, false
@@ -244,6 +244,18 @@ func command(){ open := runtime.WithinAdmin; open(ctx,func(ctx Context)error{ret
 	}
 	if !sites[0].Admin || sites[1].Admin || sites[2].Operation != "BeginTx" {
 		t.Fatalf("incorrect transaction classifications: %+v", sites)
+	}
+}
+
+func TestTransactionScannerIncludesRestrictedDemoScope(t *testing.T) {
+	t.Parallel()
+	file, err := parser.ParseFile(token.NewFileSet(), "fixture.go", `package fixture; func root(){ runtime.WithinDemo(ctx, fn) }`, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sites := transactionNodes("fixture.go", "root", "owner", "domain", "application", file.Decls[0].(*ast.FuncDecl).Body)
+	if len(sites) != 1 || sites[0].Admin || sites[0].Operation != "WithinDemo" {
+		t.Fatalf("restricted demo unit not classified: %+v", sites)
 	}
 }
 

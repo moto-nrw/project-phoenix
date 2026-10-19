@@ -45,7 +45,7 @@ func TestGroupSubstitutionRepository_Create(t *testing.T) {
 			Reason:            "Test substitution",
 		}
 
-		err := repo.Create(ctx, sub)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, sub)
 		require.NoError(t, err)
 		assert.NotZero(t, sub.ID)
 
@@ -101,7 +101,7 @@ func TestGroupSubstitutionRepository_DeleteActiveOrFutureByStaffID(t *testing.T)
 	assert.Equal(t, int64(2), affected)
 
 	remainingIDs := func() map[int64]bool {
-		subs, listErr := repo.FindByGroup(ctx, group.ID)
+		subs, listErr := testpkg.TenantQuery1(t, ctx, db, repo.FindByGroup, group.ID)
 		require.NoError(t, listErr)
 		ids := make(map[int64]bool, len(subs))
 		for _, s := range subs {
@@ -128,7 +128,7 @@ func TestGroupSubstitutionRepository_BlockersExcludeLegacyPersonnelRows(t *testi
 	handover := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, target.ID, today, today)
 	testpkg.CreateTestGroupSubstitution(t, db, group.ID, &target.ID, other.ID, today, today)
 
-	blockers, err := repo.ListActiveSubstitutionBlockers(ctx, target.ID, testpkg.Tenant(t))
+	blockers, err := testpkg.TenantQuery2(t, ctx, db, repo.ListActiveSubstitutionBlockers, target.ID, testpkg.Tenant(t))
 
 	require.NoError(t, err)
 	require.Len(t, blockers, 1)
@@ -151,14 +151,14 @@ func TestGroupSubstitutionRepository_FindByID(t *testing.T) {
 		endDate := startDate.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
-		found, err := repo.FindByID(ctx, sub.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(sub.ID))
 		require.NoError(t, err)
 		assert.Equal(t, sub.ID, found.ID)
 		assert.Equal(t, group.ID, found.GroupID)
 	})
 
 	t.Run("returns error for non-existent substitution", func(t *testing.T) {
-		_, err := repo.FindByID(ctx, int64(999999))
+		_, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(int64(999999)))
 		require.Error(t, err)
 	})
 }
@@ -178,14 +178,14 @@ func TestGroupSubstitutionRepository_Update(t *testing.T) {
 		startDate := calendar.TodayDate()
 		endDate := startDate.AddDays(7)
 		stored := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
-		sub, err := repo.FindByID(ctx, stored.ID)
+		sub, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(stored.ID))
 		require.NoError(t, err)
 
 		sub.Reason = "Updated reason"
-		err = repo.Update(ctx, sub)
+		err = testpkg.TenantCommand1(t, ctx, db, repo.Update, sub)
 		require.NoError(t, err)
 
-		found, err := repo.FindByID(ctx, sub.ID)
+		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(sub.ID))
 		require.NoError(t, err)
 		assert.Equal(t, "Updated reason", found.Reason)
 	})
@@ -207,10 +207,10 @@ func TestGroupSubstitutionRepository_Delete(t *testing.T) {
 		endDate := startDate.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
-		err := repo.Delete(ctx, sub.ID)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Delete, any(sub.ID))
 		require.NoError(t, err)
 
-		_, err = repo.FindByID(ctx, sub.ID)
+		_, err = testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(sub.ID))
 		require.Error(t, err)
 	})
 }
@@ -235,7 +235,7 @@ func TestGroupSubstitutionRepository_List(t *testing.T) {
 		endDate := startDate.AddDays(7)
 		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
-		subs, err := repo.List(ctx, nil)
+		subs, err := testpkg.TenantQuery1(t, ctx, db, repo.List, nil)
 		require.NoError(t, err)
 		assert.NotEmpty(t, subs)
 	})
@@ -257,7 +257,7 @@ func TestGroupSubstitutionRepository_ListWithOptions(t *testing.T) {
 		endDate := startDate.AddDays(7)
 		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
-		subs, err := repo.ListWithFilter(ctx, api.SchoolStructureSuiteSubstitutionPage(10))
+		subs, err := testpkg.TenantQuery1(t, ctx, db, repo.ListWithFilter, api.SchoolStructureSuiteSubstitutionPage(10))
 		require.NoError(t, err)
 		assert.LessOrEqual(t, len(subs), 10)
 	})
@@ -279,7 +279,7 @@ func TestGroupSubstitutionRepository_FindByGroup(t *testing.T) {
 		endDate := startDate.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
-		subs, err := repo.FindByGroup(ctx, group.ID)
+		subs, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByGroup, group.ID)
 		require.NoError(t, err)
 		assert.NotEmpty(t, subs)
 
@@ -307,7 +307,7 @@ func TestGroupSubstitutionRepository_Create_Validation(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nil substitution", func(t *testing.T) {
-		err := repo.Create(ctx, nil)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be nil")
 	})
@@ -325,7 +325,7 @@ func TestGroupSubstitutionRepository_Create_Validation(t *testing.T) {
 			EndDate:           today.AddDays(-7), // End before start
 		}
 
-		err := repo.Create(ctx, sub)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, sub)
 		require.Error(t, err)
 	})
 }
@@ -339,7 +339,7 @@ func TestGroupSubstitutionRepository_Update_Validation(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nil substitution", func(t *testing.T) {
-		err := repo.Update(ctx, nil)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Update, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be nil")
 	})
@@ -369,7 +369,7 @@ func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
 			"active": true,
 		}
 
-		subs, err := repo.List(ctx, filters)
+		subs, err := testpkg.TenantQuery1(t, ctx, db, repo.List, filters)
 		require.NoError(t, err)
 		assert.NotEmpty(t, subs)
 	})
@@ -387,7 +387,7 @@ func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
 			"date": today.AddDays(3), // Middle of range
 		}
 
-		subs, err := repo.List(ctx, filters)
+		subs, err := testpkg.TenantQuery1(t, ctx, db, repo.List, filters)
 		require.NoError(t, err)
 		assert.NotEmpty(t, subs)
 	})
@@ -408,14 +408,14 @@ func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
 			EndDate:           endDate,
 			Reason:            "Sick leave emergency",
 		}
-		err := repo.Create(ctx, sub)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, sub)
 		require.NoError(t, err)
 
 		filters := map[string]interface{}{
 			"reason_like": "emergency",
 		}
 
-		subs, err := repo.List(ctx, filters)
+		subs, err := testpkg.TenantQuery1(t, ctx, db, repo.List, filters)
 		require.NoError(t, err)
 		assert.NotEmpty(t, subs)
 
@@ -455,7 +455,7 @@ func TestGroupSubstitutionRepository_ListWithRelations(t *testing.T) {
 		sub2 := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute2.ID, startDate, endDate)
 
 		// List with relations
-		subs, err := repo.ListWithRelations(ctx, schoolStructureCompose.HandoverQuery{GroupID: group.ID})
+		subs, err := testpkg.TenantQuery1(t, ctx, db, repo.ListWithRelations, schoolStructureCompose.HandoverQuery{GroupID: group.ID})
 		require.NoError(t, err)
 		assert.NotEmpty(t, subs)
 
@@ -471,7 +471,7 @@ func TestGroupSubstitutionRepository_ListWithRelations(t *testing.T) {
 	})
 
 	t.Run("handles empty result set", func(t *testing.T) {
-		subs, err := repo.ListWithRelations(ctx, schoolStructureCompose.HandoverQuery{GroupID: 999999}) // Non-existent
+		subs, err := testpkg.TenantQuery1(t, ctx, db, repo.ListWithRelations, schoolStructureCompose.HandoverQuery{GroupID: 999999}) // Non-existent
 		require.NoError(t, err)
 		assert.Empty(t, subs)
 	})

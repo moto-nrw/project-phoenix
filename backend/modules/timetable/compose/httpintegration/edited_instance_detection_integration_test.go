@@ -273,7 +273,7 @@ func TestDetectEditedInWindow_StatusDayAbsenceIsRosterMembership(t *testing.T) {
 				ReportedAt: time.Now(),
 				Source:     absencerecords.StudentStatusSourcePlanned,
 			}
-			require.NoError(t, s.statusDays.UpsertReported(s.ctx, statusDay))
+			require.NoError(t, testpkg.TenantCommand1(t, s.ctx, testpkg.SetupTestDB(t), s.statusDays.UpsertReported, statusDay))
 			s.extraCleanups = append(s.extraCleanups, func() {
 			})
 

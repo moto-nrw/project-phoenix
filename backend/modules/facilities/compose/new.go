@@ -67,7 +67,7 @@ func databaseRuntime(db *bun.DB) postgres.Database {
 		}
 		transaction, hasTransaction := tenant.TransactionFromContext(ctx)
 		if !hasTransaction {
-			return db, tenantID.Int64(), nil
+			return nil, 0, fmt.Errorf("facilities postgres: transaction is required")
 		}
 		switch tx := transaction.(type) {
 		case bun.Tx:
@@ -76,7 +76,7 @@ func databaseRuntime(db *bun.DB) postgres.Database {
 			if tx != nil {
 				return tx, tenantID.Int64(), nil
 			}
-			return db, tenantID.Int64(), nil
+			return nil, 0, fmt.Errorf("facilities postgres: transaction is required")
 		default:
 			return nil, 0, fmt.Errorf("facilities postgres: unsupported transaction %T", transaction)
 		}

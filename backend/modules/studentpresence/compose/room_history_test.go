@@ -117,18 +117,15 @@ func TestRoomSessionHistory(t *testing.T) {
 func TestRoomSessionHistory_ReturnsDatabaseError(t *testing.T) {
 	t.Parallel()
 
-	db := testpkg.SetupClosableTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	repo, err := compose.New(compose.Dependencies{DB: db, Observe: func(compose.Observation) {}})
 	require.NoError(t, err)
-	require.NoError(t, db.Close())
-
-	_, err = repo.ListRoomSessionHistory(
-		testpkg.Ctx(t),
-		time.Now().UnixNano(),
-		time.Now().Add(-time.Hour),
-		time.Now(),
-		nil,
-	)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "room session history")
+	require.NoError(t, testpkg.WithinTenantContext(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(txCtx context.Context) error {
+		canceledCtx, cancel := context.WithCancel(txCtx)
+		cancel()
+		_, err := repo.ListRoomSessionHistory(canceledCtx, time.Now().UnixNano(), time.Now().Add(-time.Hour), time.Now(), nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "room session history")
+		return nil
+	}))
 }

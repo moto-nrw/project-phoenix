@@ -351,7 +351,7 @@ func TestTemplateRosterMaintenanceFeeds_RejectsSourcesFromDifferentPhases(t *tes
 	otherPhase := *env.sourcePhase
 	otherPhase.ID = 0
 	otherPhase.Name = uniqueSchemaName("FeedAnderePhase-" + t.Name())
-	require.NoError(t, enrollmentTest.New().InsertPhase(ctx, &otherPhase))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), enrollmentTest.New().InsertPhase, &otherPhase))
 	_, err := env.db.NewRaw(`UPDATE enrollment.care_offerings SET phase_id = ? WHERE id = ?`, otherPhase.ID, second.ID).Exec(ctx)
 	require.NoError(t, err)
 

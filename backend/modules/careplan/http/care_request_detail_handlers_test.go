@@ -84,7 +84,7 @@ func TestCareRequestDetail_OpensPickupChangeBeforeAndAfterDecision(t *testing.T)
 		PickupTime: calendar.NormalizeWallClock(time.Date(1, 1, 1, 15, 30, 0, 0, time.UTC)),
 		CreatedBy:  staff.ID,
 	}))
-	pending, err := tc.careRequests.CreatePickupChange(tenantCtx, carerequests.PickupChangeCreateInput{
+	pending, err := testpkg.TenantQuery1(t, tenantCtx, tc.db, tc.careRequests.CreatePickupChange, carerequests.PickupChangeCreateInput{
 		StudentID: chain.StudentID, GuardianAccountID: chain.AccountID, Date: date,
 		PickupTime: time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), Reason: "Arzttermin", ReasonRequired: true,
 	})
@@ -142,7 +142,7 @@ func TestCareRequestDetail_RefusesUnauthorizedReaders(t *testing.T) {
 	tenantCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 
 	date := calendar.NewDate(2026, 9, 15)
-	pending, err := tc.careRequests.CreatePickupChange(tenantCtx, carerequests.PickupChangeCreateInput{
+	pending, err := testpkg.TenantQuery1(t, tenantCtx, tc.db, tc.careRequests.CreatePickupChange, carerequests.PickupChangeCreateInput{
 		StudentID: chain.StudentID, GuardianAccountID: chain.AccountID, Date: date,
 		PickupTime: time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), Reason: "Arzttermin", ReasonRequired: true,
 	})

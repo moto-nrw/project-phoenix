@@ -12,7 +12,7 @@ import (
 // LegacyRepositoryRuntime is the tenant capability consumed by the retained bindings.
 type LegacyRepositoryRuntime interface {
 	runtime.ContextRuntime
-	DB(context.Context) bun.IDB
+	DB(context.Context) (bun.IDB, error)
 	InTenantTx(context.Context, func(context.Context) error) error
 }
 

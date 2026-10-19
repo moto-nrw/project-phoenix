@@ -50,13 +50,13 @@ func TestStudentFieldEditRepository_CreateBatchAndGetByStudentID(t *testing.T) {
 		CreatedAt:    newestAt,
 	}
 
-	require.NoError(t, repo.CreateBatch(ctx, []*audit.StudentFieldEdit{older, newerFirst, newerSecond}))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.CreateBatch, []*audit.StudentFieldEdit{older, newerFirst, newerSecond}))
 	require.NotZero(t, older.ID)
 	require.NotZero(t, newerFirst.ID)
 	require.NotZero(t, newerSecond.ID)
 	require.Greater(t, newerSecond.ID, newerFirst.ID)
 
-	edits, err := repo.GetByStudentID(ctx, student.ID)
+	edits, err := testpkg.TenantQuery1(t, ctx, db, repo.GetByStudentID, student.ID)
 	require.NoError(t, err)
 	require.Len(t, edits, 3)
 	assert.Equal(t, newerSecond.ID, edits[0].ID)
@@ -73,13 +73,13 @@ func TestStudentFieldEditRepository_CreateBatchValidation(t *testing.T) {
 	repo := NewStudentFieldEditRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.TenantContext(testpkg.UniqueTestTenantID(t))
 
-	require.NoError(t, repo.CreateBatch(ctx, nil))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.CreateBatch, nil))
 
-	err := repo.CreateBatch(ctx, []*audit.StudentFieldEdit{nil})
+	err := testpkg.TenantCommand1(t, ctx, db, repo.CreateBatch, []*audit.StudentFieldEdit{nil})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "edit cannot be nil")
 
-	err = repo.CreateBatch(ctx, []*audit.StudentFieldEdit{{}})
+	err = testpkg.TenantCommand1(t, ctx, db, repo.CreateBatch, []*audit.StudentFieldEdit{{}})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "student ID is required")
 }

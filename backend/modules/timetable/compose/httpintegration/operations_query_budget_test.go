@@ -79,7 +79,7 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testp
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	reposStructure := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
-	staff, err := owners.NewTimetableStaff(repos.Staff).FindWithPerson(testpkg.Ctx(t), staffFixture.ID)
+	staff, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, owners.NewTimetableStaff(repos.Staff).FindWithPerson, staffFixture.ID)
 	require.NoError(t, err)
 	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	stand := newTimetableOpsDeps()

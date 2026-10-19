@@ -46,7 +46,11 @@ func (r *StudentFieldEditRepository) CreateBatch(ctx context.Context, edits []*a
 // GetByStudentID returns all edit records for a student, newest first.
 func (r *StudentFieldEditRepository) GetByStudentID(ctx context.Context, studentID int64) ([]*audit.StudentFieldEdit, error) {
 	var edits []*audit.StudentFieldEdit
-	err := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB1, databaseErr1 := runtimeDB(ctx, r.runtime)
+	if databaseErr1 != nil {
+		return *new([]*audit.StudentFieldEdit), databaseErr1
+	}
+	err := ambientDB1.NewSelect().
 		Model(&edits).
 		ModelTableExpr(tableStudentFieldEditsAliased).
 		Where(whereStudentIDEquals, studentID).
@@ -67,7 +71,11 @@ func (r *StudentFieldEditRepository) CountOlderThanByStudent(ctx context.Context
 		StudentID int64 `bun:"student_id"`
 		Count     int   `bun:"count"`
 	}
-	err := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB2, databaseErr2 := runtimeDB(ctx, r.runtime)
+	if databaseErr2 != nil {
+		return *new(map[int64]int), databaseErr2
+	}
+	err := ambientDB2.NewSelect().
 		ModelTableExpr(tableStudentFieldEditsAliased).
 		ColumnExpr(`"student_field_edit".student_id AS student_id`).
 		ColumnExpr(`COUNT(*) AS count`).
@@ -93,7 +101,11 @@ func (r *StudentFieldEditRepository) DeleteOlderThan(ctx context.Context, cutoff
 		return 0, wrapDatabase("delete expired student field edits", fmt.Errorf("tenant context is required"))
 	}
 	var deleted int64
-	if err := runtimeDB(ctx, r.runtime).NewRaw(
+	ambientDB3, databaseErr3 := runtimeDB(ctx, r.runtime)
+	if databaseErr3 != nil {
+		return *new(int64), databaseErr3
+	}
+	if err := ambientDB3.NewRaw(
 		`SELECT audit.delete_expired_student_field_edits(?, ?)`, tenantID, cutoff,
 	).Scan(ctx, &deleted); err != nil {
 		return 0, wrapDatabase("delete expired student field edits", err)

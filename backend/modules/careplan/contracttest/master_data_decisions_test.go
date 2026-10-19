@@ -114,7 +114,7 @@ func (f masterDataFixture) decide(t *testing.T, svc masterdatarequests.Decisions
 	var item *masterdatarequests.ReviewItem
 	err := f.inTx(t, func(ctx context.Context) error {
 		var decideErr error
-		item, decideErr = svc.Decide(ctx, input)
+		item, decideErr = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, input)
 		return decideErr
 	})
 	return item, err
@@ -122,7 +122,7 @@ func (f masterDataFixture) decide(t *testing.T, svc masterdatarequests.Decisions
 
 func (f masterDataFixture) person(t *testing.T) *peopledirectory.DirectoryPersonSnapshot {
 	t.Helper()
-	person, err := f.repos.Person.FindByID(testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.TenantID), f.chain.PersonID)
+	person, err := testpkg.TenantQuery1(t, testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.TenantID), testpkg.SetupTestDB(t), f.repos.Person.FindByID, any(f.chain.PersonID))
 	require.NoError(t, err)
 	return person
 }
@@ -272,10 +272,10 @@ func TestMasterDataReview_ApproveAppliesOtherPersonFields(t *testing.T) {
 	birthday := f.insert(t, peopledirectory.DataChangeTargetPerson, "birthday", `null`, `"2017-12-24"`)
 
 	require.NoError(t, f.inTx(t, func(ctx context.Context) error {
-		if _, err := svc.Decide(ctx, masterdatarequests.DecideInput{RequestID: lastName.ID, Approve: true}); err != nil {
+		if _, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, masterdatarequests.DecideInput{RequestID: lastName.ID, Approve: true}); err != nil {
 			return err
 		}
-		_, err := svc.Decide(ctx, masterdatarequests.DecideInput{RequestID: birthday.ID, Approve: true})
+		_, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, masterdatarequests.DecideInput{RequestID: birthday.ID, Approve: true})
 		return err
 	}))
 
@@ -295,7 +295,7 @@ func TestMasterDataReview_ApproveAppliesSchoolClass(t *testing.T) {
 	_, err := f.decide(t, svc, masterdatarequests.DecideInput{RequestID: row.ID, Approve: true, ReviewedBy: f.chain.AccountID})
 	require.NoError(t, err)
 
-	student, err := f.repos.Student.FindByID(testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.TenantID), f.chain.StudentID)
+	student, err := testpkg.TenantQuery1(t, testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.TenantID), testpkg.SetupTestDB(t), f.repos.Student.FindByID, any(f.chain.StudentID))
 	require.NoError(t, err)
 	assert.Equal(t, "2b", student.SchoolClass)
 }
@@ -397,7 +397,7 @@ func TestMasterDataReview_ListPendingEmptyAndInvalidRequestID(t *testing.T) {
 		items, _, listErr := f.queue(t, careplantest.SchoolWideReviewScope).ListPending(ctx, careplan.RequestQueueFilter{})
 		require.NoError(t, listErr)
 		assert.Empty(t, items)
-		_, decideErr := svc.Decide(ctx, masterdatarequests.DecideInput{RequestID: 0, Approve: true})
+		_, decideErr := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, masterdatarequests.DecideInput{RequestID: 0, Approve: true})
 		return decideErr
 	})
 	assert.ErrorIs(t, err, masterdatarequests.ErrReviewNotFound)
@@ -417,12 +417,12 @@ func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
 	_, err := f.decide(t, svc, masterdatarequests.DecideInput{RequestID: row.ID, Approve: true, ReviewedBy: f.chain.AccountID})
 	require.NoError(t, err)
 
-	student, err := f.repos.Student.FindByID(testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.TenantID), f.chain.StudentID)
+	student, err := testpkg.TenantQuery1(t, testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.TenantID), testpkg.SetupTestDB(t), f.repos.Student.FindByID, any(f.chain.StudentID))
 	require.NoError(t, err)
 	assert.Equal(t, []peopledirectory.DepartureMode{peopledirectory.DepartureBus}, student.AllowedDepartureModes[peopledirectory.PickupDayMonday])
 	assert.Equal(t, []peopledirectory.DepartureMode{peopledirectory.DeparturePickup}, student.AllowedDepartureModes[peopledirectory.PickupDayWednesday])
 
-	history, err := trail.GetChangeHistory(testpkg.WithPackageTenantRuntime(tenant.WithTenantID(context.Background(), f.chain.TenantID)), f.chain.StudentID)
+	history, err := testpkg.TenantQuery1(t, testpkg.WithPackageTenantRuntime(tenant.WithTenantID(context.Background(), f.chain.TenantID)), testpkg.SetupTestDB(t), trail.GetChangeHistory, f.chain.StudentID)
 	require.NoError(t, err)
 	require.NotEmpty(t, history)
 	var departureEditFound bool
@@ -442,7 +442,7 @@ func TestMasterDataReview_StalePersonApprovalConflicts(t *testing.T) {
 
 	person := f.person(t)
 	person.FirstName = "StaffEdit"
-	require.NoError(t, f.repos.Person.Update(testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.TenantID), person))
+	require.NoError(t, testpkg.TenantCommand1(t, testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.TenantID), testpkg.SetupTestDB(t), f.repos.Person.Update, person))
 
 	_, err := f.decide(t, f.decisions(t), masterdatarequests.DecideInput{RequestID: row.ID, Approve: true})
 	assert.ErrorIs(t, err, masterdatarequests.ErrReviewStaleValue)
@@ -455,17 +455,17 @@ func TestMasterDataReview_StaleDepartureApprovalConflicts(t *testing.T) {
 	tenantCtx := testpkg.TenantContext(f.chain.TenantID)
 	row := f.insert(t, peopledirectory.DataChangeTargetDeparture, "allowed_departure_modes", `{}`, `{"mon":["bus"]}`)
 
-	student, err := f.repos.Student.FindByID(tenantCtx, f.chain.StudentID)
+	student, err := testpkg.TenantQuery1(t, tenantCtx, testpkg.SetupTestDB(t), f.repos.Student.FindByID, any(f.chain.StudentID))
 	require.NoError(t, err)
 	student.AllowedDepartureModes = peopledirectory.AllowedDepartureModes{
 		peopledirectory.PickupDayTuesday: []peopledirectory.DepartureMode{peopledirectory.DeparturePickup},
 	}
-	require.NoError(t, f.repos.Student.Update(tenantCtx, student))
+	require.NoError(t, testpkg.TenantCommand1(t, tenantCtx, testpkg.SetupTestDB(t), f.repos.Student.Update, student))
 
 	_, err = f.decide(t, f.decisions(t), masterdatarequests.DecideInput{RequestID: row.ID, Approve: true})
 	assert.ErrorIs(t, err, masterdatarequests.ErrReviewStaleValue)
 
-	student, err = f.repos.Student.FindByID(tenantCtx, f.chain.StudentID)
+	student, err = testpkg.TenantQuery1(t, tenantCtx, testpkg.SetupTestDB(t), f.repos.Student.FindByID, any(f.chain.StudentID))
 	require.NoError(t, err)
 	assert.Equal(t, []peopledirectory.DepartureMode{peopledirectory.DeparturePickup}, student.AllowedDepartureModes[peopledirectory.PickupDayTuesday])
 	assert.Empty(t, student.AllowedDepartureModes[peopledirectory.PickupDayMonday])
@@ -481,7 +481,7 @@ func TestMasterDataReview_ApprovalBroadcastsStudentUpdatedAfterCommit(t *testing
 	row := f.insert(t, peopledirectory.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
 
 	require.NoError(t, f.inTx(t, func(ctx context.Context) error {
-		_, err := svc.Decide(ctx, masterdatarequests.DecideInput{RequestID: row.ID, Approve: true, ReviewedBy: f.chain.AccountID})
+		_, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, masterdatarequests.DecideInput{RequestID: row.ID, Approve: true, ReviewedBy: f.chain.AccountID})
 		assert.Empty(t, broadcaster.CallsByMethod("tenant"), "broadcast must wait until the transaction commits")
 		return err
 	}))

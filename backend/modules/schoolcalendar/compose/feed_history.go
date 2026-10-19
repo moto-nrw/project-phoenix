@@ -13,7 +13,8 @@ import (
 func NewFeedHistory(db *bun.DB) schoolcalendar.FeedHistory {
 	runtime := PersistenceRuntimeFor(db)
 	return feedHistory{store: postgres.New(func(ctx context.Context) (bun.IDB, int64, error) {
-		return runtime.Database(ctx), runtime.TenantID(ctx), nil
+		tx, err := runtime.Database(ctx)
+		return tx, runtime.TenantID(ctx), err
 	})}
 }
 

@@ -28,7 +28,11 @@ func (r *studentConsentChangeRepository) ListByStudentID(ctx context.Context, st
 		return nil, fmt.Errorf("student_id is required")
 	}
 	var rows []*auditModels.StudentConsentChange
-	err := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB1, databaseErr1 := runtimeDB(ctx, r.runtime)
+	if databaseErr1 != nil {
+		return *new([]*auditModels.StudentConsentChange), databaseErr1
+	}
+	err := ambientDB1.NewSelect().
 		Model(&rows).
 		ModelTableExpr(studentConsentChangeTableExpr).
 		Where(`"student_consent_change".student_id = ?`, studentID).

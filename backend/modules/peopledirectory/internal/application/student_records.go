@@ -58,7 +58,12 @@ func (s *StudentService) ListRecordsDueForStatus(ctx context.Context, status, bo
 // LockRecordsByIDs takes the rows a batch writer is about to change, so it runs
 // in a write transaction: the locks have to outlive this call.
 func (s *StudentService) LockRecordsByIDs(ctx context.Context, ids []int64) (result []domain.StudentRecord, err error) {
-	err = s.run(ctx, "lock_student_records_by_id", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.run(ctx, "lock_student_records_by_id", func(ctx context.Context, fn func(context.Context) error) error {
+		if err := s.tx.RequireTransaction(ctx); err != nil {
+			return err
+		}
+		return fn(ctx)
+	}, func(txCtx context.Context, stats *domain.OperationStats) error {
 		gateStats, err := s.store.LockEnrollmentClassWrites(txCtx)
 		stats.Add(gateStats)
 		if err != nil {
@@ -82,8 +87,8 @@ func (s *StudentService) CountByGroups(ctx context.Context, groupIDs []int64) (c
 	return counts, err
 }
 
-// ListEnrolledIDsByNameAndBirthday runs an admin read: its caller is the parent
-// submit path, which has no tenant transaction and passes the tenant itself.
+// ListEnrolledIDsByNameAndBirthday resolves eligibility in the school identified
+// by the parent submission bootstrap. A conflicting caller school is rejected.
 func (s *StudentService) ListEnrolledIDsByNameAndBirthday(
 	ctx context.Context,
 	tenantID int64,

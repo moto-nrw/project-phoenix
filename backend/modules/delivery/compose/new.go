@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
 	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -47,9 +46,7 @@ func NewModule(dependencies ModuleDependencies) (*Runtime, error) {
 		return nil, errors.New("delivery compose: all dependencies are required")
 	}
 	raw := postgres.New(postgres.RequireTenantDatabase, postgres.RequireAdminDatabase)
-	store := application.NewWorkerCommands(raw, func(ctx context.Context, callback func(context.Context) error) error {
-		return tenant.WithAdminTx(ctx, dependencies.DB, func(txCtx context.Context, _ bun.Tx) error { return callback(txCtx) })
-	})
+	store := application.NewWorkerCommands(raw, NewTenantTransactions(dependencies.DB).WithinSystem)
 	observe := func(observation domain.Observation) {
 		dependencies.Observe(deliveryContract.Observation{
 			Operation: observation.Operation, Transport: deliveryContract.Transport(observation.Transport),

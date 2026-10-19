@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -57,11 +58,11 @@ func TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID(t *testing.
 		ChangedAt:      time.Date(2026, time.June, 20, 11, 0, 0, 0, time.UTC),
 	}
 
-	require.NoError(t, repo.Create(ctx, older))
-	require.NoError(t, repo.Create(ctx, newer))
-	require.NoError(t, repo.Create(ctx, other))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Create, older))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Create, newer))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Create, other))
 
-	rows, err := repo.ListByRequestChildID(ctx, childID)
+	rows, err := testpkg.TenantQuery1(t, ctx, db, repo.ListByRequestChildID, childID)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 	assert.Equal(t, newer.ID, rows[0].ID)
@@ -76,7 +77,7 @@ func TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID_RejectsMiss
 
 	repo := NewEnrollmentOfferingAdjustmentRepository(NewRuntime(db, auditTestTenantID))
 
-	rows, err := repo.ListByRequestChildID(testpkg.Ctx(t), 0)
+	rows, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repo.ListByRequestChildID, 0)
 	require.Error(t, err)
 	assert.Nil(t, rows)
 	assert.Contains(t, err.Error(), "request_child_id is required")
@@ -84,34 +85,36 @@ func TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID_RejectsMiss
 
 func TestEnrollmentOfferingAdjustmentRepository_ListByRequestChildID_QueryError(t *testing.T) {
 	t.Parallel()
-
-	db := testpkg.SetupClosableTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	repo := NewEnrollmentOfferingAdjustmentRepository(NewRuntime(db, auditTestTenantID))
-	require.NoError(t, db.Close())
-
-	rows, err := repo.ListByRequestChildID(testpkg.Ctx(t), 999)
-	require.Error(t, err)
-	assert.Nil(t, rows)
-	assert.Contains(t, err.Error(), "list enrollment offering adjustments")
+	err := testpkg.WithinTenantContext(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(txCtx context.Context) error {
+		ctx, cancel := context.WithCancel(txCtx)
+		cancel()
+		rows, err := repo.ListByRequestChildID(ctx, 999)
+		require.Error(t, err)
+		assert.Nil(t, rows)
+		assert.Contains(t, err.Error(), "list enrollment offering adjustments")
+		return nil
+	})
+	require.NoError(t, err)
 }
 
 func TestEnrollmentOfferingAdjustmentRepository_ListDirectForTenant_QueryError(t *testing.T) {
 	t.Parallel()
-
-	db := testpkg.SetupClosableTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	repo := NewEnrollmentOfferingAdjustmentRepository(NewRuntime(db, auditTestTenantID))
-	ctx := testpkg.Ctx(t)
-	require.NoError(t, db.Close())
-
-	rows, err := repo.ListDirectForTenant(ctx, audit.DirectAdjustmentFilter{BeforeInstant: time.Now(), BeforeID: 1, Limit: 10})
-	require.Error(t, err)
-	assert.Nil(t, rows)
-	assert.Contains(t, err.Error(), "list direct enrollment offering adjustments")
+	err := testpkg.WithinTenantContext(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(txCtx context.Context) error {
+		ctx, cancel := context.WithCancel(txCtx)
+		cancel()
+		rows, err := repo.ListDirectForTenant(ctx, audit.DirectAdjustmentFilter{BeforeInstant: time.Now(), BeforeID: 1, Limit: 10})
+		require.Error(t, err)
+		assert.Nil(t, rows)
+		assert.Contains(t, err.Error(), "list direct enrollment offering adjustments")
+		return nil
+	})
+	require.NoError(t, err)
 }
 
-// The central history reads corrections through this keyset window (#2436):
-// newest first, request-applied rows excluded, and a follow-up page that
-// continues strictly before the last row of the previous one.
 func TestEnrollmentOfferingAdjustmentRepository_ListDirectForTenant(t *testing.T) {
 	t.Parallel()
 
@@ -147,18 +150,18 @@ func TestEnrollmentOfferingAdjustmentRepository_ListDirectForTenant(t *testing.T
 	applied := newRow("applied request", audit.OfferingAdjustmentSourceRequest, base.Add(3*time.Hour))
 	unknown := newRow("legacy adjustment", audit.OfferingAdjustmentSourceUnknown, base.Add(4*time.Hour))
 	for _, row := range []*audit.EnrollmentOfferingAdjustment{newest, middle, oldest, applied, unknown} {
-		require.NoError(t, repo.Create(ctx, row))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Create, row))
 	}
 
 	// First page: newest first; request-applied and unknown legacy rows stay
 	// out because neither is a verified direct correction.
-	first, err := repo.ListDirectForTenant(ctx, audit.DirectAdjustmentFilter{Limit: 2})
+	first, err := testpkg.TenantQuery1(t, ctx, db, repo.ListDirectForTenant, audit.DirectAdjustmentFilter{Limit: 2})
 	require.NoError(t, err)
 	require.Len(t, first, 2)
 	assert.Equal(t, []int64{newest.ID, middle.ID}, []int64{first[0].ID, first[1].ID})
 
 	// Follow-up page continues strictly before the last consumed row.
-	second, err := repo.ListDirectForTenant(ctx, audit.DirectAdjustmentFilter{BeforeInstant: first[1].ChangedAt, BeforeID: first[1].ID, Limit: 2})
+	second, err := testpkg.TenantQuery1(t, ctx, db, repo.ListDirectForTenant, audit.DirectAdjustmentFilter{BeforeInstant: first[1].ChangedAt, BeforeID: first[1].ID, Limit: 2})
 	require.NoError(t, err)
 	require.NotEmpty(t, second)
 	assert.Equal(t, oldest.ID, second[0].ID)
@@ -170,12 +173,12 @@ func TestEnrollmentOfferingAdjustmentRepository_ListDirectForTenant(t *testing.T
 	// The explicit repository predicate protects non-HTTP callers whose
 	// database connection bypasses RLS.
 	otherTenant := testpkg.NewTenantScope(t, db)
-	otherTenantRows, err := repo.ListDirectForTenant(otherTenant.Context(), audit.DirectAdjustmentFilter{Limit: 2})
+	otherTenantRows, err := testpkg.TenantQuery1(t, otherTenant.Context(), db, repo.ListDirectForTenant, audit.DirectAdjustmentFilter{Limit: 2})
 	require.NoError(t, err)
 	assert.Empty(t, otherTenantRows)
 
 	// A non-positive limit asks for nothing and hits no database at all.
-	none, err := repo.ListDirectForTenant(ctx, audit.DirectAdjustmentFilter{})
+	none, err := testpkg.TenantQuery1(t, ctx, db, repo.ListDirectForTenant, audit.DirectAdjustmentFilter{})
 	require.NoError(t, err)
 	assert.Empty(t, none)
 }

@@ -17,7 +17,7 @@ import (
 )
 
 type Observation = ports.Observation
-type AmbientDatabase func(context.Context) bun.IDB
+type AmbientDatabase func(context.Context) (bun.IDB, error)
 type StatusStudentDirectory = postgres.StatusStudentDirectory
 type StatusStudent = postgres.StatusStudent
 type StatusSlotDirectory = postgres.StatusSlotDirectory
@@ -60,7 +60,11 @@ func bindCareLocks(dependencies Dependencies) {
 		if tenantID <= 0 {
 			return errors.New("care plan: tenant is required for exception-day lock")
 		}
-		return postgres.LockExceptionDay(ctx, dependencies.AmbientDB(ctx), tenantID, studentID, date)
+		db, err := dependencies.AmbientDB(ctx)
+		if err != nil {
+			return err
+		}
+		return postgres.LockExceptionDay(ctx, db, tenantID, studentID, date)
 	})
 }
 

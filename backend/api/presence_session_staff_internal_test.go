@@ -22,7 +22,7 @@ func TestSessionStaffPreservesMembershipAndPersonWireFields(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	want, err := reposPeople.Staff.FindByID(ctx, staff.ID)
 	require.NoError(t, err)
-	want.Person, err = reposPeople.Person.FindByID(ctx, staff.PersonID)
+	want.Person, err = testpkg.TenantQuery1(t, ctx, db, reposPeople.Person.FindByID, any(staff.PersonID))
 	require.NoError(t, err)
 	projected, err := testpkg.SupervisionRowStaff(ctx, repos.ActiveGroup, group.ID)
 	require.NoError(t, err)

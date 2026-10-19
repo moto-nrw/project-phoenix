@@ -46,7 +46,11 @@ func (r *WorkSessionEditRepository) CreateBatch(ctx context.Context, edits []*au
 // GetBySessionID returns all edit records for a session, ordered by creation time descending
 func (r *WorkSessionEditRepository) GetBySessionID(ctx context.Context, sessionID int64) ([]*audit.WorkSessionEdit, error) {
 	var edits []*audit.WorkSessionEdit
-	err := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB1, databaseErr1 := runtimeDB(ctx, r.runtime)
+	if databaseErr1 != nil {
+		return *new([]*audit.WorkSessionEdit), databaseErr1
+	}
+	err := ambientDB1.NewSelect().
 		Model(&edits).
 		ModelTableExpr(tableWorkSessionEditsAliased).
 		Where(whereSessionIDEquals, sessionID).
@@ -61,7 +65,11 @@ func (r *WorkSessionEditRepository) GetBySessionID(ctx context.Context, sessionI
 
 // CountBySessionID returns the number of edit records for a session
 func (r *WorkSessionEditRepository) CountBySessionID(ctx context.Context, sessionID int64) (int, error) {
-	count, err := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB2, databaseErr2 := runtimeDB(ctx, r.runtime)
+	if databaseErr2 != nil {
+		return *new(int), databaseErr2
+	}
+	count, err := ambientDB2.NewSelect().
 		Model((*audit.WorkSessionEdit)(nil)).
 		ModelTableExpr(tableWorkSessionEditsAliased).
 		Where(whereSessionIDEquals, sessionID).
@@ -85,7 +93,11 @@ func (r *WorkSessionEditRepository) CountBySessionIDs(ctx context.Context, sessi
 	}
 
 	var results []countResult
-	err := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB3, databaseErr3 := runtimeDB(ctx, r.runtime)
+	if databaseErr3 != nil {
+		return *new(map[int64]int), databaseErr3
+	}
+	err := ambientDB3.NewSelect().
 		ModelTableExpr(tableWorkSessionEdits).
 		ColumnExpr("session_id").
 		ColumnExpr("COUNT(*) AS count").
@@ -123,7 +135,11 @@ func (r *WorkSessionEditRepository) CountManualBySessionIDs(ctx context.Context,
 	}
 
 	var results []countResult
-	err := runtimeDB(ctx, r.runtime).NewSelect().
+	ambientDB4, databaseErr4 := runtimeDB(ctx, r.runtime)
+	if databaseErr4 != nil {
+		return *new(map[int64]int), databaseErr4
+	}
+	err := ambientDB4.NewSelect().
 		ModelTableExpr(tableWorkSessionEdits).
 		ColumnExpr("session_id").
 		ColumnExpr("COUNT(*) AS count").

@@ -1,7 +1,7 @@
 // Integration tests for GET /instances/{id}/participants (#2283): the narrow
 // per-instance name list that lets schedules:read holders (Leseansicht) see
 // who takes part in a block without the users:read-gated full roster. Same
-// no-middleware router pattern as student_day_test.go — tenant context and
+// explicit transaction-root router pattern as student_day_test.go — tenant context and
 // permissions are injected directly into the request context.
 package timetablehttp
 
@@ -93,7 +93,7 @@ func buildParticipantsSetup(t *testing.T) *participantsSetup {
 	return setup
 }
 
-func participantsRouter(parentCtx context.Context, res *Resource, perms []string) chi.Router {
+func participantsRouter(parentCtx context.Context, res *Resource, db *bun.DB, perms []string) chi.Router {
 	tenantID := tenant.FromContext(parentCtx)
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -104,6 +104,7 @@ func participantsRouter(parentCtx context.Context, res *Resource, perms []string
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})
+	r.Use(testpkg.TenantTxMiddleware(db))
 	r.Get("/instances/{id}/participants", res.getInstanceParticipants)
 	return r
 }
@@ -113,7 +114,7 @@ func TestGetInstanceParticipants_AdminSeesSortedNames(t *testing.T) {
 
 	s := buildParticipantsSetup(t)
 
-	router := participantsRouter(s.ctx, s.res, []string{"admin:*"})
+	router := participantsRouter(s.ctx, s.res, s.db, []string{"admin:*"})
 	w := doGet(t, router, fmt.Sprintf("/instances/%d/participants", s.instanceID))
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
@@ -135,7 +136,7 @@ func TestGetInstanceParticipants_NonStaffSeesNoStudentNames(t *testing.T) {
 	// schedules:read alone reaches the endpoint, but with no verified staff
 	// context every name is filtered out — 200 with an empty list, never a 403
 	// and never a leak.
-	router := participantsRouter(s.ctx, s.res, []string{"schedules:read"})
+	router := participantsRouter(s.ctx, s.res, s.db, []string{"schedules:read"})
 	w := doGet(t, router, fmt.Sprintf("/instances/%d/participants", s.instanceID))
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
@@ -164,7 +165,7 @@ func TestGetInstanceParticipants_AlumnusExcluded(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	router := participantsRouter(s.ctx, s.res, []string{"admin:*"})
+	router := participantsRouter(s.ctx, s.res, s.db, []string{"admin:*"})
 	w := doGet(t, router, fmt.Sprintf("/instances/%d/participants", s.instanceID))
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
@@ -179,7 +180,7 @@ func TestGetInstanceParticipants_UnknownInstance404(t *testing.T) {
 
 	s := buildParticipantsSetup(t)
 
-	router := participantsRouter(s.ctx, s.res, []string{"admin:*"})
+	router := participantsRouter(s.ctx, s.res, s.db, []string{"admin:*"})
 	w := doGet(t, router, "/instances/999999999/participants")
 	assert.Equal(t, http.StatusNotFound, w.Code, "body=%s", w.Body.String())
 }
