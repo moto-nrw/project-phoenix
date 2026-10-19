@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/roots/communicationpolicy"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/roots/communicationtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

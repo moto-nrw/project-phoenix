@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	communicationPostgres "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/postgres"
+
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -86,4 +88,11 @@ func TestMessageQueryInstrumentationLeavesSharedDatabaseUnchanged(t *testing.T) 
 			require.Zero(t, observed.Stats.Queries, "root instrumentation must not mutate the shared handle")
 		})
 	}
+}
+
+// observeResult binds the production operation observer around the test query.
+func observeResult[T any](ctx context.Context, observe func(Observation), operation string, run func(context.Context) (T, error)) (result T, err error) {
+	runCtx, finish := communicationPostgres.NewMessageObservation(observe)(ctx, operation)
+	defer func() { finish(err) }()
+	return run(runCtx)
 }

@@ -24,7 +24,7 @@
     "modules/studentpresence/internal/application/presence",
     "workflows/parentportal/internal/care",
     "workflows/parentportal/internal/messaging",
-    "roots/communicationpolicy",
+    "roots/communicationtest",
     "roots/requestreviewbinding",
     "roots/sessionendbinding",
     "roots/openroommovebinding",

@@ -3565,7 +3565,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "roots/communicationpolicy",
+      "path": "roots/communicationtest",
       "owner": "root-composition",
       "role": "compose",
       "internal_test_role": "module-internal-test",

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/roots/communicationpolicy"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/roots/communicationtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 

@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	announcement "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/roots/communicationpolicy"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/roots/communicationtest"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"

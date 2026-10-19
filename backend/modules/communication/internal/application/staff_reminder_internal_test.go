@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	devices "github.com/moto-nrw/project-phoenix/roots/communicationpolicy"
+	devices "github.com/moto-nrw/project-phoenix/roots/communicationtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

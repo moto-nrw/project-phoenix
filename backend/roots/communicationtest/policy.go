@@ -1,6 +1,6 @@
-// Package communicationpolicy binds real platform policy values for Communication's decision suites.
+// Package communicationtest binds real platform policy values for Communication's decision suites.
 // It deliberately has no owner composition dependency, so an internal suite can use the typed root without a cycle.
-package communicationpolicy
+package communicationtest
 
 import (
 	"io"

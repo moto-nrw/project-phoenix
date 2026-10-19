@@ -16,7 +16,7 @@ Classification: **direct binding** has no local branch/loop and at most one dele
 | `modules/careplan/compose` | `care-plan` | 81 | 49 |
 | `modules/careplan/requestfeed/compose` | `care-plan` | 2 | 0 |
 | `modules/classday/compose` | `class-day-view` | 20 | 13 |
-| `modules/communication/composition` | `communication` | 6 | 1 |
+| `modules/communication/composition` | `communication` | 5 | 1 |
 | `modules/communication/parentstore` | `communication` | 23 | 0 |
 | `modules/communication/staffstore` | `communication` | 2 | 0 |
 | `modules/dataimport/compose` | `data-import` | 10 | 6 |
@@ -212,7 +212,7 @@ Round 9 set A, base `12608383f0f793e811f4379ec293f61efd6150c9`. Runtime retained
 
 | Function | Source | Classification | Calls |
 |---|---|---|---|
-| `observeResult` | [messages.go:89](../../../backend/modules/communication/composition/messages.go#L89) | direct binding | `communicationPostgres.ObserveMessageResult` |
+| `observeResult` | [query_observer_test.go](../../../backend/modules/communication/composition/query_observer_test.go) | test-only construction | binds production `NewMessageObservation` around the test query |
 | `transaction.RunAdmin` | [new.go:55](../../../backend/modules/communication/composition/new.go#L55) | runtime retained | `tenant.TransactionFromContext`, `callback`, `tenant.WithinAdminRetry` |
 | `AudienceMapping` | [new.go:62](../../../backend/modules/communication/composition/new.go#L62) | construction/binding | `domain.Announcement`, `domain.AnnouncementViewDetail` |
 | `AnnouncementDatabase` | [new.go:76](../../../backend/modules/communication/composition/new.go#L76) | construction/binding | `postgres.NewAnnouncementDatabase` |

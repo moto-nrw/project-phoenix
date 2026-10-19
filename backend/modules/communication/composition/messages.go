@@ -85,7 +85,3 @@ func NewStaffMessaging(cfg StaffMessagingConfig, runtime staffMessages.Runtime, 
 	}, runtime, policy)
 	return deliveryPorts.NewStaffMessagingFacade(service, staffMessages.NativeFacadeRows(), staffMessages.NativeFacadeErrors(), communicationPostgres.NewMessageObservation(cfg.Observe))
 }
-
-func observeResult[T any](ctx context.Context, observe func(Observation), operation string, run func(context.Context) (T, error)) (T, error) {
-	return communicationPostgres.ObserveMessageResult(ctx, observe, operation, run)
-}
