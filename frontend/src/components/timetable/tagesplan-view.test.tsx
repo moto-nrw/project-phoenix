@@ -190,6 +190,64 @@ describe("TagesplanView", () => {
     ).toBeInTheDocument();
   });
 
+  // #4350: der eigene Block ist auf einen Blick zu finden, als Wort statt
+  // nur als Farbe. Eine Vertretung ist auch eine eigene Einteilung.
+  it("labels the caller's own blocks, substitutions included (#4350)", () => {
+    setSWR({
+      data: [
+        makeInstance({ id: "1", title: "Basteln", isAssigned: true }),
+        makeInstance({
+          id: "2",
+          title: "Hausaufgaben",
+          startTime: "10:00",
+          isAssigned: true,
+          isSubstitute: true,
+        }),
+        makeInstance({ id: "3", title: "Fußball-AG", startTime: "11:00" }),
+      ],
+      isLoading: false,
+      error: null,
+    });
+
+    render(<TagesplanView />);
+
+    const rows = screen.getAllByRole("listitem");
+    const rowOf = (title: string) =>
+      rows.find((row) => row.textContent?.includes(title));
+    expect(rowOf("Basteln")).toHaveTextContent("Mein Block");
+    expect(rowOf("Hausaufgaben")).toHaveTextContent("Mein Block");
+    expect(rowOf("Fußball-AG")).not.toHaveTextContent("Mein Block");
+    expect(screen.getAllByText("Mein Block")).toHaveLength(2);
+  });
+
+  it("marks room and staff with their concept symbols (#4350)", () => {
+    setSWR({
+      data: [
+        makeInstance({
+          id: "1",
+          title: "Basteln",
+          roomName: "Kreativraum",
+          staffNames: [
+            { staffId: "9", displayName: "Maria Muster", isSubstitute: false },
+          ],
+        }),
+      ],
+      isLoading: false,
+      error: null,
+    });
+
+    const { container } = render(<TagesplanView />);
+
+    expect(screen.getByRole("img", { name: "Raum" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Personal" })).toBeInTheDocument();
+    expect(
+      container.querySelectorAll('[data-moto-duotone-tone="navy"]'),
+    ).toHaveLength(1);
+    expect(
+      container.querySelectorAll('[data-moto-duotone-tone="orange"]'),
+    ).toHaveLength(1);
+  });
+
   it("opens the live list of a running block on tap", () => {
     setSWR({
       data: [

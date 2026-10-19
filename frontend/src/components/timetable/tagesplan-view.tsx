@@ -32,6 +32,8 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-style";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
@@ -189,12 +191,19 @@ function TagesplanRow({
     ended ||
     (cancelled && (dayIsPast || (isToday && instance.endTime <= nowHHMM)));
   const staff = staffLine(instance);
+  // Eigener Block (#4350): als Wort, weil der linke Rand schon die Farbe der
+  // Planungsspur trägt. isAssigned gilt auch für eine Vertretung, nur wer
+  // abwesend gemeldet ist, fällt heraus.
+  const mine = instance.isAssigned;
 
-  const metaParts = [
+  // Der Raum trägt sein Konzeptsymbol mitten in der Metazeile; die Teile
+  // davor und danach bleiben durchgehender Text.
+  const metaBefore = [
     instance.status === "completed" ? "Beendet" : null,
     missed ? "Nicht gestartet" : null,
     isDuty ? "Dienst" : null,
-    room,
+  ].filter(Boolean);
+  const metaAfter = [
     instance.groupName,
     cancelled || isDuty ? null : childrenShort(instance),
   ].filter(Boolean);
@@ -212,13 +221,20 @@ function TagesplanRow({
         </span>
       </span>
       <span className={`min-w-0 flex-1 ${over ? "opacity-50" : ""}`}>
-        <span
-          className={`block truncate text-sm text-gray-900 ${running ? "font-semibold" : "font-medium"}`}
-        >
-          {instance.title}
-          {instance.planningTrackName ? (
-            <span className="ml-2 text-xs font-normal text-gray-500">
-              {instance.planningTrackName}
+        <span className="flex min-w-0 items-center gap-2">
+          <span
+            className={`min-w-0 truncate text-sm text-gray-900 ${running ? "font-semibold" : "font-medium"}`}
+          >
+            {instance.title}
+            {instance.planningTrackName ? (
+              <span className="ml-2 text-xs font-normal text-gray-500">
+                {instance.planningTrackName}
+              </span>
+            ) : null}
+          </span>
+          {mine ? (
+            <span className="shrink-0">
+              <StatusBadge label="Mein Block" tone="blue" compact />
             </span>
           ) : null}
         </span>
@@ -233,10 +249,34 @@ function TagesplanRow({
           </span>
         ) : null}
         <span className="block truncate text-xs text-gray-500">
-          {metaParts.join(" · ")}
+          {metaBefore.join(" · ")}
+          {metaBefore.length > 0 && room ? " · " : null}
+          {room ? (
+            <>
+              <MotoConceptIcon
+                concept="rooms"
+                size={14}
+                label="Raum"
+                className="mr-1 inline-block align-[-2px]"
+              />
+              {room}
+            </>
+          ) : null}
+          {(metaBefore.length > 0 || room) && metaAfter.length > 0
+            ? " · "
+            : null}
+          {metaAfter.join(" · ")}
         </span>
         {staff && !cancelled ? (
-          <span className="block truncate text-xs text-gray-400">{staff}</span>
+          <span className="block truncate text-xs text-gray-400">
+            <MotoConceptIcon
+              concept="staff"
+              size={14}
+              label="Personal"
+              className="mr-1 inline-block align-[-2px]"
+            />
+            {staff}
+          </span>
         ) : null}
       </span>
       {running ? (
