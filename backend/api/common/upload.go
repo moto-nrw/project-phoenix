@@ -60,16 +60,16 @@ func parseUploadWithLimits(
 	r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
 
 	if err := r.ParseMultipartForm(maxBodySize); err != nil {
-		return nil, errors.New("file too large")
+		return nil, ErrUploadTooLarge
 	}
 
 	file, header, err := r.FormFile(fieldName)
 	if err != nil {
-		return nil, errors.New("no file uploaded")
+		return nil, ErrUploadMissing
 	}
 	if header.Size > maxFileSize {
 		_ = file.Close()
-		return nil, errors.New("file too large")
+		return nil, ErrUploadTooLarge
 	}
 
 	contentType, err := detect(file)
@@ -226,3 +226,9 @@ func fileExtension(contentType string) string {
 		return ""
 	}
 }
+
+// Multipart upload refusal identities; diagnostics are part of the wire contract.
+var (
+	ErrUploadTooLarge = errors.New("file too large")
+	ErrUploadMissing  = errors.New("no file uploaded")
+)

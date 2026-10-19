@@ -2,7 +2,6 @@ package operator
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -61,7 +60,7 @@ func TestOperatorIdentityErrorsAnswerWithCodes(t *testing.T) {
 		{"profile password", rs.profileError(identityaccess.ErrOperatorPasswordMismatch), http.StatusBadRequest, "identity.current_password_wrong"},
 		{"profile missing", rs.profileError(identityaccess.ErrOperatorNotFound), http.StatusNotFound, "identity.account_not_found"},
 		{"profile inactive", rs.profileError(identityaccess.ErrOperatorInactive), http.StatusForbidden, "identity.account_inactive"},
-		{"profile weak password", rs.profileError(&identityaccess.InvalidInputError{Err: errors.New("password doesn't meet complexity requirements")}), http.StatusBadRequest, "identity.password_too_weak"},
+		{"profile weak password", rs.profileError(&identityaccess.InvalidInputError{Err: identityaccess.ErrOperatorPasswordTooWeak}), http.StatusBadRequest, "identity.password_too_weak"},
 		{"access account", rs.accessError(identityaccess.ErrAccountNotFound), http.StatusNotFound, "identity.account_not_found"},
 		{"access missing", rs.accessError(identityaccess.ErrAccountTenantAccessNotFound), http.StatusNotFound, "identity.tenant_access_not_found"},
 		{"access exists", rs.accessError(identityaccess.ErrAccountTenantAccessExists), http.StatusConflict, "identity.account_already_has_tenant_access"},
@@ -89,7 +88,7 @@ func TestOperatorInvitationInputMarksField(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	require.NoError(t, render.Render(w, httptest.NewRequest(http.MethodPost, "/", nil),
-		invitationErrorRenderer(&identityaccess.InvalidInputError{Err: errors.New("display name is required")})))
+		invitationErrorRenderer(&identityaccess.InvalidInputError{Err: identityaccess.ErrOperatorDisplayNameRequired})))
 	var body struct {
 		Code   string `json:"code"`
 		Errors []struct {

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -389,7 +391,7 @@ func (s *workSessionService) GetSessionEdits(ctx context.Context, staffID, sessi
 		return nil, s.handleSessionNotFoundError(err)
 	}
 	if session.StaffID != staffID {
-		return nil, fmt.Errorf("session does not belong to requesting staff")
+		return nil, workforce.ErrSessionNotOwned
 	}
 
 	return s.loadSessionEditsView(ctx, session, sessionID)
@@ -405,7 +407,7 @@ func (s *workSessionService) GetSessionEditsForStaff(ctx context.Context, staffI
 		return nil, s.handleSessionNotFoundError(err)
 	}
 	if session.StaffID != staffID {
-		return nil, fmt.Errorf("session does not belong to staff %d", staffID)
+		return nil, &workforce.TimeTrackingError{Kind: workforce.ErrAdminSessionNotOwned, Cause: fmt.Errorf("session does not belong to staff %d", staffID)}
 	}
 
 	return s.loadSessionEditsView(ctx, session, sessionID)

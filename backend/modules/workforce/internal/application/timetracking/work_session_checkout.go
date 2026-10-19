@@ -2,7 +2,6 @@ package timetracking
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -10,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -60,13 +61,13 @@ func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day 
 	session, err := s.repo.GetOpenByStaffAndDate(ctx, staffID, day)
 	if err != nil {
 		if isRecordNotFound(err) {
-			return nil, errors.New(errNoActiveSession)
+			return nil, workforce.ErrNoActiveSession
 		}
 		return nil, fmt.Errorf(errGetCurrentSession, err)
 	}
 
 	if session == nil {
-		return nil, errors.New(errNoActiveSession)
+		return nil, workforce.ErrNoActiveSession
 	}
 
 	now := s.now()
@@ -94,7 +95,7 @@ func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day 
 		return nil, fmt.Errorf("failed to close session: %w", err)
 	}
 	if !closed {
-		return nil, errors.New(errNoActiveSession)
+		return nil, workforce.ErrNoActiveSession
 	}
 
 	if deviation != nil {

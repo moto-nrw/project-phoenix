@@ -162,7 +162,7 @@ func (p *OperatorProvisioning) ValidateOperatorInvitation(ctx context.Context, t
 func (p *OperatorProvisioning) AcceptOperatorInvitation(ctx context.Context, acceptance domain.OperatorInvitationAcceptance) (domain.Operator, error) {
 	// Refuse the cheap mistakes before any database work.
 	if err := p.hasher.ValidatePasswordStrength(acceptance.Password); err != nil {
-		return domain.Operator{}, domain.InvalidInput(domain.MessageOperatorPasswordTooWeak)
+		return domain.Operator{}, &domain.InvalidInputError{Err: domain.ErrOperatorPasswordTooWeak}
 	}
 	displayName, err := domain.NormalizeOperatorDisplayName(acceptance.DisplayName)
 	if err != nil {

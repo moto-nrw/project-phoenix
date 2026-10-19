@@ -32,7 +32,7 @@ func uploadFailure(code string, cause error) Failure {
 // file that could not be read at all. The cause keeps the parser's text for
 // the log.
 func decodeFailure(err error) Failure {
-	cause := fmt.Errorf("Datei-Fehler: %s", err.Error())
+	cause := fmt.Errorf("Datei-Fehler: %w", err)
 	var missing *importModels.FileMissingColumnsError
 	if errors.As(err, &missing) {
 		failure := uploadFailure(codeImportFileColumnsMissing, cause)

@@ -213,16 +213,16 @@ var approveAbsenceErrorRules = []common.ErrorRule{
 	{Target: workforce.ErrVacationQuotaExceeded, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, common.CodeWorkforceVacationQuotaExceeded)
 	}},
-	{Match: msgIs("absence not found"), Render: common.ErrorNotFound},
-	{Match: msgIs("only requested absences can be approved"), Render: conflictWithCode(common.CodeWorkforceAbsenceAlreadyDecided)},
+	{Target: workforce.ErrAbsenceNotFound, Render: common.ErrorNotFound},
+	{Target: workforce.ErrAbsenceNotApprovable, Render: conflictWithCode(common.CodeWorkforceAbsenceAlreadyDecided)},
 }
 
 // denyAbsenceErrorRules keeps a missing reason and a stale decision out of
 // the 5xx bucket.
 var denyAbsenceErrorRules = []common.ErrorRule{
-	{Match: msgIs("decline reason is required"), Render: invalidWithCode(common.CodeWorkforceDecisionNoteRequired)},
-	{Match: msgIs("absence not found"), Render: common.ErrorNotFound},
-	{Match: msgIs("only requested absences can be declined"), Render: conflictWithCode(common.CodeWorkforceAbsenceAlreadyDecided)},
+	{Target: workforce.ErrAbsenceDeclineNoteRequired, Render: invalidWithCode(common.CodeWorkforceDecisionNoteRequired)},
+	{Target: workforce.ErrAbsenceNotFound, Render: common.ErrorNotFound},
+	{Target: workforce.ErrAbsenceNotDeclinable, Render: conflictWithCode(common.CodeWorkforceAbsenceAlreadyDecided)},
 }
 
 // denyAbsence handles POST /api/staff/absences/{absenceId}/deny
@@ -263,9 +263,9 @@ var questionAbsenceErrorRules = []common.ErrorRule{
 		return common.ErrorConflictWithCode(err, common.CodeWorkforceAbsenceTypeInactive)
 	}},
 	{Target: workforce.ErrAbsenceTypeNotFound, Render: common.ErrorInvalidRequest},
-	{Match: msgIs("absence not found"), Render: common.ErrorNotFound},
-	{Match: msgIs("question note is required"), Render: invalidWithCode(common.CodeWorkforceDecisionNoteRequired)},
-	{Match: msgIs("only requested absences can be questioned"), Render: invalidWithCode(common.CodeWorkforceAbsenceAlreadyDecided)},
+	{Target: workforce.ErrAbsenceNotFound, Render: common.ErrorNotFound},
+	{Target: workforce.ErrAbsenceQuestionNoteRequired, Render: invalidWithCode(common.CodeWorkforceDecisionNoteRequired)},
+	{Target: workforce.ErrAbsenceNotQuestionable, Render: invalidWithCode(common.CodeWorkforceAbsenceAlreadyDecided)},
 }
 
 // questionAbsence handles POST /api/staff/absences/{absenceId}/question —
@@ -469,19 +469,16 @@ func (rs *StaffAdminResource) adminCreateStaffSession(w http.ResponseWriter, r *
 // problems (notes missing, range invalid) land as 400; ownership mismatches
 // and "not found" as 404 to avoid leaking session existence.
 func classifyAdminEditError(err error) render.Renderer {
-	msg := err.Error()
 	switch {
-	case strings.Contains(msg, "notes required"),
-		strings.Contains(msg, "must be"),
-		strings.Contains(msg, "must not"),
-		strings.Contains(msg, "is required"):
+	case isAny(workforce.ErrSessionStatusNoteRequired, workforce.ErrSessionTimesNoteRequired,
+		workforce.ErrAdminSessionNoteRequired, workforce.ErrAdminSessionCreateNoteRequired,
+		workforce.ErrTargetStaffRequired, workforce.ErrSessionCheckinRequired, workforce.ErrSessionStaffRequired,
+		workforce.ErrSessionCreatorRequired, workforce.ErrSessionStatusInvalid, workforce.ErrSessionTimeOrder,
+		workforce.ErrSessionCheckoutOrder, workforce.ErrAdminBreakMinutesNegative)(err):
 		return common.ErrorInvalidRequest(err)
-	case strings.Contains(msg, "session not found"),
-		strings.Contains(msg, "does not belong"):
+	case isAny(workforce.ErrSessionNotFound, workforce.ErrAdminSessionNotOwned, workforce.ErrBreakNotOwned)(err):
 		return common.ErrorNotFound(err)
-	case strings.Contains(msg, "work session overlaps an existing block"):
-		// Same stable code as the self-service route: the message carries the
-		// dynamic conflicting interval and is unusable as a mapping key.
+	case errors.Is(err, workforce.ErrWorkSessionOverlap):
 		return common.ErrorConflictWithCode(err, common.CodeWorkforceWorkSessionOverlap)
 	default:
 		return common.ErrorInternalServer(err)
@@ -595,14 +592,14 @@ var adminAbsenceErrorRules = []common.ErrorRule{
 	// Each blocked rebooking names its own code and values (#2514); the
 	// generic code covers a refusal raised without them.
 	{Target: workforce.ErrAbsenceRebookingBlocked, Render: common.ErrorBusinessRejectionOr(common.CodeWorkforceAbsenceRebookingBlocked)},
-	{Match: msgIs("absence not found"), Render: common.ErrorNotFound},
-	{Match: msgIs("can only delete own absences"), Render: common.ErrorForbidden},
-	{Match: msgPrefix("absence overlaps"), Render: conflictWithCode(common.CodeWorkforceAbsenceOverlap)},
-	{Match: msgPrefix("dates overlap"), Render: conflictWithCode(common.CodeWorkforceAbsenceOverlap)},
+	{Target: workforce.ErrAbsenceNotFound, Render: common.ErrorNotFound},
+	{Target: workforce.ErrAbsenceDeleteNotOwned, Render: common.ErrorForbidden},
+	{Target: workforce.ErrAbsenceOverlap, Render: conflictWithCode(common.CodeWorkforceAbsenceOverlap)},
+	{Target: workforce.ErrAbsenceDatesOverlap, Render: conflictWithCode(common.CodeWorkforceAbsenceOverlap)},
 	{Target: workforce.ErrStaffShiftOverlap, Render: conflictWithCode(common.CodeWorkforceShiftOverlap)},
-	{Match: msgPrefix("invalid"), Render: common.ErrorInvalidRequest},
-	{Match: msgIs("vacation range contains no working days"), Render: invalidWithCode(common.CodeWorkforceAbsenceNoWorkingDays)},
-	{Match: msgPrefix("vacation"), Render: common.ErrorInvalidRequest},
+	{Target: workforce.ErrAbsenceInvalid, Render: common.ErrorInvalidRequest},
+	{Target: workforce.ErrAbsenceNoWorkingDays, Render: invalidWithCode(common.CodeWorkforceAbsenceNoWorkingDays)},
+	{Target: workforce.ErrVacationFlowRequired, Render: common.ErrorInvalidRequest},
 }
 
 // The absence renderers apply one rule set each; anything unlisted is a
@@ -629,14 +626,6 @@ func conflictWithCode(code string) func(error) render.Renderer {
 
 func invalidWithCode(code string) func(error) render.Renderer {
 	return func(err error) render.Renderer { return common.ErrorInvalidRequestWithCode(err, code) }
-}
-
-func msgIs(msg string) func(error) bool {
-	return func(err error) bool { return err.Error() == msg }
-}
-
-func msgPrefix(prefix string) func(error) bool {
-	return func(err error) bool { return strings.HasPrefix(err.Error(), prefix) }
 }
 
 // adminCreateStaffAbsence handles POST /api/staff/{id}/absences (#1843).

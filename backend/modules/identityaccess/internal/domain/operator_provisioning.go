@@ -2,7 +2,6 @@ package domain
 
 import (
 	"errors"
-	"fmt"
 	"net/mail"
 	"strings"
 	"time"
@@ -46,20 +45,6 @@ var (
 	ErrOperatorEmailInUse = errors.New("email address is already in use")
 )
 
-// The rejection messages the operator surfaces show. They travel inside an
-// InvalidInputError, whose text the retained envelope keeps, so these are
-// part of the wire contract.
-const (
-	MessageOperatorEmailInvalid      = "invalid email format"
-	MessageOperatorEmailTooLong      = "email address too long"
-	MessageOperatorPasswordTooWeak   = "password doesn't meet complexity requirements"
-	MessageOperatorDisplayNameNeeded = "display name is required"
-)
-
-// maxOperatorDisplayName is the column limit a display name must fit; the
-// rejection names it so the caller can show the limit.
-var messageOperatorDisplayNameTooLong = fmt.Sprintf("display name must not exceed %d characters", maxOperatorDisplayNameLength)
-
 // NormalizeOperatorEmail lower-cases the address, canonicalizes it to the
 // bare mailbox and applies the format and length rules. routable is the
 // People Directory contact rule the composition binds: mail.ParseAddress
@@ -68,14 +53,14 @@ func NormalizeOperatorEmail(address string, routable func(string) bool) (string,
 	normalized := strings.TrimSpace(strings.ToLower(address))
 	parsed, err := mail.ParseAddress(normalized)
 	if err != nil {
-		return "", InvalidInput(MessageOperatorEmailInvalid)
+		return "", &InvalidInputError{Err: ErrOperatorEmailInvalid}
 	}
 	normalized = parsed.Address
 	if routable != nil && !routable(normalized) {
-		return "", InvalidInput(MessageOperatorEmailInvalid)
+		return "", &InvalidInputError{Err: ErrOperatorEmailInvalid}
 	}
 	if len(normalized) > maxOperatorEmailLength {
-		return "", InvalidInput(MessageOperatorEmailTooLong)
+		return "", &InvalidInputError{Err: ErrOperatorEmailTooLong}
 	}
 	return normalized, nil
 }
@@ -85,9 +70,9 @@ func NormalizeOperatorDisplayName(name string) (string, error) {
 	trimmed := strings.TrimSpace(name)
 	switch {
 	case trimmed == "":
-		return "", InvalidInput(MessageOperatorDisplayNameNeeded)
+		return "", &InvalidInputError{Err: ErrOperatorDisplayNameRequired}
 	case len(trimmed) > maxOperatorDisplayNameLength:
-		return "", InvalidInput(messageOperatorDisplayNameTooLong)
+		return "", &InvalidInputError{Err: ErrOperatorDisplayNameTooLong}
 	}
 	return trimmed, nil
 }

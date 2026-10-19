@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -61,7 +63,7 @@ func (s *staffAbsenceService) RequestVacation(ctx context.Context, staffID int64
 		return nil, err
 	}
 	if isBeforeLocalToday(dateStart, time.Now()) {
-		return nil, fmt.Errorf("vacation request must start today or in the future")
+		return nil, workforce.ErrVacationRequestInPast
 	}
 	if err := s.lockVacationRequestRange(ctx, staffID, dateStart, dateEnd); err != nil {
 		return nil, err
@@ -69,7 +71,7 @@ func (s *staffAbsenceService) RequestVacation(ctx context.Context, staffID int64
 
 	workingDays := countWorkingDays(dateStart, dateEnd, req.StartHalfDay, req.EndHalfDay)
 	if workingDays <= 0 {
-		return nil, fmt.Errorf("vacation range contains no working days")
+		return nil, workforce.ErrAbsenceNoWorkingDays
 	}
 
 	now := time.Now()
@@ -111,18 +113,18 @@ func (s *staffAbsenceService) RequestVacation(ctx context.Context, staffID int64
 func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int64, actorAccountID int64, decidedByStaffID int64, note string) (*StaffAbsenceResponse, error) {
 	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
 	if err != nil {
-		return nil, fmt.Errorf("absence not found")
+		return nil, workforce.ErrAbsenceNotFound
 	}
 	if err := s.lockStaffAbsenceWrites(ctx, absence.StaffID); err != nil {
 		return nil, err
 	}
 	absence, err = s.absenceRepo.FindByID(ctx, absenceID)
 	if err != nil {
-		return nil, fmt.Errorf("absence not found")
+		return nil, workforce.ErrAbsenceNotFound
 	}
 	if absence.Status != AbsenceStatusRequested &&
 		absence.Status != AbsenceStatusQuestion {
-		return nil, fmt.Errorf("only requested absences can be approved")
+		return nil, workforce.ErrAbsenceNotApprovable
 	}
 	if err := s.rejectVacationBeforeOpening(ctx, absence); err != nil {
 		return nil, err
@@ -157,22 +159,22 @@ func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int6
 
 func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, actorAccountID int64, decidedByStaffID int64, reason string) (*StaffAbsenceResponse, error) {
 	if reason == "" {
-		return nil, fmt.Errorf("decline reason is required")
+		return nil, workforce.ErrAbsenceDeclineNoteRequired
 	}
 	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
 	if err != nil {
-		return nil, fmt.Errorf("absence not found")
+		return nil, workforce.ErrAbsenceNotFound
 	}
 	if err := s.lockStaffAbsenceWrites(ctx, absence.StaffID); err != nil {
 		return nil, err
 	}
 	absence, err = s.absenceRepo.FindByID(ctx, absenceID)
 	if err != nil {
-		return nil, fmt.Errorf("absence not found")
+		return nil, workforce.ErrAbsenceNotFound
 	}
 	if absence.Status != AbsenceStatusRequested &&
 		absence.Status != AbsenceStatusQuestion {
-		return nil, fmt.Errorf("only requested absences can be declined")
+		return nil, workforce.ErrAbsenceNotDeclinable
 	}
 	fromStatus := absence.Status
 	now := time.Now()
@@ -198,21 +200,21 @@ func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, 
 func (s *staffAbsenceService) QuestionAbsence(ctx context.Context, absenceID int64, actorAccountID int64, note string) (*StaffAbsenceResponse, error) {
 	note = strings.TrimSpace(note)
 	if note == "" {
-		return nil, fmt.Errorf("question note is required")
+		return nil, workforce.ErrAbsenceQuestionNoteRequired
 	}
 	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
 	if err != nil {
-		return nil, fmt.Errorf("absence not found")
+		return nil, workforce.ErrAbsenceNotFound
 	}
 	if err := s.lockStaffAbsenceWrites(ctx, absence.StaffID); err != nil {
 		return nil, err
 	}
 	absence, err = s.absenceRepo.FindByID(ctx, absenceID)
 	if err != nil {
-		return nil, fmt.Errorf("absence not found")
+		return nil, workforce.ErrAbsenceNotFound
 	}
 	if absence.Status != AbsenceStatusRequested {
-		return nil, fmt.Errorf("only requested absences can be questioned")
+		return nil, workforce.ErrAbsenceNotQuestionable
 	}
 	fromStatus := absence.Status
 	absence.Status = AbsenceStatusQuestion
@@ -237,20 +239,20 @@ func (s *staffAbsenceService) QuestionAbsence(ctx context.Context, absenceID int
 func (s *staffAbsenceService) ResubmitAbsence(ctx context.Context, staffID int64, actorAccountID int64, absenceID int64, note string) (*StaffAbsenceResponse, error) {
 	note = strings.TrimSpace(note)
 	if note == "" {
-		return nil, fmt.Errorf("resubmit note is required")
+		return nil, workforce.ErrAbsenceResubmitNoteRequired
 	}
 	if err := s.lockStaffAbsenceWrites(ctx, staffID); err != nil {
 		return nil, err
 	}
 	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
 	if err != nil {
-		return nil, fmt.Errorf("absence not found")
+		return nil, workforce.ErrAbsenceNotFound
 	}
 	if absence.StaffID != staffID {
-		return nil, fmt.Errorf("can only resubmit own absences")
+		return nil, workforce.ErrAbsenceResubmitNotOwned
 	}
 	if absence.Status != AbsenceStatusQuestion {
-		return nil, fmt.Errorf("only absences with a question can be resubmitted")
+		return nil, workforce.ErrAbsenceNotQuestioned
 	}
 	fromStatus := absence.Status
 	now := time.Now()
@@ -280,10 +282,10 @@ func (s *staffAbsenceService) CancelAbsence(ctx context.Context, staffID int64, 
 	}
 	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
 	if err != nil {
-		return fmt.Errorf("absence not found")
+		return workforce.ErrAbsenceNotFound
 	}
 	if absence.StaffID != staffID {
-		return fmt.Errorf("can only cancel own absences")
+		return workforce.ErrAbsenceCancelNotOwned
 	}
 	// MA can cancel requested/questioned or approved future vacation. Past
 	// approved absences become historical record and are not cancelable from
@@ -291,11 +293,11 @@ func (s *staffAbsenceService) CancelAbsence(ctx context.Context, staffID int64, 
 	if absence.Status != AbsenceStatusRequested &&
 		absence.Status != AbsenceStatusQuestion &&
 		absence.Status != AbsenceStatusApproved {
-		return fmt.Errorf("only pending or approved absences can be canceled")
+		return workforce.ErrAbsenceNotCancelable
 	}
 	if absence.Status == AbsenceStatusApproved &&
 		isBeforeLocalToday(absence.DateStart, time.Now()) {
-		return fmt.Errorf("past absences cannot be canceled")
+		return workforce.ErrPastAbsenceCancel
 	}
 	fromStatus := absence.Status
 	absence.Status = AbsenceStatusCanceled
@@ -342,7 +344,7 @@ func (s *staffAbsenceService) lockVacationRequestRange(ctx context.Context, staf
 	// approved and reported absences hold the range.
 	for _, e := range existing {
 		if blocksAbsenceRange(e.Status) {
-			return fmt.Errorf("dates overlap with an existing absence")
+			return &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceDatesOverlap, Cause: fmt.Errorf("dates overlap with an existing absence")}
 		}
 	}
 

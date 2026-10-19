@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -129,12 +128,12 @@ func (s *RetainedGuardianService) applyRolePreset(relationship *peopleValues.Gua
 func (s *RetainedGuardianService) LinkGuardianToStudent(ctx context.Context, req peoplePorts.StudentGuardianCreateRequest) (*peopleValues.GuardianRelationshipSnapshot, error) {
 	// Validate guardian profile exists
 	if _, err := s.GuardianProfileRepo.FindByID(ctx, req.GuardianProfileID); err != nil {
-		return nil, fmt.Errorf(errMsgGuardianNotFound, err)
+		return nil, guardianLookupFailure(peopleValues.ErrGuardianNotFound, fmt.Errorf(errMsgGuardianNotFound, err))
 	}
 
 	// Validate student exists
 	if _, err := s.StudentRepo.FindByID(ctx, req.StudentID); err != nil {
-		return nil, fmt.Errorf("student not found: %w", err)
+		return nil, guardianLookupFailure(peopleValues.ErrGuardianNotFound, fmt.Errorf("student not found: %w", err))
 	}
 
 	if s.RolePresets == nil {
@@ -202,7 +201,7 @@ func (s *RetainedGuardianService) existingGuardianLink(ctx context.Context, stud
 func (s *RetainedGuardianService) GetStudentGuardianRelationship(ctx context.Context, relationshipID int64) (*peopleValues.GuardianRelationshipSnapshot, error) {
 	relationship, err := s.StudentGuardianRepo.FindByID(ctx, relationshipID)
 	if err != nil {
-		return nil, fmt.Errorf("relationship not found: %w", err)
+		return nil, guardianLookupFailure(peopleValues.ErrGuardianLinkNotFound, fmt.Errorf("relationship not found: %w", err))
 	}
 	return relationship, nil
 }
@@ -211,7 +210,7 @@ func (s *RetainedGuardianService) GetStudentGuardianRelationship(ctx context.Con
 func (s *RetainedGuardianService) UpdateStudentGuardianRelationship(ctx context.Context, relationshipID int64, req peoplePorts.StudentGuardianUpdateRequest) error {
 	relationship, err := s.StudentGuardianRepo.FindByID(ctx, relationshipID)
 	if err != nil {
-		return fmt.Errorf("relationship not found: %w", err)
+		return guardianLookupFailure(peopleValues.ErrGuardianLinkNotFound, fmt.Errorf("relationship not found: %w", err))
 	}
 
 	// Update fields if provided
@@ -264,7 +263,7 @@ func (s *RetainedGuardianService) UpdateStudentGuardianRelationship(ctx context.
 		return err
 	}
 	if updated == 0 {
-		return fmt.Errorf("relationship not found: %d", relationshipID)
+		return guardianLookupFailure(peopleValues.ErrGuardianLinkNotFound, fmt.Errorf("relationship not found: %d", relationshipID))
 	}
 	return nil
 }
@@ -301,7 +300,7 @@ func (s *RetainedGuardianService) removeGuardianFromStudent(ctx context.Context,
 		}
 	}
 
-	return errors.New("relationship not found")
+	return peopleValues.ErrGuardianLinkNotFound
 }
 
 // deleteGuardianLink removes one link. Clearing the payer mark with it needs
