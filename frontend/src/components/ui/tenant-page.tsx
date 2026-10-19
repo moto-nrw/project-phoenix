@@ -231,12 +231,17 @@ export interface TenantPageProps {
  * Der Info-Knopf neben dem Seitentitel. Ein Popover statt eines Tooltips:
  * auf dem Telefon gibt es kein Hover, und die Erklärung darf einen Link
  * tragen. Escape und ein Klick daneben schließen sie wieder.
+ *
+ * Beim Öffnen springt der Fokus in den Rahmen: er hängt am Ende des
+ * Dokuments, und ohne den Sprung erreichte die Tastatur seinen Link erst
+ * nach der ganzen Seite.
  */
 function TenantPageInfo({
   title,
   children,
 }: Readonly<{ title: string; children: ReactNode }>) {
   const [open, setOpen] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
   const label = `Erklärung zu ${title}`;
 
   return (
@@ -244,6 +249,7 @@ function TenantPageInfo({
       open={open}
       onOpenChange={setOpen}
       ariaLabel={label}
+      initialFocusRef={contentRef}
       preferredWidth={360}
       renderTrigger={({ ref, open: expanded, panelId, toggle }) => (
         <Button
@@ -255,14 +261,23 @@ function TenantPageInfo({
           aria-expanded={expanded}
           aria-controls={expanded ? panelId : undefined}
           onClick={toggle}
-          className="shrink-0 text-gray-400"
+          // Sichtbar 32 px wie die übrigen Symbolknöpfe; die Trefferfläche
+          // reicht per Pseudoelement auf 44 px, die Untergrenze für eine
+          // Touch-Fläche, ohne die Titelzeile höher zu machen.
+          className="relative shrink-0 text-gray-500 after:absolute after:-inset-1.5 after:content-['']"
         >
           <Info aria-hidden="true" className="h-[18px] w-[18px]" />
         </Button>
       )}
     >
       {() => (
-        <div className="p-4 text-sm leading-6 text-gray-700">{children}</div>
+        <div
+          ref={contentRef}
+          tabIndex={-1}
+          className="p-4 text-sm leading-6 text-gray-700 outline-none"
+        >
+          {children}
+        </div>
       )}
     </AnchoredPopover>
   );
@@ -404,7 +419,7 @@ export function TenantPage({
               <div className="flex items-center gap-1">
                 <h1
                   className={cn(
-                    "font-semibold tracking-tight text-balance text-gray-900",
+                    "min-w-0 font-semibold tracking-tight text-balance text-gray-900",
                     // Auch auf dem Telefon sichtbar: unter lg gibt es keine
                     // Shell-Kopfzeile mehr (wie in der Eltern-App), die
                     // Kopfkarte ist die einzige Trägerin des Seitennamens.

@@ -464,6 +464,9 @@ describe("TenantPage", () => {
     });
     expect(trigger).toHaveAttribute("aria-expanded", "true");
     expect(trigger).toHaveAttribute("aria-controls", panel.id);
+    // Der Rahmen hängt am Ende des Dokuments; ohne Fokus darin erreichte
+    // die Tastatur den Link erst nach der ganzen Seite.
+    expect(panel.contains(document.activeElement)).toBe(true);
     expect(panel).toHaveTextContent(/Hier legen Sie Daten an/);
     expect(
       within(panel).getByRole("link", { name: "Alle Kinder" }),

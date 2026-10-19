@@ -3179,7 +3179,7 @@ function dataManagementTopic(): HelpTopic {
       "Jede Kachel führt in ihre Liste. Auf der Kachel steht, wie viele Einträge es gibt.",
     notes: [
       "In der Seitenleiste erreichen Sie jeden Bereich auch direkt unter `Datenverwaltung`.",
-      "Das Info-Zeichen neben dem Seitennamen erklärt kurz, was hierher gehört.",
+      "Der Info-Knopf neben dem Seitennamen erklärt kurz, was hierher gehört.",
       "Die Kacheln `Terminkategorien`, `Planungsspuren`, `Schichtarten` und `Abwesenheitsarten` sind kurze Stammdaten-Listen.",
     ],
     differences: [
