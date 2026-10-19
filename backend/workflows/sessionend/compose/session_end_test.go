@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	endbinding "github.com/moto-nrw/project-phoenix/roots/sessionendbinding"
 
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
@@ -15,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -79,7 +80,7 @@ type stack struct {
 func newStack(t *testing.T) *stack {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	plan := timetabletest.New(t, db)
+	plan := owners.NewTestTimetable(t, testpkg.MustDatabase(db))
 	// The slot check-outs of the close are a Student Presence attendance rule
 	// that resolves its participants through the Timetable plan (#2762).
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}, Roster: plannedRoster{plan: plan}})

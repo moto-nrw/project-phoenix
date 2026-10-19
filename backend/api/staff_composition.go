@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"path/filepath"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
@@ -19,6 +18,7 @@ import (
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
+	filesHTTP "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -188,7 +188,7 @@ func newStaffResource(module schoolMembershipModule.Capability, people peopleMod
 		Success:            apiCommon.Respond,
 		Failure:            renderStaffFailure,
 		ObserveResponse:    observability.ObserveSchoolMembershipHTTPResponse,
-		ServeAvatar:        serveStaffAvatar,
+		ServeAvatar:        filesHTTP.NewStaffAvatarHandler(nativeUploads.ResolveStoredPath, nativeUploads.UploadFiles{}),
 		WriteFailure:       renderStaffWriteFailure,
 		SchoolClassFailure: delegatedStaffFailure(ClassifyStaffSchoolClassFailure),
 
@@ -233,15 +233,6 @@ func staffPermissionGate(required ...string) staffHTTP.Middleware {
 		return apiCommon.RequiresPermission(required[0])
 	}
 	return apiCommon.RequiresAnyPermission(required...)
-}
-
-func serveStaffAvatar(w http.ResponseWriter, r *http.Request, avatarPath string) {
-	filePath, err := nativeUploads.ResolveStoredPath("public", avatarPath, "/uploads/avatars/")
-	if err != nil {
-		apiCommon.RenderStatus(w, r, http.StatusNotFound, "")
-		return
-	}
-	apiCommon.ServeImage(w, r, filepath.Dir(filePath), filepath.Base(filePath), "private, max-age=86400", nativeUploads.UploadFiles{})
 }
 
 // renderStaffWriteFailure classifies the create/update/offboard errors: a

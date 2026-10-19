@@ -48,7 +48,7 @@ func TestParentAnnouncementSetResponse_StoresReplacesAndWithdraws(t *testing.T) 
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db))
 	ctx := tenantCtx(t)
 
 	poll, options := api.ParentStorePollAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
@@ -85,7 +85,7 @@ func TestParentAnnouncementSetResponse_RejectsWithoutPollPermission(t *testing.T
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db))
 	ctx := tenantCtx(t)
 
 	poll, options := api.ParentStorePollAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
@@ -135,7 +135,7 @@ func TestParentAnnouncementSetResponse_RejectsStaleVersionAndForeignOptions(t *t
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db))
 	ctx := tenantCtx(t)
 
 	poll, options := api.ParentStorePollAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
@@ -173,7 +173,7 @@ func TestParentAnnouncementSetResponse_SingleChoiceRejectsMultipleOptions(t *tes
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db))
 	ctx := tenantCtx(t)
 
 	poll, options := api.ParentStorePollAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {

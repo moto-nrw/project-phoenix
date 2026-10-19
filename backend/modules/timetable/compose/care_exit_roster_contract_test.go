@@ -5,8 +5,9 @@ import (
 	"errors"
 	"testing"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,8 +17,8 @@ func TestCareExitRosterCommandsPreservePlansAndOuterRollback(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	facts := &timetabletest.FixedSessions{}
-	module := timetabletest.NewWithSessions(t, db, facts)
+	facts := &owners.TestTimetableFixedSessions{}
+	module := owners.NewTestTimetableWithSessions(t, testpkg.MustDatabase(db), facts)
 	room := testpkg.CreateTestRoom(t, db, "Care exit roster")
 	student := testpkg.CreateTestStudent(t, db, "Roster", "Roundtrip", "2a")
 	after := testpkg.Date(2027, 9, 6)

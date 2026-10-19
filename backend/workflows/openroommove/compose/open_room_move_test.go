@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	movebinding "github.com/moto-nrw/project-phoenix/roots/openroommovebinding"
 
 	"github.com/stretchr/testify/assert"
@@ -15,7 +17,6 @@ import (
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
@@ -101,7 +102,7 @@ func newMoveStack(t *testing.T) *moveStack {
 		Observe:      func(facilitiesCompose.Observation) {},
 	})
 	require.NoError(t, err)
-	s := &moveStack{rooms: rooms, timetable: timetabletest.New(t, db), presence: newRecordingPresence()}
+	s := &moveStack{rooms: rooms, timetable: owners.NewTestTimetable(t, testpkg.MustDatabase(db)), presence: newRecordingPresence()}
 	s.command, err = compose.New(compose.Dependencies{
 		Rooms:        rooms,
 		Activities:   s.timetable,

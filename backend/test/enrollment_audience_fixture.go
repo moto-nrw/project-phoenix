@@ -11,12 +11,6 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 )
 
-// NewEnrollmentAudience is the Enrollment owner the retained parent
-// announcement store reads its pending-enrollment audience from. The People
-// Directory contract suite may not import Enrollment test support, so it
-// takes the owner from here.
-var NewEnrollmentAudience = enrollmentOwner.New
-
 // CreateTestUnstampedEnrollmentApplicant submits one enrollment request for
 // guardianEmail that no account is stamped on (guardian_account_id NULL), with
 // one submitted child, in an inactive phase of tenantID. It is the
@@ -24,7 +18,6 @@ var NewEnrollmentAudience = enrollmentOwner.New
 // still reaches by e-mail.
 func CreateTestUnstampedEnrollmentApplicant(tb testing.TB, db *bun.DB, tenantID int64, guardianEmail string) {
 	tb.Helper()
-	owner := enrollmentOwner.New()
 	ctx := WithTenantRuntime(tb, TenantContext(tenantID), db)
 
 	phase := &enrollmentOwner.Phase{
@@ -35,7 +28,7 @@ func CreateTestUnstampedEnrollmentApplicant(tb testing.TB, db *bun.DB, tenantID 
 		CareOfferingSelectionMode: "optional",
 	}
 	phase.TenantID = tenantID
-	require.NoError(tb, TenantCommand1(tb, ctx, db, owner.InsertPhase, phase))
+	require.NoError(tb, insertEnrollmentPhase(tb, ctx, db, phase))
 
 	request := &enrollmentOwner.Request{
 		PhaseID:           phase.ID,
@@ -46,9 +39,9 @@ func CreateTestUnstampedEnrollmentApplicant(tb testing.TB, db *bun.DB, tenantID 
 		StatusToken:       fmt.Sprintf("tok-%d", time.Now().UnixNano()),
 		SubmittedAt:       time.Now(),
 	}
-	require.NoError(tb, TenantCommand1(tb, ctx, db, owner.InsertRequest, request))
+	require.NoError(tb, insertEnrollmentRequest(tb, ctx, db, request))
 
-	require.NoError(tb, TenantCommand1(tb, ctx, db, owner.InsertChild, &enrollmentOwner.RequestChild{
+	require.NoError(tb, insertEnrollmentChild(tb, ctx, db, &enrollmentOwner.RequestChild{
 		RequestID:   request.ID,
 		FirstName:   "Felix",
 		LastName:    "Schneider",
