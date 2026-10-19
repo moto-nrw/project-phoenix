@@ -1154,3 +1154,7 @@ func auditChanges(t *testing.T, entry domain.OperatorAuditEntry) map[string]any 
 func strPtr(value string) *string { return &value }
 
 func int64Ptr(value int64) *int64 { return &value }
+
+func (d *fakeDashboard) AllSchoolsPWAUsage(ctx context.Context, window time.Duration) ([]organizationtenancy.DashboardPWAUsage, error) {
+	return d.PWAUsage(ctx, 0, window)
+}

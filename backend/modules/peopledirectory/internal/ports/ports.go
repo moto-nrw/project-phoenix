@@ -47,7 +47,7 @@ type Transaction interface {
 	// in context.
 	RunWrite(context.Context, func(context.Context) error) error
 	// RunRead joins the caller's transaction, else opens a tenant
-	// transaction, else an admin transaction for cross-tenant readers.
+	// transaction. A missing tenant fails; cross-school reads name RunAdminRead.
 	RunRead(context.Context, func(context.Context) error) error
 	// RunSavepoint runs fn inside a savepoint of the current transaction so
 	// a rejected statement leaves the outer transaction usable.

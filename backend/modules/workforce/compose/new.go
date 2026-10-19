@@ -82,24 +82,32 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 }
 
 func databaseRuntime(db *bun.DB) postgres.Database {
-	return func(ctx context.Context) (bun.IDB, int64, error) {
-		tenantID := tenant.FromContext(ctx)
-		transaction, hasTransaction := tenant.TransactionFromContext(ctx)
-		if !hasTransaction {
-			return db, tenantID, nil
+	return func(ctx context.Context) (bun.IDB, postgres.TenantScope, error) {
+		scope := postgres.TenantScope{}
+		id, err := tenant.TenantFromContext(ctx)
+		if err != nil {
+			if !tenant.IsAdminTx(ctx) {
+				return nil, scope, err
+			}
+			scope.AcrossSchools = true
+		} else {
+			scope.TenantID = id.Int64()
+		}
+		transaction, ok := tenant.TransactionFromContext(ctx)
+		if !ok {
+			return nil, scope, errors.New("workforce postgres: transaction is required")
 		}
 		switch tx := transaction.(type) {
 		case bun.Tx:
-			return tx, tenantID, nil
+			return tx, scope, nil
 		case *bun.Tx:
 			if tx != nil {
-				return tx, tenantID, nil
+				return *tx, scope, nil
 			}
-			return db, tenantID, nil
-		default:
-			return nil, 0, fmt.Errorf("workforce postgres: unsupported transaction %T", transaction)
 		}
+		return nil, scope, fmt.Errorf("workforce postgres: unsupported transaction %T", transaction)
 	}
+
 }
 
 // transaction runs units of work on the tenant runtime. lock is the Postgres
@@ -195,4 +203,10 @@ func (a assignments) RebaseAnchor(ctx context.Context, staffIDs []int64, anchorD
 		return nil
 	}
 	return a.store.RebaseStaffRotationAnchor(ctx, staffIDs, anchorDate)
+}
+
+// RunRead establishes RLS for standalone owner queries; workflows and HTTP
+// requests keep their existing transaction.
+func (t transaction) RunRead(ctx context.Context, callback func(context.Context) error) error {
+	return t.RunWrite(ctx, callback)
 }

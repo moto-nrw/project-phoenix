@@ -59,11 +59,11 @@ func monthSnapshotFromDomain(v domain.StaffMonthBalanceSnapshot) monthSnapshotRo
 }
 
 func (s *Store) monthSnapshotDatabase(ctx context.Context) (bun.IDB, int64, error) {
-	db, tenantID, err := s.database(ctx)
-	if err == nil && tenantID <= 0 {
+	db, scope, err := s.database(ctx)
+	if err == nil && scope.TenantID <= 0 {
 		err = errors.New("month snapshots: tenant is required")
 	}
-	return db, tenantID, err
+	return db, scope.TenantID, err
 }
 
 func (s *Store) LatestClosedMonth(ctx context.Context, staffID int64, year, month int) (*domain.StaffMonthBalanceSnapshot, domain.OperationStats, error) {
@@ -75,7 +75,7 @@ func (s *Store) LatestClosedMonth(ctx context.Context, staffID int64, year, mont
 	query := withTenant(db.NewSelect().Model(row).ModelTableExpr(tableMonthSnapshots+` AS "staff_month_balance_snapshot"`).
 		Where(`"staff_month_balance_snapshot".staff_id = ?`, staffID).
 		Where(`"staff_month_balance_snapshot".reopened_at IS NULL`).
-		Where(monthSnapshotOrdinal+" <= ?", year*12+month).OrderExpr(monthSnapshotOrdinal+" DESC").Limit(1), monthSnapshotAlias, tenantID)
+		Where(monthSnapshotOrdinal+" <= ?", year*12+month).OrderExpr(monthSnapshotOrdinal+" DESC").Limit(1), monthSnapshotAlias, TenantScope{TenantID: tenantID})
 	found, stats, err := scanOne(ctx, query, "get latest month balance snapshot")
 	if err != nil || !found {
 		return nil, stats, err
@@ -92,7 +92,7 @@ func (s *Store) ClosedMonthSnapshots(ctx context.Context, year, month int) ([]*d
 	var rows []monthSnapshotRow
 	query := withTenant(db.NewSelect().Model(&rows).ModelTableExpr(tableMonthSnapshots+` AS "staff_month_balance_snapshot"`).
 		Where(`"staff_month_balance_snapshot".year = ?`, year).Where(`"staff_month_balance_snapshot".month = ?`, month).
-		Where(`"staff_month_balance_snapshot".reopened_at IS NULL`).OrderExpr(`"staff_month_balance_snapshot".staff_id ASC`), monthSnapshotAlias, tenantID)
+		Where(`"staff_month_balance_snapshot".reopened_at IS NULL`).OrderExpr(`"staff_month_balance_snapshot".staff_id ASC`), monthSnapshotAlias, TenantScope{TenantID: tenantID})
 	stats, err := scanAll(ctx, query, "get month balance snapshots by month")
 	if err != nil {
 		return nil, stats, err
@@ -134,7 +134,7 @@ func (s *Store) ClosedMonthSnapshotsForStaff(ctx context.Context, staffIDs []int
 	var rows []monthSnapshotRow
 	query := withTenant(db.NewSelect().Model(&rows).ModelTableExpr(tableMonthSnapshots+` AS "staff_month_balance_snapshot"`).
 		Where(`"staff_month_balance_snapshot".staff_id IN (?)`, bun.List(staffIDs)).
-		Where(`"staff_month_balance_snapshot".reopened_at IS NULL`), monthSnapshotAlias, tenantID)
+		Where(`"staff_month_balance_snapshot".reopened_at IS NULL`), monthSnapshotAlias, TenantScope{TenantID: tenantID})
 	stats, err := scanAll(ctx, query, "prefetch month balance snapshots")
 	if err != nil {
 		return nil, stats, err

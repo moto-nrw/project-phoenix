@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 )
@@ -22,7 +24,7 @@ func New(store ports.Store, observe ports.Observer) *Service {
 }
 
 func (s *Service) FindCareOffering(ctx context.Context, id int64) (result domain.CareOffering, err error) {
-	err = s.run("find_care_offering", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_care_offering", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.FindCareOffering(ctx, id)
@@ -36,7 +38,7 @@ func (s *Service) FindCareOffering(ctx context.Context, id int64) (result domain
 }
 
 func (s *Service) ListCareOfferings(ctx context.Context, filter domain.CareOfferingFilter) (result []domain.CareOffering, err error) {
-	err = s.run("list_care_offerings", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_care_offerings", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListCareOfferings(ctx, filter)
 		stats.Add(queryStats)
@@ -46,7 +48,7 @@ func (s *Service) ListCareOfferings(ctx context.Context, filter domain.CareOffer
 }
 
 func (s *Service) CountCareOfferingsByPhase(ctx context.Context, phaseID int64) (result int, err error) {
-	err = s.run("count_care_offerings_by_phase", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "count_care_offerings_by_phase", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.CountCareOfferingsByPhase(ctx, phaseID)
 		stats.Add(queryStats)
@@ -56,7 +58,7 @@ func (s *Service) CountCareOfferingsByPhase(ctx context.Context, phaseID int64) 
 }
 
 func (s *Service) CreateCareOffering(ctx context.Context, fields domain.CareOfferingFields) (result domain.CareOffering, err error) {
-	err = s.run("create_care_offering", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_care_offering", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.CreateCareOffering(ctx, fields)
 		stats.Add(queryStats)
@@ -74,7 +76,7 @@ func (s *Service) CreateCareOffering(ctx context.Context, fields domain.CareOffe
 }
 
 func (s *Service) UpdateCareOffering(ctx context.Context, id int64, fields domain.CareOfferingFields) (result domain.CareOffering, err error) {
-	err = s.run("update_care_offering", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "update_care_offering", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.UpdateCareOffering(ctx, id, fields)
 		stats.Add(queryStats)
@@ -92,7 +94,7 @@ func (s *Service) UpdateCareOffering(ctx context.Context, id int64, fields domai
 }
 
 func (s *Service) DeleteCareOffering(ctx context.Context, id int64) (err error) {
-	return s.run("delete_care_offering", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "delete_care_offering", func(ctx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.DeleteCareOffering(ctx, id)
 		stats.Add(queryStats)
 		return err
@@ -100,7 +102,7 @@ func (s *Service) DeleteCareOffering(ctx context.Context, id int64) (err error) 
 }
 
 func (s *Service) ReplaceAutoAddTriggers(ctx context.Context, id int64, triggers []int64) error {
-	return s.run("replace_care_offering_auto_triggers", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "replace_care_offering_auto_triggers", func(ctx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.ReplaceAutoAddTriggers(ctx, id, triggers)
 		stats.Add(queryStats)
 		return err
@@ -108,7 +110,7 @@ func (s *Service) ReplaceAutoAddTriggers(ctx context.Context, id int64, triggers
 }
 
 func (s *Service) FindOfferingChange(ctx context.Context, id int64, lock bool) (result domain.OfferingChangeRequest, err error) {
-	err = s.run("find_offering_change", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_offering_change", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.FindOfferingChange(ctx, id, lock)
@@ -122,7 +124,7 @@ func (s *Service) FindOfferingChange(ctx context.Context, id int64, lock bool) (
 }
 
 func (s *Service) ListOfferingChanges(ctx context.Context, filter domain.OfferingChangeFilter) (result []domain.OfferingChangeRequest, err error) {
-	err = s.run("list_offering_changes", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_offering_changes", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListOfferingChanges(ctx, filter)
 		stats.Add(queryStats)
@@ -132,7 +134,7 @@ func (s *Service) ListOfferingChanges(ctx context.Context, filter domain.Offerin
 }
 
 func (s *Service) CreateOfferingChange(ctx context.Context, row domain.OfferingChangeRequest) (result domain.OfferingChangeRequest, err error) {
-	err = s.run("create_offering_change", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_offering_change", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.CreateOfferingChange(ctx, row)
 		stats.Add(queryStats)
@@ -142,7 +144,7 @@ func (s *Service) CreateOfferingChange(ctx context.Context, row domain.OfferingC
 }
 
 func (s *Service) UpdateOfferingChangeEffectiveFrom(ctx context.Context, id int64, date string) error {
-	return s.run("update_offering_change_effective_from", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "update_offering_change_effective_from", func(ctx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.UpdateOfferingChangeEffectiveFrom(ctx, id, date)
 		stats.Add(queryStats)
 		return err
@@ -150,7 +152,7 @@ func (s *Service) UpdateOfferingChangeEffectiveFrom(ctx context.Context, id int6
 }
 
 func (s *Service) UpdateApprovedCompleteWithdrawal(ctx context.Context, id int64, complete bool) error {
-	return s.run("update_offering_change_withdrawal", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "update_offering_change_withdrawal", func(ctx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.UpdateApprovedCompleteWithdrawal(ctx, id, complete)
 		stats.Add(queryStats)
 		return err
@@ -158,7 +160,7 @@ func (s *Service) UpdateApprovedCompleteWithdrawal(ctx context.Context, id int64
 }
 
 func (s *Service) UpdatePendingOfferingChange(ctx context.Context, input domain.UpdatePendingOfferingChange) error {
-	return s.run("update_pending_offering_change", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "update_pending_offering_change", func(ctx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.UpdatePendingOfferingChange(ctx, input)
 		stats.Add(queryStats)
 		return err
@@ -166,7 +168,7 @@ func (s *Service) UpdatePendingOfferingChange(ctx context.Context, input domain.
 }
 
 func (s *Service) DecideOfferingChange(ctx context.Context, input domain.DecideOfferingChange) error {
-	return s.run("decide_offering_change", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "decide_offering_change", func(ctx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.DecideOfferingChange(ctx, input)
 		stats.Add(queryStats)
 		return err
@@ -174,7 +176,7 @@ func (s *Service) DecideOfferingChange(ctx context.Context, input domain.DecideO
 }
 
 func (s *Service) UpdateOfferingChangeSnapshot(ctx context.Context, id int64, snapshot json.RawMessage) error {
-	return s.run("update_offering_change_snapshot", func(stats *domain.OperationStats) error {
+	return s.run(ctx, "update_offering_change_snapshot", func(ctx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.UpdateOfferingChangeSnapshot(ctx, id, snapshot)
 		stats.Add(queryStats)
 		return err
@@ -182,7 +184,7 @@ func (s *Service) UpdateOfferingChangeSnapshot(ctx context.Context, id int64, sn
 }
 
 func (s *Service) ClosePendingOfferingChanges(ctx context.Context, studentIDs []int64, reason string, reviewedBy *int64, at time.Time) (rows int64, err error) {
-	err = s.run("close_pending_offering_changes", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "close_pending_offering_changes", func(ctx context.Context, stats *domain.OperationStats) error {
 		queryStats, commandErr := s.store.ClosePendingOfferingChanges(ctx, studentIDs, reason, reviewedBy, at)
 		stats.Add(queryStats)
 		rows = queryStats.Rows
@@ -191,11 +193,11 @@ func (s *Service) ClosePendingOfferingChanges(ctx context.Context, studentIDs []
 	return rows, err
 }
 
-func (s *Service) run(operation string, command func(*domain.OperationStats) error) (err error) {
+func (s *Service) run(ctx context.Context, operation string, command func(context.Context, *domain.OperationStats) error) (err error) {
 	started := time.Now()
 	stats := domain.OperationStats{}
 	defer func() {
 		s.observe(ports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
 	}()
-	return command(&stats)
+	return tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error { return command(txCtx, &stats) })
 }

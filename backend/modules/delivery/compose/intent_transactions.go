@@ -1,4 +1,4 @@
-package postgres
+package compose
 
 import (
 	"context"
@@ -13,19 +13,16 @@ import (
 // worker's own context does not carry (#2747).
 type IntentTransactions struct{ db *bun.DB }
 
-// NewTenantTransactions binds the provider steps to the root database.
-func NewTenantTransactions(db *bun.DB) IntentTransactions {
-	return IntentTransactions{db: db}
-}
-
 // WithinTenant runs fn in the tenant transaction of tenantID.
 func (t IntentTransactions) WithinTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
-	if tenantID == 0 {
-		return tenant.WithAdminTx(ctx, t.db, func(txCtx context.Context, _ bun.Tx) error {
-			return fn(txCtx)
-		})
-	}
+
 	return tenant.WithTenantTx(ctx, t.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return fn(txCtx)
 	})
+}
+
+// WithinSystem renders explicitly school-less identity/operator mail. A missing
+// school on a tenant step never selects this boundary.
+func (t IntentTransactions) WithinSystem(ctx context.Context, fn func(context.Context) error) error {
+	return tenant.WithAdminTx(ctx, t.db, func(txCtx context.Context, _ bun.Tx) error { return fn(txCtx) })
 }

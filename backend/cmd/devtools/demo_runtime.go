@@ -128,7 +128,7 @@ func NewDemoRuntime(db transactionruntime.Database, now func() time.Time) (*Demo
 // (#3470) and returns how many, plus the demo schools no access enters any
 // more.
 func (d *DemoRuntime) ExpireDemoAccesses(ctx context.Context) (int, []string, error) {
-	return d.expiry.ExpireDemoAccesses(ctx)
+	return d.expiry.ExpireDemoAccesses(tenant.WithUnitOfWork(ctx, d.transactions))
 }
 
 // RetireDemoSchools hides the named demo schools, then erases the visitors

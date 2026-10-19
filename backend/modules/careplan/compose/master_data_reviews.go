@@ -5,6 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -42,7 +44,16 @@ type requestQueueQueries struct {
 	observe func(Observation)
 }
 
-func (q requestQueueQueries) FindCareScheduleRequest(ctx context.Context, id int64, lock bool) (careplan.CareScheduleChangeRequest, error) {
+func (q requestQueueQueries) FindCareScheduleRequest(ctx context.Context, id int64, lock bool) (row careplan.CareScheduleChangeRequest, err error) {
+	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		var err error
+		row, err = q.findCareScheduleRequest(txCtx, id, lock)
+		return err
+	})
+	return
+}
+
+func (q requestQueueQueries) findCareScheduleRequest(ctx context.Context, id int64, lock bool) (careplan.CareScheduleChangeRequest, error) {
 	started := time.Now()
 	row, found, stats, err := q.store.FindCareScheduleRequest(ctx, id, lock)
 	if err == nil && !found {
@@ -52,7 +63,16 @@ func (q requestQueueQueries) FindCareScheduleRequest(ctx context.Context, id int
 	return row, err
 }
 
-func (q requestQueueQueries) ListStudentDataRequests(ctx context.Context, filter careplan.StudentDataRequestFilter) ([]careplan.StudentDataChangeRequest, error) {
+func (q requestQueueQueries) ListStudentDataRequests(ctx context.Context, filter careplan.StudentDataRequestFilter) (rows []careplan.StudentDataChangeRequest, err error) {
+	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		var err error
+		rows, err = q.listStudentDataRequests(txCtx, filter)
+		return err
+	})
+	return
+}
+
+func (q requestQueueQueries) listStudentDataRequests(ctx context.Context, filter careplan.StudentDataRequestFilter) ([]careplan.StudentDataChangeRequest, error) {
 	started := time.Now()
 	rows, stats, err := q.store.ListStudentDataRequests(ctx, filter)
 	q.observe(Observation{Operation: "list_student_data_requests", Duration: time.Since(started), Stats: stats, Err: err})
@@ -68,7 +88,16 @@ func NewCareScheduleRequestQueries(db *bun.DB, directory StudentDirectory, obser
 	return requestQueueQueries{store: postgres.NewRequestStore(postgres.New(carePlanDatabase(db)), directory), observe: observe}, nil
 }
 
-func (q requestQueueQueries) ListCareScheduleRequests(ctx context.Context, filter careplan.CareScheduleRequestFilter) ([]careplan.CareScheduleChangeRequest, error) {
+func (q requestQueueQueries) ListCareScheduleRequests(ctx context.Context, filter careplan.CareScheduleRequestFilter) (rows []careplan.CareScheduleChangeRequest, err error) {
+	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		var err error
+		rows, err = q.listCareScheduleRequests(txCtx, filter)
+		return err
+	})
+	return
+}
+
+func (q requestQueueQueries) listCareScheduleRequests(ctx context.Context, filter careplan.CareScheduleRequestFilter) ([]careplan.CareScheduleChangeRequest, error) {
 	started := time.Now()
 	rows, stats, err := q.store.ListCareScheduleRequests(ctx, filter)
 	q.observe(Observation{Operation: "list_care_schedule_requests", Duration: time.Since(started), Stats: stats, Err: err})

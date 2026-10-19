@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
@@ -43,11 +45,15 @@ func (e Engine) observeRequest(operation string, started time.Time, stats domain
 	e.observe(ports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
 }
 
-func requestValue[T any](e interface {
+func requestValue[T any](ctx context.Context, e interface {
 	observeRequest(string, time.Time, domain.OperationStats, error)
-}, operation string, call func() (T, domain.OperationStats, error)) (result T, err error) {
+}, operation string, call func(ctx context.Context) (T, domain.OperationStats, error)) (result T, err error) {
 	started := time.Now()
-	result, stats, err := call()
+	var stats domain.OperationStats
+	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		result, stats, err = call(txCtx)
+		return err
+	})
 	e.observeRequest(operation, started, stats, err)
 	return result, err
 }
@@ -76,7 +82,7 @@ func requestCommandValue[T any](e Engine, ctx context.Context, operation string,
 }
 
 func (e Engine) FindExcusedAbsenceRequest(ctx context.Context, id int64, lock bool) (careplan.ExcusedAbsenceRequest, error) {
-	value, err := requestValue(e, "find_excused_absence_request", func() (careplan.ExcusedAbsenceRequest, domain.OperationStats, error) {
+	value, err := requestValue(ctx, e, "find_excused_absence_request", func(ctx context.Context) (careplan.ExcusedAbsenceRequest, domain.OperationStats, error) {
 		value, found, stats, findErr := e.requests.FindExcusedAbsenceRequest(ctx, id, lock)
 		if findErr == nil && !found {
 			findErr = careplan.ErrExcusedRequestNotFound
@@ -86,12 +92,12 @@ func (e Engine) FindExcusedAbsenceRequest(ctx context.Context, id int64, lock bo
 	return value, err
 }
 func (e Engine) FindPendingExcusedAbsenceRequest(ctx context.Context, id int64) (careplan.ExcusedAbsenceRequest, error) {
-	return requestValue(e, "find_pending_excused_absence_request", func() (careplan.ExcusedAbsenceRequest, domain.OperationStats, error) {
+	return requestValue(ctx, e, "find_pending_excused_absence_request", func(ctx context.Context) (careplan.ExcusedAbsenceRequest, domain.OperationStats, error) {
 		return e.requests.FindPendingExcusedAbsenceRequest(ctx, id)
 	})
 }
 func (e Engine) ListExcusedAbsenceRequests(ctx context.Context, filter careplan.ExcusedAbsenceRequestFilter) ([]careplan.ExcusedAbsenceRequest, error) {
-	return requestValue(e, "list_excused_absence_requests", func() ([]careplan.ExcusedAbsenceRequest, domain.OperationStats, error) {
+	return requestValue(ctx, e, "list_excused_absence_requests", func(ctx context.Context) ([]careplan.ExcusedAbsenceRequest, domain.OperationStats, error) {
 		return e.requests.ListExcusedAbsenceRequests(ctx, filter)
 	})
 }
@@ -122,7 +128,7 @@ func (e Engine) RedecideExcusedAbsenceRequest(ctx context.Context, value carepla
 }
 
 func (e Engine) FindCareScheduleRequest(ctx context.Context, id int64, lock bool) (careplan.CareScheduleChangeRequest, error) {
-	return requestValue(e, "find_care_schedule_request", func() (careplan.CareScheduleChangeRequest, domain.OperationStats, error) {
+	return requestValue(ctx, e, "find_care_schedule_request", func(ctx context.Context) (careplan.CareScheduleChangeRequest, domain.OperationStats, error) {
 		value, found, stats, findErr := e.requests.FindCareScheduleRequest(ctx, id, lock)
 		if findErr == nil && !found {
 			findErr = careplan.ErrCareScheduleRequestNotFound
@@ -131,12 +137,12 @@ func (e Engine) FindCareScheduleRequest(ctx context.Context, id int64, lock bool
 	})
 }
 func (e Engine) FindPendingCareScheduleRequest(ctx context.Context, id int64) (careplan.CareScheduleChangeRequest, error) {
-	return requestValue(e, "find_pending_care_schedule_request", func() (careplan.CareScheduleChangeRequest, domain.OperationStats, error) {
+	return requestValue(ctx, e, "find_pending_care_schedule_request", func(ctx context.Context) (careplan.CareScheduleChangeRequest, domain.OperationStats, error) {
 		return e.requests.FindPendingCareScheduleRequest(ctx, id)
 	})
 }
 func (e Engine) ListCareScheduleRequests(ctx context.Context, filter careplan.CareScheduleRequestFilter) ([]careplan.CareScheduleChangeRequest, error) {
-	return requestValue(e, "list_care_schedule_requests", func() ([]careplan.CareScheduleChangeRequest, domain.OperationStats, error) {
+	return requestValue(ctx, e, "list_care_schedule_requests", func(ctx context.Context) ([]careplan.CareScheduleChangeRequest, domain.OperationStats, error) {
 		return e.requests.ListCareScheduleRequests(ctx, filter)
 	})
 }
@@ -167,7 +173,7 @@ func (e Engine) UpdateCareScheduleRequestSnapshot(ctx context.Context, id int64,
 }
 
 func (e Engine) FindStudentDataRequest(ctx context.Context, id int64, lock bool) (careplan.StudentDataChangeRequest, error) {
-	return requestValue(e, "find_student_data_request", func() (careplan.StudentDataChangeRequest, domain.OperationStats, error) {
+	return requestValue(ctx, e, "find_student_data_request", func(ctx context.Context) (careplan.StudentDataChangeRequest, domain.OperationStats, error) {
 		value, found, stats, findErr := e.requests.FindStudentDataRequest(ctx, id, lock)
 		if findErr == nil && !found {
 			findErr = careplan.ErrStudentDataRequestNotFound
@@ -176,17 +182,17 @@ func (e Engine) FindStudentDataRequest(ctx context.Context, id int64, lock bool)
 	})
 }
 func (e Engine) FindPendingStudentDataRequest(ctx context.Context, id int64) (careplan.StudentDataChangeRequest, error) {
-	return requestValue(e, "find_pending_student_data_request", func() (careplan.StudentDataChangeRequest, domain.OperationStats, error) {
+	return requestValue(ctx, e, "find_pending_student_data_request", func(ctx context.Context) (careplan.StudentDataChangeRequest, domain.OperationStats, error) {
 		return e.requests.FindPendingStudentDataRequest(ctx, id)
 	})
 }
 func (e Engine) ListStudentDataRequests(ctx context.Context, filter careplan.StudentDataRequestFilter) ([]careplan.StudentDataChangeRequest, error) {
-	return requestValue(e, "list_student_data_requests", func() ([]careplan.StudentDataChangeRequest, domain.OperationStats, error) {
+	return requestValue(ctx, e, "list_student_data_requests", func(ctx context.Context) ([]careplan.StudentDataChangeRequest, domain.OperationStats, error) {
 		return e.requests.ListStudentDataRequests(ctx, filter)
 	})
 }
 func (e Engine) HasPendingStudentDataRequest(ctx context.Context, studentID int64, target, field string) (bool, error) {
-	return requestValue(e, "has_pending_student_data_request", func() (bool, domain.OperationStats, error) {
+	return requestValue(ctx, e, "has_pending_student_data_request", func(ctx context.Context) (bool, domain.OperationStats, error) {
 		return e.requests.HasPendingStudentDataRequest(ctx, studentID, target, field)
 	})
 }
@@ -212,7 +218,7 @@ func (e Engine) RedecideStudentDataRequest(ctx context.Context, value careplan.S
 }
 
 func (e Engine) CountOpenCareRequests(ctx context.Context, studentIDs []int64) (map[int64]int, error) {
-	return requestValue(e, "count_open_care_requests", func() (map[int64]int, domain.OperationStats, error) {
+	return requestValue(ctx, e, "count_open_care_requests", func(ctx context.Context) (map[int64]int, domain.OperationStats, error) {
 		return e.requests.CountOpenCareRequests(ctx, studentIDs)
 	})
 }

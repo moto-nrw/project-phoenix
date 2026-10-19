@@ -88,7 +88,7 @@ func (o *sqlGuardianOwners) SetGuardianStudentPermissions(ctx context.Context, t
 }
 
 func newRelationshipStore(db *bun.DB, owners *sqlGuardianOwners) peoplePorts.StudentGuardianRepository {
-	return peopleCompose.NewRetainedGuardianRelationshipRepository(db, testpkg.StudentDirectory{}, testpkg.GuardianLinks{}, api.PeopleRepositorySuiteWithOwners(owners, owners))
+	return api.WithGuardianRelationshipTransactions(peopleCompose.NewRetainedGuardianRelationshipRepository(db, testpkg.StudentDirectory{}, testpkg.GuardianLinks{}, api.PeopleRepositorySuiteWithOwners(owners, owners)))
 }
 
 // linkHalves counts the rows of each owner for one pair.
@@ -342,7 +342,7 @@ func TestGuardianRelationshipLinkWithoutRoleNeedsTheDefaultRolePolicy(t *testing
 	relationships, _, _ := linkHalves(t, db, student.ID, guardian.ID)
 	require.Zero(t, relationships)
 
-	bound := peopleCompose.NewRetainedGuardianRelationshipRepository(db, testpkg.StudentDirectory{}, testpkg.GuardianLinks{}, api.PeopleRepositorySuiteWithOwners(owners, owners), api.PeopleRepositorySuiteWithDefaultRole())
+	bound := api.WithGuardianRelationshipTransactions(peopleCompose.NewRetainedGuardianRelationshipRepository(db, testpkg.StudentDirectory{}, testpkg.GuardianLinks{}, api.PeopleRepositorySuiteWithOwners(owners, owners), api.PeopleRepositorySuiteWithDefaultRole()))
 	created, err := bound.LinkIfNotExists(ctx, link())
 	require.NoError(t, err)
 	require.True(t, created)

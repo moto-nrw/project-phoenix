@@ -418,3 +418,24 @@ func TestModuleRestoreTagKeepsABraceletGivenInTheMeantime(t *testing.T) {
 	_, err = module.FindPersonByTag(ctx, oldCard.ID)
 	require.ErrorIs(t, err, peopledirectory.ErrPersonNotFound, "the ledgered bracelet stays free")
 }
+
+func TestDirectoryReadRequiresTenantAndEnforcesRLS(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	own := testpkg.CreateTestPerson(t, db, "Tenant", "Own")
+	otherCtx, otherTenant := otherTenantContext(t, db)
+	foreign := testpkg.CreateTestPersonForTenant(t, db, otherTenant, "Tenant", "Foreign")
+	ctx := testpkg.Ctx(t)
+	for _, side := range []struct {
+		ctx     context.Context
+		visible int64
+	}{{ctx, own.ID}, {otherCtx, foreign.ID}} {
+		people, err := module.ListPersonsByID(side.ctx, []int64{own.ID, foreign.ID})
+		require.NoError(t, err)
+		require.Len(t, people, 1)
+		require.Equal(t, side.visible, people[0].ID)
+	}
+	_, err := module.ListPersonsByID(tenant.ContextWithoutTenant(ctx), []int64{own.ID, foreign.ID})
+	require.ErrorIs(t, err, tenant.ErrTenantRequired)
+}

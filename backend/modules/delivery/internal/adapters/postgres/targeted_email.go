@@ -19,7 +19,7 @@ func (s *Store) ClaimEmail(ctx context.Context, tenantID, id int64, now, expires
 	if tenantID == 0 {
 		scope = nil
 	}
-	err := s.adminTx(ctx, func(txCtx context.Context, db bun.IDB) error {
+	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
 		err := db.NewRaw(`UPDATE platform.email_outbox
    SET status = 'claimed', lease_token = uuid_generate_v4()::text, lease_expires_at = ?, updated_at = ?
    WHERE COALESCE(tenant_id, 0) = COALESCE(?, 0) AND id = ? AND
@@ -42,7 +42,7 @@ func (s *Store) ClaimEmail(ctx context.Context, tenantID, id int64, now, expires
 // attempt before the synchronous caller's next transport attempt.
 func (s *Store) RecordEmailRetry(ctx context.Context, id int64, token string, attempts int, now time.Time) (bool, error) {
 	var updated bool
-	err := s.adminTx(ctx, func(txCtx context.Context, db bun.IDB) error {
+	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
 		result, err := db.NewRaw(`UPDATE platform.email_outbox SET attempts = ?, updated_at = ? WHERE id = ? AND status = 'claimed' AND lease_token = ? AND lease_expires_at > ?`, attempts, now, id, token, now).Exec(txCtx)
 		if err != nil {
 			return err

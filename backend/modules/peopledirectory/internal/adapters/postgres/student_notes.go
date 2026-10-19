@@ -46,22 +46,22 @@ func NewStudentNoteStore(database Database) *StudentNoteStore {
 	return &StudentNoteStore{database: database}
 }
 
-func (s *StudentNoteStore) tenantDatabase(ctx context.Context) (bun.IDB, int64, error) {
-	db, tenantID, err := s.database(ctx)
+func (s *StudentNoteStore) tenantDatabase(ctx context.Context) (bun.IDB, TenantScope, error) {
+	db, scope, err := s.database(ctx)
 	if err != nil {
-		return nil, 0, err
+		return nil, TenantScope{}, err
 	}
-	if tenantID <= 0 {
-		return nil, 0, errors.New("people directory: student notes require a tenant")
+	if scope.TenantID <= 0 {
+		return nil, TenantScope{}, errors.New("people directory: student notes require a tenant")
 	}
-	return db, tenantID, nil
+	return db, scope, nil
 }
 
 // List returns one child's visible notes, newest first. The audience predicate
 // is built from the filter the caller resolved; this store never decides who
 // may read what, it only turns the answer into SQL.
 func (s *StudentNoteStore) List(ctx context.Context, filter domain.StudentNoteFilter) ([]domain.StudentNote, domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDatabase(ctx)
+	db, scope, err := s.tenantDatabase(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -69,7 +69,7 @@ func (s *StudentNoteStore) List(ctx context.Context, filter domain.StudentNoteFi
 	query := db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(studentNotesTable+" AS note").
-		Where(`"note".tenant_id = ?`, tenantID).
+		Where(`"note".tenant_id = ?`, scope.TenantID).
 		Where(`"note".student_id = ?`, filter.StudentID).
 		Where(`"note".deleted_at IS NULL`)
 	if filter.Kind != "" {
@@ -135,7 +135,7 @@ func applyAudience(query *bun.SelectQuery, filter domain.StudentNoteFilter) *bun
 // SELECT ... FOR <lock> so a writer can re-check authorship under the same
 // lock it updates with.
 func (s *StudentNoteStore) FindByID(ctx context.Context, id int64, lock string) (domain.StudentNote, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDatabase(ctx)
+	db, scope, err := s.tenantDatabase(ctx)
 	if err != nil {
 		return domain.StudentNote{}, false, domain.OperationStats{}, err
 	}
@@ -143,7 +143,7 @@ func (s *StudentNoteStore) FindByID(ctx context.Context, id int64, lock string) 
 	query := db.NewSelect().
 		Model(&row).
 		ModelTableExpr(studentNotesTable+" AS note").
-		Where(`"note".tenant_id = ?`, tenantID).
+		Where(`"note".tenant_id = ?`, scope.TenantID).
 		Where(`"note".id = ?`, id).
 		Where(`"note".deleted_at IS NULL`)
 	if lock != "" {
@@ -169,7 +169,7 @@ func (s *StudentNoteStore) FindByID(ctx context.Context, id int64, lock string) 
 func (s *StudentNoteStore) FindLegacySupervisorNote(
 	ctx context.Context, studentID int64, lock string,
 ) (domain.StudentNote, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDatabase(ctx)
+	db, scope, err := s.tenantDatabase(ctx)
 	if err != nil {
 		return domain.StudentNote{}, false, domain.OperationStats{}, err
 	}
@@ -177,7 +177,7 @@ func (s *StudentNoteStore) FindLegacySupervisorNote(
 	query := db.NewSelect().
 		Model(&row).
 		ModelTableExpr(studentNotesTable+" AS note").
-		Where(`"note".tenant_id = ?`, tenantID).
+		Where(`"note".tenant_id = ?`, scope.TenantID).
 		Where(`"note".student_id = ?`, studentID).
 		Where(`"note".origin = ?`, domain.StudentNoteOriginMasterData).
 		Where(`"note".deleted_at IS NULL`)
@@ -201,13 +201,13 @@ func (s *StudentNoteStore) FindLegacySupervisorNote(
 // Insert writes one new note and returns it as stored, so the caller renders
 // the server's timestamps rather than guessing them.
 func (s *StudentNoteStore) Insert(ctx context.Context, create domain.CreateStudentNote) (domain.StudentNote, domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDatabase(ctx)
+	db, scope, err := s.tenantDatabase(ctx)
 	if err != nil {
 		return domain.StudentNote{}, domain.OperationStats{}, err
 	}
 	author := create.AuthorAccountID
 	row := studentNoteRow{
-		TenantID: tenantID, StudentID: create.StudentID, AuthorAccountID: &author,
+		TenantID: scope.TenantID, StudentID: create.StudentID, AuthorAccountID: &author,
 		Origin: domain.StudentNoteOriginStaff, Kind: create.Kind, Visibility: create.Visibility,
 		Category: optionalText(create.Category), Body: create.Body,
 		SubjectDate:      create.Subject.Date,
@@ -233,7 +233,7 @@ func (s *StudentNoteStore) Insert(ctx context.Context, create domain.CreateStude
 // group reference stays fixed, so a correction cannot move a note to another
 // activity or group.
 func (s *StudentNoteStore) Update(ctx context.Context, update domain.UpdateStudentNote) (domain.StudentNote, domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDatabase(ctx)
+	db, scope, err := s.tenantDatabase(ctx)
 	if err != nil {
 		return domain.StudentNote{}, domain.OperationStats{}, err
 	}
@@ -248,7 +248,7 @@ func (s *StudentNoteStore) Update(ctx context.Context, update domain.UpdateStude
 		Set("category = ?", optionalText(update.Category)).
 		Set("body = ?", update.Body).
 		Set("subject_date = ?", update.SubjectDate).
-		Where(`"note".tenant_id = ?`, tenantID).
+		Where(`"note".tenant_id = ?`, scope.TenantID).
 		Where(`"note".id = ?`, update.ID).
 		Where(`"note".deleted_at IS NULL`).
 		Returning("*").
@@ -268,7 +268,7 @@ func (s *StudentNoteStore) Update(ctx context.Context, update domain.UpdateStude
 // about a child is documentation, and a deletion that leaves no trace is
 // indistinguishable from a note that was never written.
 func (s *StudentNoteStore) SoftDelete(ctx context.Context, deletion domain.DeleteStudentNote) (domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDatabase(ctx)
+	db, scope, err := s.tenantDatabase(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -279,7 +279,7 @@ func (s *StudentNoteStore) SoftDelete(ctx context.Context, deletion domain.Delet
 		ModelTableExpr(studentNotesTable+" AS note").
 		Set("deleted_at = clock_timestamp()").
 		Set("deleted_by_account_id = ?", deletion.ActorAccountID).
-		Where(`"note".tenant_id = ?`, tenantID).
+		Where(`"note".tenant_id = ?`, scope.TenantID).
 		Where(`"note".id = ?`, deletion.ID).
 		Where(`"note".deleted_at IS NULL`).
 		Exec(ctx)
@@ -305,7 +305,7 @@ func (s *StudentNoteStore) SoftDelete(ctx context.Context, deletion domain.Delet
 func (s *StudentNoteStore) SyncLegacySupervisorNotes(
 	ctx context.Context, studentID int64, supervisorNotes *string,
 ) (domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDatabase(ctx)
+	db, scope, err := s.tenantDatabase(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -314,9 +314,9 @@ func (s *StudentNoteStore) SyncLegacySupervisorNotes(
 	}
 	body := strings.TrimSpace(derefString(supervisorNotes))
 	if body == "" {
-		return s.deleteLegacySupervisorNote(ctx, db, tenantID, studentID)
+		return s.deleteLegacySupervisorNote(ctx, db, scope.TenantID, studentID)
 	}
-	return s.upsertLegacySupervisorNote(ctx, db, tenantID, studentID, body)
+	return s.upsertLegacySupervisorNote(ctx, db, scope.TenantID, studentID, body)
 }
 
 func (s *StudentNoteStore) deleteLegacySupervisorNote(

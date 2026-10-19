@@ -8,6 +8,7 @@ import (
 	"github.com/uptrace/bun"
 
 	usersRepo "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
@@ -47,10 +48,10 @@ func NewPersonRepository(db *bun.DB, accounts AccountLookup) peoplePorts.PersonR
 // holds an active guardian membership, and those in which it can also log in
 // with a password (#2720, #2721).
 func NewGuardianProfileRepository(db *bun.DB, students usersRepo.StudentDirectoryRows, links usersRepo.GuardianLinkRows, portal, loginReady func(context.Context, []int64) (map[int64][]int64, error)) peoplePorts.GuardianProfileRepository {
-	return usersRepo.NewGuardianProfileRepository(NewLegacyRepositoryRuntime(db), students, links,
+	return application.NewGuardianProfileCommands(usersRepo.NewGuardianProfileRepository(NewLegacyRepositoryRuntime(db), students, links,
 		usersRepo.WithPortalMemberships(portal),
 		usersRepo.WithPortalLoginMemberships(loginReady),
-	)
+	))
 }
 
 // GuardianRelationshipDependencies are the owners the student-guardian
@@ -88,7 +89,7 @@ func defaultGuardianRole(presets peoplePorts.GuardianRolePresets) func(*peopleVa
 
 // NewGuardianPhoneNumberRepository is the guardian phone number repository.
 func NewGuardianPhoneNumberRepository(db *bun.DB) peoplePorts.GuardianPhoneNumberRepository {
-	return usersRepo.NewGuardianPhoneNumberRepository(NewLegacyRepositoryRuntime(db))
+	return application.NewGuardianPhoneCommands(usersRepo.NewGuardianPhoneNumberRepository(NewLegacyRepositoryRuntime(db)))
 }
 
 // NewFamilyProtectionEventRepository is the family protection event repository.

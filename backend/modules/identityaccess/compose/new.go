@@ -154,7 +154,7 @@ func NewGuardianInvitationReads(db *bun.DB) (identityaccess.GuardianInvitationRe
 	if db == nil {
 		return nil, errors.New("identity access compose: the guardian invitation reads need the database")
 	}
-	return application.NewGuardianInvitationReads(newStore(db)), nil
+	return application.NewGuardianInvitationReads(newStore(db), transaction{}.RunRead), nil
 }
 
 // bindTenantRuntime is the runtime the module opens its transactions under:
@@ -196,15 +196,17 @@ func (transaction) RunRead(ctx context.Context, callback func(context.Context) e
 	if _, ok := tenant.TransactionFromContext(ctx); ok {
 		return callback(ctx)
 	}
+	return tenant.WithinCurrentTenant(ctx, callback)
+}
+
+// RunPlatform is the explicit boundary for global identity and operator
+// records. Tenant-scoped reads use RunRead and cannot fall back here.
+func (transaction) RunPlatform(ctx context.Context, callback func(context.Context) error) error {
+	if _, ok := tenant.TransactionFromContext(ctx); ok {
+		return callback(ctx)
+	}
 	if _, err := tenant.TenantFromContext(ctx); err == nil {
 		return tenant.WithinCurrentTenant(ctx, callback)
 	}
 	return tenant.WithinAdmin(ctx, callback)
-}
-
-// RunPlatform never opens a transaction: the operator flows open their own
-// administrative transaction where several statements must commit together
-// and run single statements on the root connection otherwise.
-func (transaction) RunPlatform(ctx context.Context, callback func(context.Context) error) error {
-	return callback(ctx)
 }

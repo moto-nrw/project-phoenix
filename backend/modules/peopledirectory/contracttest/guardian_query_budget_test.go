@@ -1,8 +1,11 @@
 package contracttest_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
+
+	"github.com/uptrace/bun"
 
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -51,10 +54,16 @@ func TestStudentGuardiansQueryBudget(t *testing.T) {
 	add(0, 3)
 	counter := testpkg.CaptureQueries(t, db)
 	run := func() []string {
-		counter.Reset()
-		_, err := service.GetStudentGuardians(testpkg.Ctx(t), student.ID)
+		var statements []string
+		err := testpkg.WithinTenantTransaction(testpkg.Ctx(t), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+			// Measure owner reads inside the request unit of work, not its setup.
+			counter.Reset()
+			_, err := service.GetStudentGuardians(txCtx, student.ID)
+			statements = counter.Operation("SELECT")
+			return err
+		})
 		require.NoError(t, err)
-		return counter.Operation("SELECT")
+		return statements
 	}
 	small := run()
 	add(3, 8)

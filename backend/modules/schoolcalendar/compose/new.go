@@ -116,10 +116,14 @@ func NewAdministration(records *schoolcalendar.Records, dependencies Administrat
 
 func newService(db *bun.DB, observe func(Observation), administration application.Administration) *application.Service {
 	store := postgres.New(func(ctx context.Context) (bun.IDB, int64, error) {
-		tenantID := tenant.FromContext(ctx)
+		id, err := tenant.TenantFromContext(ctx)
+		if err != nil {
+			return nil, 0, err
+		}
+		tenantID := id.Int64()
 		transaction, ok := tenant.TransactionFromContext(ctx)
 		if !ok {
-			return db, tenantID, nil
+			return nil, 0, errors.New("school calendar: transaction is required")
 		}
 		switch tx := transaction.(type) {
 		case bun.Tx:
@@ -128,7 +132,7 @@ func newService(db *bun.DB, observe func(Observation), administration applicatio
 			if tx != nil {
 				return tx, tenantID, nil
 			}
-			return db, tenantID, nil
+			return nil, 0, errors.New("school calendar: transaction is required")
 		default:
 			return nil, 0, fmt.Errorf("school calendar postgres: unsupported transaction %T", transaction)
 		}
@@ -169,6 +173,9 @@ func berlinToday() string { return time.Now().In(berlinLocation).Format(schoolca
 func writeTransaction(ctx context.Context, fn func(context.Context) error) error {
 	if _, ok := tenant.TransactionFromContext(ctx); ok {
 		return fn(ctx)
+	}
+	if _, err := tenant.TenantFromContext(ctx); err != nil {
+		return fmt.Errorf("school calendar: tenant is required: %w", err)
 	}
 	return tenant.WithinCurrentTenant(ctx, fn)
 }

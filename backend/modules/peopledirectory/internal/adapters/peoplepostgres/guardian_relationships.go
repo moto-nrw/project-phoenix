@@ -109,19 +109,13 @@ func (r *GuardianRelationshipRepository) memberships(ctx context.Context, accoun
 
 // --- unit of work -------------------------------------------------------------
 
-// write runs one multi-owner write as a single unit. Inside a caller's
-// transaction it is a savepoint, so a failing owner command undoes the
-// relationship half as well even when the caller handles the error and
-// commits; without one it opens the tenant transaction of the context.
+// write protects all relationship halves with a savepoint of the caller's
+// unit of work. Missing transactions fail before any owner is changed.
 func (r *GuardianRelationshipRepository) write(ctx context.Context, fn func(context.Context) error) error {
 	if r.pickup == nil || r.access == nil {
 		return errGuardianOwnersUnbound
 	}
-	if r.runtime.InTransaction(ctx) {
-		return r.runtime.WithSavepoint(ctx, fn)
-	}
-	// A transaction of its own rolls back as a whole; no savepoint needed.
-	return r.runtime.RunInTx(ctx, fn)
+	return r.runtime.WithSavepoint(ctx, fn)
 }
 
 // writeTenant is the school a new relationship is written in: the row's own,
@@ -487,7 +481,7 @@ func (r *GuardianRelationshipRepository) Delete(ctx context.Context, id any) err
 // SetPrimary sets a guardian as the primary guardian for a student, demoting
 // the child's other primary first.
 func (r *GuardianRelationshipRepository) SetPrimary(ctx context.Context, id int64, isPrimary bool) error {
-	err := r.runtime.RunInTx(ctx, func(ctx context.Context) error {
+	err := inExistingTransaction(ctx, r.runtime, func(ctx context.Context) error {
 		tenantID, studentID, found, err := r.lockRelationship(ctx, id)
 		if err != nil {
 			return err

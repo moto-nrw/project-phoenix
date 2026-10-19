@@ -60,3 +60,7 @@ func TestCreateAbsenceTypePreservesFailureContracts(t *testing.T) {
 		})
 	}
 }
+
+func (absenceTypeCreationTransaction) RunRead(ctx context.Context, run func(context.Context) error) error {
+	return run(ctx)
+}

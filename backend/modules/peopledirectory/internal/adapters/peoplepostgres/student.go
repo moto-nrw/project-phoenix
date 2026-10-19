@@ -43,7 +43,7 @@ func (r *studentRepository) List(ctx context.Context, filters map[string]any) ([
 
 func (r *studentRepository) CountWithOptions(ctx context.Context, options *ports.QueryOptions) (int, error) {
 	db := r.runtime.DB(ctx)
-	query := r.students.StudentRows(db, r.runtime.TenantID(ctx)).Column("student.id")
+	query := studentRows(ctx, r.runtime, r.students, db).Column("student.id")
 	if options != nil && options.Filter != nil {
 		options.Filter.WithTableAlias("student")
 		query = applyFilter(query, options.Filter)

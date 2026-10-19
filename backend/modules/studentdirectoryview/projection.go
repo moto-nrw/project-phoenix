@@ -4,6 +4,8 @@
 package studentdirectoryview
 
 import (
+	"errors"
+
 	"github.com/uptrace/bun"
 )
 
@@ -22,23 +24,29 @@ const studentSource = `(SELECT p.id, p.tenant_id, p.person_id, p.created_at,
 	JOIN users.student_care_profiles AS c
 		ON c.tenant_id = m.tenant_id AND c.membership_id = m.id) AS "student"`
 
-// Query is the directory projection embedded by existing owner-specific joins.
-// It executes no statement: the outer query keeps its ambient transaction,
-// result shape and budget. Zero tenant is reserved for operator/admin reads.
+// Query embeds the rows of one required school in the caller's statement.
 func Query(db bun.IDB, tenantID int64) *bun.SelectQuery {
-	query := db.NewSelect().TableExpr(studentSource)
-	if tenantID > 0 {
-		query = query.Where(`"student".tenant_id = ?`, tenantID)
+	query := AllSchoolsQuery(db)
+	if tenantID <= 0 {
+		return query.Err(errors.New("studentdirectoryview: tenant is required"))
 	}
-	return query
+	return query.Where(`"student".tenant_id = ?`, tenantID)
 }
 
-// ModelQuery preserves BUN's model column selection without adding a second
-// FROM item for the retained Student DTO's rollback-table annotation.
+// AllSchoolsQuery embeds an explicitly cross-school source. The caller owns
+// administrative/audience or outer school-correlation predicates; this executes no SQL.
+func AllSchoolsQuery(db bun.IDB) *bun.SelectQuery { return db.NewSelect().TableExpr(studentSource) }
+
+// ModelQuery preserves model column selection for one required school.
 func ModelQuery(db bun.IDB, tenantID int64, model any) *bun.SelectQuery {
-	query := db.NewSelect().Model(model).ModelTableExpr(studentSource)
-	if tenantID > 0 {
-		query = query.Where(`"student".tenant_id = ?`, tenantID)
+	query := AllSchoolsModelQuery(db, model)
+	if tenantID <= 0 {
+		return query.Err(errors.New("studentdirectoryview: tenant is required"))
 	}
-	return query
+	return query.Where(`"student".tenant_id = ?`, tenantID)
+}
+
+// AllSchoolsModelQuery is the explicit cross-school model row source.
+func AllSchoolsModelQuery(db bun.IDB, model any) *bun.SelectQuery {
+	return db.NewSelect().Model(model).ModelTableExpr(studentSource)
 }

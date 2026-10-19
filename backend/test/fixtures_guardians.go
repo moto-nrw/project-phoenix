@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -151,9 +152,10 @@ type GuardianLinks struct{}
 // GuardianLinkRows is the link row source, scoped to tenantID when positive.
 func (GuardianLinks) GuardianLinkRows(db bun.IDB, tenantID int64) *bun.SelectQuery {
 	query := StudentGuardianLinks(db)
-	if tenantID > 0 {
-		query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
+	if tenantID <= 0 {
+		return query.Err(errors.New("fixture projection: tenant is required"))
 	}
+	query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
 	return query
 }
 
@@ -161,9 +163,10 @@ func (GuardianLinks) GuardianLinkRows(db bun.IDB, tenantID int64) *bun.SelectQue
 // selection.
 func (GuardianLinks) GuardianLinkModelRows(db bun.IDB, tenantID int64, model any) *bun.SelectQuery {
 	query := db.NewSelect().Model(model).ModelTableExpr(studentGuardianLinkSource)
-	if tenantID > 0 {
-		query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
+	if tenantID <= 0 {
+		return query.Err(errors.New("fixture projection: tenant is required"))
 	}
+	query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
 	return query
 }
 
@@ -300,4 +303,11 @@ func GuardianPermissionValueJSON(raw json.RawMessage, permission string) any {
 		return nil
 	}
 	return values[permission]
+}
+
+func (GuardianLinks) AllSchoolsGuardianLinkRows(db bun.IDB) *bun.SelectQuery {
+	return StudentGuardianLinks(db)
+}
+func (GuardianLinks) AllSchoolsGuardianLinkModelRows(db bun.IDB, model any) *bun.SelectQuery {
+	return db.NewSelect().Model(model).ModelTableExpr(studentGuardianLinkSource)
 }

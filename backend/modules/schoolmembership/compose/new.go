@@ -69,21 +69,32 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 	case dependencies.ClassListStudents != nil || dependencies.ClassListTrail != nil:
 		return nil, errors.New("school membership compose: the class list entries need a student directory and an audit trail")
 	}
-	store := postgres.New(func(ctx context.Context) (bun.IDB, int64, error) {
+	store := postgres.New(func(ctx context.Context) (bun.IDB, postgres.TenantScope, error) {
+		scope := postgres.TenantScope{}
+		id, err := tenant.TenantFromContext(ctx)
+		if err != nil {
+			if !tenant.IsAdminTx(ctx) {
+				return nil, scope, err
+			}
+			scope.AcrossSchools = true
+		} else {
+			scope.TenantID = id.Int64()
+		}
 		transaction, ok := tenant.TransactionFromContext(ctx)
 		if !ok {
-			return nil, 0, errors.New("school membership postgres: transaction is required")
+			return nil, scope, errors.New("schoolmembership postgres: transaction is required")
 		}
 		switch tx := transaction.(type) {
 		case bun.Tx:
-			return tx, tenant.FromContext(ctx), nil
+			return tx, scope, nil
 		case *bun.Tx:
 			if tx != nil {
-				return tx, tenant.FromContext(ctx), nil
+				return *tx, scope, nil
 			}
 		}
-		return nil, 0, fmt.Errorf("school membership postgres: unsupported transaction %T", transaction)
-	})
+		return nil, scope, fmt.Errorf("schoolmembership postgres: unsupported transaction %T", transaction)
+	},
+	)
 	var quota ports.ChildQuota
 	if dependencies.ChildQuota != nil {
 		quota = dependencies.ChildQuota

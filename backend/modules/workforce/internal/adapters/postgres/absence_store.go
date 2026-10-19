@@ -101,7 +101,7 @@ func (s *Store) AcquireXactLock(ctx context.Context, key string) error {
 // --- staff absences ---
 
 func (s *Store) FindStaffAbsence(ctx context.Context, id int64) (domain.StaffAbsence, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffAbsence{}, false, domain.OperationStats{}, err
 	}
@@ -109,7 +109,7 @@ func (s *Store) FindStaffAbsence(ctx context.Context, id int64) (domain.StaffAbs
 	query := withTenant(db.NewSelect().
 		Model(row).
 		ModelTableExpr(tableStaffAbsences+` AS "staff_absence"`).
-		Where(`"staff_absence".id = ?`, id), aliasStaffAbsence, tenantID)
+		Where(`"staff_absence".id = ?`, id), aliasStaffAbsence, scope)
 	found, stats, err := scanOne(ctx, query, "find staff absence")
 	if err != nil || !found {
 		return domain.StaffAbsence{}, found, stats, err
@@ -118,14 +118,14 @@ func (s *Store) FindStaffAbsence(ctx context.Context, id int64) (domain.StaffAbs
 }
 
 func (s *Store) ListStaffAbsences(ctx context.Context, filter domain.StaffAbsenceFilter) ([]domain.StaffAbsence, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []staffAbsenceRow{}
 	query := applyStaffAbsenceFilter(withTenant(db.NewSelect().
 		Model(&rows).
-		ModelTableExpr(tableStaffAbsences+` AS "staff_absence"`), aliasStaffAbsence, tenantID), filter)
+		ModelTableExpr(tableStaffAbsences+` AS "staff_absence"`), aliasStaffAbsence, scope), filter)
 	if len(filter.Order) == 0 {
 		query = query.OrderExpr(`"staff_absence".id ASC`)
 	}
@@ -152,13 +152,13 @@ func (s *Store) ListStaffAbsences(ctx context.Context, filter domain.StaffAbsenc
 }
 
 func (s *Store) CountStaffAbsences(ctx context.Context, filter domain.StaffAbsenceFilter) (int, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
 	query := applyStaffAbsenceFilter(withTenant(db.NewSelect().
 		Model((*staffAbsenceRow)(nil)).
-		ModelTableExpr(tableStaffAbsences+` AS "staff_absence"`), aliasStaffAbsence, tenantID), filter)
+		ModelTableExpr(tableStaffAbsences+` AS "staff_absence"`), aliasStaffAbsence, scope), filter)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	count, err := query.Count(ctx)
@@ -207,7 +207,7 @@ func applyStaffAbsenceFilter(query *bun.SelectQuery, filter domain.StaffAbsenceF
 }
 
 func (s *Store) ListStaffAbsenceRequests(ctx context.Context, filter domain.StaffAbsenceRequestFilter) ([]domain.StaffAbsence, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -215,7 +215,7 @@ func (s *Store) ListStaffAbsenceRequests(ctx context.Context, filter domain.Staf
 	query := withTenant(db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(tableStaffAbsences+` AS "staff_absence"`).
-		Where(`"staff_absence".status IN (?)`, bun.List(filter.Statuses)), aliasStaffAbsence, tenantID)
+		Where(`"staff_absence".status IN (?)`, bun.List(filter.Statuses)), aliasStaffAbsence, scope)
 	if len(filter.Types) > 0 {
 		query = query.Where(`"staff_absence".absence_type IN (?)`, bun.List(filter.Types))
 	}
@@ -244,7 +244,7 @@ func (s *Store) ListStaffAbsenceRequests(ctx context.Context, filter domain.Staf
 // EffectiveStaffAbsencesOn returns the effective absences covering the day in
 // canonical priority order; ID resolves equal priorities deterministically.
 func (s *Store) EffectiveStaffAbsencesOn(ctx context.Context, date string) ([]domain.StaffAbsence, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -257,7 +257,7 @@ func (s *Store) EffectiveStaffAbsencesOn(ctx context.Context, date string) ([]do
 		Where(`"staff_absence".status IN (?)`, bun.List(domain.EffectiveAbsenceStatuses)).
 		OrderExpr(`"staff_absence".staff_id ASC`).
 		OrderExpr(absencePriorityOrder).
-		OrderExpr(`"staff_absence".id ASC`), aliasStaffAbsence, tenantID)
+		OrderExpr(`"staff_absence".id ASC`), aliasStaffAbsence, scope)
 	stats, err := scanAll(ctx, query, "list effective staff absences on date")
 	if err != nil {
 		return nil, stats, err
@@ -267,14 +267,14 @@ func (s *Store) EffectiveStaffAbsencesOn(ctx context.Context, date string) ([]do
 }
 
 func (s *Store) OldestStaffAbsenceDate(ctx context.Context, column, before string) (string, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return "", domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewSelect().
 		Model((*staffAbsenceRow)(nil)).
 		ModelTableExpr(tableStaffAbsences+` AS "staff_absence"`).
-		ColumnExpr("TO_CHAR(MIN(?), 'YYYY-MM-DD')", bun.Ident(aliasStaffAbsence+"."+column)), aliasStaffAbsence, tenantID)
+		ColumnExpr("TO_CHAR(MIN(?), 'YYYY-MM-DD')", bun.Ident(aliasStaffAbsence+"."+column)), aliasStaffAbsence, scope)
 	if before != "" {
 		query = query.Where("? < ?", bun.Ident(aliasStaffAbsence+"."+column), before)
 	}
@@ -294,13 +294,13 @@ func (s *Store) OldestStaffAbsenceDate(ctx context.Context, column, before strin
 }
 
 func (s *Store) CreateStaffAbsence(ctx context.Context, value domain.StaffAbsence) (domain.StaffAbsence, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffAbsence{}, domain.OperationStats{}, err
 	}
 	row := staffAbsenceFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -314,13 +314,13 @@ func (s *Store) CreateStaffAbsence(ctx context.Context, value domain.StaffAbsenc
 }
 
 func (s *Store) UpdateStaffAbsence(ctx context.Context, value domain.StaffAbsence) (domain.StaffAbsence, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffAbsence{}, false, domain.OperationStats{}, err
 	}
 	row := staffAbsenceFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	query := db.NewUpdate().
 		Model(row).
@@ -329,9 +329,7 @@ func (s *Store) UpdateStaffAbsence(ctx context.Context, value domain.StaffAbsenc
 		Set("updated_at = NOW()").
 		WherePK().
 		Returning("*")
-	if tenantID > 0 {
-		query = query.Where(`"staff_absence".tenant_id = ?`, tenantID)
-	}
+	query = scopeQuery(scope, query, `"staff_absence".tenant_id = ?`)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := query.Exec(ctx)
@@ -351,19 +349,19 @@ func (s *Store) UpdateStaffAbsence(ctx context.Context, value domain.StaffAbsenc
 }
 
 func (s *Store) DeleteStaffAbsence(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewDelete().
 		Model((*staffAbsenceRow)(nil)).
 		ModelTableExpr(tableStaffAbsences+` AS "staff_absence"`).
-		Where(`"staff_absence".id = ?`, id), aliasStaffAbsence, tenantID)
+		Where(`"staff_absence".id = ?`, id), aliasStaffAbsence, scope)
 	return execAffected(ctx, query, "delete staff absence")
 }
 
 func (s *Store) DeleteNonHistoricalStaffAbsences(ctx context.Context, staffID int64, from string) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
@@ -372,20 +370,20 @@ func (s *Store) DeleteNonHistoricalStaffAbsences(ctx context.Context, staffID in
 		ModelTableExpr(tableStaffAbsences+` AS "staff_absence"`).
 		Where(`"staff_absence".staff_id = ?`, staffID).
 		Where(`("staff_absence".status IN (?) OR "staff_absence".date_end >= ?)`, bun.List(domain.PendingAbsenceStatuses), from),
-		aliasStaffAbsence, tenantID)
+		aliasStaffAbsence, scope)
 	stats, err := execAffected(ctx, query, "delete non-historical staff absences")
 	return stats.Rows, stats, err
 }
 
 func (s *Store) DeleteStaffAbsencesOlderThan(ctx context.Context, column, cutoff string) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewDelete().
 		Model((*staffAbsenceRow)(nil)).
 		ModelTableExpr(tableStaffAbsences+` AS "staff_absence"`).
-		Where("? < ?", bun.Ident(aliasStaffAbsence+"."+column), cutoff), aliasStaffAbsence, tenantID)
+		Where("? < ?", bun.Ident(aliasStaffAbsence+"."+column), cutoff), aliasStaffAbsence, scope)
 	stats, err := execAffected(ctx, query, "delete staff absences older than")
 	return stats.Rows, stats, err
 }
@@ -393,7 +391,7 @@ func (s *Store) DeleteStaffAbsencesOlderThan(ctx context.Context, column, cutoff
 // --- absence types ---
 
 func (s *Store) ListStaffAbsenceTypes(ctx context.Context) ([]domain.StaffAbsenceType, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -401,7 +399,7 @@ func (s *Store) ListStaffAbsenceTypes(ctx context.Context) ([]domain.StaffAbsenc
 	query := withTenant(db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(tableStaffAbsenceTypes+` AS "staff_absence_type"`).
-		OrderExpr(`"staff_absence_type".name ASC`), aliasStaffAbsenceType, tenantID)
+		OrderExpr(`"staff_absence_type".name ASC`), aliasStaffAbsenceType, scope)
 	stats, err := scanAll(ctx, query, "list staff absence types")
 	if err != nil {
 		return nil, stats, err
@@ -415,7 +413,7 @@ func (s *Store) ListStaffAbsenceTypes(ctx context.Context) ([]domain.StaffAbsenc
 }
 
 func (s *Store) FindStaffAbsenceType(ctx context.Context, id int64, lock bool) (domain.StaffAbsenceType, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffAbsenceType{}, false, domain.OperationStats{}, err
 	}
@@ -423,7 +421,7 @@ func (s *Store) FindStaffAbsenceType(ctx context.Context, id int64, lock bool) (
 	query := withTenant(db.NewSelect().
 		Model(row).
 		ModelTableExpr(tableStaffAbsenceTypes+` AS "staff_absence_type"`).
-		Where(`"staff_absence_type".id = ?`, id), aliasStaffAbsenceType, tenantID)
+		Where(`"staff_absence_type".id = ?`, id), aliasStaffAbsenceType, scope)
 	if lock {
 		query = query.For("UPDATE")
 	}
@@ -435,14 +433,14 @@ func (s *Store) FindStaffAbsenceType(ctx context.Context, id int64, lock bool) (
 }
 
 func (s *Store) StaffAbsenceTypeInUse(ctx context.Context, id int64) (bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewSelect().
 		Model((*staffAbsenceRow)(nil)).
 		ModelTableExpr(tableStaffAbsences+` AS "staff_absence"`).
-		Where(`"staff_absence".absence_type_id = ?`, id), aliasStaffAbsence, tenantID)
+		Where(`"staff_absence".absence_type_id = ?`, id), aliasStaffAbsence, scope)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	exists, err := query.Exists(ctx)
@@ -454,12 +452,12 @@ func (s *Store) StaffAbsenceTypeInUse(ctx context.Context, id int64) (bool, doma
 }
 
 func (s *Store) CreateStaffAbsenceType(ctx context.Context, fields domain.StaffAbsenceTypeFields) (domain.StaffAbsenceType, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffAbsenceType{}, domain.OperationStats{}, err
 	}
 	row := &staffAbsenceTypeRow{
-		TenantID: tenantID, Name: fields.Name, BaseType: fields.BaseType, IsActive: fields.IsActive,
+		TenantID: scope.TenantID, Name: fields.Name, BaseType: fields.BaseType, IsActive: fields.IsActive,
 		AllowanceEnabled: fields.AllowanceEnabled, CarryoverUntil: nullableCarryover(fields.CarryoverUntil),
 	}
 	stats := domain.OperationStats{Queries: 1}
@@ -480,7 +478,7 @@ func (s *Store) CreateStaffAbsenceType(ctx context.Context, fields domain.StaffA
 // base_type is deliberately not in the column list: a rename can never move
 // existing absences into another calculation bucket.
 func (s *Store) UpdateStaffAbsenceType(ctx context.Context, value domain.StaffAbsenceType) (domain.StaffAbsenceType, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffAbsenceType{}, false, domain.OperationStats{}, err
 	}
@@ -495,9 +493,7 @@ func (s *Store) UpdateStaffAbsenceType(ctx context.Context, value domain.StaffAb
 		Set("updated_at = NOW()").
 		Where(`"staff_absence_type".id = ?`, value.ID).
 		Returning("*")
-	if tenantID > 0 {
-		query = query.Where(`"staff_absence_type".tenant_id = ?`, tenantID)
-	}
+	query = scopeQuery(scope, query, `"staff_absence_type".tenant_id = ?`)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := query.Exec(ctx)
@@ -522,7 +518,7 @@ func (s *Store) UpdateStaffAbsenceType(ctx context.Context, value domain.StaffAb
 // --- audit ---
 
 func (s *Store) RecordStaffAbsenceAudit(ctx context.Context, value domain.StaffAbsenceAudit) (domain.StaffAbsenceAudit, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StaffAbsenceAudit{}, domain.OperationStats{}, err
 	}
@@ -535,7 +531,7 @@ func (s *Store) RecordStaffAbsenceAudit(ctx context.Context, value domain.StaffA
 		row.FromAbsenceTypeID, row.ToAbsenceTypeID = change.FromTypeID, change.ToTypeID
 	}
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()

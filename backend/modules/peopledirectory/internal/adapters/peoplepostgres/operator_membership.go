@@ -17,7 +17,7 @@ func FindOperatorPersonStudentMembership(ctx context.Context, runtime Runtime, d
 	var rows []struct {
 		PersonID int64 `bun:"person_id"`
 	}
-	query := directory.StudentRows(runtime.DB(ctx), runtime.TenantID(ctx)).
+	query := studentRows(ctx, runtime, directory, runtime.DB(ctx)).
 		ColumnExpr(`"student".person_id`).
 		Where(`"student".person_id IN (?)`, bun.List(personIDs))
 	if err := query.Scan(ctx, &rows); err != nil {

@@ -54,7 +54,7 @@ func newSchoolInvitation(
 	attach := sessions.TenantRuntime
 	var delivery identityPorts.SchoolInvitationDelivery
 	if deps.DeliveryFor != nil {
-		delivery = deps.DeliveryFor(application.NewSchoolInvitationDeliveryRecords(store, attach))
+		delivery = deps.DeliveryFor(application.NewSchoolInvitationDeliveryRecords(store, attach, tenantRuntime{attach: attach, runner: newTransactionRunner()}))
 	}
 	if deps.Grants == nil || deps.Owners == nil || delivery == nil || deps.Passwords == nil {
 		return nil, errors.New("identity access compose: every invitation dependency is required")

@@ -23,15 +23,12 @@ type Runtime interface {
 	TenantID(ctx context.Context) int64
 	// RequireTenantID is TenantID, failing when the context carries none.
 	RequireTenantID(ctx context.Context) (int64, error)
+	// AcrossSchools is true only inside an explicitly administrative transaction without a school scope.
+	AcrossSchools(ctx context.Context) bool
 	// InTransaction reports whether ctx carries a tenant transaction.
 	InTransaction(ctx context.Context) bool
-	// RunInTx joins the ambient transaction or opens one for the context's
-	// tenant.
-	RunInTx(ctx context.Context, fn func(context.Context) error) error
 	// WithSavepoint runs fn behind a savepoint of the ambient transaction.
 	WithSavepoint(ctx context.Context, fn func(context.Context) error) error
-	// WithinCurrentTenant opens a transaction for the context's tenant.
-	WithinCurrentTenant(ctx context.Context, fn func(context.Context) error) error
 }
 
 func requireRuntime(runtime Runtime) Runtime {
@@ -43,11 +40,18 @@ func requireRuntime(runtime Runtime) Runtime {
 
 // withTenantFilter adds the defense-in-depth tenant_id filter for alias when
 // the context carries a tenant, on top of PostgreSQL RLS.
-func withTenantFilter[Q interface{ Where(string, ...any) Q }](ctx context.Context, runtime Runtime, q Q, alias string) Q {
-	if tenantID := runtime.TenantID(ctx); tenantID > 0 {
-		return q.Where(fmt.Sprintf(`"%s".tenant_id = ?`, alias), tenantID)
+func withTenantFilter[Q interface {
+	Where(string, ...any) Q
+	Err(error) Q
+}](ctx context.Context, runtime Runtime, q Q, alias string) Q {
+	tenantID, err := runtime.RequireTenantID(ctx)
+	if err != nil {
+		if runtime.AcrossSchools(ctx) {
+			return q
+		}
+		return q.Err(err)
 	}
-	return q
+	return q.Where(fmt.Sprintf(`"%s".tenant_id = ?`, alias), tenantID)
 }
 
 // translateNotFound joins the repository not-found sentinel onto a missing
@@ -93,4 +97,13 @@ func ensureTenantID(ctx context.Context, runtime Runtime, entity any) {
 			scoped.SetTenantID(id)
 		}
 	}
+}
+
+// inExistingTransaction never starts a unit of work. The application command
+// or workflow owns its commit and rollback boundary.
+func inExistingTransaction(ctx context.Context, runtime Runtime, fn func(context.Context) error) error {
+	if !runtime.InTransaction(ctx) {
+		return errors.New("people directory repository: transaction is required")
+	}
+	return fn(ctx)
 }

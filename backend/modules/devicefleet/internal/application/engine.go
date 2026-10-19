@@ -53,10 +53,19 @@ func (e Engine) FindDevice(ctx context.Context, id int64) (devicefleet.Device, e
 }
 
 func (e Engine) FindDeviceForUpdate(ctx context.Context, id int64) (devicefleet.Device, error) {
-	value, err := e.service.findDevice(ctx, "find_device_for_update", false, func(ctx context.Context) (domain.Device, bool, domain.OperationStats, error) {
-		return e.service.deps.Devices.FindByID(ctx, id, "UPDATE")
+	var value domain.Device
+	err := e.service.run(ctx, "find_device_for_update", func(ctx context.Context, stats *domain.OperationStats) error {
+		found, exists, queries, err := e.service.deps.Devices.FindByID(ctx, id, "UPDATE")
+		stats.Add(queries)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return domain.ErrDeviceNotFound
+		}
+		value = found
+		return nil
 	})
-
 	return toPublicDevice(value), MapError(err)
 }
 
@@ -69,10 +78,15 @@ func (e Engine) FindDeviceByDeviceID(ctx context.Context, deviceID string) (devi
 }
 
 func (e Engine) FindDeviceByAPIKey(ctx context.Context, apiKey string) (devicefleet.Device, error) {
-	value, err := e.service.findDevice(ctx, "find_device_by_api_key", false, func(ctx context.Context) (domain.Device, bool, domain.OperationStats, error) {
-		return e.service.deps.Devices.FindByAPIKey(ctx, apiKey)
-	})
+	var value domain.Device
+	err := e.service.deps.Tx.AdminScope(ctx, func(ctx context.Context) error {
+		var err error
+		value, err = e.service.findDevice(ctx, "find_device_by_api_key", false, func(ctx context.Context) (domain.Device, bool, domain.OperationStats, error) {
+			return e.service.deps.Devices.FindByAPIKey(ctx, apiKey)
+		})
 
+		return err
+	})
 	return toPublicDevice(value), MapError(err)
 }
 
@@ -99,7 +113,7 @@ func (e Engine) ListOfflineDevices(ctx context.Context, offlineSince time.Durati
 
 func (e Engine) CountDevicesByType(ctx context.Context) (map[string]int, error) {
 	var counts map[string]int
-	err := e.service.run(ctx, "count_devices_by_type", func(ctx context.Context, stats *domain.OperationStats) error {
+	err := e.service.runInTenant(ctx, "count_devices_by_type", func(ctx context.Context, stats *domain.OperationStats) error {
 		found, queryStats, err := e.service.deps.Devices.CountByType(ctx)
 		stats.Add(queryStats)
 		counts = found

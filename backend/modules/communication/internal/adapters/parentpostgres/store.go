@@ -17,13 +17,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Database resolves the caller's ambient transaction plus the tenant the
-// statement must be scoped to. The composition root supplies it, so this
-// package stays free of transaction- and tenant-runtime details.
-//
-// A zero tenant means "no tenant in this context" (administrative or
-// cross-tenant work); statements then rely on RLS alone, exactly as the
-// repositories they replace did.
+// Database resolves the caller connection and school; school-specific queries
+// reject an absent school instead of removing the tenant predicate.
 type Database func(context.Context) (bun.IDB, int64, error)
 
 // ErrDatabaseRequired reports a store constructed without a database runtime.
@@ -51,12 +46,13 @@ func assertOneRow(result sql.Result, operation string) error {
 	return nil
 }
 
-// withTenant applies the defense-in-depth tenant_id filter that complements
-// RLS. A zero tenant leaves the query untouched, matching the behaviour of the
-// repositories this package replaces.
-func withTenant[Q interface{ Where(string, ...any) Q }](query Q, alias string, tenantID int64) Q {
+// withTenant requires a school and adds its predicate on top of RLS.
+func withTenant[Q interface {
+	Where(string, ...any) Q
+	Err(error) Q
+}](query Q, alias string, tenantID int64) Q {
 	if tenantID <= 0 {
-		return query
+		return query.Err(errors.New("communication: tenant is required"))
 	}
 	return query.Where(`"`+alias+`".tenant_id = ?`, tenantID)
 }

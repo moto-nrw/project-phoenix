@@ -111,7 +111,11 @@ func (r tenantRuntime) WithTenantTx(ctx context.Context, tenantID int64, fn func
 // transaction of the tenant in context.
 func (r tenantRuntime) RunInTx(ctx context.Context, fn func(context.Context) error) error {
 	ctx = r.attach(ctx)
-	if tenant.FromContext(ctx) == 0 && tenant.ScopeFromContext(ctx) != "" {
+	if _, ok := tenant.TransactionFromContext(ctx); ok {
+		return fn(ctx)
+	}
+	scope := tenant.ScopeFromContext(ctx)
+	if tenant.FromContext(ctx) == 0 && (scope == "platform" || (scope == "org" && tenant.OrgFromContext(ctx) > 0)) {
 		return tenant.WithinAdmin(ctx, fn)
 	}
 	return r.runner.RunInTx(ctx, fn)

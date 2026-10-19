@@ -36,7 +36,7 @@ type ModuleDependencies struct {
 // Runtime is the composed Delivery module; NewWorker adds the worker.
 type Runtime struct {
 	Module  *delivery.Module
-	store   *postgres.Store
+	store   *application.WorkerCommands
 	observe func(domain.Observation)
 }
 
@@ -46,14 +46,10 @@ func NewModule(dependencies ModuleDependencies) (*Runtime, error) {
 	if dependencies.DB == nil || dependencies.People == nil || dependencies.Observe == nil {
 		return nil, errors.New("delivery compose: all dependencies are required")
 	}
-	store := postgres.New(
-		postgres.RequireTenantDatabase,
-		func(ctx context.Context, callback func(context.Context, bun.IDB) error) error {
-			return tenant.WithAdminTx(ctx, dependencies.DB, func(txCtx context.Context, tx bun.Tx) error {
-				return callback(txCtx, tx)
-			})
-		},
-	)
+	raw := postgres.New(postgres.RequireTenantDatabase, postgres.RequireAdminDatabase)
+	store := application.NewWorkerCommands(raw, func(ctx context.Context, callback func(context.Context) error) error {
+		return tenant.WithAdminTx(ctx, dependencies.DB, func(txCtx context.Context, _ bun.Tx) error { return callback(txCtx) })
+	})
 	observe := func(observation domain.Observation) {
 		dependencies.Observe(deliveryContract.Observation{
 			Operation: observation.Operation, Transport: deliveryContract.Transport(observation.Transport),
@@ -105,7 +101,7 @@ func (a guardianDirectoryAdapter) Resolve(ctx context.Context, ids []int64) (map
 
 type moduleEngine struct {
 	service *application.Service
-	store   *postgres.Store
+	store   *application.WorkerCommands
 }
 
 func (e moduleEngine) EnqueueEmail(ctx context.Context, input deliveryContract.EmailIntent) (deliveryContract.Enqueued, error) {
@@ -236,7 +232,7 @@ func (e moduleEngine) ClaimFailedEmailDelivery(ctx context.Context, tenantID, de
 
 type workerEngine struct {
 	*application.Worker
-	store *postgres.Store
+	store *application.WorkerCommands
 }
 
 func (e workerEngine) Backlog(ctx context.Context) (int, error) { return e.store.Backlog(ctx) }

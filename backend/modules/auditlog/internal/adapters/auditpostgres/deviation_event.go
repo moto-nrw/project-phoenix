@@ -42,9 +42,7 @@ func (r *deviationEventRepository) ListByRange(ctx context.Context, from, to aud
 		Where(`"deviation_event".event_type NOT IN (?)`, bun.List(audit.ShiftScopedDeviationEventTypes)).
 		Where(`"deviation_event".staff_shift_id IS NULL`)
 	// Defense-in-depth on top of RLS, same as the generic TenantScoped path.
-	if tenantID := runtimeTenantID(ctx, r.runtime); tenantID > 0 {
-		q = q.Where(`"deviation_event".tenant_id = ?`, tenantID)
-	}
+	q = tenantQuery(ctx, r.runtime, q, "deviation_event")
 	if activityGroupID != nil {
 		q = q.Where(`"deviation_event".activity_group_id = ?`, *activityGroupID)
 	}

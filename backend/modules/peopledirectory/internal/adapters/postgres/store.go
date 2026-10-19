@@ -20,8 +20,8 @@ const (
 )
 
 // Database resolves the transaction and the tenant of the current request.
-// A zero tenant means an admin (cross-tenant) transaction.
-type Database func(context.Context) (bun.IDB, int64, error)
+// Cross-school administrative access is an explicit scope, never tenant 0.
+type Database func(context.Context) (bun.IDB, TenantScope, error)
 
 type Store struct{ database Database }
 
@@ -53,15 +53,15 @@ func (s *Store) Create(ctx context.Context, input domain.CreatePerson) (domain.P
 	if err != nil {
 		return domain.Person{}, domain.OperationStats{}, err
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.Person{}, domain.OperationStats{}, err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return domain.Person{}, domain.OperationStats{}, errors.New("people directory postgres: tenant is required to create a person")
 	}
 	row := personRow{
-		TenantID: tenantID, FirstName: input.FirstName, LastName: input.LastName,
+		TenantID: scope.TenantID, FirstName: input.FirstName, LastName: input.LastName,
 		Birthday: birthday, TagID: input.TagID, AccountID: input.AccountID,
 	}
 	stats := domain.OperationStats{Queries: 1}
@@ -80,7 +80,7 @@ func (s *Store) Update(ctx context.Context, input domain.UpdatePerson) (domain.P
 	if err != nil {
 		return domain.Person{}, domain.OperationStats{}, err
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.Person{}, domain.OperationStats{}, err
 	}
@@ -94,7 +94,7 @@ func (s *Store) Update(ctx context.Context, input domain.UpdatePerson) (domain.P
 		Set(`updated_at = NOW()`).
 		Where(`"person".id = ?`, input.ID).
 		Where(`"person".deleted_at IS NULL`)
-	query = withTenant(query, tenantID)
+	query = withTenant(query, scope)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = query.Returning("*").Scan(ctx)
@@ -110,12 +110,12 @@ func (s *Store) Update(ctx context.Context, input domain.UpdatePerson) (domain.P
 }
 
 func (s *Store) FindByID(ctx context.Context, id int64, lock string) (domain.Person, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.Person{}, false, domain.OperationStats{}, err
 	}
 	row := &personRow{}
-	query := withTenant(personSelect(db, row).Where(`"person".id = ?`, id), tenantID)
+	query := withTenant(personSelect(db, row).Where(`"person".id = ?`, id), scope)
 	if lock != "" {
 		query = query.For(lock)
 	}
@@ -123,7 +123,7 @@ func (s *Store) FindByID(ctx context.Context, id int64, lock string) (domain.Per
 }
 
 func (s *Store) FindByAccount(ctx context.Context, accountID int64) (domain.Person, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.Person{}, false, domain.OperationStats{}, err
 	}
@@ -132,12 +132,12 @@ func (s *Store) FindByAccount(ctx context.Context, accountID int64) (domain.Pers
 		Where(`"person".account_id = ?`, accountID).
 		Where(`"person".deleted_at IS NULL`).
 		OrderExpr(`"person".updated_at DESC, "person".id ASC`).
-		Limit(1), tenantID)
+		Limit(1), scope)
 	return scanPerson(ctx, row, query)
 }
 
 func (s *Store) FindByTag(ctx context.Context, tagID string) (domain.Person, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.Person{}, false, domain.OperationStats{}, err
 	}
@@ -145,7 +145,7 @@ func (s *Store) FindByTag(ctx context.Context, tagID string) (domain.Person, boo
 	query := withTenant(personSelect(db, row).
 		Where(`"person".tag_id = ?`, tagID).
 		Where(`"person".deleted_at IS NULL`).
-		Limit(1), tenantID)
+		Limit(1), scope)
 	return scanPerson(ctx, row, query)
 }
 
@@ -164,48 +164,48 @@ func scanPerson(ctx context.Context, row *personRow, query *bun.SelectQuery) (do
 }
 
 func (s *Store) ListByIDs(ctx context.Context, ids []int64) ([]domain.Person, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []personRow{}
 	query := withTenant(personSelect(db, &rows).
 		Where(`"person".id IN (?)`, bun.List(ids)).
-		Where(`"person".deleted_at IS NULL`), tenantID)
+		Where(`"person".deleted_at IS NULL`), scope)
 	return scanPersons(ctx, rows, query.OrderExpr(`"person".id ASC`), "list persons by id")
 }
 
 func (s *Store) ListByTenantIDs(ctx context.Context, tenantIDs []int64) ([]domain.Person, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []personRow{}
 	query := withTenant(personSelect(db, &rows).
 		Where(`"person".tenant_id IN (?)`, bun.List(tenantIDs)).
-		Where(`"person".deleted_at IS NULL`), tenantID)
+		Where(`"person".deleted_at IS NULL`), scope)
 	return scanPersons(ctx, rows, query.OrderExpr(`"person".last_name ASC, "person".first_name ASC, "person".id ASC`), "list persons by tenant")
 }
 
 func (s *Store) ListByAccounts(ctx context.Context, accountIDs []int64) ([]domain.Person, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []personRow{}
 	query := withTenant(personSelect(db, &rows).
 		Where(`"person".account_id IN (?)`, bun.List(accountIDs)).
-		Where(`"person".deleted_at IS NULL`), tenantID)
+		Where(`"person".deleted_at IS NULL`), scope)
 	return scanPersons(ctx, rows, query.OrderExpr(`"person".account_id ASC, "person".updated_at DESC, "person".id ASC`), "list persons by account")
 }
 
 func (s *Store) Search(ctx context.Context, filter domain.Filter) ([]domain.Person, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []personRow{}
-	query := withTenant(personSelect(db, &rows).Where(`"person".deleted_at IS NULL`), tenantID)
+	query := withTenant(personSelect(db, &rows).Where(`"person".deleted_at IS NULL`), scope)
 	if filter.FirstNamePrefix != "" {
 		query = query.Where(`"person".first_name ILIKE ?`, escapeLike(filter.FirstNamePrefix)+"%")
 	}
@@ -282,7 +282,7 @@ func (s *Store) CountByTenant(ctx context.Context) (map[int64]int, domain.Operat
 }
 
 func (s *Store) SoftDelete(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -291,7 +291,7 @@ func (s *Store) SoftDelete(ctx context.Context, id int64) (domain.OperationStats
 		Set(`deleted_at = NOW()`).
 		Set(`updated_at = NOW()`).
 		Where(`"person".id = ?`, id).
-		Where(`"person".deleted_at IS NULL`), tenantID)
+		Where(`"person".deleted_at IS NULL`), scope)
 	return execOne(ctx, query, "soft delete person")
 }
 
@@ -302,7 +302,7 @@ const (
 )
 
 func (s *Store) AnonymizeAndSoftDelete(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -312,7 +312,7 @@ func (s *Store) AnonymizeAndSoftDelete(ctx context.Context, id int64) (domain.Op
 		Set(`last_name = ?`, deletedPersonLastName).
 		Set(`birthday = NULL`).
 		Set(`deleted_at = NOW()`).
-		Where(`"person".id = ?`, id), tenantID)
+		Where(`"person".id = ?`, id), scope)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := query.Exec(ctx)
@@ -327,7 +327,7 @@ func (s *Store) AnonymizeAndSoftDelete(ctx context.Context, id int64) (domain.Op
 }
 
 func (s *Store) SetAccount(ctx context.Context, personID int64, accountID *int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -336,14 +336,14 @@ func (s *Store) SetAccount(ctx context.Context, personID int64, accountID *int64
 		Set(`account_id = ?`, accountID).
 		Set(`updated_at = NOW()`).
 		Where(`"person".id = ?`, personID).
-		Where(`"person".deleted_at IS NULL`), tenantID)
+		Where(`"person".deleted_at IS NULL`), scope)
 	return execOne(ctx, query, "set person account")
 }
 
 // SetNames leaves updated_at to the row trigger, like every write of the
 // profile flow.
 func (s *Store) SetNames(ctx context.Context, personID int64, firstName, lastName string) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -351,7 +351,7 @@ func (s *Store) SetNames(ctx context.Context, personID int64, firstName, lastNam
 		ModelTableExpr(`users.persons AS "person"`).
 		Set(`first_name = ?`, firstName).
 		Set(`last_name = ?`, lastName).
-		Where(`"person".id = ?`, personID), tenantID)
+		Where(`"person".id = ?`, personID), scope)
 	return execOne(ctx, query, "set person names")
 }
 
@@ -361,7 +361,7 @@ func (s *Store) SetDetails(ctx context.Context, personID int64, firstName, lastN
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -370,12 +370,12 @@ func (s *Store) SetDetails(ctx context.Context, personID int64, firstName, lastN
 		Set(`first_name = ?`, firstName).
 		Set(`last_name = ?`, lastName).
 		Set(`birthday = ?`, date).
-		Where(`"person".id = ?`, personID), tenantID)
+		Where(`"person".id = ?`, personID), scope)
 	return execOne(ctx, query, "set person details")
 }
 
 func (s *Store) SetTag(ctx context.Context, personID int64, tagID *string) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -384,16 +384,16 @@ func (s *Store) SetTag(ctx context.Context, personID int64, tagID *string) (doma
 		Set(`tag_id = ?`, tagID).
 		Set(`updated_at = NOW()`).
 		Where(`"person".id = ?`, personID).
-		Where(`"person".deleted_at IS NULL`), tenantID)
+		Where(`"person".deleted_at IS NULL`), scope)
 	return execOne(ctx, query, "set person tag")
 }
 
 func (s *Store) LockHeldTags(ctx context.Context, personIDs []int64) ([]domain.ReleasedTag, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return nil, domain.OperationStats{}, errors.New("people directory postgres: tenant is required to release tags")
 	}
 	type heldRow struct {
@@ -407,7 +407,7 @@ func (s *Store) LockHeldTags(ctx context.Context, personIDs []int64) ([]domain.R
 		ColumnExpr(`"person".id AS person_id`).
 		ColumnExpr(`"person".tag_id AS tag_id`).
 		Where(`"person".id IN (?)`, bun.List(personIDs)).
-		Where(`"person".tenant_id = ?`, tenantID).
+		Where(`"person".tenant_id = ?`, scope.TenantID).
 		Where(`"person".tag_id IS NOT NULL`).
 		Where(`"person".deleted_at IS NULL`).
 		OrderExpr(`"person".id ASC`).
@@ -425,11 +425,11 @@ func (s *Store) LockHeldTags(ctx context.Context, personIDs []int64) ([]domain.R
 }
 
 func (s *Store) ClearTags(ctx context.Context, personIDs []int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return domain.OperationStats{}, errors.New("people directory postgres: tenant is required to release tags")
 	}
 	query := db.NewUpdate().Model((*personRow)(nil)).
@@ -437,7 +437,7 @@ func (s *Store) ClearTags(ctx context.Context, personIDs []int64) (domain.Operat
 		Set(`tag_id = NULL`).
 		Set(`updated_at = NOW()`).
 		Where(`"person".id IN (?)`, bun.List(personIDs)).
-		Where(`"person".tenant_id = ?`, tenantID)
+		Where(`"person".tenant_id = ?`, scope.TenantID)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := query.Exec(ctx)
@@ -458,11 +458,11 @@ func (s *Store) ClearTags(ctx context.Context, personIDs []int64) (domain.Operat
 // violation; the caller runs this inside a savepoint and treats that as
 // "current holder wins".
 func (s *Store) RestoreTag(ctx context.Context, personID int64, tagID string) (bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return false, domain.OperationStats{}, errors.New("people directory postgres: tenant is required to restore a tag")
 	}
 	query := db.NewUpdate().Model((*personRow)(nil)).
@@ -470,10 +470,10 @@ func (s *Store) RestoreTag(ctx context.Context, personID int64, tagID string) (b
 		Set(`tag_id = ?`, tagID).
 		Set(`updated_at = NOW()`).
 		Where(`"person".id = ?`, personID).
-		Where(`"person".tenant_id = ?`, tenantID).
+		Where(`"person".tenant_id = ?`, scope.TenantID).
 		Where(`"person".tag_id IS NULL`).
 		Where(`"person".deleted_at IS NULL`).
-		Where(`NOT EXISTS (SELECT 1 FROM users.persons AS "holder" WHERE "holder".tenant_id = ? AND "holder".tag_id = ? AND "holder".deleted_at IS NULL)`, tenantID, tagID)
+		Where(`NOT EXISTS (SELECT 1 FROM users.persons AS "holder" WHERE "holder".tenant_id = ? AND "holder".tag_id = ? AND "holder".deleted_at IS NULL)`, scope.TenantID, tagID)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := query.Exec(ctx)
@@ -514,11 +514,17 @@ func personSelect(db bun.IDB, model any) *bun.SelectQuery {
 	return db.NewSelect().Model(model).ModelTableExpr(`users.persons AS "person"`)
 }
 
-func withTenant[Q interface{ Where(string, ...any) Q }](query Q, tenantID int64) Q {
-	if tenantID > 0 {
-		return query.Where(`"person".tenant_id = ?`, tenantID)
+func withTenant[Q interface {
+	Where(string, ...any) Q
+	Err(error) Q
+}](query Q, scope TenantScope) Q {
+	if err := scope.Validate(); err != nil {
+		return query.Err(err)
 	}
-	return query
+	if scope.AcrossSchools {
+		return query
+	}
+	return query.Where(`"person".tenant_id = ?`, scope.TenantID)
 }
 
 func escapeLike(value string) string {

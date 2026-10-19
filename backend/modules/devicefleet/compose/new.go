@@ -131,24 +131,32 @@ func New(dependencies Dependencies) (*devicefleet.Module, error) {
 // tenant is not an error: device authentication and the public dashboard
 // route both run before one exists.
 func databaseRuntime(db *bun.DB) postgres.Database {
-	return func(ctx context.Context) (bun.IDB, int64, error) {
-		tenantID := tenant.FromContext(ctx)
-		transaction, hasTransaction := tenant.TransactionFromContext(ctx)
-		if !hasTransaction {
-			return db, tenantID, nil
+	return func(ctx context.Context) (bun.IDB, postgres.TenantScope, error) {
+		scope := postgres.TenantScope{}
+		id, err := tenant.TenantFromContext(ctx)
+		if err != nil {
+			if !tenant.IsAdminTx(ctx) {
+				return nil, scope, errors.Join(devicefleet.ErrTenantRequired, err)
+			}
+			scope.AcrossSchools = true
+		} else {
+			scope.TenantID = id.Int64()
+		}
+		transaction, ok := tenant.TransactionFromContext(ctx)
+		if !ok {
+			return nil, scope, errors.New("devicefleet postgres: transaction is required")
 		}
 		switch tx := transaction.(type) {
 		case bun.Tx:
-			return tx, tenantID, nil
+			return tx, scope, nil
 		case *bun.Tx:
 			if tx != nil {
-				return tx, tenantID, nil
+				return *tx, scope, nil
 			}
-			return db, tenantID, nil
-		default:
-			return nil, 0, fmt.Errorf("devicefleet postgres: unsupported transaction %T", transaction)
 		}
+		return nil, scope, fmt.Errorf("devicefleet postgres: unsupported transaction %T", transaction)
 	}
+
 }
 
 type transaction struct{ db *bun.DB }
@@ -157,15 +165,17 @@ func (t transaction) RunWrite(ctx context.Context, callback func(context.Context
 	if _, ok := tenant.TransactionFromContext(ctx); ok {
 		return callback(ctx)
 	}
-	if tenant.FromContext(ctx) <= 0 {
-		// Operator and CLI graphs write without an ambient tenant exactly as
-		// the retired repositories did; RLS still bounds the statement.
-		return callback(ctx)
+	id, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		return errors.Join(devicefleet.ErrTenantRequired, err)
 	}
-	return tenant.WithinCurrentTenant(ctx, callback)
+	return tenant.WithinTenant(ctx, id, callback)
 }
 
 func (t transaction) AdminScope(ctx context.Context, callback func(context.Context) error) error {
+	if _, ok := tenant.TransactionFromContext(ctx); ok {
+		return callback(ctx)
+	}
 	return tenant.WithAdminTx(ctx, t.db, func(adminCtx context.Context, _ bun.Tx) error {
 		return callback(adminCtx)
 	})

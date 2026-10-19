@@ -36,6 +36,7 @@ type MailPushProvider struct {
 // of the claimed intent's school (TenantTransactions).
 type IntentTenantTransactions interface {
 	WithinTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error
+	WithinSystem(context.Context, func(context.Context) error) error
 }
 
 type pushSubscriptionCleaner interface {

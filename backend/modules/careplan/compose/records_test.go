@@ -460,3 +460,36 @@ func assertRollbackAndRetry(
 	require.NoError(t, command(ctx))
 	assert.True(t, present(ctx), "the retry must apply the command once")
 }
+
+func TestCarePlanReadsRequireSchoolAndStoresRequireExistingTransaction(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.WithTenantRuntime(t, context.Background(), db)
+	reads := []func() error{
+		func() error { _, err := module.FindCareExits(ctx, []int64{1}); return err },
+		func() error { _, err := module.ListCompanionEdges(ctx, 1); return err },
+		func() error {
+			_, err := module.ListStudentStatusDays(ctx, careplan.StudentStatusDayFilter{})
+			return err
+		},
+		func() error {
+			_, err := module.ListExcusedAbsenceRequests(ctx, careplan.ExcusedAbsenceRequestFilter{})
+			return err
+		},
+		func() error { _, err := module.ListArrivalSchedules(ctx, careplan.StudentScheduleFilter{}); return err },
+		func() error {
+			_, err := module.ListArrivalExceptions(ctx, careplan.StudentScheduleFilter{})
+			return err
+		},
+		func() error { _, err := module.ListArrivalNotes(ctx, careplan.StudentScheduleFilter{}); return err },
+		func() error { _, err := module.ListPickupSchedules(ctx, careplan.StudentScheduleFilter{}); return err },
+		func() error { _, err := module.ListPickupExceptions(ctx, careplan.StudentScheduleFilter{}); return err },
+		func() error { _, err := module.ListPickupNotes(ctx, careplan.StudentScheduleFilter{}); return err },
+	}
+	for _, read := range reads {
+		require.Error(t, read())
+	}
+	_, _, err := carePlanDatabase(db)(tenant.WithTenantID(ctx, testpkg.Tenant(t)))
+	require.ErrorContains(t, err, "transaction is required")
+}

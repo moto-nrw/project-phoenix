@@ -19,7 +19,7 @@ import (
 // --- queries ------------------------------------------------------------------
 
 func (r *GuardianRelationshipRepository) linkQuery(ctx context.Context, model any) *bun.SelectQuery {
-	return r.links.GuardianLinkModelRows(r.runtime.DB(ctx), 0, model)
+	return guardianLinkModelRows(ctx, r.runtime, r.links, r.runtime.DB(ctx), model)
 }
 
 // FindByID retrieves one relationship with its three halves.
@@ -149,7 +149,7 @@ func (r *GuardianRelationshipRepository) ListLinkedChildrenForGuardians(ctx cont
 		ORDER BY p.last_name ASC, p.first_name ASC`
 	var rows []*owner0.GuardianLinkedChildSnapshot
 	db := r.runtime.DB(ctx)
-	if err := db.NewRaw(query, r.students.StudentRows(db, r.runtime.TenantID(ctx)), bun.List(guardianProfileIDs)).Scan(ctx, &rows); err != nil {
+	if err := db.NewRaw(query, studentRows(ctx, r.runtime, r.students, db), bun.List(guardianProfileIDs)).Scan(ctx, &rows); err != nil {
 		return nil, &ports.DatabaseError{Op: "list linked children for guardians", Err: translateNotFound(err)}
 	}
 	return rows, nil
@@ -343,7 +343,7 @@ func (r *GuardianRelationshipRepository) ListEmergencyContactRows(ctx context.Co
 	}
 
 	var rows []users.GuardianEmergencyContactRow
-	query := r.links.GuardianLinkRows(r.runtime.DB(ctx), 0).
+	query := guardianLinkRows(ctx, r.runtime, r.links, r.runtime.DB(ctx)).
 		ColumnExpr(`"student_guardian".student_id`).
 		ColumnExpr(`"guardian".id AS guardian_profile_id`).
 		ColumnExpr(`"guardian".first_name`).
@@ -354,8 +354,8 @@ func (r *GuardianRelationshipRepository) ListEmergencyContactRows(ctx context.Co
 		ColumnExpr(`"student_guardian".pickup_notes`).
 		ColumnExpr(`"student_guardian".can_pickup`).
 		ColumnExpr(`"student_guardian".is_emergency_contact`).
-		Join(`JOIN users.guardian_profiles AS "guardian" ON "guardian".id = "student_guardian".guardian_profile_id`).
-		Join(`LEFT JOIN users.guardian_phone_numbers AS "phone" ON "phone".guardian_profile_id = "guardian".id`).
+		Join(`JOIN users.guardian_profiles AS "guardian" ON "guardian".id = "student_guardian".guardian_profile_id AND "guardian".tenant_id = "student_guardian".tenant_id`).
+		Join(`LEFT JOIN users.guardian_phone_numbers AS "phone" ON "phone".guardian_profile_id = "guardian".id AND "phone".tenant_id = "guardian".tenant_id`).
 		Where(`"student_guardian".student_id IN (?)`, bun.List(studentIDs)).
 		OrderExpr(`"student_guardian".is_emergency_contact DESC`).
 		OrderExpr(`"student_guardian".is_primary DESC`).
@@ -364,12 +364,6 @@ func (r *GuardianRelationshipRepository) ListEmergencyContactRows(ctx context.Co
 		OrderExpr(`"phone".priority ASC NULLS LAST`).
 		OrderExpr(`"student_guardian".student_id ASC`).
 		OrderExpr(`"guardian".id ASC`)
-
-	if tenantID := r.runtime.TenantID(ctx); tenantID > 0 {
-		query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
-		query = query.Where(`"guardian".tenant_id = ?`, tenantID)
-		query = query.Where(`("phone".tenant_id = ? OR "phone".tenant_id IS NULL)`, tenantID)
-	}
 
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &ports.DatabaseError{
@@ -387,7 +381,7 @@ func (r *GuardianRelationshipRepository) ListEmergencyContactRows(ctx context.Co
 // assigned looks complete while missing exactly the rows that need work.
 func (r *GuardianRelationshipRepository) ListPaymentAssignments(ctx context.Context) ([]owner0.GuardianPaymentAssignment, error) {
 	var rows []owner0.GuardianPaymentAssignment
-	query := r.students.StudentRows(r.runtime.DB(ctx), r.runtime.TenantID(ctx)).
+	query := studentRows(ctx, r.runtime, r.students, r.runtime.DB(ctx)).
 		ColumnExpr(`"student".id AS student_id`).
 		ColumnExpr(`"student_person".first_name AS student_first_name`).
 		ColumnExpr(`"student_person".last_name AS student_last_name`).
@@ -398,19 +392,13 @@ func (r *GuardianRelationshipRepository) ListPaymentAssignments(ctx context.Cont
 		ColumnExpr(`COALESCE("student_guardian".relationship_type, '') AS relationship_type_raw`).
 		Join(`JOIN users.persons AS "student_person" ON "student_person".id = "student".person_id`).
 		Join(`LEFT JOIN users.student_guardian_relationships AS "student_guardian"
-			ON "student_guardian".student_id = "student".id AND "student_guardian".is_payer`).
-		Join(`LEFT JOIN users.guardian_profiles AS "guardian" ON "guardian".id = "student_guardian".guardian_profile_id`).
+			ON "student_guardian".student_id = "student".id AND "student_guardian".tenant_id = "student".tenant_id AND "student_guardian".is_payer`).
+		Join(`LEFT JOIN users.guardian_profiles AS "guardian" ON "guardian".id = "student_guardian".guardian_profile_id AND "guardian".tenant_id = "student_guardian".tenant_id`).
 		Where(`"student".status != ?`, string(users.StudentStatusAlumnus)).
 		Where(`"student_person".deleted_at IS NULL`).
 		OrderExpr(`"student_person".last_name ASC`).
 		OrderExpr(`"student_person".first_name ASC`).
 		OrderExpr(`"student".id ASC`)
-
-	if tenantID := r.runtime.TenantID(ctx); tenantID > 0 {
-		query = query.Where(`"student".tenant_id = ?`, tenantID)
-		query = query.Where(`("student_guardian".tenant_id = ? OR "student_guardian".tenant_id IS NULL)`, tenantID)
-		query = query.Where(`("guardian".tenant_id = ? OR "guardian".tenant_id IS NULL)`, tenantID)
-	}
 
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &ports.DatabaseError{Op: "list guardian payment assignments", Err: translateNotFound(err)}

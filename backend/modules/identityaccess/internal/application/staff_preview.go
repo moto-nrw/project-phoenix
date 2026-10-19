@@ -55,7 +55,7 @@ func (l *AccountLifecycle) StartStaffPreview(ctx context.Context, adminAccountID
 	err := l.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
 		var found bool
 		var err error
-		account, found, _, err = l.logins.FindLoginAccount(txCtx, targetAccountID, true)
+		account, found, _, err = findLoginAccount(txCtx, l.runtime, l.logins, targetAccountID, true)
 		if err != nil {
 			return failed(op, err)
 		}

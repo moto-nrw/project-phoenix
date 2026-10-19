@@ -72,8 +72,11 @@ func (r *PushSubscriptionRepository) deleteByEndpointPortal(ctx context.Context,
 		Where("account_id = ?", accountID).
 		Where("endpoint = ?", endpoint).
 		Where("portal = ?", portal)
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
+	id, scopeErr := tenant.TenantFromContext(ctx)
+	if scopeErr != nil {
+		query = query.Err(scopeErr)
+	} else {
+		query = query.Where("tenant_id = ?", id.Int64())
 	}
 	if _, err := query.Exec(ctx); err != nil {
 		return &databaseError{Op: op, Err: translateNotFound(err)}
@@ -124,8 +127,11 @@ func (r *PushSubscriptionRepository) DeleteExpiredIfUnchanged(ctx context.Contex
 		Where("p256dh = ?", sub.P256dh).
 		Where("auth = ?", sub.Auth).
 		Where("updated_at = ?", sub.UpdatedAt)
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
+	id, scopeErr := tenant.TenantFromContext(ctx)
+	if scopeErr != nil {
+		query = query.Err(scopeErr)
+	} else {
+		query = query.Where("tenant_id = ?", id.Int64())
 	}
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -264,9 +270,10 @@ func (r *PushSubscriptionRepository) deleteUnboundByAccount(ctx context.Context,
 		Where("account_id = ?", accountID).
 		Where("token_family_id = ?", "").
 		Where(pushPortalFilter, portal)
-	if tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
+	if tenantID <= 0 {
+		return tenant.ErrTenantRequired
 	}
+	query = query.Where("tenant_id = ?", tenantID)
 	if _, err := query.Exec(ctx); err != nil {
 		return &databaseError{Op: op, Err: translateNotFound(err)}
 	}
@@ -439,10 +446,11 @@ func (r *PushSubscriptionRepository) database(ctx context.Context) bun.IDB {
 	panic(fmt.Sprintf("base repository: unsupported transaction type %T", raw))
 }
 func withTenantFilter(ctx context.Context, query *bun.SelectQuery, alias string) *bun.SelectQuery {
-	if id := tenant.FromContext(ctx); id > 0 {
-		return query.Where("?.tenant_id = ?", bun.Ident(alias), id)
+	id, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		return query.Err(err)
 	}
-	return query
+	return query.Where("?.tenant_id = ?", bun.Ident(alias), id.Int64())
 }
 func translateNotFound(err error) error {
 	if !errors.Is(err, sql.ErrNoRows) {

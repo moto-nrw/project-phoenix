@@ -85,3 +85,12 @@ func wrapDatabase(op string, err error) error {
 	}
 	return &DatabaseError{Op: op, Err: err}
 }
+
+// tenantQuery rejects an absent school before building an owner-scoped read.
+func tenantQuery(ctx context.Context, runtime Runtime, query *bun.SelectQuery, alias string) *bun.SelectQuery {
+	id := runtimeTenantID(ctx, runtime)
+	if id <= 0 {
+		return query.Err(errors.New("audit repository: tenant is required"))
+	}
+	return query.Where("?.tenant_id = ?", bun.Ident(alias), id)
+}

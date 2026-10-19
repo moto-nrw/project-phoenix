@@ -15,6 +15,7 @@ package operatordashboard
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/operatordashboard/contract"
@@ -359,24 +360,31 @@ GROUP BY "b".tenant_id, "b".portal
 
 // contract.PWAUsageRow is one school's PWA standalone usage in one portal.
 
-// PWAUsage returns per-school, per-portal PWA standalone-usage counts within
-// window. tenantID > 0 limits the result to one school; 0 returns every
-// school.
+// PWAUsage reports one explicitly selected school.
 func (p *Projection) PWAUsage(ctx context.Context, tenantID int64, window time.Duration) ([]contract.PWAUsageRow, error) {
+	if tenantID <= 0 {
+		return nil, fmt.Errorf("operator dashboard: school ID is required")
+	}
 	db, err := p.database(ctx)
 	if err != nil {
 		return nil, err
 	}
-	cutoff := time.Now().Add(-window)
-	var rows []contract.PWAUsageRow
-	if tenantID > 0 {
-		err = db.NewRaw(schoolPWAUsageQuery, guardianRoleName, guardianRoleName, tenantID, cutoff).Scan(ctx, &rows)
-	} else {
-		err = db.NewRaw(pwaUsageQuery, guardianRoleName, guardianRoleName, cutoff).Scan(ctx, &rows)
-	}
+	return scanPWAUsage(ctx, db.NewRaw(schoolPWAUsageQuery, guardianRoleName, guardianRoleName, tenantID, time.Now().Add(-window)))
+}
+
+// AllSchoolsPWAUsage is the operator's cross-school aggregate.
+func (p *Projection) AllSchoolsPWAUsage(ctx context.Context, window time.Duration) ([]contract.PWAUsageRow, error) {
+	db, err := p.database(ctx)
 	if err != nil {
 		return nil, err
 	}
-	// A school without buckets answers [] rather than nil.
+	return scanPWAUsage(ctx, db.NewRaw(pwaUsageQuery, guardianRoleName, guardianRoleName, time.Now().Add(-window)))
+}
+
+func scanPWAUsage(ctx context.Context, query *bun.RawQuery) ([]contract.PWAUsageRow, error) {
+	var rows []contract.PWAUsageRow
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, err
+	}
 	return append(make([]contract.PWAUsageRow, 0, len(rows)), rows...), nil
 }

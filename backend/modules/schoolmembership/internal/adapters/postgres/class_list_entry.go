@@ -31,12 +31,12 @@ type classListEntryRow struct {
 }
 
 func (s *Store) FindClassListEntry(ctx context.Context, id int64, lock string) (domain.ClassListEntry, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.ClassListEntry{}, false, domain.OperationStats{}, err
 	}
 	row := &classListEntryRow{}
-	query := withTenant(classListEntrySelect(db, row).Where(`"class_list_entry".id = ?`, id), "class_list_entry", tenantID)
+	query := withTenant(classListEntrySelect(db, row).Where(`"class_list_entry".id = ?`, id), "class_list_entry", scope)
 	if lock != "" {
 		query = query.For(lock)
 	}
@@ -50,12 +50,12 @@ func (s *Store) FindClassListEntry(ctx context.Context, id int64, lock string) (
 // ListClassListEntries orders by case-folded last name, first name and ID:
 // the order the legacy class lookup produced, stable across equal names.
 func (s *Store) ListClassListEntries(ctx context.Context, filter domain.ClassListEntryFilter) ([]domain.ClassListEntry, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []classListEntryRow{}
-	query := withTenant(classListEntrySelect(db, &rows), "class_list_entry", tenantID)
+	query := withTenant(classListEntrySelect(db, &rows), "class_list_entry", scope)
 	if filter.IDs != nil {
 		if len(filter.IDs) == 0 {
 			return []domain.ClassListEntry{}, domain.OperationStats{}, nil
@@ -100,15 +100,15 @@ func (s *Store) ListClassListEntriesInDisplayOrder(ctx context.Context, filter d
 }
 
 func (s *Store) CreateClassListEntry(ctx context.Context, fields domain.ClassListEntryFields, createdBy *int64) (domain.ClassListEntry, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.ClassListEntry{}, domain.OperationStats{}, err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return domain.ClassListEntry{}, domain.OperationStats{}, errors.New("school membership postgres: tenant is required to create a class list entry")
 	}
 	row := classListEntryRow{
-		TenantID: tenantID, FirstName: fields.FirstName, LastName: fields.LastName,
+		TenantID: scope.TenantID, FirstName: fields.FirstName, LastName: fields.LastName,
 		SchoolClass: fields.SchoolClass, CreatedBy: createdBy,
 	}
 	stats := domain.OperationStats{Queries: 1}
@@ -123,7 +123,7 @@ func (s *Store) CreateClassListEntry(ctx context.Context, fields domain.ClassLis
 }
 
 func (s *Store) UpdateClassListEntry(ctx context.Context, id int64, fields domain.ClassListEntryFields) (domain.ClassListEntry, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.ClassListEntry{}, domain.OperationStats{}, err
 	}
@@ -132,7 +132,7 @@ func (s *Store) UpdateClassListEntry(ctx context.Context, id int64, fields domai
 		ModelTableExpr(`users.class_list_entries AS "class_list_entry"`).
 		Column("first_name", "last_name", "school_class").
 		Set(`updated_at = NOW()`).
-		Where(`"class_list_entry".id = ?`, id), "class_list_entry", tenantID)
+		Where(`"class_list_entry".id = ?`, id), "class_list_entry", scope)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = query.Returning("*").Scan(ctx)
@@ -148,13 +148,13 @@ func (s *Store) UpdateClassListEntry(ctx context.Context, id int64, fields domai
 }
 
 func (s *Store) DeleteClassListEntry(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewDelete().Model((*classListEntryRow)(nil)).
 		ModelTableExpr(`users.class_list_entries AS "class_list_entry"`).
-		Where(`"class_list_entry".id = ?`, id), "class_list_entry", tenantID)
+		Where(`"class_list_entry".id = ?`, id), "class_list_entry", scope)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := query.Exec(ctx)

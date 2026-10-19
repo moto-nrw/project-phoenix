@@ -345,7 +345,7 @@ func educationHandoverFromWorkforce(value workforce.GroupSubstitution) *educatio
 // bounds overlap the period.
 func handoverFilter(query educationRepo.HandoverQuery) workforce.GroupSubstitutionFilter {
 	filter := workforce.GroupSubstitutionFilter{
-		TenantID: query.TenantID, TargetType: query.TargetType, GroupID: query.GroupID,
+		TargetType: query.TargetType, GroupID: query.GroupID,
 		SubstituteStaffID: query.SubstituteStaffID,
 	}
 	if query.GroupIDs != nil {
@@ -356,6 +356,9 @@ func handoverFilter(query educationRepo.HandoverQuery) workforce.GroupSubstituti
 	}
 	if query.EndsOnOrAfter != nil {
 		filter.OverlapFrom = query.EndsOnOrAfter.String()
+	}
+	if query.TenantID != 0 {
+		filter.TenantID = &query.TenantID
 	}
 	return filter
 }

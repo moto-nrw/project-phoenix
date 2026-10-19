@@ -16,8 +16,7 @@ import (
 // migration 1.15.33.
 const calendarPeriodNameConstraint = "unique_calendar_period_name"
 
-// Database resolves the connection and the tenant of the current request. A
-// zero tenant means no tenant is bound: reads run unscoped, writes refuse.
+// Database resolves the existing transaction and required school.
 type Database func(context.Context) (bun.IDB, int64, error)
 
 type Store struct{ database Database }
@@ -533,11 +532,14 @@ func closingDayToDomain(row closingDayRow) domain.ClosingDay {
 	}
 }
 
-func withTenant[Q interface{ Where(string, ...any) Q }](query Q, alias string, tenantID int64) Q {
-	if tenantID > 0 {
-		return query.Where(`"`+alias+`".tenant_id = ?`, tenantID)
+func withTenant[Q interface {
+	Where(string, ...any) Q
+	Err(error) Q
+}](query Q, alias string, tenantID int64) Q {
+	if tenantID <= 0 {
+		return query.Err(errors.New("schoolcalendar: tenant is required"))
 	}
-	return query
+	return query.Where(`"`+alias+`".tenant_id = ?`, tenantID)
 }
 
 func scanOne(ctx context.Context, query *bun.SelectQuery, operation string) (bool, domain.OperationStats, error) {

@@ -496,10 +496,8 @@ func (r *guardianProfileRepository) LinkAccount(ctx context.Context, profileID i
 	if profileID <= 0 || accountID <= 0 {
 		return users.ErrGuardianAccountConflict
 	}
-	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		return r.runtime.WithSavepoint(txCtx, func(linkCtx context.Context) error {
-			return r.linkAccount(linkCtx, profileID, accountID)
-		})
+	return r.runtime.WithSavepoint(ctx, func(linkCtx context.Context) error {
+		return r.linkAccount(linkCtx, profileID, accountID)
 	})
 }
 
@@ -661,7 +659,7 @@ func (r *guardianProfileRepository) guardianChildren(ctx context.Context, profil
 		EnrollmentSubmit bool   `bun:"enrollment_submit"`
 	}
 	var rows []childRow
-	childErr := r.links.GuardianLinkRows(r.runtime.DB(ctx), r.runtime.TenantID(ctx)).
+	childErr := guardianLinkRows(ctx, r.runtime, r.links, r.runtime.DB(ctx)).
 		ColumnExpr(`"s".id AS student_id`).
 		ColumnExpr(`"p".first_name`).
 		ColumnExpr(`"p".last_name`).
@@ -672,7 +670,7 @@ func (r *guardianProfileRepository) guardianChildren(ctx context.Context, profil
 		// Per-relationship enrollment-submit permission, so the form can offer
 		// reuse only for children this guardian may actually re-enroll (#1663).
 		ColumnExpr(`COALESCE(("student_guardian".permissions ->> ?)::boolean, false) AS enrollment_submit`, guardianPermissionEnrollmentSubmit).
-		Join(`INNER JOIN (?) AS "s" ON "s".id = "student_guardian".student_id`, r.students.StudentRows(r.runtime.DB(ctx), r.runtime.TenantID(ctx))).
+		Join(`INNER JOIN (?) AS "s" ON "s".id = "student_guardian".student_id`, studentRows(ctx, r.runtime, r.students, r.runtime.DB(ctx))).
 		Join(`INNER JOIN users.persons AS "p" ON "p".id = "s".person_id`).
 		Where(`"student_guardian".guardian_profile_id = ?`, profileID).
 		Where(`COALESCE(("student_guardian".permissions ->> ?)::boolean, false) = TRUE`, guardianPermissionPortalAccess).

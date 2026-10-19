@@ -27,20 +27,20 @@ func NewCleanupRetention() workforce.CleanupRetention {
 
 // retentionDatabase is the transaction of the school in context; without one
 // the retention refuses to run instead of falling back to a pool.
-func retentionDatabase(ctx context.Context) (bun.IDB, int64, error) {
+func retentionDatabase(ctx context.Context) (bun.IDB, postgres.TenantScope, error) {
 	tenantID, err := tenant.TenantFromContext(ctx)
 	if err != nil {
-		return nil, 0, fmt.Errorf("workforce postgres: tenant is required: %w", err)
+		return nil, postgres.TenantScope{}, fmt.Errorf("workforce postgres: tenant is required: %w", err)
 	}
 	transaction, ok := tenant.TransactionFromContext(ctx)
 	if !ok {
-		return nil, 0, errors.New("workforce postgres: transaction is required")
+		return nil, postgres.TenantScope{}, errors.New("workforce postgres: transaction is required")
 	}
 	tx, ok := transaction.(bun.Tx)
 	if !ok {
-		return nil, 0, fmt.Errorf("workforce postgres: unsupported transaction %T", transaction)
+		return nil, postgres.TenantScope{}, fmt.Errorf("workforce postgres: unsupported transaction %T", transaction)
 	}
-	return tx, tenantID.Int64(), nil
+	return tx, postgres.TenantScope{TenantID: tenantID.Int64()}, nil
 }
 
 // SickNoteRetentionWindow resolves the staff sick note retention window of

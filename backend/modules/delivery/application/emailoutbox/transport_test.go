@@ -54,3 +54,10 @@ func TestTransportRecordsAttemptAfterSendingContextEnds(t *testing.T) {
 	require.True(t, renderer.recorded, "the caller must still see the failed transport attempt in its delivery record")
 	require.ErrorIs(t, renderer.result, context.Canceled)
 }
+
+func (contextCheckingMailTransactions) WithinSystem(ctx context.Context, fn func(context.Context) error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return fn(ctx)
+}

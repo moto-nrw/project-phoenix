@@ -97,17 +97,32 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 	if dependencies.DB == nil || dependencies.Observe == nil || dependencies.StudentDirectory == nil {
 		return nil, errors.New("people directory compose: all dependencies are required")
 	}
-	database := func(ctx context.Context) (bun.IDB, int64, error) {
+	database := func(ctx context.Context) (bun.IDB, postgres.TenantScope, error) {
+		scope := postgres.TenantScope{}
+		id, err := tenant.TenantFromContext(ctx)
+		if err != nil {
+			if !tenant.IsAdminTx(ctx) {
+				return nil, scope, err
+			}
+			scope.AcrossSchools = true
+		} else {
+			scope.TenantID = id.Int64()
+		}
 		transaction, ok := tenant.TransactionFromContext(ctx)
 		if !ok {
-			return nil, 0, errors.New("people directory postgres: transaction is required")
+			return nil, scope, errors.New("peopledirectory postgres: transaction is required")
 		}
-		tx, ok := transaction.(bun.Tx)
-		if !ok {
-			return nil, 0, fmt.Errorf("people directory postgres: unsupported transaction %T", transaction)
+		switch tx := transaction.(type) {
+		case bun.Tx:
+			return tx, scope, nil
+		case *bun.Tx:
+			if tx != nil {
+				return *tx, scope, nil
+			}
 		}
-		return tx, tenant.FromContext(ctx), nil
+		return nil, scope, fmt.Errorf("peopledirectory postgres: unsupported transaction %T", transaction)
 	}
+
 	observe := func(observation Observation) {
 		observation.Err = application.MapError(observation.Err)
 		dependencies.Observe(observation)
@@ -172,10 +187,7 @@ func (transaction) RunRead(ctx context.Context, callback func(context.Context) e
 	if _, ok := tenant.TransactionFromContext(ctx); ok {
 		return callback(ctx)
 	}
-	if _, err := tenant.TenantFromContext(ctx); err == nil {
-		return tenant.WithinCurrentTenant(ctx, callback)
-	}
-	return tenant.WithinAdmin(ctx, callback)
+	return tenant.WithinCurrentTenant(ctx, callback)
 }
 
 func (transaction) RunSavepoint(ctx context.Context, callback func(context.Context) error) error {

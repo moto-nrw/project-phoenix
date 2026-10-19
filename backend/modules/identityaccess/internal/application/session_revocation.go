@@ -260,7 +260,7 @@ func (s *AccountAuthentication) finishScheduledAccountWideWipe(ctx context.Conte
 		}
 		if !cutoff.IsZero() {
 			if reason != "account_deactivated" {
-				if _, found, _, lockErr := s.store.FindLoginAccount(txCtx, accountID, true); lockErr != nil {
+				if _, found, _, lockErr := findLoginAccount(txCtx, s.runtime, s.store, accountID, true); lockErr != nil {
 					return lockErr
 				} else if !found {
 					return domain.ErrAccountNotFound
@@ -330,7 +330,7 @@ func (s *AccountAuthentication) shouldSkipAccountWideWipe(ctx context.Context, a
 	if reason != "account_deactivated" {
 		return false, nil
 	}
-	account, found, _, err := s.store.FindLoginAccount(ctx, accountID, true)
+	account, found, _, err := findLoginAccount(ctx, s.runtime, s.store, accountID, true)
 	if err != nil {
 		return false, err
 	}

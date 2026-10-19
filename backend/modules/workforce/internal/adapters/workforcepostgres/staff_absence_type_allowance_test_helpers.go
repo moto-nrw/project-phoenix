@@ -20,8 +20,7 @@ const (
 )
 
 // Database resolves the connection and the tenant of the current request,
-// the same runtime the Workforce store reads through. A zero tenant means no
-// tenant is bound and leaves the read unscoped.
+// the same required-school runtime the Workforce store reads through.
 type Database func(context.Context) (bun.IDB, int64, error)
 
 // StaffAbsenceTypeAllowance is one person's yearly claim for one
@@ -75,9 +74,10 @@ func (r *StaffAbsenceTypeAllowanceRepository) List(ctx context.Context) ([]*Staf
 	}
 	rows := make([]*StaffAbsenceTypeAllowance, 0)
 	query := db.NewSelect().Model(&rows).ModelTableExpr(tableStaffAbsenceTypeAllowances + ` AS "staff_absence_type_allowance"`)
-	if tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
+	if tenantID <= 0 {
+		return nil, fmt.Errorf("tenant is required")
 	}
+	query = query.Where("tenant_id = ?", tenantID)
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list staff absence type allowances: %w", err)
 	}
@@ -103,9 +103,10 @@ func (r *StaffAbsenceTypeAllowanceChangeRepository) List(ctx context.Context) ([
 	}
 	rows := make([]*StaffAbsenceTypeAllowanceChange, 0)
 	query := db.NewSelect().Model(&rows).ModelTableExpr(tableStaffAbsenceTypeAllowanceChange + ` AS "staff_absence_type_allowance_change"`)
-	if tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
+	if tenantID <= 0 {
+		return nil, fmt.Errorf("tenant is required")
 	}
+	query = query.Where("tenant_id = ?", tenantID)
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list staff absence type allowance changes: %w", err)
 	}

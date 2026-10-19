@@ -2,6 +2,9 @@ package application
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 )
@@ -86,6 +89,14 @@ func (s *StudentService) ListEnrolledIDsByNameAndBirthday(
 	tenantID int64,
 	firstName, lastName, birthday string,
 ) (ids []int64, err error) {
+	id, err := tenant.NewTenantID(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	if current, currentErr := tenant.TenantFromContext(ctx); currentErr == nil && current != id {
+		return nil, fmt.Errorf("people directory: enrollment lookup tenant does not match caller")
+	}
+	ctx = tenant.WithTenant(ctx, id)
 	err = s.run(ctx, "list_enrolled_students_by_name", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		ids, queryStats, err = s.store.ListEnrolledIDsByNameAndBirthday(txCtx, tenantID, firstName, lastName, birthday)

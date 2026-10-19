@@ -1,6 +1,7 @@
 package parentinbox
 
 import (
+	"errors"
 	"maps"
 	"slices"
 
@@ -235,15 +236,13 @@ const staffUnreadThread = `(t.staff_marked_unread_at IS NOT NULL OR ` + guardian
 // the single ? of guardianUnreadExists.
 const staffMarkedWithoutUnread = `(t.staff_marked_unread_at IS NOT NULL AND NOT ` + guardianUnreadExists + `)`
 
-// withTenant applies the defense-in-depth tenant_id filter that complements
-// RLS. A zero tenant leaves the query untouched, which is what the
-// administrative and cross-tenant guardian paths rely on.
-//
-// It mirrors the filter the repositories this projection replaces applied, and
-// keeps the same shape as its sibling in parentpostgres.
-func withTenant[Q interface{ Where(string, ...any) Q }](query Q, alias string, tenantID int64) Q {
+// withTenant requires a school and adds its predicate on top of RLS.
+func withTenant[Q interface {
+	Where(string, ...any) Q
+	Err(error) Q
+}](query Q, alias string, tenantID int64) Q {
 	if tenantID <= 0 {
-		return query
+		return query.Err(errors.New("tenant is required"))
 	}
 	return query.Where(`"`+alias+`".tenant_id = ?`, tenantID)
 }

@@ -405,11 +405,16 @@ func TestStaffListInboxQueryBudgetStaysFlat(t *testing.T) {
 	}
 
 	counter := testpkg.CaptureQueriesForContext(t, db)
-	ctx := counter.Context(asAccount(t, anna))
-	inbox, err := svc.ListInbox(ctx, false)
+	err := testpkg.WithinTenantTransaction(asAccount(t, anna), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		// The HTTP root supplies this unit of work; measure only the projection.
+		ctx := counter.Context(txCtx)
+		inbox, err := svc.ListInbox(ctx, false)
+		require.NoError(t, err)
+		require.Len(t, inbox, 3)
+		testpkg.AssertQueryBudget(t, "modules.communication.staff_messages.list_inbox", counter.Queries())
+		return err
+	})
 	require.NoError(t, err)
-	require.Len(t, inbox, 3)
-	testpkg.AssertQueryBudget(t, "modules.communication.staff_messages.list_inbox", counter.Queries())
 }
 
 func TestInboxCounterpartNameUsesThreadTenant(t *testing.T) {

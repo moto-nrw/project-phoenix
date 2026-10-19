@@ -343,7 +343,13 @@ func (r *DeletionPreview) sourceEnrollmentCount(ctx context.Context, requestID i
 	if r.deps.CountSourceEnrollments == nil {
 		return 0, errors.New("source enrollment count capability is required")
 	}
-	return r.deps.CountSourceEnrollments(ctx, requestID, childID)
+	var result int
+	err := r.deps.Runtime.Transactions.RunInTx(ctx, func(txCtx context.Context) error {
+		var err error
+		result, err = r.deps.CountSourceEnrollments(txCtx, requestID, childID)
+		return err
+	})
+	return result, err
 }
 
 func deletionCountsFromRow(row *enrollment.DeletionRequestCounts) enrollment.DeletionCounts {

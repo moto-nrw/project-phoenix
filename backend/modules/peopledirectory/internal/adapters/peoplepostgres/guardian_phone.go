@@ -170,17 +170,9 @@ func (r *guardianPhoneNumberRepository) Delete(ctx context.Context, id int64) er
 	return nil
 }
 
-// SetPrimary sets a phone number as primary and unsets others for the guardian.
-// Uses the tenant transaction from context (via GetDB) for RLS compliance.
-// If no ambient transaction exists, creates one to ensure both updates are atomic —
-// without this, a failure on the second update would leave the guardian with no primary number.
+// SetPrimary changes both flags atomically inside the caller's unit of work.
 func (r *guardianPhoneNumberRepository) SetPrimary(ctx context.Context, id int64, guardianProfileID int64) error {
-	// If already in a transaction (from middleware or service), reuse it.
-	// Otherwise start one to keep both updates atomic.
-	if r.runtime.InTransaction(ctx) {
-		return r.setPrimaryInTx(ctx, id, guardianProfileID)
-	}
-	return r.runtime.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+	return inExistingTransaction(ctx, r.runtime, func(txCtx context.Context) error {
 		return r.setPrimaryInTx(txCtx, id, guardianProfileID)
 	})
 }

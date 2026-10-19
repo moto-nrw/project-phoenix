@@ -53,7 +53,7 @@ type GroupSubstitution struct {
 // TenantID is an explicit tenant predicate on top of the ambient tenant; a
 // value for another tenant therefore matches nothing.
 type GroupSubstitutionFilter struct {
-	TenantID          int64
+	TenantID          *int64
 	GroupID           int64
 	GroupIDs          []int64
 	SubstituteStaffID int64

@@ -263,9 +263,10 @@ func (s *NotificationConsentStore) DisableConsent(ctx context.Context, accountID
 		Where("account_id = ?", accountID).
 		Where("notification_type IN (?)", bun.List(notificationTypes)).
 		Where("enabled")
-	if tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
+	if tenantID <= 0 {
+		return errors.New("communication: tenant is required")
 	}
+	query = query.Where("tenant_id = ?", tenantID)
 	if _, err := query.Exec(ctx); err != nil {
 		return fmt.Errorf("disable all notification preferences: %w", err)
 	}

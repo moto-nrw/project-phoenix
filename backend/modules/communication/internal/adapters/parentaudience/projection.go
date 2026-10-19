@@ -500,7 +500,7 @@ func (p *Projection) ListFeedForAccount(ctx context.Context, accountID int64, sc
 	if err := db.NewRaw(feedSQL,
 		applicants,
 		accountID, feedScopeList(scope.TenantIDs), feedScopeList(scope.SystemOnlyTenantIDs),
-		today, today, today, p.guardianLinks(db, 0), accountID, accountID, accountID,
+		today, today, today, p.links.AllSchoolsGuardianLinkRows(db), accountID, accountID, accountID,
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("list parent announcement feed: %w", err)
 	}
@@ -559,8 +559,8 @@ func (p *Projection) CountOutstandingForAccount(ctx context.Context, accountID i
 	if err := db.NewRaw(countOutstandingSQL,
 		applicants,
 		accountID, feedScopeList(scope.TenantIDs), feedScopeList(scope.SystemOnlyTenantIDs),
-		today, today, today, p.guardianLinks(db, 0), accountID,
-		today, today, today, p.guardianLinks(db, 0), accountID, accountID, accountID,
+		today, today, today, p.links.AllSchoolsGuardianLinkRows(db), accountID,
+		today, today, today, p.links.AllSchoolsGuardianLinkRows(db), accountID, accountID, accountID,
 	).Scan(ctx, &count); err != nil {
 		return 0, fmt.Errorf("count outstanding parent announcements: %w", err)
 	}
@@ -655,7 +655,7 @@ func (p *Projection) AnswerableChildren(ctx context.Context, accountID int64, an
 	today := p.day()
 	var rows []pollChildRow
 	if err := db.NewRaw(answerableChildrenSQL,
-		today, today, today, p.guardianLinks(db, 0), accountID, bun.List(announcementIDs),
+		today, today, today, p.links.AllSchoolsGuardianLinkRows(db), accountID, bun.List(announcementIDs),
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("list answerable children for parent announcements: %w", err)
 	}

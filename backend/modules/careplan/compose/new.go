@@ -73,7 +73,7 @@ func carePlanDatabase(db *bun.DB) postgres.Database {
 		}
 		transaction, ok := tenant.TransactionFromContext(ctx)
 		if !ok {
-			return db, tenantID, nil
+			return nil, 0, errors.New("care plan: transaction is required")
 		}
 		switch tx := transaction.(type) {
 		case bun.Tx:
@@ -82,7 +82,7 @@ func carePlanDatabase(db *bun.DB) postgres.Database {
 			if tx != nil {
 				return tx, tenantID, nil
 			}
-			return db, tenantID, nil
+			return nil, 0, errors.New("care plan: transaction is required")
 		default:
 			return nil, 0, fmt.Errorf("care plan postgres: unsupported transaction %T", transaction)
 		}

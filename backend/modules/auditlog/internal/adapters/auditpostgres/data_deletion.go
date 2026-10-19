@@ -169,8 +169,5 @@ func (r *DataDeletionRepository) ListRecentRetentionSummaries(
 }
 
 func withDataDeletionTenant(ctx context.Context, runtime Runtime, query *bun.SelectQuery) *bun.SelectQuery {
-	if tenantID := runtimeTenantID(ctx, runtime); tenantID > 0 {
-		return query.Where(`"data_deletion".tenant_id = ?`, tenantID)
-	}
-	return query
+	return tenantQuery(ctx, runtime, query, "data_deletion")
 }

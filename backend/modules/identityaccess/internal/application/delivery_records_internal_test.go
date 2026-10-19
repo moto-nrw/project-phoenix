@@ -56,9 +56,9 @@ func TestDeliveryRecords_RecordLikeTheModule(t *testing.T) {
 	delivery := identityaccess.TokenDelivery{Error: &long}
 	id := int64(len(t.Name()))
 
-	resetErr := NewPasswordResetDeliveryRecords(resetRecordStore{deliveryRecordStore: store}, attach).RecordPasswordResetDelivery(ctx, id, delivery)
+	resetErr := NewPasswordResetDeliveryRecords(resetRecordStore{deliveryRecordStore: store}, attach, &fakeRuntime{}).RecordPasswordResetDelivery(ctx, id, delivery)
 	require.EqualError(t, resetErr, passwordResetError(store.err).Error())
-	invitationErr := NewSchoolInvitationDeliveryRecords(invitationRecordStore{deliveryRecordStore: store}, attach).RecordSchoolInvitationDelivery(ctx, id, delivery)
+	invitationErr := NewSchoolInvitationDeliveryRecords(invitationRecordStore{deliveryRecordStore: store}, attach, &fakeRuntime{}).RecordSchoolInvitationDelivery(ctx, id, delivery)
 	require.EqualError(t, invitationErr, invitationError(store.err).Error())
 
 	require.Equal(t, []bool{true, true}, store.attached)

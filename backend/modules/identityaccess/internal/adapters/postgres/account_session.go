@@ -62,6 +62,7 @@ func accountSessionsToDomain(rows []accountSessionRow) []domain.AccountSession {
 
 type tenantFilterable[Q any] interface {
 	Where(string, ...any) Q
+	Err(error) Q
 }
 
 // withTenantFilter narrows the statement to the caller's tenant when the
@@ -69,10 +70,7 @@ type tenantFilterable[Q any] interface {
 // logout run before a tenant is known) see every row, as the retained
 // repository's defense-in-depth filter did.
 func withTenantFilter[Q tenantFilterable[Q]](scope TenantScope, query Q) Q {
-	if scope.TenantID > 0 {
-		return query.Where(`"token".tenant_id = ?`, scope.TenantID)
-	}
-	return query
+	return scopeTenantQuery(scope, query, `"token".tenant_id = ?`)
 }
 
 // withTenantFilterUnlessAdmin is withTenantFilter for the cap and retirement

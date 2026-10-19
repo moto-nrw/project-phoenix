@@ -79,7 +79,7 @@ func NewPasswordReset(auth *AccountAuthentication, deps PasswordResetDependencie
 // account exists. The rate limit counts only requests that would send.
 func (r *PasswordReset) InitiatePasswordReset(ctx context.Context, email string, scope domain.PasswordResetScope) (*domain.PasswordResetToken, error) {
 	email = strings.TrimSpace(strings.ToLower(email))
-	account, found, _, err := r.logins.FindLoginAccountByEmail(ctx, email)
+	account, found, _, err := findLoginAccountByEmail(ctx, r.runtime, r.logins, email)
 	if err != nil {
 		// The answer stays neutral, but a failing lookup is an incident, not
 		// an unknown address: it must be visible in the logs.
@@ -213,7 +213,7 @@ func (r *PasswordReset) ResetPassword(ctx context.Context, token, newPassword st
 
 // RecordPasswordResetDelivery stores the outcome of mailing a link.
 func (r *PasswordReset) RecordPasswordResetDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) error {
-	return recordPasswordResetDelivery(ctx, r.store, id, delivery)
+	return recordPasswordResetDelivery(ctx, r.runtime, r.store, id, delivery)
 }
 
 // DeleteSpentPasswordResetTokens removes expired and used links.

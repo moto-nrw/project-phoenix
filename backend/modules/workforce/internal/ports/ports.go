@@ -265,6 +265,7 @@ type StaffAssignments interface {
 // Transaction runs a unit of work on the caller's ambient transaction or, when
 // there is none, opens one.
 type Transaction interface {
+	RunRead(context.Context, func(context.Context) error) error
 	RunWrite(context.Context, func(context.Context) error) error
 	// LockStaffQualifications serializes list replacements per staff member.
 	LockStaffQualifications(ctx context.Context, staffID int64) error

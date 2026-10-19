@@ -21,7 +21,7 @@ func NewGuardianStudentAccess(db *bun.DB, observe func(Observation)) (identityac
 	if db == nil || observe == nil {
 		return nil, errors.New("identity access guardian student access: database and observer are required")
 	}
-	return guardianStudentAccess{store: newStore(db), observe: observe}, nil
+	return application.NewGuardianStudentAccessCommands(guardianStudentAccess{store: newStore(db), observe: observe}, transaction{}.RunWrite), nil
 }
 
 type guardianStudentAccess struct {
