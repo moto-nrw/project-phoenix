@@ -23,7 +23,6 @@
     "modules/parentmessageinbox",
     "modules/parentmessageinbox/internal/adapters/postgres",
     "modules/parentrequestfeedprojection/internal/adapters/postgres",
-    "modules/peopledirectory/internal/application",
     "modules/presenceprojection/internal/adapters/postgres",
     "modules/schedulerruntime/internal/adapters/jobruntime",
     "modules/schedulerruntime/internal/adapters/workerlease",
@@ -50,12 +49,12 @@
   "atomic_cutover": "Preserve the empty baseline, rename only Git-verified same-owner/role packages and unchanged register entries, inject device-auth dependencies at construction, and bind native private owner capabilities. Retain and document the unproven compose exit without a new permission.",
   "tests": [
     "scripts/backend-architecture.sh check",
-    "scripts/backend-architecture.sh validate-ticket --all --base-ref 148e5aeb86cf22fdbfbffedd76ba070f52f80a3e",
+    "scripts/backend-architecture.sh validate-ticket --all --base-ref e423ad19c732f17966b2f8332eafb5df01196f29",
     "scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development without --fast",
     "Positive and negative projection/transaction rename regressions, existing native owner/HTTP/tenant-isolation suites, pinned lint and full hooks."
   ],
   "runtime_evidence": {
-    "source": "Local source and metadata cutover from immutable development 148e5aeb86cf22fdbfbffedd76ba070f52f80a3e. No production request or performance claim.",
+    "source": "Local source and metadata cutover, integrated with immutable development e423ad19c732f17966b2f8332eafb5df01196f29. No production request or performance claim.",
     "sources": [
       "docs/architecture/final-legacy-cluster.md",
       "docs/architecture/final-legacy-cluster-round-eight-compose.md",

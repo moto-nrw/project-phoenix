@@ -80,12 +80,7 @@ func Assemble(deps studentdeletioncompose.Dependencies, enrollments studentdelet
 		CountGuardianInvitations: deps.Owners.GuardianInvitations,
 		LockCareBookingWrites:    deps.LockCareBookingWrites,
 		AppendAudit:              appendDeletionAudit(deps.Audit, deps.Owners),
-		PhotoRemoved: func(ctx context.Context, _ studentdeletion.Actor, path string) error {
-			if deps.UnlinkPhoto != nil {
-				return deps.UnlinkPhoto(ctx, path)
-			}
-			return nil
-		},
+		PhotoRemoved:             photoRemoval(deps.UnlinkPhoto),
 		CompanionsChanged: func(ctx context.Context, actor studentdeletion.Actor, studentID int64) {
 			if deps.Broadcaster == nil {
 				return
@@ -103,14 +98,7 @@ func Assemble(deps studentdeletioncompose.Dependencies, enrollments studentdelet
 				}
 			})
 		},
-		Observe: func(event studentdeletion.Observation) {
-			logger.Debug("student deletion operation",
-				"operation", event.Operation,
-				"duration", event.Duration,
-				"student_id", event.Result.StudentID,
-				"error", event.Err,
-			)
-		},
+		Observe: studentDeletionObserver(logger),
 	}, nil
 }
 
@@ -147,4 +135,24 @@ func validateStudentDeletionComposition(deps studentdeletioncompose.Dependencies
 		}
 	}
 	return nil
+}
+
+func photoRemoval(unlink func(context.Context, string) error) func(context.Context, studentdeletion.Actor, string) error {
+	return func(ctx context.Context, _ studentdeletion.Actor, path string) error {
+		if unlink != nil {
+			return unlink(ctx, path)
+		}
+		return nil
+	}
+}
+
+func studentDeletionObserver(logger *slog.Logger) func(studentdeletion.Observation) {
+	return func(event studentdeletion.Observation) {
+		logger.Debug("student deletion operation",
+			"operation", event.Operation,
+			"duration", event.Duration,
+			"student_id", event.Result.StudentID,
+			"error", event.Err,
+		)
+	}
 }

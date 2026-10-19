@@ -2,6 +2,8 @@
 
 Base: `148e5aeb86cf22fdbfbffedd76ba070f52f80a3e`. This inventories **every policy package with role `compose`**, except the root-composition and dev-tools owners. Package role, not directory spelling, selects the inventory. Test-hook declarations are listed separately from production. A LOC reduction alone does not prove the exit.
 
+Integrated development: `e423ad19c732f17966b2f8332eafb5df01196f29`.
+
 Classification: **direct binding** has no local branch/loop and at most one delegated call; it supplies a native capability or type conversion without adding a decision. **construction/binding** identifies reviewed startup, callback-signature or runtime-capability wiring. **runtime retained** contains local orchestration, row/error mapping or execution checks and prevents the literal exit. **test-only** does not enter the production exit. Constructor callbacks are audited below too, so a `New` prefix cannot hide runtime logic.
 
 
@@ -14,7 +16,7 @@ Classification: **direct binding** has no local branch/loop and at most one dele
 | `modules/careplan/compose` | `care-plan` | 81 | 49 |
 | `modules/careplan/requestfeed/compose` | `care-plan` | 2 | 0 |
 | `modules/classday/compose` | `class-day-view` | 20 | 13 |
-| `modules/communication/composition` | `communication` | 78 | 71 |
+| `modules/communication/composition` | `communication` | 79 | 71 |
 | `modules/communication/parentstore` | `communication` | 241 | 104 |
 | `modules/communication/staffstore` | `communication` | 6 | 2 |
 | `modules/dataimport/compose` | `data-import` | 10 | 6 |
@@ -29,7 +31,7 @@ Classification: **direct binding** has no local branch/loop and at most one dele
 | `modules/facilities/compose` | `facilities` | 11 | 4 |
 | `modules/facilities/compose/repositoryadapter` | `facilities` | 0 | 0 |
 | `modules/feedback/compose` | `feedback` | 3 | 0 |
-| `modules/filestorage/compose` | `file-storage` | 19 | 8 |
+| `modules/filestorage/compose` | `file-storage` | 18 | 7 |
 | `modules/grouplive/compose` | `group-live-view` | 0 | 0 |
 | `modules/guardianlinkview/compose` | `guardian-link-view` | 0 | 0 |
 | `modules/identityaccess/compose` | `identity-access` | 40 | 19 |
@@ -39,14 +41,14 @@ Classification: **direct binding** has no local branch/loop and at most one dele
 | `modules/parentannouncementaudience` | `parent-announcement-audience` | 0 | 0 |
 | `modules/parentmessageinbox` | `parent-message-inbox` | 0 | 0 |
 | `modules/parentrequestfeedprojection/compose` | `parent-request-feed-view` | 0 | 0 |
-| `modules/peopledirectory/compose` | `people-directory` | 39 | 15 |
+| `modules/peopledirectory/compose` | `people-directory` | 42 | 19 |
 | `modules/presenceprojection/compose` | `presence-legacy-view` | 0 | 0 |
 | `modules/requestreview/compose` | `request-review-view` | 40 | 37 |
 | `modules/schedulerruntime/compose` | `scheduler-runtime` | 1 | 0 |
 | `modules/schoolcalendar/compose` | `school-calendar` | 2 | 2 |
 | `modules/schoolcalendar/portal/compose` | `school-calendar` | 5 | 4 |
 | `modules/schoolmembership/compose` | `school-membership` | 2 | 0 |
-| `modules/schoolsetup/compose` | `school-setup` | 2 | 1 |
+| `modules/schoolsetup/compose` | `school-setup` | 2 | 0 |
 | `modules/schoolstructure/compose` | `school-structure` | 23 | 0 |
 | `modules/settings/compose` | `settings-platform` | 17 | 11 |
 | `modules/staffannouncementaudience` | `staff-announcement-audience` | 1 | 0 |
@@ -261,33 +263,34 @@ No non-constructor functions.
 | `*notificationConsent.FilterNotOptedOut` | [notification_consent.go:81](../../../backend/modules/communication/composition/notification_consent.go#L81) | runtime retained | `observeResult`, `c.store.FilterNotOptedOut` |
 | `parentAnnouncementDeliveryAdapter.ReplaceForEntity` | [parent_announcements.go:76](../../../backend/modules/communication/composition/parent_announcements.go#L76) | runtime retained | `make`, `len`, `append`, `a.ParentAnnouncementDeliveryRecorder.ReplaceForEntity` |
 | `parentAnnouncementDeliveryAdapter.ListForEntity` | [parent_announcements.go:90](../../../backend/modules/communication/composition/parent_announcements.go#L90) | runtime retained | `a.ParentAnnouncementDeliveryRecorder.ListForEntity`, `make`, `len`, `append` |
-| `*parentAnnouncements.ListParentAnnouncements` | [parent_announcements.go:112](../../../backend/modules/communication/composition/parent_announcements.go#L112) | runtime retained | `p.service.List`, `mapParentAnnouncementError`, `make`, `len`, `append`, `mapParentAnnouncement` |
-| `*parentAnnouncements.GetParentAnnouncement` | [parent_announcements.go:124](../../../backend/modules/communication/composition/parent_announcements.go#L124) | runtime retained | `p.service.Get`, `mapParentAnnouncementError`, `mapParentAnnouncement`, `row.IsDeclaration`, `p.service.DeclarationFrozen` |
-| `*parentAnnouncements.CreateParentAnnouncement` | [parent_announcements.go:140](../../../backend/modules/communication/composition/parent_announcements.go#L140) | runtime retained | `p.service.Create`, `mapParentAnnouncementInput`, `mapParentAnnouncement`, `mapParentAnnouncementError` |
-| `*parentAnnouncements.UpdateParentAnnouncement` | [parent_announcements.go:145](../../../backend/modules/communication/composition/parent_announcements.go#L145) | runtime retained | `p.service.Update`, `mapParentAnnouncementInput`, `mapParentAnnouncement`, `mapParentAnnouncementError` |
-| `*parentAnnouncements.DeleteParentAnnouncement` | [parent_announcements.go:150](../../../backend/modules/communication/composition/parent_announcements.go#L150) | runtime retained | `mapParentAnnouncementError`, `p.service.Delete` |
-| `*parentAnnouncements.PublishParentAnnouncement` | [parent_announcements.go:154](../../../backend/modules/communication/composition/parent_announcements.go#L154) | runtime retained | `p.service.Publish`, `mapParentAnnouncement`, `mapParentAnnouncementError` |
-| `*parentAnnouncements.UnpublishParentAnnouncement` | [parent_announcements.go:159](../../../backend/modules/communication/composition/parent_announcements.go#L159) | runtime retained | `p.service.Unpublish`, `mapParentAnnouncement`, `mapParentAnnouncementError` |
-| `*parentAnnouncements.ParentAnnouncementStats` | [parent_announcements.go:164](../../../backend/modules/communication/composition/parent_announcements.go#L164) | runtime retained | `p.service.Stats`, `mapParentAnnouncementError`, `mapParentAnnouncementError` |
-| `*parentAnnouncements.ParentAnnouncementRecipients` | [parent_announcements.go:174](../../../backend/modules/communication/composition/parent_announcements.go#L174) | runtime retained | `p.service.Recipients`, `mapParentAnnouncementError`, `make`, `len`, `append` |
-| `*parentAnnouncements.ParentAnnouncementPollResults` | [parent_announcements.go:189](../../../backend/modules/communication/composition/parent_announcements.go#L189) | runtime retained | `p.service.PollResults`, `mapParentAnnouncementError`, `make`, `len`, `append`, `mapParentAnnouncementError` |
-| `*parentAnnouncements.ParentAnnouncementPollChildren` | [parent_announcements.go:206](../../../backend/modules/communication/composition/parent_announcements.go#L206) | runtime retained | `p.service.PollChildren`, `mapParentAnnouncementError`, `make`, `len`, `append` |
-| `*parentAnnouncements.RemindParentAnnouncement` | [parent_announcements.go:222](../../../backend/modules/communication/composition/parent_announcements.go#L222) | runtime retained | `p.service.RemindOutstanding`, `mapParentAnnouncementError` |
-| `*parentAnnouncements.ParentAnnouncementLetterStatus` | [parent_announcements.go:227](../../../backend/modules/communication/composition/parent_announcements.go#L227) | runtime retained | `p.service.LetterStatus`, `mapParentAnnouncementError`, `make`, `len`, `make`, `len`, `append`, `append`, `mapParentAnnouncementError` |
-| `*parentAnnouncements.ResendParentAnnouncementEmails` | [parent_announcements.go:261](../../../backend/modules/communication/composition/parent_announcements.go#L261) | runtime retained | `p.service.ResendFailedEmails`, `mapParentAnnouncementError` |
-| `*parentAnnouncements.UpdateParentAnnouncementReminder` | [parent_announcements.go:266](../../../backend/modules/communication/composition/parent_announcements.go#L266) | runtime retained | `p.service.UpdateReminder`, `mapParentAnnouncement`, `mapParentAnnouncementError` |
-| `*parentAnnouncements.SendDueParentAnnouncementReminders` | [parent_announcements.go:271](../../../backend/modules/communication/composition/parent_announcements.go#L271) | runtime retained | `p.service.SendDueReminders`, `mapParentAnnouncementError` |
-| `*parentAnnouncements.PublishCareCancellation` | [parent_announcements.go:276](../../../backend/modules/communication/composition/parent_announcements.go#L276) | runtime retained | `p.service.PublishCareCancellation`, `mapParentAnnouncementError`, `mapParentAnnouncementError` |
-| `*parentAnnouncements.CareCancellationReachFor` | [parent_announcements.go:288](../../../backend/modules/communication/composition/parent_announcements.go#L288) | runtime retained | `p.service.CareCancellationReachFor`, `mapParentAnnouncementError`, `mapParentAnnouncementError` |
-| `*parentAnnouncements.AnnouncementExists` | [parent_announcements.go:296](../../../backend/modules/communication/composition/parent_announcements.go#L296) | runtime retained | `p.service.AnnouncementExists`, `mapParentAnnouncementError` |
-| `*parentAnnouncements.AnnouncementEditable` | [parent_announcements.go:301](../../../backend/modules/communication/composition/parent_announcements.go#L301) | runtime retained | `p.service.AnnouncementEditable`, `mapParentAnnouncementError` |
-| `*parentAnnouncements.LockAnnouncementForAttachmentChange` | [parent_announcements.go:306](../../../backend/modules/communication/composition/parent_announcements.go#L306) | runtime retained | `p.service.LockAnnouncementForAttachmentChange`, `mapParentAnnouncementError` |
-| `*parentAnnouncements.ResetAnnouncementEngagement` | [parent_announcements.go:311](../../../backend/modules/communication/composition/parent_announcements.go#L311) | runtime retained | `mapParentAnnouncementError`, `p.service.ResetAnnouncementEngagement` |
-| `mapParentAnnouncementInput` | [parent_announcements.go:315](../../../backend/modules/communication/composition/parent_announcements.go#L315) | runtime retained | `make`, `len`, `append`, `staff.AnnouncementDeclarationSettings` |
-| `mapParentAnnouncement` | [parent_announcements.go:331](../../../backend/modules/communication/composition/parent_announcements.go#L331) | runtime retained | `make`, `len`, `append`, `make`, `len`, `append`, `communication.ParentDeclarationSettings` |
-| `*mappedParentAnnouncementError.Error` | [parent_announcements.go:364](../../../backend/modules/communication/composition/parent_announcements.go#L364) | direct binding | `e.original.Error` |
-| `*mappedParentAnnouncementError.Unwrap` | [parent_announcements.go:365](../../../backend/modules/communication/composition/parent_announcements.go#L365) | direct binding | none |
-| `mapParentAnnouncementError` | [parent_announcements.go:367](../../../backend/modules/communication/composition/parent_announcements.go#L367) | runtime retained | `errors.Is` |
+| `*parentAnnouncements.DeleteExpiredParentAnnouncements` | [parent_announcements.go:112](../../../backend/modules/communication/composition/parent_announcements.go#L112) | direct binding | `p.service.DeleteExpiredParentAnnouncements` |
+| `*parentAnnouncements.ListParentAnnouncements` | [parent_announcements.go:116](../../../backend/modules/communication/composition/parent_announcements.go#L116) | runtime retained | `p.service.List`, `mapParentAnnouncementError`, `make`, `len`, `append`, `mapParentAnnouncement` |
+| `*parentAnnouncements.GetParentAnnouncement` | [parent_announcements.go:128](../../../backend/modules/communication/composition/parent_announcements.go#L128) | runtime retained | `p.service.Get`, `mapParentAnnouncementError`, `mapParentAnnouncement`, `row.IsDeclaration`, `p.service.DeclarationFrozen` |
+| `*parentAnnouncements.CreateParentAnnouncement` | [parent_announcements.go:144](../../../backend/modules/communication/composition/parent_announcements.go#L144) | runtime retained | `p.service.Create`, `mapParentAnnouncementInput`, `mapParentAnnouncement`, `mapParentAnnouncementError` |
+| `*parentAnnouncements.UpdateParentAnnouncement` | [parent_announcements.go:149](../../../backend/modules/communication/composition/parent_announcements.go#L149) | runtime retained | `p.service.Update`, `mapParentAnnouncementInput`, `mapParentAnnouncement`, `mapParentAnnouncementError` |
+| `*parentAnnouncements.DeleteParentAnnouncement` | [parent_announcements.go:154](../../../backend/modules/communication/composition/parent_announcements.go#L154) | runtime retained | `mapParentAnnouncementError`, `p.service.Delete` |
+| `*parentAnnouncements.PublishParentAnnouncement` | [parent_announcements.go:158](../../../backend/modules/communication/composition/parent_announcements.go#L158) | runtime retained | `p.service.Publish`, `mapParentAnnouncement`, `mapParentAnnouncementError` |
+| `*parentAnnouncements.UnpublishParentAnnouncement` | [parent_announcements.go:163](../../../backend/modules/communication/composition/parent_announcements.go#L163) | runtime retained | `p.service.Unpublish`, `mapParentAnnouncement`, `mapParentAnnouncementError` |
+| `*parentAnnouncements.ParentAnnouncementStats` | [parent_announcements.go:168](../../../backend/modules/communication/composition/parent_announcements.go#L168) | runtime retained | `p.service.Stats`, `mapParentAnnouncementError`, `mapParentAnnouncementError` |
+| `*parentAnnouncements.ParentAnnouncementRecipients` | [parent_announcements.go:178](../../../backend/modules/communication/composition/parent_announcements.go#L178) | runtime retained | `p.service.Recipients`, `mapParentAnnouncementError`, `make`, `len`, `append` |
+| `*parentAnnouncements.ParentAnnouncementPollResults` | [parent_announcements.go:193](../../../backend/modules/communication/composition/parent_announcements.go#L193) | runtime retained | `p.service.PollResults`, `mapParentAnnouncementError`, `make`, `len`, `append`, `mapParentAnnouncementError` |
+| `*parentAnnouncements.ParentAnnouncementPollChildren` | [parent_announcements.go:210](../../../backend/modules/communication/composition/parent_announcements.go#L210) | runtime retained | `p.service.PollChildren`, `mapParentAnnouncementError`, `make`, `len`, `append` |
+| `*parentAnnouncements.RemindParentAnnouncement` | [parent_announcements.go:226](../../../backend/modules/communication/composition/parent_announcements.go#L226) | runtime retained | `p.service.RemindOutstanding`, `mapParentAnnouncementError` |
+| `*parentAnnouncements.ParentAnnouncementLetterStatus` | [parent_announcements.go:231](../../../backend/modules/communication/composition/parent_announcements.go#L231) | runtime retained | `p.service.LetterStatus`, `mapParentAnnouncementError`, `make`, `len`, `make`, `len`, `append`, `append`, `mapParentAnnouncementError` |
+| `*parentAnnouncements.ResendParentAnnouncementEmails` | [parent_announcements.go:265](../../../backend/modules/communication/composition/parent_announcements.go#L265) | runtime retained | `p.service.ResendFailedEmails`, `mapParentAnnouncementError` |
+| `*parentAnnouncements.UpdateParentAnnouncementReminder` | [parent_announcements.go:270](../../../backend/modules/communication/composition/parent_announcements.go#L270) | runtime retained | `p.service.UpdateReminder`, `mapParentAnnouncement`, `mapParentAnnouncementError` |
+| `*parentAnnouncements.SendDueParentAnnouncementReminders` | [parent_announcements.go:275](../../../backend/modules/communication/composition/parent_announcements.go#L275) | runtime retained | `p.service.SendDueReminders`, `mapParentAnnouncementError` |
+| `*parentAnnouncements.PublishCareCancellation` | [parent_announcements.go:280](../../../backend/modules/communication/composition/parent_announcements.go#L280) | runtime retained | `p.service.PublishCareCancellation`, `mapParentAnnouncementError`, `mapParentAnnouncementError` |
+| `*parentAnnouncements.CareCancellationReachFor` | [parent_announcements.go:292](../../../backend/modules/communication/composition/parent_announcements.go#L292) | runtime retained | `p.service.CareCancellationReachFor`, `mapParentAnnouncementError`, `mapParentAnnouncementError` |
+| `*parentAnnouncements.AnnouncementExists` | [parent_announcements.go:300](../../../backend/modules/communication/composition/parent_announcements.go#L300) | runtime retained | `p.service.AnnouncementExists`, `mapParentAnnouncementError` |
+| `*parentAnnouncements.AnnouncementEditable` | [parent_announcements.go:305](../../../backend/modules/communication/composition/parent_announcements.go#L305) | runtime retained | `p.service.AnnouncementEditable`, `mapParentAnnouncementError` |
+| `*parentAnnouncements.LockAnnouncementForAttachmentChange` | [parent_announcements.go:310](../../../backend/modules/communication/composition/parent_announcements.go#L310) | runtime retained | `p.service.LockAnnouncementForAttachmentChange`, `mapParentAnnouncementError` |
+| `*parentAnnouncements.ResetAnnouncementEngagement` | [parent_announcements.go:315](../../../backend/modules/communication/composition/parent_announcements.go#L315) | runtime retained | `mapParentAnnouncementError`, `p.service.ResetAnnouncementEngagement` |
+| `mapParentAnnouncementInput` | [parent_announcements.go:319](../../../backend/modules/communication/composition/parent_announcements.go#L319) | runtime retained | `make`, `len`, `append`, `staff.AnnouncementDeclarationSettings` |
+| `mapParentAnnouncement` | [parent_announcements.go:335](../../../backend/modules/communication/composition/parent_announcements.go#L335) | runtime retained | `make`, `len`, `append`, `make`, `len`, `append`, `communication.ParentDeclarationSettings` |
+| `*mappedParentAnnouncementError.Error` | [parent_announcements.go:368](../../../backend/modules/communication/composition/parent_announcements.go#L368) | direct binding | `e.original.Error` |
+| `*mappedParentAnnouncementError.Unwrap` | [parent_announcements.go:369](../../../backend/modules/communication/composition/parent_announcements.go#L369) | direct binding | none |
+| `mapParentAnnouncementError` | [parent_announcements.go:371](../../../backend/modules/communication/composition/parent_announcements.go#L371) | runtime retained | `errors.Is` |
 | `*parentAnnouncements.ParentDeclarationStatus` | [parent_declarations.go:11](../../../backend/modules/communication/composition/parent_declarations.go#L11) | runtime retained | `p.service.ParentDeclarationStatus`, `mapParentAnnouncementError`, `mapDeclarationStatus` |
 | `mapDeclarationStatus` | [parent_declarations.go:19](../../../backend/modules/communication/composition/parent_declarations.go#L19) | runtime retained | `communication.ParentDeclarationSettings`, `append`, `mapDeclarationVersion`, `mapDeclarationVersion`, `make`, `len`, `append`, `communication.DeclarationSignerStatus`, `append`, `append`, `communication.DeclarationSubmissionRecord` |
 | `mapDeclarationVersion` | [parent_declarations.go:48](../../../backend/modules/communication/composition/parent_declarations.go#L48) | runtime retained | `make`, `len`, `append`, `communication.DeclarationAttachment` |
@@ -785,8 +788,7 @@ No non-constructor functions.
 | `identity.ListShareableRoles` | [new.go:243](../../../backend/modules/filestorage/compose/new.go#L243) | runtime retained | `i.module.ListSchoolRoles`, `make`, `len`, `append` |
 | `identity.ListActiveAccountIDs` | [new.go:258](../../../backend/modules/filestorage/compose/new.go#L258) | direct binding | `i.module.ListActiveSchoolAccountIDs` |
 | `people.PersonNames` | [new.go:264](../../../backend/modules/filestorage/compose/new.go#L264) | runtime retained | `p.query.ListPersonsByAccount`, `fmt.Errorf`, `make`, `len`, `person.UpdatedAt.After`, `make`, `len` |
-| `cleanupRetention.DeleteFinishedCleanups` | [retention.go:25](../../../backend/modules/filestorage/compose/retention.go#L25) | runtime retained | `r.retention.DeleteFinished`, `int`, `domain.CleanupRetentionWindow.Hours` |
-| `retentionDatabase` | [retention.go:35](../../../backend/modules/filestorage/compose/retention.go#L35) | runtime retained | `tenant.TenantFromContext`, `fmt.Errorf`, `tenant.TransactionFromContext`, `errors.New`, `fmt.Errorf`, `tenantID.Int64` |
+| `retentionDatabase` | [retention.go:24](../../../backend/modules/filestorage/compose/retention.go#L24) | runtime retained | `tenant.TenantFromContext`, `fmt.Errorf`, `tenant.TransactionFromContext`, `errors.New`, `fmt.Errorf`, `tenantID.Int64` |
 
 ### `modules/grouplive/compose`
 
@@ -907,7 +909,10 @@ No non-constructor functions.
 | Function | Source | Classification | Calls |
 |---|---|---|---|
 | `requireBunTransaction` | [caregiver_capability_binding.go:20](../../../backend/modules/peopledirectory/compose/caregiver_capability_binding.go#L20) | runtime retained | `tenant.TransactionFromContext`, `fmt.Errorf`, `fmt.Errorf` |
-| `CaregiverCapabilityViews.inSchool` | [caregiver_capability_views.go:25](../../../backend/modules/peopledirectory/compose/caregiver_capability_views.go#L25) | construction/binding | `tenant.WithAdminTx`, `callback` |
+| `CaregiverCapabilityViews.GetSchoolAccountCaregiverCapability` | [caregiver_capability_views.go:24](../../../backend/modules/peopledirectory/compose/caregiver_capability_views.go#L24) | runtime retained | `v.inSchool`, `v.GetCaregiverCapability` |
+| `CaregiverCapabilityViews.EnableSchoolAccountCaregiverCapability` | [caregiver_capability_views.go:32](../../../backend/modules/peopledirectory/compose/caregiver_capability_views.go#L32) | runtime retained | `v.inSchool`, `v.EnableCaregiverCapability` |
+| `CaregiverCapabilityViews.DisableSchoolAccountCaregiverCapability` | [caregiver_capability_views.go:40](../../../backend/modules/peopledirectory/compose/caregiver_capability_views.go#L40) | runtime retained | `v.inSchool`, `v.DisableCaregiverCapability` |
+| `CaregiverCapabilityViews.inSchool` | [caregiver_capability_views.go:46](../../../backend/modules/peopledirectory/compose/caregiver_capability_views.go#L46) | runtime retained | `tenant.WithAdminTx`, `fn`, `tenant.WithTenantID` |
 | `*GuardianProfileLoader.LoadForTenant` | [guardian_profile_loader.go:39](../../../backend/modules/peopledirectory/compose/guardian_profile_loader.go#L39) | runtime retained | `tenant.WithTenantTx`, `s.repo.LoadProfileWithChildren` |
 | `guardianTransactions.RunInTx` | [guardian_service.go:25](../../../backend/modules/peopledirectory/compose/guardian_service.go#L25) | runtime retained | `tenant.NewTransactionRunner().RunInTx`, `tenant.NewTransactionRunner` |
 | `guardianTransactions.WithTenantTx` | [guardian_service.go:29](../../../backend/modules/peopledirectory/compose/guardian_service.go#L29) | runtime retained | `tenant.WithTenantTx`, `tenant.FromContext`, `fn` |
@@ -1030,8 +1035,8 @@ No non-constructor functions.
 
 | Function | Source | Classification | Calls |
 |---|---|---|---|
-| `ambientTx` | [compose.go:48](../../../backend/modules/schoolsetup/compose/compose.go#L48) | runtime retained | `schoolsetupview.AmbientTx`, `tenant.TransactionFromContext` |
-| `AmbientRuntime.DB` | [compose.go:56](../../../backend/modules/schoolsetup/compose/compose.go#L56) | direct binding | `ambientTx` |
+| `ambientTx` | [compose.go:48](../../../backend/modules/schoolsetup/compose/compose.go#L48) | construction/binding | `schoolsetupview.AmbientTx`, `tenant.TransactionFromContext` |
+| `AmbientRuntime.DB` | [compose.go:56](../../../backend/modules/schoolsetup/compose/compose.go#L56) | construction/binding | `ambientTx` |
 
 ### `modules/schoolstructure/compose`
 
@@ -1545,8 +1550,10 @@ A callback that only forwards native values is binding. Multiple statements, bra
 | `modules/organizationtenancy/compose` | `New` | [new.go:27](../../../backend/modules/organizationtenancy/compose/new.go#L27) | 5 | 2 | 3 | production |
 | `modules/organizationtenancy/compose` | `New` | [new.go:38](../../../backend/modules/organizationtenancy/compose/new.go#L38) | 2 | 0 | 2 | production |
 | `modules/organizationtenancy/compose` | `OperatorDatabase` | [provisioning.go:92](../../../backend/modules/organizationtenancy/compose/provisioning.go#L92) | 5 | 2 | 3 | production |
-| `modules/peopledirectory/compose` | `inSchool` | [caregiver_capability_views.go:26](../../../backend/modules/peopledirectory/compose/caregiver_capability_views.go#L26) | 1 | 0 | 2 | production |
-| `modules/peopledirectory/compose` | `inSchool` | [caregiver_capability_views.go:27](../../../backend/modules/peopledirectory/compose/caregiver_capability_views.go#L27) | 1 | 0 | 1 | production |
+| `modules/peopledirectory/compose` | `GetSchoolAccountCaregiverCapability` | [caregiver_capability_views.go:25](../../../backend/modules/peopledirectory/compose/caregiver_capability_views.go#L25) | 1 | 0 | 1 | production |
+| `modules/peopledirectory/compose` | `EnableSchoolAccountCaregiverCapability` | [caregiver_capability_views.go:33](../../../backend/modules/peopledirectory/compose/caregiver_capability_views.go#L33) | 1 | 0 | 1 | production |
+| `modules/peopledirectory/compose` | `DisableSchoolAccountCaregiverCapability` | [caregiver_capability_views.go:41](../../../backend/modules/peopledirectory/compose/caregiver_capability_views.go#L41) | 1 | 0 | 1 | production |
+| `modules/peopledirectory/compose` | `inSchool` | [caregiver_capability_views.go:48](../../../backend/modules/peopledirectory/compose/caregiver_capability_views.go#L48) | 3 | 0 | 2 | production |
 | `modules/peopledirectory/compose` | `LoadForTenant` | [guardian_profile_loader.go:45](../../../backend/modules/peopledirectory/compose/guardian_profile_loader.go#L45) | 4 | 1 | 1 | production |
 | `modules/peopledirectory/compose` | `WithTenantTx` | [guardian_service.go:30](../../../backend/modules/peopledirectory/compose/guardian_service.go#L30) | 1 | 0 | 1 | production |
 | `modules/peopledirectory/compose` | `NewWithGuardianMemberships` | [new.go:100](../../../backend/modules/peopledirectory/compose/new.go#L100) | 3 | 0 | 5 | production |

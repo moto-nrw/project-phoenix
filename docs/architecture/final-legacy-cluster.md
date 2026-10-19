@@ -2,11 +2,13 @@
 
 Implementation base: `148e5aeb86cf22fdbfbffedd76ba070f52f80a3e`. The Round 7 record below is historical; its blockers and counts are not the current exit claim.
 
+Integrated development: `e423ad19c732f17966b2f8332eafb5df01196f29`. Upstream retention changes and gocognit 1.3 scores are retained. Two upstream ADRs numbered 0072 were made unique by moving the retention ADR to 0073 and updating its references, without changing either decision.
+
 ## Literal exits
 
 | Issue | Evidence and current result |
 |---|---|
-| #4086 | The remaining 16 non-root production implementation packages move under `internal`. The five private projection adapters move to their projection homes as well. No production Go package remains in `services`, `models` or `database/repositories`; no tracked legacy directory or legacy-prefixed Go file remains. `cmd` is a root-composition/CLI role, not an implementation carrier (ADR 0053 point 1; ADR 0059; ADR 0068 point 1). `templates/email` contains assets, not a Go package. |
+| #4086 | The remaining 16 non-root production implementation packages move under `internal`. The five private projection adapters move to their projection homes as well. No production Go package remains in `services`, `models` or `database/repositories`; no production legacy directory or legacy-prefixed Go file remains (the negative architecture fixture `testdata/semantic/invalid/legacy` is intentionally retained). `cmd` is a root-composition/CLI role, not an implementation carrier (ADR 0053 point 1; ADR 0059; ADR 0068 point 1). `templates/email` contains templates and external template tests, but no production Go file. |
 | #4084 | Not proven. The complete role-based inventory still records runtime bodies, including constructor callbacks. The allowed extractions and reduced budgets below do not disguise that remainder. The native parent-announcement facade attempt passed Go tests but was reverted because internal `communication/adapter-test` suites cannot import `communication/application`. No test grant, alias, DTO copy or role change was added. |
 | #4004 | Already complete in development. The legacy baseline stays empty. No key is added or retired in this round. |
 
@@ -52,7 +54,7 @@ Owner and all three roles are unchanged. The canonical verifier checks the exact
 
 ## Compose work retained
 
-- People Directory caregiver execution, school-context installation and error handling move to application; its existing administrative capability is still bound at composition.
+- People Directory caregiver extraction was reverted after the unchanged production-router contract exposed a changed equality identity. The original comparable service/database binding remains; no assertion or golden changed.
 - Timetable reorder validation/error handling move to application; composition only binds the registered executor.
 - Communication platform-announcement response/error mapping moves to application, and the native SQL adapter owns ambient transaction validation. The separate parent-announcement facade remains in the inventory for the test-reach blocker.
 - Audit context validation, handoff resolution and logging callbacks move to existing private adapter/application roles with constructor-supplied context providers.
@@ -63,6 +65,7 @@ Owner and all three roles are unchanged. The canonical verifier checks the exact
 
 | Surface | Exact constraint | Outcome |
 |---|---|---|
+| People Directory caregiver boundary | The unchanged `TestFullProductionRouterGolden/contracts/caregiver_wiring` contract compares separately constructed views for equality. Injected function fields made the value uncomparable; pointer embedding made it comparable but unequal. Preserving the exact existing binding is required. | Attempt reverted; the original boundary and its administrative register entry remain unchanged. |
 | Parent-announcement shared application port | `internal_test` source `modules/communication/internal/staffannouncements`, owner `communication`, role `adapter-test`, target `modules/communication/internal/application`, role `application`, is forbidden. Production adapter-to-application is allowed, but no equivalent internal-test reach exists. The native seam passed its Go suites before this architecture rejection. | Attempt reverted; assertions, roles and grants remain unchanged. |
 | Partial extraction of registered domain composition executors | The transaction register accepts whole Git-verified same-owner/role package renames only. Moving an individual boundary, such as `modules/facilities/compose/new.go:transaction.RunWrite:tenant.WithinCurrentTenant#1`, into an existing application package cannot supply that package proof; replacing it with a differently keyed invocation is still rejected. Constructor-only bindings are retained where possible; execution guards are not hidden by parentheses, operation renames or new allowances. | Remaining bodies are named in the complete inventory. No wider guard extension is made. |
 

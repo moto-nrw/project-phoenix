@@ -5,7 +5,7 @@ Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes s
 
 Stand 19.10.2026 · Ratchet 0 · Composition 0 · Policy-Epoche 86 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 0 Legacy-Verzeichnisse und
-0 `legacy_*.go` · Compose-Cap 20.106 LOC.
+0 `legacy_*.go` · Compose-Cap 20.127 LOC.
 
 `backend/architecture/legacy.jsonl` ist leer. Der normale Architekturcheck und
 der Check ohne Baseline müssen beide mit null Verstößen bestehen. Der letzte
@@ -25,7 +25,7 @@ Der leere Ratchet beweist nicht die restlichen Layout- und Rollen-Exits.
 #4084 bleibt wegen der inventarisierten Laufzeitlogik in Kompositionen offen.
 Die verbleibenden 16 Nicht-Root-Implementierungspakete liegen jetzt unter
 `internal`. Fünf private Projektionsadapter liegen bei ihren Projektions-Ownern.
-`cmd` bleibt eine Root-Rolle (ADR 0053/0059), `templates/email` enthält nur Assets.
+`cmd` bleibt eine Root-Rolle (ADR 0053/0059), `templates/email` enthält Templates und externe Tests, keine Produktions-Go-Datei.
 Der Layout-Exit von #4086 ist damit belegt. Der vollständige Compose-Audit und
 der verworfene Announcement-Port-Versuch stehen im
 [aktuellen Exit-Audit](../../docs/architecture/final-legacy-cluster.md).

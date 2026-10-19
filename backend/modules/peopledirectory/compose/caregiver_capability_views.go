@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -9,21 +10,48 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// CaregiverCapabilityViews binds the tenant and operator capabilities.
 type CaregiverCapabilityViews struct {
-	*application.SchoolCaregiverCapabilityViews
+	application.CaregiverCapabilityViews
+	db *bun.DB
 }
 
 func NewCaregiverCapabilityViews(service ports.CaregiverCapabilityService, db *bun.DB) CaregiverCapabilityViews {
-	binding := CaregiverCapabilityViews{}
-	return CaregiverCapabilityViews{SchoolCaregiverCapabilityViews: application.NewSchoolCaregiverCapabilityViews(service, binding.inSchool(db), tenant.WithTenantID)}
+	return CaregiverCapabilityViews{CaregiverCapabilityViews: application.NewCaregiverCapabilityViews(service), db: db}
 }
 
-// inSchool binds the registered administrative executor. Runtime view and
-// error handling belong to the application; this closure only adapts its
-// callback to the existing transaction function's Bun callback signature.
-func (CaregiverCapabilityViews) inSchool(db *bun.DB) func(context.Context, func(context.Context) error) error {
-	return func(ctx context.Context, callback func(context.Context) error) error {
-		return tenant.WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error { return callback(adminCtx) })
+// GetSchoolAccountCaregiverCapability reads the capability of an account in
+// the given school inside an administrative transaction (operator routes).
+func (v CaregiverCapabilityViews) GetSchoolAccountCaregiverCapability(ctx context.Context, schoolID, accountID int64) (json.RawMessage, error) {
+	return v.inSchool(ctx, schoolID, func(ctx context.Context) (json.RawMessage, error) {
+		return v.GetCaregiverCapability(ctx, accountID)
+	})
+}
+
+// EnableSchoolAccountCaregiverCapability activates the capability of an
+// account in the given school inside an administrative transaction.
+func (v CaregiverCapabilityViews) EnableSchoolAccountCaregiverCapability(ctx context.Context, schoolID, accountID int64, firstName, lastName, position string) (json.RawMessage, error) {
+	return v.inSchool(ctx, schoolID, func(ctx context.Context) (json.RawMessage, error) {
+		return v.EnableCaregiverCapability(ctx, accountID, firstName, lastName, position)
+	})
+}
+
+// DisableSchoolAccountCaregiverCapability removes the capability of an
+// account in the given school inside an administrative transaction.
+func (v CaregiverCapabilityViews) DisableSchoolAccountCaregiverCapability(ctx context.Context, schoolID, accountID int64) (json.RawMessage, error) {
+	return v.inSchool(ctx, schoolID, func(ctx context.Context) (json.RawMessage, error) {
+		return v.DisableCaregiverCapability(ctx, accountID)
+	})
+}
+
+func (v CaregiverCapabilityViews) inSchool(ctx context.Context, schoolID int64, fn func(context.Context) (json.RawMessage, error)) (json.RawMessage, error) {
+	var view json.RawMessage
+	err := tenant.WithAdminTx(ctx, v.db, func(adminCtx context.Context, _ bun.Tx) error {
+		var viewErr error
+		view, viewErr = fn(tenant.WithTenantID(adminCtx, schoolID))
+		return viewErr
+	})
+	if err != nil {
+		return nil, err
 	}
+	return view, nil
 }
