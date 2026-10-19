@@ -33,7 +33,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -316,7 +315,7 @@ func newTestServiceWithRenderer(db *bun.DB, rooms roomReader, settings api.Class
 	carePlan := carePlanTest.NewCarePlan(slotListTestTB{}, db, testpkg.StudentDirectory{})
 	arrivals := carePlanTest.NewArrivalQueries(slotListTestTB{}, db, carePlan)
 	service := compose.NewSlotLists(compose.SlotListDependencies{
-		Timetable:       slotListTimetableRows{rows: timetabletest.NewLegacyRows(slotListTestTB{}, owners.NewTimetablePresenceProjection(testpkg.MustDatabase(db)))},
+		Timetable:       slotListTimetableRows{rows: owners.NewTimetableTestLegacyRows(slotListTestTB{}, owners.NewTimetablePresenceProjection(testpkg.MustDatabase(db)))},
 		Presence:        newSlotListPresence(db),
 		CarePlan:        carePlan,
 		Students:        people,
@@ -3022,7 +3021,9 @@ func newSlotListPresence(db *bun.DB) *studentpresence.Module {
 // roster fixtures through the same two owners.
 
 // slotListTimetableRows serves the lists' block and roster read seam.
-type slotListTimetableRows struct{ rows timetabletest.LegacyRows }
+type slotListTimetableRows struct {
+	rows owners.TimetableTestLegacyRows
+}
 
 func (r slotListTimetableRows) ListActivityInstancesOn(ctx context.Context, date string) ([]compose.SlotBlock, error) {
 	instances, err := r.rows.InstancesOn(ctx, date)
@@ -3066,12 +3067,12 @@ func (r slotListTimetableRows) ListRoster(ctx context.Context, instanceIDs []int
 type slotListInstanceStudents struct {
 	timetable timetable.Capability
 	presence  *studentpresence.Module
-	rows      timetabletest.LegacyRows
+	rows      owners.TimetableTestLegacyRows
 }
 
 func newBoundInstanceStudentRepository(db *bun.DB) slotListInstanceStudents {
 	return slotListInstanceStudents{
-		timetable: timetabletest.New(slotListTestTB{}, db), presence: newSlotListPresence(db), rows: timetabletest.NewLegacyRows(slotListTestTB{}, owners.NewTimetablePresenceProjection(testpkg.MustDatabase(db))),
+		timetable: owners.NewTestTimetable(slotListTestTB{}, testpkg.MustDatabase(db)), presence: newSlotListPresence(db), rows: owners.NewTimetableTestLegacyRows(slotListTestTB{}, owners.NewTimetablePresenceProjection(testpkg.MustDatabase(db))),
 	}
 }
 

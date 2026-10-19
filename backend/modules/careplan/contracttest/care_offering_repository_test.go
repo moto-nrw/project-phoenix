@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
 
 	"github.com/stretchr/testify/assert"
@@ -35,7 +37,7 @@ func setupCareOfferingRepoTest(t *testing.T) (
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	phaseRepo := enrollmentTest.New()
+	phaseRepo := api.NewParentPortalEnrollments().Enrollment
 	phaseName := uniquePhaseName("offering")
 	phase := makeOwnerEligibilityPhase(phaseName)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -280,7 +282,7 @@ func TestCareOfferingRepository_ListByPhase_ScopesToPhase(t *testing.T) {
 	defer wipeOfferings(db, tenantID, phaseA)
 
 	// Second phase so we can prove the filter.
-	phaseRepo := enrollmentTest.New()
+	phaseRepo := api.NewParentPortalEnrollments().Enrollment
 	other := makeOwnerEligibilityPhase(uniquePhaseName("otherphase"))
 	other.ServiceStartDate = "2027-09-01"
 	other.ServiceEndDate = "2028-07-31"
@@ -318,7 +320,7 @@ func TestCareOfferingRepository_ListByIDs_LoadsExactIDsAcrossPhases(t *testing.T
 	db, repo, tenantID, phaseA := setupCareOfferingRepoTest(t)
 	defer wipeOfferings(db, tenantID, phaseA)
 
-	phaseRepo := enrollmentTest.New()
+	phaseRepo := api.NewParentPortalEnrollments().Enrollment
 	other := makeOwnerEligibilityPhase(uniquePhaseName("ids-otherphase"))
 	other.ServiceStartDate = "2027-09-01"
 	other.ServiceEndDate = "2028-07-31"

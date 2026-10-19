@@ -2025,13 +2025,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/timetable/timetabletest",
-      "owner": "test-support",
-      "role": "test-support",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/workforce",
       "owner": "workforce",
       "role": "public",
@@ -8073,17 +8066,6 @@
       "target_role": "public"
     },
     {
-      "id": "test-support.to.student-presence-compose",
-      "description": "Shared presence fixtures create records through the real owner module.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "test-support",
-      "source_role": "test-support",
-      "target_owner": "student-presence",
-      "target_role": "compose"
-    },
-    {
       "id": "test-support.to.timetable-public",
       "description": "Timetable test support returns the real public capability.",
       "scopes": [
@@ -8093,28 +8075,6 @@
       "source_role": "test-support",
       "target_owner": "timetable-activities",
       "target_role": "public"
-    },
-    {
-      "id": "test-support.to.timetable-compose",
-      "description": "Timetable test support constructs the real owner module.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "test-support",
-      "source_role": "test-support",
-      "target_owner": "timetable-activities",
-      "target_role": "compose"
-    },
-    {
-      "id": "test-support.to.timetable-port",
-      "description": "Timetable test support names the presence read filters the owner module it constructs takes (ADR 0058 addendum point 5, #4084).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "test-support",
-      "source_role": "test-support",
-      "target_owner": "timetable-activities",
-      "target_role": "port"
     },
     {
       "id": "meal-plan.compose.orm-sql",

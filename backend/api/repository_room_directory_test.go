@@ -6,7 +6,6 @@ import (
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +15,7 @@ func TestSessionCleanupRootResolvesRoomsThroughOwner(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
-	sessions, _, _ := NewSessionCleanupRepositories(testpkg.NewDatabase(t, db), timetabletest.New(t, db))
+	sessions, _, _ := NewSessionCleanupRepositories(testpkg.NewDatabase(t, db), owners.NewTestTimetable(t, testpkg.MustDatabase(db)))
 	room := testpkg.CreateTestRoom(t, db, "Igelraum")
 	activity := testpkg.CreateTestActivityGroup(t, db, "Room Activity")
 	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
@@ -56,7 +55,7 @@ func TestFactoryResolvesRoomsThroughTheOwner(t *testing.T) {
 	require.NoError(t, err)
 
 	err = testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
-		rooms, err := testpkg.SessionRooms(ctx, factoryPresence.ActiveGroup, []int64{activeGroup.ID})
+		rooms, err := sessionRooms(ctx, factoryPresence.ActiveGroup, []int64{activeGroup.ID})
 		require.NoError(t, err)
 		require.NotNil(t, rooms[activeGroup.ID], "active group carries its room")
 		assert.Equal(t, room.Name, rooms[activeGroup.ID].Name)

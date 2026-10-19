@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -218,12 +217,12 @@ func (r planExportTxRosterCounts) CountNonAbsentByInstanceIDs(ctx context.Contex
 // planExportOwnerInstances serves the block read from the Timetable owner's
 // presence-joined reads, the rows the root's instance reads return.
 type planExportOwnerInstances struct {
-	rows timetabletest.LegacyRows
+	rows TimetableTestLegacyRows
 }
 
 func newPlanExportOwnerInstances(t *testing.T, db *bun.DB) planExportOwnerInstances {
 	t.Helper()
-	return planExportOwnerInstances{rows: timetabletest.NewLegacyRows(t, NewTimetablePresenceProjection(testpkg.MustDatabase(db)))}
+	return planExportOwnerInstances{rows: NewTimetableTestLegacyRows(t, NewTimetablePresenceProjection(testpkg.MustDatabase(db)))}
 }
 
 func (s planExportOwnerInstances) FindByTenantAndDateRange(ctx context.Context, from, to calendar.Date) ([]*timetable.ScheduledInstance, error) {
@@ -251,7 +250,7 @@ type planExportOwnerInstanceStaff struct {
 
 func newPlanExportOwnerInstanceStaff(t *testing.T, db *bun.DB) planExportOwnerInstanceStaff {
 	t.Helper()
-	return planExportOwnerInstanceStaff{timetable: timetabletest.New(t, db)}
+	return planExportOwnerInstanceStaff{timetable: NewTestTimetable(t, testpkg.MustDatabase(db))}
 }
 
 func (s planExportOwnerInstanceStaff) FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*timetable.InstanceStaff, error) {

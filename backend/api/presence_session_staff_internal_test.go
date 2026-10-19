@@ -24,7 +24,7 @@ func TestSessionStaffPreservesMembershipAndPersonWireFields(t *testing.T) {
 	require.NoError(t, err)
 	want.Person, err = testpkg.TenantQuery1(t, ctx, db, reposPeople.Person.FindByID, any(staff.PersonID))
 	require.NoError(t, err)
-	projected, err := testpkg.SupervisionRowStaff(ctx, repos.ActiveGroup, group.ID)
+	projected, err := supervisionRowStaff(ctx, repos.ActiveGroup, group.ID)
 	require.NoError(t, err)
 	require.Len(t, projected, 1)
 	require.NotNil(t, projected[0])

@@ -7,6 +7,7 @@ import (
 	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 )
 
@@ -38,7 +39,7 @@ type (
 
 // Owner compositions the suites drive.
 var (
-	NewTestModule                     = enrollmentTest.New
+	NewTestModule                     = enrollmentCompose.New
 	NewTestPhases                     = enrollmentTest.NewPhases
 	NewTestPhaseExpirySnapshots       = enrollmentTest.NewPhaseExpirySnapshots
 	NewTestPhaseExpiryWarnings        = enrollmentTest.NewPhaseExpiryWarnings

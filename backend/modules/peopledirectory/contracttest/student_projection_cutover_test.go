@@ -18,7 +18,7 @@ func TestParentAudienceWithoutStudentCompatibilityView(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db))
 	ctx := tenantCtx(t)
 	poll, _ := api.ParentStorePollAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time { return databaseTimestamp(t, db) }, repo, chain.AccountID, chain.TenantID, userModels.ParentAnnouncementResponseSingleChoice)
 	membershipID := testpkg.SeparateStudentMembership(t, db, chain.StudentID)
