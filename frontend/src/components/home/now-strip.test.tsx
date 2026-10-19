@@ -258,6 +258,23 @@ describe("NowStrip (#2180)", () => {
     expect(router.push).not.toHaveBeenCalled();
   });
 
+  // Ein Weg in einen anderen Bereich trägt einen Pfeil (#4346); das Starten
+  // an Ort und Stelle nicht.
+  it("zeigt am Weg zu allen Kindern einen Pfeil, am Starten nicht", () => {
+    sources.own = [];
+    sources.school = [block({ id: "4", isAssigned: true, canStart: true })];
+
+    render(<NowStrip access={care} context={context(care)} />);
+
+    const link = screen.getByRole("link", { name: "Alle Kinder" });
+    expect(link.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+    expect(
+      screen
+        .getByRole("button", { name: "Aufsicht starten" })
+        .querySelector("svg"),
+    ).toBeNull();
+  });
+
   it("bietet keinen fremden oder schon laufenden Block zum Starten an", () => {
     sources.own = [];
     sources.school = [

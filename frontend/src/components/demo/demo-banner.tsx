@@ -260,7 +260,9 @@ function ActiveDemoBanner() {
         rel="noopener noreferrer"
         variant="success"
         size="compact"
-        className="ml-auto shrink-0 text-sm"
+        // Radius wie die Knöpfe der Startseite (`md`), Höhe bleibt die des
+        // schmalen Streifens (#4346).
+        className="ml-auto shrink-0 rounded-lg text-sm"
         onClick={() => trackDemoEvent("demo_start_clicked", visit ?? null)}
       >
         Kostenlos starten
