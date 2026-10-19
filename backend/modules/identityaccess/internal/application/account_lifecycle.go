@@ -218,6 +218,21 @@ func (d GuardianDirectory) FindGuardianProfile(ctx context.Context, id int64) (d
 	return domain.GuardianProfile(profile), found, err
 }
 
+func (d GuardianDirectory) LockGuardianProfile(ctx context.Context, id int64) (domain.GuardianProfile, bool, error) {
+	locked, err := d.Source.LockGuardianProfile(ctx, id)
+	if err != nil {
+		return domain.GuardianProfile{}, false, fmt.Errorf("lock guardian profile: %w", err)
+	}
+	if !locked {
+		return domain.GuardianProfile{}, false, nil
+	}
+	profile, found, err := d.Source.FindGuardianProfile(ctx, id)
+	if err != nil {
+		return domain.GuardianProfile{}, false, fmt.Errorf("read locked guardian profile: %w", err)
+	}
+	return domain.GuardianProfile(profile), found, nil
+}
+
 func (d GuardianDirectory) FindGuardianProfiles(ctx context.Context, ids []int64) (map[int64]domain.GuardianProfile, error) {
 	profiles, err := d.Source.FindGuardianProfiles(ctx, ids)
 	if err != nil {

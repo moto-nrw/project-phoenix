@@ -76,7 +76,7 @@ func NewWorker(
 	if err != nil {
 		return nil, err
 	}
-	retention, err := workerRetentionOf(db, logger, settings, audit, fleet, carePlan, communicationCompose.NewParentMessageRetention(db.Pool(), settingsValues.NewParentMessageRetentionValues(settings)), notices.RejectedCleanup, studentDeletion)
+	retention, err := workerRetentionOf(db, logger, settings, audit, fleet, carePlan, communicationCompose.NewParentMessageRetention(db.Pool(), settingsValues.NewParentMessageRetentionValues(settings)), notices.RejectedCleanup, studentDeletion, identity)
 	if err != nil {
 		return nil, err
 	}
@@ -115,6 +115,7 @@ func NewWorker(
 		EmailChangeCleanup:        identity,
 		OperatorInvitationCleanup: identity,
 		OperatorRetention:         schedulerPorts.OperatorRetention{Ledger: audit, Accounts: identity},
+		AccountRetention:          identity,
 		WorkSessionCleanup:        workforce.TimeTracking.Jobs,
 		BreakAutoEnder:            workforce.TimeTracking.Jobs,
 		AutoCheckouter:            workforce.TimeTracking.Jobs,

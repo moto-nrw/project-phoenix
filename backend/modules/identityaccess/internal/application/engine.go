@@ -35,6 +35,7 @@ type EngineParts struct {
 	OperatorProvisioning  *OperatorProvisioning
 	InvitationMaintenance *SchoolInvitationMaintenance
 	SignInRetention       *SignInDataRetention
+	AccountRetention      *AccountRetention
 	MFAFlows              MFAFlows
 	// Runtime attaches the composed unit of work ahead of every session flow.
 	Runtime func(context.Context) context.Context
@@ -68,6 +69,7 @@ func NewEngine(parts EngineParts) identityaccess.Engine {
 		operatorProvisioning:  parts.OperatorProvisioning,
 		invitationMaintenance: parts.InvitationMaintenance,
 		signInRetention:       parts.SignInRetention,
+		AccountRetention:      parts.AccountRetention,
 		mfaFlows:              parts.MFAFlows,
 		runtime:               parts.Runtime,
 		withRecoveryProof:     parts.WithRecoveryProof,
@@ -76,6 +78,8 @@ func NewEngine(parts EngineParts) identityaccess.Engine {
 
 type engine struct {
 	CalendarFeeds
+	// AccountRetention is always composed like signInRetention (#4043).
+	*AccountRetention
 	rfidCards          *RFIDCards
 	accountRoleQueries *AccountRoleQueries
 	guardianSchools    *GuardianSchools

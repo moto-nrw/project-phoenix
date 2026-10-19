@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -46,7 +47,9 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 	require.NoError(t, err)
 	attendance, err := presenceCompose.New(presenceCompose.Dependencies{DB: admin, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	retention, err := newWorkerRetention(audit, settings, students, staff, steps, attendance)
+	invitations, err := identityaccessCompose.NewGuardianInvitationReads(admin)
+	require.NoError(t, err)
+	retention, err := newWorkerRetention(audit, settings, students, staff, steps, attendance, newGuardianRetention(db, invitations))
 	require.NoError(t, err)
 	return retentionSuite{admin: admin, serve: serve, retention: retention}
 }
@@ -110,6 +113,7 @@ func TestWorkerRetentionPreloadsRetentionWindows(t *testing.T) {
 		settingsModule.KeyGDPRWithdrawnEnrollmentRetentionDays,
 		settingsModule.KeyGDPRStaffSickNoteRetentionDays,
 		settingsModule.KeyGDPRStudentRetentionDays,
+		settingsModule.KeyGDPRGuardianRetentionDays,
 		settingsModule.KeyGDPRTimeTrackingRetentionDays,
 	}, settingsModule.RetentionWindowKeys())
 }

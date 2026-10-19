@@ -110,6 +110,12 @@ type OperatorRetention struct {
 	}
 }
 
+// AccountRetention tombstones the accounts no school needs any more (#4043)
+// in the hourly cleanup.
+type AccountRetention interface {
+	EraseUnusedAccounts(ctx context.Context) (int, error)
+}
+
 // SignInDataCleaner exposes the fixed retention of the short-lived sign-in
 // data Identity & Access owns (#3954): invitations for parents, e-mail codes
 // and passkey ceremonies of accounts and operators, and expired operator

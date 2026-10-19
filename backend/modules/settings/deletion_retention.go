@@ -16,6 +16,7 @@ func RetentionWindowKeys() []string {
 		configModel.KeyGDPRWithdrawnEnrollmentRetentionDays,
 		configModel.KeyGDPRStaffSickNoteRetentionDays,
 		configModel.KeyGDPRStudentRetentionDays,
+		configModel.KeyGDPRGuardianRetentionDays,
 		configModel.KeyGDPRTimeTrackingRetentionDays,
 	}
 }

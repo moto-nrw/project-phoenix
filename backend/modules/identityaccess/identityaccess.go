@@ -336,6 +336,7 @@ type Engine interface {
 	PasswordResets
 	SchoolInvitations
 	SignInDataRetention
+	AccountRetention
 	AccountSessionAccess
 	RFIDQuery
 	AccountProfiles

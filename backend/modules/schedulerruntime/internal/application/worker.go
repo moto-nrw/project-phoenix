@@ -42,6 +42,7 @@ func validateWorkerDependencies(deps ports.WorkerDependencies) error {
 		{name: "operator invitation cleanup", value: deps.OperatorInvitationCleanup},
 		{name: "operator ledger retention", value: deps.OperatorRetention.Ledger},
 		{name: "operator account retention", value: deps.OperatorRetention.Accounts},
+		{name: "account retention", value: deps.AccountRetention},
 		{name: "feedback cleanup", value: deps.FeedbackCleaner},
 		{name: "cleanup run ledger", value: deps.CleanupRuns},
 		{name: "export transfer recovery", value: deps.SettleExpiredTransfers},

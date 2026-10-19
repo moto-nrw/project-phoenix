@@ -52,3 +52,16 @@ func TestAttendanceRetentionReadsItsSetting(t *testing.T) {
 	refused := errors.New("window")
 	require.ErrorIs(t, NewAttendanceRetention(retentionSource{}).SettingError(refused), refused)
 }
+
+func TestGuardianRetentionReadsItsSetting(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	days, err := NewGuardianRetention(retentionSource{configModel.KeyGDPRGuardianRetentionDays: 60}).Days(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 60, days)
+
+	_, err = NewGuardianRetention(retentionSource{}).Days(ctx)
+	require.ErrorContains(t, err, "resolve "+configModel.KeyGDPRGuardianRetentionDays+": ")
+	refused := errors.New("window")
+	require.ErrorIs(t, NewGuardianRetention(retentionSource{}).SettingError(refused), refused)
+}

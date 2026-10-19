@@ -32,7 +32,9 @@ type WorkerDependencies struct {
 	OperatorInvitationCleanup OperatorInvitationCleaner
 	// OperatorRetention deletes the operator ledger and the deactivated
 	// operator accounts after their window (#4047).
-	OperatorRetention  OperatorRetention
+	OperatorRetention OperatorRetention
+	// AccountRetention tombstones the accounts no school needs (#4043).
+	AccountRetention   AccountRetention
 	WorkSessionCleanup WorkSessionCleaner
 	BreakAutoEnder     BreakAutoEnder
 	AutoCheckouter     AutoCheckouter

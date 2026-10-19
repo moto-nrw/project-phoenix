@@ -322,6 +322,14 @@ func (d guardianDirectory) FindGuardianProfile(ctx context.Context, id int64) (i
 	return d.findProfile(d.repos.GuardianProfiles.FindByID(ctx, id))
 }
 
+func (d guardianDirectory) LockGuardianProfile(ctx context.Context, id int64) (bool, error) {
+	err := d.repos.GuardianProfiles.LockByIDForUpdate(ctx, id)
+	if peoplePorts.RowMissing(err) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 func (d guardianDirectory) FindGuardianProfiles(ctx context.Context, ids []int64) (map[int64]identityPorts.GuardianProfile, error) {
 	profiles, err := d.repos.GuardianProfiles.FindByIDs(ctx, ids)
 	if err != nil {

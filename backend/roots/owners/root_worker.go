@@ -66,7 +66,7 @@ import (
 func workerRetentionOf(
 	db transactionruntime.Database, logger *slog.Logger, settings settingsCompose.BatchSettingsService, audit auditCommand,
 	fleet devicefleet.Capability, carePlan *carePlanModule.Module, parentMessages communication.ParentMessageCleanup,
-	rejected enrollmentOwner.RejectedEnrollmentCleaner, studentDeletion *studentdeletion.Workflow,
+	rejected enrollmentOwner.RejectedEnrollmentCleaner, studentDeletion *studentdeletion.Workflow, identity *identityaccess.Module,
 ) (workerRetention, error) {
 	students, err := newStudentRetention(studentDeletion, settings, logger.With("service", "student_retention"))
 	if err != nil {
@@ -92,7 +92,7 @@ func workerRetentionOf(
 	if err != nil {
 		return workerRetention{}, fmt.Errorf("compose worker attendance retention: %w", err)
 	}
-	return newWorkerRetention(audit, settings, students, staff, steps, attendance)
+	return newWorkerRetention(audit, settings, students, staff, steps, attendance, newGuardianRetention(db, identity))
 }
 
 // workerDocumentSweeps build the Worker's recovery passes over the staff and

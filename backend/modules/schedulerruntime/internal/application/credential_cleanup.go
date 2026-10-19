@@ -139,6 +139,13 @@ func operatorRetentionJobs(r ports.OperatorRetention) []CleanupJob {
 	return jobs
 }
 
+func accountRetentionJobs(retention ports.AccountRetention) []CleanupJob {
+	if isNilDependency(retention) {
+		return nil
+	}
+	return []CleanupJob{{Description: "Unused account erasure", Run: retention.EraseUnusedAccounts}}
+}
+
 func buildCleanupJobs(authService ports.AuthCleanup, invitationService ports.InvitationCleaner, emailChangeCleaner ports.EmailChangeTokenCleaner, operatorInvitationCleaner ports.OperatorInvitationCleaner) []CleanupJob {
 	var jobs []CleanupJob
 

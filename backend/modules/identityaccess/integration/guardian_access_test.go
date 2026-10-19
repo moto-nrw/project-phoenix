@@ -94,6 +94,24 @@ func TestGuardianGrantUsesOffboardingAccountLockOrder(t *testing.T) {
 	require.Len(t, guardianRoleAssignments(t, db, account.ID, tenantID), 1)
 }
 
+func TestGuardianGrantRefusesAnErasedAccount(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	access := newGuardianAccess(t, db)
+	account := testpkg.CreateTestAccount(t, db, "erased-guardian")
+	ctx := testpkg.Ctx(t)
+
+	_, err := db.NewUpdate().TableExpr(`auth.accounts`).
+		Set("personal_data_erased_at = NOW()").
+		Where("id = ?", account.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	_, err = access.GrantGuardianTenantAccess(ctx, account.ID)
+	require.ErrorIs(t, err, identityaccess.ErrAccountNotFound)
+	require.Empty(t, guardianRoleAssignments(t, db, account.ID, testpkg.Tenant(t)))
+}
+
 type tenantAccessRow struct {
 	Status        string
 	DeactivatedAt *time.Time

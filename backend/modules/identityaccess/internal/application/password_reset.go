@@ -199,8 +199,12 @@ func (r *PasswordReset) ResetPassword(ctx context.Context, token, newPassword st
 	// The flow runs before authentication, so it holds the administrative
 	// transaction: the session revocation touches RLS-guarded auth.tokens.
 	err = r.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		if _, _, setErr := r.store.SetAccountPassword(txCtx, link.AccountID, hash); setErr != nil {
+		updated, _, setErr := r.store.SetAccountPassword(txCtx, link.AccountID, hash)
+		if setErr != nil {
 			return setErr
+		}
+		if !updated {
+			return domain.ErrInvalidToken
 		}
 		redeemed, _, redeemErr := r.store.RedeemPasswordResetToken(txCtx, link.ID)
 		if redeemErr != nil {

@@ -51,6 +51,7 @@ func TestSchedulerPollingSettingKeysIncludeRetentionWindows(t *testing.T) {
 
 	assert.Contains(t, schedulerPollingSettingKeys, settingStatusDayRetentionDays)
 	assert.Contains(t, schedulerPollingSettingKeys, settingAttendanceRetentionDays)
+	assert.Contains(t, schedulerPollingSettingKeys, settingGuardianRetentionDays)
 	assert.Contains(t, schedulerPollingSettingKeys, settingParentMessageRetentionDays)
 	assert.Contains(t, schedulerPollingSettingKeys, settingWithdrawnEnrollmentRetentionDays)
 	assert.Contains(t, schedulerPollingSettingKeys, settingEnrollmentRejectedRetentionDays)
