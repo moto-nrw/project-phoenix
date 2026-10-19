@@ -4,6 +4,8 @@ Implementation base: `148e5aeb86cf22fdbfbffedd76ba070f52f80a3e`. The Round 7 rec
 
 Integrated development: `e423ad19c732f17966b2f8332eafb5df01196f29`. Upstream retention changes and gocognit 1.3 scores are retained. Two upstream ADRs numbered 0072 were made unique by moving the retention ADR to 0073 and updating its references, without changing either decision.
 
+Integration after the rehire/offboarding merge: `e569799b30`. The employment binding removes `ClearStaffWorkTimeModel` exactly as upstream does; the work-time model is retained on retirement and account-link/rehire behavior remains upstream-owned. Retention ADR 0073 already matches this branch. No further composition extraction is included.
+
 ## Literal exits
 
 | Issue | Evidence and current result |

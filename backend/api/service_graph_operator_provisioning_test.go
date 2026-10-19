@@ -205,6 +205,40 @@ func TestOperatorProvisioningIntegration_ListSchoolPersons_WithAccount(t *testin
 	assert.True(t, found, "person with account should be in result")
 }
 
+// retireStaffMembership stands in for the offboarding's staff tombstone: the
+// person keeps its account link (ADR 0021, #3400).
+func retireStaffMembership(t *testing.T, db *bun.DB, staffID int64) {
+	t.Helper()
+	_, err := db.ExecContext(testpkg.Ctx(t), `UPDATE users.staff_school_memberships SET deleted_at = now() WHERE id = ?`, staffID)
+	require.NoError(t, err)
+}
+
+func TestOperatorProvisioningIntegration_ListSchoolPersons_FormerStaffHasNoAccount(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	service := buildOperatorProvisioning(t, db)
+	ctx := provisioningContext(t, db)
+
+	former, _ := testpkg.CreateTestStaffWithAccount(t, db, "Former", "Staff")
+	retireStaffMembership(t, db, former.ID)
+	live, _ := testpkg.CreateTestStaffWithAccount(t, db, "Live", "Staff")
+
+	result, err := service.ListSchoolPersons(ctx, testpkg.Tenant(t))
+	require.NoError(t, err)
+
+	byID := make(map[int64]organizationtenancy.OperatorPerson, len(result))
+	for _, p := range result {
+		byID[p.ID] = p
+	}
+	require.Contains(t, byID, former.PersonID)
+	assert.False(t, byID[former.PersonID].HasAccount, "the kept account link of a former staff member grants no login")
+	assert.Nil(t, byID[former.PersonID].AccountEmail)
+	assert.False(t, byID[former.PersonID].IsStaff)
+	require.Contains(t, byID, live.PersonID)
+	assert.True(t, byID[live.PersonID].HasAccount)
+	assert.NotNil(t, byID[live.PersonID].AccountEmail)
+}
+
 func TestOperatorProvisioningIntegration_ListSchoolPersons_EmptySchool(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -281,6 +315,41 @@ func TestOperatorProvisioningIntegration_SoftDeletePerson_WithAccount(t *testing
 		Scan(testpkg.Ctx(t), &accountID)
 	require.NoError(t, err)
 	assert.Nil(t, accountID, "account_id should be NULL after soft delete")
+}
+
+// A former staff member's account may still serve another school or the
+// parents portal; deleting the person only unlinks it.
+func TestOperatorProvisioningIntegration_SoftDeletePerson_FormerStaffKeepsAccount(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	service := buildOperatorProvisioning(t, db)
+	ctx := provisioningContext(t, db)
+
+	former, account := testpkg.CreateTestStaffWithAccount(t, db, "Former", "Delete")
+	retireStaffMembership(t, db, former.ID)
+
+	operatorID := testpkg.CreateTestOperator(t, db).ID
+	require.NoError(t, service.SoftDeletePerson(ctx, former.PersonID, operatorID, provisioningTestClientIP))
+
+	var stored struct {
+		Email  string `bun:"email"`
+		Active bool   `bun:"active"`
+	}
+	require.NoError(t, db.NewSelect().
+		TableExpr("auth.accounts").
+		Column("email", "active").
+		Where("id = ?", account.ID).
+		Scan(testpkg.Ctx(t), &stored))
+	assert.True(t, stored.Active, "the account must stay active")
+	assert.Equal(t, account.Email, stored.Email, "the account e-mail must not be anonymised")
+
+	var accountID *int64
+	require.NoError(t, db.NewSelect().
+		TableExpr("users.persons").
+		Column("account_id").
+		Where("id = ?", former.PersonID).
+		Scan(testpkg.Ctx(t), &accountID))
+	assert.Nil(t, accountID, "the deleted person no longer holds the account")
 }
 
 func TestOperatorProvisioningIntegration_SoftDeletePerson_WithRFID(t *testing.T) {

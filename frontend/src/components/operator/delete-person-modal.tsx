@@ -68,7 +68,9 @@ export function DeletePersonModal({
         <div className="bg-moto-amber/10 text-moto-amber-strong rounded-lg px-3 py-2 text-sm">
           <p className="font-medium">Folgende Aktionen werden ausgeführt:</p>
           <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
-            <li>Account wird deaktiviert und Login gesperrt</li>
+            {person?.hasAccount && (
+              <li>Account wird deaktiviert und Login gesperrt</li>
+            )}
             <li>Persönliche Daten werden anonymisiert</li>
             <li>RFID-Karte wird freigegeben</li>
             <li>Diese Aktion kann nicht rückgängig gemacht werden</li>

@@ -52,18 +52,6 @@ func (m *memoryEmployment) SaveStaffEmployment(_ context.Context, value StaffEmp
 	return nil
 }
 
-func (m *memoryEmployment) ClearStaffWorkTimeModel(_ context.Context, id int64) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	profile, ok := m.profiles[id]
-	if !ok {
-		return schoolmembership.ErrStaffNotFound
-	}
-	profile.WorkTimeModelID = nil
-	m.profiles[id] = profile
-	return nil
-}
-
 func TestModuleRequiresTheEmploymentOwner(t *testing.T) {
 	t.Parallel()
 	_, err := New(Dependencies{DB: testpkg.SetupTestDB(t), Observe: func(Observation) {}})

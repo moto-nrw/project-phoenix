@@ -203,6 +203,7 @@ type lifecycleStaff struct {
 	mu       sync.Mutex
 	persons  map[int64]domain.PersonRecord
 	staff    map[int64]domain.StaffMember
+	rehired  map[int64]int64
 	teachers map[int64]domain.CaregiverProfile
 	students map[int64]bool
 	nextID   int64
@@ -216,7 +217,7 @@ type lifecycleStaff struct {
 
 func newLifecycleStaff() *lifecycleStaff {
 	return &lifecycleStaff{
-		persons: map[int64]domain.PersonRecord{}, staff: map[int64]domain.StaffMember{},
+		persons: map[int64]domain.PersonRecord{}, staff: map[int64]domain.StaffMember{}, rehired: map[int64]int64{},
 		teachers: map[int64]domain.CaregiverProfile{}, students: map[int64]bool{}, nextID: 100,
 	}
 }
@@ -309,6 +310,13 @@ func (d *lifecycleStaff) LinkPersonToAccount(_ context.Context, personID, accoun
 	return nil
 }
 
+func (d *lifecycleStaff) MoveAccountLink(ctx context.Context, fromPersonID, toPersonID, accountID int64) error {
+	from := d.persons[fromPersonID]
+	from.AccountID = nil
+	d.persons[fromPersonID] = from
+	return d.LinkPersonToAccount(ctx, toPersonID, accountID)
+}
+
 func (d *lifecycleStaff) LinkPersonToRFIDCard(_ context.Context, personID int64, tagID string) error {
 	person := d.persons[personID]
 	person.TagID = &tagID
@@ -321,21 +329,36 @@ func (d *lifecycleStaff) IsStudentPerson(_ context.Context, personID int64) (boo
 }
 
 func (d *lifecycleStaff) FindStaffByPerson(_ context.Context, personID int64) (domain.StaffMember, bool, error) {
+	var retired domain.StaffMember
+	retiredFound := false
 	for _, member := range d.staff {
-		if member.PersonID == personID {
+		if member.PersonID != personID {
+			continue
+		}
+		if !member.Deleted {
 			return member, true, nil
 		}
+		if !retiredFound || member.ID > retired.ID {
+			retired = member
+			retiredFound = true
+		}
+	}
+	if retiredFound {
+		return retired, true, nil
 	}
 	return domain.StaffMember{}, false, nil
 }
 
-func (d *lifecycleStaff) CreateStaff(_ context.Context, tenantID, personID int64) (int64, error) {
+func (d *lifecycleStaff) CreateStaff(_ context.Context, tenantID, personID int64, retiredStaffID *int64) (int64, error) {
 	if d.createStaffErr != nil {
 		return 0, d.createStaffErr
 	}
 	member := d.addStaff(personID)
 	member.TenantID = tenantID
 	d.staff[member.ID] = member
+	if retiredStaffID != nil {
+		d.rehired[member.ID] = *retiredStaffID
+	}
 	return member.ID, nil
 }
 

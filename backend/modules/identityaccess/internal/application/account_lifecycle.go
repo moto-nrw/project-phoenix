@@ -138,6 +138,13 @@ func (d StaffDirectory) LinkPersonToAccount(ctx context.Context, personID, accou
 	return d.Source.LinkPersonToAccount(ctx, personID, accountID)
 }
 
+func (d StaffDirectory) MoveAccountLink(ctx context.Context, fromPersonID, toPersonID, accountID int64) error {
+	if err := d.Source.UnlinkPersonFromAccount(ctx, fromPersonID); err != nil {
+		return err
+	}
+	return d.Source.LinkPersonToAccount(ctx, toPersonID, accountID)
+}
+
 func (d StaffDirectory) LinkPersonToRFIDCard(ctx context.Context, personID int64, tagID string) error {
 	return d.Source.LinkPersonToRFIDCard(ctx, personID, tagID)
 }
@@ -151,8 +158,8 @@ func (d StaffDirectory) FindStaffByPerson(ctx context.Context, personID int64) (
 	return domain.StaffMember(staff), found, err
 }
 
-func (d StaffDirectory) CreateStaff(ctx context.Context, tenantID, personID int64) (int64, error) {
-	return d.Source.CreateStaff(ctx, tenantID, personID)
+func (d StaffDirectory) CreateStaff(ctx context.Context, tenantID, personID int64, retiredStaffID *int64) (int64, error) {
+	return d.Source.CreateStaff(ctx, tenantID, personID, retiredStaffID)
 }
 
 func (d StaffDirectory) FindCaregiverProfile(ctx context.Context, staffID int64) (domain.CaregiverProfile, bool, error) {

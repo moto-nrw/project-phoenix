@@ -21,7 +21,6 @@ type employmentProfile interface {
 type employmentPort[Profile employmentProfile] interface {
 	StaffEmployments(context.Context, []int64) (map[int64]Profile, error)
 	SaveStaffEmployment(context.Context, Profile) error
-	ClearStaffWorkTimeModel(context.Context, int64) error
 }
 
 func NewStaffEmployment[Profile employmentProfile](source employmentPort[Profile]) ports.StaffEmployment {
@@ -44,8 +43,4 @@ func (e employmentBinding[Profile]) StaffEmployments(ctx context.Context, ids []
 
 func (e employmentBinding[Profile]) SaveStaffEmployment(ctx context.Context, value domain.StaffEmployment) error {
 	return e.port.SaveStaffEmployment(ctx, Profile(value))
-}
-
-func (e employmentBinding[Profile]) ClearStaffWorkTimeModel(ctx context.Context, membershipID int64) error {
-	return e.port.ClearStaffWorkTimeModel(ctx, membershipID)
 }

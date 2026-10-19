@@ -38,8 +38,6 @@ type StaffEmploymentQuery interface {
 type StaffEmploymentCommand interface {
 	// SaveStaffEmployment creates or replaces the membership's profile.
 	SaveStaffEmployment(context.Context, StaffEmployment) error
-	// ClearStaffWorkTimeModel detaches the membership from its template.
-	ClearStaffWorkTimeModel(ctx context.Context, membershipID int64) error
 	// AppendStaffNotes adds a paragraph to the private staff notes under a
 	// row lock and returns the updated profile.
 	AppendStaffNotes(ctx context.Context, membershipID int64, notes string) (StaffEmployment, error)

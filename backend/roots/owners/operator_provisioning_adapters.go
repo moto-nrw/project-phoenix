@@ -221,7 +221,9 @@ func (p provisioningPeople) CountChildQuotaByTenant(ctx context.Context) (map[in
 
 // ListPersons lists the persons of the schools with their staff, student and
 // account facts. Staff membership belongs to School Membership; the listing
-// asks the owner instead of joining users.staff.
+// asks the owner instead of joining users.staff. A former staff member keeps
+// the account link for a Wiederaufnahme (ADR 0021) but no login at the school,
+// so the listing reports no account for it.
 func (p provisioningPeople) ListPersons(ctx context.Context, tenantIDs []int64) ([]organizationCompose.PersonListing, error) {
 	persons, err := p.persons.ListPersonsByTenantIDs(ctx, tenantIDs)
 	if err != nil || len(persons) == 0 {
@@ -232,13 +234,9 @@ func (p provisioningPeople) ListPersons(ctx context.Context, tenantIDs []int64) 
 	if err != nil {
 		return nil, err
 	}
-	staff := make(map[int64]bool, len(personIDs))
-	members, err := p.membership.ListStaff(ctx, schoolmembership.StaffFilter{PersonIDs: personIDs, MembershipOnly: true})
+	staff, former, err := p.staffStanding(ctx, personIDs)
 	if err != nil {
-		return nil, fmt.Errorf("load operator staff membership: %w", err)
-	}
-	for _, member := range members {
-		staff[member.PersonID] = true
+		return nil, err
 	}
 	emails, err := p.accounts.ListAccountEmails(ctx, accountIDs)
 	if err != nil {
@@ -246,12 +244,13 @@ func (p provisioningPeople) ListPersons(ctx context.Context, tenantIDs []int64) 
 	}
 	result := make([]organizationCompose.PersonListing, 0, len(persons))
 	for _, person := range persons {
+		hasAccount := person.AccountID != nil && !former[person.ID]
 		listing := organizationCompose.PersonListing{
 			ID: person.ID, TenantID: person.TenantID, FirstName: person.FirstName, LastName: person.LastName,
-			HasAccount: person.AccountID != nil, HasRFIDCard: person.TagID != nil,
+			HasAccount: hasAccount, HasRFIDCard: person.TagID != nil,
 			IsStaff: staff[person.ID], IsStudent: students[person.ID], CreatedAt: person.CreatedAt,
 		}
-		if person.AccountID != nil {
+		if hasAccount {
 			if email, found := emails[*person.AccountID]; found {
 				listing.AccountEmail = &email
 			}
@@ -259,6 +258,27 @@ func (p provisioningPeople) ListPersons(ctx context.Context, tenantIDs []int64) 
 		result = append(result, listing)
 	}
 	return result, nil
+}
+
+// staffStanding splits the persons into live staff and former staff: a former
+// staff member holds retired memberships and no live one.
+func (p provisioningPeople) staffStanding(ctx context.Context, personIDs []int64) (live, former map[int64]bool, err error) {
+	members, err := p.membership.ListStaff(ctx, schoolmembership.StaffFilter{PersonIDs: personIDs, IncludeDeleted: true, MembershipOnly: true})
+	if err != nil {
+		return nil, nil, fmt.Errorf("load operator staff membership: %w", err)
+	}
+	live, former = make(map[int64]bool, len(members)), make(map[int64]bool, len(members))
+	for _, member := range members {
+		if member.IsDeleted() {
+			former[member.PersonID] = true
+		} else {
+			live[member.PersonID] = true
+		}
+	}
+	for personID := range live {
+		delete(former, personID)
+	}
+	return live, former, nil
 }
 
 func operatorPersonIDs(persons []peopledirectory.Person) ([]int64, []int64) {
@@ -283,8 +303,13 @@ func (p provisioningPeople) FindPerson(ctx context.Context, id int64) (organizat
 	if err != nil {
 		return organizationCompose.ProvisioningPerson{}, false, err
 	}
+	_, former, err := p.staffStanding(ctx, []int64{person.ID})
+	if err != nil {
+		return organizationCompose.ProvisioningPerson{}, false, err
+	}
 	return organizationCompose.ProvisioningPerson{
 		ID: person.ID, TenantID: person.TenantID, AccountID: person.AccountID, HasRFIDCard: person.TagID != nil,
+		FormerStaff: former[person.ID],
 	}, true, nil
 }
 

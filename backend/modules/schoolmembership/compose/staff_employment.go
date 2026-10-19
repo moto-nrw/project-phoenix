@@ -14,7 +14,6 @@ import (
 type StaffEmployment interface {
 	StaffEmployments(ctx context.Context, membershipIDs []int64) (map[int64]StaffEmploymentProfile, error)
 	SaveStaffEmployment(context.Context, StaffEmploymentProfile) error
-	ClearStaffWorkTimeModel(ctx context.Context, membershipID int64) error
 }
 
 // StaffEmploymentProfile is the employment half of a staff member.

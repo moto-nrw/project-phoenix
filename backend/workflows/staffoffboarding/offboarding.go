@@ -64,7 +64,6 @@ type People interface {
 	FindPerson(context.Context, int64) (peopledirectory.Person, error)
 	FindPersonForMutation(context.Context, int64) (peopledirectory.Person, error)
 	UnlinkTag(context.Context, int64) error
-	UnlinkAccount(context.Context, int64) error
 }
 
 // Dependencies are consumer-owned ports. Authorize must resolve a school
@@ -307,15 +306,16 @@ func (w *Workflow) mutate(ctx context.Context, actor Actor, p Preview) (result R
 	if err != nil {
 		return result, err
 	}
+	// The transponder is handed on to the next person, so it is released. The
+	// account link stays: a later Wiederaufnahme finds the person through it,
+	// and the retired staff record already closes the Account -> Person ->
+	// Staff chain (ADR 0021, decisions 2 and 3).
 	if err := w.deps.People.UnlinkTag(ctx, p.PersonID); err != nil {
 		return result, err
 	}
 	if p.AccountID != 0 {
 		result.Access, err = w.deps.ExecuteAccess(ctx, p.AccountID, p.Access.Revision)
 		if err != nil {
-			return result, err
-		}
-		if err := w.deps.People.UnlinkAccount(ctx, p.PersonID); err != nil {
 			return result, err
 		}
 	}

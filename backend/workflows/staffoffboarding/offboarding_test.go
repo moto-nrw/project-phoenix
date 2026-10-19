@@ -260,7 +260,3 @@ func (b employmentBinding) StaffEmployments(ctx context.Context, ids []int64) (m
 func (b employmentBinding) SaveStaffEmployment(ctx context.Context, value membershipcompose.StaffEmploymentProfile) error {
 	return b.owner.SaveStaffEmployment(ctx, workforce.StaffEmployment(value))
 }
-
-func (b employmentBinding) ClearStaffWorkTimeModel(ctx context.Context, id int64) error {
-	return b.owner.ClearStaffWorkTimeModel(ctx, id)
-}
