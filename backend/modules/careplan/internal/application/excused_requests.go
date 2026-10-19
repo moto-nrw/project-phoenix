@@ -297,3 +297,89 @@ func (w *ExcusedRequests) ListForStudent(ctx context.Context, studentID int64, r
 	}
 	return out, nil
 }
+
+// Decide approves or rejects one pending request. The verdict's log line and
+// the badge broadcast run after commit.
+func (w *ExcusedRequests) Decide(ctx context.Context, input careplan.ExcusedRequestDecideInput) (result *careplan.ExcusedRequestReviewItem, err error) {
+	started := time.Now()
+	defer func() { w.done("excused_request_decide", started, err) }()
+	if input.RequestID <= 0 {
+		return nil, careplan.ErrExcusedRequestNotFound
+	}
+	reason, err := decisionReason(input)
+	if err != nil {
+		return nil, err
+	}
+	req, student, err := w.lockDecidableRequest(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	outcome, err := w.storeDecision(ctx, &req, &student, input, reason)
+	if err != nil {
+		return nil, err
+	}
+
+	tenantID := w.tenantOf(ctx, req.TenantID)
+	if input.Approve {
+		if err := w.notifyApprovedAbsence(ctx, tenantID, &req, input.ReviewedBy); err != nil {
+			return nil, err
+		}
+		w.hooks.AfterCommit(ctx, func() {
+			w.logger.Info("absence request approved",
+				slog.Int64("request_id", req.ID),
+				slog.Int64("student_id", req.StudentID),
+				slog.Int64("tenant_id", req.TenantID),
+				slog.Int64("reviewed_by", input.ReviewedBy),
+				slog.String("status", req.AbsenceStatus),
+				slog.Int("days", len(req.Dates)),
+			)
+		})
+	} else {
+		w.hooks.AfterCommit(ctx, func() {
+			w.logger.Info("absence request rejected",
+				slog.Int64("request_id", req.ID),
+				slog.Int64("student_id", req.StudentID),
+				slog.Int64("tenant_id", req.TenantID),
+				slog.Int64("reviewed_by", input.ReviewedBy),
+				slog.String("status", req.AbsenceStatus),
+			)
+		})
+	}
+	// Either decision clears the child's pending badge (approval also
+	// surfaces the confirmed absence). Wake staff tabs for both outcomes.
+	w.broadcastRequestTransition(ctx, req.TenantID, req.StudentID)
+	if err := w.notifyDecision(ctx, &req, outcome.event(input.ReviewedBy, reason)); err != nil {
+		return nil, err
+	}
+	return w.recordDecision(ctx, req.ID, student.PersonID, input, reason)
+}
+
+// broadcastRequestTransition wakes both audiences after any absence-request
+// transition that changes the child's "Freigabe ausstehend" badge: staff
+// tabs through the tenant-wide events, guardians through a message-
+// independent invalidation. Both run after commit so a woken client never
+// reads the pre-commit snapshot.
+func (w *ExcusedRequests) broadcastRequestTransition(ctx context.Context, tenantID, studentID int64) {
+	tenantID = w.tenantOf(ctx, tenantID)
+	w.hooks.AfterCommit(ctx, func() {
+		if w.broadcaster != nil {
+			if err := w.broadcaster.StudentUpdated(tenantID); err != nil {
+				w.logger.Warn("care plan: broadcast student_updated after excused request transition failed",
+					slog.Int64("tenant_id", tenantID),
+					slog.Int64("student_id", studentID),
+					slog.String("error", err.Error()),
+				)
+			}
+			if err := w.broadcaster.ChangeRequestsChanged(tenantID); err != nil {
+				w.logger.Warn("care plan: broadcast change_requests_changed after excused request transition failed",
+					slog.Int64("tenant_id", tenantID),
+					slog.Int64("student_id", studentID),
+					slog.String("error", err.Error()),
+				)
+			}
+		}
+		if w.messenger != nil {
+			w.messenger.BroadcastChildUpdateToGuardians(tenantID, studentID)
+		}
+	})
+}
