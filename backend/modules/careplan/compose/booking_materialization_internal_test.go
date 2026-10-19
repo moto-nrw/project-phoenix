@@ -4,9 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/stretchr/testify/assert"
 )
 
 // A changed offering pickup projection is announced only once the tenant

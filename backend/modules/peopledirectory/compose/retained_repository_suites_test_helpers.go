@@ -4,7 +4,6 @@ package compose
 
 import (
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-
 	usersRepo "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -85,4 +84,4 @@ func RetainedWithGuardianDefaultRole(apply func(*peopleValues.GuardianRelationsh
 // DisabledStudentPhotos is the photo runtime of a root that serves no
 // photos: every photo route reports the feature as disabled and a consent
 // change fails.
-func DisabledStudentPhotos() StudentPhotoRuntime { return disabledStudentPhotos{} }
+func DisabledStudentPhotos() StudentPhotoRuntime { return application.DisabledStudentPhotos{} }

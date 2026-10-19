@@ -38,7 +38,7 @@ func NewOfferingReviews(db *bun.DB, observe func(Observation), deps OfferingRevi
 		return nil, err
 	}
 	return application.NewOfferingReviews(application.OfferingReviewDependencies{
-		Requests: requests, Catalog: application.New(postgres.New(carePlanDatabase(db)), observe),
+		Requests: requests, Catalog: application.New(postgres.New(postgres.CarePlanDatabase(db)), observe),
 		People: deps.People, Enrollment: deps.Enrollment, Courses: deps.Courses,
 		Scope: deps.Scope, Today: deps.Today, Logger: deps.Logger,
 	}), nil

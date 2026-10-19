@@ -91,12 +91,5 @@ func NewCareOfferings(
 	changes careplan.OfferingChangeCapability,
 	adjustments careplan.PickupAdjustments,
 ) careplan.CareOfferingCapability {
-	return careOfferings{catalog, bookings, changes, adjustments}
-}
-
-type careOfferings struct {
-	careplan.CareOfferingCatalogCapability
-	careplan.BookingMaterializationCapability
-	careplan.OfferingChangeCapability
-	careplan.PickupAdjustments
+	return application.CareOfferings{CareOfferingCatalogCapability: catalog, BookingMaterializationCapability: bookings, OfferingChangeCapability: changes, PickupAdjustments: adjustments}
 }

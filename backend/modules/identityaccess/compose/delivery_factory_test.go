@@ -5,11 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/require"
 )
 
 type recordingResetDelivery struct {
@@ -21,7 +20,9 @@ func (recordingResetDelivery) DispatchPasswordReset(context.Context, identityacc
 	return nil
 }
 
-type resetPasswords struct{ PasswordPolicy }
+type resetPasswords struct {
+	identityPorts.PasswordPolicy
+}
 
 // The reset delivery built by DeliveryFor gets a recorder that answers like
 // the module it is composed into, so it needs no reference back to it; the
@@ -32,7 +33,7 @@ func TestPasswordResetDeliveryFor_RecordsLikeTheModule(t *testing.T) {
 	compose := func(resets *PasswordResetDependencies) (*identityaccess.Module, error) {
 		return New(Dependencies{
 			DB: db, Observe: func(Observation) {}, TenantRuntime: testpkg.TenantRuntime(t, db), Resets: resets,
-			Sessions: &SessionDependencies{
+			Sessions: &identityPorts.SessionDependencies{
 				Schools: sweepSchools{}, Persons: sweepPersons{}, Passwords: sweepPasswords{},
 				Codec: sweepCodec{}, MFALock: sweepMFALock{}, Audit: sweepAudit{}, Push: sweepPush{},
 			},

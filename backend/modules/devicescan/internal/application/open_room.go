@@ -7,7 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
 )
 
 var _ devicescan.OpenRoomBooking = (*Service)(nil)

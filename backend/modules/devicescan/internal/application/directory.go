@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
 )
 
 // DirectoryTeacher is a roster assignment with its optional joined person.

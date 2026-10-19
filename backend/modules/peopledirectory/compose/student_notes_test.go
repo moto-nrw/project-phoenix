@@ -7,14 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // These exercise the note card against the real table: the audience predicate
@@ -27,7 +26,7 @@ func notesModule(t *testing.T, db *testpkg.DB) *peopledirectory.Module {
 }
 
 func notesModuleWithOwners(t *testing.T, db *testpkg.DB, owners peoplePorts.StudentOwners) *peopledirectory.Module {
-	return notesModuleWithDeletionAudit(t, db, owners, testStudentNoteDeletionAudit{db: db})
+	return notesModuleWithDeletionAudit(t, db, owners, testStudentNoteDeletionAudit{Db: db})
 }
 
 func notesModuleWithDeletionAudit(
@@ -42,12 +41,12 @@ func notesModuleWithDeletionAudit(
 	return module
 }
 
-type testStudentNoteDeletionAudit struct{ db *testpkg.DB }
+type testStudentNoteDeletionAudit struct{ Db *testpkg.DB }
 
 func (a testStudentNoteDeletionAudit) RecordStudentNoteDeletion(
 	ctx context.Context, studentID, noteID, actorAccountID int64,
 ) error {
-	_, err := a.db.NewRaw(`INSERT INTO audit.data_deletions
+	_, err := a.Db.NewRaw(`INSERT INTO audit.data_deletions
 		(tenant_id, student_id, deletion_type, records_deleted, deletion_reason, deleted_by, metadata)
 		VALUES (?, ?, 'manual', 1, 'student note deleted', ?,
 		jsonb_build_object('student_note_id', ?, 'deleted_by_account_id', ?))`,

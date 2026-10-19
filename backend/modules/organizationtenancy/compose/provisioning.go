@@ -2,17 +2,14 @@ package compose
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	postgresNative "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports"
+	"github.com/uptrace/bun"
 )
 
 // The provisioning seams (#3253) and the values they exchange. The root
@@ -87,17 +84,6 @@ func NewProvisioning(dependencies ProvisioningDependencies, dashboard organizati
 	})
 }
 
-// OperatorDatabase supplies the existing administrative runtime to root-bound projections.
 func OperatorDatabase() func(context.Context) (bun.IDB, error) {
-	return func(ctx context.Context) (bun.IDB, error) {
-		value, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return nil, errors.New("organization tenancy operator dashboard: transaction is required")
-		}
-		tx, ok := value.(bun.Tx)
-		if !ok {
-			return nil, fmt.Errorf("organization tenancy operator dashboard: unsupported transaction %T", value)
-		}
-		return tx, nil
-	}
+	return postgresNative.OperatorDatabase()
 }

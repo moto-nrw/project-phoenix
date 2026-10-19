@@ -100,7 +100,7 @@ func readTransferRows(t *testing.T, ctx context.Context, db *bun.DB) []transferR
 	t.Helper()
 	var rows []transferRow
 	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
-		scoped, _, err := database()(txCtx)
+		scoped, _, err := retainedDatabase()(txCtx)
 		if err != nil {
 			return err
 		}

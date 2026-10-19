@@ -3,9 +3,8 @@ package importpkg
 import (
 	"testing"
 
-	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
-
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
 	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"

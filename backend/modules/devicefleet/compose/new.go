@@ -93,26 +93,23 @@ func New(dependencies Dependencies) (*devicefleet.Module, error) {
 	// dashboard read then fails loudly instead of returning a partial screen.
 	presence := ports.PresenceReader(application.PresenceReader{Presence: dependencies.Presence})
 	if dependencies.Presence == nil {
-		presence = uncomposedDashboard{}
+		presence = application.UncomposedDashboard{}
 	}
 	dashboard := dependencies.Dashboard
 	if dashboard == nil {
-		dashboard = uncomposedDashboard{}
+		dashboard = application.UncomposedDashboard{}
 	}
 	tenants := dependencies.Tenants
 	if tenants == nil {
-		tenants = uncomposedDashboard{}
+		tenants = application.UncomposedDashboard{}
 	}
-	runtime := databaseRuntime(dependencies.DB)
-	observe := func(observation Observation) {
-		observation.Err = application.MapError(observation.Err)
-		dependencies.Observe(observation)
-	}
+	runtime := postgres.DatabaseRuntime(dependencies.DB)
+	observe := application.NewObserver(dependencies.Observe)
 	service := application.New(application.Dependencies{
 		Devices:   postgres.NewDeviceStore(runtime),
 		Displays:  postgres.NewDisplayStore(runtime),
 		Scans:     postgres.NewUnregisteredTagScanStore(runtime),
-		Rooms:     roomDirectory{rooms: dependencies.Rooms},
+		Rooms:     application.RoomDirectory{Rooms: dependencies.Rooms},
 		Presence:  presence,
 		Dashboard: dashboard,
 		Tenants:   tenants,
@@ -126,72 +123,16 @@ func New(dependencies Dependencies) (*devicefleet.Module, error) {
 	return devicefleet.NewModule(application.NewEngine(service, observe, now)), nil
 }
 
-// databaseRuntime requires an ambient school or explicit administrative unit.
-// Pre-school authentication and public-token discovery use named capabilities.
-func databaseRuntime(db *bun.DB) postgres.Database {
-	return func(ctx context.Context) (bun.IDB, postgres.TenantScope, error) {
-		id, scopeErr := tenant.TenantFromContext(ctx)
-		raw, ok := tenant.TransactionFromContext(ctx)
-		if scopeErr != nil && !tenant.IsAdminTx(ctx) {
-			return nil, postgres.TenantScope{}, errors.Join(devicefleet.ErrTenantRequired, scopeErr)
-		}
-		return postgres.ResolveDatabase(raw, ok, id.Int64(), scopeErr, tenant.IsAdminTx(ctx))
-	}
-
-}
-
 type transaction struct{ db *bun.DB }
 
 func (t transaction) RunWrite(ctx context.Context, callback func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return callback(ctx)
-	}
-	id, err := tenant.TenantFromContext(ctx)
-	if err != nil {
-		return errors.Join(devicefleet.ErrTenantRequired, err)
-	}
-	return tenant.WithinTenant(ctx, id, callback)
+	return postgres.TransactionRunWriteBinding(ctx, callback, tenant.WithinTenant)
 }
 
 func (t transaction) AdminScope(ctx context.Context, callback func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return callback(ctx)
-	}
-	return tenant.WithAdminTx(ctx, t.db, func(adminCtx context.Context, _ bun.Tx) error {
-		return callback(adminCtx)
-	})
+	return postgres.TransactionAdminScopeBinding(ctx, callback, tenant.WithAdminTx, t.db)
 }
 
 func (t transaction) TenantScope(ctx context.Context, tenantID int64, callback func(context.Context) error) error {
-	return tenant.WithTenantTx(ctx, t.db, tenantID, func(tenantCtx context.Context, _ bun.Tx) error {
-		return callback(tenantCtx)
-	})
-}
-
-type roomDirectory struct{ rooms facilitiesModule.Query }
-
-func (d roomDirectory) ListRoomsByID(ctx context.Context, ids []int64) ([]domain.Room, error) {
-	rooms, err := d.rooms.ListRoomsByID(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	return toDomainRooms(rooms), nil
-}
-
-func (d roomDirectory) ListRooms(ctx context.Context) ([]domain.Room, error) {
-	rooms, err := d.rooms.ListRooms(ctx, facilitiesModule.RoomFilter{})
-	if err != nil {
-		return nil, err
-	}
-	return toDomainRooms(rooms), nil
-}
-
-func toDomainRooms(rooms []facilitiesModule.Room) []domain.Room {
-	result := make([]domain.Room, 0, len(rooms))
-	for _, room := range rooms {
-		result = append(result, domain.Room{
-			ID: room.ID, TenantID: room.TenantID, Name: room.Name, Capacity: room.Capacity,
-		})
-	}
-	return result
+	return postgres.TransactionTenantScopeBinding(ctx, tenantID, callback, tenant.WithTenantTx, t.db)
 }

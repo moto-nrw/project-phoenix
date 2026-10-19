@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
+
 	"time"
 )
 
@@ -44,7 +46,7 @@ func NewSessionMirror(timetable MirrorTimetable, publish MirrorPublisher, logger
 	return &sessionMirror{timetable: timetable, publish: publish, logger: logger}
 }
 
-func (s *sessionMirror) MirrorSession(ctx context.Context, group LifecycleSession, supervisorIDs []int64) {
+func (s *sessionMirror) MirrorSession(ctx context.Context, group ports.LifecycleSession, supervisorIDs []int64) {
 	existing, err := s.timetable.HasInstance(ctx, group.ID)
 	if err != nil {
 		s.logger.WarnContext(ctx, "failed to check mirrored timetable instance",

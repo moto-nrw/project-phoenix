@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	applicationBindings "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application"
 	"github.com/uptrace/bun"
 )
 
@@ -16,13 +17,7 @@ func NewUnobserved(db *bun.DB) (facilities.Capability, error) {
 		DeletionLock: func(context.Context) error { return nil },
 		// The legacy repository accepted deletes without service-level
 		// guards; graphs without the API root keep that path usable.
-		Usage:   unusedRooms{},
+		Usage:   applicationBindings.UnusedRooms{},
 		Observe: func(Observation) {},
 	})
 }
-
-// unusedRooms answers that no session and no care offering needs a room.
-type unusedRooms struct{}
-
-func (unusedRooms) HasActiveSessions(context.Context, int64) (bool, error)      { return false, nil }
-func (unusedRooms) RequiredByCareOffering(context.Context, int64) (bool, error) { return false, nil }

@@ -4,11 +4,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
+	"github.com/uptrace/bun"
 )
 
 // CompanionRecords is the "läuft mit" slice of this owner, narrow enough to be
@@ -29,5 +28,5 @@ func NewCompanionRecords(db *bun.DB, observe func(Observation)) (CompanionRecord
 	if db == nil || observe == nil {
 		return nil, errors.New("care plan companion records: database and observer are required")
 	}
-	return application.NewCompanionEdges(postgres.New(carePlanDatabase(db)), observe), nil
+	return application.NewCompanionEdges(postgres.New(postgres.CarePlanDatabase(db)), observe), nil
 }

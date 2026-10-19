@@ -115,7 +115,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/careplan/selection/materialize.go:MaterializeAdjustments":                                                                          65,
 	"modules/careplan/selection/materialize.go:materializeOfferingSelections":                                                                   95,
 	"modules/exporttransfer/internal/adapters/sftp/client.go:(*Client).Prepare":                                                                 75,
-	"modules/identityaccess/compose/new.go:New":                                                                                                 73,
+	"modules/identityaccess/compose/new.go:New":                                                                                                 71,
 	"modules/identityaccess/internal/application/account_mfa_admin.go:(*AccountMFAFlows).setTenantOverride":                                     73,
 	"modules/identityaccess/internal/application/account_mfa_flow.go:(*AccountMFAFlows).StartChallenge":                                         78,
 	"modules/identityaccess/internal/application/account_mfa_flow.go:(*AccountMFAFlows).resolvePolicy":                                          62,

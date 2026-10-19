@@ -42,6 +42,7 @@ type Audit interface {
 }
 
 type Transaction interface {
+	HasTransaction(context.Context) bool
 	RunAdmin(context.Context, func(context.Context) error) error
 }
 

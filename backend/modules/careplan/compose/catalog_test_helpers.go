@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentRepo "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/parentpostgres"
+	postgresNative "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
 	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
 	"github.com/uptrace/bun"
@@ -34,5 +35,5 @@ func NewCareOfferingCatalog(deps CareOfferingCatalogDependencies) (careplan.Care
 // NewParentEnrollmentRequestRepository is the account's applications over the
 // ambient tenant transaction, without the guardian links bound.
 func NewParentEnrollmentRequestRepository(db *bun.DB, applications parentRepo.EnrollmentCommands, accounts parentRepo.AccountDirectory) parentModels.EnrollmentRequestRepository {
-	return parentRepo.NewEnrollmentRequestRepository(parentRepo.RuntimeFunc(TenantAmbientDatabase(db)), applications, accounts, nil)
+	return parentRepo.NewEnrollmentRequestRepository(parentRepo.RuntimeFunc(postgresNative.TenantAmbientDatabase(db)), applications, accounts, nil)
 }

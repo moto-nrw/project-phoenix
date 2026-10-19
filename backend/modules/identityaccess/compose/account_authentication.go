@@ -3,9 +3,8 @@ package compose
 import (
 	"context"
 	"errors"
-	"log/slog"
-	"time"
 
+	boundaryBinding "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application/rotation"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
@@ -18,49 +17,7 @@ import (
 // public values so the root can implement them without the module's
 // internal vocabulary; this package adapts them to the consumer-owned ports.
 
-// PersonDirectory reads the person name of an account in the tenant the
-// context carries.
-type PersonDirectory interface {
-	FindPersonName(ctx context.Context, accountID int64) (firstName, lastName string, found bool, err error)
-}
-
-// PasswordVerifier checks a password against its stored hash.
-type PasswordVerifier interface {
-	VerifyPassword(password, hash string) (bool, error)
-}
-
-// MFAPolicyLock pins a school's MFA mode for the caller's transaction.
-type MFAPolicyLock interface {
-	LockMFAPolicySharedForTenant(ctx context.Context, tenantID int64) error
-}
-
-// PushSubscriptionCleanup removes the Delivery platform's push rows a
-// revocation orphans. portal is "staff", "school" or "parent".
-type PushSubscriptionCleanup interface {
-	DeleteStaffByAccount(ctx context.Context, accountID int64) error
-	DeleteSchoolByAccount(ctx context.Context, accountID int64) error
-	DeleteParentByAccount(ctx context.Context, accountID int64) error
-	DeleteByTokenFamily(ctx context.Context, accountID int64, familyID string) error
-	DeleteUnboundByAccount(ctx context.Context, accountID, tenantID int64, portal string) error
-	DeleteOrphaned(ctx context.Context) error
-}
-
-// SessionDependencies are the seams the account-authentication flows need
-// beyond the database. TenantRuntime attaches the unit of work the flows
-// open their transactions under; nil leaves the context as is.
-type SessionDependencies struct {
-	Schools       identityPorts.SchoolDirectory
-	Persons       PersonDirectory
-	Passwords     PasswordVerifier
-	Codec         identityPorts.TokenCodec
-	MFALock       MFAPolicyLock
-	Audit         identityPorts.AuthAudit
-	Push          PushSubscriptionCleanup
-	TenantRuntime func(context.Context) context.Context
-	Logger        *slog.Logger
-}
-
-func newAccountAuthentication(service *application.Service, store ports.AccountLoginStore, deps *SessionDependencies, mfa ports.MFAGate) (*application.AccountAuthentication, error) {
+func newAccountAuthentication(service *application.Service, store ports.AccountLoginStore, deps *identityPorts.SessionDependencies, mfa ports.MFAGate) (*application.AccountAuthentication, error) {
 	if deps == nil {
 		return nil, nil
 	}
@@ -80,11 +37,14 @@ func newAccountAuthentication(service *application.Service, store ports.AccountL
 		MFALock:   deps.MFALock,
 		Audit:     application.AuthAudit{Source: deps.Audit},
 		Push:      deps.Push,
-		Runtime:   tenantRuntime{attach: attach, runner: newTransactionRunner()},
-		Rotation:  rotationPolicy{},
+		Runtime:   tenantRuntime{attach: attach, runner: application.NewTransactionRunner()},
+		Rotation:  rotation.RotationPolicy{},
 		Logger:    deps.Logger,
 	})
 }
+
+// Engine methods: every flow answers ErrAccountAuthenticationUnavailable
+// when the module was composed without session dependencies.
 
 // tenantRuntime binds the shared tenant transaction runtime: administrative
 // transactions for the pre-authentication flows, tenant transactions for
@@ -94,38 +54,25 @@ type tenantRuntime struct {
 	runner *tenant.TransactionRunner
 }
 
-func newTransactionRunner() *tenant.TransactionRunner { return tenant.NewTransactionRunner() }
-
 func (r tenantRuntime) WithAdminTx(ctx context.Context, fn func(context.Context) error) error {
-	return tenant.WithinAdmin(r.attach(ctx), fn)
+	return boundaryBinding.TenantRuntimeWithAdminTxBinding(ctx, fn, tenant.WithinAdmin, r.attach)
 }
 
 func (r tenantRuntime) WithTenantTx(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
-	return tenant.WithTenantTx(r.attach(ctx), struct{}{}, tenantID, func(txCtx context.Context, _ any) error {
-		return fn(txCtx)
-	})
+	return boundaryBinding.TenantRuntimeWithTenantTxBinding(ctx, tenantID, fn, tenant.WithTenantTx, r.attach)
 }
 
 // RunInTx joins an ambient transaction, runs tenantless scoped callers
 // (organization and platform scope) administratively and otherwise opens the
 // transaction of the tenant in context.
 func (r tenantRuntime) RunInTx(ctx context.Context, fn func(context.Context) error) error {
-	ctx = r.attach(ctx)
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return fn(ctx)
-	}
-	scope := tenant.ScopeFromContext(ctx)
-	if tenant.FromContext(ctx) == 0 && (scope == "platform" || (scope == "org" && tenant.OrgFromContext(ctx) > 0)) {
-		return tenant.WithinAdmin(ctx, fn)
-	}
-	return r.runner.RunInTx(ctx, fn)
+	return boundaryBinding.TenantRuntimeRunInTxBinding(ctx, fn, r.attach, tenant.WithinAdmin, r.runner.RunInTx)
 }
 
 func (tenantRuntime) IsAdminTx(ctx context.Context) bool { return tenant.IsAdminTx(ctx) }
 
 func (tenantRuntime) HasTransaction(ctx context.Context) bool {
-	_, ok := tenant.TransactionFromContext(ctx)
-	return ok
+	return boundaryBinding.HasTenantTransaction(ctx)
 }
 
 func (tenantRuntime) HasAfterCommitHooks(ctx context.Context) bool {
@@ -147,7 +94,7 @@ func (tenantRuntime) WithTenantID(ctx context.Context, tenantID int64) context.C
 }
 
 func (tenantRuntime) Detach(ctx context.Context) context.Context {
-	return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTenant(tenant.ContextWithoutTransaction(ctx)))
+	return boundaryBinding.DetachCallerTransaction(ctx)
 }
 
 func (tenantRuntime) WithoutTransaction(ctx context.Context) context.Context {
@@ -156,25 +103,4 @@ func (tenantRuntime) WithoutTransaction(ctx context.Context) context.Context {
 
 func (tenantRuntime) AcquireLock(ctx context.Context, key string) error {
 	return tenant.AcquireLock(ctx, key, false)
-}
-
-// Engine methods: every flow answers ErrAccountAuthenticationUnavailable
-// when the module was composed without session dependencies.
-
-type rotationPolicy struct{}
-
-func (rotationPolicy) RecoveryGrace() time.Duration { return rotation.RecoveryGrace }
-
-func (rotationPolicy) MaxRecoveryHops() int { return rotation.MaxRecoveryHops }
-
-func (rotationPolicy) RecoveryProofHash(ctx context.Context) []byte {
-	return rotation.RecoveryProofHash(ctx)
-}
-
-func (rotationPolicy) MatchesRecoveryProof(ctx context.Context, expected []byte) bool {
-	return rotation.MatchesRecoveryProof(ctx, expected)
-}
-
-func (rotationPolicy) FamilyFingerprint(familyID string) string {
-	return rotation.FamilyFingerprint(familyID)
 }

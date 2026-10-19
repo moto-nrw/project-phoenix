@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"slices"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -61,7 +60,7 @@ type SickCascadeDependencies struct {
 // fail-closed, so a half-wired composition must fail here instead of letting a
 // sick report commit without its plan effects.
 func NewSickCascade(deps SickCascadeDependencies) (shiftplansync.SickCascade, error) {
-	if missing := missingNames(map[string]bool{
+	if missing := application.MissingNames(map[string]bool{
 		"Planning":        deps.Planning != nil,
 		"Workforce":       deps.Workforce != nil,
 		"LockStaffShifts": deps.LockStaffShifts != nil,
@@ -72,10 +71,10 @@ func NewSickCascade(deps SickCascadeDependencies) (shiftplansync.SickCascade, er
 		return nil, fmt.Errorf("shift plan sync compose: sick cascade needs %s", strings.Join(missing, ", "))
 	}
 	return application.NewSickCascade(application.SickCascadeDependencies{
-		Shifts: shifts{
-			planning: deps.Planning,
-			rows:     deps.Workforce,
-			lock:     deps.LockStaffShifts,
+		Shifts: application.Shifts{
+			Planning: deps.Planning,
+			Rows:     deps.Workforce,
+			Lock:     deps.LockStaffShifts,
 		},
 		Deviations:    deps.Deviations,
 		TimetableData: deps.TimetableData,
@@ -104,7 +103,7 @@ type SubstitutionDependencies struct {
 // NewSubstitution binds the schedule half of the substitution module
 // (services/education stays the port owner until #2742).
 func NewSubstitution(deps SubstitutionDependencies) (shiftplansync.ScheduleSubstitution, error) {
-	if missing := missingNames(map[string]bool{
+	if missing := application.MissingNames(map[string]bool{
 		"Deviations":        deps.Deviations != nil,
 		"ActivityInstances": deps.ActivityInstances != nil,
 		"InstanceStaff":     deps.InstanceStaff != nil,
@@ -122,45 +121,7 @@ func NewSubstitution(deps SubstitutionDependencies) (shiftplansync.ScheduleSubst
 	}), nil
 }
 
-// missingNames lists the absent dependencies in a stable order.
-func missingNames(present map[string]bool) []string {
-	missing := make([]string, 0, len(present))
-	for name, ok := range present {
-		if !ok {
-			missing = append(missing, name)
-		}
-	}
-	slices.Sort(missing)
-	return missing
-}
-
-// shifts binds the workflow's Dienstplan port to the Workforce owner: the
-// cancellation to its planning capability, the listings and the sick stamp to
-// its row capability, and the write lock to the per-staff advisory lock the
-// module's own writes take.
-type shifts struct {
-	planning workforce.StaffShiftPlanning
-	rows     workforce.Capability
-	lock     func(context.Context, int64) error
-}
-
 var (
-	_ ports.Shifts                       = shifts{}
+	_ ports.Shifts                       = application.Shifts{}
 	_ shiftplansync.ScheduleSubstitution = (*application.SubstitutionAdapter)(nil)
 )
-
-func (s shifts) ListStaffShifts(ctx context.Context, filter workforce.StaffShiftFilter) ([]workforce.StaffShift, error) {
-	return s.rows.ListStaffShifts(ctx, filter)
-}
-
-func (s shifts) ApplyCancellation(ctx context.Context, input workforce.CancelStaffShift) (workforce.StaffShiftCancellation, error) {
-	return s.planning.ApplyCancellation(ctx, input)
-}
-
-func (s shifts) SetStaffShiftSickAbsence(ctx context.Context, shiftID int64, absenceID *int64) (int64, error) {
-	return s.rows.SetStaffShiftSickAbsence(ctx, shiftID, absenceID)
-}
-
-func (s shifts) LockStaffShifts(ctx context.Context, staffID int64) error {
-	return s.lock(ctx, staffID)
-}

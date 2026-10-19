@@ -1,16 +1,12 @@
 package compose
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
-	"time"
-
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
+	"github.com/uptrace/bun"
 )
 
 // NewGuardianStudentAccess composes the relationship-access commands (#2756)
@@ -21,26 +17,5 @@ func NewGuardianStudentAccess(db *bun.DB, observe func(Observation)) (identityac
 	if db == nil || observe == nil {
 		return nil, errors.New("identity access guardian student access: database and observer are required")
 	}
-	return application.NewGuardianStudentAccessCommands(guardianStudentAccess{GuardianStudentAccessStore: newStore(db), observe: observe}, newCommandTransactions(nil)), nil
-}
-
-type guardianStudentAccess struct {
-	postgres.GuardianStudentAccessStore
-	observe func(Observation)
-}
-
-func (a guardianStudentAccess) GrantGuardianStudentAccess(ctx context.Context, grant identityaccess.GuardianStudentAccessGrant) error {
-	started := time.Now()
-	stats, err := a.GuardianStudentAccessStore.GrantGuardianStudentAccess(ctx, postgres.GuardianStudentAccessRecord(grant))
-	err = application.MapError(err)
-	a.observe(Observation{Operation: "grant_guardian_student_access", Duration: time.Since(started), Stats: stats, Err: err})
-	return err
-}
-
-func (a guardianStudentAccess) SetGuardianStudentPermissions(ctx context.Context, tenantID, relationshipID int64, permissions json.RawMessage) (bool, error) {
-	started := time.Now()
-	found, stats, err := a.GuardianStudentAccessStore.SetGuardianStudentPermissions(ctx, tenantID, relationshipID, permissions)
-	err = application.MapError(err)
-	a.observe(Observation{Operation: "set_guardian_student_permissions", Duration: time.Since(started), Stats: stats, Err: err})
-	return found, err
+	return application.NewGuardianStudentAccessCommands(retainedGuardianStudentAccess{GuardianStudentAccessStore: postgres.NewStore(db), Observe: observe}, newCommandTransactions(nil)), nil
 }

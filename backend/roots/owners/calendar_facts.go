@@ -5,15 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 
-	facilitiesNative "github.com/moto-nrw/project-phoenix/modules/facilities"
-
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanBindingPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
+	facilitiesNative "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -32,22 +30,22 @@ func NewCalendarFacts(
 ) calendarCompose.Config {
 	cfg := calendarCompose.Config{}
 	if staff != nil {
-		cfg.StaffRepo = calendarStaffPort{staff}
+		cfg.StaffRepo = calendarStaffPort{source: staff}
 	}
 	if students != nil {
-		cfg.StudentRepo = calendarStudentPort{students}
+		cfg.StudentRepo = calendarStudentPort{source: students}
 	}
 	if guardians != nil {
 		cfg.GuardianProfileRepo = guardians
 	}
 	if relationships != nil {
-		cfg.StudentGuardianRepo = calendarRelationshipPort{relationships}
+		cfg.StudentGuardianRepo = calendarRelationshipPort{source: relationships}
 	}
 	if children != nil {
-		cfg.ChildRepo = calendarChildPort{children}
+		cfg.ChildRepo = calendarChildPort{source: children}
 	}
 	if groups != nil {
-		cfg.GroupRepo = calendarGroupPort{groups}
+		cfg.GroupRepo = calendarGroupPort{source: groups}
 	}
 	return cfg
 }
@@ -61,19 +59,19 @@ func BindCalendarScheduleFacts(
 	rooms facilitiesNative.RoomRows, shifts timetablePorts.CalendarShiftRows, shiftTypes timetablePorts.CalendarShiftTypeRows,
 ) calendarCompose.Config {
 	if assignments != nil {
-		cfg.InstanceStaffRepo = calendarAssignmentPort{assignments}
+		cfg.InstanceStaffRepo = calendarAssignmentPort{source: assignments}
 	}
 	if instances != nil {
-		cfg.ActivityInstanceRepo = calendarInstancePort{instances}
+		cfg.ActivityInstanceRepo = calendarInstancePort{source: instances}
 	}
 	if rooms != nil {
-		cfg.RoomRepo = calendarRoomPort{rooms}
+		cfg.RoomRepo = calendarRoomPort{source: rooms}
 	}
 	if shifts != nil {
-		cfg.StaffShiftRepo = calendarShiftPort{shifts}
+		cfg.StaffShiftRepo = calendarShiftPort{source: shifts}
 	}
 	if shiftTypes != nil {
-		cfg.ShiftTypeRepo = calendarShiftTypePort{shiftTypes}
+		cfg.ShiftTypeRepo = calendarShiftTypePort{source: shiftTypes}
 	}
 	return cfg
 }
@@ -86,16 +84,16 @@ func BindCalendarFeedFacts(
 	staffFeeds identityaccess.StaffCalendarFeeds, persons calendarPersonRows,
 ) calendarCompose.Config {
 	if schools != nil {
-		cfg.SchoolRepo = calendarSchoolPort{schools}
+		cfg.SchoolRepo = calendarSchoolPort{source: schools}
 	}
 	if accounts != nil {
-		cfg.AccountRepo = calendarAccountPort{accounts}
+		cfg.AccountRepo = calendarAccountPort{ParentCalendarFeeds: accounts}
 	}
 	if staffFeeds != nil {
-		cfg.StaffFeedRepo = calendarStaffFeedPort{staffFeeds}
+		cfg.StaffFeedRepo = calendarStaffFeedPort{StaffCalendarFeeds: staffFeeds}
 	}
 	if persons != nil {
-		cfg.PersonRepo = calendarPersonPort{persons}
+		cfg.PersonRepo = calendarPersonPort{source: persons}
 	}
 	return cfg
 }
@@ -280,7 +278,7 @@ type calendarChildPort struct {
 
 func (p calendarChildPort) ListByAccount(ctx context.Context, id int64) ([]*calendarCompose.ChildSummary, error) {
 	value, err := p.source.ListByAccount(ctx, id)
-	return CalendarMapSlice(value, func(v carePlanCompose.ParentChildLink) *calendarCompose.ChildSummary {
+	return CalendarMapSlice(value, func(v carePlanBindingPorts.ParentChildLink) *calendarCompose.ChildSummary {
 		return &calendarCompose.ChildSummary{StudentID: v.StudentID, GuardianProfileID: v.GuardianProfileID, TenantID: v.TenantID, SchoolName: v.SchoolName}
 	}), err
 }

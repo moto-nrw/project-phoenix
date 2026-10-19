@@ -7,15 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // The retention runs against the real Timetable owner inside each test's own
@@ -65,7 +64,7 @@ func (r *recordingDeviationRetention) DeleteDeviationEventsBefore(_ context.Cont
 
 // cleanupFixture holds the database, the owner and the room of one test.
 type cleanupFixture struct {
-	db     *bun.DB
+	Db     *bun.DB
 	ctx    context.Context
 	owner  *timetable.Module
 	roomID int64
@@ -75,7 +74,7 @@ func newCleanupFixture(t *testing.T) cleanupFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Cleanup-Room-%d", time.Now().UnixNano()))
-	return cleanupFixture{db: db, ctx: testpkg.Ctx(t), owner: buildModule(t, db), roomID: room.ID}
+	return cleanupFixture{Db: db, ctx: testpkg.Ctx(t), owner: buildModule(t, db), roomID: room.ID}
 }
 
 func (f cleanupFixture) cleanup(t *testing.T, deps ports.TimetableCleanupDependencies) timetable.TimetableCleanup {
@@ -94,13 +93,13 @@ func (f cleanupFixture) cleanup(t *testing.T, deps ports.TimetableCleanupDepende
 
 func (f cleanupFixture) instance(t *testing.T, daysAgo int, status string, templateID *int64) int64 {
 	t.Helper()
-	return testpkg.CreateTestActivityInstance(t, f.db, cleanupToday.AddDays(-daysAgo), f.roomID,
+	return testpkg.CreateTestActivityInstance(t, f.Db, cleanupToday.AddDays(-daysAgo), f.roomID,
 		testpkg.ActivityInstanceOpts{Status: status, ActivityGroupID: templateID}).ID
 }
 
 func (f cleanupFixture) template(t *testing.T) int64 {
 	t.Helper()
-	return testpkg.CreateTestActivityGroup(t, f.db, fmt.Sprintf("Cleanup-Template-%d", time.Now().UnixNano())).ID
+	return testpkg.CreateTestActivityGroup(t, f.Db, fmt.Sprintf("Cleanup-Template-%d", time.Now().UnixNano())).ID
 }
 
 func (f cleanupFixture) exception(t *testing.T, templateID int64, daysAgo int) int64 {
@@ -117,7 +116,7 @@ func (f cleanupFixture) exception(t *testing.T, templateID int64, daysAgo int) i
 func (f cleanupFixture) attachStudent(t *testing.T, instanceID, studentID int64, note *string) int64 {
 	t.Helper()
 	row := &testpkg.InstanceStudent{InstanceID: instanceID, StudentID: studentID, Note: note, TenantID: testpkg.Tenant(t)}
-	testpkg.InsertInstanceStudentRow(t, f.ctx, f.db, row)
+	testpkg.InsertInstanceStudentRow(t, f.ctx, f.Db, row)
 	return row.ID
 }
 
@@ -125,19 +124,19 @@ func (f cleanupFixture) attachStaff(t *testing.T, instanceID, staffID int64) int
 	t.Helper()
 	row := &scheduleModels.InstanceStaff{InstanceID: instanceID, StaffID: staffID}
 	row.SetTenantID(testpkg.Tenant(t))
-	_, err := f.db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_staff`).Exec(f.ctx)
+	_, err := f.Db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_staff`).Exec(f.ctx)
 	require.NoError(t, err, "insert instance_staff")
 	return row.ID
 }
 
 func (f cleanupFixture) student(t *testing.T, first string) int64 {
 	t.Helper()
-	return testpkg.CreateTestStudent(t, f.db, first, fmt.Sprintf("Cleanup-%d", time.Now().UnixNano()), "3a").ID
+	return testpkg.CreateTestStudent(t, f.Db, first, fmt.Sprintf("Cleanup-%d", time.Now().UnixNano()), "3a").ID
 }
 
 func (f cleanupFixture) assertRow(t *testing.T, table string, id int64, wantExists bool, msgAndArgs ...any) {
 	t.Helper()
-	got, err := f.db.NewSelect().Table(table).Where("id = ?", id).Exists(f.ctx)
+	got, err := f.Db.NewSelect().Table(table).Where("id = ?", id).Exists(f.ctx)
 	require.NoError(t, err)
 	if wantExists {
 		assert.True(t, got, append([]any{fmt.Sprintf("%s row %d should exist", table, id)}, msgAndArgs...)...)
@@ -212,7 +211,7 @@ func TestTimetableCleanupCascadesToStaffAndParticipants(t *testing.T) {
 	f := newCleanupFixture(t)
 	cleanup := f.cleanup(t, ports.TimetableCleanupDependencies{})
 	instanceID := f.instance(t, 400, scheduleModels.InstanceStatusCompleted, nil)
-	staff := testpkg.CreateTestStaff(t, f.db, "Cascade", fmt.Sprintf("Staff-%d", time.Now().UnixNano()))
+	staff := testpkg.CreateTestStaff(t, f.Db, "Cascade", fmt.Sprintf("Staff-%d", time.Now().UnixNano()))
 	staffRowID := f.attachStaff(t, instanceID, staff.ID)
 	sensitiveNote := "contains GDPR-sensitive free text about this student's behavior"
 	studentRowID := f.attachStudent(t, instanceID, f.student(t, "Cascade"), &sensitiveNote)
@@ -222,7 +221,7 @@ func TestTimetableCleanupCascadesToStaffAndParticipants(t *testing.T) {
 
 	f.assertRow(t, "schedule.instance_staff", staffRowID, false)
 	f.assertRow(t, "schedule.instance_students", studentRowID, false, "the participant row and its note go with the instance")
-	notes, err := f.db.NewSelect().Table("active.activity_session_attendance").
+	notes, err := f.Db.NewSelect().Table("active.activity_session_attendance").
 		Where("instance_student_id = ?", studentRowID).Count(f.ctx)
 	require.NoError(t, err)
 	assert.Zero(t, notes, "the attendance row holding the note goes with the participant")
@@ -320,9 +319,9 @@ func TestTimetableCleanupTenantIsolation(t *testing.T) {
 	f.instance(t, 400, scheduleModels.InstanceStatusCompleted, nil)
 
 	otherTenantID := testpkg.UniqueTestTenantID(t)
-	testpkg.EnsureTestTenant(t, f.db, otherTenantID)
-	otherRoom := testpkg.CreateTestRoomForTenant(t, f.db, otherTenantID, fmt.Sprintf("Other-Room-%d", time.Now().UnixNano()))
-	other := testpkg.CreateTestActivityInstanceForTenant(t, f.db, otherTenantID, cleanupToday.AddDays(-400), otherRoom.ID,
+	testpkg.EnsureTestTenant(t, f.Db, otherTenantID)
+	otherRoom := testpkg.CreateTestRoomForTenant(t, f.Db, otherTenantID, fmt.Sprintf("Other-Room-%d", time.Now().UnixNano()))
+	other := testpkg.CreateTestActivityInstanceForTenant(t, f.Db, otherTenantID, cleanupToday.AddDays(-400), otherRoom.ID,
 		testpkg.ActivityInstanceOpts{Status: scheduleModels.InstanceStatusCompleted})
 
 	result, err := cleanup.CleanupExpiredTimetableData(f.ctx)
@@ -483,7 +482,7 @@ func TestTimetableCleanupRollbackUndoesEverything(t *testing.T) {
 	f.attachStudent(t, second, student, nil)
 
 	rollbackErr := errors.New("simulated caller-side failure after cleanup")
-	err := testpkg.WithTenantTx(t, f.ctx, f.db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
+	err := testpkg.WithTenantTx(t, f.ctx, f.Db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
 		audit := &recordingDeletionAudit{write: func(ctx context.Context, record ports.StudentDeletionRecord) error {
 			_, err := tx.NewRaw(`INSERT INTO audit.data_deletions
 				(tenant_id, student_id, deletion_type, records_deleted, deleted_by)
@@ -501,7 +500,7 @@ func TestTimetableCleanupRollbackUndoesEverything(t *testing.T) {
 
 	f.assertRow(t, "schedule.activity_instances", first, true, "rollback must restore the first instance")
 	f.assertRow(t, "schedule.activity_instances", second, true, "rollback must restore the second instance")
-	audits, err := f.db.NewSelect().Table("audit.data_deletions").
+	audits, err := f.Db.NewSelect().Table("audit.data_deletions").
 		Where("tenant_id = ? AND student_id = ? AND deletion_type = 'timetable_retention'", testpkg.Tenant(t), student).
 		Count(f.ctx)
 	require.NoError(t, err)

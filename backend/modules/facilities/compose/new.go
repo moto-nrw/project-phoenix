@@ -3,7 +3,6 @@ package compose
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/adapters/postgres"
@@ -34,9 +33,9 @@ func NewRooms(dependencies Dependencies) (*facilities.Rooms, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("facilities compose: all dependencies are required")
 	}
-	observe := observer(dependencies.Observe)
-	service := application.NewRooms(postgres.New(databaseRuntime(dependencies.DB)), transaction{}, observe)
-	return facilities.NewRooms(engine{Engine: application.NewEngine(service, observe)}), nil
+	observe := application.Observer(dependencies.Observe)
+	service := application.NewRooms(postgres.New(postgres.DatabaseRuntime(dependencies.DB)), transaction{}, observe)
+	return facilities.NewRooms(application.EngineBinding{Engine: application.NewEngine(service, observe)}), nil
 }
 
 // New composes the Facilities module. Every operation requires the caller's
@@ -45,58 +44,16 @@ func New(dependencies Dependencies) (*facilities.Module, error) {
 	if dependencies.DB == nil || dependencies.DeletionLock == nil || dependencies.Usage == nil || dependencies.Observe == nil {
 		return nil, errors.New("facilities compose: all dependencies are required")
 	}
-	store := postgres.New(databaseRuntime(dependencies.DB))
-	observe := observer(dependencies.Observe)
+	store := postgres.New(postgres.DatabaseRuntime(dependencies.DB))
+	observe := application.Observer(dependencies.Observe)
 	service := application.New(store, transaction{}, dependencies.DeletionLock, dependencies.Usage, observe)
-	return facilities.NewModule(engine{Engine: application.NewEngine(service, observe)}), nil
-}
-
-// observer reports every observation with the public error.
-func observer(observe func(Observation)) ports.Observer {
-	return func(observation Observation) {
-		observation.Err = application.MapError(observation.Err)
-		observe(observation)
-	}
-}
-
-func databaseRuntime(db *bun.DB) postgres.Database {
-	return func(ctx context.Context) (bun.IDB, int64, error) {
-		tenantID, err := tenant.TenantFromContext(ctx)
-		if err != nil {
-			return nil, 0, fmt.Errorf("facilities postgres: tenant is required: %w", err)
-		}
-		transaction, hasTransaction := tenant.TransactionFromContext(ctx)
-		if !hasTransaction {
-			return nil, 0, fmt.Errorf("facilities postgres: transaction is required")
-		}
-		switch tx := transaction.(type) {
-		case bun.Tx:
-			return tx, tenantID.Int64(), nil
-		case *bun.Tx:
-			if tx != nil {
-				return tx, tenantID.Int64(), nil
-			}
-			return nil, 0, fmt.Errorf("facilities postgres: transaction is required")
-		default:
-			return nil, 0, fmt.Errorf("facilities postgres: unsupported transaction %T", transaction)
-		}
-	}
-}
-
-type engine struct{ application.Engine }
-
-func (engine) RequireTenant(ctx context.Context) error {
-	_, err := tenant.TenantFromContext(ctx)
-	return err
+	return facilities.NewModule(application.EngineBinding{Engine: application.NewEngine(service, observe)}), nil
 }
 
 type transaction struct{}
 
 func (transaction) RunWrite(ctx context.Context, callback func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return callback(ctx)
-	}
-	return tenant.WithinCurrentTenant(ctx, callback)
+	return postgres.TransactionRunWriteBinding(ctx, callback, tenant.WithinCurrentTenant)
 }
 
 func (transaction) AcquireLock(ctx context.Context, key string) error {

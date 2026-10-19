@@ -2,10 +2,9 @@ package compose
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"time"
 
+	app "github.com/moto-nrw/project-phoenix/modules/settings/internal/application"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -28,8 +27,7 @@ func NewTenantSettingsRuntime(db *bun.DB, unit *tenant.UnitOfWork) TenantSetting
 func (r TenantSettingsRuntime) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
 
 func (r TenantSettingsRuntime) HasTransaction(ctx context.Context) bool {
-	_, ok := tenant.TransactionFromContext(ctx)
-	return ok
+	return app.SettingTransactionPresent(ctx, tenant.TransactionFromContext)
 }
 
 func (r TenantSettingsRuntime) DB(ctx context.Context) (bun.IDB, error) {
@@ -37,44 +35,21 @@ func (r TenantSettingsRuntime) DB(ctx context.Context) (bun.IDB, error) {
 }
 
 func (r TenantSettingsRuntime) LockStaffBalance(ctx context.Context, staffID int64) error {
-	if staffID <= 0 {
-		return errors.New("staff id is required")
-	}
-	tenantID := r.TenantID(ctx)
-	if tenantID <= 0 {
-		return errors.New("tenant id is required")
-	}
-	if err := r.AcquireLock(ctx, fmt.Sprintf("staff-balance:%d:%d", tenantID, staffID), false); err != nil {
-		return fmt.Errorf("lock staff balance writes: %w", err)
-	}
-	return nil
+	return app.LockSettingStaffBalance(ctx, staffID, r.TenantID, r.AcquireLock)
 }
 
 func (TenantSettingsRuntime) TodayTime() time.Time { return timezone.TodayDate().UTCMidnight() }
 
 func (r TenantSettingsRuntime) WithinTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
-	if r.unit != nil {
-		ctx = tenant.WithUnitOfWork(ctx, *r.unit)
-	}
-	return tenant.WithTenantTx(ctx, r.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		return fn(txCtx)
-	})
+	return tenant.WithTenantTx(app.AttachSettingUnit(ctx, r.unit, tenant.WithUnitOfWork), r.db, tenantID, app.SettingContextCallback[bun.Tx](fn))
 }
 
 func (r TenantSettingsRuntime) WithinAdmin(ctx context.Context, fn func(context.Context) error) error {
-	if r.unit != nil {
-		ctx = tenant.WithUnitOfWork(ctx, *r.unit)
-	}
-	return tenant.WithAdminTx(ctx, r.db, func(txCtx context.Context, _ bun.Tx) error {
-		return fn(txCtx)
-	})
+	return tenant.WithAdminTx(app.AttachSettingUnit(ctx, r.unit, tenant.WithUnitOfWork), r.db, app.SettingContextCallback[bun.Tx](fn))
 }
 
 func (r TenantSettingsRuntime) AcquireLock(ctx context.Context, key string, shared bool) error {
-	if r.unit != nil {
-		ctx = tenant.WithUnitOfWork(ctx, *r.unit)
-	}
-	return tenant.AcquireLock(ctx, key, shared)
+	return tenant.AcquireLock(app.AttachSettingUnit(ctx, r.unit, tenant.WithUnitOfWork), key, shared)
 }
 
 func (r TenantSettingsRuntime) AfterCommit(ctx context.Context, fn func()) {

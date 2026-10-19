@@ -9,5 +9,5 @@ import (
 
 func NewRetainedActivityRecoveryRepository(db *bun.DB, assignments ports.InstanceStudentRecords) ports.ActivityRecoveryRecords {
 	a, p := application.RetainedActivityRecovery(assignments)
-	return application.NewActivityRecoveryRepository(postgres.New(databaseRuntime(db)), a, p)
+	return application.NewActivityRecoveryRepository(postgres.New(postgres.DatabaseRuntime(db)), a, p)
 }

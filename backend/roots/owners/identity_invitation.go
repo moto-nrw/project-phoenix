@@ -39,7 +39,7 @@ type InvitationWiring struct {
 	WelcomeDelay time.Duration
 }
 
-func InvitationDependencies(wiring *InvitationWiring, owners identityaccessCompose.InvitationOwnerTokens, logger *slog.Logger) *identityaccessCompose.SchoolInvitationDependencies {
+func InvitationDependencies(wiring *InvitationWiring, owners identityPorts.InvitationOwnerTokens, logger *slog.Logger) *identityPorts.SchoolInvitationDependencies {
 	if wiring == nil {
 		return nil
 	}
@@ -47,7 +47,7 @@ func InvitationDependencies(wiring *InvitationWiring, owners identityaccessCompo
 		logger = slog.Default()
 	}
 	backoff := wiring.Backoff
-	return &identityaccessCompose.SchoolInvitationDependencies{
+	return &identityPorts.SchoolInvitationDependencies{
 		Grants: RoleGrantPolicy{},
 		Owners: owners,
 		DeliveryFor: func(invitations identityaccess.SchoolInvitationDeliveryRecorder) identityPorts.SchoolInvitationDelivery {
