@@ -3,12 +3,10 @@ package compose
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/feedback"
 	"github.com/moto-nrw/project-phoenix/modules/feedback/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/feedback/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/feedback/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -36,32 +34,9 @@ func New(dependencies Dependencies) (*feedback.Module, error) {
 	if dependencies.DB == nil || dependencies.Settings == nil || dependencies.Today == nil || dependencies.Observe == nil {
 		return nil, errors.New("feedback compose: all dependencies are required")
 	}
-	store := postgres.New(func(ctx context.Context) (bun.IDB, int64, error) {
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return nil, 0, errors.New("feedback postgres: transaction is required")
-		}
-		tx, ok := transaction.(bun.Tx)
-		if !ok {
-			return nil, 0, fmt.Errorf("feedback postgres: unsupported transaction %T", transaction)
-		}
-		tenantID, err := tenant.TenantFromContext(ctx)
-		if err != nil {
-			return nil, 0, err
-		}
-		return tx, tenantID.Int64(), nil
-	})
-	today := func() domain.Date {
-		date, err := domain.ParseDate(string(dependencies.Today()))
-		if err != nil {
-			panic(fmt.Sprintf("feedback compose: invalid current date: %v", err))
-		}
-		return date
-	}
-	observe := func(observation ports.Observation) {
-		observation.Err = application.MapPublicError(observation.Err, 0)
-		dependencies.Observe(observation)
-	}
+	store := postgres.New(postgres.NewDatabase(tenant.TransactionFromContext, tenant.TenantFromContext))
+	today := application.NewCurrentDate(dependencies.Today)
+	observe := application.NewPublicObserver(dependencies.Observe)
 	service := application.New(store, dependencies.Settings, TransactionFunc(tenant.NewTransactionRunner().RunInTx), observe, today)
 	return application.NewPublicModule(service, dependencies.Observe), nil
 }

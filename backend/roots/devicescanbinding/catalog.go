@@ -1,15 +1,15 @@
-package compose
+package devicescanbinding
 
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	scanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar" // groupDirectory binds the education group lookup of the daily-checkout
+	// gate to the retained education service.
 )
 
-// groupDirectory binds the education group lookup of the daily-checkout
-// gate to the retained education service.
-type groupDirectory struct{ education SchoolGroups }
+type groupDirectory struct{ education scanCompose.SchoolGroups }
 
 func (g groupDirectory) Find(ctx context.Context, id int64) (*ports.Group, error) {
 	group, err := g.education.GetGroup(ctx, id)
@@ -24,7 +24,7 @@ func (g groupDirectory) Find(ctx context.Context, id int64) (*ports.Group, error
 
 // pickupPlan binds the effective pickup lookup to the retained pickup
 // schedule service.
-type pickupPlan struct{ pickups PickupReader }
+type pickupPlan struct{ pickups scanCompose.PickupReader }
 
 func (p pickupPlan) Effective(ctx context.Context, studentID int64, day calendar.Date) (*ports.Pickup, error) {
 	effective, err := p.pickups.GetEffectivePickupTimeForDate(ctx, studentID, day)

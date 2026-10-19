@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -83,7 +83,7 @@ type Dependencies struct {
 }
 
 // New composes the device-scan workflow.
-func New(deps Dependencies) DeviceScan {
+func New(deps Dependencies, bindings Bindings) DeviceScan {
 	if deps.Fleet == nil || deps.Presence == nil || deps.Rooms == nil || deps.Active == nil || deps.Users == nil {
 		panic("device scan composition: fleet, presence, rooms, active and users are required")
 	}
@@ -93,26 +93,14 @@ func New(deps Dependencies) DeviceScan {
 	if deps.Settings == nil {
 		panic("device scan composition: settings are required")
 	}
-	now := deps.Now
-	if now == nil {
-		now = time.Now
-	}
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
-	clock := clock{now: now}
+	clock := bindings.Clock
 	var activities application.ActivityCatalog
 	if deps.Activities != nil {
 		activities = deps.Activities
-	}
-	var groups ports.Groups
-	if deps.Education != nil {
-		groups = groupDirectory{education: deps.Education}
-	}
-	var pickups ports.Pickups
-	if deps.Pickups != nil {
-		pickups = pickupPlan{pickups: deps.Pickups}
 	}
 	return application.NewService(application.Dependencies{
 		Fleet:      deps.Fleet,
@@ -120,13 +108,13 @@ func New(deps Dependencies) DeviceScan {
 		Rooms:      deps.Rooms,
 		Principals: deps.Principal,
 		People:     people{PersonDirectory: deps.Users},
-		Visits:     visits{active: deps.Active, clock: clock},
-		Sessions:   sessions{active: deps.Active, presence: deps.Presence, clock: clock},
-		Attendance: attendance{active: deps.Active},
+		Visits:     bindings.Visits,
+		Sessions:   bindings.Sessions,
+		Attendance: bindings.Attendance,
 		Activities: activities,
 		Rosters:    deps.Rosters,
-		Groups:     groups,
-		Pickups:    pickups,
+		Groups:     bindings.Groups,
+		Pickups:    bindings.Pickups,
 		OpenRooms:  deps.OpenRooms,
 		Settings:   settings{settings: deps.Settings, active: deps.Active},
 		UnitOfWork: unitOfWork{},
@@ -150,15 +138,15 @@ func (unitOfWork) RequireTransaction(ctx context.Context) error {
 
 func (unitOfWork) MarkRollback(ctx context.Context) { tenant.MarkRollback(ctx) }
 
-// mappedError keeps the retained service's message on the wire while
-// answering errors.Is for the workflow's port sentinel.
-type mappedError struct {
-	err      error
-	sentinel error
+type Bindings struct {
+	Visits     ports.Visits
+	Sessions   application.SessionOperations
+	Attendance ports.Attendance
+	Groups     ports.Groups
+	Pickups    ports.Pickups
+	Clock      ports.Clock
 }
-
-func (e mappedError) Error() string        { return e.err.Error() }
-func (e mappedError) Unwrap() error        { return e.err }
-func (e mappedError) Is(target error) bool { return target == e.sentinel }
-
-func mapError(err, sentinel error) error { return mappedError{err: err, sentinel: sentinel} }
+type roomSessionQuery interface {
+	QueryLiveGroups(context.Context, studentpresence.LiveGroupFilter) ([]studentpresence.LiveGroup, error)
+	QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
+}

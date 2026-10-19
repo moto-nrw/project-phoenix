@@ -9,7 +9,7 @@ Classification: **direct binding** has no local branch/loop and at most one dele
 
 ## Round 9 owner set B
 
-Re-audited against `12608383f0f793e811f4379ec293f61efd6150c9`. A-package inventories remain at their prior base until the parallel change is integrated. Counts below are production runtime-retained non-constructors; remaining constructor callbacks in B only bind or forward native values. Transaction operations stay bound at their existing registered compose declarations and execute in named internal functions. No transaction-register keys or router goldens changed. Caregiver bindings retain comparable value fields.
+Re-audited against `12608383f0f793e811f4379ec293f61efd6150c9`. Set A was integrated at `6af2ea106214969af23bc3143789fc7c016f63b5`; all compose packages were re-audited after integration. Counts below are production runtime-retained non-constructors; remaining constructor callbacks in B only bind or forward native values. Transaction operations stay bound at their existing registered compose declarations and execute in named internal functions. No transaction-register keys or router goldens changed. Caregiver bindings retain comparable value fields.
 
 | Compose package | Runtime before → after | Compose LOC before → after |
 |---|---:|---:|
@@ -19,7 +19,7 @@ Re-audited against `12608383f0f793e811f4379ec293f61efd6150c9`. A-package invento
 | `modules/dataimport/compose` | 6 → 0 | 202 → 85 |
 | `modules/delivery/compose` | 20 → 0 | 759 → 363 |
 | `modules/devicefleet/compose` | 8 → 0 | 353 → 219 |
-| `modules/devicescan/compose` | 48 → 30 | 1228 → 1053 |
+| `modules/devicescan/compose` | 48 → 0 | 1228 → 531 |
 | `modules/enrollment/compose` | 9 → 0 | 714 → 540 |
 | `modules/exporttransfer/compose` | 5 → 0 | 234 → 168 |
 | `modules/facilities/compose` | 4 → 0 | 222 → 184 |
@@ -35,44 +35,15 @@ Re-audited against `12608383f0f793e811f4379ec293f61efd6150c9`. A-package invento
 | `modules/schoolcalendar/portal/compose` | 4 → 0 | 119 → 112 |
 | `workflows/shiftplansync/compose` | 1 → 0 | 166 → 127 |
 
-B runtime retained: **266 → 30**. Global compose LOC ceiling: **20,119 → 16445** before parallel integration. Native implementations live in each owner's existing application/Postgres packages; Data Import's consumer-row adapters use its adapter package and cross-owner reference lookup lives in `roots/owners`.
+B runtime retained: **266 → 0**. Global runtime-retained functions and constructor callbacks: **0**. Global compose LOC ceiling: **20,119 → 12,491**; current development cap before this PR: **16,742**.
 
-### Exact remaining blockers
+### Final integrated boundaries
 
-Only DeviceScan retains runtime. Its native application has consumer ports and its own public contract, but no production rule to the foreign contracts listed below. The reviewed successor shapes in [ADR 0058](../adr/0058-owner-dependencies-form-a-dag.md) expressly exclude workflow sources. Moving these implementations unchanged into native code requires prohibited new grants. Their source-row and error contracts must first become workflow-owned public port contracts, with the foreign conversions bound at the typed root. No new grant, alias, exception or checker accommodation was added for them.
+DeviceScan publishes its workflow-owned port records. Foreign Student Presence, School Structure and Care Plan conversions now live in `roots/devicescanbinding`, using existing typed-root permissions. Root adapters consume operation-sized ports, not a multi-owner service graph. Native application decisions remain internal. Delegations moved into roots and public ports remain in the existing ADR 0064 scan through exact path literals; predicates and budgets are not loosened.
 
-| Function | Blocking native dependency |
-|---|---|
-| `attendance.ConfirmDailyCheckout` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `attendance.Status` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `attendance.Toggle` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `classifyPresence` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `groupDirectory.Find` | `process-device-scan.application → school-structure.contract`: `SchoolGroups.GetGroup` returns `contract.Group`. |
-| `lifecycleSession` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `lifecycleStore.Conflict` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `lifecycleStore.Current` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `lifecycleStore.ReplaceSupervisors` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `lifecycleStore.Start` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `lifecycleStore.Timeout` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `lifecycleStore.TimeoutInfo` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `lifecycleStore.Touch` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `lifecycleStore.ValidateTimeout` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `lifecycleSupervisors` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `openRoomMover.MoveToOpenRoom` | `process-device-scan.application → student-presence.public`: `StudentMoveSkipNotPresent`, `RoomCapacityError` and `ErrStudentsNotPresent` require the foreign presence contract. |
-| `openRoomMover.translate` | `process-device-scan.application → student-presence.public`: `StudentMoveSkipNotPresent`, `RoomCapacityError` and `ErrStudentsNotPresent` require the foreign presence contract. |
-| `pickupPlan.Effective` | `process-device-scan.application → care-plan.public`: `PickupReader` returns the effective pickup and day-note records. |
-| `sessionFromGroup` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `sessions.Current` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `sessions.End` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `sessions.EnsureRoomSession` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `sessions.FindDeviceSessionInRoom` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `sessions.ListOpenInRoom` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `sessions.ReplaceSupervisors` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `sessions.Start` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `sessions.Supervisors` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `supervisionQuery.ActiveSupervisions` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `visits.Current` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
-| `visits.Record` | `process-device-scan.application → student-presence.public`: presence/session/supervision source rows, commands or error classifications. A native adapter role has no successor grant for this workflow either. |
+Communication's application caller joins an ambient transaction through its bound `HasTransaction` capability, otherwise invokes the original registered admin-retry binding. The transaction register accepts the narrowed branch-free `transaction.RunAdmin` body. Student Presence's byte-identical `transaction.Run` is consistently classified as a direct binding, like the other branch-free tenant forwards. Neither registered operation is relocated or replaced.
+
+Feedback, Meal Plan and Request Feed constructor callbacks now use named native factories with injected context lookups; no tenant dependency grant is added. No exact blockers remain. No new alias, grant, exception, transaction-register key, checker allowance or router golden change.
 
 ## Package summary
 
@@ -83,7 +54,7 @@ Only DeviceScan retains runtime. Its native application has consumer ports and i
 | `modules/careplan/compose` | `care-plan` | 27 | 0 |
 | `modules/careplan/requestfeed/compose` | `care-plan` | 2 | 0 |
 | `modules/classday/compose` | `class-day-view` | 2 | 0 |
-| `modules/communication/composition` | `communication` | 5 | 1 |
+| `modules/communication/composition` | `communication` | 6 | 0 |
 | `modules/communication/parentstore` | `communication` | 23 | 0 |
 | `modules/communication/staffstore` | `communication` | 2 | 0 |
 | `modules/dataimport/compose` | `data-import` | 10 | 0 |
@@ -91,7 +62,7 @@ Only DeviceScan retains runtime. Its native application has consumer ports and i
 | `modules/delivery/compose` | `delivery-platform` | 9 | 0 |
 | `modules/devicefleet/compose` | `device-fleet` | 3 | 0 |
 | `modules/devicefleet/compose/repositoryadapter` | `device-fleet` | 0 | 0 |
-| `modules/devicescan/compose` | `process-device-scan` | 64 | 30 |
+| `modules/devicescan/compose` | `process-device-scan` | 26 | 0 |
 | `modules/emergencysnapshot/compose` | `emergency-snapshot` | 0 | 0 |
 | `modules/enrollment/compose` | `enrollment` | 2 | 0 |
 | `modules/exporttransfer/compose` | `export-transfer` | 6 | 0 |
@@ -121,7 +92,7 @@ Only DeviceScan retains runtime. Its native application has consumer ports and i
 | `modules/staffannouncementaudience` | `staff-announcement-audience` | 1 | 0 |
 | `modules/staffmessageinbox` | `staff-message-inbox` | 0 | 0 |
 | `modules/studentdirectoryview/compose` | `student-directory-view` | 0 | 0 |
-| `modules/studentpresence/compose` | `student-presence` | 7 | 1 |
+| `modules/studentpresence/compose` | `student-presence` | 7 | 0 |
 | `modules/studentpresence/compose/presenceservice` | `student-presence` | 3 | 0 |
 | `modules/supervisiondashboard/compose` | `calendar-view` | 1 | 0 |
 | `modules/timetable/compose` | `timetable-activities` | 29 | 0 |
@@ -193,8 +164,9 @@ No non-constructor functions.
 
 | Function | Source | Classification | Calls |
 |---|---|---|---|
-| `tokenAdapter.New` | [new.go:67](../../../backend/modules/careplan/requestfeed/compose/new.go#L67) | direct binding | `a.newToken` |
-| `tokenAdapter.Hash` | [new.go:68](../../../backend/modules/careplan/requestfeed/compose/new.go#L68) | direct binding | `a.hashToken` |
+| `tokenAdapter.New` | [new.go:52](../../../backend/modules/careplan/requestfeed/compose/new.go#L52) | direct binding | `a.newToken` |
+| `tokenAdapter.Hash` | [new.go:53](../../../backend/modules/careplan/requestfeed/compose/new.go#L53) | direct binding | `a.hashToken` |
+
 
 ### `modules/classday/compose`
 
@@ -206,22 +178,17 @@ No non-constructor functions.
 
 ### `modules/communication/composition`
 
-Round 9 set A, base `12608383f0f793e811f4379ec293f61efd6150c9`. Runtime retained: **1**.
-
 | Function | Source | Classification | Calls |
 |---|---|---|---|
-| `transaction.RunAdmin` | [new.go:55](../../../backend/modules/communication/composition/new.go#L55) | runtime retained | `tenant.TransactionFromContext`, `callback`, `tenant.WithinAdminRetry` |
-| `AudienceMapping` | [new.go:62](../../../backend/modules/communication/composition/new.go#L62) | construction/binding | `domain.Announcement`, `domain.AnnouncementViewDetail` |
-| `AnnouncementDatabase` | [new.go:76](../../../backend/modules/communication/composition/new.go#L76) | construction/binding | `postgres.NewAnnouncementDatabase` |
+| `transaction.RunAdmin` | [new.go:54](../../../backend/modules/communication/composition/new.go#L54) | direct binding | `tenant.WithinAdminRetry` |
+| `AudienceMapping` | [new.go:58](../../../backend/modules/communication/composition/new.go#L58) | construction/binding | `domain.Announcement`, `domain.AnnouncementViewDetail` |
+| `AnnouncementDatabase` | [new.go:72](../../../backend/modules/communication/composition/new.go#L72) | construction/binding | `postgres.NewAnnouncementDatabase` |
+| `transaction.HasTransaction` | [new.go:76](../../../backend/modules/communication/composition/new.go#L76) | direct binding | `application.TransactionPresent` |
 | `parentDatabase` | [parent_store.go:8](../../../backend/modules/communication/composition/parent_store.go#L8) | direct binding | `parentpostgres.NewCompositionParentDatabase` |
 | `InstrumentMessageQueries` | [query_observer.go:11](../../../backend/modules/communication/composition/query_observer.go#L11) | direct binding | `communicationPostgres.InstrumentMessageQueries` |
 
-Exact blocker: `modules/communication/composition/new.go:transaction.RunAdmin:tenant.WithinAdminRetry#1` is an existing #4088 register entry. Its partial move changes `compose` to `application`, so it cannot be a verified ADR 0020 relocation with identical roles and the complete Go filename set. The shrink-only register rejects the replacement key. The invocation and body remain unchanged; no register entry or checker allowance is added.
-
 
 ### `modules/communication/parentstore`
-
-Round 9 set A, base `12608383f0f793e811f4379ec293f61efd6150c9`. Runtime retained: **0**.
 
 | Function | Source | Classification | Calls |
 |---|---|---|---|
@@ -235,7 +202,7 @@ Round 9 set A, base `12608383f0f793e811f4379ec293f61efd6150c9`. Runtime retained
 | `ParentAnnouncementFixtures.InsertDeclarationVersion` | [announcement_fixtures_test_helpers.go:82](../../../backend/modules/communication/parentstore/announcement_fixtures_test_helpers.go#L82) | test-only | `f.repo.InsertDeclarationVersion` |
 | `ParentAnnouncementFixtures.ListDeclarationSubmissions` | [announcement_fixtures_test_helpers.go:90](../../../backend/modules/communication/parentstore/announcement_fixtures_test_helpers.go#L90) | test-only | `f.repo.ListDeclarationSubmissions` |
 | `announcementFixtureToRow` | [announcement_fixtures_test_helpers.go:95](../../../backend/modules/communication/parentstore/announcement_fixtures_test_helpers.go#L95) | test-only | `announcementTargetFixtureRows`, `announcementOptionFixtureRows`, `communication.PortalAnnouncementDeclarationSettings` |
-| `announcementFixtureFromRow` | [announcement_fixtures_test_helpers.go:124](../../../backend/modules/communication/parentstore/announcement_fixtures_test_helpers.go#L124) | test-only | `communication.ParentDeclarationSettings`, `make`, `len`, `announcementTargetFixture`, `make`, `len`, `announcementOptionFixture` |
+| `announcementFixtureFromRow` | [announcement_fixtures_test_helpers.go:124](../../../backend/modules/communication/parentstore/announcement_fixtures_test_helpers.go#L124) | test-only | `communication.ParentDeclarationSettings`, `make`, `len`, `announcementTargetFixture`, `announcementOptionFixture` |
 | `announcementTargetFixtureRows` | [announcement_fixtures_test_helpers.go:167](../../../backend/modules/communication/parentstore/announcement_fixtures_test_helpers.go#L167) | test-only | `make`, `len` |
 | `announcementTargetFixture` | [announcement_fixtures_test_helpers.go:189](../../../backend/modules/communication/parentstore/announcement_fixtures_test_helpers.go#L189) | test-only | none |
 | `announcementOptionFixtureRows` | [announcement_fixtures_test_helpers.go:203](../../../backend/modules/communication/parentstore/announcement_fixtures_test_helpers.go#L203) | test-only | `make`, `len` |
@@ -249,12 +216,8 @@ Round 9 set A, base `12608383f0f793e811f4379ec293f61efd6150c9`. Runtime retained
 | `WithInboxGroupNames` | [staff_projection.go:14](../../../backend/modules/communication/parentstore/staff_projection.go#L14) | direct binding | `parentpostgres.WithInboxGroupNames` |
 | `CurrentTenantStaffAccounts` | [staff_projection.go:17](../../../backend/modules/communication/parentstore/staff_projection.go#L17) | direct binding | `parentpostgres.CurrentTenantStaffAccounts` |
 
-`MessagingRepositories.WithSchoolNames` constructs the two native decorators only. The mappings, lookups, error propagation and collection processing live in the private adapters.
-
 
 ### `modules/communication/staffstore`
-
-Round 9 set A, base `12608383f0f793e811f4379ec293f61efd6150c9`. Runtime retained: **0**.
 
 | Function | Source | Classification | Calls |
 |---|---|---|---|
@@ -318,56 +281,18 @@ No non-constructor functions.
 |---|---|---|---|
 | `AttendanceTenantID` | [attendance_principal.go:11](../../../backend/modules/devicescan/compose/attendance_principal.go#L11) | direct binding | `tenant.FromContext` |
 | `MarkAttendanceRollback` | [attendance_principal.go:15](../../../backend/modules/devicescan/compose/attendance_principal.go#L15) | direct binding | `tenant.MarkRollback` |
-| `groupDirectory.Find` | [catalog.go:14](../../../backend/modules/devicescan/compose/catalog.go#L14) | runtime retained | `g.education.GetGroup` |
-| `pickupPlan.Effective` | [catalog.go:29](../../../backend/modules/devicescan/compose/catalog.go#L29) | runtime retained | `p.pickups.GetEffectivePickupTimeForDate`, `append` |
-| `clock.Now` | [compose.go:141](../../../backend/modules/devicescan/compose/compose.go#L141) | direct binding | `c.now` |
-| `clock.Day` | [compose.go:142](../../../backend/modules/devicescan/compose/compose.go#L142) | direct binding | `calendar.DateFromTime` |
-| `unitOfWork.RequireTransaction` | [compose.go:147](../../../backend/modules/devicescan/compose/compose.go#L147) | direct binding | `application.RequireTransaction` |
-| `unitOfWork.MarkRollback` | [compose.go:151](../../../backend/modules/devicescan/compose/compose.go#L151) | direct binding | `tenant.MarkRollback` |
-| `mappedError.Error` | [compose.go:160](../../../backend/modules/devicescan/compose/compose.go#L160) | direct binding | `e.err.Error` |
-| `mappedError.Unwrap` | [compose.go:161](../../../backend/modules/devicescan/compose/compose.go#L161) | direct binding | none |
-| `mappedError.Is` | [compose.go:162](../../../backend/modules/devicescan/compose/compose.go#L162) | direct binding | none |
-| `mapError` | [compose.go:164](../../../backend/modules/devicescan/compose/compose.go#L164) | direct binding | none |
+| `clock.Now` | [compose.go:129](../../../backend/modules/devicescan/compose/compose.go#L129) | direct binding | `c.now` |
+| `clock.Day` | [compose.go:130](../../../backend/modules/devicescan/compose/compose.go#L130) | direct binding | `calendar.DateFromTime` |
+| `unitOfWork.RequireTransaction` | [compose.go:135](../../../backend/modules/devicescan/compose/compose.go#L135) | direct binding | `application.RequireTransaction` |
+| `unitOfWork.MarkRollback` | [compose.go:139](../../../backend/modules/devicescan/compose/compose.go#L139) | direct binding | `tenant.MarkRollback` |
 | `directoryPeople.Teachers` | [directory.go:32](../../../backend/modules/devicescan/compose/directory.go#L32) | direct binding | `application.TeachersBinding` |
 | `feedbackStudents.LockFeedbackStudent` | [feedback_students.go:23](../../../backend/modules/devicescan/compose/feedback_students.go#L23) | direct binding | `application.LockFeedbackStudentBinding` |
-| `openRoomMover.MoveToOpenRoom` | [open_room.go:56](../../../backend/modules/devicescan/compose/open_room.go#L56) | runtime retained | `m.move`, `m.translate`, `slices.Contains` |
-| `openRoomMover.translate` | [open_room.go:76](../../../backend/modules/devicescan/compose/open_room.go#L76) | runtime retained | `errors.AsType`, `errors.Is`, `fmt.Errorf` |
 | `people.FindPersonByTag` | [people.go:29](../../../backend/modules/devicescan/compose/people.go#L29) | direct binding | `application.FindPersonByTagBinding` |
 | `people.FindStudentByPerson` | [people.go:33](../../../backend/modules/devicescan/compose/people.go#L33) | direct binding | `application.FindStudentByPersonBinding` |
 | `people.FindStaffByPerson` | [people.go:37](../../../backend/modules/devicescan/compose/people.go#L37) | direct binding | `application.FindStaffByPersonBinding` |
-| `classifyPresence` | [presence.go:18](../../../backend/modules/devicescan/compose/presence.go#L18) | runtime retained | `errors.Is`, `mapError`, `err.` |
-| `visits.Current` | [presence.go:62](../../../backend/modules/devicescan/compose/presence.go#L62) | runtime retained | `v.active.GetStudentCurrentVisitWithRoom`, `errors.Is` |
-| `visits.End` | [presence.go:83](../../../backend/modules/devicescan/compose/presence.go#L83) | direct binding | `v.active.EndVisit` |
-| `visits.Record` | [presence.go:85](../../../backend/modules/devicescan/compose/presence.go#L85) | runtime retained | `v.clock.Now`, `v.active.CreateVisit`, `errors.As`, `errors.Is`, `mapError` |
-| `sessionFromGroup` | [presence.go:119](../../../backend/modules/devicescan/compose/presence.go#L119) | runtime retained | none |
-| `sessions.ListOpenInRoom` | [presence.go:138](../../../backend/modules/devicescan/compose/presence.go#L138) | runtime retained | `s.presence.QueryLiveGroups`, `fmt.Errorf`, `make`, `len`, `append` |
-| `sessions.FindDeviceSessionInRoom` | [presence.go:153](../../../backend/modules/devicescan/compose/presence.go#L153) | runtime retained | `s.active.FindDeviceActiveGroupInRoom`, `sessionFromGroup` |
-| `sessions.Current` | [presence.go:165](../../../backend/modules/devicescan/compose/presence.go#L165) | runtime retained | `s.active.GetDeviceCurrentSession`, `errors.Is`, `sessionFromGroup` |
-| `sessions.Start` | [presence.go:180](../../../backend/modules/devicescan/compose/presence.go#L180) | runtime retained | `s.clock.Now`, `s.active.CreateActiveGroup` |
-| `sessions.EnsureRoomSession` | [presence.go:193](../../../backend/modules/devicescan/compose/presence.go#L193) | runtime retained | `s.active.EnsureOpenRoomSession`, `sessionFromGroup` |
-| `sessions.Delete` | [presence.go:201](../../../backend/modules/devicescan/compose/presence.go#L201) | direct binding | `s.active.DeleteActiveGroup` |
-| `sessions.End` | [presence.go:205](../../../backend/modules/devicescan/compose/presence.go#L205) | runtime retained | `s.active.EndActiveGroupSession`, `errors.Is` |
-| `sessions.Touch` | [presence.go:213](../../../backend/modules/devicescan/compose/presence.go#L213) | direct binding | `s.active.UpdateSessionActivity` |
-| `sessions.Supervisors` | [presence.go:217](../../../backend/modules/devicescan/compose/presence.go#L217) | runtime retained | `s.presence.QueryLiveGroups`, `len`, `s.clock.Day`, `s.clock.Now`, `today.String`, `s.presence.QueryGroupSupervisions`, `make`, `append`, `supervisionEnded` |
-| `sessions.ReplaceSupervisors` | [presence.go:236](../../../backend/modules/devicescan/compose/presence.go#L236) | runtime retained | `s.active.UpdateActiveGroupSupervisors` |
-| `attendance.Status` | [presence.go:245](../../../backend/modules/devicescan/compose/presence.go#L245) | runtime retained | `a.active.GetStudentAttendanceStatus` |
-| `attendance.Toggle` | [presence.go:256](../../../backend/modules/devicescan/compose/presence.go#L256) | runtime retained | `a.active.ToggleStudentAttendance`, `classifyPresence` |
-| `attendance.ConfirmDailyCheckout` | [presence.go:264](../../../backend/modules/devicescan/compose/presence.go#L264) | runtime retained | `a.active.ConfirmDailyCheckout`, `errors.Is`, `mapError`, `classifyPresence` |
-| `supervisionQuery.ActiveSupervisions` | [session_lifecycle.go:40](../../../backend/modules/devicescan/compose/session_lifecycle.go#L40) | runtime retained | `calendar.TodayDate`, `today.String`, `q.source.QueryGroupSupervisions`, `make`, `len`, `append`, `supervisionEnded` |
-| `lifecycleSession` | [session_lifecycle.go:59](../../../backend/modules/devicescan/compose/session_lifecycle.go#L59) | runtime retained | `lifecycleSupervisors` |
-| `lifecycleSupervisors` | [session_lifecycle.go:73](../../../backend/modules/devicescan/compose/session_lifecycle.go#L73) | runtime retained | `calendar.TodayDate`, `.String`, `make`, `len`, `append`, `supervisionEnded` |
-| `supervisionEnded` | [session_lifecycle.go:84](../../../backend/modules/devicescan/compose/session_lifecycle.go#L84) | direct binding | `application.SupervisionEnded` |
-| `lifecycleStore.Start` | [session_lifecycle.go:88](../../../backend/modules/devicescan/compose/session_lifecycle.go#L88) | runtime retained | `s.active.ForceStartActivitySessionWithSupervisors`, `s.active.StartActivitySessionWithSupervisors`, `errors.Is`, `classifyPresence`, `lifecycleSession` |
-| `lifecycleStore.Current` | [session_lifecycle.go:102](../../../backend/modules/devicescan/compose/session_lifecycle.go#L102) | runtime retained | `s.active.GetDeviceCurrentSession`, `classifyPresence`, `errors.Is`, `mapError`, `lifecycleSession` |
-| `lifecycleStore.Conflict` | [session_lifecycle.go:118](../../../backend/modules/devicescan/compose/session_lifecycle.go#L118) | runtime retained | `s.active.CheckActivityConflict`, `classifyPresence`, `strconv.ParseInt` |
-| `lifecycleStore.Supervisors` | [session_lifecycle.go:132](../../../backend/modules/devicescan/compose/session_lifecycle.go#L132) | direct binding | `application.LifecycleSupervisorsBinding` |
-| `lifecycleStore.ReplaceSupervisors` | [session_lifecycle.go:136](../../../backend/modules/devicescan/compose/session_lifecycle.go#L136) | runtime retained | `s.active.UpdateActiveGroupSupervisors`, `lifecycleSession`, `classifyPresence` |
-| `lifecycleStore.CountStudents` | [session_lifecycle.go:141](../../../backend/modules/devicescan/compose/session_lifecycle.go#L141) | direct binding | `s.active.CountActiveVisitsByActiveGroupID` |
-| `lifecycleStore.Touch` | [session_lifecycle.go:145](../../../backend/modules/devicescan/compose/session_lifecycle.go#L145) | runtime retained | `classifyPresence`, `s.active.UpdateSessionActivity` |
-| `lifecycleStore.Timeout` | [session_lifecycle.go:149](../../../backend/modules/devicescan/compose/session_lifecycle.go#L149) | runtime retained | `s.active.ProcessSessionTimeout`, `classifyPresence`, `errors.Is`, `mapError` |
-| `lifecycleStore.ValidateTimeout` | [session_lifecycle.go:161](../../../backend/modules/devicescan/compose/session_lifecycle.go#L161) | runtime retained | `classifyPresence`, `s.active.ValidateSessionTimeout` |
-| `lifecycleStore.TimeoutInfo` | [session_lifecycle.go:165](../../../backend/modules/devicescan/compose/session_lifecycle.go#L165) | runtime retained | `s.active.GetSessionTimeoutInfo`, `classifyPresence`, `int`, `info.InactivityDuration.Seconds`, `info.TimeUntilTimeout.Seconds` |
-| `lifecyclePeople.StaffNames` | [session_lifecycle.go:175](../../../backend/modules/devicescan/compose/session_lifecycle.go#L175) | direct binding | `application.StaffNamesBinding` |
+| `lifecyclePeople.StaffNames` | [session_lifecycle.go:31](../../../backend/modules/devicescan/compose/session_lifecycle.go#L31) | direct binding | `application.StaffNamesBinding` |
+| `SupervisionEnded` | [session_lifecycle.go:35](../../../backend/modules/devicescan/compose/session_lifecycle.go#L35) | direct binding | `application.SupervisionEnded` |
+| `LifecycleSupervisorsBinding` | [session_lifecycle.go:39](../../../backend/modules/devicescan/compose/session_lifecycle.go#L39) | direct binding | `application.LifecycleSupervisorsBinding` |
 | `settings.PresenceMode` | [settings.go:25](../../../backend/modules/devicescan/compose/settings.go#L25) | direct binding | `s.active.GetPresenceMode` |
 | `settings.FeedbackEnabled` | [settings.go:29](../../../backend/modules/devicescan/compose/settings.go#L29) | direct binding | `application.FeedbackEnabledBinding` |
 | `settings.CapacityDetailsDisclosed` | [settings.go:33](../../../backend/modules/devicescan/compose/settings.go#L33) | direct binding | `application.CapacityDetailsDisclosedBinding` |
@@ -429,9 +354,10 @@ No non-constructor functions.
 
 | Function | Source | Classification | Calls |
 |---|---|---|---|
-| `TransactionFunc.Run` | [new.go:19](../../../backend/modules/feedback/compose/new.go#L19) | direct binding | `fn` |
-| `*Settings.FeedbackEnabled` | [new.go:84](../../../backend/modules/feedback/compose/new.go#L84) | direct binding | `s.enabled` |
-| `*Settings.FeedbackRetentionDays` | [new.go:86](../../../backend/modules/feedback/compose/new.go#L86) | direct binding | `s.retention` |
+| `TransactionFunc.Run` | [new.go:17](../../../backend/modules/feedback/compose/new.go#L17) | direct binding | `fn` |
+| `*Settings.FeedbackEnabled` | [new.go:59](../../../backend/modules/feedback/compose/new.go#L59) | direct binding | `s.enabled` |
+| `*Settings.FeedbackRetentionDays` | [new.go:61](../../../backend/modules/feedback/compose/new.go#L61) | direct binding | `s.retention` |
+
 
 ### `modules/filestorage/compose`
 
@@ -495,16 +421,18 @@ No non-constructor functions.
 
 | Function | Source | Classification | Calls |
 |---|---|---|---|
-| `TransactionFunc.Run` | [new.go:19](../../../backend/modules/mealplan/compose/new.go#L19) | direct binding | `fn` |
-| `*Settings.MealPlanEnabled` | [new.go:76](../../../backend/modules/mealplan/compose/new.go#L76) | direct binding | `s.mealPlanEnabled` |
-| `*Settings.MealRegistrationEnabled` | [new.go:78](../../../backend/modules/mealplan/compose/new.go#L78) | direct binding | `s.mealRegistrationEnabled` |
-| `*Settings.MealRegistrationCutoff` | [new.go:82](../../../backend/modules/mealplan/compose/new.go#L82) | direct binding | `s.mealRegistrationCutoff` |
+| `TransactionFunc.Run` | [new.go:18](../../../backend/modules/mealplan/compose/new.go#L18) | direct binding | `fn` |
+| `*Settings.MealPlanEnabled` | [new.go:61](../../../backend/modules/mealplan/compose/new.go#L61) | direct binding | `s.mealPlanEnabled` |
+| `*Settings.MealRegistrationEnabled` | [new.go:63](../../../backend/modules/mealplan/compose/new.go#L63) | direct binding | `s.mealRegistrationEnabled` |
+| `*Settings.MealRegistrationCutoff` | [new.go:67](../../../backend/modules/mealplan/compose/new.go#L67) | direct binding | `s.mealRegistrationCutoff` |
+
 
 ### `modules/operatordashboard`
 
 | Function | Source | Classification | Calls |
 |---|---|---|---|
 | `Map` | [new.go:14](../../../backend/modules/operatordashboard/new.go#L14) | direct binding | `postgres.Map` |
+
 
 ### `modules/organizationtenancy/compose`
 
@@ -572,8 +500,6 @@ No non-constructor functions.
 
 ### `modules/requestreview/compose`
 
-Round 9 set A, base `12608383f0f793e811f4379ec293f61efd6150c9`. Runtime retained: **0**.
-
 No non-constructor functions.
 
 
@@ -582,6 +508,7 @@ No non-constructor functions.
 | Function | Source | Classification | Calls |
 |---|---|---|---|
 | `SettingKeys` | [compose.go:21](../../../backend/modules/schedulerruntime/compose/compose.go#L21) | direct binding | `scheduler.SettingKeys` |
+
 
 ### `modules/schoolcalendar/compose`
 
@@ -609,6 +536,7 @@ No non-constructor functions.
 | `StudentClassWriteGateQuery` | [student_class_gate.go:14](../../../backend/modules/schoolmembership/compose/student_class_gate.go#L14) | direct binding | `postgres.ResolveStudentClassWriteGate` |
 | `StudentClassWriteGate` | [student_class_gate.go:20](../../../backend/modules/schoolmembership/compose/student_class_gate.go#L20) | direct binding | `StudentClassWriteGateQuery` |
 
+
 ### `modules/schoolsetup/compose`
 
 | Function | Source | Classification | Calls |
@@ -616,33 +544,35 @@ No non-constructor functions.
 | `ambientTx` | [compose.go:48](../../../backend/modules/schoolsetup/compose/compose.go#L48) | construction/binding | `schoolsetupview.AmbientTx`, `tenant.TransactionFromContext` |
 | `AmbientRuntime.DB` | [compose.go:56](../../../backend/modules/schoolsetup/compose/compose.go#L56) | construction/binding | `ambientTx` |
 
+
 ### `modules/schoolstructure/compose`
 
 | Function | Source | Classification | Calls |
 |---|---|---|---|
 | `legacyTeacher` | [group_values_test_helpers.go:13](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L13) | test-only | `groups.TeacherPerson` |
 | `legacyGroupError` | [group_values_test_helpers.go:25](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L25) | test-only | `retainedGroupError` |
-| `retainedGroupError` | [group_values_test_helpers.go:29](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L29) | test-only | `legacyGroupError`, `legacyGroupError`, `groups.MapGroupErrorCauses` |
+| `retainedGroupError` | [group_values_test_helpers.go:29](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L29) | test-only | `err.`, `legacyGroupError`, `groups.MapGroupErrorCauses` |
 | `legacyGroupQuery` | [group_values_test_helpers.go:74](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L74) | test-only | `schoolstructure.GroupListQuery` |
 | `LegacyGroupManagement` | [group_values_test_helpers.go:90](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L90) | test-only | none |
 | `*legacyGroupManagement.GetGroup` | [group_values_test_helpers.go:94](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L94) | test-only | `s.capability.GetGroup`, `groups.LegacyGroup`, `legacyGroupError` |
 | `*legacyGroupManagement.FindGroupWithRoom` | [group_values_test_helpers.go:98](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L98) | test-only | `s.capability.FindGroupWithRoom`, `groups.LegacyGroup`, `legacyGroupError` |
-| `*legacyGroupManagement.GetGroupsByIDs` | [group_values_test_helpers.go:102](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L102) | test-only | `s.capability.GetGroupsByIDs`, `legacyGroupError`, `make`, `len`, `groups.LegacyGroup`, `legacyGroupError` |
-| `*legacyGroupManagement.GetGroupsWithRoomsByIDs` | [group_values_test_helpers.go:113](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L113) | test-only | `s.capability.GetGroupsWithRoomsByIDs`, `legacyGroupError`, `make`, `len`, `groups.LegacyGroup`, `legacyGroupError` |
+| `*legacyGroupManagement.GetGroupsByIDs` | [group_values_test_helpers.go:102](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L102) | test-only | `s.capability.GetGroupsByIDs`, `legacyGroupError`, `make`, `len`, `groups.LegacyGroup` |
+| `*legacyGroupManagement.GetGroupsWithRoomsByIDs` | [group_values_test_helpers.go:113](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L113) | test-only | `s.capability.GetGroupsWithRoomsByIDs`, `legacyGroupError`, `make`, `len`, `groups.LegacyGroup` |
 | `*legacyGroupManagement.CreateGroup` | [group_values_test_helpers.go:124](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L124) | test-only | `groups.PublicGroup`, `s.capability.CreateGroup`, `groups.LegacyGroup`, `legacyGroupError` |
 | `*legacyGroupManagement.UpdateGroup` | [group_values_test_helpers.go:132](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L132) | test-only | `groups.PublicGroup`, `s.capability.UpdateGroup`, `groups.LegacyGroup`, `legacyGroupError` |
 | `*legacyGroupManagement.DeleteGroup` | [group_values_test_helpers.go:140](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L140) | test-only | `legacyGroupError`, `s.capability.DeleteGroup` |
-| `*legacyGroupManagement.ListGroups` | [group_values_test_helpers.go:143](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L143) | test-only | `s.capability.ListGroups`, `legacyGroupQuery`, `legacyGroupError`, `make`, `len`, `groups.LegacyGroup`, `legacyGroupError` |
+| `*legacyGroupManagement.ListGroups` | [group_values_test_helpers.go:143](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L143) | test-only | `s.capability.ListGroups`, `legacyGroupQuery`, `legacyGroupError`, `make`, `len`, `groups.LegacyGroup` |
 | `*legacyGroupManagement.CountGroups` | [group_values_test_helpers.go:154](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L154) | test-only | `s.capability.CountGroups`, `legacyGroupQuery`, `legacyGroupError` |
-| `*legacyGroupManagement.GetTeacherGroups` | [group_values_test_helpers.go:158](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L158) | test-only | `s.capability.GetTeacherGroups`, `legacyGroupError`, `make`, `len`, `groups.LegacyGroup`, `legacyGroupError` |
-| `*legacyGroupManagement.GetGroupTeachers` | [group_values_test_helpers.go:169](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L169) | test-only | `s.capability.GetGroupTeachers`, `legacyGroupError`, `make`, `len`, `legacyTeacher`, `legacyGroupError` |
-| `*legacyGroupManagement.GetTeachersForGroups` | [group_values_test_helpers.go:180](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L180) | test-only | `s.capability.GetTeachersForGroups`, `legacyGroupError`, `make`, `len`, `make`, `len`, `legacyTeacher`, `legacyGroupError` |
+| `*legacyGroupManagement.GetTeacherGroups` | [group_values_test_helpers.go:158](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L158) | test-only | `s.capability.GetTeacherGroups`, `legacyGroupError`, `make`, `len`, `groups.LegacyGroup` |
+| `*legacyGroupManagement.GetGroupTeachers` | [group_values_test_helpers.go:169](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L169) | test-only | `s.capability.GetGroupTeachers`, `legacyGroupError`, `make`, `len`, `legacyTeacher` |
+| `*legacyGroupManagement.GetTeachersForGroups` | [group_values_test_helpers.go:180](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L180) | test-only | `s.capability.GetTeachersForGroups`, `legacyGroupError`, `make`, `len`, `legacyTeacher` |
 | `*legacyGroupManagement.RemoveTeacherFromGroup` | [group_values_test_helpers.go:199](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L199) | test-only | `legacyGroupError`, `s.capability.RemoveTeacherFromGroup` |
 | `*legacyGroupManagement.UpdateGroupTeachers` | [group_values_test_helpers.go:202](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L202) | test-only | `legacyGroupError`, `s.capability.UpdateGroupTeachers` |
 | `*legacyGroupManagement.GetStaffSchoolClasses` | [group_values_test_helpers.go:205](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L205) | test-only | `s.capability.GetStaffSchoolClasses`, `legacyGroupError` |
 | `*legacyGroupManagement.SetStaffSchoolClasses` | [group_values_test_helpers.go:209](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L209) | test-only | `legacyGroupError`, `s.capability.SetStaffSchoolClasses` |
 | `publicGroupError` | [group_values_test_helpers.go:242](../../../backend/modules/schoolstructure/compose/group_values_test_helpers.go#L242) | test-only | `groups.PublicGroupError` |
 | `*TeacherGroupIDs.TeacherGroupIDs` | [teacher_group_ids_test_helpers.go:21](../../../backend/modules/schoolstructure/compose/teacher_group_ids_test_helpers.go#L21) | test-only | `r.records.GetTeacherGroups`, `make`, `len`, `append` |
+
 
 ### `modules/settings/compose`
 
@@ -672,6 +602,7 @@ No non-constructor functions.
 |---|---|---|---|
 | `Map` | [new.go:10](../../../backend/modules/staffannouncementaudience/new.go#L10) | direct binding | `postgres.Map` |
 
+
 ### `modules/staffmessageinbox`
 
 No non-constructor functions.
@@ -684,26 +615,18 @@ No non-constructor functions.
 
 ### `modules/studentpresence/compose`
 
-Round 9 set A, base `12608383f0f793e811f4379ec293f61efd6150c9`. Runtime retained: **1**.
-
 | Function | Source | Classification | Calls |
 |---|---|---|---|
 | `PersistenceDatabaseForTest` | [ambient_scope_test_helpers.go:11](../../../backend/modules/studentpresence/compose/ambient_scope_test_helpers.go#L11) | test-only | `databaseRuntime` |
 | `sessionAttendancePorts` | [new.go:47](../../../backend/modules/studentpresence/compose/new.go#L47) | construction/binding | `application.NewPlannedRoster`, `application.NewCarePlanDirectory` |
 | `databaseRuntime` | [new.go:63](../../../backend/modules/studentpresence/compose/new.go#L63) | construction/binding | none |
-| `transaction.Run` | [new.go:69](../../../backend/modules/studentpresence/compose/new.go#L69) | runtime retained | `tenant.NewTransactionRunner().RunInTx`, `tenant.NewTransactionRunner` |
+| `transaction.Run` | [new.go:69](../../../backend/modules/studentpresence/compose/new.go#L69) | direct binding | `tenant.NewTransactionRunner`, `.RunInTx` |
 | `FailureLogger` | [observers.go:9](../../../backend/modules/studentpresence/compose/observers.go#L9) | direct binding | `application.FailureLogger` |
 | `DebugLogger` | [observers.go:10](../../../backend/modules/studentpresence/compose/observers.go#L10) | direct binding | `application.DebugLogger` |
 | `SessionRepositories` | [session_records.go:76](../../../backend/modules/studentpresence/compose/session_records.go#L76) | direct binding | `application.SessionRepositories` |
 
-Exact blocker: `modules/studentpresence/compose/new.go:transaction.Run:tenant.NewTransactionRunner().RunInTx#1` is an existing #4088 register entry. Its partial move changes `compose` to `application`, so it cannot be a verified ADR 0020 relocation with identical roles and the complete Go filename set. The shrink-only register rejects the replacement key. The invocation and body remain unchanged; no register entry or checker allowance is added.
-
-`sessionAttendancePorts` only constructs optional adapters from the three constructor arguments. `databaseRuntime` binds the existing ambient database accessor. Neither evaluates a request or executes SQL.
-
 
 ### `modules/studentpresence/compose/presenceservice`
-
-Round 9 set A, base `12608383f0f793e811f4379ec293f61efd6150c9`. Runtime retained: **0**.
 
 | Function | Source | Classification | Calls |
 |---|---|---|---|
@@ -717,6 +640,7 @@ Round 9 set A, base `12608383f0f793e811f4379ec293f61efd6150c9`. Runtime retained
 | Function | Source | Classification | Calls |
 |---|---|---|---|
 | `CompareRoomNames` | [compose.go:9](../../../backend/modules/supervisiondashboard/compose/compose.go#L9) | direct binding | `legacy.CompareNames` |
+
 
 ### `modules/timetable/compose`
 
@@ -806,6 +730,7 @@ No non-constructor functions.
 |---|---|---|---|
 | `InstallProcessLogger` | [process_logger.go:12](../../../backend/observability/compose/process_logger.go#L12) | construction/binding | `newProcessLogger`, `applog.ConfigureDefault` |
 
+
 ### `workflows/gradetransition/compose`
 
 No non-constructor functions.
@@ -813,22 +738,16 @@ No non-constructor functions.
 
 ### `workflows/openroommove/compose`
 
-Round 9 set A, base `12608383f0f793e811f4379ec293f61efd6150c9`. Runtime retained: **0**.
-
 No non-constructor functions.
 
 
 ### `workflows/parentportal/compose`
-
-Round 9 set A, base `12608383f0f793e811f4379ec293f61efd6150c9`. Runtime retained: **0**.
 
 | Function | Source | Classification | Calls |
 |---|---|---|---|
 | `careConfig` | [new.go:115](../../../backend/workflows/parentportal/compose/new.go#L115) | construction/binding | `newGuardianChanges`, `messagingFlows.ChildFlowSharing`, `newMealPlan` |
 | `messagingConfig` | [new.go:146](../../../backend/workflows/parentportal/compose/new.go#L146) | construction/binding | none |
 | `bindOwners` | [new.go:170](../../../backend/workflows/parentportal/compose/new.go#L170) | construction/binding | `newGuardianRecords`, `newStudentRecords` |
-
-`careConfig`, `messagingConfig` and `bindOwners` only assemble dependencies and select optional construction inputs. Their branches inspect dependency nilness, not request/domain state. Their callbacks are one-statement type conversions or field bindings with no branch, iteration, transaction or query. All error decisions, nil-flag interpretation, row iteration and tenant deduplication live in care application.
 
 
 ### `workflows/reminderdelivery/compose`
@@ -837,8 +756,6 @@ No non-constructor functions.
 
 
 ### `workflows/sessionend/compose`
-
-Round 9 set A, base `12608383f0f793e811f4379ec293f61efd6150c9`. Runtime retained: **0**.
 
 No non-constructor functions.
 
@@ -865,14 +782,27 @@ No non-constructor functions.
 
 ## Callback bodies, including constructors
 
-A callback that only forwards native values is binding. Multiple statements, branches or iterations below are retained runtime unless the enclosing factory only assembles the callback itself. These entries are not claimed as constructor-only evidence.
+All production callbacks below bind or forward native values without runtime branches or iteration. Runtime callbacks formerly in Feedback, Meal Plan and Request Feed now have named native factories.
 
 | Package | Enclosing declaration | Source line | Statements | Branches/loops | Calls | Scope |
 |---|---|---|---:|---:|---:|---|
-| `modules/communication/composition` | `AudienceMapping` | [new.go:64](../../../backend/modules/communication/composition/new.go#L64) | 1 | 0 | 1 | production |
-| `modules/communication/composition` | `AudienceMapping` | [new.go:65](../../../backend/modules/communication/composition/new.go#L65) | 1 | 0 | 0 | production |
-| `modules/communication/composition` | `AudienceMapping` | [new.go:68](../../../backend/modules/communication/composition/new.go#L68) | 1 | 0 | 1 | production |
-| `modules/communication/composition` | `AudienceMapping` | [new.go:69](../../../backend/modules/communication/composition/new.go#L69) | 1 | 0 | 0 | production |
+| `modules/enrollment/compose` | `tenantRuntime` | [application.go:156](../../../backend/modules/enrollment/compose/application.go#L156) | 1 | 0 | 3 | production |
+| `modules/enrollment/compose` | `tenantRuntime` | [application.go:157](../../../backend/modules/enrollment/compose/application.go#L157) | 1 | 0 | 1 | production |
+| `modules/enrollment/compose` | `tenantRuntime` | [application.go:159](../../../backend/modules/enrollment/compose/application.go#L159) | 1 | 0 | 3 | production |
+| `modules/enrollment/compose` | `tenantRuntime` | [application.go:160](../../../backend/modules/enrollment/compose/application.go#L160) | 1 | 0 | 1 | production |
+| `modules/exporttransfer/compose` | `retainedNewDetachedContext` | [compose_bindings_callback_detached_context.go:10](../../../backend/modules/exporttransfer/compose/compose_bindings_callback_detached_context.go#L10) | 1 | 0 | 2 | production |
+| `modules/dataimport/compose` | `Observe` | [transactions.go:39](../../../backend/modules/dataimport/compose/transactions.go#L39) | 1 | 0 | 1 | production |
+| `modules/delivery/compose` | `NewPushAuthorizationChecker` | [provider.go:40](../../../backend/modules/delivery/compose/provider.go#L40) | 1 | 0 | 1 | production |
+| `modules/delivery/compose` | `NewExpiredPushSubscriptionCleaner` | [provider.go:48](../../../backend/modules/delivery/compose/provider.go#L48) | 1 | 0 | 1 | production |
+| `modules/delivery/compose` | `NewTenantTransactions` | [tenant_transactions.go:23](../../../backend/modules/delivery/compose/tenant_transactions.go#L23) | 1 | 0 | 2 | production |
+| `modules/delivery/compose` | `NewTenantTransactions` | [tenant_transactions.go:24](../../../backend/modules/delivery/compose/tenant_transactions.go#L24) | 1 | 0 | 1 | production |
+| `modules/peopledirectory/compose` | `LoadForTenant` | [guardian_profile_loader.go:39](../../../backend/modules/peopledirectory/compose/guardian_profile_loader.go#L39) | 1 | 0 | 0 | production |
+| `modules/peopledirectory/compose` | `LoadForTenant` | [guardian_profile_loader.go:39](../../../backend/modules/peopledirectory/compose/guardian_profile_loader.go#L39) | 1 | 0 | 0 | production |
+| `modules/peopledirectory/compose` | `MustNewReads` | [new.go:145](../../../backend/modules/peopledirectory/compose/new.go#L145) | 0 | 0 | 0 | production |
+| `modules/facilities/compose` | `NewUnobserved` | [unobserved.go:17](../../../backend/modules/facilities/compose/unobserved.go#L17) | 1 | 0 | 0 | production |
+| `modules/facilities/compose` | `NewUnobserved` | [unobserved.go:21](../../../backend/modules/facilities/compose/unobserved.go#L21) | 0 | 0 | 0 | production |
+| `modules/workforce/compose` | `NewStaffShiftLock` | [staff_shift_lock.go:19](../../../backend/modules/workforce/compose/staff_shift_lock.go#L19) | 1 | 0 | 1 | production |
+| `modules/workforce/compose` | `NewStaffEmployment` | [staffemployment.go:23](../../../backend/modules/workforce/compose/staffemployment.go#L23) | 0 | 0 | 0 | production |
 | `workflows/openroommove/compose` | `New` | [new.go:40](../../../backend/workflows/openroommove/compose/new.go#L40) | 1 | 0 | 1 | production |
 | `workflows/parentportal/compose` | `newGuardianRecords` | [owner_bindings.go:23](../../../backend/workflows/parentportal/compose/owner_bindings.go#L23) | 1 | 0 | 1 | production |
 | `workflows/parentportal/compose` | `newGuardianRecords` | [owner_bindings.go:26](../../../backend/workflows/parentportal/compose/owner_bindings.go#L26) | 1 | 0 | 1 | production |
@@ -887,20 +817,13 @@ A callback that only forwards native values is binding. Multiple statements, bra
 | `workflows/parentportal/compose` | `newMealPlan` | [platform_bindings.go:30](../../../backend/workflows/parentportal/compose/platform_bindings.go#L30) | 1 | 0 | 2 | production |
 | `workflows/parentportal/compose` | `newMealPlan` | [platform_bindings.go:33](../../../backend/workflows/parentportal/compose/platform_bindings.go#L33) | 1 | 0 | 0 | production |
 | `workflows/parentportal/compose` | `newMealPlan` | [platform_bindings.go:36](../../../backend/workflows/parentportal/compose/platform_bindings.go#L36) | 1 | 0 | 0 | production |
+| `modules/schoolmembership/compose` | `StudentClassWriteGate` | [student_class_gate.go:21](../../../backend/modules/schoolmembership/compose/student_class_gate.go#L21) | 1 | 0 | 1 | production |
+| `modules/communication/composition` | `AudienceMapping` | [new.go:60](../../../backend/modules/communication/composition/new.go#L60) | 1 | 0 | 1 | production |
+| `modules/communication/composition` | `AudienceMapping` | [new.go:61](../../../backend/modules/communication/composition/new.go#L61) | 1 | 0 | 0 | production |
+| `modules/communication/composition` | `AudienceMapping` | [new.go:64](../../../backend/modules/communication/composition/new.go#L64) | 1 | 0 | 1 | production |
+| `modules/communication/composition` | `AudienceMapping` | [new.go:65](../../../backend/modules/communication/composition/new.go#L65) | 1 | 0 | 0 | production |
 | `modules/careplan/compose` | `NewExcusedAbsenceRequests` | [excused_requests.go:63](../../../backend/modules/careplan/compose/excused_requests.go#L63) | 0 | 0 | 0 | production |
 | `modules/careplan/compose` | `LockWeeklyPickupStudents` | [pickup_excusal.go:44](../../../backend/modules/careplan/compose/pickup_excusal.go#L44) | 1 | 0 | 1 | production |
-| `modules/dataimport/compose` | `Observe` | [transactions.go:39](../../../backend/modules/dataimport/compose/transactions.go#L39) | 1 | 0 | 1 | production |
-| `modules/delivery/compose` | `NewPushAuthorizationChecker` | [provider.go:40](../../../backend/modules/delivery/compose/provider.go#L40) | 1 | 0 | 1 | production |
-| `modules/delivery/compose` | `NewExpiredPushSubscriptionCleaner` | [provider.go:48](../../../backend/modules/delivery/compose/provider.go#L48) | 1 | 0 | 1 | production |
-| `modules/delivery/compose` | `NewTenantTransactions` | [tenant_transactions.go:23](../../../backend/modules/delivery/compose/tenant_transactions.go#L23) | 1 | 0 | 2 | production |
-| `modules/delivery/compose` | `NewTenantTransactions` | [tenant_transactions.go:24](../../../backend/modules/delivery/compose/tenant_transactions.go#L24) | 1 | 0 | 1 | production |
-| `modules/enrollment/compose` | `tenantRuntime` | [application.go:156](../../../backend/modules/enrollment/compose/application.go#L156) | 1 | 0 | 3 | production |
-| `modules/enrollment/compose` | `tenantRuntime` | [application.go:157](../../../backend/modules/enrollment/compose/application.go#L157) | 1 | 0 | 1 | production |
-| `modules/enrollment/compose` | `tenantRuntime` | [application.go:159](../../../backend/modules/enrollment/compose/application.go#L159) | 1 | 0 | 3 | production |
-| `modules/enrollment/compose` | `tenantRuntime` | [application.go:160](../../../backend/modules/enrollment/compose/application.go#L160) | 1 | 0 | 1 | production |
-| `modules/exporttransfer/compose` | `retainedNewDetachedContext` | [compose_bindings_callback_detached_context.go:10](../../../backend/modules/exporttransfer/compose/compose_bindings_callback_detached_context.go#L10) | 1 | 0 | 2 | production |
-| `modules/facilities/compose` | `NewUnobserved` | [unobserved.go:17](../../../backend/modules/facilities/compose/unobserved.go#L17) | 1 | 0 | 0 | production |
-| `modules/facilities/compose` | `NewUnobserved` | [unobserved.go:21](../../../backend/modules/facilities/compose/unobserved.go#L21) | 0 | 0 | 0 | production |
 | `modules/identityaccess/compose` | `newAccountLifecycle` | [account_lifecycle.go:60](../../../backend/modules/identityaccess/compose/account_lifecycle.go#L60) | 1 | 0 | 0 | production |
 | `modules/identityaccess/compose` | `NewInvitationMaintenance` | [maintenance.go:25](../../../backend/modules/identityaccess/compose/maintenance.go#L25) | 0 | 0 | 0 | production |
 | `modules/identityaccess/compose` | `NewGuardianSeedAccess` | [maintenance.go:36](../../../backend/modules/identityaccess/compose/maintenance.go#L36) | 0 | 0 | 0 | production |
@@ -908,19 +831,8 @@ A callback that only forwards native values is binding. Multiple statements, bra
 | `modules/identityaccess/compose` | `NewSessionMaintenance` | [maintenance.go:84](../../../backend/modules/identityaccess/compose/maintenance.go#L84) | 1 | 0 | 0 | production |
 | `modules/identityaccess/compose` | `withPasskeyFlows` | [mfa.go:91](../../../backend/modules/identityaccess/compose/mfa.go#L91) | 1 | 0 | 1 | production |
 | `modules/identityaccess/compose` | `newCommandTransactions` | [new.go:163](../../../backend/modules/identityaccess/compose/new.go#L163) | 1 | 0 | 0 | production |
-| `modules/peopledirectory/compose` | `LoadForTenant` | [guardian_profile_loader.go:39](../../../backend/modules/peopledirectory/compose/guardian_profile_loader.go#L39) | 1 | 0 | 0 | production |
-| `modules/peopledirectory/compose` | `LoadForTenant` | [guardian_profile_loader.go:39](../../../backend/modules/peopledirectory/compose/guardian_profile_loader.go#L39) | 1 | 0 | 0 | production |
-| `modules/peopledirectory/compose` | `MustNewReads` | [new.go:145](../../../backend/modules/peopledirectory/compose/new.go#L145) | 0 | 0 | 0 | production |
 | `modules/settings/compose` | `Schema` | [operator.go:65](../../../backend/modules/settings/compose/operator.go#L65) | 1 | 0 | 0 | production |
 | `modules/settings/compose` | `Reveal` | [operator.go:69](../../../backend/modules/settings/compose/operator.go#L69) | 1 | 0 | 0 | production |
 | `modules/transactionruntime/compose` | `NewDemoTenantRuntime` | [tenant_runtime.go:30](../../../backend/modules/transactionruntime/compose/tenant_runtime.go#L30) | 0 | 0 | 0 | production |
 | `modules/transactionruntime/compose` | `NewDemoTenantRuntime` | [tenant_runtime.go:31](../../../backend/modules/transactionruntime/compose/tenant_runtime.go#L31) | 1 | 0 | 0 | production |
 | `modules/transactionruntime/compose` | `TenantCallback` | [tenant_runtime.go:66](../../../backend/modules/transactionruntime/compose/tenant_runtime.go#L66) | 1 | 0 | 1 | production |
-| `modules/workforce/compose` | `NewStaffShiftLock` | [staff_shift_lock.go:19](../../../backend/modules/workforce/compose/staff_shift_lock.go#L19) | 1 | 0 | 1 | production |
-| `modules/workforce/compose` | `NewStaffEmployment` | [staffemployment.go:23](../../../backend/modules/workforce/compose/staffemployment.go#L23) | 0 | 0 | 0 | production |
-| `modules/careplan/requestfeed/compose` | `New` | [new.go:32](../../../backend/modules/careplan/requestfeed/compose/new.go#L32) | 4 | 3 | 3 | production |
-| `modules/feedback/compose` | `New` | [new.go:39](../../../backend/modules/feedback/compose/new.go#L39) | 7 | 3 | 5 | production |
-| `modules/feedback/compose` | `New` | [new.go:54](../../../backend/modules/feedback/compose/new.go#L54) | 3 | 1 | 5 | production |
-| `modules/feedback/compose` | `New` | [new.go:61](../../../backend/modules/feedback/compose/new.go#L61) | 2 | 0 | 2 | production |
-| `modules/mealplan/compose` | `New` | [new.go:41](../../../backend/modules/mealplan/compose/new.go#L41) | 7 | 3 | 5 | production |
-| `modules/schoolmembership/compose` | `StudentClassWriteGate` | [student_class_gate.go:21](../../../backend/modules/schoolmembership/compose/student_class_gate.go#L21) | 1 | 0 | 1 | production |

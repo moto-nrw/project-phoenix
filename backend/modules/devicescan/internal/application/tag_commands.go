@@ -6,7 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
 )
 
 func (q *tagAssignments) staffPerson(ctx context.Context, staffID int64) (*ports.StaffMember, *ports.Person, error) {

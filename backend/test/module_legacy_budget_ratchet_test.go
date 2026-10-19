@@ -139,7 +139,7 @@ var moduleLegacyFileBudgets = map[string]int{}
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063 and by ADR 0073 (the parent
 // announcement retention of modules/communication/composition).
-const moduleComposeBudgetTotal = 13068
+const moduleComposeBudgetTotal = 12491
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -151,7 +151,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose":         45,
 	"modules/auditlog/compose":             183,
 	"modules/careplan/compose":             1646,
-	"modules/careplan/requestfeed/compose": 68,
+	"modules/careplan/requestfeed/compose": 53,
 	"modules/classday/compose":             213,
 	// Raised by ADR 0073: the parent announcement retention.
 	"modules/communication/composition":               367,
@@ -160,18 +160,18 @@ var moduleComposeBudgets = map[string]int{
 	"modules/delivery/compose":                        363,
 	"modules/devicefleet/compose":                     219,
 	"modules/devicefleet/compose/repositoryadapter":   10,
-	"modules/devicescan/compose":                      1053,
+	"modules/devicescan/compose":                      531,
 	"modules/emergencysnapshot/compose":               13,
 	"modules/enrollment/compose":                      540,
 	"modules/exporttransfer/compose":                  168,
 	"modules/facilities/compose":                      184,
 	"modules/facilities/compose/repositoryadapter":    11,
-	"modules/feedback/compose":                        86,
+	"modules/feedback/compose":                        61,
 	"modules/filestorage/compose":                     217,
 	"modules/grouplive/compose":                       14,
 	"modules/guardianlinkview/compose":                8,
 	"modules/identityaccess/compose":                  1332,
-	"modules/mealplan/compose":                        84,
+	"modules/mealplan/compose":                        69,
 	"modules/organizationtenancy/compose":             254,
 	"modules/parentrequestfeedprojection/compose":     11,
 	"modules/peopledirectory/compose":                 974,

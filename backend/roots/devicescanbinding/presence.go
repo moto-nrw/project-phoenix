@@ -1,4 +1,4 @@
-package compose
+package devicescanbinding
 
 import (
 	"context"
@@ -6,8 +6,7 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
@@ -26,7 +25,9 @@ func classifyPresence(err error) error {
 		// Still ErrInvalid (400), narrowed so the kiosk gets its own code.
 		return mapError(mapError(err, ports.ErrNoRoomAvailable), ports.ErrInvalid)
 	}
-	activeErr, ok := err.(*studentpresence.OperationError) //nolint:errorlint // the historic mapping classified the outer wrapper only
+	activeErr, ok := err.(*studentpresence.OperationError)
+
+	//nolint:errorlint // the historic mapping classified the outer wrapper only
 	if !ok {
 		return err
 	}

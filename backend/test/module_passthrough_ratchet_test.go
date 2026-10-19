@@ -179,6 +179,8 @@ const modulePassthroughMaxBodyLines = 14
 // into internal/planning (#4240), and the root-facing seam and record types
 // into the owners' ports packages (#4174, #4182, #4210, #4227, #4236, #4238).
 var modulePassthroughMovedTrees = []struct{ path, owner string }{
+	{"roots/devicescanbinding/", "modules/devicescan"},
+	{"modules/devicescan/ports/", "modules/devicescan"},
 	{"workflows/parentportal/internal/care/owner_record_adapters.go", "workflows/parentportal"},
 	{"workflows/parentportal/internal/care/meal_plan_adapter.go", "workflows/parentportal"},
 	{"workflows/parentportal/internal/messaging/child_resolver.go", "workflows/parentportal"},

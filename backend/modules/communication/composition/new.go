@@ -18,8 +18,7 @@ import (
 
 type Observation = ports.Observation
 
-// ViewerNames resolves the display names of announcement viewers; the root
-// binds it to People Directory.
+// ViewerNames binds announcement viewer names to People Directory.
 type (
 	ViewerNames    = ports.ViewerNames
 	OperationStats = domain.OperationStats
@@ -53,9 +52,6 @@ func New(dependencies Dependencies, audience ports.Audience) (*communication.Mod
 type transaction struct{}
 
 func (transaction) RunAdmin(ctx context.Context, callback func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return callback(ctx)
-	}
 	return tenant.WithinAdminRetry(ctx, callback)
 }
 
@@ -75,4 +71,8 @@ func AudienceMapping() contract.Rows[domain.Announcement, domain.AnnouncementVie
 // AnnouncementDatabase supplies the existing administrative runtime to the root.
 func AnnouncementDatabase() func(context.Context) (bun.IDB, error) {
 	return postgres.NewAnnouncementDatabase(tenant.TransactionFromContext)
+}
+
+func (transaction) HasTransaction(ctx context.Context) bool {
+	return application.TransactionPresent(ctx, tenant.TransactionFromContext)
 }

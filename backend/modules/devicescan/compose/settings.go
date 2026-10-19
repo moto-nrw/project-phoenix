@@ -5,7 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	scanBindings "github.com/moto-nrw/project-phoenix/roots/devicescanbinding"
+
 	reviewbindings "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -709,7 +711,7 @@ func newIoTResource(
 	if err != nil {
 		return nil, err
 	}
-	deviceScan := devicescanCompose.New(devicescanCompose.Dependencies{Principal: DeviceScanPrincipal,
+	deviceScan := scanBindings.New(devicescanCompose.Dependencies{Principal: DeviceScanPrincipal,
 		Fleet:      iot.Fleet(),
 		Presence:   presence,
 		Rooms:      facilities,
@@ -743,7 +745,7 @@ func newIoTResource(
 		SchoolName:              devicescanCompose.NewSchoolName(schoolName(organizations), DeviceScanPrincipal),
 		ErrorReports:            NewIoTErrorReporter(errorReports),
 		SessionEnd:              bindIoTHostSessionEnd(BindIoTSessionEnd(sessionEnd)),
-		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(active, devicescanCompose.NewSupervisionQuery(presence), NewDeviceScanPeople(users), iot, NewKioskSessionMirror(timetableRepos, activities, KioskMirrorPublisher(hub, logger), logger), logger, DeviceScanPrincipal),
+		SessionLifecycle:        scanBindings.NewSessionLifecycle(active, scanBindings.NewSupervisionQuery(presence), NewDeviceScanPeople(users), iot, NewKioskSessionMirror(timetableRepos, activities, KioskMirrorPublisher(hub, logger), logger), logger, DeviceScanPrincipal),
 		Logger:                  logger.With("handler", "iot"),
 		DeviceAuthenticator:     deviceAuth.Device(),
 		DeviceOnlyAuthenticator: deviceAuth.DeviceOnly(),
