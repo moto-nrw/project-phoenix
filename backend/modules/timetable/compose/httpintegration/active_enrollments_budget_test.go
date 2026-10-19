@@ -1,6 +1,7 @@
 package httpintegration_test
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -8,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -28,7 +30,9 @@ func TestActiveStudentEnrollmentsQueryBudgetStaysFlat(t *testing.T) {
 		t.Helper()
 		for i := from; i < from+count; i++ {
 			group := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("active-enrollment-budget-%d", i))
-			require.NoError(t, activities.EnrollStudent(ctx, group.ID, student.ID))
+			require.NoError(t, testpkg.RunInTenantTransaction(ctx, func(txCtx context.Context) error {
+				return activities.EnrollStudent(txCtx, group.ID, student.ID)
+			}))
 		}
 	}
 
@@ -36,8 +40,13 @@ func TestActiveStudentEnrollmentsQueryBudgetStaysFlat(t *testing.T) {
 	reads := func(expected int) []string {
 		t.Helper()
 		counter.Reset()
-		byStudent, readErr := activities.GetActiveStudentEnrollmentsByStudentIDs(
-			ctx, []int64{student.ID}, calendar.TodayDate())
+		var byStudent map[int64][]*activityContract.Group
+		readErr := testpkg.RunInTenantTransaction(ctx, func(txCtx context.Context) error {
+			var err error
+			byStudent, err = activities.GetActiveStudentEnrollmentsByStudentIDs(
+				txCtx, []int64{student.ID}, calendar.TodayDate())
+			return err
+		})
 		require.NoError(t, readErr)
 		require.Len(t, byStudent[student.ID], expected)
 		for _, group := range byStudent[student.ID] {
