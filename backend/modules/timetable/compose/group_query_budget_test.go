@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -18,17 +20,23 @@ func TestGroupQueryBudgetsStayFlat(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	category := createCategory(t, ctx, module, "Group query budget")
 	groupIDs := addBudgetGroups(t, ctx, module, category.ID, 0, 3)
-	counter := testpkg.CaptureQueries(t, db)
-	small := captureGroupQueries(t, ctx, module, counter, groupIDs)
-	groupIDs = append(groupIDs, addBudgetGroups(t, ctx, module, category.ID, 3, 8)...)
-	large := captureGroupQueries(t, ctx, module, counter, groupIDs)
+	// The owner read runs inside the HTTP/workflow unit of work. The budget
+	// still measures every business query, not connection/role setup.
+	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
+		counter := testpkg.CaptureQueries(t, db)
+		small := captureGroupQueries(t, ctx, module, counter, groupIDs)
+		groupIDs = append(groupIDs, addBudgetGroups(t, ctx, module, category.ID, 3, 8)...)
+		large := captureGroupQueries(t, ctx, module, counter, groupIDs)
 
-	assertQueryCountStable(t, small, large, "modules.timetable.groups.list")
-	testpkg.AssertQueryBudget(t, "modules.timetable.groups.list", large["modules.timetable.groups.list"])
-	assertQueryCountStable(t, small, large, "modules.timetable.group_targets.list")
-	testpkg.AssertQueryBudget(t, "modules.timetable.group_targets.list", large["modules.timetable.group_targets.list"])
-	assertQueryCountStable(t, small, large, "modules.timetable.target_students.list")
-	testpkg.AssertQueryBudget(t, "modules.timetable.target_students.list", large["modules.timetable.target_students.list"])
+		assertQueryCountStable(t, small, large, "modules.timetable.groups.list")
+		testpkg.AssertQueryBudget(t, "modules.timetable.groups.list", large["modules.timetable.groups.list"])
+		assertQueryCountStable(t, small, large, "modules.timetable.group_targets.list")
+		testpkg.AssertQueryBudget(t, "modules.timetable.group_targets.list", large["modules.timetable.group_targets.list"])
+		assertQueryCountStable(t, small, large, "modules.timetable.target_students.list")
+		testpkg.AssertQueryBudget(t, "modules.timetable.target_students.list", large["modules.timetable.target_students.list"])
+
+		return nil
+	}))
 }
 
 func assertQueryCountStable(t *testing.T, small, large map[string][]string, scenario string) {

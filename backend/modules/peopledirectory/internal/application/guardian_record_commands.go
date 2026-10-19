@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Guardian record commands own the units of work the retained row adapters
@@ -12,28 +11,30 @@ import (
 // The adapters retain their savepoints, locks and owner commands.
 type guardianProfileCommands struct {
 	ports.GuardianProfileRepository
+	transactions ports.TenantTxRunner
 }
 
-func NewGuardianProfileCommands(store ports.GuardianProfileRepository) ports.GuardianProfileRepository {
-	return guardianProfileCommands{store}
+func NewGuardianProfileCommands(store ports.GuardianProfileRepository, transactions ports.TenantTxRunner) ports.GuardianProfileRepository {
+	return guardianProfileCommands{store, transactions}
 }
 
 func (c guardianProfileCommands) LinkAccount(ctx context.Context, profileID, accountID int64) error {
-	return tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+	return c.transactions.InTenantTx(ctx, func(txCtx context.Context) error {
 		return c.GuardianProfileRepository.LinkAccount(txCtx, profileID, accountID)
 	})
 }
 
 type guardianPhoneCommands struct {
 	ports.GuardianPhoneNumberRepository
+	transactions ports.TenantTxRunner
 }
 
-func NewGuardianPhoneCommands(store ports.GuardianPhoneNumberRepository) ports.GuardianPhoneNumberRepository {
-	return guardianPhoneCommands{store}
+func NewGuardianPhoneCommands(store ports.GuardianPhoneNumberRepository, transactions ports.TenantTxRunner) ports.GuardianPhoneNumberRepository {
+	return guardianPhoneCommands{store, transactions}
 }
 
 func (c guardianPhoneCommands) SetPrimary(ctx context.Context, id, profileID int64) error {
-	return tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+	return c.transactions.InTenantTx(ctx, func(txCtx context.Context) error {
 		return c.GuardianPhoneNumberRepository.SetPrimary(txCtx, id, profileID)
 	})
 }

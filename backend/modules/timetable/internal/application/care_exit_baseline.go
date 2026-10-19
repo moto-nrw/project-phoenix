@@ -16,7 +16,7 @@ func (s *Service) CountPlannedRosterForCareExit(ctx context.Context, studentIDs 
 	if len(studentIDs) == 0 {
 		return counts, nil
 	}
-	err = s.run("count_planned_roster_for_care_exit", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "count_planned_roster_for_care_exit", func(ctx context.Context, stats *domain.OperationStats) error {
 		live, err := s.plannedCareExitRoster(ctx, studentIDs, after, stats)
 		if err != nil {
 			return err
@@ -66,7 +66,7 @@ func (s *Service) CountRunningEnrollmentsForCareExit(ctx context.Context, studen
 		return counts, nil
 	}
 	capped, deleted := splitCareExitEnrollmentRemovals(restorable)
-	err = s.run("count_running_enrollments_for_care_exit", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "count_running_enrollments_for_care_exit", func(ctx context.Context, stats *domain.OperationStats) error {
 		live, measured, err := s.store.CountRunningEnrollmentsForCareExit(ctx, studentIDs, validUntil, capped)
 		stats.Add(measured)
 		if err != nil {

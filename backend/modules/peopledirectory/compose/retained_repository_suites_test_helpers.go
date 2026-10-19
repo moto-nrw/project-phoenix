@@ -38,13 +38,13 @@ func NewRetainedPersonRepository(db *bun.DB) peoplePorts.PersonRepository {
 // NewRetainedGuardianProfileRepository is the guardian profile repository with
 // only the given options bound.
 func NewRetainedGuardianProfileRepository(db *bun.DB, students usersRepo.StudentDirectoryRows, links usersRepo.GuardianLinkRows, options ...RetainedGuardianProfileOption) peoplePorts.GuardianProfileRepository {
-	return application.NewGuardianProfileCommands(usersRepo.NewGuardianProfileRepository(NewLegacyRepositoryRuntime(db), students, links, options...))
+	return application.NewGuardianProfileCommands(usersRepo.NewGuardianProfileRepository(NewLegacyRepositoryRuntime(db), students, links, options...), NewLegacyRepositoryRuntime(db))
 }
 
 // NewRetainedGuardianRelationshipRepository is the relationship store with
 // only the given options bound.
 func NewRetainedGuardianRelationshipRepository(db *bun.DB, students usersRepo.StudentDirectoryRows, links usersRepo.GuardianLinkRows, options ...RetainedGuardianRelationshipOption) peoplePorts.StudentGuardianRepository {
-	return usersRepo.NewGuardianRelationshipRepository(NewLegacyRepositoryRuntime(db), students, links, options...)
+	return application.NewGuardianRelationshipCommands(usersRepo.NewGuardianRelationshipRepository(NewLegacyRepositoryRuntime(db), students, links, options...), NewLegacyRepositoryRuntime(db))
 }
 
 // NewRetainedMessageableGuardianRepository is the parent-message recipient

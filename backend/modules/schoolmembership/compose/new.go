@@ -5,7 +5,6 @@ package compose
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres"
@@ -70,29 +69,10 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 		return nil, errors.New("school membership compose: the class list entries need a student directory and an audit trail")
 	}
 	store := postgres.New(func(ctx context.Context) (bun.IDB, postgres.TenantScope, error) {
-		scope := postgres.TenantScope{}
-		id, err := tenant.TenantFromContext(ctx)
-		if err != nil {
-			if !tenant.IsAdminTx(ctx) {
-				return nil, scope, err
-			}
-			scope.AcrossSchools = true
-		} else {
-			scope.TenantID = id.Int64()
-		}
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return nil, scope, errors.New("schoolmembership postgres: transaction is required")
-		}
-		switch tx := transaction.(type) {
-		case bun.Tx:
-			return tx, scope, nil
-		case *bun.Tx:
-			if tx != nil {
-				return *tx, scope, nil
-			}
-		}
-		return nil, scope, fmt.Errorf("schoolmembership postgres: unsupported transaction %T", transaction)
+		id, scopeErr := tenant.TenantFromContext(ctx)
+		raw, ok := tenant.TransactionFromContext(ctx)
+
+		return postgres.ResolveDatabase(raw, ok, id.Int64(), scopeErr, tenant.IsAdminTx(ctx))
 	},
 	)
 	var quota ports.ChildQuota

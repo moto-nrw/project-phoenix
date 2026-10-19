@@ -28,19 +28,9 @@ func (RepositoryRuntime) InTransaction(ctx context.Context) bool {
 	return ok
 }
 
-// RunInTx joins the ambient transaction or opens one for the context's tenant.
-func (RepositoryRuntime) RunInTx(ctx context.Context, fn func(context.Context) error) error {
-	return tenant.NewTransactionRunner().RunInTx(ctx, fn)
-}
-
 // WithSavepoint runs fn behind a savepoint of the ambient transaction.
 func (RepositoryRuntime) WithSavepoint(ctx context.Context, fn func(context.Context) error) error {
 	return tenant.WithSavepoint(ctx, fn)
-}
-
-// WithinCurrentTenant opens a transaction for the context's tenant.
-func (RepositoryRuntime) WithinCurrentTenant(ctx context.Context, fn func(context.Context) error) error {
-	return tenant.WithinCurrentTenant(ctx, fn)
 }
 
 // MarkRollback asks the request's tenant transaction to roll back although

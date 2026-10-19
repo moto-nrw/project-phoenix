@@ -51,7 +51,7 @@ func NewGuardianProfileRepository(db *bun.DB, students usersRepo.StudentDirector
 	return application.NewGuardianProfileCommands(usersRepo.NewGuardianProfileRepository(NewLegacyRepositoryRuntime(db), students, links,
 		usersRepo.WithPortalMemberships(portal),
 		usersRepo.WithPortalLoginMemberships(loginReady),
-	))
+	), NewLegacyRepositoryRuntime(db))
 }
 
 // GuardianRelationshipDependencies are the owners the student-guardian
@@ -72,10 +72,10 @@ type GuardianRelationshipDependencies struct {
 // NewGuardianRelationshipRepository is the relationship store with its
 // membership lookup, both owner halves and the default role bound.
 func NewGuardianRelationshipRepository(db *bun.DB, dependencies GuardianRelationshipDependencies) peoplePorts.StudentGuardianRepository {
-	return usersRepo.NewGuardianRelationshipRepository(NewLegacyRepositoryRuntime(db), dependencies.Students, dependencies.Links,
+	return application.NewGuardianRelationshipCommands(usersRepo.NewGuardianRelationshipRepository(NewLegacyRepositoryRuntime(db), dependencies.Students, dependencies.Links,
 		usersRepo.WithGuardianRelationshipMemberships(dependencies.Memberships),
 		usersRepo.WithGuardianRelationshipOwners(dependencies.Pickup, dependencies.Access),
-		usersRepo.WithGuardianDefaultRole(defaultGuardianRole(dependencies.RolePresets)))
+		usersRepo.WithGuardianDefaultRole(defaultGuardianRole(dependencies.RolePresets))), NewLegacyRepositoryRuntime(db))
 }
 
 // defaultGuardianRole applies the default preset, or nothing without a
@@ -89,7 +89,7 @@ func defaultGuardianRole(presets peoplePorts.GuardianRolePresets) func(*peopleVa
 
 // NewGuardianPhoneNumberRepository is the guardian phone number repository.
 func NewGuardianPhoneNumberRepository(db *bun.DB) peoplePorts.GuardianPhoneNumberRepository {
-	return application.NewGuardianPhoneCommands(usersRepo.NewGuardianPhoneNumberRepository(NewLegacyRepositoryRuntime(db)))
+	return application.NewGuardianPhoneCommands(usersRepo.NewGuardianPhoneNumberRepository(NewLegacyRepositoryRuntime(db)), NewLegacyRepositoryRuntime(db))
 }
 
 // NewFamilyProtectionEventRepository is the family protection event repository.

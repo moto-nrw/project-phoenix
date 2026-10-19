@@ -1,4 +1,4 @@
-package compose
+package postgres
 
 import (
 	"context"
@@ -26,3 +26,5 @@ func (t IntentTransactions) WithinTenant(ctx context.Context, tenantID int64, fn
 func (t IntentTransactions) WithinSystem(ctx context.Context, fn func(context.Context) error) error {
 	return tenant.WithAdminTx(ctx, t.db, func(txCtx context.Context, _ bun.Tx) error { return fn(txCtx) })
 }
+
+func NewTenantTransactions(db *bun.DB) IntentTransactions { return IntentTransactions{db: db} }

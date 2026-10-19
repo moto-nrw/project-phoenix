@@ -7,7 +7,7 @@ import (
 )
 
 func (s *Service) FindSchedule(ctx context.Context, id int64) (result domain.Schedule, err error) {
-	err = s.run("find_schedule", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_schedule", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, findErr := s.store.FindSchedule(ctx, id)
 		stats.Add(queryStats)
 		if findErr != nil {
@@ -23,7 +23,7 @@ func (s *Service) FindSchedule(ctx context.Context, id int64) (result domain.Sch
 }
 
 func (s *Service) ListSchedules(ctx context.Context, filter domain.ScheduleFilter) (result []domain.Schedule, err error) {
-	err = s.run("list_schedules", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_schedules", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListSchedules(ctx, filter)
 		stats.Add(queryStats)
 		result = values
@@ -33,7 +33,7 @@ func (s *Service) ListSchedules(ctx context.Context, filter domain.ScheduleFilte
 }
 
 func (s *Service) FindTemplateStartTimes(ctx context.Context, groupIDs []int64) (result []domain.TemplateStartTime, err error) {
-	err = s.run("find_template_start_times", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "find_template_start_times", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, findErr := s.store.FindTemplateStartTimes(ctx, groupIDs)
 		stats.Add(queryStats)
 		result = values

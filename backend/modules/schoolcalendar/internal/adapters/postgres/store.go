@@ -619,3 +619,25 @@ func wrapCalendarPeriodWriteError(operation string, err error) error {
 	}
 	return fmt.Errorf("school calendar postgres: %s calendar period: %w", operation, err)
 }
+
+// ResolveDatabase refuses a missing school or transaction before a query.
+func ResolveDatabase(raw any, present bool, schoolID int64, scopeErr error) (bun.IDB, int64, error) {
+	if scopeErr != nil {
+		return nil, 0, scopeErr
+	}
+	if schoolID <= 0 {
+		return nil, 0, errors.New("school calendar: tenant is required")
+	}
+	if !present {
+		return nil, 0, errors.New("school calendar: transaction is required")
+	}
+	switch tx := raw.(type) {
+	case bun.Tx:
+		return tx, schoolID, nil
+	case *bun.Tx:
+		if tx != nil {
+			return *tx, schoolID, nil
+		}
+	}
+	return nil, 0, fmt.Errorf("school calendar: unsupported transaction %T", raw)
+}

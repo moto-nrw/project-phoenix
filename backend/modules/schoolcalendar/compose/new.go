@@ -116,26 +116,9 @@ func NewAdministration(records *schoolcalendar.Records, dependencies Administrat
 
 func newService(db *bun.DB, observe func(Observation), administration application.Administration) *application.Service {
 	store := postgres.New(func(ctx context.Context) (bun.IDB, int64, error) {
-		id, err := tenant.TenantFromContext(ctx)
-		if err != nil {
-			return nil, 0, err
-		}
-		tenantID := id.Int64()
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return nil, 0, errors.New("school calendar: transaction is required")
-		}
-		switch tx := transaction.(type) {
-		case bun.Tx:
-			return tx, tenantID, nil
-		case *bun.Tx:
-			if tx != nil {
-				return tx, tenantID, nil
-			}
-			return nil, 0, errors.New("school calendar: transaction is required")
-		default:
-			return nil, 0, fmt.Errorf("school calendar postgres: unsupported transaction %T", transaction)
-		}
+		id, scopeErr := tenant.TenantFromContext(ctx)
+		raw, ok := tenant.TransactionFromContext(ctx)
+		return postgres.ResolveDatabase(raw, ok, id.Int64(), scopeErr)
 	})
 	return application.New(store, func(observation Observation) {
 		observation.Err = mapError(observation.Err)

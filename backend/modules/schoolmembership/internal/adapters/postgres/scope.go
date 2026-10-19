@@ -1,6 +1,11 @@
 package postgres
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+
+	"github.com/uptrace/bun"
+)
 
 // TenantScope distinguishes one required school from an explicitly selected
 // cross-school administrative transaction. A zero school is never a scope.
@@ -17,4 +22,31 @@ func (s TenantScope) Validate() error {
 		return errors.New("schoolmembership: tenant is required")
 	}
 	return nil
+}
+
+// ResolveDatabase validates the context scope and resolves only an existing
+// SQL transaction. Context interpretation stays in the owner's composition.
+func ResolveDatabase(raw any, present bool, schoolID int64, schoolErr error, admin bool) (bun.IDB, TenantScope, error) {
+	scope := TenantScope{TenantID: schoolID}
+	if schoolErr != nil {
+		if !admin {
+			return nil, TenantScope{}, schoolErr
+		}
+		scope.AcrossSchools = true
+	}
+	if err := scope.Validate(); err != nil {
+		return nil, TenantScope{}, err
+	}
+	if !present {
+		return nil, TenantScope{}, errors.New("transaction is required")
+	}
+	switch tx := raw.(type) {
+	case bun.Tx:
+		return tx, scope, nil
+	case *bun.Tx:
+		if tx != nil {
+			return *tx, scope, nil
+		}
+	}
+	return nil, TenantScope{}, fmt.Errorf("unsupported transaction %T", raw)
 }

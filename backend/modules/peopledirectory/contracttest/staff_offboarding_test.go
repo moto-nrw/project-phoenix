@@ -300,9 +300,12 @@ func assertConcurrentPlanningRejected(t *testing.T, operation string) {
 	require.NoError(t, err)
 	if operation == "move_history" {
 		require.Len(t, rows, 1, "the historical assignment is retained")
-		persisted, err := sc.timetable.ActivityInstance.FindByID(ctx, instance.ID)
-		require.NoError(t, err)
-		require.Equal(t, date.String(), persisted.Date.String(), "history cannot be moved back into an operational assignment")
+		require.NoError(t, tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
+			persisted, err := sc.timetable.ActivityInstance.FindByID(ctx, instance.ID)
+			require.NoError(t, err)
+			require.Equal(t, date.String(), persisted.Date.String(), "history cannot be moved back into an operational assignment")
+			return err
+		}))
 	} else {
 		require.Empty(t, rows)
 	}

@@ -51,7 +51,7 @@ func TestAuditTenantReadsRejectMissingScopeAndEnforceRLS(t *testing.T) {
 	for _, id := range ids {
 		require.NoError(t, testpkg.WithinTenantTransaction(base, db, id, func(ctx context.Context, tx bun.Tx) error {
 			runtime := Runtime(func(context.Context) (bun.IDB, int64) { return tx, id })
-			folderID := int64(1)
+			folderID := id
 			event := &records.FileEvent{FolderID: &folderID, Action: records.FileEventFolderCreated, ActorName: "Audit scope", Detail: "Tenant isolation"}
 			event.TenantID = id
 			return NewFileEventRepository(runtime).Create(ctx, event)

@@ -124,7 +124,6 @@ func (s *Store) ListActiveTenantIDs(ctx context.Context, accountID int64) ([]int
 		Where(`"account_tenant".account_id = ?`, accountID).
 		Where(`"account_tenant".status = ?`, "active").
 		OrderExpr(`"account_tenant".created_at ASC`)
-	query = scopeTenantQuery(s.scope(ctx), query, `"account_tenant".tenant_id = ?`)
 	err = query.Scan(ctx, &ids)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(ids))}
 	if err != nil {

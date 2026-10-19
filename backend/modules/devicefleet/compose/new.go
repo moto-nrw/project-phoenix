@@ -6,7 +6,6 @@ package compose
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
@@ -132,29 +131,12 @@ func New(dependencies Dependencies) (*devicefleet.Module, error) {
 // route both run before one exists.
 func databaseRuntime(db *bun.DB) postgres.Database {
 	return func(ctx context.Context) (bun.IDB, postgres.TenantScope, error) {
-		scope := postgres.TenantScope{}
-		id, err := tenant.TenantFromContext(ctx)
-		if err != nil {
-			if !tenant.IsAdminTx(ctx) {
-				return nil, scope, errors.Join(devicefleet.ErrTenantRequired, err)
-			}
-			scope.AcrossSchools = true
-		} else {
-			scope.TenantID = id.Int64()
+		id, scopeErr := tenant.TenantFromContext(ctx)
+		raw, ok := tenant.TransactionFromContext(ctx)
+		if scopeErr != nil && !tenant.IsAdminTx(ctx) {
+			return nil, postgres.TenantScope{}, errors.Join(devicefleet.ErrTenantRequired, scopeErr)
 		}
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return nil, scope, errors.New("devicefleet postgres: transaction is required")
-		}
-		switch tx := transaction.(type) {
-		case bun.Tx:
-			return tx, scope, nil
-		case *bun.Tx:
-			if tx != nil {
-				return *tx, scope, nil
-			}
-		}
-		return nil, scope, fmt.Errorf("devicefleet postgres: unsupported transaction %T", transaction)
+		return postgres.ResolveDatabase(raw, ok, id.Int64(), scopeErr, tenant.IsAdminTx(ctx))
 	}
 
 }

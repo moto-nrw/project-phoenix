@@ -2,7 +2,10 @@ package compose
 
 import (
 	"context"
+	"fmt"
 	"testing"
+
+	identityPostgres "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -18,7 +21,15 @@ func TestIdentityStoreRequiresTransactionAndIsolatesSchools(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, schoolB)
 	testpkg.MapAccountToTenant(t, db, account.ID, schoolA)
 	testpkg.MapAccountToTenant(t, db, account.ID, schoolB)
+	rolesBySchool := map[int64]int64{}
+	for _, id := range []int64{schoolA, schoolB} {
+		role := testpkg.CreateTestRoleForTenant(t, db, fmt.Sprintf("scope-%d", id), id)
+		rolesBySchool[id] = role.ID
+		_, err := db.ExecContext(context.Background(), `INSERT INTO auth.account_roles(account_id,role_id,tenant_id) VALUES (?,?,?)`, account.ID, role.ID, id)
+		require.NoError(t, err)
+	}
 	store := newStore(db)
+	roles := identityPostgres.NewRoleStore(store)
 	base := testpkg.WithTenantRuntime(t, context.Background(), db)
 	_, _, err := store.ListActiveTenantIDs(base, account.ID)
 	require.ErrorContains(t, err, "tenant")
@@ -26,9 +37,10 @@ func TestIdentityStoreRequiresTransactionAndIsolatesSchools(t *testing.T) {
 	require.ErrorContains(t, err, "transaction is required")
 	for _, id := range []int64{schoolA, schoolB} {
 		require.NoError(t, tenant.WithTenantTx(base, db, id, func(ctx context.Context, _ testpkg.Tx) error {
-			ids, _, err := store.ListActiveTenantIDs(ctx, account.ID)
+			rows, err := roles.ListAccountRoles(ctx, account.ID)
 			require.NoError(t, err)
-			require.Equal(t, []int64{id}, ids)
+			require.Len(t, rows, 1)
+			require.Equal(t, rolesBySchool[id], rows[0].ID)
 			// The explicit role/permission API cannot use school 0 as all schools.
 			_, _, err = store.ListAccountRolesAtTenant(ctx, account.ID, 0, false)
 			require.Error(t, err)

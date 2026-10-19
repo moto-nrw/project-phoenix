@@ -7,7 +7,7 @@ import (
 )
 
 func (s *Service) CountCalendarPeriodReferences(ctx context.Context) (result map[int64]domain.CalendarPeriodReferences, err error) {
-	err = s.run("count_calendar_period_references", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "count_calendar_period_references", func(ctx context.Context, stats *domain.OperationStats) error {
 		counts, queryStats, queryErr := s.store.CountCalendarPeriodReferences(ctx)
 		stats.Add(queryStats)
 		result = counts

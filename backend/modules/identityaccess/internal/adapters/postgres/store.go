@@ -6,6 +6,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -236,4 +237,29 @@ func scopeTenantQuery[Q interface {
 		return query
 	}
 	return query.Where(predicate, scope.TenantID)
+}
+
+// ResolveDatabase validates explicit scope and requires the caller's SQL unit.
+func ResolveDatabase(raw any, present bool, scope TenantScope) (bun.IDB, error) {
+	if err := scope.Validate(); err != nil {
+		return nil, err
+	}
+	if !present {
+		return nil, errors.New("identity access postgres: transaction is required")
+	}
+	switch tx := raw.(type) {
+	case bun.Tx:
+		return tx, nil
+	case *bun.Tx:
+		if tx != nil {
+			return *tx, nil
+		}
+	}
+	return nil, fmt.Errorf("identity access postgres: unsupported transaction %T", raw)
+}
+
+// ScopeFor preserves privilege independently of the validated context school.
+// Only an actual administrative transaction can name a cross-school scope.
+func ScopeFor(schoolID int64, admin bool) TenantScope {
+	return TenantScope{TenantID: schoolID, AdminTransaction: admin, AcrossSchools: admin && schoolID == 0}
 }

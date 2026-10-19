@@ -160,7 +160,7 @@ func newStudentGuardianRepository(db transactionruntime.Database, memberships ac
 		Memberships: memberships.FindActiveSchoolMemberships,
 		Pickup:      pickup, Access: access, RolePresets: guardianRolePresets,
 	})
-	return WithGuardianRelationshipTransactions(relationships)
+	return relationships
 }
 
 // NewStudentRepository composes the retained student repository over an

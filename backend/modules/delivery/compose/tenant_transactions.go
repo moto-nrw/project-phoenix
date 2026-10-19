@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/postgres"
+
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
@@ -13,8 +15,8 @@ import (
 )
 
 // NewTenantTransactions binds provider steps to the intent school's transaction.
-func NewTenantTransactions(db *bun.DB) IntentTransactions {
-	return IntentTransactions{db: db}
+func NewTenantTransactions(db *bun.DB) postgres.IntentTransactions {
+	return postgres.NewTenantTransactions(db)
 }
 
 // DurablePushOutbox serves the notification channels' durable push outbox

@@ -2,8 +2,6 @@ package compose
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/postgres"
@@ -28,19 +26,9 @@ func NewCleanupRetention() workforce.CleanupRetention {
 // retentionDatabase is the transaction of the school in context; without one
 // the retention refuses to run instead of falling back to a pool.
 func retentionDatabase(ctx context.Context) (bun.IDB, postgres.TenantScope, error) {
-	tenantID, err := tenant.TenantFromContext(ctx)
-	if err != nil {
-		return nil, postgres.TenantScope{}, fmt.Errorf("workforce postgres: tenant is required: %w", err)
-	}
-	transaction, ok := tenant.TransactionFromContext(ctx)
-	if !ok {
-		return nil, postgres.TenantScope{}, errors.New("workforce postgres: transaction is required")
-	}
-	tx, ok := transaction.(bun.Tx)
-	if !ok {
-		return nil, postgres.TenantScope{}, fmt.Errorf("workforce postgres: unsupported transaction %T", transaction)
-	}
-	return tx, postgres.TenantScope{TenantID: tenantID.Int64()}, nil
+	id, err := tenant.TenantFromContext(ctx)
+	raw, ok := tenant.TransactionFromContext(ctx)
+	return postgres.ResolveDatabase(raw, ok, id.Int64(), err, false)
 }
 
 // SickNoteRetentionWindow resolves the staff sick note retention window of
