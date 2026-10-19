@@ -139,10 +139,24 @@ func (s *Store) SaveStaffEmployment(ctx context.Context, value domain.StaffEmplo
 	return nil
 }
 
-func (s *Store) ClearStaffWorkTimeModel(ctx context.Context, membershipID int64) error {
-	return s.updateStaffEmployment(ctx, "clear staff work time model", membershipID, func(query *bun.UpdateQuery) *bun.UpdateQuery {
-		return query.Set(`work_time_model_id = NULL`)
-	})
+// ReleaseWorkTimeModel detaches the given memberships from the template. The
+// template guard keeps a binding another writer moved in the meantime.
+func (s *Store) ReleaseWorkTimeModel(ctx context.Context, workTimeModelID int64, membershipIDs []int64) error {
+	if len(membershipIDs) == 0 {
+		return nil
+	}
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := staffEmploymentTenant(db.NewUpdate().Model((*staffEmploymentRow)(nil)).
+		Set(`work_time_model_id = NULL`).
+		Where(`"profile".work_time_model_id = ?`, workTimeModelID).
+		Where(`"profile".membership_id IN (?)`, bun.List(membershipIDs)), tenantID).
+		Exec(ctx); err != nil {
+		return fmt.Errorf("workforce postgres: release work time model: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) SetStaffNotes(ctx context.Context, membershipID int64, notes string) error {

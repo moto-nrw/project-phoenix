@@ -93,6 +93,32 @@ describe("DeletePersonModal", () => {
     expect(screen.getByText("Schule A")).toBeInTheDocument();
   });
 
+  it("names the account retirement only for a person with an account", () => {
+    const { unmount } = render(
+      <DeletePersonModal
+        person={makePerson()}
+        onClose={vi.fn()}
+        onDeleted={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText("Account wird deaktiviert und Login gesperrt"),
+    ).toBeInTheDocument();
+    unmount();
+
+    // A former staff member keeps an account link but no account here (#3400).
+    render(
+      <DeletePersonModal
+        person={makePerson({ hasAccount: false, accountEmail: null })}
+        onClose={vi.fn()}
+        onDeleted={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByText("Account wird deaktiviert und Login gesperrt"),
+    ).not.toBeInTheDocument();
+  });
+
   it("disables the delete button until the full name is typed", () => {
     render(
       <DeletePersonModal

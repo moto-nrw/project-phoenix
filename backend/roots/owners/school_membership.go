@@ -53,10 +53,6 @@ func (e membershipStaffEmployment) SaveStaffEmployment(ctx context.Context, valu
 	return MembershipEmploymentError(e.employment.SaveStaffEmployment(ctx, workforce.StaffEmployment(value)))
 }
 
-func (e membershipStaffEmployment) ClearStaffWorkTimeModel(ctx context.Context, membershipID int64) error {
-	return MembershipEmploymentError(e.employment.ClearStaffWorkTimeModel(ctx, membershipID))
-}
-
 // MembershipEmploymentError restates Workforce's employment refusals in the
 // School Membership vocabulary the staff adapters map.
 func MembershipEmploymentError(err error) error {

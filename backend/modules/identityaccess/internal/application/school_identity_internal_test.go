@@ -387,6 +387,48 @@ func TestEnsureSchoolIdentity_AdoptsHintedImportedPerson(t *testing.T) {
 	require.NotZero(t, identity.TeacherID, "the caregiver profile is completed on acceptance")
 }
 
+// A former staff member keeps its account link (ADR 0021, #3400). When the
+// staff import files the returning person anew, the import's hint still wins:
+// the link moves to the imported person instead of a second live staff row
+// growing on the former one.
+func TestEnsureSchoolIdentity_HintWinsOverFormerStaffPerson(t *testing.T) {
+	t.Parallel()
+	f := newLifecycleFixture(t)
+	former := f.seedAccountPerson("Frühere", "Kraft", nil)
+	imported := f.staff.addPerson(domain.PersonRecord{FirstName: "Importierte", LastName: "Kraft"})
+	staffRow := f.staff.addStaff(imported.ID)
+
+	in := identityInput(customRole("Betreuung", "user"))
+	in.PersonID = &imported.ID
+
+	identity, err := ensureIdentity(t, f, in)
+	require.NoError(t, err)
+	require.Equal(t, imported.ID, identity.PersonID, "the import's person carries the account")
+	require.Equal(t, staffRow.ID, identity.StaffID)
+	require.Len(t, f.staff.staffRows(), 1, "no second live staff row")
+	require.Nil(t, f.staff.persons[former.ID].AccountID, "the link moved off the former person")
+	require.Equal(t, in.AccountID, *f.staff.persons[imported.ID].AccountID)
+}
+
+// A live staff member stays where it is: the hint never moves the account off
+// a person who is current personnel.
+func TestEnsureSchoolIdentity_HintNeverMovesLiveStaff(t *testing.T) {
+	t.Parallel()
+	f := newLifecycleFixture(t)
+	current := f.seedAccountPerson("Aktive", "Kraft", nil)
+	liveRow := f.staff.addStaff(current.ID)
+	imported := f.staff.addPerson(domain.PersonRecord{FirstName: "Importierte", LastName: "Kraft"})
+
+	in := identityInput(customRole("Betreuung", "user"))
+	in.PersonID = &imported.ID
+
+	identity, err := ensureIdentity(t, f, in)
+	require.NoError(t, err)
+	require.Equal(t, current.ID, identity.PersonID)
+	require.Equal(t, liveRow.ID, identity.StaffID)
+	require.Nil(t, f.staff.persons[imported.ID].AccountID)
+}
+
 func TestEnsureSchoolIdentity_IgnoresHintOwnedByAnotherAccount(t *testing.T) {
 	t.Parallel()
 	f := newLifecycleFixture(t)

@@ -16,7 +16,6 @@ import (
 type StaffEmployment interface {
 	StaffEmployments(ctx context.Context, membershipIDs []int64) (map[int64]StaffEmploymentProfile, error)
 	SaveStaffEmployment(context.Context, StaffEmploymentProfile) error
-	ClearStaffWorkTimeModel(ctx context.Context, membershipID int64) error
 }
 
 // StaffEmploymentProfile is the employment half of a staff member.
@@ -47,10 +46,6 @@ func (e staffEmployment) StaffEmployments(ctx context.Context, ids []int64) (map
 
 func (e staffEmployment) SaveStaffEmployment(ctx context.Context, value domain.StaffEmployment) error {
 	return e.port.SaveStaffEmployment(ctx, StaffEmploymentProfile(value))
-}
-
-func (e staffEmployment) ClearStaffWorkTimeModel(ctx context.Context, membershipID int64) error {
-	return e.port.ClearStaffWorkTimeModel(ctx, membershipID)
 }
 
 var errStaffEmploymentUnbound = errors.New("school membership compose: staff employment is required")

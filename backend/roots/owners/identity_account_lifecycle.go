@@ -21,6 +21,7 @@ import (
 type lifecyclePeople interface {
 	CreateSchoolIdentityPerson(context.Context, peopledirectory.SchoolIdentityPerson) (int64, error)
 	LinkAccount(ctx context.Context, personID, accountID int64) error
+	UnlinkAccount(ctx context.Context, personID int64) error
 	LinkTag(ctx context.Context, personID int64, tagID string) error
 	CreateInvitedGuardian(context.Context, peopledirectory.InvitedGuardian) (int64, error)
 	DeleteGuardianProfile(ctx context.Context, guardianID int64) error
@@ -164,6 +165,10 @@ func (d staffDirectory) CreatePerson(ctx context.Context, record identityPorts.P
 
 func (d staffDirectory) LinkPersonToAccount(ctx context.Context, personID, accountID int64) error {
 	return d.repos.People.LinkAccount(ctx, personID, accountID)
+}
+
+func (d staffDirectory) UnlinkPersonFromAccount(ctx context.Context, personID int64) error {
+	return d.repos.People.UnlinkAccount(ctx, personID)
 }
 
 func (d staffDirectory) LinkPersonToRFIDCard(ctx context.Context, personID int64, tagID string) error {

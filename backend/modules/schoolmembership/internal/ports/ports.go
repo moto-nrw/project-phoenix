@@ -111,7 +111,6 @@ type StaffEmployment interface {
 	// membership without one is absent from the map.
 	StaffEmployments(context.Context, []int64) (map[int64]domain.StaffEmployment, error)
 	SaveStaffEmployment(context.Context, domain.StaffEmployment) error
-	ClearStaffWorkTimeModel(context.Context, int64) error
 }
 
 // ChildQuota is the consumer-owned port over Organisation & Tenancy's

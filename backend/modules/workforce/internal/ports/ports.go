@@ -25,6 +25,10 @@ type Store interface {
 	// A missing template reports found=false.
 	UpdateWorkTimeModel(context.Context, int64, domain.WorkTimeModelFields) (domain.WorkTimeModel, bool, domain.OperationStats, error)
 	DeleteWorkTimeModel(context.Context, int64) (bool, domain.OperationStats, error)
+	// StaffOnWorkTimeModel lists every membership bound to the template, live
+	// or retired; ReleaseWorkTimeModel detaches the given ones from it.
+	StaffOnWorkTimeModel(ctx context.Context, workTimeModelID int64) ([]int64, error)
+	ReleaseWorkTimeModel(ctx context.Context, workTimeModelID int64, membershipIDs []int64) error
 
 	// CloseStaffSchedules sets an exclusive valid_until on every running
 	// version of the given staff members.

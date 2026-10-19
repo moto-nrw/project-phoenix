@@ -605,7 +605,8 @@ Träger-Büro, nicht das Büro).
 Ein **Personalaustritt** beendet die Beschäftigung einer Person an einer
 Schule, ohne ihren Personensatz oder ihren Beschäftigungsverlauf zu löschen.
 Er entzieht den Schulzugang, beendet Gruppen-, Klassen- und Vertretungs-
-zuordnungen und gibt Transponder und Arbeitszeitmodell frei. Personal-
+zuordnungen und gibt den Transponder frei. Kontolink und Arbeitszeitmodell
+bleiben stehen, damit eine Wiederaufnahme sie wiederfindet. Personal-
 dokumente werden dabei endgültig entfernt; sie kehren durch nichts zurück.
 _Vermeiden_: Offboarding (nur im Code), Löschung, Deaktivierung.
 

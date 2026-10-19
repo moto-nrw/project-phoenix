@@ -47,6 +47,7 @@ type StaffDirectory interface {
 	FindPersonNames(ctx context.Context, accountIDs []int64) (map[int64]PersonName, error)
 	CreatePerson(ctx context.Context, person PersonRecord) (int64, error)
 	LinkPersonToAccount(ctx context.Context, personID, accountID int64) error
+	UnlinkPersonFromAccount(ctx context.Context, personID int64) error
 	LinkPersonToRFIDCard(ctx context.Context, personID int64, tagID string) error
 	IsStudentPerson(ctx context.Context, personID int64) (bool, error)
 	FindStaffByPerson(ctx context.Context, personID int64) (StaffMember, bool, error)

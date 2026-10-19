@@ -79,12 +79,6 @@ func (e staffEmployment) SaveStaffEmployment(ctx context.Context, value workforc
 	})
 }
 
-func (e staffEmployment) ClearStaffWorkTimeModel(ctx context.Context, membershipID int64) error {
-	return e.write(ctx, "clear_staff_work_time_model", 1, func(ctx context.Context) error {
-		return e.store.ClearStaffWorkTimeModel(ctx, membershipID)
-	})
-}
-
 func (e staffEmployment) AppendStaffNotes(ctx context.Context, membershipID int64, notes string) (result workforce.StaffEmployment, err error) {
 	err = e.write(ctx, "append_staff_notes", 2, func(ctx context.Context) error {
 		current, err := e.store.LockStaffEmployment(ctx, membershipID)

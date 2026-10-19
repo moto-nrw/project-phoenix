@@ -309,6 +309,13 @@ func (d *lifecycleStaff) LinkPersonToAccount(_ context.Context, personID, accoun
 	return nil
 }
 
+func (d *lifecycleStaff) MoveAccountLink(ctx context.Context, fromPersonID, toPersonID, accountID int64) error {
+	from := d.persons[fromPersonID]
+	from.AccountID = nil
+	d.persons[fromPersonID] = from
+	return d.LinkPersonToAccount(ctx, toPersonID, accountID)
+}
+
 func (d *lifecycleStaff) LinkPersonToRFIDCard(_ context.Context, personID int64, tagID string) error {
 	person := d.persons[personID]
 	person.TagID = &tagID

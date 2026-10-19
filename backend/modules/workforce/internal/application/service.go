@@ -145,19 +145,16 @@ func (s *Service) UpdateWorkTimeModel(ctx context.Context, id int64, fields doma
 	return result, err
 }
 
-// DeleteWorkTimeModel removes a template that no staff member is bound to.
-// The assignment check and the delete share the write transaction, so a
-// concurrent assignment cannot slip past the guard and leave a staff member
-// pointing at a deleted template.
+// DeleteWorkTimeModel removes a template that no live staff member is bound
+// to. Retired employments keep their binding until here and are released with
+// the template. The assignment check and the delete share the write
+// transaction, so a concurrent assignment cannot slip past the guard and leave
+// a staff member pointing at a deleted template.
 func (s *Service) DeleteWorkTimeModel(ctx context.Context, id int64) error {
 	return s.run("delete_work_time_model", func(stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
-			assigned, err := s.assignments.AssignedStaffIDs(txCtx, id)
-			if err != nil {
+			if err := s.refuseAssignedOrReleaseRetired(txCtx, id); err != nil {
 				return err
-			}
-			if len(assigned) > 0 {
-				return domain.ErrWorkTimeModelAssigned
 			}
 			found, deleteStats, err := s.store.DeleteWorkTimeModel(txCtx, id)
 			stats.Add(deleteStats)
@@ -170,6 +167,25 @@ func (s *Service) DeleteWorkTimeModel(ctx context.Context, id int64) error {
 			return nil
 		})
 	})
+}
+
+// refuseAssignedOrReleaseRetired refuses a template a live staff member is bound to
+// and detaches it from the retired ones. The bindings are read before the live
+// check: one a concurrent assignment adds afterwards is not released and still
+// trips the foreign key instead of being detached silently.
+func (s *Service) refuseAssignedOrReleaseRetired(ctx context.Context, id int64) error {
+	bound, err := s.store.StaffOnWorkTimeModel(ctx, id)
+	if err != nil {
+		return err
+	}
+	assigned, err := s.assignments.AssignedStaffIDs(ctx, id)
+	if err != nil {
+		return err
+	}
+	if len(assigned) > 0 {
+		return domain.ErrWorkTimeModelAssigned
+	}
+	return s.store.ReleaseWorkTimeModel(ctx, id, bound)
 }
 
 // refreshAssignedSchedules rewrites the schedule snapshots of every staff
