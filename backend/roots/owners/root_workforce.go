@@ -43,7 +43,7 @@ func BuildWorkSessionSide(
 	ports := TimeTrackingPorts(workTime, workforceCompose.TimeTrackingPorts{
 		Absences: NewStaffAbsenceRepository(workTime, membership, persons), AbsenceAudits: workforceCompose.NewStaffAbsenceAuditRepository(workTime),
 		Staff:        WorkSessionStaff(people.Staff, employment, membership),
-		Supervisions: supervisions, SessionRecords: sessions, Holidays: schoolCalendarCompose.NonWorkingDays{Calendar: calendar},
+		Supervisions: supervisions, SessionRecords: sessions, Holidays: schoolCalendarCompose.NewNonWorkingDays(calendar),
 		Events:       TimeTrackingEvents(hub),
 		AbsenceEmail: absenceEmailDependencies(settings, mailFrom, mailIdentity, env.Links.FrontendURL, logger, people, organizations, durable),
 		Logger:       logger,

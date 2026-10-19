@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 84,
+  "policy_epoch": 85,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -359,7 +359,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/peopledirectory/userscontract",
+      "path": "modules/peopledirectory/internal/domain/userscontract",
       "owner": "people-directory",
       "role": "domain",
       "internal_test_role": "module-internal-test",
@@ -681,7 +681,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/filestorage/documents",
+      "path": "modules/filestorage/internal/adapters/documents",
       "owner": "file-storage",
       "role": "adapter",
       "internal_test_role": "module-internal-test",
@@ -891,14 +891,14 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "applog",
+      "path": "observability/internal/adapters/applog",
       "owner": "observability",
       "role": "adapter",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "auth/authorize",
+      "path": "modules/securityruntime/internal/application/authorize",
       "owner": "security-runtime",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -947,14 +947,14 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "auth/userpass",
+      "path": "modules/securityruntime/internal/domain/userpass",
       "owner": "security-runtime",
       "role": "domain",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "auth/userpass/userpasstest",
+      "path": "modules/securityruntime/userpasstest",
       "owner": "security-runtime",
       "role": "test-support",
       "internal_test_role": "module-internal-test",
@@ -975,14 +975,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "constants",
-      "owner": "legacy-shared",
-      "role": "domain",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "database",
+      "path": "modules/transactionruntime/internal/adapters/database",
       "owner": "transaction-runtime",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -1087,14 +1080,14 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "email",
+      "path": "modules/delivery/internal/adapters/email",
       "owner": "delivery-platform",
       "role": "adapter",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "email/emailtest",
+      "path": "modules/delivery/emailtest",
       "owner": "delivery-platform",
       "role": "test-support",
       "internal_test_role": "module-internal-test",
@@ -1241,7 +1234,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "localization",
+      "path": "modules/delivery/internal/adapters/localization",
       "owner": "delivery-platform",
       "role": "adapter",
       "internal_test_role": "module-internal-test",
@@ -1311,7 +1304,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/dataimport/fileformat",
+      "path": "modules/dataimport/internal/adapters/fileformat",
       "owner": "data-import",
       "role": "adapter",
       "internal_test_role": "adapter-test",
@@ -1388,7 +1381,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "seed/api",
+      "path": "internal/devtools/seedapi",
       "owner": "dev-tools",
       "role": "cli",
       "internal_test_role": "adapter-test",
@@ -1486,14 +1479,14 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/delivery/application/locales",
+      "path": "modules/delivery/internal/application/locales",
       "owner": "delivery-platform",
       "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/delivery/application/emailbranding",
+      "path": "modules/delivery/internal/application/emailbranding",
       "owner": "delivery-platform",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -2151,7 +2144,7 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "modules/delivery/application/realtimeevents",
+      "path": "modules/delivery/internal/application/realtimeevents",
       "owner": "delivery-platform",
       "role": "application",
       "internal_test_role": "workflow-decision-test",
@@ -2298,7 +2291,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/schedulerruntime/cleanupruns",
+      "path": "modules/schedulerruntime/internal/adapters/cleanupruns",
       "owner": "scheduler-runtime",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -2361,7 +2354,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "simulate",
+      "path": "internal/devtools/simulate",
       "owner": "dev-tools",
       "role": "cli",
       "internal_test_role": "adapter-test",
@@ -3555,6 +3548,27 @@
       "owner": "root-composition",
       "role": "compose",
       "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/securityruntime/ports",
+      "owner": "security-runtime",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicefleet/internal/adapters/repositoryadapter",
+      "owner": "device-fleet",
+      "role": "postgres",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/facilities/internal/application/repositoryadapter",
+      "owner": "facilities",
+      "role": "application",
+      "internal_test_role": "workflow-integration-test",
       "external_test_role": "module-behavior-test"
     }
   ],
@@ -15626,6 +15640,42 @@
       "target_owner": "tenant-runtime",
       "target_role": "http",
       "target_package": "middleware"
+    },
+    {
+      "id": "security-runtime.public.authorization-port",
+      "description": "Native authorization inputs replace public application aliases; narrower successor of platform.public-application, precedent transaction-runtime.public.stats-port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "security-runtime",
+      "source_role": "public",
+      "target_owner": "security-runtime",
+      "target_role": "port",
+      "target_package": "modules/securityruntime/ports"
+    },
+    {
+      "id": "people-directory.http.authorization-port",
+      "description": "The same native note-audience inputs replace the Security Runtime public aliases; narrower successor of people-directory.http.security-public.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "port",
+      "target_package": "modules/securityruntime/ports"
+    },
+    {
+      "id": "people-directory.adapter-test.authorization-port",
+      "description": "The same native note-audience inputs replace the Security Runtime public aliases; narrower successor of adapter-test.platform.public.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "adapter-test",
+      "target_owner": "security-runtime",
+      "target_role": "port",
+      "target_package": "modules/securityruntime/ports"
     }
   ],
   "relocations": [
@@ -15685,8 +15735,33 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
     },
     {
+      "from": "applog",
+      "to": "observability/internal/adapters/applog",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "auth/authorize",
+      "to": "modules/securityruntime/internal/application/authorize",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "auth/rotation",
       "to": "modules/identityaccess/internal/application/rotation",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "auth/userpass",
+      "to": "modules/securityruntime/internal/domain/userpass",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "auth/userpass/userpasstest",
+      "to": "modules/securityruntime/userpasstest",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "database",
+      "to": "modules/transactionruntime/internal/adapters/database",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
@@ -15730,6 +15805,21 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
+      "from": "email",
+      "to": "modules/delivery/internal/adapters/email",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "email/emailtest",
+      "to": "modules/delivery/emailtest",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "localization",
+      "to": "modules/delivery/internal/adapters/localization",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "modules/careplan/inbound/parent",
       "to": "workflows/parentportal/http",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
@@ -15740,13 +15830,38 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
+      "from": "modules/dataimport/fileformat",
+      "to": "modules/dataimport/internal/adapters/fileformat",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "modules/dataimport/inbound",
       "to": "modules/dataimport/http",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
     },
     {
+      "from": "modules/delivery/application/emailbranding",
+      "to": "modules/delivery/internal/application/emailbranding",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/delivery/application/locales",
+      "to": "modules/delivery/internal/application/locales",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/delivery/application/realtimeevents",
+      "to": "modules/delivery/internal/application/realtimeevents",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "modules/emergencysnapshot/legacy",
       "to": "modules/emergencysnapshot/internal/adapters/nameorder",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/filestorage/documents",
+      "to": "modules/filestorage/internal/adapters/documents",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
@@ -15758,6 +15873,16 @@
       "from": "modules/identityaccess/legacy/jwt",
       "to": "modules/identityaccess/sessiontoken",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3487"
+    },
+    {
+      "from": "modules/peopledirectory/userscontract",
+      "to": "modules/peopledirectory/internal/domain/userscontract",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/schedulerruntime/cleanupruns",
+      "to": "modules/schedulerruntime/internal/adapters/cleanupruns",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
       "from": "modules/supervisiondashboard/legacy",
@@ -15772,6 +15897,11 @@
     {
       "from": "modules/workforce/legacy",
       "to": "modules/workforce/internal/adapters/substitutions",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "seed/api",
+      "to": "internal/devtools/seedapi",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
@@ -15807,6 +15937,11 @@
     {
       "from": "services/scheduler",
       "to": "modules/schedulerruntime/internal/application",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "simulate",
+      "to": "internal/devtools/simulate",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     }
   ]

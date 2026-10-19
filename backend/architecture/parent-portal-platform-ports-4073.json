@@ -41,10 +41,10 @@
       "backend/workflows/parentportal/messaging/security.go",
       "backend/modules/securityruntime/guardian_role.go",
       "backend/modules/delivery/devices/locales.go",
-      "backend/modules/delivery/application/locales/catalog.go",
-      "backend/localization/locales.go",
-      "backend/auth/authorize/guardian_permission_test_helpers.go",
-      "backend/auth/authorize/fingerprint.go"
+      "https://github.com/moto-nrw/project-phoenix/blob/121b0ee5130db5ec6b289965f495acdca6285744/backend/modules/delivery/application/locales/catalog.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/121b0ee5130db5ec6b289965f495acdca6285744/backend/localization/locales.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/121b0ee5130db5ec6b289965f495acdca6285744/backend/auth/authorize/guardian_permission_test_helpers.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/121b0ee5130db5ec6b289965f495acdca6285744/backend/auth/authorize/fingerprint.go"
     ],
     "workload": "Existing full Parent Portal/Care/HTTP/API suites and complete non-fast affected tests; source lint, architecture, inventory and AST parity.",
     "thresholds": "Retire exactly3 listed carrier keys with no new debt or permission reach; rules decrease by1, no new rules; composition1657flat and both compose budgets18LOC lower. Preserve relationship and portal isolation, action gates, role defaults, canonical bytes, locales, errors, routes and responses.",

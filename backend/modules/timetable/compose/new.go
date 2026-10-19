@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 
+	nativeports "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
@@ -20,7 +22,7 @@ type Observation = ports.Observation
 
 type Dependencies struct {
 	DB       *bun.DB
-	Students StudentDirectory
+	Students nativeports.StudentDirectory
 	Rooms    timetable.RoomDirectory
 	// Sessions answers which planned rows Student Presence already executed
 	// or observed; Timetable never reads that owner's tables itself (#2762).
@@ -41,7 +43,7 @@ func New(dependencies Dependencies) (*timetable.Module, error) {
 		observation.Err = application.MapError(observation.Err)
 		dependencies.Observe(observation)
 	}
-	service := application.New(store, transaction{}, studentDirectory{query: dependencies.Students}, roomDirectory{query: dependencies.Rooms}, dependencies.Sessions,
+	service := application.New(store, transaction{}, application.NewStudentDirectory(dependencies.Students), application.NewRoomDirectory(dependencies.Rooms), dependencies.Sessions,
 		dependencies.LockStaffAssignment, func() string { return calendar.TodayDate().String() }, observe)
 	return timetable.NewModule(application.NewEngine(service, observe, postgres.NewProvenanceStore(store, dependencies.Provenance))), nil
 }

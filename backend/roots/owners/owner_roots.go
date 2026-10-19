@@ -27,7 +27,7 @@ import (
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -316,5 +316,5 @@ func (d ParentStaffMembers) List(ctx context.Context, tenantIDs []int64) ([]pare
 type parentGroupNames struct{ groups schoolstructure.Query }
 
 func (d parentGroupNames) list(ctx context.Context, ids []int64) (map[int64]string, error) {
-	return schoolStructureCompose.GroupNamesByID(ctx, d.groups, ids)
+	return GroupNamesByID(ctx, d.groups, ids)
 }

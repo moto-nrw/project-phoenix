@@ -90,9 +90,9 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/communication/internal/staffannouncements/reminder.go:(*service).UpdateReminder":    16,
 	"modules/communication/internal/staffannouncements/service.go:normalizeDelivery":             17,
 
-	"modules/dataimport/compose/opening_references.go:NewOpeningReferences": 21,
-	"modules/dataimport/fileformat/helpers.go:MapStudentRow":                27,
-	"modules/dataimport/fileformat/template_writer.go:(Decoder).Template":   19,
+	"modules/dataimport/compose/opening_references.go:NewOpeningReferences":                 21,
+	"modules/dataimport/internal/adapters/fileformat/helpers.go:MapStudentRow":              27,
+	"modules/dataimport/internal/adapters/fileformat/template_writer.go:(Decoder).Template": 19,
 
 	"modules/delivery/application/notifications/preferences.go:(*preferenceService).FilterOptedInByType":   20,
 	"modules/delivery/application/notifications/preferences.go:(*preferenceService).GetForParent":          27,

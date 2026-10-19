@@ -1,0 +1,110 @@
+{
+  "schema_version": 3,
+  "prerequisites": [
+    "#2580",
+    "#4004",
+    "#4084",
+    "#4086",
+    "#4088"
+  ],
+  "owner_and_capability": "Data Import authorization is bound by the typed root to Security Runtime public decisions; private authorization and the remaining permitted owner implementations move under internal.",
+  "affected_packages": [
+    "api",
+    "modules/dataimport/compose",
+    "modules/dataimport/internal/application/importservice",
+    "modules/securityruntime",
+    "modules/securityruntime/ports",
+    "modules/securityruntime/internal/application/authorize",
+    "modules/timetable/internal/application",
+    "modules/peopledirectory/internal/application",
+    "modules/settings/internal/application",
+    "internal/devtools/seedapi",
+    "internal/devtools/simulate"
+  ],
+  "affected_tables": [
+    "None: no migration, SQL statement, tenant filter or write ownership changes."
+  ],
+  "exact_ratchet_keys": [
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/dataimport/compose|github.com/moto-nrw/project-phoenix/auth/authorize"
+  ],
+  "atomic_cutover": "Switch Data Import production to its existing root-bound authorization port, remove its composition implementation, empty legacy.jsonl, and require the canonical baseline-free check to pass with zero violations. ADR 0020 normalizes the authorization target path for retirement validation. Composition stays zero. The remaining 4084/4086 blockers are explicitly recorded; neither exit is claimed.",
+  "tests": [
+    "scripts/backend-architecture.sh check",
+    "scripts/backend-architecture.sh validate-ticket --all --base-ref 121b0ee5130db5ec6b289965f495acdca6285744",
+    "scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development without --fast",
+    "Source architecture, transaction-boundary, durable-notice, fixture and owner behavior suites; assertion changes are limited to the expressly authorized zero-baseline regression.",
+    "Pinned golangci-lint and full pre-commit/pre-push hooks."
+  ],
+  "runtime_evidence": {
+    "source": "Local source relocation and native capability cutover against immutable development 121b0ee5130db5ec6b289965f495acdca6285744. SQL, HTTP routes, IoT texts and golden sources are unchanged; semantic claims are verified by the existing affected suites, not by an invented benchmark.",
+    "sources": [
+      "docs/architecture/final-legacy-cluster.md",
+      "docs/architecture/final-legacy-cluster-round-seven-compose.md",
+      "backend/api/import_authorization.go",
+      "backend/internal/architecture/cli_test.go",
+      "backend/modules/communication/internal/adapters/staffpostgres/staff_messages.go"
+    ],
+    "workload": "The existing affected owner, root, HTTP, authorization, tenant-isolation and persistence suites run locally through the pinned toolchain and the bounded test wrapper. No production workload is contacted.",
+    "thresholds": "Zero architecture violations, zero uncovered removed tuples, composition zero, unchanged route/middleware goldens and IoT texts, no raised ratchet and unchanged behavioral assertions except the authorized baseline-free gate.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "Only code location and native adapter entry points change; the existing suites cover writes and rollback without a new row-volume benchmark."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "No SQL or query sequence is added or removed by the relocation; existing query-budget assertions remain the verification, not a new query benchmark."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency measurement is claimed for this source cutover."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency measurement is claimed for this source cutover."
+    },
+    "errors": {
+      "state": "not_applicable",
+      "reason": "Existing authorization, native error, nil/empty result and persistence error assertions are retained; no production error-rate measurement is claimed."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "Pool configuration and acquisition are unchanged; no new wait measurement is claimed."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "Lock statements and ordering are unchanged; no new lock timing measurement is claimed."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No deadlock-rate measurement is claimed; transaction boundaries and their exact register remain unchanged."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "Scheduler storage moves without changing job execution; no new duration measurement is claimed."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "No job retry policy changes and no retry-rate measurement is claimed."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "No queue or backlog policy changes and no new backlog measurement is claimed."
+    },
+    "failure": {
+      "state": "not_applicable",
+      "reason": "Existing owner failure-path assertions run in the affected suite; no new manual failure injection or performance claim is made."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data cutover occurs; existing rollback assertions remain and no manual rollback experiment is claimed."
+    },
+    "smoke": {
+      "state": "not_applicable",
+      "reason": "No manual HTTP or production smoke is claimed; the full affected HTTP and unchanged router-golden suites are required."
+    }
+  },
+  "rollback_and_cleanup": "Revert this whole code/import/policy/evidence cutover together. No data or environment rollback is required. Reverting only the zero-baseline test or baseline would leave stale or uncovered debt.",
+  "exit_criterion": "The final 4004 import tuple is retired with evidence; the ordinary check and baseline-free check both pass with zero legacy violations. Literal 4084/4086 exits remain open for the documented blockers.",
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020"
+}

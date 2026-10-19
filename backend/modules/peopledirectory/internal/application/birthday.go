@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 

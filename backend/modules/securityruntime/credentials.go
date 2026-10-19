@@ -1,6 +1,6 @@
 package securityruntime
 
-import "github.com/moto-nrw/project-phoenix/auth/authorize"
+import "github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/application/authorize"
 
 // The credential primitives the compositions hand to Identity & Access and
 // the operator flows. Security Runtime owns the password policy and the

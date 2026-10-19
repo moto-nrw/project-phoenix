@@ -3,8 +3,6 @@ package owners
 import (
 	"context"
 
-	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -46,9 +44,9 @@ func (r groupCrossTenantRepository) FindCrossTenantStudents(ctx context.Context,
 	for index := range rows {
 		pointers[index] = &rows[index]
 	}
-	if _, err := schoolStructureCompose.EnrichGroupNames(ctx, r.groups, pointers,
+	if _, err := EnrichGroupNames(ctx, r.groups, pointers,
 		func(row *presenceCompose.CrossTenantStudent) int64 {
-			return schoolStructureCompose.OptionalGroupID(row.GroupID)
+			return OptionalGroupID(row.GroupID)
 		},
 		func(row *presenceCompose.CrossTenantStudent, name string) { row.GroupName = name },
 		"", "cross-tenant students"); err != nil {
@@ -77,7 +75,7 @@ func (r groupSupervisorRepository) ListActiveSupervisionBlockers(ctx context.Con
 	for index := range rows {
 		pointers[index] = &rows[index]
 	}
-	if _, err := schoolStructureCompose.EnrichGroupNames(ctx, r.groups, pointers,
+	if _, err := EnrichGroupNames(ctx, r.groups, pointers,
 		func(row *studentpresence.SupervisionBlocker) int64 { return row.GroupID },
 		func(row *studentpresence.SupervisionBlocker, name string) { row.GroupName = name },
 		schoolstructure.UnknownGroupName, "supervision blockers"); err != nil {

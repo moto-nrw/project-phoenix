@@ -110,7 +110,7 @@ jobs:
               - 'backend/go.sum'
               - 'backend/architecture/policy.json'
               - 'backend/**/testdata/**'
-              - 'backend/localization/locales.json'
+              - 'backend/modules/delivery/internal/adapters/localization/locales.json'
               - 'backend/services/listexport/assets/**'
               - 'backend/templates/email/**'
               - 'scripts/backend-architecture.sh'
@@ -157,7 +157,7 @@ jobs:
               - '!backend/**/*_test.go'
               - 'backend/go.mod'
               - 'backend/go.sum'
-              - 'backend/localization/locales.json'
+              - 'backend/modules/delivery/internal/adapters/localization/locales.json'
               - 'backend/services/listexport/assets/**'
               - 'backend/templates/email/**'
             seed-smoke-infra:

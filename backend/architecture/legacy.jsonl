@@ -1,1 +1,0 @@
-{"scope":"production","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/modules/dataimport/compose","target":"github.com/moto-nrw/project-phoenix/auth/authorize","issue":"https://github.com/moto-nrw/project-phoenix/issues/4004"}

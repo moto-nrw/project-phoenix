@@ -1,6 +1,6 @@
 package securityruntime
 
-import "github.com/moto-nrw/project-phoenix/auth/authorize"
+import "github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/application/authorize"
 
 // GrantedRole are the stored facts of the role being handed out, plus its
 // effective permissions. The caller states the facts; Security Runtime owns

@@ -1,3 +1,106 @@
+# Final legacy cluster: round 7
+
+Base: `121b0ee5130db5ec6b289965f495acdca6285744` after PR #4344. The obsolete held follow-up is not part of this branch.
+
+## Measured cutover
+
+| Surface | Before | After |
+|---|---:|---:|
+| Legacy keys | 1 | 0 |
+| Composition field/setter targets | 0 | 0 |
+| Compose LOC cap | 24,501 | 20,916 |
+| Rules | 924 | 927 |
+| ADR 0020 package relocations in this round | 0 | 17 |
+| Outside-internal implementation packages, including CLI roles | 33 | 17 |
+| Legacy-prefixed files and legacy directories | 0 | 0 |
+
+The production Data Import authorization port is bound at the HTTP root using Security Runtime public decisions. Its internal decision tests retain their existing port double. `auth/authorize` is now Security Runtime internal application. The four public aliases that would otherwise expose its private types are removed: their actual context/audience definitions live in the native authorization port. The statistics facade returns a structural read capability rather than a private concrete type. No alias or row-schema clone is introduced.
+
+The canonical architecture regression now requires a baseline-free check to succeed with exactly zero violations. This is the explicitly authorized #2580 zero-ratchet cutover, not a relaxed checker. `legacy.jsonl` is empty; the retirement evidence covers its last exact tuple.
+
+## Compose extraction
+
+Runtime capability checks, lifecycle conversion, recovery orchestration, planning-track validation and reads move to Timetable application. People Directory owns its route/person/student row conversions, retained repository read/write facades, caregiver JSON/error mapping and birthday view in application. Group-room row conversion is internal School Structure application. Root-only staff/person/group enrichment and the cross-owner staff invitation binding move to the typed root. Settings owns presence reads and snapshot/preload validation in application; snapshot interfaces move once to its native records. Appointments, Feedback, Meal Plan and School Calendar own their public response/error-mapping engines. Facilities and Device Fleet repository adapters become internal.
+
+Communication staff SQL stores implement the native thread/message ports directly. The extra thread/message wrapper layer is deleted, rather than adding ten previously uncounted delegations. SQL, tenant filters, nil/empty results, timestamps and success-only message copyback remain unchanged. Two unused private row-value definitions are deleted.
+
+The full [compose function inventory](final-legacy-cluster-round-seven-compose.md) records every remaining non-constructor function, including test-only functions and all registered compose boundaries. Budgets are not used as proof of the constructor-only exit.
+
+## Literal exits and exact blockers
+
+| Issue | Evidence and remaining condition |
+|---|---|
+| #4004 | Proven: zero legacy tuples and no forbidden cross-owner composition import. The final Data Import edge is gone and its production binding is root-owned. |
+| #4084 | Not met. The complete inventory still contains runtime adapters and business/row-mapping bodies. In particular the caregiver administrative boundary and Timetable planning reorder are exact #4088 register entries. Their relocation is rejected by the unchanged shrink-only register. Communication announcement facade extraction also failed: `communication/adapter -> communication/public` is forbidden; moving that facade into application creates a Go cycle because the retained announcement adapter imports application. The attempted extraction was reverted. Other remaining bodies are explicitly inventoried, not silently called constructor-only. |
+| #4086 | Not met. The remaining paths below are implementation packages outside internal. Projection-grant path changes and registered runtime moves were reverted; no grant, composition exception or guard extension was added. |
+
+## Package relocations
+
+| Old package | New package |
+|---|---|
+| `applog` | `observability/internal/adapters/applog` |
+| `auth/authorize` | `modules/securityruntime/internal/application/authorize` |
+| `auth/userpass` | `modules/securityruntime/internal/domain/userpass` |
+| `auth/userpass/userpasstest` | `modules/securityruntime/userpasstest` |
+| `database` | `modules/transactionruntime/internal/adapters/database` |
+| `email` | `modules/delivery/internal/adapters/email` |
+| `email/emailtest` | `modules/delivery/emailtest` |
+| `localization` | `modules/delivery/internal/adapters/localization` |
+| `modules/dataimport/fileformat` | `modules/dataimport/internal/adapters/fileformat` |
+| `modules/delivery/application/emailbranding` | `modules/delivery/internal/application/emailbranding` |
+| `modules/delivery/application/locales` | `modules/delivery/internal/application/locales` |
+| `modules/delivery/application/realtimeevents` | `modules/delivery/internal/application/realtimeevents` |
+| `modules/filestorage/documents` | `modules/filestorage/internal/adapters/documents` |
+| `modules/peopledirectory/userscontract` | `modules/peopledirectory/internal/domain/userscontract` |
+| `modules/schedulerruntime/cleanupruns` | `modules/schedulerruntime/internal/adapters/cleanupruns` |
+| `seed/api` | `internal/devtools/seedapi` |
+| `simulate` | `internal/devtools/simulate` |
+
+Owner and all three roles are identical for these declarations. Source and destination Go filenames are checked against the immutable base by ADR 0020. The dead, unimported `constants` package is deleted, not relocated.
+
+## Remaining outside-internal implementations
+
+| Package | Owner / role | Exact blocker |
+|---|---|
+| `modules/studentdirectoryview` | `student-directory-view / postgres` | Exact tenant-safe projection grants are keyed by this path. The attempted ADR 0020 move was rejected as new grants by `readProjectionLoosenings`; no table/scope change was proposed. |
+| `auth/device` | `device-fleet / adapter` | The attempted same-owner/role relocation produced new composition-surface setter keys for `LastSeenDebouncer.scheduleDeferredFlushLocked -> lastSeenDebounceState.flushContext` and the existing `heartbeatContextDirectory.RecordLastSeen -> contexts` test injection. The surface must stay zero; no normalization or exception was added. |
+| `cmd` | `root-composition / cli` | The immutable #4088 register contains 2 site(s) at this path, e.g. `cmd/seed_parents.go:seedParentAccounts:tenant.WithinAdmin#1`. A renamed path is rejected by `transactionRegisterOnlyShrinks`. |
+| `modules/delivery/application/emailoutbox` | `delivery-platform / application` | The immutable #4088 register contains 2 site(s) at this path, e.g. `modules/delivery/application/emailoutbox/transport.go:Transport.withinIntent:p.Tenants.WithinSystem#1`. A renamed path is rejected by `transactionRegisterOnlyShrinks`. |
+| `modules/timetableprojection` | `timetable-legacy-view / postgres` | Exact tenant-safe projection grants are keyed by this path. The attempted ADR 0020 move was rejected as new grants by `readProjectionLoosenings`; no table/scope change was proposed. |
+| `modules/timetableblockdisplay` | `timetable-block-display / postgres` | Exact tenant-safe projection grants are keyed by this path. The attempted ADR 0020 move was rejected as new grants by `readProjectionLoosenings`; no table/scope change was proposed. |
+| `modules/presenceprojection` | `presence-legacy-view / postgres` | Exact tenant-safe projection grants are keyed by this path. The attempted ADR 0020 move was rejected as new grants by `readProjectionLoosenings`; no table/scope change was proposed. |
+| `modules/timetableenrollmentprovenance` | `timetable-enrollment-provenance / postgres` | Exact tenant-safe projection grants are keyed by this path. The attempted ADR 0020 move was rejected as new grants by `readProjectionLoosenings`; no table/scope change was proposed. |
+| `modules/parentrequestfeedprojection` | `parent-request-feed-view / postgres` | Exact tenant-safe projection grants are keyed by this path. The attempted ADR 0020 move was rejected as new grants by `readProjectionLoosenings`; no table/scope change was proposed. |
+| `modules/delivery/application/notifications` | `delivery-platform / application` | The immutable #4088 register contains 13 site(s) at this path, e.g. `modules/delivery/application/notifications/preferences.go:*preferenceService.forEachGuardianTenant:tenant.WithAdminTx#1`. A renamed path is rejected by `transactionRegisterOnlyShrinks`. |
+| `modules/delivery/application/pwa` | `delivery-platform / application` | The immutable #4088 register contains 3 site(s) at this path, e.g. `modules/delivery/application/pwa/usage.go:*usageService.ReportParent:tenant.WithAdminTx#1`. A renamed path is rejected by `transactionRegisterOnlyShrinks`. |
+| `workflows/parentportal/care` | `parent-portal / application` | The immutable #4088 register contains 7 site(s) at this path, e.g. `workflows/parentportal/care/child.go:*Service.ResolvePermittedChild:s.Runtime.WithinAdmin#1`. A renamed path is rejected by `transactionRegisterOnlyShrinks`. |
+| `workflows/parentportal/messaging` | `parent-portal / application` | The immutable #4088 register contains 15 site(s) at this path, e.g. `workflows/parentportal/messaging/parent_announcement_attachments.go:*Service.GuardianAnnouncementTenant:s.Runtime.WithinAdmin#1`. A renamed path is rejected by `transactionRegisterOnlyShrinks`. |
+| `modules/schedulerruntime/jobruntime` | `scheduler-runtime / postgres` | The immutable #4088 register contains 3 site(s) at this path, e.g. `modules/schedulerruntime/jobruntime/runtime.go:Runtime.WithinAdmin:tenant.WithinAdmin#1`. A renamed path is rejected by `transactionRegisterOnlyShrinks`. |
+| `modules/schedulerruntime/workerlease` | `scheduler-runtime / postgres` | The immutable #4088 register contains 1 site(s) at this path, e.g. `modules/schedulerruntime/workerlease/store.go:*Store.inAdminTransaction:tenant.WithAdminTx#1`. A renamed path is rejected by `transactionRegisterOnlyShrinks`. |
+| `modules/guardianlinkview` | `guardian-link-view / postgres` | Exact tenant-safe projection grants are keyed by this path. The attempted ADR 0020 move was rejected as new grants by `readProjectionLoosenings`; no table/scope change was proposed. |
+| `modules/schoolsetupview` | `school-setup / postgres` | Exact tenant-safe projection grants are keyed by this path. The attempted ADR 0020 move was rejected as new grants by `readProjectionLoosenings`; no table/scope change was proposed. |
+
+The five projection adapters already physically under Communication/Organisation internal remain at their current paths as well: audience, parentaudience, parentinbox, staffinbox and operatordashboard. Moving them under their projection owner requires renaming exact `read_projections` grants; the same guard rejects that change. Their owner and role are not reclassified.
+
+## Rules and one-to-one scan preservation
+
+| Added rule | Narrow successor / precedent |
+|---|---|
+| `security-runtime.public.authorization-port` | `platform.public-application`, following `transaction-runtime.public.stats-port`; the actual authorization input types replace public application aliases. |
+| `people-directory.http.authorization-port` | `people-directory.http.security-public`; same note-audience values, exact native port package only. |
+| `people-directory.adapter-test.authorization-port` | `adapter-test.platform.public`; the same native note-audience values in the existing internal HTTP tests, exact native port package only. |
+
+No key, grant, exception, hook allowance or budget grows. The function-length and complexity allowances for the four Data Import format files move 1:1 to `internal/adapters/fileformat`, with the same operations, limits and counts (four length entries, two complexity entries). Five realtime notice paths move 1:1 to Delivery internal application; operations, reasons and body fingerprints are unchanged, and the notice count stays 117. The existing 812 command and 257 administrative transaction-register entries and its guard are unchanged.
+
+ADR 0064 scan preservation adds the exact native School Calendar feed-history file and the exact Device Fleet adapter subtree to the existing pass-through scan. The moved root staff-invitation file stays charged to Data Import. These extend scan coverage, not permission or budgets. The source methods were removed from the former counted composition trees; their owner attribution is unchanged.
+
+The locale JSON moves with its adapter. Three frontend script references and the CI locale filters point to the same data file at its new path. The SMTP demo test template reference changes 1:1 from `../templates` to `../../../../../templates`. Seed coverage CI and marketing filters track the same seed source files at the new tool-internal path.
+
+## Verification
+
+Required final results are recorded in the PR: architecture, all-ticket validation with retirement coverage, full affected tests without `--fast`, lint, full hooks and quorum. No benchmark, production request or manual HTTP smoke is claimed. Routes, middleware/IoT texts and router goldens are unchanged.
+
+---
 # Final legacy cluster: round 6
 
 Integrated base: `466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51` (development after PR #4341). The preserved work was committed before integration, as requested. Earlier rounds below are historical.

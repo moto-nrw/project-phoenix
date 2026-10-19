@@ -39,7 +39,7 @@ func NewCareLifecycleOwners(
 		Bookings:    careExitBookings{capability: timetables},
 		Enrollment:  careExitEnrollment{projection: enrollment},
 		Presence:    careExitPresence{presence: presence},
-		Calendar:    schoolCalendarCompose.CalendarPeriodIDs{Calendar: calendar},
+		Calendar:    schoolCalendarCompose.NewCalendarPeriodIDs(calendar),
 		Tags:        peopleCompose.NewStudentTagReleaser(people),
 		ChangeTrail: changeTrail,
 	}

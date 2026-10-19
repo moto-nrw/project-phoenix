@@ -3,7 +3,7 @@ package compose
 import (
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/email"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 )
 
