@@ -91,7 +91,7 @@ func TestMessageQueryInstrumentationLeavesSharedDatabaseUnchanged(t *testing.T) 
 }
 
 // observeResult binds the production operation observer around the test query.
-func observeResult[T any](ctx context.Context, observe func(Observation), operation string, run func(context.Context) (T, error)) (result T, err error) {
+func observeResult[T any](ctx context.Context, observe func(ports.Observation), operation string, run func(context.Context) (T, error)) (result T, err error) {
 	runCtx, finish := NewMessageObservation(observe)(ctx, operation)
 	defer func() { finish(err) }()
 	return run(runCtx)
