@@ -31,10 +31,11 @@ entries by one. `TestHandlerComplexityRatchet` stays at zero.
 
 The rule "never raise a number, never add an entry" guards against code
 that grows more complex. Here the code is unchanged and only the measuring
-instrument moved. Refactoring the affected functions, most of them login,
-MFA, session and invitation flows in Identity & Access, would put security
-paths at risk for a dependency bump; that work belongs to
-[#3423](https://github.com/moto-nrw/project-phoenix/issues/3423).
+instrument moved. Refactoring the sixteen affected functions would touch
+seven modules and one workflow for a dependency bump, among them five login,
+MFA, session, invitation and staff-preview flows in Identity & Access. That work
+belongs to [#3423](https://github.com/moto-nrw/project-phoenix/issues/3423),
+where each function can be cut with its own tests.
 
 ## Decision
 
@@ -45,8 +46,8 @@ paths at risk for a dependency bump; that work belongs to
    `validStudentEnrollment`), two fall. The register's sum rises from 5,460
    to 5,527 over 228 entries.
 3. The raise covers exactly this re-measurement. Every entry keeps falling
-   under ADR 0057 point 5, and a later gocognit upgrade that moves scores
-   again needs an ADR of its own.
+   under ADR 0057 point 5; like any other raise, a later upgrade that moves
+   scores again needs an ADR of its own.
 
 ## Consequences
 

@@ -61,7 +61,8 @@ const moduleComplexityThreshold = 15
 // logical operators and recursion differently; no code changed. Thirteen
 // entries rose, three functions entered at 16, and two entries fell: the
 // register's sum went from 5,460 to 5,527 over 228 entries. This is a tool
-// rebaseline, not new debt, and every entry keeps falling from here.
+// rebaseline, not new debt; ADR 0072 records why the functions were not
+// refactored instead. Every entry keeps falling from here.
 //
 // Sorted by key, with a blank line between owner modules so gofmt aligns each
 // block on its own and removing an entry reflows only that module's block.
