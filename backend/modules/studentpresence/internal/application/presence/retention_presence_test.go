@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,7 +71,7 @@ func testRetentionRollback(t *testing.T, stage string) {
 		fault.afterAppend = injected
 	}
 	repos := api.NewRetentionCleanupRepositories(testpkg.NewDatabase(t, db), fault)
-	svc := activeService.NewCleanupService(deleteFault, sessionSupervisors(repos.Sessions), api.NewDeletionAudit(repos.Deletion), visitRetentionSetting{days: 30})
+	svc := activeService.NewCleanupService(deleteFault, sessionSupervisors(repos.Sessions), owners.NewDeletionAudit(repos.Deletion), visitRetentionSetting{days: 30})
 	consent := testpkg.CreateTestPrivacyConsent(t, db, "retention-rollback")
 	group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
 	entry := time.Now().AddDate(0, 0, -45)

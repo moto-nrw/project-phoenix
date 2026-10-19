@@ -13,6 +13,7 @@ import (
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -685,7 +686,7 @@ func updateCalendarPeriodRow(t *testing.T, db *bun.DB, ctx context.Context, peri
 // newTestMaterialization composes the Timetable owner's materialization over
 // the retained repositories, the way the composition root does, without the
 // per-date care filter and the staffing announcement.
-func newTestMaterialization(t *testing.T, db *bun.DB, repos *api.CareScheduleSuiteRepositories, timetableRepos api.TimetableRepositories) timetable.MaterializationCapability {
+func newTestMaterialization(t *testing.T, db *bun.DB, repos *api.CareScheduleSuiteRepositories, timetableRepos owners.TimetableRepositories) timetable.MaterializationCapability {
 	t.Helper()
 	svc, err := compose.NewMaterialization(timetablePorts.MaterializationDependencies{
 		GroupRepo:      timetableRepos.ActivityGroup,
@@ -698,7 +699,7 @@ func newTestMaterialization(t *testing.T, db *bun.DB, repos *api.CareScheduleSui
 		StudentRepo:    fixtures.IntoInstanceStudentRecords(fixtures.FromInstanceStudentRecords(timetableRepos.InstanceStudent)),
 		ExceptionRepo:  fixtures.IntoActivityExceptionRecords(fixtures.FromActivityExceptionRecords(timetableRepos.ActivityException)),
 		TimeframeRepo:  fixtures.IntoTimeframeRecords(fixtures.FromTimeframeRecords(timetableRepos.Timeframe)),
-		RecurrenceLock: api.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, db)),
+		RecurrenceLock: owners.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, db)),
 		Transactions:   compose.NewTenantTransactions(db),
 		Logger:         slog.Default(),
 	})

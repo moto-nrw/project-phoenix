@@ -8,6 +8,7 @@ import (
 	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -27,9 +28,9 @@ func arrivalServiceWithClassExceptions(t *testing.T, repos *api.RepositoryTestFa
 	db := testpkg.SetupTestDB(t)
 	classes, err := arrivalTimetable.NewClassArrivals(db, func(arrivalTimetable.Observation) {})
 	require.NoError(t, err)
-	classExceptions, err := api.NewClassArrivalExceptions(classes, api.MustNewPeopleDirectory(testpkg.MustDatabase(db)))
+	classExceptions, err := owners.NewClassArrivalExceptions(classes, owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)))
 	require.NoError(t, err)
-	return nativeArrivalSchedules(t, repos.CarePlan(), classArrivalBaseline(t, repos), api.ClassArrivalPlans(classes), classExceptions)
+	return nativeArrivalSchedules(t, repos.CarePlan(), classArrivalBaseline(t, repos), owners.ClassArrivalPlans(classes), classExceptions)
 }
 
 func setClassArrivalException(t *testing.T, _ *api.RepositoryTestFactory, class string, date calendar.Date, hhmm, reason string) {

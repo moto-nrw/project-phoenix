@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -17,12 +19,12 @@ import (
 // offering bookings, which carry no state and are composed per command.
 // Production workflows use the owner commands directly.
 type EnrollmentBookingFixture struct {
-	EnrollmentBookingProjection
+	owners.EnrollmentBookingProjection
 	withinTenant func(context.Context, func(context.Context) error) error
 }
 
 func NewEnrollmentBookingFixtureWithin(withinTenant func(context.Context, func(context.Context) error) error) EnrollmentBookingFixture {
-	return EnrollmentBookingFixture{NewEnrollmentBookingProjection(NewEnrollmentBookings()), withinTenant}
+	return EnrollmentBookingFixture{owners.NewEnrollmentBookingProjection(owners.NewEnrollmentBookings()), withinTenant}
 }
 
 // These retained composition methods translate the old fixture-facing command

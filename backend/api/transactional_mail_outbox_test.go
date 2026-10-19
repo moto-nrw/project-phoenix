@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -19,28 +21,28 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func mailTransactionFixture(t *testing.T) (*bun.DB, context.Context, OutboxEnqueuer) {
+func mailTransactionFixture(t *testing.T) (*bun.DB, context.Context, owners.OutboxEnqueuer) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db)
 	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
-		DB: db, People: enrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
+		DB: db, People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
 	})
 	require.NoError(t, err)
-	return db, ctx, OutboxEnqueuer{Runtime: runtime, Outbox: deliveryCompose.NewEmailOutbox(deliveryCompose.NewDurableEmails(runtime.Module))}
+	return db, ctx, owners.OutboxEnqueuer{Runtime: runtime, Outbox: deliveryCompose.NewEmailOutbox(deliveryCompose.NewDurableEmails(runtime.Module))}
 }
 
 func assertTransactionalMails(t *testing.T, db *bun.DB, ctx context.Context, admin bool, address string, kinds []string, trigger func(context.Context) error) {
 	t.Helper()
 	matches := `kind = ? AND ((payload->'Message'->'To'->>'Address') = ? OR (payload->'Message'->'Content'->>'Email') = ?)`
 	t.Cleanup(func() {
-		_, err := db.NewDelete().TableExpr("platform.email_outbox").Where(matches, transactionalMailKind, address, address).Exec(context.Background())
+		_, err := db.NewDelete().TableExpr("platform.email_outbox").Where(matches, owners.TransactionalMailKind, address, address).Exec(context.Background())
 		require.NoError(t, err)
 	})
 	counts := func(queryCtx context.Context, source bun.IDB, expected int) {
 		t.Helper()
 		for _, kind := range kinds {
-			n, err := source.NewSelect().TableExpr("platform.email_outbox").Where(matches, transactionalMailKind, address, address).Where("payload->>'Type' = ?", kind).Count(queryCtx)
+			n, err := source.NewSelect().TableExpr("platform.email_outbox").Where(matches, owners.TransactionalMailKind, address, address).Where("payload->>'Type' = ?", kind).Count(queryCtx)
 			require.NoError(t, err)
 			assert.EqualValues(t, expected, n, kind)
 		}
@@ -167,9 +169,9 @@ func TestSystemEmailOutboxScopeIdempotencyAndRetention(t *testing.T) {
 	// Pending entries remain durable even after the terminal retention cutoff.
 	_, err := db.NewRaw(`UPDATE platform.email_outbox SET created_at = ?, updated_at = ? WHERE id = ?`, time.Now().Add(-31*24*time.Hour), time.Now().Add(-31*24*time.Hour), first.ID).Exec(ctx)
 	require.NoError(t, err)
-	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{DB: db, People: enrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {}})
+	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{DB: db, People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {}})
 	require.NoError(t, err)
-	worker, err := deliveryCompose.NewWorker(runtime, reminderPushProvider{})
+	worker, err := deliveryCompose.NewWorker(runtime, owners.ReminderPushProvider{})
 	require.NoError(t, err)
 	_, err = worker.RunOnce(ctx, 2, 3)
 	require.NoError(t, err)
@@ -216,7 +218,7 @@ func TestInvitationResendMailOutboxIsAtomic(t *testing.T) {
 					return module.Auth.ResendSchoolInvitation(txCtx, invitation.ID, creator.ID)
 				}
 			}
-			_, err := db.NewRaw(`DELETE FROM platform.email_outbox WHERE kind = ? AND payload->'Message'->'To'->>'Address' = ?`, transactionalMailKind, address).Exec(ctx)
+			_, err := db.NewRaw(`DELETE FROM platform.email_outbox WHERE kind = ? AND payload->'Message'->'To'->>'Address' = ?`, owners.TransactionalMailKind, address).Exec(ctx)
 			require.NoError(t, err)
 			assertTransactionalMails(t, db, ctx, operator, address, []string{kind}, trigger)
 		})
@@ -236,7 +238,7 @@ func TestOperatorEmailChangeMailOutboxIsAtomic(t *testing.T) {
 			password := "Fixture-operator-password-4087!"
 			operator := testpkg.CreateTestOperatorWithPassword(t, db, oldAddress, password)
 			t.Cleanup(func() {
-				_, err := db.NewRaw(`DELETE FROM platform.email_outbox WHERE kind = ? AND payload->'Message'->'To'->>'Address' IN (?, ?)`, transactionalMailKind, oldAddress, newAddress).Exec(context.Background())
+				_, err := db.NewRaw(`DELETE FROM platform.email_outbox WHERE kind = ? AND payload->'Message'->'To'->>'Address' IN (?, ?)`, owners.TransactionalMailKind, oldAddress, newAddress).Exec(context.Background())
 				require.NoError(t, err)
 			})
 			initiate := func(txCtx context.Context) error {

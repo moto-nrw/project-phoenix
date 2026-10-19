@@ -5,6 +5,8 @@ package api
 import (
 	"log/slog"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/go-chi/chi/v5"
 
 	careStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
@@ -20,14 +22,14 @@ import (
 // These test-support builders share the root's adapter wiring without invoking
 // its production bootstrap. Each accepts only the module under test.
 func newStaffTestResource(module schoolmembership.Capability, svc StaffTestModule, work WorkforceTestModule, db transactionruntime.Database, logger *slog.Logger) *staffHTTP.Resource {
-	capabilities := NewWorkforceAdminCapabilities(svc.Users, work.StaffAdmin, work.TimeTracking)
+	capabilities := owners.NewWorkforceAdminCapabilities(svc.Users, work.StaffAdmin, work.TimeTracking)
 	admin := newStaffAdminResource(capabilities, nil, nil, nil, db, logger)
 	return newStaffResource(module, svc.PeopleDirectory, func(hooks StaffMembershipHooks) StaffMembershipRuntime {
 		return svc.NewStaffMembershipRuntime(db, logger, hooks)
 	}, admin, logger)
 }
 
-func newCareScheduleTestRouter(db transactionruntime.Database, module StudentTestModule, live ActiveTestModule, liveSettings ActiveSettings, liveCaller *CallerRows) (chi.Router, error) {
+func newCareScheduleTestRouter(db transactionruntime.Database, module StudentTestModule, live ActiveTestModule, liveSettings ActiveSettings, liveCaller *owners.CallerRows) (chi.Router, error) {
 	parent, err := NewParentCareScheduleTestService(db, module, live, liveSettings)
 	if err != nil {
 		return nil, err

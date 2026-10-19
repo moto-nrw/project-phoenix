@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 )
 
 // Error message and format constants (S1192 fix - reduces string duplication)
@@ -157,7 +158,7 @@ func (root cleanupRoot) openWithAudit(capability string) (transactionruntime.Dat
 // newCleanupSchools composes Organization & Tenancy over db; on failure db is
 // closed.
 func newCleanupSchools(db transactionruntime.Database) (organizationtenancy.Capability, error) {
-	schools, err := api.NewOrganizationTenancy(db)
+	schools, err := owners.NewOrganizationTenancy(db)
 	if err != nil {
 		_ = db.Close()
 		return nil, err
@@ -168,7 +169,7 @@ func newCleanupSchools(db transactionruntime.Database) (organizationtenancy.Capa
 // newCleanupTimetableOwner composes the Timetable owner over db; on failure db
 // is closed.
 func newCleanupTimetableOwner(db transactionruntime.Database) (timetable.Capability, error) {
-	timetableCapability, err := api.NewCleanupTimetable(db)
+	timetableCapability, err := owners.NewCleanupTimetable(db)
 	if err != nil {
 		_ = db.Close()
 		return nil, err

@@ -3,18 +3,6 @@
     "fingerprint": "ae54a69d195145acc122ce75ac4fd259",
     "reason": "Bounded, best-effort product telemetry only; overflow is already dropped. Loss changes analytics, not authorization, audit evidence or canonical school data."
   },
-  "api/communication_runtime.go:CommunicationEventRuntime.RegisterAfterCommit:RegisterAfterCommit@3d79e06dc114db3c08b02ba709d51ff3#1": {
-    "fingerprint": "3d79e06dc114db3c08b02ba709d51ff3",
-    "reason": "Transaction-hook forwarder for Communication realtime broadcasts only. Timeline records and durable push intents are committed before callbacks; reconnect/refetch reads those records."
-  },
-  "api/communication_runtime.go:CommunicationRequestRuntime.RegisterAfterCommit:RegisterAfterCommit@3d79e06dc114db3c08b02ba709d51ff3#1": {
-    "fingerprint": "3d79e06dc114db3c08b02ba709d51ff3",
-    "reason": "Transaction-hook forwarder for Communication realtime broadcasts only. Timeline records and durable push intents are committed before callbacks; reconnect/refetch reads those records."
-  },
-  "api/parent_portal_runtime.go:ParentPortalRuntime.RegisterAfterCommit:RegisterAfterCommit@3d79e06dc114db3c08b02ba709d51ff3#1": {
-    "fingerprint": "3d79e06dc114db3c08b02ba709d51ff3",
-    "reason": "Parent Portal transaction-hook forwarder for realtime invalidation only. Timeline pills now append in the triggering transaction; clients recover current state on reconnect/refetch."
-  },
   "api/server.go:Runtime.startBackground:go@ebc7547aeaeecb1f03f45971a88b2160#1": {
     "fingerprint": "ebc7547aeaeecb1f03f45971a88b2160",
     "reason": "Process-local capacity metrics and diagnostic logging only. Restart reconstructs current capacity; no command or durable delivery depends on samples."
@@ -410,6 +398,18 @@
   "modules/workforce/internal/planning/time_tracking_events.go:queueStaffTimeTrackingChanged:RegisterAfterCommit@10a27cb9d276d6f9d3c11ba14eb054ba#1": {
     "fingerprint": "10a27cb9d276d6f9d3c11ba14eb054ba",
     "reason": "Optional immediate staff-document cleanup wake (or workforce SSE invalidation), backed by committed document/offboarding cleanup markers. Existing cleanup sweeps retry those durable rows, so no file-deletion intent depends on this callback."
+  },
+  "roots/owners/communication_runtime.go:CommunicationEventRuntime.RegisterAfterCommit:RegisterAfterCommit@3d79e06dc114db3c08b02ba709d51ff3#1": {
+    "fingerprint": "3d79e06dc114db3c08b02ba709d51ff3",
+    "reason": "Transaction-hook forwarder for Communication realtime broadcasts only. Timeline records and durable push intents are committed before callbacks; reconnect/refetch reads those records."
+  },
+  "roots/owners/communication_runtime.go:CommunicationRequestRuntime.RegisterAfterCommit:RegisterAfterCommit@3d79e06dc114db3c08b02ba709d51ff3#1": {
+    "fingerprint": "3d79e06dc114db3c08b02ba709d51ff3",
+    "reason": "Transaction-hook forwarder for Communication realtime broadcasts only. Timeline records and durable push intents are committed before callbacks; reconnect/refetch reads those records."
+  },
+  "roots/owners/parent_portal_runtime.go:ParentPortalRuntime.RegisterAfterCommit:RegisterAfterCommit@3d79e06dc114db3c08b02ba709d51ff3#1": {
+    "fingerprint": "3d79e06dc114db3c08b02ba709d51ff3",
+    "reason": "Parent Portal transaction-hook forwarder for realtime invalidation only. Timeline pills now append in the triggering transaction; clients recover current state on reconnect/refetch."
   },
   "workflows/parentportal/care/absences.go:Service.afterAbsenceCommit:RegisterAfterCommit@eed37765f420745f077b429a315a1847#1": {
     "fingerprint": "eed37765f420745f077b429a315a1847",

@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
@@ -57,10 +59,10 @@ func NewEducationSuiteService(repos *PeopleRepositorySuiteFactory, db transactio
 	if err != nil {
 		panic(fmt.Sprintf("education suite: compose facilities: %v", err))
 	}
-	structure := NewSchoolStructureSuiteRepositories(db)
+	structure := owners.NewSchoolStructureSuiteRepositories(db)
 	service := education.NewService(structure.Group, structure.GroupTeacher, structure.ClassTeacher,
-		NewEducationRooms(rooms), NewEducationTeachers(repos.Teacher),
-		NewEducationStaff(repos.Staff), repos.Student, repos.GroupSubstitution,
+		owners.NewEducationRooms(rooms), owners.NewEducationTeachers(repos.Teacher),
+		owners.NewEducationStaff(repos.Staff), repos.Student, repos.GroupSubstitution,
 		education.NewLegacyRepositoryRuntime(db.Pool()), education.GroupServiceOptions{Broadcaster: NewGroupEvents(broadcaster, nil), Audit: NewEducationClassAssignmentAudit(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()}).StaffMasterDataChange)})
 
 	return service
@@ -81,19 +83,19 @@ func NewTestGroupHandovers(db transactionruntime.Database) shiftplansync.GroupHa
 // repositories the way the service graph binds them.
 func NewSubstitutionSuiteModule(repos *PeopleRepositorySuiteFactory, db transactionruntime.Database, deps education.SubstitutionDependencies) education.SubstitutionModule {
 	if deps.Groups == nil {
-		deps.Groups = NewSchoolStructureSuiteRepositories(db).Group
+		deps.Groups = owners.NewSchoolStructureSuiteRepositories(db).Group
 	}
 	if deps.Substitutions == nil {
 		deps.Substitutions = NewEducationHandovers(repos.GroupSubstitution, NewTestGroupHandovers(db))
 	}
 	if deps.Teachers == nil {
-		deps.Teachers = NewEducationCaregivers(repos.Teacher)
+		deps.Teachers = owners.NewEducationCaregivers(repos.Teacher)
 	}
 	if deps.Staff == nil {
-		deps.Staff = NewEducationStaff(repos.Staff)
+		deps.Staff = owners.NewEducationStaff(repos.Staff)
 	}
 	if deps.ExternalCaregivers == nil {
-		deps.ExternalCaregivers = NewEducationExternalCaregivers(repos.Staff, repos.Guest)
+		deps.ExternalCaregivers = owners.NewEducationExternalCaregivers(repos.Staff, repos.Guest)
 	}
 	if deps.Audit == nil {
 		deps.Audit = NewEducationSubstitutionAudit(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()}).SubstitutionChange)
@@ -127,17 +129,17 @@ func NewGradeTransitionSuiteOwners(db transactionruntime.Database, clock func() 
 	if err != nil {
 		return GradeTransitionSuiteOwners{}, nil, nil, err
 	}
-	people, err := NewPeopleDirectory(db)
+	people, err := owners.NewPeopleDirectory(db)
 	if err != nil {
 		return GradeTransitionSuiteOwners{}, nil, nil, err
 	}
-	membership, err := NewSchoolMembership(db)
+	membership, err := owners.NewSchoolMembership(db)
 	if err != nil {
 		return GradeTransitionSuiteOwners{}, nil, nil, err
 	}
 	return GradeTransitionSuiteOwners{
 		Rosters:              rows.RosterMaintenance(slog.Default(), clock),
-		LockRecurrenceWrites: MustNewTimetableRecurrenceLock(db).LockRecurrenceWrites,
+		LockRecurrenceWrites: owners.MustNewTimetableRecurrenceLock(db).LockRecurrenceWrites,
 	}, people, membership, nil
 }
 

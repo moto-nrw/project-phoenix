@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
@@ -24,67 +26,67 @@ type RemindersTestModule struct {
 
 // NewRemindersTestModule composes the reminder query and returns the tenant
 // settings it reads beside it.
-func NewRemindersTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (RemindersTestModule, SettingsTestModule, error) {
+func NewRemindersTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (RemindersTestModule, owners.SettingsTestModule, error) {
 	rooms, err := facilitiesCompose.NewUnobserved(db.Pool())
 	if err != nil {
-		return RemindersTestModule{}, SettingsTestModule{}, err
+		return RemindersTestModule{}, owners.SettingsTestModule{}, err
 	}
 	r, err := NewTimetableTestRepositories(db)
 	if err != nil {
-		return RemindersTestModule{}, SettingsTestModule{}, err
+		return RemindersTestModule{}, owners.SettingsTestModule{}, err
 	}
-	members := MustNewMembershipTestRepositories(db)
+	members := owners.MustNewMembershipTestRepositories(db)
 	presence, err := NewTimetablePresenceRows(db, r, members)
 	if err != nil {
-		return RemindersTestModule{}, SettingsTestModule{}, err
+		return RemindersTestModule{}, owners.SettingsTestModule{}, err
 	}
 	approvedOfferings, err := NewApprovedOfferingTestProjection(db, r.Enrollment())
 	if err != nil {
-		return RemindersTestModule{}, SettingsTestModule{}, err
+		return RemindersTestModule{}, owners.SettingsTestModule{}, err
 	}
 	_, groupPresence, _, groupCaller, err := NewGroupsTestModule(db, unit)
 	if err != nil {
-		return RemindersTestModule{}, SettingsTestModule{}, err
+		return RemindersTestModule{}, owners.SettingsTestModule{}, err
 	}
-	settings, err := NewSettingsTestModule(db, unit)
+	settings, err := owners.NewSettingsTestModule(db, unit)
 	if err != nil {
-		return RemindersTestModule{}, SettingsTestModule{}, err
+		return RemindersTestModule{}, owners.SettingsTestModule{}, err
 	}
-	students, err := NewPeopleDirectory(db)
+	students, err := owners.NewPeopleDirectory(db)
 	if err != nil {
-		return RemindersTestModule{}, SettingsTestModule{}, err
+		return RemindersTestModule{}, owners.SettingsTestModule{}, err
 	}
-	carePlan, err := NewCarePlan(db, students, r.InstanceStudent)
+	carePlan, err := owners.NewCarePlan(db, students, r.InstanceStudent)
 	if err != nil {
-		return RemindersTestModule{}, SettingsTestModule{}, err
+		return RemindersTestModule{}, owners.SettingsTestModule{}, err
 	}
 	baseline, err := careplanCompose.NewPickupBaselines(carePlan, approvedOfferings, func(ctx context.Context) (bool, error) {
 		return settings.Settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 	})
 	if err != nil {
-		return RemindersTestModule{}, SettingsTestModule{}, err
+		return RemindersTestModule{}, owners.SettingsTestModule{}, err
 	}
 	autoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
-		DB: db.Pool(), Records: carePlan, Baselines: baseline, Blocks: NewLoggedStudentPresence(db, slog.Default()), Preview: NewPickupExcusalTimetable(r.Timetable, NewPartialAbsencePreview(db)),
+		DB: db.Pool(), Records: carePlan, Baselines: baseline, Blocks: owners.NewLoggedStudentPresence(db, slog.Default()), Preview: owners.NewPickupExcusalTimetable(r.Timetable, owners.NewPartialAbsencePreview(db)),
 	})
 	if err != nil {
-		return RemindersTestModule{}, SettingsTestModule{}, err
+		return RemindersTestModule{}, owners.SettingsTestModule{}, err
 	}
-	pickupStudents, err := PickupPlanStudents(students)
+	pickupStudents, err := owners.PickupPlanStudents(students)
 	if err != nil {
-		return RemindersTestModule{}, SettingsTestModule{}, err
+		return RemindersTestModule{}, owners.SettingsTestModule{}, err
 	}
 	pickup, err := careplanCompose.NewPickupSchedules(db.Pool(), carePlan, baseline, autoExcusal, pickupStudents, slog.Default())
 	if err != nil {
-		return RemindersTestModule{}, SettingsTestModule{}, err
+		return RemindersTestModule{}, owners.SettingsTestModule{}, err
 	}
 	service := reminderCompose.NewQuery(reminderPorts.QueryDependencies{
-		Clock:        ReminderClock(clocks...),
-		CurrentStaff: ReminderStaffIdentity(groupCaller),
-		Settings:     ReminderSettings{SettingsService: settings.Settings}, Attendance: NewLoggedStudentPresence(db, slog.Default()), Pickup: ReminderPickupReader{Source: pickup},
-		Instance: ReminderTimetableReader{Source: r.Timetable}, Room: ReminderRoomReader{Source: rooms},
-		Student: ReminderStudentReader{Source: members.Student}, Person: ReminderPersonReader{Source: members.Person}, Supervision: ReminderSupervisionReader{Source: groupPresence.Active, Presence: NewLoggedStudentPresence(db, slog.Default())},
-		Visits: ReminderVisitReader{Source: NewLoggedStudentPresence(db, slog.Default())}, Logger: slog.Default(), BulkSupervision: ReminderBulkSupervisionReader{Source: presence.GroupSupervisor}, BulkInstanceStaff: ReminderTimetableReader{Source: r.Timetable},
+		Clock:        owners.ReminderClock(clocks...),
+		CurrentStaff: owners.ReminderStaffIdentity(groupCaller),
+		Settings:     owners.ReminderSettings{SettingsService: settings.Settings}, Attendance: owners.NewLoggedStudentPresence(db, slog.Default()), Pickup: owners.ReminderPickupReader{Source: pickup},
+		Instance: owners.ReminderTimetableReader{Source: r.Timetable}, Room: owners.ReminderRoomReader{Source: rooms},
+		Student: owners.ReminderStudentReader{Source: members.Student}, Person: owners.ReminderPersonReader{Source: members.Person}, Supervision: owners.ReminderSupervisionReader{Source: groupPresence.Active, Presence: owners.NewLoggedStudentPresence(db, slog.Default())},
+		Visits: owners.ReminderVisitReader{Source: owners.NewLoggedStudentPresence(db, slog.Default())}, Logger: slog.Default(), BulkSupervision: owners.ReminderBulkSupervisionReader{Source: presence.GroupSupervisor}, BulkInstanceStaff: owners.ReminderTimetableReader{Source: r.Timetable},
 	})
 	return RemindersTestModule{Reminders: service}, settings, nil
 }

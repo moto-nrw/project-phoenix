@@ -91,6 +91,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
@@ -506,7 +507,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		mirroredInstance.ActiveGroupID = &activeGroupID
 		mirroredInstance.IsSpontaneous = true
 		mirroredInstance.TenantID = testpkg.Tenant(t)
-		require.NoError(t, api.NewAttendanceSyncTestRepositories(testpkg.MustDatabase(db), api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))).Instances.Create(ctx, mirroredInstance))
+		require.NoError(t, api.NewAttendanceSyncTestRepositories(testpkg.MustDatabase(db), owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))).Instances.Create(ctx, mirroredInstance))
 
 		// ACT: Force-start the same activity on device 2
 		session2, err := service.ForceStartActivitySessionWithSupervisors(ctx, activityGroup.ID, device2.ID, []int64{newSupervisor.ID}, &room2.ID)
@@ -530,7 +531,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		assert.Equal(t, session2.ID, transferredVisit.ActiveGroupID, "expected active visit to move to new session")
 		assert.Nil(t, transferredVisit.ExitTime, "expected transferred visit to remain open")
 
-		completedMirror, err := api.NewAttendanceSyncTestRepositories(testpkg.MustDatabase(db), api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))).Instances.FindByID(ctx, mirroredInstance.ID)
+		completedMirror, err := api.NewAttendanceSyncTestRepositories(testpkg.MustDatabase(db), owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))).Instances.FindByID(ctx, mirroredInstance.ID)
 		require.NoError(t, err)
 		assert.Equal(t, studentpresence.ActivitySessionCompleted, completedMirror.Status, "expected old timetable mirror to be completed")
 		assert.NotNil(t, completedMirror.CompletedAt, "expected completed mirror timestamp")

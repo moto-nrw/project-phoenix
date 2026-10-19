@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -70,11 +71,11 @@ func TestTimetableOperationsPlannedNowQueryBudget(t *testing.T) {
 // retained repositories; the caller is the given staff member.
 func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testpkg.Staff, now time.Time) timetable.OperationCapability {
 	t.Helper()
-	rooms := api.MustNewUnobservedRooms(testpkg.NewDatabase(t, db))
+	rooms := owners.MustNewUnobservedRooms(testpkg.NewDatabase(t, db))
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	reposStructure := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposStructure := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
-	staff, err := api.NewTimetableStaff(repos.Staff).FindWithPerson(testpkg.Ctx(t), staffFixture.ID)
+	staff, err := owners.NewTimetableStaff(repos.Staff).FindWithPerson(testpkg.Ctx(t), staffFixture.ID)
 	require.NoError(t, err)
 	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	stand := newTimetableOpsDeps()
@@ -91,16 +92,16 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testp
 		InstanceStaff:   fixtures.IntoInstanceStaffRecords(fixtures.FromInstanceStaffRecords(timetableRepos.InstanceStaff)),
 		Participants:    fixtures.IntoInstanceStudentRecords(fixtures.FromInstanceStudentRecords(timetableRepos.InstanceStudent)),
 		Templates:       timetableRepos.ActivityGroup,
-		Students:        api.NewTimetableRosterStudents(repos.Student),
-		EducationGroups: api.TimetableEducationGroupNames(reposStructure.Group),
-		Rooms:           api.NewTimetableRoomNames(rooms),
+		Students:        owners.NewTimetableRosterStudents(repos.Student),
+		EducationGroups: owners.TimetableEducationGroupNames(reposStructure.Group),
+		Rooms:           owners.NewTimetableRoomNames(rooms),
 	}
 	templates, err := rows.OperationTemplates()
 	require.NoError(t, err)
 	deps.Instances, deps.InstanceStaff, deps.Participants = fixtures.IntoOperationInstances(fixtures.FromActivityInstanceRecords(rows.Instances)), fixtures.IntoOperationInstanceStaff(fixtures.FromInstanceStaffRecords(rows.InstanceStaff)), fixtures.IntoOperationParticipants(fixtures.FromInstanceStudentRecords(rows.Participants))
 	deps.Templates, deps.Students = templates, rows.Students
 	deps.EducationGroups, deps.Rooms = rows.EducationGroups, rows.Rooms
-	operations, err := compose.NewOperations(deps, api.TimetableOperationCaller{RequestSession: deps.Session})
+	operations, err := compose.NewOperations(deps, owners.TimetableOperationCaller{RequestSession: deps.Session})
 	require.NoError(t, err)
 	return operations
 }

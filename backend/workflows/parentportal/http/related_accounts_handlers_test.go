@@ -13,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -71,31 +72,31 @@ func (relAcctSocialWorkerInvites) RevokeAccess(context.Context, parentService.Gu
 
 func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove bool) http.Handler {
 	t.Helper()
-	members := api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db))
+	members := owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db))
 	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), members)
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges:     api.ParentGuardianChanges(),
-		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.NewParentGuardianPolicy(),
-		Fingerprints:        api.SecurityFingerprints{},
-		Declarations:        api.ParentDeclarationPolicy(),
-		Locales:             api.ParentPortalLocales(),
-		Runtime:             api.ParentPortalRuntime{},
-		CarePlan:            api.NewParentCarePlanCommands(repos.CareExceptions, nil),
-		People:              api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
+		CarePlan:            owners.NewParentCarePlanCommands(repos.CareExceptions, nil),
+		People:              owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
 		ChildRepo:           repos.ParentChildReads(),
 		StatusDayRepo:       repos.StudentStatusDay,
-		StudentRepo:         api.NewParentStudentReads(members.Student),
+		StudentRepo:         owners.NewParentStudentReads(members.Student),
 		Settings:            relAcctHandlerSettings{inviteMode: inviteMode, canRemove: canRemove},
 		GuardianInvites:     relAcctStubInvites{},
-		StudentGuardianRepo: api.NewParentStudentGuardianReads(members.StudentGuardian),
-		GuardianProfileRepo: api.NewParentGuardianProfileReads(members.GuardianProfile),
+		StudentGuardianRepo: owners.NewParentStudentGuardianReads(members.StudentGuardian),
+		GuardianProfileRepo: owners.NewParentGuardianProfileReads(members.GuardianProfile),
 		Logger:              slog.Default(),
 
-		DataRequests: api.NewParentDataRequestCommands(repos.CareExceptions),
+		DataRequests: owners.NewParentDataRequestCommands(repos.CareExceptions),
 
-		CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 	rs := parent.NewResource(parent.ResourceConfig{Parent: svc})
 	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router(api.ParentSessionChain))
@@ -192,31 +193,31 @@ func (s *relAcctCaptureInvites) RevokeAccess(context.Context, parentService.Guar
 
 func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites parentService.GuardianAccess) http.Handler {
 	t.Helper()
-	members := api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db))
+	members := owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db))
 	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), members)
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges:     api.ParentGuardianChanges(),
-		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.NewParentGuardianPolicy(),
-		Fingerprints:        api.SecurityFingerprints{},
-		Declarations:        api.ParentDeclarationPolicy(),
-		Locales:             api.ParentPortalLocales(),
-		Runtime:             api.ParentPortalRuntime{},
-		CarePlan:            api.NewParentCarePlanCommands(repos.CareExceptions, nil),
-		People:              api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
+		CarePlan:            owners.NewParentCarePlanCommands(repos.CareExceptions, nil),
+		People:              owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
 		ChildRepo:           repos.ParentChildReads(),
 		StatusDayRepo:       repos.StudentStatusDay,
-		StudentRepo:         api.NewParentStudentReads(members.Student),
+		StudentRepo:         owners.NewParentStudentReads(members.Student),
 		Settings:            relAcctHandlerSettings{inviteMode: settings.ParentInviteModeDirect},
 		GuardianInvites:     invites,
-		StudentGuardianRepo: api.NewParentStudentGuardianReads(members.StudentGuardian),
-		GuardianProfileRepo: api.NewParentGuardianProfileReads(members.GuardianProfile),
+		StudentGuardianRepo: owners.NewParentStudentGuardianReads(members.StudentGuardian),
+		GuardianProfileRepo: owners.NewParentGuardianProfileReads(members.GuardianProfile),
 		Logger:              slog.Default(),
 
-		DataRequests: api.NewParentDataRequestCommands(repos.CareExceptions),
+		DataRequests: owners.NewParentDataRequestCommands(repos.CareExceptions),
 
-		CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 	rs := parent.NewResource(parent.ResourceConfig{Parent: svc})
 	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router(api.ParentSessionChain))

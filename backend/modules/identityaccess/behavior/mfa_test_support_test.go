@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -32,11 +33,11 @@ func newMFATestModule(t *testing.T, db *bun.DB, options ...api.AuthTestOption) a
 
 // newTestMFAService wires a test-DB-backed second factor with a successful
 // mailer, so StartMFAChallenge exercises the delivered-code path.
-func newTestMFAService(t *testing.T, options ...api.AuthTestOption) (identityaccess.AccountMFA, api.MembershipTestRepositories, *bun.DB) {
+func newTestMFAService(t *testing.T, options ...api.AuthTestOption) (identityaccess.AccountMFA, owners.MembershipTestRepositories, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	module := newMFATestModule(t, db, withDeliveringMailer(options)...)
-	return module.MFA, api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)), db
+	return module.MFA, owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)), db
 }
 
 // withDeliveringMailer prepends a mailer that accepts, because the composed
@@ -67,7 +68,7 @@ func challengeTokenAuth(t *testing.T, module api.AuthTestModule) *sessiontoken.T
 // signer it mints challenge tokens with and an account to gate.
 type mfaTestScenario struct {
 	MFA       identityaccess.AccountMFA
-	Repos     api.MembershipTestRepositories
+	Repos     owners.MembershipTestRepositories
 	TokenAuth *sessiontoken.TokenAuth
 	DB        *bun.DB
 	AccountID int64
@@ -79,7 +80,7 @@ func newMFATestScenario(t *testing.T, options ...api.AuthTestOption) mfaTestScen
 	module := newMFATestModule(t, db, withDeliveringMailer(options)...)
 	account := testpkg.CreateTestAccount(t, db, "mfa-extra")
 	return mfaTestScenario{
-		MFA: module.MFA, Repos: api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)), TokenAuth: challengeTokenAuth(t, module),
+		MFA: module.MFA, Repos: owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)), TokenAuth: challengeTokenAuth(t, module),
 		DB: db, AccountID: account.ID,
 	}
 }

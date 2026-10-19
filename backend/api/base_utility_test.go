@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/go-chi/chi/v5"
@@ -312,7 +314,7 @@ func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
 	db := testpkg.SetupTestDB(t)
 	module, hub, err := NewSettingsCallbacksTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), newStudentPhotoTestUnlinker())
 	require.NoError(t, err)
-	repos, err := NewEnrollmentTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	repos, err := NewEnrollmentTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	homeLayouts, ok := module.Settings.(interface {
 		HomeLayout(context.Context, int64, int64, []string) (any, error)
@@ -752,7 +754,7 @@ func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
 func TestRegisterRoutes_UsersRoutesRunThroughProtectedGroup(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	people, err := NewPeopleDirectory(testpkg.NewDatabase(t, db))
+	people, err := owners.NewPeopleDirectory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)

@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -63,11 +64,11 @@ func newEmailFixture(t *testing.T, preferences communication.NotificationPrefere
 	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	reposAccounts := api.NewAccountSuiteRepositories(testpkg.NewDatabase(t, db))
-	organizations, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
+	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	outbox := api.NewCapturingOutbox()
 	svc := messaging.NewService(messaging.Config{
-		UserContext: api.StaffStudentReads{},
+		UserContext: owners.StaffStudentReads{},
 		Session:     api.CommunicationSession{},
 		ThreadRepo:  messaging.NewThreadRepository(reposMessages.ParentMessageThread),
 		MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
@@ -79,7 +80,7 @@ func newEmailFixture(t *testing.T, preferences communication.NotificationPrefere
 		Logger:           slog.Default(),
 		Preferences:      preferences,
 		Outbox:           api.BindCommunicationCapturingOutbox(outbox),
-		GuardianProfiles: api.BindParentMessageGuardianProfiles(reposPeople.GuardianProfile),
+		GuardianProfiles: owners.BindParentMessageGuardianProfiles(reposPeople.GuardianProfile),
 		Schools:          schoolNames{schools: organizations},
 		ParentsURL:       testParentsURL,
 	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})

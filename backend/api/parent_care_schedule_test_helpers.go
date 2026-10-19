@@ -5,6 +5,8 @@ package api
 import (
 	"log/slog"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -22,36 +24,36 @@ func NewParentCareScheduleTestService(db transactionruntime.Database, module Stu
 		return nil, err
 	}
 	reposCare := NewEnrollmentCarePlanRows(db)
-	studentPeople, err := NewStudentPeopleRows(db, MustNewMembershipTestRepositories(db))
+	studentPeople, err := NewStudentPeopleRows(db, owners.MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return nil, err
 	}
 	messages := NewStudentMessageRows(db)
-	members := MustNewMembershipTestRepositories(db)
+	members := owners.MustNewMembershipTestRepositories(db)
 	parents, err := NewParentRouteTestRepositories(db, members)
 	if err != nil {
 		return nil, err
 	}
 	return parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges: ParentGuardianChanges(),
-		DeparturePolicy: ParentDeparturePolicy(),
-		GuardianPolicy:  NewParentGuardianPolicy(),
-		Fingerprints:    SecurityFingerprints{},
-		Declarations:    ParentDeclarationPolicy(),
-		Locales:         ParentPortalLocales(),
-		Runtime:         ParentPortalRuntime{},
-		ChildRepo:       parents.ParentChildReads(), StudentRepo: NewParentStudentReads(repos.Student), PersonRepo: NewParentPersonReads(repos.Person),
-		StudentGuardianRepo: NewParentStudentGuardianReads(members.StudentGuardian), GuardianProfileRepo: NewParentGuardianProfileReads(members.GuardianProfile),
-		Settings:         BindParentSettings(liveSettings.Settings),
-		ArrivalSchedules: NewParentArrivalSchedules(live.ArrivalSchedule),
-		PickupSchedules:  NewParentPickupSchedules(live.PickupSchedule),
-		CareRequests:     module.CareRequests, CareRequestRepo: NewParentCareRequestReads(students.CarePlan),
-		FamilyProtectionEvents: BindParentFamilyProtectionReads(studentPeople.FamilyProtection), ParentRequestShares: BindParentRequestShareRecords(studentPeople.ParentRequestShare),
-		StatusDayRepo: reposCare.StudentStatusDay, MessageThreadRepo: BindParentMessageThreadAccess(messages.ParentMessageThread),
-		MessageRepo: BindParentMessageReads(messages.ParentMessage),
+		GuardianChanges: owners.ParentGuardianChanges(),
+		DeparturePolicy: owners.ParentDeparturePolicy(),
+		GuardianPolicy:  owners.NewParentGuardianPolicy(),
+		Fingerprints:    owners.SecurityFingerprints{},
+		Declarations:    owners.ParentDeclarationPolicy(),
+		Locales:         owners.ParentPortalLocales(),
+		Runtime:         owners.ParentPortalRuntime{},
+		ChildRepo:       parents.ParentChildReads(), StudentRepo: owners.NewParentStudentReads(repos.Student), PersonRepo: owners.NewParentPersonReads(repos.Person),
+		StudentGuardianRepo: owners.NewParentStudentGuardianReads(members.StudentGuardian), GuardianProfileRepo: owners.NewParentGuardianProfileReads(members.GuardianProfile),
+		Settings:         owners.BindParentSettings(liveSettings.Settings),
+		ArrivalSchedules: owners.NewParentArrivalSchedules(live.ArrivalSchedule),
+		PickupSchedules:  owners.NewParentPickupSchedules(live.PickupSchedule),
+		CareRequests:     module.CareRequests, CareRequestRepo: owners.NewParentCareRequestReads(students.CarePlan),
+		FamilyProtectionEvents: owners.BindParentFamilyProtectionReads(studentPeople.FamilyProtection), ParentRequestShares: owners.BindParentRequestShareRecords(studentPeople.ParentRequestShare),
+		StatusDayRepo: reposCare.StudentStatusDay, MessageThreadRepo: owners.BindParentMessageThreadAccess(messages.ParentMessageThread),
+		MessageRepo: owners.BindParentMessageReads(messages.ParentMessage),
 		Logger:      slog.Default(),
 
-		CarePlanPolicy: NewParentCarePlanPolicy(),
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	}), nil
 }
 

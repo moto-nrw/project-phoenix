@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -87,7 +89,7 @@ func (s *statusDayStudents) LockForStatusWrite(ctx context.Context, studentID in
 	if err != nil {
 		return nil, err
 	}
-	record := StudentRecord(fresh)
+	record := owners.StudentRecord(fresh)
 	if !s.authorize(ctx, record, status) {
 		return nil, studentpresence.ErrStudentStatusDayReassigned
 	}

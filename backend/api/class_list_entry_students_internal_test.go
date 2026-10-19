@@ -3,6 +3,8 @@ package api
 import (
 	"testing"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +24,7 @@ import (
 
 func newClassListEntryStudents(t *testing.T, db *bun.DB) classListEntryStudents {
 	t.Helper()
-	persons, err := NewPeopleDirectory(testpkg.NewDatabase(t, db))
+	persons, err := owners.NewPeopleDirectory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	return classListEntryStudents{persons: persons}
 }
@@ -56,14 +58,14 @@ func TestClassListEntryStudentsMatchTheWholeNameCaseInsensitively(t *testing.T) 
 func TestClassListEntryStudentsIgnoreGraduates(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	persons, err := NewPeopleDirectory(testpkg.NewDatabase(t, db))
+	persons, err := owners.NewPeopleDirectory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	students := classListEntryStudents{persons: persons}
 	ctx := testpkg.Ctx(t)
 	class := "grad-1a"
 
 	graduate := testpkg.CreateTestStudent(t, db, "Namensvetter", "Kid", class)
-	membership, err := NewSchoolMembership(testpkg.NewDatabase(t, db))
+	membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	graduated, err := membership.Graduate(ctx, []int64{graduate.ID})
 	require.NoError(t, err)
@@ -96,7 +98,7 @@ func TestClassListEntryStudentsReportAnUnknownIDAsAbsent(t *testing.T) {
 
 	// Deleting the fixture leaves an ID that is guaranteed to name no student.
 	student := testpkg.CreateTestStudent(t, db, "Geloescht", "Kid", "gone-1a")
-	persons, err := NewPeopleDirectory(testpkg.NewDatabase(t, db))
+	persons, err := owners.NewPeopleDirectory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	_, err = persons.DeleteStudent(ctx, student.ID)
 	require.NoError(t, err)

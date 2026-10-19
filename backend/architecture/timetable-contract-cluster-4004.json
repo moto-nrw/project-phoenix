@@ -45,7 +45,7 @@
       "docs/architecture/timetable-contract-cluster.md",
       "backend/api/device_scan_catalog.go",
       "backend/api/kiosk_timetable.go",
-      "backend/api/device_fleet_timetable.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/device_fleet_timetable.go",
       "backend/modules/timetable/session_records.go"
     ],
     "workload": "Local migration-evidence validation against the exact immutable CI base using the repository Go toolchain and default Go cache. No runtime benchmark or manual HTTP request is claimed for this evidence-only correction.",

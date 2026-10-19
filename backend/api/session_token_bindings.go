@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/spf13/viper"
 
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
@@ -13,7 +15,7 @@ import (
 
 // requestTokenReads binds the root's request reads to Identity's session
 // token adapter the request middleware fills (#2747, #4006).
-var requestTokenReads = TokenAdapter{
+var requestTokenReads = owners.TokenAdapter{
 	Permissions:           sessiontoken.PermissionsFromCtx,
 	Claims:                requestClaims,
 	Memo:                  requestIdentityMemo,
@@ -26,16 +28,16 @@ var requestTokenReads = TokenAdapter{
 // builds the session
 // codec from the configured secret and token lifetimes; the signing primitive
 // stays in its session token adapter (ADR 0053 point 6).
-func newLegacyTokenAdapter() (TokenAdapter, error) {
+func newLegacyTokenAdapter() (owners.TokenAdapter, error) {
 	return tokenAdapterFor(viper.GetString("auth_jwt_secret"), viper.GetDuration("auth_jwt_expiry"), viper.GetDuration("auth_jwt_refresh_expiry"))
 }
 
 // tokenAdapterFor binds the request reads to the session tokens of the given
 // signing secret and token lifetimes.
-func tokenAdapterFor(secret string, accessExpiry, refreshExpiry time.Duration) (TokenAdapter, error) {
+func tokenAdapterFor(secret string, accessExpiry, refreshExpiry time.Duration) (owners.TokenAdapter, error) {
 	codec, err := NewConfiguredSessionTokens(secret, accessExpiry, refreshExpiry)
 	if err != nil {
-		return TokenAdapter{}, err
+		return owners.TokenAdapter{}, err
 	}
 	tokens := requestTokenReads
 	tokens.SessionTokens = codec
@@ -70,12 +72,12 @@ func NewConfiguredSessionTokens(secret string, accessExpiry, refreshExpiry time.
 var CallerFromClaims = requestTokenReads.Caller
 
 // requestClaims reads the verified claims the authenticator attached.
-func requestClaims(ctx context.Context) (RequestClaims, bool) {
+func requestClaims(ctx context.Context) (owners.RequestClaims, bool) {
 	claims, ok := ctx.Value(sessiontoken.CtxClaims).(sessiontoken.AppClaims)
 	if !ok {
-		return RequestClaims{}, false
+		return owners.RequestClaims{}, false
 	}
-	return RequestClaims{
+	return owners.RequestClaims{
 		AccountID: int64(claims.ID), TenantID: claims.TenantID, Scope: claims.Scope,
 		SchoolScope: claims.IsSchoolScope(), Admin: claims.IsAdmin,
 		FirstName: claims.FirstName, LastName: claims.LastName, Username: claims.Username,

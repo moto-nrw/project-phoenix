@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -25,7 +26,7 @@ import (
 const nonexistentCallerRowID int64 = 999999999
 
 // setupCallerRows composes the caller context over db.
-func setupCallerRows(t *testing.T, db *bun.DB) *api.CallerRows {
+func setupCallerRows(t *testing.T, db *bun.DB) *owners.CallerRows {
 	t.Helper()
 	module, err := api.NewUserContextTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
@@ -625,7 +626,7 @@ func TestParentRequestReviews_UsesRealTeacherGroupAssignments(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	reviews := setupCallerRows(t, db).Caller().ParentRequestReviews
 	require.NotNil(t, reviews)
-	settingsModule, err := api.NewSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	settingsModule, err := owners.NewSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	settings := settingsModule.Settings
 

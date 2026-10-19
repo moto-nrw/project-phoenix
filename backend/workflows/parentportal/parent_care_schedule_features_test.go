@@ -15,6 +15,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
@@ -49,44 +50,44 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		},
 	}
 	return parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges:        api.ParentGuardianChanges(),
-		DeparturePolicy:        api.ParentDeparturePolicy(),
-		GuardianPolicy:         api.NewParentGuardianPolicy(),
-		Fingerprints:           api.SecurityFingerprints{},
-		Declarations:           api.ParentDeclarationPolicy(),
-		Locales:                api.ParentPortalLocales(),
-		Runtime:                api.ParentPortalRuntime{},
-		MessagingEnabled:       api.BindParentMessagingGate(settings, slog.Default()),
-		CarePlan:               api.NewParentCarePlanCommands(repos.CarePlan(), nil),
-		People:                 api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		GuardianChanges:        owners.ParentGuardianChanges(),
+		DeparturePolicy:        owners.ParentDeparturePolicy(),
+		GuardianPolicy:         owners.NewParentGuardianPolicy(),
+		Fingerprints:           owners.SecurityFingerprints{},
+		Declarations:           owners.ParentDeclarationPolicy(),
+		Locales:                owners.ParentPortalLocales(),
+		Runtime:                owners.ParentPortalRuntime{},
+		MessagingEnabled:       owners.BindParentMessagingGate(settings, slog.Default()),
+		CarePlan:               owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:                 owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:           careProfiles(t, db),
 		ChildRepo:              repos.ParentChildReads(),
-		StudentRepo:            api.NewParentStudentReads(reposPeople.Student),
-		StudentGuardianRepo:    api.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
-		GuardianProfileRepo:    api.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
-		PersonRepo:             api.NewParentPersonReads(reposPeople.Person),
+		StudentRepo:            owners.NewParentStudentReads(reposPeople.Student),
+		StudentGuardianRepo:    owners.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
+		GuardianProfileRepo:    owners.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
+		PersonRepo:             owners.NewParentPersonReads(reposPeople.Person),
 		Settings:               settings,
 		MealPlan:               availableMealPlan(false),
-		StudentUpdates:         api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
-		ArrivalSchedules:       api.NewParentArrivalSchedules(schedules.Arrivals),
-		PickupSchedules:        api.NewParentPickupSchedules(schedules.Pickups),
+		StudentUpdates:         owners.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
+		ArrivalSchedules:       owners.NewParentArrivalSchedules(schedules.Arrivals),
+		PickupSchedules:        owners.NewParentPickupSchedules(schedules.Pickups),
 		CareRequests:           sfRequests.CareRequests,
-		CareRequestRepo:        api.NewParentCareRequestReads(repos.CarePlan()),
-		FamilyProtectionEvents: api.BindParentFamilyProtectionReads(reposPeople.FamilyProtection),
-		ParentRequestShares:    api.BindParentRequestShareRecords(reposPeople.ParentRequestShare),
+		CareRequestRepo:        owners.NewParentCareRequestReads(repos.CarePlan()),
+		FamilyProtectionEvents: owners.BindParentFamilyProtectionReads(reposPeople.FamilyProtection),
+		ParentRequestShares:    owners.BindParentRequestShareRecords(reposPeople.ParentRequestShare),
 		StatusDayRepo:          repos.StudentStatusDay,
-		MessageThreadRepo:      api.BindParentMessageThreadAccess(reposMessages.ParentMessageThread),
-		MessageRepo:            api.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
-		MessageReadRepo:        api.BindParentMessageInboxReads(reposMessages.ParentMessageRead),
+		MessageThreadRepo:      owners.BindParentMessageThreadAccess(reposMessages.ParentMessageThread),
+		MessageRepo:            owners.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
+		MessageReadRepo:        owners.BindParentMessageInboxReads(reposMessages.ParentMessageRead),
 		Conversations:          api.NewParentConversationCore(reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(db), reposMessages.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
 		Logger:                 slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		},
 
-		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
 
-		CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	}), db
 }
 

@@ -54,7 +54,7 @@
       "backend/modules/communication/parentstore/portal_declaration_policy.go",
       "backend/modules/communication/parentstore/native_record_codecs_internal_test.go",
       "backend/modules/communication/parentstore/school_projection_internal_test.go",
-      "backend/api/parent_message_people_ports.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/parent_message_people_ports.go",
       "backend/api/parent_store_values_test_helpers.go"
     ],
     "workload": "Existing focused application, staff-announcement, composition, API and People Directory contract suites through the same database stores; new full-record/partial-error/native selector and collection probes; preserved pure canonical policy suites.",

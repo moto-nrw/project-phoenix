@@ -6,6 +6,8 @@ import (
 	"context"
 	"log/slog"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -32,7 +34,7 @@ func NewSettingsCallbacksTestModule(db transactionruntime.Database, unit tenant.
 	if err != nil {
 		return SettingsCallbacksTestModule{}, nil, err
 	}
-	settings, err := NewSettingsTestModule(db, unit)
+	settings, err := owners.NewSettingsTestModule(db, unit)
 	if err != nil {
 		return SettingsCallbacksTestModule{}, nil, err
 	}
@@ -55,7 +57,7 @@ func NewSettingsCallbacksTestModule(db transactionruntime.Database, unit tenant.
 	if err != nil {
 		return SettingsCallbacksTestModule{}, nil, err
 	}
-	operations := settingsCompose.NewTenantOperations(settings.Settings, settings.payroll, settings.runtime,
+	operations := settingsCompose.NewTenantOperations(settings.Settings, settings.Payroll, settings.Runtime,
 		registry.Dispatch,
 		func(_ context.Context, tenantID int64, key string) {
 			_ = hub.BroadcastToTenant(tenantID, realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{Source: &key}))
@@ -66,8 +68,8 @@ func NewSettingsCallbacksTestModule(db transactionruntime.Database, unit tenant.
 // NewStudentPhotos binds the owner capability and the runtime it needs, and
 // returns the retained contract the handlers call. The directory is composed
 // over NewStudentPhotoRuntime with the same dependencies.
-func NewStudentPhotos(directory StudentPhotoCapability, deps StudentPhotoRuntimeDependencies) peoplePorts.StudentPhotoService {
-	return studentPhotos{directory: directory, runtime: newStudentPhotoRuntime(deps)}
+func NewStudentPhotos(directory owners.StudentPhotoCapability, deps StudentPhotoRuntimeDependencies) peoplePorts.StudentPhotoService {
+	return owners.StudentPhotos{Directory: directory, Runtime: newStudentPhotoRuntime(deps)}
 }
 
 // NewStudentPhotoRuntime is the photo runtime a People Directory is composed
@@ -76,10 +78,10 @@ func NewStudentPhotoRuntime(deps StudentPhotoRuntimeDependencies) peopleCompose.
 	return newStudentPhotoRuntime(deps)
 }
 
-func newStudentPhotoRuntime(deps StudentPhotoRuntimeDependencies) studentPhotoRuntime {
-	return studentPhotoRuntime{
-		settings: deps.Settings, broadcaster: deps.Broadcaster,
-		unlinker: deps.Unlinker, consents: deps.Consents, logger: deps.Logger,
-		actor: deps.ActingAccount,
+func newStudentPhotoRuntime(deps StudentPhotoRuntimeDependencies) owners.StudentPhotoRuntime {
+	return owners.StudentPhotoRuntime{
+		Settings: deps.Settings, Broadcaster: deps.Broadcaster,
+		Unlinker: deps.Unlinker, Consents: deps.Consents, Logger: deps.Logger,
+		Actor: deps.ActingAccount,
 	}
 }

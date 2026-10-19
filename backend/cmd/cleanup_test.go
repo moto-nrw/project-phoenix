@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -53,10 +54,10 @@ func render(fn func(io.Writer)) string {
 // database, with the database and schools it sweeps.
 func setupTestRetentionCleanup(t *testing.T) (transactionruntime.Database, organizationtenancy.Capability, studentpresence.PresenceCleanup) {
 	db := testpkg.SetupTestDB(t)
-	schools, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
+	schools, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	cleanupDB := testpkg.NewDatabase(t, db)
-	retention := buildRetentionCleanupService(cleanupDB, schools, api.NewTestAuditStore(testpkg.NewDatabase(t, db)))
+	retention := buildRetentionCleanupService(cleanupDB, schools, owners.NewTestAuditStore(testpkg.NewDatabase(t, db)))
 	return cleanupDB, schools, retention
 }
 
@@ -64,13 +65,13 @@ func setupTestRetentionCleanup(t *testing.T) (transactionruntime.Database, organ
 // the database and schools it sweeps.
 func setupTestSessionCleanup(t *testing.T) (transactionruntime.Database, organizationtenancy.Capability, sessionCleanupService) {
 	db := testpkg.SetupTestDB(t)
-	timetableOwner := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))
-	students := api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
-	rooms := api.MustNewUnobservedRooms(testpkg.NewDatabase(t, db))
-	membership := api.MustNewSchoolMembership(testpkg.NewDatabase(t, db))
-	sessionDevices, err := api.NewDeviceFleet(testpkg.NewDatabase(t, db))
+	timetableOwner := owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))
+	students := owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
+	rooms := owners.MustNewUnobservedRooms(testpkg.NewDatabase(t, db))
+	membership := owners.MustNewSchoolMembership(testpkg.NewDatabase(t, db))
+	sessionDevices, err := owners.NewDeviceFleet(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	sessions := api.NewSessionRecords(testpkg.NewDatabase(t, db), nil, sessionDevices, rooms, timetableOwner, membership, students)
+	sessions := owners.NewSessionRecords(testpkg.NewDatabase(t, db), nil, sessionDevices, rooms, timetableOwner, membership, students)
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
@@ -97,7 +98,7 @@ func setupTestSessionCleanup(t *testing.T) (transactionruntime.Database, organiz
 		DB:                       db,
 		Logger:                   slog.Default(),
 	}, presenceservice.WithPresenceSettings(detailedPresenceSettings{}))
-	schools, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
+	schools, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	return testpkg.NewDatabase(t, db), schools, sessionService
 }

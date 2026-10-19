@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
@@ -102,7 +103,7 @@ func (f masterDataFixture) linkCompanionOnTuesday(t *testing.T) {
 	}
 	edge, err := api.NewStudentCompanionEdge(f.chain.StudentID, partner.ID, 2)
 	require.NoError(t, err)
-	require.NoError(t, api.ReplaceStudentCompanions(ctx, api.NewStudentCompanionRepository(f.reposCare.CarePlan()), f.chain.StudentID, []*careplan.CompanionEdge{edge}))
+	require.NoError(t, api.ReplaceStudentCompanions(ctx, owners.NewStudentCompanionRepository(f.reposCare.CarePlan()), f.chain.StudentID, []*careplan.CompanionEdge{edge}))
 }
 
 func (f masterDataFixture) personFirstName(t *testing.T) string {

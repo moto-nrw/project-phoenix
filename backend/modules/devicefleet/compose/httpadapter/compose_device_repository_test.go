@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -49,7 +50,7 @@ type deviceQueries struct {
 
 func newDeviceQueries(t *testing.T, db *bun.DB) deviceQueries {
 	t.Helper()
-	fleet, err := api.NewDeviceFleet(testpkg.NewDatabase(t, db))
+	fleet, err := owners.NewDeviceFleet(testpkg.NewDatabase(t, db))
 	require.NoError(t, err, "Failed to compose the device fleet")
 	return deviceQueries{deviceRepository: newDeviceRepository(t, db), devices: fleet}
 }

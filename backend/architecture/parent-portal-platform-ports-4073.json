@@ -35,7 +35,7 @@
   "runtime_evidence": {
     "source": "Assigned localhost test database and pinned toolchain with fresh private cache; immutable base 188552d321bc9c9d7dc4744227b1cf7f3628c94e. No production/staging requests.",
     "sources": [
-      "backend/api/parent_portal_platform.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/parent_portal_platform.go",
       "backend/api/communication_security.go",
       "backend/workflows/parentportal/care/guardian_policy.go",
       "backend/workflows/parentportal/messaging/security.go",

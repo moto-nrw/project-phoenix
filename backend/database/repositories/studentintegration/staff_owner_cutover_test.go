@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -131,10 +132,10 @@ func TestStaffOwnersWorkOnContractedStorage(t *testing.T) {
 		AND to_regclass('users.staff_compatibility_reads') IS NULL
 		AND to_regclass('users.staff_compatibility_writes') IS NULL`).Scan(ctx, &retired))
 	require.True(t, retired, "the Contract must have removed the compatibility storage")
-	membership, err := api.NewSchoolMembership(testpkg.NewDatabase(t, db))
+	membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	employment := api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))
-	workTime, err := api.NewWorkforce(testpkg.NewDatabase(t, db), membership)
+	workTime, err := owners.NewWorkforce(testpkg.NewDatabase(t, db), membership)
 	require.NoError(t, err)
 
 	model, err := workTime.CreateWorkTimeModel(ctx, workforce.CreateWorkTimeModel{WorkTimeModelFields: workforce.WorkTimeModelFields{
@@ -211,7 +212,7 @@ func TestStaffOwnerWritesRollBackWhenTheCallerCatchesTheFailure(t *testing.T) {
 	// trigger is table-wide DDL.
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := testpkg.Ctx(t)
-	membership, err := api.NewSchoolMembership(testpkg.NewDatabase(t, db))
+	membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	for _, stage := range []struct{ name, timing string }{{"after membership", "BEFORE"}, {"after employment", "AFTER"}} {
 		person := testpkg.CreateTestPerson(t, db, "Atomic", stage.name)
@@ -247,7 +248,7 @@ func TestStaffOwnerUpdateRollsBackBothOwnersWithTheOuterTransaction(t *testing.T
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	membership, err := api.NewSchoolMembership(testpkg.NewDatabase(t, db))
+	membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	person := testpkg.CreateTestPerson(t, db, "Outer", "Rollback")
 	created, err := membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: person.ID, StaffNotes: "vorher"}})
@@ -273,7 +274,7 @@ func TestStaffOwnersClassifyAPersonnelNumberConflict(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	membership, err := api.NewSchoolMembership(testpkg.NewDatabase(t, db))
+	membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	holder := testpkg.CreateTestPerson(t, db, "Number", "Holder")
 	_, err = membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: holder.ID, PersonnelNumber: testpkg.StrPtr("PN-7")}})
@@ -290,7 +291,7 @@ func TestStaffOwnersAreTenantIsolated(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	membership, err := api.NewSchoolMembership(testpkg.NewDatabase(t, db))
+	membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	employment := api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))
 	person := testpkg.CreateTestPerson(t, db, "Tenant", "Bound")

@@ -11,6 +11,7 @@ import (
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
@@ -74,7 +75,7 @@ func (failingPickupBaseline) HasBookedOfferingPickupForWeekday(
 // autoExcusalRepositories is the one repository graph the pickup trigger
 // tests share (auto excusal and later-pickup tasks).
 func autoExcusalRepositories(db *bun.DB) (*api.RepositoryTestFactory, *api.CareScheduleSuiteRepositories, timetable.Capability) {
-	timetableOwner := api.MustNewUnobservedTimetable(testpkg.MustDatabase(db))
+	timetableOwner := owners.MustNewUnobservedTimetable(testpkg.MustDatabase(db))
 	return api.NewRepositoryTestFactory(testpkg.MustDatabase(db)), api.NewCareScheduleSuiteRepositories(testpkg.MustDatabase(db)), timetableOwner
 }
 
@@ -88,7 +89,7 @@ func setupAutoExcusalHarnessWithExtensions(t *testing.T, withBaseline, withExten
 	repos, _, tt := autoExcusalRepositories(db)
 
 	syncer := newPickupExcusal(t, db, repos.CarePlan(), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), tt, withExtensions)
-	pickupStudents, err := api.PickupPlanStudents(api.MustNewPeopleDirectory(testpkg.MustDatabase(db)))
+	pickupStudents, err := owners.PickupPlanStudents(owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)))
 	require.NoError(t, err)
 	svc, err := compose.NewPickupSchedules(db, repos.CarePlan(), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), syncer, pickupStudents, nil)
 	require.NoError(t, err)
@@ -579,7 +580,7 @@ func TestAutoExcusal_FullDayStatusCoexistsAndReleaseReplays(t *testing.T) {
 // repositories, including its Care Plan reads and student-before-day locks.
 func newPickupExcusal(t *testing.T, db *bun.DB, records carePlanPorts.PickupExcusalRecords, baselines careplan.PickupBaselineReader, tt timetable.Capability, extensions bool) careplan.PickupAutoExcusal {
 	t.Helper()
-	adapter := pickupExcusalTimetable{api.NewPickupExcusalTimetable(tt, api.NewPartialAbsencePreview(testpkg.MustDatabase(db))), tt, db}
+	adapter := pickupExcusalTimetable{owners.NewPickupExcusalTimetable(tt, owners.NewPartialAbsencePreview(testpkg.MustDatabase(db))), tt, db}
 	deps := compose.PickupExcusalDependencies{DB: db, Records: records, Baselines: baselines, Blocks: api.NewStudentPresenceForTests(testpkg.NewDatabase(t, db)), Preview: adapter}
 	if extensions {
 		deps.Extensions = adapter

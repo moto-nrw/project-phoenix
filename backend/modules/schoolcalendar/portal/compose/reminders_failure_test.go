@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
@@ -245,7 +246,7 @@ func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.
 			cfg.Logger = slog.Default()
 			breakStep(&cfg)
 
-			queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), api.NewCalendarPortal(cfg)).EnqueueDueAppointmentReminders(ctx, from, to)
+			queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), owners.NewCalendarPortal(cfg)).EnqueueDueAppointmentReminders(ctx, from, to)
 			require.ErrorIs(t, err, errReminderStore)
 			assert.Zero(t, queued)
 		})

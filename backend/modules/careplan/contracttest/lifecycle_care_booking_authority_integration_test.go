@@ -10,6 +10,7 @@ import (
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentFixture "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
@@ -28,7 +29,7 @@ func bookingAuthorityService(t *testing.T, db *bun.DB, authoritative bool) carep
 
 func lockedBookingAuthorityService(t *testing.T, db *bun.DB) careplan.CareLifecycle {
 	t.Helper()
-	return newBookingAuthorityLifecycle(t, db, true, api.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, db)).LockRecurrenceWrites)
+	return newBookingAuthorityLifecycle(t, db, true, owners.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, db)).LockRecurrenceWrites)
 }
 
 func newBookingAuthorityLifecycle(t *testing.T, db *bun.DB, authoritative bool, lock func(context.Context) error) careplan.CareLifecycle {
@@ -469,7 +470,7 @@ func assertFiniteRebookingHistory(t *testing.T, oldOffset, newOffset int) {
 }
 
 func requirePendingCompletion(
-	t *testing.T, repo api.CareWithdrawalTestRows, ctx context.Context, studentID int64,
+	t *testing.T, repo owners.CareWithdrawalTestRows, ctx context.Context, studentID int64,
 ) *careplan.WithdrawalCompletion {
 	t.Helper()
 	rows, total, err := repo.ListPending(ctx, careplan.WithdrawalListFilter{StudentID: studentID, Page: 1, PageSize: 1})

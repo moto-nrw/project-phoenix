@@ -5,6 +5,8 @@ package api
 import (
 	"log/slog"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
@@ -39,7 +41,7 @@ func NewOperatorSettingsTestModule(db transactionruntime.Database, unit tenant.U
 	if err != nil {
 		return OperatorSettingsTestModule{}, nil, err
 	}
-	schools, err := NewOrganizationTenancy(db)
+	schools, err := owners.NewOrganizationTenancy(db)
 	if err != nil {
 		return OperatorSettingsTestModule{}, nil, err
 	}

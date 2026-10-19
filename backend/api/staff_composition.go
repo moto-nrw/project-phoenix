@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"path/filepath"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -127,7 +129,7 @@ func newStaffComposition(
 	if err != nil {
 		return nil, nil, err
 	}
-	capabilities := NewWorkforceAdminCapabilities(users, documents, timeTracking)
+	capabilities := owners.NewWorkforceAdminCapabilities(users, documents, timeTracking)
 	staffAdmin := newStaffAdminResource(capabilities, workforce, staffTimeTrackingNotifier(hub), exportTransfer, db, logger)
 	return newStaffResource(module, people, func(hooks StaffMembershipHooks) StaffMembershipRuntime {
 		return NewStaffMembershipRuntime(users, education, timeTracking.StaffDay, hub, db, identity, logger, hooks)

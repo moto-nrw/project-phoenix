@@ -12,33 +12,15 @@ import (
 	"sync"
 	"time"
 
-	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
+	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
 
-	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
-	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
+
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
-	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
-	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/analytics"
@@ -264,11 +246,13 @@ func composeProcess(config ServeConfig, db transactionruntime.Database, tracker 
 			MaxLifetimeClosed: stats.MaxLifetimeClosed,
 		}
 	})
+	health, legal, fallback := carePlanHTTP.StudentDocumentPermissions()
+	documentPermissions := carePlanCompose.StudentDocumentPermissions{Health: health, Legal: legal, Default: fallback}
 	if config.Process == ServeWorkerOnly {
-		worker, err := composeWorkerRoot(db, env, hub, tracer, tracker)
+		worker, err := owners.ComposeWorker(db, env, hub, tracer, tracker, newLegacyTokenAdapter, CommunicationSession{}, TimetableRequestSession{}, AttendancePrincipal, deviceauth.WithAttendanceStaff, documentPermissions)
 		return nil, worker, capacity, err
 	}
-	handler, worker, err := composeServeRoot(db, env, hub, config, tracker, metrics, tracer, metricsToken, config.Process != ServeAPIOnly)
+	handler, worker, err := composeServeRoot(db, env, hub, config, tracker, metrics, tracer, metricsToken, config.Process != ServeAPIOnly, documentPermissions)
 	return handler, worker, capacity, err
 }
 
@@ -295,115 +279,6 @@ func resolveListenAddr(port string) string {
 		return port
 	}
 	return ":" + port
-}
-
-// newWorker starts the Worker over the owners a root built: the server root
-// passes the owners it mounts, the Worker root the owners its jobs need.
-// Each argument is one owner's value or a single-owner bundle; the Worker's
-// own collaborators (lease, tenant runtime, settings snapshots, retention,
-// booking audit, reminder tick, document sweeps) are built here.
-func newWorker(
-	db transactionruntime.Database, logger *slog.Logger, tracer *observability.Tracer, hub *realtime.Hub,
-	settings settingsCompose.BatchSettingsService, audit auditCommand, fleet devicefleet.Capability,
-	carePlan *carePlanModule.Module, persons peopledirectory.Capability, people PeopleRows,
-	organizations organizationtenancy.Query, identity *identityaccess.Module, rooms facilitiesModule.Capability,
-	timetableRepos timetableCompose.Repositories, workTime workforceModule.Capability, staffAdmin *workforceModule.StaffAdmin,
-	workforce WorkforcePlanning, active studentpresence.Presence, reports PresenceReports, lifecycle TimetableLifecycle,
-	days TimetableDays, materialization timetable.MaterializationCapability, schedules CarePlanSchedules,
-	documents carePlanModule.StudentDocuments, services PeopleServices, studentAudit peoplePorts.StudentAuditService,
-	notices EnrollmentNotices, flows EnrollmentFlows, studentDeletion *studentdeletion.Workflow, feedback *feedbackModule.Module,
-	calendarApp calendarCompose.Application, notifications DeliveryNotifications, usage deliveryCompose.PWAUsageService,
-	staffMessaging communication.StaffMessagingRuntime, outbox *deliveryModule.Worker, reminders reminder.Module,
-	fileStore *filestorageModule.Module,
-) (schedulerPorts.Worker, error) {
-	billing, err := newOperatorBilling(logger)
-	if err != nil {
-		return nil, fmt.Errorf("compose worker billing: %w", err)
-	}
-	lease, err := newWorkerLease(db.UnitOfWork())
-	if err != nil {
-		return nil, fmt.Errorf("compose worker lease: %w", err)
-	}
-	runtime, err := schedulerRuntimeCompose.NewTenantRuntime(db.UnitOfWork())
-	if err != nil {
-		return nil, fmt.Errorf("compose worker tenant runtime: %w", err)
-	}
-	if err := verifySchedulerSettingKeys(); err != nil {
-		return nil, err
-	}
-	resolver, err := schedulerSettings(settings)
-	if err != nil {
-		return nil, err
-	}
-	retention, err := workerRetentionOf(db, logger, settings, audit, fleet, carePlan, communicationCompose.NewParentMessageRetention(db.Pool(), settingsValues.NewParentMessageRetentionValues(settings)), notices.RejectedCleanup, studentDeletion)
-	if err != nil {
-		return nil, err
-	}
-	bookings, err := schedulerBookingConsistency(db, persons, carePlan)
-	if err != nil {
-		return nil, err
-	}
-	reminderNotifications, err := newPersonalReminderTick(reminders, notifications, people.Staff, identity, workTime, runtime, logger.With("service", "scheduler"))
-	if err != nil {
-		return nil, fmt.Errorf("compose personal reminder notifications: %w", err)
-	}
-	staffDocuments, studentDocuments, err := workerDocumentSweeps(db, logger, services.Users, staffAdmin, workforce.TimeTracking, documents)
-	if err != nil {
-		return nil, err
-	}
-	return schedulerRuntimeCompose.NewWorker(schedulerPorts.WorkerDependencies{
-		Logger:                    logger.With("service", "scheduler"),
-		Getenv:                    os.Getenv,
-		SchoolRepo:                schedulerTenantDirectory{schools: organizations, billing: billing},
-		TenantRuntime:             runtime,
-		TenantRuntimeObserver:     observability.RecordTenantRuntimeEvent,
-		UnitOfWorkObserver:        observability.RecordUnitOfWorkEvent,
-		Tracer:                    workerTracer(tracer),
-		Settings:                  resolver,
-		Lease:                     lease,
-		RetentionSteps:            retention.steps,
-		RetentionLog:              retention.log,
-		CleanupRuns:               retention.runs,
-		StaffDocumentCleaner:      staffDocuments,
-		StudentDocumentCleaner:    studentDocuments,
-		FileStoreCleaner:          newFileStoreCleaner(db, fileStore, logger),
-		Active:                    newSchedulerSessionMaintenance(active),
-		ActiveCleanup:             newSchedulerPresenceCleanup(reports.ActiveCleanup),
-		AuthCleanup:               &identityaccessCompose.SessionMaintenance{AccountSessionMaintenance: identity, PasswordResets: identity},
-		InvitationCleanup:         identity,
-		EmailChangeCleanup:        identity,
-		OperatorInvitationCleanup: identity,
-		OperatorRetention:         schedulerPorts.OperatorRetention{Ledger: audit, Accounts: identity},
-		WorkSessionCleanup:        workforce.TimeTracking.Jobs,
-		BreakAutoEnder:            workforce.TimeTracking.Jobs,
-		AutoCheckouter:            workforce.TimeTracking.Jobs,
-		FeedbackCleaner:           feedback,
-		Materializer:              newSchedulerMaterializer(materialization),
-		TimetableCleanup:          newSchedulerTimetableCleanup(lifecycle.Cleanup),
-		CalendarFeedCleanup:       calendarApp,
-		TimeTrackingCleanup:       schedulerTimeTrackingCleanupPort(workforce.TimeTrackingCleanup),
-		StudentChangeLogCleanup:   schedulerStudentChangeLogCleanup(services.StudentChangeLogCleanup),
-		PWAUsageCleanup:           pwaUsageCleanup(usage),
-		StaffMessageCleanup:       staffMessageCleanup(staffMessaging),
-		EnrollmentRejectedCleanup: enrollmentRejectedCleanup{cleaner: notices.RejectedCleanup},
-		AutoStart:                 newSchedulerAutoStart(lifecycle.AutoStart),
-		AutoEnd:                   newSchedulerAutoEnd(lifecycle.AutoEnd),
-		TimetableBridge:           days.Bridge,
-		StudentLifecycleAudit:     schedulerStudentAudit(studentAudit),
-		CareExitEffector:          schedules.Lifecycle,
-		OutboxWorker:              outbox,
-		SettleExpiredTransfers:    exportTransferCompose.NewDispatchRecovery(),
-		AppointmentReminders:      reminders,
-		RolloverDeadlineRunner:    rolloverDeadlines{rollovers: flows.Rollovers},
-		BookingConsistency:        bookings,
-		InstanceRepo:              schedulerDayInstances(timetableRepos),
-		InstanceRoomRepo:          schedulerExistingRooms(rooms),
-		InstanceStudentRepo:       timetableRepos.InstanceStudent,
-		StudentStatusDayRepo:      NewStudentStatusDayRepository(carePlan),
-		OverdueBroadcaster:        newSchedulerOverdueBroadcaster(hub),
-		StudentLifecycleRepo:      schedulerStudentLifecycle(NewStudentRootReads(people.Students)),
-		ReminderNotifications:     reminderNotifications,
-	})
 }
 
 // Serve runs the HTTP server and embedded worker until ctx is cancelled.

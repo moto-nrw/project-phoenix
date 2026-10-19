@@ -35,7 +35,7 @@
     "source": "Local test verification of the settings-port and parent-request-policy cut, integrated with development 7fb7964d38bf6018d30ca35fcc87750328d75a74; no production sample or latency benchmark.",
     "sources": [
       "backend/api/parent_portal_settings_ports.go",
-      "backend/api/parent_portal_settings_ports_test.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/parent_portal_settings_ports_test.go",
       "https://github.com/moto-nrw/project-phoenix/blob/a52dccfc01e977e18c112d164949b819eda552f3/backend/api/service_graph_compose_requests.go",
       "backend/workflows/parentportal/care/settings_ports.go",
       "backend/workflows/parentportal/care/child_feature_settings.go",

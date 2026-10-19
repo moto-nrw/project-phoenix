@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -32,7 +34,7 @@ func setupIoTActiveModule(t *testing.T) (*bun.DB, DeviceTestModule, ActiveTimeta
 func setupIoTSettingsModule(t *testing.T) (*bun.DB, settingsCompose.SettingsService) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := NewSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	module, err := owners.NewSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	return db, module.Settings
 }

@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -81,7 +83,7 @@ type CalendarTestRepositories struct {
 	ParentCalendarFeed     identityaccess.ParentCalendarFeeds
 }
 
-func NewCalendarTestRepositories(db transactionruntime.Database, members MembershipTestRepositories) (CalendarTestRepositories, error) {
+func NewCalendarTestRepositories(db transactionruntime.Database, members owners.MembershipTestRepositories) (CalendarTestRepositories, error) {
 	identity, _, err := NewUserContextTestRepositories(db, members)
 	if err != nil {
 		return CalendarTestRepositories{}, err
@@ -92,8 +94,8 @@ func NewCalendarTestRepositories(db transactionruntime.Database, members Members
 
 // NewCalendarTimetableRows are the Timetable rows the calendar suites
 // arrange over members.
-func NewCalendarTimetableRows(db transactionruntime.Database, members MembershipTestRepositories) TimetableTestRepositories {
-	tt, err := NewTimetableTestRepositoriesWithMembers(db, members)
+func NewCalendarTimetableRows(db transactionruntime.Database, members owners.MembershipTestRepositories) owners.TimetableTestRepositories {
+	tt, err := owners.NewTimetableTestRepositoriesWithMembers(db, members)
 	if err != nil {
 		panic(fmt.Sprintf("calendar test rows: compose timetable: %v", err))
 	}
@@ -113,7 +115,7 @@ func (r CalendarParentRows) ParentChildLinks() carePlanCompose.ParentChildLinks 
 }
 
 // NewCalendarParentRows composes the child rows over members.
-func NewCalendarParentRows(db transactionruntime.Database, members MembershipTestRepositories) CalendarParentRows {
+func NewCalendarParentRows(db transactionruntime.Database, members owners.MembershipTestRepositories) CalendarParentRows {
 	parents, err := NewParentRouteTestRepositories(db, members)
 	if err != nil {
 		panic(fmt.Sprintf("calendar test rows: compose parent rows: %v", err))
@@ -132,7 +134,7 @@ func (r CalendarSchoolRows) SchoolCalendar() schoolcalendar.Capability { return 
 
 // NewCalendarSchoolRows composes the calendar owner over db.
 func NewCalendarSchoolRows(db transactionruntime.Database) CalendarSchoolRows {
-	calendar, err := NewSchoolCalendar(db)
+	calendar, err := owners.NewSchoolCalendar(db)
 	if err != nil {
 		panic(fmt.Sprintf("calendar test rows: compose school calendar: %v", err))
 	}
@@ -163,7 +165,7 @@ type CalendarFeedTestRepositories struct {
 }
 
 func NewCalendarFeedTestRepositories(db transactionruntime.Database) CalendarFeedTestRepositories {
-	identity := NewPeopleIdentityAccess(db, nil)
+	identity := owners.NewPeopleIdentityAccess(db, nil)
 	return CalendarFeedTestRepositories{StaffFeed: identity, ParentFeed: identity}
 }
 

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -425,14 +426,14 @@ func TestGuardianWelcomeFailureKeepsTheInvitation(t *testing.T) {
 func TestGuardianWelcomeRendersHelpAndParentInfo(t *testing.T) {
 	t.Parallel()
 	outbox := api.NewCapturingOutbox()
-	mailer := api.NewGuardianInvitationMailer(api.GuardianInvitationMailerConfig{
+	mailer := owners.NewGuardianInvitationMailer(owners.GuardianInvitationMailerConfig{
 		Outbox: outbox, FrontendURL: "https://eltern.example.test/",
 	})
-	precedingOutboxID, queued := mailer.EnqueueExistingAccount(context.Background(), api.GuardianMailRecipient{
+	precedingOutboxID, queued := mailer.EnqueueExistingAccount(context.Background(), owners.GuardianMailRecipient{
 		FirstName: " Olga ", LastName: "Muster", Email: " olga@example.test ",
 	}, "OGS Musterschule")
 	require.True(t, queued)
-	require.NoError(t, mailer.EnqueueWelcome(context.Background(), 42, api.GuardianMailRecipient{
+	require.NoError(t, mailer.EnqueueWelcome(context.Background(), 42, owners.GuardianMailRecipient{
 		FirstName: " Olga ", LastName: "Muster", Email: " olga@example.test ",
 	}, "OGS Musterschule", "https://eltern.example.test/help/eltern-konto-einrichten?role=parent", precedingOutboxID))
 
@@ -446,7 +447,7 @@ func TestGuardianWelcomeRendersHelpAndParentInfo(t *testing.T) {
 	assert.Equal(t, "https://eltern.example.test/downloads/moto-elterninfo.pdf", req.Payload["parent_info_url"])
 	assert.Equal(t, precedingOutboxID, req.Payload["preceding_outbox_id"])
 
-	render := api.NewGuardianWelcomeRenderer(api.GuardianInvitationRendererConfig{
+	render := owners.NewGuardianWelcomeRenderer(owners.GuardianInvitationRendererConfig{
 		PrecedingEmailStatus: func(context.Context, int64) (bool, bool, error) { return true, false, nil },
 	})
 	msg, err := render(context.Background(), req.Payload)
@@ -462,13 +463,13 @@ func TestGuardianWelcomeRendersHelpAndParentInfo(t *testing.T) {
 	assert.Contains(t, body, "Zur Hilfe")
 	assert.NotContains(t, body, "Einladung annehmen")
 
-	waiting := api.NewGuardianWelcomeRenderer(api.GuardianInvitationRendererConfig{
+	waiting := owners.NewGuardianWelcomeRenderer(owners.GuardianInvitationRendererConfig{
 		PrecedingEmailStatus: func(context.Context, int64) (bool, bool, error) { return false, false, nil },
 	})
 	_, err = waiting(context.Background(), req.Payload)
 	require.Error(t, err, "the welcome waits for its access email")
 
-	cancelled := api.NewGuardianWelcomeRenderer(api.GuardianInvitationRendererConfig{
+	cancelled := owners.NewGuardianWelcomeRenderer(owners.GuardianInvitationRendererConfig{
 		PrecedingEmailStatus: func(context.Context, int64) (bool, bool, error) { return false, true, nil },
 	})
 	_, err = cancelled(context.Background(), req.Payload)

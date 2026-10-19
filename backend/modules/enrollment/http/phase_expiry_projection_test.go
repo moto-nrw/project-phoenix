@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	testutil "github.com/moto-nrw/project-phoenix/api/testutil"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -368,7 +369,7 @@ func (d phaseExpiryCareOfferingDirectory) ListCareOfferings(ctx context.Context)
 func newPhaseExpiryProjection(t *testing.T, db *bun.DB) *TestPhaseExpirySnapshots {
 	t.Helper()
 	owner := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
-	students, err := api.NewPeopleDirectory(testpkg.MustDatabase(db))
+	students, err := owners.NewPeopleDirectory(testpkg.MustDatabase(db))
 	require.NoError(t, err)
 	return NewTestPhaseExpirySnapshots(owner, expiryStudentDirectory{students}, phaseExpiryCareOfferingDirectory{testutil.NewTestCarePlan(t, db, testpkg.StudentDirectory{})}, owner)
 }

@@ -21,6 +21,7 @@ import (
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -44,7 +45,7 @@ func setupUnreadTest(t *testing.T) *unreadEnv {
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	ctx := testpkg.Ctx(t)
-	repos, err := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, db), api.NewTestAuditStore(testpkg.NewDatabase(t, db)))
+	repos, err := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, db), owners.NewTestAuditStore(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	reposCare := api.NewEnrollmentCarePlanRows(testpkg.NewDatabase(t, db))
 	reposSchools := api.NewOrganizationTestRows(testpkg.NewDatabase(t, db))
@@ -68,13 +69,13 @@ func setupUnreadTest(t *testing.T) *unreadEnv {
 	require.NoError(t, repos.Enrollment().InsertPhase(ctx, phase))
 
 	offerings := enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan)
-	requests := enrollmentAPI.NewRequestService(api.NewEnrollmentIntake(api.EnrollmentIntakeSources{
+	requests := enrollmentAPI.NewRequestService(owners.NewEnrollmentIntake(owners.EnrollmentIntakeSources{
 		Requests:         repos.Enrollment(),
 		ParentChanges:    repos.Enrollment(),
 		Children:         repos.Enrollment(),
 		Guardians:        repos.Enrollment(),
 		CareOfferingRepo: offerings,
-		Capacity:         api.NewEnrollmentOfferingCapacity(offerings, repos.Enrollment(), settings),
+		Capacity:         owners.NewEnrollmentOfferingCapacity(offerings, repos.Enrollment(), settings),
 		Catalog:          repos.Enrollment(),
 		SchoolRepo:       capabilitySchools{schools: reposSchools.School},
 		Notifications:    NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: reposSchools.School}),
@@ -85,7 +86,7 @@ func setupUnreadTest(t *testing.T) *unreadEnv {
 		ParentsURL:       "http://parents.localhost:3000",
 		Logger:           slog.Default(),
 	}))
-	decisions := enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(api.NewEnrollmentDecisions(enrollmentCompose.DecisionDependencies{
+	decisions := enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(owners.NewEnrollmentDecisions(enrollmentCompose.DecisionDependencies{
 		Requests:    repos.Enrollment(),
 		Children:    repos.Enrollment(),
 		Guardians:   repos.Enrollment(),
@@ -93,8 +94,8 @@ func setupUnreadTest(t *testing.T) *unreadEnv {
 		Phases:      repos.Enrollment(),
 		Schemas:     repos.Enrollment(),
 		Offerings:   offerings,
-		ParentsURL:  api.EnrollmentDecisionParentsURL("http://parents.localhost:3000", ""),
-		Settings:    api.EnrollmentDecisionSettingValues(settings),
+		ParentsURL:  owners.EnrollmentDecisionParentsURL("http://parents.localhost:3000", ""),
+		Settings:    owners.EnrollmentDecisionSettingValues(settings),
 		Logger:      slog.Default(),
 	})))
 	resource := enrollmentAPI.NewResource(

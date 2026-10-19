@@ -11,6 +11,7 @@ import (
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -21,7 +22,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func setupCaregiverFactory(t *testing.T) (*bun.DB, api.PeopleServices) {
+func setupCaregiverFactory(t *testing.T) (*bun.DB, owners.PeopleServices) {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
@@ -30,7 +31,7 @@ func setupCaregiverFactory(t *testing.T) (*bun.DB, api.PeopleServices) {
 	return db, factory
 }
 
-func setupServiceFactory(t *testing.T, db *bun.DB) api.PeopleServices {
+func setupServiceFactory(t *testing.T, db *bun.DB) owners.PeopleServices {
 	t.Helper()
 
 	services, _, err := api.NewTestPeopleServices(testpkg.NewDatabase(t, db), slog.Default())

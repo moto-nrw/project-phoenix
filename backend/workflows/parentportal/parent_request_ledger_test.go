@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -33,32 +34,32 @@ func buildLedgerServices(t *testing.T) (*parentService.Portal, careplan.ExcusedA
 	}, api.ExcusedRequestTestPeople{Students: reposPeople.Student, Persons: reposPeople.Person, Events: events}, nil, nil)
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges: api.ParentGuardianChanges(),
-		DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy:  api.NewParentGuardianPolicy(),
-		Fingerprints:    api.SecurityFingerprints{},
-		Declarations:    api.ParentDeclarationPolicy(),
-		Locales:         api.ParentPortalLocales(),
-		Runtime:         api.ParentPortalRuntime{},
-		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
-		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		GuardianChanges: owners.ParentGuardianChanges(),
+		DeparturePolicy: owners.ParentDeparturePolicy(),
+		GuardianPolicy:  owners.NewParentGuardianPolicy(),
+		Fingerprints:    owners.SecurityFingerprints{},
+		Declarations:    owners.ParentDeclarationPolicy(),
+		Locales:         owners.ParentPortalLocales(),
+		Runtime:         owners.ParentPortalRuntime{},
+		CarePlan:        owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:          owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
-		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
+		StudentRepo:     owners.NewParentStudentReads(reposPeople.Student),
+		CareExceptions:  owners.NewParentCareExceptions(repos.CarePlan()),
 		Settings: excusedApprovalSettings{
 			sickRequiresApproval:    true,
 			excusedRequiresApproval: true,
 		},
-		ExcusedRequests:     api.NewParentExcusedAbsenceRequests(excused),
+		ExcusedRequests:     owners.NewParentExcusedAbsenceRequests(excused),
 		ExcusedRequestRepo:  repos.ExcusedAbsenceRequest,
-		ParentRequestEvents: api.NewParentRequestEvents(events),
+		ParentRequestEvents: owners.NewParentRequestEvents(events),
 		Logger:              slog.Default(),
 
-		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
 
-		CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 	return svc, excused, api.NewParentRequestEventFixtureReads(events), db
 }

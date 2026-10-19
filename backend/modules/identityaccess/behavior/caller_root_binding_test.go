@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
@@ -83,7 +84,7 @@ func TestCallerOverviewAppliesTheOverviewScope(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			staff := &overviewStaffFake{staff: tc.staff}
 
-			got, err := api.CallerOverview{Settings: tc.settings}.HasOperationalOverview(context.Background(), staff, tc.assignmentBound, tc.admin)
+			got, err := owners.CallerOverview{Settings: tc.settings}.HasOperationalOverview(context.Background(), staff, tc.assignmentBound, tc.admin)
 
 			if tc.wantErr {
 				require.Error(t, err)
@@ -102,7 +103,7 @@ func TestCallerOverviewAppliesTheOverviewScope(t *testing.T) {
 func TestCallerOverviewWithoutSettingsNeverGrants(t *testing.T) {
 	t.Parallel()
 
-	got, err := api.CallerOverview{}.HasOperationalOverview(context.Background(), &overviewStaffFake{staff: true}, false, true)
+	got, err := owners.CallerOverview{}.HasOperationalOverview(context.Background(), &overviewStaffFake{staff: true}, false, true)
 
 	require.NoError(t, err)
 	assert.False(t, got)
@@ -113,13 +114,13 @@ func TestCallerOverviewAsksForStaffOnlyUnderAllStaff(t *testing.T) {
 	t.Parallel()
 
 	admin := &overviewStaffFake{staff: true}
-	_, err := api.CallerOverview{Settings: overviewScopeSettings(overviewScopeAllStaff)}.
+	_, err := owners.CallerOverview{Settings: overviewScopeSettings(overviewScopeAllStaff)}.
 		HasOperationalOverview(context.Background(), admin, false, true)
 	require.NoError(t, err)
 	assert.Zero(t, admin.calls)
 
 	own := &overviewStaffFake{staff: true}
-	_, err = api.CallerOverview{Settings: overviewScopeSettings(overviewScopeOwn)}.
+	_, err = owners.CallerOverview{Settings: overviewScopeSettings(overviewScopeOwn)}.
 		HasOperationalOverview(context.Background(), own, false, false)
 	require.NoError(t, err)
 	assert.Zero(t, own.calls)

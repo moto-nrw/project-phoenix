@@ -14,6 +14,7 @@ import (
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -221,7 +222,7 @@ func newRestoreDecisionServiceForRequestEnv(t *testing.T, env *requestTestEnv) e
 		Children:     repoFactory.Enrollment(),
 		Phases:       repoFactory.Enrollment(),
 		Offerings:    enrollmentCompose.NewCareOfferingRecords(repoFactoryCare.CarePlan),
-		Restorations: api.EnrollmentDecisionRestorations(repoFactoryAudit.EnrollmentRestorationAudit),
+		Restorations: owners.EnrollmentDecisionRestorations(repoFactoryAudit.EnrollmentRestorationAudit),
 		Logger:       slog.Default(),
 	}, nil)
 }
@@ -406,7 +407,7 @@ func TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity(t *t
 	// either interval fits alone but the overlap cannot.
 	one := 1
 	offering.Capacity = &one
-	require.NoError(t, newCareOfferingFixtures(api.NewEnrollmentFlowCarePlanRows(testpkg.NewDatabase(t, env.db)).CarePlan).Update(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(owners.NewEnrollmentFlowCarePlanRows(testpkg.NewDatabase(t, env.db)).CarePlan).Update(ctx, offering))
 
 	decision := newRestoreDecisionServiceForRequestEnv(t, env)
 	outcome, err := decision.RestoreWithdrawn(ctx, res.Request.ID, env.creatorID)

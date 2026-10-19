@@ -3,6 +3,8 @@ package api
 import (
 	"testing"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -11,7 +13,7 @@ import (
 func TestTeachingAssignmentAdaptersPreserveLegacyContracts(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
+	repos := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	staff := testpkg.CreateTestStaff(t, db, "Assignment", "Contract")
 	classAssignment := testpkg.CreateTestClassTeacher(t, db, staff.ID, " 1A ")

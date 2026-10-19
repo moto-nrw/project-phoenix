@@ -16,6 +16,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
@@ -228,7 +229,7 @@ func (r *recordingOutbox) ByKind(kind string) []TestMail {
 type requestTestEnv struct {
 	db        *bun.DB
 	svc       enrollmentAPI.RequestService
-	config    api.EnrollmentIntakeSources
+	config    owners.EnrollmentIntakeSources
 	phase     *enrollmentNative.Phase
 	schemaID  int64
 	creatorID int64
@@ -236,8 +237,8 @@ type requestTestEnv struct {
 	outbox    *recordingOutbox
 	phaseID   int64
 	// repos are the repositories the env's services run on.
-	repos        *api.EnrollmentFlowTestRepositories
-	reposCare    api.TimetableCarePlanRows
+	repos        *owners.EnrollmentFlowTestRepositories
+	reposCare    owners.TimetableCarePlanRows
 	reposSchools *api.OrganizationTestRows
 }
 
@@ -260,7 +261,7 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 	settings.intValues[settingKeyStatusTokenTTLDays] = 365
 
 	outbox := &recordingOutbox{}
-	config := api.EnrollmentIntakeSources{
+	config := owners.EnrollmentIntakeSources{
 		Requests:         repoFactory.Enrollment(),
 		Children:         repoFactory.Enrollment(),
 		Bookings:         requestTestBookingCommands(),

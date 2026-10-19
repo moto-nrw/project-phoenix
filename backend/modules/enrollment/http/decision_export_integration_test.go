@@ -10,6 +10,7 @@ import (
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -36,10 +37,10 @@ func newExportDecisionService(env *decisionTestEnv, auditRepo api.EnrollmentFlow
 		Phases:    env.repos.Enrollment(),
 		Schemas:   env.repos.Enrollment(),
 		Offerings: enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
-		People: api.EnrollmentDecisionPeopleDirectory(
+		People: owners.EnrollmentDecisionPeopleDirectory(
 			nil, nil, env.repos.Student, nil, nil, nil, nil,
 		),
-		AccessLog: api.EnrollmentDecisionAccessLog(auditRepo),
+		AccessLog: owners.EnrollmentDecisionAccessLog(auditRepo),
 		Logger:    slog.Default(),
 	}, nil)
 }
@@ -73,10 +74,10 @@ func newExportDecisionServiceFailingSchema(env *decisionTestEnv, auditRepo api.E
 		Phases:    env.repos.Enrollment(),
 		Schemas:   failingSchemaRepo{env.repos.Enrollment()},
 		Offerings: enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
-		People: api.EnrollmentDecisionPeopleDirectory(
+		People: owners.EnrollmentDecisionPeopleDirectory(
 			nil, nil, env.repos.Student, nil, nil, nil, nil,
 		),
-		AccessLog: api.EnrollmentDecisionAccessLog(auditRepo),
+		AccessLog: owners.EnrollmentDecisionAccessLog(auditRepo),
 		Logger:    slog.Default(),
 	}, nil)
 }
@@ -88,10 +89,10 @@ func newExportDecisionServiceFailingPhase(env *decisionTestEnv, auditRepo api.En
 		Phases:    failingPhaseRepo{env.repos.Enrollment()},
 		Schemas:   env.repos.Enrollment(),
 		Offerings: enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
-		People: api.EnrollmentDecisionPeopleDirectory(
+		People: owners.EnrollmentDecisionPeopleDirectory(
 			nil, nil, env.repos.Student, nil, nil, nil, nil,
 		),
-		AccessLog: api.EnrollmentDecisionAccessLog(auditRepo),
+		AccessLog: owners.EnrollmentDecisionAccessLog(auditRepo),
 		Logger:    slog.Default(),
 	}, nil)
 }

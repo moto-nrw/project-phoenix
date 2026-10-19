@@ -5,6 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -95,7 +96,7 @@ func TestGroupSubstitutionRepository_DeleteActiveOrFutureByStaffID(t *testing.T)
 	otherFuture := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, otherStaff.ID,
 		today.AddDays(5), today.AddDays(10))
 
-	affected, err := api.MustNewWorkforce(testpkg.NewDatabase(t, db)).DeleteGroupSubstitutionsForStaff(ctx, staff.ID, today.String())
+	affected, err := owners.MustNewWorkforce(testpkg.NewDatabase(t, db)).DeleteGroupSubstitutionsForStaff(ctx, staff.ID, today.String())
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), affected)
 

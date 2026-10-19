@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	calModels "github.com/moto-nrw/project-phoenix/modules/appointments"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
@@ -162,7 +163,7 @@ func TestCalendarServiceIntegration_AppointmentReminderEmailHonorsOptOut(t *test
 	cfg.ParentsURL = "https://parents.test"
 	cfg.Preferences = optedOutAppointmentPreferences{optedOutType: notificationTypeParentAppointmentReminder}
 	cfg.ReminderNotifier = notifier
-	service := api.NewCalendarPortal(cfg)
+	service := owners.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Consent")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -205,7 +206,7 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmai
 	cfg.Notifier = notifier
 	cfg.ReminderNotifier = notifier
 	cfg.Preferences = reminderPreferences{}
-	service := api.NewCalendarPortal(cfg)
+	service := owners.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -260,7 +261,7 @@ func TestCalendarServiceIntegration_AppointmentReminderKeepsTransportFailureTerm
 	cfg.Notifier = notifier
 	cfg.ReminderNotifier = notifier
 	cfg.Preferences = reminderPreferences{}
-	service := api.NewCalendarPortal(cfg)
+	service := owners.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Retry")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -337,7 +338,7 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutOutbox(t *te
 	cfg.Preferences = reminderPreferences{}
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
-	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), api.NewCalendarPortal(cfg)).
+	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), owners.NewCalendarPortal(cfg)).
 		EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.NoError(t, err)
 	assert.Zero(t, queued, "without an outbox there is no e-mail to queue")
@@ -362,7 +363,7 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterMissingSu
 	cfg.ParentsURL = "https://parents.test"
 	cfg.ReminderNotifier = notifier
 	cfg.Preferences = reminderPreferences{}
-	service := api.NewCalendarPortal(cfg)
+	service := owners.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "NoPush")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -405,7 +406,7 @@ func TestCalendarServiceIntegration_AppointmentLifecycleEmailHonorsOptOut(t *tes
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
 	cfg.Preferences = optedOutAppointmentPreferences{optedOutType: notificationTypeParentAppointment}
-	service := api.NewCalendarPortal(cfg)
+	service := owners.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -12,11 +14,11 @@ func TestSessionActivitiesPreserveTimetableWireProjection(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	fixture := testpkg.CreateTestActivityGroup(t, db, "Session projection")
-	_, err := NewActiveTestRepositories(testpkg.NewDatabase(t, db), MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	_, err := NewActiveTestRepositories(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
-	reposTimetable := NewActiveTestTimetableRows(testpkg.NewDatabase(t, db), MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	reposTimetable := NewActiveTestTimetableRows(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
-	directory := NewSessionActivities(reposTimetable.GroupReads())
+	directory := owners.NewSessionActivities(reposTimetable.GroupReads())
 	want, err := reposTimetable.ActivityGroup.FindByID(ctx, fixture.ID)
 	require.NoError(t, err)
 	got, err := directory.FindByID(ctx, fixture.ID)

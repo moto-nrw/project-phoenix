@@ -56,7 +56,7 @@
     "source": "Local run on the PR branch. The workflows append the same records through the same Audit command over the same pool; only the packages that name the records and build the command move. The evidence is the suites and the architecture check, not a benchmark rerun.",
     "sources": [
       "backend/api/workflow_audits.go",
-      "backend/api/student_deletion_owners.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/student_deletion_owners.go",
       "backend/api/staff_offboarding_owners.go",
       "backend/workflows/gradetransition/compose/new.go",
       "backend/workflows/staffoffboarding/compose/new.go",

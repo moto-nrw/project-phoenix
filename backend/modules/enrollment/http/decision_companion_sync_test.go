@@ -12,6 +12,7 @@ import (
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -54,16 +55,16 @@ func newCompanionSyncApplier(
 		Offerings:      enrollmentCompose.NewCareOfferingRecords(repoFactoryCare.CarePlan),
 		Bookings:       bookings,
 		GuardianAccess: testGuardianAccess(env.db),
-		People: api.EnrollmentDecisionPeopleDirectory(
+		People: owners.EnrollmentDecisionPeopleDirectory(
 			repoFactory.Person, repoFactory.Staff, repoFactory.Student, repoFactory.StudentGuardian, repoFactory.GuardianProfile, repoFactory.GuardianPhoneNumber, studentEnrollment,
 		),
 		StudentEnrollment: studentEnrollment,
-		Companions:        api.EnrollmentDecisionCompanions(api.NewStudentCompanionRepository(repoFactoryCare.CarePlan), repoFactoryCare.CarePlan.DeleteCompanionEdges),
+		Companions:        owners.EnrollmentDecisionCompanions(owners.NewStudentCompanionRepository(repoFactoryCare.CarePlan), repoFactoryCare.CarePlan.DeleteCompanionEdges),
 		PickupSchedules:   repoFactoryTimetable.EnrollmentPickupSchedules(),
 		ArrivalSchedules:  repoFactoryTimetable.EnrollmentArrivalSchedules(),
-		Adjustments:       api.EnrollmentDecisionAdjustments(repoFactoryAudit.EnrollmentOfferingAdjustment),
-		Broadcasts:        api.EnrollmentDecisionBroadcasts(bc),
-		ParentsURL:        api.EnrollmentDecisionParentsURL("http://parents.localhost:3000", "http://localhost:3000"),
+		Adjustments:       owners.EnrollmentDecisionAdjustments(repoFactoryAudit.EnrollmentOfferingAdjustment),
+		Broadcasts:        owners.EnrollmentDecisionBroadcasts(bc),
+		ParentsURL:        owners.EnrollmentDecisionParentsURL("http://parents.localhost:3000", "http://localhost:3000"),
 		Logger:            slog.Default(),
 	}, nil, env.outbox)
 	return enrollmentAPI.ChangeRequestApplierForTest(decisions)
@@ -157,7 +158,7 @@ func linkCompanionPartnerOnTuesday(t *testing.T, env *decisionTestEnv, studentID
 
 	edge, err := api.NewStudentCompanionEdge(studentID, partner.ID, 2)
 	require.NoError(t, err)
-	require.NoError(t, api.ReplaceStudentCompanions(ctx, api.NewStudentCompanionRepository(env.reposCare.CarePlan), studentID,
+	require.NoError(t, api.ReplaceStudentCompanions(ctx, owners.NewStudentCompanionRepository(env.reposCare.CarePlan), studentID,
 		[]*careplan.CompanionEdge{edge}))
 
 	if !withOwnNote {
@@ -237,7 +238,7 @@ func TestDecisionService_SyncApprovedChildData_CompanionRefusalSurfacesWithoutRe
 	require.NoError(t, ferr)
 	assert.True(t, peopleValues.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays)[peopleValues.PickupDayTuesday],
 		"the refused correction must roll back, leaving the accompanied Tuesday in place")
-	edges, eerr := api.NewStudentCompanionRepository(env.reposCare.CarePlan).ListForStudent(ctx, studentID)
+	edges, eerr := owners.NewStudentCompanionRepository(env.reposCare.CarePlan).ListForStudent(ctx, studentID)
 	require.NoError(t, eerr)
 	require.Len(t, edges, 1, "the refused correction must not drop the link")
 	far, ok := edges[0].Other(studentID)
@@ -288,7 +289,7 @@ func TestDecisionService_SyncApprovedChildData_CompanionEventOnlyOnEffectiveTrim
 		assert.True(t, bc.HasEventType(realtime.EventStudentCompanionsChanged),
 			"Tuesday no longer allows 'Anderes Kind', so the link is gone from the partner's card too")
 
-		edges, err := api.NewStudentCompanionRepository(env.reposCare.CarePlan).ListForStudent(testpkg.Ctx(t), studentID)
+		edges, err := owners.NewStudentCompanionRepository(env.reposCare.CarePlan).ListForStudent(testpkg.Ctx(t), studentID)
 		require.NoError(t, err)
 		assert.Empty(t, edges, "the announced sync must actually have trimmed the link")
 	})

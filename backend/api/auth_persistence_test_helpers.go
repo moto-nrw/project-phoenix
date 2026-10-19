@@ -6,6 +6,7 @@ import (
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 )
 
 // InvitationPersistence is the real persistence surface for invitation behavior
@@ -25,7 +26,7 @@ func NewInvitationPersistence(db transactionruntime.Database) (*InvitationPersis
 		return nil, err
 	}
 	return &InvitationPersistence{
-		Person: NewPersonRepository(db),
+		Person: owners.NewPersonRepository(db),
 		Staff:  staff, Teacher: teachers,
 		Student: NewUnboundStudentRepository(db),
 	}, nil
@@ -34,11 +35,11 @@ func NewInvitationPersistence(db transactionruntime.Database) (*InvitationPersis
 // newInvitationMembershipRepositories composes only the staff and teacher adapters
 // over School Membership, without constructing the legacy repository graph.
 func newInvitationMembershipRepositories(db transactionruntime.Database) (peoplePorts.StaffRepository, peoplePorts.TeacherRepository, error) {
-	membership, err := NewSchoolMembership(db)
+	membership, err := owners.NewSchoolMembership(db)
 	if err != nil {
 		return nil, nil, err
 	}
 	groupTeachers := NewGroupTeacherRepository(membership, NewEducationGroupRepository(db))
-	deps := NewStaffMembershipDeps(NewPersonRepository(db), NewPeopleIdentityAccess(db, nil), workforceCompose.MustNewStaffEmployment(db.Pool()), groupTeachers)
-	return StaffMembershipRepository{Membership: membership, Deps: deps}, TeacherMembershipRepository{Membership: membership, Deps: deps}, nil
+	deps := owners.NewStaffMembershipDeps(owners.NewPersonRepository(db), owners.NewPeopleIdentityAccess(db, nil), workforceCompose.MustNewStaffEmployment(db.Pool()), groupTeachers)
+	return owners.StaffMembershipRepository{Membership: membership, Deps: deps}, owners.TeacherMembershipRepository{Membership: membership, Deps: deps}, nil
 }

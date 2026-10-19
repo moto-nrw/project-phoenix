@@ -6,6 +6,8 @@ import (
 	"context"
 	"slices"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -21,7 +23,7 @@ import (
 // request-review projection binds in the server. Offering-change suites
 // assert the queue a staff member sees for the requests they submit.
 func NewOfferingReviewTestQuery(db transactionruntime.Database, today func() calendar.Date) (careplan.OfferingReviewQuery, error) {
-	auditCommand, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
+	auditCommand, err := auditCompose.NewCommand(owners.NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +32,7 @@ func NewOfferingReviewTestQuery(db transactionruntime.Database, today func() cal
 		return nil, err
 	}
 	reposTimetable := NewEnrollmentTimetableRows(db)
-	people, err := NewPeopleDirectory(db)
+	people, err := owners.NewPeopleDirectory(db)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +99,7 @@ func (d offeringReviewTestDirectory) SearchStudentIDs(_ context.Context, _ strin
 // projection and the bookings from Care Plan's tenant-scoped offering
 // bookings, which carry no state and are composed per read.
 type offeringReviewTestEnrollment struct {
-	enrollment EnrollmentBookingProjection
+	enrollment owners.EnrollmentBookingProjection
 }
 
 func (e offeringReviewTestEnrollment) Children(ctx context.Context, ids []int64) ([]careplanCompose.OfferingReviewChild, error) {

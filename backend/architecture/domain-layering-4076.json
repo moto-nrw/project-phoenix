@@ -36,8 +36,8 @@
   "runtime_evidence": {
     "source": "Local verification of PR #4122 on 2026-10-16. This record covers the three retired #3417 layering keys, not the remaining #4076 carrier. No production or staging requests and no benchmark run.",
     "sources": [
-      "backend/api/parent_portal_enrollments.go",
-      "backend/api/presence_work_sessions.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/parent_portal_enrollments.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/presence_work_sessions.go",
       "backend/modules/careplan/parent_enrollments.go",
       "backend/modules/careplan/selection/selection_test.go",
       "backend/modules/careplan/integration/parent_enrollment_request_repository_test.go",

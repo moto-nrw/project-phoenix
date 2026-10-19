@@ -5,6 +5,8 @@ package api
 import (
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -15,7 +17,7 @@ import (
 // import's retention consents (#2708). The production root composes the same
 // module behind its own observation sink.
 func NewStudentPresenceForTests(db transactionruntime.Database) studentpresence.Capability {
-	return NewUnloggedStudentPresence(db)
+	return owners.NewUnloggedStudentPresence(db)
 }
 
 // NewPresenceSessionRecords builds the Student Presence session records
@@ -23,5 +25,5 @@ func NewStudentPresenceForTests(db transactionruntime.Database) studentpresence.
 // devices fail loudly, and supervision reads carry no staff members. The
 // optional clock fixes the supervision "today".
 func NewPresenceSessionRecords(db transactionruntime.Database, clocks ...func() time.Time) *presenceCompose.SessionRecords {
-	return newPresenceSessionRecords(presenceCompose.SessionRecordDependencies{DB: db.Pool(), Now: OptionalClock(clocks)})
+	return owners.ComposePresenceSessionRecords(presenceCompose.SessionRecordDependencies{DB: db.Pool(), Now: OptionalClock(clocks)})
 }

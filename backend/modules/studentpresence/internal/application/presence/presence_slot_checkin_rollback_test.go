@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
@@ -37,7 +38,7 @@ func testSlotCheckInRollback(t *testing.T, batch bool) {
 	db := testpkg.SetupTestDB(t)
 	device := testpkg.EnsureWebManualDevice(t, db)
 	module := testSchoolPresence(t, db)
-	syncRows := api.NewAttendanceSyncTestRepositories(testpkg.NewDatabase(t, db), api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)))
+	syncRows := api.NewAttendanceSyncTestRepositories(testpkg.NewDatabase(t, db), owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)))
 	instances, assignments := syncRows.Instances, syncRows.Participants
 	injected := errors.New("fail after slot check-in")
 	rows := &failingSlotCheckIn{afterWrite: injected}

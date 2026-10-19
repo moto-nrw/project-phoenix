@@ -14,6 +14,7 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,10 +32,10 @@ type rolloverTestEnv struct {
 	// this env over the test tenant.
 	tb             testing.TB
 	db             *bun.DB
-	repos          *api.EnrollmentFlowTestRepositories
-	reposCare      api.TimetableCarePlanRows
-	reposTimetable api.TimetableTestRepositories
-	reposAudit     *api.EnrollmentFlowAuditRows
+	repos          *owners.EnrollmentFlowTestRepositories
+	reposCare      owners.TimetableCarePlanRows
+	reposTimetable owners.TimetableTestRepositories
+	reposAudit     *owners.EnrollmentFlowAuditRows
 	reposSchools   *api.OrganizationTestRows
 	timetable      timetable.Capability
 	rolloverSvc    enrollmentAPI.RolloverService
@@ -83,7 +84,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	settings.stringValues[settingKeyLegalPhotoText] = "Foto Text"
 
 	outbox := &recordingOutbox{}
-	requestSvc := newTestRequestService(api.EnrollmentIntakeSources{
+	requestSvc := newTestRequestService(owners.EnrollmentIntakeSources{
 		Bookings:         requestTestBookingCommands(),
 		Requests:         repoFactory.Enrollment(),
 		Children:         repoFactory.Enrollment(),
@@ -101,7 +102,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	offeringCatalog := testCareOfferingCatalog(t, db, api.WithCareOfferingSettings(settings))
 	var offeringCloner TestRolloverCatalogCloner = offeringCatalog
 
-	rolloverSvc := newTestRolloverService(api.EnrollmentRolloverSources{
+	rolloverSvc := newTestRolloverService(owners.EnrollmentRolloverSources{
 		Bookings:   requestTestBookingCommands(),
 		Phases:     repoFactory.Enrollment(),
 		Requests:   repoFactory.Enrollment(),
@@ -265,9 +266,9 @@ func validRolloverRequest(env *rolloverTestEnv, mode string, bumpsGrade bool) en
 
 func rolloverServiceWithSettings(
 	env *rolloverTestEnv,
-	settings api.EnrollmentIntakeSettings,
+	settings owners.EnrollmentIntakeSettings,
 ) enrollmentAPI.RolloverService {
-	return newTestRolloverService(api.EnrollmentRolloverSources{
+	return newTestRolloverService(owners.EnrollmentRolloverSources{
 		Bookings:   requestTestBookingCommands(),
 		Phases:     env.repos.Enrollment(),
 		Requests:   env.repos.Enrollment(),
@@ -888,7 +889,7 @@ func TestRolloverService_RunDeadlineWorker_AutoApprovePromotesToApproved(t *test
 	// env doesn't wire a decision service (decision needs Person/
 	// Student repos and the full chain).
 	stubDecision := &fakeApproveDecisionService{repo: env.repos.Enrollment()}
-	autoApproveSvc := newTestRolloverService(api.EnrollmentRolloverSources{
+	autoApproveSvc := newTestRolloverService(owners.EnrollmentRolloverSources{
 		Bookings:   requestTestBookingCommands(),
 		Phases:     env.repos.Enrollment(),
 		Requests:   env.repos.Enrollment(),
