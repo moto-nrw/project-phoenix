@@ -423,6 +423,35 @@ func TestModuleFiltersGuestListings(t *testing.T) {
 	assert.Empty(t, empty)
 }
 
+func TestModuleKeepsGuestMarkerAfterActivityWindow(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	staff := createStaff(
+		t,
+		ctx,
+		db,
+		module,
+		"Former",
+		"Guest",
+		schoolmembership.StaffFields{},
+	)
+
+	_, err := module.CreateGuest(ctx, schoolmembership.CreateGuest{
+		GuestFields: schoolmembership.GuestFields{
+			StaffID: staff.ID, ActivityExpertise: "Musik",
+			StartDate: "2000-01-01", EndDate: "2000-01-02",
+		},
+	})
+	require.NoError(t, err)
+
+	loaded, err := module.FindStaff(ctx, staff.ID)
+	require.NoError(t, err)
+	assert.True(t, loaded.IsGuest,
+		"the guest marker identifies an external caregiver even after the activity window")
+}
+
 func TestModuleTenantIsolationHidesAnotherTenantsMemberships(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

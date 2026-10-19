@@ -10,7 +10,7 @@ export const GET = createGetHandler(async (_request, token) => {
     token,
   );
   return (response.data ?? []).map((entry) => ({
-    id: entry.id.toString(),
+    id: entry.id,
     firstName: entry.first_name,
     lastName: entry.last_name,
     startedOn: entry.started_on,

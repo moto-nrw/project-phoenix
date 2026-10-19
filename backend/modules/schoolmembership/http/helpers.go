@@ -128,13 +128,20 @@ func (rs *Resource) personIndex(ctx context.Context, members []schoolmembership.
 }
 
 // teacherIndex batch-loads the teacher profiles of a staff list, keyed by
-// staff ID, so the list view stays free of the per-row lookup.
-func (rs *Resource) teacherIndex(ctx context.Context, staffIDs []int64) (map[int64]schoolmembership.Teacher, error) {
+// staff ID, so the list view stays free of the per-row lookup. Former
+// employments include profiles the offboarding workflow soft-deleted.
+func (rs *Resource) teacherIndex(
+	ctx context.Context,
+	staffIDs []int64,
+	includeDeleted bool,
+) (map[int64]schoolmembership.Teacher, error) {
 	index := make(map[int64]schoolmembership.Teacher, len(staffIDs))
 	if len(staffIDs) == 0 {
 		return index, nil
 	}
-	teachers, err := rs.membership.ListTeachers(ctx, schoolmembership.TeacherFilter{StaffIDs: staffIDs})
+	teachers, err := rs.membership.ListTeachers(ctx, schoolmembership.TeacherFilter{
+		StaffIDs: staffIDs, IncludeDeleted: includeDeleted,
+	})
 	if err != nil {
 		return nil, err
 	}

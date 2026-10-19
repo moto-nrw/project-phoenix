@@ -55,7 +55,7 @@ describe("GET /api/staff/former", () => {
     mockApiGet.mockResolvedValueOnce({
       data: [
         {
-          id: 42,
+          id: "42",
           first_name: "Grace",
           last_name: "Hopper",
           started_on: "2024-09-02",
@@ -81,6 +81,27 @@ describe("GET /api/staff/former", () => {
         endedOn: "2026-07-31",
       },
     ]);
+  });
+
+  it("keeps a bigint identifier exact", async () => {
+    mockApiGet.mockResolvedValueOnce({
+      data: [
+        {
+          id: "9223372036854775807",
+          first_name: "Ada",
+          last_name: "Lovelace",
+          started_on: "2024-09-02",
+          ended_on: "2026-07-31",
+        },
+      ],
+    });
+
+    const response = await GET(request(), context);
+
+    const json = (await response.json()) as {
+      data: Array<{ id: string }>;
+    };
+    expect(json.data[0]?.id).toBe("9223372036854775807");
   });
 
   it("answers an empty list when the backend has none", async () => {

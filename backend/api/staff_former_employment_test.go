@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -27,15 +28,15 @@ func TestStaffListFormerEmploymentsAgainstTheDatabase(t *testing.T) {
 	leftOn := calendar.NewDate(2026, 7, 31)
 
 	currentID, _ := ctx.createStaff("Aktuelle", "Kollegin")
-	retired := map[int64]bool{}
+	retired := map[string]bool{}
 	retireOne := func(n int) {
 		staffID, _ := ctx.createStaff(fmt.Sprintf("Ehemalige%d", n), "Kollegin")
 		ctx.retire(staffID, leftOn.BerlinMidnight().Add(10*time.Hour))
-		retired[staffID] = true
+		retired[strconv.FormatInt(staffID, 10)] = true
 	}
 
 	type row struct {
-		ID        int64  `json:"id"`
+		ID        string `json:"id"`
 		FirstName string `json:"first_name"`
 		StartedOn string `json:"started_on"`
 		EndedOn   string `json:"ended_on"`
@@ -55,7 +56,7 @@ func TestStaffListFormerEmploymentsAgainstTheDatabase(t *testing.T) {
 	ours := func(rows []row) []row {
 		result := []row{}
 		for _, r := range rows {
-			if retired[r.ID] || r.ID == currentID {
+			if retired[r.ID] || r.ID == strconv.FormatInt(currentID, 10) {
 				result = append(result, r)
 			}
 		}

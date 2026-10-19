@@ -14,7 +14,7 @@ import (
 )
 
 type formerStaffRow struct {
-	ID        int64  `json:"id"`
+	ID        string `json:"id"`
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
 	StartedOn string `json:"started_on"`
@@ -93,9 +93,34 @@ func TestListStaffFormerShowsEachPersonsLatestEmploymentOnce(t *testing.T) {
 
 	rows := decodeFormer(t, h, "/staff?employment=former")
 	assert.Equal(t, []formerStaffRow{
-		{ID: 2, FirstName: "Grace", LastName: "Hopper", StartedOn: "2024-09-02", EndedOn: "2026-07-31"},
-		{ID: 4, FirstName: "Katherine", LastName: "Johnson", StartedOn: "2024-02-01", EndedOn: "2025-01-31"},
+		{ID: "2", FirstName: "Grace", LastName: "Hopper", StartedOn: "2024-09-02", EndedOn: "2026-07-31"},
+		{ID: "4", FirstName: "Katherine", LastName: "Johnson", StartedOn: "2024-02-01", EndedOn: "2025-01-31"},
 	}, rows, "current staff, erased tombstones and external caregivers stay out; older employments give way to the latest")
+}
+
+func TestListStaffFormerKeepsBigIDsAndAppliesDirectoryFilters(t *testing.T) {
+	t.Parallel()
+	membership := formerStaffFixture()
+	membership.staff[2] = schoolmembership.Staff{
+		ID: 9223372036854775807, PersonID: 12,
+		CreatedAt: berlinNoon(2024, 9, 2), DeletedAt: instant(berlinNoon(2026, 7, 31)),
+	}
+	h := withFormerPersons(newHarness(t, membership))
+	h.allow("users:read")
+	// Offboarding soft-deletes the teacher profile too; the former filter must
+	// still recognize it as a teacher.
+	h.membership.teachers = map[int64]schoolmembership.Teacher{}
+	h.membership.teachers[9223372036854775807] = schoolmembership.Teacher{
+		ID: 22, StaffID: 9223372036854775807, DeletedAt: instant(berlinNoon(2026, 7, 31)),
+	}
+	h.roles[102] = "teacher"
+
+	rows := decodeFormer(t, h, "/staff?employment=former&teachers_only=true&role=teacher")
+	require.Len(t, rows, 1)
+	assert.Equal(t, "9223372036854775807", rows[0].ID)
+	assert.Equal(t, "Grace", rows[0].FirstName)
+
+	assert.Empty(t, decodeFormer(t, h, "/staff?employment=former&role=admin"))
 }
 
 func TestListStaffFormerAppliesTheNameFilters(t *testing.T) {

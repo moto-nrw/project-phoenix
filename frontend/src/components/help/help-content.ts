@@ -1762,7 +1762,7 @@ function findStaffTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Möchten Sie der Person schreiben? Öffnen Sie den `Team-Chat`.",
     ],
     notes: [
-      "Hat jemand früher bei Ihnen gearbeitet? Wählen Sie in der Auswahl `Ehemalige`. Die Karte zeigt, von wann bis wann die Person in moto eingetragen war.",
+      "Hat jemand früher bei Ihnen gearbeitet? Wählen Sie in der Auswahl `Ehemalige`. Die Karte zeigt den Zeitraum in moto.",
     ],
     related: [HELP_TOPICS.teamChat, HELP_TOPICS.activeSupervision],
   };

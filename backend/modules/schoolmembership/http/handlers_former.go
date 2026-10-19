@@ -16,7 +16,7 @@ const employmentFormer = "former"
 // it was created to the day the person left, the same period the invitation
 // dialog names (#3402).
 type formerStaffResponse struct {
-	ID        int64         `json:"id"`
+	ID        int64         `json:"id,string"`
 	FirstName string        `json:"first_name"`
 	LastName  string        `json:"last_name"`
 	StartedOn calendar.Date `json:"started_on"`
@@ -40,12 +40,28 @@ func (rs *Resource) listFormerStaff(w http.ResponseWriter, r *http.Request, filt
 		rs.internal(w, r, err)
 		return
 	}
+	teachers := map[int64]schoolmembership.Teacher{}
+	if filters.teachersOnly {
+		teachers, err = rs.teacherIndex(ctx, staffIDsOf(former), true)
+		if err != nil {
+			rs.internal(w, r, err)
+			return
+		}
+	}
 
 	responses := make([]formerStaffResponse, 0, len(former))
 	for _, staff := range former {
 		person := persons[staff.PersonID]
-		if person == nil || !matchesNameFilter(person, filters.firstName, filters.lastName) {
+		if person == nil ||
+			schoolmembership.ExternalCaregiver(staff.IsGuest, true, person.AccountID != nil) ||
+			!rs.passesRoleFilter(ctx, person, filters.filterByRole) ||
+			!matchesNameFilter(person, filters.firstName, filters.lastName) {
 			continue
+		}
+		if filters.teachersOnly {
+			if _, isTeacher := teachers[staff.ID]; !isTeacher {
+				continue
+			}
 		}
 		responses = append(responses, formerStaffResponse{
 			ID: staff.ID, FirstName: person.FirstName, LastName: person.LastName,
@@ -60,7 +76,8 @@ func (rs *Resource) listFormerStaff(w http.ResponseWriter, r *http.Request, filt
 // continue. A person with a live membership is current staff and appears
 // there only, so a resumed person is never listed twice. External
 // caregivers without an account are no employment and stay out, as they do
-// on the current list.
+// on the current list. The handler applies that check after loading people,
+// because a guest profile with a moto account is not an external caregiver.
 func formerEmployments(members []schoolmembership.Staff) []schoolmembership.Staff {
 	live := make(map[int64]bool, len(members))
 	latest := make(map[int64]schoolmembership.Staff, len(members))
@@ -70,7 +87,7 @@ func formerEmployments(members []schoolmembership.Staff) []schoolmembership.Staf
 			live[member.PersonID] = true
 			continue
 		}
-		if member.PersonalDataErasedAt != nil || member.IsGuest {
+		if member.PersonalDataErasedAt != nil {
 			continue
 		}
 		current, seen := latest[member.PersonID]

@@ -86,6 +86,9 @@ func (f *fakeMembership) ListTeachers(_ context.Context, filter schoolmembership
 		if len(wanted) > 0 && !wanted[teacher.StaffID] {
 			continue
 		}
+		if teacher.IsDeleted() && !filter.IncludeDeleted {
+			continue
+		}
 		result = append(result, teacher)
 	}
 	return result, nil

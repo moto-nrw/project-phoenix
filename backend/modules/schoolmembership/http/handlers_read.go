@@ -78,7 +78,7 @@ func (rs *Resource) listCurrentStaff(w http.ResponseWriter, r *http.Request, fil
 		rs.internal(w, r, err)
 		return
 	}
-	teachers, err := rs.teacherIndex(ctx, staffIDsOf(members))
+	teachers, err := rs.teacherIndex(ctx, staffIDsOf(members), false)
 	if err != nil {
 		rs.internal(w, r, err)
 		return
