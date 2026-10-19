@@ -147,7 +147,7 @@ func verifyFileContent(file multipart.File, header *multipart.FileHeader) error 
 	// Read first 512 bytes for magic byte detection
 	buffer := make([]byte, 512)
 	n, err := file.Read(buffer)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return fmt.Errorf("fehler beim Lesen der Datei")
 	}
 	buffer = buffer[:n]

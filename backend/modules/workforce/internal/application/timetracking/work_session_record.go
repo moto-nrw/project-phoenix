@@ -1,7 +1,6 @@
 package timetracking
 
 import (
-	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -27,25 +26,25 @@ type WorkSession struct {
 
 func (ws *WorkSession) Validate() error {
 	if ws.StaffID <= 0 {
-		return errors.New("staff ID is required")
+		return workforce.ErrSessionStaffRequired
 	}
 	if ws.CheckInTime.IsZero() {
-		return errors.New("check-in time is required")
+		return workforce.ErrSessionCheckinRequired
 	}
 	if ws.Status != workforce.WorkSessionStatusPresent && ws.Status != workforce.WorkSessionStatusHomeOffice {
-		return errors.New("status must be 'present' or 'home_office'")
+		return workforce.ErrSessionStatusInvalid
 	}
 	// Source is intentionally not re-validated here — write paths gate it at
 	// the service boundary, and legacy 'unknown' rows must round-trip cleanly
 	// through partial-update flows (break edits, notes patches).
 	if ws.CheckOutTime != nil && ws.CheckInTime.After(*ws.CheckOutTime) {
-		return errors.New("check-in time must be before check-out time")
+		return workforce.ErrSessionTimeOrder
 	}
 	if ws.BreakMinutes < 0 {
-		return errors.New("break minutes cannot be negative")
+		return workforce.ErrBreakMinutesNegative
 	}
 	if ws.CreatedBy <= 0 {
-		return errors.New("created_by is required")
+		return workforce.ErrSessionCreatorRequired
 	}
 	return nil
 }

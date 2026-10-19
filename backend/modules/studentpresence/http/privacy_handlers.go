@@ -5,7 +5,6 @@ import (
 	json "encoding/json"
 	errors "errors"
 	http "net/http"
-	strings "strings"
 	time "time"
 
 	render "github.com/go-chi/render"
@@ -144,7 +143,7 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 	}
 
 	consents, err := rs.PrivacyConsents.ListPrivacyConsents(r.Context(), student.ID)
-	if err != nil && !strings.Contains(err.Error(), "not found") {
+	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}

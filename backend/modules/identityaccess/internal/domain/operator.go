@@ -58,11 +58,11 @@ func (o *Operator) Validate() error {
 	case len(o.Email) > maxOperatorEmailLength:
 		return errors.New("email must not exceed 255 characters")
 	case !strings.Contains(o.Email, "@"):
-		return errors.New("invalid email format")
+		return ErrOperatorEmailInvalid
 	case o.DisplayName == "":
-		return errors.New("display name is required")
+		return ErrOperatorDisplayNameRequired
 	case len(o.DisplayName) > maxOperatorDisplayNameLength:
-		return errors.New("display name must not exceed 100 characters")
+		return ErrOperatorDisplayNameTooLong
 	}
 	return nil
 }

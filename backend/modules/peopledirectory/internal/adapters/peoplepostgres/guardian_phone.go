@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/uptrace/bun"
 
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
@@ -62,7 +64,7 @@ func (r *guardianPhoneNumberRepository) FindByID(ctx context.Context, id int64) 
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New(errGuardianPhoneNotFound)
+			return nil, guardianPhoneNotFound{}
 		}
 		return nil, fmt.Errorf("failed to find guardian phone number: %w", err)
 	}
@@ -138,7 +140,7 @@ func (r *guardianPhoneNumberRepository) Update(ctx context.Context, phone *users
 	}
 
 	if rowsAffected == 0 {
-		return errors.New(errGuardianPhoneNotFound)
+		return guardianPhoneNotFound{}
 	}
 
 	return nil
@@ -162,7 +164,7 @@ func (r *guardianPhoneNumberRepository) Delete(ctx context.Context, id int64) er
 	}
 
 	if rowsAffected == 0 {
-		return errors.New(errGuardianPhoneNotFound)
+		return guardianPhoneNotFound{}
 	}
 
 	return nil
@@ -218,7 +220,7 @@ func (r *guardianPhoneNumberRepository) setPrimaryInTx(ctx context.Context, id i
 	}
 
 	if rowsAffected == 0 {
-		return errors.New(errGuardianPhoneNotFound)
+		return guardianPhoneNotFound{}
 	}
 
 	return nil
@@ -271,4 +273,12 @@ func (r *guardianPhoneNumberRepository) GetNextPriority(ctx context.Context, gua
 	}
 
 	return maxPriority + 1, nil
+}
+
+// Preserve the store's diagnostic while exposing the public not-found identity.
+type guardianPhoneNotFound struct{}
+
+func (guardianPhoneNotFound) Error() string { return errGuardianPhoneNotFound }
+func (guardianPhoneNotFound) Is(target error) bool {
+	return target == peopledirectory.ErrGuardianPhoneNotFound
 }

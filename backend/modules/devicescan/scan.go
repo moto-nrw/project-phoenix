@@ -351,3 +351,6 @@ type DeviceScan interface {
 func IsFailure(err error) (*Failure, bool) {
 	return errors.AsType[*Failure](err)
 }
+
+// ErrWCNeedsStaff identifies a WC provisioning refusal without changing its wire text.
+var ErrWCNeedsStaff = errors.New(MessageWCNeedsStaff)

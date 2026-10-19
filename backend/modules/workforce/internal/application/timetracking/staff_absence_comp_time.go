@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -46,7 +48,7 @@ func (s *staffAbsenceService) PreviewCompTimeBalance(
 		return nil, fmt.Errorf("comp_time preview requires the month service")
 	}
 	if end.Before(start) {
-		return nil, fmt.Errorf("invalid date range: date_end must not be before date_start")
+		return nil, &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid date range: date_end must not be before date_start")}
 	}
 	if err := validateSingleDayHalfDayAbsence(AbsenceTypeCompTime, halfDay, start, end); err != nil {
 		return nil, err

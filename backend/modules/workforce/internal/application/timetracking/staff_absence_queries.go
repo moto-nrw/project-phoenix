@@ -20,7 +20,7 @@ func (s *staffAbsenceService) ListAbsences(ctx context.Context, staffID int64, f
 		return nil, fmt.Errorf("absence list filter is required")
 	}
 	if filter.Status != "" && !slices.Contains(ValidAbsenceStatuses, filter.Status) {
-		return nil, fmt.Errorf("invalid absence status")
+		return nil, &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid absence status")}
 	}
 
 	query := workforce.StaffAbsenceFilter{StaffID: staffID}

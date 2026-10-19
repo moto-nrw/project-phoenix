@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/gofrs/uuid"
@@ -299,29 +301,18 @@ func (rs *InvitationsResource) AcceptInvitation(w http.ResponseWriter, r *http.R
 
 // --- Error translation ---
 
-// operatorInputRejections names the field and code of the validation
-// messages the operator identity service raises, so the operator portal can
-// mark the field (#2519). passwordField is filled in per endpoint.
-var operatorInputRejections = map[string]struct{ field, code string }{
-	"invalid email format":                          {"email", common.CodeGeneralInput},
-	"email address too long":                        {"email", common.CodeGeneralInput},
-	"password doesn't meet complexity requirements": {"", common.CodeIdentityPasswordTooWeak},
-	"display name is required":                      {"display_name", common.CodeGeneralInput},
-	"display name must not exceed 100 characters":   {"display_name", common.CodeGeneralInput},
-}
-
+// operatorInputField maps the owner's typed input failures to fields.
 func operatorInputField(err error, passwordField string) (field, code string, ok bool) {
-	if err == nil {
+	switch {
+	case errors.Is(err, identityaccess.ErrOperatorEmailInvalid), errors.Is(err, identityaccess.ErrOperatorEmailTooLong):
+		return "email", common.CodeGeneralInput, true
+	case errors.Is(err, identityaccess.ErrOperatorPasswordTooWeak):
+		return passwordField, common.CodeIdentityPasswordTooWeak, true
+	case errors.Is(err, identityaccess.ErrOperatorDisplayNameRequired), errors.Is(err, identityaccess.ErrOperatorDisplayNameTooLong):
+		return "display_name", common.CodeGeneralInput, true
+	default:
 		return "", "", false
 	}
-	rejection, ok := operatorInputRejections[err.Error()]
-	if !ok {
-		return "", "", false
-	}
-	if rejection.field == "" {
-		return passwordField, rejection.code, true
-	}
-	return rejection.field, rejection.code, true
 }
 
 // --- Error renderers ---
