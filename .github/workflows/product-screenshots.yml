@@ -124,6 +124,7 @@ jobs:
       FRONTEND_URL: http://localhost:3000
       PARENTS_URL: http://eltern.localhost:3000
       SCHOOL_URL: http://schule.localhost:3000
+      CATERER_URL: http://caterer.localhost:3000
       TENANT_DOMAIN: localhost
       METRICS_BEARER_TOKEN: ci-metrics-token
       OGS_DEVICE_PIN: "1234"

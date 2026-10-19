@@ -7,6 +7,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
+// CatererInvitationDelivery mails the invitation; the link exists only in
+// the mail.
+type CatererInvitationDelivery interface {
+	EnqueueCatererInvitation(ctx context.Context, invitationID, schoolID int64, email, catererName, token string, expiresAt time.Time) error
+}
+
 // CatererStore holds the caterer, its accounts, the schools it supplies and
 // the schools' invitations (ADR 0074). Writes run in the school's
 // transaction; the caterer's schools are read through the global identity

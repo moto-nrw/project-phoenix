@@ -38,6 +38,9 @@ type LifecycleDependencies struct {
 	Passwords PasswordPolicy
 	Guardians identityPorts.GuardianDirectory
 	Delivery  identityPorts.GuardianInvitationDelivery
+	// Caterers mails the caterer invitation; without it the module serves
+	// no caterer flows.
+	Caterers identityPorts.CatererInvitationDelivery
 	// Enrollments is optional: without it an acceptance claims no
 	// pre-account enrollment requests.
 	Enrollments identityPorts.GuardianEnrollments

@@ -27,6 +27,7 @@ var errSchoolTransactionRequired = errors.New("identity access: the caterer flow
 type CatererAccess struct {
 	auth      *AccountAuthentication
 	store     ports.CatererStore
+	delivery  ports.CatererInvitationDelivery
 	passwords ports.PasswordHasher
 	verifier  ports.PasswordVerifier
 	schools   ports.SchoolDirectory
@@ -39,6 +40,7 @@ type CatererAccess struct {
 // CatererAccessDependencies are the ports the caterer flows consume.
 type CatererAccessDependencies struct {
 	Store     ports.CatererStore
+	Delivery  ports.CatererInvitationDelivery
 	Passwords ports.PasswordHasher
 	Verifier  ports.PasswordVerifier
 	Schools   ports.SchoolDirectory
@@ -50,7 +52,7 @@ type CatererAccessDependencies struct {
 }
 
 func NewCatererAccess(auth *AccountAuthentication, deps CatererAccessDependencies) (*CatererAccess, error) {
-	if auth == nil || deps.Store == nil || deps.Passwords == nil || deps.Verifier == nil || deps.Schools == nil || deps.Runtime == nil {
+	if auth == nil || deps.Store == nil || deps.Delivery == nil || deps.Passwords == nil || deps.Verifier == nil || deps.Schools == nil || deps.Runtime == nil {
 		return nil, fmt.Errorf("identity access caterer access: all dependencies are required")
 	}
 	logger := deps.Logger
@@ -61,7 +63,7 @@ func NewCatererAccess(auth *AccountAuthentication, deps CatererAccessDependencie
 	if attach == nil {
 		attach = func(ctx context.Context) context.Context { return ctx }
 	}
-	return &CatererAccess{auth: auth, store: deps.Store, passwords: deps.Passwords, verifier: deps.Verifier, schools: deps.Schools, runtime: deps.Runtime, attach: attach, now: time.Now, logger: logger}, nil
+	return &CatererAccess{auth: auth, store: deps.Store, delivery: deps.Delivery, passwords: deps.Passwords, verifier: deps.Verifier, schools: deps.Schools, runtime: deps.Runtime, attach: attach, now: time.Now, logger: logger}, nil
 }
 
 // inSchool reports whether the caller opened a school's transaction.
@@ -69,18 +71,23 @@ func (c *CatererAccess) inSchool(ctx context.Context) bool {
 	return c.runtime.HasTransaction(ctx) && c.runtime.TenantID(ctx) > 0
 }
 
-// CreateCatererInvitation issues the school's invitation and returns the
-// link token, which is shown once and never stored. Earlier open
-// invitations of the school are taken back: a school has one caterer.
-func (c *CatererAccess) CreateCatererInvitation(ctx context.Context, input identityaccess.CatererInvitationRequest) (identityaccess.CatererInvitation, string, error) {
-	invitation, token, err := c.createInvitation(c.attach(ctx), domain.CatererInvitationRequest(input))
+// CreateCatererInvitation issues the school's invitation and mails the link
+// to the caterer. The link is never stored and never returned: only the
+// owner of the address can accept. Earlier open invitations of the school
+// are taken back; a school has one caterer.
+func (c *CatererAccess) CreateCatererInvitation(ctx context.Context, input identityaccess.CatererInvitationRequest) (identityaccess.CatererInvitation, error) {
+	ctx = c.attach(ctx)
+	invitation, token, err := c.createInvitation(ctx, domain.CatererInvitationRequest(input))
+	if err == nil {
+		err = c.delivery.EnqueueCatererInvitation(ctx, invitation.ID, invitation.TenantID, invitation.Email, invitation.CatererName, token, invitation.ExpiresAt)
+	}
 	if err != nil {
-		return identityaccess.CatererInvitation{}, "", catererError(failed("create caterer invitation", err))
+		return identityaccess.CatererInvitation{}, catererError(failed("create caterer invitation", err))
 	}
 	c.logger.Info("caterer invitation created",
 		slog.Int64("invitation_id", invitation.ID),
 		slog.Int64("created_by", input.CreatedBy))
-	return publicCatererInvitation(invitation), token, nil
+	return publicCatererInvitation(invitation), nil
 }
 
 func (c *CatererAccess) createInvitation(ctx context.Context, request domain.CatererInvitationRequest) (domain.CatererInvitation, string, error) {

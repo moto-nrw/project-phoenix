@@ -140,7 +140,7 @@ var moduleLegacyFileBudgets = map[string]int{}
 // like every entry; raised by ADR 0063 and by ADR 0073 (the parent
 // announcement retention of modules/communication/composition), and by
 // ADR 0075 (the meal ordering rules) and ADR 0074 (the caterer flows).
-const moduleComposeBudgetTotal = 20189
+const moduleComposeBudgetTotal = 20193
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -172,7 +172,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/filestorage/compose":                     341,
 	"modules/grouplive/compose":                       14,
 	"modules/guardianlinkview/compose":                8,
-	"modules/identityaccess/compose":                  1769, // raised by ADR 0074
+	"modules/identityaccess/compose":                  1773, // raised by ADR 0074
 	"modules/mealplan/compose":                        89,   // raised by ADR 0075
 	"modules/organizationtenancy/compose":             474,
 	"modules/parentrequestfeedprojection/compose":     11,

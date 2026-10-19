@@ -239,6 +239,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	frontendURL := strings.TrimRight(cfg.FrontendURL, "/")
 	parentsURL := strings.TrimRight(cfg.ParentsURL, "/")
 	schoolURL := strings.TrimRight(cfg.SchoolURL, "/")
+	catererURL := strings.TrimRight(cfg.CatererURL, "/")
 	resetMinutes := cfg.PasswordResetExpiryMinutes
 	if resetMinutes <= 0 {
 		resetMinutes = 30
@@ -313,8 +314,12 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	if err != nil {
 		return AuthTestModule{}, err
 	}
+	catererMail, err := owners.CatererInvitationDelivery(organizations, owners.OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox}, catererURL)
+	if err != nil {
+		return AuthTestModule{}, err
+	}
 	lifecycle, err := owners.LifecycleDependencies(sessionRepos.Lifecycle, command, owners.CaregiverProfiles{Persons: operatorPersons, Membership: operatorMembership},
-		guardianMail, enrollmentClaims, logger)
+		guardianMail, catererMail, enrollmentClaims, logger)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
@@ -395,7 +400,7 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, unit tenant.UnitOfWork
 		return nil, err
 	}
 	sessionRepos := owners.SessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool()))
-	lifecycle, err := owners.LifecycleDependencies(sessionRepos.Lifecycle, audit, caregivers, owners.UnsentGuardianMail{}, nil, logger)
+	lifecycle, err := owners.LifecycleDependencies(sessionRepos.Lifecycle, audit, caregivers, owners.UnsentGuardianMail{}, nil, nil, logger)
 	if err != nil {
 		return nil, err
 	}

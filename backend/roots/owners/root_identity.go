@@ -86,8 +86,12 @@ func BuildIdentityAccess(
 	}
 	// The lifecycle flows (#3225) read the role management of the module
 	// they are composed into.
+	catererMail, err := CatererInvitationDelivery(organizations, outbox, links.CatererURL)
+	if err != nil {
+		return nil, nil, err
+	}
 	lifecycle, err := LifecycleDependencies(sessionRepos.Lifecycle, audit.Command, CaregiverProfiles{Persons: persons, Membership: membership},
-		guardianMail, enrollmentClaims, authLogger)
+		guardianMail, catererMail, enrollmentClaims, authLogger)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -156,6 +160,7 @@ func IdentityDeliveryRenderers(module *identityaccess.Module, defaultFrom email.
 		identityaccess.MailKindGuardianInvitation: payloadRenderer(NewGuardianInvitationRenderer(GuardianInvitationRendererConfig{
 			DefaultFrom: defaultFrom,
 		})),
+		identityaccess.MailKindCatererInvitation: payloadRenderer(NewCatererInvitationRenderer(defaultFrom)),
 		identityaccess.MailKindGuardianWelcome: payloadRenderer(NewGuardianWelcomeRenderer(GuardianInvitationRendererConfig{
 			DefaultFrom:          defaultFrom,
 			PrecedingEmailStatus: identityaccessCompose.NewGuardianWelcomeOrder(precedingMails{status: mailState}),

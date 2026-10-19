@@ -104,6 +104,7 @@ jobs:
       FRONTEND_URL: http://localhost:3000
       PARENTS_URL: http://parents.localhost:3000
       SCHOOL_URL: http://schule.localhost:3000
+      CATERER_URL: http://caterer.localhost:3000
       TENANT_DOMAIN: localhost
       # Same token for backend and the Next proxy: measure.perf.ts scrapes
       # /api/internal/metrics on the frontend with it.

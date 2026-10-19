@@ -43,8 +43,8 @@ type CatererInvitationRequest struct {
 	CreatedBy       int64
 }
 
-// CatererInvitation is a school's invitation as the school sees it; the
-// link token is shown once at creation and never stored.
+// CatererInvitation is a school's invitation as the school sees it. The link
+// goes to the caterer by mail only and is never stored.
 type CatererInvitation struct {
 	ID              int64
 	Email           string
@@ -87,7 +87,9 @@ type CatererAcceptanceHook func(ctx context.Context, acceptance CatererAcceptanc
 
 // CatererAccessEngine is what the composition binds behind CatererAccess.
 type CatererAccessEngine interface {
-	CreateCatererInvitation(ctx context.Context, request CatererInvitationRequest) (CatererInvitation, string, error)
+	// CreateCatererInvitation mails the link to the caterer; the school
+	// never sees it.
+	CreateCatererInvitation(ctx context.Context, request CatererInvitationRequest) (CatererInvitation, error)
 	ListCatererInvitations(ctx context.Context) ([]CatererInvitation, error)
 	RevokeCatererInvitation(ctx context.Context, invitationID int64) error
 	PreviewCatererInvitation(ctx context.Context, token string) (CatererInvitationPreview, error)

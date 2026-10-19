@@ -65,7 +65,7 @@ func (r LifecycleRepositories) complete() bool {
 // repos (the session repositories' Lifecycle, which carries the auth event
 // ledger), the audit command, the Lehrkraft guard the role administration
 // reads, and the guardian invitation delivery and enrollment claim.
-func LifecycleDependencies(repos LifecycleRepositories, audit auditModels.Command, caregivers CaregiverProfiles, delivery identityPorts.GuardianInvitationDelivery, enrollments identityPorts.GuardianEnrollments, logger *slog.Logger) (*identityaccessCompose.LifecycleDependencies, error) {
+func LifecycleDependencies(repos LifecycleRepositories, audit auditModels.Command, caregivers CaregiverProfiles, delivery identityPorts.GuardianInvitationDelivery, caterers identityPorts.CatererInvitationDelivery, enrollments identityPorts.GuardianEnrollments, logger *slog.Logger) (*identityaccessCompose.LifecycleDependencies, error) {
 	if !repos.complete() || audit == nil || !caregivers.complete() {
 		return nil, errors.New("identity access composition: every lifecycle repository and owner command, the audit command and the caregiver profiles are required")
 	}
@@ -78,6 +78,7 @@ func LifecycleDependencies(repos LifecycleRepositories, audit auditModels.Comman
 		Passwords:   passwordPolicy{},
 		Guardians:   guardianDirectory{repos: repos},
 		Delivery:    delivery,
+		Caterers:    caterers,
 		Enrollments: enrollments,
 		Financial:   financialAudit{command: audit},
 		Logger:      logger,

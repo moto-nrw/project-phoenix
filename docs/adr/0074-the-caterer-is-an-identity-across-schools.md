@@ -50,6 +50,8 @@ tenant transaction.
 4. **No new administrative transaction (#4088).** The data of each school is
    separated by RLS, and #4088 allows no new administrative transaction.
    The caterer therefore never searches across schools:
+   - The invitation goes to the caterer by mail only; the school never sees
+     the link, so only the owner of the address can accept.
    - The invitation link names its school. Preview and acceptance open that
      school's transaction; the account, the caterer, its link to the school,
      the spent invitation and the Meal Plan's supply commit there together.
@@ -94,12 +96,13 @@ point 5 lets the registers only fall; this decision raises them by exactly
 what the caterer adds:
 
 1. `modulePassthroughOwnerBudgets["modules/identityaccess"]` rises from 556
-   to 560, and `modulePassthroughOwnerBudgetTotal` from 2,974 to 2,978: the
+   to 559, and `modulePassthroughOwnerBudgetTotal` from 2,974 to 2,977: the
    engine method that deletes expired caterer invitations, next to the one
    of the guardian invitations, and the entries of the caterer flows that
    attach the unit of work and translate the errors. The flows speak the
    public types themselves, so no engine forwards them.
 2. `moduleComposeBudgets["modules/identityaccess/compose"]` rises from 1,729
-   to 1,769, and `moduleComposeBudgetTotal` by the same 40 lines: composing
-   the caterer flows beside the engine, as the demo access is, and handing
-   the authentication the caterer store for the refresh.
+   to 1,773, and `moduleComposeBudgetTotal` by the same 44 lines: composing
+   the caterer flows beside the engine, as the demo access is, with the
+   delivery of their invitation mail, and handing the authentication the
+   caterer store for the refresh.

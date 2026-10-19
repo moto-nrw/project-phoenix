@@ -2,7 +2,9 @@ package behavior_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,18 +39,28 @@ func inSchool(t *testing.T, db *bun.DB, school int64, fn func(context.Context) e
 	return testpkg.WithinTenantContext(t, context.Background(), db, school, fn)
 }
 
+// invite has the school invite the address and reads the link from the
+// mail, as only the caterer can: the school never sees it.
 func invite(t *testing.T, db *bun.DB, caterers *identityaccess.CatererAccess, school, staffID int64, email string) string {
 	t.Helper()
-	var token string
+	var invitation identityaccess.CatererInvitation
 	require.NoError(t, inSchool(t, db, school, func(ctx context.Context) error {
 		var err error
-		_, token, err = caterers.CreateCatererInvitation(ctx, identityaccess.CatererInvitationRequest{
+		invitation, err = caterers.CreateCatererInvitation(ctx, identityaccess.CatererInvitationRequest{
 			Email: email, CatererName: "Küche am Markt", DeliveryAddress: "Schulstraße 1", CreatedBy: staffID,
 		})
 		return err
 	}))
-	require.NotEmpty(t, token)
-	return token
+	var raw string
+	require.NoError(t, db.NewRaw(`SELECT payload::text FROM platform.email_outbox
+		WHERE kind = 'caterer_invitation' AND related_entity_type = 'caterer_invitation' AND related_entity_id = ?`, invitation.ID).Scan(context.Background(), &raw))
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal([]byte(raw), &payload))
+	assert.Equal(t, email, payload["recipient_email"])
+	link, _ := payload["invitation_url"].(string)
+	prefix := fmt.Sprintf("http://caterer.localhost:3000/einladung/%d/", school)
+	require.True(t, strings.HasPrefix(link, prefix), link)
+	return strings.TrimPrefix(link, prefix)
 }
 
 func accept(t *testing.T, db *bun.DB, caterers *identityaccess.CatererAccess, school int64, token string, registration identityaccess.CatererRegistration) (identityaccess.CatererAcceptance, error) {
@@ -213,11 +225,11 @@ func TestCatererAccessRefusesOtherAccounts(t *testing.T) {
 	})
 	require.ErrorIs(t, err, identityaccess.ErrInvitationRevoked)
 	err = inSchool(t, db, school, func(ctx context.Context) error {
-		_, _, err := caterers.CreateCatererInvitation(ctx, identityaccess.CatererInvitationRequest{Email: "keine-adresse", CatererName: "Küche", CreatedBy: staff.ID})
+		_, err := caterers.CreateCatererInvitation(ctx, identityaccess.CatererInvitationRequest{Email: "keine-adresse", CatererName: "Küche", CreatedBy: staff.ID})
 		return err
 	})
 	require.ErrorIs(t, err, identityaccess.ErrInvalidCatererInvitation)
-	_, _, err = caterers.CreateCatererInvitation(context.Background(), identityaccess.CatererInvitationRequest{Email: "a@b.de", CatererName: "Küche", CreatedBy: staff.ID})
+	_, err = caterers.CreateCatererInvitation(context.Background(), identityaccess.CatererInvitationRequest{Email: "a@b.de", CatererName: "Küche", CreatedBy: staff.ID})
 	require.Error(t, err, "without the school's transaction nothing is written")
 }
 
@@ -269,7 +281,7 @@ func TestCatererSessionsAreLoggedAndEndWithTheLastSchool(t *testing.T) {
 	assert.Equal(t, school, logged[0].TenantID)
 
 	err = inSchool(t, db, school, func(ctx context.Context) error {
-		_, _, err := caterers.CreateCatererInvitation(ctx, identityaccess.CatererInvitationRequest{Email: "andere@example.com", CatererName: "Andere Küche", CreatedBy: staff.ID})
+		_, err := caterers.CreateCatererInvitation(ctx, identityaccess.CatererInvitationRequest{Email: "andere@example.com", CatererName: "Andere Küche", CreatedBy: staff.ID})
 		return err
 	})
 	require.ErrorIs(t, err, identityaccess.ErrCatererAlreadySupplies)
