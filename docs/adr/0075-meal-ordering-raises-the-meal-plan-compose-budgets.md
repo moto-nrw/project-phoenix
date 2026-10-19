@@ -49,7 +49,10 @@ measured the registers again:
 - `modules/mealplan/compose`: the school calendar and the names of past
   orders as dependencies, and the ordering settings as one value: 5 lines.
 - `workflows/parentportal/compose`: the week binding method and the new fields
-  of the participation plan: 25 lines.
+  of the participation plan and its days: 25 lines, 29 after development
+  moved the binding onto the shared meal plan adapter of the care flows.
+- `workflows/parentportal`: that adapter forwards the week change in one
+  method of its own, one pass-through.
 
 ## Decision
 
@@ -58,6 +61,13 @@ measured the registers again:
    475.
 3. `moduleComposeBudgetTotal` rises by the same 30 lines, from 20,119 to
    20,149.
+
+   After development contracted the compositions (base 16,742 lines, the
+   parent binding at 279), the same changes measure 5 lines for
+   `modules/mealplan/compose` and 29 for `workflows/parentportal/compose`
+   (279 to 308); with ADR 0074 the total is 16,856.
+   `modulePassthroughOwnerBudgets["workflows/parentportal"]` rises from 17
+   to 18 for the adapter's week method.
 4. `modulePassthroughOwnerBudgets["modules/mealplan"]` stays at 15 and the
    total with it: the rule methods replaced two delegations, and the engine
    methods of the orders and of their settling add one each.

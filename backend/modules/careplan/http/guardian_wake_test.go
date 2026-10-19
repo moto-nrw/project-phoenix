@@ -92,10 +92,10 @@ func TestStaffStatusUpdate_WakesChildGuardians(t *testing.T) {
 	assert.True(t, wokeGuardian,
 		"a staff sick/excused update must wake the child's guardian account %d (#1725)", chain.AccountID)
 
-	// A non-status update (supervisor notes) touches nothing parent-visible → no wake.
+	// A non-status update (health info) does not change the absence → no wake.
 	tc.broadcaster.Reset()
 	notes := "Interner Vermerk"
-	req = testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", chain.StudentID), map[string]any{"supervisor_notes": notes})
+	req = testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", chain.StudentID), map[string]any{"health_info": notes})
 	rr = authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 	require.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 

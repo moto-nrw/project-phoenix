@@ -3,6 +3,8 @@ package compose
 import (
 	"testing"
 
+	reviewbindings "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/offeringrequests"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,7 +28,7 @@ func TestToOfferingRequestResponse_IncludesRemainingDaysForOverridePreview(t *te
 		}},
 	}
 
-	response := ToOfferingRequestResponse(view)
+	response := reviewbindings.ToOfferingRequestResponse(view)
 
 	require.Len(t, response.Diff, 1)
 	assert.Equal(t, "Di", response.Diff[0].RuleDays)
@@ -49,7 +51,7 @@ func TestToOfferingRequestResponse_OmitsFullWithdrawalForAnOrdinaryRequest(t *te
 		}},
 	}
 
-	resp := ToOfferingRequestResponse(view)
+	resp := reviewbindings.ToOfferingRequestResponse(view)
 
 	assert.False(t, resp.FullWithdrawal)
 	assert.Empty(t, resp.Unchanged)
@@ -78,7 +80,7 @@ func TestToOfferingRequestResponse_ReportsFullWithdrawalAndUntouchedBookings(t *
 		}},
 	}
 
-	resp := ToOfferingRequestResponse(view)
+	resp := reviewbindings.ToOfferingRequestResponse(view)
 
 	assert.True(t, resp.FullWithdrawal)
 	assert.Equal(t, "abgemeldet", resp.Diff[0].New)

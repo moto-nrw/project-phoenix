@@ -21,7 +21,7 @@ import (
 )
 
 // BuildActivities binds the activities service of the Timetable owner.
-func BuildActivities(owner TimetableOwner, timetableOwner timetable.Capability, sessions *presenceCompose.SessionRecords, people PeopleRows) (activityContract.ActivityService, error) {
+func BuildActivities(owner TimetableOwner, timetableOwner timetable.Capability, sessions presenceCompose.SessionRecords, people PeopleRows) (activityContract.ActivityService, error) {
 	repos := owner.Repositories
 	return arrivalTimetable.NewService(
 		timetableOwner, repos.ActivityGroup, repos.ActivitySchedule, repos.ActivitySupervisor, repos.StudentEnrollment,

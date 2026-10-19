@@ -24,6 +24,6 @@ func NewStudentPresenceForTests(db transactionruntime.Database) studentpresence.
 // without owner directories: the reads that project rooms, activities or
 // devices fail loudly, and supervision reads carry no staff members. The
 // optional clock fixes the supervision "today".
-func NewPresenceSessionRecords(db transactionruntime.Database, clocks ...func() time.Time) *presenceCompose.SessionRecords {
+func NewPresenceSessionRecords(db transactionruntime.Database, clocks ...func() time.Time) presenceCompose.SessionRecords {
 	return owners.ComposePresenceSessionRecords(presenceCompose.SessionRecordDependencies{DB: db.Pool(), Now: OptionalClock(clocks)})
 }

@@ -29,10 +29,9 @@ type studentRecordRow struct {
 	AddressCity       *string `bun:"address_city"`
 	AddressPostalCode *string `bun:"address_postal_code"`
 
-	ExtraInfo       *string `bun:"extra_info"`
-	SupervisorNotes *string `bun:"supervisor_notes"`
-	HealthInfo      *string `bun:"health_info"`
-	PickupStatus    *string `bun:"pickup_status"`
+	ExtraInfo    *string `bun:"extra_info"`
+	HealthInfo   *string `bun:"health_info"`
+	PickupStatus *string `bun:"pickup_status"`
 
 	DepartureDays          domain.DepartureDays         `bun:"departure_days"`
 	AllowedDepartureModes  domain.AllowedDepartureModes `bun:"allowed_departure_modes"`
@@ -60,7 +59,7 @@ func (r studentRecordRow) toDomain() domain.StudentRecord {
 		PersonID: r.PersonID, SchoolClass: r.SchoolClass, GroupID: r.GroupID, Status: r.Status,
 
 		AddressStreet: r.AddressStreet, AddressCity: r.AddressCity, AddressPostalCode: r.AddressPostalCode,
-		ExtraInfo: r.ExtraInfo, SupervisorNotes: r.SupervisorNotes,
+		ExtraInfo:  r.ExtraInfo,
 		HealthInfo: r.HealthInfo, PickupStatus: r.PickupStatus,
 		DepartureDays: r.DepartureDays, AllowedDepartureModes: r.AllowedDepartureModes,
 		PickupDays: r.PickupDays, BusDays: r.BusDays, DepartureCompanionNote: r.DepartureCompanionNote,

@@ -45,7 +45,6 @@ vi.mock("./student-form-fields", () => ({
 describe("StudentCommonFormSections", () => {
   const mockFormData: Partial<Student> = {
     health_info: "Test health info",
-    supervisor_notes: "Test notes",
     extra_info: "Test extra",
   };
 

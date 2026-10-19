@@ -16,9 +16,9 @@ func NewStudentConversationStore(database Database) *StudentConversationStore {
 	return &StudentConversationStore{store: newStore(database)}
 }
 
-// CountRecords returns how many conversation rows belong to one child: its
+// CountStudentConversationRecords returns how many conversation rows belong to one child: its
 // threads, their messages, and every read cursor into them.
-func (s *StudentConversationStore) CountRecords(ctx context.Context, studentID int64) (int, error) {
+func (s *StudentConversationStore) CountStudentConversationRecords(ctx context.Context, studentID int64) (int, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, err
@@ -49,11 +49,11 @@ func (s *StudentConversationStore) CountRecords(ctx context.Context, studentID i
 	return counts.Records, nil
 }
 
-// LockThreads prevents a read cursor or message from being added after the
+// LockStudentMessageThreads prevents a read cursor or message from being added after the
 // deletion preview is rechecked. Both row kinds reference their thread, so the
 // FOR UPDATE lock serializes their foreign-key checks until the deletion
 // commits or rolls back.
-func (s *StudentConversationStore) LockThreads(ctx context.Context, studentID int64) error {
+func (s *StudentConversationStore) LockStudentMessageThreads(ctx context.Context, studentID int64) error {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return err

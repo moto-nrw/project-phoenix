@@ -350,21 +350,10 @@ func (s *SchoolInvitation) AcceptInvitation(ctx context.Context, token string, r
 			restore      bool
 		)
 		if hasAccount {
-			if catererErr := refuseCatererAccount(txCtx, s.logins, account.ID, opAcceptInvitation); catererErr != nil {
-				return catererErr
-			}
-			dormant, dormantErr := s.accountDormant(txCtx, account)
-			if dormantErr != nil {
-				return failed(opAcceptInvitation, dormantErr)
-			}
-			if dormant {
-				hash, hashErr := s.hashPassword(registration)
-				if hashErr != nil {
-					return hashErr
-				}
-				passwordHash, restore = hash, true
-			} else if ownerErr := s.verifyOwner(account, registration.OwnerAccessToken); ownerErr != nil {
-				return failed(opAcceptInvitation, ownerErr)
+			var existingErr error
+			passwordHash, restore, existingErr = s.existingAccountCredential(txCtx, account, registration)
+			if existingErr != nil {
+				return existingErr
 			}
 		} else {
 			hash, hashErr := s.hashPassword(registration)

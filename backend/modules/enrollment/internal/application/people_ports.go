@@ -26,7 +26,6 @@ type Student struct {
 	AddressCity       *string
 	AddressPostalCode *string
 	ExtraInfo         *string
-	SupervisorNotes   *string
 	HealthInfo        *string
 	PickupStatus      *string
 	// DepartureDays, AllowedDepartureModes, BusDays and PickupDays are the

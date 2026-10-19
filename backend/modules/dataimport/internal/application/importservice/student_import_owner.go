@@ -101,7 +101,7 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 	}
 	patch := departure
 	patch.ExtraInfoSet, patch.ExtraInfo = true, importModels.OptionalCell(row.ExtraInfo)
-	patch.SupervisorNotesSet, patch.SupervisorNotes = true, importModels.OptionalCell(row.SupervisorNotes)
+	patch.PermanentHint = importModels.OptionalCell(row.SupervisorNotes)
 	patch.HealthInfoSet, patch.HealthInfo = true, importModels.OptionalCell(row.HealthInfo)
 	patch.AddressSet = true
 	patch.AddressStreet = importModels.OptionalCell(row.AddressStreet)
@@ -458,7 +458,10 @@ func studentProfileTextPatch(record ports.EnrollmentRecord, row importModels.Stu
 		}
 	}
 	setStr(&patch.ExtraInfoSet, &patch.ExtraInfo, row.ExtraInfo)
-	setStr(&patch.SupervisorNotesSet, &patch.SupervisorNotes, row.SupervisorNotes)
+	if strings.TrimSpace(row.SupervisorNotes) != "" {
+		patch.PermanentHint = importModels.OptionalCell(row.SupervisorNotes)
+		changed = true
+	}
 	setStr(&patch.HealthInfoSet, &patch.HealthInfo, row.HealthInfo)
 	if strings.TrimSpace(row.AddressStreet) != "" || strings.TrimSpace(row.AddressCity) != "" || strings.TrimSpace(row.AddressPostalCode) != "" {
 		patch.AddressSet = true

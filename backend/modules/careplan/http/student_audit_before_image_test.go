@@ -23,16 +23,16 @@ func TestApplyStudentFieldUpdates_BeforeImageStable(t *testing.T) {
 	strPtr := func(s string) *string { return &s }
 
 	fresh := &peopleState.StudentState{
-		DepartureDays:   departure.DepartureDays{"mon": departure.DepartureBus},
-		SupervisorNotes: strPtr("ursprüngliche Notiz"),
+		DepartureDays: departure.DepartureDays{"mon": departure.DepartureBus},
+		HealthInfo:    strPtr("ursprüngliche Notiz"),
 	}
 
 	// Shallow copy — exactly what updateStudent captures before applying the patch.
 	before := *fresh
 
 	req := &UpdateStudentRequest{
-		DepartureDays:   &departure.DepartureDays{"tue": departure.DeparturePickup},
-		SupervisorNotes: strPtr("geänderte Notiz"),
+		DepartureDays: &departure.DepartureDays{"tue": departure.DeparturePickup},
+		HealthInfo:    strPtr("geänderte Notiz"),
 	}
 
 	applyStudentFieldUpdates(req, fresh)
@@ -43,10 +43,10 @@ func TestApplyStudentFieldUpdates_BeforeImageStable(t *testing.T) {
 		"before-image departure plan must be unchanged")
 	assert.Equal(t, departure.DepartureAlone, before.DepartureDays.ModeFor("tue"),
 		"before-image must not see the patched Tuesday pickup")
-	assert.Equal(t, "ursprüngliche Notiz", *before.SupervisorNotes,
+	assert.Equal(t, "ursprüngliche Notiz", *before.HealthInfo,
 		"before-image note pointer must still address the original string")
 
 	// Sanity: the patch did take effect on the live row.
 	assert.Equal(t, departure.DeparturePickup, fresh.DepartureDays.ModeFor("tue"))
-	assert.Equal(t, "geänderte Notiz", *fresh.SupervisorNotes)
+	assert.Equal(t, "geänderte Notiz", *fresh.HealthInfo)
 }

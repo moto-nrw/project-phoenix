@@ -124,7 +124,7 @@ what the caterer adds:
 
 ## Policy
 
-Policy epoch 86 → 87 registers the data-less workflow owner `caterer-portal`
+Policy epoch 87 → 88 registers the data-less workflow owner `caterer-portal`
 with its five new packages (ADR 0013 path, #3130) and the rules its code
 uses: its public contract and ports speak the public Identity & Access and
 Meal Plan contracts, its composition binds the tenant runtime, and its HTTP

@@ -510,7 +510,6 @@ describe("mapStudentResponse helper logic", () => {
       bus: true,
       location_since: "2024-01-15T10:00:00Z",
       extra_info: "Some notes",
-      supervisor_notes: "Teacher notes",
       sick: true,
       sick_since: "2024-01-14",
     };
@@ -522,14 +521,12 @@ describe("mapStudentResponse helper logic", () => {
       ...response,
       location_since: hasAccess ? response.location_since : undefined,
       extra_info: hasAccess ? response.extra_info : undefined,
-      supervisor_notes: hasAccess ? response.supervisor_notes : undefined,
       sick: hasAccess ? response.sick : false,
       sick_since: hasAccess ? response.sick_since : undefined,
     };
 
     expect(mapped.location_since).toBe("2024-01-15T10:00:00Z");
     expect(mapped.extra_info).toBe("Some notes");
-    expect(mapped.supervisor_notes).toBe("Teacher notes");
     expect(mapped.sick).toBe(true);
     expect(mapped.sick_since).toBe("2024-01-14");
   });
@@ -547,7 +544,6 @@ describe("mapStudentResponse helper logic", () => {
       bus: true,
       location_since: "2024-01-15T10:00:00Z",
       extra_info: "Some notes",
-      supervisor_notes: "Teacher notes",
       sick: true,
       sick_since: "2024-01-14",
     };
@@ -559,14 +555,12 @@ describe("mapStudentResponse helper logic", () => {
       ...response,
       location_since: hasAccess ? response.location_since : undefined,
       extra_info: hasAccess ? response.extra_info : undefined,
-      supervisor_notes: hasAccess ? response.supervisor_notes : undefined,
       sick: hasAccess ? response.sick : false,
       sick_since: hasAccess ? response.sick_since : undefined,
     };
 
     expect(mapped.location_since).toBeUndefined();
     expect(mapped.extra_info).toBeUndefined();
-    expect(mapped.supervisor_notes).toBeUndefined();
     expect(mapped.sick).toBe(false);
     expect(mapped.sick_since).toBeUndefined();
   });

@@ -6,6 +6,8 @@ import (
 	"context"
 	"time"
 
+	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
@@ -30,7 +32,7 @@ type ParentAnnouncementFixtures interface {
 
 // NewParentAnnouncementFixtures binds the test construction seam without a
 // second persistence implementation or a foreign row import in the root.
-func NewParentAnnouncementFixtures(repo parentstore.ParentAnnouncementRepository) ParentAnnouncementFixtures {
+func NewParentAnnouncementFixtures(repo recordports.ParentAnnouncementRepository) ParentAnnouncementFixtures {
 	return parentAnnouncementFixtures{parentstore.NewParentAnnouncementFixtures(repo)}
 }
 

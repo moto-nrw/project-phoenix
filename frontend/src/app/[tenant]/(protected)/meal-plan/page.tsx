@@ -676,7 +676,7 @@ export default function MealPlanPage() {
         }`}
         bodyClassName=""
       >
-        <div className="grid grid-cols-1 divide-y divide-gray-200 md:grid-cols-5 md:divide-x md:divide-y-0">
+        <div className="grid grid-cols-1 divide-y divide-gray-200 md:grid-cols-5 md:divide-y-0">
           {weekDates.map((date) => {
             const rows = drafts[date] ?? [];
             const isToday = date === today;
@@ -685,7 +685,7 @@ export default function MealPlanPage() {
               <div
                 key={date}
                 data-meal-day-column
-                className={`flex flex-col ${isToday ? "bg-moto-green/[0.04]" : ""}`}
+                className={`flex flex-col border-gray-200 md:border-r md:last:border-r-transparent ${isToday ? "bg-moto-green/[0.04]" : ""}`}
               >
                 <div
                   className={`flex items-center justify-between gap-2 border-b px-4 py-3 ${

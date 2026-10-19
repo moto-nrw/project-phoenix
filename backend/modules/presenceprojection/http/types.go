@@ -25,7 +25,6 @@ type StudentResponse struct {
 	AddressPostalCode  string               `json:"address_postal_code,omitempty"`
 	ExtraInfo          string               `json:"extra_info,omitempty"`
 	HealthInfo         string               `json:"health_info,omitempty"`
-	SupervisorNotes    string               `json:"supervisor_notes,omitempty"`
 	PickupStatus       string               `json:"pickup_status,omitempty"`
 	PickupDays         departure.PickupDays `json:"pickup_days,omitempty"`          // Weekdays on which the child is picked up
 	PickupTime         *string              `json:"pickup_time,omitempty"`          // Today's effective pickup time (HH:MM)

@@ -17,6 +17,7 @@ import { ChildMasterDataView } from "./child-master-data";
 import {
   getChildFeatures,
   getChildMasterData,
+  getRequestSharing,
   getRequestSharingOptions,
   setRequestSharing,
   submitMasterDataRequest,
@@ -75,6 +76,7 @@ vi.mock("~/lib/parent-api", async (importOriginal) => {
     }),
     submitMasterDataRequest: vi.fn(),
     updateMasterDataField: vi.fn(),
+    getRequestSharing: vi.fn(),
     getRequestSharingOptions: vi.fn(),
     setRequestSharing: vi.fn(),
   };
@@ -90,6 +92,7 @@ const mockGetFeatures = vi.mocked(getChildFeatures);
 const mockGetMasterData = vi.mocked(getChildMasterData);
 const mockSubmit = vi.mocked(submitMasterDataRequest);
 const mockUpdateField = vi.mocked(updateMasterDataField);
+const mockSharing = vi.mocked(getRequestSharing);
 const mockSharingOptions = vi.mocked(getRequestSharingOptions);
 const mockSetRequestSharing = vi.mocked(setRequestSharing);
 
@@ -157,6 +160,7 @@ describe("ChildMasterDataView", () => {
     mockGetMasterData.mockResolvedValue(masterData());
     mockUpdateField.mockResolvedValue(masterData({ health_info: "Neue Info" }));
     mockSubmit.mockResolvedValue([]);
+    mockSharing.mockResolvedValue({ family_protected: false, recipients: [] });
     mockSharingOptions.mockResolvedValue({
       family_protected: false,
       recipients: [],
@@ -833,6 +837,72 @@ describe("ChildMasterDataView", () => {
 
     expect(await screen.findByText("In Prüfung")).toBeInTheDocument();
     expect(screen.queryByText(REQUEST_ERROR)).not.toBeInTheDocument();
+  });
+
+  it("shows the valid first name apart from the requested one", async () => {
+    mockGetMasterData.mockResolvedValue(
+      masterData({
+        pending_changes: [
+          {
+            id: "900",
+            target: "person",
+            field_key: "first_name",
+            old_value: "Lara",
+            new_value: "Lara Marie",
+            status: "pending",
+            created_at: "2026-06-24T12:00:00Z",
+            is_self: true,
+          },
+        ],
+      }),
+    );
+
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
+
+    const label = await screen.findByText("Vorname");
+    const field = label.closest("div");
+    if (!field) throw new Error("first name field missing");
+    const valid = within(field).getByText("Lara");
+    expect(valid.tagName).toBe("DD");
+
+    const request = within(field).getByRole("group", {
+      name: "Beantragte Änderung",
+    });
+    expect(within(request).getByText("Lara Marie")).toBeInTheDocument();
+    expect(within(request).getByText("In Prüfung")).toBeInTheDocument();
+    expect(
+      await within(request).findByRole("button", { name: "Anfrage teilen" }),
+    ).toBeInTheDocument();
+    expect(
+      within(request).getByRole("button", { name: "Anfrage bearbeiten" }),
+    ).toBeInTheDocument();
+    expect(label).not.toContainElement(within(request).getByText("In Prüfung"));
+  });
+
+  it("formats a requested birthday as a date", async () => {
+    mockGetMasterData.mockResolvedValue(
+      masterData({
+        pending_changes: [
+          {
+            id: "901",
+            target: "person",
+            field_key: "birthday",
+            old_value: "2018-03-04",
+            new_value: "2018-04-03",
+            status: "pending",
+            created_at: "2026-06-24T12:00:00Z",
+          },
+        ],
+      }),
+    );
+
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
+
+    const request = await screen.findByRole("group", {
+      name: "Beantragte Änderung",
+    });
+    expect(within(request).getByText("03.04.2018")).toBeInTheDocument();
+    expect(screen.getByText("04.03.2018")).toBeInTheDocument();
   });
 
   it("submits departure mode changes for review", async () => {

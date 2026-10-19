@@ -680,6 +680,141 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	require.Error(t, err, "the credential from before the offboarding must not survive")
 }
 
+// TestOffboardStaff_ReinviteResumesFormerEmployment is the regression test of
+// #3394: re-inviting a former Betreuer at the same school continues the
+// retired employment (ADR 0021, #3401). The person, the staff membership and
+// the caregiver profile come back as the same rows, so every record keyed by
+// the staff ID (time account, vacation, master data, past shifts) is attached
+// to the resumed employment again.
+func TestOffboardStaff_ReinviteResumesFormerEmployment(t *testing.T) {
+	t.Parallel()
+
+	sc := newOffboardingScenario(t)
+
+	emailAddr := fmt.Sprintf("offboard-resume-%d@test.local", time.Now().UnixNano())
+	account := testpkg.CreateTestAccountWithPassword(t, sc.db, emailAddr, offboardingCredential("Resume", "123"))
+	person := testpkg.CreateTestPersonWithAccountID(t, sc.db, "Wieder", "Da", account.ID)
+	staff := testpkg.CreateTestStaffForPerson(t, sc.db, person.ID)
+	testpkg.MapAccountToTenant(t, sc.db, account.ID, testpkg.Tenant(t))
+	role := testpkg.CreateTestSystemRole(t, sc.db, "user")
+	var teacherID int64
+	require.NoError(t, sc.db.NewRaw(`INSERT INTO users.teachers (tenant_id, staff_id) VALUES (?, ?) RETURNING id`,
+		testpkg.Tenant(t), staff.ID).Scan(context.Background(), &teacherID))
+	personnelNumber := fmt.Sprintf("PN-%d", time.Now().UnixNano())
+	_, err := sc.db.ExecContext(context.Background(),
+		`UPDATE users.staff_employment_profiles SET personnel_number = ? WHERE membership_id = ?`, personnelNumber, staff.ID)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		ctx := context.Background()
+		_, _ = sc.db.ExecContext(ctx, `DELETE FROM auth.invitation_tokens WHERE email = ?`, emailAddr)
+		_, _ = sc.db.ExecContext(ctx, `DELETE FROM users.teachers WHERE staff_id IN (SELECT id FROM users.staff_school_memberships WHERE person_id = ?)`, person.ID)
+		_, _ = sc.db.ExecContext(ctx, `DELETE FROM users.staff_school_memberships WHERE person_id = ?`, person.ID)
+	})
+
+	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
+	reinviteAndAccept(t, sc, emailAddr, role.ID, account.ID)
+
+	memberships := offboardingStaffRows(t, sc.db, `SELECT id, deleted_at FROM users.staff_school_memberships WHERE person_id = ?`, person.ID)
+	require.Len(t, memberships, 1, "the Wiederaufnahme continues the retired membership instead of adding one")
+	assert.Equal(t, staff.ID, memberships[0].ID)
+	assert.Nil(t, memberships[0].DeletedAt, "the resumed membership is live again")
+
+	teachers := offboardingStaffRows(t, sc.db, `SELECT id, deleted_at FROM users.teachers WHERE staff_id = ?`, staff.ID)
+	require.Len(t, teachers, 1, "the caregiver profile is revived, not created a second time")
+	assert.Equal(t, teacherID, teachers[0].ID)
+	assert.Nil(t, teachers[0].DeletedAt)
+
+	var personCount int
+	require.NoError(t, sc.db.NewRaw(`SELECT COUNT(*) FROM users.persons WHERE tenant_id = ? AND first_name = 'Wieder' AND last_name = 'Da'`,
+		testpkg.Tenant(t)).Scan(context.Background(), &personCount))
+	assert.Equal(t, 1, personCount, "one person row for this human at this school")
+
+	var restoredNumber *string
+	require.NoError(t, sc.db.NewRaw(`SELECT personnel_number FROM users.staff_employment_profiles WHERE membership_id = ?`, staff.ID).
+		Scan(context.Background(), &restoredNumber))
+	require.NotNil(t, restoredNumber, "the employment profile comes back with its personnel number")
+	assert.Equal(t, personnelNumber, *restoredNumber)
+}
+
+// TestOffboardStaff_ReinviteDropsPersonnelNumberTakenMeanwhile: when the school
+// gave the former personnel number to somebody else, the Wiederaufnahme runs
+// through without it instead of failing the invitee (ADR 0021, decision 6).
+func TestOffboardStaff_ReinviteDropsPersonnelNumberTakenMeanwhile(t *testing.T) {
+	t.Parallel()
+
+	sc := newOffboardingScenario(t)
+
+	emailAddr := fmt.Sprintf("offboard-number-%d@test.local", time.Now().UnixNano())
+	account := testpkg.CreateTestAccountWithPassword(t, sc.db, emailAddr, offboardingCredential("Number", "123"))
+	person := testpkg.CreateTestPersonWithAccountID(t, sc.db, "Nummer", "Weg", account.ID)
+	staff := testpkg.CreateTestStaffForPerson(t, sc.db, person.ID)
+	testpkg.MapAccountToTenant(t, sc.db, account.ID, testpkg.Tenant(t))
+	role := testpkg.CreateTestSystemRole(t, sc.db, "user")
+	personnelNumber := fmt.Sprintf("PN-%d", time.Now().UnixNano())
+	_, err := sc.db.ExecContext(context.Background(),
+		`UPDATE users.staff_employment_profiles SET personnel_number = ? WHERE membership_id = ?`, personnelNumber, staff.ID)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		ctx := context.Background()
+		_, _ = sc.db.ExecContext(ctx, `DELETE FROM auth.invitation_tokens WHERE email = ?`, emailAddr)
+		_, _ = sc.db.ExecContext(ctx, `DELETE FROM users.teachers WHERE staff_id IN (SELECT id FROM users.staff_school_memberships WHERE person_id = ?)`, person.ID)
+		_, _ = sc.db.ExecContext(ctx, `DELETE FROM users.staff_school_memberships WHERE person_id = ?`, person.ID)
+	})
+
+	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
+	successor := testpkg.CreateTestStaff(t, sc.db, "Neue", "Nummer")
+	_, err = sc.db.ExecContext(context.Background(),
+		`UPDATE users.staff_employment_profiles SET personnel_number = ? WHERE membership_id = ?`, personnelNumber, successor.ID)
+	require.NoError(t, err, "a retired membership does not hold its personnel number")
+
+	reinviteAndAccept(t, sc, emailAddr, role.ID, account.ID)
+
+	memberships := offboardingStaffRows(t, sc.db, `SELECT id, deleted_at FROM users.staff_school_memberships WHERE person_id = ?`, person.ID)
+	require.Len(t, memberships, 1)
+	assert.Equal(t, staff.ID, memberships[0].ID)
+	assert.Nil(t, memberships[0].DeletedAt)
+
+	var resumedNumber, successorNumber *string
+	require.NoError(t, sc.db.NewRaw(`SELECT personnel_number FROM users.staff_employment_profiles WHERE membership_id = ?`, staff.ID).
+		Scan(context.Background(), &resumedNumber))
+	assert.Nil(t, resumedNumber, "the taken personnel number is cleared on the resumed employment")
+	require.NoError(t, sc.db.NewRaw(`SELECT personnel_number FROM users.staff_employment_profiles WHERE membership_id = ?`, successor.ID).
+		Scan(context.Background(), &successorNumber))
+	require.NotNil(t, successorNumber)
+	assert.Equal(t, personnelNumber, *successorNumber, "the current holder keeps the number")
+}
+
+type offboardingStaffRow struct {
+	ID        int64      `bun:"id"`
+	DeletedAt *time.Time `bun:"deleted_at"`
+}
+
+func offboardingStaffRows(t *testing.T, db *bun.DB, query string, arg int64) []offboardingStaffRow {
+	t.Helper()
+	var rows []offboardingStaffRow
+	require.NoError(t, db.NewRaw(query, arg).Scan(context.Background(), &rows))
+	return rows
+}
+
+func reinviteAndAccept(t *testing.T, sc *offboardingScenario, emailAddr string, roleID, accountID int64) {
+	t.Helper()
+	invSvc, err := api.NewTestIdentityAccess(testpkg.NewDatabase(t, sc.db), slog.Default())
+	require.NoError(t, err)
+	invitation, err := invSvc.CreateSchoolInvitation(sc.ctx, api.SchoolInvitationRequest{
+		Email:     emailAddr,
+		RoleID:    roleID,
+		TenantID:  testpkg.Tenant(t),
+		CreatedBy: accountID,
+	})
+	require.NoError(t, err)
+	credential := offboardingCredential("Back", "456")
+	accepted, err := invSvc.AcceptSchoolInvitation(context.Background(), invitation.Token, api.InvitationRegistration{
+		FirstName: "Wieder", LastName: "Da", Password: credential, ConfirmPassword: credential,
+	})
+	require.NoError(t, err)
+	require.Equal(t, accountID, accepted.ID)
+}
+
 // TestOffboardStaff_ActiveSupervisionBlocks: an active room supervision still
 // blocks offboarding (no FK safety net remains, the pre-check is the guard).
 func TestOffboardStaff_ActiveSupervisionBlocks(t *testing.T) {

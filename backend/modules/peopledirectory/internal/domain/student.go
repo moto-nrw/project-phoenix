@@ -39,14 +39,16 @@ type EnrollmentProfilePatch struct {
 	EmailContactAcceptedAt      *time.Time
 	// The data import patches the directory columns below; enrollment
 	// decisions leave them unset.
-	GroupIDSet         bool
-	GroupID            *int64
-	AddressSet         bool
-	AddressStreet      *string
-	AddressCity        *string
-	AddressPostalCode  *string
-	SupervisorNotesSet bool
-	SupervisorNotes    *string
+	GroupIDSet        bool
+	GroupID           *int64
+	AddressSet        bool
+	AddressStreet     *string
+	AddressCity       *string
+	AddressPostalCode *string
+	// PermanentHint is the import's „Betreuernotizen" cell. A non-empty text
+	// becomes the child's carried-over permanent hint; an empty one leaves
+	// the note card alone.
+	PermanentHint *string
 }
 
 type EnrollmentStudent struct {

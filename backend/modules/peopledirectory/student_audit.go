@@ -11,7 +11,6 @@ import (
 // stored discriminators of the trail, so consumers filter and render by them.
 const (
 	StudentFieldStatus                 = "status"
-	StudentFieldSupervisorNotes        = "supervisor_notes"
 	StudentFieldExtraInfo              = "extra_info"
 	StudentFieldHealthInfo             = "health_info"
 	StudentFieldPickupStatus           = "pickup_status"
@@ -37,7 +36,6 @@ type StudentAuditSnapshot struct {
 	StudentID              int64
 	Status                 string
 	CareEnd                string
-	SupervisorNotes        *string
 	ExtraInfo              *string
 	HealthInfo             *string
 	PickupStatus           *string

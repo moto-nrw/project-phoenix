@@ -166,12 +166,12 @@ function MealPlanWeekSkeleton({ loadingLabel }: { loadingLabel: string }) {
         </div>
       </div>
 
-      <div
-        className="hidden grid-cols-5 divide-x divide-gray-200 md:grid"
-        aria-hidden="true"
-      >
+      <div className="hidden grid-cols-5 md:grid" aria-hidden="true">
         {dishWidths.map((width, index) => (
-          <div key={index}>
+          <div
+            key={index}
+            className="border-r border-gray-200 last:border-r-transparent"
+          >
             <div className="space-y-2 border-b border-gray-200 px-4 py-3">
               <Skeleton className="h-4 w-20" />
               <Skeleton className="h-3 w-10" />
@@ -1546,14 +1546,14 @@ export function ParentMealPlanPage() {
 
               {/* Desktop: full five-column week grid. */}
               <div className="hidden md:block">
-                <div className="grid grid-cols-5 divide-x divide-gray-200">
+                <div className="grid grid-cols-5">
                   {weekDates.map((date) => {
                     const dishes = dishesByDate.get(date) ?? [];
                     const isToday = date === today;
                     return (
                       <div
                         key={date}
-                        className={`flex flex-col ${
+                        className={`flex flex-col border-r border-gray-200 last:border-r-transparent ${
                           isToday ? "bg-moto-green/[0.04]" : ""
                         }`}
                       >

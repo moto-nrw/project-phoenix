@@ -131,7 +131,7 @@ export function ChildMasterDataView({
   if (loading) {
     if (area === "details") {
       return (
-        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2 [&_.animate-pulse]:animate-none">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 [&_.animate-pulse]:animate-none">
           <ParentSectionSkeleton rows={2} />
           <ParentSectionSkeleton rows={2} />
         </div>
@@ -379,7 +379,7 @@ function ChildMasterDataContent({
   if (area === "contact") return guarded(contactSection);
 
   return guarded(
-    <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
       <IdentitySection
         studentId={studentId}
         data={data}
@@ -526,6 +526,7 @@ function IdentitySection({
               : t("notSet")
           }
           pending={birthdayPending}
+          formatRequested={(raw) => formatDate(raw, false, locale)}
           onEdited={refresh}
         />
         <IdentityFact
@@ -560,47 +561,76 @@ function IdentityFact({
   label,
   value,
   pending,
+  formatRequested,
   onEdited,
 }: Readonly<{
   studentId: string;
   label: string;
   value: string;
   pending?: MasterDataChange;
+  /** Zeigt den beantragten Rohwert so an wie den gültigen Wert. */
+  formatRequested?: (raw: string) => string;
   onEdited?: () => void;
 }>) {
   const t = useTranslations("parentMasterData");
+  const requestTitleId = useId();
   const [editing, setEditing] = useState(false);
   // Nur Textwerte lassen sich hier ändern. Die Abholarten sind eine Tabelle
   // und werden im eigenen Abschnitt geändert.
   const editableValue =
     typeof pending?.new_value === "string" ? pending.new_value : null;
+  const requestedValue = editableValue
+    ? (formatRequested?.(editableValue) ?? editableValue)
+    : t("notSet");
+  const isSelf = pending?.is_self === true;
   return (
     <div className="min-w-0">
-      <dt className="flex min-h-6 flex-wrap items-center gap-2 text-sm text-gray-500">
-        <span>{label}</span>
-        {pending && (
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge label={t("pendingBadge")} tone="orange" />
-            <RequestSharingControl
-              studentId={studentId}
-              requestType="master_data"
-              requestId={pending.id}
-              isSelf={pending.is_self === true}
-            />
-            {pending.is_self === true && editableValue !== null && (
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                className="max-sm:min-h-11"
-                onClick={() => setEditing(true)}
-              >
-                {t("requestEdit")}
-              </Button>
+      <dt className="text-sm text-gray-500">{label}</dt>
+      <dd className="mt-1 text-base font-medium break-words text-gray-900">
+        {value}
+      </dd>
+      {pending && (
+        <dd className="mt-3">
+          <div
+            role="group"
+            aria-labelledby={requestTitleId}
+            className="space-y-3 rounded-xl bg-gray-50 p-3"
+          >
+            <div>
+              <p id={requestTitleId} className="text-sm text-gray-500">
+                {t("pendingTitle")}
+              </p>
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="min-w-0 text-base font-medium break-words text-gray-900">
+                  {requestedValue}
+                </span>
+                <StatusBadge label={t("pendingBadge")} tone="orange" />
+              </div>
+            </div>
+            {isSelf && (
+              <div className="flex flex-wrap items-center gap-2">
+                {editableValue !== null && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    className="max-sm:min-h-11"
+                    onClick={() => setEditing(true)}
+                  >
+                    {t("requestEdit")}
+                  </Button>
+                )}
+                <RequestSharingControl
+                  studentId={studentId}
+                  requestType="master_data"
+                  requestId={pending.id}
+                  isSelf={isSelf}
+                />
+              </div>
             )}
           </div>
-        )}
-      </dt>
+        </dd>
+      )}
       {pending && editing && editableValue !== null && (
         <RequestEditModal
           studentId={studentId}
@@ -614,9 +644,6 @@ function IdentityFact({
           onSaved={() => onEdited?.()}
         />
       )}
-      <dd className="mt-1 text-base font-medium break-words text-gray-900">
-        {value}
-      </dd>
     </div>
   );
 }

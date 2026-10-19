@@ -301,7 +301,7 @@ func (timetableHTTPTestNoPreservedDeviations) Reapply(context.Context, int64, *i
 // NewTimetableHTTPTestSessionRecords are Student Presence's live sessions and
 // supervisions over the test database, for suites that arrange a running
 // block.
-func NewTimetableHTTPTestSessionRecords(db transactionruntime.Database) *presenceCompose.SessionRecords {
+func NewTimetableHTTPTestSessionRecords(db transactionruntime.Database) presenceCompose.SessionRecords {
 	return NewPresenceSessionRecords(db)
 }
 

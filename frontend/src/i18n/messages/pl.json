@@ -1574,6 +1574,7 @@
     "requestSubmitted": "Prośba wysłana. Zespół sprawdzi Państwa zmianę.",
     "requestEdit": "Edytuj prośbę",
     "pendingBadge": "W trakcie sprawdzania",
+    "pendingTitle": "Zgłoszona zmiana",
     "pendingNotice": "Zmiana tego pola czeka na potwierdzenie przez zespół.",
     "editDisabled": "Edycja tych danych jest w tej OGS wyłączona.",
     "requestDisabled": "Prośby o zmianę są w tej OGS wyłączone.",

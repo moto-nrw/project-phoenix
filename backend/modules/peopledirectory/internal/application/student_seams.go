@@ -115,10 +115,4 @@ func (a studentNoteDeletionAudit) RecordStudentNoteDeletion(
 	return a.audit.RecordStudentNoteDeletion(ctx, studentID, noteID, actorAccountID)
 }
 
-func (a studentNoteDeletionAudit) RecordLegacyStudentNoteDeletion(
-	ctx context.Context, studentID, noteID int64,
-) error {
-	return a.audit.RecordLegacyStudentNoteDeletion(ctx, studentID, noteID)
-}
-
 var _ internalports.StudentNoteDeletionAudit = studentNoteDeletionAudit{}

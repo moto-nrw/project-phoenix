@@ -24,7 +24,7 @@ import (
 type PresenceOwner struct {
 	Presence                  *studentpresence.Module
 	UnloggedPresence          *studentpresence.Module
-	SessionRecords            *presenceCompose.SessionRecords
+	SessionRecords            presenceCompose.SessionRecords
 	AttendanceStaff           presenceservice.AttendanceStaff
 	AttendanceEducationGroups presenceservice.AttendanceEducationGroups
 	AttendanceActivities      presenceservice.AttendanceActivityGroups

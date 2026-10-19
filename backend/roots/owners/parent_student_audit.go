@@ -17,7 +17,7 @@ func parentStudentAuditSnapshot(value *parentportal.StudentSnapshot) *peopledire
 	if value == nil {
 		return nil
 	}
-	snapshot := &peopledirectory.StudentAuditSnapshot{StudentID: value.ID, Status: value.Status, SupervisorNotes: value.SupervisorNotes, ExtraInfo: value.ExtraInfo, HealthInfo: value.HealthInfo, PickupStatus: value.PickupStatus, DepartureCompanionNote: value.DepartureCompanionNote}
+	snapshot := &peopledirectory.StudentAuditSnapshot{StudentID: value.ID, Status: value.Status, ExtraInfo: value.ExtraInfo, HealthInfo: value.HealthInfo, PickupStatus: value.PickupStatus, DepartureCompanionNote: value.DepartureCompanionNote}
 	if value.EnrolledUntil != nil {
 		snapshot.CareEnd = value.EnrolledUntil.String()
 	}
