@@ -68,6 +68,19 @@ func (s *Store) ListStaffShifts(ctx context.Context, filter domain.StaffShiftFil
 // applyStaffShiftFilter renders the filter; empty reports a set predicate that
 // can match nothing, which bun cannot render as an IN list.
 func applyStaffShiftFilter(query *bun.SelectQuery, filter domain.StaffShiftFilter) (*bun.SelectQuery, bool) {
+	query, empty := applyStaffShiftStaffAndDateFilter(query, filter)
+	if empty {
+		return query, true
+	}
+	query, empty = applyStaffShiftLinkFilter(query, filter)
+	if empty {
+		return query, true
+	}
+	return applyStaffShiftOrderAndPage(query, filter), false
+}
+
+// applyStaffShiftStaffAndDateFilter renders the staff and date predicates.
+func applyStaffShiftStaffAndDateFilter(query *bun.SelectQuery, filter domain.StaffShiftFilter) (*bun.SelectQuery, bool) {
 	if filter.StaffID > 0 {
 		query = query.Where(`"staff_shift".staff_id = ?`, filter.StaffID)
 	}
@@ -93,6 +106,12 @@ func applyStaffShiftFilter(query *bun.SelectQuery, filter domain.StaffShiftFilte
 		}
 		query = query.Where(`"staff_shift".date IN (?)`, bun.List(dates))
 	}
+	return query, false
+}
+
+// applyStaffShiftLinkFilter renders the series, cover, sick-report and state
+// predicates.
+func applyStaffShiftLinkFilter(query *bun.SelectQuery, filter domain.StaffShiftFilter) (*bun.SelectQuery, bool) {
 	if filter.SeriesID > 0 {
 		query = query.Where(`"staff_shift".series_id = ?`, filter.SeriesID)
 	}
@@ -114,6 +133,11 @@ func applyStaffShiftFilter(query *bun.SelectQuery, filter domain.StaffShiftFilte
 	if filter.Detached != nil {
 		query = query.Where(`"staff_shift".detached = ?`, *filter.Detached)
 	}
+	return query, false
+}
+
+// applyStaffShiftOrderAndPage renders the sort order, limit and offset.
+func applyStaffShiftOrderAndPage(query *bun.SelectQuery, filter domain.StaffShiftFilter) *bun.SelectQuery {
 	for _, order := range filter.Order {
 		column := bun.Ident(aliasStaffShift + "." + string(order.Field))
 		if order.Descending {
@@ -128,7 +152,7 @@ func applyStaffShiftFilter(query *bun.SelectQuery, filter domain.StaffShiftFilte
 	if filter.Offset > 0 {
 		query = query.Offset(int64(filter.Offset))
 	}
-	return query, false
+	return query
 }
 
 func (s *Store) UsedStaffShiftWeeks(ctx context.Context, from, to string) ([]string, domain.OperationStats, error) {

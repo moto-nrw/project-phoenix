@@ -149,6 +149,13 @@ type StaffRecordQuery interface {
 
 // StaffRecordCommand writes the personnel record rows.
 type StaffRecordCommand interface {
+	StaffPersonnelDataCommand
+	StaffDocumentRecordCommand
+}
+
+// StaffPersonnelDataCommand writes the Stammdaten, qualification and
+// financial rows of a staff member.
+type StaffPersonnelDataCommand interface {
 	CreateStaffMasterData(context.Context, StaffMasterData) (StaffMasterData, error)
 	UpdateStaffMasterData(context.Context, StaffMasterData) (StaffMasterData, error)
 	// ReplaceStaffQualifications atomically replaces the qualification list
@@ -157,6 +164,11 @@ type StaffRecordCommand interface {
 	ReplaceStaffQualifications(ctx context.Context, staffID int64, values []StaffQualification) ([]StaffQualification, error)
 	CreateStaffFinancialData(context.Context, StaffFinancialData) (StaffFinancialData, error)
 	UpdateStaffFinancialData(context.Context, StaffFinancialData) (StaffFinancialData, error)
+}
+
+// StaffDocumentRecordCommand writes the staff document rows and the cleanup
+// intents of their stored files.
+type StaffDocumentRecordCommand interface {
 	CreateStaffDocument(context.Context, StaffDocument) (StaffDocument, error)
 	// SoftDeleteStaffDocument stamps deleted_at and deleted_by on a live row
 	// and reports how many rows changed.

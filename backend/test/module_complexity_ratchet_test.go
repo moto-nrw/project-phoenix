@@ -172,22 +172,6 @@ var moduleComplexityAllowlist = map[string]int{
 
 	// Moved in by #3996 from modules/workforce/legacy/absence_repositories.go;
 	// the scores crossed the boundary unchanged.
-	"modules/workforce/internal/adapters/postgres/shift_store.go:applyStaffShiftFilter":                                   25,
-	"modules/workforce/internal/adapters/postgres/substitution_store.go:(*Store).ListGroupSubstitutions":                  19,
-	"modules/workforce/internal/application/absence.go:(*Service).UpdateAbsenceType":                                      23,
-	"modules/workforce/internal/application/absence_allowance.go:(*Service).PreviewAllowanceRebooking":                    17,
-	"modules/workforce/internal/application/absence_allowance.go:(*Service).SetAllowance":                                 22,
-	"modules/workforce/internal/application/offboarding.go:(*Service).ExecuteStaffOffboarding":                            39,
-	"modules/workforce/internal/application/substitution.go:(*Service).UpdateGroupSubstitution":                           16,
-	"modules/workforce/internal/domain/absence_allowance.go:BuildAllowanceLedger":                                         23,
-	"modules/workforce/internal/domain/shift.go:ValidateStaffShiftSeries":                                                 20,
-	"modules/workforce/internal/domain/staffrecord.go:(StaffMasterData).Validate":                                         16,
-	"modules/workforce/internal/planning/staff_schedule_overview.go:(*staffScheduleOverviewService).resolveWeeklyTargets": 44,
-	"modules/workforce/internal/planning/staff_shift_move.go:(*staffShiftService).MoveShift":                              42,
-	"modules/workforce/internal/planning/staff_shift_series_service.go:(*staffShiftSeriesService).SplitSeries":            34,
-	"modules/workforce/internal/planning/staff_shift_cancellation.go:(*staffShiftService).ApplyCancellation":              49,
-	"modules/workforce/internal/planning/staff_shift_service.go:(*staffShiftService).DeleteShift":                         16,
-	"modules/workforce/internal/planning/staff_shift_service.go:(*staffShiftService).updateShiftWithOptions":              45,
 
 	"workflows/gradetransition/apply.go:(*Workflow).executeApply":                           20,
 	"workflows/gradetransition/class_list_entries.go:(*Workflow).revertClassListEntries":    35,

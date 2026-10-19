@@ -83,6 +83,12 @@ func (m StaffMasterData) Validate() error {
 	if m.WeeklyHours != nil && (*m.WeeklyHours < 0 || *m.WeeklyHours > maxWeeklyHours) {
 		return invalidStaffRecord("weekly_hours must be between 0 and 80")
 	}
+	return m.validateEmploymentDates()
+}
+
+// validateEmploymentDates checks the optional entry, contract end and
+// probation end dates and that neither end lies before the entry date.
+func (m StaffMasterData) validateEmploymentDates() error {
 	for _, pair := range []struct{ value, field string }{
 		{m.EntryDate, "entry_date"}, {m.ContractEndDate, "contract_end_date"}, {m.ProbationEndDate, "probation_end_date"},
 	} {

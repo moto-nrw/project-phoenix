@@ -90,9 +90,6 @@ var moduleFacadeAllowlist = map[string]int{
 	"modules/peopledirectory/guardian.go:GuardianProvider":                       31,
 	"modules/peopledirectory/guardian.go:GuardianQuery":                          19,
 	"modules/peopledirectory/student_directory.go:StudentDirectoryQuery":         16,
-	"modules/workforce/shift.go:ShiftCommand":                                    19,
-	"modules/workforce/staffadmin.go:StaffDocuments":                             16,
-	"modules/workforce/staffrecord.go:StaffRecordCommand":                        13,
 }
 
 func TestModuleFacadeWidthRatchet(t *testing.T) {

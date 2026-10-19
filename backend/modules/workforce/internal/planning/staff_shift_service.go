@@ -495,16 +495,69 @@ func (s *staffShiftService) updateShiftWithOptions(ctx context.Context, shift *S
 	if shift.ID <= 0 {
 		return nil, ErrShiftNotFound
 	}
-	existing, err := s.repo.FindByID(ctx, shift.ID)
+	existing, err := s.findShiftOrNotFound(ctx, shift.ID, "find staff shift")
+	if err != nil {
+		return nil, err
+	}
+	mergeStoredShiftState(shift, existing, opts)
+	if err := shift.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %s", ErrShiftInvalid, err.Error())
+	}
+	// A newly assigned type must be active; keeping the shift's already-attached
+	// (possibly deactivated) type stays allowed.
+	if !sameShiftTypeID(shift.ShiftTypeID, existing.ShiftTypeID) {
+		if err := s.ensureShiftTypeActive(ctx, shift.ShiftTypeID); err != nil {
+			return nil, err
+		}
+	}
+	revalidateOrigin := originLinkNeedsRevalidation(shift, existing)
+	if err := s.lockShiftEdit(ctx, shift, revalidateOrigin); err != nil {
+		return nil, err
+	}
+	if err := s.ensureShiftUnchangedWhileLocking(ctx, shift.ID, existing); err != nil {
+		return nil, err
+	}
+	if revalidateOrigin {
+		if err := s.validateOriginLink(ctx, shift); err != nil {
+			return nil, err
+		}
+	}
+	if err := s.ensureCoversFitEditedOrigin(ctx, shift, existing); err != nil {
+		return nil, err
+	}
+	if err := s.checkOverlap(ctx, shift); err != nil {
+		return nil, err
+	}
+	if err := s.repo.Update(ctx, shift); err != nil {
+		return nil, err
+	}
+	s.getLogger().Info("staff shift updated",
+		"shift_id", shift.ID,
+		"staff_id", shift.StaffID,
+		"date", shift.Date.String(),
+	)
+	return shift, nil
+}
+
+// findShiftOrNotFound loads one shift and maps a missing row to
+// ErrShiftNotFound; other read errors are wrapped with op.
+func (s *staffShiftService) findShiftOrNotFound(ctx context.Context, id int64, op string) (*StaffShift, error) {
+	shift, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		if isRecordNotFound(err) {
 			return nil, ErrShiftNotFound
 		}
-		return nil, fmt.Errorf("find staff shift: %w", err)
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
-	if existing == nil {
+	if shift == nil {
 		return nil, ErrShiftNotFound
 	}
+	return shift, nil
+}
+
+// mergeStoredShiftState copies the fields an ordinary edit never changes from
+// the stored row onto the update request, plus the fields opts preserves.
+func mergeStoredShiftState(shift, existing *StaffShift, opts StaffShiftUpdateOptions) {
 	// Staff assignment is immutable; the shift stays with its staff member.
 	shift.StaffID = existing.StaffID
 	shift.CreatedBy = existing.CreatedBy
@@ -541,118 +594,100 @@ func (s *staffShiftService) updateShiftWithOptions(ctx context.Context, shift *S
 	if existing.SeriesID != nil {
 		shift.Detached = true
 	}
-	if err := shift.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrShiftInvalid, err.Error())
-	}
-	// A newly assigned type must be active; keeping the shift's already-attached
-	// (possibly deactivated) type stays allowed.
-	if !sameShiftTypeID(shift.ShiftTypeID, existing.ShiftTypeID) {
-		if err := s.ensureShiftTypeActive(ctx, shift.ShiftTypeID); err != nil {
-			return nil, err
-		}
-	}
-	// A plain edit that moves a replacement to a different day, or resizes its
-	// wall-clock window, would silently break the create-time invariants (a cover
-	// shares its origin's date AND stays within the cancelled origin's gap), so
-	// re-validate the preserved link whenever the date or the window changes.
-	// validateOriginLink re-reads the origin and re-checks origin.Contains(shift),
-	// so a same-day extension past the gap is now rejected too. A pure
-	// notes/type/break edit that leaves date and window untouched still skips the
-	// extra origin read (#1841).
-	revalidateOrigin := shift.OriginShiftID != nil &&
+}
+
+// originLinkNeedsRevalidation reports whether an edited replacement must have
+// its origin link re-checked.
+//
+// A plain edit that moves a replacement to a different day, or resizes its
+// wall-clock window, would silently break the create-time invariants (a cover
+// shares its origin's date AND stays within the cancelled origin's gap), so
+// re-validate the preserved link whenever the date or the window changes.
+// validateOriginLink re-reads the origin and re-checks origin.Contains(shift),
+// so a same-day extension past the gap is now rejected too. A pure
+// notes/type/break edit that leaves date and window untouched still skips the
+// extra origin read (#1841).
+func originLinkNeedsRevalidation(shift, existing *StaffShift) bool {
+	return shift.OriginShiftID != nil &&
 		(shift.Date != existing.Date ||
 			!calendar.SameClockTime(shift.StartTime, existing.StartTime) ||
 			!calendar.SameClockTime(shift.EndTime, existing.EndTime))
-	// Lock every staff member this edit touches — the shift's own staff plus, for
-	// a replacement date/window edit, the origin's staff — in a stable sorted order
-	// so concurrent cross-covering edits never lock the same pair in opposite
-	// orders (#1841 deadlock). The origin is read first only to discover its lock.
+}
+
+// lockShiftEdit locks every staff member this edit touches — the shift's own
+// staff plus, for a replacement date/window edit, the origin's staff — in a
+// stable sorted order so concurrent cross-covering edits never lock the same
+// pair in opposite orders (#1841 deadlock). The origin is read first only to
+// discover its lock.
+func (s *staffShiftService) lockShiftEdit(ctx context.Context, shift *StaffShift, revalidateOrigin bool) error {
 	lockIDs := []int64{shift.StaffID}
 	if revalidateOrigin {
 		origin, err := s.loadOriginShift(ctx, *shift.OriginShiftID)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		lockIDs = append(lockIDs, origin.StaffID)
 	}
-	if err := s.lockStaffWritesOrdered(ctx, lockIDs); err != nil {
-		return nil, err
-	}
-	// A normal edit may have loaded the row before a concurrent MoveShift acquired
-	// this same lock. Re-read after locking and reject every move-relevant change,
-	// including a same-person date/window move: otherwise the stale edit payload
-	// would silently move the row back. UpdatedAt additionally catches other
-	// concurrent whole-row updates while this request waited.
-	lockedExisting, err := s.repo.FindByID(ctx, shift.ID)
+	return s.lockStaffWritesOrdered(ctx, lockIDs)
+}
+
+// ensureShiftUnchangedWhileLocking re-reads the row after locking.
+//
+// A normal edit may have loaded the row before a concurrent MoveShift acquired
+// this same lock. Re-read after locking and reject every move-relevant change,
+// including a same-person date/window move: otherwise the stale edit payload
+// would silently move the row back. UpdatedAt additionally catches other
+// concurrent whole-row updates while this request waited.
+func (s *staffShiftService) ensureShiftUnchangedWhileLocking(ctx context.Context, id int64, existing *StaffShift) error {
+	lockedExisting, err := s.findShiftOrNotFound(ctx, id, "reload staff shift after lock")
 	if err != nil {
-		if isRecordNotFound(err) {
-			return nil, ErrShiftNotFound
-		}
-		return nil, fmt.Errorf("reload staff shift after lock: %w", err)
-	}
-	if lockedExisting == nil {
-		return nil, ErrShiftNotFound
+		return err
 	}
 	if staffShiftMoveChanged(existing, lockedExisting) ||
 		!lockedExisting.UpdatedAt.Equal(existing.UpdatedAt) {
-		return nil, fmt.Errorf("%w: shift changed while the edit was waiting for its write lock", ErrShiftConflict)
+		return fmt.Errorf("%w: shift changed while the edit was waiting for its write lock", ErrShiftConflict)
 	}
-	if revalidateOrigin {
-		if err := s.validateOriginLink(ctx, shift); err != nil {
-			return nil, err
-		}
-	}
-	// Editing a covered ORIGIN (not a replacement) through the ordinary path must
-	// not strand its replacements: moving it to another date leaves them
-	// referencing a date the origin no longer occupies, and shrinking its window
-	// leaves a replacement outside the gap it fills. Rebuilding covers around a new
-	// window is the atomic cancellation flow's job (it deletes the covers before
-	// touching the origin, so this check never fires there), so here reject any
-	// date or window change while covers still hang off this shift. The cover load
-	// is skipped entirely when neither the date nor the window moved (#1841).
+	return nil
+}
+
+// ensureCoversFitEditedOrigin keeps the replacements of an edited origin valid.
+//
+// Editing a covered ORIGIN (not a replacement) through the ordinary path must
+// not strand its replacements: moving it to another date leaves them
+// referencing a date the origin no longer occupies, and shrinking its window
+// leaves a replacement outside the gap it fills. Rebuilding covers around a new
+// window is the atomic cancellation flow's job (it deletes the covers before
+// touching the origin, so this check never fires there), so here reject any
+// date or window change while covers still hang off this shift. The cover load
+// is skipped entirely when neither the date nor the window moved (#1841).
+func (s *staffShiftService) ensureCoversFitEditedOrigin(ctx context.Context, shift, existing *StaffShift) error {
 	originWindowChanged := !calendar.SameClockTime(shift.StartTime, existing.StartTime) ||
 		!calendar.SameClockTime(shift.EndTime, existing.EndTime)
-	if shift.OriginShiftID == nil && (shift.Date != existing.Date || originWindowChanged) {
-		covers, err := s.repo.FindByOriginShiftID(ctx, shift.ID)
-		if err != nil {
-			return nil, fmt.Errorf("check covers before origin edit: %w", err)
+	if shift.OriginShiftID != nil || (shift.Date == existing.Date && !originWindowChanged) {
+		return nil
+	}
+	covers, err := s.repo.FindByOriginShiftID(ctx, shift.ID)
+	if err != nil {
+		return fmt.Errorf("check covers before origin edit: %w", err)
+	}
+	for _, cover := range covers {
+		if shift.Date != cover.Date {
+			return withReason(fmt.Errorf("%w: cannot move a shift that has replacements to another date", ErrShiftInvalid), workforce.ErrShiftHasReplacements)
 		}
-		for _, cover := range covers {
-			if shift.Date != cover.Date {
-				return nil, withReason(fmt.Errorf("%w: cannot move a shift that has replacements to another date", ErrShiftInvalid), workforce.ErrShiftHasReplacements)
-			}
-			if !shift.Contains(cover) {
-				return nil, withReason(fmt.Errorf("%w: cannot resize a shift so a replacement no longer fits within it", ErrShiftInvalid), workforce.ErrShiftHasReplacements)
-			}
+		if !shift.Contains(cover) {
+			return withReason(fmt.Errorf("%w: cannot resize a shift so a replacement no longer fits within it", ErrShiftInvalid), workforce.ErrShiftHasReplacements)
 		}
 	}
-	if err := s.checkOverlap(ctx, shift); err != nil {
-		return nil, err
-	}
-	if err := s.repo.Update(ctx, shift); err != nil {
-		return nil, err
-	}
-	s.getLogger().Info("staff shift updated",
-		"shift_id", shift.ID,
-		"staff_id", shift.StaffID,
-		"date", shift.Date.String(),
-	)
-	return shift, nil
+	return nil
 }
 
 func (s *staffShiftService) DeleteShift(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return ErrShiftNotFound
 	}
-	existing, err := s.repo.FindByID(ctx, id)
+	existing, err := s.findShiftOrNotFound(ctx, id, "find staff shift")
 	if err != nil {
-		if isRecordNotFound(err) {
-			return ErrShiftNotFound
-		}
-		return fmt.Errorf("find staff shift: %w", err)
-	}
-	if existing == nil {
-		return ErrShiftNotFound
+		return err
 	}
 	// Deletes write series exceptions below, so they must serialize against
 	// concurrent series splits on the same staff member: without the lock a
@@ -664,15 +699,9 @@ func (s *staffShiftService) DeleteShift(ctx context.Context, id int64) error {
 	// MoveShift may have changed the owner while this delete waited for the old
 	// owner's lock. Refuse the stale delete instead of mutating the new owner's
 	// schedule without holding that owner's lock.
-	lockedExisting, err := s.repo.FindByID(ctx, id)
+	lockedExisting, err := s.findShiftOrNotFound(ctx, id, "reload staff shift before delete")
 	if err != nil {
-		if isRecordNotFound(err) {
-			return ErrShiftNotFound
-		}
-		return fmt.Errorf("reload staff shift before delete: %w", err)
-	}
-	if lockedExisting == nil {
-		return ErrShiftNotFound
+		return err
 	}
 	if lockedExisting.StaffID != existing.StaffID {
 		return fmt.Errorf("%w: staff assignment changed", ErrShiftConflict)

@@ -58,6 +58,33 @@ func (s *Store) ListGroupSubstitutions(ctx context.Context, filter domain.GroupS
 	query := withTenant(db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(tableGroupSubstitution+` AS "group_substitution"`), aliasGroupSubstitution, scope)
+	query, empty := applyGroupSubstitutionFilter(query, filter)
+	if empty {
+		return []domain.GroupSubstitution{}, domain.OperationStats{}, nil
+	}
+	query = query.OrderExpr(`"group_substitution".id ASC`)
+	if filter.Limit > 0 {
+		query = query.Limit(int64(filter.Limit))
+	}
+	if filter.Offset > 0 {
+		query = query.Offset(int64(filter.Offset))
+	}
+	stats, err := scanAll(ctx, query, "list group substitutions")
+	if err != nil {
+		return nil, stats, err
+	}
+	stats.Rows = int64(len(rows))
+	result := make([]domain.GroupSubstitution, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, groupSubstitutionToDomain(row))
+	}
+	return result, stats, nil
+}
+
+// applyGroupSubstitutionFilter renders the filter's predicates; empty reports
+// a set predicate that can match nothing, which bun cannot render as an IN
+// list.
+func applyGroupSubstitutionFilter(query *bun.SelectQuery, filter domain.GroupSubstitutionFilter) (*bun.SelectQuery, bool) {
 	if filter.TenantID != nil {
 		query = query.Where(`"group_substitution".tenant_id = ?`, *filter.TenantID)
 	}
@@ -66,7 +93,7 @@ func (s *Store) ListGroupSubstitutions(ctx context.Context, filter domain.GroupS
 	}
 	if filter.GroupIDs != nil {
 		if len(filter.GroupIDs) == 0 {
-			return []domain.GroupSubstitution{}, domain.OperationStats{}, nil
+			return query, true
 		}
 		query = query.Where(`"group_substitution".group_id IN (?)`, bun.List(filter.GroupIDs))
 	}
@@ -97,23 +124,7 @@ func (s *Store) ListGroupSubstitutions(ctx context.Context, filter domain.GroupS
 	if filter.ReasonContains != "" {
 		query = query.Where(`"group_substitution".reason ILIKE ?`, "%"+filter.ReasonContains+"%")
 	}
-	query = query.OrderExpr(`"group_substitution".id ASC`)
-	if filter.Limit > 0 {
-		query = query.Limit(int64(filter.Limit))
-	}
-	if filter.Offset > 0 {
-		query = query.Offset(int64(filter.Offset))
-	}
-	stats, err := scanAll(ctx, query, "list group substitutions")
-	if err != nil {
-		return nil, stats, err
-	}
-	stats.Rows = int64(len(rows))
-	result := make([]domain.GroupSubstitution, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, groupSubstitutionToDomain(row))
-	}
-	return result, stats, nil
+	return query, false
 }
 
 func (s *Store) CreateGroupSubstitution(ctx context.Context, value domain.GroupSubstitution) (domain.GroupSubstitution, domain.OperationStats, error) {
