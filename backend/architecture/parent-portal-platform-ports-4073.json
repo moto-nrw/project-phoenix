@@ -37,8 +37,8 @@
     "sources": [
       "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/parent_portal_platform.go",
       "backend/api/communication_security.go",
-      "backend/workflows/parentportal/care/guardian_policy.go",
-      "backend/workflows/parentportal/messaging/security.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/care/guardian_policy.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/messaging/security.go",
       "backend/modules/securityruntime/guardian_role.go",
       "backend/modules/delivery/devices/locales.go",
       "https://github.com/moto-nrw/project-phoenix/blob/121b0ee5130db5ec6b289965f495acdca6285744/backend/modules/delivery/application/locales/catalog.go",

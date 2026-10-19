@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	staffAudience "github.com/moto-nrw/project-phoenix/modules/communication/projections/staffannouncementaudience"
+	staffAudience "github.com/moto-nrw/project-phoenix/modules/staffannouncementaudience"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"

@@ -25,7 +25,7 @@ func buildGradeTransition(
 	if err != nil {
 		return nil, fmt.Errorf("compose grade transition owners: %w", err)
 	}
-	workflow, err := gradetransitioncompose.New(gradetransitioncompose.Dependencies{
+	workflow, err := owners.NewGradeTransition(gradetransitioncompose.Dependencies{
 		DB: db.Pool(), Structure: structure, Presence: presence, Directory: persons, Membership: membership, Rosters: owner.RosterReconciler,
 		LockRecurrenceWrites:  owner.RecurrenceLock.LockRecurrenceWrites,
 		ResyncOfferingRosters: resyncOfferingRosters,

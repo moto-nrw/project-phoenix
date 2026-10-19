@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 85,
+  "policy_epoch": 86,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -324,7 +324,7 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "modules/studentdirectoryview",
+      "path": "modules/studentdirectoryview/internal/adapters/postgres",
       "owner": "student-directory-view",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -912,14 +912,14 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "auth/device",
+      "path": "modules/devicefleet/internal/adapters/deviceauth",
       "owner": "device-fleet",
       "role": "adapter",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "auth/device/devicetest",
+      "path": "modules/devicefleet/devicetest",
       "owner": "device-fleet",
       "role": "test-support",
       "internal_test_role": "module-internal-test",
@@ -1045,7 +1045,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/organizationtenancy/internal/adapters/operatordashboard",
+      "path": "modules/operatordashboard/internal/adapters/postgres",
       "owner": "operator-dashboard-view",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -1409,13 +1409,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/communication/internal/staffannouncements",
-      "owner": "communication",
-      "role": "adapter",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "workflow-integration-test"
-    },
-    {
       "path": "modules/communication/internal/parentmessages",
       "owner": "communication",
       "role": "adapter",
@@ -1493,7 +1486,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/delivery/application/emailoutbox",
+      "path": "modules/delivery/internal/emailoutbox",
       "owner": "delivery-platform",
       "role": "application",
       "internal_test_role": "workflow-integration-test",
@@ -1920,7 +1913,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/timetableprojection",
+      "path": "modules/timetableprojection/internal/adapters/postgres",
       "owner": "timetable-legacy-view",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -1941,7 +1934,7 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "modules/timetableblockdisplay",
+      "path": "modules/timetableblockdisplay/internal/adapters/postgres",
       "owner": "timetable-block-display",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -1955,7 +1948,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/presenceprojection",
+      "path": "modules/presenceprojection/internal/adapters/postgres",
       "owner": "presence-legacy-view",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -1969,7 +1962,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/timetableenrollmentprovenance",
+      "path": "modules/timetableenrollmentprovenance/internal/adapters/postgres",
       "owner": "timetable-enrollment-provenance",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -1983,7 +1976,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/parentrequestfeedprojection",
+      "path": "modules/parentrequestfeedprojection/internal/adapters/postgres",
       "owner": "parent-request-feed-view",
       "role": "postgres",
       "internal_test_role": "workflow-integration-test",
@@ -2102,7 +2095,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/delivery/application/notifications",
+      "path": "modules/delivery/internal/notifications",
       "owner": "delivery-platform",
       "role": "application",
       "internal_test_role": "workflow-integration-test",
@@ -2137,7 +2130,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/delivery/application/pwa",
+      "path": "modules/delivery/internal/pwa",
       "owner": "delivery-platform",
       "role": "application",
       "internal_test_role": "workflow-integration-test",
@@ -2207,14 +2200,14 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "workflows/parentportal/care",
+      "path": "workflows/parentportal/internal/care",
       "owner": "parent-portal",
       "role": "application",
       "internal_test_role": "workflow-integration-test",
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "workflows/parentportal/messaging",
+      "path": "workflows/parentportal/internal/messaging",
       "owner": "parent-portal",
       "role": "application",
       "internal_test_role": "workflow-integration-test",
@@ -2284,7 +2277,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/schedulerruntime/jobruntime",
+      "path": "modules/schedulerruntime/internal/adapters/jobruntime",
       "owner": "scheduler-runtime",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -2298,7 +2291,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/schedulerruntime/workerlease",
+      "path": "modules/schedulerruntime/internal/adapters/workerlease",
       "owner": "scheduler-runtime",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -2522,7 +2515,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/communication/internal/adapters/audience",
+      "path": "modules/staffannouncementaudience/internal/adapters/postgres",
       "owner": "staff-announcement-audience",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -2550,14 +2543,14 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/communication/internal/adapters/parentinbox",
+      "path": "modules/parentmessageinbox/internal/adapters/postgres",
       "owner": "parent-message-inbox",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/communication/internal/adapters/parentaudience",
+      "path": "modules/parentannouncementaudience/internal/adapters/postgres",
       "owner": "parent-announcement-audience",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -2571,7 +2564,7 @@
       "external_test_role": "e2e-test"
     },
     {
-      "path": "modules/communication/internal/adapters/staffinbox",
+      "path": "modules/staffmessageinbox/internal/adapters/postgres",
       "owner": "staff-message-inbox",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -3166,7 +3159,7 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "modules/guardianlinkview",
+      "path": "modules/guardianlinkview/internal/adapters/postgres",
       "owner": "guardian-link-view",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -3187,7 +3180,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/schoolsetupview",
+      "path": "modules/schoolsetup/internal/adapters/schoolsetupview",
       "owner": "school-setup",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -3369,7 +3362,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/communication/projections/parentannouncementaudience",
+      "path": "modules/parentannouncementaudience",
       "owner": "parent-announcement-audience",
       "role": "compose",
       "internal_test_role": "module-internal-test",
@@ -3383,7 +3376,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/communication/projections/parentmessageinbox",
+      "path": "modules/parentmessageinbox",
       "owner": "parent-message-inbox",
       "role": "compose",
       "internal_test_role": "module-internal-test",
@@ -3397,7 +3390,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/communication/projections/staffmessageinbox",
+      "path": "modules/staffmessageinbox",
       "owner": "staff-message-inbox",
       "role": "compose",
       "internal_test_role": "module-internal-test",
@@ -3411,7 +3404,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/organizationtenancy/projections/operatordashboard",
+      "path": "modules/operatordashboard",
       "owner": "operator-dashboard-view",
       "role": "compose",
       "internal_test_role": "module-internal-test",
@@ -3432,7 +3425,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/communication/projections/staffannouncementaudience",
+      "path": "modules/staffannouncementaudience",
       "owner": "staff-announcement-audience",
       "role": "compose",
       "internal_test_role": "module-internal-test",
@@ -3570,6 +3563,13 @@
       "role": "application",
       "internal_test_role": "workflow-integration-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/internal/staffannouncements",
+      "owner": "communication",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "workflow-integration-test"
     }
   ],
   "data_objects": [
@@ -4613,7 +4613,7 @@
   "read_projections": [
     {
       "id": "student-directory-view",
-      "package": "modules/studentdirectoryview",
+      "package": "modules/studentdirectoryview/internal/adapters/postgres",
       "data_objects": [
         "users.student_profiles",
         "users.student_school_memberships",
@@ -4624,7 +4624,7 @@
     },
     {
       "id": "parent-request-feed-read-model",
-      "package": "modules/parentrequestfeedprojection",
+      "package": "modules/parentrequestfeedprojection/internal/adapters/postgres",
       "data_objects": [
         "active.excused_absence_requests",
         "auth.account_permissions",
@@ -4644,7 +4644,7 @@
     },
     {
       "id": "parent-message-inbox",
-      "package": "modules/communication/internal/adapters/parentinbox",
+      "package": "modules/parentmessageinbox/internal/adapters/postgres",
       "data_objects": [
         "users.guardian_profiles",
         "users.parent_message_reads",
@@ -4659,7 +4659,7 @@
     },
     {
       "id": "staff-message-inbox",
-      "package": "modules/communication/internal/adapters/staffinbox",
+      "package": "modules/staffmessageinbox/internal/adapters/postgres",
       "data_objects": [
         "users.persons",
         "users.staff_message_participants",
@@ -4671,7 +4671,7 @@
     },
     {
       "id": "parent-announcement-audience",
-      "package": "modules/communication/internal/adapters/parentaudience",
+      "package": "modules/parentannouncementaudience/internal/adapters/postgres",
       "data_objects": [
         "activities.student_enrollments",
         "auth.account_tenants",
@@ -4691,7 +4691,7 @@
     },
     {
       "id": "staff-announcement-audience",
-      "package": "modules/communication/internal/adapters/audience",
+      "package": "modules/staffannouncementaudience/internal/adapters/postgres",
       "data_objects": [
         "auth.account_roles",
         "auth.account_tenants",
@@ -4705,7 +4705,7 @@
     },
     {
       "id": "timetable-enrollment-provenance",
-      "package": "modules/timetableenrollmentprovenance",
+      "package": "modules/timetableenrollmentprovenance/internal/adapters/postgres",
       "data_objects": [
         "activities.student_enrollments",
         "enrollment.phases",
@@ -4716,7 +4716,7 @@
     },
     {
       "id": "timetable-legacy-view",
-      "package": "modules/timetableprojection",
+      "package": "modules/timetableprojection/internal/adapters/postgres",
       "data_objects": [
         "activities.groups",
         "activities.student_enrollments",
@@ -4728,7 +4728,7 @@
     },
     {
       "id": "timetable-block-display",
-      "package": "modules/timetableblockdisplay",
+      "package": "modules/timetableblockdisplay/internal/adapters/postgres",
       "data_objects": [
         "activities.groups",
         "education.groups",
@@ -4740,7 +4740,7 @@
     },
     {
       "id": "presence-legacy-view",
-      "package": "modules/presenceprojection",
+      "package": "modules/presenceprojection/internal/adapters/postgres",
       "data_objects": [
         "active.activity_session_attendance",
         "active.activity_sessions",
@@ -4754,7 +4754,7 @@
     },
     {
       "id": "operator-dashboard",
-      "package": "modules/organizationtenancy/internal/adapters/operatordashboard",
+      "package": "modules/operatordashboard/internal/adapters/postgres",
       "data_objects": [
         "auth.account_roles",
         "auth.account_tenants",
@@ -4768,7 +4768,7 @@
     },
     {
       "id": "guardian-link-view",
-      "package": "modules/guardianlinkview",
+      "package": "modules/guardianlinkview/internal/adapters/postgres",
       "data_objects": [
         "auth.guardian_student_access",
         "users.student_guardian_pickup_permissions",
@@ -4778,7 +4778,7 @@
     },
     {
       "id": "school-setup-progress",
-      "package": "modules/schoolsetupview",
+      "package": "modules/schoolsetup/internal/adapters/schoolsetupview",
       "data_objects": [
         "auth.guardian_invitations",
         "auth.invitation_tokens",
@@ -10534,17 +10534,6 @@
       "target_role": "compose"
     },
     {
-      "id": "staff-offboarding.compose.offboarding.security-runtime.contract",
-      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "staff-offboarding",
-      "source_role": "compose",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
       "id": "staff-offboarding.compose.offboarding.delivery-platform.public",
       "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
       "scopes": [
@@ -10553,17 +10542,6 @@
       "source_owner": "staff-offboarding",
       "source_role": "compose",
       "target_owner": "delivery-platform",
-      "target_role": "public"
-    },
-    {
-      "id": "staff-offboarding.compose.offboarding.tenant-runtime.public",
-      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "staff-offboarding",
-      "source_role": "compose",
-      "target_owner": "tenant-runtime",
       "target_role": "public"
     },
     {
@@ -10909,17 +10887,6 @@
       "target_role": "public"
     },
     {
-      "id": "student-deletion.compose.deletion.security-runtime.contract",
-      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-deletion",
-      "source_role": "compose",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
       "id": "student-deletion.compose.deletion.delivery-platform.public",
       "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
       "scopes": [
@@ -10928,17 +10895,6 @@
       "source_owner": "student-deletion",
       "source_role": "compose",
       "target_owner": "delivery-platform",
-      "target_role": "public"
-    },
-    {
-      "id": "student-deletion.compose.deletion.tenant-runtime.public",
-      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-deletion",
-      "source_role": "compose",
-      "target_owner": "tenant-runtime",
       "target_role": "public"
     },
     {
@@ -11014,28 +10970,6 @@
       "source_owner": "grade-transition",
       "source_role": "public",
       "target_class": "crypto"
-    },
-    {
-      "id": "grade-transition.compose.transition.security-runtime.contract",
-      "description": "Wire the grade transition owner workflow required by #2711 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "grade-transition",
-      "source_role": "compose",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
-      "id": "grade-transition.compose.transition.tenant-runtime.public",
-      "description": "Wire the grade transition owner workflow required by #2711 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "grade-transition",
-      "source_role": "compose",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
     },
     {
       "id": "grade-transition.compose.database-binding",
@@ -15151,7 +15085,7 @@
       ],
       "source_owner": "parent-announcement-audience",
       "source_role": "postgres",
-      "source_package": "modules/communication/internal/adapters/parentaudience",
+      "source_package": "modules/parentannouncementaudience/internal/adapters/postgres",
       "target_owner": "parent-announcement-audience",
       "target_role": "public",
       "target_package": "modules/parentannouncementaudience/contract"
@@ -15177,7 +15111,7 @@
       ],
       "source_owner": "parent-message-inbox",
       "source_role": "postgres",
-      "source_package": "modules/communication/internal/adapters/parentinbox",
+      "source_package": "modules/parentmessageinbox/internal/adapters/postgres",
       "target_owner": "parent-message-inbox",
       "target_role": "public",
       "target_package": "modules/parentmessageinbox/contract"
@@ -15203,7 +15137,7 @@
       ],
       "source_owner": "staff-message-inbox",
       "source_role": "postgres",
-      "source_package": "modules/communication/internal/adapters/staffinbox",
+      "source_package": "modules/staffmessageinbox/internal/adapters/postgres",
       "target_owner": "staff-message-inbox",
       "target_role": "public",
       "target_package": "modules/staffmessageinbox/contract"
@@ -15240,7 +15174,7 @@
       ],
       "source_owner": "staff-announcement-audience",
       "source_role": "postgres",
-      "source_package": "modules/communication/internal/adapters/audience",
+      "source_package": "modules/staffannouncementaudience/internal/adapters/postgres",
       "target_owner": "staff-announcement-audience",
       "target_role": "public",
       "target_package": "modules/staffannouncementaudience/contract"
@@ -15418,7 +15352,7 @@
       ],
       "source_owner": "presence-legacy-view",
       "source_role": "postgres",
-      "source_package": "modules/presenceprojection",
+      "source_package": "modules/presenceprojection/internal/adapters/postgres",
       "target_owner": "presence-legacy-view",
       "target_role": "public",
       "target_package": "modules/presenceprojection/presencecontract"
@@ -15745,6 +15679,16 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
+      "from": "auth/device",
+      "to": "modules/devicefleet/internal/adapters/deviceauth",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "auth/device/devicetest",
+      "to": "modules/devicefleet/devicetest",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "auth/rotation",
       "to": "modules/identityaccess/internal/application/rotation",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
@@ -15825,6 +15769,46 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
     },
     {
+      "from": "modules/communication/internal/adapters/audience",
+      "to": "modules/staffannouncementaudience/internal/adapters/postgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/communication/internal/adapters/parentaudience",
+      "to": "modules/parentannouncementaudience/internal/adapters/postgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/communication/internal/adapters/parentinbox",
+      "to": "modules/parentmessageinbox/internal/adapters/postgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/communication/internal/adapters/staffinbox",
+      "to": "modules/staffmessageinbox/internal/adapters/postgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/communication/projections/parentannouncementaudience",
+      "to": "modules/parentannouncementaudience",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/communication/projections/parentmessageinbox",
+      "to": "modules/parentmessageinbox",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/communication/projections/staffannouncementaudience",
+      "to": "modules/staffannouncementaudience",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/communication/projections/staffmessageinbox",
+      "to": "modules/staffmessageinbox",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "modules/dataimport/compose/retained",
       "to": "modules/dataimport/compose/imports",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
@@ -15845,8 +15829,23 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
+      "from": "modules/delivery/application/emailoutbox",
+      "to": "modules/delivery/internal/emailoutbox",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "modules/delivery/application/locales",
       "to": "modules/delivery/internal/application/locales",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/delivery/application/notifications",
+      "to": "modules/delivery/internal/notifications",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/delivery/application/pwa",
+      "to": "modules/delivery/internal/pwa",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
@@ -15870,13 +15869,38 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
+      "from": "modules/guardianlinkview",
+      "to": "modules/guardianlinkview/internal/adapters/postgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "modules/identityaccess/legacy/jwt",
       "to": "modules/identityaccess/sessiontoken",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3487"
     },
     {
+      "from": "modules/organizationtenancy/internal/adapters/operatordashboard",
+      "to": "modules/operatordashboard/internal/adapters/postgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/organizationtenancy/projections/operatordashboard",
+      "to": "modules/operatordashboard",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/parentrequestfeedprojection",
+      "to": "modules/parentrequestfeedprojection/internal/adapters/postgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "modules/peopledirectory/userscontract",
       "to": "modules/peopledirectory/internal/domain/userscontract",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/presenceprojection",
+      "to": "modules/presenceprojection/internal/adapters/postgres",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
@@ -15885,8 +15909,43 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
+      "from": "modules/schedulerruntime/jobruntime",
+      "to": "modules/schedulerruntime/internal/adapters/jobruntime",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/schedulerruntime/workerlease",
+      "to": "modules/schedulerruntime/internal/adapters/workerlease",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/schoolsetupview",
+      "to": "modules/schoolsetup/internal/adapters/schoolsetupview",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/studentdirectoryview",
+      "to": "modules/studentdirectoryview/internal/adapters/postgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
       "from": "modules/supervisiondashboard/legacy",
       "to": "modules/supervisiondashboard/internal/adapters/nameorder",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/timetableblockdisplay",
+      "to": "modules/timetableblockdisplay/internal/adapters/postgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/timetableenrollmentprovenance",
+      "to": "modules/timetableenrollmentprovenance/internal/adapters/postgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "modules/timetableprojection",
+      "to": "modules/timetableprojection/internal/adapters/postgres",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     },
     {
@@ -15942,6 +16001,16 @@
     {
       "from": "simulate",
       "to": "internal/devtools/simulate",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "workflows/parentportal/care",
+      "to": "workflows/parentportal/internal/care",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
+    {
+      "from": "workflows/parentportal/messaging",
+      "to": "workflows/parentportal/internal/messaging",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
     }
   ]

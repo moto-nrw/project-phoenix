@@ -7,7 +7,7 @@ import (
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	staffAudience "github.com/moto-nrw/project-phoenix/modules/communication/projections/staffannouncementaudience"
+	staffAudience "github.com/moto-nrw/project-phoenix/modules/staffannouncementaudience"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"

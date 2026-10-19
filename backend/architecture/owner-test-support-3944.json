@@ -39,7 +39,7 @@
       "https://github.com/moto-nrw/project-phoenix/blob/121b0ee5130db5ec6b289965f495acdca6285744/backend/email/emailtest/mailer.go",
       "backend/realtime/realtimetest/broadcaster.go",
       "https://github.com/moto-nrw/project-phoenix/blob/121b0ee5130db5ec6b289965f495acdca6285744/backend/auth/userpass/userpasstest/argon2.go",
-      "backend/auth/device/devicetest/principal.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/auth/device/devicetest/principal.go",
       "backend/modules/auditlog/internal/adapters/auditpostgres/appender_boundary_test.go",
       "backend/modules/auditlog/internal/adapters/auditpostgres/data_deletion_repository_test.go"
     ],

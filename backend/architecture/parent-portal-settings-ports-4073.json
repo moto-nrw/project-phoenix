@@ -37,12 +37,12 @@
       "backend/api/parent_portal_settings_ports.go",
       "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/parent_portal_settings_ports_test.go",
       "https://github.com/moto-nrw/project-phoenix/blob/a52dccfc01e977e18c112d164949b819eda552f3/backend/api/service_graph_compose_requests.go",
-      "backend/workflows/parentportal/care/settings_ports.go",
-      "backend/workflows/parentportal/care/child_feature_settings.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/care/settings_ports.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/care/child_feature_settings.go",
       "backend/workflows/parentportal/parent_request_reason_policy_test.go",
       "backend/workflows/parentportal/parent_pickup_change_cutoff_test.go",
-      "backend/workflows/parentportal/care/request_reason_policy.go",
-      "backend/workflows/parentportal/care/request_reason_policy_test.go"
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/care/request_reason_policy.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/care/request_reason_policy_test.go"
     ],
     "workload": "Existing guardian feature, reason and cutoff behavior tests plus the root batch-contract test and the architecture/evidence gates.",
     "thresholds": "Six exact keys retired without new rules or composition growth; identical tenant/context/key batch propagation, original errors and nil semantics; unchanged guardian permissions and fresh locked pickup-policy reads.",

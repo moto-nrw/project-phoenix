@@ -5,12 +5,12 @@ import (
 	"time"
 
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	parentAudience "github.com/moto-nrw/project-phoenix/modules/communication/projections/parentannouncementaudience"
-	parentInbox "github.com/moto-nrw/project-phoenix/modules/communication/projections/parentmessageinbox"
-	staffInbox "github.com/moto-nrw/project-phoenix/modules/communication/projections/staffmessageinbox"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
 	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
+	parentAudience "github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience"
 	audienceRows "github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/contract"
+	parentInbox "github.com/moto-nrw/project-phoenix/modules/parentmessageinbox"
+	staffInbox "github.com/moto-nrw/project-phoenix/modules/staffmessageinbox"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 

@@ -3,8 +3,6 @@ package compose
 import (
 	"context"
 	"errors"
-
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
 )
 
 // StaffEmployment is the consumer-owned port over Workforce's employment
@@ -29,28 +27,6 @@ type StaffEmploymentProfile struct {
 	PersonnelNumber       *string
 	RotationAnchorDate    string
 	BirthdayDisplayOptOut bool
-}
-
-type staffEmployment struct{ port StaffEmployment }
-
-func (e staffEmployment) StaffEmployments(ctx context.Context, ids []int64) (map[int64]domain.StaffEmployment, error) {
-	values, err := e.port.StaffEmployments(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[int64]domain.StaffEmployment, len(values))
-	for id, value := range values {
-		result[id] = domain.StaffEmployment(value)
-	}
-	return result, nil
-}
-
-func (e staffEmployment) SaveStaffEmployment(ctx context.Context, value domain.StaffEmployment) error {
-	return e.port.SaveStaffEmployment(ctx, StaffEmploymentProfile(value))
-}
-
-func (e staffEmployment) ClearStaffWorkTimeModel(ctx context.Context, membershipID int64) error {
-	return e.port.ClearStaffWorkTimeModel(ctx, membershipID)
 }
 
 var errStaffEmploymentUnbound = errors.New("school membership compose: staff employment is required")

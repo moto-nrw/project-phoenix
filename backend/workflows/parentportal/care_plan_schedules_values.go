@@ -1,6 +1,6 @@
 package parentportal
 
-import "github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
+import "github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
 
 func carePlanToAppArrivalException(value ArrivalExceptionSnapshot) care.ArrivalException {
 	return care.ArrivalException{

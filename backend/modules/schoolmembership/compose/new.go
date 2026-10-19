@@ -68,20 +68,11 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 	case dependencies.ClassListStudents != nil || dependencies.ClassListTrail != nil:
 		return nil, errors.New("school membership compose: the class list entries need a student directory and an audit trail")
 	}
-	store := postgres.New(func(ctx context.Context) (bun.IDB, postgres.TenantScope, error) {
-		id, scopeErr := tenant.TenantFromContext(ctx)
-		raw, ok := tenant.TransactionFromContext(ctx)
-
-		return postgres.ResolveDatabase(raw, ok, id.Int64(), scopeErr, tenant.IsAdminTx(ctx))
-	},
-	)
+	store := postgres.New(postgres.NewContextDatabase(tenant.TenantFromContext, tenant.TransactionFromContext, tenant.IsAdminTx))
 	var quota ports.ChildQuota
 	if dependencies.ChildQuota != nil {
 		quota = dependencies.ChildQuota
 	}
-	service := application.New(store, staffEmployment{port: dependencies.Employment}, quota, postgres.BerlinToday, application.TenantTransaction{}, func(observation Observation) {
-		observation.Err = application.MapError(observation.Err)
-		dependencies.Observe(observation)
-	}, classList)
+	service := application.New(store, application.NewStaffEmployment(dependencies.Employment), quota, postgres.BerlinToday, application.TenantTransaction{}, application.NewObserver(dependencies.Observe), classList)
 	return service, nil
 }

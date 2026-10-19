@@ -8,7 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/jobruntime"
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/internal/adapters/jobruntime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"

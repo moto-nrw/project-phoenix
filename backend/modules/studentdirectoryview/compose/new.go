@@ -3,7 +3,7 @@
 // (ADR 0058).
 package compose
 
-import "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
+import studentdirectoryview "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres"
 
 // NewReader builds the reader the root binds to Care Plan and People Directory.
 func NewReader() studentdirectoryview.Reader { return studentdirectoryview.Reader{} }

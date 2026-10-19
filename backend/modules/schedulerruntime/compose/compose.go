@@ -4,16 +4,11 @@
 package compose
 
 import (
-	"context"
-	"errors"
-	"fmt"
-	"time"
-
 	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/internal/adapters/cleanupruns"
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/internal/adapters/jobruntime"
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/internal/adapters/workerlease"
 	scheduler "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/jobruntime"
 	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/workerlease"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -46,38 +41,5 @@ func NewWorkerLeaseStore(unitOfWork tenant.UnitOfWork) (ports.LeaseStore, error)
 	if err != nil {
 		return nil, err
 	}
-	return workerLeaseStore{store: store}, nil
-}
-
-// workerLeaseStore adapts the lease persistence to the Worker's port.
-type workerLeaseStore struct{ store *workerlease.Store }
-
-func (s workerLeaseStore) Acquire(ctx context.Context, name, holder string, ttl time.Duration) (ports.LeaseTerm, bool, error) {
-	term, acquired, err := s.store.Acquire(ctx, name, holder, ttl)
-	return schedulerLeaseTerm(term), acquired, err
-}
-
-func (s workerLeaseStore) Renew(ctx context.Context, term ports.LeaseTerm, ttl time.Duration) (ports.LeaseTerm, bool, error) {
-	renewed, ok, err := s.store.Renew(ctx, persistedLeaseTerm(term), ttl)
-	return schedulerLeaseTerm(renewed), ok, err
-}
-
-func (s workerLeaseStore) Release(ctx context.Context, term ports.LeaseTerm) error {
-	return s.store.Release(ctx, persistedLeaseTerm(term))
-}
-
-func (s workerLeaseStore) Assert(ctx context.Context, term ports.LeaseTerm, margin time.Duration) error {
-	err := s.store.Assert(ctx, persistedLeaseTerm(term), margin)
-	if errors.Is(err, workerlease.ErrNotHeld) {
-		return fmt.Errorf("%w: %w", ports.ErrLeaseNotHeld, err)
-	}
-	return err
-}
-
-func schedulerLeaseTerm(term workerlease.Term) ports.LeaseTerm {
-	return ports.LeaseTerm{Name: term.Name, Holder: term.Holder, Token: term.Token, Until: term.Until}
-}
-
-func persistedLeaseTerm(term ports.LeaseTerm) workerlease.Term {
-	return workerlease.Term{Name: term.Name, Holder: term.Holder, Token: term.Token, Until: term.Until}
+	return scheduler.NewLeaseStore(store, workerlease.ErrNotHeld), nil
 }

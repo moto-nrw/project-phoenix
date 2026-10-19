@@ -83,7 +83,7 @@ func newDeletionFixture(t *testing.T, db *bun.DB) *deletionFixture {
 	feedback := &testpkg.FeedbackEntryCounterMock{}
 	owners, err := rootOwners.NewStudentDeletionOwners(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	deps, err := studentdeletioncompose.Assemble(studentdeletioncompose.Dependencies{
+	deps, err := rootOwners.Assemble(studentdeletioncompose.Dependencies{
 		DB: db, Owners: owners, Directory: people, CarePlan: repos.CarePlan(), Timetable: timetableOwner, Feedback: feedback,
 		IsVerifiedStaff:       func(context.Context) (bool, error) { return true, nil },
 		LockCareBookingWrites: rootOwners.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, db)).LockRecurrenceWrites,
@@ -900,7 +900,7 @@ func TestStudentDeletionWorkflow_AuthorizationAndTenantIsolation(t *testing.T) {
 	})
 
 	t.Run("the composed gate requires the tenant principal with users:delete", func(t *testing.T) {
-		_, err := studentdeletioncompose.Authorize(ctx, func(context.Context) (bool, error) { return true, nil })
+		_, err := rootOwners.AuthorizeStudentDeletion(ctx, func(context.Context) (bool, error) { return true, nil })
 		require.ErrorIs(t, err, studentdeletion.ErrUnauthorized, "no principal in context")
 	})
 

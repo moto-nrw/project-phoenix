@@ -81,7 +81,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	// Moved in by PR #3408 (#3350) from services/users and
 	// database/repositories/users; the bodies crossed the boundary at their
 	// old length.
-	"modules/communication/internal/adapters/staffinbox/projection.go:(*Projection).ListInbox":                                                  61,
+	"modules/staffmessageinbox/internal/adapters/postgres/projection.go:(*Projection).ListInbox":                                                61,
 	"modules/communication/internal/parentmessages/events.go:(*EventEmitter).EmitChildEvent":                                                    133,
 	"modules/communication/internal/parentmessages/message_email.go:messageEmailCopy":                                                           84,
 	"modules/communication/internal/parentmessages/service.go:(*Service).PostMessage":                                                           69,
@@ -100,11 +100,11 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/dataimport/internal/adapters/fileformat/templates.go:writeHinweiseSheet":                                                           145,
 	"modules/dataimport/internal/adapters/fileformat/xlsx_parser.go:(*XLSXParser).ParseStudents":                                                76,
 	"modules/dataimport/http/api.go:(*Resource).Router":                                                                                         66,
-	"modules/delivery/application/notifications/preferences.go:(*preferenceService).GetForParent":                                               63,
-	"modules/delivery/application/notifications/service.go:(*router).NotifyBatch":                                                               62,
-	"modules/delivery/application/notifications/service.go:(*router).NotifySynchronously":                                                       62,
-	"modules/delivery/application/notifications/service.go:validate":                                                                            69,
-	"modules/delivery/application/notifications/types.go:init":                                                                                  151,
+	"modules/delivery/internal/notifications/preferences.go:(*preferenceService).GetForParent":                                                  63,
+	"modules/delivery/internal/notifications/service.go:(*router).NotifyBatch":                                                                  62,
+	"modules/delivery/internal/notifications/service.go:(*router).NotifySynchronously":                                                          62,
+	"modules/delivery/internal/notifications/service.go:validate":                                                                               69,
+	"modules/delivery/internal/notifications/types.go:init":                                                                                     151,
 	"modules/devicescan/internal/application/systemspace.go:(*Service).systemActivity":                                                          68,
 	"modules/enrollment/form_schema.go:(*FormField).validateQuestion":                                                                           83,
 	"modules/enrollment/form_schema.go:(*FormLegalBlock).Validate":                                                                              67,
@@ -199,11 +199,11 @@ var moduleFuncLenAllowlist = map[string]int{
 	"workflows/gradetransition/class_list_entries.go:(*Workflow).revertClassListEntries":                                                        81,
 	"workflows/gradetransition/class_teachers.go:(*Workflow).remapClassTeacherAssignments":                                                      62,
 	"workflows/gradetransition/class_teachers.go:(*Workflow).revertClassTeacherAssignments":                                                     68,
-	"workflows/parentportal/care/parent_care_schedule_service.go:(*Service).buildCareScheduleView":                                              74,
-	"workflows/parentportal/care/parent_today_status_service.go:(*Service).GetChildTodayStatus":                                                 75,
-	"workflows/parentportal/messaging/parent_announcement_service.go:(*Service).RespondToAnnouncement":                                          107,
-	"workflows/parentportal/messaging/parent_announcement_service.go:(*Service).stampAnnouncement":                                              99,
-	"workflows/parentportal/messaging/parent_messaging_service.go:(*Service).PostChildMessage":                                                  104,
+	"workflows/parentportal/internal/care/parent_care_schedule_service.go:(*Service).buildCareScheduleView":                                     74,
+	"workflows/parentportal/internal/care/parent_today_status_service.go:(*Service).GetChildTodayStatus":                                        75,
+	"workflows/parentportal/internal/messaging/parent_announcement_service.go:(*Service).RespondToAnnouncement":                                 107,
+	"workflows/parentportal/internal/messaging/parent_announcement_service.go:(*Service).stampAnnouncement":                                     99,
+	"workflows/parentportal/internal/messaging/parent_messaging_service.go:(*Service).PostChildMessage":                                         104,
 	"workflows/reminderdelivery/internal/application/batch.go:(*service).ComputeBatch":                                                          121,
 	"workflows/reminderdelivery/internal/application/service.go:(*service).Compute":                                                             92,
 	"workflows/reminderdelivery/internal/application/service.go:(*service).pickupReminders":                                                     64,
@@ -211,7 +211,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"workflows/sessionend/internal/application/command.go:(*command).EndSession":                                                                76,
 
 	"workflows/staffoffboarding/offboarding.go:(*Workflow).snapshot": 71,
-	"workflows/studentdeletion/compose/new.go:Assemble":              79,
 	"workflows/studentdeletion/deletion.go:(*Workflow).loadCounts":   69,
 }
 

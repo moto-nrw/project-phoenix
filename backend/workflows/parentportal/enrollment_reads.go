@@ -3,7 +3,7 @@ package parentportal
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
 )
 
 // CarePeriod and OfferingBooking are native workflow read snapshots. Root

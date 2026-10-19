@@ -1,6 +1,6 @@
 package parentportal
 
-import "github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
+import "github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging"
 
 func messagingToAppAnnouncementFeedItem(v AnnouncementFeedItem) messaging.AnnouncementFeedItem {
 	return messaging.AnnouncementFeedItem{

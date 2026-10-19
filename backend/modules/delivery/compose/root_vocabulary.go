@@ -1,11 +1,11 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/application/emailbranding"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/application/realtimeevents"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/emailoutbox"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/pwa"
 )
 
 // The Delivery services the typed root binds. The root may not import

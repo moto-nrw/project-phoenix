@@ -26,10 +26,10 @@
   "runtime_evidence": {
     "source": "Assigned localhost5547 test database; pinned toolchain, fresh /tmp/gocache-4073. Source proof base30ba63a2dab42c321f3ebc6f4cc30e0e2b012ebf; clean unrelated fast-forwardb43fbd25f2 included before final full gates.",
     "sources": [
-      "backend/workflows/parentportal/care/config.go",
-      "backend/workflows/parentportal/care/request_ledger.go",
-      "backend/workflows/parentportal/messaging/service.go",
-      "backend/workflows/parentportal/messaging/repository_ports.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/care/config.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/care/request_ledger.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/messaging/service.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/messaging/repository_ports.go",
       "backend/workflows/parentportal/compose/new.go"
     ],
     "workload": "Existing Parent Portal, Care, Messaging, HTTP and API/router suites and full non-fast changed-package gates.",

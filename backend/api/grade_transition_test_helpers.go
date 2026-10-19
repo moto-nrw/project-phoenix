@@ -59,7 +59,7 @@ func NewGradeTransitionTestModule(db transactionruntime.Database, resync Offerin
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}
-	workflow, err := gradetransitioncompose.New(gradetransitioncompose.Dependencies{
+	workflow, err := owners.NewGradeTransition(gradetransitioncompose.Dependencies{
 		DB: db.Pool(), Structure: structure, Presence: presence, Directory: people, Membership: membership,
 		Rosters:               tt.RosterMaintenance(slog.Default(), clock),
 		LockRecurrenceWrites:  recurrenceLock.LockRecurrenceWrites,

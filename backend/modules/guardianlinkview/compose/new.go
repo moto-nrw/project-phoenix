@@ -2,7 +2,7 @@
 // bind it to People Directory's reader ports (ADR 0058).
 package compose
 
-import "github.com/moto-nrw/project-phoenix/modules/guardianlinkview"
+import guardianlinkview "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/internal/adapters/postgres"
 
 // NewReader builds the reader the root binds to People Directory.
 func NewReader() guardianlinkview.Reader { return guardianlinkview.Reader{} }

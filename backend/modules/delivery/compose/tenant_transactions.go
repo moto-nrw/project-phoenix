@@ -6,7 +6,7 @@ import (
 
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications"
 	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"

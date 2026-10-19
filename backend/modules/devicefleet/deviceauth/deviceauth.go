@@ -12,8 +12,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	device "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/adapters/deviceauth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 

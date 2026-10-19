@@ -120,7 +120,7 @@ func NewStudentTestRetention(db transactionruntime.Database, audit *auditCompose
 	if err != nil {
 		return nil, err
 	}
-	workflow, err := studentdeletioncompose.New(studentdeletioncompose.Dependencies{
+	workflow, err := NewStudentDeletion(studentdeletioncompose.Dependencies{
 		DB: db.Pool(), Owners: owners, Directory: people, CarePlan: carePlan, Timetable: timetableOwner, Feedback: noFeedback{},
 		IsVerifiedStaff:       func(context.Context) (bool, error) { return false, nil },
 		LockCareBookingWrites: MustNewTimetableRecurrenceLock(db).LockRecurrenceWrites,

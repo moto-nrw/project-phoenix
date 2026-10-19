@@ -1,9 +1,9 @@
 package compose
 
 import (
-	"context"
 	"errors"
-	"fmt"
+
+	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/uptrace/bun"
 
@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/postgres"
 	application "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type Observation = ports.Observation
@@ -26,26 +25,7 @@ func New(dependencies Dependencies) (*schoolstructure.Module, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("school structure compose: all dependencies are required")
 	}
-	store := postgres.New(func(ctx context.Context) (bun.IDB, error) {
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return nil, errors.New("school structure postgres: transaction is required")
-		}
-		switch tx := transaction.(type) {
-		case bun.Tx:
-			return tx, nil
-		case *bun.Tx:
-			if tx != nil {
-				return tx, nil
-			}
-			return nil, errors.New("school structure postgres: transaction is required")
-		default:
-			return nil, fmt.Errorf("school structure postgres: unsupported transaction %T", transaction)
-		}
-	})
-	service := application.New(store, func(observation Observation) {
-		observation.Err = application.MapError(observation.Err)
-		dependencies.Observe(observation)
-	})
+	store := postgres.New(postgres.NewAmbientDatabase(tenant.TransactionFromContext))
+	service := application.New(store, application.NewObserver(dependencies.Observe))
 	return schoolstructure.NewModule(application.NewEngine(service)), nil
 }

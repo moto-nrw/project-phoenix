@@ -3,9 +3,9 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 19.10.2026 · Ratchet 0 · Composition 0 · Policy-Epoche 85 ·
+Stand 19.10.2026 · Ratchet 0 · Composition 0 · Policy-Epoche 86 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 0 Legacy-Verzeichnisse und
-0 `legacy_*.go` · Compose-Cap 20.916 LOC.
+0 `legacy_*.go` · Compose-Cap 20.106 LOC.
 
 `backend/architecture/legacy.jsonl` ist leer. Der normale Architekturcheck und
 der Check ohne Baseline müssen beide mit null Verstößen bestehen. Der letzte
@@ -23,9 +23,17 @@ Der Nachweis deckt den letzten Key von #4004 ab:
 
 Der leere Ratchet beweist nicht die restlichen Layout- und Rollen-Exits.
 #4084 bleibt wegen der inventarisierten Laufzeitlogik in Kompositionen offen.
-#4086 bleibt wegen der 17 Implementierungspakete außerhalb von `internal`
-offen. Exakte Guard-Blocker, alle verbleibenden Compose-Funktionen und die
-Paketpfade stehen im [aktuellen Exit-Audit](../../docs/architecture/final-legacy-cluster.md).
+Die verbleibenden 16 Nicht-Root-Implementierungspakete liegen jetzt unter
+`internal`. Fünf private Projektionsadapter liegen bei ihren Projektions-Ownern.
+`cmd` bleibt eine Root-Rolle (ADR 0053/0059), `templates/email` enthält nur Assets.
+Der Layout-Exit von #4086 ist damit belegt. Der vollständige Compose-Audit und
+der verworfene Announcement-Port-Versuch stehen im
+[aktuellen Exit-Audit](../../docs/architecture/final-legacy-cluster.md).
+Die ADR-0020-Erweiterung akzeptiert nur geprüfte Pfadwechsel gleicher Grants
+und Registereinträge; Tabellen, Rechte, Operationen, Gründe und Bodies bleiben gleich.
+Die aktuelle Composition ist 0; der gemeinsame Vergleich beider Policy-Stände
+zählt elf bereits vorhandene Delivery-Root/Test-Felder auf beiden Seiten.
+Es kommt kein Feld hinzu.
 Die folgenden Abschnitte enthalten den historischen Verlauf; ihre früheren
 Zähler sind kein aktueller Stand.
 

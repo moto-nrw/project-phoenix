@@ -35,11 +35,11 @@
     "source": "Local verification of PR #4120 against development base 86abb54ca22e7008fc531a50eb3f9b71f53b7102; behavior evidence comes from the existing workflow and API suites, not a production sample or latency benchmark.",
     "sources": [
       "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/parent_portal_delivery_ports.go",
-      "backend/workflows/parentportal/care/presence_queries.go",
-      "backend/workflows/parentportal/care/notification_ports.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/care/presence_queries.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/care/notification_ports.go",
       "backend/workflows/parentportal/parent_write_service_test.go",
-      "backend/workflows/parentportal/care/parent_today_status_service_test.go",
-      "backend/workflows/parentportal/care/parent_messaging_read_service_test.go"
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/care/parent_today_status_service_test.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/148e5aeb86cf22fdbfbffedd76ba070f52f80a3e/backend/workflows/parentportal/care/parent_messaging_read_service_test.go"
     ],
     "workload": "Changed-package Go tests through the pinned toolchain against the local test database, plus the architecture ratchet and migration-evidence validator.",
     "thresholds": "All affected suites pass with unchanged assertions; all seven listed keys are absent and covered; no new legacy key, rule, permission or composition field/setter is introduced.",

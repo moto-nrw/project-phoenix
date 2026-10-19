@@ -5,7 +5,7 @@ package deviceauth
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/auth/device"
+	device "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/adapters/deviceauth"
 )
 
 // Device-authentication state that production builds in middleware. Behaviour

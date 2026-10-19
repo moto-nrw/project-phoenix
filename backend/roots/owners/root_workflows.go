@@ -26,7 +26,7 @@ func BuildStudentDeletion(
 	if err != nil {
 		return nil, fmt.Errorf("compose student deletion owners: %w", err)
 	}
-	workflow, err := studentdeletioncompose.New(studentdeletioncompose.Dependencies{
+	workflow, err := NewStudentDeletion(studentdeletioncompose.Dependencies{
 		DB: db.Pool(), Owners: owners, Directory: persons, CarePlan: carePlan, Timetable: timetableOwner,
 		Feedback: feedback, IsVerifiedStaff: verifiedStaff,
 		LockCareBookingWrites: owner.RecurrenceLock.LockRecurrenceWrites,
