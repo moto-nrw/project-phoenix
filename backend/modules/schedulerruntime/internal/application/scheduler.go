@@ -198,11 +198,7 @@ func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 		pwaUsageCleanup:            deps.PWAUsageCleanup,
 		staffMessageCleanup:        deps.StaffMessageCleanup,
 		enrollmentRejectedCleanup:  deps.EnrollmentRejectedCleanup,
-		cleanupJobs: append(
-			append(buildCleanupJobs(deps.AuthCleanup, deps.InvitationCleanup, deps.EmailChangeCleanup, deps.OperatorInvitationCleanup),
-				operatorRetentionJobs(deps.OperatorRetention)...),
-			accountRetentionJobs(deps.AccountRetention)...,
-		),
+		cleanupJobs:                schedulerCleanupJobs(deps),
 
 		activeService:          deps.Active,
 		breakAutoEnder:         deps.BreakAutoEnder,
@@ -233,6 +229,12 @@ func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 		unitOfWorkObserver:    deps.UnitOfWorkObserver,
 		workerTracer:          deps.Tracer,
 	}
+}
+
+func schedulerCleanupJobs(deps ports.WorkerDependencies) []CleanupJob {
+	jobs := buildCleanupJobs(deps.AuthCleanup, deps.InvitationCleanup, deps.EmailChangeCleanup, deps.OperatorInvitationCleanup)
+	jobs = append(jobs, operatorRetentionJobs(deps.OperatorRetention)...)
+	return append(jobs, accountRetentionJobs(deps.AccountRetention)...)
 }
 
 // getLogger returns the scheduler's logger, falling back to slog.Default() if nil.
