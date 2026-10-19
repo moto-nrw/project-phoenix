@@ -39,8 +39,8 @@ func TestStaffDirectoryFindStaffByPersonPrefersLatestRetiredMembership(t *testin
 
 	retiredAt := time.Time{}
 	directory := staffDirectory{repos: LifecycleRepositories{Membership: lifecycleMembershipStub{staff: []schoolmembership.Staff{
-		{ID: 101, TenantID: 1, PersonID: 42, DeletedAt: &retiredAt},
-		{ID: 202, TenantID: 1, PersonID: 42, DeletedAt: &retiredAt},
+		{ID: 101, PersonID: 42, DeletedAt: &retiredAt},
+		{ID: 202, PersonID: 42, DeletedAt: &retiredAt},
 	}}}}
 
 	staff, found, err := directory.FindStaffByPerson(context.Background(), 42)
