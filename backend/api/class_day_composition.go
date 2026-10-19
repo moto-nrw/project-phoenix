@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
@@ -32,7 +34,7 @@ import (
 func NewClassDay(
 	deps classdayCompose.ClassDayDependencies, reports enrollmentOwner.Reports, statusDays classDayStatusDayReader,
 	students classDayStudentRows, persons classDayPersonRows, studentGuardians classDayContactRows,
-	accessLog accessLogLedger, settings classDayWriteScopeSettings, broadcaster realtime.Broadcaster, logger *slog.Logger,
+	accessLog owners.AccessLogLedger, settings classDayWriteScopeSettings, broadcaster realtime.Broadcaster, logger *slog.Logger,
 ) classday.ClassDay {
 	deps.WriteScope = newClassDayWriteScope(settings)
 	deps.Announcer = classDayArrivalAnnouncer{broadcaster: broadcaster, logger: logger}
@@ -167,26 +169,18 @@ func (b classDayEmergencyContacts) EmergencyContactRows(ctx context.Context, stu
 	for _, row := range rows {
 		out = append(out, classdayCompose.EmergencyContactRow{
 			StudentID: row.StudentID, GuardianProfileID: row.GuardianProfileID,
-			FirstName: stringValue(row.FirstName), LastName: stringValue(row.LastName),
-			RelationshipType: stringValue(row.RelationshipType), PickupNotes: stringValue(row.PickupNotes),
-			PhoneNumber: stringValue(row.PhoneNumber), CanPickup: row.CanPickup, IsEmergencyContact: row.IsEmergencyContact,
+			FirstName: owners.StringValue(row.FirstName), LastName: owners.StringValue(row.LastName),
+			RelationshipType: owners.StringValue(row.RelationshipType), PickupNotes: owners.StringValue(row.PickupNotes),
+			PhoneNumber: owners.StringValue(row.PhoneNumber), CanPickup: row.CanPickup, IsEmergencyContact: row.IsEmergencyContact,
 		})
 	}
 	return out, nil
 }
 
-// stringValue reads a nullable projection column; NULL reads as "".
-func stringValue(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
-}
-
 // classDayAccessLog appends the school portal's reads to
 // audit.data_access_log.
 type classDayAccessLog struct {
-	repo accessLogLedger
+	repo owners.AccessLogLedger
 }
 
 func (l classDayAccessLog) ClassDayViewSeenSince(ctx context.Context, actorAccountID int64, schoolClass, date string, since time.Time) (bool, error) {

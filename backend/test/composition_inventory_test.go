@@ -25,7 +25,7 @@ var (
 
 var expectedCompositionRoots = []compositionRoot{
 	{ID: "serve", Kind: "http", File: "api/server.go", Declaration: "WithRuntime", SmokeTest: "api/route_table_golden_test.go#TestFullProductionRouterGolden", Tables: []string{}},
-	{ID: "worker", Kind: "embedded-worker", File: "api/server.go", Declaration: "newWorker", SmokeTest: "test/composition_inventory_test.go#TestWorkerJobRegistryInventory", Tables: []string{}},
+	{ID: "worker", Kind: "embedded-worker", File: "roots/owners/worker.go", Declaration: "NewWorker", SmokeTest: "test/composition_inventory_test.go#TestWorkerJobRegistryInventory", Tables: []string{}},
 	{ID: "commands", Kind: "cli", File: "cmd/root.go", Declaration: "RootCmd", SmokeTest: "cmd/root_test.go#TestRootCmd_HasCommands", Tables: []string{}},
 }
 
@@ -40,6 +40,7 @@ var expectedCompositionSmokeTests = []string{
 }
 
 var compositionTestPackages = []string{
+	"roots/owners",
 	"api",
 	"cmd",
 	"test",
@@ -48,6 +49,7 @@ var compositionTestPackages = []string{
 }
 
 var compositionTestSmokeByPackage = map[string]string{
+	"roots/owners":       "test/composition_inventory_test.go#TestCompositionInventory",
 	"api":                "api/route_table_golden_test.go#TestFullProductionRouterGolden",
 	"cmd":                "cmd/root_test.go#TestRootCmd_HasCommands",
 	"test":               "test/composition_inventory_test.go#TestCompositionInventory",
@@ -345,7 +347,7 @@ type callerAggregate struct {
 func discoverConstructorCallers(t *testing.T, backendRoot string, policy *compositionPolicy) []constructorCaller {
 	t.Helper()
 	aggregates := make(map[string]*callerAggregate)
-	for _, root := range []string{"api", "cmd", "services", filepath.Join("database", "repositories"), "test"} {
+	for _, root := range []string{"api", "roots/owners", "cmd", "services", filepath.Join("database", "repositories"), "test"} {
 		scanConstructorRoot(t, backendRoot, root, policy, aggregates)
 	}
 	result := make([]constructorCaller, 0, len(aggregates))

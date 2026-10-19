@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
@@ -23,13 +25,13 @@ type ActiveTestRepositories struct {
 		LockSessionStart(context.Context, int64) error
 	}
 	GroupMapping *studentpresence.Module
-	CrossTenant  CrossTenantQuery
+	CrossTenant  owners.CrossTenantQuery
 }
 
 // NewActiveTestRepositories composes the active suites' presence rows over
 // the People Directory and School Membership repositories in members.
-func NewActiveTestRepositories(db transactionruntime.Database, members MembershipTestRepositories, clocks ...func() time.Time) (ActiveTestRepositories, error) {
-	tt, err := NewTimetableTestRepositoriesWithMembers(db, members, clocks...)
+func NewActiveTestRepositories(db transactionruntime.Database, members owners.MembershipTestRepositories, clocks ...func() time.Time) (ActiveTestRepositories, error) {
+	tt, err := owners.NewTimetableTestRepositoriesWithMembers(db, members, clocks...)
 	if err != nil {
 		return ActiveTestRepositories{}, err
 	}
@@ -37,25 +39,25 @@ func NewActiveTestRepositories(db transactionruntime.Database, members Membershi
 	if err != nil {
 		return ActiveTestRepositories{}, err
 	}
-	groups, err := NewSchoolStructure(db)
+	groups, err := owners.NewSchoolStructure(db)
 	if err != nil {
 		return ActiveTestRepositories{}, err
 	}
 	return ActiveTestRepositories{TimetablePresenceRows: presence,
-		SessionStartLock: NewUnloggedStudentPresence(db), GroupMapping: NewUnloggedStudentPresence(db),
-		CrossTenant: NewCrossTenantQuery(NewUnloggedStudentPresence(db), members.People, groups)}, nil
+		SessionStartLock: owners.NewUnloggedStudentPresence(db), GroupMapping: owners.NewUnloggedStudentPresence(db),
+		CrossTenant: owners.NewCrossTenantQuery(owners.NewUnloggedStudentPresence(db), members.People, groups)}, nil
 }
 
 // NewActiveTestPeopleRows are the People Directory rows of the active suites:
 // the members they pass.
-func NewActiveTestPeopleRows(_ transactionruntime.Database, members MembershipTestRepositories, _ ...func() time.Time) MembershipTestRepositories {
+func NewActiveTestPeopleRows(_ transactionruntime.Database, members owners.MembershipTestRepositories, _ ...func() time.Time) owners.MembershipTestRepositories {
 	return members
 }
 
 // NewActiveTestTimetableRows are the Timetable rows of the active suites over
 // members.
-func NewActiveTestTimetableRows(db transactionruntime.Database, members MembershipTestRepositories, clocks ...func() time.Time) TimetableTestRepositories {
-	tt, err := NewTimetableTestRepositoriesWithMembers(db, members, clocks...)
+func NewActiveTestTimetableRows(db transactionruntime.Database, members owners.MembershipTestRepositories, clocks ...func() time.Time) owners.TimetableTestRepositories {
+	tt, err := owners.NewTimetableTestRepositoriesWithMembers(db, members, clocks...)
 	if err != nil {
 		panic(fmt.Sprintf("active test rows: compose timetable: %v", err))
 	}
@@ -64,8 +66,8 @@ func NewActiveTestTimetableRows(db transactionruntime.Database, members Membersh
 
 // NewActiveTestCarePlanRows are the Care Plan rows of the active suites over
 // members.
-func NewActiveTestCarePlanRows(db transactionruntime.Database, members MembershipTestRepositories, clocks ...func() time.Time) TimetableCarePlanRows {
-	rows, err := NewTimetableCarePlanRows(db, NewActiveTestTimetableRows(db, members, clocks...), members)
+func NewActiveTestCarePlanRows(db transactionruntime.Database, members owners.MembershipTestRepositories, clocks ...func() time.Time) owners.TimetableCarePlanRows {
+	rows, err := owners.NewTimetableCarePlanRows(db, NewActiveTestTimetableRows(db, members, clocks...), members)
 	if err != nil {
 		panic(fmt.Sprintf("active test rows: compose care plan: %v", err))
 	}
@@ -73,6 +75,6 @@ func NewActiveTestCarePlanRows(db transactionruntime.Database, members Membershi
 }
 
 // NewActiveTestRoomRows are the Facilities rooms of the active suites.
-func NewActiveTestRoomRows(db transactionruntime.Database, _ MembershipTestRepositories, _ ...func() time.Time) TimetableRoomRows {
+func NewActiveTestRoomRows(db transactionruntime.Database, _ owners.MembershipTestRepositories, _ ...func() time.Time) owners.TimetableRoomRows {
 	return MustNewTimetableRoomRows(db)
 }

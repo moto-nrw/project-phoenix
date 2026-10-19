@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -214,7 +215,7 @@ func TestInstanceStaffRepository_DeleteUpcomingByStaffID(t *testing.T) {
 	futureRow := makeRow(futureInst.ID, staff.ID)
 	otherFutureRow := makeRow(futureInst.ID, otherStaff.ID)
 
-	affected, err := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)).DeleteUpcomingInstanceStaff(ctx, staff.ID, cutoff.String())
+	affected, err := owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)).DeleteUpcomingInstanceStaff(ctx, staff.ID, cutoff.String())
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), affected)
 

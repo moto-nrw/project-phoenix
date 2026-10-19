@@ -13,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -37,7 +38,7 @@ func newChangeRequestServiceForTestWithAuthorizer(
 	repoFactory := env.repos
 	repoFactoryCare := env.reposCare
 	repoFactorySchools := env.reposSchools
-	return newTestChangeRequestService(api.EnrollmentChangeRequestSources{
+	return newTestChangeRequestService(owners.EnrollmentChangeRequestSources{
 		Bookings:            requestTestBookingCommands(),
 		Requests:            repoFactory.Enrollment(),
 		Children:            repoFactory.Enrollment(),
@@ -103,7 +104,7 @@ func newChangeRequestServiceWithDecisionAndIntakeForTest(
 	requests enrollmentCompose.ChangeRequestRecords,
 ) enrollmentAPI.ChangeRequestService {
 	t.Helper()
-	return newTestChangeRequestService(api.EnrollmentChangeRequestSources{
+	return newTestChangeRequestService(owners.EnrollmentChangeRequestSources{
 		Bookings:            requestTestBookingCommands(),
 		Requests:            requests,
 		Children:            env.repos.Enrollment(),
@@ -180,7 +181,7 @@ func TestNewChangeRequestService_ParentsURLRequired(t *testing.T) {
 	t.Parallel()
 
 	assert.PanicsWithValue(t, "PARENTS_URL is required", func() {
-		newTestChangeRequestService(api.EnrollmentChangeRequestSources{
+		newTestChangeRequestService(owners.EnrollmentChangeRequestSources{
 			Bookings:    requestTestBookingCommands(),
 			FrontendURL: "http://localhost:3000",
 		})
@@ -190,7 +191,7 @@ func TestNewChangeRequestService_ParentsURLRequired(t *testing.T) {
 func TestChangeRequestService_CorrectApprovedChildData_RequiresReason(t *testing.T) {
 	t.Parallel()
 
-	svc := newTestChangeRequestService(api.EnrollmentChangeRequestSources{
+	svc := newTestChangeRequestService(owners.EnrollmentChangeRequestSources{
 		Bookings:   requestTestBookingCommands(),
 		ParentsURL: "http://parents.localhost:3000",
 	})
@@ -1800,7 +1801,7 @@ func TestChangeRequestService_PreservesReadFailures(t *testing.T) {
 		{"detail", "read"}, {"detail", "parent"}, {"question", "read"}, {"question", "lock"}, {"question", "parent"}, {"reply", "lock"}, {"reply", "token"}, {"detail", "phase"}, {"create", "phase"},
 	} {
 		t.Run(tc.operation+"/"+tc.fail, func(t *testing.T) {
-			svc := newTestChangeRequestService(api.EnrollmentChangeRequestSources{
+			svc := newTestChangeRequestService(owners.EnrollmentChangeRequestSources{
 				Bookings: requestTestBookingCommands(),
 				Requests: failingChangeRequestReader{ChangeRequestRecords: env.config.Requests.(enrollmentCompose.ChangeRequestRecords), fail: tc.fail},
 				Children: env.config.Children, Settings: env.settings,

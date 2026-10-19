@@ -10,6 +10,7 @@ import (
 	announcement "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements"
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -40,7 +41,7 @@ func buildNoticeService(t *testing.T, settings *settingsDouble) (announcement.Se
 	svc := announcement.NewService(announcement.ServiceConfig{
 		Repo:       announcement.NewRepository(reposMessages.ParentAnnouncement),
 		Settings:   configModel.NewParentAnnouncementValues(settings),
-		Notifier:   noticeNotificationCallback(api.BindCommunicationNotificationSender(api.NewCommunicationTestNotifier(settings, slog.Default()))),
+		Notifier:   noticeNotificationCallback(owners.BindCommunicationNotificationSender(api.NewCommunicationTestNotifier(settings, slog.Default()))),
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
 	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})

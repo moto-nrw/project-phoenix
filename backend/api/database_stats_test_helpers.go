@@ -6,6 +6,8 @@ import (
 	"context"
 	"log/slog"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	databasestats "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
@@ -18,8 +20,8 @@ func NewDatabaseStatsTestReader(db transactionruntime.Database) (DatabaseStatsRe
 	if err != nil {
 		return nil, err
 	}
-	members := MustNewMembershipTestRepositories(db)
-	rooms, err := NewTimetableRoomRows(db)
+	members := owners.MustNewMembershipTestRepositories(db)
+	rooms, err := owners.NewTimetableRoomRows(db)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +48,7 @@ func NewDatabaseStatsTestReader(db transactionruntime.Database) (DatabaseStatsRe
 			return len(rows), err
 		},
 		Groups: func(ctx context.Context) (int, error) {
-			rows, err := NewSchoolStructureSuiteRepositories(db).Group.List(ctx, nil)
+			rows, err := owners.NewSchoolStructureSuiteRepositories(db).Group.List(ctx, nil)
 			return len(rows), err
 		},
 		Roles: func(ctx context.Context) (int, error) {

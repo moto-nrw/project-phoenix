@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -30,7 +32,7 @@ func TestTimeTrackingAuditReaderPreservesQueryAndPartialRows(t *testing.T) {
 	row := &audit.TimeTrackingAuditLogEntry{OccurredAt: now, Source: "session_edit", EntryID: 7, ActorIsSystem: true, Reason: "reason", Detail: []byte(`{"fields":[]}`)}
 	row.StaffID, row.ActorStaffID = &row.EntryID, &row.EntryID
 	for _, day := range []*calendar.Date{nil, &zero, &date} {
-		reader := NewTimeTrackingAuditReader(auditFeedRecords{read: func(gotCtx context.Context, filter audit.TimeTrackingAuditLogFilter) ([]*audit.TimeTrackingAuditLogEntry, error) {
+		reader := owners.NewTimeTrackingAuditReader(auditFeedRecords{read: func(gotCtx context.Context, filter audit.TimeTrackingAuditLogFilter) ([]*audit.TimeTrackingAuditLogEntry, error) {
 			require.Equal(t, ctx, gotCtx)
 			if day == nil {
 				require.Nil(t, filter.From)
@@ -79,7 +81,7 @@ func TestWorkSessionAuditPreservesPartialWriteEvidence(t *testing.T) {
 	now := time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
 	edit := &workforceCompose.WorkSessionEdit{TenantID: 9, SessionID: 7, StaffID: 8, EditedBy: 0, FieldName: "check_out_time", OldValue: &value, NewValue: &value, Notes: &value, CreatedAt: now}
 	writeErr := errors.New("second row failed")
-	writer := NewWorkSessionAudit(editAuditRecords{write: func(gotCtx context.Context, rows []*audit.WorkSessionEdit) error {
+	writer := owners.NewWorkSessionAudit(editAuditRecords{write: func(gotCtx context.Context, rows []*audit.WorkSessionEdit) error {
 		require.Equal(t, ctx, gotCtx)
 		require.Len(t, rows, 2)
 		require.Nil(t, rows[1])
@@ -106,7 +108,7 @@ func TestWorkSessionAuditPreservesReadShapeAndError(t *testing.T) {
 	ctx := context.Background()
 	readErr := errors.New("partial read")
 	for _, rows := range [][]*audit.WorkSessionEdit{nil, {}, {nil, {ID: 7, SessionID: 8, FieldName: "date"}}} {
-		reader := NewWorkSessionAudit(editAuditRecords{read: func(gotCtx context.Context, id int64) ([]*audit.WorkSessionEdit, error) {
+		reader := owners.NewWorkSessionAudit(editAuditRecords{read: func(gotCtx context.Context, id int64) ([]*audit.WorkSessionEdit, error) {
 			require.Equal(t, ctx, gotCtx)
 			require.EqualValues(t, 8, id)
 			return rows, readErr

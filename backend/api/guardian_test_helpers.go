@@ -10,6 +10,7 @@ import (
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -33,28 +34,28 @@ func newGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
-	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
+	command, err := auditCompose.NewCommand(owners.NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
-	r, err := NewMembershipTestRepositories(db)
+	r, err := owners.NewMembershipTestRepositories(db)
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
 	g := NewGuardianTestRepositoriesWithoutAudit(db)
-	audits := NewTestAuditPersistence(db, command)
+	audits := owners.NewTestAuditPersistence(db, command)
 	identity, _, err := newStaffIdentityForTests(db)
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
 	guardian := peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{
 		GuardianProfileRepo: r.GuardianProfile, GuardianPhoneNumberRepo: g.Phone, StudentGuardianRepo: r.StudentGuardian,
-		GuardianInvitations: NewGuardianInvitationReads(auth.AccountAuthentication),
+		GuardianInvitations: owners.NewGuardianInvitationReads(auth.AccountAuthentication),
 		StudentRepo:         NewUnboundStudentRepository(db), PersonRepo: r.Person,
 		GuardianFinancialRepo:  g.Financial,
-		GuardianFinancialAudit: NewGuardianFinancialAudit(audits.GuardianFinancialChange), DataAccessLog: NewGuardianDataAccessLog(audits.DataAccessLog),
-		RolePresets: guardianRolePresets}, db.Pool())
-	people, err := NewPeopleDirectoryWithObserver(db, func(peopleCompose.Observation) {}, &peopleCompose.GuardianDirectoryProvider{Guardians: guardian, Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), PermissionGranted: securityruntime.GuardianPermissionGranted}, photos)
+		GuardianFinancialAudit: owners.NewGuardianFinancialAudit(audits.GuardianFinancialChange), DataAccessLog: owners.NewGuardianDataAccessLog(audits.DataAccessLog),
+		RolePresets: owners.GuardianRolePresets}, db.Pool())
+	people, err := owners.NewPeopleDirectoryWithObserver(db, func(peopleCompose.Observation) {}, &peopleCompose.GuardianDirectoryProvider{Guardians: guardian, Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), PermissionGranted: securityruntime.GuardianPermissionGranted}, photos)
 	if err != nil {
 		return GuardianTestModule{}, err
 	}

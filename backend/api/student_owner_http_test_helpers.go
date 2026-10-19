@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
 	"github.com/go-chi/chi/v5"
@@ -44,7 +46,7 @@ import (
 
 // NewStudentHTTPTestResources uses the same owner bindings and tenant mounts as production.
 // The caller supplies its existing fixture reader and actor, not a second row model.
-func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.UnitOfWork, svc StudentTestModule, live ActiveTestModule, liveSettings ActiveSettings, liveEducation ActiveEducation, liveCaller *CallerRows, livePeople ActivePeople, livePresence ActivePresence, liveTimetable ActiveTimetable, peopleServices StudentTestPeople, audit auditModels.Command, groupLive grouplive.Query,
+func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.UnitOfWork, svc StudentTestModule, live ActiveTestModule, liveSettings ActiveSettings, liveEducation ActiveEducation, liveCaller *owners.CallerRows, livePeople ActivePeople, livePresence ActivePresence, liveTimetable ActiveTimetable, peopleServices StudentTestPeople, audit auditModels.Command, groupLive grouplive.Query,
 	broadcaster realtime.Broadcaster, caller peopleStudentsHTTP.CallerContext, studentRows carePlanCompose.StudentDirectory,
 	feedback studentdeletioncompose.Feedback, auditActor peoplePorts.RequestAuditActor,
 	authenticateDevice common.Middleware, deviceID peopleStudentsHTTP.DeviceIdentity, authoritative *bool, clock func() time.Time,
@@ -60,7 +62,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 	repoFactoryTimetable := NewEnrollmentTimetableRows(store)
 	repoFactoryCare := NewEnrollmentCarePlanRows(store)
 	repoFactoryRooms := MustNewTimetableRoomRows(store)
-	schools, err := NewOrganizationTenancy(store)
+	schools, err := owners.NewOrganizationTenancy(store)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, err
 	}
@@ -76,7 +78,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, err
 	}
-	deletionOwners, err := NewStudentDeletionOwners(store)
+	deletionOwners, err := owners.NewStudentDeletionOwners(store)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, err
 	}
@@ -88,7 +90,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 		DB: store.Pool(), Owners: deletionOwners, Directory: peopleServices.PeopleDirectory, CarePlan: students.CarePlan, Timetable: repoFactoryTimetable.Timetable,
 		Feedback: feedback, IsVerifiedStaff: liveCaller.HasCurrentStaff, LockCareBookingWrites: recurrence.LockRecurrenceWrites,
 		UnlinkPhoto: studentPhotos.ScheduleUnlinkAfterCommit, Broadcaster: broadcaster, Audit: audit, Now: clock,
-	}, NewStudentActivityEnrollments())
+	}, owners.NewStudentActivityEnrollments())
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, err
 	}
@@ -207,7 +209,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 		reviewStudentsHTTP.ResourceConfig{
 			PeopleDirectory:     peopleServices.PeopleDirectory,
 			RequestReview:       requestReview,
-			RequestReviewAccess: NewParentRequestReviewPolicy(liveCaller.Caller().ParentRequestReviews),
+			RequestReviewAccess: owners.NewParentRequestReviewPolicy(liveCaller.Caller().ParentRequestReviews),
 		},
 	)
 
@@ -223,8 +225,8 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 	return people, care, projection, status, deletion, review, router, nil
 
 }
-func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTestModule, live *CallerRows, liveSettings ActiveSettings, peopleServices StudentTestPeople, studentRows carePlanCompose.StudentDirectory, clock func() time.Time) (requestreview.Query, careplan.CareScheduleReviewQuery, error) {
-	reviewGroups, err := NewSchoolStructure(store)
+func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTestModule, live *owners.CallerRows, liveSettings ActiveSettings, peopleServices StudentTestPeople, studentRows carePlanCompose.StudentDirectory, clock func() time.Time) (requestreview.Query, careplan.CareScheduleReviewQuery, error) {
+	reviewGroups, err := owners.NewSchoolStructure(store)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -28,6 +28,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -42,7 +43,7 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 	t.Helper()
 	// RFID tag release runs through the People Directory composition (#2661).
 	repos, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db))
-	reposStructure := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposStructure := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposAccounts := api.NewAccountSuiteRepositories(testpkg.NewDatabase(t, db))
 	timetableRepos := testTimetableRepositories(db)
@@ -59,14 +60,14 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 		GroupRepo:          sessionGroups,
 		SupervisorRepo:     sessionSupervisors,
 		SchoolPresence:     presence,
-		StudentRepo:        api.PresenceStudents(testpkg.MustDatabase(db), repos.Student),
-		StaffRepo:          api.NewAttendanceStaffDirectory(repos.Staff),
+		StudentRepo:        owners.PresenceStudents(testpkg.MustDatabase(db), repos.Student),
+		StaffRepo:          owners.NewAttendanceStaffDirectory(repos.Staff),
 		RoomRepo:           api.NewAttendanceRooms(api.NewRoomRepository(rooms)),
-		ActivityGroupRepo:  api.NewSessionActivities(timetableRepos.GroupReads()),
+		ActivityGroupRepo:  owners.NewSessionActivities(timetableRepos.GroupReads()),
 		ActivityCatRepo:    api.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
-		EducationGroupRepo: api.NewAttendanceEducationGroups(reposStructure.Group, repos.Student),
-		DeviceRepo:         api.NewSessionDeviceDirectory(devices, nil, nil),
-		StaffNames: api.NewAttendanceStaffNames(repos.Staff, api.NewTestPersonDirectory(testpkg.NewDatabase(t, db), api.TestPersonDirectorySources{
+		EducationGroupRepo: owners.NewAttendanceEducationGroups(reposStructure.Group, repos.Student),
+		DeviceRepo:         owners.NewSessionDeviceDirectory(devices, nil, nil),
+		StaffNames: owners.NewAttendanceStaffNames(repos.Staff, api.NewTestPersonDirectory(testpkg.NewDatabase(t, db), api.TestPersonDirectorySources{
 			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
 			RFIDCards: reposAccounts.RFIDCard, AccountExists: api.AccountExists(reposAccounts.Profile),
 		})),

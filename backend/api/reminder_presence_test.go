@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +27,7 @@ func TestReminderVisitReaderGroupsWholeSchoolFacts(t *testing.T) {
 	facts := &reminderVisitFacts{roomID: -1, rows: []studentpresence.OpenVisitRoom{
 		{RoomID: 10, StudentID: 1}, {RoomID: 10, StudentID: 2}, {RoomID: 20, StudentID: 2},
 	}}
-	reader := ReminderVisitReader{Source: facts}
+	reader := owners.ReminderVisitReader{Source: facts}
 	rooms, err := reader.ListOpenVisitStudentIDsByRoom(context.Background())
 	require.NoError(t, err)
 	require.Zero(t, facts.roomID)

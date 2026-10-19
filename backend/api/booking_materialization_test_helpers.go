@@ -6,6 +6,8 @@ import (
 	"context"
 	"log/slog"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -58,7 +60,7 @@ type BookingMaterializationTestModule struct {
 // NewBookingMaterializationTestModule composes the booking materialization
 // over the test database.
 func NewBookingMaterializationTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, options BookingMaterializationTestOptions) (BookingMaterializationTestModule, error) {
-	auditCommand, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
+	auditCommand, err := auditCompose.NewCommand(owners.NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
@@ -76,7 +78,7 @@ func NewBookingMaterializationTestModule(db transactionruntime.Database, unit te
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
-	people, err := NewPeopleDirectory(db)
+	people, err := owners.NewPeopleDirectory(db)
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
@@ -84,14 +86,14 @@ func NewBookingMaterializationTestModule(db transactionruntime.Database, unit te
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
-	approved := enrollmentCompose.NewApprovedOfferingProjection(repos.Enrollment(), OfferingStudents{Query: people})
+	approved := enrollmentCompose.NewApprovedOfferingProjection(repos.Enrollment(), owners.OfferingStudents{Query: people})
 	pickup, err := careplanCompose.NewPickupBaselines(students.CarePlan, approved, func(ctx context.Context) (bool, error) {
 		return settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 	})
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
-	deps, err := bookingMaterializationOwners(
+	deps, err := owners.BookingMaterializationOwners(
 		reposTimetable.Timetable, reposTimetable.RosterMaintenance(slog.Default(), nil), people, reposCalendar.SchoolCalendar(), repos.Enrollment(),
 		approved, NewStudentAuditRows(db, auditCommand).EnrollmentOfferingAdjustment, repos.Person, accounts, pickup, students.CarePlan,
 	)
@@ -126,7 +128,7 @@ func bookingTestSettings(db transactionruntime.Database, unit tenant.UnitOfWork,
 	if settings, ok := options.Settings.(bookingTestSettingsReads); ok {
 		return settings, nil
 	}
-	module, err := NewSettingsTestModule(db, unit)
+	module, err := owners.NewSettingsTestModule(db, unit)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +157,7 @@ func (s bookingTestOverlaySettings) ResolveInt(ctx context.Context, key string) 
 	return s.ints.ResolveInt(ctx, key)
 }
 
-func bookingTestCatalog(db transactionruntime.Database, r TimetableTestRepositories, settings bookingTestSettingsReads, options BookingMaterializationTestOptions) (careplan.CareOfferingCatalogCapability, error) {
+func bookingTestCatalog(db transactionruntime.Database, r owners.TimetableTestRepositories, settings bookingTestSettingsReads, options BookingMaterializationTestOptions) (careplan.CareOfferingCatalogCapability, error) {
 	if options.Catalog != nil {
 		return options.Catalog, nil
 	}
@@ -223,7 +225,7 @@ func newBookingMaterialization(deps careplanCompose.BookingMaterializationDepend
 		deps.Logger = slog.Default()
 	}
 	if broadcaster != nil {
-		deps.PickupStaff = pickupScheduleBroadcaster{broadcaster: broadcaster}
+		deps.PickupStaff = owners.PickupScheduleBroadcaster{Broadcaster: broadcaster}
 	}
 	return careplanCompose.NewBookingMaterialization(deps)
 }

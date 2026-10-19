@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -30,20 +31,20 @@ func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (*parentSe
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges: api.ParentGuardianChanges(),
-		DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy:  api.NewParentGuardianPolicy(),
-		Fingerprints:    api.SecurityFingerprints{},
-		Declarations:    api.ParentDeclarationPolicy(),
-		Locales:         api.ParentPortalLocales(),
+		GuardianChanges: owners.ParentGuardianChanges(),
+		DeparturePolicy: owners.ParentDeparturePolicy(),
+		GuardianPolicy:  owners.NewParentGuardianPolicy(),
+		Fingerprints:    owners.SecurityFingerprints{},
+		Declarations:    owners.ParentDeclarationPolicy(),
+		Locales:         owners.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
-		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
-		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CarePlan:        owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:          owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
-		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
+		StudentRepo:     owners.NewParentStudentReads(reposPeople.Student),
+		CareExceptions:  owners.NewParentCareExceptions(repos.CarePlan()),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
 				parentService.KeyParentPickupChangeEnabled: pickupChangeEnabled,
@@ -54,9 +55,9 @@ func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (*parentSe
 		},
 		Logger: slog.Default(),
 
-		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
 
-		CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 	return svc, db
 }
@@ -72,10 +73,10 @@ func buildPickupChangeServiceWithRequests(t *testing.T, configure ...func(*paren
 
 // buildPickupChangeServiceWithRequestOptions is buildPickupChangeServiceWithRequests
 // with construction options for the request service (#3163 pins its clock).
-func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []api.CareRequestOption, configure ...func(*parentportalcompose.Dependencies)) (*parentService.Portal, *bun.DB, *api.RepositoryTestFactory) {
+func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []owners.CareRequestOption, configure ...func(*parentportalcompose.Dependencies)) (*parentService.Portal, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	timetableOwner := api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))
+	timetableOwner := owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	_, schedules, sfServices, caller, persons, _, err := api.NewTestCareRequests(testpkg.NewDatabase(t, db), slog.Default())
@@ -83,7 +84,7 @@ func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []a
 
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	careRequests := api.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+	careRequests := owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		repos.CarePlan(),
 		persons,
 		schedules.Arrivals,
@@ -105,20 +106,20 @@ func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []a
 	)
 
 	cfg := parentportalcompose.Dependencies{
-		GuardianChanges: api.ParentGuardianChanges(),
-		DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy:  api.NewParentGuardianPolicy(),
-		Fingerprints:    api.SecurityFingerprints{},
-		Declarations:    api.ParentDeclarationPolicy(),
-		Locales:         api.ParentPortalLocales(),
+		GuardianChanges: owners.ParentGuardianChanges(),
+		DeparturePolicy: owners.ParentDeparturePolicy(),
+		GuardianPolicy:  owners.NewParentGuardianPolicy(),
+		Fingerprints:    owners.SecurityFingerprints{},
+		Declarations:    owners.ParentDeclarationPolicy(),
+		Locales:         owners.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
-		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
-		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CarePlan:        owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:          owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
-		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
+		StudentRepo:     owners.NewParentStudentReads(reposPeople.Student),
+		CareExceptions:  owners.NewParentCareExceptions(repos.CarePlan()),
 		Attendance:      parentAttendance(t, db),
 		CareRequests:    careRequests,
 		Settings: parentSettingsStub{
@@ -131,9 +132,9 @@ func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []a
 		},
 		Logger: slog.Default(),
 
-		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
 
-		CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	}
 	for _, apply := range configure {
 		apply(&cfg)
@@ -327,5 +328,5 @@ func parentAttendance(t *testing.T, db *bun.DB) parentService.AttendanceReader {
 	t.Helper()
 	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	return api.BindParentAttendance(module)
+	return owners.BindParentAttendance(module)
 }

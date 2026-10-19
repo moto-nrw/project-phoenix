@@ -13,6 +13,7 @@ import (
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
@@ -1019,7 +1020,7 @@ func testRepositories(t *testing.T, db *bun.DB) (*api.RepositoryTestFactory, *ap
 
 // testTimetableRepositories builds the retained Timetable adapters over the
 // unobserved owners of the test database (#2743).
-func testTimetableRepositories(db *bun.DB) api.TimetableRepositories {
+func testTimetableRepositories(db *bun.DB) owners.TimetableRepositories {
 	return api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 }
 

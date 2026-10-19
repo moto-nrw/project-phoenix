@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -22,8 +23,8 @@ func TestRequestShareVisibilityRequiresTheLedgerAndTheFamilyProtection(t *testin
 
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	shares := api.BindParentRequestShareRecords(repos.ParentRequestShare)
-	protection := api.BindParentFamilyProtectionReads(repos.FamilyProtection)
+	shares := owners.BindParentRequestShareRecords(repos.ParentRequestShare)
+	protection := owners.BindParentFamilyProtectionReads(repos.FamilyProtection)
 	const message = "parent: request share visibility needs the sharing ledger and the family protection"
 
 	_, err := parentportalcompose.NewRequestShareVisibility(nil, protection)
@@ -45,13 +46,13 @@ func TestRequestShareVisibilityAnswersLikeThePortal(t *testing.T) {
 	recipient := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), author.TenantID)
 
-	shares := api.BindParentRequestShareRecords(repos.ParentRequestShare)
-	protection := api.BindParentFamilyProtectionReads(repos.FamilyProtection)
+	shares := owners.BindParentRequestShareRecords(repos.ParentRequestShare)
+	protection := owners.BindParentFamilyProtectionReads(repos.FamilyProtection)
 	portal := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges: api.ParentGuardianChanges(), DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy: api.NewParentGuardianPolicy(), Fingerprints: api.SecurityFingerprints{},
-		Declarations: api.ParentDeclarationPolicy(), Locales: api.ParentPortalLocales(),
-		Runtime: api.ParentPortalRuntime{}, CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		GuardianChanges: owners.ParentGuardianChanges(), DeparturePolicy: owners.ParentDeparturePolicy(),
+		GuardianPolicy: owners.NewParentGuardianPolicy(), Fingerprints: owners.SecurityFingerprints{},
+		Declarations: owners.ParentDeclarationPolicy(), Locales: owners.ParentPortalLocales(),
+		Runtime: api.ParentPortalRuntime{}, CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 		FamilyProtectionEvents: protection, ParentRequestShares: shares, Logger: slog.Default(),
 	})
 	visibility, err := parentportalcompose.NewRequestShareVisibility(shares, protection)

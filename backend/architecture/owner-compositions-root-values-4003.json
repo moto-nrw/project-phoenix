@@ -41,7 +41,7 @@
       "backend/modules/dataimport/compose/files.go",
       "backend/api/base.go",
       "backend/api/server.go",
-      "backend/api/worker_lease.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/worker_lease.go",
       "backend/architecture/policy.json",
       "https://github.com/moto-nrw/project-phoenix/issues/4003#issuecomment-6172903132"
     ],

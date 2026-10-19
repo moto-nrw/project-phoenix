@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
@@ -32,7 +33,7 @@ func TestCheckoutRollsBackAfterSlotWriteAndRetries(t *testing.T) {
 				testpkg.OwnTenant(t)
 				db := testpkg.SetupTestDB(t)
 				module := testSchoolPresence(t, db)
-				syncRows := api.NewAttendanceSyncTestRepositories(testpkg.NewDatabase(t, db), api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)))
+				syncRows := api.NewAttendanceSyncTestRepositories(testpkg.NewDatabase(t, db), owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)))
 				instances, assignments := syncRows.Instances, syncRows.Participants
 				injected := errors.New("fail after slot checkout")
 				rows := &failingSlotCheckout{}

@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -37,11 +39,11 @@ func NewTimetableScenarioTestModule(db transactionruntime.Database, unit tenant.
 	if err != nil {
 		return TimetableScenarioTestModule{}, ActiveTestModule{}, nil, err
 	}
-	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
+	command, err := auditCompose.NewCommand(owners.NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return TimetableScenarioTestModule{}, ActiveTestModule{}, nil, err
 	}
-	cleanup, err := NewTimetableCleanup(r.Timetable, NewDataDeletionTestRepository(db, command),
+	cleanup, err := owners.NewTimetableCleanup(r.Timetable, NewDataDeletionTestRepository(db, command),
 		NewTimetableDeviationAudit(db).DeviationEvent, liveSettings.Settings, slog.Default(), OptionalClock(clocks))
 	if err != nil {
 		return TimetableScenarioTestModule{}, ActiveTestModule{}, nil, err

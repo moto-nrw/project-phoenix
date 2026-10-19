@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -67,7 +69,7 @@ func TestStudentConsentsReturnTheCurrentSharedPortalState(t *testing.T) {
 	}
 	student.ID = 91
 
-	states, err := NewStudentConsentsFor(directory, &stubStudentConsentTrail{}).
+	states, err := owners.NewStudentConsentsFor(directory, &stubStudentConsentTrail{}).
 		CurrentStates(context.Background(), student, true)
 
 	require.NoError(t, err)
@@ -90,7 +92,7 @@ func TestStudentConsentsReturnTheCurrentSharedPortalState(t *testing.T) {
 func TestStudentConsentsRejectUnpersistedStudent(t *testing.T) {
 	t.Parallel()
 
-	seam := NewStudentConsentsFor(&stubStudentConsentDirectory{}, &stubStudentConsentTrail{})
+	seam := owners.NewStudentConsentsFor(&stubStudentConsentDirectory{}, &stubStudentConsentTrail{})
 	_, err := seam.CurrentStates(context.Background(), &peopleModule.StudentState{}, false)
 	require.ErrorContains(t, err, "persisted student is required")
 	_, err = seam.CurrentStates(context.Background(), nil, false)
@@ -101,7 +103,7 @@ func TestStudentConsentsRecordOnlyBooleanStateTransitions(t *testing.T) {
 	t.Parallel()
 
 	trail := &stubStudentConsentTrail{}
-	recorder := NewStudentConsentsFor(&stubStudentConsentDirectory{}, trail)
+	recorder := owners.NewStudentConsentsFor(&stubStudentConsentDirectory{}, trail)
 	oldTime := time.Date(2025, time.September, 1, 8, 0, 0, 0, time.UTC)
 	newTime := time.Date(2026, time.August, 31, 9, 0, 0, 0, time.UTC)
 	actor := int64(42)
@@ -141,7 +143,7 @@ func TestStudentConsentsRecordGrantedFieldsOnCreate(t *testing.T) {
 	t.Parallel()
 
 	trail := &stubStudentConsentTrail{}
-	recorder := NewStudentConsentsFor(&stubStudentConsentDirectory{}, trail)
+	recorder := owners.NewStudentConsentsFor(&stubStudentConsentDirectory{}, trail)
 	grantedAt := time.Date(2026, time.August, 31, 9, 0, 0, 0, time.UTC)
 	after := &peopleModule.StudentState{EmailContactAcceptedAt: &grantedAt}
 	after.ID = 88

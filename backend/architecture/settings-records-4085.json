@@ -59,9 +59,9 @@
     "source": "Local run on the PR branch. The same settings keys are resolved through the same settings service and the same Workforce calls run; only the packages that name the keys, records and adapters move. The evidence is the suites and the architecture check, not a benchmark rerun.",
     "sources": [
       "backend/api/settings_bindings.go",
-      "backend/api/device_fleet_settings.go",
-      "backend/api/workforce_schedule_records.go",
-      "backend/api/workforce_legacy_schedule_repositories.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/device_fleet_settings.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/workforce_schedule_records.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/workforce_legacy_schedule_repositories.go",
       "backend/modules/settings/records/registry.go",
       "backend/modules/classday/compose/slotlists.go",
       "backend/modules/devicescan/compose/settings.go",

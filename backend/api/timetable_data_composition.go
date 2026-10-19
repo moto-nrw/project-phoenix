@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -57,7 +59,7 @@ func newArrivalBaselineProjector(reader careplan.ArrivalBaselineReader) timetabl
 	if reader == nil {
 		return nil
 	}
-	return ArrivalBaselineProjector{Reader: reader}
+	return owners.ArrivalBaselineProjector{Reader: reader}
 }
 
 func newPickupBaselineProjector(reader careplan.PickupBaselineReader) timetablePorts.PickupBaselineProjector {

@@ -26,6 +26,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -67,20 +68,20 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *api.Reposi
 		*requestService[0] = sfRequests.CareRequests
 	}
 	return parentportal.NewChildFlows(parentportal.ChildConfig{
-		GuardianPolicy: api.NewParentGuardianPolicy(),
+		GuardianPolicy: owners.NewParentGuardianPolicy(),
 
 		Runtime:        api.ParentPortalRuntime{},
 		RequestSharing: unconfiguredRequestSharer{},
 		ChildRepo:      repos.ParentChildReads(),
-		StudentRepo:    api.NewParentStudentReads(reposPeople.Student),
+		StudentRepo:    owners.NewParentStudentReads(reposPeople.Student),
 		Settings: parentSettingsStub{
 			boolValues: boolValues,
 			stringValues: map[string]string{
 				parentportal.KeyGuardianParentInviteMode: parentportal.ParentInviteModeDisabled,
 			},
 		},
-		ArrivalSchedules: api.NewParentArrivalSchedules(schedules.Arrivals),
-		PickupSchedules:  api.NewParentPickupSchedules(schedules.Pickups),
+		ArrivalSchedules: owners.NewParentArrivalSchedules(schedules.Arrivals),
+		PickupSchedules:  owners.NewParentPickupSchedules(schedules.Pickups),
 		CareRequests:     sfRequests.CareRequests,
 		StatusDayRepo:    repos.StudentStatusDay,
 		Logger:           slog.Default(),
@@ -88,9 +89,9 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *api.Reposi
 			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		},
 
-		DeparturePolicy: api.ParentDeparturePolicy(),
+		DeparturePolicy: owners.ParentDeparturePolicy(),
 
-		CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 }
 

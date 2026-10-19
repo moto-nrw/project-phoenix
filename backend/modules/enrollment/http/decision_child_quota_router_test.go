@@ -20,6 +20,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -174,7 +175,7 @@ func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testin
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repos, err := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, db), api.NewTestAuditStore(testpkg.NewDatabase(t, db)))
+	repos, err := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, db), owners.NewTestAuditStore(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	reposCare := api.NewEnrollmentCarePlanRows(testpkg.NewDatabase(t, db))
 	reposSchools := api.NewOrganizationTestRows(testpkg.NewDatabase(t, db))
@@ -199,7 +200,7 @@ func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testin
 
 	guardianAccess, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
-	studentEnrollment, err := api.NewPeopleDirectory(testpkg.MustDatabase(db))
+	studentEnrollment, err := owners.NewPeopleDirectory(testpkg.MustDatabase(db))
 	require.NoError(t, err)
 	bookings := newBookingMaterialization(t, db,
 		api.WithBookingCatalog(newCareOfferingCatalog(t, db).Catalog),
@@ -207,7 +208,7 @@ func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testin
 	).Bookings
 	decisions := newOfferingGuardDecisions(repos, reposCare, reposTimetable, false, repos.Enrollment(), guardianAccess, studentEnrollment, bookings)
 	decision := enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(decisions))
-	requests := enrollmentAPI.NewRequestService(api.NewEnrollmentIntake(api.EnrollmentIntakeSources{
+	requests := enrollmentAPI.NewRequestService(owners.NewEnrollmentIntake(owners.EnrollmentIntakeSources{
 		Requests: repos.Enrollment(), Children: repos.Enrollment(), Guardians: repos.Enrollment(),
 		CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan), Catalog: repos.Enrollment(),
 		SchoolRepo: capabilitySchools{schools: reposSchools.School}, RateLimitRepo: repos.Enrollment(),

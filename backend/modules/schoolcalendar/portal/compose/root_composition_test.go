@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -21,7 +22,7 @@ func setupCalendarModule(t *testing.T) (*bun.DB, api.CalendarTestModule) {
 	return db, module
 }
 
-func setupRemindersModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, api.RemindersTestModule, api.SettingsTestModule) {
+func setupRemindersModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, api.RemindersTestModule, owners.SettingsTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	module, settings, err := api.NewRemindersTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)

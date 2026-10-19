@@ -5,6 +5,8 @@ package api
 import (
 	"context"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
@@ -16,9 +18,9 @@ type ParentRouteTestRepositories struct {
 	// ParentPortalRepositories carries the guardian child repository
 	// (ParentChild) without the school names.
 	carePlanCompose.ParentPortalRepositories
-	StudentStatusDay      *StudentStatusDayRepository
+	StudentStatusDay      *owners.StudentStatusDayRepository
 	CareExceptions        careplan.Capability
-	ExcusedAbsenceRequest *ExcusedAbsenceRequestRepository
+	ExcusedAbsenceRequest *owners.ExcusedAbsenceRequestRepository
 	// ExcusedRequests is the Care Plan excused-absence workflow over the same
 	// graph, scoped school-wide because parent routes never decide requests.
 	ExcusedRequests careplan.ExcusedAbsenceRequests
@@ -37,22 +39,22 @@ func schoolWideReviewScope(context.Context) (carePlanCompose.ReviewScope, error)
 	return carePlanCompose.ReviewScope{SchoolWide: true}, nil
 }
 
-func NewParentRouteTestRepositories(db transactionruntime.Database, members MembershipTestRepositories) (ParentRouteTestRepositories, error) {
+func NewParentRouteTestRepositories(db transactionruntime.Database, members owners.MembershipTestRepositories) (ParentRouteTestRepositories, error) {
 	people := members.People
 	rooms, err := facilitiesCompose.NewUnobserved(db.Pool())
 	if err != nil {
 		return ParentRouteTestRepositories{}, err
 	}
-	bookings, err := NewUnobservedTimetable(db, people, rooms)
+	bookings, err := owners.NewUnobservedTimetable(db, people, rooms)
 	if err != nil {
 		return ParentRouteTestRepositories{}, err
 	}
-	slots := timetableCompose.NewInstanceStudentRepository(MustPresenceReads(db), bookings, NewUnloggedStudentPresence(db), NewPartialAbsencePreview(db))
-	care, err := NewCarePlan(db, people, slots)
+	slots := timetableCompose.NewInstanceStudentRepository(owners.MustPresenceReads(db), bookings, owners.NewUnloggedStudentPresence(db), owners.NewPartialAbsencePreview(db))
+	care, err := owners.NewCarePlan(db, people, slots)
 	if err != nil {
 		return ParentRouteTestRepositories{}, err
 	}
-	excusedRequests, err := NewExcusedAbsenceRequests(ExcusedRequestWiring{
+	excusedRequests, err := owners.NewExcusedAbsenceRequests(owners.ExcusedRequestWiring{
 		CarePlan: care, Students: members.Student, Persons: members.Person, Scope: schoolWideReviewScope,
 	})
 	if err != nil {
@@ -60,9 +62,9 @@ func NewParentRouteTestRepositories(db transactionruntime.Database, members Memb
 	}
 	return ParentRouteTestRepositories{
 		ParentPortalRepositories: carePlanCompose.ParentPortalRepositories{
-			ParentChild: carePlanCompose.NewParentChildRepository(NewPeopleIdentityAccess(db, nil).ListActiveAccountSchoolIDs, ParentPortalDirectory{People: people}),
+			ParentChild: carePlanCompose.NewParentChildRepository(owners.NewPeopleIdentityAccess(db, nil).ListActiveAccountSchoolIDs, owners.ParentPortalDirectory{People: people}),
 		},
-		StudentStatusDay: NewStudentStatusDayRepository(care), CareExceptions: care, ExcusedAbsenceRequest: NewExcusedAbsenceRequestRepository(care),
+		StudentStatusDay: owners.NewStudentStatusDayRepository(care), CareExceptions: care, ExcusedAbsenceRequest: owners.NewExcusedAbsenceRequestRepository(care),
 		ExcusedRequests: excusedRequests,
 	}, nil
 }

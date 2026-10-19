@@ -14,6 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 
@@ -173,19 +174,19 @@ func (f recordCareBookingsFunc) RecordCareBookings(ctx context.Context, childID 
 	return f(ctx, childID, bookings)
 }
 
-func testRepositories(t *testing.T, db *bun.DB) (*api.EnrollmentFlowTestRepositories, api.TimetableCarePlanRows, *api.EnrollmentFlowAuditRows, api.TimetableTestRepositories, api.TimetableSchoolCalendar, *api.OrganizationTestRows) {
+func testRepositories(t *testing.T, db *bun.DB) (*owners.EnrollmentFlowTestRepositories, owners.TimetableCarePlanRows, *owners.EnrollmentFlowAuditRows, owners.TimetableTestRepositories, api.TimetableSchoolCalendar, *api.OrganizationTestRows) {
 	t.Helper()
 	return flowRepositories(t, db)
 }
 
 // flowRepositories composes the repositories the enrollment flow suites run
 // on over the suite's database.
-func flowRepositories(t testing.TB, db *bun.DB) (*api.EnrollmentFlowTestRepositories, api.TimetableCarePlanRows, *api.EnrollmentFlowAuditRows, api.TimetableTestRepositories, api.TimetableSchoolCalendar, *api.OrganizationTestRows) {
+func flowRepositories(t testing.TB, db *bun.DB) (*owners.EnrollmentFlowTestRepositories, owners.TimetableCarePlanRows, *owners.EnrollmentFlowAuditRows, owners.TimetableTestRepositories, api.TimetableSchoolCalendar, *api.OrganizationTestRows) {
 	t.Helper()
-	repos, err := api.NewEnrollmentFlowTestRepositories(testpkg.NewDatabase(t, db))
+	repos, err := owners.NewEnrollmentFlowTestRepositories(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	reposCare := api.NewEnrollmentFlowCarePlanRows(testpkg.NewDatabase(t, db))
-	reposAudit := api.NewEnrollmentFlowAuditRows(testpkg.NewDatabase(t, db))
+	reposCare := owners.NewEnrollmentFlowCarePlanRows(testpkg.NewDatabase(t, db))
+	reposAudit := owners.NewEnrollmentFlowAuditRows(testpkg.NewDatabase(t, db))
 	reposTimetable := api.NewEnrollmentFlowTimetableRows(testpkg.NewDatabase(t, db))
 	reposCalendar := api.MustNewTimetableSchoolCalendar(testpkg.NewDatabase(t, db))
 	reposSchools := api.NewOrganizationTestRows(testpkg.NewDatabase(t, db))
@@ -200,8 +201,8 @@ func testGuardianAccess(db *bun.DB) TestDecisionGuardianAccess {
 	return module
 }
 
-func testStudentEnrollment(db *bun.DB) api.EnrollmentDecisionPeople {
-	module, err := api.NewPeopleDirectory(testpkg.MustDatabase(db))
+func testStudentEnrollment(db *bun.DB) owners.EnrollmentDecisionPeople {
+	module, err := owners.NewPeopleDirectory(testpkg.MustDatabase(db))
 	if err != nil {
 		panic(err)
 	}
@@ -398,7 +399,7 @@ func registerSourcedInstanceCleanup(t *testing.T, env *decisionTestEnv, instance
 
 func pendingWithdrawalForStudent(
 	ctx context.Context,
-	repo api.CareWithdrawalTestRows,
+	repo owners.CareWithdrawalTestRows,
 	studentID int64,
 ) (*careplan.WithdrawalCompletion, error) {
 	rows, _, err := repo.ListPending(ctx, careplan.WithdrawalListFilter{StudentID: studentID, Page: 1, PageSize: 1})

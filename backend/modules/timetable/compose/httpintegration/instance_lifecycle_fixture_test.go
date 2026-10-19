@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -56,7 +57,7 @@ type lifecycleSetup struct {
 	reposSchedules  *api.CareScheduleSuiteRepositories
 	reposCare       *api.RepositoryTestFactory
 	// timetable are the retained Timetable adapters over the same owners.
-	timetable api.TimetableRepositories
+	timetable owners.TimetableRepositories
 	db        *bun.DB
 	ctx       context.Context
 	roomID    int64
@@ -180,17 +181,17 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 		ExceptionRepo:       s.timetable.ActivityException,
 		ActiveGroupRepo:     s.repos.ActiveGroup,
 		SupervisorRepo:      s.repos.GroupSupervisor,
-		Rooms:               api.NewTimetableRoomNames(rooms),
+		Rooms:               owners.NewTimetableRoomNames(rooms),
 		ActivityGroupRepo:   s.timetable.ActivityGroup,
-		StaffRepo:           api.NewTimetableStaff(s.reposPeople.Staff),
-		StudentRepo:         api.NewTimetableLifecycleStudents(api.NewTimetableRosterStudents(s.reposPeople.Student)),
+		StaffRepo:           owners.NewTimetableStaff(s.reposPeople.Staff),
+		StudentRepo:         owners.NewTimetableLifecycleStudents(owners.NewTimetableRosterStudents(s.reposPeople.Student)),
 		CalendarPeriodRepo:  s.reposSchedules.CalendarPeriod,
 		ActiveService:       s.active,
 		Materialization:     s.materialization,
 		RecurrenceLock:      s.timetableData.RecurrenceLock,
 		CareDays:            lifecycleCareDays{query: s.careDay},
 		CareDayLocks:        s.reposCare.CarePlan(),
-		Protocol:            api.TimetableDeviationProtocol(audits.DeviationEvent),
+		Protocol:            owners.TimetableDeviationProtocol(audits.DeviationEvent),
 		ContentHash:         securityruntime.Fingerprint,
 		Database:            compose.NewTenantDatabase(s.db),
 		Logger:              slog.Default(),
@@ -206,9 +207,9 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 // over the lifecycle's repositories and its (possibly fault-injecting)
 // presence; the lifecycle only consumes its start check.
 func lifecycleStartConflicts(s *lifecycleSetup) timetable.StartConflictQuery {
-	detection, err := api.NewTimetableConflictDetection(timetablePorts.ConflictDetectionDependencies{
+	detection, err := owners.NewTimetableConflictDetection(timetablePorts.ConflictDetectionDependencies{
 		Instances: s.timetable.ActivityInstance, InstanceStaff: s.timetable.InstanceStaff, InstanceStudents: s.timetable.InstanceStudent,
-		Exceptions: s.timetable.ActivityException, Schedules: s.timetable.ActivitySchedule, Staff: api.NewTimetableStaff(s.reposPeople.Staff),
+		Exceptions: s.timetable.ActivityException, Schedules: s.timetable.ActivitySchedule, Staff: owners.NewTimetableStaff(s.reposPeople.Staff),
 		CalendarPeriods: s.reposSchedules.CalendarPeriod, ArrivalExceptions: s.reposSchedules.StudentArrivalException,
 		Sessions: s.repos.ActiveGroup, Shifts: unusedShiftRows{}, Presence: s.presence,
 	}, nil)

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	api "github.com/moto-nrw/project-phoenix/api"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 

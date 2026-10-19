@@ -6,6 +6,8 @@ import (
 	"errors"
 	"log/slog"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
 
 	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -49,7 +51,7 @@ func NewTestExcusedAbsenceRequests(
 	if scope == nil {
 		scope = schoolWideReviewScope
 	}
-	return NewExcusedAbsenceRequestService(
+	return owners.NewExcusedAbsenceRequestService(
 		options.CarePlan, people.Students, people.Persons, scope, emitter, broadcaster,
 		people.Events, nil, nil, nil, options.Logger, options.Today,
 	)

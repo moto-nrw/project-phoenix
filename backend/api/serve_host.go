@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/analytics"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
@@ -16,8 +18,8 @@ import (
 )
 
 // productionObservers record every owner operation the roots observe.
-func productionObservers() RootObservers {
-	return RootObservers{
+func productionObservers() owners.RootObservers {
+	return owners.RootObservers{
 		Communication: observeCommunication, AuditAppend: observability.ObserveAuditAppend,
 		Delivery: observability.ObserveSynchronousDelivery, DurableDelivery: observability.ObserveDurableDelivery,
 		DeviceFleet: observability.ObserveDeviceFleetOperation, IdentityAccess: observability.ObserveIdentityAccessOperation,
@@ -28,7 +30,7 @@ func productionObservers() RootObservers {
 
 // newProductionEnvironment reads the process configuration the owners are
 // built over; the services keep the real clock.
-func newProductionEnvironment(logger *slog.Logger, publicAPIURL string) (RootEnvironment, error) {
+func newProductionEnvironment(logger *slog.Logger, publicAPIURL string) (owners.RootEnvironment, error) {
 	cfg := CurrentServiceConfig()
 	cfg.PublicAPIURL = publicAPIURL
 	return newRootEnvironment(cfg, logger, nil, productionObservers())

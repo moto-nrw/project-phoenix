@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"testing"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -38,7 +40,7 @@ func setupStaffCompositionRoute(t *testing.T) *staffCompositionContext {
 	db := testpkg.SetupTestDB(t)
 	svc, work, err := NewStaffTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	membership, err := NewSchoolMembership(testpkg.NewDatabase(t, db))
+	membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	resource := newStaffTestResource(membership, svc, work, testpkg.NewDatabase(t, db), slog.Default())
 

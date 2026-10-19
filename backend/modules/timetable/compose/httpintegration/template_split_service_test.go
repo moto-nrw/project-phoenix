@@ -26,6 +26,7 @@ import (
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -786,7 +787,7 @@ func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {
 // the rows the template writes assign through.
 func scenarioPlanningTracks(t *testing.T, db *bun.DB) timetable.PlanningTrackAdministration {
 	t.Helper()
-	return timetableCompose.NewPlanningTrackAdministration(api.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)), db)
+	return timetableCompose.NewPlanningTrackAdministration(owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)), db)
 }
 
 func TestTemplateSplitKeepsArchivedPlanningTrackAssignment(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -91,7 +92,7 @@ func newPayrollScenario(t *testing.T) *payrollScenario {
 
 func payrollAdminDeps(db *bun.DB) api.StaffAdminDependencies {
 	return api.StaffAdminDependencies{
-		MasterDataAudit: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).StaffMasterDataChange, PersonnelNumber: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).PersonnelNumberChange, DataAccessLog: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).DataAccessLog,
+		MasterDataAudit: owners.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).StaffMasterDataChange, PersonnelNumber: owners.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).PersonnelNumberChange, DataAccessLog: owners.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).DataAccessLog,
 	}
 }
 

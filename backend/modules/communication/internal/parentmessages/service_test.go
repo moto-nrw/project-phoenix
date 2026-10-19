@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -96,7 +97,7 @@ type fixture struct {
 }
 
 func newPersons(repos *api.PeopleRepositorySuiteFactory, reposAccounts *api.AccountSuiteRepositories, db *bun.DB) messaging.PersonLookup {
-	return api.BindParentMessagePeople(api.NewTestPersonDirectory(testpkg.MustDatabase(db), api.TestPersonDirectorySources{
+	return owners.BindParentMessagePeople(api.NewTestPersonDirectory(testpkg.MustDatabase(db), api.TestPersonDirectorySources{
 		Persons: repos.Person, Students: repos.Student, AccountExists: api.AccountExists(reposAccounts.Profile),
 	}))
 }
@@ -110,7 +111,7 @@ func buildMessagingWithSettings(t *testing.T, settings stubSettings) (*messaging
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
-		UserContext: api.StaffStudentReads{},
+		UserContext: owners.StaffStudentReads{},
 		Session:     api.CommunicationSession{},
 		ThreadRepo:  messaging.NewThreadRepository(reposMessages.ParentMessageThread),
 		MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
@@ -669,7 +670,7 @@ func TestMessaging_DisabledFeature(t *testing.T) {
 	reposAccounts := api.NewAccountSuiteRepositories(testpkg.NewDatabase(t, f.db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, f.db))
 	disabled := messaging.NewService(messaging.Config{
-		UserContext: api.StaffStudentReads{},
+		UserContext: owners.StaffStudentReads{},
 		Session:     api.CommunicationSession{},
 		ThreadRepo:  messaging.NewThreadRepository(reposMessages.ParentMessageThread), MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)), ReadRepo: messaging.NewReadRepository(reposMessages.ParentMessageRead),
 		Persons:     newPersons(reposPeople, reposAccounts, f.db),

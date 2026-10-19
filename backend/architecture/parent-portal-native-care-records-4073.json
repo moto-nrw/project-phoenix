@@ -45,9 +45,9 @@
       "backend/modules/peopledirectory/contact/guardian_relationship.go",
       "backend/modules/peopledirectory/internal/adapters/peoplepostgres/guardian_relationship_snapshots.go",
       "backend/modules/peopledirectory/internal/adapters/peoplepostgres/parent_request_event_snapshots.go",
-      "backend/api/parent_data_request_reads.go",
-      "backend/api/parent_guardian_relationship_reads.go",
-      "backend/api/parent_request_events.go"
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/parent_data_request_reads.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/parent_guardian_relationship_reads.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/466b4f956fa93c526b0f78fd0cb2a2ecd40f0d51/backend/api/parent_request_events.go"
     ],
     "workload": "Focused parent workflow/Care/HTTP, API, model/contact and owner repository suites; complete native representation, permission, canonical validation and error-boundary regressions. Complete nonfast and lint gates are required before push.",
     "thresholds": "Retire exactly the listed production key. Preserve original queries, lock order, tenant/relationship authorization, validation/error causes, nil/empty/number semantics, IDs, timestamps and wire contracts. No new grants, type aliases, rules, exceptions, graph fields or budget increase.",

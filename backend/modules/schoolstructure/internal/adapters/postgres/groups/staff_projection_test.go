@@ -5,6 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -20,7 +21,7 @@ func TestEducationGroupSupervisionResolvesTeachersToStaff(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	factory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	factoryStructure := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
+	factoryStructure := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	today := calendar.TodayDate()
 
 	group := testpkg.CreateTestEducationGroup(t, db, "Zuordnung Gruppe")

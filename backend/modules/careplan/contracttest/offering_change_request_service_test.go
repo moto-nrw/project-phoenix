@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -1349,7 +1350,7 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 	assert.False(t, preview.ArrivalExpectationsFollowBookings)
 
 	otherTenantCtx := testpkg.TenantContext(testpkg.Tenant(t) + 1)
-	foreignRows, err := (api.PlanningQuery{DB: testpkg.NewDatabase(t, env.db)}).ListManualPlanningOccurrences(
+	foreignRows, err := (owners.PlanningQuery{DB: testpkg.NewDatabase(t, env.db)}).ListManualPlanningOccurrences(
 		otherTenantCtx, fx.studentID, fx.switchDate.String(), string(env.sourcePhase.ServiceEndDate),
 	)
 	require.NoError(t, err)
@@ -1474,7 +1475,7 @@ func TestManualPlanningReaderRejectsInvalidCalendarWindows(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	student := testpkg.CreateTestStudent(t, db, "Planning", "Validation", "2a")
-	reader := api.PlanningQuery{}
+	reader := owners.PlanningQuery{}
 	for _, tc := range []struct {
 		name, from, to string
 	}{

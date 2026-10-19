@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -44,7 +45,7 @@ func newStammdatenScenario(t *testing.T) *stammdatenScenario {
 
 func stammdatenAdminDeps(db *bun.DB) api.StaffAdminDependencies {
 	return api.StaffAdminDependencies{
-		MasterDataAudit: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).StaffMasterDataChange, PersonnelNumber: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).PersonnelNumberChange, DataAccessLog: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).DataAccessLog,
+		MasterDataAudit: owners.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).StaffMasterDataChange, PersonnelNumber: owners.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).PersonnelNumberChange, DataAccessLog: owners.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).DataAccessLog,
 	}
 }
 

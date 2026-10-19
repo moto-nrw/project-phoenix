@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -20,7 +21,7 @@ func TestExcusedRequestContractMatchesPersistedVocabulary(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	protocol := api.ParentPersistedFixtureProtocol(api.MustNewPeopleDirectory(testpkg.MustDatabase(db)))
+	protocol := api.ParentPersistedFixtureProtocol(owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)))
 
 	assert.Equal(t, absencerecords.StudentStatusDaySick, careplan.StudentStatusDaySick)
 	assert.Equal(t, absencerecords.StudentStatusDayExcused, careplan.StudentStatusDayExcused)

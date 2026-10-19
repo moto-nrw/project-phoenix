@@ -14,6 +14,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -24,7 +25,7 @@ type failingCareWithdrawalReconciler struct{}
 
 func pendingWithdrawalForStudent(
 	ctx context.Context,
-	repo api.CareWithdrawalTestRows,
+	repo owners.CareWithdrawalTestRows,
 	studentID int64,
 ) (*careplan.WithdrawalCompletion, error) {
 	rows, _, err := repo.ListPending(ctx, careplan.WithdrawalListFilter{StudentID: studentID, Page: 1, PageSize: 1})
@@ -153,7 +154,7 @@ func (f *completeWithdrawalFixture) completeWithdrawal() *careplan.WithdrawalCom
 }
 
 func (f *completeWithdrawalFixture) assertCompletionAudit() {
-	rows, err := api.NewTestAuditPersistence(testpkg.MustDatabase(f.env.db), nil).EnrollmentOfferingAdjustment.ListByRequestChildID(f.ctx, f.childID)
+	rows, err := owners.NewTestAuditPersistence(testpkg.MustDatabase(f.env.db), nil).EnrollmentOfferingAdjustment.ListByRequestChildID(f.ctx, f.childID)
 	require.NoError(f.t, err)
 	require.Len(f.t, rows, 2)
 	assert.True(f.t, rows[0].CompleteWithdrawalConfirmed)
@@ -280,7 +281,7 @@ func newWithdrawalRaceFixture(t *testing.T) *withdrawalRaceFixture {
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-10))
 	completionWaiting := make(chan struct{})
 	recurrenceGate := func(ctx context.Context) error {
-		return api.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, env.db)).LockRecurrenceWrites(ctx)
+		return owners.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, env.db)).LockRecurrenceWrites(ctx)
 	}
 	lifecycle := newTestCareLifecycle(env.db, api.CareLifecycleTestConfig{
 		LockCareBookingWrites: func(ctx context.Context) error {

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -49,26 +50,26 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 	require.NoError(t, api.CreateParentDataRequestFixture(reposCare.CarePlan(), ctx, request))
 
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges: api.ParentGuardianChanges(),
-		DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy:  api.NewParentGuardianPolicy(),
-		Fingerprints:    api.SecurityFingerprints{},
-		Declarations:    api.ParentDeclarationPolicy(),
-		Locales:         api.ParentPortalLocales(),
+		GuardianChanges: owners.ParentGuardianChanges(),
+		DeparturePolicy: owners.ParentDeparturePolicy(),
+		GuardianPolicy:  owners.NewParentGuardianPolicy(),
+		Fingerprints:    owners.SecurityFingerprints{},
+		Declarations:    owners.ParentDeclarationPolicy(),
+		Locales:         owners.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
-		CarePlan:        api.NewParentCarePlanCommands(reposCare.CarePlan(), nil),
-		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CarePlan:        owners.NewParentCarePlanCommands(reposCare.CarePlan(), nil),
+		People:          owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:    careProfiles(t, db),
-		ChildRepo:       reposCare.ParentChildReads(), GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
-		GuardianPhoneRepo: api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber), PersonRepo: api.NewParentPersonReads(repos.Person),
-		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian), StudentRepo: api.NewParentStudentReads(repos.Student),
-		ChangeRequestRepo:      api.NewParentDataRequestReads(reposCare.CarePlan()),
-		FamilyProtectionEvents: api.BindParentFamilyProtectionReads(repos.FamilyProtection), ParentRequestShares: api.BindParentRequestShareRecords(repos.ParentRequestShare),
+		ChildRepo:       reposCare.ParentChildReads(), GuardianProfileRepo: owners.NewParentGuardianProfileReads(repos.GuardianProfile),
+		GuardianPhoneRepo: owners.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber), PersonRepo: owners.NewParentPersonReads(repos.Person),
+		StudentGuardianRepo: owners.NewParentStudentGuardianReads(repos.StudentGuardian), StudentRepo: owners.NewParentStudentReads(repos.Student),
+		ChangeRequestRepo:      owners.NewParentDataRequestReads(reposCare.CarePlan()),
+		FamilyProtectionEvents: owners.BindParentFamilyProtectionReads(repos.FamilyProtection), ParentRequestShares: owners.BindParentRequestShareRecords(repos.ParentRequestShare),
 		Logger: slog.Default(),
 
-		DataRequests: api.NewParentDataRequestCommands(reposCare.CarePlan()),
+		DataRequests: owners.NewParentDataRequestCommands(reposCare.CarePlan()),
 
-		CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 	var sharing parentService.RequestSharingService = svc
 	options, err := sharing.GetRequestSharingOptions(ctx, author.AccountID, author.StudentID)

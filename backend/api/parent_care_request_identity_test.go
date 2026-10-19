@@ -7,6 +7,8 @@ import (
 	"math"
 	"testing"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/stretchr/testify/assert"
@@ -43,7 +45,7 @@ func TestParentCareRequestIdentityPreservesReadContract(t *testing.T) {
 		assert.Equal(t, requestID, id)
 		assert.False(t, lock)
 	}
-	reader := NewParentCareRequestReads(source)
+	reader := owners.NewParentCareRequestReads(source)
 	submittedBy, studentID, kind, err := reader.FindIdentity(ctx, requestID)
 	require.NoError(t, err)
 	assert.Equal(t, source.row.SubmittedBy, submittedBy)
@@ -58,7 +60,7 @@ func TestParentCareRequestIdentityPreservesReadContract(t *testing.T) {
 	source.err = errors.New("database unavailable")
 	_, _, _, err = reader.FindIdentity(ctx, requestID)
 	assert.ErrorIs(t, err, source.err)
-	assert.Nil(t, NewParentCareRequestReads(nil))
+	assert.Nil(t, owners.NewParentCareRequestReads(nil))
 }
 
 func TestParentCareRequestIdentityPreservesStoredSnapshotDiagnostics(t *testing.T) {
@@ -77,7 +79,7 @@ func TestParentCareRequestIdentityPreservesStoredSnapshotDiagnostics(t *testing.
 			t.Parallel()
 			source := &parentCareRequestRecordStub{row: careplan.CareScheduleChangeRequest{Payload: json.RawMessage(`{}`), DecisionSnapshot: json.RawMessage(tc.raw)}}
 			var requestID int64
-			_, _, _, err := NewParentCareRequestReads(source).FindIdentity(context.Background(), requestID)
+			_, _, _, err := owners.NewParentCareRequestReads(source).FindIdentity(context.Background(), requestID)
 			if tc.detail == "" {
 				require.NoError(t, err)
 				return

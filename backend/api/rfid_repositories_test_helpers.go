@@ -5,6 +5,7 @@ package api
 import (
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 )
 
 // NewStudentLookupTestRepository is the retained student repository for suites
@@ -16,5 +17,5 @@ func NewStudentLookupTestRepository(db transactionruntime.Database) peoplePorts.
 // NewGuardianProfileTestRepository is the guardian profile repository with the
 // Identity & Access reachability queries bound.
 func NewGuardianProfileTestRepository(db transactionruntime.Database) peoplePorts.GuardianProfileRepository {
-	return NewGuardianProfileRepository(db)
+	return owners.NewGuardianProfileRepository(db)
 }

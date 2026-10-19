@@ -5,6 +5,8 @@ package api
 import (
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -17,85 +19,61 @@ import (
 // Repositories routed through command append through the Audit command,
 // exactly as the service graph's repositories do.
 
-// NewTestAuditPersistence composes the Audit persistence over the test
-// database: reads and appends go through the Audit handoff on the context
-// with the database as the fallback. A non-nil command routes every write
-// through it, as the service graph routes its repositories.
-func NewTestAuditPersistence(db transactionruntime.Database, command auditModels.Command) *auditCompose.Persistence {
-	audits := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()})
-	if command != nil {
-		audits = audits.WithRoutedWrites(command)
-	}
-	return audits
-}
-
 // NewRoutedTestAuditPersistence is NewTestAuditPersistence with every write
 // routed through an Audit command over the test append store, the way the
 // test service graph (NewServiceGraphForTests) routes its repositories.
 func NewRoutedTestAuditPersistence(db transactionruntime.Database) (*auditCompose.Persistence, error) {
-	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
+	command, err := auditCompose.NewCommand(owners.NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return nil, err
 	}
-	return NewTestAuditPersistence(db, command), nil
-}
-
-// NewTestAuditStore composes the Audit append store over the test database
-// for narrow test compositions.
-func NewTestAuditStore(db transactionruntime.Database) auditModels.AppendStore {
-	return NewTestAuditPersistence(db, nil).AppendStore
+	return owners.NewTestAuditPersistence(db, command), nil
 }
 
 // newFileEventTestRepository retains the Audit command write boundary while
 // composing only the file-event query contract.
 func newFileEventTestRepository(db transactionruntime.Database, command auditModels.Command) auditModels.FileEventRepository {
-	audits := NewTestAuditPersistence(db, command)
+	audits := owners.NewTestAuditPersistence(db, command)
 	return audits.FileEvent
 }
 
 // NewDataDeletionTestRepository composes the deletion ledger with its writes
 // routed through command.
 func NewDataDeletionTestRepository(db transactionruntime.Database, command auditModels.Command) auditModels.DataDeletionRepository {
-	audits := NewTestAuditPersistence(db, command)
+	audits := owners.NewTestAuditPersistence(db, command)
 	return audits.DataDeletion
 }
 
 // NewTimetableTestRepositories composes the Timetable test graph with its
 // deviation protocol.
-func NewTimetableTestRepositories(db transactionruntime.Database, clocks ...func() time.Time) (TimetableTestRepositories, error) {
-	result, err := NewTimetableTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db), clocks...)
+func NewTimetableTestRepositories(db transactionruntime.Database, clocks ...func() time.Time) (owners.TimetableTestRepositories, error) {
+	result, err := owners.NewTimetableTestRepositoriesWithMembers(db, owners.MustNewMembershipTestRepositories(db), clocks...)
 	if err != nil {
-		return TimetableTestRepositories{}, err
+		return owners.TimetableTestRepositories{}, err
 	}
 	return withTimetableTestAudit(db, result), nil
 }
 
-func withTimetableTestAudit(db transactionruntime.Database, timetable TimetableTestRepositories) TimetableTestRepositories {
-	return timetable.withDeviationAudit(NewTestAuditPersistence(db, nil).DeviationEvent)
+func withTimetableTestAudit(db transactionruntime.Database, timetable owners.TimetableTestRepositories) owners.TimetableTestRepositories {
+	return timetable.WithDeviationAudit(owners.NewTestAuditPersistence(db, nil).DeviationEvent)
 }
 
 // NewWorkforceTestRepositories composes the Workforce test graph over the
 // members of the test database.
 func NewWorkforceTestRepositories(db transactionruntime.Database, clocks ...func() time.Time) (WorkforceTestRepositories, error) {
-	return NewWorkforceTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db), clocks...)
+	return NewWorkforceTestRepositoriesWithMembers(db, owners.MustNewMembershipTestRepositories(db), clocks...)
 }
 
 // NewEnrollmentTestRepositories composes the enrollment suites' People
 // Directory rows; the access log recording into command comes from
 // NewEnrollmentAuditRows.
 func NewEnrollmentTestRepositories(db transactionruntime.Database, _ auditModels.Command) (EnrollmentTestRepositories, error) {
-	return NewEnrollmentTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
-}
-
-// NewEnrollmentFlowTestRepositories composes the enrollment flow suites'
-// repositories with the audit repositories the flows read and write.
-func NewEnrollmentFlowTestRepositories(db transactionruntime.Database) (*EnrollmentFlowTestRepositories, error) {
-	return NewEnrollmentFlowTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
+	return NewEnrollmentTestRepositoriesWithMembers(db, owners.MustNewMembershipTestRepositories(db))
 }
 
 // NewCareLifecycleTestRepositories composes the care-lifecycle test graph.
 func NewCareLifecycleTestRepositories(db transactionruntime.Database, _ auditModels.Command) (CareLifecycleTestRepositories, error) {
-	return NewCareLifecycleTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
+	return NewCareLifecycleTestRepositoriesWithMembers(db, owners.MustNewMembershipTestRepositories(db))
 }
 
 // NewStudentTestRepositories composes the student suites' Care Plan rows
@@ -103,7 +81,7 @@ func NewCareLifecycleTestRepositories(db transactionruntime.Database, _ auditMod
 // read back come from NewStudentAuditRows, the access log recording into
 // the suite's command from NewEnrollmentAuditRows.
 func NewStudentTestRepositories(db transactionruntime.Database, _ auditModels.Command) (StudentTestRepositories, EnrollmentTestRepositories, error) {
-	result, enrollment, err := NewStudentTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
+	result, enrollment, err := NewStudentTestRepositoriesWithMembers(db, owners.MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return StudentTestRepositories{}, EnrollmentTestRepositories{}, err
 	}
@@ -111,9 +89,9 @@ func NewStudentTestRepositories(db transactionruntime.Database, _ auditModels.Co
 }
 
 // NewStudentConsents composes unobserved owners behind the consent seam.
-func NewStudentConsents(db transactionruntime.Database) *StudentConsents {
-	return NewStudentConsentsFor(
-		MustNewPeopleDirectory(db),
-		NewTestAuditPersistence(db, nil).StudentConsentChange,
+func NewStudentConsents(db transactionruntime.Database) *owners.StudentConsents {
+	return owners.NewStudentConsentsFor(
+		owners.MustNewPeopleDirectory(db),
+		owners.NewTestAuditPersistence(db, nil).StudentConsentChange,
 	)
 }

@@ -1,8 +1,11 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
+
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
+
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 
@@ -66,40 +69,20 @@ import (
 	"github.com/spf13/viper"
 )
 
-// runRootSteps runs a root's build steps in order and stops at the first
-// failure. Each step assigns locals of the root function that declares it,
-// so a later step only reads values an earlier one built.
-func runRootSteps(steps ...func() error) error {
-	for _, step := range steps {
-		if err := step(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// stepError names the value a failed root step was building.
-func stepError(what string, err error) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("%s: %w", what, err)
-}
-
 // composeServeRoot builds every owner the server mounts as a local value, in
 // the build order of the owner graph (ADR 0058, ADR 0059), then mounts each
 // route resource where the values exist.
 func composeServeRoot(
-	db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, config ServeConfig, tracker analytics.Tracker,
+	db transactionruntime.Database, env owners.RootEnvironment, hub *realtime.Hub, config ServeConfig, tracker analytics.Tracker,
 	metrics *httpMetrics, tracer *observability.Tracer, metricsToken string, embedWorker bool,
 ) (http.Handler, schedulerPorts.Worker, error) {
 	unit := db.UnitOfWork()
 	communicationCompose.InstrumentMessageQueries(db.Pool(), false)
 	renderer := lists.NewRendererService()
 	var (
-		tokens           TokenAdapter
+		tokens           owners.TokenAdapter
 		objects          filestorageCompose.ObjectBackend
-		audit            AuditOwner
+		audit            owners.AuditOwner
 		mailSender       email.Mailer
 		mailDispatcher   email.Dispatcher
 		mailFrom         email.Email
@@ -110,51 +93,51 @@ func composeServeRoot(
 		membership       *schoolMembershipModule.Module
 		classListEntries *schoolMembershipModule.Module
 		bookings         *enrollmentOwner.BookingProjection
-		settings         SettingsOwner
+		settings         owners.SettingsOwner
 		calendar         *schoolcalendar.Records
 		workTime         *workforceModule.Module
-		people           PeopleRows
+		people           owners.PeopleRows
 		peopleIdentity   *identityaccess.Module
 		guardian         peoplePorts.GuardianService
-		photoRuntime     studentPhotoRuntime
+		photoRuntime     owners.StudentPhotoRuntime
 		persons          *peopledirectory.Module
 		timetableOwner   *timetable.Module
-		timetableRepos   TimetableRepositories
+		timetableRepos   owners.TimetableRepositories
 		carePlan         *carePlanModule.Module
 		appointments     appointmentsModule.Capability
-		operatorAuditLog operatorAuditEntries
+		operatorAuditLog owners.OperatorAuditEntries
 		communication    *communicationModule.Module
 		mealPlanSettings *mealplanCompose.Settings
 		mealPlan         *mealplanModule.Module
 		feedbackSettings *feedbackCompose.Settings
 		feedback         *feedbackModule.Module
-		structure        StructureRows
-		presencePeople   PresencePeopleReads
-		careRows         TimetableCareRows
+		structure        owners.StructureRows
+		presencePeople   owners.PresencePeopleReads
+		careRows         owners.TimetableCareRows
 		devices          devicefleetModule.Capability
-		presence         PresenceOwner
+		presence         owners.PresenceOwner
 		facilitiesRooms  FacilitiesRooms
-		substitutions    GroupSubstitutionRepository
+		substitutions    owners.GroupSubstitutions
 		supervisions     studentpresence.SupervisionRecords
-		timetableRows    TimetableOwner
+		timetableRows    owners.TimetableOwner
 		classArrivals    timetable.ClassArrivals
 		studentAudit     peoplePorts.StudentAuditService
-		carePlanRows     CarePlanRows
-		enrollment       EnrollmentRows
-		delivery         DeliveryRuntime
+		carePlanRows     owners.CarePlanRows
+		enrollment       owners.EnrollmentRows
+		delivery         owners.DeliveryRuntime
 		mailIdentity     email.ReplyToResolver
 		identity         *identityaccess.Module
-		caller           *CallerRows
+		caller           *owners.CallerRows
 		portalReads      carePlanCompose.ParentPortalRepositories
 		messaging        parentStore.MessagingRepositories
 		consent          communicationModule.NotificationConsentCapability
-		notifications    DeliveryNotifications
+		notifications    owners.DeliveryNotifications
 		emitter          eventContract.Emitter
 		purger           filestorageModule.AttachmentPurger
 		announcements    communicationModule.ParentAnnouncementCapability
-		schedules        CarePlanSchedules
-		services         PeopleServices
-		days             TimetableDays
+		schedules        owners.CarePlanSchedules
+		services         owners.PeopleServices
+		days             owners.TimetableDays
 		payroll          settingsCompose.PayrollStatusGetter
 		side             *workforceCompose.WorkSessionSide
 		active           studentpresence.Presence
@@ -163,27 +146,27 @@ func composeServeRoot(
 		shifts           *workforceCompose.ShiftPlanning
 		deviceFleet      *devicefleetModule.Module
 		materialization  timetable.MaterializationCapability
-		lifecycle        TimetableLifecycle
+		lifecycle        owners.TimetableLifecycle
 		structureViews   StructureServices
-		reports          PresenceReports
-		offerings        CarePlanOfferings
-		notices          EnrollmentNotices
+		reports          owners.PresenceReports
+		offerings        owners.CarePlanOfferings
+		notices          owners.EnrollmentNotices
 		phases           *enrollmentCompose.Phases
 		decisions        *enrollmentCompose.Decisions
 		gradeTransition  *gradetransition.Workflow
-		flows            EnrollmentFlows
-		reviewPolicy     *ParentRequestReviewPolicy
-		requests         CarePlanRequests
+		flows            owners.EnrollmentFlows
+		reviewPolicy     *owners.ParentRequestReviewPolicy
+		requests         owners.CarePlanRequests
 		classDay         ClassDayViews
-		chat             CommunicationMessaging
+		chat             owners.CommunicationMessaging
 		calendarApp      calendarCompose.Application
 		parent           *parentportal.Portal
 		fileStore        *filestorageModule.Module
 		planExport       planexport.Service
-		workforce        WorkforcePlanning
+		workforce        owners.WorkforcePlanning
 		staffAdmin       *workforceModule.StaffAdmin
 		provisioning     organizationtenancy.Provisioning
-		deliveryDevices  DeliveryDevices
+		deliveryDevices  owners.DeliveryDevices
 		emergency        emergencysnapshot.Query
 		reminders        reminder.Module
 		groupLive        grouplive.Query
@@ -201,98 +184,101 @@ func composeServeRoot(
 		databaseStats    DatabaseStatsReader
 		staffGroups      schoolstructure.StaffGroupQuery
 	)
-	err := runRootSteps(
+	err := owners.RunRootSteps(
 		func() (err error) { tokens, err = newLegacyTokenAdapter(); return },
 		func() (err error) {
 			objects, err = nativeUploads.PrivateUploadsBackend()
-			return stepError("resolve uploads backend", err)
+			return owners.StepError("resolve uploads backend", err)
 		},
-		func() (err error) { audit, err = buildAuditOwner(db, env); return },
+		func() (err error) { audit, err = owners.BuildAuditOwner(db, env); return },
 		func() (err error) {
-			mailSender, mailDispatcher, mailFrom, pushVAPID, err = buildMailTransport(env)
+			mailSender, mailDispatcher, mailFrom, pushVAPID, err = owners.BuildMailTransport(env)
 			return
 		},
-		func() (err error) { organizations, err = buildServeOrganizations(db); return },
-		func() (err error) { groups, err = buildServeSchoolStructure(db); return },
-		func() (err error) { rooms, err = buildServeRooms(db); return },
-		func() (err error) { membership, err = composeSchoolMembership(db); return },
-		func() error { bookings = NewEnrollmentBookings(); return nil },
+		func() (err error) { organizations, err = owners.BuildServeOrganizations(db); return },
+		func() (err error) { groups, err = owners.BuildServeSchoolStructure(db); return },
+		func() (err error) { rooms, err = owners.BuildServeRooms(db); return },
+		func() (err error) { membership, err = owners.ComposeSchoolMembership(db); return },
+		func() error { bookings = owners.NewEnrollmentBookings(); return nil },
 		func() (err error) {
-			settings, err = buildSettingsOwner(db, unit, env, organizations, hub, bookings)
+			settings, err = owners.BuildSettingsOwner(db, unit, env, organizations, hub, bookings)
 			return
 		},
 		func() (err error) {
-			calendar, err = buildSchoolCalendarRecords(db, observeSchoolCalendar, settings.Service)
+			calendar, err = owners.BuildSchoolCalendarRecords(db, owners.ObserveSchoolCalendar, settings.Service)
 			return
 		},
-		func() (err error) { workTime, err = buildServeWorkforce(db, membership, calendar); return },
+		func() (err error) { workTime, err = owners.BuildServeWorkforce(db, membership, calendar); return },
 		func() error {
-			people, peopleIdentity = buildPeopleRows(db, env.Observe.IdentityAccess, groups, rooms, membership, workTime)
+			people, peopleIdentity = owners.BuildPeopleRows(db, env.Observe.IdentityAccess, groups, rooms, membership, workTime)
 			return nil
 		},
-		func() (err error) { guardian, err = buildGuardianService(db, people, audit); return },
+		func() (err error) { guardian, err = owners.BuildGuardianService(db, people, audit); return },
 		func() error {
 			unlinker := peopledirectory.NewPhotoUnlinker(env.Logger.With("component", "student-photo-unlinker"), "public", nativeUploads.UploadFiles{})
-			photoRuntime = buildStudentPhotoRuntime(db, env, settings.Service, hub, audit, unlinker, actingAccountID)
+			photoRuntime = owners.BuildStudentPhotoRuntime(db, env, settings.Service, hub, audit, unlinker, actingAccountID)
 			return nil
 		},
 		func() (err error) {
-			persons, err = buildPeopleDirectory(db, observePeopleDirectory, photoRuntime, guardianDirectoryProvider(db, guardian))
+			persons, err = owners.BuildPeopleDirectory(db, owners.ObservePeopleDirectory, photoRuntime, owners.GuardianDirectoryProvider(db, guardian))
 			return
 		},
 		func() (err error) {
 			classListEntries, err = composeClassListEntries(db, persons, audit.Command)
 			return
 		},
-		func() (err error) { timetableOwner, err = buildServeTimetable(db, persons, rooms, membership); return },
+		func() (err error) {
+			timetableOwner, err = owners.BuildServeTimetable(db, persons, rooms, membership)
+			return
+		},
 		func() error {
-			timetableRepos = NewTimetableRepositories(db, timetableOwner, persons, groups, rooms, calendar, membership, workTime)
+			timetableRepos = owners.NewTimetableRepositories(db, timetableOwner, persons, groups, rooms, calendar, membership, workTime)
 			return nil
 		},
 		func() (err error) {
-			carePlan, err = composeCarePlan(db, persons, CarePlanStatusSlots(timetableRepos.InstanceStudent))
+			carePlan, err = owners.ComposeCarePlan(db, persons, owners.CarePlanStatusSlots(timetableRepos.InstanceStudent))
 			return
 		},
-		func() (err error) { appointments, err = buildServeAppointments(db); return },
+		func() (err error) { appointments, err = owners.BuildServeAppointments(db); return },
 		func() (err error) {
-			operatorAuditLog = NewOperatorAuditLog(db)
+			operatorAuditLog = owners.NewOperatorAuditLog(db)
 			communication, err = buildCommunicationModule(db, env, organizations, persons, operatorAuditLog)
 			return
 		},
-		func() (err error) { mealPlanSettings, err = buildMealPlanSettings(settings.Service); return },
+		func() (err error) { mealPlanSettings, err = owners.BuildMealPlanSettings(settings.Service); return },
 		func() (err error) {
-			mealPlan, err = buildServeMealPlan(db, mealPlanSettings, NewStudentRootReads(people.Students))
+			mealPlan, err = owners.BuildServeMealPlan(db, mealPlanSettings, owners.NewStudentRootReads(people.Students))
 			return
 		},
-		func() (err error) { feedbackSettings, err = buildFeedbackSettings(settings.Service); return },
-		func() (err error) { feedback, err = buildServeFeedback(db, feedbackSettings); return },
+		func() (err error) { feedbackSettings, err = owners.BuildFeedbackSettings(settings.Service); return },
+		func() (err error) { feedback, err = owners.BuildServeFeedback(db, feedbackSettings); return },
 		func() (err error) {
-			structure = buildStructureRows(db, persons, people, peopleIdentity, rooms, membership, workTime)
-			presencePeople = buildPresencePeopleReads(db, env.Logger, persons, groups, organizations, people)
-			careRows = buildTimetableCareRows(carePlan)
-			devices, err = NewDeviceFleet(db)
-			return stepError("compose device fleet", err)
+			structure = owners.BuildStructureRows(db, persons, people, peopleIdentity, rooms, membership, workTime)
+			presencePeople = owners.BuildPresencePeopleReads(db, env.Logger, persons, groups, organizations, people)
+			careRows = owners.BuildTimetableCareRows(carePlan)
+			devices, err = owners.NewDeviceFleet(db)
+			return owners.StepError("compose device fleet", err)
 		},
 		func() error {
-			presence = buildPresenceOwner(db, env.Logger, env.Now, devices, persons, rooms, membership, carePlan, timetableOwner, timetableRepos, people, structure)
+			presence = owners.BuildPresenceOwner(db, env.Logger, env.Now, devices, persons, rooms, membership, carePlan, timetableOwner, timetableRepos, people, structure)
 			facilitiesRooms = buildFacilitiesRooms(presence.Presence, rooms, timetableOwner, membership, persons)
-			substitutions = NewGroupSubstitutionRepository(structure.Groups, membership, workTime)
-			supervisions = NewGroupSupervisionRecords(presence.SessionRecords, groups)
+			substitutions = owners.NewGroupSubstitutionRepository(structure.Groups, membership, workTime)
+			supervisions = owners.NewGroupSupervisionRecords(presence.SessionRecords, groups)
 			return nil
 		},
 		func() (err error) {
-			timetableRows, err = buildTimetableOwner(db, env.Logger, env.Now, timetableOwner, timetableRepos, calendar, bookings, structure.Groups)
+			timetableRows, err = owners.BuildTimetableOwner(db, env.Logger, env.Now, timetableOwner, timetableRepos, calendar, bookings, structure.Groups)
 			return
 		},
-		func() (err error) { classArrivals, err = buildClassArrivals(db, env.Logger); return },
+		func() (err error) { classArrivals, err = owners.BuildClassArrivals(db, env.Logger); return },
 		func() (err error) {
-			studentAudit = peopleCompose.NewStudentAuditService(tokens.AuditActor, NewStudentAuditFor(persons))
-			carePlanRows, err = buildCarePlanRows(db, env.Logger, studentAudit, carePlan, persons, membership, timetableOwner, calendar, classArrivals, people)
+			studentAudit = peopleCompose.NewStudentAuditService(tokens.AuditActor, owners.NewStudentAuditFor(persons))
+			carePlanRows, err = owners.BuildCarePlanRows(db, env.Logger, studentAudit, carePlan, persons, membership, timetableOwner, calendar, classArrivals, people)
 			return
 		},
 		func() (err error) {
-			enrollment = buildEnrollmentRows(bookings, carePlan, persons)
-			delivery, err = buildDeliveryRuntime(db, env, guardian)
+			enrollment = owners.BuildEnrollmentRows(bookings, carePlan, persons)
+			delivery, err = owners.BuildDeliveryRuntime(db, env, guardian)
 			return
 		},
 		func() (err error) {
@@ -300,88 +286,88 @@ func composeServeRoot(
 			return
 		},
 		func() (err error) {
-			mailIdentity = tenantMailIdentity(organizations, settings.Service, env)
-			portalReads = NewParentPortalReads(db, persons, peopleIdentity, enrollmentCompose.New(), organizations)
-			identity, caller, err = buildIdentityAccess(db, unit, env, tokens, organizations, persons, membership, settings.Service,
+			mailIdentity = owners.TenantMailIdentity(organizations, settings.Service, env)
+			portalReads = owners.NewParentPortalReads(db, persons, peopleIdentity, enrollmentCompose.New(), organizations)
+			identity, caller, err = owners.BuildIdentityAccess(db, unit, env, tokens, organizations, persons, membership, settings.Service,
 				audit, operatorAuditLog, mailSender, mailDispatcher, mailFrom, delivery.Runtime, mailIdentity, delivery.Enqueuer(), people, portalReads.ParentEnrollmentRequest,
 				structure.Groups, staffGroups, arrivalTimetable.NewCallerActivityGroups(timetableRepos.ActivityGroup),
 				presence.SessionRecords, presence.Presence)
 			return
 		},
 		func() (err error) {
-			messaging = NewParentMessagingRepositories(db, groups, membership, peopleIdentity, enrollmentCompose.New(), nil, organizations)
+			messaging = owners.NewParentMessagingRepositories(db, groups, membership, peopleIdentity, enrollmentCompose.New(), nil, organizations)
 			consent, err = communicationCompose.NewNotificationConsent(communicationCompose.NotificationConsentConfig{
 				DB: db.Pool(), Observe: env.Observe.Communication,
 			})
 			return
 		},
 		func() (err error) {
-			notifications, err = buildDeliveryNotifications(db, unit, env, pushVAPID, hub, deliveryModuleOf(delivery), settings.Service,
+			notifications, err = owners.BuildDeliveryNotifications(db, unit, env, pushVAPID, hub, owners.DeliveryModuleOf(delivery), settings.Service,
 				consent, identity, people, structure, workTime, messaging)
 			return
 		},
 		func() (err error) {
-			emitter = buildParentEventEmitter(db, unit, env, hub, settings.Service, messaging, notifications)
-			purger, err = buildAttachmentPurger(db, env, objects)
+			emitter = owners.BuildParentEventEmitter(db, unit, env, hub, settings.Service, messaging, notifications, NewCommunicationEventRuntime(db.Pool() != nil, unit))
+			purger, err = owners.BuildAttachmentPurger(db, env, objects)
 			return
 		},
 		func() (err error) {
-			announcements, err = buildParentAnnouncements(env, settings.Service, delivery.Outbox, deliveryModuleOf(delivery),
-				notifications, messaging, purger)
+			announcements, err = owners.BuildParentAnnouncements(env, settings.Service, delivery.Outbox, owners.DeliveryModuleOf(delivery),
+				notifications, messaging, purger, CommunicationRequestRuntime{})
 			return
 		},
 		func() (err error) {
-			schedules, err = buildCarePlanSchedules(db, env.Logger, carePlan, persons, carePlanRows, classArrivals,
+			schedules, err = owners.BuildCarePlanSchedules(db, env.Logger, carePlan, persons, carePlanRows, classArrivals,
 				enrollment.ApprovedOfferings, settings.Service, timetableRows.RecurrenceLock.LockRecurrenceWrites, presence.Presence)
 			return
 		},
 		func() error {
-			services = buildPeopleServices(db, env, persons, people, peopleIdentity, identity, schedules.Lifecycle, audit, tokens,
-				guardian, studentAudit, photoRuntime, NewCaregiverBindingLocker(membership, workTime, presence.Presence, timetableOwner),
+			services = owners.BuildPeopleServices(db, env, persons, people, peopleIdentity, identity, schedules.Lifecycle, audit, tokens,
+				guardian, studentAudit, photoRuntime, owners.NewCaregiverBindingLocker(membership, workTime, presence.Presence, timetableOwner),
 				supervisions, substitutions, structure,
-				CaregiverPlannedSupervisionBlockers{Supervisors: timetableOwner}, settings.Service)
-			payroll = payrollStatus(settings.Service, people)
+				owners.CaregiverPlannedSupervisionBlockers{Supervisors: timetableOwner}, settings.Service)
+			payroll = owners.PayrollStatus(settings.Service, people)
 			return nil
 		},
 		func() (err error) {
-			days, err = buildTimetableDays(timetableRows, people, rooms, careRows, audit, schedules.CareDay)
+			days, err = owners.BuildTimetableDays(timetableRows, people, rooms, careRows, audit, schedules.CareDay)
 			return
 		},
 		func() (err error) {
-			side, err = buildWorkSessionSide(db, env, mailFrom, hub, mailIdentity, workTime, membership, persons, organizations, people,
+			side, err = owners.BuildWorkSessionSide(db, env, mailFrom, hub, mailIdentity, workTime, membership, persons, organizations, people,
 				services.Users, audit, supervisions, presence.SessionRecords, calendar, settings.Service, payroll, delivery.Enqueuer())
 			return
 		},
 		func() (err error) {
-			active, err = buildActivePresence(db, unit, env, hub, settings.Service, presence, presencePeople, carePlanRows, people,
-				services.Users, rooms, devices, timetableRows, days, side.AutoCheckIn, emitter, tracker)
+			active, err = owners.BuildActivePresence(db, unit, env, hub, settings.Service, presence, presencePeople, carePlanRows, people,
+				services.Users, rooms, devices, timetableRows, days, side.AutoCheckIn, emitter, tracker, AttendancePrincipal)
 			return
 		},
 		func() (err error) {
-			activities, err = buildActivities(timetableRows, timetableOwner, presence.SessionRecords, people)
+			activities, err = owners.BuildActivities(timetableRows, timetableOwner, presence.SessionRecords, people)
 			yard = buildFacilitiesYard(env, facilitiesRooms, activities)
 			return
 		},
 		func() (err error) {
-			shifts, err = buildShiftPlanning(db, env, hub, workTime, people, calendar, audit, timetableRows, rooms, activities)
+			shifts, err = owners.BuildShiftPlanning(db, env, hub, workTime, people, calendar, audit, timetableRows, rooms, activities)
 			return
 		},
 		func() (err error) {
-			deviceFleet, err = buildDeviceFleet(db, env, settings.Service, rooms, presence, timetableRows, schedules.Pickups, organizations)
+			deviceFleet, err = owners.BuildDeviceFleet(db, env, settings.Service, rooms, presence, timetableRows, schedules.Pickups, organizations)
 			return
 		},
 		func() (err error) {
-			materialization, err = buildTimetableMaterialization(db, env, hub, timetableRows, people, calendar)
+			materialization, err = owners.BuildTimetableMaterialization(db, env, hub, timetableRows, people, calendar)
 			return
 		},
 		func() (err error) {
-			lifecycle, err = buildTimetableLifecycle(db, env, hub, timetableRows, days, people, careRows, presence, supervisions,
-				workforceShiftRows(workTime), schedules, carePlan, active, materialization, announcements, settings.Service)
+			lifecycle, err = owners.BuildTimetableLifecycle(db, env, hub, timetableRows, days, people, careRows, presence, supervisions,
+				owners.WorkforceShiftRows(workTime), schedules, carePlan, active, materialization, announcements, settings.Service)
 			return
 		},
 		func() (err error) {
-			lifecycle, err = buildTimetableDay(env, hub, lifecycle, timetableOwner, audit, settings.Service, presence, supervisions,
-				services.Users, membership, active, schedules)
+			lifecycle, err = owners.BuildTimetableDay(env, hub, lifecycle, timetableOwner, audit, settings.Service, presence, supervisions,
+				services.Users, membership, active, schedules, TimetableRequestSession{}, deviceauth.WithAttendanceStaff)
 			return
 		},
 		func() (err error) {
@@ -391,34 +377,34 @@ func composeServeRoot(
 			return
 		},
 		func() error {
-			reports = buildPresenceReports(db, env, presence, carePlanRows, carePlan, services.Users, timetableRows, rooms, calendar,
+			reports = owners.BuildPresenceReports(db, env, presence, carePlanRows, carePlan, services.Users, timetableRows, rooms, calendar,
 				people, audit, settings.Service)
 			return nil
 		},
 		func() (err error) {
-			offerings, err = buildCarePlanOfferings(env, carePlan, persons, people, timetableOwner, calendar, timetableRows, enrollment,
+			offerings, err = owners.BuildCarePlanOfferings(env, carePlan, persons, people, timetableOwner, calendar, timetableRows, enrollment,
 				settings.Service, schedules, audit, identity, hub, emitter)
 			return
 		},
 		func() (err error) {
-			notices = buildEnrollmentNotices(env, enrollment, settings.Service, delivery.Enqueuer(), organizations, audit, carePlan, deliveryModuleOf(delivery))
-			phases, err = buildEnrollmentPhases(env, enrollment, carePlan, persons, calendar, timetableRows, offerings, settings.Service)
+			notices = owners.BuildEnrollmentNotices(env, enrollment, settings.Service, delivery.Enqueuer(), organizations, audit, carePlan, owners.DeliveryModuleOf(delivery))
+			phases, err = owners.BuildEnrollmentPhases(env, enrollment, carePlan, persons, calendar, timetableRows, offerings, settings.Service)
 			return
 		},
 		func() (err error) {
-			decisions = buildEnrollmentDecisions(db, env, hub, enrollment, notices, audit, people, careRows, persons, carePlan,
+			decisions = owners.BuildEnrollmentDecisions(db, env, hub, enrollment, notices, audit, people, careRows, persons, carePlan,
 				offerings, identity, services, schedules, carePlanRows, timetableRows, settings.Service)
 			gradeTransition, err = buildGradeTransition(db, env, persons, membership, timetableRows, offerings.Bookings.ResyncOfferingSourcedTemplates, audit)
 			return
 		},
 		func() error {
-			flows = buildEnrollmentFlows(db, env, enrollment, notices, decisions, phases, offerings, consent, identity, people, structure,
+			flows = owners.BuildEnrollmentFlows(db, env, enrollment, notices, decisions, phases, offerings, consent, identity, people, structure,
 				carePlan, carePlanRows, schedules, membership, organizations, audit, settings.Service, delivery.Enqueuer())
-			reviewPolicy = NewParentRequestReviewPolicy(caller.Caller().ParentRequestReviews)
+			reviewPolicy = owners.NewParentRequestReviewPolicy(caller.Caller().ParentRequestReviews)
 			return nil
 		},
 		func() (err error) {
-			requests, err = buildCarePlanRequests(db, env, hub, carePlan, persons, people, schedules, offerings, enrollment,
+			requests, err = owners.BuildCarePlanRequests(db, env, hub, carePlan, persons, people, schedules, offerings, enrollment,
 				timetableOwner, settings.Service, audit, services, emitter, caller, reviewPolicy, tokens.Permissions, notifications.AbsenceNotifier)
 			return
 		},
@@ -428,38 +414,38 @@ func composeServeRoot(
 			return
 		},
 		func() error {
-			chat = buildCommunicationMessaging(db, env, hub, settings.Service, messaging, services.Users, StaffStudentReads{Caller: caller.Caller()},
-				notifications, delivery.Outbox, people, schoolNameDirectory{schools: organizations})
-			calendarApp = buildCalendarApp(db, env, people, structure, portalReads, timetableRows, rooms, workTime, organizations,
+			chat = owners.BuildCommunicationMessaging(db, env, hub, settings.Service, messaging, services.Users, owners.StaffStudentReads{Caller: caller.Caller()},
+				notifications, delivery.Outbox, people, owners.SchoolNameDirectory{Schools: organizations}, CommunicationSession{}, CommunicationRequestRuntime{})
+			calendarApp = owners.BuildCalendarApp(db, env, people, structure, portalReads, timetableRows, rooms, workTime, organizations,
 				identity, caller.Caller(), appointments, calendar, delivery, notifications, settings.Service, persons)
 			return nil
 		},
 		func() (err error) {
-			parent, err = buildParentPortal(db, env, hub, settings.Service, people, portalReads, messaging, presence, carePlanRows,
-				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices)
+			parent, err = owners.BuildParentPortal(db, env, hub, settings.Service, people, portalReads, messaging, presence, carePlanRows,
+				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices, ParentPortalRuntime{})
 			return
 		},
 		func() (err error) {
-			fileStore, err = buildFileStore(db, env, objects, identity, persons, settings.Service, audit, announcements, parent)
+			fileStore, err = owners.BuildFileStore(db, env, objects, identity, persons, settings.Service, audit, announcements, parent)
 			return
 		},
 		func() (err error) {
-			planExport = buildPlanExport(env, shifts, workTime, timetableRows, rooms, people, timetableOwner, calendar, renderer)
-			workforce, err = buildWorkforcePlanning(db, env, hub, workTime, membership, persons, shifts, planExport, side,
+			planExport = owners.BuildPlanExport(env, shifts, workTime, timetableRows, rooms, people, timetableOwner, calendar, renderer)
+			workforce, err = owners.BuildWorkforcePlanning(db, env, hub, workTime, membership, persons, shifts, planExport, side,
 				lifecycle, timetableRows, audit, settings.Service)
 			return
 		},
 		func() (err error) {
-			staffAdmin, err = buildWorkforceStaffAdmin(db, env, persons, membership, people, audit)
+			staffAdmin, err = owners.BuildWorkforceStaffAdmin(db, env, persons, membership, people, audit)
 			return
 		},
 		func() (err error) {
-			provisioning, err = buildProvisioning(db, env, organizations, identity, persons, membership, people, devices,
+			provisioning, err = owners.BuildProvisioning(db, env, organizations, identity, persons, membership, people, devices,
 				presence.SessionRecords, supervisions, timetableRows, operatorAuditLog, settings.Service)
 			return
 		},
 		func() (err error) {
-			deliveryDevices, err = buildDeliveryDevices(db, unit, env, pushVAPID, identity, provisioning, settings.Service)
+			deliveryDevices, err = owners.BuildDeliveryDevices(db, unit, env, pushVAPID, identity, provisioning, settings.Service)
 			return
 		},
 		func() (err error) {
@@ -467,7 +453,7 @@ func composeServeRoot(
 			return
 		},
 		func() error {
-			reminders = buildReminders(db, env, caller, settings.Service, schedules, active, supervisions, timetableOwner, rooms, people,
+			reminders = owners.BuildReminders(db, env, caller, settings.Service, schedules, active, supervisions, timetableOwner, rooms, people,
 				calendarApp, announcements, delivery)
 			return nil
 		},
@@ -491,16 +477,16 @@ func composeServeRoot(
 			return
 		},
 		func() (err error) {
-			studentDeletion, err = buildStudentDeletion(db, env, hub, persons, carePlan, timetableOwner, timetableRows, feedback,
+			studentDeletion, err = owners.BuildStudentDeletion(db, env, hub, persons, carePlan, timetableOwner, timetableRows, feedback,
 				caller.HasCurrentStaff, services.StudentPhotos, audit)
 			return
 		},
 		func() (err error) {
-			facilities, err = buildFacilitiesModule(db, observeFacilities, timetableRows.RecurrenceLock, presence.Presence, requests.CareOfferings)
+			facilities, err = owners.BuildFacilitiesModule(db, owners.ObserveFacilities, timetableRows.RecurrenceLock, presence.Presence, requests.CareOfferings)
 			return
 		},
 		func() (err error) {
-			calendarAdmin, err = buildCalendarAdministration(db, observeSchoolCalendar, calendar, timetableRows.RecurrenceLock, requests.CareOfferings)
+			calendarAdmin, err = buildCalendarAdministration(db, owners.ObserveSchoolCalendar, calendar, timetableRows.RecurrenceLock, requests.CareOfferings)
 			return
 		},
 		func() error {
@@ -513,8 +499,8 @@ func composeServeRoot(
 			return nil
 		},
 		func() (err error) {
-			outbox, err = buildDeliveryWorker(db, env, mailSender, mailFrom, pushVAPID, mailIdentity, delivery, buildCalendarAppointmentRenderer(db, mailFrom, people),
-				identityDeliveryRenderers(identity, mailFrom, mailIdentity, delivery.Runtime.EmailStatus, env), calendarApp)
+			outbox, err = owners.BuildDeliveryWorker(db, env, mailSender, mailFrom, pushVAPID, mailIdentity, delivery, owners.BuildCalendarAppointmentRenderer(db, mailFrom, people),
+				owners.IdentityDeliveryRenderers(identity, mailFrom, mailIdentity, delivery.Runtime.EmailStatus, env), calendarApp)
 			return
 		},
 	)
@@ -528,9 +514,9 @@ func composeServeRoot(
 		return nil, nil, err
 	}
 	logger, limiters, tenant := env.Logger, authRateLimitersFromEnv(), chi.NewRouter()
-	deviceAuth, studentPresence := newDeviceAuthentication(iot, organizations, settings.Service), NewLoggedStudentPresence(db, env.Logger)
+	deviceAuth, studentPresence := newDeviceAuthentication(iot, organizations, settings.Service), owners.NewLoggedStudentPresence(db, env.Logger)
 	careOfferings := requests.CareOfferings
-	err = runRootSteps(
+	err = owners.RunRootSteps(
 		func() error {
 			return mountDemoAccess(router, authAPI.ComposedDemoAccess(identity.DemoAccess()), viper.GetString("app_env"), config.FrontendURL, viper.GetString("tenant_domain"))
 		},
@@ -591,7 +577,7 @@ func composeServeRoot(
 	if !embedWorker {
 		return &serveHandler{router: router, settings: settings.Service}, nil, nil
 	}
-	worker, err := newWorker(db, env.Logger, tracer, hub, settings.Service, audit.Command, deviceFleet, carePlan, persons, people,
+	worker, err := owners.NewWorker(db, env.Logger, tracer, hub, settings.Service, audit.Command, deviceFleet, carePlan, persons, people,
 		organizations, identity, facilities, timetableRepos, workTime, staffAdmin, workforce, active, reports, lifecycle, days,
 		materialization, schedules, requests.Documents, services, studentAudit, notices, flows, studentDeletion, feedback, calendarApp,
 		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore)

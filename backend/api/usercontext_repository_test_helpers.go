@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 )
 
 // UserContextTestRepositories are the Identity & Access account profiles
@@ -14,19 +15,19 @@ import (
 // Structure's staff groups come beside them.
 type UserContextTestRepositories struct {
 	Profile       identityaccess.AccountProfiles
-	Substitutions GroupSubstitutionRepository
+	Substitutions owners.GroupSubstitutions
 }
 
-func NewUserContextTestRepositories(db transactionruntime.Database, members MembershipTestRepositories) (UserContextTestRepositories, schoolstructure.StaffGroupQuery, error) {
-	membership, err := NewSchoolMembership(db)
+func NewUserContextTestRepositories(db transactionruntime.Database, members owners.MembershipTestRepositories) (UserContextTestRepositories, schoolstructure.StaffGroupQuery, error) {
+	membership, err := owners.NewSchoolMembership(db)
 	if err != nil {
 		return UserContextTestRepositories{}, nil, err
 	}
-	workTime, err := NewWorkforce(db, membership)
+	workTime, err := owners.NewWorkforce(db, membership)
 	if err != nil {
 		return UserContextTestRepositories{}, nil, err
 	}
-	structure, err := NewSchoolStructure(db)
+	structure, err := owners.NewSchoolStructure(db)
 	if err != nil {
 		return UserContextTestRepositories{}, nil, err
 	}
@@ -35,6 +36,6 @@ func NewUserContextTestRepositories(db transactionruntime.Database, members Memb
 		return UserContextTestRepositories{}, nil, err
 	}
 	return UserContextTestRepositories{
-		Profile: NewPeopleIdentityAccess(db, nil), Substitutions: members.GroupSubstitution,
+		Profile: owners.NewPeopleIdentityAccess(db, nil), Substitutions: members.GroupSubstitution,
 	}, staffGroups, nil
 }

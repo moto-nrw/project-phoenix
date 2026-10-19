@@ -17,6 +17,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -284,7 +285,7 @@ func TestTenantIsolation_DisplayVisibility(t *testing.T) {
 	db := SetupTestDB(t)
 	tenantA, tenantB := isolationTenants(t, db)
 
-	fleet, err := api.NewDeviceFleet(NewDatabase(t, db))
+	fleet, err := owners.NewDeviceFleet(NewDatabase(t, db))
 	require.NoError(t, err)
 
 	ctxA := ctxForTenant(tenantA)
@@ -347,7 +348,7 @@ func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 	agA := CreateTestActiveGroupForTenant(t, db, tenantA)
 	agB := CreateTestActiveGroupForTenant(t, db, tenantB)
 
-	repo, _, _ := api.NewSessionCleanupRepositories(NewDatabase(t, db), api.MustNewUnobservedTimetable(NewDatabase(t, db)))
+	repo, _, _ := api.NewSessionCleanupRepositories(NewDatabase(t, db), owners.MustNewUnobservedTimetable(NewDatabase(t, db)))
 	presence := PresenceModule(t, db)
 
 	// --- Tenant A ---

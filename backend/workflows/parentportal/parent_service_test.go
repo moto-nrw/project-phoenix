@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -55,17 +56,17 @@ func buildParentService(t *testing.T, repo *stubEnrollmentRequestRepo) *parentSe
 	t.Helper()
 	testpkg.SetupTestDB(t)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges:       api.ParentGuardianChanges(),
-		DeparturePolicy:       api.ParentDeparturePolicy(),
-		GuardianPolicy:        api.NewParentGuardianPolicy(),
-		Fingerprints:          api.SecurityFingerprints{},
-		Declarations:          api.ParentDeclarationPolicy(),
-		Locales:               api.ParentPortalLocales(),
+		GuardianChanges:       owners.ParentGuardianChanges(),
+		DeparturePolicy:       owners.ParentDeparturePolicy(),
+		GuardianPolicy:        owners.NewParentGuardianPolicy(),
+		Fingerprints:          owners.SecurityFingerprints{},
+		Declarations:          owners.ParentDeclarationPolicy(),
+		Locales:               owners.ParentPortalLocales(),
 		Runtime:               api.ParentPortalRuntime{},
 		EnrollmentRequestRepo: repo,
 		Logger:                slog.Default(),
 
-		CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 }
 
@@ -127,17 +128,17 @@ func TestService_ListEnrollmentsForAccount_NilRepoReturnsError(t *testing.T) {
 
 	testpkg.SetupTestDB(t)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges:       api.ParentGuardianChanges(),
-		DeparturePolicy:       api.ParentDeparturePolicy(),
-		GuardianPolicy:        api.NewParentGuardianPolicy(),
-		Fingerprints:          api.SecurityFingerprints{},
-		Declarations:          api.ParentDeclarationPolicy(),
-		Locales:               api.ParentPortalLocales(),
+		GuardianChanges:       owners.ParentGuardianChanges(),
+		DeparturePolicy:       owners.ParentDeparturePolicy(),
+		GuardianPolicy:        owners.NewParentGuardianPolicy(),
+		Fingerprints:          owners.SecurityFingerprints{},
+		Declarations:          owners.ParentDeclarationPolicy(),
+		Locales:               owners.ParentPortalLocales(),
 		Runtime:               api.ParentPortalRuntime{},
 		EnrollmentRequestRepo: nil,
 		Logger:                slog.Default(),
 
-		CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 
 	_, err := svc.ListEnrollmentsForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 1)
@@ -275,18 +276,18 @@ func buildParentServiceWithGuardian(t *testing.T, repo *stubGuardianProfileRepo)
 	t.Helper()
 	testpkg.SetupTestDB(t)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges:     api.ParentGuardianChanges(),
-		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.NewParentGuardianPolicy(),
-		Fingerprints:        api.SecurityFingerprints{},
-		Declarations:        api.ParentDeclarationPolicy(),
-		Locales:             api.ParentPortalLocales(),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		People:              portalLocalePeople{repo: repo, tenantIDs: []int64{testpkg.Tenant(t)}},
 		GuardianProfileRepo: api.NewParentGuardianProfileReadFixture(repo.FindByAccountID),
 		Logger:              slog.Default(),
 
-		CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 }
 
@@ -402,17 +403,17 @@ func TestService_GetProfile_NilRepoReturnsError(t *testing.T) {
 
 	testpkg.SetupTestDB(t)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges:     api.ParentGuardianChanges(),
-		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.NewParentGuardianPolicy(),
-		Fingerprints:        api.SecurityFingerprints{},
-		Declarations:        api.ParentDeclarationPolicy(),
-		Locales:             api.ParentPortalLocales(),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		GuardianProfileRepo: nil,
 		Logger:              slog.Default(),
 
-		CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 
 	_, err := svc.GetProfile(testpkg.WithPackageTenantRuntime(context.Background()), 1234)
@@ -446,18 +447,18 @@ func TestService_UpdatePortalLocale_WritesEverySchool(t *testing.T) {
 	otherTenant, _ := testpkg.CreateTestTenant(t, db)
 	repo := &stubGuardianProfileRepo{}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges:     api.ParentGuardianChanges(),
-		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.NewParentGuardianPolicy(),
-		Fingerprints:        api.SecurityFingerprints{},
-		Declarations:        api.ParentDeclarationPolicy(),
-		Locales:             api.ParentPortalLocales(),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		People:              portalLocalePeople{repo: repo, tenantIDs: []int64{testpkg.Tenant(t), otherTenant}},
 		GuardianProfileRepo: api.NewParentGuardianProfileReadFixture(repo.FindByAccountID),
 		Logger:              slog.Default(),
 
-		CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 
 	profile, err := svc.UpdatePortalLocale(testpkg.WithPackageTenantRuntime(context.Background()), 1234, "en-US")
@@ -496,17 +497,17 @@ func TestService_UpdatePortalLocale_NilRepoReturnsError(t *testing.T) {
 
 	testpkg.SetupTestDB(t)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges:     api.ParentGuardianChanges(),
-		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.NewParentGuardianPolicy(),
-		Fingerprints:        api.SecurityFingerprints{},
-		Declarations:        api.ParentDeclarationPolicy(),
-		Locales:             api.ParentPortalLocales(),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		GuardianProfileRepo: nil,
 		Logger:              slog.Default(),
 
-		CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 
 	_, err := svc.UpdatePortalLocale(testpkg.WithPackageTenantRuntime(context.Background()), 1234, "en")

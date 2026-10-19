@@ -16,6 +16,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -35,32 +36,32 @@ func buildGuardianServiceFeature(t *testing.T, mgmtEnabled bool) (*parentService
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges: api.ParentGuardianChanges(),
-		DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy:  api.NewParentGuardianPolicy(),
-		Fingerprints:    api.SecurityFingerprints{},
-		Declarations:    api.ParentDeclarationPolicy(),
-		Locales:         api.ParentPortalLocales(),
+		GuardianChanges: owners.ParentGuardianChanges(),
+		DeparturePolicy: owners.ParentDeparturePolicy(),
+		GuardianPolicy:  owners.NewParentGuardianPolicy(),
+		Fingerprints:    owners.SecurityFingerprints{},
+		Declarations:    owners.ParentDeclarationPolicy(),
+		Locales:         owners.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
-		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
-		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CarePlan:        owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:          owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
+		StudentRepo:     owners.NewParentStudentReads(reposPeople.Student),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{parentService.KeyParentGuardianManagementEnabled: mgmtEnabled},
 		},
 		GuardianInvites:     &stubInvites{},
 		GuardianInvitations: guardianInvitationReads{db: db},
-		StudentGuardianRepo: api.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
-		GuardianProfileRepo: api.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
-		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(reposPeople.GuardianPhoneNumber),
+		StudentGuardianRepo: owners.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
+		GuardianProfileRepo: owners.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
+		GuardianPhoneRepo:   owners.NewParentGuardianPhoneReads(reposPeople.GuardianPhoneNumber),
 		Logger:              slog.Default(),
 
-		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
 
-		CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 	return svc, db
 }
@@ -646,7 +647,7 @@ func TestUpdateGuardianRelationship_WritesPickupAuditRow(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	rows, err := api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
+	rows, err := owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 1, "exactly one audit row for the single flag change")
 	assert.Equal(t, "pickup", rows[0].ChangeType)
@@ -664,7 +665,7 @@ func TestUpdateGuardianRelationship_WritesPickupAuditRow(t *testing.T) {
 		CanPickup: &canPickup,
 	})
 	require.NoError(t, err)
-	rows, err = api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
+	rows, err = owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 1, "unchanged value must not write a new audit row")
 }
@@ -692,7 +693,7 @@ func TestUpdateGuardianContact_WritesContactAuditRows(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	rows, err := api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
+	rows, err := owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
 	require.NoError(t, err)
 	require.NotEmpty(t, rows, "a fresh contact edit must write audit rows")
 
@@ -725,7 +726,7 @@ func TestUpdateGuardianContact_WritesContactAuditRows(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	rows, err = api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
+	rows, err = owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
 	require.NoError(t, err)
 	assert.Len(t, rows, before, "an unchanged contact re-save must not write new audit rows")
 }
@@ -1246,7 +1247,7 @@ func TestUpdateGuardianContact_LabelOnlyPhoneEditWritesAuditRow(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	rows, err := api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
+	rows, err := owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
 	require.NoError(t, err)
 	phoneRows := 0
 	for _, r := range rows {
@@ -1438,32 +1439,32 @@ func TestUpdateGuardianContact_PropagatesEmailLookupError(t *testing.T) {
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	lookupErr := fmt.Errorf("simulated guardian email lookup failure")
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges: api.ParentGuardianChanges(),
-		DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy:  api.NewParentGuardianPolicy(),
-		Fingerprints:    api.SecurityFingerprints{},
-		Declarations:    api.ParentDeclarationPolicy(),
-		Locales:         api.ParentPortalLocales(),
+		GuardianChanges: owners.ParentGuardianChanges(),
+		DeparturePolicy: owners.ParentDeparturePolicy(),
+		GuardianPolicy:  owners.NewParentGuardianPolicy(),
+		Fingerprints:    owners.SecurityFingerprints{},
+		Declarations:    owners.ParentDeclarationPolicy(),
+		Locales:         owners.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
-		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
-		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CarePlan:        owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:          owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(reposPeople.Student),
+		StudentRepo:     owners.NewParentStudentReads(reposPeople.Student),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{parentService.KeyParentGuardianManagementEnabled: true},
 		},
 		GuardianInvites:     &stubInvites{},
 		GuardianInvitations: guardianInvitationReads{db: db},
-		StudentGuardianRepo: api.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
-		GuardianProfileRepo: newEmailLookupFailingGuardianRepo(api.NewParentGuardianProfileReads(reposPeople.GuardianProfile), lookupErr),
-		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(reposPeople.GuardianPhoneNumber),
+		StudentGuardianRepo: owners.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
+		GuardianProfileRepo: newEmailLookupFailingGuardianRepo(owners.NewParentGuardianProfileReads(reposPeople.GuardianProfile), lookupErr),
+		GuardianPhoneRepo:   owners.NewParentGuardianPhoneReads(reposPeople.GuardianPhoneNumber),
 		Logger:              slog.Default(),
 
-		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
 
-		CarePlanPolicy: api.NewParentCarePlanPolicy(),
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

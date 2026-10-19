@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
 	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
@@ -382,7 +384,7 @@ func parsePositiveInt(valueStr string, defaultValue int) int {
 
 // requestReviewDependencies binds native owner capabilities for the staff projection.
 func requestReviewDependencies(
-	db transactionruntime.Database, persons peopledirectory.Capability, reviewPolicy *ParentRequestReviewPolicy, caller *CallerRows,
+	db transactionruntime.Database, persons peopledirectory.Capability, reviewPolicy *owners.ParentRequestReviewPolicy, caller *owners.CallerRows,
 	settings settingsCompose.SettingsService, excused *carePlanCompose.ExcusedAbsenceRequests,
 ) (requestreviewcompose.ProjectionDependencies, carePlanModule.CareScheduleReviewQuery, error) {
 	pool := db.Pool()
@@ -497,11 +499,11 @@ func newDeviceAuthentication(iot devicefleetCompose.IoTService, organizations or
 // mountStudentRoutes serves /api/students.
 func mountStudentRoutes(
 	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, deviceAuth *deviceauth.Authenticators, presence *studentpresence.Module,
-	persons peopledirectory.Capability, services PeopleServices, membership *schoolMembershipModule.Module, caller *CallerRows,
-	reviewPolicy *ParentRequestReviewPolicy, settings settingsCompose.SettingsService, hub *realtime.Hub, carePlan carePlanModule.Capability,
-	companions carePlanModule.StudentCompanions, schedules CarePlanSchedules, requests CarePlanRequests, planning TimetablePlanning,
-	emitter eventContract.Emitter, activities activityContract.ActivityService, lifecycle TimetableLifecycle,
-	reports PresenceReports, structureViews StructureServices, organizations organizationtenancy.Query,
+	persons peopledirectory.Capability, services owners.PeopleServices, membership *schoolMembershipModule.Module, caller *owners.CallerRows,
+	reviewPolicy *owners.ParentRequestReviewPolicy, settings settingsCompose.SettingsService, hub *realtime.Hub, carePlan carePlanModule.Capability,
+	companions carePlanModule.StudentCompanions, schedules owners.CarePlanSchedules, requests owners.CarePlanRequests, planning TimetablePlanning,
+	emitter eventContract.Emitter, activities activityContract.ActivityService, lifecycle owners.TimetableLifecycle,
+	reports owners.PresenceReports, structureViews StructureServices, organizations organizationtenancy.Query,
 	statusDays studentpresence.StatusDays, absences deliveryCompose.AbsenceNotifier, deletion *studentdeletion.Workflow,
 	groupLive grouplive.Query, decisions enrollmentOwner.Decisions, active studentpresence.Presence,
 ) error {
@@ -630,7 +632,7 @@ func mountPresenceRoutes(
 	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, errorReportDSN string,
 	deviceAuth *deviceauth.Authenticators, presence *studentpresence.Module, active studentpresence.Presence,
 	facilities *facilitiesModule.Module, timetableOwner timetableModule.Capability, timetableRepos timetableCompose.Repositories,
-	days TimetableDays, persons peopledirectory.Capability, users peoplePorts.PersonDirectory, caller *CallerRows,
+	days owners.TimetableDays, persons peopledirectory.Capability, users peoplePorts.PersonDirectory, caller *owners.CallerRows,
 	settings settingsCompose.SettingsService, hub *realtime.Hub, emitter eventContract.Emitter,
 	groupLive grouplive.Query, dashboard supervisiondashboard.Query, yard FacilitiesYard, iot devicefleetCompose.IoTService,
 	activities activityContract.ActivityService, education schoolstructure.GroupManagement, pickups carePlanModule.PickupScheduleService,
@@ -726,7 +728,7 @@ func newIoTResource(
 		Runtime:          NewIoTHTTPRuntime(),
 		DeviceScan:       deviceScan,
 		OpenRooms:        deviceScan,
-		StaffClock:       newStaffClockService(users, NewPeopleIdentityAccess(db, observability.ObserveIdentityAccessOperation), timeTracking.TimeClock),
+		StaffClock:       newStaffClockService(users, owners.NewPeopleIdentityAccess(db, observability.ObserveIdentityAccessOperation), timeTracking.TimeClock),
 		Configuration:    devicescanCompose.NewConfiguration(DeviceConfiguration{Settings: settings}, DeviceScanPrincipal),
 		Rooms:            devicescanCompose.NewRoomAvailability(rooms.RoomService, DeviceScanPrincipal),
 		Directory:        devicescanCompose.NewDirectory(NewDeviceScanPeople(users), DeviceActivityCatalog(activities), logger, DeviceScanPrincipal),
@@ -751,9 +753,9 @@ func newIoTResource(
 func mountStaffRoutes(
 	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, membership schoolMembershipModule.Capability,
 	workTime workforceModule.Capability, users peoplePorts.PersonDirectory, staffAdmin *workforceModule.StaffAdmin,
-	workforce WorkforcePlanning, shifts *workforceCompose.ShiftPlanning, education schoolstructure.GroupManagement,
+	workforce owners.WorkforcePlanning, shifts *workforceCompose.ShiftPlanning, education schoolstructure.GroupManagement,
 	substitution schoolStructureCompose.SubstitutionModule, persons peopledirectory.Capability, settings settingsCompose.SettingsService,
-	hub *realtime.Hub, identity *identityaccess.Module, caller *CallerRows, calendar schoolcalendar.Calendar,
+	hub *realtime.Hub, identity *identityaccess.Module, caller *owners.CallerRows, calendar schoolcalendar.Calendar,
 ) error {
 	staff, _, err := newStaffComposition(membership, workTime, users, staffAdmin, workforce.TimeTracking, education, persons, settings, hub, identity, db, logger.With("handler", "staff"))
 	if err != nil {
@@ -784,11 +786,11 @@ func mountStaffRoutes(
 func mountSchoolPortalRoutes(
 	root, tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, limiters authRateLimiters,
 	presence *studentpresence.Module, timetableOwner timetableModule.Capability, calendar schoolcalendar.Calendar,
-	materialization timetableModule.MaterializationCapability, lifecycle TimetableLifecycle, planning TimetablePlanning,
-	planningTracks timetableModule.PlanningTrackAdministration, users peoplePorts.PersonDirectory, schedules CarePlanSchedules,
-	caller *CallerRows, settings settingsCompose.SettingsService, careOfferings carePlanModule.CareOfferingCapability,
-	planExport planexport.Service, chat CommunicationMessaging, persons peopledirectory.Capability, notifications DeliveryNotifications,
-	devices DeliveryDevices, classDay ClassDayViews, identity *identityaccess.Module,
+	materialization timetableModule.MaterializationCapability, lifecycle owners.TimetableLifecycle, planning TimetablePlanning,
+	planningTracks timetableModule.PlanningTrackAdministration, users peoplePorts.PersonDirectory, schedules owners.CarePlanSchedules,
+	caller *owners.CallerRows, settings settingsCompose.SettingsService, careOfferings carePlanModule.CareOfferingCapability,
+	planExport planexport.Service, chat owners.CommunicationMessaging, persons peopledirectory.Capability, notifications owners.DeliveryNotifications,
+	devices owners.DeliveryDevices, classDay ClassDayViews, identity *identityaccess.Module,
 ) error {
 	pickupExtensions, err := careexit.NewPickupExtensions(timetableOwner, presence)
 	if err != nil {
@@ -827,8 +829,8 @@ func mountSchoolPortalRoutes(
 // lifecycle uses.
 func newTimetableResource(
 	calendar schoolcalendar.Calendar, timetableOwner timetableModule.Capability, materialization timetableModule.MaterializationCapability,
-	lifecycle TimetableLifecycle, planning TimetablePlanning, planningTracks timetableModule.PlanningTrackAdministration,
-	users peoplePorts.PersonDirectory, schedules CarePlanSchedules, caller *CallerRows, settings settingsCompose.SettingsService,
+	lifecycle owners.TimetableLifecycle, planning TimetablePlanning, planningTracks timetableModule.PlanningTrackAdministration,
+	users peoplePorts.PersonDirectory, schedules owners.CarePlanSchedules, caller *owners.CallerRows, settings settingsCompose.SettingsService,
 	careOfferings carePlanModule.CareOfferingCapability, classDay ClassDayViews, planExport planexport.Service,
 	pickupExtensions timetableModule.PickupExtensionCapability, logger *slog.Logger,
 ) *timetableAPI.Resource {
@@ -865,7 +867,7 @@ func newTimetableResource(
 // /api.
 func mountSchoolRoutes(
 	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, facilities *facilitiesModule.Module, rooms FacilitiesRooms,
-	settings settingsCompose.SettingsService, caller *CallerRows, active studentpresence.Presence, users peoplePorts.PersonDirectory,
+	settings settingsCompose.SettingsService, caller *owners.CallerRows, active studentpresence.Presence, users peoplePorts.PersonDirectory,
 	education schoolstructure.GroupManagement, renderer *lists.RendererService, activities activityContract.ActivityService,
 	timetableOwner timetableModule.Capability, iot devicefleetCompose.IoTService, calendar schoolcalendar.Calendar,
 	planning TimetablePlanning, careOfferings carePlanModule.CareOfferingCapability, settingsWrites SettingsWrites,
@@ -896,7 +898,7 @@ func mountSchoolRoutes(
 	), TimetableHTTPTransactions).Router(ProtectedTenantRoutes))
 	// The schema-driven settings system.
 	homeLayouts := requireHomeLayoutOperations(settings)
-	tenant.Mount("/settings", newSettingsResource(db, settingsWrites.Tenant, homeLayouts, NewEnrollmentBookings().SchemaReferencesLegalDocument).SettingsRouter())
+	tenant.Mount("/settings", newSettingsResource(db, settingsWrites.Tenant, homeLayouts, owners.NewEnrollmentBookings().SchemaReferencesLegalDocument).SettingsRouter())
 	// Class-list-only entries (#2382).
 	tenant.Mount("/class-list-entries", newClassListEntriesResource(classListEntries, logger.With("handler", "class-list-entries")).Router())
 	tenant.Mount("/database", newDatabaseStatsRouter(databaseStats, logger.With("handler", "database")))
@@ -913,7 +915,7 @@ func mountSchoolRoutes(
 // here, over the settings and the owners it composed (#4012).
 func newEnrollmentResource(
 	logger *slog.Logger, settings settingsCompose.SettingsService, careOfferings carePlanModule.CareOfferingCapability,
-	flows EnrollmentFlows, phases enrollmentOwner.PhaseAdministration, decisions enrollmentOwner.Decisions,
+	flows owners.EnrollmentFlows, phases enrollmentOwner.PhaseAdministration, decisions enrollmentOwner.Decisions,
 	deletions enrollmentOwner.EnrollmentDeletions, identity *identityaccess.Module,
 	guardianProfiles *peopleCompose.GuardianProfileLoader, organizations organizationtenancy.Query,
 	renderer *lists.RendererService, persons peopledirectory.Capability, carePlan carePlanModule.Capability,
@@ -934,7 +936,7 @@ func newEnrollmentResource(
 		enrollmentSchoolDirectory{schools: organizations},
 		nativeUploads.UploadFiles{},
 		enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
-		NewEnrollmentBookings(),
+		owners.NewEnrollmentBookings(),
 	)
 	resource.ListExportService = renderer
 	resource.PhaseExpiryService = newEnrollmentPhaseExpiry(persons, carePlan)
@@ -945,8 +947,8 @@ func newEnrollmentResource(
 // birthdays, the caller's own context, the emergency snapshot, feedback and
 // the meal plan under /api.
 func mountPeopleRoutes(
-	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, reports PresenceReports, renderer *lists.RendererService,
-	persons *peopledirectory.Module, guardians peoplePorts.GuardianService, identity *identityaccess.Module, caller *CallerRows,
+	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, reports owners.PresenceReports, renderer *lists.RendererService,
+	persons *peopledirectory.Module, guardians peoplePorts.GuardianService, identity *identityaccess.Module, caller *owners.CallerRows,
 	feedback *feedbackModule.Module, mealPlan *mealplanModule.Module, birthdays peopledirectory.Birthdays,
 	emergency emergencysnapshot.Query,
 ) {
@@ -967,8 +969,8 @@ func mountPeopleRoutes(
 // mountCommunicationRoutes serves parent messages and announcements, staff
 // reminders, the PWA usage report and the platform announcements under /api.
 func mountCommunicationRoutes(
-	tenant chi.Router, chat CommunicationMessaging, announcements communicationModule.ParentAnnouncementCapability,
-	reminders reminder.Capability, devices DeliveryDevices, communication *communicationModule.Module,
+	tenant chi.Router, chat owners.CommunicationMessaging, announcements communicationModule.ParentAnnouncementCapability,
+	reminders reminder.Capability, devices owners.DeliveryDevices, communication *communicationModule.Module,
 ) {
 	tenant.Mount("/messages", messagingAPI.NewResource(chat.Messaging).Router(ProtectedTenantRoutes))
 	tenant.Mount("/parent-announcements", announcementAPI.NewResource(announcements, newDeclarationReports()).Router(ProtectedTenantRoutes))
@@ -1007,7 +1009,7 @@ func mountCalendarRoutes(root, tenant chi.Router, logger *slog.Logger, calendarA
 // routes under /api and the portal routes at the root. The portal routes sit
 // at the root because /parent is a catch-all mount; ParentMiddleware and
 // SchoolMiddleware authenticate them.
-func mountDeliveryRoutes(root, tenant chi.Router, logger *slog.Logger, fileStore *filestorageModule.Module, hub *realtime.Hub, caller *CallerRows, identity *identityaccess.Module) error {
+func mountDeliveryRoutes(root, tenant chi.Router, logger *slog.Logger, fileStore *filestorageModule.Module, hub *realtime.Hub, caller *owners.CallerRows, identity *identityaccess.Module) error {
 	files := filestoreAPI.NewResource(fileStore, logger.With("handler", "filestore"))
 	sse, err := sseAPI.NewResourceWithSchoolAccess(hub, caller, NewSSEHTTPRuntime(), identity, logger.With("handler", "sse"))
 	if err != nil {
@@ -1057,7 +1059,7 @@ func newAccountResource(db transactionruntime.Database, identity *identityaccess
 	resource := authAPI.NewResource(identity, identity, authSchools, identity, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	resource.CaregiverCapabilityService = caregiverCapabilityViews(db, caregivers)
 	resource.SettingsService = settings
-	resource.RoleGrants = RoleGrantPolicy{}
+	resource.RoleGrants = owners.RoleGrantPolicy{}
 	resource.MFAService = identity
 	resource.PasskeyService = identity
 	return resource
@@ -1083,14 +1085,14 @@ func newOperatorRouter(
 			OperatorID:     operatorIDFromSession,
 		},
 	})
-	billing, err := newOperatorBilling(logger)
+	billing, err := owners.NewOperatorBilling(logger)
 	if err != nil {
 		return nil, fmt.Errorf("compose operator billing: %w", err)
 	}
 	schoolSettings := settingsCompose.NewOperatorSchoolSettings(settingsCompose.OperatorDependencies{
 		Settings:       settings,
 		DB:             db.Pool(),
-		Notify:         settingsChangedNotifier(hub),
+		Notify:         owners.SettingsChangedNotifier(hub),
 		OpenAttendance: OpenAttendanceChecker{Service: active},
 		// Mirror the tenant-side OnValueSet hook so operator writes also
 		// trigger side effects (e.g. auto-creating the Schulhof/WC rooms when
@@ -1135,9 +1137,9 @@ func newOperatorRouter(
 // newParentResource composes the cross-tenant guardian portal: public
 // /parent/auth/login and the protected /parent/* routes.
 func newParentResource(
-	identity *identityaccess.Module, parent *parentportal.Portal, calendarApp calendarCompose.Application, flows EnrollmentFlows,
+	identity *identityaccess.Module, parent *parentportal.Portal, calendarApp calendarCompose.Application, flows owners.EnrollmentFlows,
 	guardianProfiles *peopleCompose.GuardianProfileLoader, organizations organizationtenancy.Query,
-	devices DeliveryDevices, notifications DeliveryNotifications,
+	devices owners.DeliveryDevices, notifications owners.DeliveryNotifications,
 ) *parentAPI.Resource {
 	return parentAPI.NewResource(parentAPI.ResourceConfig{
 		Auth:                  parentPortalLogin(identity),
@@ -1192,7 +1194,7 @@ func requireHomeLayoutOperations(settings any) settingsHTTP.HomeLayoutOperations
 }
 
 // currentStaffID resolves the caller's staff ID at request time.
-func currentStaffID(caller *CallerRows) func(context.Context) (int64, error) {
+func currentStaffID(caller *owners.CallerRows) func(context.Context) (int64, error) {
 	return func(ctx context.Context) (int64, error) {
 		return caller.Caller().StaffID(ctx)
 	}

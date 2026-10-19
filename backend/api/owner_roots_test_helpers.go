@@ -6,6 +6,8 @@ import (
 	"context"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -22,14 +24,14 @@ import (
 
 // NewCalendarReminderCommand binds the existing notification adapters to the
 // reminder workflow without constructing a repository or service factory.
-func NewCalendarReminderCommand(db transactionruntime.Database, source CalendarReminderSource) reminder.Command {
+func NewCalendarReminderCommand(db transactionruntime.Database, source owners.CalendarReminderSource) reminder.Command {
 	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
-		DB: db.Pool(), People: enrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
+		DB: db.Pool(), People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
 	})
 	if err != nil {
 		panic(err)
 	}
-	return reminderCompose.NewCommand(reminderCommandRuntime(db), reminderDeliveryDependencies(db, runtime, source))
+	return reminderCompose.NewCommand(owners.ReminderCommandRuntime(db), owners.ReminderDeliveryDependencies(db, runtime, source))
 }
 
 // NewFacilities composes the unobserved room owner for the test and CLI
@@ -59,16 +61,16 @@ func NewSickCascadeTimetableRows(rows timetableCompose.OwnerRows, db transaction
 
 // NewCalendarReminderOutboxFixture exposes preparation and the real worker so
 // transaction and process-death tests can omit the post-commit continuation.
-func NewCalendarReminderOutboxFixture(db transactionruntime.Database, source CalendarReminderSource) (func(context.Context, time.Time, time.Time) (int, func(context.Context) error, error), func(context.Context) error) {
-	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{DB: db.Pool(), People: enrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {}})
+func NewCalendarReminderOutboxFixture(db transactionruntime.Database, source owners.CalendarReminderSource) (func(context.Context, time.Time, time.Time) (int, func(context.Context) error, error), func(context.Context) error) {
+	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{DB: db.Pool(), People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {}})
 	if err != nil {
 		panic(err)
 	}
-	deps := reminderDeliveryDependencies(db, runtime, source)
-	provider := reminderPushProvider{deliver: reminderCompose.NewPushDelivery(reminderCommandRuntime(db), deps)}
+	deps := owners.ReminderDeliveryDependencies(db, runtime, source)
+	provider := owners.ReminderPushProvider{Deliver: reminderCompose.NewPushDelivery(owners.ReminderCommandRuntime(db), deps)}
 	worker, err := deliveryCompose.NewWorker(runtime, provider)
 	if err != nil {
 		panic(err)
 	}
-	return reminderCompose.NewPreparation(reminderCommandRuntime(db), deps).PrepareAppointmentReminders, func(ctx context.Context) error { _, err := worker.RunOnce(ctx, 2, 6); return err }
+	return reminderCompose.NewPreparation(owners.ReminderCommandRuntime(db), deps).PrepareAppointmentReminders, func(ctx context.Context) error { _, err := worker.RunOnce(ctx, 2, 6); return err }
 }

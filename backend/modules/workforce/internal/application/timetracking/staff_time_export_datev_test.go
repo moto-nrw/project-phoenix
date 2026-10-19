@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -55,11 +56,11 @@ func (f *overviewFixture) newDatevExportService(values settingstest.Values) time
 	return timetracking.NewStaffTimeExportService(
 		f.svc,
 		f.newWorkSessionService(),
-		api.TimeExportStaff(f.repos.Staff),
-		api.NewTimeTrackingDataAccessAudit(api.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).DataAccessLog),
+		owners.TimeExportStaff(f.repos.Staff),
+		owners.NewTimeTrackingDataAccessAudit(owners.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).DataAccessLog),
 		api.NewPayrollExportSettings(settingstest.New(values), f.countPersonnelNumbers),
 		nil,
-		api.RenderTimeTrackingWorkbook,
+		owners.RenderTimeTrackingWorkbook,
 	)
 }
 
@@ -297,7 +298,7 @@ func TestDatevExport_RequiresSingleMonth(t *testing.T) {
 func TestDatevReport_RejectsNonDatevFormats(t *testing.T) {
 	t.Parallel()
 
-	svc := timetracking.NewStaffTimeExportService(nil, nil, nil, nil, nil, nil, api.RenderTimeTrackingWorkbook)
+	svc := timetracking.NewStaffTimeExportService(nil, nil, nil, nil, nil, nil, owners.RenderTimeTrackingWorkbook)
 
 	for _, format := range []string{"", timetracking.ExportFormatCSV, timetracking.ExportFormatXLSX} {
 		_, err := svc.DatevReport(context.Background(), timetracking.TimeExportRequest{
@@ -316,9 +317,9 @@ func TestDatevExport_NoFileWithoutAudit(t *testing.T) {
 	f := newDatevFixture(t)
 	actorID := f.newActorAccount(t)
 	svc := timetracking.NewStaffTimeExportService(
-		f.svc, f.newWorkSessionService(), api.TimeExportStaff(f.repos.Staff), failingAccessLogRepo{},
+		f.svc, f.newWorkSessionService(), owners.TimeExportStaff(f.repos.Staff), failingAccessLogRepo{},
 		api.NewPayrollExportSettings(settingstest.New(datevFullConfig()), f.countPersonnelNumbers), nil,
-		api.RenderTimeTrackingWorkbook,
+		owners.RenderTimeTrackingWorkbook,
 	)
 
 	file, err := svc.Export(f.ctx, datevRequest(timetracking.ExportFormatDatevLodas), actorID, "admin")

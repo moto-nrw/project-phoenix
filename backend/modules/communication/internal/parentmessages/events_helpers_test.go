@@ -1,7 +1,7 @@
 package messaging_test
 
 import (
-	"github.com/moto-nrw/project-phoenix/api"
+	api "github.com/moto-nrw/project-phoenix/api"
 	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
 	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 
