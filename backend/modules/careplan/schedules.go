@@ -154,55 +154,100 @@ type PickupNote struct {
 	CreatedBy int64
 }
 
+// StudentSchedulesQuery reads the weekly arrival and pickup plans of
+// children with their exceptions and notes.
 type StudentSchedulesQuery interface {
+	ArrivalSchedulesQuery
+	PickupSchedulesQuery
+	CountStudentScheduleRows(context.Context, int64) (int, error)
+}
+
+// ArrivalSchedulesQuery reads arrival schedules, exceptions and notes.
+type ArrivalSchedulesQuery interface {
 	FindArrivalSchedule(context.Context, int64) (ArrivalSchedule, error)
 	ListArrivalSchedules(context.Context, StudentScheduleFilter) ([]ArrivalSchedule, error)
 	FindArrivalException(context.Context, int64, bool) (ArrivalException, error)
 	ListArrivalExceptions(context.Context, StudentScheduleFilter) ([]ArrivalException, error)
 	FindArrivalNote(context.Context, int64) (ArrivalNote, error)
 	ListArrivalNotes(context.Context, StudentScheduleFilter) ([]ArrivalNote, error)
+}
+
+// PickupSchedulesQuery reads pickup schedules, exceptions and notes.
+type PickupSchedulesQuery interface {
 	FindPickupSchedule(context.Context, int64) (PickupSchedule, error)
 	ListPickupSchedules(context.Context, StudentScheduleFilter) ([]PickupSchedule, error)
 	FindPickupException(context.Context, int64, bool) (PickupException, error)
 	ListPickupExceptions(context.Context, StudentScheduleFilter) ([]PickupException, error)
 	FindPickupNote(context.Context, int64) (PickupNote, error)
 	ListPickupNotes(context.Context, StudentScheduleFilter) ([]PickupNote, error)
-	CountStudentScheduleRows(context.Context, int64) (int, error)
 }
 
+// StudentSchedulesCommand writes the weekly arrival and pickup plans of
+// children with their exceptions and notes, and ends or restores them when
+// care ends.
 type StudentSchedulesCommand interface {
+	ArrivalSchedulesCommand
+	ArrivalExceptionsCommand
+	ArrivalNotesCommand
+	PickupSchedulesCommand
+	PickupExceptionsCommand
+	PickupNotesCommand
+	EndStudentSchedulesForCareExit(context.Context, []int64, Date) (int64, error)
+	RestoreStudentSchedulesForCareExit(context.Context, []int64) (int64, error)
+}
+
+// ArrivalSchedulesCommand writes weekly arrival schedules.
+type ArrivalSchedulesCommand interface {
 	CreateArrivalSchedule(context.Context, ArrivalSchedule) (ArrivalSchedule, error)
 	UpdateArrivalSchedule(context.Context, ArrivalSchedule) error
 	UpsertArrivalSchedule(context.Context, ArrivalSchedule) (ArrivalSchedule, error)
 	DeleteArrivalSchedule(context.Context, int64) error
 	DeleteArrivalSchedulesByStudent(context.Context, int64) error
+}
+
+// ArrivalExceptionsCommand writes dated arrival exceptions.
+type ArrivalExceptionsCommand interface {
 	CreateArrivalException(context.Context, ArrivalException) (ArrivalException, error)
 	UpdateArrivalException(context.Context, ArrivalException) error
 	DeleteArrivalException(context.Context, int64) error
 	DeleteArrivalExceptionsByStudent(context.Context, int64) error
 	DeleteArrivalExceptionsBefore(context.Context, Date) (int64, error)
+}
+
+// ArrivalNotesCommand writes arrival notes.
+type ArrivalNotesCommand interface {
 	CreateArrivalNote(context.Context, ArrivalNote) (ArrivalNote, error)
 	UpdateArrivalNote(context.Context, ArrivalNote) error
 	DeleteArrivalNote(context.Context, int64) error
 	DeleteArrivalNotesByStudent(context.Context, int64) error
 	DeleteArrivalNotesBefore(context.Context, Date) (int64, error)
+}
+
+// PickupSchedulesCommand writes weekly pickup schedules.
+type PickupSchedulesCommand interface {
 	CreatePickupSchedule(context.Context, PickupSchedule) (PickupSchedule, error)
 	UpdatePickupSchedule(context.Context, PickupSchedule) error
 	UpsertPickupSchedule(context.Context, PickupSchedule) (PickupSchedule, error)
 	DeletePickupSchedule(context.Context, int64) error
 	DeletePickupSchedulesByStudent(context.Context, int64) error
+}
+
+// PickupExceptionsCommand writes dated pickup exceptions.
+type PickupExceptionsCommand interface {
 	CreatePickupException(context.Context, PickupException) (PickupException, error)
 	UpdatePickupException(context.Context, PickupException) error
 	DeletePickupException(context.Context, int64) error
 	DeletePickupExceptionsByStudent(context.Context, int64) error
 	DeletePickupExceptionsBefore(context.Context, Date) (int64, error)
+}
+
+// PickupNotesCommand writes pickup notes.
+type PickupNotesCommand interface {
 	CreatePickupNote(context.Context, PickupNote) (PickupNote, error)
 	UpdatePickupNote(context.Context, PickupNote) error
 	DeletePickupNote(context.Context, int64) error
 	DeletePickupNotesByStudent(context.Context, int64) error
 	DeletePickupNotesBefore(context.Context, Date) (int64, error)
-	EndStudentSchedulesForCareExit(context.Context, []int64, Date) (int64, error)
-	RestoreStudentSchedulesForCareExit(context.Context, []int64) (int64, error)
 }
 
 // WeekdayPickupNotesCommand replaces recurring notes without enlarging the

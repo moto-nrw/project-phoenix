@@ -199,8 +199,14 @@ func (s *statusDayStore) CountEffectiveStudentAbsences(ctx context.Context, date
 	if err != nil {
 		return careplan.StudentStatusCounts{}, stats, err
 	}
-	type flags struct{ sick, excused, classTrip bool }
-	byStudent := make(map[int64]flags, len(rows))
+	return countEffectiveStudentAbsences(students, statusDayFlagsByStudent(rows)), stats, nil
+}
+
+// statusDayFlags records which status-day kinds a student has on one date.
+type statusDayFlags struct{ sick, excused, classTrip bool }
+
+func statusDayFlagsByStudent(rows []careplan.StudentStatusDay) map[int64]statusDayFlags {
+	byStudent := make(map[int64]statusDayFlags, len(rows))
 	for _, row := range rows {
 		value := byStudent[row.StudentID]
 		switch row.Status {
@@ -213,6 +219,13 @@ func (s *statusDayStore) CountEffectiveStudentAbsences(ctx context.Context, date
 		}
 		byStudent[row.StudentID] = value
 	}
+	return byStudent
+}
+
+// countEffectiveStudentAbsences classifies every active student: the sick
+// flag or a sick day wins over excused, a class trip counts as excused, and
+// the rest are unaccounted.
+func countEffectiveStudentAbsences(students []StatusStudent, byStudent map[int64]statusDayFlags) careplan.StudentStatusCounts {
 	counts := careplan.StudentStatusCounts{}
 	for _, student := range students {
 		if student.Status != studentStatusActive {
@@ -220,15 +233,16 @@ func (s *statusDayStore) CountEffectiveStudentAbsences(ctx context.Context, date
 		}
 		counts.Total++
 		day := byStudent[student.ID]
-		if (student.Sick != nil && *student.Sick) || day.sick {
+		switch {
+		case (student.Sick != nil && *student.Sick) || day.sick:
 			counts.Sick++
-		} else if (student.Excused != nil && *student.Excused) || day.excused || day.classTrip {
+		case (student.Excused != nil && *student.Excused) || day.excused || day.classTrip:
 			counts.Excused++
-		} else {
+		default:
 			counts.UnaccountedIDs = append(counts.UnaccountedIDs, student.ID)
 		}
 	}
-	return counts, stats, nil
+	return counts
 }
 
 func (s *statusDayStore) ListStatusDaySummaries(ctx context.Context, from, to careplan.Date) ([]careplan.StatusDaySummary, carePlanCompose.RequestStoreStats, error) {
@@ -445,45 +459,14 @@ func (s *statusDayStore) lockStudentDates(ctx context.Context, db bun.IDB, tenan
 }
 
 func (s *statusDayStore) ArchiveStudentStatusFlags(ctx context.Context, value careplan.StatusFlagArchive) (int64, carePlanCompose.RequestStoreStats, error) {
-	if (value.Status == statusSick && (value.FlagColumn != "sick" || value.SinceColumn != "sick_since")) ||
-		(value.Status == statusExcused && (value.FlagColumn != "excused" || value.SinceColumn != "excused_since")) {
+	if !statusFlagColumnsMatch(value) {
 		return 0, carePlanCompose.RequestStoreStats{}, fmt.Errorf("status flag columns do not match status %q", value.Status)
 	}
-	candidates, err := s.students.ListStudentsWithStatusFlag(ctx, value.Status)
-	if err != nil || len(candidates) == 0 {
-		return 0, carePlanCompose.RequestStoreStats{}, err
-	}
-	ids := make([]int64, 0, len(candidates))
-	locked := make(map[int64]struct{}, len(candidates))
-	for _, student := range candidates {
-		ids = append(ids, student.ID)
-		locked[student.ID] = struct{}{}
-	}
-	slices.Sort(ids)
-	for _, studentID := range slices.Compact(ids) {
-		if err := s.students.LockStudent(ctx, studentID); err != nil {
-			return 0, carePlanCompose.RequestStoreStats{}, err
-		}
-	}
-	students, err := s.students.ListStudentsWithStatusFlag(ctx, value.Status)
+	students, err := s.lockedStatusFlagStudents(ctx, value.Status)
 	if err != nil {
 		return 0, carePlanCompose.RequestStoreStats{}, err
 	}
-	students = slices.DeleteFunc(students, func(student StatusStudent) bool { _, ok := locked[student.ID]; return !ok })
-	rows := make([]studentStatusDayRow, 0, len(students))
-	ids = ids[:0]
-	for _, student := range students {
-		reportedAt := value.ReportedFallback
-		if value.Status == statusSick && student.SickSince != nil {
-			reportedAt = *student.SickSince
-		}
-		if value.Status == statusExcused && student.ExcusedSince != nil {
-			reportedAt = *student.ExcusedSince
-		}
-		row := studentStatusDayRow{TenantID: student.TenantID, StudentID: student.ID, Date: calendarDate(value.Date), Status: value.Status, ReportedAt: reportedAt, ClearedAt: &value.ReportedFallback, Source: value.Source}
-		rows = append(rows, row)
-		ids = append(ids, student.ID)
-	}
+	rows, ids := statusFlagArchiveRows(value, students)
 	if len(rows) == 0 {
 		return 0, carePlanCompose.RequestStoreStats{}, nil
 	}
@@ -501,6 +484,69 @@ func (s *statusDayStore) ArchiveStudentStatusFlags(ctx context.Context, value ca
 	}
 	affected, err := s.students.ClearStudentStatusFlags(ctx, ids, value.Status)
 	return affected, stats, err
+}
+
+// statusFlagColumnsMatch rejects an archive whose flag and since columns do
+// not belong to its status.
+func statusFlagColumnsMatch(value careplan.StatusFlagArchive) bool {
+	switch value.Status {
+	case statusSick:
+		return value.FlagColumn == "sick" && value.SinceColumn == "sick_since"
+	case statusExcused:
+		return value.FlagColumn == "excused" && value.SinceColumn == "excused_since"
+	}
+	return true
+}
+
+// lockedStatusFlagStudents locks every student carrying the status flag in ID
+// order, then re-reads the flagged students and keeps only those it locked.
+// It returns nil without locking when no student carries the flag.
+func (s *statusDayStore) lockedStatusFlagStudents(ctx context.Context, status string) ([]StatusStudent, error) {
+	candidates, err := s.students.ListStudentsWithStatusFlag(ctx, status)
+	if err != nil || len(candidates) == 0 {
+		return nil, err
+	}
+	ids := make([]int64, 0, len(candidates))
+	locked := make(map[int64]struct{}, len(candidates))
+	for _, student := range candidates {
+		ids = append(ids, student.ID)
+		locked[student.ID] = struct{}{}
+	}
+	slices.Sort(ids)
+	for _, studentID := range slices.Compact(ids) {
+		if err := s.students.LockStudent(ctx, studentID); err != nil {
+			return nil, err
+		}
+	}
+	students, err := s.students.ListStudentsWithStatusFlag(ctx, status)
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(students, func(student StatusStudent) bool { _, ok := locked[student.ID]; return !ok }), nil
+}
+
+// statusFlagArchiveRows builds one cleared status day per flagged student and
+// returns the student IDs whose flags the archive clears.
+func statusFlagArchiveRows(value careplan.StatusFlagArchive, students []StatusStudent) ([]studentStatusDayRow, []int64) {
+	rows := make([]studentStatusDayRow, 0, len(students))
+	ids := make([]int64, 0, len(students))
+	for _, student := range students {
+		row := studentStatusDayRow{TenantID: student.TenantID, StudentID: student.ID, Date: calendarDate(value.Date), Status: value.Status, ReportedAt: statusFlagReportedAt(value, student), ClearedAt: &value.ReportedFallback, Source: value.Source}
+		rows = append(rows, row)
+		ids = append(ids, student.ID)
+	}
+	return rows, ids
+}
+
+func statusFlagReportedAt(value careplan.StatusFlagArchive, student StatusStudent) time.Time {
+	reportedAt := value.ReportedFallback
+	if value.Status == statusSick && student.SickSince != nil {
+		reportedAt = *student.SickSince
+	}
+	if value.Status == statusExcused && student.ExcusedSince != nil {
+		reportedAt = *student.ExcusedSince
+	}
+	return reportedAt
 }
 
 func statusDayFromPublic(value careplan.StudentStatusDay) *studentStatusDayRow {

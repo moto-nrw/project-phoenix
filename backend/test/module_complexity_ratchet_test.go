@@ -67,26 +67,8 @@ const moduleComplexityThreshold = 15
 // Sorted by key, with a blank line between owner modules so gofmt aligns each
 // block on its own and removing an entry reflows only that module's block.
 var moduleComplexityAllowlist = map[string]int{
-	"modules/careplan/carerequests/weekly.go:weeklyEntries":                                                      39,
-	"modules/careplan/internal/adapters/postgres/offering_bookings.go:(*Store).RecordCareOfferingBookings":       16,
-	"modules/careplan/internal/adapters/postgres/offering_bookings.go:(*Store).replaceCareOfferingBookings":      17,
-	"modules/careplan/internal/adapters/postgres/status_days.go:(*statusDayStore).ArchiveStudentStatusFlags":     22,
-	"modules/careplan/internal/adapters/postgres/status_days.go:(*statusDayStore).CountEffectiveStudentAbsences": 16,
-	"modules/careplan/internal/adapters/postgres/withdrawal_completions.go:(*DirectoryStore).ListWithdrawals":    20,
-	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Correct":                       18,
-	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Decide":                        34,
-	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListPending":                   21,
-	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingFacts":           28,
-	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingReviews":         56,
-	"modules/careplan/internal/application/offering_review_pending.go:materializeOfferingReview":                 23,
-	"modules/careplan/internal/application/offering_reviews.go:(*OfferingReviews).ListHistory":                   21,
-	"modules/careplan/internal/application/offering_reviews.go:(*OfferingReviews).ListPending":                   17,
-	"modules/careplan/internal/application/review_weekly_plan.go:(reviewPlanFacts).pickupWeek":                   25,
-	"modules/careplan/internal/application/schedule_reviews.go:(*ScheduleReviews).ListPending":                   35,
-	"modules/careplan/internal/application/schedule_reviews.go:(*ScheduleReviews).plan":                          23,
 	// Moved in by PR #3408 (#3350) from services/users and
 	// database/repositories/users; the scores crossed the boundary unchanged.
-	"modules/careplan/offeringrequests/diff.go:CorrectionDiff": 21,
 
 	"modules/communication/internal/parentmessages/events.go:(*EventEmitter).EmitChildEvent":    38,
 	"modules/communication/internal/application/staff_letter.go:(*service).ResendFailedEmails":  37,
@@ -124,12 +106,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/enrollment/internal/adapters/postgres/change_request_reads.go:(*Store).ChangeRequestsForReview": 17,
 	"modules/enrollment/phase.go:(*Phase).Validate":                                                          41,
 	"modules/enrollment/publish_schema.go:(*Module).PublishSchema":                                           21,
-	"modules/careplan/selection/automatic_shares.go:AutomaticShares":                                         18,
-	"modules/careplan/selection/materialize.go:MaterializeAdjustments":                                       44,
-	"modules/careplan/selection/materialize.go:autoLunchDaysForTarget":                                       16,
-	"modules/careplan/selection/materialize.go:materializeOfferingSelections":                                44,
-	"modules/careplan/selection/materialize.go:validateCareOfferingSelectionModeWithMissing":                 29,
-	"modules/careplan/selection/types.go:(*AvailabilityRule).NormalizeAndValidate":                           21,
 
 	"modules/filestorage/internal/application/attachments.go:(*Service).DeleteAttachment": 29,
 	"modules/filestorage/internal/application/attachments.go:(*Service).UploadAttachment": 17,

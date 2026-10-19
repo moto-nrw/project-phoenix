@@ -179,54 +179,15 @@ func (s *DirectoryStore) ListWithdrawals(ctx context.Context, state string, filt
 		return nil, 0, domain.OperationStats{}, err
 	}
 	pending := state == careplan.WithdrawalStatePending
-	build := func() *bun.SelectQuery {
-		query := db.NewSelect().TableExpr(tableExprWithdrawalCompletions)
-		directory := s.directory.StudentDisplayRows(db, tenantID)
-		if pending {
-			query = query.Join(`JOIN (?) AS "student" ON "student".tenant_id = "care_withdrawal_completion".tenant_id AND "student".id = "care_withdrawal_completion".student_id AND "student".first_name IS NOT NULL`, directory)
-		} else {
-			query = query.Join(`LEFT JOIN (?) AS "student" ON "student".tenant_id = "care_withdrawal_completion".tenant_id AND "student".id = "care_withdrawal_completion".student_id`, directory)
-		}
-		query = withTenant(query.Where(`"care_withdrawal_completion".state = ?`, state), "care_withdrawal_completion", tenantID)
-		if search := filter.Search; search != "" {
-			pattern := "%" + strings.ToLower(search) + "%"
-			query = query.Where(`(LOWER("student".first_name) LIKE ? OR LOWER("student".last_name) LIKE ? OR LOWER("student".school_class) LIKE ?)`, pattern, pattern, pattern)
-		}
-		if filter.StudentID > 0 {
-			query = query.Where(`"care_withdrawal_completion".student_id = ?`, filter.StudentID)
-		}
-		return query
-	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	total, err := build().Count(ctx)
+	total, err := s.withdrawalListQuery(db, tenantID, state, filter).Count(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return nil, 0, stats, fmt.Errorf("care plan postgres: count %s care withdrawal completions: %w", state, err)
 	}
 	rows := make([]withdrawalCompletionRow, 0)
-	query := build().ColumnExpr(`"care_withdrawal_completion".*`)
-	if pending {
-		query = query.
-			ColumnExpr(`"student".first_name AS first_name`).
-			ColumnExpr(`"student".last_name AS last_name`).
-			ColumnExpr(`"student".school_class AS school_class`).
-			OrderExpr(`"care_withdrawal_completion".first_bookingless_day ASC, "care_withdrawal_completion".id ASC`)
-		if filter.PageSize > 0 {
-			query = query.Limit(int64(filter.PageSize))
-			if filter.Page > 1 {
-				query = query.Offset(int64((filter.Page - 1) * filter.PageSize))
-			}
-		}
-	} else {
-		query = query.
-			ColumnExpr(`COALESCE("student".first_name, '') AS first_name`).
-			ColumnExpr(`COALESCE("student".last_name, '') AS last_name`).
-			ColumnExpr(`COALESCE("student".school_class, '') AS school_class`).
-			OrderExpr(`"care_withdrawal_completion".resolved_at DESC, "care_withdrawal_completion".id DESC`).
-			Limit(int64(filter.PageSize)).
-			Offset(int64((filter.Page - 1) * filter.PageSize))
-	}
+	query := withdrawalListPage(s.withdrawalListQuery(db, tenantID, state, filter).ColumnExpr(`"care_withdrawal_completion".*`), pending, filter)
 	stats.Queries++
 	started = time.Now()
 	err = query.Scan(ctx, &rows)
@@ -240,6 +201,55 @@ func (s *DirectoryStore) ListWithdrawals(ctx context.Context, state string, filt
 		values = append(values, withdrawalCompletionToDomain(row))
 	}
 	return values, int(total), stats, nil
+}
+
+// withdrawalListQuery is the filtered, joined statement both the count and
+// the page read of ListWithdrawals start from. Pending tasks inner-join a
+// directory row with a live person; resolved tasks left-join it.
+func (s *DirectoryStore) withdrawalListQuery(db bun.IDB, tenantID int64, state string, filter domain.WithdrawalListFilter) *bun.SelectQuery {
+	query := db.NewSelect().TableExpr(tableExprWithdrawalCompletions)
+	directory := s.directory.StudentDisplayRows(db, tenantID)
+	if state == careplan.WithdrawalStatePending {
+		query = query.Join(`JOIN (?) AS "student" ON "student".tenant_id = "care_withdrawal_completion".tenant_id AND "student".id = "care_withdrawal_completion".student_id AND "student".first_name IS NOT NULL`, directory)
+	} else {
+		query = query.Join(`LEFT JOIN (?) AS "student" ON "student".tenant_id = "care_withdrawal_completion".tenant_id AND "student".id = "care_withdrawal_completion".student_id`, directory)
+	}
+	query = withTenant(query.Where(`"care_withdrawal_completion".state = ?`, state), "care_withdrawal_completion", tenantID)
+	if search := filter.Search; search != "" {
+		pattern := "%" + strings.ToLower(search) + "%"
+		query = query.Where(`(LOWER("student".first_name) LIKE ? OR LOWER("student".last_name) LIKE ? OR LOWER("student".school_class) LIKE ?)`, pattern, pattern, pattern)
+	}
+	if filter.StudentID > 0 {
+		query = query.Where(`"care_withdrawal_completion".student_id = ?`, filter.StudentID)
+	}
+	return query
+}
+
+// withdrawalListPage adds the child columns, the queue order and the page
+// window. The pending queue pages only with a positive page size; the
+// resolved queue always applies the window.
+func withdrawalListPage(query *bun.SelectQuery, pending bool, filter domain.WithdrawalListFilter) *bun.SelectQuery {
+	if !pending {
+		return query.
+			ColumnExpr(`COALESCE("student".first_name, '') AS first_name`).
+			ColumnExpr(`COALESCE("student".last_name, '') AS last_name`).
+			ColumnExpr(`COALESCE("student".school_class, '') AS school_class`).
+			OrderExpr(`"care_withdrawal_completion".resolved_at DESC, "care_withdrawal_completion".id DESC`).
+			Limit(int64(filter.PageSize)).
+			Offset(int64((filter.Page - 1) * filter.PageSize))
+	}
+	query = query.
+		ColumnExpr(`"student".first_name AS first_name`).
+		ColumnExpr(`"student".last_name AS last_name`).
+		ColumnExpr(`"student".school_class AS school_class`).
+		OrderExpr(`"care_withdrawal_completion".first_bookingless_day ASC, "care_withdrawal_completion".id ASC`)
+	if filter.PageSize > 0 {
+		query = query.Limit(int64(filter.PageSize))
+		if filter.Page > 1 {
+			query = query.Offset(int64((filter.Page - 1) * filter.PageSize))
+		}
+	}
+	return query
 }
 
 func (s *Store) ListPendingWithdrawalsByStudent(ctx context.Context, studentIDs []int64) (map[int64]domain.WithdrawalCompletion, domain.OperationStats, error) {

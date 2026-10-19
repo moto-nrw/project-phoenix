@@ -24,67 +24,101 @@ func MaterializeAdjustments(
 ) ([][]Selection, error) {
 	out := make([][]Selection, len(children))
 	for i := range children {
-		availableByID, err := availableCareOfferingsForGrade(openByID, children[i].TargetGradeLevel)
+		selections, err := materializeAdjustmentChild(i, &children[i], openByID, selectionMode, grandfathered, allowCompleteWithdrawal)
 		if err != nil {
-			return nil, fmt.Errorf("child %d: %w", i, err)
-		}
-		for id := range grandfatheredStillSelected(children[i], grandfathered.Manual) {
-			if offering, ok := openByID[id]; ok {
-				availableByID[id] = offering
-			}
-		}
-		if err := validateOfferingSelectionsForChild(children[i], openByID, availableByID); err != nil {
-			return nil, fmt.Errorf("child %d: %w", i, err)
-		}
-		// Auto-add works off a wider catalog than validation does, so a
-		// holding's automatic days can be re-derived without the offering
-		// becoming selectable, required, or choosable.
-		materializeByID := availableByID
-		if len(grandfathered.Automatic) > 0 {
-			materializeByID = make(map[int64]*Offering, len(availableByID)+len(grandfathered.Automatic))
-			for id, offering := range availableByID {
-				materializeByID[id] = offering
-			}
-			for id := range grandfathered.Automatic {
-				if offering, ok := openByID[id]; ok {
-					materializeByID[id] = offering
-				}
-			}
-		}
-		manualChild := cloneChildrenOfferingSelections([]Child{children[i]})[0]
-		selections, err := materializeOfferingSelections(children[i], materializeByID)
-		if err != nil {
-			return nil, fmt.Errorf("child %d: %w", i, err)
-		}
-		children[i].OfferingIDs, children[i].OfferingDays = selectionPayload(selections, materializeByID)
-		completeWithdrawal := allowCompleteWithdrawal && !materializedSelectionsHaveCareDays(selections, materializeByID)
-		if err := validateOfferingGroupRulesWithMissingRequiredAllowed(
-			[]Child{children[i]}, availableByID, completeWithdrawal,
-		); err != nil {
 			return nil, err
-		}
-		if (len(openByID) == 0 || hasChoosableCareOffering(availableByID)) && completeWithdrawal {
-			if err := validateCareOfferingSelectionModeAllowingMissing(
-				[]Child{manualChild}, availableByID, selectionMode,
-			); err != nil {
-				return nil, err
-			}
-		}
-		if completeWithdrawal {
-			out[i] = selections
-			continue
-		}
-		if err := validateRequiredOfferings([]Child{children[i]}, availableByID); err != nil {
-			return nil, err
-		}
-		if len(openByID) == 0 || hasChoosableCareOffering(availableByID) {
-			if err := validateCareOfferingSelectionMode([]Child{manualChild}, availableByID, selectionMode); err != nil {
-				return nil, err
-			}
 		}
 		out[i] = selections
 	}
 	return out, nil
+}
+
+// materializeAdjustmentChild validates and materializes one child of an
+// adjustment. The child's selection is replaced by its materialization before
+// the group, required and selection-mode rules run, so a later rule failure
+// leaves the child in the normalized state.
+func materializeAdjustmentChild(
+	index int,
+	child *Child,
+	openByID map[int64]*Offering,
+	selectionMode string,
+	grandfathered Grandfathered,
+	allowCompleteWithdrawal bool,
+) ([]Selection, error) {
+	availableByID, err := availableCareOfferingsForGrade(openByID, child.TargetGradeLevel)
+	if err != nil {
+		return nil, fmt.Errorf("child %d: %w", index, err)
+	}
+	for id := range grandfatheredStillSelected(*child, grandfathered.Manual) {
+		if offering, ok := openByID[id]; ok {
+			availableByID[id] = offering
+		}
+	}
+	if err := validateOfferingSelectionsForChild(*child, openByID, availableByID); err != nil {
+		return nil, fmt.Errorf("child %d: %w", index, err)
+	}
+	materializeByID := withGrandfatheredAutomatic(availableByID, openByID, grandfathered.Automatic)
+	manualChild := cloneChildrenOfferingSelections([]Child{*child})[0]
+	selections, err := materializeOfferingSelections(*child, materializeByID)
+	if err != nil {
+		return nil, fmt.Errorf("child %d: %w", index, err)
+	}
+	child.OfferingIDs, child.OfferingDays = selectionPayload(selections, materializeByID)
+	completeWithdrawal := allowCompleteWithdrawal && !materializedSelectionsHaveCareDays(selections, materializeByID)
+	if err := validateOfferingGroupRulesWithMissingRequiredAllowed(
+		[]Child{*child}, availableByID, completeWithdrawal,
+	); err != nil {
+		return nil, err
+	}
+	choosable := len(openByID) == 0 || hasChoosableCareOffering(availableByID)
+	if err := validateAdjustmentRequirements(*child, manualChild, availableByID, selectionMode, choosable, completeWithdrawal); err != nil {
+		return nil, err
+	}
+	return selections, nil
+}
+
+// withGrandfatheredAutomatic widens the catalog for auto-add: a holding's
+// automatic days can be re-derived without the offering becoming selectable,
+// required, or choosable. Without automatic holdings the catalog is returned
+// unchanged.
+func withGrandfatheredAutomatic(availableByID, openByID map[int64]*Offering, automatic map[int64]bool) map[int64]*Offering {
+	if len(automatic) == 0 {
+		return availableByID
+	}
+	materializeByID := make(map[int64]*Offering, len(availableByID)+len(automatic))
+	for id, offering := range availableByID {
+		materializeByID[id] = offering
+	}
+	for id := range automatic {
+		if offering, ok := openByID[id]; ok {
+			materializeByID[id] = offering
+		}
+	}
+	return materializeByID
+}
+
+// validateAdjustmentRequirements checks the required offerings and the
+// selection mode. A complete withdrawal skips the required offerings and
+// tolerates a missing manual choice.
+func validateAdjustmentRequirements(
+	child, manualChild Child,
+	availableByID map[int64]*Offering,
+	selectionMode string,
+	choosable, completeWithdrawal bool,
+) error {
+	if completeWithdrawal {
+		if !choosable {
+			return nil
+		}
+		return validateCareOfferingSelectionModeAllowingMissing([]Child{manualChild}, availableByID, selectionMode)
+	}
+	if err := validateRequiredOfferings([]Child{child}, availableByID); err != nil {
+		return err
+	}
+	if !choosable {
+		return nil
+	}
+	return validateCareOfferingSelectionMode([]Child{manualChild}, availableByID, selectionMode)
 }
 
 // MaterializeChild materializes one child against the child's own catalog,
@@ -219,11 +253,38 @@ func cloneChildrenOfferingSelections(children []Child) []Child {
 }
 
 func materializeOfferingSelections(child Child, openByID map[int64]*Offering) ([]Selection, error) {
+	selectionByID, err := manualOfferingSelections(child, openByID)
+	if err != nil {
+		return nil, err
+	}
+	targets := sortedCareOfferings(openByID)
+	for _, target := range targets {
+		if careOfferingCanAutoAddDays(target) && autoAddAppliesToGrade(child.TargetGradeLevel, target.AutoAddGradeLevels) && target.DaysOfWeekMode != "parent_choice" {
+			return nil, fmt.Errorf("offering %d cannot be automatically added because it does not allow day selection", target.ID)
+		}
+	}
+	for changed := true; changed; {
+		changed = applyAutoAdditions(child, targets, selectionByID, openByID)
+	}
+	for offeringID, selection := range selectionByID {
+		offering := openByID[offeringID]
+		if offering == nil || offering.DaysOfWeekMode != "parent_choice" {
+			continue
+		}
+		if len(selection.SelectedDays) == 0 {
+			return nil, fmt.Errorf("offering %d: %w", offeringID, ErrDaySelectionRequired)
+		}
+	}
+	return sortedSelections(selectionByID, openByID), nil
+}
+
+// manualOfferingSelections resolves the child's manual picks per selected
+// offering, before any automatic addition.
+func manualOfferingSelections(child Child, openByID map[int64]*Offering) (map[int64]*Selection, error) {
 	daysByOffering := make(map[int64][]string, len(child.OfferingDays))
 	for _, row := range child.OfferingDays {
 		daysByOffering[row.OfferingID] = row.SelectedDays
 	}
-
 	selectionByID := make(map[int64]*Selection, len(child.OfferingIDs))
 	for _, offeringID := range child.OfferingIDs {
 		offering, ok := openByID[offeringID]
@@ -241,61 +302,58 @@ func materializeOfferingSelections(child Child, openByID map[int64]*Offering) ([
 			AutomaticSelectedDays: nil,
 		}
 	}
+	return selectionByID, nil
+}
 
-	targets := sortedCareOfferings(openByID)
+// applyAutoAdditions runs one pass of the auto-add rules over every target in
+// catalog order and reports whether any selection changed. Callers repeat the
+// pass until it is stable, because one addition can trigger another.
+func applyAutoAdditions(child Child, targets []*Offering, selectionByID map[int64]*Selection, openByID map[int64]*Offering) bool {
+	changed := false
 	for _, target := range targets {
-		if careOfferingCanAutoAddDays(target) && autoAddAppliesToGrade(child.TargetGradeLevel, target.AutoAddGradeLevels) && target.DaysOfWeekMode != "parent_choice" {
-			return nil, fmt.Errorf("offering %d cannot be automatically added because it does not allow day selection", target.ID)
-		}
-	}
-
-	changed := true
-	for changed {
-		changed = false
-		for _, target := range targets {
-			if !careOfferingCanAutoAddDays(target) || !autoAddAppliesToGrade(child.TargetGradeLevel, target.AutoAddGradeLevels) {
-				continue
-			}
-			var ruleDays []string
-			if !child.ExcludedAutoAddTargetIDs[target.ID] {
-				ruleDays = autoDaysForTarget(target, target.AutoAddTriggerOfferingIDs, selectionByID, openByID)
-			}
-			autoDays := unionDaysInOfferingOrder(
-				target.AvailableDays,
-				ruleDays,
-				autoLunchDaysForTarget(target, selectionByID, openByID),
-			)
-			if len(autoDays) == 0 {
-				continue
-			}
-			selection := selectionByID[target.ID]
-			if selection == nil {
-				selection = &Selection{OfferingID: target.ID}
-				selectionByID[target.ID] = selection
-				changed = true
-			}
-			if !slices.Equal(selection.AutomaticSelectedDays, autoDays) {
-				selection.AutomaticSelectedDays = autoDays
-				changed = true
-			}
-			selectedDays := unionDaysInOfferingOrder(target.AvailableDays, selection.ManualSelectedDays, selection.AutomaticSelectedDays)
-			if !slices.Equal(selection.SelectedDays, selectedDays) {
-				selection.SelectedDays = selectedDays
-				changed = true
-			}
-		}
-	}
-
-	for offeringID, selection := range selectionByID {
-		offering := openByID[offeringID]
-		if offering == nil || offering.DaysOfWeekMode != "parent_choice" {
+		if !careOfferingCanAutoAddDays(target) || !autoAddAppliesToGrade(child.TargetGradeLevel, target.AutoAddGradeLevels) {
 			continue
 		}
-		if len(selection.SelectedDays) == 0 {
-			return nil, fmt.Errorf("offering %d: %w", offeringID, ErrDaySelectionRequired)
+		if applyAutoAddTarget(child, target, selectionByID, openByID) {
+			changed = true
 		}
 	}
+	return changed
+}
 
+func applyAutoAddTarget(child Child, target *Offering, selectionByID map[int64]*Selection, openByID map[int64]*Offering) bool {
+	var ruleDays []string
+	if !child.ExcludedAutoAddTargetIDs[target.ID] {
+		ruleDays = autoDaysForTarget(target, target.AutoAddTriggerOfferingIDs, selectionByID, openByID)
+	}
+	autoDays := unionDaysInOfferingOrder(
+		target.AvailableDays,
+		ruleDays,
+		autoLunchDaysForTarget(target, selectionByID, openByID),
+	)
+	if len(autoDays) == 0 {
+		return false
+	}
+	changed := false
+	selection := selectionByID[target.ID]
+	if selection == nil {
+		selection = &Selection{OfferingID: target.ID}
+		selectionByID[target.ID] = selection
+		changed = true
+	}
+	if !slices.Equal(selection.AutomaticSelectedDays, autoDays) {
+		selection.AutomaticSelectedDays = autoDays
+		changed = true
+	}
+	selectedDays := unionDaysInOfferingOrder(target.AvailableDays, selection.ManualSelectedDays, selection.AutomaticSelectedDays)
+	if !slices.Equal(selection.SelectedDays, selectedDays) {
+		selection.SelectedDays = selectedDays
+		changed = true
+	}
+	return changed
+}
+
+func sortedSelections(selectionByID map[int64]*Selection, openByID map[int64]*Offering) []Selection {
 	out := make([]Selection, 0, len(selectionByID))
 	for _, selection := range selectionByID {
 		out = append(out, *selection)
@@ -311,7 +369,7 @@ func materializeOfferingSelections(child Child, openByID map[int64]*Offering) ([
 		}
 		return left.SortOrder < right.SortOrder
 	})
-	return out, nil
+	return out
 }
 
 func sortedCareOfferings(openByID map[int64]*Offering) []*Offering {
@@ -421,24 +479,29 @@ func autoLunchDaysForTarget(
 		targetDays[day] = true
 	}
 	for offeringID, selection := range selectionByID {
-		if offeringID == target.ID || selection == nil {
-			continue
-		}
-		offering := openByID[offeringID]
-		if offering == nil || !offering.CountsAsCare {
-			continue
-		}
-		days := selection.SelectedDays
-		if offering.DaysOfWeekMode == "fixed" {
-			days = offering.AvailableDays
-		}
-		for _, day := range days {
+		for _, day := range lunchSourceDays(target, offeringID, selection, openByID) {
 			if targetDays[day] {
 				selected[day] = true
 			}
 		}
 	}
 	return daysFromSetInOrder(target.AvailableDays, selected)
+}
+
+// lunchSourceDays returns the care days another selected care offering
+// contributes to a required lunch target, or nil when it contributes none.
+func lunchSourceDays(target *Offering, offeringID int64, selection *Selection, openByID map[int64]*Offering) []string {
+	if offeringID == target.ID || selection == nil {
+		return nil
+	}
+	offering := openByID[offeringID]
+	if offering == nil || !offering.CountsAsCare {
+		return nil
+	}
+	if offering.DaysOfWeekMode == "fixed" {
+		return offering.AvailableDays
+	}
+	return selection.SelectedDays
 }
 
 func unionDaysInOfferingOrder(available []string, groups ...[]string) []string {
@@ -512,36 +575,48 @@ func validateCareOfferingSelectionModeWithMissing(children []Child, openByID map
 	}
 
 	for i, child := range children {
-		selected := make(map[int64]bool, len(child.OfferingIDs))
-		for _, id := range child.OfferingIDs {
-			selected[id] = true
-		}
-		for _, dayPick := range child.OfferingDays {
-			if !selected[dayPick.OfferingID] {
-				return fmt.Errorf("%w: child %d offering %d has days but is not selected", ErrInvalidSubmission, i, dayPick.OfferingID)
-			}
-		}
-		// Count only the choosable (non-required) selected offerings. An
-		// offering absent from openByID is rejected earlier by
-		// validateOfferingSelections, so treat unknown ids as choosable.
-		choosableCount := 0
-		for _, id := range child.OfferingIDs {
-			if o, ok := openByID[id]; !ok || !o.IsRequired {
-				choosableCount++
-			}
-		}
-		switch mode {
-		case "at_least_one":
-			if choosableCount == 0 && !allowMissing {
-				return fmt.Errorf("%w: child %d", ErrCareOfferingMissing, i)
-			}
-		case "exactly_one":
-			if choosableCount > 1 || (choosableCount == 0 && !allowMissing) {
-				return fmt.Errorf("%w: child %d", ErrCareOfferingExactlyOneRequired, i)
-			}
+		if err := validateChildSelectionMode(i, child, openByID, mode, allowMissing); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func validateChildSelectionMode(index int, child Child, openByID map[int64]*Offering, mode string, allowMissing bool) error {
+	selected := make(map[int64]bool, len(child.OfferingIDs))
+	for _, id := range child.OfferingIDs {
+		selected[id] = true
+	}
+	for _, dayPick := range child.OfferingDays {
+		if !selected[dayPick.OfferingID] {
+			return fmt.Errorf("%w: child %d offering %d has days but is not selected", ErrInvalidSubmission, index, dayPick.OfferingID)
+		}
+	}
+	choosableCount := choosableSelectionCount(child, openByID)
+	switch mode {
+	case "at_least_one":
+		if choosableCount == 0 && !allowMissing {
+			return fmt.Errorf("%w: child %d", ErrCareOfferingMissing, index)
+		}
+	case "exactly_one":
+		if choosableCount > 1 || (choosableCount == 0 && !allowMissing) {
+			return fmt.Errorf("%w: child %d", ErrCareOfferingExactlyOneRequired, index)
+		}
+	}
+	return nil
+}
+
+// choosableSelectionCount counts only the choosable (non-required) selected
+// offerings. An offering absent from openByID is rejected earlier by
+// validateOfferingSelections, so unknown ids count as choosable.
+func choosableSelectionCount(child Child, openByID map[int64]*Offering) int {
+	count := 0
+	for _, id := range child.OfferingIDs {
+		if o, ok := openByID[id]; !ok || !o.IsRequired {
+			count++
+		}
+	}
+	return count
 }
 
 func hasChoosableCareOffering(catalog map[int64]*Offering) bool {

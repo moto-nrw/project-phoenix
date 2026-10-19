@@ -84,25 +84,11 @@ func (f reviewPlanFacts) pickupWeek(date careplan.Date) (map[int]string, error) 
 		if !reviewBookingCovers(booking, date) {
 			continue
 		}
-		offering := booking.offering
-		if !offering.IsActive || !offering.CountsAsCare {
+		if !booking.offering.IsActive || !booking.offering.CountsAsCare {
 			continue
 		}
-		for _, day := range reviewBookingDays(booking, offering) {
-			key := strings.ToLower(strings.TrimSpace(day))
-			weekday := reviewWeekday(key)
-			value := offering.PickupTimes[key]
-			if weekday == 0 || value == "" {
-				continue
-			}
-			parsed, err := time.Parse("15:04", value)
-			if err != nil {
-				return nil, fmt.Errorf("project pickup baselines: offering %d has invalid pickup time %q for %s: %w", offering.ID, value, key, err)
-			}
-			clock := parsed.Format("15:04")
-			if clock > times[weekday] {
-				times[weekday] = clock
-			}
+		if err := addOfferingPickupTimes(times, booking); err != nil {
+			return nil, err
 		}
 	}
 	for _, row := range f.pickups {
@@ -115,6 +101,29 @@ func (f reviewPlanFacts) pickupWeek(date careplan.Date) (map[int]string, error) 
 		times[row.Weekday] = row.PickupTime.Format("15:04")
 	}
 	return times, nil
+}
+
+// addOfferingPickupTimes keeps the latest offering pickup time per booked
+// weekday.
+func addOfferingPickupTimes(times map[int]string, booking reviewPlanSelection) error {
+	offering := booking.offering
+	for _, day := range reviewBookingDays(booking, offering) {
+		key := strings.ToLower(strings.TrimSpace(day))
+		weekday := reviewWeekday(key)
+		value := offering.PickupTimes[key]
+		if weekday == 0 || value == "" {
+			continue
+		}
+		parsed, err := time.Parse("15:04", value)
+		if err != nil {
+			return fmt.Errorf("project pickup baselines: offering %d has invalid pickup time %q for %s: %w", offering.ID, value, key, err)
+		}
+		clock := parsed.Format("15:04")
+		if clock > times[weekday] {
+			times[weekday] = clock
+		}
+	}
+	return nil
 }
 
 func reviewBookingCovers(booking reviewPlanSelection, date careplan.Date) bool {

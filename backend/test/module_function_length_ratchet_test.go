@@ -67,17 +67,9 @@ const moduleFuncLenThreshold = 60
 // Seeded 2026-09-18 from merge commit ecf0003369. Shrink-only: lower or
 // delete entries, never add one and never raise a number.
 var moduleFuncLenAllowlist = map[string]int{
-	"workflows/parentportal/http/child_write_handlers.go:(*Resource).submitSickNote":                          67,
-	"workflows/parentportal/http/child_write_handlers.go:renderParentWriteError":                              159,
-	"workflows/parentportal/http/enrollment_handlers.go:(*Resource).getEnrollmentBootstrap":                   83,
-	"modules/careplan/internal/adapters/postgres/withdrawal_completions.go:(*DirectoryStore).ListWithdrawals": 71,
-	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Correct":                    73,
-	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Decide":                     149,
-	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListPending":                74,
-	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingFacts":        92,
-	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingReviews":      100,
-	"modules/careplan/internal/application/schedule_reviews.go:(*ScheduleReviews).ListPending":                70,
-	"modules/careplan/internal/application/schedule_reviews.go:(*ScheduleReviews).plan":                       66,
+	"workflows/parentportal/http/child_write_handlers.go:(*Resource).submitSickNote":        67,
+	"workflows/parentportal/http/child_write_handlers.go:renderParentWriteError":            159,
+	"workflows/parentportal/http/enrollment_handlers.go:(*Resource).getEnrollmentBootstrap": 83,
 	// Moved in by PR #3408 (#3350) from services/users and
 	// database/repositories/users; the bodies crossed the boundary at their
 	// old length.
@@ -112,8 +104,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/enrollment/internal/adapters/postgres/account_requests.go:(*Store).AccountRequests":                                                93,
 	"modules/enrollment/internal/adapters/postgres/request_duplicates.go:(*Store).ActiveDuplicateChildren":                                      68,
 	"modules/enrollment/phase.go:(*Phase).Validate":                                                                                             141,
-	"modules/careplan/selection/materialize.go:MaterializeAdjustments":                                                                          65,
-	"modules/careplan/selection/materialize.go:materializeOfferingSelections":                                                                   95,
 	"modules/exporttransfer/internal/adapters/sftp/client.go:(*Client).Prepare":                                                                 75,
 	"modules/identityaccess/compose/new.go:New":                                                                                                 71,
 	"modules/identityaccess/internal/application/account_mfa_admin.go:(*AccountMFAFlows).setTenantOverride":                                     73,
