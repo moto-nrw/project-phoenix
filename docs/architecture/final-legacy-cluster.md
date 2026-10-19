@@ -2,6 +2,8 @@
 
 Base: `121b0ee5130db5ec6b289965f495acdca6285744` after PR #4344. The obsolete held follow-up is not part of this branch. Integrated development `2fdb6d2c4cff1bd18069067f07316ed51dcae7c1` after the dependency-only PR #4375; backend source and policy are unchanged by that integration.
 
+Final CI-repair integration: development `dcb2976982bda8a59ca777d4ba20aea112625e11`, including dependency batches PRs #4377, #4374 and #4376. Their upstream source/golden repairs are retained; the PR adds no route, middleware or golden change relative to that base.
+
 ## Measured cutover
 
 | Surface | Before | After |
@@ -93,6 +95,8 @@ The five projection adapters already physically under Communication/Organisation
 No key, grant, exception, hook allowance or budget grows. The function-length and complexity allowances for the four Data Import format files move 1:1 to `internal/adapters/fileformat`, with the same operations, limits and counts (four length entries, two complexity entries). Five realtime notice paths move 1:1 to Delivery internal application; operations, reasons and body fingerprints are unchanged, and the notice count stays 117. The existing 812 command and 257 administrative transaction-register entries and its guard are unchanged.
 
 ADR 0064 scan preservation adds the exact native School Calendar feed-history file and the exact Device Fleet adapter subtree to the existing pass-through scan. The moved root staff-invitation file stays charged to Data Import. These extend scan coverage, not permission or budgets. The source methods were removed from the former counted composition trees; their owner attribution is unchanged.
+
+The workflow selector’s one real-source locale path literal moves 1:1 from `backend/localization/locales.json` to `backend/modules/delivery/internal/adapters/localization/locales.json`. The three-pattern loop and both filter assertions stay unchanged (six assertions); its synthetic localization fixture paths are unchanged. This repairs the common pre-test cause of the two initial CI failures.
 
 The locale JSON moves with its adapter. Three frontend script references and the CI locale filters point to the same data file at its new path. The SMTP demo test template reference changes 1:1 from `../templates` to `../../../../../templates`. Seed coverage CI and marketing filters track the same seed source files at the new tool-internal path.
 

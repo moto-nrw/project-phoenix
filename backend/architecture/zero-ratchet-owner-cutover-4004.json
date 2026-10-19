@@ -30,7 +30,7 @@
   "atomic_cutover": "Switch Data Import production to its existing root-bound authorization port, remove its composition implementation, empty legacy.jsonl, and require the canonical baseline-free check to pass with zero violations. ADR 0020 normalizes the authorization target path for retirement validation. Composition stays zero. The remaining 4084/4086 blockers are explicitly recorded; neither exit is claimed.",
   "tests": [
     "scripts/backend-architecture.sh check",
-    "scripts/backend-architecture.sh validate-ticket --all --base-ref 2fdb6d2c4cff1bd18069067f07316ed51dcae7c1",
+    "scripts/backend-architecture.sh validate-ticket --all --base-ref dcb2976982bda8a59ca777d4ba20aea112625e11",
     "scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development without --fast",
     "Source architecture, transaction-boundary, durable-notice, fixture and owner behavior suites; assertion changes are limited to the expressly authorized zero-baseline regression.",
     "Pinned golangci-lint and full pre-commit/pre-push hooks."
