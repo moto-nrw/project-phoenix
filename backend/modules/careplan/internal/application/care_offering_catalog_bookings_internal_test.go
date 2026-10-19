@@ -44,7 +44,7 @@ func TestNewCareOfferingCatalogWithBookings_BindsTheResyncers(t *testing.T) {
 
 	catalogCapability, bookingCapability, err := NewCareOfferingCatalogWithBookings(unboundCatalogDependencies(), bookingDependencies())
 	require.NoError(t, err)
-	catalog, bookings := catalogCapability.(*CareOfferingCatalog), bookingCapability.(*BookingMaterialization)
+	catalog, bookings := catalogCapability.(*CareOfferingCatalog), bookingCapability.(*bookingCommands)
 	require.Same(t, catalog, bookings.catalog)
 	require.Same(t, bookings, catalog.deps.SourcedTemplates)
 	require.Same(t, bookings, catalog.deps.Pickup)
