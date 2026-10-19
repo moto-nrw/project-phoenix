@@ -271,9 +271,10 @@ func (r *Retention) anonymize(ctx context.Context, personID int64) (bool, error)
 	if person.DeletedAt != nil {
 		return false, nil
 	}
-	// Lock the person before checking for a newer membership. A rehire needs
-	// a foreign-key lock on this row, so it cannot complete between this final
-	// check and the anonymization. A rehire committed while the other owners
+	// Lock the person before checking for a newer membership. A rehire locks
+	// this row too, a new membership through its foreign key and a reinstated
+	// one explicitly, so it cannot complete between this final check and the
+	// anonymization. A rehire committed while the other owners
 	// erased the old membership is therefore visible here.
 	_, err = r.deps.LiveStaff.FindStaffByPerson(ctx, personID)
 	if err == nil {

@@ -35,6 +35,9 @@ type Store interface {
 	CreateStaff(ctx context.Context, personID int64) (domain.Staff, domain.OperationStats, error)
 	UpdateStaff(ctx context.Context, id, personID int64) (domain.Staff, domain.OperationStats, error)
 	SoftDeleteStaff(context.Context, int64) (domain.OperationStats, error)
+	// ReinstateStaff lifts the soft delete of a retired, not erased
+	// membership; ErrStaffNotFound when there is none to reinstate.
+	ReinstateStaff(context.Context, int64) (domain.Staff, domain.OperationStats, error)
 
 	FindTeacher(ctx context.Context, id int64, lock string) (domain.Teacher, bool, domain.OperationStats, error)
 	FindTeacherByStaff(context.Context, int64) (domain.Teacher, bool, domain.OperationStats, error)
@@ -42,6 +45,9 @@ type Store interface {
 	CreateTeacher(context.Context, domain.TeacherFields) (domain.Teacher, domain.OperationStats, error)
 	UpdateTeacher(context.Context, int64, domain.TeacherFields) (domain.Teacher, domain.OperationStats, error)
 	SoftDeleteTeacher(context.Context, int64) (domain.OperationStats, error)
+	// ReinstateTeacher lifts the soft delete of a retired caregiver profile;
+	// ErrTeacherNotFound when there is none to reinstate.
+	ReinstateTeacher(context.Context, int64) (domain.Teacher, domain.OperationStats, error)
 
 	FindGuest(ctx context.Context, id int64, lock string) (domain.Guest, bool, domain.OperationStats, error)
 	FindGuestByStaff(context.Context, int64) (domain.Guest, bool, domain.OperationStats, error)

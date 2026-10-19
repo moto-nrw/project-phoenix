@@ -24,6 +24,7 @@ type lifecyclePeople interface {
 	LinkAccount(ctx context.Context, personID, accountID int64) error
 	UnlinkAccount(ctx context.Context, personID int64) error
 	LinkTag(ctx context.Context, personID int64, tagID string) error
+	FindPersonForMutation(context.Context, int64) (peopledirectory.Person, error)
 	CreateInvitedGuardian(context.Context, peopledirectory.InvitedGuardian) (int64, error)
 	DeleteGuardianProfile(ctx context.Context, guardianID int64) error
 	LinkGuardianProfileToAccount(ctx context.Context, guardianID, accountID int64) error
@@ -37,7 +38,15 @@ type lifecyclePeople interface {
 type LifecycleMembership interface {
 	ListStaff(context.Context, schoolmembership.StaffFilter) ([]schoolmembership.Staff, error)
 	CreateStaff(context.Context, schoolmembership.CreateStaff) (schoolmembership.Staff, error)
+	ListTeachers(context.Context, schoolmembership.TeacherFilter) ([]schoolmembership.Teacher, error)
 	CreateTeacher(context.Context, schoolmembership.CreateTeacher) (schoolmembership.Teacher, error)
+}
+
+// LifecycleReinstatement is School Membership's Wiederaufnahme command (ADR
+// 0021): a former staff member's retired rows come back under their own IDs.
+type LifecycleReinstatement interface {
+	ReinstateStaff(context.Context, int64) (schoolmembership.Staff, error)
+	ReinstateTeacher(context.Context, int64) (schoolmembership.Teacher, error)
 }
 
 // LifecycleRepositories are the identity chain the lifecycle seams read and
@@ -51,14 +60,15 @@ type LifecycleRepositories struct {
 	StudentGuardians studentGuardianRows
 	AuthEvents       authEventLedger
 	// People and Membership create the persons, invited guardian contacts,
-	// staff and caregiver profiles.
-	People     lifecyclePeople
-	Membership LifecycleMembership
+	// staff and caregiver profiles; Reinstatement continues retired ones.
+	People        lifecyclePeople
+	Membership    LifecycleMembership
+	Reinstatement LifecycleReinstatement
 }
 
 func (r LifecycleRepositories) complete() bool {
 	return r.Persons != nil && r.Staff != nil && r.Teachers != nil && r.Students != nil &&
-		r.GuardianProfiles != nil && r.StudentGuardians != nil && r.AuthEvents != nil && r.People != nil && r.Membership != nil
+		r.GuardianProfiles != nil && r.StudentGuardians != nil && r.AuthEvents != nil && r.People != nil && r.Membership != nil && r.Reinstatement != nil
 }
 
 // LifecycleDependencies binds the lifecycle seams to the identity chain in
@@ -217,39 +227,61 @@ func (d staffDirectory) FindStaffByPerson(ctx context.Context, personID int64) (
 }
 
 // CreateStaff creates the staff row at the school in context, which is the
-// school tenantID names. A retired source continues its employment on a fresh
-// membership. School Membership creates the membership and its Workforce-owned
-// profile in one savepoint.
+// school tenantID names. A retired source is continued under its own ID
+// rather than joined by a second membership (ADR 0021, #3401); only a
+// membership the automatic deletion of staff erased is replaced by a new one.
+// School Membership creates the membership and its Workforce-owned profile in
+// one savepoint.
 func (d staffDirectory) CreateStaff(ctx context.Context, _, personID int64, retiredStaffID *int64) (int64, error) {
-	fields := schoolmembership.StaffFields{PersonID: personID}
 	if retiredStaffID != nil {
-		retired, err := d.repos.Membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: []int64{*retiredStaffID}, IncludeDeleted: true})
+		reinstated, err := d.reinstateStaff(ctx, personID, *retiredStaffID)
 		if err != nil {
 			return 0, err
 		}
-		if len(retired) != 1 || !retired[0].IsDeleted() || retired[0].PersonID != personID {
-			return 0, fmt.Errorf("identity access: retired staff membership %d is not available for person %d", *retiredStaffID, personID)
-		}
-		fields = schoolmembership.StaffFields{
-			PersonID:              personID,
-			StaffNotes:            retired[0].StaffNotes,
-			EmploymentType:        retired[0].EmploymentType,
-			WorkTimeModelID:       retired[0].WorkTimeModelID,
-			PersonnelNumber:       retired[0].PersonnelNumber,
-			RotationAnchorDate:    retired[0].RotationAnchorDate,
-			BirthdayDisplayOptOut: retired[0].BirthdayDisplayOptOut,
+		if reinstated {
+			return *retiredStaffID, nil
 		}
 	}
-	staff, err := d.repos.Membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: fields})
-	if errors.Is(err, schoolmembership.ErrPersonnelNumberConflict) && fields.PersonnelNumber != nil {
-		fields.PersonnelNumber = nil
-		staff, err = d.repos.Membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: fields})
-	}
+	staff, err := d.repos.Membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: personID}})
 	if err != nil {
 		return 0, err
 	}
 	return staff.ID, nil
 }
+
+// reinstateStaff continues the person's retired membership. False when School
+// Membership refuses it as erased.
+//
+// The automatic deletion of staff anonymizes a person once no live membership names it, and
+// checks this under the person's row lock (staffoffboarding.Retention). The
+// person is locked here, after the membership, in the order the deletion takes
+// them, whether the membership came back or not: a refusal can mean the
+// deletion just erased it and anonymized the person, and a new membership on
+// that person must not follow.
+func (d staffDirectory) reinstateStaff(ctx context.Context, personID, staffID int64) (bool, error) {
+	staff, err := d.repos.Reinstatement.ReinstateStaff(ctx, staffID)
+	reinstated := err == nil
+	if err != nil && !errors.Is(err, schoolmembership.ErrStaffNotFound) {
+		return false, err
+	}
+	if reinstated && staff.PersonID != personID {
+		return false, fmt.Errorf("identity access: retired staff membership %d does not belong to person %d", staffID, personID)
+	}
+	person, err := d.repos.People.FindPersonForMutation(ctx, personID)
+	if err != nil {
+		return false, err
+	}
+	if person.DeletedAt != nil {
+		return false, errReinstatedPersonAnonymized
+	}
+	return reinstated, nil
+}
+
+// errReinstatedPersonAnonymized fails a Wiederaufnahme whose person the
+// automatic deletion of staff anonymized concurrently. The caller's
+// transaction rolls it back; a retry finds no live person and starts a new
+// identity.
+var errReinstatedPersonAnonymized = errors.New("identity access: the reinstated staff member's person was anonymized")
 
 func (d staffDirectory) FindCaregiverProfile(ctx context.Context, staffID int64) (identityPorts.CaregiverProfile, bool, error) {
 	teacher, err := d.repos.Teachers.FindByStaffID(ctx, staffID)
@@ -269,14 +301,39 @@ func (d staffDirectory) HasLiveCaregiverProfile(ctx context.Context, accountID i
 	return d.caregivers.hasLive(ctx, accountID)
 }
 
-// CreateCaregiverProfile creates the caregiver profile at the school in
-// context, which is the school tenantID names.
+// CreateCaregiverProfile gives the staff member a live caregiver profile at
+// the school in context, which is the school tenantID names. The identity
+// chain asks for one only when no live profile exists; a retired profile of
+// the same membership is revived instead of a second one created next to it
+// (ADR 0021, #3401).
 func (d staffDirectory) CreateCaregiverProfile(ctx context.Context, _, staffID int64, position string) (int64, error) {
+	retired, found, err := d.latestRetiredCaregiverProfile(ctx, staffID)
+	if err != nil {
+		return 0, err
+	}
+	if found {
+		teacher, err := d.repos.Reinstatement.ReinstateTeacher(ctx, retired)
+		return teacher.ID, err
+	}
 	teacher, err := d.repos.Membership.CreateTeacher(ctx, schoolmembership.CreateTeacher{TeacherFields: schoolmembership.TeacherFields{StaffID: staffID, Role: position}})
 	if err != nil {
 		return 0, err
 	}
 	return teacher.ID, nil
+}
+
+func (d staffDirectory) latestRetiredCaregiverProfile(ctx context.Context, staffID int64) (int64, bool, error) {
+	teachers, err := d.repos.Membership.ListTeachers(ctx, schoolmembership.TeacherFilter{StaffIDs: []int64{staffID}, IncludeDeleted: true})
+	if err != nil {
+		return 0, false, err
+	}
+	var latest int64
+	for _, teacher := range teachers {
+		if teacher.IsDeleted() && teacher.ID > latest {
+			latest = teacher.ID
+		}
+	}
+	return latest, latest != 0, nil
 }
 
 // passwordPolicy binds the credential policy Security Runtime owns to the
