@@ -34,7 +34,7 @@ type PasswordResetStore interface {
 	DeleteSpentPasswordResetTokens(ctx context.Context, now time.Time) (int, domain.OperationStats, error)
 
 	// SetAccountPassword replaces the credential and clears the one-time
-	// password flag; it reports whether the account exists.
+	// password flag; it reports whether the account is live.
 	SetAccountPassword(ctx context.Context, accountID int64, hash string) (bool, domain.OperationStats, error)
 }
 

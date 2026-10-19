@@ -87,7 +87,7 @@ const accountGuardianRetentionUpSQL = `
 		BEGIN
 			FOR referenced_account_id IN
 				SELECT NULLIF(to_jsonb(NEW) ->> reference_column, '')::BIGINT
-				FROM unnest(TG_ARGV) AS reference_column
+				FROM unnest(TG_ARGV) AS argument(reference_column)
 			LOOP
 				IF referenced_account_id IS NULL THEN
 					CONTINUE;
@@ -111,6 +111,10 @@ const accountGuardianRetentionUpSQL = `
 		DROP TRIGGER IF EXISTS lock_live_account_reference ON users.guardian_profiles;
 		CREATE TRIGGER lock_live_account_reference
 			BEFORE INSERT OR UPDATE OF account_id ON users.guardian_profiles
+			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference('account_id');
+		DROP TRIGGER IF EXISTS lock_live_account_reference ON users.profiles;
+		CREATE TRIGGER lock_live_account_reference
+			BEFORE INSERT OR UPDATE OF account_id ON users.profiles
 			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference('account_id');
 		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.account_roles;
 		CREATE TRIGGER lock_live_account_reference
@@ -377,6 +381,7 @@ const accountGuardianRetentionDownSQL = `
 		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.account_tenants;
 		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.account_permissions;
 		DROP TRIGGER IF EXISTS lock_live_account_reference ON auth.account_roles;
+		DROP TRIGGER IF EXISTS lock_live_account_reference ON users.profiles;
 		DROP TRIGGER IF EXISTS lock_live_account_reference ON users.guardian_profiles;
 		DROP TRIGGER IF EXISTS lock_live_account_reference ON users.persons;
 		DROP FUNCTION IF EXISTS auth.lock_live_account_reference();

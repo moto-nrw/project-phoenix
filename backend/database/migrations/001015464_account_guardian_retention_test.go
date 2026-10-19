@@ -196,6 +196,10 @@ func TestAccountReferencesWaitForErasureAndRejectTheTombstone(t *testing.T) {
 			query: `UPDATE users.guardian_profiles SET account_id = ?, has_account = TRUE WHERE id = ?`,
 			args:  []any{account.ID, guardian.ID},
 		},
+		"profile": {
+			query: `INSERT INTO users.profiles (account_id, tenant_id, bio, settings) VALUES (?, ?, 'erased profile', '{}'::jsonb)`,
+			args:  []any{account.ID, tenantID},
+		},
 		"guardian access": {
 			query: `UPDATE auth.guardian_student_access SET account_id = ? WHERE tenant_id = ? AND relationship_id = ?`,
 			args:  []any{account.ID, tenantID, guardianAccess.ID},
@@ -220,11 +224,14 @@ func TestAccountReferencesWaitForErasureAndRejectTheTombstone(t *testing.T) {
 	}
 
 	var guardianAccountID, accessAccountID, requestAccountID, demoAccountID, demoParentAccountID *int64
+	var profileCount int
 	require.NoError(t, db.NewRaw(`SELECT account_id FROM users.guardian_profiles WHERE id = ?`, guardian.ID).Scan(ctx, &guardianAccountID))
+	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM users.profiles WHERE account_id = ?`, account.ID).Scan(ctx, &profileCount))
 	require.NoError(t, db.NewRaw(`SELECT account_id FROM auth.guardian_student_access WHERE relationship_id = ?`, guardianAccess.ID).Scan(ctx, &accessAccountID))
 	require.NoError(t, db.NewRaw(`SELECT guardian_account_id FROM enrollment.requests WHERE id = ?`, request.ID).Scan(ctx, &requestAccountID))
 	require.NoError(t, db.NewRaw(`SELECT account_id, parent_account_id FROM auth.demo_accesses WHERE id = ?`, demoAccessID).Scan(ctx, &demoAccountID, &demoParentAccountID))
 	assert.Nil(t, guardianAccountID)
+	assert.Zero(t, profileCount)
 	assert.Nil(t, accessAccountID)
 	assert.Nil(t, requestAccountID)
 	assert.Nil(t, demoAccountID)
