@@ -72,6 +72,36 @@ const accountGuardianRetentionUpSQL = `
 
 		ALTER TABLE auth.accounts ADD COLUMN IF NOT EXISTS personal_data_erased_at TIMESTAMPTZ;
 
+		-- A person reference keeps an account. Take the same account-row lock as
+		-- erasure before every new reference, then verify that the account still
+		-- is live. This lives at the database boundary so legacy and native
+		-- People Directory writers cannot bypass the retention fence.
+		CREATE OR REPLACE FUNCTION users.lock_live_person_account()
+		RETURNS TRIGGER
+		LANGUAGE plpgsql
+		SECURITY DEFINER
+		SET search_path = pg_catalog, auth
+		AS $$
+		BEGIN
+			IF NEW.account_id IS NULL THEN
+				RETURN NEW;
+			END IF;
+			PERFORM 1 FROM auth.accounts
+			WHERE id = NEW.account_id AND personal_data_erased_at IS NULL
+			FOR KEY SHARE;
+			IF NOT FOUND THEN
+				RAISE EXCEPTION 'cannot link a person to an erased account'
+					USING ERRCODE = '23503';
+			END IF;
+			RETURN NEW;
+		END;
+		$$;
+		REVOKE ALL ON FUNCTION users.lock_live_person_account() FROM PUBLIC;
+		DROP TRIGGER IF EXISTS lock_live_person_account ON users.persons;
+		CREATE TRIGGER lock_live_person_account
+			BEFORE INSERT OR UPDATE OF account_id ON users.persons
+			FOR EACH ROW EXECUTE FUNCTION users.lock_live_person_account();
+
 		CREATE OR REPLACE FUNCTION auth.account_is_unused(target_id BIGINT, target_email TEXT)
 		RETURNS BOOLEAN
 		LANGUAGE sql
@@ -306,6 +336,8 @@ const accountGuardianRetentionDownSQL = `
 				)
 			);
 
+		DROP TRIGGER IF EXISTS lock_live_person_account ON users.persons;
+		DROP FUNCTION IF EXISTS users.lock_live_person_account();
 		DROP FUNCTION IF EXISTS auth.erase_unused_accounts();
 		DROP FUNCTION IF EXISTS auth.account_is_unused(BIGINT, TEXT);
 		ALTER TABLE auth.accounts DROP COLUMN IF EXISTS personal_data_erased_at;

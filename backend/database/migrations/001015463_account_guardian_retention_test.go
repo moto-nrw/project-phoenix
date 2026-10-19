@@ -125,6 +125,42 @@ func TestEraseUnusedAccountsDeletesEveryTableThatGoesWithTheAccount(t *testing.T
 	}
 }
 
+func TestPersonAccountReferenceWaitsForErasureAndRejectsTheTombstone(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := context.Background()
+	tenantID := testpkg.Tenant(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	account := testpkg.CreateTestAccount(t, db, "person-account-lock")
+	testpkg.UnclaimTestAccount(t, db, account.ID)
+	person := testpkg.CreateTestPerson(t, db, "Person", "Link")
+
+	erasure, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = erasure.Rollback() }()
+	_, err = erasure.ExecContext(ctx, `SELECT id FROM auth.accounts WHERE id = ? FOR UPDATE`, account.ID)
+	require.NoError(t, err)
+
+	linked := make(chan error, 1)
+	go func() {
+		_, linkErr := db.ExecContext(ctx, `UPDATE users.persons SET account_id = ? WHERE id = ?`, account.ID, person.ID)
+		linked <- linkErr
+	}()
+	select {
+	case linkErr := <-linked:
+		t.Fatalf("person-account link did not wait for the erasure lock: %v", linkErr)
+	case <-time.After(500 * time.Millisecond):
+	}
+	_, err = erasure.ExecContext(ctx, `UPDATE auth.accounts SET personal_data_erased_at = NOW() WHERE id = ?`, account.ID)
+	require.NoError(t, err)
+	require.NoError(t, erasure.Commit())
+	require.ErrorContains(t, <-linked, "cannot link a person to an erased account")
+
+	var linkedAccountID *int64
+	require.NoError(t, db.NewRaw(`SELECT account_id FROM users.persons WHERE id = ?`, person.ID).Scan(ctx, &linkedAccountID))
+	assert.Nil(t, linkedAccountID)
+}
+
 func TestOnlyTheAdminRoleMayEraseUnusedAccounts(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
