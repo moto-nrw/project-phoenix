@@ -136,6 +136,11 @@
     "ignore": [
       ".storybook/mocks/**"
     ],
+    "ignoreIssues": {
+      "playwright*.config.ts": [
+        "exports"
+      ]
+    },
     "ignoreDependencies": [
       "lint-staged",
       "react-scan"
