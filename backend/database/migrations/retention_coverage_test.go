@@ -67,6 +67,9 @@ var openSpecTickets = []string{}
 const (
 	specGapTables = 0
 	openGapTables = 1
+	// schoolDeletesTables keeps the class of #4045 (ADR 0072) closed: a new
+	// table with personal data gets a deletion path, not this class.
+	schoolDeletesTables = 2
 )
 
 // staffRetention is the deletion path of a retired staff member's records
@@ -162,7 +165,7 @@ var tableRetentions = map[string]tableRetention{
 	"calendar.appointment_recipients":                       parent("calendar.appointments"),
 	"calendar.appointment_reminder_push_deliveries":         parent("users.guardian_profiles"),
 	"calendar.appointment_targets":                          notPersonal("appointment target configuration"),
-	"calendar.appointments":                                 own("nightly retention steps appointment_retention, AppointmentRetention.DeleteExpiredAppointments (school window gdpr.timetable_retention_days after the last day; endless series stay, #4045), and appointment_tombstone_retention, DeleteExpiredTombstones (90 days after cancellation or deletion)"),
+	"calendar.appointments":                                 own("nightly retention steps appointment_retention, AppointmentRetention.DeleteExpiredAppointments (school window gdpr.timetable_retention_days after the last day; endless series stay, #4045), and appointment_tombstone_retention, DeleteFeedTombstonesBefore (90 days after cancellation or deletion)"),
 	"calendar.recurrence_rules":                             notPersonal("recurrence configuration"),
 	"calendar.staff_feed_tombstones":                        own("nightly timetable-cleanup step CleanupExpiredFeedTombstones -> StaffFeedTombstoneRepo.DeleteBefore (90 days)"),
 	"config.home_block_policies":                            notPersonal("home dashboard block policy configuration"),
@@ -363,6 +366,7 @@ func TestEveryTableHasARetentionPath(t *testing.T) {
 	problems = append(problems, checkOpenSpecTickets()...)
 	problems = append(problems, checkGapBudget(specGap, specGapTables)...)
 	problems = append(problems, checkGapBudget(openGap, openGapTables)...)
+	problems = append(problems, checkGapBudget(controllerDeletes, schoolDeletesTables)...)
 
 	sort.Strings(problems)
 	require.Empty(t, problems, "retention coverage: classify each table in tableRetentions and the retention list docs/reference/loeschfristen.md")

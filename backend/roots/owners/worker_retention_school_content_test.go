@@ -264,11 +264,15 @@ func TestNightlyRetentionDeletesCancelledAppointmentsAfterTheFeedWindow(t *testi
 	deleted := suite.insertAppointment(t, school, organizer.ID, -20, -20)
 	suite.insertWeeklyRule(t, school, deleted, days(-200), nil)
 	cancelledRecently := suite.insertAppointment(t, school, organizer.ID, -30, -30)
+	oldDeletedRecently := suite.insertAppointment(t, school, organizer.ID, 500, 500)
 	_, err := suite.admin.ExecContext(context.Background(), `UPDATE calendar.appointments SET
 		cancelled_at = CASE WHEN id = ? THEN CURRENT_TIMESTAMP - INTERVAL '91 days'
 			WHEN id = ? THEN CURRENT_TIMESTAMP - INTERVAL '89 days' END,
 		deleted_at = CASE WHEN id = ? THEN CURRENT_TIMESTAMP - INTERVAL '91 days' END
 		WHERE id IN (?, ?, ?)`, cancelled, cancelledRecently, deleted, cancelled, deleted, cancelledRecently)
+	require.NoError(t, err)
+	_, err = suite.admin.ExecContext(context.Background(), `UPDATE calendar.appointments
+		SET deleted_at = CURRENT_TIMESTAMP - INTERVAL '1 day' WHERE id = ?`, oldDeletedRecently)
 	require.NoError(t, err)
 
 	suite.run(t, school)
@@ -276,6 +280,8 @@ func TestNightlyRetentionDeletesCancelledAppointmentsAfterTheFeedWindow(t *testi
 	assert.False(t, suite.exists(t, "calendar.appointments", cancelled), "a cancelled appointment goes 90 days after the cancellation")
 	assert.False(t, suite.exists(t, "calendar.appointments", deleted), "a deleted appointment goes 90 days after the deletion")
 	assert.True(t, suite.exists(t, "calendar.appointments", cancelledRecently), "calendar feeds still show the cancellation")
+	assert.True(t, suite.exists(t, "calendar.appointments", oldDeletedRecently),
+		"an old appointment deleted yesterday keeps its feed window instead of going with the timetable window")
 	assert.Zero(t, suite.count(t, `SELECT COUNT(*) FROM calendar.recurrence_rules WHERE appointment_id = ?`, deleted),
 		"the rule goes with its appointment")
 	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, auditModels.DeletionTypeAppointmentTombstoneRetention))

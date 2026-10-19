@@ -54,7 +54,10 @@ Verworfene Alternativen:
   Methode `CleanupExpiredFeedTombstones` löscht danach nur noch die Absagen im
   Dienstplan-Kalender und zählt als einfache Weiterleitung; das Budget der
   Weiterleitungen von `modules/schoolcalendar` steigt dafür um eins (ADR 0057
-  Punkt 5).
+  Punkt 5). Ebenso steigen das Budget der Weiterleitungen von
+  `modules/communication` um eins und das Zeilenbudget seiner Komposition um
+  vier: Die Komposition reicht die Löschung der Elternbriefe an ihren Service
+  weiter, denselben Weg wie das Löschen von Hand.
 - Die Klasse `school deletes` ist keine Hintertür für neue Tabellen: Sie
   verlangt einen Löschweg der Schule und eine Begründung, warum keine Frist
   passt.

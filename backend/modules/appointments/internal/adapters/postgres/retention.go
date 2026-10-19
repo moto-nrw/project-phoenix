@@ -10,7 +10,7 @@ import (
 )
 
 // ListRetentionCandidates returns the appointments of the school that start
-// before cutoff and are no endless series, each with its recurrence rule and
+// before cutoff, are neither cancelled nor deleted and are no endless series, each with its recurrence rule and
 // the last day an occurrence override moves one of its occurrences to
 // (#4045).
 func (s *Store) ListRetentionCandidates(ctx context.Context, cutoff appointments.Date) ([]appointments.RetentionCandidate, error) {
@@ -21,6 +21,9 @@ func (s *Store) ListRetentionCandidates(ctx context.Context, cutoff appointments
 	rows := []appointmentRow{}
 	query := db.NewSelect().Model(&rows).ModelTableExpr(appointmentTable).
 		Where(`"appointment".start_date < ?`, cutoff.String()).
+		// Cancelled and deleted appointments keep their 90-day feed window
+		// (DeleteFeedTombstonesBefore), however old the appointment is.
+		Where(`"appointment".cancelled_at IS NULL AND "appointment".deleted_at IS NULL`).
 		Where(`NOT EXISTS (
 			SELECT 1 FROM calendar.recurrence_rules AS endless
 			WHERE endless.tenant_id = "appointment".tenant_id AND endless.appointment_id = "appointment".id

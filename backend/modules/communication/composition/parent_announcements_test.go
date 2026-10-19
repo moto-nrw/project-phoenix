@@ -36,7 +36,7 @@ func TestParentAnnouncementFacadeMapsLegacyRows(t *testing.T) {
 	row.ID = 41
 	optionID := time.Now().UnixNano()
 	row.Options[0].ID = optionID
-	capability := &parentAnnouncements{Service: parentAnnouncementServiceStub{row: row}}
+	capability := &parentAnnouncements{service: parentAnnouncementServiceStub{row: row}}
 
 	got, err := capability.GetParentAnnouncement(context.Background(), row.ID)
 	require.NoError(t, err)
@@ -55,7 +55,7 @@ func TestParentAnnouncementFacadeMapsStableErrorsWithoutLosingCause(t *testing.T
 	t.Parallel()
 	databaseErr := errors.New("database unavailable")
 	legacyErr := errors.Join(staff.ErrNotFound, databaseErr)
-	capability := &parentAnnouncements{Service: parentAnnouncementServiceStub{err: legacyErr}}
+	capability := &parentAnnouncements{service: parentAnnouncementServiceStub{err: legacyErr}}
 
 	_, err := capability.GetParentAnnouncement(context.Background(), 9)
 	require.Error(t, err)

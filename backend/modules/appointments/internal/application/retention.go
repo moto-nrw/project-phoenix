@@ -12,8 +12,8 @@ import (
 // for the nightly cleanup (#4045).
 type RetentionStore interface {
 	// ListRetentionCandidates returns the appointments that start before
-	// cutoff and are no endless series, with their rules and latest
-	// override days.
+	// cutoff, are neither cancelled nor deleted and are no endless series,
+	// with their rules and latest override days.
 	ListRetentionCandidates(ctx context.Context, cutoff appointments.Date) ([]appointments.RetentionCandidate, error)
 	DeleteAppointments(ctx context.Context, ids []int64) (int, error)
 }

@@ -9,7 +9,7 @@ import (
 
 // ParentDeclarationStatus is the staff view of an Erklärung (#3430).
 func (p *parentAnnouncements) ParentDeclarationStatus(ctx context.Context, id int64) (*communication.ParentDeclarationStatus, error) {
-	status, err := p.Service.ParentDeclarationStatus(ctx, id)
+	status, err := p.service.ParentDeclarationStatus(ctx, id)
 	if err != nil {
 		return nil, mapParentAnnouncementError(err)
 	}
