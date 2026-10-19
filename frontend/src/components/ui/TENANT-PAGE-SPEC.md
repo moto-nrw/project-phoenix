@@ -25,7 +25,7 @@ Wurzel jeder Seite ist `TenantPage` aus `~/components/ui/tenant-page`:
   error={error}
   loading={isLoading}
   empty={hasNothing ? { title: "…", description: "…" } : null}
-  back // auf Unterseiten: mobiler Zurück-Knopf
+  back // auf Unterseiten: Rückweg über dem Titel, auf jeder Breite (backHref, backLabel)
 >
   {inhalt}
 </TenantPage>
@@ -187,7 +187,7 @@ die Kosten einer Desktop-Karte in einer 390-px-Spalte. Das entscheidet
 - **Der Kopf bleibt eine Karte.** Titel, Statuszeile, Aktionen, Reiter und
   Suche stehen auch auf dem Telefon in der weißen Kopfkarte
   (`moto-content-surface`, Rahmen, Schatten), nur mit engerem Innenrand
-  (`max-sm:p-4`); der Zurück-Knopf steht mit darin. Schrift direkt auf dem
+  (`max-sm:p-4`); der Rückweg steht mit darin. Schrift direkt auf dem
   Punktmuster ist ausgeschlossen: eine transparente oder rahmenlose Kopfzeile
   unter `sm` war zweimal eine Zwischenfassung und wurde beide Male
   zurückgenommen (30.08. und 03.09.2026). Der Seitenname steht mobil im

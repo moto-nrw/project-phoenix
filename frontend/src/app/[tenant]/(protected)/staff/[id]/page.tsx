@@ -371,7 +371,7 @@ export default function StaffDetailContent() {
   // the header (name/status, data-bound) and the active tab's content
   // (needs the fetched `staff`) stay skeletons while `isLoading`.
   if (sessionStatus === "loading") {
-    return <StaffDetailSkeleton />;
+    return <StaffDetailSkeleton referrer={referrer} backLabel={backLabel} />;
   }
 
   if (
@@ -381,12 +381,13 @@ export default function StaffDetailContent() {
     !canViewRecord
   ) {
     router.replace(referrer);
-    return <StaffDetailSkeleton />;
+    return <StaffDetailSkeleton referrer={referrer} backLabel={backLabel} />;
   }
 
   if (!isLoading && error && !staffNotFound) {
     // Bis der Katalogtext geladen ist, bleibt das Skelett stehen.
-    if (!staffLoadError) return <StaffDetailSkeleton />;
+    if (!staffLoadError)
+      return <StaffDetailSkeleton referrer={referrer} backLabel={backLabel} />;
     return (
       <TenantPage
         title="Mitarbeiter"

@@ -27,7 +27,7 @@ vi.mock("next-auth/react", () => ({
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
-  // BackButton (via useTenantRouter) braucht useRouter.
+  // useTenantRouter braucht useRouter.
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }));
 

@@ -22,7 +22,10 @@ function StaffHeaderSkeleton() {
   );
 }
 
-export function StaffDetailSkeleton() {
+export function StaffDetailSkeleton({
+  referrer = "/staff",
+  backLabel = "Zurück zu den Mitarbeitenden",
+}: Readonly<{ referrer?: string; backLabel?: string }> = {}) {
   // Mirrors StaffHeader (avatar + name block + status badge) and the
   // TabsList line, then the Übersicht tab body, so the loaded page swaps in
   // without layout shift. Used only while the session (and therefore
@@ -37,11 +40,7 @@ export function StaffDetailSkeleton() {
       data-testid="staff-detail-skeleton"
       className="w-full"
     >
-      <TenantBackLink
-        href="/staff"
-        label="Zurück zu den Mitarbeitenden"
-        className="mb-3"
-      />
+      <TenantBackLink href={referrer} label={backLabel} className="mb-3" />
 
       <StaffHeaderSkeleton />
 

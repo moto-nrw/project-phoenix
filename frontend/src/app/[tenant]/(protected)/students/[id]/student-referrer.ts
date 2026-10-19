@@ -1,16 +1,22 @@
 import { resolveDetailReferrer } from "~/lib/tenant-path";
 
-/** Die Sammlungen, aus denen man die Kindakte öffnen kann. */
-const STUDENT_REFERRER_PREFIXES = [
-  "/students/search",
-  "/database/students",
-  "/rooms",
-  "/active-supervisions",
-  "/day-log",
-  "/messages",
-  "/absences",
-  "/ogs-groups",
+/**
+ * Die Sammlungen, aus denen man die Kindakte öffnen kann, und wie der
+ * Rückweg dorthin heißt. Der Link zeigt den Text sichtbar an, also muss er
+ * das Ziel nennen, aus dem man kam.
+ */
+const STUDENT_REFERRERS = [
+  ["/students/search", "Zurück zur Kinderübersicht"],
+  ["/database/students", "Zurück zu den Kinderdaten"],
+  ["/rooms", "Zurück zu den Räumen"],
+  ["/active-supervisions", "Zurück zur Aktuellen Aufsicht"],
+  ["/day-log", "Zurück zur Tagesauswertung"],
+  ["/messages", "Zurück zu Nachrichten"],
+  ["/absences", "Zurück zu den Abwesenheiten"],
+  ["/ogs-groups", "Zurück zur Gruppe"],
 ] as const;
+
+const DEFAULT_STUDENT_REFERRER = "/students/search";
 
 /**
  * Der Rückweg aus der Kindakte und ihren Unterseiten. `from` kommt aus der
@@ -19,20 +25,21 @@ const STUDENT_REFERRER_PREFIXES = [
 export function resolveStudentReferrer(candidate: string | null): string {
   return resolveDetailReferrer(
     candidate,
-    "/students/search",
-    STUDENT_REFERRER_PREFIXES,
+    DEFAULT_STUDENT_REFERRER,
+    STUDENT_REFERRERS.map(([prefix]) => prefix),
   );
 }
 
-/**
- * Der Rückweg heißt wie die Sammlung, aus der man kam: die Kinderdaten der
- * Datenverwaltung verlinken seit #3115 hierher, statt ein eigenes Pane zu
- * tragen.
- */
+/** Sichtbarer Text des Rückwegs zu einem aufgelösten `referrer`. */
 export function studentReferrerBackLabel(referrer: string): string {
-  return referrer.startsWith("/database/students")
-    ? "Zurück zu den Kinderdaten"
-    : "Zurück zur Kinderübersicht";
+  const match = STUDENT_REFERRERS.find(
+    ([prefix]) =>
+      referrer === prefix ||
+      referrer.startsWith(`${prefix}/`) ||
+      referrer.startsWith(`${prefix}?`) ||
+      referrer.startsWith(`${prefix}#`),
+  );
+  return match?.[1] ?? "Zurück zur Kinderübersicht";
 }
 
 /** Rückweg einer Unterseite der Kindakte in deren Reiter „Historie". */

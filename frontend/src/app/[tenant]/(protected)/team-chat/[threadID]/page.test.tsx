@@ -48,7 +48,7 @@ describe("renderThreadFrame", () => {
     const link = screen.getByRole("link", { name: "Zurück zum Team-Chat" });
     expect(link).toHaveAttribute("href", "/test-tenant/team-chat");
     expect(link.closest("header")).not.toBeNull();
-    expect(link).not.toHaveClass("lg:hidden", "md:hidden");
+    expect(link.className).not.toMatch(/(^|\s)(sm|md|lg|xl):hidden/);
     expect(screen.getAllByRole("link", { name: /Team-Chat/ })).toHaveLength(1);
   });
 
