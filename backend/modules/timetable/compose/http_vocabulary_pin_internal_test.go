@@ -44,10 +44,10 @@ func TestHTTPVocabularyMatchesTheRetainedModels(t *testing.T) {
 	assert.Equal(t, activityContract.WeekdaySaturday, timetable.WeekdaySaturday)
 	assert.Equal(t, activityContract.WeekdaySunday, timetable.WeekdaySunday)
 
-	assert.Equal(t, timetable.TemplateWeekdayRosterKindEmpty, timetable.TemplateWeekdayRosterKindEmpty)
-	assert.Equal(t, timetable.TemplateWeekdayRosterKindStaff, timetable.TemplateWeekdayRosterKindStaff)
-	assert.Equal(t, timetable.TemplateWeekdayRosterKindStudent, timetable.TemplateWeekdayRosterKindStudent)
-	assert.Equal(t, timetable.TemplateWeekdayRosterKindProtectedStudent, timetable.TemplateWeekdayRosterKindProtectedStudent)
+	assert.Equal(t, "empty", timetable.TemplateWeekdayRosterKindEmpty)
+	assert.Equal(t, "staff", timetable.TemplateWeekdayRosterKindStaff)
+	assert.Equal(t, "student", timetable.TemplateWeekdayRosterKindStudent)
+	assert.Equal(t, "protected_student", timetable.TemplateWeekdayRosterKindProtectedStudent)
 
 	assert.Equal(t, scheduleModel.InstanceStatusPlanned, timetable.InstanceStatusPlanned)
 	assert.Equal(t, scheduleModel.InstanceStatusActive, timetable.InstanceStatusActive)
