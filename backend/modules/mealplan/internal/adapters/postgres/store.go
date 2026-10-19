@@ -225,14 +225,27 @@ func (s *Store) InsertParticipationSchedule(ctx context.Context, studentID, acco
 		}
 	}
 	stats := domain.OperationStats{}
+	// The newest decision holds from its day on: regular days set for a
+	// later day before it give way (#3873).
+	if err := timedQuery(&stats, func() error {
+		_, deleteErr := db.NewDelete().Model((*participationScheduleRow)(nil)).
+			ModelTableExpr(`schedule.meal_participation_schedules AS "meal_participation_schedule"`).
+			Where(`"meal_participation_schedule".tenant_id = ?`, tenantID).
+			Where(`"meal_participation_schedule".student_id = ?`, studentID).
+			Where(`"meal_participation_schedule".effective_from > ?`, effectiveFrom).
+			Exec(ctx)
+		return deleteErr
+	}); err != nil {
+		return stats, fmt.Errorf("meal plan postgres: drop later participation schedules: %w", err)
+	}
 	started := time.Now()
 	result, err := db.NewInsert().Model(&row).
 		ModelTableExpr(`schedule.meal_participation_schedules`).
 		On(`CONFLICT (tenant_id, student_id, effective_from) DO UPDATE`).
 		Set(`monday = EXCLUDED.monday, tuesday = EXCLUDED.tuesday, wednesday = EXCLUDED.wednesday, thursday = EXCLUDED.thursday, friday = EXCLUDED.friday, changed_by_account_id = EXCLUDED.changed_by_account_id, updated_at = NOW()`).
 		Exec(ctx)
-	stats.Queries = 1
-	stats.StatementDuration = time.Since(started)
+	stats.Queries++
+	stats.StatementDuration += time.Since(started)
 	if err != nil {
 		return stats, fmt.Errorf("meal plan postgres: save participation schedule: %w", err)
 	}
@@ -360,8 +373,8 @@ func (s *Store) FindDailyParticipation(ctx context.Context, studentIDs []int64, 
 	stats.Rows += int64(len(overrides))
 	for _, override := range overrides {
 		state := states[override.StudentID]
-		participating, changedBy := override.Participating, override.ChangedBy
-		state.Override, state.OverrideBy = &participating, &changedBy
+		participating := override.Participating
+		state.Override = &participating
 		states[override.StudentID] = state
 	}
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Checkbox } from "~/components/ui/checkbox";
@@ -8,14 +8,20 @@ import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EditActions } from "~/components/ui/edit-actions";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import { createLogger } from "~/lib/logger";
 import {
+  clearChildMealDay,
   getChildMealSchedule,
   replaceChildMealSchedule,
   setChildMealDay,
@@ -27,12 +33,14 @@ const logger = createLogger({ component: "MealRegistrationChangeModal" });
 const WEEKDAYS = [1, 2, 3, 4, 5] as const;
 
 type ChangeScope = "day" | "regular";
-type DayChoice = "eats" | "skips";
+// "regular" gibt den Tag an die festen Tage zurück.
+type DayChoice = "eats" | "skips" | "regular";
+type ScheduleState = "idle" | "loading" | "loaded" | "failed";
 
 /**
  * Die Schule ändert die Anmeldung eines Kindes, auch nach der Frist (#3873):
- * einen Tag oder die festen Tage ab einem Datum. Eltern sehen die Änderung
- * im Elternportal.
+ * einen Tag, den Tag zurück auf die festen Tage, oder die festen Tage ab
+ * einem Datum. Eltern sehen die Änderung im Elternportal.
  */
 export function MealRegistrationChangeModal({
   isOpen,
@@ -55,7 +63,15 @@ export function MealRegistrationChangeModal({
   const datePicker = useLocalizedDatePicker();
   const { success } = useToast();
   const { error, show: showError, clear: clearError } = useApiFormError();
+  const {
+    error: scheduleError,
+    show: showScheduleError,
+    clear: clearScheduleError,
+  } = useApiLoadError();
   const [studentId, setStudentId] = useState("");
+  const [scheduleState, setScheduleState] = useState<ScheduleState>("idle");
+  // Nur die Antwort der letzten Anfrage zählt, wenn schnell gewechselt wird.
+  const scheduleRequest = useRef(0);
   const [scope, setScope] = useState<ChangeScope>("day");
   const [choice, setChoice] = useState<DayChoice | null>(null);
   const [weekdays, setWeekdays] = useState<number[]>([]);
@@ -76,11 +92,12 @@ export function MealRegistrationChangeModal({
         )
         .map((child) => ({
           value: child.studentId,
-          label: t("childOption", {
-            name: `${child.lastName}, ${child.firstName}`,
-            schoolClass: child.schoolClass || "–",
-            state: eating.has(child.studentId) ? t("eats") : t("skips"),
-          }),
+          // Name, Klasse und ob das Kind isst; das Muster hat keine Wörter.
+          label: [
+            `${child.lastName}, ${child.firstName}`,
+            child.schoolClass || "–",
+            eating.has(child.studentId) ? t("eats") : t("skips"),
+          ].join(" · "),
         })),
     [eating, locale, others, participants, t],
   );
@@ -91,39 +108,68 @@ export function MealRegistrationChangeModal({
     setScope("day");
     setChoice(null);
     setWeekdays([]);
+    setScheduleState("idle");
+    scheduleRequest.current += 1;
     setEffectiveFrom(date < today ? today : date);
     clearError();
-  }, [clearError, date, isOpen, today]);
+    clearScheduleError();
+  }, [clearError, clearScheduleError, date, isOpen, today]);
 
-  // Die festen Tage des gewählten Kindes vorbelegen.
-  useEffect(() => {
-    if (!isOpen || !studentId) return;
-    let cancelled = false;
-    setChoice(eating.has(studentId) ? "skips" : "eats");
-    void getChildMealSchedule(studentId, date)
-      .then((schedule) => {
-        if (!cancelled) setWeekdays(schedule.weekdays);
-      })
-      .catch((cause: unknown) => {
+  // Die festen Tage des gewählten Kindes vorbelegen. Bis sie da sind, bleiben
+  // die Tage leer und Speichern gesperrt, damit nie die Tage eines anderen
+  // Kindes gespeichert werden.
+  const loadSchedule = useCallback(
+    async (child: string) => {
+      const request = ++scheduleRequest.current;
+      setWeekdays([]);
+      setScheduleState("loading");
+      clearScheduleError();
+      try {
+        const schedule = await getChildMealSchedule(child, date);
+        if (request !== scheduleRequest.current) return;
+        setWeekdays(schedule.weekdays);
+        setScheduleState("loaded");
+      } catch (cause) {
+        if (request !== scheduleRequest.current) return;
         logger.error("meal_child_schedule_load_failed", {
           error: cause instanceof Error ? cause.message : String(cause),
         });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [date, eating, isOpen, studentId]);
+        setScheduleState("failed");
+        void showScheduleError(cause, {
+          object: t("errorObjectSchedule"),
+          retry: () => void loadSchedule(child),
+        });
+      }
+    },
+    [clearScheduleError, date, showScheduleError, t],
+  );
+
+  function chooseChild(child: string) {
+    setStudentId(child);
+    setChoice(eating.has(child) ? "skips" : "eats");
+    void loadSchedule(child);
+  }
 
   const ready =
     studentId !== "" &&
-    (scope === "day" ? choice !== null : effectiveFrom >= today);
+    (scope === "day"
+      ? choice !== null
+      : effectiveFrom >= today && scheduleState === "loaded");
+  const childName = useMemo(() => {
+    const child = [...participants, ...others].find(
+      (candidate) => candidate.studentId === studentId,
+    );
+    return child ? `${child.firstName} ${child.lastName}` : "";
+  }, [others, participants, studentId]);
 
   async function save() {
     if (!ready) return;
     setSaving(true);
     clearError();
     try {
-      if (scope === "day") {
+      if (scope === "day" && choice === "regular") {
+        await clearChildMealDay(studentId, date);
+      } else if (scope === "day") {
         await setChildMealDay(studentId, date, choice === "eats");
       } else {
         await replaceChildMealSchedule(studentId, weekdays, effectiveFrom);
@@ -137,7 +183,7 @@ export function MealRegistrationChangeModal({
       return;
     }
     setSaving(false);
-    success(t("changeSaved"));
+    success(t("changeSaved", { name: childName }));
     onSaved();
     onClose();
   }
@@ -172,7 +218,7 @@ export function MealRegistrationChangeModal({
           <CustomSelect
             value={studentId}
             options={options}
-            onChange={setStudentId}
+            onChange={chooseChild}
             ariaLabelledBy="meal-change-child-label"
             placeholder={t("childPlaceholder")}
           />
@@ -195,6 +241,7 @@ export function MealRegistrationChangeModal({
             items={[
               { value: "eats", label: t("eats") },
               { value: "skips", label: t("skips") },
+              { value: "regular", label: t("asRegular") },
             ]}
             value={choice}
             onChange={setChoice}
@@ -203,7 +250,13 @@ export function MealRegistrationChangeModal({
           />
         ) : (
           <div className="space-y-3">
-            <fieldset>
+            {scheduleError ? <LoadErrorAlert error={scheduleError} /> : null}
+            {scheduleState === "loading" ? (
+              <p className="text-sm text-gray-600" role="status">
+                {t("scheduleLoading")}
+              </p>
+            ) : null}
+            <fieldset disabled={scheduleState !== "loaded"}>
               <legend className="text-sm font-medium text-gray-800">
                 {t("regularDays")}
               </legend>

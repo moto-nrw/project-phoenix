@@ -143,8 +143,9 @@ export default function MealPlanPage() {
   // meals:manage (the backend PUT/DELETE routes 403 otherwise). Readers get a
   // view-only plan: no edit, copy, paste, clear, add/remove, "Vorwoche
   // übernehmen", or save controls — so they never hit a guaranteed 403. The
-  // lists with names need meals:orders (#3873). Mirror the nav's
-  // admin-OR-permission gate.
+  // lists with names need meals:orders, a child's registration changed by
+  // the school meals:register (#3873). Mirror the nav's admin-OR-permission
+  // gate.
   const canEdit = isAdmin(session) || hasPermission(session, "meals:manage");
   const mealRegistrationEnabled = useMealRegistrationEnabled();
   // Die Bestellung der Woche braucht nur die Zahlen (#3873).
@@ -156,6 +157,9 @@ export default function MealPlanPage() {
     status === "authenticated" &&
     mealRegistrationEnabled &&
     (isAdmin(session) || hasPermission(session, "meals:orders"));
+  const canRegister =
+    canReadParticipants &&
+    (isAdmin(session) || hasPermission(session, "meals:register"));
 
   // weekOffset: number of weeks from the current week (0 = this week, can go
   // negative for past weeks or beyond +1 for planning ahead).
@@ -800,7 +804,9 @@ export default function MealPlanPage() {
         />
       ) : null}
 
-      {canReadParticipants ? <MealParticipantList /> : null}
+      {canReadParticipants ? (
+        <MealParticipantList canRegister={canRegister} />
+      ) : null}
 
       {/* Sticky save bar — only while there are unsaved changes. */}
       {canEdit && isDirty && !loading && !hasLoadError && (

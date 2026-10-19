@@ -1407,6 +1407,24 @@
       "legacy": "iot.wc_not_configured"
     },
     {
+      "code": "meals.child_not_enrolled",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "meals.child_not_enrolled"
+    },
+    {
+      "code": "meals.day_closed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "meals.day_closed"
+    },
+    {
+      "code": "meals.day_past",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "meals.day_past"
+    },
+    {
       "code": "meals.invalid_dishes",
       "class": "input",
       "parameters": [],

@@ -280,11 +280,16 @@
     "confirmed": "Yemek firması onayladı",
     "caption": "Bu haftanın siparişi",
     "monthGroup": "Aylık özeti indir",
-    "monthPdf": "Ay PDF olarak",
-    "monthExcel": "Ay Excel olarak",
+    "monthPdf": "PDF olarak {month}",
+    "monthExcel": "Excel olarak {month}",
     "downloadLoading": "Oluşturuluyor…",
     "errorObject": "sipariş",
-    "errorObjectMonth": "aylık özet"
+    "errorObjectMonth": "aylık özet",
+    "unordered": "Sipariş edilmedi",
+    "monthChoice": "Ay seçin",
+    "noChanges": "Değişiklik yok",
+    "changesAdded": "{count, plural, one {# çocuk fazla} other {# çocuk fazla}}",
+    "changesRemoved": "{count, plural, one {# çocuk eksik} other {# çocuk eksik}}"
   },
   "mealParticipantList": {
     "title": "Mutfak için günlük liste",
@@ -310,7 +315,6 @@
     "changeTitle": "Kaydı değiştir",
     "changeHint": "Okul kaydı her zaman, son tarihten sonra da değiştirebilir. Veliler değişikliği veli portalında görür.",
     "childPlaceholder": "Çocuk seçin",
-    "childOption": "{name} · {schoolClass} · {state}",
     "eats": "Öğle yemeği yiyor",
     "skips": "Öğle yemeği yemiyor",
     "scopeDay": "Yalnızca {date}",
@@ -324,8 +328,11 @@
     "weekday3": "Çarşamba",
     "weekday4": "Perşembe",
     "weekday5": "Cuma",
-    "changeSaved": "Kayıt değiştirildi.",
-    "errorObjectChange": "kayıt"
+    "changeSaved": "{name} için kayıt değiştirildi.",
+    "errorObjectChange": "kayıt",
+    "asRegular": "Sabit günlerdeki gibi",
+    "scheduleLoading": "Sabit günler yükleniyor…",
+    "errorObjectSchedule": "sabit günler"
   },
   "parentDashboard": {
     "eyebrow": "Veli portalı",
@@ -2470,6 +2477,9 @@
         "wc_not_configured": "{object} işlenemedi. Daha sonra yeniden deneyin."
       },
       "meals": {
+        "child_not_enrolled": "{object} mümkün değil. Çocuk bu gün bakımda değil.",
+        "day_closed": "{object} mümkün değil. Okul bu gün kapalı.",
+        "day_past": "{object} artık mümkün değil. Bu gün geçti.",
         "invalid_dishes": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "invalid_meal_date": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "invalid_participation": "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",

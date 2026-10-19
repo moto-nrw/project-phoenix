@@ -24,6 +24,7 @@ import (
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -313,7 +314,7 @@ func newWorker(
 	notices EnrollmentNotices, flows EnrollmentFlows, studentDeletion *studentdeletion.Workflow, feedback *feedbackModule.Module,
 	calendarApp calendarCompose.Application, notifications DeliveryNotifications, usage deliveryCompose.PWAUsageService,
 	staffMessaging communication.StaffMessagingRuntime, outbox *deliveryModule.Worker, reminders reminder.Module,
-	fileStore *filestorageModule.Module,
+	fileStore *filestorageModule.Module, mealPlan *mealplanModule.Module,
 ) (schedulerPorts.Worker, error) {
 	billing, err := newOperatorBilling(logger)
 	if err != nil {
@@ -394,6 +395,7 @@ func newWorker(
 		AppointmentReminders:      reminders,
 		RolloverDeadlineRunner:    rolloverDeadlines{rollovers: flows.Rollovers},
 		BookingConsistency:        bookings,
+		MealOrders:                mealPlan.SettleOrders,
 		InstanceRepo:              schedulerDayInstances(timetableRepos),
 		InstanceRoomRepo:          schedulerExistingRooms(rooms),
 		InstanceStudentRepo:       timetableRepos.InstanceStudent,

@@ -316,6 +316,9 @@ const (
 	CodeIotStudentNotPresent                             = "iot.student_not_present"
 	CodeIotWcNeedsStaff                                  = "iot.wc_needs_staff"
 	CodeIotWcNotConfigured                               = "iot.wc_not_configured"
+	CodeMealsChildNotEnrolled                            = "meals.child_not_enrolled"
+	CodeMealsDayClosed                                   = "meals.day_closed"
+	CodeMealsDayPast                                     = "meals.day_past"
 	CodeMealsInvalidDishes                               = "meals.invalid_dishes"
 	CodeMealsInvalidMealDate                             = "meals.invalid_meal_date"
 	CodeMealsInvalidParticipation                        = "meals.invalid_participation"
@@ -985,6 +988,9 @@ var errorClassByCode = map[string]string{
 	"iot.student_not_present":                              "business_rejection",
 	"iot.wc_needs_staff":                                   "server",
 	"iot.wc_not_configured":                                "server",
+	"meals.child_not_enrolled":                             "business_rejection",
+	"meals.day_closed":                                     "business_rejection",
+	"meals.day_past":                                       "business_rejection",
 	"meals.invalid_dishes":                                 "input",
 	"meals.invalid_meal_date":                              "input",
 	"meals.invalid_participation":                          "input",

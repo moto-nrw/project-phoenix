@@ -247,6 +247,7 @@ var tableRetentions = map[string]tableRetention{
 	"schedule.meal_order_changes":                           parent("users.student_profiles"),
 	"schedule.meal_order_days":                              notPersonal("days of a meal order, no child data"),
 	"schedule.meal_order_lines":                             parent("users.student_profiles"),
+	"schedule.meal_registration_changes":                    parent("users.student_profiles"),
 	"schedule.meal_orders":                                  notPersonal("meal order header: period, deadline, confirmation; the confirming account is cleared with the account"),
 	"schedule.meal_participation_overrides":                 parent("users.student_profiles"),
 	"schedule.meal_participation_schedules":                 parent("users.student_profiles"),

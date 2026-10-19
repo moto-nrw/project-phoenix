@@ -280,11 +280,16 @@
     "confirmed": "E konfirmuar nga furnizuesi",
     "caption": "Porosia e kësaj jave",
     "monthGroup": "Shkarko përmbledhjen e muajit",
-    "monthPdf": "Muaji si PDF",
-    "monthExcel": "Muaji si Excel",
+    "monthPdf": "{month} si PDF",
+    "monthExcel": "{month} si Excel",
     "downloadLoading": "Po krijohet…",
     "errorObject": "porosinë",
-    "errorObjectMonth": "përmbledhjen e muajit"
+    "errorObjectMonth": "përmbledhjen e muajit",
+    "unordered": "Nuk është porositur",
+    "monthChoice": "Zgjidhni muajin",
+    "noChanges": "Pa ndryshime",
+    "changesAdded": "{count, plural, one {# fëmijë më shumë} other {# fëmijë më shumë}}",
+    "changesRemoved": "{count, plural, one {# fëmijë më pak} other {# fëmijë më pak}}"
   },
   "mealParticipantList": {
     "title": "Lista ditore për kuzhinën",
@@ -310,7 +315,6 @@
     "changeTitle": "Ndrysho regjistrimin",
     "changeHint": "Shkolla mund ta ndryshojë regjistrimin në çdo kohë, edhe pas afatit. Prindërit e shohin ndryshimin në portalin e prindërve.",
     "childPlaceholder": "Zgjidh fëmijën",
-    "childOption": "{name} · {schoolClass} · {state}",
     "eats": "Ha drekë",
     "skips": "Nuk ha drekë",
     "scopeDay": "Vetëm më {date}",
@@ -324,8 +328,11 @@
     "weekday3": "E mërkurë",
     "weekday4": "E enjte",
     "weekday5": "E premte",
-    "changeSaved": "Regjistrimi u ndryshua.",
-    "errorObjectChange": "regjistrimin"
+    "changeSaved": "Regjistrimi i {name} u ndryshua.",
+    "errorObjectChange": "regjistrimin",
+    "asRegular": "Si në ditët e rregullta",
+    "scheduleLoading": "Po ngarkohen ditët e rregullta…",
+    "errorObjectSchedule": "ditët e rregullta"
   },
   "parentDashboard": {
     "eyebrow": "Portali i prindërve",
@@ -2470,6 +2477,9 @@
         "wc_not_configured": "Nuk u përpunua: {object}. Provoni përsëri më vonë."
       },
       "meals": {
+        "child_not_enrolled": "Nuk është e mundur: {object}. Fëmija nuk është në kujdes në këtë ditë.",
+        "day_closed": "Nuk është e mundur: {object}. Shkolla është e mbyllur në këtë ditë.",
+        "day_past": "Nuk është më e mundur: {object}. Dita ka kaluar.",
         "invalid_dishes": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "invalid_meal_date": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "invalid_participation": "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",

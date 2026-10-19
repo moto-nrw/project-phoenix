@@ -280,11 +280,16 @@
     "confirmed": "Підтверджено постачальником",
     "caption": "Замовлення на цей тиждень",
     "monthGroup": "Завантажити огляд за місяць",
-    "monthPdf": "Місяць у PDF",
-    "monthExcel": "Місяць в Excel",
+    "monthPdf": "{month} у PDF",
+    "monthExcel": "{month} в Excel",
     "downloadLoading": "Створюється…",
     "errorObject": "замовлення",
-    "errorObjectMonth": "огляд за місяць"
+    "errorObjectMonth": "огляд за місяць",
+    "unordered": "Не замовлено",
+    "monthChoice": "Виберіть місяць",
+    "noChanges": "Змін немає",
+    "changesAdded": "{count, plural, one {на # дитину більше} few {на # дитини більше} many {на # дітей більше} other {на # дитини більше}}",
+    "changesRemoved": "{count, plural, one {на # дитину менше} few {на # дитини менше} many {на # дітей менше} other {на # дитини менше}}"
   },
   "mealParticipantList": {
     "title": "Денний список для кухні",
@@ -310,7 +315,6 @@
     "changeTitle": "Змінити запис",
     "changeHint": "Школа може змінити запис будь-коли, також після терміну. Батьки бачать зміну в батьківському порталі.",
     "childPlaceholder": "Виберіть дитину",
-    "childOption": "{name} · {schoolClass} · {state}",
     "eats": "Обідає",
     "skips": "Не обідає",
     "scopeDay": "Лише {date}",
@@ -324,8 +328,11 @@
     "weekday3": "Середа",
     "weekday4": "Четвер",
     "weekday5": "Пʼятниця",
-    "changeSaved": "Запис змінено.",
-    "errorObjectChange": "запис"
+    "changeSaved": "Запис дитини {name} змінено.",
+    "errorObjectChange": "запис",
+    "asRegular": "Як у постійні дні",
+    "scheduleLoading": "Завантажуємо постійні дні…",
+    "errorObjectSchedule": "постійні дні"
   },
   "parentDashboard": {
     "eyebrow": "Батьківський портал",
@@ -2470,6 +2477,9 @@
         "wc_not_configured": "Не вдалося обробити: {object}. Спробуйте пізніше."
       },
       "meals": {
+        "child_not_enrolled": "Неможливо: {object}. Цього дня дитина не перебуває під доглядом.",
+        "day_closed": "Неможливо: {object}. Цього дня школа зачинена.",
+        "day_past": "Уже неможливо: {object}. Цей день уже минув.",
         "invalid_dishes": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "invalid_meal_date": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "invalid_participation": "Указано неправильні дані: {object}. Перевірте введені дані.",

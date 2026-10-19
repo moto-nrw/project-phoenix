@@ -4048,14 +4048,16 @@ function mealOrderingTopic(): HelpTopic {
       "`Entschuldigt` und `Klassenfahrt` melden das Essen ab wie eine Krankmeldung.",
       "Für die Küche legen Sie eine Rolle mit den Rechten unter `Mittagessen` an. Sie braucht keinen Zugriff auf alle Kinderdaten.",
       "Zur Frist friert moto die Bestellung ein. Unter `Essensplan` zeigt `Bestellung` je Tag `Offen bis …`, `Bestellt` oder `Vom Caterer bestätigt`, die Zahl der Essen und die `Nachmeldungen` danach.",
-      "Mit `Monat als Excel` oder `Monat als PDF` laden Sie die bestellten Essen je Kind für den Monat der gezeigten Woche herunter, zum Beispiel für die Essenspauschale.",
+      "Tage vor dem Start der Bestellung stehen auf `Nicht bestellt`. Sie zählen nicht.",
+      "Mit `… als Excel` oder `… als PDF` laden Sie die bestellten Essen je Kind für einen Monat herunter, zum Beispiel für die Essenspauschale. Liegt die Woche in zwei Monaten, wählen Sie vorher den Monat.",
     ],
     differences: [
       "Wochenenden zählen bei `Tage vorher` mit. 1 heißt immer: am Tag davor.",
-      "Die Schule ändert eine Anmeldung auch nach der Frist: unter `Essensplan` mit `Anmeldung ändern`, für einen Tag oder die festen Tage.",
+      "Die Schule ändert eine Anmeldung auch nach der Frist: unter `Essensplan` mit `Anmeldung ändern`. Das geht für einen Tag, zurück `Wie an festen Tagen` oder für die festen Tage ab einem Datum. moto hält jede Änderung mit Konto und Zeit fest.",
     ],
     troubleshootingDetails: [
       "Fehlen die Fristen? Dann ist `Anmeldung zum Mittagessen` noch aus.",
+      "Fehlt `Anmeldung ändern`? Dann braucht Ihr Konto das Recht `Anmeldung eines Kindes ändern, auch nach der Frist`.",
     ],
     related: [HELP_TOPICS.leadMealPlan, HELP_TOPICS.settings],
   };

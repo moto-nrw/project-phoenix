@@ -119,10 +119,7 @@ type DailyCandidate struct {
 type DailyParticipation struct {
 	Regular  bool
 	Override *bool
-	// OverrideBy is the account of the day's exception, which a change of
-	// the order records (#3873).
-	OverrideBy *int64
-	Absences   []SickDay
+	Absences []SickDay
 }
 
 type DailyParticipant struct {

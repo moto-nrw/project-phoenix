@@ -133,15 +133,17 @@ func OrderPeriod(rhythm Rhythm, day Date) (Date, Date) {
 }
 
 // OrderDay is one weekday of the order view: open (no order yet, the
-// children are the current registration) or ordered (the fixed order with
-// every change applied).
+// children are the current registration), ordered (the fixed order with
+// every change applied) or unordered (over without an order, as before the
+// school started ordering).
 type OrderDay struct {
-	Date     Date
-	Closed   bool
-	Deadline time.Time
-	Order    *Order
-	Children map[int64]string
-	Changes  []OrderChange
+	Date      Date
+	Closed    bool
+	Unordered bool
+	Deadline  time.Time
+	Order     *Order
+	Children  map[int64]string
+	Changes   []OrderChange
 	// Eating are the children of the day by name, sorted like the kitchen
 	// list.
 	Eating []DailyParticipant

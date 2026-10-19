@@ -78,21 +78,66 @@ describe("MealOrderWeek", () => {
     );
     expect(screen.getAllByText("2a: 7 · 3b: 5")).not.toHaveLength(0);
     expect(screen.getAllByText("+2 · −1")).not.toHaveLength(0);
+    // The test catalog mock leaves ICU plurals unrendered; the words remain.
+    expect(
+      screen.getAllByLabelText(/Kinder mehr.*Kind weniger/),
+    ).not.toHaveLength(0);
     expect(screen.getAllByText(/^Offen bis /)).not.toHaveLength(0);
     expect(screen.getAllByText("OGS geschlossen")).not.toHaveLength(0);
   });
 
   it("downloads the month of the shown week", async () => {
-    render(<MealOrderWeek mondayISO="2026-09-28" canExportMonth />, {
+    render(<MealOrderWeek mondayISO="2026-09-07" canExportMonth />, {
       wrapper: ToastProvider,
     });
 
     fireEvent.click(
-      await screen.findByRole("button", { name: /Monat als Excel/ }),
+      await screen.findByRole("button", { name: "September als Excel" }),
     );
     await waitFor(() =>
       expect(mocks.downloadMealMonth).toHaveBeenCalledWith("2026-09", "xlsx"),
     );
+    expect(
+      screen.queryByRole("group", { name: "Monat wählen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  // #3873: a week across two months offers both months.
+  it("lets a week across two months choose the month", async () => {
+    render(<MealOrderWeek mondayISO="2026-09-28" canExportMonth />, {
+      wrapper: ToastProvider,
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Oktober" }));
+    fireEvent.click(screen.getByRole("button", { name: "Oktober als PDF" }));
+    await waitFor(() =>
+      expect(mocks.downloadMealMonth).toHaveBeenCalledWith("2026-10", "pdf"),
+    );
+  });
+
+  it("marks past days without an order as not ordered", async () => {
+    mocks.getMealOrders.mockResolvedValue({
+      rhythm: "daily",
+      detail: "by_class",
+      days: [
+        {
+          date: "2026-09-07",
+          closed: false,
+          deadline: "2026-09-07T07:00:00Z",
+          status: "unordered",
+          confirmedAt: null,
+          total: 0,
+          classes: [],
+          changes: [],
+        },
+      ],
+    });
+    render(<MealOrderWeek mondayISO="2026-09-07" canExportMonth={false} />, {
+      wrapper: ToastProvider,
+    });
+
+    expect(await screen.findAllByText("Nicht bestellt")).not.toHaveLength(0);
+    expect(screen.queryByText(/^Offen bis /)).not.toBeInTheDocument();
   });
 
   it("offers the month only with the lists permission", async () => {
@@ -102,7 +147,7 @@ describe("MealOrderWeek", () => {
 
     await screen.findAllByText("Vom Caterer bestätigt");
     expect(
-      screen.queryByRole("button", { name: /Monat als PDF/ }),
+      screen.queryByRole("button", { name: /als PDF/ }),
     ).not.toBeInTheDocument();
   });
 });

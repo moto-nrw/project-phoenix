@@ -23,6 +23,8 @@ const (
 	AccessRead Access = iota + 1
 	AccessWrite
 	AccessParticipants
+	// AccessRegister changes a child's registration for the school (#3873).
+	AccessRegister
 )
 
 type ExportFile struct {
@@ -42,6 +44,9 @@ type Runtime struct {
 	// CurrentAccountID is the staff account of the request, recorded on a
 	// school's change.
 	CurrentAccountID func(context.Context) int64
+	// Allowed reports whether the caller passes an access level, for a
+	// response part only some readers see.
+	Allowed func(context.Context, Access) bool
 }
 
 type Resource struct {
@@ -50,7 +55,7 @@ type Resource struct {
 }
 
 func NewResource(module *mealplanModule.Module, runtime Runtime) *Resource {
-	if module == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.Success == nil || runtime.InvalidRequest == nil || runtime.ModuleFailure == nil || runtime.RenderList == nil || runtime.CurrentAccountID == nil {
+	if module == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.Success == nil || runtime.InvalidRequest == nil || runtime.ModuleFailure == nil || runtime.RenderList == nil || runtime.CurrentAccountID == nil || runtime.Allowed == nil {
 		panic("meal plan HTTP: all dependencies are required")
 	}
 	return &Resource{module: module, runtime: runtime}
@@ -67,10 +72,10 @@ func (rs *Resource) Router() chi.Router {
 		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/participants/export", rs.exportParticipants)
 		protected.With(rs.runtime.Permission(AccessRead), withTx).Get("/orders", rs.getOrders)
 		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/orders/month/export", rs.exportMonth)
-		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/participation/{studentId}", rs.getChildParticipation)
-		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Put("/participation/{studentId}/days/{date}", rs.setChildDay)
-		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Delete("/participation/{studentId}/days/{date}", rs.clearChildDay)
-		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Put("/participation/{studentId}/schedule", rs.replaceChildSchedule)
+		protected.With(rs.runtime.Permission(AccessRegister), withTx).Get("/participation/{studentId}", rs.getChildParticipation)
+		protected.With(rs.runtime.Permission(AccessRegister), withTx).Put("/participation/{studentId}/days/{date}", rs.setChildDay)
+		protected.With(rs.runtime.Permission(AccessRegister), withTx).Delete("/participation/{studentId}/days/{date}", rs.clearChildDay)
+		protected.With(rs.runtime.Permission(AccessRegister), withTx).Put("/participation/{studentId}/schedule", rs.replaceChildSchedule)
 	})
 	return router
 }
@@ -180,7 +185,9 @@ func (rs *Resource) getParticipants(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response := DailyListResponse{Date: string(list.Date), CutoffTime: list.CutoffTime, Deadline: list.Deadline, Closed: list.Closed, Participants: participantResponses(list.Participants)}
-	if r.URL.Query().Get("include") == "all" {
+	// The children who do not eat are there to register them, so only a
+	// caller who may change a registration sees them.
+	if r.URL.Query().Get("include") == "all" && rs.runtime.Allowed(r.Context(), AccessRegister) {
 		response.Others = participantResponses(list.Others)
 	}
 	rs.runtime.Success(w, r, http.StatusOK, response, "Meal participation list retrieved successfully")

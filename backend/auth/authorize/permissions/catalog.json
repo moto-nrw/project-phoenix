@@ -184,6 +184,10 @@
     "action": "read"
   },
   {
+    "resource": "meals",
+    "action": "register"
+  },
+  {
     "resource": "permissions",
     "action": "create"
   },

@@ -13,17 +13,24 @@ import (
 const orderReachDays = 27
 
 // dayChildren are the children who eat on a day as the registration stands
-// now, with their class and the account of the day's exception.
+// now, with their class.
 type dayChildren struct {
 	classes    map[int64]string
-	changedBy  map[int64]*int64
 	candidates map[int64]domain.DailyCandidate
+}
+
+// changeAuthor is the account that changed a child's registration in the
+// unit of work. A change of the order for that child names it; every other
+// change (an absence, a new child, a closing day) names nobody.
+type changeAuthor struct {
+	studentID int64
+	accountID int64
 }
 
 // childrenOn resolves who eats on date, counting absences reported up to
 // cutoff. A closed day has nobody.
 func (s *Service) childrenOn(ctx context.Context, date domain.Date, cutoff time.Time, days domain.CalendarDays) (dayChildren, domain.OperationStats, error) {
-	result := dayChildren{classes: map[int64]string{}, changedBy: map[int64]*int64{}, candidates: map[int64]domain.DailyCandidate{}}
+	result := dayChildren{classes: map[int64]string{}, candidates: map[int64]domain.DailyCandidate{}}
 	if days.Closed[date] {
 		return result, domain.OperationStats{}, nil
 	}
@@ -44,7 +51,6 @@ func (s *Service) childrenOn(ctx context.Context, date domain.Date, cutoff time.
 	for _, candidate := range candidates {
 		state := states[candidate.StudentID]
 		day := dayState{holiday: days.Holiday[date], scheduled: state.Regular, override: state.Override, absences: state.Absences}
-		result.changedBy[candidate.StudentID] = state.OverrideBy
 		if resolveDay(day, cutoff).participating {
 			result.classes[candidate.StudentID] = candidate.SchoolClass
 		}
@@ -55,13 +61,15 @@ func (s *Service) childrenOn(ctx context.Context, date domain.Date, cutoff time.
 // fixDueOrders fixes every order of [from, to] whose deadline has passed and
 // that does not exist yet (#3873). The caller holds the order lock. A weekly
 // order fixes all open days of its week at the earliest deadline among them;
-// a day that already belongs to an order is never ordered again.
+// a day that already belongs to an order is never ordered again, and a day
+// already over is never ordered after the fact.
 func (s *Service) fixDueOrders(ctx context.Context, rules domain.OrderingRules, state domain.OrderState, days domain.CalendarDays, from, to domain.Date, now time.Time) (int, domain.OperationStats, error) {
 	var stats domain.OperationStats
 	fixed := 0
+	today := domain.DateFromInstant(now)
 	for start := from; !start.After(to); {
 		periodStart, periodEnd := domain.OrderPeriod(rules.Rhythm, start)
-		open, deadline := openDays(rules, state, periodStart, periodEnd)
+		open, deadline := openDays(rules, state, periodStart, periodEnd, today)
 		if len(open) > 0 && now.After(deadline) {
 			orderStats, err := s.fixOrder(ctx, open, deadline, days, now)
 			stats = addStats(stats, orderStats)
@@ -84,13 +92,13 @@ func nextPeriod(rhythm domain.Rhythm, periodStart, periodEnd domain.Date) domain
 	return periodEnd.AddDays(1)
 }
 
-// openDays lists the weekdays of a period no order holds yet and the
-// earliest deadline among them.
-func openDays(rules domain.OrderingRules, state domain.OrderState, from, to domain.Date) ([]domain.Date, time.Time) {
+// openDays lists the weekdays of a period from today on that no order holds
+// yet, and the earliest deadline among them.
+func openDays(rules domain.OrderingRules, state domain.OrderState, from, to, today domain.Date) ([]domain.Date, time.Time) {
 	var open []domain.Date
 	var deadline time.Time
 	for date := from; !date.After(to); date = date.AddDays(1) {
-		if date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
+		if date.Before(today) || date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
 			continue
 		}
 		if _, ordered := state.OrderFor(date); ordered {
@@ -124,9 +132,9 @@ func (s *Service) fixOrder(ctx context.Context, open []domain.Date, deadline tim
 }
 
 // recordChanges compares each ordered day from today on with who eats now
-// and stores the difference as numbered changes. A past day keeps its order:
-// what reaches the history later (an archived absence) changes no bill.
-func recordChanges(state domain.OrderState, current map[domain.Date]dayChildren, today domain.Date) []domain.OrderChange {
+// and lists the difference as changes. A past day keeps its order: what
+// reaches the history later (an archived absence) changes no bill.
+func recordChanges(state domain.OrderState, current map[domain.Date]dayChildren, today domain.Date, author *changeAuthor) []domain.OrderChange {
 	dates := make([]domain.Date, 0, len(current))
 	for date := range current {
 		dates = append(dates, date)
@@ -140,7 +148,11 @@ func recordChanges(state domain.OrderState, current map[domain.Date]dayChildren,
 			continue
 		}
 		for _, change := range domain.DiffOrder(date, state.OrderedChildren(date), children.classes) {
-			change.OrderID, change.ChangedBy = order.ID, children.changedBy[change.StudentID]
+			change.OrderID = order.ID
+			if author != nil && author.studentID == change.StudentID {
+				accountID := author.accountID
+				change.ChangedBy = &accountID
+			}
 			changes = append(changes, change)
 		}
 	}

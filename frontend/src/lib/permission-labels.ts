@@ -63,6 +63,7 @@ export const actionLabels: Record<string, string> = {
   legal: "Sorgerecht",
   arrival_exception_write: "Ankunftszeit ändern",
   orders: "Essenslisten",
+  register: "Anmeldungen ändern",
   "*": "Alle",
 };
 
@@ -189,8 +190,8 @@ const permissionDescriptions: Record<string, string> = {
   // Mittagessen (#3873)
   "meals:read": "Essensplan und Essenszahlen ansehen",
   "meals:manage": "Essensplan pflegen und den Caterer verwalten",
-  "meals:orders":
-    "Essenslisten mit Namen sehen und Anmeldungen nach der Frist ändern",
+  "meals:orders": "Essenslisten mit Namen sehen",
+  "meals:register": "Anmeldung eines Kindes ändern, auch nach der Frist",
 
   // IoT
   "iot:read": "IoT-Geräte ansehen",

@@ -8,6 +8,7 @@ import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
@@ -43,7 +44,21 @@ export function MealOrderWeek({
     date.setDate(date.getDate() + 4);
     return toISODate(date);
   }, [mondayISO]);
-  const month = mondayISO.slice(0, 7);
+  // Eine Woche über zwei Monate bietet beide Monate zum Herunterladen an.
+  const months = useMemo(
+    () => [...new Set([mondayISO.slice(0, 7), friday.slice(0, 7)])],
+    [friday, mondayISO],
+  );
+  const [chosenMonth, setChosenMonth] = useState<string | null>(null);
+  const month =
+    chosenMonth && months.includes(chosenMonth) ? chosenMonth : months[0]!;
+  const monthName = useCallback(
+    (value: string) =>
+      parseISODate(`${value}-01`).toLocaleDateString(locale, {
+        month: "long",
+      }),
+    [locale],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -117,6 +132,8 @@ export function MealOrderWeek({
         render: (day) =>
           day.closed ? (
             <StatusBadge label={t("closed")} tone="gray" />
+          ) : day.status === "unordered" ? (
+            <StatusBadge label={t("unordered")} tone="gray" />
           ) : day.status === "open" ? (
             <StatusBadge
               label={t("openUntil", { date: dateTime(day.deadline) })}
@@ -132,7 +149,8 @@ export function MealOrderWeek({
       {
         key: "total",
         header: t("meals"),
-        render: (day) => (day.closed ? "–" : String(day.total)),
+        render: (day) =>
+          day.closed || day.status === "unordered" ? "–" : String(day.total),
         align: "right",
       },
       {
@@ -151,13 +169,29 @@ export function MealOrderWeek({
         render: (day) => {
           const added = day.changes.filter((change) => change.delta > 0);
           const removed = day.changes.filter((change) => change.delta < 0);
-          if (added.length === 0 && removed.length === 0) return "–";
-          return [
-            added.length > 0 ? `+${added.length}` : null,
-            removed.length > 0 ? `−${removed.length}` : null,
+          if (added.length === 0 && removed.length === 0) {
+            return <span aria-label={t("noChanges")}>–</span>;
+          }
+          const label = [
+            added.length > 0
+              ? t("changesAdded", { count: added.length })
+              : null,
+            removed.length > 0
+              ? t("changesRemoved", { count: removed.length })
+              : null,
           ]
             .filter(Boolean)
-            .join(" · ");
+            .join(", ");
+          return (
+            <span aria-label={label} title={label}>
+              {[
+                added.length > 0 ? `+${added.length}` : null,
+                removed.length > 0 ? `−${removed.length}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          );
         },
       },
     ],
@@ -173,8 +207,19 @@ export function MealOrderWeek({
           <div
             role="group"
             aria-label={t("monthGroup")}
-            className="flex flex-wrap gap-2"
+            className="flex flex-wrap items-center gap-2"
           >
+            {months.length > 1 ? (
+              <SegmentedControl<string>
+                items={months.map((value) => ({
+                  value,
+                  label: monthName(value),
+                }))}
+                value={month}
+                onChange={setChosenMonth}
+                ariaLabel={t("monthChoice")}
+              />
+            ) : null}
             <Button
               type="button"
               variant="outline"
@@ -186,7 +231,7 @@ export function MealOrderWeek({
               disabled={exporting !== null}
             >
               <Download className="h-4 w-4" aria-hidden="true" />
-              {t("monthPdf")}
+              {t("monthPdf", { month: monthName(month) })}
             </Button>
             <Button
               type="button"
@@ -199,7 +244,7 @@ export function MealOrderWeek({
               disabled={exporting !== null}
             >
               <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
-              {t("monthExcel")}
+              {t("monthExcel", { month: monthName(month) })}
             </Button>
           </div>
         ) : undefined

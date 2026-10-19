@@ -571,6 +571,23 @@ func repointStudentForeignKeys(ctx context.Context, tx bun.Tx) error {
 						FOREIGN KEY (tenant_id, student_id) REFERENCES users.student_profiles(tenant_id, id) ON DELETE CASCADE NOT VALID;
 				END IF;
 			END $$;
+			-- Meal orders and the meal registration log (#3873) came after
+			-- this Cutover too; same replay rule.
+			DO $$ BEGIN
+				IF to_regclass('schedule.meal_order_lines') IS NOT NULL THEN
+					ALTER TABLE schedule.meal_order_lines DROP CONSTRAINT fk_meal_order_line_student;
+					ALTER TABLE schedule.meal_order_lines ADD CONSTRAINT fk_meal_order_line_student
+						FOREIGN KEY (tenant_id, student_id) REFERENCES users.student_profiles(tenant_id, id) ON DELETE CASCADE NOT VALID;
+					ALTER TABLE schedule.meal_order_changes DROP CONSTRAINT fk_meal_order_change_student;
+					ALTER TABLE schedule.meal_order_changes ADD CONSTRAINT fk_meal_order_change_student
+						FOREIGN KEY (tenant_id, student_id) REFERENCES users.student_profiles(tenant_id, id) ON DELETE CASCADE NOT VALID;
+				END IF;
+				IF to_regclass('schedule.meal_registration_changes') IS NOT NULL THEN
+					ALTER TABLE schedule.meal_registration_changes DROP CONSTRAINT fk_meal_registration_change_student;
+					ALTER TABLE schedule.meal_registration_changes ADD CONSTRAINT fk_meal_registration_change_student
+						FOREIGN KEY (tenant_id, student_id) REFERENCES users.student_profiles(tenant_id, id) ON DELETE CASCADE NOT VALID;
+				END IF;
+			END $$;
 			DO $$ BEGIN
 				IF EXISTS (SELECT 1 FROM pg_constraint
 					WHERE confrelid = 'users.students'::regclass AND contype = 'f') THEN
@@ -650,6 +667,15 @@ func ValidateStudentOwnerForeignKeys(ctx context.Context, db *bun.DB) error {
 		DO $$ BEGIN
 			IF to_regclass('schedule.student_departure_exceptions') IS NOT NULL THEN
 				ALTER TABLE schedule.student_departure_exceptions VALIDATE CONSTRAINT fk_student_departure_exceptions_student;
+			END IF;
+		END $$;
+		DO $$ BEGIN
+			IF to_regclass('schedule.meal_order_lines') IS NOT NULL THEN
+				ALTER TABLE schedule.meal_order_lines VALIDATE CONSTRAINT fk_meal_order_line_student;
+				ALTER TABLE schedule.meal_order_changes VALIDATE CONSTRAINT fk_meal_order_change_student;
+			END IF;
+			IF to_regclass('schedule.meal_registration_changes') IS NOT NULL THEN
+				ALTER TABLE schedule.meal_registration_changes VALIDATE CONSTRAINT fk_meal_registration_change_student;
 			END IF;
 		END $$;
 	`); err != nil {

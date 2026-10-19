@@ -280,11 +280,16 @@
     "confirmed": "Vom Caterer bestätigt",
     "caption": "Bestellung dieser Woche",
     "monthGroup": "Monatsübersicht herunterladen",
-    "monthPdf": "Monat als PDF",
-    "monthExcel": "Monat als Excel",
+    "monthPdf": "{month} als PDF",
+    "monthExcel": "{month} als Excel",
     "downloadLoading": "Wird erstellt…",
     "errorObject": "die Bestellung",
-    "errorObjectMonth": "die Monatsübersicht"
+    "errorObjectMonth": "die Monatsübersicht",
+    "unordered": "Nicht bestellt",
+    "monthChoice": "Monat wählen",
+    "noChanges": "Keine Nachmeldungen",
+    "changesAdded": "{count, plural, one {# Kind mehr} other {# Kinder mehr}}",
+    "changesRemoved": "{count, plural, one {# Kind weniger} other {# Kinder weniger}}"
   },
   "mealParticipantList": {
     "title": "Tagesliste für die Küche",
@@ -310,7 +315,6 @@
     "changeTitle": "Anmeldung ändern",
     "changeHint": "Die Schule kann die Anmeldung jederzeit ändern, auch nach der Frist. Eltern sehen die Änderung im Elternportal.",
     "childPlaceholder": "Kind wählen",
-    "childOption": "{name} · {schoolClass} · {state}",
     "eats": "Isst mit",
     "skips": "Isst nicht mit",
     "scopeDay": "Nur am {date}",
@@ -324,8 +328,11 @@
     "weekday3": "Mittwoch",
     "weekday4": "Donnerstag",
     "weekday5": "Freitag",
-    "changeSaved": "Die Anmeldung ist geändert.",
-    "errorObjectChange": "die Anmeldung"
+    "changeSaved": "Die Anmeldung von {name} ist geändert.",
+    "errorObjectChange": "die Anmeldung",
+    "asRegular": "Wie an festen Tagen",
+    "scheduleLoading": "Die festen Tage werden geladen…",
+    "errorObjectSchedule": "die festen Tage"
   },
   "parentDashboard": {
     "eyebrow": "Elternportal",
@@ -2470,6 +2477,9 @@
         "wc_not_configured": "{object} konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut."
       },
       "meals": {
+        "child_not_enrolled": "{object} geht nicht. Das Kind ist an diesem Tag nicht in der Betreuung.",
+        "day_closed": "{object} geht nicht. An diesem Tag ist die Schule geschlossen.",
+        "day_past": "{object} geht nicht mehr. Der Tag ist schon vorbei.",
         "invalid_dishes": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
         "invalid_meal_date": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
         "invalid_participation": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",

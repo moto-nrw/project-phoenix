@@ -128,7 +128,7 @@ func mealPlanError(err error) error {
 		return errors.Join(care.ErrMealPlanDisabled, err)
 	case errors.Is(err, mealplanModule.ErrRegistrationDisabled):
 		return errors.Join(care.ErrMealRegistrationDisabled, err)
-	case errors.Is(err, mealplanModule.ErrParticipationCutoff):
+	case errors.Is(err, mealplanModule.ErrParticipationCutoff), errors.Is(err, mealplanModule.ErrDayClosed), errors.Is(err, mealplanModule.ErrPastDay):
 		return errors.Join(care.ErrMealParticipationCutoff, err)
 	case errors.Is(err, mealplanModule.ErrInvalidParticipation):
 		return errors.Join(care.ErrInvalidMealParticipation, err)

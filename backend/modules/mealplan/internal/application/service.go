@@ -17,7 +17,19 @@ var (
 	ErrCutoffPassed         = errors.New("meal registration cutoff has passed")
 	// ErrPastDay refuses the school a change of a day already over.
 	ErrPastDay = errors.New("meal registration day is in the past")
+	// ErrDayClosed refuses a change of a day the school is closed.
+	ErrDayClosed = errors.New("meal registration day is closed")
+	// ErrStudentNotFound: the school does not know the child.
+	ErrStudentNotFound = errors.New("meal registration child not found")
+	// ErrNotEnrolled: the child is not in care on the day.
+	ErrNotEnrolled = errors.New("meal registration child not in care on the day")
+	// ErrTooFarAhead refuses regular days that start too far ahead.
+	ErrTooFarAhead = errors.New("meal registration starts too far ahead")
 )
+
+// maxScheduleLeadDays is how far ahead the school may let new regular days
+// start: one year.
+const maxScheduleLeadDays = 365
 
 type Service struct {
 	store     ports.Store
@@ -62,34 +74,96 @@ func (s *Service) Participation(ctx context.Context, studentID int64, from, to d
 
 // ReplaceParticipationSchedule replaces the regular days. A parent's change
 // takes effect on the first day whose order is not fixed yet; the school's
-// (schoolFrom set) on the day it names, at the earliest today (#3873).
+// (schoolFrom set) on the day it names, from today up to a year ahead
+// (#3873).
 func (s *Service) ReplaceParticipationSchedule(ctx context.Context, studentID, accountID int64, weekdays []domain.Weekday, schoolFrom domain.Date) (effectiveFrom domain.Date, err error) {
 	err = s.run(ctx, "replace_participation_schedule", func(txCtx context.Context) (domain.OperationStats, error) {
 		rules, rulesErr := s.requireRegistration(txCtx)
 		if rulesErr != nil {
 			return domain.OperationStats{}, rulesErr
 		}
-		now := s.now()
-		switch {
-		case schoolFrom != "" && schoolFrom.Before(domain.DateFromInstant(now)):
-			return domain.OperationStats{}, ErrPastDay
-		case schoolFrom != "":
-			effectiveFrom = schoolFrom
-		case !rules.ParentCanChangeSchedule(now):
-			return domain.OperationStats{}, ErrCutoffPassed
-		default:
-			effectiveFrom = rules.NextEffectiveDate(now)
+		var stats domain.OperationStats
+		var fromErr error
+		effectiveFrom, stats, fromErr = s.scheduleStart(txCtx, rules, studentID, schoolFrom)
+		if fromErr != nil {
+			return stats, fromErr
 		}
 		// A new pattern can change every day it reaches.
-		today := domain.DateFromInstant(now)
-		_, stats, err := s.lockedWindow(txCtx, rules, today, today.AddDays(orderReachDays), s.now())
-		if err != nil {
-			return stats, err
-		}
-		writeStats, err := s.store.InsertParticipationSchedule(txCtx, studentID, accountID, effectiveFrom, weekdays)
+		today := domain.DateFromInstant(s.now())
+		change := domain.RegistrationChange{StudentID: studentID, AccountID: accountID, BySchool: schoolFrom != "", Kind: domain.RegistrationSchedule, Date: effectiveFrom, Weekdays: weekdays}
+		writeStats, err := s.settleWrite(txCtx, rules, today, today.AddDays(orderReachDays), changeAuthor{studentID: studentID, accountID: accountID}, func() (domain.OperationStats, error) {
+			saveStats, saveErr := s.store.InsertParticipationSchedule(txCtx, studentID, accountID, effectiveFrom, weekdays)
+			if saveErr != nil {
+				return saveStats, saveErr
+			}
+			logStats, logErr := s.store.InsertRegistrationChanges(txCtx, []domain.RegistrationChange{change})
+			return addStats(saveStats, logStats), logErr
+		})
 		return addStats(stats, writeStats), err
 	})
 	return effectiveFrom, err
+}
+
+// scheduleStart is the first day of new regular days: for a parent the
+// first day whose order is not fixed, for the school the day it names.
+func (s *Service) scheduleStart(ctx context.Context, rules domain.OrderingRules, studentID int64, schoolFrom domain.Date) (domain.Date, domain.OperationStats, error) {
+	now := s.now()
+	today := domain.DateFromInstant(now)
+	switch {
+	case schoolFrom == "" && !rules.ParentCanChangeSchedule(now):
+		return "", domain.OperationStats{}, ErrCutoffPassed
+	case schoolFrom == "":
+		return rules.NextEffectiveDate(now), domain.OperationStats{}, nil
+	case schoolFrom.Before(today):
+		return "", domain.OperationStats{}, ErrPastDay
+	case schoolFrom.After(today.AddDays(maxScheduleLeadDays)):
+		return "", domain.OperationStats{}, ErrTooFarAhead
+	}
+	names, stats, err := s.directory.FindStudentNames(ctx, []int64{studentID})
+	if _, known := names[studentID]; err == nil && !known {
+		err = ErrStudentNotFound
+	}
+	return schoolFrom, stats, err
+}
+
+// requireChangeableDay checks that a day can change at all: the school is
+// open, and for the school's change the child is in care that day.
+func (s *Service) requireChangeableDay(ctx context.Context, studentID int64, date domain.Date, bySchool bool) (domain.OperationStats, error) {
+	days, stats, err := s.calendar.Days(ctx, date, date)
+	if err != nil {
+		return stats, err
+	}
+	if days.Closed[date] {
+		return stats, ErrDayClosed
+	}
+	if !bySchool {
+		return stats, nil
+	}
+	enrollmentStats, err := s.requireInCare(ctx, studentID, date)
+	return addStats(stats, enrollmentStats), err
+}
+
+// requireInCare checks that the child is in care on date, and tells a child
+// the school does not know from one whose care has not begun or has ended.
+func (s *Service) requireInCare(ctx context.Context, studentID int64, date domain.Date) (domain.OperationStats, error) {
+	candidates, stats, err := s.directory.FindDailyCandidates(ctx, date)
+	if err != nil {
+		return stats, err
+	}
+	for _, candidate := range candidates {
+		if candidate.StudentID == studentID {
+			return stats, nil
+		}
+	}
+	names, nameStats, err := s.directory.FindStudentNames(ctx, []int64{studentID})
+	stats = addStats(stats, nameStats)
+	if _, known := names[studentID]; err == nil && !known {
+		return stats, ErrStudentNotFound
+	}
+	if err != nil {
+		return stats, err
+	}
+	return stats, ErrNotEnrolled
 }
 
 // mayChangeDay checks a day change: the school changes any day from today
@@ -116,19 +190,19 @@ func (s *Service) SetParticipationDay(ctx context.Context, studentID, accountID 
 		if err := mayChangeDay(rules, s.now(), date, participating, bySchool); err != nil {
 			return domain.OperationStats{}, err
 		}
-		days, stats, calendarErr := s.calendar.Days(txCtx, date, date)
-		if calendarErr != nil {
-			return stats, calendarErr
-		}
-		if days.Closed[date] {
-			return stats, ErrCutoffPassed
-		}
-		_, orderStats, err := s.lockedWindow(txCtx, rules, date, date, s.now())
-		stats = addStats(stats, orderStats)
+		stats, err := s.requireChangeableDay(txCtx, studentID, date, bySchool)
 		if err != nil {
 			return stats, err
 		}
-		writeStats, err := s.store.UpsertParticipationOverride(txCtx, studentID, accountID, date, participating)
+		change := domain.RegistrationChange{StudentID: studentID, AccountID: accountID, BySchool: bySchool, Kind: domain.RegistrationDay, Date: date, Participating: &participating}
+		writeStats, err := s.settleWrite(txCtx, rules, date, date, changeAuthor{studentID: studentID, accountID: accountID}, func() (domain.OperationStats, error) {
+			saveStats, saveErr := s.store.UpsertParticipationOverride(txCtx, studentID, accountID, date, participating)
+			if saveErr != nil {
+				return saveStats, saveErr
+			}
+			logStats, logErr := s.store.InsertRegistrationChanges(txCtx, []domain.RegistrationChange{change})
+			return addStats(saveStats, logStats), logErr
+		})
 		return addStats(stats, writeStats), err
 	})
 }
@@ -148,28 +222,42 @@ func (s *Service) SetParticipationWeek(ctx context.Context, studentID, accountID
 		if readErr != nil {
 			return stats, readErr
 		}
-		now := s.now()
-		for _, day := range plan.Days {
-			switch {
-			case day.Source == domain.ParticipationClosed, day.Registered == participating, day.Date.Before(domain.DateFromInstant(now)):
-			case parentMayChange(rules, now, day.Date, participating):
-				changed = append(changed, day.Date)
-			default:
-				locked = append(locked, day.Date)
-			}
-		}
+		changed, locked = weekChanges(rules, s.now(), plan.Days, participating)
 		if len(changed) == 0 && len(locked) > 0 {
 			return stats, ErrCutoffPassed
 		}
-		_, orderStats, err := s.lockedWindow(txCtx, rules, monday, monday.AddDays(4), s.now())
-		stats = addStats(stats, orderStats)
-		if err != nil {
-			return stats, err
+		entries := make([]domain.RegistrationChange, 0, len(changed))
+		for _, date := range changed {
+			entries = append(entries, domain.RegistrationChange{StudentID: studentID, AccountID: accountID, Kind: domain.RegistrationDay, Date: date, Participating: &participating})
 		}
-		writeStats, err := s.store.UpsertParticipationOverrides(txCtx, studentID, accountID, changed, participating)
+		writeStats, err := s.settleWrite(txCtx, rules, monday, monday.AddDays(4), changeAuthor{studentID: studentID, accountID: accountID}, func() (domain.OperationStats, error) {
+			saveStats, saveErr := s.store.UpsertParticipationOverrides(txCtx, studentID, accountID, changed, participating)
+			if saveErr != nil {
+				return saveStats, saveErr
+			}
+			logStats, logErr := s.store.InsertRegistrationChanges(txCtx, entries)
+			return addStats(saveStats, logStats), logErr
+		})
 		return addStats(stats, writeStats), err
 	})
 	return changed, locked, err
+}
+
+// weekChanges sorts the days of a week change: the days that would change
+// and are still open, and those whose deadline has passed. Closed and past
+// days and days already as wanted stay out.
+func weekChanges(rules domain.OrderingRules, now time.Time, days []domain.ParticipationDay, participating bool) (changed, locked []domain.Date) {
+	today := domain.DateFromInstant(now)
+	for _, day := range days {
+		switch {
+		case day.Source == domain.ParticipationClosed, day.Registered == participating, day.Date.Before(today):
+		case parentMayChange(rules, now, day.Date, participating):
+			changed = append(changed, day.Date)
+		default:
+			locked = append(locked, day.Date)
+		}
+	}
+	return changed, locked
 }
 
 // readParticipation resolves the child's days in [from, to] from its
@@ -189,33 +277,52 @@ func (s *Service) readParticipation(ctx context.Context, studentID int64, from, 
 
 // ClearParticipationDay drops the day's exception, so the weekly pattern
 // applies again. Whether that registers or cancels the day depends on the
-// pattern, and for a parent the matching deadline decides.
-func (s *Service) ClearParticipationDay(ctx context.Context, studentID, _ int64, date domain.Date, bySchool bool) error {
+// pattern, and for a parent the matching deadline decides. Nobody changes a
+// day the school is closed, and the school no day already over.
+func (s *Service) ClearParticipationDay(ctx context.Context, studentID, accountID int64, date domain.Date, bySchool bool) error {
 	return s.run(ctx, "clear_participation_day", func(txCtx context.Context) (domain.OperationStats, error) {
 		rules, rulesErr := s.requireRegistration(txCtx)
 		if rulesErr != nil {
 			return domain.OperationStats{}, rulesErr
 		}
-		plan, stats, readErr := s.readParticipation(txCtx, studentID, date, date, rules)
-		if readErr != nil {
-			return stats, readErr
-		}
-		for _, day := range plan.Days {
-			if day.Source == domain.ParticipationClosed || day.Registered == day.Regular {
-				continue
-			}
-			if err := mayChangeDay(rules, s.now(), date, day.Regular, bySchool); err != nil {
-				return stats, err
-			}
-		}
-		_, orderStats, err := s.lockedWindow(txCtx, rules, date, date, s.now())
-		stats = addStats(stats, orderStats)
+		stats, err := s.requireClearableDay(txCtx, rules, studentID, date, bySchool)
 		if err != nil {
 			return stats, err
 		}
-		deleteStats, err := s.store.DeleteParticipationOverride(txCtx, studentID, date)
-		return addStats(stats, deleteStats), err
+		change := domain.RegistrationChange{StudentID: studentID, AccountID: accountID, BySchool: bySchool, Kind: domain.RegistrationRegular, Date: date}
+		writeStats, err := s.settleWrite(txCtx, rules, date, date, changeAuthor{studentID: studentID, accountID: accountID}, func() (domain.OperationStats, error) {
+			deleteStats, deleteErr := s.store.DeleteParticipationOverride(txCtx, studentID, date)
+			if deleteErr != nil || deleteStats.Rows == 0 {
+				return deleteStats, deleteErr
+			}
+			logStats, logErr := s.store.InsertRegistrationChanges(txCtx, []domain.RegistrationChange{change})
+			return addStats(deleteStats, logStats), logErr
+		})
+		return addStats(stats, writeStats), err
 	})
+}
+
+// requireClearableDay checks that returning the day to the regular days is
+// allowed: the school changes no day already over, a parent only until the
+// deadline of the direction the day then changes in.
+func (s *Service) requireClearableDay(ctx context.Context, rules domain.OrderingRules, studentID int64, date domain.Date, bySchool bool) (domain.OperationStats, error) {
+	if bySchool && date.Before(domain.DateFromInstant(s.now())) {
+		return domain.OperationStats{}, ErrPastDay
+	}
+	plan, stats, err := s.readParticipation(ctx, studentID, date, date, rules)
+	if err != nil {
+		return stats, err
+	}
+	for _, day := range plan.Days {
+		if day.Registered == day.Regular || day.Source == domain.ParticipationClosed {
+			continue
+		}
+		if err := mayChangeDay(rules, s.now(), date, day.Regular, bySchool); err != nil {
+			return stats, err
+		}
+	}
+	dayStats, err := s.requireChangeableDay(ctx, studentID, date, bySchool)
+	return addStats(stats, dayStats), err
 }
 
 // parentMayChange reports whether a parent may still register (participating)

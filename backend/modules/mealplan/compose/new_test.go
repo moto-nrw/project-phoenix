@@ -802,7 +802,9 @@ func TestClosedDaysCountNobodyAndStayClosedForParents(t *testing.T) {
 	assert.True(t, plan.Days[0].Participating, "Monday stays registered")
 
 	err = module.SetParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: student.ID, GuardianAccountID: account.ID, Date: "2026-09-09", Participating: true})
-	require.ErrorIs(t, err, mealplan.ErrParticipationCutoff)
+	require.ErrorIs(t, err, mealplan.ErrDayClosed, "a closed day has its own error; the parents portal shows it as a passed deadline")
+	err = module.ClearParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: student.ID, GuardianAccountID: account.ID, Date: "2026-09-09"})
+	require.ErrorIs(t, err, mealplan.ErrDayClosed, "nor does returning a closed day to the regular days")
 
 	list, err := module.DailyList(ctx, "2026-09-09")
 	require.NoError(t, err)
@@ -994,13 +996,17 @@ func TestSchoolChangesIgnoreDeadlinesButNotThePast(t *testing.T) {
 
 	require.NoError(t, module.SetParticipationBySchool(ctx, mealplan.SchoolChange{StudentID: student.ID, StaffAccountID: staff.ID, Date: "2026-09-09", Participating: true}), "today, after its deadline")
 	err := module.SetParticipationBySchool(ctx, mealplan.SchoolChange{StudentID: student.ID, StaffAccountID: staff.ID, Date: "2026-09-08", Participating: true})
-	require.ErrorIs(t, err, mealplan.ErrInvalidParticipation, "yesterday is over")
+	require.ErrorIs(t, err, mealplan.ErrPastDay, "yesterday is over")
+	err = module.ClearParticipationBySchool(ctx, mealplan.SchoolChange{StudentID: student.ID, StaffAccountID: staff.ID, Date: "2026-09-08"})
+	require.ErrorIs(t, err, mealplan.ErrPastDay, "returning a past day to the regular days is a change of the past too")
 
 	effectiveFrom, err := module.ReplaceScheduleBySchool(ctx, mealplan.SchoolSchedule{StudentID: student.ID, StaffAccountID: staff.ID, Weekdays: []mealplan.Weekday{mealplan.Thursday}, EffectiveFrom: "2026-09-10"})
 	require.NoError(t, err, "after the annual deadline only the school registers")
 	assert.Equal(t, mealplan.Date("2026-09-10"), effectiveFrom)
 	_, err = module.ReplaceScheduleBySchool(ctx, mealplan.SchoolSchedule{StudentID: student.ID, StaffAccountID: staff.ID, Weekdays: []mealplan.Weekday{mealplan.Friday}, EffectiveFrom: "2026-09-01"})
-	require.ErrorIs(t, err, mealplan.ErrInvalidParticipation)
+	require.ErrorIs(t, err, mealplan.ErrPastDay)
+	_, err = module.ReplaceScheduleBySchool(ctx, mealplan.SchoolSchedule{StudentID: student.ID, StaffAccountID: staff.ID, Weekdays: []mealplan.Weekday{mealplan.Friday}, EffectiveFrom: "2027-09-10"})
+	require.ErrorIs(t, err, mealplan.ErrInvalidParticipation, "more than a year ahead")
 
 	plan, err := module.Participation(ctx, student.ID, "2026-09-09", "2026-09-10")
 	require.NoError(t, err)
@@ -1014,7 +1020,7 @@ func TestSchoolChangesIgnoreDeadlinesButNotThePast(t *testing.T) {
 
 	closed := buildModuleWithCalendar(t, db, fixedCalendar([]string{"2026-09-11"}, nil), time.Date(2026, 9, 9, 12, 0, 0, 0, testBerlin))
 	err = closed.SetParticipationBySchool(ctx, mealplan.SchoolChange{StudentID: student.ID, StaffAccountID: staff.ID, Date: "2026-09-11", Participating: true})
-	require.ErrorIs(t, err, mealplan.ErrParticipationCutoff, "nobody eats on a closed day")
+	require.ErrorIs(t, err, mealplan.ErrDayClosed, "nobody eats on a closed day")
 }
 
 func orderDay(t *testing.T, week mealplan.OrderWeek, date mealplan.Date) mealplan.OrderDay {

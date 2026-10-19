@@ -271,6 +271,10 @@ func (e engine) DailyParticipants(ctx context.Context, date string) (mealplan.Da
 	return result, nil
 }
 
+func (e engine) SettleOrders(ctx context.Context) error {
+	return mapError(e.service.SettleOrders(ctx))
+}
+
 func (e engine) Orders(ctx context.Context, from, to string) (mealplan.OrderWeek, error) {
 	view, err := e.service.Orders(ctx, domain.Date(from), domain.Date(to))
 	if err != nil {
@@ -289,6 +293,9 @@ func publicOrderDay(day domain.OrderDay, names map[int64]domain.DailyCandidate) 
 		return mealplan.OrderChild{StudentID: studentID, FirstName: name.FirstName, LastName: name.LastName, SchoolClass: schoolClass}
 	}
 	result := mealplan.OrderDay{Date: mealplan.Date(day.Date.String()), Closed: day.Closed, Deadline: day.Deadline, Status: mealplan.OrderOpen, Total: len(day.Children)}
+	if day.Unordered {
+		result.Status = mealplan.OrderUnordered
+	}
 	if day.Order != nil {
 		result.Status, result.OrderID, result.ConfirmedAt = mealplan.OrderOrdered, day.Order.ID, day.Order.ConfirmedAt
 		if day.Order.ConfirmedAt != nil {
@@ -322,18 +329,25 @@ func publicParticipationPlan(plan domain.ParticipationPlan) mealplan.Participati
 	return result
 }
 
+// publicErrors maps the application's errors to the module's, first match
+// wins.
+var publicErrors = []struct{ from, to error }{
+	{application.ErrDisabled, mealplan.ErrDisabled},
+	{application.ErrRegistrationDisabled, mealplan.ErrRegistrationDisabled},
+	{application.ErrCutoffPassed, mealplan.ErrParticipationCutoff},
+	{application.ErrPastDay, mealplan.ErrPastDay},
+	{application.ErrDayClosed, mealplan.ErrDayClosed},
+	{application.ErrStudentNotFound, mealplan.ErrStudentNotFound},
+	{application.ErrNotEnrolled, mealplan.ErrChildNotEnrolled},
+	{application.ErrInvalidCutoff, mealplan.ErrInvalidParticipation},
+	{application.ErrTooFarAhead, mealplan.ErrInvalidParticipation},
+}
+
 func mapError(err error) error {
-	if errors.Is(err, application.ErrDisabled) {
-		return mealplan.ErrDisabled
-	}
-	if errors.Is(err, application.ErrRegistrationDisabled) {
-		return mealplan.ErrRegistrationDisabled
-	}
-	if errors.Is(err, application.ErrCutoffPassed) {
-		return mealplan.ErrParticipationCutoff
-	}
-	if errors.Is(err, application.ErrInvalidCutoff) || errors.Is(err, application.ErrPastDay) {
-		return mealplan.ErrInvalidParticipation
+	for _, mapping := range publicErrors {
+		if errors.Is(err, mapping.from) {
+			return mapping.to
+		}
 	}
 	return err
 }

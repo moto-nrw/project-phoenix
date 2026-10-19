@@ -31,7 +31,22 @@ func TestConfigAccessPermissionsKeepTheComposedGuards(t *testing.T) {
 	assert.Equal(t, securityruntime.AccessRule{Permissions: []string{permissions.MealsRead}}, securityruntime.MealPlanAccessPermissions(securityruntime.MealPlanAccessRead))
 	assert.Equal(t, securityruntime.AccessRule{Permissions: []string{permissions.MealsManage}}, securityruntime.MealPlanAccessPermissions(securityruntime.MealPlanAccessWrite))
 	assert.Equal(t, securityruntime.AccessRule{Permissions: []string{permissions.MealsManage}}, securityruntime.MealPlanAccessPermissions(securityruntime.MealPlanAccess(200)), "an unknown level is a write")
+	assert.Equal(t, securityruntime.AccessRule{Permissions: []string{permissions.MealsRegister}}, securityruntime.MealPlanAccessPermissions(securityruntime.MealPlanAccessRegister))
 	assert.Equal(t, []string{permissions.MealsOrders}, securityruntime.MealParticipantsPermissions())
+}
+
+func TestAccessRuleAllowedBy(t *testing.T) {
+	t.Parallel()
+	holding := func(granted ...string) func(string) bool {
+		return func(permission string) bool { return slices.Contains(granted, permission) }
+	}
+	anyOf := securityruntime.AccessRule{Permissions: []string{permissions.MealsOrders, permissions.MealsRegister}}
+	allOf := securityruntime.AccessRule{Permissions: anyOf.Permissions, RequireAll: true}
+	assert.True(t, anyOf.AllowedBy(holding(permissions.MealsRegister)))
+	assert.False(t, anyOf.AllowedBy(holding(permissions.MealsRead)))
+	assert.True(t, allOf.AllowedBy(holding(permissions.MealsOrders, permissions.MealsRegister)))
+	assert.False(t, allOf.AllowedBy(holding(permissions.MealsOrders)))
+	assert.False(t, securityruntime.AccessRule{RequireAll: true}.AllowedBy(holding()), "an empty rule opens nothing")
 }
 
 func TestCanEditConfigNeedsUpdateOrManage(t *testing.T) {

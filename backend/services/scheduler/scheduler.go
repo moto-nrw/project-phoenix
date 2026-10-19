@@ -46,6 +46,7 @@ type Scheduler struct {
 	pwaUsageCleanup            ports.PWAUsageCleanup
 	staffMessageCleanup        ports.StaffMessageCleanup
 	bookingConsistency         ports.BookingConsistencyAudit
+	mealOrders                 ports.MealOrderSettlement
 	enrollmentRejectedCleanup  ports.RejectedEnrollmentCleaner
 	autoStart                  ports.InstanceAutoStart
 	autoEnd                    ports.InstanceAutoEnd
@@ -205,6 +206,7 @@ func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 		autoCheckouter:         deps.AutoCheckouter,
 		materializer:           deps.Materializer,
 		bookingConsistency:     deps.BookingConsistency,
+		mealOrders:             deps.MealOrders,
 		autoStart:              deps.AutoStart,
 		autoEnd:                deps.AutoEnd,
 		instanceRepo:           deps.InstanceRepo,

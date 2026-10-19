@@ -132,12 +132,13 @@ const (
 )
 
 // Meal permissions (#3873): the meal plan and its numbers, its upkeep and
-// the caterer, and the lists with children's names plus changes after the
-// deadline.
+// the caterer, the lists with children's names, and a child's registration
+// changed by the school, also after the deadline.
 const (
-	MealsRead   = ResourceMeals + ":" + ActionRead
-	MealsManage = ResourceMeals + ":" + ActionManage
-	MealsOrders = ResourceMeals + ":orders"
+	MealsRead     = ResourceMeals + ":" + ActionRead
+	MealsManage   = ResourceMeals + ":" + ActionManage
+	MealsOrders   = ResourceMeals + ":orders"
+	MealsRegister = ResourceMeals + ":register"
 )
 
 // IOT permissions

@@ -129,6 +129,7 @@ type unitSchedulerDependencies struct {
 	autoEnd                       ports.InstanceAutoEnd
 	autoStart                     ports.InstanceAutoStart
 	bookingConsistency            ports.BookingConsistencyAudit
+	mealOrders                    ports.MealOrderSettlement
 	breakAutoEnder                ports.BreakAutoEnder
 	calendarFeedCleanup           ports.CalendarFeedCleaner
 	careExitEffector              ports.CareExitEffector
@@ -214,6 +215,7 @@ func unitScheduler(input *unitSchedulerDependencies) *Scheduler {
 		autoEnd:                       input.autoEnd,
 		autoStart:                     input.autoStart,
 		bookingConsistency:            input.bookingConsistency,
+		mealOrders:                    input.mealOrders,
 		breakAutoEnder:                input.breakAutoEnder,
 		calendarFeedCleanup:           input.calendarFeedCleanup,
 		careExitEffector:              input.careExitEffector,

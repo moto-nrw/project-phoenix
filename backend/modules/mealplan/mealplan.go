@@ -191,6 +191,14 @@ var (
 	ErrRegistrationDisabled = &Fault{Code: "meal_registration_disabled", Detail: "meal_registration_disabled"}
 	ErrInvalidParticipation = &Fault{Code: "invalid_meal_participation"}
 	ErrParticipationCutoff  = &Fault{Code: "meal_participation_cutoff_passed", Detail: "meal_participation_cutoff_passed"}
+	// ErrPastDay refuses the school a change of a day already over (#3873).
+	ErrPastDay = &Fault{Code: "meal_day_past", Detail: "the day is already over"}
+	// ErrDayClosed refuses a change of a day the school is closed.
+	ErrDayClosed = &Fault{Code: "meal_day_closed", Detail: "the school is closed that day"}
+	// ErrStudentNotFound: the school does not know the child.
+	ErrStudentNotFound = &Fault{Code: "meal_student_not_found", Detail: "student not found"}
+	// ErrChildNotEnrolled: the child is not in care on the day.
+	ErrChildNotEnrolled = &Fault{Code: "meal_child_not_enrolled", Detail: "the child is not in care that day"}
 )
 
 type engine interface {
@@ -208,6 +216,7 @@ type engine interface {
 	ClearParticipationDay(ctx context.Context, studentID, accountID int64, date string, bySchool bool) error
 	DailyParticipants(context.Context, string) (DailyList, error)
 	Orders(ctx context.Context, from, to string) (OrderWeek, error)
+	SettleOrders(context.Context) error
 }
 
 type Module struct{ engine engine }
@@ -391,7 +400,15 @@ const (
 	OrderOrdered OrderStatus = "ordered"
 	// OrderConfirmed: the caterer confirmed the fixed order.
 	OrderConfirmed OrderStatus = "confirmed"
+	// OrderUnordered: the day is over and was never ordered, as before the
+	// school started ordering. Nothing is billed for it.
+	OrderUnordered OrderStatus = "unordered"
 )
+
+// Billed reports whether a day in this state is ordered and so billed.
+func (s OrderStatus) Billed() bool {
+	return s == OrderOrdered || s == OrderConfirmed
+}
 
 // OrderFormatVersion is the version of the order as other systems read it.
 const OrderFormatVersion = 1
@@ -444,6 +461,13 @@ type OrderWeek struct {
 
 // maxOrderWindowDays bounds one read of the orders: a month and a few days.
 const maxOrderWindowDays = 42
+
+// SettleOrders fixes the due orders of the school in ctx and records every
+// change of an ordered day since (#3873). The worker runs it every few
+// minutes; without meal registration it does nothing.
+func (m *Module) SettleOrders(ctx context.Context) error {
+	return m.engine.SettleOrders(ctx)
+}
 
 // Orders returns the school's orders of [from, to]. Reading fixes every due
 // order and numbers every change since, so all readers see the same state.

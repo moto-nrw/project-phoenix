@@ -339,6 +339,11 @@ export const ERROR_CATALOG = {
         "Im Raum {room_name} ist kein Platz mehr. Bitte wählen Sie einen anderen Raum.",
       "iot.student_already_active":
         "{object} ist bereits im Raum {room_name}. Bitte prüfen Sie den aktuellen Aufenthalt.",
+      "meals.child_not_enrolled":
+        "{object} geht nicht. Das Kind ist an diesem Tag nicht in der Betreuung.",
+      "meals.day_closed":
+        "{object} geht nicht. An diesem Tag ist die Schule geschlossen.",
+      "meals.day_past": "{object} geht nicht mehr. Der Tag ist schon vorbei.",
       "meals.invalid_dishes":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "meals.invalid_meal_date":
@@ -1364,6 +1369,12 @@ export const ERROR_CATALOG = {
         "This invitation does not exist. Please check the link in the email.",
       "identity.invitation_expired":
         "This invitation has expired or has already been used. Please ask your school for a new invitation.",
+      "meals.child_not_enrolled":
+        "{object} is not possible. The child is not in care on this day.",
+      "meals.day_closed":
+        "{object} is not possible. The school is closed on this day.",
+      "meals.day_past":
+        "{object} is no longer possible. The day is already over.",
       "meals.invalid_participation":
         "{object} contains invalid details. Please check your entries.",
       "meals.plan_disabled":
@@ -1632,6 +1643,10 @@ export const ERROR_CATALOG = {
         "Такого приглашения нет. Проверьте ссылку в письме.",
       "identity.invitation_expired":
         "Это приглашение истекло или уже было использовано. Попросите в школе новое приглашение.",
+      "meals.child_not_enrolled":
+        "Невозможно: {object}. В этот день ребёнок не находится под присмотром.",
+      "meals.day_closed": "Невозможно: {object}. В этот день школа закрыта.",
+      "meals.day_past": "Уже невозможно: {object}. Этот день уже прошёл.",
       "meals.invalid_participation":
         "Указаны неверные данные: {object}. Проверьте введённые данные.",
       "meals.plan_disabled":
@@ -1900,6 +1915,11 @@ export const ERROR_CATALOG = {
         "Kjo ftesë nuk ekziston. Kontrolloni lidhjen në e-mail.",
       "identity.invitation_expired":
         "Kjo ftesë ka skaduar ose është përdorur tashmë. Kërkojini shkollës suaj një ftesë të re.",
+      "meals.child_not_enrolled":
+        "Nuk është e mundur: {object}. Fëmija nuk është në kujdes në këtë ditë.",
+      "meals.day_closed":
+        "Nuk është e mundur: {object}. Shkolla është e mbyllur në këtë ditë.",
+      "meals.day_past": "Nuk është më e mundur: {object}. Dita ka kaluar.",
       "meals.invalid_participation":
         "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
       "meals.plan_disabled":
@@ -2174,6 +2194,11 @@ export const ERROR_CATALOG = {
         "To zaproszenie nie istnieje. Sprawdź link w e-mailu.",
       "identity.invitation_expired":
         "To zaproszenie wygasło lub zostało już użyte. Poproś swoją szkołę o nowe zaproszenie.",
+      "meals.child_not_enrolled":
+        "Nie można: {object}. Dziecko nie jest tego dnia pod opieką.",
+      "meals.day_closed":
+        "Nie można: {object}. Tego dnia szkoła jest zamknięta.",
+      "meals.day_past": "Już nie można: {object}. Ten dzień już minął.",
       "meals.invalid_participation":
         "Nieprawidłowe dane: {object}. Sprawdź wpisane dane.",
       "meals.plan_disabled":
@@ -2440,6 +2465,10 @@ export const ERROR_CATALOG = {
         "Bu davet mevcut değil. Lütfen e-postadaki bağlantıyı kontrol edin.",
       "identity.invitation_expired":
         "Bu davetin süresi dolmuş veya davet zaten kullanılmış. Lütfen okulunuzdan yeni bir davet isteyin.",
+      "meals.child_not_enrolled":
+        "{object} mümkün değil. Çocuk bu gün bakımda değil.",
+      "meals.day_closed": "{object} mümkün değil. Okul bu gün kapalı.",
+      "meals.day_past": "{object} artık mümkün değil. Bu gün geçti.",
       "meals.invalid_participation":
         "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
       "meals.plan_disabled":
@@ -2708,6 +2737,10 @@ export const ERROR_CATALOG = {
         "Такого запрошення немає. Перевірте посилання в листі.",
       "identity.invitation_expired":
         "Це запрошення вже недійсне або його вже використали. Попросіть у школи нове запрошення.",
+      "meals.child_not_enrolled":
+        "Неможливо: {object}. Цього дня дитина не перебуває під доглядом.",
+      "meals.day_closed": "Неможливо: {object}. Цього дня школа зачинена.",
+      "meals.day_past": "Уже неможливо: {object}. Цей день уже минув.",
       "meals.invalid_participation":
         "Указано неправильні дані: {object}. Перевірте введені дані.",
       "meals.plan_disabled":

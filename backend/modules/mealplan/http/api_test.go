@@ -66,17 +66,18 @@ func TestStaffRoutesKeepProtectedPermissionBoundaries(t *testing.T) {
 			return mealplanHTTP.ExportFile{}, nil
 		},
 		CurrentAccountID: func(context.Context) int64 { return 9 },
+		Allowed:          func(context.Context, mealplanHTTP.Access) bool { return true },
 	})
 
 	resource.Router()
 	if !protected {
 		t.Fatal("routes were registered outside the protected tenant boundary")
 	}
-	// #3873: the school's changes need the permission of the lists with
-	// names, like the lists themselves.
+	// #3873: the school's changes of a child's registration need a
+	// permission of their own; seeing the lists with names opens no change.
 	want := []mealplanHTTP.Access{mealplanHTTP.AccessRead, mealplanHTTP.AccessWrite, mealplanHTTP.AccessWrite, mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipants,
 		mealplanHTTP.AccessRead, mealplanHTTP.AccessParticipants,
-		mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipants}
+		mealplanHTTP.AccessRegister, mealplanHTTP.AccessRegister, mealplanHTTP.AccessRegister, mealplanHTTP.AccessRegister}
 	if !reflect.DeepEqual(accesses, want) {
 		t.Fatalf("permission boundaries = %v, want %v", accesses, want)
 	}
@@ -121,6 +122,12 @@ func (e engine) DailyParticipants(context.Context, string) (mealplanModule.Daily
 }
 
 func resource(available bool) *mealplanHTTP.Resource {
+	return resourceAllowing(available, true)
+}
+
+// resourceAllowing builds the resource for a caller who passes every access
+// level (registering) or only those below a school's change.
+func resourceAllowing(available, registering bool) *mealplanHTTP.Resource {
 	date, _ := mealplanModule.ParseDate("2026-09-07")
 	module := mealplanModule.NewModule(engine{available: available, entries: []mealplanModule.Entry{{
 		Date: date, Position: 0, Dish: "Nudeln",
@@ -137,6 +144,9 @@ func resource(available bool) *mealplanHTTP.Resource {
 			return mealplanHTTP.ExportFile{}, nil
 		},
 		CurrentAccountID: func(context.Context) int64 { return 9 },
+		Allowed: func(_ context.Context, access mealplanHTTP.Access) bool {
+			return registering || access != mealplanHTTP.AccessRegister
+		},
 	})
 }
 
@@ -209,6 +219,13 @@ func TestStaffDailyListListsTheOthersOnRequest(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 	}
 	assert.Contains(t, response.Body.String(), `"others":[{"student_id":"43","first_name":"Ben","last_name":"Bauer","school_class":"3b"}]`)
+
+	// Without the right to register a child, the children who do not eat
+	// stay out of the list.
+	reader := routetest.ExecuteRequest(resourceAllowing(true, false).Router(), routetest.NewRequest("GET", "/participants?date=2026-09-07&include=all", nil))
+	assert.Equal(t, 200, reader.Code)
+	assert.NotContains(t, reader.Body.String(), "others")
+	assert.NotContains(t, reader.Body.String(), "Ben")
 }
 
 func TestStaffDayChangeIsTheSchools(t *testing.T) {
@@ -224,6 +241,7 @@ func TestStaffDayChangeIsTheSchools(t *testing.T) {
 			return mealplanHTTP.ExportFile{}, nil
 		},
 		CurrentAccountID: func(context.Context) int64 { return 9 },
+		Allowed:          func(context.Context, mealplanHTTP.Access) bool { return true },
 	}).Router()
 
 	response := routetest.ExecuteRequest(router, routetest.NewRequest("PUT", "/participation/42/days/2026-09-10", strings.NewReader(`{"participating":false}`)))
@@ -237,6 +255,8 @@ func TestStaffDayChangeIsTheSchools(t *testing.T) {
 	badStudent := routetest.ExecuteRequest(router, routetest.NewRequest("PUT", "/participation/abc/days/2026-09-10", strings.NewReader(`{"participating":true}`)))
 	assert.Equal(t, 400, badStudent.Code)
 }
+
+func (e engine) SettleOrders(context.Context) error { return nil }
 
 func (e engine) Orders(_ context.Context, from, _ string) (mealplanModule.OrderWeek, error) {
 	confirmed := time.Date(2026, 9, 7, 9, 30, 0, 0, time.UTC)

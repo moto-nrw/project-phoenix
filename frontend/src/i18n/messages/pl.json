@@ -280,11 +280,16 @@
     "confirmed": "Potwierdzone przez firmę cateringową",
     "caption": "Zamówienie na ten tydzień",
     "monthGroup": "Pobierz przegląd miesiąca",
-    "monthPdf": "Miesiąc jako PDF",
-    "monthExcel": "Miesiąc jako Excel",
+    "monthPdf": "{month} jako PDF",
+    "monthExcel": "{month} jako Excel",
     "downloadLoading": "Tworzenie…",
     "errorObject": "zamówienia",
-    "errorObjectMonth": "przeglądu miesiąca"
+    "errorObjectMonth": "przeglądu miesiąca",
+    "unordered": "Nie zamówiono",
+    "monthChoice": "Wybierz miesiąc",
+    "noChanges": "Brak zmian",
+    "changesAdded": "{count, plural, one {# dziecko więcej} few {# dzieci więcej} many {# dzieci więcej} other {# dzieci więcej}}",
+    "changesRemoved": "{count, plural, one {# dziecko mniej} few {# dzieci mniej} many {# dzieci mniej} other {# dzieci mniej}}"
   },
   "mealParticipantList": {
     "title": "Lista dzienna dla kuchni",
@@ -310,7 +315,6 @@
     "changeTitle": "Zmień zapis",
     "changeHint": "Szkoła może zmienić zapis w każdej chwili, także po terminie. Rodzice widzą zmianę w portalu dla rodziców.",
     "childPlaceholder": "Wybierz dziecko",
-    "childOption": "{name} · {schoolClass} · {state}",
     "eats": "Je obiad",
     "skips": "Nie je obiadu",
     "scopeDay": "Tylko {date}",
@@ -324,8 +328,11 @@
     "weekday3": "Środa",
     "weekday4": "Czwartek",
     "weekday5": "Piątek",
-    "changeSaved": "Zapis został zmieniony.",
-    "errorObjectChange": "zapisu"
+    "changeSaved": "Zgłoszenie dziecka {name} zostało zmienione.",
+    "errorObjectChange": "zapisu",
+    "asRegular": "Jak w stałe dni",
+    "scheduleLoading": "Ładowanie stałych dni…",
+    "errorObjectSchedule": "stałe dni"
   },
   "parentDashboard": {
     "eyebrow": "Portal dla rodziców",
@@ -2470,6 +2477,9 @@
         "wc_not_configured": "Nie udało się przetworzyć: {object}. Spróbuj ponownie później."
       },
       "meals": {
+        "child_not_enrolled": "Nie można: {object}. Dziecko nie jest tego dnia pod opieką.",
+        "day_closed": "Nie można: {object}. Tego dnia szkoła jest zamknięta.",
+        "day_past": "Już nie można: {object}. Ten dzień już minął.",
         "invalid_dishes": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "invalid_meal_date": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "invalid_participation": "Nieprawidłowe dane: {object}. Sprawdź wpisane dane.",

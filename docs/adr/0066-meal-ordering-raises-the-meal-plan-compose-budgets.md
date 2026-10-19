@@ -37,27 +37,33 @@ Before raising anything, the change was cut down:
 - The orders reach the public module through one engine method. Naming and
   sorting the children happens in the application layer, so the engine only
   copies fields; a child is converted as a whole struct.
+- Whether the school knows a child and whether it is in care on a day is
+  decided in the application layer from the two directory lookups the
+  engine already binds, not by a third adapter method.
+- The error mapping of the engine is a table instead of one branch per error.
 
 What remains in this change:
 
 - `modules/mealplan/compose`: the week engine method, the date conversion of
   its result, the new fields of the participation plan and the settings value
   (27 lines), the school calendar dependency with its adapter (14 lines), the
-  children of a day who do not eat (3 lines), and the orders with their
-  names lookup (53 lines): 97 lines.
+  children of a day who do not eat (3 lines), the orders with their names
+  lookup (53 lines), the worker's settling of the orders (4 lines), and the
+  errors of a past or closed day and of an unknown or absent child, mapped
+  through one table (10 lines): 111 lines.
 - `workflows/parentportal/compose`: the week binding method and the new fields
   of the participation plan: 25 lines.
 
 ## Decision
 
-1. `moduleComposeBudgets["modules/mealplan/compose"]` rises from 242 to 339.
+1. `moduleComposeBudgets["modules/mealplan/compose"]` rises from 242 to 353.
 2. `moduleComposeBudgets["workflows/parentportal/compose"]` rises from 450 to
    475.
-3. `moduleComposeBudgetTotal` rises by the same 122 lines, from 31,146 to
-   31,268.
-4. `modulePassthroughOwnerBudgets["modules/mealplan"]` falls from 15 to 14 and
-   the total with it: the rule methods replaced two delegations, and the
-   engine method of the orders adds one.
+3. `moduleComposeBudgetTotal` rises by the same 136 lines, from 31,146 to
+   31,282.
+4. `modulePassthroughOwnerBudgets["modules/mealplan"]` stays at 15 and the
+   total with it: the rule methods replaced two delegations, and the engine
+   methods of the orders and of their settling add one each.
 5. The raise covers exactly the methods named above. Every other number keeps
    falling under ADR 0057 point 5.
 

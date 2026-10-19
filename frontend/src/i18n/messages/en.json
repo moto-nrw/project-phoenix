@@ -280,11 +280,16 @@
     "confirmed": "Confirmed by the caterer",
     "caption": "Order of this week",
     "monthGroup": "Download monthly overview",
-    "monthPdf": "Month as PDF",
-    "monthExcel": "Month as Excel",
+    "monthPdf": "{month} as PDF",
+    "monthExcel": "{month} as Excel",
     "downloadLoading": "Creating…",
     "errorObject": "the order",
-    "errorObjectMonth": "the monthly overview"
+    "errorObjectMonth": "the monthly overview",
+    "unordered": "Not ordered",
+    "monthChoice": "Choose month",
+    "noChanges": "No late changes",
+    "changesAdded": "{count, plural, one {# child more} other {# children more}}",
+    "changesRemoved": "{count, plural, one {# child fewer} other {# children fewer}}"
   },
   "mealParticipantList": {
     "title": "Daily list for the kitchen",
@@ -310,7 +315,6 @@
     "changeTitle": "Change registration",
     "changeHint": "The school can change the registration at any time, also after the deadline. Parents see the change in the parent portal.",
     "childPlaceholder": "Choose a child",
-    "childOption": "{name} · {schoolClass} · {state}",
     "eats": "Eats lunch",
     "skips": "Does not eat",
     "scopeDay": "Only on {date}",
@@ -324,8 +328,11 @@
     "weekday3": "Wednesday",
     "weekday4": "Thursday",
     "weekday5": "Friday",
-    "changeSaved": "The registration is changed.",
-    "errorObjectChange": "the registration"
+    "changeSaved": "The registration of {name} has been changed.",
+    "errorObjectChange": "the registration",
+    "asRegular": "As on regular days",
+    "scheduleLoading": "Loading the regular days…",
+    "errorObjectSchedule": "the regular days"
   },
   "parentDashboard": {
     "eyebrow": "Parent portal",
@@ -2470,6 +2477,9 @@
         "wc_not_configured": "{object} could not be processed. Please try again later."
       },
       "meals": {
+        "child_not_enrolled": "{object} is not possible. The child is not in care on this day.",
+        "day_closed": "{object} is not possible. The school is closed on this day.",
+        "day_past": "{object} is no longer possible. The day is already over.",
         "invalid_dishes": "{object} could not be saved. Please check your entries.",
         "invalid_meal_date": "{object} could not be saved. Please check your entries.",
         "invalid_participation": "{object} contains invalid details. Please check your entries.",

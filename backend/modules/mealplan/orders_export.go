@@ -17,12 +17,12 @@ type ChildMeals struct {
 }
 
 // MealsPerChild counts the ordered meals of each child over the ordered days
-// of the window, every change applied (#3873). Open days do not count: they
-// are not ordered yet. Sorted like the kitchen list.
+// of the window, every change applied (#3873). Open and unordered days do not
+// count: nothing is ordered for them. Sorted like the kitchen list.
 func (w OrderWeek) MealsPerChild() []ChildMeals {
 	counts := make(map[int64]*ChildMeals)
 	for _, day := range w.Days {
-		if day.Status == OrderOpen {
+		if !day.Status.Billed() {
 			continue
 		}
 		for _, child := range day.Children {

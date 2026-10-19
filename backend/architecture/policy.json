@@ -4130,6 +4130,10 @@
       "write_owner": "meal-plan"
     },
     {
+      "name": "schedule.meal_registration_changes",
+      "write_owner": "meal-plan"
+    },
+    {
       "name": "schedule.meal_sickness_status_history",
       "write_owner": "meal-plan"
     },

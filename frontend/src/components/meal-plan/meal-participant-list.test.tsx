@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   downloadDailyMealParticipants: vi.fn(),
   getChildMealSchedule: vi.fn(),
   setChildMealDay: vi.fn(),
+  clearChildMealDay: vi.fn(),
   replaceChildMealSchedule: vi.fn(),
   today: "2026-09-07",
 }));
@@ -25,6 +26,7 @@ vi.mock("~/lib/meal-plan-api", () => ({
   downloadDailyMealParticipants: mocks.downloadDailyMealParticipants,
   getChildMealSchedule: mocks.getChildMealSchedule,
   setChildMealDay: mocks.setChildMealDay,
+  clearChildMealDay: mocks.clearChildMealDay,
   replaceChildMealSchedule: mocks.replaceChildMealSchedule,
 }));
 
@@ -78,13 +80,28 @@ describe("MealParticipantList", () => {
       effectiveFrom: "2026-09-01",
     });
     mocks.setChildMealDay.mockResolvedValue(undefined);
+    mocks.clearChildMealDay.mockResolvedValue(undefined);
     mocks.replaceChildMealSchedule.mockResolvedValue(undefined);
+  });
+
+  // #3873: seeing the list opens no change of a registration.
+  it("offers no change and loads no other children without the right to register", async () => {
+    render(<MealParticipantList canRegister={false} />);
+
+    await screen.findByText("Mittagessen am 07.09.2026");
+    expect(mocks.getDailyMealParticipants).toHaveBeenCalledWith(
+      "2026-09-07",
+      false,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Anmeldung ändern" }),
+    ).not.toBeInTheDocument();
   });
 
   it("starts on Monday and disables weekends when opened on a weekend", async () => {
     mocks.today = "2026-09-05";
 
-    render(<MealParticipantList />);
+    render(<MealParticipantList canRegister />);
 
     await waitFor(() => {
       expect(mocks.getDailyMealParticipants).toHaveBeenCalledWith(
@@ -109,7 +126,7 @@ describe("MealParticipantList", () => {
   });
 
   it("advances the default list when the Berlin date changes", async () => {
-    const { rerender } = render(<MealParticipantList />);
+    const { rerender } = render(<MealParticipantList canRegister />);
 
     await waitFor(() => {
       expect(mocks.getDailyMealParticipants).toHaveBeenCalledWith(
@@ -119,7 +136,7 @@ describe("MealParticipantList", () => {
     });
 
     mocks.today = "2026-09-08";
-    rerender(<MealParticipantList />);
+    rerender(<MealParticipantList canRegister />);
 
     await waitFor(() => {
       expect(mocks.getDailyMealParticipants).toHaveBeenCalledWith(
@@ -134,7 +151,7 @@ describe("MealParticipantList", () => {
   });
 
   it("keeps a manually selected list across a Berlin date change", async () => {
-    const { rerender } = render(<MealParticipantList />);
+    const { rerender } = render(<MealParticipantList canRegister />);
 
     await screen.findByText("Mittagessen am 07.09.2026");
     fireEvent.click(screen.getByRole("button", { name: "Datum: 07.09.2026" }));
@@ -151,7 +168,7 @@ describe("MealParticipantList", () => {
     });
 
     mocks.today = "2026-09-08";
-    rerender(<MealParticipantList />);
+    rerender(<MealParticipantList canRegister />);
 
     expect(
       screen.getByRole("button", { name: "Datum: 09.09.2026" }),
@@ -162,7 +179,7 @@ describe("MealParticipantList", () => {
   });
 
   it("shows the kitchen cutoff and registered children", async () => {
-    render(<MealParticipantList />);
+    render(<MealParticipantList canRegister />);
 
     expect(
       // #3873: the deadline of the day, here the Friday before.
@@ -215,7 +232,7 @@ describe("MealParticipantList", () => {
         }),
       )
       .mockResolvedValueOnce(undefined);
-    render(<MealParticipantList />);
+    render(<MealParticipantList canRegister />);
 
     await screen.findByText("Mittagessen am 07.09.2026");
     expect(
@@ -264,7 +281,7 @@ describe("MealParticipantList", () => {
         new ApiError("boom", 500, { code: "general.server" }),
       )
       .mockResolvedValueOnce(undefined);
-    render(<MealParticipantList />);
+    render(<MealParticipantList canRegister />);
 
     fireEvent.click(
       await screen.findByRole("button", {
@@ -299,7 +316,7 @@ describe("MealParticipantList", () => {
         others: [],
       });
 
-    render(<MealParticipantList />);
+    render(<MealParticipantList canRegister />);
 
     expect(
       await screen.findByText(
@@ -318,7 +335,7 @@ describe("MealParticipantList", () => {
   // #3873: the school changes a registration, also after the deadline.
   describe("Anmeldung ändern", () => {
     it("registers a child for the day after the deadline", async () => {
-      render(<MealParticipantList />);
+      render(<MealParticipantList canRegister />);
 
       fireEvent.click(
         await screen.findByRole("button", { name: "Anmeldung ändern" }),
@@ -353,10 +370,132 @@ describe("MealParticipantList", () => {
       await waitFor(() =>
         expect(mocks.getDailyMealParticipants).toHaveBeenCalledTimes(2),
       );
+      expect(
+        await screen.findByText("Die Anmeldung von Ben Bauer ist geändert."),
+      ).toBeInTheDocument();
+    });
+
+    it("returns a day to the regular days", async () => {
+      render(<MealParticipantList canRegister />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Anmeldung ändern" }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(within(dialog).getByRole("combobox", { name: "Kind" }));
+      fireEvent.click(
+        await screen.findByRole("option", {
+          name: "Muster, Mia · 2a · Isst mit",
+        }),
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Wie an festen Tagen" }),
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Speichern" }),
+      );
+
+      await waitFor(() =>
+        expect(mocks.clearChildMealDay).toHaveBeenCalledWith(
+          "42",
+          "2026-09-07",
+        ),
+      );
+      expect(mocks.setChildMealDay).not.toHaveBeenCalled();
+    });
+
+    it("blocks saving regular days that did not load and offers a retry", async () => {
+      mocks.getChildMealSchedule
+        .mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        )
+        .mockResolvedValueOnce({ weekdays: [2], effectiveFrom: null });
+      render(<MealParticipantList canRegister />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Anmeldung ändern" }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(within(dialog).getByRole("combobox", { name: "Kind" }));
+      fireEvent.click(
+        await screen.findByRole("option", {
+          name: "Muster, Mia · 2a · Isst mit",
+        }),
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Feste Tage" }),
+      );
+
+      expect(
+        await within(dialog).findByText(
+          catalogText("general.unavailable", "die festen Tage"),
+        ),
+      ).toBeInTheDocument();
+      expect(
+        within(dialog).getByRole("button", { name: "Speichern" }),
+      ).toBeDisabled();
+
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Wiederholen" }),
+      );
+      await waitFor(() =>
+        expect(
+          within(dialog).getByRole("checkbox", { name: "Dienstag" }),
+        ).toBeChecked(),
+      );
+      expect(
+        within(dialog).getByRole("button", { name: "Speichern" }),
+      ).toBeEnabled();
+    });
+
+    it("never keeps the regular days of the child chosen before", async () => {
+      let answerMia: (value: { weekdays: number[] }) => void = () => undefined;
+      mocks.getChildMealSchedule
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            answerMia = resolve;
+          }),
+        )
+        .mockResolvedValueOnce({ weekdays: [5], effectiveFrom: null });
+      render(<MealParticipantList canRegister />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Anmeldung ändern" }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(within(dialog).getByRole("combobox", { name: "Kind" }));
+      fireEvent.click(
+        await screen.findByRole("option", {
+          name: "Muster, Mia · 2a · Isst mit",
+        }),
+      );
+      fireEvent.click(within(dialog).getByRole("combobox", { name: "Kind" }));
+      fireEvent.click(
+        await screen.findByRole("option", {
+          name: "Bauer, Ben · 3b · Isst nicht mit",
+        }),
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Feste Tage" }),
+      );
+      await waitFor(() =>
+        expect(
+          within(dialog).getByRole("checkbox", { name: "Freitag" }),
+        ).toBeChecked(),
+      );
+      answerMia({ weekdays: [1, 2, 3] });
+      await waitFor(() =>
+        expect(
+          within(dialog).getByRole("checkbox", { name: "Montag" }),
+        ).not.toBeChecked(),
+      );
+      expect(
+        within(dialog).getByRole("checkbox", { name: "Freitag" }),
+      ).toBeChecked();
     });
 
     it("sets a child's regular days from a date on", async () => {
-      render(<MealParticipantList />);
+      render(<MealParticipantList canRegister />);
 
       fireEvent.click(
         await screen.findByRole("button", { name: "Anmeldung ändern" }),
@@ -402,7 +541,7 @@ describe("MealParticipantList", () => {
         others: [],
       });
 
-      render(<MealParticipantList />);
+      render(<MealParticipantList canRegister />);
 
       expect(
         await screen.findByText(

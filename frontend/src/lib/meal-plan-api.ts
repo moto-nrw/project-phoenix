@@ -198,6 +198,20 @@ export async function setChildMealDay(
   }
 }
 
+/** The school returns a child's day to the regular days. */
+export async function clearChildMealDay(
+  studentId: string,
+  date: string,
+): Promise<void> {
+  const response = await sessionFetch(
+    `/api/meal-plan/participation/${encodeURIComponent(studentId)}/days/${encodeURIComponent(date)}`,
+    { method: "DELETE", credentials: "include" },
+  );
+  if (!response.ok) {
+    throw await apiErrorFromResponse(response, "meal day reset failed");
+  }
+}
+
 /** The school sets a child's regular days from a day on. */
 export async function replaceChildMealSchedule(
   studentId: string,
@@ -262,7 +276,7 @@ export function workWeekDates(mondayISO: string): string[] {
 }
 
 /** Where a day's order stands (#3873). */
-export type MealOrderStatus = "open" | "ordered" | "confirmed";
+export type MealOrderStatus = "open" | "ordered" | "confirmed" | "unordered";
 
 export interface MealOrderDay {
   date: string;

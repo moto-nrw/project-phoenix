@@ -40,7 +40,13 @@ function nextWeekday(date: string): string {
   return toISODate(candidate);
 }
 
-export function MealParticipantList() {
+/**
+ * Die Tagesliste für die Küche. Mit `canRegister` (meals:register) lädt sie
+ * auch die Kinder, die nicht essen, und bietet „Anmeldung ändern“ an.
+ */
+export function MealParticipantList({
+  canRegister,
+}: Readonly<{ canRegister: boolean }>) {
   const t = useTranslations("mealParticipantList");
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
@@ -71,7 +77,7 @@ export function MealParticipantList() {
     setLoading(true);
     clearLoadError();
     try {
-      const list = await getDailyMealParticipants(date, true);
+      const list = await getDailyMealParticipants(date, canRegister);
       setParticipants(list.participants);
       setOthers(list.others);
       setDeadline(list.deadline);
@@ -89,7 +95,7 @@ export function MealParticipantList() {
     } finally {
       setLoading(false);
     }
-  }, [date, t, showLoadError, clearLoadError]);
+  }, [canRegister, date, t, showLoadError, clearLoadError]);
   useLayoutEffect(() => {
     reloadRef.current = () => void load();
   });
@@ -191,16 +197,20 @@ export function MealParticipantList() {
               triggerClassName="w-full min-w-44 flex-none justify-between rounded-lg text-sm font-medium"
             />
 
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              className="bg-white"
-              onClick={() => setChanging(true)}
-              disabled={loading || Boolean(loadError) || closed || date < today}
-            >
-              {t("change")}
-            </Button>
+            {canRegister ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                className="bg-white"
+                onClick={() => setChanging(true)}
+                disabled={
+                  loading || Boolean(loadError) || closed || date < today
+                }
+              >
+                {t("change")}
+              </Button>
+            ) : null}
 
             <div
               role="group"
@@ -271,7 +281,7 @@ export function MealParticipantList() {
         />
       )}
       <MealRegistrationChangeModal
-        isOpen={changing}
+        isOpen={canRegister && changing}
         onClose={() => setChanging(false)}
         onSaved={() => void load()}
         date={date}

@@ -190,6 +190,8 @@ func TestModuleRoutesSchoolChangesAroundTheDeadlines(t *testing.T) {
 	}
 }
 
+func (e *recordingEngine) SettleOrders(context.Context) error { return nil }
+
 func (e *recordingEngine) Orders(context.Context, string, string) (mealplan.OrderWeek, error) {
 	return mealplan.OrderWeek{}, nil
 }

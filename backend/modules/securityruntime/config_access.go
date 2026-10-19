@@ -3,12 +3,13 @@ package securityruntime
 // The configuration permissions restate the permission registry's names,
 // which this public package may not import; a test pins them to it.
 const (
-	permissionConfigRead   = "config:read"
-	permissionConfigUpdate = "config:update"
-	permissionUsersRead    = "users:read"
-	permissionMealsRead    = "meals:read"
-	permissionMealsManage  = "meals:manage"
-	permissionMealsOrders  = "meals:orders"
+	permissionConfigRead    = "config:read"
+	permissionConfigUpdate  = "config:update"
+	permissionUsersRead     = "users:read"
+	permissionMealsRead     = "meals:read"
+	permissionMealsManage   = "meals:manage"
+	permissionMealsOrders   = "meals:orders"
+	permissionMealsRegister = "meals:register"
 )
 
 // AccessRule is the permission check of a route: any one of Permissions
@@ -16,6 +17,25 @@ const (
 type AccessRule struct {
 	Permissions []string
 	RequireAll  bool
+}
+
+// AllowedBy reports whether a caller holding the permissions hasPermission
+// answers for passes the rule.
+func (rule AccessRule) AllowedBy(hasPermission func(string) bool) bool {
+	if rule.RequireAll {
+		for _, permission := range rule.Permissions {
+			if !hasPermission(permission) {
+				return false
+			}
+		}
+		return len(rule.Permissions) > 0
+	}
+	for _, permission := range rule.Permissions {
+		if hasPermission(permission) {
+			return true
+		}
+	}
+	return false
 }
 
 // ConfigAccess is an access level of the settings routes.
@@ -71,14 +91,19 @@ const (
 	MealPlanAccessWrite MealPlanAccess = iota
 	MealPlanAccessRead
 	MealPlanAccessParticipants
+	// MealPlanAccessRegister changes a child's registration for the school.
+	MealPlanAccessRegister
 )
 
 // MealPlanAccessPermissions names the permission of a meal plan access level
 // (#3873): reading takes meals:read, the lists with children's names
-// meals:orders, and writing (the default) meals:manage. A kitchen role no
-// longer needs the configuration or every child's data.
+// meals:orders, a child's registration changed by the school meals:register,
+// and writing (the default) meals:manage. A kitchen role no longer needs the
+// configuration or every child's data, and seeing names opens no change.
 func MealPlanAccessPermissions(level MealPlanAccess) AccessRule {
 	switch level {
+	case MealPlanAccessRegister:
+		return AccessRule{Permissions: []string{permissionMealsRegister}}
 	case MealPlanAccessParticipants:
 		return AccessRule{Permissions: MealParticipantsPermissions()}
 	case MealPlanAccessRead:

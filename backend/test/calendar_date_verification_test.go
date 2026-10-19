@@ -78,6 +78,7 @@ var unmappedDateColumns = map[string]string{
 	"schedule.meal_order_days.date":                        "meal-order Postgres adapter-local row uses calendar.Date — no models/ struct",
 	"schedule.meal_order_lines.date":                       "meal-order Postgres adapter-local row uses calendar.Date — no models/ struct",
 	"schedule.meal_order_changes.date":                     "meal-order Postgres adapter-local row uses calendar.Date — no models/ struct",
+	"schedule.meal_registration_changes.date":              "meal registration log Postgres adapter-local row uses calendar.Date — no models/ struct",
 	// Later-pickup tasks (#3261) are owned by the Timetable module. Its
 	// adapter-local rows use the module's distinct Date value, because the
 	// target architecture forbids a dependency on the former date wrapper.
