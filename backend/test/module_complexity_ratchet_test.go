@@ -168,24 +168,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"roots/requestreviewbinding/corrections.go:(correctionLog).History": 19,
 	"modules/requestreview/query.go:(*ListQuery).validate":              23,
 
-	"modules/schoolcalendar/internal/adapters/postgres/store.go:(*Store).ListDateframes":                          18,
-	"modules/schoolcalendar/internal/domain/ical.go:formatRRULE":                                                  22,
-	"modules/schoolcalendar/portal/internal/application/feed.go:(*service).ParentCalendarFeedByToken":             58,
-	"modules/schoolcalendar/portal/internal/application/ics.go:(*service).ParentAppointmentICS":                   24,
-	"modules/schoolcalendar/portal/internal/application/notifications.go:(*service).notifyGuardians":              26,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).GetParentAppointmentOverview":       28,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).ListMyParentEvents":                 22,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).RecipientOptions":                   52,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).RespondToParentInvitation":          41,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).buildAppointmentOverview":           16,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).cancelStaffAppointment":             18,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).createStaffAppointment":             22,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).expandAppointmentEvents":            18,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).expandGuardianAppointmentEvents":    20,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).guardianRecipientStatusForStudents": 16,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).staffShiftEventsWithCancelled":      19,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).updateStaffAppointment":             29,
-
 	"modules/supervisiondashboard/supervisiondashboard.go:(*service).loadPresenceSections": 17,
 
 	// Moved in by #3996 from modules/workforce/legacy/absence_repositories.go;

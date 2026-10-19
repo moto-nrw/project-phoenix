@@ -55,7 +55,6 @@ var moduleFileSizeTrees = []string{"modules", "workflows"}
 var moduleFileSizeAllowlist = map[string]int{
 	"modules/parentannouncementaudience/internal/adapters/postgres/projection.go":    945,
 	"modules/communication/internal/adapters/parentpostgres/parent_announcements.go": 950,
-	"modules/schoolcalendar/portal/internal/application/service.go":                  1697,
 }
 
 func TestModuleFileSizeRatchet(t *testing.T) {

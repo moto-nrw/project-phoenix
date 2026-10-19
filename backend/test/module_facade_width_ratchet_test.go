@@ -79,8 +79,6 @@ var moduleFacadeNonRootDirs = map[string]bool{
 //
 //	cd backend && ../scripts/run-go-toolchain.sh go test ./test/ -run TestModuleFacadeWidthRatchet
 var moduleFacadeAllowlist = map[string]int{
-	"modules/appointments/appointments.go:Command":                               16,
-	"modules/appointments/appointments.go:Query":                                 20,
 	"modules/communication/parent_announcements.go:ParentAnnouncementCapability": 16,
 	"modules/devicefleet/administration.go:Administration":                       22,
 	"modules/devicefleet/devicefleet.go:DeviceQuery":                             13,
@@ -92,7 +90,6 @@ var moduleFacadeAllowlist = map[string]int{
 	"modules/peopledirectory/guardian.go:GuardianProvider":                       31,
 	"modules/peopledirectory/guardian.go:GuardianQuery":                          19,
 	"modules/peopledirectory/student_directory.go:StudentDirectoryQuery":         16,
-	"modules/schoolcalendar/portal/contract.go:Service":                          21,
 	"modules/workforce/shift.go:ShiftCommand":                                    19,
 	"modules/workforce/staffadmin.go:StaffDocuments":                             16,
 	"modules/workforce/staffrecord.go:StaffRecordCommand":                        13,
