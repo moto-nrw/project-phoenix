@@ -11,7 +11,7 @@ import (
 )
 
 // getClientIP returns the router-selected client IP for login-attempt rate
-// limiting + audit logging. XFF semantics come from chi's ClientIPFromXFF.
+// limiting + audit logging. XFF semantics come from chi's ClientIPFromXFFTrustedProxies(1).
 
 func TestGetClientIP_XForwardedForRightmostHop(t *testing.T) {
 	t.Parallel()
@@ -95,7 +95,7 @@ func TestGetClientIP_NoHeadersNoAddrReturnsEmpty(t *testing.T) {
 func getClientIPThroughXFFMiddleware(req *http.Request) string {
 	var ip string
 	router := chi.NewRouter()
-	router.Use(chimiddleware.ClientIPFromXFF())
+	router.Use(chimiddleware.ClientIPFromXFFTrustedProxies(1))
 	router.Post("/x", func(w http.ResponseWriter, r *http.Request) {
 		ip = getClientIP(r)
 		w.WriteHeader(http.StatusNoContent)

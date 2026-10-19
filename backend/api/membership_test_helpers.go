@@ -3,6 +3,10 @@
 package api
 
 import (
+	"context"
+
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -32,7 +36,11 @@ func identityChainOf(db transactionruntime.Database, members owners.MembershipTe
 // NewStudentDirectory adapts the People Directory's directory read to the
 // retained model-typed contract, for suites that may not import the owner's
 // composition.
-func NewStudentDirectory(directory peopleCompose.StudentDirectoryCapability) *peopleCompose.StudentDirectory {
+func NewStudentDirectory(directory interface {
+	peopledirectory.StudentDirectoryQuery
+	peopledirectory.StudentDirectoryCommand
+	LockEnrollmentClassWrites(context.Context) error
+}) peoplePorts.StudentDirectoryAccess {
 	return peopleCompose.NewStudentDirectory(directory)
 }
 

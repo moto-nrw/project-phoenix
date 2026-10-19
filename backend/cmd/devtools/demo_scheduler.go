@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
+	seedapi "github.com/moto-nrw/project-phoenix/internal/devtools/seedapi"
 )
 
 const (

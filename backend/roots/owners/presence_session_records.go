@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
@@ -49,7 +48,7 @@ func sessionRecordDependencies(now func() time.Time, devices devicefleet.Query, 
 // through School Membership and, when the People Directory is given, their
 // person facts.
 type presenceSupervisionStaff struct {
-	membership schoolMembershipCompose.StaffLookup
+	membership StaffLookup
 	persons    personsByIDQuery
 }
 
@@ -58,7 +57,7 @@ func (d presenceSupervisionStaff) SupervisionStaff(ctx context.Context, staffIDs
 	if d.membership == nil {
 		return result, nil
 	}
-	members, err := schoolMembershipCompose.StaffByID(ctx, d.membership, staffIDs, studentpresence.SupervisionStaffIncludesRemoved)
+	members, err := StaffByID(ctx, d.membership, staffIDs, studentpresence.SupervisionStaffIncludesRemoved)
 	if err != nil {
 		return nil, err
 	}

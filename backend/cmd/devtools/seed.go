@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
+	seedapi "github.com/moto-nrw/project-phoenix/internal/devtools/seedapi"
 	"github.com/spf13/cobra"
 )
 

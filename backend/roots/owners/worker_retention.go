@@ -129,7 +129,7 @@ func newWorkerRetention(
 	if deletionLog == nil || settings == nil {
 		return workerRetention{}, fmt.Errorf("compose worker retention: deletion log and settings are required")
 	}
-	if err := settingsCompose.VerifyPreloadKeys(settingsModule.RetentionWindowKeys()); err != nil {
+	if err := settingsCompose.NewPreloadKeyVerifier()(settingsModule.RetentionWindowKeys()); err != nil {
 		return workerRetention{}, fmt.Errorf("compose worker retention: %w", err)
 	}
 	deletions := deletionLog

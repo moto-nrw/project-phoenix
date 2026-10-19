@@ -21,6 +21,7 @@ import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { errorAlertActions } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { Tooltip } from "~/components/ui/tooltip";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { leadsSchool } from "~/lib/auth-utils";
 import { fetchBirthdayOverviewClient } from "~/lib/birthdays-api";
@@ -472,23 +473,32 @@ function HomeContent() {
             </Button>
           </>
         ) : (
-          // Auf dem Telefon nur das Symbol: als Textknopf bekam „Anpassen"
-          // dort eine eigene volle Zeile unter der Begrüßung und war größer
-          // als alles, wofür man die Startseite öffnet. `data-icon-only`
-          // hält ihn in der Titelzeile; der Name bleibt für Vorlesen und
-          // Tastatur „Anpassen".
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            className="gap-2 max-sm:aspect-square max-sm:px-0"
-            data-icon-only=""
-            disabled={!homeLayoutReady}
-            onClick={startEditing}
-          >
-            <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-            <span className="max-sm:sr-only">Anpassen</span>
-          </Button>
+          // Auf allen Breiten nur das Symbol (#4346): als Textknopf war
+          // „Anpassen" größer als alles, wofür man die Startseite öffnet.
+          // Name und Tooltip sagen „Anpassen". `size="md"` statt `icon`
+          // hält Höhe und Radius von „Abbrechen" und „Fertig".
+          // `data-icon-only` an der Hülle hält ihn unter sm in der
+          // Titelzeile; die Blase steht rechtsbündig, weil der Knopf am
+          // rechten Rand sitzt.
+          <div data-icon-only="">
+            <Tooltip
+              content="Anpassen"
+              asChild
+              bubbleClassName="left-auto right-0"
+            >
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                className="aspect-square px-0"
+                aria-label="Anpassen"
+                disabled={!homeLayoutReady}
+                onClick={startEditing}
+              >
+                <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </Tooltip>
+          </div>
         )
       }
     >

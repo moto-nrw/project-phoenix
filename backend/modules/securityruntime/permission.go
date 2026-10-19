@@ -3,7 +3,7 @@ package securityruntime
 import (
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/application/authorize"
 )
 
 // HasPermission evaluates a required permission with the shared wildcard rules.
@@ -18,7 +18,18 @@ func HasAdminWildcard(permissions []string) bool {
 
 // DatabaseStatsCapabilities evaluates which database statistics the
 // permissions reveal.
-func DatabaseStatsCapabilities(permissions []string) authorize.DatabaseStatsCapabilities {
+func DatabaseStatsCapabilities(permissions []string) interface {
+	ViewStudents() bool
+	ViewTeachers() bool
+	ViewRooms() bool
+	ViewActivities() bool
+	ViewGroups() bool
+	ViewRoles() bool
+	ViewDevices() bool
+	ViewPermissionCatalog() bool
+	ViewTimetables() bool
+	ViewGradeTransitions() bool
+} {
 	return authorize.NewDatabaseStatsCapabilities(permissions)
 }
 

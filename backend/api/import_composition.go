@@ -95,7 +95,7 @@ func newStaffImport(
 		importPorts.StaffImportDeps{
 			Authorization:       NewImportAuthorization(),
 			Transactions:        runtime.Transactions,
-			Invitations:         dataImportCompose.NewStaffInviter(invitations),
+			Invitations:         NewStaffInviter(invitations),
 			FindInvitedPeople:   identity.FindInvitedPersonIDs,
 			FindSchoolAccount:   NewImportSchoolAccountLookup(identity),
 			Roles:               identity,

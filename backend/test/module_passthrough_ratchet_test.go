@@ -179,11 +179,14 @@ const modulePassthroughMaxBodyLines = 14
 // into internal/planning (#4240), and the root-facing seam and record types
 // into the owners' ports packages (#4174, #4182, #4210, #4227, #4236, #4238).
 var modulePassthroughMovedTrees = []struct{ path, owner string }{
+	{"modules/schoolcalendar/internal/adapters/postgres/native_feed_history.go", "modules/schoolcalendar"},
+	{"modules/devicefleet/internal/adapters/repositoryadapter/", "modules/devicefleet"},
 	{"modules/schoolstructure/internal/adapters/postgres/runtime/", "modules/schoolstructure"},
 	{"modules/peopledirectory/internal/adapters/postgres/runtime/", "modules/peopledirectory"},
 	// ADR 0064: consumer glue moved to the root, but its delegations stay
 	// attributed to the consumer. These entries expand the scan, not allowances.
 	{"api/device_scan_catalog.go", "modules/devicescan"},
+	{"api/import_staff_invitation.go", "modules/dataimport"},
 	{"api/kiosk_timetable.go", "modules/devicescan"},
 	{"modules/careplan/ports/", "modules/careplan"},
 	{"modules/identityaccess/ports/", "modules/identityaccess"},

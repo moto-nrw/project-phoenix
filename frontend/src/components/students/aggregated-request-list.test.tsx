@@ -1214,6 +1214,34 @@ describe("AggregatedRequestList", () => {
         "Für die aktuelle Suche und Filter gibt es keine Treffer.",
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Neue Anfragen von Eltern erscheinen hier."),
+    ).toBeNull();
+    expect(
+      screen.queryByText("Entschiedene Anfragen erscheinen hier."),
+    ).toBeNull();
+  });
+
+  it("sagt ohne Filter, was im leeren Offen und in der leeren Historie erscheint", async () => {
+    const { unmount } = render(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+    );
+    expect(
+      await screen.findByText("Neue Anfragen von Eltern erscheinen hier."),
+    ).toBeInTheDocument();
+    unmount();
+
+    render(<AggregatedRequestList view="history" filters={NO_FILTERS} />);
+    expect(
+      await screen.findByText("Entschiedene Anfragen erscheinen hier."),
+    ).toBeInTheDocument();
+  });
+
+  it("legt den Leer-Zustand auf eine eigene Fläche statt auf den Seitengrund", async () => {
+    render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+
+    const title = await screen.findByText("Keine offenen Anfragen.");
+    expect(title.closest("section")).not.toBeNull();
   });
 
   it("zeigt einen Ladefehler vor Ort mit Vorgangskennung und Wiederholen", async () => {

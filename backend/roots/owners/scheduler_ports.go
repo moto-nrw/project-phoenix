@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	snapshotRecords "github.com/moto-nrw/project-phoenix/modules/settings/records"
+
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -26,7 +28,7 @@ func verifySchedulerSettingKeys() error {
 }
 
 func verifyPreloadSettingKeys(keys []string) error {
-	if err := settingsCompose.VerifyPreloadKeys(keys); err != nil {
+	if err := settingsCompose.NewPreloadKeyVerifier()(keys); err != nil {
 		return fmt.Errorf("worker setting keys: %w", err)
 	}
 	return nil
@@ -46,7 +48,7 @@ func schedulerSettings(settings settingsCompose.BatchSettingsService) (scheduler
 type schedulerSettingsPort struct {
 	schedulerPorts.SettingsResolver
 	// snapshots is the Settings Platform's cross-tenant batch read.
-	snapshots func(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]settingsCompose.TenantSnapshot, error)
+	snapshots func(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]snapshotRecords.TenantSnapshot, error)
 }
 
 func (p schedulerSettingsPort) ResolveSettingsSnapshots(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]schedulerPorts.SettingsSnapshot, error) {
@@ -62,7 +64,7 @@ func (p schedulerSettingsPort) ResolveSettingsSnapshots(ctx context.Context, ten
 }
 
 func (p schedulerSettingsPort) BindSettingsSnapshot(ctx context.Context, snapshot schedulerPorts.SettingsSnapshot) (context.Context, error) {
-	bound, ok := snapshot.(settingsCompose.TenantSnapshot)
+	bound, ok := snapshot.(snapshotRecords.TenantSnapshot)
 	if !ok {
 		return ctx, fmt.Errorf("settings snapshot has type %T", snapshot)
 	}

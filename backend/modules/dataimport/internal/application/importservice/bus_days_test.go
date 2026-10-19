@@ -3,7 +3,7 @@ package importpkg
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/fileformat"
+	"github.com/moto-nrw/project-phoenix/modules/dataimport/internal/adapters/fileformat"
 
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	usersModel "github.com/moto-nrw/project-phoenix/modules/dataimport/ports"

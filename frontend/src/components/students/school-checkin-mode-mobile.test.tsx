@@ -85,7 +85,71 @@ describe("SchoolCheckinModeMobile", () => {
       expect(wrapper?.className).toContain("left-0");
     });
 
-    it("shows a compact ready state before the first action", () => {
+    it("shows no status text before the first action", () => {
+      render(
+        <SchoolCheckinModeMobile
+          isActive
+          onToggle={() => undefined}
+          successCount={0}
+          pendingCount={0}
+          onSelectionActiveChange={() => undefined}
+        />,
+      );
+
+      expect(screen.queryByText("Bereit")).not.toBeInTheDocument();
+      expect(screen.queryByText(/bearbeitet|laufen/)).not.toBeInTheDocument();
+    });
+
+    it("shows only the pending count while the first taps are in flight", () => {
+      render(
+        <SchoolCheckinModeMobile
+          isActive
+          onToggle={() => undefined}
+          successCount={0}
+          pendingCount={2}
+        />,
+      );
+
+      expect(screen.getByText("2 laufen")).toBeInTheDocument();
+    });
+
+    it("names the active mode and explains Direkt taps", () => {
+      render(
+        <SchoolCheckinModeMobile
+          isActive
+          onToggle={() => undefined}
+          successCount={0}
+          pendingCount={0}
+          onSelectionActiveChange={() => undefined}
+        />,
+      );
+
+      expect(screen.getByText("An- und Abmelde-Modus aktiv")).toBeVisible();
+      expect(
+        screen.getByText("Jeder Tipp meldet sofort an oder ab."),
+      ).toBeVisible();
+    });
+
+    it("keeps the mode name but drops the Direkt hint in Mehrere", () => {
+      render(
+        <SchoolCheckinModeMobile
+          isActive
+          onToggle={() => undefined}
+          successCount={0}
+          pendingCount={0}
+          selectionActive
+          selectedCount={0}
+          onSelectionActiveChange={() => undefined}
+        />,
+      );
+
+      expect(screen.getByText("An- und Abmelde-Modus aktiv")).toBeVisible();
+      expect(
+        screen.queryByText("Jeder Tipp meldet sofort an oder ab."),
+      ).not.toBeInTheDocument();
+    });
+
+    it("names the mode without a sub-mode switch (group page)", () => {
       render(
         <SchoolCheckinModeMobile
           isActive
@@ -95,7 +159,30 @@ describe("SchoolCheckinModeMobile", () => {
         />,
       );
 
-      expect(screen.getByText("Bereit")).toBeInTheDocument();
+      expect(screen.getByText("An- und Abmelde-Modus aktiv")).toBeVisible();
+      expect(
+        screen.getByText("Jeder Tipp meldet sofort an oder ab."),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole("button", { name: "Mehrere" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("renders Fertig as the dark primary action", () => {
+      render(
+        <SchoolCheckinModeMobile
+          isActive
+          onToggle={() => undefined}
+          successCount={0}
+          pendingCount={0}
+        />,
+      );
+
+      const finish = screen.getByRole("button", {
+        name: "Fertig, An- und Abmelde-Modus beenden",
+      });
+      expect(finish).toHaveClass("bg-gray-900", "text-white");
+      expect(finish).not.toHaveClass("rounded-full");
     });
 
     it("surfaces the success count once the user has toggled at least one", () => {
@@ -273,7 +360,7 @@ describe("SchoolCheckinModeMobile", () => {
         document.documentElement.style.getPropertyValue(
           "--moto-checkin-bar-offset",
         ),
-      ).toBe("4.5rem");
+      ).toBe("7.25rem");
 
       unmount();
       expect(
@@ -299,7 +386,7 @@ describe("SchoolCheckinModeMobile", () => {
         document.documentElement.style.getPropertyValue(
           "--moto-checkin-bar-offset",
         ),
-      ).toBe("6.75rem");
+      ).toBe("9.5rem");
     });
 
     it("does not publish install-hint clearance at md and above", () => {

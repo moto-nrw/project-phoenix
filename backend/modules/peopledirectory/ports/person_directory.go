@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 

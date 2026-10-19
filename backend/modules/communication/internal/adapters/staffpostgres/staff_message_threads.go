@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -40,8 +42,8 @@ type staffThreadRow struct {
 	LastSenderAccountID *int64     `bun:"last_sender_account_id"`
 }
 
-func (r *staffThreadRow) value() *domain.StaffMessageThread {
-	return &domain.StaffMessageThread{
+func (r *staffThreadRow) value() *communication.StaffThreadRecord {
+	return &communication.StaffThreadRecord{
 		ID: r.ID, TenantID: r.TenantID, ParticipantKey: r.ParticipantKey, Kind: r.Kind,
 		LastMessageAt: r.LastMessageAt, LastMessageID: r.LastMessageID,
 		LastMessageBody: r.LastMessageBody, LastSenderAccountID: r.LastSenderAccountID,
@@ -58,7 +60,7 @@ type staffParticipantRow struct {
 }
 
 // FindByID returns the thread within the current tenant, or nil when absent.
-func (s *ThreadStore) FindByID(ctx context.Context, id int64) (*domain.StaffMessageThread, error) {
+func (s *ThreadStore) FindStaffThread(ctx context.Context, id int64) (*communication.StaffThreadRecord, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, err
@@ -112,7 +114,8 @@ func (s *ThreadStore) findByParticipantKey(ctx context.Context, db bun.IDB, tena
 // Participants are inserted with the same conflict-tolerant shape, so a thread
 // that already exists is not disturbed and a partially created one (thread row
 // committed, participants not) heals on the next open.
-func (s *ThreadStore) GetOrCreate(ctx context.Context, key, kind string, accountIDs ...int64) (*domain.StaffMessageThread, error) {
+func (s *ThreadStore) GetOrCreateStaffThread(ctx context.Context, a, b int64) (*communication.StaffThreadRecord, error) {
+	key, kind, accountIDs := domain.DirectParticipantKey(a, b), domain.StaffMessageThreadKindDirect, []int64{a, b}
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, err
@@ -169,7 +172,7 @@ func ensureParticipants(ctx context.Context, db bun.IDB, thread *staffThreadRow,
 
 // LockForMessageAppend serializes inserts into a thread within the caller's
 // transaction, keeping message tuple order aligned with commit order.
-func (s *ThreadStore) LockForMessageAppend(ctx context.Context, threadID int64) error {
+func (s *ThreadStore) LockStaffThreadForAppend(ctx context.Context, threadID int64) error {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return err
@@ -196,7 +199,7 @@ func (s *ThreadStore) LockForMessageAppend(ctx context.Context, threadID int64) 
 // The composite matters because clock_timestamp() can produce ties: without the
 // id comparison a second message sharing a created_at would leave the preview
 // pointing at the first one.
-func (s *ThreadStore) TouchLastMessage(ctx context.Context, threadID int64, at time.Time, messageID, senderAccountID int64, body string) error {
+func (s *ThreadStore) AdvanceStaffThreadPreview(ctx context.Context, threadID int64, at time.Time, messageID, senderAccountID int64, body string) error {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return err
@@ -224,7 +227,7 @@ func (s *ThreadStore) TouchLastMessage(ctx context.Context, threadID int64, at t
 }
 
 // ParticipantAccountIDs returns every account in the thread, ascending.
-func (s *ThreadStore) ParticipantAccountIDs(ctx context.Context, threadID int64) ([]int64, error) {
+func (s *ThreadStore) StaffParticipantAccountIDs(ctx context.Context, threadID int64) ([]int64, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, err
@@ -247,7 +250,7 @@ func (s *ThreadStore) ParticipantAccountIDs(ctx context.Context, threadID int64)
 // authorization predicate for reading or posting: membership is the ONLY thing
 // that grants access to an internal conversation — no role, no permission, and
 // no admin flag substitutes for it.
-func (s *ThreadStore) IsParticipant(ctx context.Context, threadID, accountID int64) (bool, error) {
+func (s *ThreadStore) HasStaffParticipant(ctx context.Context, threadID, accountID int64) (bool, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return false, err
@@ -276,7 +279,7 @@ func (s *ThreadStore) IsParticipant(ctx context.Context, threadID, accountID int
 // someone opened and has not written in yet is legitimately empty. Without the
 // bound the daily sweep would delete it under the user, and their next send
 // would fail with "Diese Unterhaltung gibt es nicht." on a chat they had open.
-func (s *ThreadStore) DeleteEmpty(ctx context.Context, createdBefore time.Time) (int64, error) {
+func (s *ThreadStore) DeleteEmptyStaffThreads(ctx context.Context, createdBefore time.Time) (int64, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return 0, err

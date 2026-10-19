@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { ArrowRight } from "lucide-react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -186,14 +187,18 @@ export function NowStrip({
                   {busyId === action.block.id ? "Startet..." : action.label}
                 </Button>
               ) : (
+                // Ein Weg in einen anderen Bereich trägt den Pfeil (#4346):
+                // man sieht, dass der Knopf weiterführt. „Aufsicht starten"
+                // wechselt nicht, sondern startet an Ort und Stelle.
                 <ButtonLink
                   key={action.href}
                   href={action.href}
                   variant={variant}
                   size="md"
-                  className="whitespace-nowrap max-sm:flex-1"
+                  className="gap-2 whitespace-nowrap max-sm:flex-1"
                 >
                   {action.label}
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </ButtonLink>
               );
             })}

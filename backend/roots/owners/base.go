@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	mealInputs "github.com/moto-nrw/project-phoenix/modules/mealplan"
+
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
@@ -12,7 +14,6 @@ import (
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
 	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
-	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -136,15 +137,15 @@ func ComposeCarePlan(db transactionruntime.Database, persons *peopleModule.Modul
 	})
 }
 
-func mealPlanParticipantFinder(students StudentRootReads, now func() time.Time) mealplanCompose.ParticipantFinder {
-	return func(ctx context.Context, date string) ([]mealplanCompose.ParticipantCandidate, error) {
+func mealPlanParticipantFinder(students StudentRootReads, now func() time.Time) mealInputs.ParticipantFinder {
+	return func(ctx context.Context, date string) ([]mealInputs.ParticipantCandidate, error) {
 		rows, err := students.OverlappingOnDate(ctx, date, now())
 		if err != nil {
 			return nil, err
 		}
-		candidates := make([]mealplanCompose.ParticipantCandidate, 0, len(rows))
+		candidates := make([]mealInputs.ParticipantCandidate, 0, len(rows))
 		for _, row := range rows {
-			candidates = append(candidates, mealplanCompose.ParticipantCandidate{
+			candidates = append(candidates, mealInputs.ParticipantCandidate{
 				StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName, SchoolClass: row.SchoolClass,
 			})
 		}

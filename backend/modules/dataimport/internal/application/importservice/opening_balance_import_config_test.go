@@ -8,7 +8,7 @@ import (
 
 	ports "github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
 
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/fileformat"
+	"github.com/moto-nrw/project-phoenix/modules/dataimport/internal/adapters/fileformat"
 
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"

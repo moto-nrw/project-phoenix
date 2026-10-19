@@ -3,8 +3,6 @@ package owners
 import (
 	"context"
 
-	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-
 	"fmt"
 	"slices"
 
@@ -81,7 +79,7 @@ type operatorSchools interface {
 
 // NewOperatorAccountDirectory reuses the serving owners; it constructs no
 // repositories or modules and does not own a database connection.
-func NewOperatorAccountDirectory(accounts identityaccess.SchoolAccountListings, persons peopledirectory.Query, membership schoolMembershipCompose.StaffLookup, schools organizationtenancy.Query) OperatorAccountDirectory {
+func NewOperatorAccountDirectory(accounts identityaccess.SchoolAccountListings, persons peopledirectory.Query, membership StaffLookup, schools organizationtenancy.Query) OperatorAccountDirectory {
 	return operatorAccountDirectory{accounts: accounts, persons: persons, chains: caregiverChainsFromMembership(membership), schools: schools}
 }
 

@@ -6,8 +6,6 @@ import (
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleBirthday "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
-	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -22,7 +20,7 @@ type OverlappingRosterGroupNames struct {
 }
 
 // groupNameQuery is the School Structure read the decorators name the groups
-// of their rows through: the two reads schoolStructureCompose.EnrichGroupNames
+// of their rows through: the two reads EnrichGroupNames
 // takes.
 type groupNameQuery interface {
 	FindGroup(ctx context.Context, id int64) (schoolstructure.Group, error)
@@ -65,12 +63,12 @@ func EnrichStudentGroupNames(ctx context.Context, groups schoolstructure.Query, 
 	if queryErr != nil {
 		return nil, queryErr
 	}
-	return schoolStructureCompose.EnrichGroupNames(ctx, groups, rows,
+	return EnrichGroupNames(ctx, groups, rows,
 		func(row *peopleValues.StudentRosterEntry) int64 {
 			if row.Record == nil {
 				return 0
 			}
-			return schoolStructureCompose.OptionalGroupID(row.Record.GroupID)
+			return OptionalGroupID(row.Record.GroupID)
 		},
 		func(row *peopleValues.StudentRosterEntry, name string) { row.GroupName = name },
 		"", "student roster")
@@ -85,9 +83,9 @@ func (r groupStudentRepository) FindBirthdaysOn(ctx context.Context, days []peop
 	for index := range rows {
 		pointers[index] = &rows[index]
 	}
-	if _, err := schoolStructureCompose.EnrichGroupNames(ctx, r.groups, pointers,
+	if _, err := EnrichGroupNames(ctx, r.groups, pointers,
 		func(row *peopleBirthday.BirthdayEntry) int64 {
-			return schoolStructureCompose.OptionalGroupID(row.GroupID)
+			return OptionalGroupID(row.GroupID)
 		},
 		func(row *peopleBirthday.BirthdayEntry, name string) { row.GroupName = name },
 		"", "birthdays"); err != nil {

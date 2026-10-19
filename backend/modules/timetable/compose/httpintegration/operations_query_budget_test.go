@@ -100,7 +100,7 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testp
 		EducationGroups: owners.TimetableEducationGroupNames(reposStructure.Group),
 		Rooms:           owners.NewTimetableRoomNames(rooms),
 	}
-	templates, err := rows.OperationTemplates()
+	templates, err := compose.NewOperationTemplates(rows.Templates)
 	require.NoError(t, err)
 	deps.Instances, deps.InstanceStaff, deps.Participants = fixtures.IntoOperationInstances(fixtures.FromActivityInstanceRecords(rows.Instances)), fixtures.IntoOperationInstanceStaff(fixtures.FromInstanceStaffRecords(rows.InstanceStaff)), fixtures.IntoOperationParticipants(fixtures.FromInstanceStudentRecords(rows.Participants))
 	deps.Templates, deps.Students = templates, rows.Students

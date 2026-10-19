@@ -37,7 +37,7 @@
     "sources": [
       "backend/modules/transactionruntime/compose/database.go",
       "backend/modules/transactionruntime/compose/database_test.go",
-      "backend/database/query_hook.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/121b0ee5130db5ec6b289965f495acdca6285744/backend/database/query_hook.go",
       "backend/database/migrations/main.go",
       "backend/test/tenant_runtime.go",
       "backend/api/server.go",

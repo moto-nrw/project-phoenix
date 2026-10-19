@@ -10,8 +10,8 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/modules/auditlog"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime/internal/adapters/database"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )

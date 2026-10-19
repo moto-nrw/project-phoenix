@@ -3,10 +3,6 @@ package owners
 import (
 	"context"
 
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 
@@ -73,7 +69,7 @@ func timetableDirectories(
 	var directories timetablePorts.RepositoryDirectories
 	if groups != nil {
 		directories.GroupNames = func(ctx context.Context, ids []int64) (map[int64]string, error) {
-			return schoolStructureCompose.GroupNamesByID(ctx, groups, ids)
+			return GroupNamesByID(ctx, groups, ids)
 		}
 	}
 	if rooms != nil {
@@ -120,9 +116,9 @@ func timetableShiftTypes(shifts workforce.ShiftQuery) func(context.Context) ([]t
 	}
 }
 
-func timetableStaffPersons(membership schoolMembershipCompose.StaffLookup) func(context.Context, []int64, bool) (map[int64]int64, error) {
+func timetableStaffPersons(membership StaffLookup) func(context.Context, []int64, bool) (map[int64]int64, error) {
 	return func(ctx context.Context, ids []int64, includeDeleted bool) (map[int64]int64, error) {
-		members, err := schoolMembershipCompose.StaffByID(ctx, membership, ids, includeDeleted)
+		members, err := StaffByID(ctx, membership, ids, includeDeleted)
 		if err != nil {
 			return nil, err
 		}
@@ -136,7 +132,7 @@ func timetableStaffPersons(membership schoolMembershipCompose.StaffLookup) func(
 
 func timetablePersonNames(persons peopledirectory.Query) func(context.Context, []int64) (map[int64]timetablePorts.PersonName, error) {
 	return func(ctx context.Context, ids []int64) (map[int64]timetablePorts.PersonName, error) {
-		values, err := peopleCompose.PersonsByID(ctx, persons, ids)
+		values, err := PersonsByID(ctx, persons, ids)
 		if err != nil {
 			return nil, err
 		}

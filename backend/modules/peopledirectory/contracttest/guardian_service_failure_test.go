@@ -11,7 +11,7 @@ import (
 
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
 
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
