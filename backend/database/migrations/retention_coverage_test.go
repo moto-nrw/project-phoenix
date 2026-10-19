@@ -29,7 +29,7 @@ const (
 	// noPersonalData: the table holds no personal data; the detail says why.
 	noPersonalData retentionClass = "no personal data"
 	// controllerDeletes: content the school keeps as long as it needs it and
-	// deletes itself as the controller, as the AVV states (#4045, ADR 0072); no window
+	// deletes itself as the controller, as the AVV states (#4045, ADR 0073); no window
 	// fits rows without an end, such as a file in use or a child on a class
 	// list. The detail names the school's deletion path and what goes
 	// automatically.
@@ -67,7 +67,7 @@ var openSpecTickets = []string{}
 const (
 	specGapTables = 0
 	openGapTables = 1
-	// schoolDeletesTables keeps the class of #4045 (ADR 0072) closed: a new
+	// schoolDeletesTables keeps the class of #4045 (ADR 0073) closed: a new
 	// table with personal data gets a deletion path, not this class.
 	schoolDeletesTables = 2
 )

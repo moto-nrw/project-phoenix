@@ -137,7 +137,7 @@ const moduleLegacyFileBudgetTotal = 0
 var moduleLegacyFileBudgets = map[string]int{}
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
-// like every entry; raised by ADR 0063 and by ADR 0072 (the parent
+// like every entry; raised by ADR 0063 and by ADR 0073 (the parent
 // announcement retention of modules/communication/composition).
 const moduleComposeBudgetTotal = 20904
 
@@ -153,7 +153,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/careplan/compose":             2460,
 	"modules/careplan/requestfeed/compose": 68,
 	"modules/classday/compose":             461,
-	// Raised by ADR 0072: the parent announcement retention.
+	// Raised by ADR 0073: the parent announcement retention.
 	"modules/communication/composition":               1426,
 	"modules/dataimport/compose":                      202,
 	"modules/dataimport/compose/imports":              29,
