@@ -40,30 +40,14 @@ func (s *staffAbsenceService) PreviewCompTimeBalance(
 	start, end calendar.Date,
 	halfDay bool,
 ) (*CompTimeBalancePreview, error) {
-	if s.monthService == nil {
-		return nil, fmt.Errorf("comp_time preview requires the month service")
-	}
-	if end.Before(start) {
-		return nil, &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid date range: date_end must not be before date_start")}
-	}
-	if err := validateSingleDayHalfDayAbsence(AbsenceTypeCompTime, halfDay, start, end); err != nil {
-		return nil, err
-	}
-	if err := s.rejectPreAccountCompTime(ctx, AbsenceTypeCompTime, start, end); err != nil {
+	if err := s.validateCompTimePreview(ctx, start, end, halfDay); err != nil {
 		return nil, err
 	}
 
 	today := s.today()
-	currentBalance := 0
-	anchor, err := resolveAccountAnchor(ctx, s.settings, s.getLogger(), monthOf(today))
+	currentBalance, err := s.currentCompTimeBalance(ctx, staffID, today)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve account start for comp_time preview: %w", err)
-	}
-	if !today.Before(anchor) {
-		currentBalance, err = s.monthService.GetClosingBalanceAsOf(ctx, staffID, today)
-		if err != nil {
-			return nil, fmt.Errorf("failed to compute current balance for comp_time preview: %w", err)
-		}
+		return nil, err
 	}
 
 	// Existing comp-time rows overlapping the requested range already reserve
@@ -77,17 +61,9 @@ func (s *staffAbsenceService) PreviewCompTimeBalance(
 	if err != nil {
 		return nil, err
 	}
-
-	unrealizedDeduction := 0
-	if end.After(today) {
-		clippedStart := start
-		if tomorrow := today.AddDays(1); clippedStart.Before(tomorrow) {
-			clippedStart = tomorrow
-		}
-		unrealizedDeduction, err = s.getAdditionalCompTimeDeduction(ctx, staffID, clippedStart, end, halfDay, overlapping)
-		if err != nil {
-			return nil, err
-		}
+	unrealizedDeduction, err := s.unrealizedCompTimeDeduction(ctx, staffID, start, end, halfDay, today, overlapping)
+	if err != nil {
+		return nil, err
 	}
 
 	futureCommitment, err := s.monthService.GetFutureCompTimeCommitmentMinutes(ctx, staffID)
@@ -112,6 +88,50 @@ func (s *staffAbsenceService) PreviewCompTimeBalance(
 		FutureAdjustmentMinutes:  futureAdjustments,
 		ProjectedBalanceMinutes:  currentBalance + futureAdjustments - futureCommitment - unrealizedDeduction,
 	}, nil
+}
+
+// validateCompTimePreview rejects a preview the create itself would reject.
+func (s *staffAbsenceService) validateCompTimePreview(ctx context.Context, start, end calendar.Date, halfDay bool) error {
+	if s.monthService == nil {
+		return fmt.Errorf("comp_time preview requires the month service")
+	}
+	if end.Before(start) {
+		return &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid date range: date_end must not be before date_start")}
+	}
+	if err := validateSingleDayHalfDayAbsence(AbsenceTypeCompTime, halfDay, start, end); err != nil {
+		return err
+	}
+	return s.rejectPreAccountCompTime(ctx, AbsenceTypeCompTime, start, end)
+}
+
+// currentCompTimeBalance is the live Stundenkonto as of today; before the
+// account start it is zero.
+func (s *staffAbsenceService) currentCompTimeBalance(ctx context.Context, staffID int64, today calendar.Date) (int, error) {
+	anchor, err := resolveAccountAnchor(ctx, s.settings, s.getLogger(), monthOf(today))
+	if err != nil {
+		return 0, fmt.Errorf("failed to resolve account start for comp_time preview: %w", err)
+	}
+	if today.Before(anchor) {
+		return 0, nil
+	}
+	balance, err := s.monthService.GetClosingBalanceAsOf(ctx, staffID, today)
+	if err != nil {
+		return 0, fmt.Errorf("failed to compute current balance for comp_time preview: %w", err)
+	}
+	return balance, nil
+}
+
+// unrealizedCompTimeDeduction is the part of the additional deduction on
+// days after today, which the current balance does not contain yet.
+func (s *staffAbsenceService) unrealizedCompTimeDeduction(ctx context.Context, staffID int64, start, end calendar.Date, halfDay bool, today calendar.Date, overlapping []*StaffAbsence) (int, error) {
+	if !end.After(today) {
+		return 0, nil
+	}
+	clippedStart := start
+	if tomorrow := today.AddDays(1); clippedStart.Before(tomorrow) {
+		clippedStart = tomorrow
+	}
+	return s.getAdditionalCompTimeDeduction(ctx, staffID, clippedStart, end, halfDay, overlapping)
 }
 
 // effectiveCompTimeAbsences returns the comp_time rows overlapping [start,

@@ -239,8 +239,14 @@ type StaffVacationFilter struct {
 	Offset   int
 }
 
-// WorkSessionQuery reads the work-session family of rows.
+// WorkSessionQuery reads the work-session family of rows: the blocks
+// themselves here, their breaks, the Stundenkonto corrections and the
+// vacation rows through the embedded readers.
 type WorkSessionQuery interface {
+	WorkSessionBreakQuery
+	StaffBalanceAdjustmentQuery
+	StaffVacationQuery
+
 	FindWorkSession(context.Context, int64) (WorkSession, error)
 	// OpenWorkSessionOn returns the running block of a staff member filed on
 	// the calendar day.
@@ -261,15 +267,25 @@ type WorkSessionQuery interface {
 	// WorkPresenceMap maps staff to their work status as of now: the status
 	// of a live open block, otherwise checked_out for a block filed today.
 	WorkPresenceMap(context.Context) (map[int64]string, error)
+}
 
+// WorkSessionBreakQuery reads the break periods inside work blocks.
+type WorkSessionBreakQuery interface {
 	FindWorkSessionBreak(context.Context, int64) (WorkSessionBreak, error)
 	ListWorkSessionBreaks(context.Context, WorkSessionBreakFilter) ([]WorkSessionBreak, error)
 	// ExpiredWorkSessionBreaks returns running breaks whose planned end passed.
 	ExpiredWorkSessionBreaks(ctx context.Context, before time.Time) ([]WorkSessionBreak, error)
+}
 
+// StaffBalanceAdjustmentQuery reads the Stundenkonto correction transactions.
+type StaffBalanceAdjustmentQuery interface {
 	FindStaffBalanceAdjustment(context.Context, int64) (StaffBalanceAdjustment, error)
 	ListStaffBalanceAdjustments(context.Context, StaffBalanceAdjustmentFilter) ([]StaffBalanceAdjustment, error)
+}
 
+// StaffVacationQuery reads the vacation takeovers and the yearly
+// entitlements.
+type StaffVacationQuery interface {
 	FindStaffVacationOpening(context.Context, int64) (StaffVacationOpening, error)
 	ListStaffVacationOpenings(context.Context, StaffVacationFilter) ([]StaffVacationOpening, error)
 
@@ -277,9 +293,15 @@ type WorkSessionQuery interface {
 	ListStaffVacationQuotas(context.Context, StaffVacationFilter) ([]StaffVacationQuota, error)
 }
 
-// WorkSessionCommand writes the work-session family of rows. Every write runs
-// on the caller's ambient tenant transaction or opens one.
+// WorkSessionCommand writes the work-session family of rows: the blocks
+// themselves here, their breaks, the Stundenkonto corrections and the
+// vacation rows through the embedded writers. Every write runs on the
+// caller's ambient tenant transaction or opens one.
 type WorkSessionCommand interface {
+	WorkSessionBreakCommand
+	StaffBalanceAdjustmentCommand
+	StaffVacationCommand
+
 	// LockStaffBalanceWrites serializes every writer that changes a staff
 	// member's Stundenkonto inputs.
 	LockStaffBalanceWrites(ctx context.Context, staffID int64) error
@@ -298,7 +320,10 @@ type WorkSessionCommand interface {
 	// CloseWorkSession stamps the check-out on a still open block; the
 	// boolean reports whether a row was actually closed.
 	CloseWorkSession(ctx context.Context, id int64, checkOut time.Time, autoCheckedOut bool) (bool, error)
+}
 
+// WorkSessionBreakCommand writes the break periods inside work blocks.
+type WorkSessionBreakCommand interface {
 	CreateWorkSessionBreak(context.Context, WorkSessionBreak) (WorkSessionBreak, error)
 	UpdateWorkSessionBreak(context.Context, WorkSessionBreak) (WorkSessionBreak, error)
 	DeleteWorkSessionBreak(context.Context, int64) error
@@ -307,11 +332,19 @@ type WorkSessionCommand interface {
 	EndWorkSessionBreak(ctx context.Context, id int64, endedAt time.Time, durationMinutes int) (int64, error)
 	// SetWorkSessionBreakDuration rewrites the length and end of a break.
 	SetWorkSessionBreakDuration(ctx context.Context, id int64, durationMinutes int, endedAt time.Time) (int64, error)
+}
 
+// StaffBalanceAdjustmentCommand writes the Stundenkonto correction
+// transactions.
+type StaffBalanceAdjustmentCommand interface {
 	CreateStaffBalanceAdjustment(context.Context, StaffBalanceAdjustment) (StaffBalanceAdjustment, error)
 	UpdateStaffBalanceAdjustment(context.Context, StaffBalanceAdjustment) (StaffBalanceAdjustment, error)
 	DeleteStaffBalanceAdjustment(context.Context, int64) error
+}
 
+// StaffVacationCommand writes the vacation takeovers and the yearly
+// entitlements.
+type StaffVacationCommand interface {
 	CreateStaffVacationOpening(context.Context, StaffVacationOpening) (StaffVacationOpening, error)
 	UpdateStaffVacationOpening(context.Context, StaffVacationOpening) (StaffVacationOpening, error)
 	DeleteStaffVacationOpening(context.Context, int64) error

@@ -186,27 +186,7 @@ func (s *workSessionService) AutoEndExpiredBreaks(ctx context.Context) (int, err
 	if len(expiredBreaks) == 0 {
 		return 0, nil
 	}
-	sessionIDs := make([]int64, 0, len(expiredBreaks))
-	for _, brk := range expiredBreaks {
-		sessionIDs = append(sessionIDs, brk.SessionID)
-	}
-	sessions, err := s.repo.ListWithFilter(ctx, workforce.WorkSessionFilter{IDs: sessionIDs})
-	if err != nil {
-		return 0, fmt.Errorf("failed to resolve work sessions for balance lock: %w", err)
-	}
-	sessionsByID := make(map[int64]*WorkSession, len(sessions))
-	for _, session := range sessions {
-		sessionsByID[session.ID] = session
-	}
-	staffIDs := make([]int64, 0, len(expiredBreaks))
-	for _, brk := range expiredBreaks {
-		session, ok := sessionsByID[brk.SessionID]
-		if !ok {
-			return 0, fmt.Errorf("failed to resolve work session %d for balance lock", brk.SessionID)
-		}
-		staffIDs = append(staffIDs, session.StaffID)
-	}
-	if err := s.lockStaffBalanceWritesOrdered(ctx, staffIDs); err != nil {
+	if err := s.lockExpiredBreakOwners(ctx, expiredBreaks); err != nil {
 		return 0, err
 	}
 
@@ -237,4 +217,30 @@ func (s *workSessionService) AutoEndExpiredBreaks(ctx context.Context) (int, err
 		s.broadcastTimeTrackingChanged(ctx)
 	}
 	return count, nil
+}
+
+// lockExpiredBreakOwners resolves the staff member behind every expired
+// break's session and takes their balance locks in order.
+func (s *workSessionService) lockExpiredBreakOwners(ctx context.Context, expiredBreaks []*WorkSessionBreak) error {
+	sessionIDs := make([]int64, 0, len(expiredBreaks))
+	for _, brk := range expiredBreaks {
+		sessionIDs = append(sessionIDs, brk.SessionID)
+	}
+	sessions, err := s.repo.ListWithFilter(ctx, workforce.WorkSessionFilter{IDs: sessionIDs})
+	if err != nil {
+		return fmt.Errorf("failed to resolve work sessions for balance lock: %w", err)
+	}
+	sessionsByID := make(map[int64]*WorkSession, len(sessions))
+	for _, session := range sessions {
+		sessionsByID[session.ID] = session
+	}
+	staffIDs := make([]int64, 0, len(expiredBreaks))
+	for _, brk := range expiredBreaks {
+		session, ok := sessionsByID[brk.SessionID]
+		if !ok {
+			return fmt.Errorf("failed to resolve work session %d for balance lock", brk.SessionID)
+		}
+		staffIDs = append(staffIDs, session.StaffID)
+	}
+	return s.lockStaffBalanceWritesOrdered(ctx, staffIDs)
 }

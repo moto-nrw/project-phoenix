@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -213,163 +212,11 @@ func (s *staffOverviewService) today() calendar.Date {
 	return calendar.TodayDate()
 }
 
-// --- prefetch --------------------------------------------------------------
-
-// buildPrefetch loads every month-math input for the given staff members with
-// one query per source. `lower` lets the caller widen the window below the
-// account anchor (the ISO week can start in the previous month).
-func (s *staffOverviewService) buildPrefetch(
-	ctx context.Context,
-	staffMembers []OverviewStaff,
-	lower *calendar.Date,
-	through monthKey,
-) (*monthPrefetch, error) {
-	memo := newMemoSettingsResolver(s.settings)
-	anchor, err := resolveAccountAnchor(ctx, memo, s.getLogger(), through)
-	if err != nil {
-		return nil, err
-	}
-	from, to := anchor, through.lastDay()
-	// getMonthSummaryThrough summarizes a month before the configured account
-	// start as a standalone month. Prefetch the same month instead of querying
-	// the future anchor through an earlier month end.
-	if through.before(monthOf(anchor)) {
-		from = through.firstDay()
-	}
-	if lower != nil && lower.Before(from) {
-		from = *lower
-	}
-	// Same bound the detail view enforces, checked BEFORE loading anything:
-	// a misconfigured account start must fail like it does per staff member
-	// instead of pulling decades of rows for everybody.
-	if floorKey := through.addMonths(-maxCarryChainMonths); monthOf(from).before(floorKey) {
-		return nil, fmt.Errorf("%w: %s is more than %d months before %d-%02d",
-			ErrAccountStartTooOld, from.String(), maxCarryChainMonths, through.Year, through.Month)
-	}
-
-	staffIDs := make([]int64, 0, len(staffMembers))
-	staffByID := make(map[int64]*StaffScheduleAssignment, len(staffMembers))
-	modelIDs := make([]int64, 0, len(staffMembers))
-	for _, staff := range staffMembers {
-		staffIDs = append(staffIDs, staff.ID)
-		staffByID[staff.ID] = &StaffScheduleAssignment{WorkTimeModelID: staff.WorkTimeModelID, RotationAnchorDate: staff.RotationAnchorDate}
-		if staff.WorkTimeModelID != nil && !slices.Contains(modelIDs, *staff.WorkTimeModelID) {
-			modelIDs = append(modelIDs, *staff.WorkTimeModelID)
-		}
-	}
-
-	prefetch := &monthPrefetch{
-		from: from, to: to,
-		staff:    staffByID,
-		settings: memo,
-	}
-
-	end := to.AddDays(1).BerlinMidnight()
-	if prefetch.sessions, err = s.sessionRepo.ListOverlappingByStaffIDs(ctx, staffIDs, from.BerlinMidnight(), &end); err != nil {
-		return nil, fmt.Errorf("failed to prefetch work sessions: %w", err)
-	}
-	// Breaks are keyed by session ID, so they can only be loaded once the
-	// sessions are known. The interval math needs both completed and running
-	// breaks to assign a night block's pause to the correct calendar day.
-	sessionIDs := make([]int64, 0)
-	for _, sessions := range prefetch.sessions {
-		for _, session := range sessions {
-			sessionIDs = append(sessionIDs, session.ID)
-		}
-	}
-	if prefetch.breaks, err = s.breakRepo.GetBySessionIDs(ctx, sessionIDs); err != nil {
-		return nil, fmt.Errorf("failed to prefetch work-session breaks: %w", err)
-	}
-	if prefetch.absences, err = s.absenceRepo.GetByStaffIDsAndDateRange(ctx, staffIDs, from, to); err != nil {
-		return nil, fmt.Errorf("failed to prefetch absences: %w", err)
-	}
-	if prefetch.adjustments, err = s.adjustmentRepo.GetByStaffIDsAndDateRange(ctx, staffIDs, from, to); err != nil {
-		return nil, fmt.Errorf("failed to prefetch balance adjustments: %w", err)
-	}
-	if prefetch.shifts, err = s.shiftRepo.FindByStaffIDsAndDateRange(ctx, staffIDs, calendar.Date(from), calendar.Date(to)); err != nil {
-		return nil, fmt.Errorf("failed to prefetch staff shifts: %w", err)
-	}
-	scheduleTargets, err := s.scheduleRepo.TargetsByStaff(ctx, staffIDs, from, to)
-	if err != nil {
-		return nil, fmt.Errorf("failed to prefetch work schedules: %w", err)
-	}
-	prefetch.schedules = scheduleTargets
-	// Not derivable from the range-filtered schedules above: the question is
-	// whether a staff member EVER had a schedule version, which is what
-	// decides if the assigned work-time model may stand in.
-	if prefetch.scheduleHist, err = s.scheduleRepo.FindStaffIDsWithScheduleHistory(ctx, staffIDs); err != nil {
-		return nil, fmt.Errorf("failed to prefetch schedule history: %w", err)
-	}
-	prefetch.workTimeModels = make(map[int64]*WorkTimeTargetModel, len(modelIDs))
-	if len(modelIDs) > 0 {
-		models, err := s.workModelRepo.FindByIDs(ctx, modelIDs)
-		if err != nil {
-			return nil, fmt.Errorf("failed to prefetch work time models: %w", err)
-		}
-		for _, model := range models {
-			prefetch.workTimeModels[model.ID] = model
-		}
-	}
-	if err := s.prefetchDayTargets(ctx, prefetch, staffIDs); err != nil {
-		return nil, err
-	}
-	if prefetch.snapshots, err = s.prefetchSnapshots(ctx, staffIDs); err != nil {
-		return nil, err
-	}
-	return prefetch, nil
-}
-
-// prefetchDayTargets loads the day-level Soll inputs over the prefetch window:
-// the non-working days and the Sonderarbeitszeiten (#3259).
-func (s *staffOverviewService) prefetchDayTargets(ctx context.Context, prefetch *monthPrefetch, staffIDs []int64) (err error) {
-	if s.holidayReader != nil {
-		if prefetch.holidays, err = s.holidayReader.HolidayDates(ctx, prefetch.from, prefetch.to); err != nil {
-			return fmt.Errorf("failed to prefetch non-working days: %w", err)
-		}
-	}
-	if s.overrideReader != nil {
-		if prefetch.overrides, err = s.overrideReader.StaffTargetOverrideDays(ctx, staffIDs, prefetch.from.String(), prefetch.to.String()); err != nil {
-			return fmt.Errorf("failed to prefetch target overrides: %w", err)
-		}
-	}
-	return nil
-}
-
-// prefetchSnapshots loads the frozen months of the given staff members.
-//
-// Deliberately unbounded in time: the splice asks for "the newest snapshot at
-// or before month M" for several different M, so a month-bounded prefetch could
-// not answer them all. At most one active row exists per staff member and
-// month, so the set stays small. Workforce supplies the tenant-scoped batch.
-func (s *staffOverviewService) prefetchSnapshots(
-	ctx context.Context,
-	staffIDs []int64,
-) (map[int64][]*MonthSnapshot, error) {
-	result := make(map[int64][]*MonthSnapshot, len(staffIDs))
-	if len(staffIDs) == 0 {
-		return result, nil
-	}
-	snapshots, err := s.snapshotRepo.ClosedMonthSnapshotsForStaff(ctx, staffIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to prefetch month balance snapshots: %w", err)
-	}
-	for _, snapshot := range snapshots {
-		result[snapshot.StaffID] = append(result[snapshot.StaffID], snapshot)
-	}
-	return result, nil
-}
-
 // --- overview list ---------------------------------------------------------
 
 func (s *staffOverviewService) GetTimeTrackingOverview(ctx context.Context, filters OverviewFilters) (*TimeTrackingOverview, error) {
-	if filters.EmploymentType != "" && !slices.Contains(validEmploymentTypes(), filters.EmploymentType) {
-		return nil, fmt.Errorf("%w: unknown employment_type %q", ErrOverviewInvalid, filters.EmploymentType)
-	}
-	if filters.SortBy != "" && !slices.Contains(ValidOverviewSortKeys, filters.SortBy) {
-		return nil, fmt.Errorf("%w: unknown sort key %q", ErrOverviewInvalid, filters.SortBy)
-	}
-	if filters.SaldoMin != nil && filters.SaldoMax != nil && *filters.SaldoMin > *filters.SaldoMax {
-		return nil, fmt.Errorf("%w: saldo_min must not exceed saldo_max", ErrOverviewInvalid)
+	if err := validateOverviewFilters(filters); err != nil {
+		return nil, err
 	}
 
 	today := s.today()
@@ -387,11 +234,7 @@ func (s *staffOverviewService) GetTimeTrackingOverview(ctx context.Context, filt
 	if err != nil {
 		return nil, err
 	}
-	if filters.EmploymentType != "" {
-		staffMembers = slices.DeleteFunc(staffMembers, func(staff OverviewStaff) bool {
-			return staff.EmploymentType == nil || *staff.EmploymentType != filters.EmploymentType
-		})
-	}
+	staffMembers = filterOverviewEmploymentType(staffMembers, filters.EmploymentType)
 	if len(staffMembers) == 0 {
 		return overview, nil
 	}
@@ -406,11 +249,76 @@ func (s *staffOverviewService) GetTimeTrackingOverview(ctx context.Context, filt
 	for _, staff := range staffMembers {
 		staffIDs = append(staffIDs, staff.ID)
 	}
-	// Resturlaub is counted in the year of the SELECTED month, not of today:
-	// a December view opened in January must not show the new year's quota.
+	vacation, err := s.prefetchOverviewVacation(ctx, staffIDs, key, today)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, staff := range staffMembers {
+		row, err := s.overviewRow(ctx, monthSvc, staff, key, vacation)
+		if err != nil {
+			return nil, err
+		}
+		if overviewSaldoInRange(row.BalanceMinutes, filters) {
+			overview.Rows = append(overview.Rows, row)
+		}
+	}
+
+	sortOverviewRows(overview.Rows, filters)
+	return overview, nil
+}
+
+// filterOverviewEmploymentType keeps the staff members of the requested
+// employment type; an empty type keeps everybody.
+func filterOverviewEmploymentType(staffMembers []OverviewStaff, employmentType string) []OverviewStaff {
+	if employmentType == "" {
+		return staffMembers
+	}
+	return slices.DeleteFunc(staffMembers, func(staff OverviewStaff) bool {
+		return staff.EmploymentType == nil || *staff.EmploymentType != employmentType
+	})
+}
+
+// overviewSaldoInRange applies the saldo bounds, which only exist once the
+// carry chain has run.
+func overviewSaldoInRange(balanceMinutes int, filters OverviewFilters) bool {
+	if filters.SaldoMin != nil && balanceMinutes < *filters.SaldoMin {
+		return false
+	}
+	return filters.SaldoMax == nil || balanceMinutes <= *filters.SaldoMax
+}
+
+// validateOverviewFilters rejects unknown filter values before anything is
+// read.
+func validateOverviewFilters(filters OverviewFilters) error {
+	if filters.EmploymentType != "" && !slices.Contains(validEmploymentTypes(), filters.EmploymentType) {
+		return fmt.Errorf("%w: unknown employment_type %q", ErrOverviewInvalid, filters.EmploymentType)
+	}
+	if filters.SortBy != "" && !slices.Contains(ValidOverviewSortKeys, filters.SortBy) {
+		return fmt.Errorf("%w: unknown sort key %q", ErrOverviewInvalid, filters.SortBy)
+	}
+	if filters.SaldoMin != nil && filters.SaldoMax != nil && *filters.SaldoMin > *filters.SaldoMax {
+		return fmt.Errorf("%w: saldo_min must not exceed saldo_max", ErrOverviewInvalid)
+	}
+	return nil
+}
+
+// overviewVacation is the Resturlaub input of the overview rows: the quotas,
+// the vacation absences up to the cutoff and the takeover rows.
+type overviewVacation struct {
+	through  calendar.Date
+	quotas   map[int64]*StaffVacationQuota
+	absences map[int64][]*StaffAbsence
+	openings map[int64]*StaffVacationOpening
+}
+
+// prefetchOverviewVacation loads the Resturlaub inputs. Resturlaub is counted
+// in the year of the SELECTED month, not of today: a December view opened in
+// January must not show the new year's quota.
+func (s *staffOverviewService) prefetchOverviewVacation(ctx context.Context, staffIDs []int64, key monthKey, today calendar.Date) (overviewVacation, error) {
 	quotas, err := s.quotaRepo.GetByStaffIDsAndYear(ctx, staffIDs, key.Year)
 	if err != nil {
-		return nil, fmt.Errorf("failed to prefetch vacation quotas: %w", err)
+		return overviewVacation{}, fmt.Errorf("failed to prefetch vacation quotas: %w", err)
 	}
 	// Loaded separately rather than reused from the month prefetch: that
 	// window starts at the account anchor, which may lie after January 1st.
@@ -426,54 +334,47 @@ func (s *staffOverviewService) GetTimeTrackingOverview(ctx context.Context, filt
 		vacationThrough,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to prefetch vacation absences: %w", err)
+		return overviewVacation{}, fmt.Errorf("failed to prefetch vacation absences: %w", err)
 	}
 	openings, err := s.prefetchVacationOpenings(ctx, staffIDs, key.Year)
 	if err != nil {
-		return nil, err
+		return overviewVacation{}, err
 	}
+	return overviewVacation{through: vacationThrough, quotas: quotas, absences: vacationAbsences, openings: openings}, nil
+}
 
-	for _, staff := range staffMembers {
-		summary, err := monthSvc.GetMonthSummary(ctx, staff.ID, key.Year, key.Month)
-		if err != nil {
-			// A per-staff failure would otherwise leave a school total that is
-			// silently short. Fail the request and name the staff member.
-			return nil, fmt.Errorf("failed to compute month summary for staff %d: %w", staff.ID, err)
-		}
-		balanceMinutes := summary.ClosingBalanceMinutes
-		if summary.IsClosed && summary.FrozenClosingBalanceMinutes != nil {
-			balanceMinutes = *summary.FrozenClosingBalanceMinutes
-		}
-		row := TimeTrackingOverviewRow{
-			StaffID:        staff.ID,
-			SollMinutes:    summary.TargetMinutesToDate,
-			IstMinutes:     summary.ActualMinutes,
-			BalanceMinutes: balanceMinutes,
-			RemainingVacationDays: s.remainingVacationDays(
-				staff.ID,
-				key.Year,
-				vacationThrough,
-				quotas[staff.ID],
-				vacationAbsences[staff.ID],
-				openings[staff.ID],
-			),
-		}
-		if staff.EmploymentType != nil {
-			row.EmploymentType = *staff.EmploymentType
-		}
-		row.FirstName, row.LastName = staff.FirstName, staff.LastName
-		row.Name = strings.TrimSpace(staff.FirstName + " " + staff.LastName)
-		if filters.SaldoMin != nil && row.BalanceMinutes < *filters.SaldoMin {
-			continue
-		}
-		if filters.SaldoMax != nil && row.BalanceMinutes > *filters.SaldoMax {
-			continue
-		}
-		overview.Rows = append(overview.Rows, row)
+// overviewRow computes one staff member's row of the overview.
+func (s *staffOverviewService) overviewRow(ctx context.Context, monthSvc WorkTimeMonthService, staff OverviewStaff, key monthKey, vacation overviewVacation) (TimeTrackingOverviewRow, error) {
+	summary, err := monthSvc.GetMonthSummary(ctx, staff.ID, key.Year, key.Month)
+	if err != nil {
+		// A per-staff failure would otherwise leave a school total that is
+		// silently short. Fail the request and name the staff member.
+		return TimeTrackingOverviewRow{}, fmt.Errorf("failed to compute month summary for staff %d: %w", staff.ID, err)
 	}
-
-	sortOverviewRows(overview.Rows, filters)
-	return overview, nil
+	balanceMinutes := summary.ClosingBalanceMinutes
+	if summary.IsClosed && summary.FrozenClosingBalanceMinutes != nil {
+		balanceMinutes = *summary.FrozenClosingBalanceMinutes
+	}
+	row := TimeTrackingOverviewRow{
+		StaffID:        staff.ID,
+		SollMinutes:    summary.TargetMinutesToDate,
+		IstMinutes:     summary.ActualMinutes,
+		BalanceMinutes: balanceMinutes,
+		RemainingVacationDays: s.remainingVacationDays(
+			staff.ID,
+			key.Year,
+			vacation.through,
+			vacation.quotas[staff.ID],
+			vacation.absences[staff.ID],
+			vacation.openings[staff.ID],
+		),
+	}
+	if staff.EmploymentType != nil {
+		row.EmploymentType = *staff.EmploymentType
+	}
+	row.FirstName, row.LastName = staff.FirstName, staff.LastName
+	row.Name = strings.TrimSpace(staff.FirstName + " " + staff.LastName)
+	return row, nil
 }
 
 // remainingVacationDays reuses the absence service's arithmetic through the
@@ -577,191 +478,4 @@ func (s *staffOverviewService) activeStaff(ctx context.Context) ([]OverviewStaff
 		return nil, fmt.Errorf("failed to list staff: %w", err)
 	}
 	return slices.DeleteFunc(staffMembers, func(member OverviewStaff) bool { return member.Guest }), nil
-}
-
-// --- dashboard -------------------------------------------------------------
-
-func (s *staffOverviewService) GetDashboardSummary(ctx context.Context, period string) (*DashboardSummary, error) {
-	if period == "" {
-		period = OverviewPeriodMonth
-	}
-	if period != OverviewPeriodWeek && period != OverviewPeriodMonth {
-		return nil, fmt.Errorf("%w: period must be %s or %s", ErrOverviewInvalid, OverviewPeriodWeek, OverviewPeriodMonth)
-	}
-
-	today := s.today()
-	key := monthOf(today)
-	summary := &DashboardSummary{}
-
-	staffMembers, err := s.activeStaff(ctx)
-	if err != nil {
-		return nil, err
-	}
-	summary.ActiveStaffCount = len(staffMembers)
-	activeIDs := make(map[int64]bool, len(staffMembers))
-	for _, staff := range staffMembers {
-		activeIDs[staff.ID] = true
-	}
-
-	if err := s.addTodayCounters(ctx, summary, activeIDs, today); err != nil {
-		return nil, err
-	}
-	pending, err := s.countPendingRequests(ctx)
-	if err != nil {
-		return nil, err
-	}
-	summary.PendingRequestsCount = pending
-
-	if len(staffMembers) == 0 {
-		return summary, nil
-	}
-
-	// period=week can reach into the previous month, so the prefetch window
-	// has to start no later than that Monday.
-	var lower *calendar.Date
-	weekStart := today.StartOfISOWeek()
-	if period == OverviewPeriodWeek {
-		lower = &weekStart
-	}
-	prefetch, err := s.buildPrefetch(ctx, staffMembers, lower, key)
-	if err != nil {
-		return nil, err
-	}
-	monthSvc := newPrefetchedMonthService(prefetch, s.logger)
-
-	weekEnd := weekStart.AddDays(6)
-	if weekEnd.After(today) {
-		// Clamp at today so Soll and Ist are comparable, mirroring the month
-		// card's target_to_date.
-		weekEnd = today
-	}
-	for _, staff := range staffMembers {
-		monthSummary, err := monthSvc.GetMonthSummary(ctx, staff.ID, key.Year, key.Month)
-		if err != nil {
-			return nil, fmt.Errorf("failed to compute month summary for staff %d: %w", staff.ID, err)
-		}
-		summary.SaldoSchoolTotalMinutes += monthSummary.ClosingBalanceMinutes
-
-		if period == OverviewPeriodMonth {
-			summary.Period.SollMinutes += monthSummary.TargetMinutesToDate
-			summary.Period.IstMinutes += monthSummary.ActualMinutes
-			summary.Period.DeltaMinutes += monthSummary.BalanceMinutes
-			continue
-		}
-		week, err := monthSvc.GetRangeAggregate(ctx, staff.ID, weekStart, weekEnd)
-		if err != nil {
-			return nil, fmt.Errorf("failed to compute week aggregate for staff %d: %w", staff.ID, err)
-		}
-		summary.Period.SollMinutes += week.TargetMinutes
-		summary.Period.IstMinutes += week.ActualMinutes
-		summary.Period.DeltaMinutes += week.BalanceMinutes
-	}
-	return summary, nil
-}
-
-// addTodayCounters fills the presence and absence KPIs.
-//
-// Every set is intersected with the active-staff IDs: the presence, absence and
-// shift lookups do not join users.staff, and a leaver's sessions and absences
-// survive offboarding, so counting them raw would overstate each KPI.
-func (s *staffOverviewService) addTodayCounters(
-	ctx context.Context,
-	summary *DashboardSummary,
-	activeIDs map[int64]bool,
-	today calendar.Date,
-) error {
-	presence, err := s.sessionRepo.GetTodayPresenceMap(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to load presence map: %w", err)
-	}
-	clockedIn := make(map[int64]bool, len(presence))
-	for staffID, status := range presence {
-		// The map stores the session status for an open session and the
-		// sentinel "checked_out" otherwise; match the open statuses
-		// positively so a new status value cannot be miscounted as present.
-		if !activeIDs[staffID] {
-			continue
-		}
-		if status == WorkSessionStatusPresent || status == WorkSessionStatusHomeOffice {
-			clockedIn[staffID] = true
-		}
-	}
-	// A session opened before midnight and never closed is still someone at
-	// work, but it is not in today's presence map.
-	openSessions, err := s.sessionRepo.GetOpenSessions(ctx, today)
-	if err != nil {
-		return fmt.Errorf("failed to load open sessions: %w", err)
-	}
-	for _, session := range openSessions {
-		if activeIDs[session.StaffID] {
-			clockedIn[session.StaffID] = true
-		}
-	}
-	summary.CurrentlyClockedIn = len(clockedIn)
-
-	absences, err := s.absenceRepo.GetAbsenceMapForDate(ctx, today)
-	if err != nil {
-		return fmt.Errorf("failed to load absence map: %w", err)
-	}
-	// The map keeps ONE type per staff member by priority
-	// (sick > training > vacation > comp_time > other), so somebody with
-	// overlapping sick and vacation counts as sick only and the two counters
-	// never double-count a person.
-	for staffID, absenceType := range absences {
-		if !activeIDs[staffID] {
-			continue
-		}
-		switch absenceType {
-		case AbsenceTypeSick:
-			summary.SickToday++
-		case AbsenceTypeVacation:
-			summary.VacationToday++
-		}
-	}
-
-	expected, err := s.expectedClockedIn(ctx, activeIDs, today)
-	if err != nil {
-		return err
-	}
-	summary.ExpectedClockedIn = expected
-	return nil
-}
-
-// expectedClockedIn counts staff members whose planned shift covers this very
-// moment. Shift rows carry wall-clock TIME columns, normalized by the repo.
-func (s *staffOverviewService) expectedClockedIn(
-	ctx context.Context,
-	activeIDs map[int64]bool,
-	today calendar.Date,
-) (int, error) {
-	shiftDate := calendar.Date(today)
-	shifts, err := s.shiftRepo.FindByDateRange(ctx, shiftDate, shiftDate)
-	if err != nil {
-		return 0, fmt.Errorf("failed to load today's shifts: %w", err)
-	}
-	nowWall := calendar.NormalizeWallClock(calendar.Now())
-	expected := make(map[int64]bool)
-	for _, shift := range shifts {
-		if shift.Cancelled || !activeIDs[shift.StaffID] {
-			continue
-		}
-		start, end := calendar.NormalizeWallClock(shift.StartTime), calendar.NormalizeWallClock(shift.EndTime)
-		if !nowWall.Before(start) && !nowWall.After(end) {
-			expected[shift.StaffID] = true
-		}
-	}
-	return len(expected), nil
-}
-
-// countPendingRequests counts absences awaiting a decision — the same set
-// ListPendingRequests returns, counted through the generic filter API so no
-// rows are loaded.
-func (s *staffOverviewService) countPendingRequests(ctx context.Context) (int, error) {
-	count, err := s.absenceRepo.CountWithFilter(ctx, workforce.StaffAbsenceFilter{
-		Statuses: []string{AbsenceStatusRequested, AbsenceStatusQuestion},
-	})
-	if err != nil {
-		return 0, fmt.Errorf("failed to count pending absence requests: %w", err)
-	}
-	return count, nil
 }
