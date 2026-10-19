@@ -27,7 +27,7 @@ require (
 	github.com/uptrace/bun v1.3.0
 	github.com/uptrace/bun/dialect/pgdialect v1.3.0
 	github.com/uptrace/bun/driver/pgdriver v1.3.0
-	github.com/uudashr/gocognit v1.2.1
+	github.com/uudashr/gocognit v1.3.0
 	github.com/vanng822/go-premailer v1.37.0
 	github.com/wlbr/feiertage v1.20.1
 	github.com/wneessen/go-mail v0.8.1

@@ -269,7 +269,7 @@ var gdpr_init_sch_lerdaten_4Definitions = []config.Definition{
 	{
 		Key:             config.KeyGDPRStudentRetentionDays,
 		Label:           "Kinder nach dem letzten Betreuungstag aufbewahren (Tage)",
-		Description:     "So lange speichert moto ein Kind nach seinem letzten Betreuungstag. Danach löscht moto das Kind mit allen Angaben. Kinder, die wieder betreut werden, bleiben.",
+		Description:     "So lange speichert moto ein Kind nach seinem letzten Betreuungstag. Danach löscht moto das Kind mit allen Angaben. Kinder, die wieder betreut werden, bleiben. Jahrgangswechsel löscht moto nach derselben Zeit.",
 		Type:            config.FieldNumber,
 		Default:         365,
 		ReadPermission:  "config:read",
@@ -320,8 +320,8 @@ var gdpr_init_bewegungsdaten_5Definitions = []config.Definition{
 	},
 	{
 		Key:             config.KeyGDPRStaffMessageRetentionDays,
-		Label:           "Team-Chat aufbewahren (Tage)",
-		Description:     "Wie lange Nachrichten im internen Team-Chat gespeichert bleiben. Ältere Nachrichten werden automatisch gelöscht. Unterhaltungen ohne Nachrichten verschwinden danach aus der Übersicht.",
+		Label:           "Team-Chat und Tagesinformationen aufbewahren (Tage)",
+		Description:     "Wie lange Nachrichten im internen Team-Chat gespeichert bleiben. Ältere Nachrichten werden automatisch gelöscht. Unterhaltungen ohne Nachrichten verschwinden danach aus der Übersicht. Beendete Tagesinformationen löscht moto nach derselben Zeit.",
 		Type:            config.FieldNumber,
 		Default:         365,
 		ReadPermission:  "config:read",
@@ -339,8 +339,8 @@ var gdpr_init_bewegungsdaten_5Definitions = []config.Definition{
 	},
 	{
 		Key:             config.KeyGDPRParentMessageRetentionDays,
-		Label:           "Elternnachrichten aufbewahren (Tage)",
-		Description:     "So lange speichert moto die Nachrichten zwischen Eltern und OGS. Danach löscht moto sie. Offene Anfragen bleiben, bis die OGS sie bearbeitet hat.",
+		Label:           "Elternnachrichten und Elternbriefe aufbewahren (Tage)",
+		Description:     "So lange speichert moto die Nachrichten zwischen Eltern und OGS. Danach löscht moto sie. Offene Anfragen bleiben, bis die OGS sie bearbeitet hat. Abgelaufene Elternbriefe löscht moto nach derselben Zeit. Ohne Ablauf zählt die Veröffentlichung. Beantwortete Einverständnisse bleiben, solange das Kind gespeichert ist.",
 		Type:            config.FieldNumber,
 		Default:         365,
 		ReadPermission:  "config:read",

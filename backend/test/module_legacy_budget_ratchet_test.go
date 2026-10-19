@@ -137,8 +137,9 @@ const moduleLegacyFileBudgetTotal = 0
 var moduleLegacyFileBudgets = map[string]int{}
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
-// like every entry; raised by ADR 0063.
-const moduleComposeBudgetTotal = 20106
+// like every entry; raised by ADR 0063 and by ADR 0073 (the parent
+// announcement retention of modules/communication/composition).
+const moduleComposeBudgetTotal = 20099
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -147,12 +148,13 @@ const moduleComposeBudgetTotal = 20106
 // composition starts small and is no reason to raise the total; split code
 // keeps its LOC counted.
 var moduleComposeBudgets = map[string]int{
-	"modules/appointments/compose":                    67,
-	"modules/auditlog/compose":                        183,
-	"modules/careplan/compose":                        2460,
-	"modules/careplan/requestfeed/compose":            68,
-	"modules/classday/compose":                        461,
-	"modules/communication/composition":               1263,
+	"modules/appointments/compose":         67,
+	"modules/auditlog/compose":             183,
+	"modules/careplan/compose":             2460,
+	"modules/careplan/requestfeed/compose": 68,
+	"modules/classday/compose":             461,
+	// Raised by ADR 0073: the parent announcement retention.
+	"modules/communication/composition":               1267,
 	"modules/dataimport/compose":                      202,
 	"modules/dataimport/compose/imports":              29,
 	"modules/delivery/compose":                        759,
@@ -165,7 +167,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/facilities/compose":                      222,
 	"modules/facilities/compose/repositoryadapter":    11,
 	"modules/feedback/compose":                        86,
-	"modules/filestorage/compose":                     352,
+	"modules/filestorage/compose":                     341,
 	"modules/grouplive/compose":                       14,
 	"modules/guardianlinkview/compose":                8,
 	"modules/identityaccess/compose":                  1729,

@@ -409,13 +409,22 @@ type engine interface {
 	Command
 }
 
-type Module struct{ engine engine }
+type Module struct {
+	engine    engine
+	retention AppointmentRetention
+}
 
-func NewModule(engine engine) *Module {
+// NewModule composes the module over its engine and, for the nightly
+// cleanup, the retention of ended appointments (#4045).
+func NewModule(engine engine, retention ...AppointmentRetention) *Module {
 	if engine == nil {
 		panic("appointments: engine is required")
 	}
-	return &Module{engine: engine}
+	module := &Module{engine: engine}
+	if len(retention) > 0 {
+		module.retention = retention[0]
+	}
+	return module
 }
 
 func (m *Module) FindAppointment(ctx context.Context, id int64) (*Appointment, error) {

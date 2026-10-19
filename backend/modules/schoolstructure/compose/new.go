@@ -27,5 +27,5 @@ func New(dependencies Dependencies) (*schoolstructure.Module, error) {
 	}
 	store := postgres.New(postgres.NewAmbientDatabase(tenant.TransactionFromContext))
 	service := application.New(store, application.NewObserver(dependencies.Observe))
-	return schoolstructure.NewModule(application.NewEngine(service)), nil
+	return schoolstructure.NewModule(application.NewEngine(service), application.NewTransitionRetention(store)), nil
 }

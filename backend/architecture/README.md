@@ -5100,7 +5100,7 @@ numbered decision of the principle ADR.
 | A rule states the target only | ADR 0057 points 1 and 2 | 0070 point 1 |
 | Everything else is an exact key with one open carrier; a cutover never keeps old reach as a rule | ADR 0057 point 2 and consequences, ADR 0030, ADR 0035 to ADR 0038, ADR 0052 | 0070 point 2 |
 | `models/*` carry `legacy-model`, which no foreign owner imports | ADR 0057 point 4 | 0070 point 3 |
-| Ratchet budgets only fall; a raise needs an ADR the change adds | ADR 0057 point 5, ADR 0063, ADR 0064 | 0070 point 4 |
+| Ratchet budgets only fall; a raise needs an ADR the change adds | ADR 0057 point 5, ADR 0063, ADR 0064, ADR 0072, ADR 0073 | 0070 point 4 |
 | Pass-throughs count per owner; moved code stays in the scan | ADR 0061, ADR 0064 | 0070 point 5 |
 | A relocation renames keys and grants nothing | ADR 0020 | 0070 point 6 |
 | The epoch rises only for a reviewed decision with a finite, tested acceptor; dead acceptors are deleted | ADR 0053 point 9, ADR 0013, ADR 0015, ADR 0045, ADR 0057 point 7 | 0070 point 7 |
