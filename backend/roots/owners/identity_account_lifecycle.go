@@ -202,13 +202,18 @@ func (d staffDirectory) FindStaffByPerson(ctx context.Context, personID int64) (
 	if len(staff) == 0 {
 		return identityPorts.StaffMember{}, false, nil
 	}
+	// A person can have several former employments. Continue the latest one
+	// rather than relying on ListStaff's ascending order.
+	var latestRetired schoolmembership.Staff
 	for _, member := range staff {
 		if !member.IsDeleted() {
 			return identityPorts.StaffMember{ID: member.ID, TenantID: member.TenantID, PersonID: member.PersonID}, true, nil
 		}
+		if member.ID > latestRetired.ID {
+			latestRetired = member
+		}
 	}
-	member := staff[0]
-	return identityPorts.StaffMember{ID: member.ID, TenantID: member.TenantID, PersonID: member.PersonID, Deleted: true}, true, nil
+	return identityPorts.StaffMember{ID: latestRetired.ID, TenantID: latestRetired.TenantID, PersonID: latestRetired.PersonID, Deleted: true}, true, nil
 }
 
 // CreateStaff creates the staff row at the school in context, which is the

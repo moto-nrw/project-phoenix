@@ -329,7 +329,8 @@ func (d *lifecycleStaff) IsStudentPerson(_ context.Context, personID int64) (boo
 }
 
 func (d *lifecycleStaff) FindStaffByPerson(_ context.Context, personID int64) (domain.StaffMember, bool, error) {
-	var retired *domain.StaffMember
+	var retired domain.StaffMember
+	retiredFound := false
 	for _, member := range d.staff {
 		if member.PersonID != personID {
 			continue
@@ -337,10 +338,13 @@ func (d *lifecycleStaff) FindStaffByPerson(_ context.Context, personID int64) (d
 		if !member.Deleted {
 			return member, true, nil
 		}
-		retired = &member
+		if !retiredFound || member.ID > retired.ID {
+			retired = member
+			retiredFound = true
+		}
 	}
-	if retired != nil {
-		return *retired, true, nil
+	if retiredFound {
+		return retired, true, nil
 	}
 	return domain.StaffMember{}, false, nil
 }
