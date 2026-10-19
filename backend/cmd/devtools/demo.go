@@ -16,10 +16,10 @@ import (
 	"syscall"
 	"time"
 
+	seedapi "github.com/moto-nrw/project-phoenix/internal/devtools/seedapi"
+	"github.com/moto-nrw/project-phoenix/internal/devtools/simulate"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/simulate"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"

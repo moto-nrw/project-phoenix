@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	directoryPorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -25,7 +27,7 @@ func TestModuleCareExitRemovesOnlyPlansAndRestoresSnapshots(t *testing.T) {
 		Provenance:          testpkg.EnrollmentProvenance{},
 		LockStaffAssignment: func(context.Context, int64) error { return nil },
 		DB:                  db,
-		Students:            StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) { return nil, nil }),
+		Students:            directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) { return nil, nil }),
 		Rooms: timetable.RoomDirectoryFunc(func(_ context.Context, ids []int64) ([]timetable.RoomRef, error) {
 			assert.Equal(t, []int64{room.ID}, ids)
 			return []timetable.RoomRef{{ID: room.ID, TenantID: testpkg.Tenant(t)}}, nil

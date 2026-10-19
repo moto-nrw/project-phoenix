@@ -2,7 +2,6 @@ package compose
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -44,53 +43,27 @@ type OwnerRooms interface {
 
 // OperationTemplates is the template read of the operational day, which the
 // retained activity group repository serves beside its model interface.
-func (r OwnerRows) OperationTemplates() (ports.OperationTemplates, error) {
-	templates, ok := r.Templates.(ports.OperationTemplates)
-	if !ok {
-		return nil, fmt.Errorf("timetable operations: %T cannot read template targets", r.Templates)
-	}
-	return templates, nil
+func NewOperationTemplates(rows ports.ActivityGroupRecords) (ports.OperationTemplates, error) {
+	return application.NewOperationTemplates(rows)
 }
 
 // DataTemplates is the Vorlagen read of the planner.
-func (r OwnerRows) DataTemplates() (ports.DataTemplates, error) {
-	templates, ok := r.Templates.(ports.DataTemplates)
-	if !ok {
-		return nil, fmt.Errorf("timetable data: %T cannot read the template list", r.Templates)
-	}
-	return templates, nil
+func NewDataTemplates(rows ports.ActivityGroupRecords) (ports.DataTemplates, error) {
+	return application.NewDataTemplates(rows)
 }
 
 // EndedSessionInstances is the session listing of the ended-session
 // completion.
-func (r OwnerRows) EndedSessionInstances() (ports.EndedSessionInstances, error) {
-	instances, ok := r.Instances.(ports.EndedSessionInstances)
-	if !ok {
-		return nil, fmt.Errorf("ended session completion: %T cannot list instances by session", r.Instances)
-	}
-	return instances, nil
+func NewEndedSessionInstances(rows ports.ActivityInstanceRecords) (ports.EndedSessionInstances, error) {
+	return application.NewEndedSessionInstances(rows)
 }
 
 // SickCascadeRows are the Betreuungsplan rows the #1843 sick cascade reads,
 // with the day-wide staffing lock (#1840) the caller supplies.
-func (r OwnerRows) SickCascadeRows(dayLock func(context.Context, calendar.Date) error) SickCascadeTimetableRows {
-	return SickCascadeTimetableRows{
-		TimetableInstanceReads: application.NewTimetableInstanceReads(r.Instances), TimetableInstanceStaffReads: application.NewTimetableInstanceStaffReads(r.InstanceStaff), dayLock: dayLock,
-	}
-}
-
-// SickCascadeTimetableRows serves the shift-plan-sync workflow's timetable
-// port from the retained rows, in the Timetable owner's public vocabulary.
-type SickCascadeTimetableRows struct {
-	application.TimetableInstanceReads
-	application.TimetableInstanceStaffReads
-	dayLock func(context.Context, calendar.Date) error
-}
-
-// AcquireSubstituteDayLock serializes the day-wide staffing mutations of the
-// tenant within the caller's transaction.
-func (r SickCascadeTimetableRows) AcquireSubstituteDayLock(ctx context.Context, date calendar.Date) error {
-	return r.dayLock(ctx, date)
+func (r OwnerRows) SickCascadeRows(dayLock func(context.Context, calendar.Date) error) application.SickCascadeTimetableRows {
+	return application.NewSickCascadeTimetableRows(
+		r.Instances, r.InstanceStaff, dayLock,
+	)
 }
 
 // TemplateRows are the retained repository rows the Timetable owner's

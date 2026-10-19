@@ -2,11 +2,10 @@ package staffpostgres
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/uptrace/bun"
 )
 
@@ -36,8 +35,8 @@ type staffMessageRow struct {
 	Body            string    `bun:"body,notnull"`
 }
 
-func (r *staffMessageRow) value() *domain.StaffMessage {
-	return &domain.StaffMessage{
+func (r *staffMessageRow) value() *communication.StaffMessageRecord {
+	return &communication.StaffMessageRecord{
 		ID: r.ID, TenantID: r.TenantID, ThreadID: r.ThreadID,
 		SenderAccountID: r.SenderAccountID, SenderName: r.SenderName, Body: r.Body,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
@@ -52,10 +51,9 @@ func (r *staffMessageRow) value() *domain.StaffMessage {
 // because both halves of the (created_at, id) composite are what the caller
 // feeds into TouchLastMessage and the read cursor — computing them in Go would
 // reintroduce exactly the skew the database default exists to avoid.
-func (s *MessageStore) Create(ctx context.Context, message *domain.StaffMessage) error {
-	if message == nil {
-		return errors.New("create staff message: message is required")
-	}
+func (s *MessageStore) CreateStaffMessage(ctx context.Context, input *communication.StaffMessageRecord) error {
+	// Preserve the facade's success-only copyback, including its nil-input contract.
+	message := *input
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return err
@@ -79,13 +77,14 @@ func (s *MessageStore) Create(ctx context.Context, message *domain.StaffMessage)
 	message.ID = row.ID
 	message.CreatedAt = row.CreatedAt
 	message.UpdatedAt = row.UpdatedAt
+	input.ID, input.TenantID, input.CreatedAt, input.UpdatedAt = message.ID, message.TenantID, message.CreatedAt, message.UpdatedAt
 	return nil
 }
 
 // ListByThread returns the thread's messages oldest-first, which is the order
 // the chat window renders. Ties on created_at break by id, matching the
 // composite the unread cursor compares against.
-func (s *MessageStore) ListByThread(ctx context.Context, threadID int64) ([]*domain.StaffMessage, error) {
+func (s *MessageStore) ListStaffMessages(ctx context.Context, threadID int64) ([]*communication.StaffMessageRecord, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, err
@@ -101,7 +100,7 @@ func (s *MessageStore) ListByThread(ctx context.Context, threadID int64) ([]*dom
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list staff messages by thread: %w", err)
 	}
-	messages := make([]*domain.StaffMessage, 0, len(rows))
+	messages := make([]*communication.StaffMessageRecord, 0, len(rows))
 	for i := range rows {
 		messages = append(messages, rows[i].value())
 	}
@@ -110,7 +109,7 @@ func (s *MessageStore) ListByThread(ctx context.Context, threadID int64) ([]*dom
 
 // DeleteOlderThan removes messages created before the cutoff across the whole
 // tenant (retention housekeeping) and reports how many rows went.
-func (s *MessageStore) DeleteOlderThan(ctx context.Context, cutoff time.Time) (int64, error) {
+func (s *MessageStore) DeleteStaffMessagesBefore(ctx context.Context, cutoff time.Time) (int64, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return 0, err

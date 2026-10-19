@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/simulate"
+	"github.com/moto-nrw/project-phoenix/internal/devtools/simulate"
 	"github.com/spf13/cobra"
 )
 

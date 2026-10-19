@@ -5,6 +5,8 @@ package api
 import (
 	"context"
 
+	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
+
 	carePlanHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -15,7 +17,7 @@ import (
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -63,7 +65,7 @@ func NewCareLifecycleTestModule(db transactionruntime.Database, unit tenant.Unit
 // caller's staff identity or leave an audit repository out.
 func NewStudentDocumentsTestModule(
 	db transactionruntime.Database, records careplan.Capability, students peoplePorts.StudentRepository,
-	userContext securityruntime.StudentAccessUserContext,
+	userContext securitycontract.StudentAccessUserContext,
 	edits auditModels.StudentFieldEditRepository, accessLog auditModels.DataAccessLogRepository,
 ) (careplan.StudentDocuments, error) {
 	health, legal, fallback := carePlanHTTP.StudentDocumentPermissions()

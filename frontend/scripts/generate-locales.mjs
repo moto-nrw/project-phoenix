@@ -1,12 +1,12 @@
 import { readFile, writeFile } from "node:fs/promises";
 
 // Generates frontend/src/i18n/locales.generated.ts from the single source of
-// truth (backend/localization/locales.json). Run after adding a language:
+// truth (backend/modules/delivery/internal/adapters/localization/locales.json). Run after adding a language:
 //   pnpm run generate:locales
 // verify-locales.mjs (part of `pnpm run check`) guards that the mirror matches.
 
 const backendLocalesUrl = new URL(
-  "../../backend/localization/locales.json",
+  "../../backend/modules/delivery/internal/adapters/localization/locales.json",
   import.meta.url,
 );
 const generatedLocalesUrl = new URL(

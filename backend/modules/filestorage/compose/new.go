@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/filestorage"
-	apiDocuments "github.com/moto-nrw/project-phoenix/modules/filestorage/documents"
+	apiDocuments "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/documents"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"

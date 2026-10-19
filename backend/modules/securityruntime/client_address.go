@@ -3,7 +3,7 @@ package securityruntime
 import (
 	"net"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/application/authorize"
 )
 
 // ParseClientAddress parses the client address an audited operation carries,

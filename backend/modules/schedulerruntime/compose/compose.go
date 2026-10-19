@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/cleanupruns"
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/internal/adapters/cleanupruns"
 	scheduler "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/jobruntime"
 	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"

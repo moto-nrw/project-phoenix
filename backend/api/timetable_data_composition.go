@@ -28,7 +28,7 @@ func NewTimetableData(
 	visits timetablePorts.OperationVisits, groups timetablePorts.DataGroups, sessions studentpresence.SessionRecords,
 	conflictAcks timetable.ConflictAckCapability, blockMetadata timetablePorts.BlockDisplayMetadata, transactional bool, logger *slog.Logger,
 ) (timetable.TimetableDataCapability, error) {
-	templates, err := rows.DataTemplates()
+	templates, err := timetableCompose.NewDataTemplates(rows.Templates)
 	if err != nil {
 		return nil, err
 	}

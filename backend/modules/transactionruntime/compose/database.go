@@ -5,7 +5,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime/internal/adapters/database"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 

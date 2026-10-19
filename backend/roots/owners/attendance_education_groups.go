@@ -3,6 +3,8 @@ package owners
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
@@ -10,7 +12,9 @@ import (
 )
 
 type attendanceEducationGroups struct {
-	groups   *schoolStructure.GroupRoomDirectory
+	groups interface {
+		ListGroupRooms(context.Context) ([]*schoolstructure.GroupRoomAssignment, error)
+	}
 	students attendanceGroupStudents
 }
 

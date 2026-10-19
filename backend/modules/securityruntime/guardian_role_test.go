@@ -3,7 +3,7 @@ package securityruntime
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/application/authorize"
 )
 
 type guardianRoleRecord struct {

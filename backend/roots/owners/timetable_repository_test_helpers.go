@@ -3,6 +3,7 @@
 package owners
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -101,7 +102,7 @@ func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, mem
 		calendarPeriodUsage:      usage,
 		rosterStudents:           NewTimetableRosterStudents(members.Student), educationGroups: structure.Group,
 		educationGroupNames: TimetableEducationGroupNames(structure.Group),
-		ownerRooms:          facilitiesCompose.NewRoomNameDirectory(rooms.Room.Records),
+		ownerRooms:          facilitiesCompose.NewRoomNameDirectory(rooms.Room),
 	}
 	result.deviationEvents, result.deviations = TimetableDeviationPorts(nil)
 	result.Timetable = bookings
@@ -170,7 +171,7 @@ func NewTimetableCarePlanRows(db transactionruntime.Database, timetable Timetabl
 // TimetableRoomRows are the Facilities rooms the timetable suites arrange
 // through.
 type TimetableRoomRows struct {
-	Room *facilitiesAdapter.Repository
+	Room RoomTestRecords
 	// Facilities is the owner capability the Room adapter delegates to.
 	Facilities facilitiesModule.Capability
 }
@@ -221,4 +222,18 @@ func (r TimetableTestRepositories) TimetableTemplateRows() timetableCompose.Temp
 		InstanceStaff: r.InstanceStaff, Participants: r.InstanceStudent, Timeframes: r.Timeframe,
 		CalendarPeriods: r.CalendarPeriod, Exceptions: r.ActivityException, EducationGroups: r.educationGroups,
 	}
+}
+
+// RoomTestRecords is the room-only fixture capability consumed by integration suites.
+type RoomTestRecords interface {
+	facilitiesModule.Query
+	facilitiesModule.Command
+	FindByID(context.Context, any) (*facilitiesModule.Room, error)
+	List(context.Context, map[string]any) ([]*facilitiesModule.Room, error)
+	FindByIDs(context.Context, []int64) ([]*facilitiesModule.Room, error)
+	FindByIDForUpdate(context.Context, int64) (*facilitiesModule.Room, error)
+	FindByName(context.Context, string) (*facilitiesModule.Room, error)
+	Create(context.Context, *facilitiesModule.Room) error
+	Update(context.Context, *facilitiesModule.Room) error
+	Delete(context.Context, any) error
 }

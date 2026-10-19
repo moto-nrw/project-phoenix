@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
@@ -97,7 +99,12 @@ func (m ActiveEducation) TeacherGroupIDs(ctx context.Context, teacherID int64) (
 // ActivePeople is the People Directory side of the active graph.
 type ActivePeople struct {
 	Users  peoplePorts.PersonDirectory
-	People peopleCompose.GroupRoutePeople
+	People interface {
+		GroupStudents(context.Context, int64) ([]peopleValues.StudentRecord, error)
+		CountStudentsByGroupIDs(context.Context, []int64) (map[int64]int, error)
+		FindPerson(context.Context, int64) (peopleValues.Person, error)
+		ListPersonsByID(context.Context, []int64) (map[int64]peopleValues.Person, error)
+	}
 }
 
 func (m ActivePeople) AttendancePeople() AttendanceRoutePeople {
@@ -106,7 +113,10 @@ func (m ActivePeople) AttendancePeople() AttendanceRoutePeople {
 
 // NewActiveTestAttendanceStaff is the attendance routes' staff port over the
 // caller rows of the active graph.
-func NewActiveTestAttendanceStaff(caller *owners.CallerRows) peopleCompose.AttendanceRouteStaff {
+func NewActiveTestAttendanceStaff(caller *owners.CallerRows) interface {
+	GetCurrentStaff(context.Context) (int64, int64, bool, error)
+	HasCurrentStaff(context.Context) (bool, error)
+} {
 	return peopleCompose.NewAttendanceRouteStaff(caller)
 }
 

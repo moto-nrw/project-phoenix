@@ -48,7 +48,7 @@ on:
       - ".github/workflows/product-screenshots.yml"
       - "frontend/scripts/product-screenshots/**"
       - "frontend/playwright.screenshots.config.ts"
-      - "backend/seed/api/marketing*"
+      - "backend/internal/devtools/seedapi/marketing*"
 
 permissions: {}
 

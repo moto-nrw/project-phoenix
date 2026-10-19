@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	snapshotRecords "github.com/moto-nrw/project-phoenix/modules/settings/records"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -18,7 +18,7 @@ import (
 // SettingsTestModule contains only the settings application capabilities.
 type SettingsTestModule struct {
 	Settings       settingsCompose.BatchSettingsService
-	TenantSettings configModel.TenantOperationsService
+	TenantSettings snapshotRecords.TenantOperationsService
 	Payroll        settingsCompose.PayrollStatusGetter
 	Runtime        settingsCompose.TenantOperationsRuntime
 }
@@ -68,12 +68,12 @@ func NewSettingsTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 
 // TenantSettingsWithHook is TenantSettings with the value-set side effect
 // hook bound at construction.
-func (m SettingsTestModule) TenantSettingsWithHook(hook func(context.Context, int64, string, any) (func(), error)) configModel.TenantOperationsService {
+func (m SettingsTestModule) TenantSettingsWithHook(hook func(context.Context, int64, string, any) (func(), error)) snapshotRecords.TenantOperationsService {
 	return settingsCompose.NewTenantOperations(m.Settings, m.Payroll, m.Runtime, hook, nil)
 }
 
 // TenantSnapshots binds the Worker's minute-snapshot read over this module's
 // settings service, the way the Serve root binds it (#2746).
-func (m SettingsTestModule) TenantSnapshots() (settingsCompose.TenantSnapshots, error) {
+func (m SettingsTestModule) TenantSnapshots() (snapshotRecords.TenantSnapshots, error) {
 	return settingsCompose.NewTenantSnapshots(m.Settings)
 }

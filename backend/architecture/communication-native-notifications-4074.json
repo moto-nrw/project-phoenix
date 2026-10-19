@@ -52,7 +52,7 @@
       "backend/modules/delivery/devices/notification_commands.go",
       "backend/modules/delivery/devices/parent_policy.go",
       "backend/modules/delivery/application/notifications/native_commands.go",
-      "backend/modules/delivery/application/locales/parent_copy.go"
+      "https://github.com/moto-nrw/project-phoenix/blob/121b0ee5130db5ec6b289965f495acdca6285744/backend/modules/delivery/application/locales/parent_copy.go"
     ],
     "workload": "Existing actual Communication/Delivery/API behavior and localized copy suites, native boundary probes and full nonfast structural gates.",
     "thresholds": "Twelve exact imports absent; same dispatch, consent, transactions, copy, error identity and selector semantics. No grant, alias or increased budget.",

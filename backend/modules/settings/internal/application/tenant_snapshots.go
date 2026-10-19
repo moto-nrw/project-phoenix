@@ -1,0 +1,60 @@
+package config
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
+)
+
+var errBatchUnsupported = errors.New("settings service does not resolve many schools at once")
+
+// NewTenantSnapshots binds the cross-tenant batch read of the retained
+// settings service, for consumers that preload the settings of every school
+// at once, such as the Worker's minute snapshot (#2746).
+func NewTenantSnapshots(service configModel.SettingsService) (configModel.TenantSnapshots, error) {
+	batch, ok := service.(configModel.BatchSettingsService)
+	if !ok {
+		return nil, errBatchUnsupported
+	}
+	return func(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]configModel.TenantSnapshot, error) {
+		resolved, err := batch.ResolveManyForTenants(ctx, tenantIDs, keys)
+		if err != nil {
+			return nil, err
+		}
+		snapshots := make(map[int64]configModel.TenantSnapshot, len(resolved))
+		for tenantID, snapshot := range resolved {
+			if snapshot != nil {
+				snapshots[tenantID] = tenantSnapshot{snapshot: snapshot}
+			}
+		}
+		return snapshots, nil
+	}, nil
+}
+
+type tenantSnapshot struct {
+	snapshot *configModel.SettingsSnapshot
+}
+
+func (s tenantSnapshot) Bind(ctx context.Context) context.Context {
+	return configModel.WithSettingsSnapshot(ctx, s.snapshot)
+}
+
+// VerifyPreloadKeys refuses keys a consumer preloads for every school when
+// the registry does not define them or defines them as secrets. An unknown
+// key answers its fallback on every read, and a secret must not sit in a
+// long-lived snapshot.
+func VerifyPreloadKeys(keys []string) error {
+	var problems []error
+	for _, key := range keys {
+		definition := configModel.GetDefinition(key)
+		switch {
+		case definition == nil:
+			problems = append(problems, fmt.Errorf("setting %q is not registered", key))
+		case definition.Type == configModel.FieldPassword:
+			problems = append(problems, fmt.Errorf("setting %q is a secret", key))
+		}
+	}
+	return errors.Join(problems...)
+}

@@ -7,8 +7,6 @@ import (
 
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 
-	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
@@ -16,7 +14,7 @@ import (
 )
 
 // supervisionTeacherStaff maps every given live teacher to its staff member.
-func supervisionTeacherStaff(membership schoolMembershipCompose.StaffLookup) func(context.Context, []int64) (map[int64]int64, error) {
+func supervisionTeacherStaff(membership StaffLookup) func(context.Context, []int64) (map[int64]int64, error) {
 	return func(ctx context.Context, teacherIDs []int64) (map[int64]int64, error) {
 		teachers, err := membership.ListTeachers(ctx, schoolmembership.TeacherFilter{IDs: teacherIDs})
 		if err != nil {
@@ -31,9 +29,9 @@ func supervisionTeacherStaff(membership schoolMembershipCompose.StaffLookup) fun
 }
 
 // supervisionLiveStaff reports the given staff members that are still live.
-func supervisionLiveStaff(membership schoolMembershipCompose.StaffLookup) func(context.Context, []int64) (map[int64]bool, error) {
+func supervisionLiveStaff(membership StaffLookup) func(context.Context, []int64) (map[int64]bool, error) {
 	return func(ctx context.Context, staffIDs []int64) (map[int64]bool, error) {
-		live, err := schoolMembershipCompose.StaffByID(ctx, membership, staffIDs, false)
+		live, err := StaffByID(ctx, membership, staffIDs, false)
 		if err != nil {
 			return nil, err
 		}
@@ -67,10 +65,10 @@ func supervisionSubstitutes(capability workforce.Capability) func(context.Contex
 type groupSubstitutions struct {
 	GroupSubstitutionRows
 	groups     func(ctx context.Context, ids []int64) (map[int64]*educationRepo.Group, error)
-	membership schoolMembershipCompose.StaffLookup
+	membership StaffLookup
 }
 
-func newGroupSubstitutions(rows GroupSubstitutionRows, groups func(context.Context, []int64) (map[int64]*educationRepo.Group, error), membership schoolMembershipCompose.StaffLookup) groupSubstitutions {
+func newGroupSubstitutions(rows GroupSubstitutionRows, groups func(context.Context, []int64) (map[int64]*educationRepo.Group, error), membership StaffLookup) groupSubstitutions {
 	return groupSubstitutions{GroupSubstitutionRows: rows, groups: groups, membership: membership}
 }
 
@@ -144,7 +142,7 @@ func (r groupSubstitutions) attachStaff(ctx context.Context, rows []*educationRe
 			staffIDs = append(staffIDs, *row.RegularStaffID)
 		}
 	}
-	members, err := schoolMembershipCompose.StaffByID(ctx, r.membership, staffIDs, true)
+	members, err := StaffByID(ctx, r.membership, staffIDs, true)
 	if err != nil {
 		return err
 	}
@@ -263,7 +261,7 @@ func HandoverFilter(query educationRepo.HandoverQuery) workforce.GroupSubstituti
 // NewGroupSubstitutionRepository serves the retained group substitution
 // contract over Workforce (#2688): the rows are Workforce's, the groups
 // resolve through the group store and the staff through School Membership.
-func NewGroupSubstitutionRepository(groups EducationGroupRows, membership schoolMembershipCompose.StaffLookup, workTime workforce.Capability) GroupSubstitutions {
+func NewGroupSubstitutionRepository(groups EducationGroupRows, membership StaffLookup, workTime workforce.Capability) GroupSubstitutions {
 	return newGroupSubstitutions(
 		workforceCompose.NewGroupSubstitutionRepository(workTime, func(ctx context.Context, ids []int64) (map[int64]string, error) {
 			return educationRepo.NewGroupNames(groups).GroupNamesByID(ctx, ids)
