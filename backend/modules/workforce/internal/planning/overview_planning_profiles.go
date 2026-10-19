@@ -13,7 +13,7 @@ func weeksWithShifts(shifts []*StaffShift) []calendar.Date {
 	seen := make(map[calendar.Date]bool)
 	weeks := make([]calendar.Date, 0)
 	for _, shift := range shifts {
-		if shift == nil {
+		if shift == nil || shift.Cancelled {
 			continue
 		}
 		monday, _ := containingCalendarWeek(shift.Date)

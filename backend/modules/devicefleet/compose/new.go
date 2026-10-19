@@ -126,9 +126,8 @@ func New(dependencies Dependencies) (*devicefleet.Module, error) {
 	return devicefleet.NewModule(application.NewEngine(service, observe, now)), nil
 }
 
-// databaseRuntime resolves the ambient transaction and tenant. A missing
-// tenant is not an error: device authentication and the public dashboard
-// route both run before one exists.
+// databaseRuntime requires an ambient school or explicit administrative unit.
+// Pre-school authentication and public-token discovery use named capabilities.
 func databaseRuntime(db *bun.DB) postgres.Database {
 	return func(ctx context.Context) (bun.IDB, postgres.TenantScope, error) {
 		id, scopeErr := tenant.TenantFromContext(ctx)
