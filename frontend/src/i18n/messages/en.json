@@ -1505,6 +1505,7 @@
     "requestSubmitted": "Request sent. The team will review your change.",
     "requestEdit": "Edit request",
     "pendingBadge": "Under review",
+    "pendingTitle": "Requested change",
     "pendingNotice": "A change to this field is awaiting confirmation by the team.",
     "editDisabled": "Editing these details is disabled for this OGS.",
     "requestDisabled": "Change requests are disabled for this OGS.",

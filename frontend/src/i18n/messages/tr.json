@@ -1505,6 +1505,7 @@
     "requestSubmitted": "Talep gönderildi. Ekip değişikliğinizi inceliyor.",
     "requestEdit": "Talebi düzenle",
     "pendingBadge": "İnceleniyor",
+    "pendingTitle": "Talep edilen değişiklik",
     "pendingNotice": "Bu alandaki bir değişiklik ekibin onayını bekliyor.",
     "editDisabled": "Bu OGS'de bu bilgiler düzenlenemez.",
     "requestDisabled": "Bu OGS'de değişiklik talepleri kapalı.",
