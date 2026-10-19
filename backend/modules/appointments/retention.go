@@ -52,7 +52,9 @@ func (c RetentionCandidate) LastDay() (Date, bool) {
 		span := appointment.StartDate.DaysUntil(appointment.EndDate)
 		switch {
 		case c.Rule.EndsOn != nil:
-			last = c.Rule.EndsOn.AddDays(span)
+			if dates := ExpandOccurrences(appointment, c.Rule, appointment.StartDate, *c.Rule.EndsOn); len(dates) > 0 {
+				last = dates[len(dates)-1].AddDays(span)
+			}
 		case c.Rule.OccurrenceCount != nil:
 			if dates := boundedRecurrenceDates(appointment, c.Rule, *c.Rule.OccurrenceCount); len(dates) > 0 {
 				last = dates[len(dates)-1].AddDays(span)

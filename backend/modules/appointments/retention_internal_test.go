@@ -21,9 +21,13 @@ func TestRetentionCandidateLastDay(t *testing.T) {
 	}{
 		{name: "single appointment ends on its end date",
 			candidate: RetentionCandidate{Appointment: twoDays}, want: NewDate(2026, 1, 6), ends: true},
-		{name: "a series bounded by a date ends with the span of the last possible start",
+		{name: "a series bounded by a date ends with the span of its last occurrence",
 			candidate: RetentionCandidate{Appointment: twoDays, Rule: &RecurrenceRule{
 				Frequency: RecurrenceFrequencyWeekly, IntervalCount: 1, Weekdays: []string{"monday"}, EndsOn: date(NewDate(2026, 3, 2)),
+			}}, want: NewDate(2026, 3, 3), ends: true},
+		{name: "a series bounded between occurrences ends with the preceding occurrence",
+			candidate: RetentionCandidate{Appointment: twoDays, Rule: &RecurrenceRule{
+				Frequency: RecurrenceFrequencyWeekly, IntervalCount: 1, Weekdays: []string{"monday"}, EndsOn: date(NewDate(2026, 3, 4)),
 			}}, want: NewDate(2026, 3, 3), ends: true},
 		{name: "a counted series ends with its last occurrence",
 			candidate: RetentionCandidate{Appointment: twoDays, Rule: &RecurrenceRule{

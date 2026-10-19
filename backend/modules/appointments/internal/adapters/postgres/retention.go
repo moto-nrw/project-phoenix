@@ -110,7 +110,10 @@ func (s *Store) DeleteAppointments(ctx context.Context, ids []int64) (int, error
 		return 0, err
 	}
 	query := db.NewDelete().Model((*appointmentRow)(nil)).ModelTableExpr(appointmentTable).
-		Where(`"appointment".id IN (?)`, bun.List(ids))
+		Where(`"appointment".id IN (?)`, bun.List(ids)).
+		// A cancellation or soft deletion can happen after the candidate scan.
+		// Keep that fresh tombstone for the feed-retention window instead.
+		Where(`"appointment".cancelled_at IS NULL AND "appointment".deleted_at IS NULL`)
 	_, rows, err := execute(ctx, withTenant(query, "appointment", tenantID), "delete expired appointments")
 	return int(rows), err
 }
