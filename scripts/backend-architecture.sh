@@ -41,6 +41,11 @@ case "${1:-}" in
     fi
     run_with_default_baseline check "$@"
     ;;
+  relocations)
+    shift
+    cd "$repo_root/scripts/backend-architecture"
+    exec go run . relocations "$@"
+    ;;
   explain)
     shift
     cd "$repo_root/scripts/backend-architecture"
@@ -68,7 +73,7 @@ case "${1:-}" in
     exec go run . validate-ticket "$@"
     ;;
   *)
-    echo "Usage: $0 {check [--project path] [--policy path] [--baseline path] [--base-ref sha]|explain|audit-issues --api-url url|diagram [--output dir]|dependencies --focus module-or-package [--output dir]|cycles [--graph target|migration|both] [--json]|validate-ticket [--ticket path|--all] [--base-ref sha]}" >&2
+    echo "Usage: $0 {check [--project path] [--policy path] [--baseline path] [--base-ref sha]|explain|audit-issues --api-url url|diagram [--output dir]|dependencies --focus module-or-package [--output dir]|cycles [--graph target|migration|both] [--json]|relocations --base-ref sha|validate-ticket [--ticket path|--all] [--base-ref sha]}" >&2
     exit 2
     ;;
 esac

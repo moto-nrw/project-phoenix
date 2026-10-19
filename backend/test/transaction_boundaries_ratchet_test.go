@@ -259,31 +259,6 @@ func TestTransactionScannerIncludesRestrictedDemoScope(t *testing.T) {
 	}
 }
 
-func transactionExpression(node ast.Expr) string {
-	switch node := node.(type) {
-	case *ast.Ident:
-		return node.Name
-	case *ast.SelectorExpr:
-		return transactionExpression(node.X) + "." + node.Sel.Name
-	case *ast.StarExpr:
-		return "*" + transactionExpression(node.X)
-	case *ast.CallExpr:
-		return transactionExpression(node.Fun) + "()"
-	case *ast.IndexExpr:
-		return transactionExpression(node.X) + "[]"
-	case *ast.IndexListExpr:
-		return transactionExpression(node.X) + "[]"
-	case *ast.CompositeLit:
-		return transactionExpression(node.Type) + "{}"
-	case *ast.UnaryExpr:
-		return node.Op.String() + transactionExpression(node.X)
-	case *ast.ParenExpr:
-		return "(" + transactionExpression(node.X) + ")"
-	default:
-		panic(fmt.Sprintf("unsupported transaction target %T", node))
-	}
-}
-
 // Permission flags can share API names (Caller.AdminScope is a bool). Resolve
 // local parameter/struct fields so passing such a value is not an admin start.
 func scalarTransactionFields(dir string, decl *ast.FuncDecl, cache map[string]map[string]map[string]bool) map[string]bool {

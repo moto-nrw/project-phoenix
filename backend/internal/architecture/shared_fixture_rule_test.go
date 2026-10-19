@@ -113,13 +113,13 @@ func noCreated() map[string]struct{} { return map[string]struct{}{} }
 func TestSharedFixtureRulesPassOnlyInAReviewedEpoch(t *testing.T) {
 	t.Parallel()
 	base, candidate := sharedFixturePolicies(t)
-	if err := comparePolicyStrictness(base, candidate, noCreated(), noCreated(), noCreated(), noCreated(), noCreated()); err != nil {
+	if err := comparePolicyStrictness(base, candidate, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil); err != nil {
 		t.Fatalf("reviewed shared-fixture epoch was rejected: %v", err)
 	}
 
 	unreviewed := *candidate
 	unreviewed.PolicyEpoch = base.PolicyEpoch
-	err := comparePolicyStrictness(base, &unreviewed, noCreated(), noCreated(), noCreated(), noCreated(), noCreated())
+	err := comparePolicyStrictness(base, &unreviewed, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil)
 	if err == nil || !strings.Contains(err.Error(), "rule shared-fixtures.") {
 		t.Fatalf("shared-fixture rules passed without an epoch increase: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestSharedFixtureEpochGrantsNothingElse(t *testing.T) {
 		base, candidate := sharedFixturePolicies(t)
 		widened := *candidate
 		widened.Rules = append(slices.Clone(candidate.Rules), extra)
-		err := comparePolicyStrictness(base, &widened, noCreated(), noCreated(), noCreated(), noCreated(), noCreated())
+		err := comparePolicyStrictness(base, &widened, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil)
 		if err == nil || !strings.Contains(err.Error(), "rule "+extra.ID) {
 			t.Fatalf("%s: the reviewed epoch admitted a rule outside the shared-fixture shape: %v", extra.ID, err)
 		}
