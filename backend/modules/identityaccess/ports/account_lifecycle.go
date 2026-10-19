@@ -121,6 +121,9 @@ const (
 type GuardianDirectory interface {
 	FindGuardianProfileByEmail(ctx context.Context, email string) (GuardianProfile, bool, error)
 	FindGuardianProfile(ctx context.Context, id int64) (GuardianProfile, bool, error)
+	// LockGuardianProfile locks the profile for the caller's transaction and
+	// reports whether it exists in that tenant.
+	LockGuardianProfile(ctx context.Context, id int64) (bool, error)
 	FindGuardianProfiles(ctx context.Context, ids []int64) (map[int64]GuardianProfile, error)
 	CreateGuardianProfile(ctx context.Context, profile GuardianProfile) (int64, error)
 	DeleteGuardianProfile(ctx context.Context, id int64) error

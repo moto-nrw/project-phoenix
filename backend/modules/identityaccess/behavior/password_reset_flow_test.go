@@ -100,6 +100,24 @@ func TestInitiatePasswordResetIssuesARedeemableLink(t *testing.T) {
 		"an expired link is refused")
 }
 
+func TestPasswordResetRejectsAnErasedAccount(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	resets := newResetCapability(t, db)
+	ctx := testpkg.Ctx(t)
+	email := resetAccount(t, db, "reset-erased-account")
+
+	token, err := resets.InitiatePasswordReset(ctx, email, identityaccess.PasswordResetScopeStaff)
+	require.NoError(t, err)
+	require.NotNil(t, token)
+	_, err = db.NewRaw(`UPDATE auth.accounts SET personal_data_erased_at = NOW() WHERE id = ?`, token.AccountID).Exec(ctx)
+	require.NoError(t, err)
+
+	require.ErrorIs(t, resets.ResetPassword(ctx, token.Token, resetPassword), identityaccess.ErrInvalidToken)
+	used, _ := storedResetToken(t, db, token.ID)
+	require.False(t, used, "a refused reset does not spend the token")
+}
+
 // Issuing a link spends the account's previous one, so only the newest link
 // in an inbox works.
 func TestInitiatePasswordResetInvalidatesThePreviousLink(t *testing.T) {

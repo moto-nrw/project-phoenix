@@ -15,6 +15,8 @@ import (
 	enrollmentModule "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	fileStorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
@@ -77,6 +79,36 @@ type staffRetention interface {
 	DeleteExpiredStaff(ctx context.Context) (staffoffboarding.RetentionResult, error)
 }
 
+// guardianRetention deletes parent contacts that no longer have a child.
+// Identity & Access names the contacts whose open invitation must keep them.
+type guardianRetention struct {
+	people      peopleModule.ChildlessGuardianRetention
+	invitations peopleModule.OpenGuardianInvitations
+}
+
+func newGuardianRetention(db transactionruntime.Database, invitations identityaccess.GuardianInvitationReads) guardianRetention {
+	return guardianRetention{
+		people:      peopleCompose.MustNewReads(db.Pool(), studentDirectoryView.NewReader()),
+		invitations: openGuardianInvitations(invitations),
+	}
+}
+
+func openGuardianInvitations(identity interface {
+	ListOpenGuardianInvitations(ctx context.Context, guardianProfileIDs []int64) ([]identityaccess.GuardianInvitation, error)
+}) peopleModule.OpenGuardianInvitations {
+	return func(ctx context.Context, guardianIDs []int64) (map[int64]bool, error) {
+		invitations, err := identity.ListOpenGuardianInvitations(ctx, guardianIDs)
+		if err != nil {
+			return nil, err
+		}
+		invited := make(map[int64]bool, len(invitations))
+		for _, invitation := range invitations {
+			invited[invitation.GuardianProfileID] = true
+		}
+		return invited, nil
+	}
+}
+
 // newWorkerRetention composes the nightly cleanup over the deletion log, the
 // settings the windows resolve from, the subject deletions and the owner
 // steps, in the order dataRetentionSteps, protocolRetentionSteps and
@@ -85,7 +117,7 @@ type staffRetention interface {
 // reaches the Worker as an argument, not as a field of the owners (ADR 0059).
 func newWorkerRetention(
 	deletionLog retentionDeletionLog, settings retentionSettings, students studentRetention, staff staffRetention,
-	steps []schedulerPorts.RetentionStep, attendance studentpresence.AttendanceRetention,
+	steps []schedulerPorts.RetentionStep, attendance studentpresence.AttendanceRetention, guardians guardianRetention,
 ) (workerRetention, error) {
 	if deletionLog == nil || settings == nil {
 		return workerRetention{}, fmt.Errorf("compose worker retention: deletion log and settings are required")
@@ -96,7 +128,7 @@ func newWorkerRetention(
 	deletions := deletionLog
 	return workerRetention{
 		steps: schedulerPorts.RetentionPlan(studentRetentionStep(students), staffRetentionStep(staff),
-			append(steps, attendanceRetentionSteps(attendance, settings)...)),
+			append(append(steps, attendanceRetentionSteps(attendance, settings)...), guardianRetentionSteps(guardians, settings)...)),
 		log: func(ctx context.Context, kind string, outcome schedulerPorts.RetentionOutcome) error {
 			return deletions.LogRetention(ctx, kind, outcome.Deleted, outcome.RetentionDays)
 		},
@@ -188,6 +220,27 @@ func attendanceRetentionSteps(attendance studentpresence.AttendanceRetention, se
 			}
 			deleted, err := attendance.DeleteExpiredAttendance(ctx, days)
 			if errors.Is(err, studentpresence.ErrAttendanceRetentionWindow) {
+				return schedulerPorts.RetentionOutcome{}, window.SettingError(err)
+			}
+			return schedulerPorts.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
+		},
+	}}
+}
+
+func guardianRetentionSteps(guardians guardianRetention, settings settingsModule.StatisticsRetentionSource) []schedulerPorts.RetentionStep {
+	if guardians.people == nil || guardians.invitations == nil {
+		return nil
+	}
+	return []schedulerPorts.RetentionStep{{
+		Kind: auditModels.DeletionTypeGuardianRetention,
+		Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
+			window := settingsModule.NewGuardianRetention(settings)
+			days, err := window.Days(ctx)
+			if err != nil {
+				return schedulerPorts.RetentionOutcome{}, err
+			}
+			deleted, err := guardians.people.DeleteExpiredChildlessGuardians(ctx, days, guardians.invitations)
+			if errors.Is(err, peopleModule.ErrGuardianRetentionWindow) {
 				return schedulerPorts.RetentionOutcome{}, window.SettingError(err)
 			}
 			return schedulerPorts.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err

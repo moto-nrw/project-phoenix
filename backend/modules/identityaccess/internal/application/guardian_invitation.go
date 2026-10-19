@@ -35,31 +35,35 @@ func (l *AccountLifecycle) CreateGuardianInvitation(ctx context.Context, request
 	if request.CreatedBy <= 0 {
 		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, fmt.Errorf("created_by is required"))
 	}
-	profile, found, err := l.guardians.FindGuardianProfile(ctx, request.GuardianProfileID)
-	if err != nil {
-		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, err)
-	}
-	if !found {
-		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, fmt.Errorf("guardian profile not found"))
-	}
-	if strings.TrimSpace(profile.Email) == "" {
-		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, fmt.Errorf("guardian has no email on file"))
-	}
-	if profile.HasAccount {
-		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, fmt.Errorf("guardian already has an account"))
-	}
-
-	tenantID := l.runtime.TenantID(ctx)
-	invitation, err := l.invitations.InsertGuardianInvitation(ctx, domain.GuardianInvitation{
-		TenantID:          tenantID,
-		Token:             uuid.Must(uuid.NewV4()).String(),
-		GuardianProfileID: profile.ID,
-		CreatedBy:         request.CreatedBy,
-		ExpiresAt:         time.Now().Add(l.delivery.InvitationExpiry(ctx)),
-		ApprovalStatus:    domain.GuardianInvitationApprovalNotRequired,
+	var (
+		invitation domain.GuardianInvitation
+		profile    domain.GuardianProfile
+	)
+	err := l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		var profileErr error
+		profile, profileErr = l.lockInvitationProfile(txCtx, request.GuardianProfileID)
+		if profileErr != nil {
+			return failed(opGuardianInviteCreate, profileErr)
+		}
+		if _, _, _, err := l.logins.LockLoginAccountByEmail(txCtx, profile.Email); err != nil {
+			return failed(opGuardianInviteCreate, err)
+		}
+		var insertErr error
+		invitation, insertErr = l.invitations.InsertGuardianInvitation(txCtx, domain.GuardianInvitation{
+			TenantID:          l.runtime.TenantID(txCtx),
+			Token:             uuid.Must(uuid.NewV4()).String(),
+			GuardianProfileID: profile.ID,
+			CreatedBy:         request.CreatedBy,
+			ExpiresAt:         time.Now().Add(l.delivery.InvitationExpiry(txCtx)),
+			ApprovalStatus:    domain.GuardianInvitationApprovalNotRequired,
+		})
+		if insertErr != nil {
+			return failed(opGuardianInviteCreate, insertErr)
+		}
+		return nil
 	})
 	if err != nil {
-		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, err)
+		return domain.GuardianInvitation{}, err
 	}
 
 	l.logger.Info("guardian invitation created",
@@ -69,6 +73,23 @@ func (l *AccountLifecycle) CreateGuardianInvitation(ctx context.Context, request
 	)
 	l.mailNewInvitation(ctx, invitation, profile)
 	return invitation, nil
+}
+
+func (l *AccountLifecycle) lockInvitationProfile(ctx context.Context, profileID int64) (domain.GuardianProfile, error) {
+	profile, locked, err := l.guardians.LockGuardianProfile(ctx, profileID)
+	if err != nil {
+		return domain.GuardianProfile{}, err
+	}
+	if !locked {
+		return domain.GuardianProfile{}, fmt.Errorf("guardian profile not found")
+	}
+	if strings.TrimSpace(profile.Email) == "" {
+		return domain.GuardianProfile{}, fmt.Errorf("guardian has no email on file")
+	}
+	if profile.HasAccount {
+		return domain.GuardianProfile{}, fmt.Errorf("guardian already has an account")
+	}
+	return profile, nil
 }
 
 // mailNewInvitation queues the mail of a new token invitation and the
@@ -204,7 +225,7 @@ func (l *AccountLifecycle) AcceptGuardianInvitation(ctx context.Context, token s
 // provisionGuardianAccount returns the account the address already owns —
 // with its credential untouched — or creates one from the registration.
 func (l *AccountLifecycle) provisionGuardianAccount(ctx context.Context, email string, registration domain.GuardianRegistration) (domain.LoginAccount, error) {
-	account, found, _, err := l.logins.FindLoginAccountByEmail(ctx, email)
+	account, found, _, err := l.logins.LockLoginAccountByEmail(ctx, email)
 	if err != nil {
 		return domain.LoginAccount{}, failed(opGuardianInviteAccept, err)
 	}

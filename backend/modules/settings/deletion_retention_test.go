@@ -27,6 +27,7 @@ func TestDeletionRetentionWindowsReadTheirSettings(t *testing.T) {
 		configModel.KeyGDPRWithdrawnEnrollmentRetentionDays,
 		configModel.KeyGDPRStaffSickNoteRetentionDays,
 		configModel.KeyGDPRStudentRetentionDays,
+		configModel.KeyGDPRGuardianRetentionDays,
 		configModel.KeyGDPRTimeTrackingRetentionDays,
 	}, RetentionWindowKeys())
 }

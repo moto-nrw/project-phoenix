@@ -80,6 +80,34 @@ func TestNativeMFAAtomicTransitions(t *testing.T) {
 	require.Nil(t, identity.MFALockedUntil)
 }
 
+func TestNativeMFAIgnoresErasedAccounts(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	records := nativeMFARecords(t, db)
+	ctx := testpkg.Ctx(t)
+	account := testpkg.CreateTestAccount(t, db, "native-mfa-erased")
+	_, err := db.NewRaw(`UPDATE auth.accounts SET mfa_attempts = 3, mfa_locked_until = NOW() + INTERVAL '1 hour',
+		personal_data_erased_at = NOW() WHERE id = ?`, account.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	_, found, err := records.FindAccountIdentity(ctx, account.ID)
+	require.NoError(t, err)
+	require.False(t, found)
+	belongs, err := records.AccountBelongsToTenant(ctx, account.ID, testpkg.Tenant(t))
+	require.NoError(t, err)
+	require.False(t, belongs)
+	require.NoError(t, records.LockAccountForOverrideWrite(ctx, account.ID))
+	_, err = records.IncrementMFAAttempts(ctx, account.ID, 5, time.Minute)
+	require.Error(t, err)
+	require.NoError(t, records.ResetMFAAttempts(ctx, account.ID))
+
+	var attempts int
+	var lockedUntil *time.Time
+	require.NoError(t, db.NewRaw(`SELECT mfa_attempts, mfa_locked_until FROM auth.accounts WHERE id = ?`, account.ID).Scan(ctx, &attempts, &lockedUntil))
+	require.Equal(t, 3, attempts)
+	require.NotNil(t, lockedUntil)
+}
+
 func TestNativeMFAPersistenceJoinsAmbientTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

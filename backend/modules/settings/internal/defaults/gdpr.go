@@ -281,6 +281,21 @@ var gdpr_init_sch_lerdaten_4Definitions = []config.Definition{
 		Validation:      config.Range(30, 1095),
 		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
 	},
+	{
+		Key:             config.KeyGDPRGuardianRetentionDays,
+		Label:           "Erziehungsberechtigte ohne Kind aufbewahren (Tage)",
+		Description:     "So lange speichert moto Erziehungsberechtigte, die kein Kind mehr an der Schule haben. Danach löscht moto sie mit allen Angaben.",
+		Type:            config.FieldNumber,
+		Default:         90,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
+		Tab:             "gdpr",
+		Category:        "schülerdaten",
+		SortOrder:       34,
+		Validation:      config.Range(30, 365),
+		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
+	},
 }
 
 var gdpr_init_bewegungsdaten_5Definitions = []config.Definition{

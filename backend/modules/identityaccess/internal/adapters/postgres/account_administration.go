@@ -20,6 +20,7 @@ const accountTenantActive = "active"
 // account row itself carries no tenant.
 const (
 	accountVisibilityDeniedSQL = `FALSE`
+	liveAccountSQL             = `"account".personal_data_erased_at IS NULL`
 	accountVisibilityTenantSQL = `EXISTS (
 		SELECT 1 FROM auth.account_tenants AS "account_tenant"
 		WHERE "account_tenant".account_id = "account".id
@@ -83,7 +84,9 @@ func (s *Store) accountSelect(ctx context.Context) (*bun.SelectQuery, error) {
 	if err != nil {
 		return nil, err
 	}
-	return db.NewSelect().TableExpr(`auth.accounts AS "account"`).ColumnExpr(administeredAccountColumns), nil
+	return db.NewSelect().TableExpr(`auth.accounts AS "account"`).
+		ColumnExpr(administeredAccountColumns).
+		Where(liveAccountSQL), nil
 }
 
 func (s *Store) FindAccountRecord(ctx context.Context, id int64) (domain.ManagedAccountRecord, bool, domain.OperationStats, error) {
@@ -188,7 +191,8 @@ func (s *Store) UpdateManageableAccountIdentity(ctx context.Context, update doma
 		ModelTableExpr(`auth.accounts AS "account"`).
 		Set(`email = ?`, update.Email).
 		Set(`updated_at = NOW()`).
-		Where(`"account".id = ?`, update.AccountID)
+		Where(`"account".id = ?`, update.AccountID).
+		Where(liveAccountSQL)
 	if update.Username != nil {
 		query = query.Set(`username = ?`, *update.Username)
 	}
@@ -205,7 +209,8 @@ func (s *Store) SetManageableAccountActive(ctx context.Context, id int64, active
 		ModelTableExpr(`auth.accounts AS "account"`).
 		Set(`active = ?`, active).
 		Set(`updated_at = NOW()`).
-		Where(`"account".id = ?`, id)
+		Where(`"account".id = ?`, id).
+		Where(liveAccountSQL)
 	return execManageableAccountWrite(ctx, scopeAccounts(query, visibility), "set manageable account active")
 }
 
@@ -219,7 +224,8 @@ func (s *Store) UpdateAccountPasswordHash(ctx context.Context, id int64, hash st
 		ModelTableExpr(`auth.accounts AS "account"`).
 		Set(`password_hash = ?`, hash).
 		Set(`updated_at = NOW()`).
-		Where(`"account".id = ?`, id)
+		Where(`"account".id = ?`, id).
+		Where(liveAccountSQL)
 	return execManageableAccountWrite(ctx, query, "update account password hash")
 }
 

@@ -114,6 +114,59 @@ func TestLockAccountPermissionSources(t *testing.T) {
 	})
 }
 
+func TestLoginAccountLookupsIgnoreErasedAccounts(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	store := lockingStore(db, testpkg.Tenant(t))
+	ctx := testpkg.Ctx(t)
+	account := testpkg.CreateTestAccount(t, db, "erased-login-account")
+
+	_, err := db.NewUpdate().
+		TableExpr(`auth.accounts`).
+		Set("personal_data_erased_at = NOW()").
+		Where("id = ?", account.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	_, found, _, err := store.FindLoginAccountByEmail(ctx, account.Email)
+	require.NoError(t, err)
+	assert.False(t, found, "an erased account must not be found by email")
+
+	_, found, _, err = store.LockLoginAccountByEmail(ctx, account.Email)
+	require.NoError(t, err)
+	assert.False(t, found, "an erased account must not be locked by email")
+
+	_, found, _, err = store.FindLoginAccount(ctx, account.ID, false)
+	require.NoError(t, err)
+	assert.False(t, found, "an erased account must not be found by ID")
+
+	_, found, _, err = store.FindLoginAccount(ctx, account.ID, true)
+	require.NoError(t, err)
+	assert.False(t, found, "an erased account must not be locked by ID")
+}
+
+func TestAccountDirectoryLookupsIgnoreErasedAccounts(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	store := lockingStore(db, testpkg.Tenant(t))
+	ctx := testpkg.Ctx(t)
+	account := testpkg.CreateTestAccount(t, db, "erased-directory-account")
+	_, err := db.NewUpdate().TableExpr(`auth.accounts`).Set("personal_data_erased_at = NOW()").Where("id = ?", account.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	_, found, _, err := store.FindAccount(ctx, account.ID)
+	require.NoError(t, err)
+	assert.False(t, found)
+	_, found, _, err = store.FindAccountByEmail(ctx, account.Email)
+	require.NoError(t, err)
+	assert.False(t, found)
+	accounts, _, err := store.FindAccountsByEmails(ctx, []string{account.Email})
+	require.NoError(t, err)
+	assert.Empty(t, accounts)
+}
+
 // runWithLockTimeout opens a transaction with a short lock_timeout, runs fn in
 // it and rolls back, so a blocked lock request surfaces as a deterministic
 // error instead of a goroutine hang.

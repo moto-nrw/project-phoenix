@@ -42,6 +42,10 @@ func (o *sqlGuardianOwners) conn(ctx context.Context) bun.IDB {
 	return o.db
 }
 
+func (o *sqlGuardianOwners) LockLiveGuardianAccount(context.Context, int64) (bool, error) {
+	return true, nil
+}
+
 func (o *sqlGuardianOwners) CreateGuardianPickupPermission(ctx context.Context, tenantID, relationshipID int64, canPickup bool, notes *string) error {
 	if o.failPickupCreate {
 		return errInjectedOwnerFailure

@@ -64,6 +64,13 @@ func (o testGuardianLinkOwners) queryDB(ctx context.Context) bun.IDB {
 	return o.db
 }
 
+func (o testGuardianLinkOwners) LockLiveGuardianAccount(ctx context.Context, accountID int64) (bool, error) {
+	var ids []int64
+	err := o.queryDB(ctx).NewRaw(`SELECT id FROM auth.accounts
+		WHERE id = ? AND personal_data_erased_at IS NULL FOR KEY SHARE`, accountID).Scan(ctx, &ids)
+	return len(ids) == 1, err
+}
+
 func (o testGuardianLinkOwners) CreateGuardianPickupPermission(ctx context.Context, tenantID, relationshipID int64, canPickup bool, notes *string) error {
 	_, err := o.queryDB(ctx).NewRaw(`INSERT INTO users.student_guardian_pickup_permissions (tenant_id, relationship_id, can_pickup, pickup_notes)
 		VALUES (?, ?, ?, ?)`, tenantID, relationshipID, canPickup, notes).Exec(ctx)

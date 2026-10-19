@@ -39,7 +39,7 @@ type AccountAdministrationStore interface {
 	// visibility. found=false when the predicate matched no row.
 	SetManageableAccountActive(ctx context.Context, id int64, active bool, visibility domain.AccountVisibility) (bool, domain.OperationStats, error)
 	// UpdateAccountPasswordHash replaces the credential of the account
-	// holder; found=false when the row is gone.
+	// holder; found=false when the row is gone or erased.
 	UpdateAccountPasswordHash(ctx context.Context, id int64, hash string) (bool, domain.OperationStats, error)
 }
 
