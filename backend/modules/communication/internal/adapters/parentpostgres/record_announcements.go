@@ -421,7 +421,7 @@ func feedItemTime(item *communication.PortalAnnouncementFeedItem) time.Time {
 }
 
 func (r *announcementRepository) CountUnreadForAccount(ctx context.Context, accountID int64, scope communication.PortalAnnouncementFeedScope) (int, error) {
-	return r.AnnouncementAudienceReads.CountOutstandingForAccount(ctx, accountID, feedScope(scope))
+	return r.CountOutstandingForAccount(ctx, accountID, feedScope(scope))
 }
 
 func (r *announcementRepository) CountReachableGuardiansForStudents(ctx context.Context, tenantID int64, studentIDs []int64) (int, error) {
