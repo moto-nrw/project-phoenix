@@ -28,6 +28,9 @@ type CatererStore interface {
 	// EndCatererSchool ends the school's active link.
 	InsertCatererSchool(ctx context.Context, catererID int64, at time.Time) (domain.OperationStats, error)
 	EndCatererSchool(ctx context.Context, at time.Time) (bool, domain.OperationStats, error)
+	// HasActiveCatererSchool reports whether a caterer supplies the school
+	// in context.
+	HasActiveCatererSchool(ctx context.Context) (bool, domain.OperationStats, error)
 	// ListCatererSchools lists the schools the caterer supplies now, in the
 	// order they started.
 	ListCatererSchools(ctx context.Context, catererID int64) ([]int64, domain.OperationStats, error)

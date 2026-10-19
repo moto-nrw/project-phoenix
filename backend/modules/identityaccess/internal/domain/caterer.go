@@ -24,6 +24,9 @@ var (
 	ErrCatererAddressTaken = errors.New("address belongs to an account that is not a caterer")
 	// ErrInvitationRevoked: the school took the invitation back.
 	ErrInvitationRevoked = errors.New("invitation has been revoked")
+	// ErrCatererAlreadySupplies refuses a new invitation while the school's
+	// current caterer still supplies it: the school ends that supply first.
+	ErrCatererAlreadySupplies = errors.New("the school's caterer still supplies it")
 	// ErrInvalidCatererInvitation: the school's input is incomplete.
 	ErrInvalidCatererInvitation = errors.New("caterer invitation needs an e-mail address and a name")
 )

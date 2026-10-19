@@ -237,3 +237,47 @@ func TestCatererInvitationBelongsToItsSchool(t *testing.T) {
 	})
 	require.ErrorIs(t, err, identityaccess.ErrInvitationNotFound)
 }
+
+// A caterer's login and refresh land in the school's login log, a refresh
+// ends with the last supply, and a school changes its caterer only after
+// ending the current supply.
+func TestCatererSessionsAreLoggedAndEndWithTheLastSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := setupAuthFactory(t, db)
+	caterers := module.Caterers()
+	school := testpkg.Tenant(t)
+	staff := testpkg.CreateTestAccount(t, db, "caterer-logged")
+	email := fmt.Sprintf("kueche-log-%d@example.com", time.Now().UnixNano())
+	acceptance, err := accept(t, db, caterers, school, invite(t, db, caterers, school, staff.ID, email), identityaccess.CatererRegistration{Password: catererPassword, ConfirmPassword: catererPassword})
+	require.NoError(t, err)
+	forgetCaterer(t, db, acceptance)
+	t.Cleanup(func() {
+		_, _ = db.NewRaw(`DELETE FROM audit.auth_events WHERE account_id = ?`, acceptance.AccountID).Exec(context.Background())
+	})
+
+	_, refresh, err := caterers.LoginCatererWithAudit(context.Background(), email, catererPassword, "192.0.2.10", "test")
+	require.NoError(t, err)
+	_, refresh, err = module.RefreshTokenWithAudit(context.Background(), refresh, "", "192.0.2.10", "test")
+	require.NoError(t, err)
+	var logged []struct {
+		TenantID  int64  `bun:"tenant_id"`
+		EventType string `bun:"event_type"`
+	}
+	require.NoError(t, db.NewRaw(`SELECT tenant_id, event_type FROM audit.auth_events WHERE account_id = ? AND success ORDER BY id`, acceptance.AccountID).Scan(context.Background(), &logged))
+	require.Len(t, logged, 2, "login and refresh are logged")
+	assert.Equal(t, school, logged[0].TenantID)
+
+	err = inSchool(t, db, school, func(ctx context.Context) error {
+		_, _, err := caterers.CreateCatererInvitation(ctx, identityaccess.CatererInvitationRequest{Email: "andere@example.com", CatererName: "Andere Küche", CreatedBy: staff.ID})
+		return err
+	})
+	require.ErrorIs(t, err, identityaccess.ErrCatererAlreadySupplies)
+
+	require.NoError(t, inSchool(t, db, school, func(ctx context.Context) error {
+		_, err := caterers.EndCatererSchool(ctx)
+		return err
+	}))
+	_, _, err = module.RefreshTokenWithAudit(context.Background(), refresh, "", "", "")
+	require.Error(t, err, "without a school the session cannot be renewed")
+}

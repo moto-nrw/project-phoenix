@@ -95,6 +95,9 @@ func (c *CatererAccess) createInvitation(ctx context.Context, request domain.Cat
 	if err != nil {
 		return domain.CatererInvitation{}, "", err
 	}
+	if active, _, err := c.store.HasActiveCatererSchool(ctx); err != nil || active {
+		return domain.CatererInvitation{}, "", errors.Join(domain.ErrCatererAlreadySupplies, err)
+	}
 	if err := c.revokeOpen(ctx); err != nil {
 		return domain.CatererInvitation{}, "", err
 	}
@@ -373,9 +376,13 @@ func (c *CatererAccess) login(ctx context.Context, email, password, ipAddress, u
 		return "", "", err
 	}
 	if len(schools) == 0 {
-		c.auth.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Caterer supplies no school")
+		// No school to file the event at: the refusal is logged only.
+		c.logger.Info("caterer login refused: no school", slog.Int64("account_id", account.ID))
 		return "", "", failed("caterer login", domain.ErrCatererWithoutSchool)
 	}
+	// A caterer has no school membership; the login is filed at the school
+	// its session is pinned to.
+	ctx = c.runtime.WithTenantID(ctx, schools[0])
 	session, err := c.auth.createRefreshSession(ctx, account, schools[0], domain.ScopeCaterer)
 	if err != nil {
 		return "", "", err
@@ -416,6 +423,7 @@ var catererSentinels = []struct {
 	{domain.ErrCatererAddressTaken, identityaccess.ErrCatererAddressTaken},
 	{domain.ErrInvitationRevoked, identityaccess.ErrInvitationRevoked},
 	{domain.ErrInvalidCatererInvitation, identityaccess.ErrInvalidCatererInvitation},
+	{domain.ErrCatererAlreadySupplies, identityaccess.ErrCatererAlreadySupplies},
 }
 
 // catererError translates the caterer sentinels and leaves credentials and

@@ -97,18 +97,27 @@ func (s *AccountAuthentication) doRefreshTokenWithAudit(ctx context.Context, ref
 		return nil, failed("refresh session", fmt.Errorf("refresh claims payload missing after rotation"))
 	}
 	access, refresh := buildClaims(account, newSession, metadata, account.Email)
-	// The audit event is filed at the tenant the refresh validated against;
-	// the route carries no tenant and the fallback would attribute a
-	// multi-school account's refresh to its first mapping.
-	auditCtx := ctx
-	if claims.TenantID > 0 {
-		auditCtx = s.runtime.WithTenantID(ctx, claims.TenantID)
-	}
-	accessToken, refreshTokenString, err := s.generateAndLogTokens(auditCtx, account.ID, access, refresh, ipAddress, userAgent, domain.AuthEventTokenRefresh)
+	accessToken, refreshTokenString, err := s.generateAndLogTokens(s.refreshAuditContext(ctx, claims, newSession), account.ID, access, refresh, ipAddress, userAgent, domain.AuthEventTokenRefresh)
 	if err != nil {
 		return nil, err
 	}
 	return &refreshResult{accessToken: accessToken, refreshToken: refreshTokenString}, nil
+}
+
+// refreshAuditContext is where a refresh is filed: at the tenant the refresh
+// validated against, since the route carries no tenant and the fallback
+// would attribute a multi-school account's refresh to its first mapping. A
+// caterer has no school membership; its refresh is filed at the school its
+// session is pinned to (ADR 0074).
+func (s *AccountAuthentication) refreshAuditContext(ctx context.Context, claims domain.RefreshClaims, session domain.AccountSession) context.Context {
+	switch {
+	case claims.Scope == domain.ScopeCaterer:
+		return s.runtime.WithTenantID(ctx, session.TenantID)
+	case claims.TenantID > 0:
+		return s.runtime.WithTenantID(ctx, claims.TenantID)
+	default:
+		return ctx
+	}
 }
 
 // catererRefreshClaims keeps a caterer session a caterer session, and only
@@ -117,8 +126,14 @@ func (s *AccountAuthentication) catererRefreshClaims(ctx context.Context, accoun
 	if s.caterers == nil {
 		return domain.ErrAccountNotCaterer
 	}
-	if _, isCaterer, _, err := s.caterers.FindCatererOfAccount(ctx, account.ID); err != nil || !isCaterer {
+	caterer, isCaterer, _, err := s.caterers.FindCatererOfAccount(ctx, account.ID)
+	if err != nil || !isCaterer {
 		return errors.Join(domain.ErrAccountNotCaterer, err)
+	}
+	// A caterer whose last school ended its supply has nothing left to see.
+	schools, _, err := s.caterers.ListCatererSchools(ctx, caterer.ID)
+	if err != nil || len(schools) == 0 {
+		return errors.Join(domain.ErrCatererWithoutSchool, err)
 	}
 	*out = buildCatererMetadata(account)
 	return nil

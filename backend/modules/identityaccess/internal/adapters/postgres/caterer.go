@@ -199,3 +199,16 @@ func (s *Store) ListCatererSchools(ctx context.Context, catererID int64) ([]int6
 	stats.Rows = int64(len(rows))
 	return schools, stats, err
 }
+
+func (s *Store) HasActiveCatererSchool(ctx context.Context) (bool, domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return false, domain.OperationStats{}, err
+	}
+	started := time.Now()
+	exists, err := scopeTenantQuery(s.scope(ctx), db.NewSelect().Model((*catererSchoolRow)(nil)).
+		Where(`"caterer_school".ended_at IS NULL`), `"caterer_school".tenant_id = ?`).
+		Exists(ctx)
+	_, stats, err := scanOne("check active caterer school", started, err)
+	return exists, stats, err
+}
