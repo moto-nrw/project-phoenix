@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CalendarDotsIcon,
   IdentificationCardIcon,
-  UsersThreeIcon,
+  UsersIcon,
 } from "@phosphor-icons/react/ssr";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -487,7 +487,7 @@ function ChildAreaTabs({
             value="kontakte"
             label={t("areas.contacts.title")}
             shortLabel={t("areas.contacts.shortTitle")}
-            icon={UsersThreeIcon}
+            icon={UsersIcon}
             tourId="child-contacts-tab"
           />
         </TabsList>
