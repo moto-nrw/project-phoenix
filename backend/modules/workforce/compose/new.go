@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -73,7 +72,7 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 		transaction{lock: store.AcquireXactLock},
 		assignments{store: store, live: dependencies.LiveStaffIDs},
 		dependencies.LockStaffAssignment,
-		clock{now: now},
+		application.Clock{Time: now},
 		application.AllowanceUses,
 		observe,
 		dependencies.StatutoryHolidays,
@@ -156,13 +155,6 @@ func (t transaction) LockStaffShifts(ctx context.Context, staffID int64) error {
 	}
 	return t.acquireXactLock(ctx, fmt.Sprintf("staff-shift:%d:%d", tenant.FromContext(ctx), staffID))
 }
-
-// clock derives the calendar day from the same instant the live windows use,
-// so a pinned test clock cannot disagree with itself across midnight.
-type clock struct{ now func() time.Time }
-
-func (c clock) Now() time.Time { return c.now() }
-func (c clock) Today() string  { return calendar.DateFromTime(c.now()).String() }
 
 // assignments reads the template binding from the employment profile and
 // keeps only the memberships School Membership still holds as live.

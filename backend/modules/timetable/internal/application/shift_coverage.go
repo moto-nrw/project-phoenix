@@ -25,11 +25,11 @@ const maxReturnedShiftCoverageWarnings = 100
 // DetectShiftCoverage checks every effective occurrence with a fixed number
 // of batched reads. A ReplanWeek projection uses at most eight reads: period,
 // the group's recurrence envelope, group-scoped instances, group-scoped
-// exceptions, all concrete staff rows, all shifts, all tenant week usage, and
-// the warning names.
+// exceptions, all concrete staff rows, a full-week shift snapshot, and the
+// membership/person reads for warning names.
 func (d *conflictCommands) DetectShiftCoverage(ctx context.Context, probe timetable.ShiftCoverageProbe) (value0 timetable.ShiftCoverageResult, err error) {
-	err = d.conflictDetection.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = d.conflictDetection.DetectShiftCoverage(txCtx, probe)
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.commands.DetectShiftCoverage(txCtx, probe)
 		return err
 	})
 	return
@@ -131,26 +131,24 @@ func containsCoverageDate(dates []calendar.Date, target calendar.Date) bool {
 	return slices.Contains(dates, target)
 }
 
-func (d *conflictDetection) loadShiftCoverageData(ctx context.Context, dates []calendar.Date, staffIDs []int64) ([]*scheduleModels.StaffShift, map[calendar.Date]bool, error) {
+// Read one bounded full-week snapshot. Week usage includes every member,
+// including a weekend shift outside the probed dates or staff IDs.
+func (d *conflictDetection) loadShiftCoverageData(ctx context.Context, dates []calendar.Date, _ []int64) ([]*scheduleModels.StaffShift, map[calendar.Date]bool, error) {
 	firstWeekFrom, _ := timetable.ContainingCalendarWeek(dates[0])
 	_, lastWeekTo := timetable.ContainingCalendarWeek(dates[len(dates)-1])
-	scheduleDates := make([]calendar.Date, len(dates))
-	for index, date := range dates {
-		scheduleDates[index] = calendar.Date(date)
-	}
-	rows, err := d.deps.Shifts.FindByStaffIDsAndDates(ctx, staffIDs, scheduleDates)
+	rows, err := d.deps.Shifts.FindByDateRange(ctx, firstWeekFrom, lastWeekTo)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load staff shifts for coverage: %w", err)
 	}
-	weeks, err := d.deps.Shifts.FindUsedCalendarWeeks(ctx, calendar.Date(firstWeekFrom), calendar.Date(lastWeekTo))
-	if err != nil {
-		return nil, nil, fmt.Errorf("load used staff-shift weeks for coverage: %w", err)
+	usedWeeks := make(map[calendar.Date]bool)
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		monday, _ := timetable.ContainingCalendarWeek(row.Date)
+		usedWeeks[monday] = true
 	}
-	weekDates := make([]calendar.Date, len(weeks))
-	for index, week := range weeks {
-		weekDates[index] = calendar.Date(week)
-	}
-	return rows, timetable.IndexCalendarWeeks(weekDates), nil
+	return rows, usedWeeks, nil
 }
 
 type staffDateKey struct {

@@ -35,7 +35,8 @@ func NewTimetableData(deps ports.TimetableDataDependencies) (timetable.Timetable
 		deps.Rooms == nil || deps.RoomOccupancy == nil || deps.DeviationEvents == nil || deps.ConflictAcks == nil {
 		return nil, errors.New("timetable data: required dependency is nil")
 	}
-	return &timetableCommands{&timetableData{ConflictAckCapability: deps.ConflictAcks, DeviationEventReader: deps.DeviationEvents, deps: deps}}, nil
+	records := &timetableData{ConflictAckCapability: deps.ConflictAcks, DeviationEventReader: deps.DeviationEvents, deps: deps}
+	return &timetableCommands{records, records}, nil
 }
 
 func (d *timetableData) FindScheduledInstance(ctx context.Context, id int64) (timetable.ScheduledInstance, error) {
@@ -249,4 +250,7 @@ func instanceStaffOf(row *scheduleModels.InstanceStaff) timetable.InstanceStaff 
 	}
 }
 
-type timetableCommands struct{ *timetableData }
+type timetableCommands struct {
+	timetable.TimetableDataCapability
+	commands *timetableData
+}

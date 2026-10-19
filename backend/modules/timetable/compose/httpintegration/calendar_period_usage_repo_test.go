@@ -71,7 +71,7 @@ func TestCalendarPeriodUsageRepository_HonorsTenantContextWithoutRepositoryRunti
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	usage, err := repo.UsageCounts(tenant.WithTenantID(context.Background(), tenantID))
+	usage, err := repo.UsageCounts(testpkg.WithTenantRuntime(t, tenant.WithTenantID(context.Background(), tenantID), db))
 	require.NoError(t, err)
 	assert.Equal(t, 1, usage[period.ID].ActivityGroups)
 	assert.Equal(t, 2, usage[period.ID].EnrollmentPhases)

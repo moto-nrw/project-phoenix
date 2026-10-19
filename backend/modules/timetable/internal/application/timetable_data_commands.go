@@ -8,16 +8,16 @@ import (
 )
 
 func (d *timetableCommands) FindScheduledInstance(ctx context.Context, id int64) (value0 timetable.ScheduledInstance, err error) {
-	err = d.timetableData.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = d.timetableData.FindScheduledInstance(txCtx, id)
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.commands.FindScheduledInstance(txCtx, id)
 		return err
 	})
 	return
 }
 
 func (d *timetableCommands) ListScheduledInstances(ctx context.Context, from, to calendar.Date) (value0 []timetable.ScheduledInstance, err error) {
-	err = d.timetableData.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = d.timetableData.ListScheduledInstances(txCtx, from, to)
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.commands.ListScheduledInstances(txCtx, from, to)
 		return err
 	})
 	return
@@ -28,24 +28,24 @@ func (d *timetableCommands) ListScheduledInstances(ctx context.Context, from, to
 // three reads per block (#2940). Participant rows keep the created_at order
 // of the single-block read.
 func (d *timetableCommands) ListScheduledInstanceRows(ctx context.Context, instances []timetable.ScheduledInstance) (value0 *timetable.ScheduledInstanceRows, err error) {
-	err = d.timetableData.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = d.timetableData.ListScheduledInstanceRows(txCtx, instances)
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.commands.ListScheduledInstanceRows(txCtx, instances)
 		return err
 	})
 	return
 }
 
 func (d *timetableCommands) ListBlockStaff(ctx context.Context, instanceID int64) (value0 []timetable.InstanceStaff, err error) {
-	err = d.timetableData.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = d.timetableData.ListBlockStaff(txCtx, instanceID)
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.commands.ListBlockStaff(txCtx, instanceID)
 		return err
 	})
 	return
 }
 
 func (d *timetableCommands) ListBlockParticipants(ctx context.Context, instanceID int64) (value0 []timetable.ScheduledParticipant, err error) {
-	err = d.timetableData.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = d.timetableData.ListBlockParticipants(txCtx, instanceID)
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.commands.ListBlockParticipants(txCtx, instanceID)
 		return err
 	})
 	return
@@ -57,32 +57,32 @@ func (d *timetableCommands) ListBlockParticipants(ctx context.Context, instanceI
 // is written before anything knows whether the child was booked, so an
 // unbooked child can already sit there as absent (#1747).
 func (d *timetableCommands) ListCareDayCandidates(ctx context.Context, instanceIDs []int64) (value0 []timetable.ScheduledParticipant, err error) {
-	err = d.timetableData.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = d.timetableData.ListCareDayCandidates(txCtx, instanceIDs)
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.commands.ListCareDayCandidates(txCtx, instanceIDs)
 		return err
 	})
 	return
 }
 
 func (d *timetableCommands) FindBlockParticipant(ctx context.Context, instanceID, studentID int64) (value0 *timetable.ScheduledParticipant, err error) {
-	err = d.timetableData.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = d.timetableData.FindBlockParticipant(txCtx, instanceID, studentID)
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.commands.FindBlockParticipant(txCtx, instanceID, studentID)
 		return err
 	})
 	return
 }
 
 func (d *timetableCommands) BlockDisplayMetadata(ctx context.Context, instanceIDs []int64) (value0 map[int64]timetable.BlockDisplayMetadata, err error) {
-	err = d.timetableData.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = d.timetableData.BlockDisplayMetadata(txCtx, instanceIDs)
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.commands.BlockDisplayMetadata(txCtx, instanceIDs)
 		return err
 	})
 	return
 }
 
 func (d *timetableCommands) PatchSlotAttendance(ctx context.Context, participantID int64, patch timetable.AttendancePatch) (err error) {
-	err = d.timetableData.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		err = d.timetableData.PatchSlotAttendance(txCtx, participantID, patch)
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		err = d.commands.PatchSlotAttendance(txCtx, participantID, patch)
 		return err
 	})
 	return
@@ -93,24 +93,24 @@ func (d *timetableCommands) PatchSlotAttendance(ctx context.Context, participant
 // understaffed ones with their counts. Completed and cancelled blocks are
 // history and never reported.
 func (d *timetableCommands) ListUnderstaffedInstances(ctx context.Context, from, to calendar.Date) (value0 []timetable.UnderstaffedInstance, err error) {
-	err = d.timetableData.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = d.timetableData.ListUnderstaffedInstances(txCtx, from, to)
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.commands.ListUnderstaffedInstances(txCtx, from, to)
 		return err
 	})
 	return
 }
 
 func (d *timetableCommands) SpontaneousRoomExists(ctx context.Context, roomID int64) (value0 bool, err error) {
-	err = d.timetableData.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = d.timetableData.SpontaneousRoomExists(txCtx, roomID)
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.commands.SpontaneousRoomExists(txCtx, roomID)
 		return err
 	})
 	return
 }
 
 func (d *timetableCommands) SpontaneousRoomOccupied(ctx context.Context, roomID int64) (value0 bool, err error) {
-	err = d.timetableData.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = d.timetableData.SpontaneousRoomOccupied(txCtx, roomID)
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.commands.SpontaneousRoomOccupied(txCtx, roomID)
 		return err
 	})
 	return
@@ -120,8 +120,8 @@ func (d *timetableCommands) SpontaneousRoomOccupied(ctx context.Context, roomID 
 // named after the title; a missing one is created in the "Spontan" category
 // under a name lock, so two starts with the same title share it.
 func (d *timetableCommands) ResolveSpontaneousActivity(ctx context.Context, title string, requestedID *int64, createdBy int64) (value0 *int64, err error) {
-	err = d.timetableData.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = d.timetableData.ResolveSpontaneousActivity(txCtx, title, requestedID, createdBy)
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.commands.ResolveSpontaneousActivity(txCtx, title, requestedID, createdBy)
 		return err
 	})
 	return
@@ -133,16 +133,16 @@ func (d *timetableCommands) ResolveSpontaneousActivity(ctx context.Context, titl
 // running or ended sessions, the regular arrival and pickup through Care
 // Plan's baselines and the dated exceptions.
 func (d *timetableCommands) StudentWeek(ctx context.Context, studentID int64, from, to calendar.Date) (value0 *timetable.StudentWeek, err error) {
-	err = d.timetableData.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = d.timetableData.StudentWeek(txCtx, studentID, from, to)
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.commands.StudentWeek(txCtx, studentID, from, to)
 		return err
 	})
 	return
 }
 
 func (d *timetableCommands) ListTemplateEntries(ctx context.Context, templateID *int64, childrenPerStaffRatio int) (value0 []timetable.TemplateListEntry, err error) {
-	err = d.timetableData.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = d.timetableData.ListTemplateEntries(txCtx, templateID, childrenPerStaffRatio)
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.commands.ListTemplateEntries(txCtx, templateID, childrenPerStaffRatio)
 		return err
 	})
 	return
@@ -151,16 +151,16 @@ func (d *timetableCommands) ListTemplateEntries(ctx context.Context, templateID 
 // ListTemplateEntriesForTemplatePeriod is the detail read model of one
 // editable template period, with period-scoped roster and capacity.
 func (d *timetableCommands) ListTemplateEntriesForTemplatePeriod(ctx context.Context, templateID, periodID int64, childrenPerStaffRatio int) (value0 []timetable.TemplateListEntry, err error) {
-	err = d.timetableData.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = d.timetableData.ListTemplateEntriesForTemplatePeriod(txCtx, templateID, periodID, childrenPerStaffRatio)
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.commands.ListTemplateEntriesForTemplatePeriod(txCtx, templateID, periodID, childrenPerStaffRatio)
 		return err
 	})
 	return
 }
 
 func (d *timetableCommands) ListTemplateEntriesForPeriod(ctx context.Context, periodID *int64, childrenPerStaffRatio int) (value0 []timetable.TemplateListEntry, err error) {
-	err = d.timetableData.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = d.timetableData.ListTemplateEntriesForPeriod(txCtx, periodID, childrenPerStaffRatio)
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.commands.ListTemplateEntriesForPeriod(txCtx, periodID, childrenPerStaffRatio)
 		return err
 	})
 	return
@@ -169,8 +169,8 @@ func (d *timetableCommands) ListTemplateEntriesForPeriod(ctx context.Context, pe
 // ListTemplateWeekdayRoster is a thin read: grouping the rows into weekday
 // assignments is a presentation concern of the caller.
 func (d *timetableCommands) ListTemplateWeekdayRoster(ctx context.Context, templateID, calendarPeriodID *int64) (value0 []timetable.TemplateWeekdayRosterRow, err error) {
-	err = d.timetableData.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = d.timetableData.ListTemplateWeekdayRoster(txCtx, templateID, calendarPeriodID)
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.commands.ListTemplateWeekdayRoster(txCtx, templateID, calendarPeriodID)
 		return err
 	})
 	return

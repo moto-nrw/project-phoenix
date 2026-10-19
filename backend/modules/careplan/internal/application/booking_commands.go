@@ -15,8 +15,8 @@ import (
 // status — cannot see the child yet; the decision runs
 // ResyncMultiSourceTemplatesForChild after the flip.
 func (m *bookingCommands) MaterializeApprovedBookings(ctx context.Context, requestChildID, studentID int64, phase careplan.OfferingPhase) (err error) {
-	err = m.BookingMaterialization.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		err = m.BookingMaterialization.MaterializeApprovedBookings(txCtx, requestChildID, studentID, phase)
+	err = m.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		err = m.commands.MaterializeApprovedBookings(txCtx, requestChildID, studentID, phase)
 		return err
 	})
 	return
@@ -34,8 +34,8 @@ func (m *bookingCommands) MaterializeApprovedBookings(ctx context.Context, reque
 // because with the setting off the locking materialization pass never ran in
 // this transaction.
 func (m *bookingCommands) ResyncMultiSourceTemplatesForChild(ctx context.Context, requestChildID int64, phase careplan.OfferingPhase) (err error) {
-	err = m.BookingMaterialization.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		err = m.BookingMaterialization.ResyncMultiSourceTemplatesForChild(txCtx, requestChildID, phase)
+	err = m.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		err = m.commands.ResyncMultiSourceTemplatesForChild(txCtx, requestChildID, phase)
 		return err
 	})
 	return
@@ -48,8 +48,8 @@ func (m *bookingCommands) ResyncMultiSourceTemplatesForChild(ctx context.Context
 // carries the capability frozen when the parent submitted and is already
 // visible there as the decided request.
 func (m *bookingCommands) AdjustOfferings(ctx context.Context, in careplan.OfferingAdjustment) (value0 *careplan.OfferingAdjustmentResult, err error) {
-	err = m.BookingMaterialization.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = m.BookingMaterialization.AdjustOfferings(txCtx, in)
+	err = m.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = m.commands.AdjustOfferings(txCtx, in)
 		return err
 	})
 	return
@@ -59,8 +59,8 @@ func (m *bookingCommands) AdjustOfferings(ctx context.Context, in careplan.Offer
 // It deliberately writes no schedule.student_pickup_schedules rows: regular
 // offering pickup times are a date-aware projection of booking validity.
 func (m *bookingCommands) ReconcileOfferingPickupForStudents(ctx context.Context, studentIDs []int64) (err error) {
-	err = m.BookingMaterialization.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		err = m.BookingMaterialization.ReconcileOfferingPickupForStudents(txCtx, studentIDs)
+	err = m.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		err = m.commands.ReconcileOfferingPickupForStudents(txCtx, studentIDs)
 		return err
 	})
 	return
@@ -69,8 +69,8 @@ func (m *bookingCommands) ReconcileOfferingPickupForStudents(ctx context.Context
 // ReconcileOfferingPickupForOffering refreshes every current or future child
 // affected by an offering edit. The catalog calls it after an update.
 func (m *bookingCommands) ReconcileOfferingPickupForOffering(ctx context.Context, offeringID int64) (err error) {
-	err = m.BookingMaterialization.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		err = m.BookingMaterialization.ReconcileOfferingPickupForOffering(txCtx, offeringID)
+	err = m.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		err = m.commands.ReconcileOfferingPickupForOffering(txCtx, offeringID)
 		return err
 	})
 	return
@@ -81,8 +81,8 @@ func (m *bookingCommands) ReconcileOfferingPickupForOffering(ctx context.Context
 // materialization. The row is removed only when the read-time projection has
 // an offering time for the requested date.
 func (m *bookingCommands) ResetStudentPickupDayToOffering(ctx context.Context, studentID int64, date calendar.Date) (err error) {
-	err = m.BookingMaterialization.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		err = m.BookingMaterialization.ResetStudentPickupDayToOffering(txCtx, studentID, date)
+	err = m.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		err = m.commands.ResetStudentPickupDayToOffering(txCtx, studentID, date)
 		return err
 	})
 	return
@@ -94,8 +94,8 @@ func (m *bookingCommands) ResetStudentPickupDayToOffering(ctx context.Context, s
 // request child — within one phase a child holds one request-child identity,
 // which is also the provenance tag the union resync seeds rows under.
 func (m *bookingCommands) CombinedOfferingSourceCounts(ctx context.Context, offeringIDs []int64, calendarPeriodID *int64) (value0 *careplan.OfferingSourceCombinedCounts, err error) {
-	err = m.BookingMaterialization.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = m.BookingMaterialization.CombinedOfferingSourceCounts(txCtx, offeringIDs, calendarPeriodID)
+	err = m.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = m.commands.CombinedOfferingSourceCounts(txCtx, offeringIDs, calendarPeriodID)
 		return err
 	})
 	return
@@ -106,8 +106,8 @@ func (m *bookingCommands) CombinedOfferingSourceCounts(ctx context.Context, offe
 // phase's service window lies within that period qualify — a source outside
 // the Planungszeitraum could never materialize a single occurrence.
 func (m *bookingCommands) ListOfferingSourceOptions(ctx context.Context, calendarPeriodID *int64) (value0 []careplan.OfferingSourceOption, err error) {
-	err = m.BookingMaterialization.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = m.BookingMaterialization.ListOfferingSourceOptions(txCtx, calendarPeriodID)
+	err = m.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = m.commands.ListOfferingSourceOptions(txCtx, calendarPeriodID)
 		return err
 	})
 	return
@@ -126,8 +126,8 @@ func (m *bookingCommands) ListOfferingSourceOptions(ctx context.Context, calenda
 // fan-out: one broken template must not block a whole grade transition.
 // The caller must hold the tenant recurrence lock.
 func (m *bookingCommands) ResyncOfferingSourcedTemplates(ctx context.Context, effectiveFrom calendar.Date) (err error) {
-	err = m.BookingMaterialization.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		err = m.BookingMaterialization.ResyncOfferingSourcedTemplates(txCtx, effectiveFrom)
+	err = m.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		err = m.commands.ResyncOfferingSourcedTemplates(txCtx, effectiveFrom)
 		return err
 	})
 	return
@@ -145,8 +145,8 @@ func (m *bookingCommands) ResyncOfferingSourcedTemplates(ctx context.Context, ef
 // materialized occurrences can never be resynced again. The caller must hold
 // the tenant recurrence lock.
 func (m *bookingCommands) ResyncTemplatesSourcedFromOffering(ctx context.Context, offeringID int64, effectiveFrom calendar.Date) (err error) {
-	err = m.BookingMaterialization.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		err = m.BookingMaterialization.ResyncTemplatesSourcedFromOffering(txCtx, offeringID, effectiveFrom)
+	err = m.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		err = m.commands.ResyncTemplatesSourcedFromOffering(txCtx, offeringID, effectiveFrom)
 		return err
 	})
 	return
@@ -169,8 +169,8 @@ func (m *bookingCommands) ResyncTemplatesSourcedFromOffering(ctx context.Context
 // sources and skips only the roster resync instead of blocking the delete.
 // The caller must hold the tenant recurrence lock.
 func (m *bookingCommands) DetachTemplatesSourcedFromOffering(ctx context.Context, offeringID int64, effectiveFrom calendar.Date) (err error) {
-	err = m.BookingMaterialization.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		err = m.BookingMaterialization.DetachTemplatesSourcedFromOffering(txCtx, offeringID, effectiveFrom)
+	err = m.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		err = m.commands.DetachTemplatesSourcedFromOffering(txCtx, offeringID, effectiveFrom)
 		return err
 	})
 	return
@@ -181,15 +181,18 @@ func (m *bookingCommands) DetachTemplatesSourcedFromOffering(ctx context.Context
 // and the care-offerings setting (#3140). It costs a constant number of reads
 // regardless of how many templates are asked for.
 func (m *bookingCommands) TemplateRosterMaintenanceFeeds(ctx context.Context, templates []careplan.TemplateRosterFeedQuery) (value0 map[int64]careplan.TemplateRosterFeeds, err error) {
-	err = m.BookingMaterialization.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = m.BookingMaterialization.TemplateRosterMaintenanceFeeds(txCtx, templates)
+	err = m.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = m.commands.TemplateRosterMaintenanceFeeds(txCtx, templates)
 		return err
 	})
 	return
 }
 
-type bookingCommands struct{ *BookingMaterialization }
+type bookingCommands struct {
+	careplan.BookingMaterializationCapability
+	commands *BookingMaterialization
+}
 
 func NewBookingCommands(records *BookingMaterialization) careplan.BookingMaterializationCapability {
-	return &bookingCommands{records}
+	return &bookingCommands{records, records}
 }

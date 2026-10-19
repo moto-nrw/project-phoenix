@@ -431,7 +431,7 @@ func NewStaffAbsenceService(
 		panic("staff absence service: the sick cascade is required")
 	}
 	if service.runInTx != nil {
-		return &absenceCommands{service}
+		return &absenceCommands{service, service}
 	}
 	return service
 }
@@ -441,4 +441,7 @@ func NewStaffAbsenceService(
 // will come in a follow-up, see Issue #1375 Tranche 4a.
 const defaultEntitledDays = 30.0
 
-type absenceCommands struct{ *staffAbsenceService }
+type absenceCommands struct {
+	StaffAbsenceService
+	commands *staffAbsenceService
+}

@@ -86,7 +86,7 @@ func NewWorkSessionService(repo WorkSessionRepository, breakRepo WorkSessionBrea
 		opt(service)
 	}
 	if db != nil {
-		return &workSessionCommands{service}
+		return &workSessionCommands{service, service}
 	}
 	return service
 }
@@ -113,4 +113,7 @@ func (s *workSessionService) listSessionsByStaffAndDate(ctx context.Context, sta
 	return sessions, nil
 }
 
-type workSessionCommands struct{ *workSessionService }
+type workSessionCommands struct {
+	WorkSessionService
+	commands *workSessionService
+}

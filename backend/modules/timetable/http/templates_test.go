@@ -289,7 +289,7 @@ func templateRouter(parentCtx context.Context, res *Resource) chi.Router {
 	return r
 }
 
-func doTemplateJSON(t *testing.T, router chi.Router, method, path string, body any) *httptest.ResponseRecorder {
+func doTemplateJSON(t *testing.T, router http.Handler, method, path string, body any) *httptest.ResponseRecorder {
 	t.Helper()
 	var reader *bytes.Reader
 	if body == nil {

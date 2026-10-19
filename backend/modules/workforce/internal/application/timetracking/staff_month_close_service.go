@@ -99,7 +99,7 @@ func NewStaffMonthCloseService(
 		opt(service)
 	}
 	if service.runInTx != nil {
-		return &monthCloseCommands{service}
+		return &monthCloseCommands{service, service}
 	}
 	return service
 }
@@ -342,4 +342,7 @@ func (s *staffMonthCloseService) ListMonthStatus(ctx context.Context, year, mont
 	return s.snapshotRepo.ClosedMonthSnapshots(ctx, year, month)
 }
 
-type monthCloseCommands struct{ *staffMonthCloseService }
+type monthCloseCommands struct {
+	StaffMonthCloseService
+	commands *staffMonthCloseService
+}

@@ -21,8 +21,8 @@ import (
 // window. Same-day semantics mirror the deviation flow: an absence is
 // day-wide, and only planned or running blocks count as occupying.
 func (d *conflictCommands) StaffPoolForInstance(ctx context.Context, instanceID int64) (value0 timetable.StaffPool, err error) {
-	err = d.conflictDetection.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = d.conflictDetection.StaffPoolForInstance(txCtx, instanceID)
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.commands.StaffPoolForInstance(txCtx, instanceID)
 		return err
 	})
 	return

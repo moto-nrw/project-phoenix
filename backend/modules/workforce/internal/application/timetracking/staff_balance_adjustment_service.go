@@ -143,7 +143,7 @@ func NewStaffBalanceAdjustmentService(
 		opt(service)
 	}
 	if service.runInTx != nil {
-		return &adjustmentCommands{service}
+		return &adjustmentCommands{service, service}
 	}
 	return service
 }
@@ -662,4 +662,7 @@ func (s *staffBalanceAdjustmentService) getLogger() *slog.Logger {
 	return s.logger
 }
 
-type adjustmentCommands struct{ *staffBalanceAdjustmentService }
+type adjustmentCommands struct {
+	StaffBalanceAdjustmentService
+	commands *staffBalanceAdjustmentService
+}

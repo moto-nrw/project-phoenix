@@ -53,14 +53,14 @@ func NewStaffAdmin(dependencies StaffAdminDependencies) (*workforce.StaffAdmin, 
 		}
 	}
 	unit := transaction{lock: store.AcquireXactLock}
-	records := application.NewRecords(store, unit, clock{now: now}, observe)
+	records := application.NewRecords(store, unit, application.Clock{Time: now}, observe)
 	admin := application.NewStaffAdmin(
 		records, unit, application.NewStaffSubjects(dependencies.Subjects), application.NewStaffAudit(dependencies.Audit),
 		domain.DocumentAuthority{
 			Health: permissions.StaffDocumentsHealth, Financial: permissions.StaffFinancial, General: permissions.StaffDocuments,
 			Allows: dependencies.Allows,
 		},
-		clock{now: now}, logger.Warn,
+		application.Clock{Time: now}, logger.Warn,
 	)
 	return workforce.NewStaffAdmin(application.NewStaffAdminEngine(admin, records)), nil
 }

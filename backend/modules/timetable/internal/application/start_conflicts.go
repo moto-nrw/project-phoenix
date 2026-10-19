@@ -27,8 +27,8 @@ import (
 // the live layer. Failures to load the expected students or their current
 // presence are returned; staff lookups degrade to fewer warnings.
 func (d *conflictCommands) DetectStartConflicts(ctx context.Context, subject timetable.StartConflictSubject) (value0 []timetable.InstanceConflictWarning, err error) {
-	err = d.conflictDetection.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = d.conflictDetection.DetectStartConflicts(txCtx, subject)
+	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = d.commands.DetectStartConflicts(txCtx, subject)
 		return err
 	})
 	return

@@ -44,8 +44,8 @@ func NewScheduleReviews(deps ScheduleReviewDependencies) careplan.CareScheduleRe
 }
 
 func (s *scheduleReviewCommands) ListPending(ctx context.Context, filter careplan.RequestQueueFilter) (value0 []*careplan.CareScheduleReviewItem, value1 *careplan.RequestCursor, err error) {
-	err = s.ScheduleReviews.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, value1, err = s.ScheduleReviews.ListPending(txCtx, filter)
+	err = s.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, value1, err = s.commands.ListPending(txCtx, filter)
 		return err
 	})
 	return
@@ -143,8 +143,8 @@ func (s *ScheduleReviews) people(ctx context.Context, rows []careplan.CareSchedu
 }
 
 func (s *scheduleReviewCommands) ListHistory(ctx context.Context, filter careplan.RequestQueueFilter) (value0 []*careplan.CareScheduleHistoryItem, value1 *careplan.RequestCursor, err error) {
-	err = s.ScheduleReviews.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, value1, err = s.ScheduleReviews.ListHistory(txCtx, filter)
+	err = s.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, value1, err = s.commands.ListHistory(txCtx, filter)
 		return err
 	})
 	return
@@ -261,4 +261,4 @@ func (s *ScheduleReviews) plan(ctx context.Context, student careplan.ReviewStude
 	return facts, nil
 }
 
-type scheduleReviewCommands struct{ *ScheduleReviews }
+type scheduleReviewCommands struct{ commands *ScheduleReviews }

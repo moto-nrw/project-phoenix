@@ -199,3 +199,7 @@ func TestShiftPlanningServesTheDienstplanOverTheCapability(t *testing.T) {
 	})
 	require.EqualError(t, exportErr, "plan export is not configured")
 }
+
+func (d planningStaffDirectory) ListMembershipsWithPerson(ctx context.Context) ([]*workforce.PlanStaff, error) {
+	return d.ListAllWithPerson(ctx)
+}

@@ -341,6 +341,7 @@ func scalarTransactionFields(dir string, decl *ast.FuncDecl, cache map[string]ma
 // Migrations can own their schema transaction, but that role must not hide
 // administrative API calls from the exact administrative register.
 func TestTransactionScannerIncludesAdministrativeMigrationCalls(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, "architecture"), 0700); err != nil {
 		t.Fatal(err)

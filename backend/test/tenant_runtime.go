@@ -446,3 +446,33 @@ func TenantQuery1[T any, A0 any](tb testing.TB, ctx context.Context, db *bun.DB,
 	})
 	return value, err
 }
+
+// MeasuredTenantQuery1 measures an application read inside the same explicit
+// request unit production supplies. Transaction setup/commit is outside the
+// measurement; every business statement remains counted, cumulatively.
+func MeasuredTenantQuery1[T any, A0 any](tb testing.TB, ctx context.Context, db *bun.DB, counter *QueryCounter, query func(context.Context, A0) (T, error), arg0 A0) (value T, err error) {
+	tb.Helper()
+	counter.Stop()
+	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		counter.Start()
+		defer counter.Stop()
+		value, err = query(txCtx, arg0)
+		return err
+	})
+	return value, err
+}
+
+// MeasuredTenantQuery2 measures an application read inside the same explicit
+// request unit production supplies. Transaction setup/commit is outside the
+// measurement; every business statement remains counted, cumulatively.
+func MeasuredTenantQuery2[T any, A0 any, A1 any](tb testing.TB, ctx context.Context, db *bun.DB, counter *QueryCounter, query func(context.Context, A0, A1) (T, error), arg0 A0, arg1 A1) (value T, err error) {
+	tb.Helper()
+	counter.Stop()
+	err = WithinTenantContext(tb, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		counter.Start()
+		defer counter.Stop()
+		value, err = query(txCtx, arg0, arg1)
+		return err
+	})
+	return value, err
+}

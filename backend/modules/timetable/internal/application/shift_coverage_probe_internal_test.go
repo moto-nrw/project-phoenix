@@ -319,7 +319,7 @@ func TestDetectShiftCoverage_BoundsReturnedWarningDetails(t *testing.T) {
 	staff := fakeStaff(1, "Ada", "Lovelace")
 	staff.ID = 1
 	result, err := detectShiftCoverage(context.Background(), ports.ConflictDetectionDependencies{
-		Shifts: &fakeShiftReader{usedWeeks: weeks},
+		Shifts: &fakeShiftReader{rows: shiftsMarkingWeeks(weeks)},
 		Staff:  &fakeStaffReader{byID: map[int64]*timetable.StaffMember{1: staff}},
 	}, timetable.ShiftCoverageProbe{
 		Dates: dates, StartTime: testClock(t, "12:00"), EndTime: testClock(t, "13:00"), StaffIDs: []int64{1},
@@ -359,7 +359,7 @@ func TestDetectShiftCoverageWarnings_EffectiveRosterAndContainingWeek(t *testing
 	assert.Equal(t, calendar.NewDate(2026, time.July, 6), shiftReader.from)
 	assert.Equal(t, calendar.NewDate(2026, time.July, 12), shiftReader.to)
 	assert.Equal(t, 1, instanceStaff.calls)
-	assert.Equal(t, 2, shiftReader.calls)
+	assert.Equal(t, 1, shiftReader.calls)
 	assert.Equal(t, 1, staff.findCalls)
 }
 
@@ -385,7 +385,7 @@ func TestDetectShiftCoverageWarnings_ChangedRosterDropsPriorAbsence(t *testing.T
 	require.Len(t, warnings, 2, "changed membership makes both submitted IDs effective")
 	assert.Equal(t, []int64{1, 4}, []int64{warnings[0].StaffID, warnings[1].StaffID})
 	assert.Equal(t, 1, instanceStaff.calls, "concrete roster must be loaded in one batch")
-	assert.Equal(t, 2, shiftReader.calls, "relevant shifts and tenant week usage each use one batched read")
+	assert.Equal(t, 1, shiftReader.calls, "shifts and tenant week usage share one full-week snapshot")
 	assert.Equal(t, 1, staff.findCalls, "all warning names must be loaded in one batch")
 }
 
@@ -506,7 +506,7 @@ func TestDetectShiftCoverageWarnings_RecurringDatesReusePeriodAndABEngineWithFix
 		weekA.String(), weekA.AddDays(2).String(), nextWeekA.String(), nextWeekA.AddDays(2).String(),
 	}, []string{warnings[0].Date, warnings[1].Date, warnings[2].Date, warnings[3].Date})
 	assert.Equal(t, 1, periodReader.calls, "period must be loaded once for the entire series")
-	assert.Equal(t, 2, shiftReader.calls, "all relevant dates share one shift read plus one week-usage read")
+	assert.Equal(t, 1, shiftReader.calls, "all relevant dates share one full-week shift snapshot")
 	assert.Equal(t, 1, staff.findCalls, "all names must share one batch read")
 	assert.Zero(t, instanceStaff.calls, "series probes have no concrete deviation read")
 	assert.Equal(t, weekA, shiftReader.from)
@@ -576,7 +576,7 @@ func TestDetectShiftCoverageWarnings_SeriesReplanUsesEffectiveExceptionsAndDevia
 	assert.Equal(t, friday, instances.to)
 	assert.Equal(t, 1, exceptions.calls)
 	assert.Equal(t, 1, instanceStaff.calls)
-	assert.Equal(t, 2, shifts.calls)
+	assert.Equal(t, 1, shifts.calls)
 	assert.Equal(t, 1, staff.findCalls)
 }
 
@@ -778,4 +778,12 @@ func detectShiftCoverage(ctx context.Context, deps ports.ConflictDetectionDepend
 func detectShiftCoverageWarnings(ctx context.Context, deps ports.ConflictDetectionDependencies, probe timetable.ShiftCoverageProbe) ([]timetable.ShiftCoverageWarning, error) {
 	result, err := detectShiftCoverage(ctx, deps, probe)
 	return result.Warnings, err
+}
+
+func shiftsMarkingWeeks(weeks []calendar.Date) []*scheduleModel.StaffShift {
+	rows := make([]*scheduleModel.StaffShift, 0, len(weeks))
+	for _, week := range weeks {
+		rows = append(rows, &scheduleModel.StaffShift{StaffID: 999, Date: week.AddDays(5)})
+	}
+	return rows
 }

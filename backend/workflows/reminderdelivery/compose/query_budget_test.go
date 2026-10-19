@@ -31,7 +31,7 @@ func TestPresentStudentsInRoomsQueryBudget(t *testing.T) {
 	ctx := counter.Context(testpkg.Ctx(t))
 	run := func() []string {
 		counter.Reset()
-		_, err := query.Compute(ctx, remindersService.Scope{StaffID: staff.ID})
+		_, err := testpkg.MeasuredTenantQuery1(t, ctx, db, counter, query.Compute, remindersService.Scope{StaffID: staff.ID})
 		require.NoError(t, err)
 		return counter.Operation("SELECT")
 	}

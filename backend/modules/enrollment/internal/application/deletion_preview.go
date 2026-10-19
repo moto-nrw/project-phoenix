@@ -343,6 +343,9 @@ func (r *DeletionPreview) sourceEnrollmentCount(ctx context.Context, requestID i
 	if r.deps.CountSourceEnrollments == nil {
 		return 0, errors.New("source enrollment count capability is required")
 	}
+	if r.deps.Runtime.Transactions == nil {
+		return 0, errors.New("source enrollment transaction runtime is required")
+	}
 	var result int
 	err := r.deps.Runtime.Transactions.RunInTx(ctx, func(txCtx context.Context) error {
 		var err error
