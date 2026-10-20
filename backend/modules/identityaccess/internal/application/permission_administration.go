@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -12,23 +13,13 @@ import (
 
 const opAssignPermissionToRole = "assign permission to role"
 
-func (r *RoleAdministration) CreatePermission(ctx context.Context, name, description, resource, action string) (domain.ManagedPermission, error) {
-	permission, err := r.store.CreatePermission(ctx, domain.ManagedPermission{
-		Name: name, Description: description, Resource: resource, Action: action,
-	})
-	if err != nil {
-		return domain.ManagedPermission{}, failed("create permission", err)
-	}
-	return permission, nil
-}
-
 func (r *RoleAdministration) GetPermission(ctx context.Context, id int64) (domain.ManagedPermission, error) {
 	permission, found, err := r.store.FindPermission(ctx, id)
 	if err != nil {
 		return domain.ManagedPermission{}, failed("get permission", err)
 	}
 	if !found {
-		return domain.ManagedPermission{}, failed("get permission", domain.ErrPermissionNotFound)
+		return domain.ManagedPermission{}, failed("get permission", identityaccess.ErrPermissionNotFound)
 	}
 	return permission, nil
 }
@@ -41,14 +32,7 @@ func (r *RoleAdministration) GetPermissionByName(ctx context.Context, name strin
 	return permission, nil
 }
 
-func (r *RoleAdministration) UpdatePermission(ctx context.Context, permission domain.ManagedPermission) error {
-	if err := r.store.UpdatePermission(ctx, permission); err != nil {
-		return failed("update permission", err)
-	}
-	return nil
-}
-
-func (r *RoleAdministration) DeletePermission(ctx context.Context, id int64) error {
+func (r *RoleAdministration) deletePermission(ctx context.Context, id int64) error {
 	if err := r.store.DeletePermissionGrants(ctx, id); err != nil {
 		return failed("delete account permissions", err)
 	}
@@ -62,13 +46,18 @@ func (r *RoleAdministration) DeletePermission(ctx context.Context, id int64) err
 }
 
 // GrantPermissionToAccount grants a permission directly to an account.
-func (r *RoleAdministration) GrantPermissionToAccount(ctx context.Context, accountID, permissionID int64) error {
+func (r *RoleAdministration) GrantPermissionToAccount(ctx context.Context, accountID, permissionID int64) (err error) {
+	if r == nil {
+		return errRoleAdministrationUnavailable
+	}
+	defer func() { err = roleError(err) }()
+	ctx = bindRuntime(r.attach, ctx)
 	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		if err := r.lockManageableAccount(txCtx, accountID, "grant permission"); err != nil {
 			return err
 		}
 		if _, found, err := r.store.FindPermission(txCtx, permissionID); err != nil || !found {
-			return failed("grant permission", domain.ErrPermissionNotFound)
+			return failed("grant permission", identityaccess.ErrPermissionNotFound)
 		}
 		if err := r.store.GrantAccountPermission(txCtx, accountID, permissionID); err != nil {
 			return failed("grant permission to account", err)
@@ -78,13 +67,18 @@ func (r *RoleAdministration) GrantPermissionToAccount(ctx context.Context, accou
 }
 
 // DenyPermissionToAccount explicitly denies a permission to an account.
-func (r *RoleAdministration) DenyPermissionToAccount(ctx context.Context, accountID, permissionID int64) error {
+func (r *RoleAdministration) DenyPermissionToAccount(ctx context.Context, accountID, permissionID int64) (err error) {
+	if r == nil {
+		return errRoleAdministrationUnavailable
+	}
+	defer func() { err = roleError(err) }()
+	ctx = bindRuntime(r.attach, ctx)
 	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		if err := r.lockManageableAccount(txCtx, accountID, "deny permission"); err != nil {
 			return err
 		}
 		if _, found, err := r.store.FindPermission(txCtx, permissionID); err != nil || !found {
-			return failed("deny permission", domain.ErrPermissionNotFound)
+			return failed("deny permission", identityaccess.ErrPermissionNotFound)
 		}
 		if err := r.store.DenyAccountPermission(txCtx, accountID, permissionID); err != nil {
 			return failed("deny permission to account", err)
@@ -94,7 +88,12 @@ func (r *RoleAdministration) DenyPermissionToAccount(ctx context.Context, accoun
 }
 
 // RemovePermissionFromAccount removes a direct grant or denial.
-func (r *RoleAdministration) RemovePermissionFromAccount(ctx context.Context, accountID, permissionID int64) error {
+func (r *RoleAdministration) RemovePermissionFromAccount(ctx context.Context, accountID, permissionID int64) (err error) {
+	if r == nil {
+		return errRoleAdministrationUnavailable
+	}
+	defer func() { err = roleError(err) }()
+	ctx = bindRuntime(r.attach, ctx)
 	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		if err := r.lockManageableAccount(txCtx, accountID, "remove permission"); err != nil {
 			return err
@@ -135,13 +134,18 @@ func (r *RoleAdministration) GetAccountDirectPermissions(ctx context.Context, ac
 }
 
 // AssignPermissionToRole adds a permission to a custom role.
-func (r *RoleAdministration) AssignPermissionToRole(ctx context.Context, roleID, permissionID int64) error {
+func (r *RoleAdministration) AssignPermissionToRole(ctx context.Context, roleID, permissionID int64) (err error) {
+	if r == nil {
+		return errRoleAdministrationUnavailable
+	}
+	defer func() { err = roleError(err) }()
+	ctx = bindRuntime(r.attach, ctx)
 	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		if err := r.lockMutableRole(txCtx, roleID, opAssignPermissionToRole); err != nil {
 			return err
 		}
 		if _, found, err := r.store.FindPermission(txCtx, permissionID); err != nil || !found {
-			return failed(opAssignPermissionToRole, domain.ErrPermissionNotFound)
+			return failed(opAssignPermissionToRole, identityaccess.ErrPermissionNotFound)
 		}
 		if err := r.store.AssignRolePermission(txCtx, roleID, permissionID); err != nil {
 			return failed(opAssignPermissionToRole, err)
@@ -162,7 +166,7 @@ func (r *RoleAdministration) lockMutableRole(ctx context.Context, roleID int64, 
 		return failed(op, domain.ErrRoleNotFound)
 	}
 	if role.IsSystem {
-		return failed(op, domain.ErrSystemRoleImmutable)
+		return failed(op, identityaccess.ErrSystemRoleImmutable)
 	}
 	return nil
 }
@@ -170,7 +174,12 @@ func (r *RoleAdministration) lockMutableRole(ctx context.Context, roleID int64, 
 // ReplaceRolePermissions applies a complete permission selection to a custom
 // role in one transaction. All requested permissions are validated before the
 // current selection is changed, so an invalid request leaves it untouched.
-func (r *RoleAdministration) ReplaceRolePermissions(ctx context.Context, roleID int64, permissionIDs []int64) error {
+func (r *RoleAdministration) ReplaceRolePermissions(ctx context.Context, roleID int64, permissionIDs []int64) (err error) {
+	if r == nil {
+		return errRoleAdministrationUnavailable
+	}
+	defer func() { err = roleError(err) }()
+	ctx = bindRuntime(r.attach, ctx)
 	const op = "replace role permissions"
 	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		// The role row serializes full replacements and the one-at-a-time
@@ -201,7 +210,12 @@ func (r *RoleAdministration) ReplaceRolePermissions(ctx context.Context, roleID 
 }
 
 // RemovePermissionFromRole removes a permission from a custom role.
-func (r *RoleAdministration) RemovePermissionFromRole(ctx context.Context, roleID, permissionID int64) error {
+func (r *RoleAdministration) RemovePermissionFromRole(ctx context.Context, roleID, permissionID int64) (err error) {
+	if r == nil {
+		return errRoleAdministrationUnavailable
+	}
+	defer func() { err = roleError(err) }()
+	ctx = bindRuntime(r.attach, ctx)
 	const op = "remove permission from role"
 	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		if err := r.lockMutableRole(txCtx, roleID, op); err != nil {
@@ -233,7 +247,7 @@ func (r *RoleAdministration) GetRolePermissions(ctx context.Context, roleID int6
 //
 // permissionName is the permission to grant; the caller passes the People
 // Directory default so this module needs no staff permission contract.
-func (r *RoleAdministration) GrantStaffDefaultPermission(ctx context.Context, accountID int64, isTeacher bool, permissionName string) {
+func (r *RoleAdministration) grantStaffDefaultPermission(ctx context.Context, accountID int64, isTeacher bool, permissionName string) {
 	role := "staff"
 	if isTeacher {
 		role = "teacher"
@@ -268,14 +282,14 @@ func (r *RoleAdministration) desiredRolePermissions(txCtx context.Context, permi
 	desired := make(map[int64]struct{}, len(permissionIDs))
 	for _, permissionID := range permissionIDs {
 		if permissionID <= 0 {
-			return nil, failed("replace role permissions", domain.ErrPermissionNotFound)
+			return nil, failed("replace role permissions", identityaccess.ErrPermissionNotFound)
 		}
 		_, found, err := r.store.FindPermission(txCtx, permissionID)
 		if err != nil {
 			return nil, failed("replace role permissions", err)
 		}
 		if !found {
-			return nil, failed("replace role permissions", domain.ErrPermissionNotFound)
+			return nil, failed("replace role permissions", identityaccess.ErrPermissionNotFound)
 		}
 		desired[permissionID] = struct{}{}
 	}

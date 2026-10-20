@@ -198,7 +198,7 @@ func (s *AccountProvisioning) LinkSchoolAccount(ctx context.Context, link identi
 		// Reported as the caller's own error, unwrapped: prefixing "link
 		// failed" onto a German sentence the operator is meant to read makes
 		// it noise.
-		if domain.IsSchoolIdentityRequestError(err) || errors.Is(err, domain.ErrRoleLehrkraftCaregiverProfile) {
+		if domain.IsSchoolIdentityRequestError(err) || errors.Is(err, identityaccess.ErrRoleLehrkraftCaregiverProfile) {
 			return identityaccess.ProvisionedAccount{}, failed(opLinkAccount, err)
 		}
 		return identityaccess.ProvisionedAccount{}, failed(opLinkAccount, fmt.Errorf("link failed: %w", err))
@@ -342,7 +342,7 @@ func (s *AccountProvisioning) linkTenantAccount(txCtx context.Context, request d
 			return identity, profileErr
 		}
 		if hasProfile {
-			return identity, domain.ErrRoleLehrkraftCaregiverProfile
+			return identity, identityaccess.ErrRoleLehrkraftCaregiverProfile
 		}
 	}
 	if assignsRole(request.RoleID) {

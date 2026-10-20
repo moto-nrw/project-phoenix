@@ -27,6 +27,7 @@ type RoleAdministration struct {
 	identity      ports.SchoolIdentity
 	sessions      ports.SessionRevocation
 	runtime       ports.Runtime
+	attach        func(context.Context) context.Context
 	logger        *slog.Logger
 }
 
@@ -41,7 +42,9 @@ type RoleAdministrationDependencies struct {
 	Identity      ports.SchoolIdentity
 	Sessions      ports.SessionRevocation
 	Runtime       ports.Runtime
-	Logger        *slog.Logger
+	// Attach binds the composed unit of work ahead of every public flow.
+	Attach func(context.Context) context.Context
+	Logger *slog.Logger
 }
 
 // NewRoleAdministration composes the administration over its ports.
@@ -63,7 +66,7 @@ func NewRoleAdministration(deps RoleAdministrationDependencies) (*RoleAdministra
 	return &RoleAdministration{
 		RoleCatalog: NewRoleCatalog(deps.Store, deps.Runtime.RunInTx),
 		accounts:    deps.Accounts, store: deps.Store, profiles: deps.Profiles, policy: deps.Policy, identityRoles: deps.IdentityRoles,
-		identity: deps.Identity, sessions: deps.Sessions, runtime: deps.Runtime, logger: logger,
+		identity: deps.Identity, sessions: deps.Sessions, runtime: deps.Runtime, attach: deps.Attach, logger: logger,
 	}, nil
 }
 
@@ -91,7 +94,7 @@ func (r *RoleAdministration) GetRole(ctx context.Context, id int64) (domain.Mana
 	return role, nil
 }
 
-func (r *RoleAdministration) ResolveAssignableSchoolRole(ctx context.Context, roleID, tenantID int64) (domain.ManagedRole, []string, error) {
+func (r *RoleAdministration) resolveAssignableSchoolRole(ctx context.Context, roleID, tenantID int64) (domain.ManagedRole, []string, error) {
 	if roleID <= 0 {
 		return domain.ManagedRole{}, nil, r.policy.ValidateAssignableSchoolRole(nil, tenantID)
 	}
@@ -122,7 +125,7 @@ func (r *RoleAdministration) UpdateRole(ctx context.Context, role domain.Managed
 		return failed("update role", domain.ErrRoleNotFound)
 	}
 	if existing.IsSystem {
-		return failed("update role", domain.ErrSystemRoleImmutable)
+		return failed("update role", identityaccess.ErrSystemRoleImmutable)
 	}
 	if err := r.store.UpdateRole(ctx, role); err != nil {
 		return failed("update role", err)
@@ -131,7 +134,12 @@ func (r *RoleAdministration) UpdateRole(ctx context.Context, role domain.Managed
 }
 
 // DeleteRole deletes a custom role with its account and permission mappings.
-func (r *RoleAdministration) DeleteRole(ctx context.Context, id int64) error {
+func (r *RoleAdministration) DeleteRole(ctx context.Context, id int64) (err error) {
+	if r == nil {
+		return errRoleAdministrationUnavailable
+	}
+	defer func() { err = roleError(err) }()
+	ctx = bindRuntime(r.attach, ctx)
 	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		// ReplaceRolePermissions locks the role before its mappings. Take the
 		// same lock first so deleting a role cannot wait for a mapping while a
@@ -144,7 +152,7 @@ func (r *RoleAdministration) DeleteRole(ctx context.Context, id int64) error {
 			return failed("delete role", domain.ErrRoleNotFound)
 		}
 		if role.IsSystem {
-			return failed("delete role", domain.ErrSystemRoleImmutable)
+			return failed("delete role", identityaccess.ErrSystemRoleImmutable)
 		}
 
 		if err := r.store.DeleteRoleAssignments(txCtx, id); err != nil {
@@ -162,9 +170,14 @@ func (r *RoleAdministration) DeleteRole(ctx context.Context, id int64) error {
 
 // AssignRoleToAccount assigns a role to an account at the tenant in context
 // and completes the school identity the role owes.
-func (r *RoleAdministration) AssignRoleToAccount(ctx context.Context, accountID, roleID int64) error {
+func (r *RoleAdministration) AssignRoleToAccount(ctx context.Context, accountID, roleID int64) (err error) {
+	if r == nil {
+		return errRoleAdministrationUnavailable
+	}
+	defer func() { err = roleError(err) }()
+	ctx = bindRuntime(r.attach, ctx)
 	var revoked []identityaccess.AccountSession
-	err := r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+	err = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		// Serialize assignments with tenant-access revocation, which holds the
 		// same account lock while removing the tenant's roles and mapping.
 		if err := r.lockManageableAccount(txCtx, accountID, "assign role"); err != nil {
@@ -219,7 +232,12 @@ func (r *RoleAdministration) AssignRoleToAccount(ctx context.Context, accountID,
 //
 // The target is assigned first so the account never temporarily loses its
 // staff role; a later failure rolls back the complete exchange.
-func (r *RoleAdministration) ReplaceAccountRole(ctx context.Context, accountID, roleID int64) error {
+func (r *RoleAdministration) ReplaceAccountRole(ctx context.Context, accountID, roleID int64) (err error) {
+	if r == nil {
+		return errRoleAdministrationUnavailable
+	}
+	defer func() { err = roleError(err) }()
+	ctx = bindRuntime(r.attach, ctx)
 	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		// Take the same account lock as single-role mutations before changing
 		// an assignment. This serializes replacements with individual
@@ -292,9 +310,14 @@ func (r *RoleAdministration) accountHoldsLehrkraftRole(ctx context.Context, acco
 
 // RemoveRoleFromAccount removes a role from an account; removing a role the
 // account does not hold is a no-op.
-func (r *RoleAdministration) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int64) error {
+func (r *RoleAdministration) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int64) (err error) {
+	if r == nil {
+		return errRoleAdministrationUnavailable
+	}
+	defer func() { err = roleError(err) }()
+	ctx = bindRuntime(r.attach, ctx)
 	var revoked []identityaccess.AccountSession
-	err := r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+	err = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		if err := r.lockManageableAccount(txCtx, accountID, "remove role"); err != nil {
 			return err
 		}
@@ -338,7 +361,7 @@ func (r *RoleAdministration) GetAccountRoles(ctx context.Context, accountID int6
 	return roles, nil
 }
 
-func (r *RoleAdministration) AccountsHoldingRole(ctx context.Context, accountIDs []int64, roleName string) (map[int64]bool, error) {
+func (r *RoleAdministration) accountsHoldingRole(ctx context.Context, accountIDs []int64, roleName string) (map[int64]bool, error) {
 	if len(accountIDs) == 0 || roleName == "" {
 		return map[int64]bool{}, nil
 	}
@@ -487,7 +510,7 @@ func (r *RoleAdministration) requireLehrkraftPreserved(txCtx context.Context, ac
 			return failed("assign role", roleErr)
 		}
 		if isLehrkraft {
-			return failed("assign role", domain.ErrLehrkraftRoleImmutable)
+			return failed("assign role", identityaccess.ErrLehrkraftRoleImmutable)
 		}
 	}
 
@@ -507,7 +530,7 @@ func (r *RoleAdministration) requireNoCaregiverForLehrkraft(txCtx context.Contex
 			return failed("assign role", profErr)
 		}
 		if hasProfile {
-			return failed("assign role", domain.ErrRoleLehrkraftCaregiverProfile)
+			return failed("assign role", identityaccess.ErrRoleLehrkraftCaregiverProfile)
 		}
 	}
 
@@ -535,7 +558,7 @@ func (r *RoleAdministration) requireCaregiverAssignmentProfile(txCtx context.Con
 				return failed("assign role", profErr)
 			}
 			if !hasProfile {
-				return failed("assign role", domain.ErrRoleCaregiverNeedsProfile)
+				return failed("assign role", identityaccess.ErrRoleCaregiverNeedsProfile)
 			}
 		}
 	}
@@ -560,4 +583,101 @@ func (r *RoleAdministration) assignMissingAccountRole(txCtx context.Context, acc
 	}
 
 	return revoked, nil
+}
+
+func (r *RoleAdministration) ResolveAssignableSchoolRole(ctx context.Context, roleID, tenantID int64) (value0 *identityaccess.AssignableSchoolRole, err error) {
+	if r == nil {
+		return nil, errRoleAdministrationUnavailable
+	}
+	operation := func(ctx context.Context) (*identityaccess.AssignableSchoolRole, error) {
+		role, permissions, err := r.resolveAssignableSchoolRole(bindRuntime(r.attach, ctx), roleID, tenantID)
+		if err != nil {
+			return nil, roleError(err)
+		}
+		return &identityaccess.AssignableSchoolRole{Role: identityaccess.Role(role), Permissions: permissions}, nil
+	}
+	err = globalIdentityRead(ctx, r.runtime, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
+}
+
+func (r *RoleAdministration) AccountsHoldingRole(ctx context.Context, accountIDs []int64, roleName string) (value0 map[int64]bool, err error) {
+	if r == nil {
+		return nil, errRoleAdministrationUnavailable
+	}
+	if len(accountIDs) == 0 {
+		return map[int64]bool{}, nil
+	}
+	if roleName == "" {
+		return map[int64]bool{}, nil
+	}
+	operation := func(ctx context.Context) (map[int64]bool, error) {
+		matches, err := r.accountsHoldingRole(bindRuntime(r.attach, ctx), accountIDs, roleName)
+		return matches, roleError(err)
+	}
+	err = globalIdentityRead(ctx, r.runtime, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
+}
+
+func (r *RoleAdministration) CreatePermission(ctx context.Context, name, description, resource, action string) (value0 identityaccess.Permission, err error) {
+	if r == nil {
+		return identityaccess.Permission{}, errRoleAdministrationUnavailable
+	}
+	operation := func(ctx context.Context) (identityaccess.Permission, error) {
+		permission, err := r.store.CreatePermission(bindRuntime(r.attach, ctx), domain.ManagedPermission{
+			Name: name, Description: description, Resource: resource, Action: action,
+		})
+		if err != nil {
+			return identityaccess.Permission{}, roleError(failed("create permission", err))
+		}
+		return identityaccess.Permission(permission), nil
+	}
+	err = globalIdentityRead(ctx, r.runtime, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
+}
+
+func (r *RoleAdministration) UpdatePermission(ctx context.Context, permission identityaccess.Permission) (err error) {
+	if r == nil {
+		return errRoleAdministrationUnavailable
+	}
+	operation := func(ctx context.Context) error {
+		if err := r.store.UpdatePermission(bindRuntime(r.attach, ctx), domain.ManagedPermission(permission)); err != nil {
+			return roleError(failed("update permission", err))
+		}
+		return nil
+	}
+	err = globalIdentityRead(ctx, r.runtime, func(txCtx context.Context) error {
+		err = operation(txCtx)
+		return err
+	})
+	return
+}
+
+func (r *RoleAdministration) DeletePermission(ctx context.Context, id int64) (err error) {
+	if r == nil {
+		return errRoleAdministrationUnavailable
+	}
+	operation := func(ctx context.Context) error {
+		return roleError(r.deletePermission(bindRuntime(r.attach, ctx), id))
+	}
+	err = globalIdentityRead(ctx, r.runtime, func(txCtx context.Context) error {
+		err = operation(txCtx)
+		return err
+	})
+	return
+}
+
+func (r *RoleAdministration) GrantStaffDefaultPermission(ctx context.Context, accountID int64, isTeacher bool, permissionName string) {
+	if r == nil {
+		return
+	}
+	r.grantStaffDefaultPermission(bindRuntime(r.attach, ctx), accountID, isTeacher, permissionName)
 }
