@@ -89,14 +89,6 @@ type AccountProvisioning interface {
 	LinkSchoolAccount(ctx context.Context, request SchoolAccountLink) (ProvisionedAccount, error)
 }
 
-func (m *Module) RegisterSchoolAccount(ctx context.Context, request SchoolAccountRegistration) (ProvisionedAccount, error) {
-	return m.engine.RegisterSchoolAccount(ctx, request)
-}
-
-func (m *Module) LinkSchoolAccount(ctx context.Context, request SchoolAccountLink) (ProvisionedAccount, error) {
-	return m.engine.LinkSchoolAccount(ctx, request)
-}
-
 // provisioningUsernameSuffixLength is the length of the suffix that keeps
 // generated usernames unique.
 const provisioningUsernameSuffixLength = 6

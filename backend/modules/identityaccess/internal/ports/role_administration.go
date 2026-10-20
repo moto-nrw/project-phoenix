@@ -124,5 +124,5 @@ type PermissionStore interface {
 // ManageableAccounts applies the account administration's visibility rules.
 // Missing and out-of-scope accounts return ErrAccountNotFound.
 type ManageableAccounts interface {
-	FindManageableAccount(ctx context.Context, accountID int64) (domain.ManagedAccountRecord, error)
+	FindManageableAccount(ctx context.Context, accountID int64) (identityaccess.ManagedAccount, error)
 }

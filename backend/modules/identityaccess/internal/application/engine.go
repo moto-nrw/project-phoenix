@@ -43,34 +43,34 @@ type EngineParts struct {
 // NewEngine serves the Identity & Access capability over parts (#4084).
 func NewEngine(parts EngineParts) identityaccess.Engine {
 	return engine{
-		CalendarFeeds:          parts.CalendarFeeds,
-		RFIDCards:              parts.RFIDCards,
-		AccountRoleQueries:     parts.AccountRoleQueries,
-		GuardianSchools:        parts.GuardianSchools,
-		AccountProfiles:        parts.Profiles,
-		Service:                parts.Service,
-		OperatorMFARecords:     parts.MFA,
-		OperatorTokens:         parts.Tokens,
-		OperatorPasskeyRecords: parts.Passkeys,
-		AccountPasskeyRecords:  parts.AccountPasskeys,
-		AccountAuthentication:  parts.Auth,
-		OperatorAuthentication: parts.OperatorAuth,
-		OperatorAccountAccess:  parts.AccountAccess,
-		lifecycle:              parts.Lifecycle,
-		roles:                  parts.Roles,
-		PasswordReset:          parts.Resets,
-		invitations:            parts.Invitations,
-		provisioning:           parts.Provisioning,
-		administration:         parts.Administration,
-		OperatorProvisioning:   parts.OperatorProvisioning,
-		invitationMaintenance:  parts.InvitationMaintenance,
-		SignInDataRetention:    parts.SignInRetention,
-		AccountRetention:       parts.AccountRetention,
-		OperatorMFAFlows:       parts.MFAFlows.Operator,
-		OperatorPasskeyFlows:   parts.MFAFlows.OperatorPasskey,
-		AccountPasskeyFlows:    parts.MFAFlows.AccountPasskey,
-		accountMFACapability:   newAccountMFACapability(parts.MFAFlows.Capability),
-		runtime:                parts.Runtime,
+		CalendarFeeds:               parts.CalendarFeeds,
+		RFIDCards:                   parts.RFIDCards,
+		AccountRoleQueries:          parts.AccountRoleQueries,
+		GuardianSchools:             parts.GuardianSchools,
+		AccountProfiles:             parts.Profiles,
+		Service:                     parts.Service,
+		OperatorMFARecords:          parts.MFA,
+		OperatorTokens:              parts.Tokens,
+		OperatorPasskeyRecords:      parts.Passkeys,
+		AccountPasskeyRecords:       parts.AccountPasskeys,
+		AccountAuthentication:       parts.Auth,
+		OperatorAuthentication:      parts.OperatorAuth,
+		OperatorAccountAccess:       parts.AccountAccess,
+		lifecycle:                   parts.Lifecycle,
+		roles:                       parts.Roles,
+		PasswordReset:               parts.Resets,
+		SchoolInvitation:            parts.Invitations,
+		AccountProvisioning:         parts.Provisioning,
+		AccountAdministration:       parts.Administration,
+		OperatorProvisioning:        parts.OperatorProvisioning,
+		SchoolInvitationMaintenance: parts.InvitationMaintenance,
+		SignInDataRetention:         parts.SignInRetention,
+		AccountRetention:            parts.AccountRetention,
+		OperatorMFAFlows:            parts.MFAFlows.Operator,
+		OperatorPasskeyFlows:        parts.MFAFlows.OperatorPasskey,
+		AccountPasskeyFlows:         parts.MFAFlows.AccountPasskey,
+		accountMFACapability:        newAccountMFACapability(parts.MFAFlows.Capability),
+		runtime:                     parts.Runtime,
 	}
 }
 
@@ -108,22 +108,26 @@ type engine struct {
 	// unavailable when the module was composed without password reset
 	// dependencies.
 	*PasswordReset
-	// invitations is nil when the module was composed without the school
-	// invitation dependencies.
-	invitations *SchoolInvitation
-	// provisioning is nil when the module was composed without lifecycle
+	// SchoolInvitation serves its public capability itself and reports it
+	// unavailable when the module was composed without the school invitation
 	// dependencies.
-	provisioning *AccountProvisioning
-	// administration is nil when the module was composed without lifecycle
+	*SchoolInvitation
+	// AccountProvisioning serves its public capability itself and reports
+	// it unavailable when the module was composed without lifecycle
 	// dependencies.
-	administration *AccountAdministration
+	*AccountProvisioning
+	// AccountAdministration serves its public capability itself and reports
+	// it unavailable when the module was composed without lifecycle
+	// dependencies.
+	*AccountAdministration
 	// OperatorProvisioning serves its public capability itself and reports
 	// it unavailable when the module was composed without the operator
 	// provisioning dependencies.
 	*OperatorProvisioning
-	// invitationMaintenance is always composed: spending a deleted school's
-	// invitations and deleting expired ones need no flow dependencies.
-	invitationMaintenance *SchoolInvitationMaintenance
+	// SchoolInvitationMaintenance is always composed: spending a deleted
+	// school's invitations and deleting expired ones need no flow
+	// dependencies.
+	*SchoolInvitationMaintenance
 	// SignInDataRetention is always composed: the fixed retention of
 	// short-lived sign-in data needs no flow dependencies (#3954).
 	*SignInDataRetention

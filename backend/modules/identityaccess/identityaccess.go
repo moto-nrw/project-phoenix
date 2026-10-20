@@ -394,6 +394,9 @@ type Module struct {
 }
 
 type ownerServices interface {
+	SchoolInvitations
+	AccountAdministration
+	AccountProvisioning
 	AccountProfiles
 	AccountRoleQueries
 	GuardianPortalLoginQuery

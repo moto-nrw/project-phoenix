@@ -277,12 +277,12 @@ func (s *raStore) GrantAccountPermission(_ context.Context, accountID, permissio
 func (s *raStore) DenyAccountPermission(context.Context, int64, int64) error   { return nil }
 func (s *raStore) RemoveAccountPermission(context.Context, int64, int64) error { return nil }
 
-func (s *raStore) FindManageableAccount(_ context.Context, accountID int64) (domain.ManagedAccountRecord, error) {
+func (s *raStore) FindManageableAccount(_ context.Context, accountID int64) (identityaccess.ManagedAccount, error) {
 	s.record("find manageable account")
 	if !s.manageable[accountID] {
-		return domain.ManagedAccountRecord{}, domain.ErrAccountNotFound
+		return identityaccess.ManagedAccount{}, domain.ErrAccountNotFound
 	}
-	return domain.ManagedAccountRecord{ID: accountID}, nil
+	return identityaccess.ManagedAccount{ID: accountID}, nil
 }
 
 func (s *raStore) LockAccount(_ context.Context, accountID int64) (bool, error) {
