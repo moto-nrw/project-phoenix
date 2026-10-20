@@ -76,7 +76,7 @@ func (s *Service) LockStudent(ctx context.Context, id int64) error {
 }
 
 func (s *Service) ListStudentsWithStatusFlag(ctx context.Context, status string) ([]peopledirectory.Student, error) {
-	if !peopledirectory.ValidStudentStatusFlag(status) {
+	if status != "sick" && status != "excused" {
 		return nil, invalidStudent("student status flag is invalid")
 	}
 	values, err := s.students.ListByStatusFlag(ctx, status)

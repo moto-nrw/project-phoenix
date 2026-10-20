@@ -133,10 +133,6 @@ type StudentStatusFlagCapability interface {
 	ListStudentsWithStatusFlag(context.Context, string) ([]Student, error)
 }
 
-func ValidStudentStatusFlag(status string) bool {
-	return status == "sick" || status == "excused"
-}
-
 // SchoolClasses trims class names and preserves their distinct order.
 func SchoolClasses(classes []string) []string {
 	result := make([]string, 0, len(classes))

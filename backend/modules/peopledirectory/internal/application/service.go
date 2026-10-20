@@ -101,10 +101,6 @@ func (s *Service) findOne(ctx context.Context, operation string, query func(cont
 	return result, err
 }
 
-// CountByTenant is platform-wide by definition, so it always reads in its
-// own admin transaction; a tenant transaction in context would hide every
-// other school's rows.
-
 func (s *Service) requireLocked(ctx context.Context, id int64, stats *domain.OperationStats) error {
 	person, found, queryStats, err := s.store.FindByID(ctx, id, "UPDATE")
 	stats.Add(queryStats)
@@ -158,4 +154,27 @@ func nonNilPersons(values []peopledirectory.Person) []peopledirectory.Person {
 		return []peopledirectory.Person{}
 	}
 	return values
+}
+
+func (s *Service) ListAcrossTenantsByIDs(ctx context.Context, ids []int64) (result []peopledirectory.Person, err error) {
+	err = observeRun(ctx, s.observe, "list_persons_across_tenants_by_id", s.tx.RunAdminRead, func(txCtx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		result, queryStats, err = s.store.ListByIDs(txCtx, ids)
+		stats.Add(queryStats)
+		return err
+	})
+	return result, err
+}
+
+// CountByTenant is platform-wide by definition, so it always reads in its
+// own admin transaction; a tenant transaction in context would hide every
+// other school's rows.
+func (s *Service) CountByTenant(ctx context.Context) (result map[int64]int, err error) {
+	err = observeRun(ctx, s.observe, "count_persons_by_tenant", s.tx.RunAdminRead, func(txCtx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		result, queryStats, err = s.store.CountByTenant(txCtx)
+		stats.Add(queryStats)
+		return err
+	})
+	return result, err
 }

@@ -108,19 +108,13 @@ func (s *Service) ListPersonsByID(ctx context.Context, ids []int64) (result []pe
 	return nonNilPersons(result), err
 }
 
-func (s *Service) ListPersonsAcrossTenantsByID(ctx context.Context, ids []int64) (result []peopledirectory.Person, err error) {
+func (s *Service) ListPersonsAcrossTenantsByID(ctx context.Context, ids []int64) ([]peopledirectory.Person, error) {
 	ids = peopledirectory.PositiveIDs(ids)
 	if len(ids) == 0 {
 		return []peopledirectory.Person{}, nil
 	}
-
-	err = observeRun(ctx, s.observe, "list_persons_across_tenants_by_id", s.tx.RunAdminRead, func(txCtx context.Context, stats *domain.OperationStats) error {
-		var queryStats domain.OperationStats
-		result, queryStats, err = s.store.ListByIDs(txCtx, ids)
-		stats.Add(queryStats)
-		return err
-	})
-	return nonNilPersons(result), err
+	values, err := s.ListAcrossTenantsByIDs(ctx, ids)
+	return nonNilPersons(values), err
 }
 
 func (s *Service) ListPersonsByTenantIDs(ctx context.Context, tenantIDs []int64) (result []peopledirectory.Person, err error) {
@@ -177,14 +171,8 @@ func (s *Service) SearchPersons(ctx context.Context, filter peopledirectory.Pers
 	return nonNilPersons(result), err
 }
 
-func (s *Service) CountPersonsByTenant(ctx context.Context) (result map[int64]int, err error) {
-	err = observeRun(ctx, s.observe, "count_persons_by_tenant", s.tx.RunAdminRead, func(txCtx context.Context, stats *domain.OperationStats) error {
-		var queryStats domain.OperationStats
-		result, queryStats, err = s.store.CountByTenant(txCtx)
-		stats.Add(queryStats)
-		return err
-	})
-	return result, err
+func (s *Service) CountPersonsByTenant(ctx context.Context) (map[int64]int, error) {
+	return s.CountByTenant(ctx)
 }
 
 func (s *Service) LinkAccount(ctx context.Context, personID, accountID int64) error {
