@@ -383,3 +383,34 @@ describe("POST /api/invitations", () => {
     expect(JSON.stringify(json)).not.toContain("User already has invitation");
   });
 });
+
+describe("POST employment action", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuth.mockResolvedValue(defaultSession);
+    mockApiPost.mockResolvedValue({ data: { id: 1 } });
+  });
+
+  it.each(["resume", "new", "invalid"])(
+    "forwards %s for backend validation",
+    async (action) => {
+      const response = await POST(
+        createMockRequest("/api/invitations", {
+          method: "POST",
+          body: {
+            email: "former@example.com",
+            roleId: "2",
+            employmentAction: action,
+          },
+        }),
+        createMockContext(),
+      );
+      expect(response.status).toBe(200);
+      expect(mockApiPost).toHaveBeenCalledWith(
+        "/auth/invitations",
+        "test-token",
+        expect.objectContaining({ employment_action: action }),
+      );
+    },
+  );
+});

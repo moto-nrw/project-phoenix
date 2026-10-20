@@ -546,3 +546,35 @@ func TestEnsureSchoolIdentity_CaregiverUpgradeProvisionsProfile(t *testing.T) {
 	require.NoError(t, err)
 	require.NotZero(t, identity.TeacherID)
 }
+
+func TestEnsureSchoolIdentity_NewEmploymentKeepsFormerEmployment(t *testing.T) {
+	t.Parallel()
+	f := newLifecycleFixture(t)
+	person := f.seedAccountPerson("Returning", "Member", nil)
+	former := f.staff.addStaff(person.ID)
+	former.Deleted = true
+	f.staff.staff[former.ID] = former
+	in := identityInput(customRole("OGS-Kraft", tierUser))
+	in.EmploymentAction = domain.EmploymentActionNew
+	identity, err := ensureIdentity(t, f, in)
+	require.NoError(t, err)
+	require.NotEqual(t, former.ID, identity.StaffID)
+	require.Equal(t, person.ID, identity.PersonID)
+	require.True(t, f.staff.staff[former.ID].Deleted)
+	require.Empty(t, f.staff.rehired)
+	require.Len(t, f.staff.persons, 1)
+}
+
+func TestEnsureSchoolIdentity_AlreadyActiveOverridesNewEmployment(t *testing.T) {
+	t.Parallel()
+	f := newLifecycleFixture(t)
+	person := f.seedAccountPerson("Active", "Member", nil)
+	active := f.staff.addStaff(person.ID)
+	in := identityInput(customRole("OGS-Kraft", tierUser))
+	in.EmploymentAction = domain.EmploymentActionNew
+	identity, err := ensureIdentity(t, f, in)
+	require.NoError(t, err)
+	require.Equal(t, active.ID, identity.StaffID)
+	require.Len(t, f.staff.staffRows(), 1)
+	require.Len(t, f.staff.persons, 1)
+}
