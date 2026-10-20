@@ -140,7 +140,7 @@ func newStaffComposition(
 // the tenant settings. It is composed HERE rather than alongside the other
 // modules because it needs the settings service, which only exists once the
 // service graph is built.
-func newExportTransferModule(settings settingsCompose.SettingsService, db transactionruntime.Database, logger *slog.Logger) (*exportTransferModule.Module, error) {
+func newExportTransferModule(settings settingsCompose.SettingsService, db transactionruntime.Database, logger *slog.Logger) (exportTransferModule.Capability, error) {
 	// The setting keys stay in the settings layer next to their registry
 	// definitions; the root only passes the binding on.
 	resolvers, keys := settingsCompose.NewSFTPExportSettings(settings)

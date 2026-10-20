@@ -14,7 +14,7 @@ import (
 
 // NewEnrollmentFlowDelivery composes the Delivery platform over the test
 // database with a provider that accepts every send.
-func NewEnrollmentFlowDelivery(db transactionruntime.Database) (*delivery.Module, error) {
+func NewEnrollmentFlowDelivery(db transactionruntime.Database) (delivery.Capability, error) {
 	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
 		DB: db.Pool(), People: EnrollmentFlowGuardianDirectory{},
 		Observe: func(deliveryContract.Observation) {},
