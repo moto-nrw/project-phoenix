@@ -1,4 +1,4 @@
-package feedback_test
+package application
 
 import (
 	"context"
@@ -45,7 +45,7 @@ func (e *recordingEngine) ObserveRejection(operation string, _ time.Duration, er
 func TestModuleNormalizesAndValidatesCreateAtPublicSeam(t *testing.T) {
 	t.Parallel()
 	engine := &recordingEngine{}
-	module := feedback.NewModule(engine)
+	module := newTestModule(engine)
 
 	entry, err := module.Submit(context.Background(), feedback.CreateEntry{
 		Value: "  positive  ", Day: "2026-08-31", Time: "09:07:05", StudentID: 42,
@@ -68,7 +68,7 @@ func TestModuleNormalizesAndValidatesCreateAtPublicSeam(t *testing.T) {
 
 func TestModuleRejectsInvalidDateRangesAtPublicSeam(t *testing.T) {
 	t.Parallel()
-	module := feedback.NewModule(&recordingEngine{})
+	module := newTestModule(&recordingEngine{})
 
 	_, err := module.FindEntries(context.Background(), feedback.Filter{DayFrom: datePtr("2026-09-02"), DayTo: datePtr("2026-09-01")})
 
@@ -80,7 +80,7 @@ func TestModuleRejectsInvalidDateRangesAtPublicSeam(t *testing.T) {
 
 func TestModuleRejectsWholeBatchBeforePersistence(t *testing.T) {
 	t.Parallel()
-	module := feedback.NewModule(&recordingEngine{})
+	module := newTestModule(&recordingEngine{})
 
 	_, err := module.SubmitBatch(context.Background(), []feedback.CreateEntry{
 		{Value: feedback.ValuePositive, Day: "2026-08-31", Time: "09:07:05", StudentID: 42},

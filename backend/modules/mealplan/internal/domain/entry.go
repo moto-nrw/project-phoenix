@@ -8,13 +8,6 @@ import (
 
 type Date = calendar.Date
 
-func ParseDate(value string) (Date, error) { return calendar.ParseDate(value) }
-
-type Dish struct {
-	Dish string
-	Note *string
-}
-
 type Entry struct {
 	Date     Date
 	Position int

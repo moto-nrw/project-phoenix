@@ -70,7 +70,7 @@ func testResource(e engine) *feedbackHTTP.Resource {
 }
 
 func testResourceWithObserver(e engine, observe func(int, string)) *feedbackHTTP.Resource {
-	return feedbackHTTP.NewResource(feedbackModule.NewModule(e), feedbackHTTP.Runtime{
+	return feedbackHTTP.NewResource(e, feedbackHTTP.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, feedbackHTTP.Middleware)) {
 			register(router, func(next http.Handler) http.Handler { return next })
 		},

@@ -2,19 +2,13 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/mealplan"
+
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports"
-)
-
-var ErrDisabled = errors.New("meal plan is disabled")
-var (
-	ErrRegistrationDisabled = errors.New("meal registration is disabled")
-	ErrInvalidCutoff        = errors.New("meal registration cutoff is invalid")
-	ErrCutoffPassed         = errors.New("meal registration cutoff has passed")
 )
 
 type Service struct {
@@ -44,88 +38,6 @@ func (s *Service) RegistrationAvailable(ctx context.Context) (available bool, er
 	return available, err
 }
 
-func (s *Service) Participation(ctx context.Context, studentID int64, from, to domain.Date) (plan domain.ParticipationPlan, err error) {
-	err = s.run(ctx, "read_participation", func(txCtx context.Context) (domain.OperationStats, error) {
-		cutoffTime, cutoffErr := s.requireRegistration(txCtx)
-		if cutoffErr != nil {
-			return domain.OperationStats{}, cutoffErr
-		}
-		data, stats, findErr := s.store.FindParticipation(txCtx, studentID, from, to)
-		if findErr != nil {
-			return stats, findErr
-		}
-		plan = s.resolveParticipation(data, from, to, cutoffTime)
-		return stats, nil
-	})
-	return plan, err
-}
-
-func (s *Service) ReplaceParticipationSchedule(ctx context.Context, studentID, accountID int64, weekdays []domain.Weekday) (effectiveFrom domain.Date, err error) {
-	err = s.run(ctx, "replace_participation_schedule", func(txCtx context.Context) (domain.OperationStats, error) {
-		cutoffTime, cutoffErr := s.requireRegistration(txCtx)
-		if cutoffErr != nil {
-			return domain.OperationStats{}, cutoffErr
-		}
-		effectiveFrom = domain.NextEffectiveDate(s.now(), cutoffTime)
-		return s.store.InsertParticipationSchedule(txCtx, studentID, accountID, effectiveFrom, weekdays)
-	})
-	return effectiveFrom, err
-}
-
-func (s *Service) SetParticipationDay(ctx context.Context, studentID, accountID int64, date domain.Date, participating bool) error {
-	return s.run(ctx, "set_participation_day", func(txCtx context.Context) (domain.OperationStats, error) {
-		cutoffTime, cutoffErr := s.requireRegistration(txCtx)
-		if cutoffErr != nil {
-			return domain.OperationStats{}, cutoffErr
-		}
-		if !domain.Changeable(s.now(), date, cutoffTime) {
-			return domain.OperationStats{}, ErrCutoffPassed
-		}
-		return s.store.UpsertParticipationOverride(txCtx, studentID, accountID, date, participating)
-	})
-}
-
-func (s *Service) ClearParticipationDay(ctx context.Context, studentID, _ int64, date domain.Date) error {
-	return s.run(ctx, "clear_participation_day", func(txCtx context.Context) (domain.OperationStats, error) {
-		cutoffTime, cutoffErr := s.requireRegistration(txCtx)
-		if cutoffErr != nil {
-			return domain.OperationStats{}, cutoffErr
-		}
-		if !domain.Changeable(s.now(), date, cutoffTime) {
-			return domain.OperationStats{}, ErrCutoffPassed
-		}
-		return s.store.DeleteParticipationOverride(txCtx, studentID, date)
-	})
-}
-
-func (s *Service) DailyParticipants(ctx context.Context, date domain.Date) (list domain.DailyList, err error) {
-	err = s.run(ctx, "read_daily_participants", func(txCtx context.Context) (domain.OperationStats, error) {
-		cutoffTime, cutoffErr := s.requireRegistration(txCtx)
-		if cutoffErr != nil {
-			return domain.OperationStats{}, cutoffErr
-		}
-		cutoff := domain.CutoffAt(date, cutoffTime)
-		candidates, stats, findErr := s.directory.FindDailyCandidates(txCtx, date)
-		if findErr != nil {
-			return stats, findErr
-		}
-		studentIDs := make([]int64, 0, len(candidates))
-		for _, candidate := range candidates {
-			studentIDs = append(studentIDs, candidate.StudentID)
-		}
-		participation, participationStats, findErr := s.store.FindDailyParticipation(txCtx, studentIDs, date, cutoff)
-		stats = addStats(stats, participationStats)
-		if findErr != nil {
-			return stats, findErr
-		}
-		list = domain.DailyList{Date: date, CutoffTime: cutoffTime, Participants: make([]domain.DailyParticipant, 0, len(candidates))}
-		appendDailyParticipants(&list, candidates, participation, cutoff)
-		domain.SortDailyParticipants(list.Participants)
-		return stats, nil
-	})
-	return list, err
-}
-
 func addStats(left, right domain.OperationStats) domain.OperationStats {
 	return domain.OperationStats{
 		Queries:           left.Queries + right.Queries,
@@ -142,43 +54,13 @@ func (s *Service) Available(ctx context.Context) (available bool, err error) {
 	return available, err
 }
 
-func (s *Service) Week(ctx context.Context, monday domain.Date) (entries []domain.Entry, err error) {
-	err = s.run(ctx, "read_week", func(txCtx context.Context) (domain.OperationStats, error) {
-		if err := s.requireEnabled(txCtx); err != nil {
-			return domain.OperationStats{}, err
-		}
-		var stats domain.OperationStats
-		entries, stats, err = s.store.FindWeek(txCtx, monday, monday.AddDays(4))
-		return stats, err
-	})
-	return entries, err
-}
-
-func (s *Service) Replace(ctx context.Context, date domain.Date, dishes []domain.Dish) error {
-	return s.run(ctx, "replace_day", func(txCtx context.Context) (domain.OperationStats, error) {
-		if err := s.requireEnabled(txCtx); err != nil {
-			return domain.OperationStats{}, err
-		}
-		return s.store.ReplaceDay(txCtx, date, dishes)
-	})
-}
-
-func (s *Service) Clear(ctx context.Context, date domain.Date) error {
-	return s.run(ctx, "clear_day", func(txCtx context.Context) (domain.OperationStats, error) {
-		if err := s.requireEnabled(txCtx); err != nil {
-			return domain.OperationStats{}, err
-		}
-		return s.store.ClearDay(txCtx, date)
-	})
-}
-
 func (s *Service) requireEnabled(ctx context.Context) error {
 	enabled, err := s.settings.MealPlanEnabled(ctx)
 	if err != nil {
 		return fmt.Errorf("meal plan: resolve availability: %w", err)
 	}
 	if !enabled {
-		return ErrDisabled
+		return mealplan.ErrDisabled
 	}
 	return nil
 }
@@ -192,14 +74,14 @@ func (s *Service) requireRegistration(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("meal plan: resolve registration availability: %w", err)
 	}
 	if !enabled {
-		return "", ErrRegistrationDisabled
+		return "", mealplan.ErrRegistrationDisabled
 	}
 	cutoff, err := s.settings.MealRegistrationCutoff(ctx)
 	if err != nil {
 		return "", fmt.Errorf("meal plan: resolve registration cutoff: %w", err)
 	}
 	if _, err := time.Parse("15:04", cutoff); err != nil {
-		return "", fmt.Errorf("%w: %q", ErrInvalidCutoff, cutoff)
+		return "", mealplan.ErrInvalidParticipation
 	}
 	return cutoff, nil
 }
@@ -283,7 +165,7 @@ func (s *Service) run(ctx context.Context, operation string, fn func(context.Con
 	return err
 }
 
-func appendDailyParticipants(list *domain.DailyList, candidates []domain.DailyCandidate, participation map[int64]domain.DailyParticipation, cutoff time.Time) {
+func appendDailyParticipants(list *mealplan.DailyList, candidates []mealplan.ParticipantCandidate, participation map[int64]domain.DailyParticipation, cutoff time.Time) {
 	for _, candidate := range candidates {
 		state := participation[candidate.StudentID]
 		participating := state.Regular
@@ -294,7 +176,7 @@ func appendDailyParticipants(list *domain.DailyList, candidates []domain.DailyCa
 			participating = false
 		}
 		if participating {
-			list.Participants = append(list.Participants, domain.DailyParticipant(candidate))
+			list.Participants = append(list.Participants, mealplan.DailyParticipant(candidate))
 		}
 	}
 }

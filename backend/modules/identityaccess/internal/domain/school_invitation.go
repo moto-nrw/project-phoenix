@@ -35,6 +35,15 @@ var (
 	ErrPasswordMismatch = errors.New("passwords don't match")
 )
 
+// EmploymentAction is the school's choice for a returning member (ADR 0021).
+// An omitted choice continues the former employment, including existing links.
+type EmploymentAction string
+
+const (
+	EmploymentActionResume EmploymentAction = "resume"
+	EmploymentActionNew    EmploymentAction = "new"
+)
+
 // SchoolInvitation is one auth.invitation_tokens row.
 type SchoolInvitation struct {
 	ID               int64
@@ -51,6 +60,7 @@ type SchoolInvitation struct {
 	LastName         *string
 	Position         *string
 	CaregiverEnabled bool
+	EmploymentAction EmploymentAction
 	PersonID         *int64
 	Delivery         TokenDelivery
 	CreatedAt        time.Time
@@ -65,6 +75,8 @@ func (i SchoolInvitation) Redeemable(now time.Time) bool {
 // stored already expired or used, so no delivery carries a dead link.
 func (i *SchoolInvitation) Validate(now time.Time) error {
 	switch {
+	case i.EmploymentAction != EmploymentActionResume && i.EmploymentAction != EmploymentActionNew:
+		return errors.New("invalid employment action")
 	case i.Email == "":
 		return errors.New("email is required")
 	case i.Token == "":
@@ -81,6 +93,7 @@ func (i *SchoolInvitation) Validate(now time.Time) error {
 
 // SchoolInvitationRequest describes the invitation to create.
 type SchoolInvitationRequest struct {
+	EmploymentAction EmploymentAction
 	Email            string
 	RoleID           int64
 	TenantID         int64

@@ -98,7 +98,7 @@ func renderMealPlanFailure(w http.ResponseWriter, r *http.Request, err error, in
 	apiCommon.RenderError(w, r, renderer(err))
 }
 
-func newMealPlanResource(module *mealplanModule.Module, renderer SimpleListRenderer) *mealplanAPI.Resource {
+func newMealPlanResource(module mealplanModule.Capability, renderer SimpleListRenderer) *mealplanAPI.Resource {
 	return mealplanAPI.NewResource(module, mealplanAPI.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, mealplanAPI.Middleware)) {
 			ProtectedTenantRoutes(router, register)
@@ -172,7 +172,7 @@ func newUsersResource(module peopleModule.Capability, accountEmails func(context
 	})
 }
 
-func newFeedbackResource(module *feedbackModule.Module) *feedbackAPI.Resource {
+func newFeedbackResource(module feedbackModule.Capability) *feedbackAPI.Resource {
 	return feedbackAPI.NewResource(module, feedbackAPI.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, feedbackAPI.Middleware)) {
 			ProtectedTenantRoutes(router, register)

@@ -1,12 +1,13 @@
-package facilities_test
+package application
 
 // Behavior of the room release ("offener Raum", #3064) at the module's public
 // boundary: what a caller may express, what the owner refuses, and what an
 // omitted opinion means.
 
 import (
-	"context"
 	"testing"
+
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/stretchr/testify/assert"
@@ -33,9 +34,9 @@ func TestIsToiletRoomName(t *testing.T) {
 func TestCreateRoomCarriesTheReleaseToThePersistenceOwner(t *testing.T) {
 	t.Parallel()
 	engine := &recordingEngine{}
-	module := facilities.NewModule(engine)
+	module := newTestModule(engine)
 
-	room, err := module.CreateRoom(context.Background(), facilities.CreateRoom{
+	room, err := module.CreateRoom(testpkg.TenantContext(42), facilities.CreateRoom{
 		Name: "Turnhalle", IsOpenRoom: true,
 	})
 	require.NoError(t, err)
@@ -47,9 +48,9 @@ func TestCreateRoomCarriesTheReleaseToThePersistenceOwner(t *testing.T) {
 func TestCreateRoomDefaultsToUnreleased(t *testing.T) {
 	t.Parallel()
 	engine := &recordingEngine{}
-	module := facilities.NewModule(engine)
+	module := newTestModule(engine)
 
-	room, err := module.CreateRoom(context.Background(), facilities.CreateRoom{Name: "Werkraum"})
+	room, err := module.CreateRoom(testpkg.TenantContext(42), facilities.CreateRoom{Name: "Werkraum"})
 	require.NoError(t, err)
 	assert.False(t, room.IsOpenRoom,
 		"release is an explicit administrative decision, never a default")
@@ -64,9 +65,9 @@ func TestCreateRoomRefusesToReleaseAToiletRoom(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			engine := &recordingEngine{}
-			module := facilities.NewModule(engine)
+			module := newTestModule(engine)
 
-			_, err := module.CreateRoom(context.Background(), facilities.CreateRoom{
+			_, err := module.CreateRoom(testpkg.TenantContext(42), facilities.CreateRoom{
 				Name: name, IsSystem: true, IsOpenRoom: true,
 			})
 			require.ErrorIs(t, err, facilities.ErrToiletRoomNotReleasable)
@@ -80,9 +81,9 @@ func TestCreateRoomRefusesToReleaseAToiletRoom(t *testing.T) {
 func TestCreateToiletRoomWithoutReleaseIsAllowed(t *testing.T) {
 	t.Parallel()
 	engine := &recordingEngine{}
-	module := facilities.NewModule(engine)
+	module := newTestModule(engine)
 
-	_, err := module.CreateRoom(context.Background(), facilities.CreateRoom{
+	_, err := module.CreateRoom(testpkg.TenantContext(42), facilities.CreateRoom{
 		Name: facilities.WCRoomName, IsSystem: true,
 	})
 	require.NoError(t, err, "the guard rejects the release, not the toilet room itself")
@@ -93,9 +94,9 @@ func TestCreateToiletRoomWithoutReleaseIsAllowed(t *testing.T) {
 func TestUpdateRoomWithoutAnOpinionLeavesTheReleaseUntouched(t *testing.T) {
 	t.Parallel()
 	engine := &recordingEngine{}
-	module := facilities.NewModule(engine)
+	module := newTestModule(engine)
 
-	_, err := module.UpdateRoom(context.Background(), facilities.UpdateRoom{
+	_, err := module.UpdateRoom(testpkg.TenantContext(42), facilities.UpdateRoom{
 		ID: 7, Name: "Turnhalle",
 	})
 	require.NoError(t, err)
@@ -111,9 +112,9 @@ func TestUpdateRoomCarriesBothReleaseVerdicts(t *testing.T) {
 		t.Run(map[bool]string{true: "release", false: "revoke"}[released], func(t *testing.T) {
 			t.Parallel()
 			engine := &recordingEngine{}
-			module := facilities.NewModule(engine)
+			module := newTestModule(engine)
 
-			room, err := module.UpdateRoom(context.Background(), facilities.UpdateRoom{
+			room, err := module.UpdateRoom(testpkg.TenantContext(42), facilities.UpdateRoom{
 				ID: 7, Name: "Turnhalle", IsOpenRoom: boolPtr(released),
 			})
 			require.NoError(t, err)
@@ -132,9 +133,9 @@ func TestUpdateRoomRefusesToReleaseAToiletRoom(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			engine := &recordingEngine{}
-			module := facilities.NewModule(engine)
+			module := newTestModule(engine)
 
-			_, err := module.UpdateRoom(context.Background(), facilities.UpdateRoom{
+			_, err := module.UpdateRoom(testpkg.TenantContext(42), facilities.UpdateRoom{
 				ID: 7, Name: name, IsOpenRoom: boolPtr(true),
 			})
 			require.ErrorIs(t, err, facilities.ErrToiletRoomNotReleasable)
@@ -151,9 +152,9 @@ func TestUpdateRoomRefusesToReleaseAToiletRoom(t *testing.T) {
 func TestUpdateRoomAllowsRevokingAToiletRoomRelease(t *testing.T) {
 	t.Parallel()
 	engine := &recordingEngine{}
-	module := facilities.NewModule(engine)
+	module := newTestModule(engine)
 
-	_, err := module.UpdateRoom(context.Background(), facilities.UpdateRoom{
+	_, err := module.UpdateRoom(testpkg.TenantContext(42), facilities.UpdateRoom{
 		ID: 7, Name: facilities.WCRoomName, IsOpenRoom: boolPtr(false),
 	})
 	require.NoError(t, err)
@@ -165,19 +166,19 @@ func TestUpdateRoomAllowsRevokingAToiletRoomRelease(t *testing.T) {
 func TestReleaseIsIndependentOfTheSchulhofNameGuard(t *testing.T) {
 	t.Parallel()
 	engine := &recordingEngine{}
-	module := facilities.NewModule(engine)
+	module := newTestModule(engine)
 
 	// A released ordinary room is exactly the point of #3062: schools must be
 	// able to express the same arrangement for a gym or craft area, not only
 	// for the yard.
-	room, err := module.CreateRoom(context.Background(), facilities.CreateRoom{
+	room, err := module.CreateRoom(testpkg.TenantContext(42), facilities.CreateRoom{
 		Name: "Turnhalle", IsOpenRoom: true,
 	})
 	require.NoError(t, err)
 	assert.True(t, room.IsOpenRoom)
 
 	// The reserved-name guard still applies and is unaffected by the release.
-	_, err = module.CreateRoom(context.Background(), facilities.CreateRoom{
+	_, err = module.CreateRoom(testpkg.TenantContext(42), facilities.CreateRoom{
 		Name: facilities.SchulhofRoomName, IsOpenRoom: true,
 	})
 	require.ErrorIs(t, err, facilities.ErrSystemRoomNameReserved,

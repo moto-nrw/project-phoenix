@@ -24,7 +24,7 @@ import (
 // realtime hub, and the guardian wake of parent messaging.
 func newSessionEnd(
 	presence *studentpresence.Module, activities timetable.Capability, completion timetable.EndedSessionCompletion,
-	students peopledirectory.Capability, rooms *facilitiesModule.Module, hub *realtime.Hub,
+	students peopledirectory.Capability, rooms facilitiesModule.Capability, hub *realtime.Hub,
 	guardians eventContract.Emitter, logger *slog.Logger,
 ) (sessionend.Command, error) {
 	log := logger.With("workflow", "session-end")

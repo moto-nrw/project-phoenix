@@ -1,9 +1,11 @@
-package facilities_test
+package application
 
 import (
 	"context"
 	"testing"
 	"time"
+
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/stretchr/testify/assert"
@@ -76,9 +78,9 @@ func TestCreateRoomNormalizesAtPublicSeam(t *testing.T) {
 
 	color := "abc"
 	engine := &lifecycleEngine{}
-	module := facilities.NewModule(engine)
+	module := newTestModule(engine)
 
-	created, err := module.CreateRoom(context.Background(), facilities.CreateRoom{
+	created, err := module.CreateRoom(testpkg.TenantContext(42), facilities.CreateRoom{
 		Name:  "  Igelraum  ",
 		Color: &color,
 	})
@@ -97,9 +99,9 @@ func TestUpdateRoomNormalizesAtPublicSeam(t *testing.T) {
 
 	color := "#abc"
 	engine := &lifecycleEngine{}
-	module := facilities.NewModule(engine)
+	module := newTestModule(engine)
 
-	updated, err := module.UpdateRoom(context.Background(), facilities.UpdateRoom{
+	updated, err := module.UpdateRoom(testpkg.TenantContext(42), facilities.UpdateRoom{
 		ID:    41,
 		Name:  "  Fuchsbau  ",
 		Color: &color,
@@ -118,13 +120,13 @@ func TestDeleteRoomValidatesIdentifierAtPublicSeam(t *testing.T) {
 	t.Parallel()
 
 	engine := &lifecycleEngine{}
-	module := facilities.NewModule(engine)
+	module := newTestModule(engine)
 
-	err := module.DeleteRoom(context.Background(), 0)
+	err := module.DeleteRoom(testpkg.TenantContext(42), 0)
 	require.ErrorIs(t, err, facilities.ErrInvalidRoom)
 	assert.Zero(t, engine.calls)
 
-	err = module.DeleteRoom(context.Background(), 41)
+	err = module.DeleteRoom(testpkg.TenantContext(42), 41)
 	require.NoError(t, err)
 	assert.Equal(t, int64(41), engine.deleted)
 	assert.Equal(t, 1, engine.calls)
@@ -150,9 +152,9 @@ func TestRoomCommandsRejectInvalidValuesBeforePersistence(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			engine := &lifecycleEngine{}
-			module := facilities.NewModule(engine)
+			module := newTestModule(engine)
 
-			_, err := module.CreateRoom(context.Background(), test.input)
+			_, err := module.CreateRoom(testpkg.TenantContext(42), test.input)
 
 			require.ErrorIs(t, err, test.wantErr)
 			assert.Zero(t, engine.calls)
@@ -164,13 +166,13 @@ func TestCreateRoomReservesSchulhofNameForSystemProvisioning(t *testing.T) {
 	t.Parallel()
 
 	engine := &lifecycleEngine{}
-	module := facilities.NewModule(engine)
+	module := newTestModule(engine)
 
-	_, err := module.CreateRoom(context.Background(), facilities.CreateRoom{Name: "schulhof"})
+	_, err := module.CreateRoom(testpkg.TenantContext(42), facilities.CreateRoom{Name: "schulhof"})
 	require.ErrorIs(t, err, facilities.ErrSystemRoomNameReserved)
 	assert.Zero(t, engine.calls)
 
-	created, err := module.CreateRoom(context.Background(), facilities.CreateRoom{
+	created, err := module.CreateRoom(testpkg.TenantContext(42), facilities.CreateRoom{
 		Name: facilities.SchulhofRoomName, IsSystem: true,
 	})
 	require.NoError(t, err)
@@ -182,9 +184,9 @@ func TestCreateRoomKeepsReservedColorUserMessage(t *testing.T) {
 	t.Parallel()
 
 	color := "#5080D8"
-	module := facilities.NewModule(&lifecycleEngine{})
+	module := newTestModule(&lifecycleEngine{})
 
-	_, err := module.CreateRoom(context.Background(), facilities.CreateRoom{Name: "Igelraum", Color: &color})
+	_, err := module.CreateRoom(testpkg.TenantContext(42), facilities.CreateRoom{Name: "Igelraum", Color: &color})
 
 	require.ErrorIs(t, err, facilities.ErrRoomColorReserved)
 	assert.Equal(t, "diese Farbe ist für Statusbadges reserviert und kann nicht für Räume verwendet werden", err.Error())
@@ -194,9 +196,9 @@ func TestCreateRoomKeepsInvalidColorUserMessage(t *testing.T) {
 	t.Parallel()
 
 	color := "not-a-color"
-	module := facilities.NewModule(&lifecycleEngine{})
+	module := newTestModule(&lifecycleEngine{})
 
-	_, err := module.CreateRoom(context.Background(), facilities.CreateRoom{Name: "Igelraum", Color: &color})
+	_, err := module.CreateRoom(testpkg.TenantContext(42), facilities.CreateRoom{Name: "Igelraum", Color: &color})
 
 	require.ErrorIs(t, err, facilities.ErrInvalidRoom)
 	assert.Equal(t, "invalid color format, must be a valid hex color", err.Error())

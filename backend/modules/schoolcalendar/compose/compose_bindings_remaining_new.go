@@ -9,5 +9,5 @@ import (
 
 func retainedNewService(db *bun.DB, observe func(ports.Observation), administration application.Administration) *application.Service {
 	store := postgres.New(postgres.NewCompositionDatabase())
-	return application.New(store, application.NewCompositionObserver(observe), administration)
+	return application.New(store, ports.Observer(observe), administration, application.LocalCalendar{})
 }

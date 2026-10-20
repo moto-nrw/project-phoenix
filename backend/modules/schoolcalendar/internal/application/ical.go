@@ -1,9 +1,11 @@
-package domain
+package application
 
 import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 )
 
 const (
@@ -29,50 +31,23 @@ const berlinVTimezone = "BEGIN:VTIMEZONE\r\n" +
 	"END:STANDARD\r\n" +
 	"END:VTIMEZONE\r\n"
 
-type CalendarRecurrence struct {
-	Frequency string
-	Interval  int
-	Weekdays  []string
-	MonthDays []int
-	Until     string
-	Count     *int
-}
-
-type CalendarEvent struct {
-	UID          string
-	Summary      string
-	Description  string
-	Location     string
-	StartDate    string
-	EndDate      string
-	StartClock   time.Time
-	EndClock     time.Time
-	AllDay       bool
-	Cancelled    bool
-	Sequence     int
-	Stamp        time.Time
-	LastModified time.Time
-	Recurrence   *CalendarRecurrence
-	ExDates      []string
-}
-
 var weekdayToICS = map[string]string{
 	"monday": "MO", "tuesday": "TU", "wednesday": "WE", "thursday": "TH",
 	"friday": "FR", "saturday": "SA", "sunday": "SU",
 }
 
-func RenderCalendar(name string, events []CalendarEvent) string {
+func RenderCalendar(name string, events []schoolcalendar.CalendarEvent) string {
 	return renderCalendar(name, events, true)
 }
 
 // RenderCalendarObject renders one RFC 5545 calendar object for CalDAV. A
 // calendar object contains exactly one VEVENT and deliberately omits METHOD,
 // which describes message transport rather than stored calendar data.
-func RenderCalendarObject(event CalendarEvent) string {
-	return renderCalendar("", []CalendarEvent{event}, false)
+func RenderCalendarObject(event schoolcalendar.CalendarEvent) string {
+	return renderCalendar("", []schoolcalendar.CalendarEvent{event}, false)
 }
 
-func renderCalendar(name string, events []CalendarEvent, publish bool) string {
+func renderCalendar(name string, events []schoolcalendar.CalendarEvent, publish bool) string {
 	var b strings.Builder
 	writeLine(&b, "BEGIN:VCALENDAR")
 	writeLine(&b, "VERSION:2.0")
@@ -95,7 +70,7 @@ func renderCalendar(name string, events []CalendarEvent, publish bool) string {
 	return b.String()
 }
 
-func hasTimedEvent(events []CalendarEvent) bool {
+func hasTimedEvent(events []schoolcalendar.CalendarEvent) bool {
 	for _, event := range events {
 		if !event.AllDay {
 			return true
@@ -104,7 +79,7 @@ func hasTimedEvent(events []CalendarEvent) bool {
 	return false
 }
 
-func writeEvent(b *strings.Builder, event CalendarEvent) {
+func writeEvent(b *strings.Builder, event schoolcalendar.CalendarEvent) {
 	writeLine(b, "BEGIN:VEVENT")
 	writeLine(b, "UID:"+event.UID)
 	writeLine(b, "DTSTAMP:"+formatUTC(event.Stamp))
@@ -146,7 +121,7 @@ func writeEvent(b *strings.Builder, event CalendarEvent) {
 	writeLine(b, "END:VEVENT")
 }
 
-func formatRRULE(rule *CalendarRecurrence, allDay bool) string {
+func formatRRULE(rule *schoolcalendar.CalendarRecurrence, allDay bool) string {
 	if rule == nil || rule.Frequency == "" {
 		return ""
 	}
@@ -195,7 +170,7 @@ func appendRRULEByMonthDay(parts []string, monthDays []int) []string {
 
 // appendRRULEEnd adds UNTIL (inclusive end of the last day, Berlin time, for
 // timed series) or, without an end date, a positive COUNT.
-func appendRRULEEnd(parts []string, rule *CalendarRecurrence, allDay bool) []string {
+func appendRRULEEnd(parts []string, rule *schoolcalendar.CalendarRecurrence, allDay bool) []string {
 	if rule.Until != "" {
 		if allDay {
 			return append(parts, "UNTIL="+formatDate(rule.Until))

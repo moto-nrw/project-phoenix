@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/domain"
 )
 
@@ -11,25 +13,25 @@ import (
 // schedule.closing_days. Reads honour the tenant in context when one is
 // present; writes require one.
 type Store interface {
-	FindCalendarPeriod(ctx context.Context, id int64) (domain.CalendarPeriod, bool, domain.OperationStats, error)
-	ListCalendarPeriods(context.Context, domain.CalendarPeriodFilter) ([]domain.CalendarPeriod, domain.OperationStats, error)
+	FindCalendarPeriod(ctx context.Context, id int64) (schoolcalendar.CalendarPeriod, bool, domain.OperationStats, error)
+	ListCalendarPeriods(context.Context, schoolcalendar.CalendarPeriodFilter) ([]schoolcalendar.CalendarPeriod, domain.OperationStats, error)
 	// CreateCalendarPeriod inserts the period. With ifAbsent the insert is
 	// skipped when the tenant already has a period of that name; the bool
 	// reports whether a row was written.
-	CreateCalendarPeriod(ctx context.Context, fields domain.CalendarPeriodFields, ifAbsent bool) (domain.CalendarPeriod, bool, domain.OperationStats, error)
-	UpdateCalendarPeriod(context.Context, int64, domain.CalendarPeriodFields) (domain.CalendarPeriod, domain.OperationStats, error)
+	CreateCalendarPeriod(ctx context.Context, fields schoolcalendar.CalendarPeriodFields, ifAbsent bool) (schoolcalendar.CalendarPeriod, bool, domain.OperationStats, error)
+	UpdateCalendarPeriod(context.Context, int64, schoolcalendar.CalendarPeriodFields) (schoolcalendar.CalendarPeriod, domain.OperationStats, error)
 	DeleteCalendarPeriod(context.Context, int64) (domain.OperationStats, error)
 
-	FindClosingDay(ctx context.Context, id int64) (domain.ClosingDay, bool, domain.OperationStats, error)
-	ListClosingDays(context.Context, domain.ClosingDayFilter) ([]domain.ClosingDay, domain.OperationStats, error)
-	CreateClosingDay(context.Context, domain.ClosingDayFields) (domain.ClosingDay, domain.OperationStats, error)
-	UpdateClosingDay(context.Context, int64, domain.ClosingDayFields) (domain.ClosingDay, domain.OperationStats, error)
+	FindClosingDay(ctx context.Context, id int64) (schoolcalendar.ClosingDay, bool, domain.OperationStats, error)
+	ListClosingDays(context.Context, schoolcalendar.ClosingDayFilter) ([]schoolcalendar.ClosingDay, domain.OperationStats, error)
+	CreateClosingDay(context.Context, schoolcalendar.ClosingDayFields) (schoolcalendar.ClosingDay, domain.OperationStats, error)
+	UpdateClosingDay(context.Context, int64, schoolcalendar.ClosingDayFields) (schoolcalendar.ClosingDay, domain.OperationStats, error)
 	DeleteClosingDay(context.Context, int64) (domain.OperationStats, error)
 
-	FindDateframe(ctx context.Context, id int64) (domain.Dateframe, bool, domain.OperationStats, error)
-	ListDateframes(context.Context, domain.DateframeFilter) ([]domain.Dateframe, domain.OperationStats, error)
-	CreateDateframe(context.Context, domain.DateframeFields) (domain.Dateframe, domain.OperationStats, error)
-	UpdateDateframe(context.Context, int64, domain.DateframeFields) (domain.Dateframe, domain.OperationStats, error)
+	FindDateframe(ctx context.Context, id int64) (schoolcalendar.Dateframe, bool, domain.OperationStats, error)
+	ListDateframes(context.Context, schoolcalendar.DateframeFilter) ([]schoolcalendar.Dateframe, domain.OperationStats, error)
+	CreateDateframe(context.Context, schoolcalendar.DateframeFields) (schoolcalendar.Dateframe, domain.OperationStats, error)
+	UpdateDateframe(context.Context, int64, schoolcalendar.DateframeFields) (schoolcalendar.Dateframe, domain.OperationStats, error)
 	DeleteDateframe(context.Context, int64) (domain.OperationStats, error)
 }
 
@@ -47,7 +49,7 @@ type RecurrenceGate func(context.Context) error
 // (replacement nil) while a linked care offering still needs the period. It
 // answers with schoolcalendar.ErrCalendarPeriodRequiredByCareOffering in the
 // error chain.
-type CareOfferingGuard func(ctx context.Context, periodID int64, replacement *domain.CalendarPeriodFields) error
+type CareOfferingGuard func(ctx context.Context, periodID int64, replacement *schoolcalendar.CalendarPeriodFields) error
 
 // Today names the current calendar day in YYYY-MM-DD.
 type Today func() string

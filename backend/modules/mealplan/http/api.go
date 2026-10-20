@@ -38,11 +38,11 @@ type Runtime struct {
 }
 
 type Resource struct {
-	module  *mealplanModule.Module
+	module  mealplanModule.Capability
 	runtime Runtime
 }
 
-func NewResource(module *mealplanModule.Module, runtime Runtime) *Resource {
+func NewResource(module mealplanModule.Capability, runtime Runtime) *Resource {
 	if module == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.Success == nil || runtime.InvalidRequest == nil || runtime.ModuleFailure == nil || runtime.ExportDailyList == nil {
 		panic("meal plan HTTP: all dependencies are required")
 	}
