@@ -215,44 +215,47 @@ func (s *OperatorAccountAccess) RevokeAccountTenantAccess(ctx context.Context, a
 	ctx = bindRuntime(s.attach, ctx)
 	var result []domain.AccountTenantAccess
 	err := s.runtime.WithAdminTx(ctx, func(adminCtx context.Context) error {
-		facts, err := s.removeTenantAccessRoles(adminCtx, accountID, schoolID)
-		if err != nil {
-			return err
-		}
-		account, school := facts.account, facts.school
-		if _, err := s.access.DeleteAccountPermissionsAtTenant(adminCtx, accountID, schoolID); err != nil {
-			return fmt.Errorf("delete direct account permissions: %w", err)
-		}
-		tenantCtx := s.runtime.WithTenantID(adminCtx, schoolID)
-		if err := s.sessions.RevokeAllTokensWithReason(tenantCtx, accountID, domain.RevocationReasonTenantAccessRevoked); err != nil {
-			return fmt.Errorf("revoke tokens after access revocation: %w", err)
-		}
-		if _, err := s.access.DeactivateTenantMapping(adminCtx, accountID, schoolID); err != nil {
-			return err
-		}
-		accountDeactivated, err := s.deactivateAfterLastSchool(adminCtx, accountID)
-		if err != nil {
-			return err
-		}
-		s.logOperatorAction(adminCtx, operatorID, domain.OperatorAuditActionDelete, accountID, clientIP, domain.OperatorAccessChange{
-			SchoolID: school.ID, Email: account.Email, AccountDeactivated: accountDeactivated,
-		})
-		if err := s.recordAccessAuthEvent(tenantCtx, accountID, schoolID, domain.AuthEventTenantAccessRevoked, domain.TenantAccessEvidence{
-			SchoolID: school.ID, SchoolName: school.Name, AccountDeactivated: accountDeactivated, OperatorID: operatorID,
-		}); err != nil {
-			return err
-		}
-		entries, err := s.loadTenantAccess(adminCtx, accountID)
-		if err != nil {
-			return err
-		}
-		result = entries
-		return nil
+		var err error
+		result, err = s.revokeTenantAccessInAdmin(adminCtx, accountID, schoolID, operatorID, clientIP)
+		return err
 	})
 	if err != nil {
 		return nil, operatorError(err)
 	}
 	return accountTenantAccess(result), nil
+}
+
+// revokeTenantAccessInAdmin withdraws the access inside the administrative
+// transaction and returns the account's remaining mappings.
+func (s *OperatorAccountAccess) revokeTenantAccessInAdmin(adminCtx context.Context, accountID, schoolID, operatorID int64, clientIP string) ([]domain.AccountTenantAccess, error) {
+	facts, err := s.removeTenantAccessRoles(adminCtx, accountID, schoolID)
+	if err != nil {
+		return nil, err
+	}
+	account, school := facts.account, facts.school
+	if _, err := s.access.DeleteAccountPermissionsAtTenant(adminCtx, accountID, schoolID); err != nil {
+		return nil, fmt.Errorf("delete direct account permissions: %w", err)
+	}
+	tenantCtx := s.runtime.WithTenantID(adminCtx, schoolID)
+	if err := s.sessions.RevokeAllTokensWithReason(tenantCtx, accountID, domain.RevocationReasonTenantAccessRevoked); err != nil {
+		return nil, fmt.Errorf("revoke tokens after access revocation: %w", err)
+	}
+	if _, err := s.access.DeactivateTenantMapping(adminCtx, accountID, schoolID); err != nil {
+		return nil, err
+	}
+	accountDeactivated, err := s.deactivateAfterLastSchool(adminCtx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	s.logOperatorAction(adminCtx, operatorID, domain.OperatorAuditActionDelete, accountID, clientIP, domain.OperatorAccessChange{
+		SchoolID: school.ID, Email: account.Email, AccountDeactivated: accountDeactivated,
+	})
+	if err := s.recordAccessAuthEvent(tenantCtx, accountID, schoolID, domain.AuthEventTenantAccessRevoked, domain.TenantAccessEvidence{
+		SchoolID: school.ID, SchoolName: school.Name, AccountDeactivated: accountDeactivated, OperatorID: operatorID,
+	}); err != nil {
+		return nil, err
+	}
+	return s.loadTenantAccess(adminCtx, accountID)
 }
 
 // loadAccount resolves the account or reports ErrAccountNotFound. With
