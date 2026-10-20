@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -65,7 +66,7 @@ func TestRemovePhaseRollsBackEachWriteAndRetries(t *testing.T) {
 			})
 			failure := errors.New("injected removal failure")
 			engine := &phaseRemovalFailure{Store: store, stage: stage, failure: failure}
-			module := enrollment.NewModule(engine, tenant.NewTransactionRunner())
+			module := compose.NewWithStore(engine, nil)
 			phase := testpkg.CreateTestEnrollmentPhase(t, db)
 			request := &enrollment.Request{PhaseID: phase.ID, GuardianFirstName: "First", GuardianLastName: "Last", GuardianEmail: "guardian@example.test", StatusToken: fmt.Sprintf("remove-phase-%d", phase.ID)}
 			require.NoError(t, testpkg.TenantCommand1(t, ctx, db, module.InsertRequest, request))

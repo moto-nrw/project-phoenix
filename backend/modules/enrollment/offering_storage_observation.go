@@ -12,9 +12,3 @@ type OfferingStorageObservation struct {
 	OutputRows int64 // -1 when the command does not return an affected-row count.
 	Err        error
 }
-
-func (m *Module) observeOfferingStorage(operation, kind string, started time.Time, inputRows, outputRows int64, err error) {
-	if m.offeringStorageObserver != nil {
-		m.offeringStorageObserver(OfferingStorageObservation{Operation: operation, Kind: kind, Duration: time.Since(started), InputRows: inputRows, OutputRows: outputRows, Err: err})
-	}
-}

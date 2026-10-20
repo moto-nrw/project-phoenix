@@ -37,7 +37,7 @@ func wipePhases(db *bun.DB, tenantID int64, names ...string) {
 		Exec(bg)
 }
 
-func setupOwnerPhaseTest(t *testing.T) (*bun.DB, *capability.Module, int64) {
+func setupOwnerPhaseTest(t *testing.T) (*bun.DB, capability.Owner, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)

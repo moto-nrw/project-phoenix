@@ -25,7 +25,7 @@ type enrollmentFixture struct {
 	admin    retentionDB
 	tenantID int64
 	ctx      context.Context
-	owner    *enrollment.Module
+	owner    enrollment.Owner
 	phaseID  int64
 	creator  int64
 }

@@ -38,13 +38,13 @@ type OfferingBooking struct {
 // approved bookings the flows read. It neither reads nor writes a
 // compatibility view.
 type BookingProjection struct {
-	*Module
+	Owner
 	bookings OfferingBookings
 }
 
 // NewBookingProjection binds the projection to the owner and the bookings.
-func NewBookingProjection(owner *Module, bookings OfferingBookings) *BookingProjection {
-	return &BookingProjection{Module: owner, bookings: bookings}
+func NewBookingProjection(owner Owner, bookings OfferingBookings) *BookingProjection {
+	return &BookingProjection{Owner: owner, bookings: bookings}
 }
 
 // AllCareOfferingLinks lists every booking of the tenant's request children.

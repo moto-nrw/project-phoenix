@@ -11,7 +11,7 @@ import (
 // views of Care Plan from Enrollment. Enrollment sits above Care Plan
 // (ADR 0058, #3417), so Care Plan reads them in its own vocabulary.
 type ParentPortalEnrollments struct {
-	Enrollment *enrollment.Module
+	Enrollment enrollment.Owner
 }
 
 func (p ParentPortalEnrollments) OpenPhaseCandidates(ctx context.Context) ([]*careplan.ParentEnrollmentPhase, error) {
