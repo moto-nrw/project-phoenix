@@ -19,8 +19,6 @@ func NewOffboarding(dependencies OffboardingDependencies) (*timetable.Offboardin
 	if dependencies.DB == nil || dependencies.Sessions == nil || dependencies.Observe == nil {
 		return nil, errors.New("timetable: offboarding database, session facts and observer are required")
 	}
-	service := application.NewOffboarding(postgres.New(postgres.DatabaseRuntime(dependencies.DB)), transaction{}, dependencies.Sessions, application.NewOffboardingObserver(dependencies.Observe))
-	return timetable.NewOffboarding(
-		application.NewOffboardingPreview(service),
-		application.NewOffboardingExecute(service)), nil
+	service := application.NewOffboarding(postgres.New(postgres.DatabaseRuntime(dependencies.DB)), transaction{}, dependencies.Sessions, dependencies.Observe)
+	return timetable.NewOffboarding(service.Preview, service.Execute), nil
 }

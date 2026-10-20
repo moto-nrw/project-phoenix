@@ -178,7 +178,7 @@ func BuildServeFeedback(db transactionruntime.Database, settings *feedbackCompos
 
 // BuildServeTimetable composes the observed Timetable owner over the People
 // Directory, the room catalog and School Membership.
-func BuildServeTimetable(db transactionruntime.Database, persons peopledirectory.StudentQuery, rooms facilitiesModule.Query, membership schoolmembership.Capability) (*timetable.Module, error) {
+func BuildServeTimetable(db transactionruntime.Database, persons peopledirectory.StudentQuery, rooms facilitiesModule.Query, membership schoolmembership.Capability) (timetable.Owner, error) {
 	return newTimetable(db, persons, rooms, membership, func(observation timetableCompose.Observation) {
 		observability.ObserveTimetableActivitiesOperation(
 			observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows,

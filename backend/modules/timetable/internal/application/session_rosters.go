@@ -12,15 +12,18 @@ import (
 // Student Presence and keeps those whose day roster lists the child. A
 // Student Presence error passes through unchanged; the roster read maps its
 // errors like every instance student read.
-func (e Engine) SessionsRosteringStudent(ctx context.Context, studentID int64, sessionIDs []int64) ([]int64, error) {
-	sessionByInstance, err := e.service.sessions.RunningSessionsByInstance(ctx, sessionIDs)
+func (s *Service) SessionsRosteringStudent(ctx context.Context, studentID int64, sessionIDs []int64) ([]int64, error) {
+	if len(sessionIDs) == 0 {
+		return nil, nil
+	}
+	sessionByInstance, err := s.sessions.RunningSessionsByInstance(ctx, sessionIDs)
 	if err != nil {
 		return nil, err
 	}
 	if len(sessionByInstance) == 0 {
 		return nil, nil
 	}
-	rows, err := e.ListInstanceStudents(ctx, timetable.InstanceStudentFilter{
+	rows, err := s.listInstanceStudents(ctx, timetable.InstanceStudentFilter{
 		InstanceIDs: slices.Sorted(maps.Keys(sessionByInstance)), StudentIDs: []int64{studentID},
 	})
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
@@ -51,10 +52,10 @@ type categoryRow struct {
 	ArchivedAt    *time.Time `bun:"archived_at"`
 }
 
-func (s *Store) FindCategory(ctx context.Context, id int64, lock string) (domain.Category, bool, domain.OperationStats, error) {
+func (s *Store) FindCategory(ctx context.Context, id int64, lock string) (timetable.Category, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.Category{}, false, domain.OperationStats{}, err
+		return timetable.Category{}, false, domain.OperationStats{}, err
 	}
 	row := categoryRow{}
 	query := categorySelect(db, &row).
@@ -67,10 +68,10 @@ func (s *Store) FindCategory(ctx context.Context, id int64, lock string) (domain
 	return toDomain(row), found, stats, err
 }
 
-func (s *Store) FindCategoryByName(ctx context.Context, name string, includeArchived bool, lock string) (domain.Category, bool, domain.OperationStats, error) {
+func (s *Store) FindCategoryByName(ctx context.Context, name string, includeArchived bool, lock string) (timetable.Category, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.Category{}, false, domain.OperationStats{}, err
+		return timetable.Category{}, false, domain.OperationStats{}, err
 	}
 	row := categoryRow{}
 	query := categorySelect(db, &row).
@@ -94,7 +95,7 @@ func categoryNameScope(query *bun.SelectQuery, includeArchived bool) *bun.Select
 		Limit(1)
 }
 
-func (s *Store) ListCategories(ctx context.Context) ([]domain.Category, domain.OperationStats, error) {
+func (s *Store) ListCategories(ctx context.Context) ([]timetable.Category, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -107,7 +108,7 @@ func (s *Store) ListCategories(ctx context.Context) ([]domain.Category, domain.O
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.Category, 0, len(rows))
+	result := make([]timetable.Category, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, toDomain(row))
 	}
@@ -141,10 +142,10 @@ func (s *Store) CountCategoryUsage(ctx context.Context) (map[int64]int, domain.O
 	return counts, stats, nil
 }
 
-func (s *Store) CreateCategory(ctx context.Context, fields domain.CategoryFields) (domain.Category, domain.OperationStats, error) {
+func (s *Store) CreateCategory(ctx context.Context, fields timetable.CreateCategory) (timetable.Category, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.Category{}, domain.OperationStats{}, err
+		return timetable.Category{}, domain.OperationStats{}, err
 	}
 	row := categoryRow{TenantID: tenantID}
 	applyFields(&row, fields)
@@ -153,16 +154,16 @@ func (s *Store) CreateCategory(ctx context.Context, fields domain.CategoryFields
 	err = db.NewInsert().Model(&row).ModelTableExpr(`activities.categories`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.Category{}, stats, classifyWriteError("create category", err, &stats)
+		return timetable.Category{}, stats, classifyWriteError("create category", err, &stats)
 	}
 	stats.Rows = 1
 	return toDomain(row), stats, nil
 }
 
-func (s *Store) UpdateCategoryIfActive(ctx context.Context, id int64, fields domain.CategoryFields) (domain.Category, bool, domain.OperationStats, error) {
+func (s *Store) UpdateCategoryIfActive(ctx context.Context, id int64, fields timetable.CreateCategory) (timetable.Category, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.Category{}, false, domain.OperationStats{}, err
+		return timetable.Category{}, false, domain.OperationStats{}, err
 	}
 	row := categoryRow{}
 	stats := domain.OperationStats{Queries: 1}
@@ -173,19 +174,19 @@ func (s *Store) UpdateCategoryIfActive(ctx context.Context, id int64, fields dom
 		Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Category{}, false, stats, nil
+		return timetable.Category{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.Category{}, false, stats, classifyWriteError("update category", err, &stats)
+		return timetable.Category{}, false, stats, classifyWriteError("update category", err, &stats)
 	}
 	stats.Rows = 1
 	return toDomain(row), true, stats, nil
 }
 
-func (s *Store) SetCategoryArchivedAt(ctx context.Context, id int64, archivedAt *time.Time) (domain.Category, bool, domain.OperationStats, error) {
+func (s *Store) SetCategoryArchivedAt(ctx context.Context, id int64, archivedAt *time.Time) (timetable.Category, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.Category{}, false, domain.OperationStats{}, err
+		return timetable.Category{}, false, domain.OperationStats{}, err
 	}
 	row := categoryRow{}
 	stats := domain.OperationStats{Queries: 1}
@@ -195,10 +196,10 @@ func (s *Store) SetCategoryArchivedAt(ctx context.Context, id int64, archivedAt 
 		Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Category{}, false, stats, nil
+		return timetable.Category{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.Category{}, false, stats, classifyWriteError("set category archive state", err, &stats)
+		return timetable.Category{}, false, stats, classifyWriteError("set category archive state", err, &stats)
 	}
 	stats.Rows = 1
 	return toDomain(row), true, stats, nil
@@ -262,12 +263,12 @@ func (s *Store) LockStudentEnrollmentsForCareExit(ctx context.Context, studentID
 	return stats, nil
 }
 
-func (s *Store) EndStudentEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil string) (domain.CareExitEnrollmentChanges, domain.OperationStats, error) {
+func (s *Store) EndStudentEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil string) (timetable.CareExitEnrollmentChanges, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.CareExitEnrollmentChanges{}, domain.OperationStats{}, err
+		return timetable.CareExitEnrollmentChanges{}, domain.OperationStats{}, err
 	}
-	changes := domain.CareExitEnrollmentChanges{}
+	changes := timetable.CareExitEnrollmentChanges{}
 	stats := domain.OperationStats{}
 	if err := deleteFutureEnrollments(ctx, db, tenantID, studentIDs, validUntil, &changes, &stats); err != nil {
 		return changes, stats, err
@@ -281,7 +282,7 @@ func (s *Store) EndStudentEnrollmentsForCareExit(ctx context.Context, studentIDs
 	return changes, stats, nil
 }
 
-func deleteFutureEnrollments(ctx context.Context, db bun.IDB, tenantID int64, studentIDs []int64, validUntil string, changes *domain.CareExitEnrollmentChanges, stats *domain.OperationStats) error {
+func deleteFutureEnrollments(ctx context.Context, db bun.IDB, tenantID int64, studentIDs []int64, validUntil string, changes *timetable.CareExitEnrollmentChanges, stats *domain.OperationStats) error {
 	started := time.Now()
 	err := db.NewRaw(`
 		DELETE FROM activities.student_enrollments AS enrollment
@@ -308,7 +309,7 @@ const cappedEnrollmentPredicate = `
 	 AND enrollment.valid_from < ?::date
 	 AND (enrollment.valid_until IS NULL OR enrollment.valid_until > ?::date)`
 
-func listCappedEnrollments(ctx context.Context, db bun.IDB, tenantID int64, studentIDs []int64, validUntil string, changes *domain.CareExitEnrollmentChanges, stats *domain.OperationStats) error {
+func listCappedEnrollments(ctx context.Context, db bun.IDB, tenantID int64, studentIDs []int64, validUntil string, changes *timetable.CareExitEnrollmentChanges, stats *domain.OperationStats) error {
 	started := time.Now()
 	err := db.NewRaw(`SELECT enrollment.tenant_id, enrollment.student_id, enrollment.id,
 		enrollment.valid_until::text AS previous_valid_until
@@ -340,7 +341,7 @@ func capStudentEnrollments(ctx context.Context, db bun.IDB, tenantID int64, stud
 	return nil
 }
 
-func (s *ProvenanceStore) RestoreStudentEnrollmentsForCareExit(ctx context.Context, studentIDs, periodIDs []int64, removals []domain.CareExitEnrollmentRemoval) (int64, domain.OperationStats, error) {
+func (s *ProvenanceStore) RestoreStudentEnrollmentsForCareExit(ctx context.Context, studentIDs, periodIDs []int64, removals []timetable.CareExitEnrollmentRemoval) (int64, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
@@ -448,7 +449,7 @@ type careExitEnrollmentJSON struct {
 	Weekday                  *int    `json:"weekday"`
 }
 
-func careExitEnrollmentPayload(removals []domain.CareExitEnrollmentRemoval) []careExitEnrollmentJSON {
+func careExitEnrollmentPayload(removals []timetable.CareExitEnrollmentRemoval) []careExitEnrollmentJSON {
 	result := make([]careExitEnrollmentJSON, 0, len(removals))
 	for _, removal := range removals {
 		result = append(result, careExitEnrollmentJSON{
@@ -476,7 +477,7 @@ func countEligibleDeletedEnrollmentRemovals(removals []careExitEnrollmentJSON, t
 	return count
 }
 
-func enrollmentRequestChildIDs(removals []domain.CareExitEnrollmentRemoval) []int64 {
+func enrollmentRequestChildIDs(removals []timetable.CareExitEnrollmentRemoval) []int64 {
 	result := make([]int64, 0)
 	for _, removal := range removals {
 		if removal.EnrollmentRequestChildID != nil {
@@ -501,7 +502,7 @@ func validateCategoryIDs(ctx context.Context, db bun.IDB, tenantID int64, ids []
 	}
 	if found != len(ids) {
 		stats.DuplicatePreventionConflicts++
-		return domain.ErrUnknownCategoryIDs
+		return timetable.ErrUnknownCategoryIDs
 	}
 	return nil
 }
@@ -584,12 +585,12 @@ func classifyWriteError(operation string, err error, stats *domain.OperationStat
 		switch postgresError.Field('n') {
 		case domain.CategoryNameActiveIndex:
 			stats.DuplicatePreventionConflicts++
-			return fmt.Errorf("%w: %w", domain.ErrCategoryNameConflict, err)
+			return timetable.ErrCategoryNameExists
 		case domain.StudentEnrollmentActiveIndex:
 			stats.DuplicatePreventionConflicts++
 		case domain.PlanningTrackNameActiveIndex:
 			stats.DuplicatePreventionConflicts++
-			return fmt.Errorf("%w: %w", domain.ErrPlanningTrackNameConflict, err)
+			return fmt.Errorf("%w: planning track name conflict: %w", timetable.ErrPlanningTrackNameExists, err)
 		case domain.ActivityExceptionUniqueConstraint:
 			stats.DuplicatePreventionConflicts++
 		case domain.InstanceStaffUniqueConstraint:
@@ -601,15 +602,15 @@ func classifyWriteError(operation string, err error, stats *domain.OperationStat
 	return fmt.Errorf("timetable postgres: %s: %w", operation, err)
 }
 
-func applyFields(row *categoryRow, fields domain.CategoryFields) {
+func applyFields(row *categoryRow, fields timetable.CreateCategory) {
 	row.Name = fields.Name
 	row.Description = fields.Description
 	row.Color = fields.Color
 	row.IsSystem = fields.IsSystem
 }
 
-func toDomain(row categoryRow) domain.Category {
-	return domain.Category{
+func toDomain(row categoryRow) timetable.Category {
+	return timetable.Category{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		Name: row.Name, Description: row.Description, Color: row.Color, IsSystem: row.IsSystem,
 		ShiftTypeID: row.ShiftTypeID, ArchivedAt: row.ArchivedAt,

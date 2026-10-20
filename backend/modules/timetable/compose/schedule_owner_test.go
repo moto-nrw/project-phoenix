@@ -255,7 +255,7 @@ func TestScheduleListQueryBudgetStaysFlat(t *testing.T) {
 	}))
 }
 
-func assertSchedulesValidUntil(t *testing.T, ctx context.Context, module *timetable.Module, groupID int64, want *string) {
+func assertSchedulesValidUntil(t *testing.T, ctx context.Context, module timetable.Owner, groupID int64, want *string) {
 	t.Helper()
 	rows, err := module.ListSchedules(ctx, timetable.ScheduleFilter{GroupIDs: []int64{groupID}})
 	require.NoError(t, err)

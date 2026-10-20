@@ -3,11 +3,12 @@ package postgres
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/uptrace/bun"
 )
 
-func (s *Store) ListClassArrivalPlans(ctx context.Context, classes []string) ([]domain.ClassArrivalPlan, domain.OperationStats, error) {
+func (s *Store) ListClassArrivalPlans(ctx context.Context, classes []string) ([]timetable.ClassArrivalPlan, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -22,7 +23,7 @@ func (s *Store) ListClassArrivalPlans(ctx context.Context, classes []string) ([]
 	if err != nil {
 		return nil, stats, err
 	}
-	times := make([]domain.ClassArrivalPlan, len(rows))
+	times := make([]timetable.ClassArrivalPlan, len(rows))
 	for i, row := range rows {
 		times[i] = classArrivalPlanValue(row)
 	}
