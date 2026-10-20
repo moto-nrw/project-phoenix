@@ -11,7 +11,7 @@ import (
 )
 
 type transactionReceiverKey struct {
-	pkg, receiver, method, scope string
+	owner, pkg, receiver, method, scope string
 }
 
 func parseTransactionReceiverKey(key string) (transactionReceiverKey, bool) {
@@ -26,22 +26,29 @@ func parseTransactionReceiverKey(key string) (transactionReceiverKey, bool) {
 	// Receiver chains change during the collapse; the scope operation and
 	// occurrence number must not. The site scanner still verifies every key.
 	scope := parts[2][strings.LastIndex(parts[2], ".")+1:]
-	return transactionReceiverKey{filepath.ToSlash(filepath.Dir(parts[0])), receiver, method, scope}, true
+	pkg := filepath.ToSlash(filepath.Dir(parts[0]))
+	tree := strings.Split(pkg, "/")
+	if len(tree) < 2 || tree[0] != "modules" || tree[1] == "" {
+		return transactionReceiverKey{}, false
+	}
+	return transactionReceiverKey{strings.Join(tree[:2], "/"), pkg, receiver, method, scope}, true
 }
 
-func originalEngineTransactionKey(key string, current, previous map[string]string, removed func(string, string) (bool, error)) (string, error) {
+func originalReceiverTransactionKey(key string, current, previous map[string]string, removed func(string, string, string) (bool, error)) (string, error) {
 	target, ok := parseTransactionReceiverKey(key)
-	if !ok || target.receiver != "*Service" || removed == nil {
+	if !ok || target.receiver != "*Service" || target.pkg != target.owner+"/internal/application" || removed == nil {
 		return "", nil
 	}
 	oldKey := ""
+	var sourceMethod transactionReceiverKey
 	for candidate := range previous {
 		source, valid := parseTransactionReceiverKey(candidate)
-		if valid && source.pkg == target.pkg && source.method == target.method && source.scope == target.scope && (source.receiver == "Engine" || source.receiver == "*Engine") {
+		if valid && source.owner == target.owner && source.method == target.method && source.scope == target.scope && (strings.TrimPrefix(source.receiver, "*") == "Engine" || strings.TrimPrefix(source.receiver, "*") == "Module") {
 			if oldKey != "" {
-				return "", fmt.Errorf("ambiguous Engine transaction source: %s", key)
+				return "", fmt.Errorf("ambiguous receiver transaction source: %s", key)
 			}
 			oldKey = candidate
+			sourceMethod = source
 		}
 	}
 	if oldKey == "" {
@@ -49,8 +56,8 @@ func originalEngineTransactionKey(key string, current, previous map[string]strin
 	}
 	// Compare the whole method, not just this entry: a partial move must not
 	// silently drop a scope, duplicate an allowance or change its reason.
-	before, uniqueBefore := transactionReceiverScopes(previous, target, true)
-	after, uniqueAfter := transactionReceiverScopes(current, target, false)
+	before, uniqueBefore := transactionReceiverScopes(previous, sourceMethod)
+	after, uniqueAfter := transactionReceiverScopes(current, target)
 	if !uniqueBefore || !uniqueAfter || len(before) != len(after) {
 		return "", fmt.Errorf("receiver transaction scopes changed: %s", key)
 	}
@@ -59,28 +66,24 @@ func originalEngineTransactionKey(key string, current, previous map[string]strin
 			return "", fmt.Errorf("receiver transaction scopes changed: %s", key)
 		}
 	}
-	absent, err := removed(target.pkg, target.method)
+	absent, err := removed(sourceMethod.pkg, strings.TrimPrefix(sourceMethod.receiver, "*"), sourceMethod.method)
 	if err != nil {
 		return "", err
 	}
 	if !absent {
-		return "", fmt.Errorf("engine transaction method still declared: %s", key)
+		return "", fmt.Errorf("source transaction method still declared: %s", key)
 	}
 	return oldKey, nil
 }
 
-func transactionReceiverScopes(entries map[string]string, target transactionReceiverKey, engine bool) (map[string]string, bool) {
+func transactionReceiverScopes(entries map[string]string, target transactionReceiverKey) (map[string]string, bool) {
 	result := map[string]string{}
 	for key, reason := range entries {
 		parsed, ok := parseTransactionReceiverKey(key)
 		if !ok || parsed.pkg != target.pkg || parsed.method != target.method {
 			continue
 		}
-		if engine {
-			if parsed.receiver != "Engine" && parsed.receiver != "*Engine" {
-				continue
-			}
-		} else if parsed.receiver != "*Service" {
+		if strings.TrimPrefix(parsed.receiver, "*") != strings.TrimPrefix(target.receiver, "*") {
 			continue
 		}
 		if _, duplicate := result[parsed.scope]; duplicate {
@@ -91,12 +94,15 @@ func transactionReceiverScopes(entries map[string]string, target transactionRece
 	return result, true
 }
 
-func removedTransactionReceiverMethods(root string) func(string, string) (bool, error) {
+func removedTransactionReceiverMethods(root string) func(string, string, string) (bool, error) {
 	cache := map[string]map[string]bool{}
-	return func(pkg, method string) (bool, error) {
+	return func(pkg, receiver, method string) (bool, error) {
 		methods, loaded := cache[pkg]
 		if !loaded {
 			entries, err := os.ReadDir(filepath.Join(root, pkg))
+			if os.IsNotExist(err) {
+				return true, nil // The complete source package was deleted.
+			}
 			if err != nil {
 				return false, err
 			}
@@ -123,6 +129,6 @@ func removedTransactionReceiverMethods(root string) func(string, string) (bool, 
 			}
 			cache[pkg] = methods
 		}
-		return !methods["Engine."+method] && !methods["*Engine."+method], nil
+		return !methods[receiver+"."+method] && !methods["*"+receiver+"."+method], nil
 	}
 }

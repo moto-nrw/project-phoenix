@@ -164,3 +164,58 @@ func TestTransactionEngineReceiverRelocationsStayStrict(t *testing.T) {
 		})
 	}
 }
+
+func TestTransactionModuleReceiverMovesWithinOwnerStayStrict(t *testing.T) {
+	t.Parallel()
+	const old = "modules/enrollment/schemas.go:*Module.PublishSchema:m.runtime.RunWrite#1"
+	const moved = "modules/enrollment/internal/application/schemas.go:*Service.PublishSchema:s.deps.Tx.RunWrite#1"
+	const reason = "existing schema command"
+	for _, tc := range []struct {
+		name, key, retained string
+		deletedSource       bool
+		pass                bool
+	}{
+		{name: "public Module to application Service", key: moved, pass: true},
+		{name: "Engine source package deleted", key: moved, deletedSource: true, pass: true},
+		{name: "cross owner", key: strings.Replace(moved, "/enrollment/", "/other/", 1)},
+		{name: "outside internal application", key: strings.Replace(moved, "/internal/application/", "/compose/", 1)},
+		{name: "source Module method remains", key: moved, retained: "func (m *Module) PublishSchema() {}"},
+		{name: "source value Module method remains", key: moved, retained: "func (m Module) PublishSchema() {}"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			source := old
+			sourceDir := filepath.Join(root, "modules/enrollment")
+			receiver := "*Module"
+			if tc.deletedSource {
+				source = "modules/enrollment/retired/engine.go:Engine.PublishSchema:e.service.deps.Tx.RunWrite#1"
+				sourceDir = filepath.Join(root, "modules/enrollment/retired")
+				receiver = "Engine"
+			}
+			file, _, _ := strings.Cut(tc.key, ":")
+			if err := os.MkdirAll(filepath.Dir(filepath.Join(root, file)), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if !tc.deletedSource {
+				if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.WriteFile(filepath.Join(root, file), []byte("package application\nfunc (s *Service) PublishSchema(){ s.deps.Tx.RunWrite(ctx,work) }"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if !tc.deletedSource {
+				if err := os.WriteFile(filepath.Join(sourceDir, "remaining.go"), []byte("package enrollment\n"+tc.retained), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			fingerprint := transactionFingerprints(root, "base", func(...string) ([]byte, error) {
+				return []byte("package enrollment\nfunc (m " + receiver + ") PublishSchema(){ m.runtime.RunWrite(ctx,work) }"), nil
+			})
+			err := transactionScopeSubset(map[string]string{tc.key: reason}, map[string]string{source: reason}, nil, fingerprint, removedTransactionReceiverMethods(root))
+			if (err == nil) != tc.pass {
+				t.Fatalf("pass=%t, got %v", tc.pass, err)
+			}
+		})
+	}
+}

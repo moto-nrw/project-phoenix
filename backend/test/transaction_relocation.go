@@ -12,7 +12,7 @@ import (
 
 type transactionFingerprint func(key string, before bool) (string, error)
 
-func transactionScopeSubset(current, previous map[string]string, moves map[string]string, fingerprint transactionFingerprint, receiverRemoved func(string, string) (bool, error)) error {
+func transactionScopeSubset(current, previous map[string]string, moves map[string]string, fingerprint transactionFingerprint, receiverRemoved func(string, string, string) (bool, error)) error {
 	for key, reason := range current {
 		if old, retained := previous[key]; retained {
 			if old == reason {
@@ -20,7 +20,7 @@ func transactionScopeSubset(current, previous map[string]string, moves map[strin
 			}
 			return fmt.Errorf("transaction register changed reason: %s", key)
 		}
-		oldKey, err := originalEngineTransactionKey(key, current, previous, receiverRemoved)
+		oldKey, err := originalReceiverTransactionKey(key, current, previous, receiverRemoved)
 		if err != nil {
 			return err
 		}
