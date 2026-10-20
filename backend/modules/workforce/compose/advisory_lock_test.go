@@ -22,14 +22,16 @@ func TestAcquireXactLockReportsContendedWait(t *testing.T) {
 
 	holder, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
+	defer func() { _ = holder.Rollback() }()
 	_, err = holder.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key)
 	require.NoError(t, err)
 	ctx, evidence := testpkg.CaptureUnitOfWorkEvidence(ctx)
 	testpkg.AttachLockWaitEvidence(db)
-	release := time.AfterFunc(40*time.Millisecond, func() { _ = holder.Rollback() })
-	defer release.Stop()
-
-	require.NoError(t, testpkg.WithinTenantTransaction(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ testpkg.Tx) error { return NewStaffShiftLock(db)(txCtx, staff.ID) }))
+	require.NoError(t, testpkg.WithinTenantTransaction(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ testpkg.Tx) error {
+		release := time.AfterFunc(40*time.Millisecond, func() { _ = holder.Rollback() })
+		defer release.Stop()
+		return NewStaffShiftLock(db)(txCtx, staff.ID)
+	}))
 
 	var events []testpkg.UnitOfWorkEvidence
 	committed := 0

@@ -40,7 +40,7 @@ func NewTimetableRepositories(
 func NewTimetableRepositoriesWithPresence(
 	db transactionruntime.Database, capability timetable.Capability, students peopledirectory.Capability, groups schoolstructure.Query,
 	rooms facilities.Query, calendar schoolcalendar.Capability, membership schoolmembership.Capability, workTime workforce.Capability,
-	presence *studentpresence.Module,
+	presence studentpresence.Owner,
 ) timetableCompose.Repositories {
 	return timetableCompose.NewRepositories(timetableCompose.RepositoryDependencies{
 		DB: db.Pool(), Timetable: capability, Presence: presence, PartialAbsences: NewPartialAbsencePreview(db),

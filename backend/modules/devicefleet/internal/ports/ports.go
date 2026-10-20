@@ -4,25 +4,26 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
 )
 
 // DeviceStore is the owner's persistence port over iot.devices.
 type DeviceStore interface {
-	Create(context.Context, domain.CreateDevice) (domain.Device, domain.OperationStats, error)
-	Update(context.Context, domain.UpdateDevice) (domain.Device, domain.OperationStats, error)
+	Create(context.Context, devicefleet.CreateDevice) (devicefleet.Device, domain.OperationStats, error)
+	Update(context.Context, domain.UpdateDevice) (devicefleet.Device, domain.OperationStats, error)
 	UpdateColumns(context.Context, domain.UpdateDevice, []string) (int64, domain.OperationStats, error)
-	UpdateStatusByDeviceID(context.Context, string, domain.DeviceStatus) (int64, domain.OperationStats, error)
+	UpdateStatusByDeviceID(context.Context, string, devicefleet.DeviceStatus) (int64, domain.OperationStats, error)
 	Delete(context.Context, int64) (int64, domain.OperationStats, error)
-	FindByID(context.Context, int64, string) (domain.Device, bool, domain.OperationStats, error)
-	FindByDeviceID(context.Context, string) (domain.Device, bool, domain.OperationStats, error)
-	FindByAPIKey(context.Context, string) (domain.Device, bool, domain.OperationStats, error)
-	List(context.Context, domain.DeviceFilter) ([]domain.Device, domain.OperationStats, error)
-	ListByIDs(context.Context, []int64) ([]domain.Device, domain.OperationStats, error)
-	ListOffline(context.Context, time.Time) ([]domain.Device, domain.OperationStats, error)
+	FindByID(context.Context, int64, string) (devicefleet.Device, bool, domain.OperationStats, error)
+	FindByDeviceID(context.Context, string) (devicefleet.Device, bool, domain.OperationStats, error)
+	FindByAPIKey(context.Context, string) (devicefleet.Device, bool, domain.OperationStats, error)
+	List(context.Context, devicefleet.DeviceFilter) ([]devicefleet.Device, domain.OperationStats, error)
+	ListByIDs(context.Context, []int64) ([]devicefleet.Device, domain.OperationStats, error)
+	ListOffline(context.Context, time.Time) ([]devicefleet.Device, domain.OperationStats, error)
 	CountByType(context.Context) (map[string]int, domain.OperationStats, error)
 	CountByTenant(context.Context) (map[int64]int, domain.OperationStats, error)
-	ListByTenants(context.Context, []int64) ([]domain.Device, domain.OperationStats, error)
+	ListByTenants(context.Context, []int64) ([]devicefleet.Device, domain.OperationStats, error)
 }
 
 // DisplayStore is the owner's persistence port over display.displays.
@@ -41,9 +42,9 @@ type DisplayStore interface {
 // UnregisteredTagScanStore is the owner's persistence port over
 // audit.unregistered_tag_scans.
 type UnregisteredTagScanStore interface {
-	Insert(context.Context, domain.RecordUnregisteredTagScan) (domain.UnregisteredTagScan, domain.OperationStats, error)
-	FindByID(context.Context, int64) (domain.UnregisteredTagScan, bool, domain.OperationStats, error)
-	List(context.Context, domain.UnregisteredTagScanFilter) ([]domain.UnregisteredTagScan, domain.OperationStats, error)
+	Insert(context.Context, devicefleet.RecordUnregisteredTagScan) (devicefleet.UnregisteredTagScan, domain.OperationStats, error)
+	FindByID(context.Context, int64) (devicefleet.UnregisteredTagScan, bool, domain.OperationStats, error)
+	List(context.Context, devicefleet.UnregisteredTagScanFilter) ([]devicefleet.UnregisteredTagScan, domain.OperationStats, error)
 	// Resolve stamps one still-open scan and reports how many rows matched.
 	Resolve(context.Context, domain.ResolveUnregisteredTagScan) (int64, domain.OperationStats, error)
 	// DeleteExpired removes the caller tenant's scans older than cutoff through

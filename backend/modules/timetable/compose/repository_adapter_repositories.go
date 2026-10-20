@@ -21,7 +21,7 @@ type RepositoryDependencies struct {
 	DB        *bun.DB
 	Timetable timetable.Capability
 	// Presence runs the blocks and records their attendance.
-	Presence *studentpresence.Module
+	Presence studentpresence.Owner
 	// PartialAbsences previews the blocks an earlier pickup excuses.
 	PartialAbsences application.PartialAbsences
 	// Calendar lists the active calendar periods of the template capacity.

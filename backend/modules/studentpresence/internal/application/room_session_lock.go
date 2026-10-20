@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
+// LockRoomSessionWrites serializes session changes for one room until the caller's tenant transaction ends.
 func (s *Service) LockRoomSessionWrites(ctx context.Context, roomID int64) error {
 	return s.run("lock_room_session_writes", func() (ports.Stats, error) {
 		if roomID <= 0 {

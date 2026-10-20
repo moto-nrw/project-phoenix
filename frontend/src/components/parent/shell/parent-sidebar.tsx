@@ -113,10 +113,10 @@ export function ParentSidebar({
         <div
           className={`sticky flex flex-col ${
             eveningRow
-              ? "top-[137px] h-[calc(100vh-137px)]"
+              ? "top-[153px] h-[calc(100vh-153px)]"
               : demoBannerShown
-                ? "top-[105px] h-[calc(100vh-105px)]"
-                : "top-[57px] h-[calc(100vh-57px)]"
+                ? "top-[121px] h-[calc(100vh-121px)]"
+                : "top-[73px] h-[calc(100vh-73px)]"
           }`}
         >
           <nav

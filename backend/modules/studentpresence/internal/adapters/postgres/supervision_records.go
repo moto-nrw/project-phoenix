@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
@@ -45,7 +46,7 @@ func (s *Store) ReviseSupervision(ctx context.Context, input ports.GroupSupervis
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return ports.GroupSupervision{}, stats, ports.ErrSupervisionNotFound
+			return ports.GroupSupervision{}, stats, studentpresence.ErrSupervisionNotFound
 		}
 		return ports.GroupSupervision{}, stats, fmt.Errorf("revise supervision: %w", err)
 	}

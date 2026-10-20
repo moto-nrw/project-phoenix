@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
 )
 
 // ListDisplays returns every info-point screen of the caller's tenant.
-func (s *Service) ListDisplays(ctx context.Context) ([]domain.Display, error) {
+func (s *Service) ListDisplays(ctx context.Context) ([]devicefleet.Display, error) {
 	var displays []domain.Display
 	err := s.runInTenant(ctx, "list_displays", func(ctx context.Context, stats *domain.OperationStats) error {
 		found, queryStats, err := s.deps.Displays.List(ctx)
@@ -17,12 +18,16 @@ func (s *Service) ListDisplays(ctx context.Context) ([]domain.Display, error) {
 		displays = found
 		return err
 	})
-	return displays, err
+	result := make([]devicefleet.Display, 0, len(displays))
+	for _, value := range displays {
+		result = append(result, toPublicDisplay(value))
+	}
+	return result, err
 }
 
 // CreateDisplay registers a screen and returns it with its raw access token.
 // The raw token is returned exactly once and never stored.
-func (s *Service) CreateDisplay(ctx context.Context, name string) (domain.Display, string, error) {
+func (s *Service) CreateDisplay(ctx context.Context, name string) (devicefleet.Display, string, error) {
 	var created domain.Display
 	var rawToken string
 	err := s.runWrite(ctx, "create_display", func(ctx context.Context, stats *domain.OperationStats) error {
@@ -44,13 +49,16 @@ func (s *Service) CreateDisplay(ctx context.Context, name string) (domain.Displa
 		return nil
 	})
 	if err != nil {
-		return domain.Display{}, "", err
+		return devicefleet.Display{}, "", err
 	}
-	return created, rawToken, nil
+	return toPublicDisplay(created), rawToken, nil
 }
 
 // UpdateDisplay changes the name and/or the active state of one screen.
-func (s *Service) UpdateDisplay(ctx context.Context, id int64, name *string, isActive *bool) (domain.Display, error) {
+func (s *Service) UpdateDisplay(ctx context.Context, id int64, name *string, isActive *bool) (devicefleet.Display, error) {
+	if id <= 0 {
+		return devicefleet.Display{}, s.reject("update_display", devicefleet.ErrInvalidDisplayInput)
+	}
 	var result domain.Display
 	err := s.runWrite(ctx, "update_display", func(ctx context.Context, stats *domain.OperationStats) error {
 		existing, found, queryStats, err := s.deps.Displays.FindByID(ctx, id)
@@ -59,7 +67,7 @@ func (s *Service) UpdateDisplay(ctx context.Context, id int64, name *string, isA
 			return fmt.Errorf("failed to load display: %w", err)
 		}
 		if !found {
-			return domain.ErrDisplayNotFound
+			return devicefleet.ErrDisplayNotFound
 		}
 		input, err := applyDisplayUpdate(&existing, name, isActive)
 		if err != nil {
@@ -77,17 +85,19 @@ func (s *Service) UpdateDisplay(ctx context.Context, id int64, name *string, isA
 		}
 		if affected == 0 {
 			// The row vanished between the read and the update.
-			return domain.ErrDisplayNotFound
+			return devicefleet.ErrDisplayNotFound
 		}
 		result = existing
 		return nil
 	})
-	return result, err
+	return toPublicDisplay(result), err
 }
 
 // RegenerateDisplayToken mints a new access token, invalidating the old one.
-func (s *Service) RegenerateDisplayToken(ctx context.Context, id int64) (domain.Display, string, error) {
-	var display domain.Display
+func (s *Service) RegenerateDisplayToken(ctx context.Context, id int64) (string, error) {
+	if id <= 0 {
+		return "", s.reject("regenerate_display_token", devicefleet.ErrInvalidDisplayInput)
+	}
 	var rawToken string
 	err := s.runWrite(ctx, "regenerate_display_token", func(ctx context.Context, stats *domain.OperationStats) error {
 		existing, found, queryStats, err := s.deps.Displays.FindByID(ctx, id)
@@ -96,7 +106,7 @@ func (s *Service) RegenerateDisplayToken(ctx context.Context, id int64) (domain.
 			return fmt.Errorf("failed to load display: %w", err)
 		}
 		if !found {
-			return domain.ErrDisplayNotFound
+			return devicefleet.ErrDisplayNotFound
 		}
 		raw, hash, err := s.deps.Tokens.Mint()
 		if err != nil {
@@ -109,21 +119,23 @@ func (s *Service) RegenerateDisplayToken(ctx context.Context, id int64) (domain.
 		}
 		if affected == 0 {
 			// Never hand out a token that was not persisted.
-			return domain.ErrDisplayNotFound
+			return devicefleet.ErrDisplayNotFound
 		}
 		existing.TokenHash = hash
-		display = existing
 		rawToken = raw
 		return nil
 	})
 	if err != nil {
-		return domain.Display{}, "", err
+		return "", err
 	}
-	return display, rawToken, nil
+	return rawToken, nil
 }
 
 // DeleteDisplay removes one screen permanently.
 func (s *Service) DeleteDisplay(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return s.reject("delete_display", devicefleet.ErrInvalidDisplayInput)
+	}
 	return s.runWrite(ctx, "delete_display", func(ctx context.Context, stats *domain.OperationStats) error {
 		_, found, queryStats, err := s.deps.Displays.FindByID(ctx, id)
 		stats.Add(queryStats)
@@ -131,7 +143,7 @@ func (s *Service) DeleteDisplay(ctx context.Context, id int64) error {
 			return fmt.Errorf("failed to load display: %w", err)
 		}
 		if !found {
-			return domain.ErrDisplayNotFound
+			return devicefleet.ErrDisplayNotFound
 		}
 		affected, queryStats, err := s.deps.Displays.Delete(ctx, id)
 		stats.Add(queryStats)
@@ -139,7 +151,7 @@ func (s *Service) DeleteDisplay(ctx context.Context, id int64) error {
 			return fmt.Errorf("failed to delete display: %w", err)
 		}
 		if affected == 0 {
-			return domain.ErrDisplayNotFound
+			return devicefleet.ErrDisplayNotFound
 		}
 		return nil
 	})
@@ -148,10 +160,10 @@ func (s *Service) DeleteDisplay(ctx context.Context, id int64) error {
 func validateDisplayName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return "", &domain.InvalidDisplayError{Reason: "display name is required"}
+		return "", &devicefleet.InvalidDisplayError{Reason: "display name is required"}
 	}
 	if len(name) > domain.MaxDisplayNameLength {
-		return "", &domain.InvalidDisplayError{
+		return "", &devicefleet.InvalidDisplayError{
 			Reason: fmt.Sprintf("display name cannot exceed %d characters", domain.MaxDisplayNameLength),
 		}
 	}

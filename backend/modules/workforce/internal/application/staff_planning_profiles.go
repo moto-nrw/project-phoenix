@@ -8,7 +8,7 @@ import (
 )
 
 // StaffPlanningProfiles owns validation, the RLS unit, observation and public
-// mapping together. The engine exposes this complete query by embedding it.
+// mapping together. The service exposes this query directly.
 func (s *Service) StaffPlanningProfiles(ctx context.Context, staffIDs []int64, from, to string) ([]workforce.StaffPlanningProfile, error) {
 	if err := domain.ValidateDate(from, "from"); err != nil {
 		return nil, MapError(err)

@@ -327,6 +327,13 @@ describe("Header", () => {
     expect(actions).not.toContainElement(pageTitle);
   });
 
+  it("is taller from desktop on and stays compact on the phone (#4345)", () => {
+    const { container } = render(<Header />);
+
+    const bar = container.querySelector("[data-app-header] > div > div");
+    expect(bar).toHaveClass("h-12", "lg:h-16");
+  });
+
   it("does not show a generic help link when no matching topic exists", () => {
     mockUsePathname.mockReturnValue("/dashboard");
 

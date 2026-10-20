@@ -186,7 +186,7 @@ func (e StaffAdminEngine) ResolveStaffDocumentCleanup(ctx context.Context, staff
 }
 
 func (e StaffAdminEngine) ListStaffDocumentsPendingFileCleanup(ctx context.Context, staffID int64) ([]workforce.StaffDocument, error) {
-	return publicDocuments(e.records.ListStaffDocuments(ctx, domain.PendingFileCleanupFilter(staffID)))
+	return publicRecordDocuments(e.records.ListStaffDocuments(ctx, workforce.StaffDocumentFilter(domain.PendingFileCleanupFilter(staffID))))
 }
 
 func (e StaffAdminEngine) ListOffboardedStaffDocumentsPendingFileCleanup(ctx context.Context) ([]workforce.StaffDocument, error) {
@@ -194,7 +194,7 @@ func (e StaffAdminEngine) ListOffboardedStaffDocumentsPendingFileCleanup(ctx con
 }
 
 func (e StaffAdminEngine) ListDeletedStaffDocumentsPendingFileCleanups(ctx context.Context) ([]workforce.StaffDocument, error) {
-	return publicDocuments(e.records.ListStaffDocuments(ctx, domain.DeletedPendingFileCleanupFilter(0, nil)))
+	return publicRecordDocuments(e.records.ListStaffDocuments(ctx, workforce.StaffDocumentFilter(domain.DeletedPendingFileCleanupFilter(0, nil))))
 }
 
 func (e StaffAdminEngine) ListDeletedStaffDocumentsPendingFileCleanup(ctx context.Context, staffID int64, actor workforce.StaffDocumentActor) ([]workforce.StaffDocument, error) {
@@ -210,11 +210,11 @@ func (e StaffAdminEngine) QueueStaffDocumentFileCleanup(ctx context.Context, sta
 }
 
 func (e StaffAdminEngine) ListQueuedStaffDocumentFileCleanup(ctx context.Context, staffID int64) ([]workforce.StaffDocumentFileCleanup, error) {
-	return publicCleanups(e.records.ListQueuedStaffDocumentFileCleanups(ctx, staffID))
+	return publicRecordCleanups(e.records.ListQueuedStaffDocumentFileCleanups(ctx, staffID))
 }
 
 func (e StaffAdminEngine) ListQueuedStaffDocumentFileCleanups(ctx context.Context) ([]workforce.StaffDocumentFileCleanup, error) {
-	return publicCleanups(e.records.ListQueuedStaffDocumentFileCleanups(ctx, 0))
+	return publicRecordCleanups(e.records.ListQueuedStaffDocumentFileCleanups(ctx, 0))
 }
 
 func (e StaffAdminEngine) MarkQueuedStaffDocumentFileCleanupComplete(ctx context.Context, cleanupID int64) error {
@@ -247,20 +247,6 @@ func publicDocuments(documents []domain.StaffDocument, err error) ([]workforce.S
 	result := make([]workforce.StaffDocument, 0, len(documents))
 	for _, document := range documents {
 		result = append(result, documentToPublic(document))
-	}
-	return result, nil
-}
-
-func publicCleanups(cleanups []domain.StaffDocumentFileCleanup, err error) ([]workforce.StaffDocumentFileCleanup, error) {
-	if err != nil {
-		return nil, MapStaffAdminError(err)
-	}
-	result := make([]workforce.StaffDocumentFileCleanup, 0, len(cleanups))
-	for _, cleanup := range cleanups {
-		result = append(result, workforce.StaffDocumentFileCleanup{
-			ID: cleanup.ID, TenantID: cleanup.TenantID, StaffID: cleanup.StaffID, FilenameStored: cleanup.FilenameStored,
-			RetryAfter: cleanup.RetryAfter, CleanedAt: cleanup.CleanedAt, CreatedAt: cleanup.CreatedAt, UpdatedAt: cleanup.UpdatedAt,
-		})
 	}
 	return result, nil
 }

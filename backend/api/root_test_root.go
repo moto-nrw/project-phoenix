@@ -59,7 +59,7 @@ func composeTestRoot(db transactionruntime.Database, logger *slog.Logger, cfg ow
 	active studentpresence.Presence, reports owners.PresenceReports, lifecycle owners.TimetableLifecycle, planning TimetablePlanning,
 	materialization timetable.MaterializationCapability, provisioning organizationtenancy.Provisioning,
 	activities activityContract.ActivityService, structureViews StructureServices, facilitiesRooms FacilitiesRooms,
-	deviceFleet *devicefleetModule.Module, notices owners.EnrollmentNotices, settingsWrites SettingsWrites, outbox *deliveryModule.Worker, statusDays studentpresence.StatusDays, err error,
+	deviceFleet devicefleetModule.Capability, notices owners.EnrollmentNotices, settingsWrites SettingsWrites, outbox *deliveryModule.Worker, statusDays studentpresence.StatusDays, err error,
 ) {
 	return composeTestRootWith(db, logger, cfg, testRootObservers(), clocks...)
 }
@@ -70,7 +70,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 	active studentpresence.Presence, reports owners.PresenceReports, lifecycle owners.TimetableLifecycle, planning TimetablePlanning,
 	materialization timetable.MaterializationCapability, provisioning organizationtenancy.Provisioning,
 	activities activityContract.ActivityService, structureViews StructureServices, facilitiesRooms FacilitiesRooms,
-	deviceFleet *devicefleetModule.Module, notices owners.EnrollmentNotices, settingsWrites SettingsWrites, outbox *deliveryModule.Worker, statusDays studentpresence.StatusDays, err error,
+	deviceFleet devicefleetModule.Capability, notices owners.EnrollmentNotices, settingsWrites SettingsWrites, outbox *deliveryModule.Worker, statusDays studentpresence.StatusDays, err error,
 ) {
 	health, legal, fallback := carePlanHTTP.StudentDocumentPermissions()
 	documentPermissions := carePlanCompose.StudentDocumentPermissions{Health: health, Legal: legal, Default: fallback}
@@ -96,7 +96,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 		membership       schoolMembershipModule.Owner
 		bookings         *enrollmentOwner.BookingProjection
 		calendar         schoolcalendar.Days
-		workTime         *workforceCompose.WorkTime
+		workTime         workforceCompose.WorkTime
 		people           owners.PeopleRows
 		peopleIdentity   *identityaccess.Module
 		guardian         peoplePorts.GuardianService

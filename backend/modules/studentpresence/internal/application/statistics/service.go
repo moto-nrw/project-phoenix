@@ -193,9 +193,17 @@ func (s *service) loadAttendanceInputs(ctx context.Context, from, to calendar.Da
 	if err != nil {
 		return attendanceInputs{}, err
 	}
-	inputs.attendance, err = s.cfg.Attendance.ListAttendanceDays(ctx, from, to)
+	days, err := s.cfg.Attendance.ListAttendanceDays(ctx, from.String(), to.String())
 	if err != nil {
 		return attendanceInputs{}, fmt.Errorf("load attendance days: %w", err)
+	}
+	inputs.attendance = make([]ports.AttendanceDay, 0, len(days))
+	for _, day := range days {
+		date, err := calendar.ParseDate(day.Date)
+		if err != nil {
+			return attendanceInputs{}, fmt.Errorf("load attendance days: %w", err)
+		}
+		inputs.attendance = append(inputs.attendance, ports.AttendanceDay{StudentID: day.StudentID, Date: date})
 	}
 	inputs.statusDays, err = s.cfg.StatusDays.StatusDays(ctx, from, to)
 	if err != nil {
@@ -535,7 +543,7 @@ func (s *service) roomRows(ctx context.Context, filters studentpresence.Statisti
 	if err != nil {
 		return nil, fmt.Errorf("load rooms: %w", err)
 	}
-	byID := make(map[int64]ports.RoomUtilization, len(agg))
+	byID := make(map[int64]studentpresence.RoomUtilization, len(agg))
 	for _, row := range agg {
 		byID[row.RoomID] = row
 	}
@@ -676,8 +684,8 @@ func (s *service) recordAccess(ctx context.Context, filters studentpresence.Stat
 // visitWindows uses the owner's eligibility answer for every report date.
 // Adjacent eligible days form one interval so visits spanning midnight are
 // counted once and Berlin daylight-saving transitions preserve elapsed time.
-func visitWindows(students []*ports.StatisticsStudent, from, to, today calendar.Date) []ports.StudentVisitWindow {
-	windows := make([]ports.StudentVisitWindow, 0, len(students))
+func visitWindows(students []*ports.StatisticsStudent, from, to, today calendar.Date) []studentpresence.StudentVisitWindow {
+	windows := make([]studentpresence.StudentVisitWindow, 0, len(students))
 	for _, student := range students {
 		if student == nil || student.EnrolledOn == nil {
 			continue
@@ -688,8 +696,8 @@ func visitWindows(students []*ports.StatisticsStudent, from, to, today calendar.
 }
 
 // appendStudentVisitWindows appends one child's eligible intervals in order.
-func appendStudentVisitWindows(windows []ports.StudentVisitWindow, student *ports.StatisticsStudent, from, to, today calendar.Date) []ports.StudentVisitWindow {
-	var current *ports.StudentVisitWindow
+func appendStudentVisitWindows(windows []studentpresence.StudentVisitWindow, student *ports.StatisticsStudent, from, to, today calendar.Date) []studentpresence.StudentVisitWindow {
+	var current *studentpresence.StudentVisitWindow
 	for day := from; !day.After(to); day = day.AddDays(1) {
 		if !student.EnrolledOn(day, today) {
 			if current != nil {
@@ -699,7 +707,7 @@ func appendStudentVisitWindows(windows []ports.StudentVisitWindow, student *port
 			continue
 		}
 		if current == nil {
-			current = &ports.StudentVisitWindow{StudentID: student.ID, StartAt: day.BerlinMidnight()}
+			current = &studentpresence.StudentVisitWindow{StudentID: student.ID, StartAt: day.BerlinMidnight()}
 		}
 		current.EndAt = day.AddDays(1).BerlinMidnight()
 	}

@@ -74,7 +74,7 @@ func NewCheckinTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 
 // NewCheckinTestPresence builds the same unobserved presence reader used by
 // the kiosk contract suite, without exposing its composition dependency.
-func NewCheckinTestPresence(db transactionruntime.Database) (*studentpresence.Module, error) {
+func NewCheckinTestPresence(db transactionruntime.Database) (studentpresence.Owner, error) {
 	return presenceCompose.New(presenceCompose.Dependencies{
 		DB: db.Pool(), Observe: func(presenceCompose.Observation) {},
 	})

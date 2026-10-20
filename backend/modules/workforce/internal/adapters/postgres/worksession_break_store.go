@@ -5,16 +5,17 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 	"github.com/uptrace/bun"
 )
 
 // --- work session breaks ---
 
-func (s *Store) FindWorkSessionBreak(ctx context.Context, id int64) (domain.WorkSessionBreak, bool, domain.OperationStats, error) {
+func (s *Store) FindWorkSessionBreak(ctx context.Context, id int64) (workforce.WorkSessionBreak, bool, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.WorkSessionBreak{}, false, domain.OperationStats{}, err
+		return workforce.WorkSessionBreak{}, false, domain.OperationStats{}, err
 	}
 	row := &workSessionBreakRow{}
 	query := withTenant(db.NewSelect().Model(row).
@@ -22,12 +23,12 @@ func (s *Store) FindWorkSessionBreak(ctx context.Context, id int64) (domain.Work
 		Where(`"work_session_break".id = ?`, id), aliasWorkSessionBreak, scope)
 	found, stats, err := scanOne(ctx, query, "find work session break")
 	if err != nil || !found {
-		return domain.WorkSessionBreak{}, found, stats, err
+		return workforce.WorkSessionBreak{}, found, stats, err
 	}
 	return workSessionBreakToDomain(*row), true, stats, nil
 }
 
-func (s *Store) ListWorkSessionBreaks(ctx context.Context, filter domain.WorkSessionBreakFilter) ([]domain.WorkSessionBreak, domain.OperationStats, error) {
+func (s *Store) ListWorkSessionBreaks(ctx context.Context, filter workforce.WorkSessionBreakFilter) ([]workforce.WorkSessionBreak, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -61,7 +62,7 @@ func (s *Store) ListWorkSessionBreaks(ctx context.Context, filter domain.WorkSes
 	return workSessionBreaksToDomain(rows), stats, nil
 }
 
-func (s *Store) ExpiredWorkSessionBreaks(ctx context.Context, before time.Time) ([]domain.WorkSessionBreak, domain.OperationStats, error) {
+func (s *Store) ExpiredWorkSessionBreaks(ctx context.Context, before time.Time) ([]workforce.WorkSessionBreak, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -81,10 +82,10 @@ func (s *Store) ExpiredWorkSessionBreaks(ctx context.Context, before time.Time) 
 	return workSessionBreaksToDomain(rows), stats, nil
 }
 
-func (s *Store) CreateWorkSessionBreak(ctx context.Context, value domain.WorkSessionBreak) (domain.WorkSessionBreak, domain.OperationStats, error) {
+func (s *Store) CreateWorkSessionBreak(ctx context.Context, value workforce.WorkSessionBreak) (workforce.WorkSessionBreak, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.WorkSessionBreak{}, domain.OperationStats{}, err
+		return workforce.WorkSessionBreak{}, domain.OperationStats{}, err
 	}
 	row := workSessionBreakFromDomain(value)
 	if row.TenantID == 0 {
@@ -95,16 +96,16 @@ func (s *Store) CreateWorkSessionBreak(ctx context.Context, value domain.WorkSes
 	_, err = db.NewInsert().Model(row).ModelTableExpr(tableWorkSessionBreaks).Returning("*").Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.WorkSessionBreak{}, stats, fmt.Errorf("workforce postgres: insert work session break: %w", err)
+		return workforce.WorkSessionBreak{}, stats, fmt.Errorf("workforce postgres: insert work session break: %w", err)
 	}
 	stats.Rows = 1
 	return workSessionBreakToDomain(*row), stats, nil
 }
 
-func (s *Store) UpdateWorkSessionBreak(ctx context.Context, value domain.WorkSessionBreak) (domain.WorkSessionBreak, bool, domain.OperationStats, error) {
+func (s *Store) UpdateWorkSessionBreak(ctx context.Context, value workforce.WorkSessionBreak) (workforce.WorkSessionBreak, bool, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.WorkSessionBreak{}, false, domain.OperationStats{}, err
+		return workforce.WorkSessionBreak{}, false, domain.OperationStats{}, err
 	}
 	row := workSessionBreakFromDomain(value)
 	if row.TenantID == 0 {
@@ -118,11 +119,11 @@ func (s *Store) UpdateWorkSessionBreak(ctx context.Context, value domain.WorkSes
 		Returning("*"), aliasWorkSessionBreak, scope)
 	stats, err := execAffected(ctx, query, "update work session break")
 	if err != nil {
-		return domain.WorkSessionBreak{}, false, stats, err
+		return workforce.WorkSessionBreak{}, false, stats, err
 	}
 	if stats.Rows != 1 {
 		stats.Rows = 0
-		return domain.WorkSessionBreak{}, false, stats, nil
+		return workforce.WorkSessionBreak{}, false, stats, nil
 	}
 	return workSessionBreakToDomain(*row), true, stats, nil
 }

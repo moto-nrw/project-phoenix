@@ -371,27 +371,25 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"setupTestDB",
 		"SetupAPITest",
 		"setupAPITest",
-		"setupTestContext",                 // Indirect setup via shared helper (calls SetupAPITest)
-		"setupRolloverTest",                // modules/enrollment/http rollover integration tests — wraps SetupTestDB
-		"setupRequestTest",                 // modules/enrollment/http intake integration tests — wraps SetupTestDB
-		"setupDecisionTest",                // modules/enrollment/http and careplan contracttest decision integration tests — wraps setupRolloverTest
-		"setupCareTest",                    // careplan contracttest care-offering integration tests — wraps SetupTestDB
-		"setupAutoApproveIntegrationEnv",   // modules/enrollment/http auto-approve integration tests — wraps setupRolloverTest
-		"setupGuardianInvitationTest",      // services/auth guardian invitation + related-accounts tests — wraps SetupTestDB
-		"makeScenario",                     // modules/timetable/compose/httpintegration materialization/split/lifecycle integration tests — wraps SetupTestDB
-		"makeRosterChain",                  // modules/timetable/compose/httpintegration split-series roster tests (#2187) — wraps makeSeriesChain → makeScenario
-		"makeMoveSetup",                    // modules/timetable/compose/httpintegration staff-move tests (#1884) — wraps SetupTestDB
-		"buildDevSetup",                    // modules/timetable/http deviations/protocol tests — wraps SetupTestDB
-		"setupAbsenceAdminTest",            // api/staff absence question tests (#1419) — wraps setupTestContext
-		"newOverviewFixture",               // modules/studentpresence/internal/application/presence overview/export integration tests (#1417) — wraps SetupTestDB
-		"setupOverviewAPI",                 // api/staff overview/export tests (#1417) — wraps setupTestContext
-		"newTransitionFixture",             // services/education grade-transition workflow tests — wraps SetupTestDB
-		"buildLifecycle",                   // modules/timetable/compose/httpintegration instance-lifecycle tests — wraps SetupTestDB
-		"newCareFixture",                   // modules/careplan/contracttest care-request tests — wraps SetupTestDB
-		"setupDashboardContext",            // api/active supervision-dashboard tests — wraps SetupActiveModule → SetupTestDB
-		"setupStudentStorageBeforeCutover", // database/migrations student-owner cutover + preflight tests — wraps SetupTestDB
-		"setupPeopleStorageBeforeCutover",  // database/migrations repairs older than the student and staff cutovers — wraps SetupTestDB
-		"setupStudentsRoute",               // modules/peopledirectory/inbound/students route suites — wraps testutil.SetupStudentModule → SetupTestDB
+		"setupTestContext",               // Indirect setup via shared helper (calls SetupAPITest)
+		"setupRolloverTest",              // modules/enrollment/http rollover integration tests — wraps SetupTestDB
+		"setupRequestTest",               // modules/enrollment/http intake integration tests — wraps SetupTestDB
+		"setupDecisionTest",              // modules/enrollment/http and careplan contracttest decision integration tests — wraps setupRolloverTest
+		"setupCareTest",                  // careplan contracttest care-offering integration tests — wraps SetupTestDB
+		"setupAutoApproveIntegrationEnv", // modules/enrollment/http auto-approve integration tests — wraps setupRolloverTest
+		"setupGuardianInvitationTest",    // services/auth guardian invitation + related-accounts tests — wraps SetupTestDB
+		"makeScenario",                   // modules/timetable/compose/httpintegration materialization/split/lifecycle integration tests — wraps SetupTestDB
+		"makeRosterChain",                // modules/timetable/compose/httpintegration split-series roster tests (#2187) — wraps makeSeriesChain → makeScenario
+		"makeMoveSetup",                  // modules/timetable/compose/httpintegration staff-move tests (#1884) — wraps SetupTestDB
+		"buildDevSetup",                  // modules/timetable/http deviations/protocol tests — wraps SetupTestDB
+		"setupAbsenceAdminTest",          // api/staff absence question tests (#1419) — wraps setupTestContext
+		"newOverviewFixture",             // modules/studentpresence/internal/application/presence overview/export integration tests (#1417) — wraps SetupTestDB
+		"setupOverviewAPI",               // api/staff overview/export tests (#1417) — wraps setupTestContext
+		"newTransitionFixture",           // services/education grade-transition workflow tests — wraps SetupTestDB
+		"buildLifecycle",                 // modules/timetable/compose/httpintegration instance-lifecycle tests — wraps SetupTestDB
+		"newCareFixture",                 // modules/careplan/contracttest care-request tests — wraps SetupTestDB
+		"setupDashboardContext",          // api/active supervision-dashboard tests — wraps SetupActiveModule → SetupTestDB
+		"setupStudentsRoute",             // modules/peopledirectory/inbound/students route suites — wraps testutil.SetupStudentModule → SetupTestDB
 	}
 
 	// Patterns indicating mock-based testing (legitimate alternative)

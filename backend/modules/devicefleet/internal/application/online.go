@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
 )
 
@@ -24,7 +25,7 @@ func (s *Service) DeviceOnlineWindow(ctx context.Context) time.Duration {
 // observation time. A device is online when its last_seen timestamp lies
 // within the resolved window of that moment. The row holds the timestamp;
 // this owner holds the rule (#586, Rule 12).
-func (s *Service) IsDeviceOnlineAt(ctx context.Context, device domain.Device, now time.Time) bool {
+func (s *Service) IsDeviceOnlineAt(ctx context.Context, device devicefleet.Device, now time.Time) bool {
 	if device.LastSeen == nil {
 		return false
 	}
