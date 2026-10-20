@@ -36,7 +36,7 @@ func recurrenceGate(db *bun.DB) func(context.Context) error {
 	}
 }
 
-func buildAdministration(t *testing.T, db *bun.DB, guard func(context.Context, int64, *schoolcalendar.CalendarPeriodFields) error) *schoolcalendar.Module {
+func buildAdministration(t *testing.T, db *bun.DB, guard func(context.Context, int64, *schoolcalendar.CalendarPeriodFields) error) schoolcalendar.Calendar {
 	t.Helper()
 	if guard == nil {
 		guard = func(context.Context, int64, *schoolcalendar.CalendarPeriodFields) error { return nil }
@@ -58,7 +58,7 @@ func semester(name, start, end string, active bool) schoolcalendar.CalendarPerio
 	}
 }
 
-func addPeriod(t *testing.T, ctx context.Context, module *schoolcalendar.Module, fields schoolcalendar.CalendarPeriodFields) schoolcalendar.CalendarPeriod {
+func addPeriod(t *testing.T, ctx context.Context, module schoolcalendar.Calendar, fields schoolcalendar.CalendarPeriodFields) schoolcalendar.CalendarPeriod {
 	t.Helper()
 	period, err := module.AddCalendarPeriod(ctx, schoolcalendar.CreateCalendarPeriod{CalendarPeriodFields: fields})
 	require.NoError(t, err)

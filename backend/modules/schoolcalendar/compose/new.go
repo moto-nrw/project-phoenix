@@ -49,14 +49,14 @@ type RecordsDependencies struct {
 // administration, for the owners a root builds before the ones the
 // administration asks (#4080). NewAdministration adds the administration
 // once its gate and guard exist.
-func NewRecords(dependencies RecordsDependencies) (*schoolcalendar.Records, error) {
+func NewRecords(dependencies RecordsDependencies) (schoolcalendar.Days, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil || dependencies.FederalState == nil {
 		return nil, errors.New("school calendar compose: all dependencies are required")
 	}
 	// The records serve no period administration, so its gate and guard
 	// are never asked.
-	service := retainedNewService(dependencies.DB, dependencies.Observe, application.Administration{Transaction: writeTransaction, Today: application.BerlinToday})
-	return schoolcalendar.NewRecords(application.NewPublicEngine(service, dependencies.FederalState)), nil
+	service := retainedNewService(dependencies.DB, dependencies.Observe, application.Administration{Transaction: writeTransaction, Today: application.BerlinToday, FederalState: dependencies.FederalState})
+	return service, nil
 }
 
 // AdministrationDependencies are the collaborators of the period
@@ -79,7 +79,7 @@ type AdministrationDependencies struct {
 
 // NewAdministration adds the period administration to the Records: the
 // whole School Calendar, which the period editor drives.
-func NewAdministration(records *schoolcalendar.Records, dependencies AdministrationDependencies) (*schoolcalendar.Module, error) {
+func NewAdministration(records schoolcalendar.Days, dependencies AdministrationDependencies) (schoolcalendar.Calendar, error) {
 	if records == nil || dependencies.DB == nil || dependencies.Observe == nil ||
 		dependencies.RecurrenceGate == nil || dependencies.CareOfferingGuard == nil {
 		return nil, errors.New("school calendar compose: all dependencies are required")
@@ -88,11 +88,11 @@ func NewAdministration(records *schoolcalendar.Records, dependencies Administrat
 	if today == nil {
 		today = application.BerlinToday
 	}
-	service := retainedNewService(dependencies.DB, dependencies.Observe, application.Administration{
+	service, err := application.WithAdministration(records, application.Administration{
 		Transaction: writeTransaction, RecurrenceGate: dependencies.RecurrenceGate,
-		CareOfferingGuard: application.BindCareOfferingGuard(dependencies.CareOfferingGuard), Today: today,
-	})
-	return schoolcalendar.NewAdministeredModule(records, application.NewPublicEngine(service, nil)), nil
+		CareOfferingGuard: dependencies.CareOfferingGuard, Today: today,
+	}, dependencies.Observe)
+	return service, err
 }
 
 // writeTransaction joins the ambient tenant transaction (tenant middleware,

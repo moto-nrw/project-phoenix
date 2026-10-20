@@ -14,7 +14,7 @@ func NewParticipantDirectory(find mealplan.ParticipantFinder) participantDirecto
 
 type participantDirectory struct{ find mealplan.ParticipantFinder }
 
-func (d participantDirectory) FindDailyCandidates(ctx context.Context, date domain.Date) ([]domain.DailyCandidate, domain.OperationStats, error) {
+func (d participantDirectory) FindDailyCandidates(ctx context.Context, date domain.Date) ([]mealplan.ParticipantCandidate, domain.OperationStats, error) {
 	started := time.Now()
 	rows, err := d.find(ctx, date.String())
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
@@ -22,11 +22,8 @@ func (d participantDirectory) FindDailyCandidates(ctx context.Context, date doma
 		return nil, stats, err
 	}
 	stats.Rows = int64(len(rows))
-	candidates := make([]domain.DailyCandidate, 0, len(rows))
-	for _, row := range rows {
-		candidates = append(candidates, domain.DailyCandidate{
-			StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName, SchoolClass: row.SchoolClass,
-		})
+	if rows == nil {
+		rows = []mealplan.ParticipantCandidate{}
 	}
-	return candidates, stats, nil
+	return rows, stats, nil
 }

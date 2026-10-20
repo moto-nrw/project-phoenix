@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/feedback"
+
 	"github.com/moto-nrw/project-phoenix/modules/feedback/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
@@ -66,7 +68,7 @@ func (s *Store) Get(ctx context.Context, id int64) (domain.Entry, domain.Operati
 		Where(`"entry".id = ?`, id).
 		Scan(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Entry{}, stats, domain.ErrEntryNotFound
+		return domain.Entry{}, stats, &feedback.EntryNotFoundError{EntryID: id}
 	}
 	if err != nil {
 		return domain.Entry{}, stats, fmt.Errorf("feedback postgres: get entry: %w", err)
@@ -94,7 +96,7 @@ func (s *Store) Delete(ctx context.Context, id int64) (domain.OperationStats, er
 		return stats, fmt.Errorf("feedback postgres: count deleted entries: %w", err)
 	}
 	if rows == 0 {
-		return stats, domain.ErrEntryNotFound
+		return stats, &feedback.EntryNotFoundError{EntryID: id}
 	}
 	stats.Rows = rows
 	return stats, nil

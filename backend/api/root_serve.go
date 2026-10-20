@@ -89,12 +89,12 @@ func composeServeRoot(
 		pushVAPID        deliveryCompose.VAPIDConfig
 		organizations    organizationtenancy.Capability
 		groups           *schoolstructure.Module
-		rooms            *facilitiesModule.Rooms
+		rooms            facilitiesModule.Catalog
 		membership       *schoolMembershipModule.Module
 		classListEntries *schoolMembershipModule.Module
 		bookings         *enrollmentOwner.BookingProjection
 		settings         owners.SettingsOwner
-		calendar         *schoolcalendar.Records
+		calendar         schoolcalendar.Days
 		workTime         *workforceCompose.WorkTime
 		people           owners.PeopleRows
 		peopleIdentity   *identityaccess.Module
@@ -108,9 +108,9 @@ func composeServeRoot(
 		operatorAuditLog owners.OperatorAuditEntries
 		communication    *communicationModule.Module
 		mealPlanSettings *mealplanCompose.Settings
-		mealPlan         *mealplanModule.Module
+		mealPlan         mealplanModule.Capability
 		feedbackSettings *feedbackCompose.Settings
-		feedback         *feedbackModule.Module
+		feedback         feedbackModule.Capability
 		structure        owners.StructureRows
 		presencePeople   owners.PresencePeopleReads
 		careRows         owners.TimetableCareRows
@@ -174,8 +174,8 @@ func composeServeRoot(
 		planning         TimetablePlanning
 		settingsWrites   SettingsWrites
 		studentDeletion  *studentdeletion.Workflow
-		facilities       *facilitiesModule.Module
-		calendarAdmin    *schoolcalendar.Module
+		facilities       facilitiesModule.Capability
+		calendarAdmin    schoolcalendar.Calendar
 		outbox           *deliveryModule.Worker
 		iot              devicefleetCompose.IoTService
 		guardianProfiles *peopleCompose.GuardianProfileLoader

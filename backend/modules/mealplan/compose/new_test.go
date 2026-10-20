@@ -111,12 +111,12 @@ func enabledTestSettings(settingErr error) testMealPlanSettings {
 	return testMealPlanSettings{mealPlanEnabled: true, mealRegistrationEnabled: true, cutoff: "09:00", err: settingErr}
 }
 
-func buildModule(t *testing.T, db *bun.DB, enabled bool, settingErr error) *mealInputs.Module {
+func buildModule(t *testing.T, db *bun.DB, enabled bool, settingErr error) mealInputs.Capability {
 	t.Helper()
 	return buildModuleAt(t, db, enabled, settingErr, time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin))
 }
 
-func buildModuleAt(t *testing.T, db *bun.DB, enabled bool, settingErr error, now time.Time) *mealInputs.Module {
+func buildModuleAt(t *testing.T, db *bun.DB, enabled bool, settingErr error, now time.Time) mealInputs.Capability {
 	t.Helper()
 	module, err := New(Dependencies{
 		DB:           db,
