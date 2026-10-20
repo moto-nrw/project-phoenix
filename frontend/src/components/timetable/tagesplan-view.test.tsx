@@ -40,6 +40,20 @@ vi.mock("~/lib/tenant-context", () => ({
   useTimetableEnabled: vi.fn(() => true),
   useOperationalOverviewScope: vi.fn(() => "all_staff"),
   useWeekendFollowsFriday: vi.fn(() => false),
+  useTenantSlugSafe: () => null,
+  useTenantRoutingModeSafe: () => "path",
+  useNFCEnabled: () => true,
+  usePresenceMode: () => "detailed",
+  useOpenCareGroupMode: () => false,
+}));
+
+vi.mock("~/lib/shell-auth-context", () => ({
+  useShellAuthSafe: () => ({ mode: "teacher" }),
+  useShellAuth: () => ({ mode: "teacher", user: { roles: ["user"] } }),
+}));
+
+vi.mock("~/lib/breadcrumb-context", () => ({
+  useBreadcrumb: () => ({ breadcrumb: {} }),
 }));
 
 // Feste Uhr: 10:00 Berliner Zeit, damit die "Jetzt"-Linie deterministisch ist.
@@ -62,6 +76,7 @@ vi.mock("~/lib/timetable-operations-api", async (importOriginal) => {
 
 const searchParams = { current: new URLSearchParams() };
 vi.mock("next/navigation", () => ({
+  usePathname: () => "/tagesplan",
   useSearchParams: () => searchParams.current,
 }));
 
@@ -136,6 +151,18 @@ describe("TagesplanView", () => {
       screen.getAllByRole("button", { name: "Nächster Tag" })[1]!,
     );
     expect(replace).toHaveBeenLastCalledWith("/tagesplan?d=2026-07-20");
+  });
+
+  it("shows contextual help for the active day plan on phones and tablets", () => {
+    searchParams.current = new URLSearchParams("d=2026-07-15");
+
+    render(<TagesplanView />);
+
+    const help = screen.getByRole("link", { name: "Hilfe zu dieser Seite" });
+    const url = new URL(help.getAttribute("href")!, "https://moto.invalid");
+    expect(url.pathname).toBe("/help/tagesplan-ansehen");
+    expect(url.searchParams.get("return_to")).toBe("/tagesplan?d=2026-07-15");
+    expect(help.parentElement).toHaveClass("lg:hidden");
   });
 
   it("steps onto Saturday when the weekend follows Friday's plan (#3921)", () => {
