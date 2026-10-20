@@ -198,15 +198,7 @@ func (r *SessionRecords) ListActiveSupervisionBlockers(ctx context.Context, staf
 }
 
 func (r *SessionRecords) ListActiveSupervisedRooms(ctx context.Context) ([]studentpresence.StaffRoomSupervision, error) {
-	rows, err := r.supervisors.ListActiveSupervisedRooms(ctx)
-	if rows == nil {
-		return nil, err
-	}
-	result := make([]studentpresence.StaffRoomSupervision, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, studentpresence.StaffRoomSupervision(row))
-	}
-	return result, err
+	return r.supervisors.ListActiveSupervisedRooms(ctx)
 }
 
 func livePointer(group *ports.ActiveGroup) *studentpresence.LiveGroup {

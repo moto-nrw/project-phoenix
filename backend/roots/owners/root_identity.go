@@ -41,7 +41,7 @@ func BuildIdentityAccess(
 	mailSender email.Mailer, mailDispatcher email.Dispatcher, mailFrom email.Email, deliveryRuntime *deliveryCompose.Runtime, mailIdentity email.ReplyToResolver, outbox MailResultOutbox,
 	people PeopleRows, guardianEnrollments guardianEnrollmentClaims,
 	groups EducationGroupRows, staffGroups schoolstructure.StaffGroupQuery, activityGroups timetablePorts.CallerActivityGroups,
-	sessions presenceCompose.SessionRecords, presence *studentpresence.Module,
+	sessions presenceCompose.SessionRecords, presence studentpresence.Owner,
 	workTime workforce.Capability, calendar schoolcalendar.Days,
 ) (*identityaccess.Module, *CallerRows, error) {
 	durable, ok := outbox.(DurableMailOutbox)

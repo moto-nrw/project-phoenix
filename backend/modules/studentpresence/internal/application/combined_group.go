@@ -5,10 +5,11 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
-func (s *Service) ListCombinedGroups(ctx context.Context, filter ports.CombinedGroupFilter) (result []ports.CombinedGroup, err error) {
+func (s *Service) ListCombinedGroups(ctx context.Context, filter studentpresence.CombinedGroupFilter) (result []studentpresence.CombinedGroup, err error) {
 	err = s.runWrite(ctx, "list_combined_groups", func(ctx context.Context) (ports.Stats, error) {
 		if filter.Limit < 0 || filter.Offset < 0 || filter.ID != nil && *filter.ID <= 0 {
 			return ports.Stats{}, errors.New("student presence: invalid combination list options")
@@ -20,7 +21,7 @@ func (s *Service) ListCombinedGroups(ctx context.Context, filter ports.CombinedG
 		result, stats, err = s.store.ListCombinedGroups(ctx, filter)
 		return stats, err
 	})
-	return result, err
+	return listResult(result, err)
 }
 func (s *Service) EndCombination(ctx context.Context, id int64, at time.Time) error {
 	return s.runWrite(ctx, "end_combination", func(txCtx context.Context) (ports.Stats, error) {
@@ -31,7 +32,7 @@ func (s *Service) EndCombination(ctx context.Context, id int64, at time.Time) er
 	})
 }
 
-func (s *Service) GetCombinedGroup(ctx context.Context, id int64) (result ports.CombinedGroup, err error) {
+func (s *Service) GetCombinedGroup(ctx context.Context, id int64) (result studentpresence.CombinedGroup, err error) {
 	err = s.runWrite(ctx, "get_combined_group", func(ctx context.Context) (ports.Stats, error) {
 		if id <= 0 {
 			return ports.Stats{}, errors.New("student presence: invalid combination ID")
@@ -42,7 +43,7 @@ func (s *Service) GetCombinedGroup(ctx context.Context, id int64) (result ports.
 	})
 	return result, err
 }
-func (s *Service) RecordCombination(ctx context.Context, start time.Time, end *time.Time) (result ports.CombinedGroup, err error) {
+func (s *Service) RecordCombination(ctx context.Context, start time.Time, end *time.Time) (result studentpresence.CombinedGroup, err error) {
 	err = s.runWrite(ctx, "record_combination", func(txCtx context.Context) (ports.Stats, error) {
 		if err := validateCombinationTimes(start, end); err != nil {
 			return ports.Stats{}, err
@@ -53,7 +54,7 @@ func (s *Service) RecordCombination(ctx context.Context, start time.Time, end *t
 	})
 	return result, err
 }
-func (s *Service) ReviseCombination(ctx context.Context, id int64, start time.Time, end *time.Time) (result ports.CombinedGroup, err error) {
+func (s *Service) ReviseCombination(ctx context.Context, id int64, start time.Time, end *time.Time) (result studentpresence.CombinedGroup, err error) {
 	err = s.runWrite(ctx, "revise_combination", func(txCtx context.Context) (ports.Stats, error) {
 		if id <= 0 {
 			return ports.Stats{}, errors.New("student presence: invalid combination ID")
@@ -67,6 +68,8 @@ func (s *Service) ReviseCombination(ctx context.Context, id int64, start time.Ti
 	})
 	return result, err
 }
+
+// DeleteCombination removes a combination if present; an absent identity is a no-op.
 func (s *Service) DeleteCombination(ctx context.Context, id int64) error {
 	return s.runWrite(ctx, "delete_combination", func(txCtx context.Context) (ports.Stats, error) {
 		if id <= 0 {

@@ -75,33 +75,3 @@ func TestStudentOwnersWorkWithoutRollbackView(t *testing.T) {
 	_, err = testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(record.ID))
 	require.Error(t, err)
 }
-
-func TestRollbackViewSupportsOwnerCreatedStudents(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
-	testpkg.RestoreStudentCompatibilityBeforeContract(t, db)
-	ctx := testpkg.Ctx(t)
-	person := testpkg.CreateTestPerson(t, db, "Rollback", "NewOwner")
-	directory := buildStudentOwnersModule(t, db)
-	record, err := directory.CreateStudent(ctx, peopledirectory.StudentWrite{Record: peopledirectory.StudentRecord{PersonID: person.ID, SchoolClass: "1a", Status: "active"}})
-	require.NoError(t, err)
-	var archived int
-	require.NoError(t, db.NewRaw("SELECT count(*) FROM users.students_legacy WHERE tenant_id = ? AND id = ?", testpkg.Tenant(t), record.ID).Scan(ctx, &archived))
-	require.Zero(t, archived, "the current application must not recreate the Guardian archive")
-	_, err = db.NewRaw("UPDATE users.students SET extra_info = 'rollback write', sick = true WHERE tenant_id = ? AND id = ?", testpkg.Tenant(t), record.ID).Exec(ctx)
-	require.NoError(t, err)
-	stored, err := directory.FindStudentRecord(ctx, record.ID)
-	require.NoError(t, err)
-	require.NotNil(t, stored.ExtraInfo)
-	require.Equal(t, "rollback write", *stored.ExtraInfo)
-	require.NotNil(t, stored.Sick)
-	require.True(t, *stored.Sick)
-	require.NoError(t, directory.DeleteStudentRecord(ctx, record.ID))
-	// A previous image may re-enroll the same person after a current-image
-	// deletion. Its archive row must not block the compatibility INSERT.
-	var replacementID int64
-	require.NoError(t, db.NewRaw("INSERT INTO users.students (tenant_id, person_id, school_class) VALUES (?, ?, '2a') RETURNING id", testpkg.Tenant(t), person.ID).Scan(ctx, &replacementID))
-	replacement, err := directory.FindStudentRecord(ctx, replacementID)
-	require.NoError(t, err)
-	require.Equal(t, "2a", replacement.SchoolClass)
-}

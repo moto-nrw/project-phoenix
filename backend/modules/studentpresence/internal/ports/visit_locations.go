@@ -3,10 +3,13 @@ package ports
 import (
 	"context"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 type VisitLocation struct {
-	Visit
+	studentpresence.Visit
+
 	GroupID        *int64
 	RoomID         int64
 	GroupCreatedAt time.Time
@@ -19,20 +22,9 @@ type VisitLocation struct {
 	TimeoutMinutes int
 }
 
-type VisitLocationFilter struct {
-	VisitFilter
-	RunningGroupsOnly bool
-	LatestPerStudent  bool
-}
-
-type OpenVisitRoom struct {
-	StudentID int64
-	RoomID    int64
-}
-
 type VisitLocationStore interface {
-	ListVisitLocations(context.Context, VisitLocationFilter) ([]VisitLocation, Stats, error)
+	ListVisitLocations(context.Context, studentpresence.VisitLocationFilter) ([]VisitLocation, Stats, error)
 	CountOpenVisitsInGroup(context.Context, int64) (int, Stats, error)
 	CountOpenVisitsInRoom(context.Context, int64) (int, Stats, error)
-	ListOpenVisitRooms(context.Context, int64) ([]OpenVisitRoom, Stats, error)
+	ListOpenVisitRooms(context.Context, int64) ([]studentpresence.OpenVisitRoom, Stats, error)
 }

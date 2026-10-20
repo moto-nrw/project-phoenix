@@ -17,7 +17,3 @@ type OpenRoomSession struct {
 type OpenRoomSessionQuery interface {
 	ListOpenRoomSessions(context.Context, []int64) ([]OpenRoomSession, error)
 }
-
-func (m *Module) ListOpenRoomSessions(ctx context.Context, ids []int64) ([]OpenRoomSession, error) {
-	return m.engine.ListOpenRoomSessions(ctx, ids)
-}
