@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application"
 	timetracking "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 )
 
@@ -123,4 +124,9 @@ type StaffScheduleBindingLookup func(context.Context, int64) (StaffScheduleBindi
 func (s *WorkSessionSide) WithSickCascade(cascade ShiftPlanSyncer) (*TimeTracking, error) {
 	value, err := s.WorkSessionSide.WithSickCascade(cascade)
 	return (*TimeTracking)(value), err
+}
+
+// NewEmploymentReset binds invitation resets to the ordinary audited readers.
+func NewEmploymentReset(admin workforce.StaffRecordAdmin, capability workforce.Capability, employment workforce.StaffEmployments, audit workforce.StaffAdminAudit, ports TimeTrackingPorts) workforce.EmploymentResetter {
+	return application.NewEmploymentReset(admin, capability, employment, audit, timetracking.NewEmploymentTimeReset(timetracking.Dependencies{Rows: timetracking.TimeTrackingRows(capability), Ports: ports}, application.NewEmploymentScheduleReset(capability, employment, audit)))
 }

@@ -291,7 +291,7 @@ func composeServeRoot(
 			identity, caller, err = owners.BuildIdentityAccess(db, unit, env, tokens, organizations, persons, membership, settings.Service,
 				audit, operatorAuditLog, mailSender, mailDispatcher, mailFrom, delivery.Runtime, mailIdentity, delivery.Enqueuer(), people, portalReads.ParentEnrollmentRequest,
 				structure.Groups, staffGroups, arrivalTimetable.NewCallerActivityGroups(timetableRepos.ActivityGroup),
-				presence.SessionRecords, presence.Presence)
+				presence.SessionRecords, presence.Presence, workTime, calendar)
 			return
 		},
 		func() (err error) {

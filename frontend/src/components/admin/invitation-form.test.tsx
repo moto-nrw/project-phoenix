@@ -636,9 +636,14 @@ describe("InvitationForm former employment hint", () => {
     expect(
       screen.getByText("In moto eingetragen vom 01.08.2024 bis 31.07.2026."),
     ).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /Stammdaten/ })).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: /Qualifikationen/ }),
+    ).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /Arbeitszeit/ })).toBeChecked();
     expect(
       screen.getByText(
-        "Stammdaten, Qualifikationen, Stundenkonto, Urlaub und Arbeitszeitmodell, vergangene Schichten und Abwesenheiten",
+        "Vergangene Schichten und Abwesenheiten bleiben erhalten.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -905,5 +910,48 @@ describe("InvitationForm employment choice", () => {
     expect(mockCreateInvitation.mock.calls[0]?.[0]).not.toHaveProperty(
       "employmentAction",
     );
+  });
+  it("stores the three carryover choices and keeps work time together", async () => {
+    await openFormer();
+    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Stammdaten/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Arbeitszeit/ }));
+    fireEvent.click(screen.getByText("Einladung senden"));
+    await waitFor(() =>
+      expect(mockCreateInvitation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          employmentAction: "resume",
+          resetMasterData: true,
+          resetQualifications: false,
+          resetWorkTime: true,
+        }),
+      ),
+    );
+  });
+
+  it("hides and omits reset choices for a new employment", async () => {
+    await openFormer();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Qualifikationen/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Neuaufnahme" }));
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    fireEvent.click(screen.getByText("Einladung senden"));
+    await waitFor(() => expect(mockCreateInvitation).toHaveBeenCalled());
+    const request = mockCreateInvitation.mock.calls[0]?.[0];
+    expect(request).toMatchObject({ employmentAction: "new" });
+    expect(request).not.toHaveProperty("resetMasterData");
+    expect(request).not.toHaveProperty("resetQualifications");
+    expect(request).not.toHaveProperty("resetWorkTime");
+  });
+
+  it("does not reuse another address's reset choices", async () => {
+    await openFormer();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Qualifikationen/ }));
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "another@example.com" },
+    });
+    await screen.findByRole("checkbox", { name: /Qualifikationen/ });
+    expect(
+      screen.getByRole("checkbox", { name: /Qualifikationen/ }),
+    ).toBeChecked();
   });
 });

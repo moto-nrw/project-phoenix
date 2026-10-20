@@ -30,6 +30,7 @@ type StaffMember struct {
 // FormerEmployment is the retired membership an invitation to the person's
 // address would continue at the school (ADR 0021).
 type FormerEmployment struct {
+	StaffID   int64
 	StartedOn calendar.Date
 	EndedOn   calendar.Date
 }

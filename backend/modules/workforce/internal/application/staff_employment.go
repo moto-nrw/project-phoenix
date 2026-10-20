@@ -14,6 +14,9 @@ import (
 // NewStaffEmployment serves the Workforce staff employment contract from the
 // employment store; observe receives every operation.
 func NewStaffEmployment(store ports.StaffEmploymentStore, observe func(ports.Observation)) workforce.StaffEmployments {
+	if observe == nil {
+		observe = func(ports.Observation) {}
+	}
 	return staffEmployment{store: store, observe: observe}
 }
 
