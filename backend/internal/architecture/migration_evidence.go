@@ -269,8 +269,9 @@ func (evidence runtimeEvidence) validate() error {
 
 // Acceptance is reviewed separately from the ticket being validated.
 type checkpointRegistry struct {
-	SchemaVersion int                    `json:"schema_version"`
-	Accepted      []checkpointAcceptance `json:"accepted"`
+	MeasurementSeriesNote string                 `json:"measurement_series_note,omitempty"`
+	SchemaVersion         int                    `json:"schema_version"`
+	Accepted              []checkpointAcceptance `json:"accepted"`
 }
 
 type checkpointAcceptance struct {

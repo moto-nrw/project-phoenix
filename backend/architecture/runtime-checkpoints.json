@@ -1,5 +1,6 @@
 {
   "schema_version": 1,
+  "measurement_series_note": "Series break at #4410: accepted checkpoints #3019, #3020 and #3021 used fresh fixtures without an explicit ANALYZE. New opt-in captures collect fresh statistics after fixture setup and before warm-ups. Historical acceptances and evidence remain unchanged; latency comparisons across this boundary require a paired bridge or an explicit statistics-condition qualification. See docs/runtime-checkpoints/fresh-statistics-4410.md for the paired evidence.",
   "accepted": [
     {
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3019",
