@@ -15,7 +15,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const catererPassword = "Kuechenpass-2026!"
+var catererPassword = randomTestPassword()
 
 // forgetCaterer deletes the rows an acceptance writes outside any school:
 // the caterer, its account link and the account.
@@ -214,7 +214,7 @@ func TestCatererAccessRefusesOtherAccounts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	caterers := setupAuthFactory(t, db).Caterers()
 	school := testpkg.Tenant(t)
-	staffPassword := "Lehrkraft-2026!"
+	staffPassword := randomTestPassword()
 	staff := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("caterer-staff-%d@example.com", time.Now().UnixNano()), staffPassword)
 
 	_, _, err := caterers.LoginCatererWithAudit(context.Background(), staff.Email, staffPassword, "", "")
@@ -331,7 +331,7 @@ func TestCatererPasswordResetServesCaterersOnly(t *testing.T) {
 	link, err := module.InitiatePasswordReset(context.Background(), email, identityaccess.PasswordResetScopeCaterer)
 	require.NoError(t, err)
 	require.NotNil(t, link)
-	const renewed = "Neues-Kuechenpass-2026!"
+	renewed := randomTestPassword()
 	require.NoError(t, module.ResetPassword(context.Background(), link.Token, renewed))
 	_, _, err = caterers.LoginCatererWithAudit(context.Background(), email, renewed, "", "")
 	require.NoError(t, err)
