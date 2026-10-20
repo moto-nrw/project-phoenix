@@ -79,7 +79,7 @@ func (f *OperatorMFAFlows) HasEnrollment(ctx context.Context, operatorID int64) 
 		f.logger.Warn("operator mfa enrollment lookup failed; refusing login",
 			slog.Int64("operator_id", operatorID),
 			slog.String("error", err.Error()))
-		return false, domain.ErrMFAStatusUnavailable
+		return false, identityaccess.ErrMFAStatusUnavailable
 	}
 	return found && credential.ID > 0, nil
 }
@@ -100,7 +100,7 @@ func (f *OperatorMFAFlows) StartChallenge(ctx context.Context, operatorID int64,
 		return "", fmt.Errorf("look up operator: %w", err)
 	}
 	if domain.MFALocked(operator.MFALockedUntil, f.now()) {
-		return "", domain.ErrMFALocked
+		return "", identityaccess.ErrMFALocked
 	}
 
 	if err := f.requireChallengeRateLimit(ctx, operatorID); err != nil {
@@ -131,14 +131,14 @@ func (f *OperatorMFAFlows) StartChallenge(ctx context.Context, operatorID int64,
 			slog.Int64("operator_id", operator.ID),
 			slog.String("error", err.Error()),
 		)
-		return "", domain.ErrMFAStatusUnavailable
+		return "", identityaccess.ErrMFAStatusUnavailable
 	}
 	if err := f.activateDeliveredChallenge(ctx, challenge); err != nil {
 		f.logger.Error("failed to activate delivered operator mfa challenge",
 			slog.Int64("challenge_id", challenge.ID),
 			slog.String("error", err.Error()),
 		)
-		return "", domain.ErrMFAStatusUnavailable
+		return "", identityaccess.ErrMFAStatusUnavailable
 	}
 
 	// The operator id reuses the account slot; the scope distinguishes the
@@ -157,9 +157,9 @@ func (f *OperatorMFAFlows) StartChallenge(ctx context.Context, operatorID int64,
 func (f *OperatorMFAFlows) VerifyChallenge(ctx context.Context, challengeToken, code string) (domain.OperatorVerifiedChallenge, error) {
 	claims, err := f.codec.ParseChallengeToken(challengeToken)
 	if err != nil || claims.Scope != domain.MFAChallengeScopePlatform {
-		return domain.OperatorVerifiedChallenge{}, domain.ErrMFAChallengeTokenInvalid
+		return domain.OperatorVerifiedChallenge{}, identityaccess.ErrMFAChallengeTokenInvalid
 	}
-	challenge, err := f.verifyActiveCode(ctx, claims.AccountID, code, domain.ErrMFAChallengeTokenInvalid)
+	challenge, err := f.verifyActiveCode(ctx, claims.AccountID, code, identityaccess.ErrMFAChallengeTokenInvalid)
 	if err != nil {
 		return domain.OperatorVerifiedChallenge{}, err
 	}
@@ -175,7 +175,7 @@ func (f *OperatorMFAFlows) VerifyChallenge(ctx context.Context, challengeToken, 
 func (f *OperatorMFAFlows) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
 	claims, err := f.codec.ParseChallengeToken(challengeToken)
 	if err != nil || claims.Scope != domain.MFAChallengeScopePlatform {
-		return "", domain.ErrMFAChallengeTokenInvalid
+		return "", identityaccess.ErrMFAChallengeTokenInvalid
 	}
 	return f.StartChallenge(ctx, claims.AccountID, ip)
 }
@@ -184,7 +184,7 @@ func (f *OperatorMFAFlows) ResendChallenge(ctx context.Context, challengeToken s
 // enrollment confirmation and the passkey registration have already
 // authenticated the operator out of band.
 func (f *OperatorMFAFlows) VerifyCodeForOperator(ctx context.Context, operatorID int64, code string) error {
-	_, err := f.verifyActiveCode(ctx, operatorID, code, domain.ErrMFACodeInvalid)
+	_, err := f.verifyActiveCode(ctx, operatorID, code, identityaccess.ErrMFACodeInvalid)
 	return err
 }
 
@@ -206,11 +206,11 @@ func (f *OperatorMFAFlows) verifyActiveCode(ctx context.Context, operatorID int6
 			return lookupError
 		}
 		if domain.MFALocked(operator.MFALockedUntil, f.now()) {
-			return domain.ErrMFALocked
+			return identityaccess.ErrMFALocked
 		}
 		result, verificationErr = f.verifyActiveCodeInTx(txCtx, operator, code)
 		// Invalid codes still commit their failure counters and audit evidence.
-		if verificationErr != nil && !errors.Is(verificationErr, domain.ErrMFACodeInvalid) {
+		if verificationErr != nil && !errors.Is(verificationErr, identityaccess.ErrMFACodeInvalid) {
 			return verificationErr
 		}
 		return nil
@@ -227,7 +227,7 @@ func (f *OperatorMFAFlows) verifyActiveCodeInTx(ctx context.Context, operator do
 		if err := f.recordAudit(ctx, operator.ID, domain.OperatorAuditActionMFAFailed, nil, nil, &domain.OperatorMFAEvidence{Reason: "no active challenge"}); err != nil {
 			return redeemed{}, err
 		}
-		return redeemed{}, domain.ErrMFACodeInvalid
+		return redeemed{}, identityaccess.ErrMFACodeInvalid
 	}
 	ok, verifyErr := f.codes.VerifyShortCode(code, active.CodeHash)
 	if verifyErr != nil || !ok {
@@ -237,7 +237,7 @@ func (f *OperatorMFAFlows) verifyActiveCodeInTx(ctx context.Context, operator do
 		if err := f.recordAudit(ctx, operator.ID, domain.OperatorAuditActionMFAFailed, nil, &active.ID, &domain.OperatorMFAEvidence{Reason: "code mismatch"}); err != nil {
 			return redeemed{}, err
 		}
-		return redeemed{}, domain.ErrMFACodeInvalid
+		return redeemed{}, identityaccess.ErrMFACodeInvalid
 	}
 	now := f.now()
 	if err := f.records.ConsumeChallenge(ctx, active.ID, now); err != nil {
@@ -248,7 +248,7 @@ func (f *OperatorMFAFlows) verifyActiveCodeInTx(ctx context.Context, operator do
 		if err := f.recordAudit(ctx, operator.ID, domain.OperatorAuditActionMFAFailed, nil, &active.ID, &domain.OperatorMFAEvidence{Reason: "consume race"}); err != nil {
 			return redeemed{}, err
 		}
-		return redeemed{}, domain.ErrMFACodeInvalid
+		return redeemed{}, identityaccess.ErrMFACodeInvalid
 	}
 	// One UPDATE, so a concurrent failed verify's increment cannot be
 	// overwritten by a stale full-row write.
@@ -286,7 +286,7 @@ func (f *OperatorMFAFlows) Enroll(ctx context.Context, operatorID int64) error {
 	return f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
 		existing, found, _ := f.findCredential(txCtx, operatorID)
 		if found && existing.ID > 0 {
-			return domain.ErrMFAAlreadyEnrolled
+			return identityaccess.ErrMFAAlreadyEnrolled
 		}
 		if _, err := f.records.CreateCredential(txCtx, domain.OperatorMFACredential{
 			OperatorID: operatorID,
@@ -386,7 +386,7 @@ func (f *OperatorMFAFlows) RevokeTrustedDevice(ctx context.Context, operatorID, 
 			return f.records.RevokeTrustedDevice(ctx, deviceID, f.now())
 		}
 	}
-	return domain.ErrMFAPermissionDenied
+	return identityaccess.ErrMFAPermissionDenied
 }
 
 // ===== Helpers =====
@@ -459,10 +459,10 @@ func (f *OperatorMFAFlows) requireChallengeRateLimit(ctx context.Context, operat
 		f.logger.Warn("operator mfa rate-limit lookup failed; refusing to issue a code",
 			slog.Int64("operator_id", operatorID),
 			slog.String("error", err.Error()))
-		return domain.ErrMFAStatusUnavailable
+		return identityaccess.ErrMFAStatusUnavailable
 	}
 	if count >= domain.OperatorMFARateLimitMaxSent {
-		return domain.ErrMFARateLimited
+		return identityaccess.ErrMFARateLimited
 	}
 
 	return nil
@@ -570,3 +570,12 @@ func (f *OperatorMFAFlows) RevokeOperatorTrustedDeviceOwned(ctx context.Context,
 	}
 	return operatorFlowError(f.RevokeTrustedDevice(ctx, operatorID, deviceID))
 }
+
+// operatorFlowError translates the operator second factor and the operator
+// ceremonies. They report the operator's own outcomes — an unknown or a
+// deactivated operator — alongside the MFA and ceremony sentinels, and
+// operatorError knows both: it maps the operator sentinels and falls through
+// to the shared translation for everything else. Without it a deactivated
+// operator would leave the module carrying an internal identity no consumer
+// can classify on.
+func operatorFlowError(err error) error { return operatorError(err) }

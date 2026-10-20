@@ -92,23 +92,3 @@ type PasswordResets interface {
 type PasswordResetDeliveryRecorder interface {
 	RecordPasswordResetDelivery(ctx context.Context, id int64, delivery TokenDelivery) error
 }
-
-func (m *Module) InitiatePasswordReset(ctx context.Context, email string, scope PasswordResetScope) (*PasswordResetLink, error) {
-	return m.engine.InitiatePasswordReset(ctx, email, scope)
-}
-
-func (m *Module) ResetPassword(ctx context.Context, token, newPassword string) error {
-	return m.engine.ResetPassword(ctx, token, newPassword)
-}
-
-func (m *Module) RecordPasswordResetDelivery(ctx context.Context, id int64, delivery TokenDelivery) error {
-	return m.engine.RecordPasswordResetDelivery(ctx, id, delivery)
-}
-
-func (m *Module) DeleteSpentPasswordResetTokens(ctx context.Context) (int, error) {
-	return m.engine.DeleteSpentPasswordResetTokens(ctx)
-}
-
-func (m *Module) DeleteStalePasswordResetWindows(ctx context.Context) (int, error) {
-	return m.engine.DeleteStalePasswordResetWindows(ctx)
-}

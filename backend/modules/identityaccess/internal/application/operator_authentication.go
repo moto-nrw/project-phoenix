@@ -78,7 +78,7 @@ func NewOperatorAuthentication(operators *Service, deps OperatorAuthenticationDe
 // enrolled receives an enrollment-scoped token that only authorizes the
 // enrollment surface, and an unconfigured gate issues the token pair
 // directly.
-func (s *OperatorAuthentication) LoginWithMFAGate(ctx context.Context, email, password, ipAddress, _, trustedDeviceCookie string) (*domain.OperatorLoginResult, error) {
+func (s *OperatorAuthentication) loginWithMFAGate(ctx context.Context, email, password, ipAddress, _, trustedDeviceCookie string) (*domain.OperatorLoginResult, error) {
 	operator, err := s.validateCredentials(ctx, email, password)
 	if err != nil {
 		return nil, err
@@ -701,7 +701,7 @@ func (s *OperatorAuthentication) LoginOperatorWithMFAGate(ctx context.Context, e
 	if s == nil {
 		return nil, errOperatorAuthenticationUnavailable
 	}
-	result, err := s.LoginWithMFAGate(bindRuntime(s.attach, ctx), email, password, ipAddress, userAgent, trustedDeviceCookie)
+	result, err := s.loginWithMFAGate(bindRuntime(s.attach, ctx), email, password, ipAddress, userAgent, trustedDeviceCookie)
 	return operatorLoginResult(result), operatorError(err)
 }
 

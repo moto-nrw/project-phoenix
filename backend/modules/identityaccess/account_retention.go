@@ -2,7 +2,6 @@ package identityaccess
 
 import (
 	"context"
-	"fmt"
 )
 
 // AccountRetention tombstones the accounts no school needs any more (#4043):
@@ -14,12 +13,4 @@ import (
 // school.
 type AccountRetention interface {
 	EraseUnusedAccounts(ctx context.Context) (int, error)
-}
-
-func (m *Module) EraseUnusedAccounts(ctx context.Context) (int, error) {
-	erased, err := m.engine.EraseUnusedAccounts(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("identity access: erase unused accounts: %w", err)
-	}
-	return erased, nil
 }

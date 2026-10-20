@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -359,15 +360,15 @@ type raSessions struct {
 	deleteErr error
 }
 
-func (s *raSessions) DeleteAccountSessionsWithAudit(_ context.Context, accountID int64, reason, _, _ string) ([]domain.AccountSession, error) {
+func (s *raSessions) DeleteAccountSessionsWithAudit(_ context.Context, accountID int64, reason, _, _ string) ([]identityaccess.AccountSession, error) {
 	if s.deleteErr != nil {
 		return nil, s.deleteErr
 	}
 	s.deleted = append(s.deleted, accountID)
-	return []domain.AccountSession{{AccountID: accountID, FamilyID: reason}}, nil
+	return []identityaccess.AccountSession{{AccountID: accountID, FamilyID: reason}}, nil
 }
 
-func (s *raSessions) QueuePushCleanup(_ context.Context, accountID int64, sessions []domain.AccountSession, _ string) {
+func (s *raSessions) QueuePushCleanup(_ context.Context, accountID int64, sessions []identityaccess.AccountSession, _ string) {
 	s.queued = append(s.queued, accountID)
 	for _, session := range sessions {
 		if session.AccountID != accountID {

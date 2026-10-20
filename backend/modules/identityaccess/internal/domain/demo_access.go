@@ -24,8 +24,6 @@ var (
 	ErrDemoAccessExpired = errors.New("demo access has expired")
 	// ErrDemoSchoolPreparing reports a demo school nobody can enter yet.
 	ErrDemoSchoolPreparing = errors.New("demo school is being prepared")
-	// ErrDemoSessionTenantLocked reports a tenant switch of a demo session.
-	ErrDemoSessionTenantLocked = errors.New("demo sessions cannot switch tenants")
 	// ErrDemoCapacityReached reports that no further demo school may be
 	// created (#3466).
 	ErrDemoCapacityReached = errors.New("demo capacity reached")

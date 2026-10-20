@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
@@ -39,9 +38,6 @@ type EngineParts struct {
 	MFAFlows              MFAFlows
 	// Runtime attaches the composed unit of work ahead of every session flow.
 	Runtime func(context.Context) context.Context
-	// WithRecoveryProof binds a refresh-token recovery proof to the request
-	// context, where the rotation policy reads its hash.
-	WithRecoveryProof func(ctx context.Context, proof string) context.Context
 }
 
 // NewEngine serves the Identity & Access capability over parts (#4084).
@@ -53,28 +49,28 @@ func NewEngine(parts EngineParts) identityaccess.Engine {
 		guardianSchools:        parts.GuardianSchools,
 		profiles:               parts.Profiles,
 		Service:                parts.Service,
-		OperatorMFA:            parts.MFA,
+		OperatorMFARecords:     parts.MFA,
 		OperatorTokens:         parts.Tokens,
-		OperatorPasskey:        parts.Passkeys,
-		accountPasskeys:        parts.AccountPasskeys,
-		auth:                   parts.Auth,
+		OperatorPasskeyRecords: parts.Passkeys,
+		AccountPasskeyRecords:  parts.AccountPasskeys,
+		AccountAuthentication:  parts.Auth,
 		OperatorAuthentication: parts.OperatorAuth,
 		OperatorAccountAccess:  parts.AccountAccess,
 		lifecycle:              parts.Lifecycle,
 		roles:                  parts.Roles,
-		resets:                 parts.Resets,
+		PasswordReset:          parts.Resets,
 		invitations:            parts.Invitations,
 		provisioning:           parts.Provisioning,
 		administration:         parts.Administration,
 		OperatorProvisioning:   parts.OperatorProvisioning,
 		invitationMaintenance:  parts.InvitationMaintenance,
-		signInRetention:        parts.SignInRetention,
+		SignInDataRetention:    parts.SignInRetention,
 		AccountRetention:       parts.AccountRetention,
-		mfaFlows:               parts.MFAFlows,
 		OperatorMFAFlows:       parts.MFAFlows.Operator,
 		OperatorPasskeyFlows:   parts.MFAFlows.OperatorPasskey,
+		AccountPasskeyFlows:    parts.MFAFlows.AccountPasskey,
+		accountMFACapability:   newAccountMFACapability(parts.MFAFlows.Capability),
 		runtime:                parts.Runtime,
-		withRecoveryProof:      parts.WithRecoveryProof,
 	}
 }
 
@@ -87,13 +83,16 @@ type engine struct {
 	guardianSchools    *GuardianSchools
 	profiles           *AccountProfiles
 	*Service
-	// The operator records serve their public capabilities themselves.
-	*OperatorMFA
-	*OperatorTokens
-	*OperatorPasskey
-	accountPasskeys *AccountPasskey
-	// auth is nil when the module was composed without session dependencies.
-	auth *AccountAuthentication
+	// The records, the second factor and the ceremonies are embedded through
+	// their public capabilities: their own steps share names with each other.
+	identityaccess.OperatorMFARecords
+	identityaccess.OperatorTokens
+	identityaccess.OperatorPasskeyRecords
+	identityaccess.AccountPasskeyRecords
+	// AccountAuthentication serves its public capabilities itself and reports
+	// them unavailable when the module was composed without session
+	// dependencies.
+	*AccountAuthentication
 	// The operator flows serve their public capabilities themselves and
 	// report them unavailable when the module was composed without operator
 	// dependencies.
@@ -105,9 +104,10 @@ type engine struct {
 	// roles is nil when the module was composed without lifecycle
 	// dependencies.
 	roles *RoleAdministration
-	// resets is nil when the module was composed without password reset
+	// PasswordReset serves its public capability itself and reports it
+	// unavailable when the module was composed without password reset
 	// dependencies.
-	resets *PasswordReset
+	*PasswordReset
 	// invitations is nil when the module was composed without the school
 	// invitation dependencies.
 	invitations *SchoolInvitation
@@ -124,21 +124,19 @@ type engine struct {
 	// invitationMaintenance is always composed: spending a deleted school's
 	// invitations and deleting expired ones need no flow dependencies.
 	invitationMaintenance *SchoolInvitationMaintenance
-	// signInRetention is always composed: the fixed retention of short-lived
-	// sign-in data needs no flow dependencies (#3954).
-	signInRetention *SignInDataRetention
-	// mfaFlows carries the second factor and the passkey ceremonies. Its
-	// members are nil when the module was composed without them.
-	mfaFlows MFAFlows
-	// The operator second factor and passkey ceremonies serve their public
+	// SignInDataRetention is always composed: the fixed retention of
+	// short-lived sign-in data needs no flow dependencies (#3954).
+	*SignInDataRetention
+	// The second factor and the passkey ceremonies serve their public
 	// capabilities themselves and report them unavailable when the module
 	// was composed without them.
-	*OperatorMFAFlows
-	*OperatorPasskeyFlows
+	identityaccess.OperatorMFAFlows
+	identityaccess.OperatorPasskeyFlows
+	identityaccess.AccountPasskeyFlows
+	// accountMFACapability serves the account second factor.
+	accountMFACapability
 	// runtime attaches the composed unit of work ahead of every session flow.
 	runtime func(context.Context) context.Context
-	// withRecoveryProof binds a refresh-token recovery proof to the context.
-	withRecoveryProof func(ctx context.Context, proof string) context.Context
 }
 
 func (e engine) FindAccount(ctx context.Context, id int64) (identityaccess.Account, error) {
@@ -154,110 +152,6 @@ func (e engine) FindAccountByEmail(ctx context.Context, email string) (identitya
 func (e engine) GrantGuardianTenantAccess(ctx context.Context, accountID int64) (identityaccess.GuardianTenantAccess, error) {
 	value, err := e.Service.GrantGuardianTenantAccess(ctx, accountID)
 	return identityaccess.GuardianTenantAccess(value), MapError(err)
-}
-
-func (e engine) FindAccountSession(ctx context.Context, token string) (identityaccess.AccountSession, error) {
-	value, err := e.Service.FindAccountSession(ctx, token)
-	return identityaccess.AccountSession(value), MapError(err)
-}
-
-func (e engine) FindAccountSessionForUpdate(ctx context.Context, token string) (identityaccess.AccountSession, error) {
-	value, err := e.Service.FindAccountSessionForUpdate(ctx, token)
-	return identityaccess.AccountSession(value), MapError(err)
-}
-
-func (e engine) LatestAccountSessionInFamily(ctx context.Context, familyID string) (identityaccess.AccountSession, error) {
-	value, err := e.Service.LatestAccountSessionInFamily(ctx, familyID)
-	return identityaccess.AccountSession(value), MapError(err)
-}
-
-func (e engine) ListAccountSessions(ctx context.Context, filter identityaccess.AccountSessionFilter) ([]identityaccess.AccountSession, error) {
-	values, err := e.Service.ListAccountSessions(ctx, domain.AccountSessionFilter{
-		AccountID: filter.AccountID, FamilyID: filter.FamilyID, Mobile: filter.Mobile, Liveness: domain.AccountSessionLiveness(filter.Liveness),
-	})
-	return accountSessions(values), MapError(err)
-}
-
-func (e engine) CountExpiredAccountSessions(ctx context.Context) (int, error) {
-	count, err := e.Service.CountExpiredAccountSessions(ctx)
-	return count, MapError(err)
-}
-
-func (e engine) ListInactiveAccountIDsWithLiveSessions(ctx context.Context) ([]int64, error) {
-	ids, err := e.Service.ListInactiveAccountIDsWithLiveSessions(ctx)
-	return ids, MapError(err)
-}
-
-func (e engine) HasLiveAccountSessionsCreatedAfter(ctx context.Context, accountID int64, since time.Time) (bool, error) {
-	exists, err := e.Service.HasLiveAccountSessionsCreatedAfter(ctx, accountID, since)
-	return exists, MapError(err)
-}
-
-func (e engine) CreateAccountSession(ctx context.Context, session identityaccess.AccountSession) (identityaccess.AccountSession, error) {
-	value, err := e.Service.CreateAccountSession(ctx, domain.AccountSession(session))
-	return identityaccess.AccountSession(value), MapError(err)
-}
-
-func (e engine) MarkAccountSessionRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error {
-	return MapError(e.Service.MarkAccountSessionRotated(ctx, id, replacementToken, recoveryProofHash, rotatedAt))
-}
-
-func (e engine) DeleteExpiredRotatedAccountSessions(ctx context.Context, accountID int64, now time.Time) error {
-	return MapError(e.Service.DeleteExpiredRotatedAccountSessions(ctx, accountID, now))
-}
-
-func (e engine) RetireAccountSessionFamily(ctx context.Context, accountID int64, familyID string, expiry time.Time) error {
-	return MapError(e.Service.RetireAccountSessionFamily(ctx, accountID, familyID, expiry))
-}
-
-func (e engine) EnforceAccountSessionCap(ctx context.Context, accountID int64, portalScope string, keep int) ([]identityaccess.AccountSession, error) {
-	values, err := e.Service.EnforceAccountSessionCap(ctx, accountID, portalScope, keep)
-	return accountSessions(values), MapError(err)
-}
-
-func (e engine) DeleteAccountSession(ctx context.Context, id int64) error {
-	return MapError(e.Service.DeleteAccountSession(ctx, id))
-}
-
-func (e engine) RevokeAccountSessionFamily(ctx context.Context, familyID string) ([]identityaccess.AccountSession, error) {
-	values, err := e.Service.RevokeAccountSessionFamily(ctx, familyID)
-	return accountSessions(values), MapError(err)
-}
-
-func (e engine) RevokeAccountSessionsInTenant(ctx context.Context, accountID int64) ([]identityaccess.AccountSession, error) {
-	values, err := e.Service.RevokeAccountSessionsInTenant(ctx, accountID)
-	return accountSessions(values), MapError(err)
-}
-
-func (e engine) RevokeAllAccountSessions(ctx context.Context, accountID int64) ([]identityaccess.AccountSession, error) {
-	values, err := e.Service.RevokeAllAccountSessions(ctx, accountID)
-	return accountSessions(values), MapError(err)
-}
-
-func (e engine) RevokeAccountSessionsCreatedAtOrBefore(ctx context.Context, accountID int64, cutoff time.Time) ([]identityaccess.AccountSession, error) {
-	values, err := e.Service.RevokeAccountSessionsCreatedAtOrBefore(ctx, accountID, cutoff)
-	return accountSessions(values), MapError(err)
-}
-
-func (e engine) RevokeTenantAccountSessions(ctx context.Context, tenantID int64) ([]identityaccess.AccountSession, error) {
-	values, err := e.Service.RevokeTenantAccountSessions(ctx, tenantID)
-	return accountSessions(values), MapError(err)
-}
-
-func (e engine) DeleteExpiredAccountSessions(ctx context.Context) (int, error) {
-	deleted, err := e.Service.DeleteExpiredAccountSessions(ctx)
-	return deleted, MapError(err)
-}
-
-func accountSessions(values []domain.AccountSession) []identityaccess.AccountSession {
-	if values == nil {
-		return nil
-	}
-	result := make([]identityaccess.AccountSession, 0, len(values))
-	for _, value := range values {
-		result = append(result, identityaccess.AccountSession(value))
-	}
-	return result
 }
 
 func MapError(err error) error {
@@ -280,9 +174,9 @@ func MapError(err error) error {
 		return identityaccess.ErrOperatorSessionNotFound
 	case errors.Is(err, identityaccess.ErrOperatorSessionRotated):
 		return identityaccess.ErrOperatorSessionRotated
-	case errors.Is(err, domain.ErrAccountSessionNotFound):
+	case errors.Is(err, identityaccess.ErrAccountSessionNotFound):
 		return identityaccess.ErrAccountSessionNotFound
-	case errors.Is(err, domain.ErrAccountSessionRotated):
+	case errors.Is(err, identityaccess.ErrAccountSessionRotated):
 		return identityaccess.ErrAccountSessionRotated
 	case errors.Is(err, identityaccess.ErrOperatorMFACredentialNotFound):
 		return identityaccess.ErrOperatorMFACredentialNotFound
@@ -300,11 +194,20 @@ func MapError(err error) error {
 		return identityaccess.ErrOperatorPasskeyNotFound
 	case errors.Is(err, identityaccess.ErrOperatorPasskeySessionNotFound):
 		return identityaccess.ErrOperatorPasskeySessionNotFound
-	case errors.Is(err, domain.ErrAccountPasskeyNotFound):
+	case errors.Is(err, identityaccess.ErrAccountPasskeyNotFound):
 		return identityaccess.ErrAccountPasskeyNotFound
-	case errors.Is(err, domain.ErrAccountPasskeySessionNotFound):
+	case errors.Is(err, identityaccess.ErrAccountPasskeySessionNotFound):
 		return identityaccess.ErrAccountPasskeySessionNotFound
 	default:
 		return err
 	}
+}
+
+// attach hands every session flow the unit of work it was composed with so
+// the reads outside a transaction resolve the tenant runtime too.
+func (e engine) attach(ctx context.Context) context.Context {
+	if e.runtime == nil {
+		return ctx
+	}
+	return e.runtime(ctx)
 }
