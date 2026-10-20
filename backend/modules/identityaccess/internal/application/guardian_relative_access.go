@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -174,12 +175,12 @@ func (l *AccountLifecycle) attachExistingAccountByEmail(ctx context.Context, pro
 	}
 	account, err := l.sessions.FindAccountByEmail(ctx, email)
 	if err != nil {
-		if errors.Is(err, domain.ErrAccountNotFound) {
+		if errors.Is(err, identityaccess.ErrAccountNotFound) {
 			return nil
 		}
 		return failed(opGuardianInviteToStudent, err)
 	}
-	return l.attachExistingAccount(ctx, profile, account)
+	return l.attachExistingAccount(ctx, profile, domain.Account(account))
 }
 
 func (l *AccountLifecycle) attachExistingAccount(ctx context.Context, profile *domain.GuardianProfile, account domain.Account) error {

@@ -16,7 +16,7 @@ func NewRFIDCards(service *Service, store ports.RFIDCardStore) *RFIDCards {
 	return &RFIDCards{service: service, store: store}
 }
 
-func (r *RFIDCards) LookupRFIDCard(ctx context.Context, tag string) (card domain.RFIDCard, found bool, err error) {
+func (r *RFIDCards) lookupRFIDCard(ctx context.Context, tag string) (card domain.RFIDCard, found bool, err error) {
 	err = r.service.run(ctx, r.service.withinSchoolRead, "lookup_rfid_card", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		var queryErr error
@@ -27,7 +27,8 @@ func (r *RFIDCards) LookupRFIDCard(ctx context.Context, tag string) (card domain
 	return card, found, err
 }
 
-func (r *RFIDCards) RegisterRFIDCard(ctx context.Context, tag string) error {
+func (r *RFIDCards) RegisterRFIDCard(ctx context.Context, tag string) (err error) {
+	defer func() { err = MapError(err) }()
 	card := domain.RFIDCard{ID: tag, Active: true}
 	if err := card.Validate(); err != nil {
 		return err
@@ -44,4 +45,15 @@ func (r *RFIDCards) withinSchoolWrite(ctx context.Context, fn func(context.Conte
 		return domain.ErrTenantRequired
 	}
 	return r.service.tx.RunWrite(ctx, fn)
+}
+
+func (r *RFIDCards) LookupRFIDCard(ctx context.Context, tag string) (string, bool, bool, error) {
+	card, found, err := r.lookupRFIDCard(ctx, tag)
+	return card.ID, card.Active, found, MapError(err)
+}
+
+// ValidateRFIDTag applies the card rules to a tag before any write.
+func (r *RFIDCards) ValidateRFIDTag(tag string) error {
+	card := domain.RFIDCard{ID: domain.NormalizeTagID(tag)}
+	return card.Validate()
 }

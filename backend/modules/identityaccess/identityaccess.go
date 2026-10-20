@@ -19,7 +19,6 @@ package identityaccess
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 )
 
@@ -366,30 +365,11 @@ type InvitedPersonQuery interface {
 	FindInvitedPersonIDs(context.Context, string) ([]int64, error)
 }
 
-func (m *Module) FindInvitedPersonIDs(ctx context.Context, email string) ([]int64, error) {
-	ids, err := m.engine.FindInvitedPersonIDs(ctx, email)
-	if err != nil {
-		return nil, fmt.Errorf("identity access: find invited people: %w", err)
-	}
-	return ids, nil
-}
-
 // StudentGuardianInvitationQuery counts the guardian invitations that name a
 // child. A permanent child deletion reports them as removed communications;
 // the rows cascade with the student, so Identity owns only the count.
 type StudentGuardianInvitationQuery interface {
 	CountStudentGuardianInvitations(context.Context, int64) (int, error)
-}
-
-func (m *Module) CountStudentGuardianInvitations(ctx context.Context, studentID int64) (int, error) {
-	if studentID <= 0 {
-		return 0, fmt.Errorf("identity access: count student guardian invitations: student ID is required")
-	}
-	count, err := m.engine.CountStudentGuardianInvitations(ctx, studentID)
-	if err != nil {
-		return 0, fmt.Errorf("identity access: count student guardian invitations: %w", err)
-	}
-	return count, nil
 }
 
 // SchoolAccountQuery resolves login identities with active membership in the
@@ -398,26 +378,10 @@ type SchoolAccountQuery interface {
 	FindSchoolAccountByEmail(context.Context, string) (Account, error)
 }
 
-func (m *Module) FindSchoolAccountByEmail(ctx context.Context, email string) (Account, error) {
-	account, err := m.engine.FindSchoolAccountByEmail(ctx, email)
-	if err != nil {
-		return Account{}, fmt.Errorf("identity access: find school account: %w", err)
-	}
-	return account, nil
-}
-
 // RFIDQuery resolves the canonical ID of a card belonging to the current
 // tenant. Missing cards return found=false. A tenant is always required.
 type RFIDQuery interface {
 	FindRFIDCard(ctx context.Context, tag string) (id string, found bool, err error)
-}
-
-func (m *Module) FindRFIDCard(ctx context.Context, tag string) (string, bool, error) {
-	id, found, err := m.engine.FindRFIDCard(ctx, tag)
-	if err != nil {
-		return "", false, fmt.Errorf("identity access: find RFID card: %w", err)
-	}
-	return id, found, nil
 }
 
 // Module is the public Identity & Access facade. The capabilities in
@@ -430,6 +394,24 @@ type Module struct {
 }
 
 type ownerServices interface {
+	AccountProfiles
+	AccountRoleQueries
+	GuardianPortalLoginQuery
+	GuardianPortalQuery
+	GuardianSchools
+	ParentCalendarFeeds
+	RFIDCards
+	SchoolAccountListings
+	StaffAccountQueries
+	StaffCalendarFeeds
+	GuardianAccess
+	InvitedPersonQuery
+	RFIDQuery
+	RolePermissionQuery
+	SchoolAccountQuery
+	SchoolMembershipQuery
+	SchoolRoleQuery
+	StudentGuardianInvitationQuery
 	AccountAuthentication
 	AccountMFA
 	AccountClaimsQuery
@@ -459,33 +441,4 @@ func NewModule(engine Engine) *Module {
 		panic("identity access: engine is required")
 	}
 	return &Module{engine: engine, ownerServices: engine}
-}
-
-func (m *Module) FindAccount(ctx context.Context, id int64) (Account, error) {
-	account, err := m.engine.FindAccount(ctx, id)
-	if err != nil {
-		return Account{}, fmt.Errorf("identity access: find account: %w", err)
-	}
-	return account, nil
-}
-
-func (m *Module) FindAccountByEmail(ctx context.Context, email string) (Account, error) {
-	account, err := m.engine.FindAccountByEmail(ctx, email)
-	if err != nil {
-		return Account{}, fmt.Errorf("identity access: find account by email: %w", err)
-	}
-	return account, nil
-}
-
-func (m *Module) GrantGuardianTenantAccess(ctx context.Context, accountID int64) (GuardianTenantAccess, error) {
-	access, err := m.engine.GrantGuardianTenantAccess(ctx, accountID)
-	if err != nil {
-		return GuardianTenantAccess{}, fmt.Errorf("identity access: grant guardian tenant access: %w", err)
-	}
-	return access, nil
-}
-
-// SeedGuardianAccount returns the account ID and whether it was reused.
-func (m *Module) SeedGuardianAccount(ctx context.Context, email, passwordHash string) (int64, bool, error) {
-	return m.engine.SeedGuardianAccount(ctx, email, passwordHash)
 }

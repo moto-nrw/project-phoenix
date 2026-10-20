@@ -23,27 +23,3 @@ type AccountRoleQueries interface {
 	ListSchoolAccountRoleNames(context.Context, int64) ([]string, error)
 	FindSystemRoleID(context.Context, string) (int64, bool, error)
 }
-
-func (m *Module) CountActiveAccountsBySchoolGroups(ctx context.Context, groups map[int64][]int64) (map[int64]int, error) {
-	return m.engine.CountActiveAccountsBySchoolGroups(ctx, groups)
-}
-
-func (m *Module) ListEffectiveAdminAccountIDs(ctx context.Context) ([]int64, error) {
-	return m.engine.ListEffectiveAdminAccountIDs(ctx)
-}
-
-func (m *Module) FindActiveSchoolMemberships(ctx context.Context, accountIDs, schoolIDs []int64) (map[int64][]int64, error) {
-	return m.engine.FindActiveSchoolMemberships(ctx, accountIDs, schoolIDs)
-}
-
-func (m *Module) ListActiveAccountSchoolIDs(ctx context.Context, accountID int64) ([]int64, error) {
-	return m.engine.ListActiveAccountSchoolIDs(ctx, accountID)
-}
-
-func (m *Module) ListSchoolAccountRoleNames(ctx context.Context, accountID int64) ([]string, error) {
-	return m.engine.ListSchoolAccountRoleNames(ctx, accountID)
-}
-
-func (m *Module) FindSystemRoleID(ctx context.Context, name string) (int64, bool, error) {
-	return m.engine.FindSystemRoleID(ctx, name)
-}

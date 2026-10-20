@@ -44,10 +44,10 @@ type EngineParts struct {
 func NewEngine(parts EngineParts) identityaccess.Engine {
 	return engine{
 		CalendarFeeds:          parts.CalendarFeeds,
-		rfidCards:              parts.RFIDCards,
-		accountRoleQueries:     parts.AccountRoleQueries,
-		guardianSchools:        parts.GuardianSchools,
-		profiles:               parts.Profiles,
+		RFIDCards:              parts.RFIDCards,
+		AccountRoleQueries:     parts.AccountRoleQueries,
+		GuardianSchools:        parts.GuardianSchools,
+		AccountProfiles:        parts.Profiles,
 		Service:                parts.Service,
 		OperatorMFARecords:     parts.MFA,
 		OperatorTokens:         parts.Tokens,
@@ -78,10 +78,10 @@ type engine struct {
 	CalendarFeeds
 	// AccountRetention is always composed like signInRetention (#4043).
 	*AccountRetention
-	rfidCards          *RFIDCards
-	accountRoleQueries *AccountRoleQueries
-	guardianSchools    *GuardianSchools
-	profiles           *AccountProfiles
+	*RFIDCards
+	*AccountRoleQueries
+	*GuardianSchools
+	*AccountProfiles
 	*Service
 	// The records, the second factor and the ceremonies are embedded through
 	// their public capabilities: their own steps share names with each other.
@@ -137,21 +137,6 @@ type engine struct {
 	accountMFACapability
 	// runtime attaches the composed unit of work ahead of every session flow.
 	runtime func(context.Context) context.Context
-}
-
-func (e engine) FindAccount(ctx context.Context, id int64) (identityaccess.Account, error) {
-	value, err := e.Service.FindAccount(ctx, id)
-	return identityaccess.Account(value), MapError(err)
-}
-
-func (e engine) FindAccountByEmail(ctx context.Context, email string) (identityaccess.Account, error) {
-	value, err := e.Service.FindAccountByEmail(ctx, email)
-	return identityaccess.Account(value), MapError(err)
-}
-
-func (e engine) GrantGuardianTenantAccess(ctx context.Context, accountID int64) (identityaccess.GuardianTenantAccess, error) {
-	value, err := e.Service.GrantGuardianTenantAccess(ctx, accountID)
-	return identityaccess.GuardianTenantAccess(value), MapError(err)
 }
 
 func MapError(err error) error {
