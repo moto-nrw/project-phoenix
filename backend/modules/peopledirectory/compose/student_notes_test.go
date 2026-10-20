@@ -21,24 +21,24 @@ import (
 // boundary. Every one of them is a SQL statement whose correctness nothing
 // upstream can prove.
 
-func notesModule(t *testing.T, db *testpkg.DB) *peopledirectory.Module {
+func notesModule(t *testing.T, db *testpkg.DB) peopledirectory.Owner {
 	return notesModuleWithOwners(t, db, nil)
 }
 
-func notesModuleWithOwners(t *testing.T, db *testpkg.DB, owners peoplePorts.StudentOwners) *peopledirectory.Module {
+func notesModuleWithOwners(t *testing.T, db *testpkg.DB, owners peoplePorts.StudentOwners) peopledirectory.Owner {
 	return notesModuleWithDeletionAudit(t, db, owners, testStudentNoteDeletionAudit{Db: db})
 }
 
 func notesModuleWithDeletionAudit(
 	t *testing.T, db *testpkg.DB, owners peoplePorts.StudentOwners, audit peoplePorts.StudentNoteDeletionAudit,
-) *peopledirectory.Module {
+) peopledirectory.Owner {
 	t.Helper()
 	module, err := New(Dependencies{
 		StudentDirectory: testpkg.StudentDirectory{},
 		DB:               db, StudentOwners: owners, StudentNoteDeletionAudit: audit, Observe: func(Observation) {},
 	}, nil)
 	require.NoError(t, err)
-	return module.Module
+	return module.Owner
 }
 
 type testStudentNoteDeletionAudit struct{ Db *testpkg.DB }

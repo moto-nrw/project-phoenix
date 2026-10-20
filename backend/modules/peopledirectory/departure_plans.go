@@ -7,11 +7,3 @@ import "context"
 type StudentDepartureQuery interface {
 	ListStudentDepartureModes(context.Context, []int64) (map[int64]map[string][]string, error)
 }
-
-func (m *Module) ListStudentDepartureModes(ctx context.Context, ids []int64) (map[int64]map[string][]string, error) {
-	ids = PositiveIDs(ids)
-	if len(ids) == 0 {
-		return map[int64]map[string][]string{}, nil
-	}
-	return m.engine.ListStudentDepartureModes(ctx, ids)
-}

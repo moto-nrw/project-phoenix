@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
 // PersonRows maps persisted person values at the retained directory boundary.
@@ -28,11 +27,11 @@ func (d *PersonRows) CreatePerson(ctx context.Context, person *peopleModule.Dire
 	if err != nil {
 		return translatePersonWriteError(MapError(err))
 	}
-	created, err := d.directory.Create(ctx, domain.CreatePerson(input))
+	created, err := d.directory.Create(ctx, peopleModule.CreatePerson(input))
 	if err != nil {
 		return translatePersonWriteError(MapError(err))
 	}
-	applyPersonRecord(person, toPublic(created))
+	applyPersonRecord(person, created)
 	return nil
 }
 
@@ -48,11 +47,11 @@ func (d *PersonRows) UpdatePerson(ctx context.Context, person *peopleModule.Dire
 	if err != nil {
 		return translatePersonWriteError(MapError(err))
 	}
-	updated, err := d.directory.Update(ctx, domain.UpdatePerson(input))
+	updated, err := d.directory.UpdatePerson(ctx, peopleModule.UpdatePerson(input))
 	if err != nil {
 		return translatePersonWriteError(MapError(err))
 	}
-	applyPersonRecord(person, toPublic(updated))
+	applyPersonRecord(person, updated)
 	return nil
 }
 
@@ -60,7 +59,7 @@ func (d *PersonRows) DeletePerson(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return &peopleModule.InvalidPersonError{Reason: "person ID is required"}
 	}
-	return translatePersonWriteError(MapError(d.directory.Delete(ctx, id)))
+	return translatePersonWriteError(MapError(d.directory.DeletePerson(ctx, id)))
 }
 
 func personBirthday(person *peopleModule.DirectoryPersonSnapshot) string {
