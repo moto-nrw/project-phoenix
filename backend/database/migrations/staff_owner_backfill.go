@@ -846,31 +846,6 @@ func StaffOwnerBackfillStatus(ctx context.Context, db *bun.DB) (*StaffOwnerBackf
 	return report, nil
 }
 
-// ResetStaffOwnerBackfill discards every target row and checkpoint so the
-// backfill restarts from zero. It refuses once users.staff is no longer the
-// authoritative base table, because after Cutover the targets hold live data.
-func ResetStaffOwnerBackfill(ctx context.Context, db *bun.DB) error {
-	if db == nil {
-		return errors.New("staff owner backfill: database is required")
-	}
-	release, err := lockStorageBackfill(ctx, db, StaffOwnerBackfillName)
-	if err != nil {
-		return err
-	}
-	defer release()
-	if err := assertStaffSourceIsBaseTable(ctx, db); err != nil {
-		return err
-	}
-	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		if _, err := tx.ExecContext(ctx, `
-			TRUNCATE users.staff_employment_profiles, users.staff_school_memberships;
-			DELETE FROM platform.storage_backfill_checkpoints WHERE backfill = ?;`, StaffOwnerBackfillName); err != nil {
-			return fmt.Errorf("staff owner backfill: reset targets: %w", err)
-		}
-		return nil
-	})
-}
-
 // assertStaffSourceIsBaseTable guards every target-only write: Cutover
 // replaces users.staff with a compatibility view, after which the targets
 // are authoritative and must not be overwritten from the old shape.
