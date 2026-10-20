@@ -114,34 +114,9 @@ func (p *OperatorProvisioning) InviteOperator(ctx context.Context, request ident
 
 	var invitation domain.OperatorInvitation
 	if err := p.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		// Lock the inviter's row so two parallel invitations from the same
-		// operator serialize: under READ COMMITTED both would otherwise read
-		// the same count and both pass the limit.
-		if _, lockErr := p.operators.findOperatorForUpdate(txCtx, request.CreatedBy); lockErr != nil {
-			return fmt.Errorf("lock inviter row: %w", lockErr)
-		}
-		recent, countErr := p.tokens.CountInvitationsCreatedAfter(txCtx, request.CreatedBy, p.now().Add(-domain.OperatorInvitationRateWindow))
-		if countErr != nil {
-			return fmt.Errorf("check invitation rate limit: %w", countErr)
-		}
-		if recent >= domain.OperatorInvitationRateLimit {
-			return identityaccess.ErrOperatorInvitationRateLimited
-		}
-		if _, revokeErr := p.tokens.RevokeInvitationsForEmail(txCtx, email); revokeErr != nil {
-			return fmt.Errorf("revoke previous invitations: %w", revokeErr)
-		}
-		created, createErr := p.tokens.CreateInvitation(txCtx, domain.OperatorInvitation{
-			Email:       email,
-			Token:       uuid.Must(uuid.NewV4()).String(),
-			ExpiresAt:   p.now().Add(p.expiry.Invitation),
-			CreatedBy:   request.CreatedBy,
-			DisplayName: request.DisplayName,
-		})
-		if createErr != nil {
-			return createErr
-		}
-		invitation = created
-		return p.invites.DispatchOperatorInvitation(txCtx, invitation, p.inviterName(txCtx, request.CreatedBy))
+		var err error
+		invitation, err = p.createInvitationInAdmin(txCtx, request, email)
+		return err
 	}); err != nil {
 		return err
 	}
@@ -152,6 +127,39 @@ func (p *OperatorProvisioning) InviteOperator(ctx context.Context, request ident
 	}, "operator invitation")
 
 	return nil
+}
+
+// createInvitationInAdmin applies the rate limit, spends the address's
+// earlier links and creates and dispatches the new one inside the
+// administrative transaction.
+func (p *OperatorProvisioning) createInvitationInAdmin(txCtx context.Context, request identityaccess.OperatorInvitationRequest, email string) (domain.OperatorInvitation, error) {
+	// Lock the inviter's row so two parallel invitations from the same
+	// operator serialize: under READ COMMITTED both would otherwise read
+	// the same count and both pass the limit.
+	if _, lockErr := p.operators.findOperatorForUpdate(txCtx, request.CreatedBy); lockErr != nil {
+		return domain.OperatorInvitation{}, fmt.Errorf("lock inviter row: %w", lockErr)
+	}
+	recent, countErr := p.tokens.CountInvitationsCreatedAfter(txCtx, request.CreatedBy, p.now().Add(-domain.OperatorInvitationRateWindow))
+	if countErr != nil {
+		return domain.OperatorInvitation{}, fmt.Errorf("check invitation rate limit: %w", countErr)
+	}
+	if recent >= domain.OperatorInvitationRateLimit {
+		return domain.OperatorInvitation{}, identityaccess.ErrOperatorInvitationRateLimited
+	}
+	if _, revokeErr := p.tokens.RevokeInvitationsForEmail(txCtx, email); revokeErr != nil {
+		return domain.OperatorInvitation{}, fmt.Errorf("revoke previous invitations: %w", revokeErr)
+	}
+	created, createErr := p.tokens.CreateInvitation(txCtx, domain.OperatorInvitation{
+		Email:       email,
+		Token:       uuid.Must(uuid.NewV4()).String(),
+		ExpiresAt:   p.now().Add(p.expiry.Invitation),
+		CreatedBy:   request.CreatedBy,
+		DisplayName: request.DisplayName,
+	})
+	if createErr != nil {
+		return domain.OperatorInvitation{}, createErr
+	}
+	return created, p.invites.DispatchOperatorInvitation(txCtx, created, p.inviterName(txCtx, request.CreatedBy))
 }
 
 // ValidateOperatorInvitation returns what the public accept page may show
@@ -357,34 +365,9 @@ func (p *OperatorProvisioning) ConfirmOperatorEmailChange(ctx context.Context, t
 	ctx = bindRuntime(p.attach, ctx)
 	var result identityaccess.OperatorEmailChangeResult
 	if err := p.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		change, redeemErr := p.tokens.RedeemEmailChange(txCtx, token)
-		if redeemErr != nil {
-			return redeemErr
-		}
-		if _, findErr := p.operators.FindOperatorByEmail(txCtx, change.NewEmail); findErr == nil {
-			return identityaccess.ErrOperatorEmailInUse
-		} else if !errors.Is(findErr, identityaccess.ErrOperatorNotFound) {
-			return fmt.Errorf("check operator email uniqueness: %w", findErr)
-		}
-		operator, operatorErr := p.operators.findOperatorByID(txCtx, change.OperatorID)
-		if operatorErr != nil {
-			if errors.Is(operatorErr, identityaccess.ErrOperatorNotFound) {
-				return identityaccess.ErrOperatorEmailChangeNotFound
-			}
-			return operatorErr
-		}
-		if !operator.Active {
-			return identityaccess.ErrOperatorInactive
-		}
-		result = identityaccess.OperatorEmailChangeResult{
-			OperatorID: operator.ID, DisplayName: operator.DisplayName,
-			OldEmail: operator.Email, NewEmail: change.NewEmail,
-		}
-		operator.Email = change.NewEmail
-		if _, updateErr := p.operators.UpdateOperator(txCtx, identityaccess.Operator(operator)); updateErr != nil {
-			return updateErr
-		}
-		return p.changes.DispatchOperatorEmailChangeConfirmed(txCtx, result.OldEmail, result.DisplayName)
+		var err error
+		result, err = p.confirmEmailChangeInAdmin(txCtx, token)
+		return err
 	}); err != nil {
 		return identityaccess.OperatorEmailChangeResult{}, err
 	}
@@ -402,6 +385,39 @@ func (p *OperatorProvisioning) ConfirmOperatorEmailChange(ctx context.Context, t
 	// that it was requested: for a compromised account that is the signal.
 
 	return result, nil
+}
+
+// confirmEmailChangeInAdmin spends the link and writes the new address inside
+// the administrative transaction.
+func (p *OperatorProvisioning) confirmEmailChangeInAdmin(txCtx context.Context, token string) (identityaccess.OperatorEmailChangeResult, error) {
+	change, redeemErr := p.tokens.RedeemEmailChange(txCtx, token)
+	if redeemErr != nil {
+		return identityaccess.OperatorEmailChangeResult{}, redeemErr
+	}
+	if _, findErr := p.operators.FindOperatorByEmail(txCtx, change.NewEmail); findErr == nil {
+		return identityaccess.OperatorEmailChangeResult{}, identityaccess.ErrOperatorEmailInUse
+	} else if !errors.Is(findErr, identityaccess.ErrOperatorNotFound) {
+		return identityaccess.OperatorEmailChangeResult{}, fmt.Errorf("check operator email uniqueness: %w", findErr)
+	}
+	operator, operatorErr := p.operators.findOperatorByID(txCtx, change.OperatorID)
+	if operatorErr != nil {
+		if errors.Is(operatorErr, identityaccess.ErrOperatorNotFound) {
+			return identityaccess.OperatorEmailChangeResult{}, identityaccess.ErrOperatorEmailChangeNotFound
+		}
+		return identityaccess.OperatorEmailChangeResult{}, operatorErr
+	}
+	if !operator.Active {
+		return identityaccess.OperatorEmailChangeResult{}, identityaccess.ErrOperatorInactive
+	}
+	result := identityaccess.OperatorEmailChangeResult{
+		OperatorID: operator.ID, DisplayName: operator.DisplayName,
+		OldEmail: operator.Email, NewEmail: change.NewEmail,
+	}
+	operator.Email = change.NewEmail
+	if _, updateErr := p.operators.UpdateOperator(txCtx, identityaccess.Operator(operator)); updateErr != nil {
+		return identityaccess.OperatorEmailChangeResult{}, updateErr
+	}
+	return result, p.changes.DispatchOperatorEmailChangeConfirmed(txCtx, result.OldEmail, result.DisplayName)
 }
 
 // CleanupOperatorEmailChanges spends the expired links so their operator can

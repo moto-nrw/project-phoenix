@@ -82,7 +82,3 @@ func newOperatorFlows(service *application.Service, store *postgres.Store, token
 	}
 	return operatorAuth, accountAccess, nil
 }
-
-// Engine methods: every operator flow answers
-// ErrOperatorAuthenticationUnavailable when the module was composed without
-// operator dependencies.
