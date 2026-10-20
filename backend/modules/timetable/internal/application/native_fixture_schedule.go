@@ -52,8 +52,11 @@ func (r nativeFixtureSchedule) FindByID(ctx context.Context, id any) (*timetable
 }
 
 func (r nativeFixtureSchedule) FindByGroupID(ctx context.Context, id int64) ([]*timetable.Schedule, error) {
-	rows, err := groupSchedules(ctx, r.schedules, id)
-	return fixtureNativeRows(rows, decodeFixtureSchedule), err
+	values, err := r.schedules.ListSchedules(ctx, timetable.ScheduleFilter{GroupIDs: []int64{id}})
+	if err != nil {
+		return nil, legacyActivityScheduleError("find by group ID", err)
+	}
+	return fixtureNativeRows(legacySchedules(values), decodeFixtureSchedule), nil
 }
 
 func decodeFixtureSchedule(value *activityContract.Schedule) *timetable.Schedule {

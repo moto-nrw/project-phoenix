@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 )
 
@@ -35,8 +36,9 @@ func (s *ActivityService) AddSchedule(ctx context.Context, groupID int64, schedu
 
 // GetSchedule retrieves a schedule by ID
 func (s *ActivityService) GetSchedule(ctx context.Context, id int64) (*activityContract.Schedule, error) {
-	schedule, err := findLegacySchedule(ctx, s.scheduleRepo, id)
+	value, err := s.scheduleRepo.FindSchedule(ctx, id)
 	if err != nil {
+		err = legacyActivityScheduleError("find by id", err)
 		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
 		if isRepositoryNotFound(err) {
 			return nil, &activityContract.ActivityError{Op: opGetSchedule, Err: activityContract.ErrScheduleNotFound}
@@ -44,17 +46,17 @@ func (s *ActivityService) GetSchedule(ctx context.Context, id int64) (*activityC
 		return nil, &activityContract.ActivityError{Op: opGetSchedule, Err: err}
 	}
 
-	return schedule, nil
+	return legacySchedule(value), nil
 }
 
 // GetGroupSchedules retrieves all schedules for a group
 func (s *ActivityService) GetGroupSchedules(ctx context.Context, groupID int64) ([]*activityContract.Schedule, error) {
-	schedules, err := groupSchedules(ctx, s.scheduleRepo, groupID)
+	values, err := s.scheduleRepo.ListSchedules(ctx, timetable.ScheduleFilter{GroupIDs: []int64{groupID}})
 	if err != nil {
-		return nil, &activityContract.ActivityError{Op: "get group schedules", Err: err}
+		return nil, &activityContract.ActivityError{Op: "get group schedules", Err: legacyActivityScheduleError("find by group ID", err)}
 	}
 
-	return schedules, nil
+	return legacySchedules(values), nil
 }
 
 // DeleteSchedule deletes a schedule

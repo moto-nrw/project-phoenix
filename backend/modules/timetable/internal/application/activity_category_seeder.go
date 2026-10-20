@@ -21,5 +21,12 @@ func NewActivityCategorySeeder(categories timetable.CategoryCommand) ActivityCat
 // CreateCategory creates one category at the school in ctx. A category the
 // school already has fails with the repository's unique violation.
 func (s ActivityCategorySeeder) CreateCategory(ctx context.Context, name, description, color string) error {
-	return createLegacyCategory(ctx, s.categories, &activityContract.Category{Name: name, Description: description, Color: color})
+	category := &activityContract.Category{Name: name, Description: description, Color: color}
+	if err := category.Validate(); err != nil {
+		return err
+	}
+	if _, err := s.categories.CreateCategory(ctx, timetable.CreateCategory{Name: name, Description: description, Color: color}); err != nil {
+		return legacyCategoryError("create", err)
+	}
+	return nil
 }
