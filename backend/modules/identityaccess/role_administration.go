@@ -183,35 +183,25 @@ type RoleCommand interface {
 	RemoveRoleFromAccount(ctx context.Context, accountID, roleID int64) error
 }
 
-// PermissionQuery reads permissions, role selections and account grants.
+// PermissionQuery reads permissions and role selections.
 type PermissionQuery interface {
 	GetPermission(ctx context.Context, id int64) (Permission, error)
 	GetPermissionByName(ctx context.Context, name string) (Permission, error)
 	ListPermissions(ctx context.Context, filter PermissionFilter) ([]Permission, error)
 	GetRolePermissions(ctx context.Context, roleID int64) ([]Permission, error)
-	// GetAccountPermissions returns the direct and the role-based permissions.
-	GetAccountPermissions(ctx context.Context, accountID int64) ([]Permission, error)
-	GetAccountDirectPermissions(ctx context.Context, accountID int64) ([]Permission, error)
 }
 
-// PermissionCommand changes permissions, direct account grants and role
-// selections. Role selections of system roles are immutable.
+// PermissionCommand changes permissions and role selections. Role
+// selections of system roles are immutable.
 type PermissionCommand interface {
 	CreatePermission(ctx context.Context, name, description, resource, action string) (Permission, error)
 	UpdatePermission(ctx context.Context, permission Permission) error
 	DeletePermission(ctx context.Context, id int64) error
-	GrantPermissionToAccount(ctx context.Context, accountID, permissionID int64) error
-	DenyPermissionToAccount(ctx context.Context, accountID, permissionID int64) error
-	RemovePermissionFromAccount(ctx context.Context, accountID, permissionID int64) error
 	AssignPermissionToRole(ctx context.Context, roleID, permissionID int64) error
 	// ReplaceRolePermissions applies a complete selection atomically; an
 	// invalid request leaves the current selection untouched.
 	ReplaceRolePermissions(ctx context.Context, roleID int64, permissionIDs []int64) error
 	RemovePermissionFromRole(ctx context.Context, roleID, permissionID int64) error
-	// GrantStaffDefaultPermission grants permissionName to the account of a
-	// newly created staff member unless the account holds the Lehrkraft role.
-	// Failures are logged, never returned: the staff record stands either way.
-	GrantStaffDefaultPermission(ctx context.Context, accountID int64, isTeacher bool, permissionName string)
 }
 
 // RoleAdministration is the capability the RBAC routes, the staff membership
@@ -316,14 +306,6 @@ func (m *Module) GetRolePermissions(ctx context.Context, roleID int64) ([]Permis
 	return m.engine.GetRolePermissions(ctx, roleID)
 }
 
-func (m *Module) GetAccountPermissions(ctx context.Context, accountID int64) ([]Permission, error) {
-	return m.engine.GetAccountPermissions(ctx, accountID)
-}
-
-func (m *Module) GetAccountDirectPermissions(ctx context.Context, accountID int64) ([]Permission, error) {
-	return m.engine.GetAccountDirectPermissions(ctx, accountID)
-}
-
 func (m *Module) CreatePermission(ctx context.Context, name, description, resource, action string) (Permission, error) {
 	return m.engine.CreatePermission(ctx, name, description, resource, action)
 }
@@ -336,18 +318,6 @@ func (m *Module) DeletePermission(ctx context.Context, id int64) error {
 	return m.engine.DeletePermission(ctx, id)
 }
 
-func (m *Module) GrantPermissionToAccount(ctx context.Context, accountID, permissionID int64) error {
-	return m.engine.GrantPermissionToAccount(ctx, accountID, permissionID)
-}
-
-func (m *Module) DenyPermissionToAccount(ctx context.Context, accountID, permissionID int64) error {
-	return m.engine.DenyPermissionToAccount(ctx, accountID, permissionID)
-}
-
-func (m *Module) RemovePermissionFromAccount(ctx context.Context, accountID, permissionID int64) error {
-	return m.engine.RemovePermissionFromAccount(ctx, accountID, permissionID)
-}
-
 func (m *Module) AssignPermissionToRole(ctx context.Context, roleID, permissionID int64) error {
 	return m.engine.AssignPermissionToRole(ctx, roleID, permissionID)
 }
@@ -358,10 +328,6 @@ func (m *Module) ReplaceRolePermissions(ctx context.Context, roleID int64, permi
 
 func (m *Module) RemovePermissionFromRole(ctx context.Context, roleID, permissionID int64) error {
 	return m.engine.RemovePermissionFromRole(ctx, roleID, permissionID)
-}
-
-func (m *Module) GrantStaffDefaultPermission(ctx context.Context, accountID int64, isTeacher bool, permissionName string) {
-	m.engine.GrantStaffDefaultPermission(ctx, accountID, isTeacher, permissionName)
 }
 
 // SystemRoles are the system roles among roles, in their order.

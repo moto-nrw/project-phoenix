@@ -279,36 +279,6 @@ func (e engine) GetRolePermissions(ctx context.Context, roleID int64) (value0 []
 	return
 }
 
-func (e engine) GetAccountPermissions(ctx context.Context, accountID int64) (value0 []identityaccess.Permission, err error) {
-	if e.roles == nil {
-		return nil, errRoleAdministrationUnavailable
-	}
-	operation := func(ctx context.Context) ([]identityaccess.Permission, error) {
-		permissions, err := e.roles.GetAccountPermissions(e.attach(ctx), accountID)
-		return publicPermissions(permissions), roleError(err)
-	}
-	err = e.roles.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = operation(txCtx)
-		return err
-	})
-	return
-}
-
-func (e engine) GetAccountDirectPermissions(ctx context.Context, accountID int64) (value0 []identityaccess.Permission, err error) {
-	if e.roles == nil {
-		return nil, errRoleAdministrationUnavailable
-	}
-	operation := func(ctx context.Context) ([]identityaccess.Permission, error) {
-		permissions, err := e.roles.GetAccountDirectPermissions(e.attach(ctx), accountID)
-		return publicPermissions(permissions), roleError(err)
-	}
-	err = e.roles.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = operation(txCtx)
-		return err
-	})
-	return
-}
-
 func (e engine) CreatePermission(ctx context.Context, name, description, resource, action string) (value0 identityaccess.Permission, err error) {
 	if e.roles == nil {
 		return identityaccess.Permission{}, errRoleAdministrationUnavailable
@@ -352,27 +322,6 @@ func (e engine) DeletePermission(ctx context.Context, id int64) (err error) {
 	return
 }
 
-func (e engine) GrantPermissionToAccount(ctx context.Context, accountID, permissionID int64) error {
-	if e.roles == nil {
-		return errRoleAdministrationUnavailable
-	}
-	return roleError(e.roles.GrantPermissionToAccount(e.attach(ctx), accountID, permissionID))
-}
-
-func (e engine) DenyPermissionToAccount(ctx context.Context, accountID, permissionID int64) error {
-	if e.roles == nil {
-		return errRoleAdministrationUnavailable
-	}
-	return roleError(e.roles.DenyPermissionToAccount(e.attach(ctx), accountID, permissionID))
-}
-
-func (e engine) RemovePermissionFromAccount(ctx context.Context, accountID, permissionID int64) error {
-	if e.roles == nil {
-		return errRoleAdministrationUnavailable
-	}
-	return roleError(e.roles.RemovePermissionFromAccount(e.attach(ctx), accountID, permissionID))
-}
-
 func (e engine) AssignPermissionToRole(ctx context.Context, roleID, permissionID int64) error {
 	if e.roles == nil {
 		return errRoleAdministrationUnavailable
@@ -392,13 +341,6 @@ func (e engine) RemovePermissionFromRole(ctx context.Context, roleID, permission
 		return errRoleAdministrationUnavailable
 	}
 	return roleError(e.roles.RemovePermissionFromRole(e.attach(ctx), roleID, permissionID))
-}
-
-func (e engine) GrantStaffDefaultPermission(ctx context.Context, accountID int64, isTeacher bool, permissionName string) {
-	if e.roles == nil {
-		return
-	}
-	e.roles.GrantStaffDefaultPermission(e.attach(ctx), accountID, isTeacher, permissionName)
 }
 
 var roleSentinels = []struct {

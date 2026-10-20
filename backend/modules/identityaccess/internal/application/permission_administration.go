@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
@@ -59,79 +58,6 @@ func (r *RoleAdministration) DeletePermission(ctx context.Context, id int64) err
 		return failed("delete permission", err)
 	}
 	return nil
-}
-
-// GrantPermissionToAccount grants a permission directly to an account.
-func (r *RoleAdministration) GrantPermissionToAccount(ctx context.Context, accountID, permissionID int64) error {
-	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		if err := r.lockManageableAccount(txCtx, accountID, "grant permission"); err != nil {
-			return err
-		}
-		if _, found, err := r.store.FindPermission(txCtx, permissionID); err != nil || !found {
-			return failed("grant permission", domain.ErrPermissionNotFound)
-		}
-		if err := r.store.GrantAccountPermission(txCtx, accountID, permissionID); err != nil {
-			return failed("grant permission to account", err)
-		}
-		return nil
-	})
-}
-
-// DenyPermissionToAccount explicitly denies a permission to an account.
-func (r *RoleAdministration) DenyPermissionToAccount(ctx context.Context, accountID, permissionID int64) error {
-	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		if err := r.lockManageableAccount(txCtx, accountID, "deny permission"); err != nil {
-			return err
-		}
-		if _, found, err := r.store.FindPermission(txCtx, permissionID); err != nil || !found {
-			return failed("deny permission", domain.ErrPermissionNotFound)
-		}
-		if err := r.store.DenyAccountPermission(txCtx, accountID, permissionID); err != nil {
-			return failed("deny permission to account", err)
-		}
-		return nil
-	})
-}
-
-// RemovePermissionFromAccount removes a direct grant or denial.
-func (r *RoleAdministration) RemovePermissionFromAccount(ctx context.Context, accountID, permissionID int64) error {
-	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		if err := r.lockManageableAccount(txCtx, accountID, "remove permission"); err != nil {
-			return err
-		}
-		if err := r.store.RemoveAccountPermission(txCtx, accountID, permissionID); err != nil {
-			return failed("remove permission from account", err)
-		}
-		return nil
-	})
-}
-
-func (r *RoleAdministration) GetAccountPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error) {
-	if _, err := r.accounts.FindManageableAccount(ctx, accountID); err != nil {
-		return nil, failed("get account permissions", domain.ErrAccountNotFound)
-	}
-	if err := r.ensureOrganizationRBACMembership(ctx, accountID, "get account permissions", false); err != nil {
-		return nil, err
-	}
-	permissions, err := r.store.ListAccountPermissions(ctx, accountID)
-	if err != nil {
-		return nil, failed("get account permissions", err)
-	}
-	return permissions, nil
-}
-
-func (r *RoleAdministration) GetAccountDirectPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error) {
-	if _, err := r.accounts.FindManageableAccount(ctx, accountID); err != nil {
-		return nil, failed("get account direct permissions", domain.ErrAccountNotFound)
-	}
-	if err := r.ensureOrganizationRBACMembership(ctx, accountID, "get account direct permissions", false); err != nil {
-		return nil, err
-	}
-	permissions, err := r.store.ListAccountDirectPermissions(ctx, accountID)
-	if err != nil {
-		return nil, failed("get account direct permissions", err)
-	}
-	return permissions, nil
 }
 
 // AssignPermissionToRole adds a permission to a custom role.
@@ -220,48 +146,6 @@ func (r *RoleAdministration) GetRolePermissions(ctx context.Context, roleID int6
 		return nil, failed("get role permissions", err)
 	}
 	return permissions, nil
-}
-
-// GrantStaffDefaultPermission grants the default staff permission to the
-// account of a newly created staff member.
-//
-// The Lehrkraft role (#1772) is deliberately class_day:read only: groups:read
-// would open the tenant-wide group list and every group's student names, far
-// beyond the classes assigned to that Lehrkraft. The decision is made on the
-// account's actual roles, not on the teacher flag, and fails closed: an
-// unreadable role set is no licence to widen access.
-//
-// permissionName is the permission to grant; the caller passes the People
-// Directory default so this module needs no staff permission contract.
-func (r *RoleAdministration) GrantStaffDefaultPermission(ctx context.Context, accountID int64, isTeacher bool, permissionName string) {
-	role := "staff"
-	if isTeacher {
-		role = "teacher"
-	}
-	roles, err := r.GetAccountRoles(ctx, accountID)
-	if err != nil {
-		r.logger.Error("failed to resolve account roles, skipping default permission grant",
-			slog.String("role", role),
-			slog.Int64("account_id", accountID),
-			slog.String("error", err.Error()))
-		return
-	}
-	for _, accountRole := range roles {
-		if r.policy.IsLehrkraftSystemRole(accountRole.Facts()) {
-			r.logger.Info("skipping groups:read for lehrkraft account", slog.Int64("account_id", accountID))
-			return
-		}
-	}
-	permission, err := r.GetPermissionByName(ctx, permissionName)
-	if err != nil {
-		return
-	}
-	if err := r.GrantPermissionToAccount(ctx, accountID, permission.ID); err != nil {
-		r.logger.Error("failed to grant groups:read permission",
-			slog.String("role", role),
-			slog.Int64("account_id", accountID),
-			slog.String("error", err.Error()))
-	}
 }
 
 func (r *RoleAdministration) desiredRolePermissions(txCtx context.Context, permissionIDs []int64) (map[int64]struct{}, error) {

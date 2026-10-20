@@ -12,7 +12,6 @@ import (
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
@@ -139,8 +138,6 @@ type StaffMembershipRuntime struct {
 	AccountHasRole      func(context.Context, int64, string) bool
 	AccountsHoldingRole func(context.Context, []int64, string) (map[int64]bool, error)
 
-	GrantDefaultPermissions func(context.Context, int64, bool)
-
 	TeacherGroups    func(context.Context, int64) ([]StaffGroup, error)
 	SchoolClasses    func(context.Context, int64) ([]string, error)
 	SetSchoolClasses func(context.Context, int64, []string, int64) error
@@ -188,10 +185,6 @@ func bindStaffMembershipRuntime(users peoplePorts.PersonDirectory, education sch
 				return nil, err
 			}
 			return matches, nil
-		},
-
-		GrantDefaultPermissions: func(ctx context.Context, accountID int64, isTeacher bool) {
-			identity.GrantStaffDefaultPermission(ctx, accountID, isTeacher, securityruntime.DefaultStaffAccountPermission)
 		},
 
 		TeacherGroups:    membershipTeacherGroups(education),

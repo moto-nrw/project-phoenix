@@ -1568,37 +1568,6 @@ func TestAuthService_ListPermissions(t *testing.T) {
 	})
 }
 
-func TestAuthService_GrantPermissionToAccount(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	rbac := roleAdministrationOf(t, service)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("grants permission to account", func(t *testing.T) {
-		// ARRANGE
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		email, username := uniqueTestCredentials("grantperm")
-		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
-		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-
-		permName := fmt.Sprintf("grant-perm-%s", uniqueID)
-		resource := fmt.Sprintf("resource-grant-%s", uniqueID)
-		perm, err := rbac.CreatePermission(ctx, permName, "desc", resource, "read")
-		require.NoError(t, err)
-		testpkg.OwnTestPermission(t, db, perm.ID)
-
-		// ACT
-		err = rbac.GrantPermissionToAccount(ctx, account.ID, perm.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-	})
-}
-
 // =============================================================================
 // Parent Account Tests
 // =============================================================================
@@ -1806,110 +1775,6 @@ func TestAuthService_DeletePermission(t *testing.T) {
 		// Verify deletion
 		_, err = rbac.GetPermission(ctx, permission.ID)
 		require.Error(t, err)
-	})
-}
-
-func TestAuthService_GetAccountPermissions(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	rbac := roleAdministrationOf(t, service)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns account permissions", func(t *testing.T) {
-		// ARRANGE - create account with permission
-		email, username := uniqueTestCredentials("acctperms")
-		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
-		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		permName := fmt.Sprintf("acctperm-%s", uniqueID)
-		resource := fmt.Sprintf("acct-res-%s", uniqueID)
-		permission, err := rbac.CreatePermission(ctx, permName, "Account permission", resource, "read")
-		require.NoError(t, err)
-		testpkg.OwnTestPermission(t, db, permission.ID)
-
-		err = rbac.GrantPermissionToAccount(ctx, account.ID, permission.ID)
-		require.NoError(t, err)
-
-		// ACT
-		result, err := rbac.GetAccountPermissions(ctx, account.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotEmpty(t, result)
-	})
-}
-
-func TestAuthService_GetAccountDirectPermissions(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	rbac := roleAdministrationOf(t, service)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns direct permissions only", func(t *testing.T) {
-		// ARRANGE
-		email, username := uniqueTestCredentials("directperms")
-		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
-		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		permName := fmt.Sprintf("directperm-%s", uniqueID)
-		resource := fmt.Sprintf("direct-res-%s", uniqueID)
-		permission, err := rbac.CreatePermission(ctx, permName, "Direct permission", resource, "read")
-		require.NoError(t, err)
-		testpkg.OwnTestPermission(t, db, permission.ID)
-
-		err = rbac.GrantPermissionToAccount(ctx, account.ID, permission.ID)
-		require.NoError(t, err)
-
-		// ACT
-		result, err := rbac.GetAccountDirectPermissions(ctx, account.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotEmpty(t, result)
-	})
-}
-
-func TestAuthService_RemovePermissionFromAccount(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	rbac := roleAdministrationOf(t, service)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("removes permission from account", func(t *testing.T) {
-		// ARRANGE
-		email, username := uniqueTestCredentials("removeperm")
-		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
-		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		permName := fmt.Sprintf("removeperm-%s", uniqueID)
-		resource := fmt.Sprintf("rem-res-%s", uniqueID)
-		permission, err := rbac.CreatePermission(ctx, permName, "To be removed", resource, "read")
-		require.NoError(t, err)
-		testpkg.OwnTestPermission(t, db, permission.ID)
-
-		err = rbac.GrantPermissionToAccount(ctx, account.ID, permission.ID)
-		require.NoError(t, err)
-
-		// ACT
-		err = rbac.RemovePermissionFromAccount(ctx, account.ID, permission.ID)
-
-		// ASSERT
-		require.NoError(t, err)
 	})
 }
 
@@ -2123,56 +1988,6 @@ func TestAuthService_GetAccountsByRole(t *testing.T) {
 // =============================================================================
 // Additional Permission Tests
 // =============================================================================
-
-func TestAuthService_DenyPermissionToAccount(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	rbac := roleAdministrationOf(t, service)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns error for non-existent account", func(t *testing.T) {
-		// ARRANGE
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		permission, err := rbac.CreatePermission(ctx, "deny-perm-"+uniqueID, "Test permission", "deny-resource-"+uniqueID, "read")
-		require.NoError(t, err)
-		testpkg.OwnTestPermission(t, db, permission.ID)
-
-		// ACT
-		err = rbac.DenyPermissionToAccount(ctx, 99999999, permission.ID)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-
-	t.Run("returns error for non-existent permission", func(t *testing.T) {
-		// ARRANGE
-		account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("deny-perm-%d@test.com", time.Now().UnixNano()))
-
-		// ACT
-		err := rbac.DenyPermissionToAccount(ctx, account.ID, 99999999)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-
-	t.Run("denies permission to account", func(t *testing.T) {
-		// ARRANGE
-		account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("deny-success-%d@test.com", time.Now().UnixNano()))
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		permission, err := rbac.CreatePermission(ctx, "deny-success-perm-"+uniqueID, "Test", "deny-success-res-"+uniqueID, "read")
-		require.NoError(t, err)
-		testpkg.OwnTestPermission(t, db, permission.ID)
-
-		// ACT
-		err = rbac.DenyPermissionToAccount(ctx, account.ID, permission.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-	})
-}
 
 // =============================================================================
 // Additional Invitation Tests

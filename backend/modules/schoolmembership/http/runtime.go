@@ -169,9 +169,6 @@ type Runtime struct {
 	AccountHasRole      func(context.Context, int64, string) bool
 	AccountsHoldingRole func(context.Context, []int64, string) (map[int64]bool, error)
 
-	// GrantDefaultPermissions grants the default account permissions after a
-	// create; the root decides what a Lehrkraft may and may not receive.
-	GrantDefaultPermissions func(context.Context, int64, bool)
 	// RetryQueuedDocumentCleanups drains the queued staff-document file
 	// cleanups; the directory listing triggers it with source "directory".
 	RetryQueuedDocumentCleanups func(context.Context, string)
@@ -207,7 +204,7 @@ func NewResource(membership schoolmembership.Capability, runtime Runtime) *Resou
 		runtime.PresentStaffIDs == nil || runtime.WorkStatusMap == nil || runtime.AbsenceMap == nil ||
 		runtime.AbsenceLabelMap == nil || runtime.AccountRoles == nil || runtime.AccountEmails == nil ||
 		runtime.AccountAvatars == nil || runtime.AccountHasRole == nil || runtime.AccountsHoldingRole == nil ||
-		runtime.GrantDefaultPermissions == nil || runtime.RetryQueuedDocumentCleanups == nil ||
+		runtime.RetryQueuedDocumentCleanups == nil ||
 		runtime.TeacherGroups == nil || runtime.SchoolClasses == nil || runtime.SetSchoolClasses == nil ||
 		runtime.ActiveCaregivers == nil || runtime.StaffByRoles == nil ||
 		runtime.CreateStaff == nil || runtime.UpdateStaff == nil || runtime.Offboard == nil ||

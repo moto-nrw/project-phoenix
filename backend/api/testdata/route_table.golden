@@ -84,7 +84,6 @@ DELETE /api/users/{id}
 DELETE /api/work-time-models/{id}
 DELETE /auth/accounts/{accountId}/caregiver-capability
 DELETE /auth/accounts/{accountId}/mfa/
-DELETE /auth/accounts/{accountId}/permissions/{permissionId}
 DELETE /auth/accounts/{accountId}/roles/{roleId}
 DELETE /auth/accounts/{accountId}/tokens/
 DELETE /auth/invitations/{id}/
@@ -481,8 +480,6 @@ GET /auth/accounts/
 GET /auth/accounts/by-role/{roleName}
 GET /auth/accounts/{accountId}/caregiver-capability
 GET /auth/accounts/{accountId}/mfa/
-GET /auth/accounts/{accountId}/permissions/
-GET /auth/accounts/{accountId}/permissions/direct
 GET /auth/accounts/{accountId}/roles/
 GET /auth/accounts/{accountId}/tokens/
 GET /auth/guardian-invitations/{token}
@@ -879,8 +876,6 @@ POST /api/timetable/templates/{id}/split
 POST /api/users/
 POST /api/work-time-models/
 POST /auth/accounts/{accountId}/caregiver-capability
-POST /auth/accounts/{accountId}/permissions/{permissionId}/deny
-POST /auth/accounts/{accountId}/permissions/{permissionId}/grant
 POST /auth/accounts/{accountId}/roles/{roleId}
 POST /auth/guardian-invitations/{id}/resend
 POST /auth/guardian-invitations/{token}/accept

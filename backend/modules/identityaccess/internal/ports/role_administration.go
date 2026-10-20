@@ -107,17 +107,10 @@ type PermissionStore interface {
 	DeletePermission(ctx context.Context, id int64) error
 	ListPermissions(ctx context.Context, filter domain.PermissionFilter) ([]domain.ManagedPermission, error)
 	ListRolePermissions(ctx context.Context, roleID int64) ([]domain.ManagedPermission, error)
-	// ListAccountPermissions returns the direct and the role-based
-	// permissions of the account.
-	ListAccountPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error)
-	ListAccountDirectPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error)
 	AssignRolePermission(ctx context.Context, roleID, permissionID int64) error
 	RemoveRolePermission(ctx context.Context, roleID, permissionID int64) error
 	DeletePermissionAssignments(ctx context.Context, permissionID int64) error
 	DeletePermissionGrants(ctx context.Context, permissionID int64) error
-	GrantAccountPermission(ctx context.Context, accountID, permissionID int64) error
-	DenyAccountPermission(ctx context.Context, accountID, permissionID int64) error
-	RemoveAccountPermission(ctx context.Context, accountID, permissionID int64) error
 }
 
 // ManageableAccounts applies the account administration's visibility rules.
