@@ -1,5 +1,9 @@
 # Round 9 set A: constructor-only evidence
 
+> **Historical record.** State at `e5c7def69b` (2026-10-19). #2580 and #4069 are closed;
+> counts, budgets and open issues below describe that state, not today.
+> Final state: [`backend/architecture/WORKPLAN.md`](../../backend/architecture/WORKPLAN.md#endstand).
+
 Base: `12608383f0f793e811f4379ec293f61efd6150c9`. Own packages only; set B is not changed.
 
 ## Result

@@ -1,5 +1,9 @@
 # 4086 relocation inventory
 
+> **Historical record.** State at `597e3e5d5c` (2026-10-19). #2580 and #4069 are closed;
+> counts, budgets and open issues below describe that state, not today.
+> Final state: [`backend/architecture/WORKPLAN.md`](../../backend/architecture/WORKPLAN.md#endstand).
+
 ## Final cluster round 5 (current follow-up)
 
 Initial base after PR #4338; integrated development `10591926424937be480dd39ce3c54a44d97cad9a` after PR #4340, including PR #4337. Two scoped carriers are dissolved: the canonical SQLSTATE detector moves from `models/base` into Transaction Runtime with one narrowed file-literal repair and the same four sites; Delivery owns native subscription records, its internal persistence port and owner test fixture, deleting `models/delivery`. `database/repositories/base` stays absent.

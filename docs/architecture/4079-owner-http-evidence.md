@@ -1,5 +1,9 @@
 # Owner HTTP cutover evidence
 
+> **Historical record.** State at `ae21d934d7` (2026-10-18). #2580 and #4069 are closed;
+> counts, budgets and open issues below describe that state, not today.
+> Final state: [`backend/architecture/WORKPLAN.md`](../../backend/architecture/WORKPLAN.md#endstand).
+
 Base: `c093a60605bda8abd07f2ea803e64acf89740419` (merged #4318).
 Branch created from fresh `origin/development` after verifying that merge.
 

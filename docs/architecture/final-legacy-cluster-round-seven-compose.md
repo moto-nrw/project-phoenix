@@ -1,5 +1,9 @@
 # Round 7: complete owner-composition function inventory
 
+> **Historical record.** State at `c72e34fec5` (2026-10-19). #2580 and #4069 are closed;
+> counts, budgets and open issues below describe that state, not today.
+> Final state: [`backend/architecture/WORKPLAN.md`](../../backend/architecture/WORKPLAN.md#endstand).
+
 Base: `121b0ee5130db5ec6b289965f495acdca6285744`. This lists every non-constructor function in all 61 non-root owner packages classified as `compose`. It includes `testhooks` functions. A forwarding function can be a binding; a branch or row mapping is not proven to be construction by this list. The remaining runtime bodies mean the literal #4084 exit is not met. Root-owned composition and the dev-tools entry point keep the separate wiring contract of ADR 0068.
 
 | Package | Remaining non-constructor functions |

@@ -1,5 +1,9 @@
 # #4079 response mapping evidence
 
+> **Historical record.** State at `24ed2b1194` (2026-10-18). #2580 and #4069 are closed;
+> counts, budgets and open issues below describe that state, not today.
+> Final state: [`backend/architecture/WORKPLAN.md`](../../backend/architecture/WORKPLAN.md#endstand).
+
 Immutable base: `a300992867de78719bbf79720f822495e1be95d1`.
 This covers the bounded single-key retirement, not the archived full candidate.
 
