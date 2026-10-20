@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
@@ -23,10 +24,10 @@ type planningTrackRow struct {
 	ArchivedAt    *time.Time `bun:"archived_at"`
 }
 
-func (s *Store) FindPlanningTrack(ctx context.Context, id int64, lock string) (domain.PlanningTrack, bool, domain.OperationStats, error) {
+func (s *Store) FindPlanningTrack(ctx context.Context, id int64, lock string) (timetable.PlanningTrack, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.PlanningTrack{}, false, domain.OperationStats{}, err
+		return timetable.PlanningTrack{}, false, domain.OperationStats{}, err
 	}
 	row := planningTrackRow{}
 	query := planningTrackSelect(db, &row, tenantID).Where(`"planning_track".id = ?`, id)
@@ -37,7 +38,7 @@ func (s *Store) FindPlanningTrack(ctx context.Context, id int64, lock string) (d
 	return planningTrackToDomain(row), found, stats, err
 }
 
-func (s *Store) ListPlanningTracks(ctx context.Context, filter domain.PlanningTrackFilter) ([]domain.PlanningTrack, domain.OperationStats, error) {
+func (s *Store) ListPlanningTracks(ctx context.Context, filter timetable.PlanningTrackFilter) ([]timetable.PlanningTrack, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -55,7 +56,7 @@ func (s *Store) ListPlanningTracks(ctx context.Context, filter domain.PlanningTr
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.PlanningTrack, 0, len(rows))
+	result := make([]timetable.PlanningTrack, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, planningTrackToDomain(row))
 	}
@@ -63,10 +64,10 @@ func (s *Store) ListPlanningTracks(ctx context.Context, filter domain.PlanningTr
 	return result, stats, nil
 }
 
-func (s *Store) CreatePlanningTrack(ctx context.Context, fields domain.PlanningTrackFields) (domain.PlanningTrack, domain.OperationStats, error) {
+func (s *Store) CreatePlanningTrack(ctx context.Context, fields timetable.PlanningTrackInput) (timetable.PlanningTrack, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.PlanningTrack{}, domain.OperationStats{}, err
+		return timetable.PlanningTrack{}, domain.OperationStats{}, err
 	}
 	row := planningTrackRow{TenantID: tenantID}
 	applyPlanningTrackFields(&row, fields)
@@ -75,16 +76,16 @@ func (s *Store) CreatePlanningTrack(ctx context.Context, fields domain.PlanningT
 	err = db.NewInsert().Model(&row).ModelTableExpr(`schedule.planning_tracks`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.PlanningTrack{}, stats, classifyWriteError("create planning track", err, &stats)
+		return timetable.PlanningTrack{}, stats, classifyWriteError("create planning track", err, &stats)
 	}
 	stats.Rows = 1
 	return planningTrackToDomain(row), stats, nil
 }
 
-func (s *Store) UpdatePlanningTrack(ctx context.Context, id int64, fields domain.PlanningTrackFields, activeOnly bool) (domain.PlanningTrack, bool, domain.OperationStats, error) {
+func (s *Store) UpdatePlanningTrack(ctx context.Context, id int64, fields timetable.PlanningTrackInput, activeOnly bool) (timetable.PlanningTrack, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.PlanningTrack{}, false, domain.OperationStats{}, err
+		return timetable.PlanningTrack{}, false, domain.OperationStats{}, err
 	}
 	row := planningTrackRow{}
 	query := db.NewUpdate().Model(&row).ModelTableExpr(`schedule.planning_tracks`).
@@ -99,10 +100,10 @@ func (s *Store) UpdatePlanningTrack(ctx context.Context, id int64, fields domain
 	err = query.Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.PlanningTrack{}, false, stats, nil
+		return timetable.PlanningTrack{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.PlanningTrack{}, false, stats, classifyWriteError("update planning track", err, &stats)
+		return timetable.PlanningTrack{}, false, stats, classifyWriteError("update planning track", err, &stats)
 	}
 	stats.Rows = 1
 	return planningTrackToDomain(row), true, stats, nil
@@ -117,10 +118,10 @@ func (s *Store) DeletePlanningTrack(ctx context.Context, id int64) (domain.Opera
 		Where("tenant_id = ?", tenantID).Where("id = ?", id), "delete planning track")
 }
 
-func (s *Store) SetPlanningTrackArchivedAt(ctx context.Context, id int64, value *time.Time) (domain.PlanningTrack, bool, domain.OperationStats, error) {
+func (s *Store) SetPlanningTrackArchivedAt(ctx context.Context, id int64, value *time.Time) (timetable.PlanningTrack, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.PlanningTrack{}, false, domain.OperationStats{}, err
+		return timetable.PlanningTrack{}, false, domain.OperationStats{}, err
 	}
 	row := planningTrackRow{}
 	stats := domain.OperationStats{Queries: 1}
@@ -129,10 +130,10 @@ func (s *Store) SetPlanningTrackArchivedAt(ctx context.Context, id int64, value 
 		Where("tenant_id = ?", tenantID).Where("id = ?", id).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.PlanningTrack{}, false, stats, nil
+		return timetable.PlanningTrack{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.PlanningTrack{}, false, stats, classifyWriteError("archive planning track", err, &stats)
+		return timetable.PlanningTrack{}, false, stats, classifyWriteError("archive planning track", err, &stats)
 	}
 	stats.Rows = 1
 	return planningTrackToDomain(row), true, stats, nil
@@ -161,7 +162,7 @@ func (s *Store) ReorderPlanningTracks(ctx context.Context, ids []int64) (domain.
 
 func (s *Store) applyPlanningTrackOrder(ctx context.Context, db bun.IDB, tenantID int64, ids, activeIDs []int64, stats domain.OperationStats) (domain.OperationStats, error) {
 	if !sameIDSet(ids, activeIDs) {
-		return stats, domain.ErrPlanningTrackNotFound
+		return stats, timetable.ErrPlanningTrackNotFound
 	}
 	writeStats, err := execMeasuredWrite(ctx, db.NewRaw(`
 		UPDATE schedule.planning_tracks AS "planning_track"
@@ -174,10 +175,10 @@ func (s *Store) applyPlanningTrackOrder(ctx context.Context, db bun.IDB, tenantI
 	return stats, err
 }
 
-func (s *Store) RestorePlanningTrackAtEnd(ctx context.Context, id int64) (domain.PlanningTrack, bool, domain.OperationStats, error) {
+func (s *Store) RestorePlanningTrackAtEnd(ctx context.Context, id int64) (timetable.PlanningTrack, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.PlanningTrack{}, false, domain.OperationStats{}, err
+		return timetable.PlanningTrack{}, false, domain.OperationStats{}, err
 	}
 	row := planningTrackRow{}
 	stats := domain.OperationStats{Queries: 1}
@@ -192,10 +193,10 @@ func (s *Store) RestorePlanningTrackAtEnd(ctx context.Context, id int64) (domain
 		RETURNING "planning_track".*`, tenantID, tenantID, id).Scan(ctx, &row)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.PlanningTrack{}, false, stats, nil
+		return timetable.PlanningTrack{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.PlanningTrack{}, false, stats, classifyWriteError("restore planning track", err, &stats)
+		return timetable.PlanningTrack{}, false, stats, classifyWriteError("restore planning track", err, &stats)
 	}
 	stats.Rows = 1
 	return planningTrackToDomain(row), true, stats, nil
@@ -206,12 +207,12 @@ func planningTrackSelect(db bun.IDB, model any, tenantID int64) *bun.SelectQuery
 		ColumnExpr(`"planning_track".*`).Where(`"planning_track".tenant_id = ?`, tenantID)
 }
 
-func applyPlanningTrackFields(row *planningTrackRow, fields domain.PlanningTrackFields) {
+func applyPlanningTrackFields(row *planningTrackRow, fields timetable.PlanningTrackInput) {
 	row.Name, row.Color, row.SortOrder, row.ArchivedAt = fields.Name, fields.Color, fields.SortOrder, fields.ArchivedAt
 }
 
-func planningTrackToDomain(row planningTrackRow) domain.PlanningTrack {
-	return domain.PlanningTrack{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+func planningTrackToDomain(row planningTrackRow) timetable.PlanningTrack {
+	return timetable.PlanningTrack{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		Name: row.Name, Color: row.Color, SortOrder: row.SortOrder, ArchivedAt: row.ArchivedAt}
 }
 

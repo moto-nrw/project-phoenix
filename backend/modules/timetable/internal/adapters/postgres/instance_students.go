@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -33,10 +34,10 @@ type plannedInstanceStudentRow struct {
 	StartTime  string `bun:"start_time"`
 }
 
-func (s *Store) FindInstanceStudent(ctx context.Context, id int64) (domain.InstanceStudent, bool, domain.OperationStats, error) {
+func (s *Store) FindInstanceStudent(ctx context.Context, id int64) (timetable.InstanceStudent, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.InstanceStudent{}, false, domain.OperationStats{}, err
+		return timetable.InstanceStudent{}, false, domain.OperationStats{}, err
 	}
 	row := instanceStudentRow{}
 	found, stats, err := scanOne(ctx, instanceStudentSelect(db, &row, tenantID).
@@ -44,7 +45,7 @@ func (s *Store) FindInstanceStudent(ctx context.Context, id int64) (domain.Insta
 	return instanceStudentToDomain(row), found, stats, err
 }
 
-func (s *Store) ListInstanceStudents(ctx context.Context, filter domain.InstanceStudentFilter) ([]domain.InstanceStudent, domain.OperationStats, error) {
+func (s *Store) ListInstanceStudents(ctx context.Context, filter timetable.InstanceStudentFilter) ([]timetable.InstanceStudent, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -54,7 +55,7 @@ func (s *Store) ListInstanceStudents(ctx context.Context, filter domain.Instance
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.InstanceStudent, 0, len(rows))
+	result := make([]timetable.InstanceStudent, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, instanceStudentToDomain(row))
 	}
@@ -64,7 +65,7 @@ func (s *Store) ListInstanceStudents(ctx context.Context, filter domain.Instance
 
 // ListPlannedInstanceStudents joins the instance's planning day and block
 // start onto every participant.
-func (s *Store) ListPlannedInstanceStudents(ctx context.Context, filter domain.InstanceStudentFilter) ([]domain.PlannedInstanceStudent, domain.OperationStats, error) {
+func (s *Store) ListPlannedInstanceStudents(ctx context.Context, filter timetable.InstanceStudentFilter) ([]timetable.PlannedInstanceStudent, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -85,9 +86,9 @@ func (s *Store) ListPlannedInstanceStudents(ctx context.Context, filter domain.I
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.PlannedInstanceStudent, 0, len(rows))
+	result := make([]timetable.PlannedInstanceStudent, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, domain.PlannedInstanceStudent(row))
+		result = append(result, timetable.PlannedInstanceStudent(row))
 	}
 	stats.Rows = int64(len(result))
 	return result, stats, nil
@@ -97,7 +98,7 @@ const instanceStudentActivityJoin = `INNER JOIN schedule.activity_instances AS "
 			ON "activity_instance".id = "instance_student".instance_id
 			AND "activity_instance".tenant_id = "instance_student".tenant_id`
 
-func filterInstanceStudents(query *bun.SelectQuery, filter domain.InstanceStudentFilter) *bun.SelectQuery {
+func filterInstanceStudents(query *bun.SelectQuery, filter timetable.InstanceStudentFilter) *bun.SelectQuery {
 	if needsInstanceStudentActivityJoin(filter) {
 		query = query.Join(instanceStudentActivityJoin)
 	}
@@ -110,13 +111,13 @@ func filterInstanceStudents(query *bun.SelectQuery, filter domain.InstanceStuden
 	return query
 }
 
-func needsInstanceStudentActivityJoin(filter domain.InstanceStudentFilter) bool {
+func needsInstanceStudentActivityJoin(filter timetable.InstanceStudentFilter) bool {
 	return filter.Date != nil || filter.FromDate != nil || filter.ToDate != nil || filter.CurrentTime != nil ||
 		filter.FromClock != nil || filter.ExcludeCancelled ||
 		filter.OrderByStudentActivityTime || filter.OrderByActivityDateTime
 }
 
-func filterInstanceStudentIDs(query *bun.SelectQuery, filter domain.InstanceStudentFilter) *bun.SelectQuery {
+func filterInstanceStudentIDs(query *bun.SelectQuery, filter timetable.InstanceStudentFilter) *bun.SelectQuery {
 	if len(filter.IDs) > 0 {
 		query = query.Where(`"instance_student".id IN (?)`, bun.List(filter.IDs))
 	}
@@ -129,7 +130,7 @@ func filterInstanceStudentIDs(query *bun.SelectQuery, filter domain.InstanceStud
 	return query
 }
 
-func filterInstanceStudentDates(query *bun.SelectQuery, filter domain.InstanceStudentFilter) *bun.SelectQuery {
+func filterInstanceStudentDates(query *bun.SelectQuery, filter timetable.InstanceStudentFilter) *bun.SelectQuery {
 	if filter.Date != nil {
 		query = query.Where(`"activity_instance".date = ?::date`, *filter.Date)
 	}
@@ -153,7 +154,7 @@ func filterInstanceStudentDates(query *bun.SelectQuery, filter domain.InstanceSt
 	return query
 }
 
-func orderInstanceStudents(query *bun.SelectQuery, filter domain.InstanceStudentFilter) *bun.SelectQuery {
+func orderInstanceStudents(query *bun.SelectQuery, filter timetable.InstanceStudentFilter) *bun.SelectQuery {
 	switch {
 	case filter.OrderByCreated:
 		return query.OrderExpr(`"instance_student".created_at ASC, "instance_student".id ASC`)
@@ -168,10 +169,10 @@ func orderInstanceStudents(query *bun.SelectQuery, filter domain.InstanceStudent
 	}
 }
 
-func (s *Store) CreateInstanceStudent(ctx context.Context, fields domain.InstanceStudentFields) (domain.InstanceStudent, domain.OperationStats, error) {
+func (s *Store) CreateInstanceStudent(ctx context.Context, fields timetable.InstanceStudentInput) (timetable.InstanceStudent, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.InstanceStudent{}, domain.OperationStats{}, err
+		return timetable.InstanceStudent{}, domain.OperationStats{}, err
 	}
 	row := newInstanceStudentRow(tenantID, fields)
 	stats := domain.OperationStats{Queries: 1}
@@ -179,7 +180,7 @@ func (s *Store) CreateInstanceStudent(ctx context.Context, fields domain.Instanc
 	err = db.NewInsert().Model(&row).ModelTableExpr(`schedule.instance_students`).Returning(instanceStudentColumns).Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.InstanceStudent{}, stats, classifyWriteError("create instance student", err, &stats)
+		return timetable.InstanceStudent{}, stats, classifyWriteError("create instance student", err, &stats)
 	}
 	stats.Rows = 1
 	return instanceStudentToDomain(row), stats, nil
@@ -188,10 +189,10 @@ func (s *Store) CreateInstanceStudent(ctx context.Context, fields domain.Instanc
 // EnsureInstanceStudent adds the child to the roster when it is not on it
 // yet. The no-op update on conflict lets RETURNING report the existing row;
 // xmax tells an insert from an update.
-func (s *Store) EnsureInstanceStudent(ctx context.Context, instanceID, studentID int64) (domain.InstanceStudent, bool, domain.OperationStats, error) {
+func (s *Store) EnsureInstanceStudent(ctx context.Context, instanceID, studentID int64) (timetable.InstanceStudent, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.InstanceStudent{}, false, domain.OperationStats{}, err
+		return timetable.InstanceStudent{}, false, domain.OperationStats{}, err
 	}
 	var row struct {
 		instanceStudentRow
@@ -206,7 +207,7 @@ func (s *Store) EnsureInstanceStudent(ctx context.Context, instanceID, studentID
 			(target.xmax = 0) AS inserted`, tenantID, instanceID, studentID).Scan(ctx, &row)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.InstanceStudent{}, false, stats, classifyWriteError("ensure instance student", err, &stats)
+		return timetable.InstanceStudent{}, false, stats, classifyWriteError("ensure instance student", err, &stats)
 	}
 	if row.Inserted {
 		stats.Rows = 1
@@ -214,10 +215,10 @@ func (s *Store) EnsureInstanceStudent(ctx context.Context, instanceID, studentID
 	return instanceStudentToDomain(row.instanceStudentRow), row.Inserted, stats, nil
 }
 
-func (s *Store) UpdateInstanceStudent(ctx context.Context, id int64, fields domain.InstanceStudentFields) (domain.InstanceStudent, bool, domain.OperationStats, error) {
+func (s *Store) UpdateInstanceStudent(ctx context.Context, id int64, fields timetable.InstanceStudentInput) (timetable.InstanceStudent, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.InstanceStudent{}, false, domain.OperationStats{}, err
+		return timetable.InstanceStudent{}, false, domain.OperationStats{}, err
 	}
 	row := instanceStudentRow{}
 	stats := domain.OperationStats{Queries: 1}
@@ -228,10 +229,10 @@ func (s *Store) UpdateInstanceStudent(ctx context.Context, id int64, fields doma
 		Returning(instanceStudentColumns).Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.InstanceStudent{}, false, stats, nil
+		return timetable.InstanceStudent{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.InstanceStudent{}, false, stats, classifyWriteError("update instance student", err, &stats)
+		return timetable.InstanceStudent{}, false, stats, classifyWriteError("update instance student", err, &stats)
 	}
 	stats.Rows = 1
 	return instanceStudentToDomain(row), true, stats, nil
@@ -253,12 +254,12 @@ func (s *Store) DeleteInstanceStudentsByInstance(ctx context.Context, instanceID
 	return execMeasuredWrite(ctx, db.NewDelete().Table("schedule.instance_students").Where("tenant_id = ?", tenantID).Where("instance_id = ?", instanceID), "delete instance students by instance")
 }
 
-func (s *Store) ListStudentInstanceRefsBefore(ctx context.Context, cutoff string) ([]domain.StudentInstanceRef, domain.OperationStats, error) {
+func (s *Store) ListStudentInstanceRefsBefore(ctx context.Context, cutoff string) ([]timetable.StudentInstanceRef, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
-	rows := []domain.StudentInstanceRef{}
+	rows := []timetable.StudentInstanceRef{}
 	query := db.NewSelect().TableExpr(`schedule.instance_students AS "instance_student"`).
 		ColumnExpr(`"instance_student".student_id, "instance_student".instance_id`).
 		Join(instanceStudentActivityJoin).
@@ -321,17 +322,17 @@ func instanceStudentSelect(db bun.IDB, model any, tenantID int64) *bun.SelectQue
 		Where(`"instance_student".tenant_id = ?`, tenantID)
 }
 
-func newInstanceStudentRow(tenantID int64, fields domain.InstanceStudentFields) instanceStudentRow {
+func newInstanceStudentRow(tenantID int64, fields timetable.InstanceStudentInput) instanceStudentRow {
 	return instanceStudentRow{TenantID: tenantID, InstanceID: fields.InstanceID, StudentID: fields.StudentID, RoomID: fields.RoomID}
 }
 
-func instanceStudentToDomain(row instanceStudentRow) domain.InstanceStudent {
-	return domain.InstanceStudent{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+func instanceStudentToDomain(row instanceStudentRow) timetable.InstanceStudent {
+	return timetable.InstanceStudent{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		InstanceID: row.InstanceID, StudentID: row.StudentID, RoomID: row.RoomID}
 }
 
-func instanceStudentsToDomain(rows []instanceStudentRow) []domain.InstanceStudent {
-	result := make([]domain.InstanceStudent, 0, len(rows))
+func instanceStudentsToDomain(rows []instanceStudentRow) []timetable.InstanceStudent {
+	result := make([]timetable.InstanceStudent, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, instanceStudentToDomain(row))
 	}
@@ -339,7 +340,7 @@ func instanceStudentsToDomain(rows []instanceStudentRow) []domain.InstanceStuden
 }
 
 // scanRestoredInstanceStudents reads RETURNING rows of a participant insert.
-func scanRestoredInstanceStudents(ctx context.Context, query *bun.InsertQuery) ([]domain.InstanceStudent, domain.OperationStats, error) {
+func scanRestoredInstanceStudents(ctx context.Context, query *bun.InsertQuery) ([]timetable.InstanceStudent, domain.OperationStats, error) {
 	rows := []instanceStudentRow{}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
