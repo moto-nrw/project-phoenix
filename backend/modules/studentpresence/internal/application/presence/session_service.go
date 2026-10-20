@@ -265,7 +265,7 @@ func sessionActivityMissError(session *ports.ActiveGroup, findErr error) error {
 }
 
 func isUpdateLastActivitySessionMiss(err error) bool {
-	if errors.Is(err, ports.ErrGroupNotOpen) {
+	if errors.Is(err, studentpresence.ErrGroupNotOpen) {
 		return true
 	}
 	var dbErr *DatabaseError

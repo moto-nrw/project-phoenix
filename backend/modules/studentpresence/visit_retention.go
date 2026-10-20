@@ -26,16 +26,3 @@ type VisitRetentionQuery interface {
 	OldestExpiredVisitDate(ctx context.Context, defaultDays int) (*time.Time, error)
 	ListExpiredVisitMonths(ctx context.Context, defaultDays int) ([]VisitMonthCount, error)
 }
-
-func (m *Module) ListVisitRetentionCounts(ctx context.Context, defaultDays int) ([]VisitRetentionCount, error) {
-	return m.engine.ListVisitRetentionCounts(ctx, defaultDays)
-}
-func (m *Module) CountExpiredVisits(ctx context.Context, defaultDays int) (int64, error) {
-	return m.engine.CountExpiredVisits(ctx, defaultDays)
-}
-func (m *Module) OldestExpiredVisitDate(ctx context.Context, defaultDays int) (*time.Time, error) {
-	return m.engine.OldestExpiredVisitDate(ctx, defaultDays)
-}
-func (m *Module) ListExpiredVisitMonths(ctx context.Context, defaultDays int) ([]VisitMonthCount, error) {
-	return m.engine.ListExpiredVisitMonths(ctx, defaultDays)
-}

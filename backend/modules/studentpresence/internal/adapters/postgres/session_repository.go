@@ -50,7 +50,7 @@ func (r *SessionRepository) RoomDirectory() ports.RoomDirectory {
 	return r.rooms
 }
 
-func (r *SessionRepository) query(ctx context.Context, filter ports.LiveGroupFilter) ([]*ActiveGroupRow, error) {
+func (r *SessionRepository) query(ctx context.Context, filter studentpresence.LiveGroupFilter) ([]*ActiveGroupRow, error) {
 	rows, err := r.records.QueryLiveGroups(ctx, filter)
 	if err != nil {
 		return nil, err
@@ -58,7 +58,7 @@ func (r *SessionRepository) query(ctx context.Context, filter ports.LiveGroupFil
 	return activeGroups(rows), nil
 }
 
-func (r *SessionRepository) first(ctx context.Context, filter ports.LiveGroupFilter) (*ActiveGroupRow, error) {
+func (r *SessionRepository) first(ctx context.Context, filter studentpresence.LiveGroupFilter) (*ActiveGroupRow, error) {
 	groups, err := r.query(ctx, filter)
 	if err != nil || len(groups) == 0 {
 		return nil, err
@@ -67,11 +67,11 @@ func (r *SessionRepository) first(ctx context.Context, filter ports.LiveGroupFil
 }
 
 func (r *SessionRepository) FindActiveByRoomID(ctx context.Context, roomID int64) ([]*ActiveGroupRow, error) {
-	return r.query(ctx, ports.LiveGroupFilter{RoomID: &roomID, OpenOnly: true})
+	return r.query(ctx, studentpresence.LiveGroupFilter{RoomID: &roomID, OpenOnly: true})
 }
 
 func (r *SessionRepository) FindActiveByRoomIDAndDeviceID(ctx context.Context, roomID, deviceID int64) (*ActiveGroupRow, error) {
-	return r.first(ctx, ports.LiveGroupFilter{RoomID: &roomID, DeviceID: &deviceID, OpenOnly: true})
+	return r.first(ctx, studentpresence.LiveGroupFilter{RoomID: &roomID, DeviceID: &deviceID, OpenOnly: true})
 }
 
 func (r *SessionRepository) FindActiveByGroupID(ctx context.Context, groupID int64) ([]*ActiveGroupRow, error) {
@@ -82,11 +82,11 @@ func (r *SessionRepository) FindActiveByGroupIDs(ctx context.Context, groupIDs [
 	if len(groupIDs) == 0 {
 		return []*ActiveGroupRow{}, nil
 	}
-	return r.query(ctx, ports.LiveGroupFilter{ActivityGroupIDs: groupIDs, OpenOnly: true})
+	return r.query(ctx, studentpresence.LiveGroupFilter{ActivityGroupIDs: groupIDs, OpenOnly: true})
 }
 
 func (r *SessionRepository) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*ActiveGroupRow, error) {
-	return r.query(ctx, ports.LiveGroupFilter{From: &start, Until: &end})
+	return r.query(ctx, studentpresence.LiveGroupFilter{From: &start, Until: &end})
 }
 
 // FindByID reads a tenant-owned group through Student Presence.
@@ -115,13 +115,16 @@ func (r *SessionRepository) FindWithSupervisors(ctx context.Context, id int64) (
 	if err != nil {
 		return nil, r.errors.WrapRecordError("find with supervisors - supervisors", err)
 	}
-	group.Supervisors = groupSupervisors(supervisors)
+	group.Supervisors, err = groupSupervisors(supervisors)
+	if err != nil {
+		return nil, r.errors.WrapRecordError("find with supervisors - supervisors", err)
+	}
 	return group, nil
 }
 
 // FindActiveByDeviceID finds the current active session for a specific device
 func (r *SessionRepository) FindActiveByDeviceID(ctx context.Context, deviceID int64) (*ActiveGroupRow, error) {
-	return r.first(ctx, ports.LiveGroupFilter{DeviceID: &deviceID, OpenOnly: true})
+	return r.first(ctx, studentpresence.LiveGroupFilter{DeviceID: &deviceID, OpenOnly: true})
 }
 
 // FindActiveByDeviceIDWithNames finds the current active session for a device
@@ -167,7 +170,7 @@ func (r *SessionRepository) attachActivityName(ctx context.Context, session *Act
 // Independent room stays (device-less sessions of a system activity) share
 // the room with activities by design and do not count as occupancy (#3066).
 func (r *SessionRepository) CheckRoomConflict(ctx context.Context, roomID int64, excludeGroupID int64) (bool, *ActiveGroupRow, error) {
-	groups, err := r.query(ctx, ports.LiveGroupFilter{RoomID: &roomID, OpenOnly: true})
+	groups, err := r.query(ctx, studentpresence.LiveGroupFilter{RoomID: &roomID, OpenOnly: true})
 	if err != nil {
 		return false, nil, err
 	}
@@ -232,7 +235,7 @@ func (r *SessionRepository) UpdateLastActivity(ctx context.Context, id int64, at
 // since the cutoff time. Devices are resolved through the Device Fleet owner
 // so the session check can see their online status.
 func (r *SessionRepository) FindActiveSessionsOlderThan(ctx context.Context, cutoffTime time.Time) ([]*ActiveGroupRow, error) {
-	groups, err := r.query(ctx, ports.LiveGroupFilter{
+	groups, err := r.query(ctx, studentpresence.LiveGroupFilter{
 		OpenOnly: true, DeviceManagedOnly: true, LastActivityBefore: &cutoffTime,
 	})
 	if err != nil {
@@ -247,7 +250,7 @@ func (r *SessionRepository) FindActiveSessionsOlderThan(ctx context.Context, cut
 
 // FindActiveGroups finds all open groups, oldest start first.
 func (r *SessionRepository) FindActiveGroups(ctx context.Context) ([]*ActiveGroupRow, error) {
-	groups, err := r.query(ctx, ports.LiveGroupFilter{OpenOnly: true})
+	groups, err := r.query(ctx, studentpresence.LiveGroupFilter{OpenOnly: true})
 	if err != nil {
 		return nil, err
 	}
@@ -283,7 +286,7 @@ func (r *SessionRepository) FindByIDs(ctx context.Context, ids []int64) (map[int
 // transaction. Returns nil when the row is not visible in the current tenant.
 func (r *SessionRepository) FindByIDForUpdate(ctx context.Context, id int64) (*ActiveGroupRow, error) {
 	row, err := r.records.LockGroup(ctx, id)
-	if errors.Is(err, ports.ErrGroupNotFound) {
+	if errors.Is(err, studentpresence.ErrGroupNotFound) {
 		return nil, nil
 	}
 	if err != nil {
@@ -348,7 +351,7 @@ type ActiveGroupRow = ports.ActiveGroup
 
 var _ ports.ActiveGroupRepository = (*SessionRepository)(nil)
 
-func activeGroups(rows []ports.LiveGroup) []*ActiveGroupRow {
+func activeGroups(rows []studentpresence.LiveGroup) []*ActiveGroupRow {
 	result := make([]*ActiveGroupRow, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, activeGroup(row))
@@ -356,7 +359,7 @@ func activeGroups(rows []ports.LiveGroup) []*ActiveGroupRow {
 	return result
 }
 
-func activeGroup(row ports.LiveGroup) *ActiveGroupRow {
+func activeGroup(row studentpresence.LiveGroup) *ActiveGroupRow {
 	return &ActiveGroupRow{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		StartTime: row.StartTime, EndTime: row.EndTime, LastActivity: row.LastActivity,
@@ -364,8 +367,8 @@ func activeGroup(row ports.LiveGroup) *ActiveGroupRow {
 	}
 }
 
-func liveGroup(group *ActiveGroupRow) ports.LiveGroup {
-	return ports.LiveGroup{
+func liveGroup(group *ActiveGroupRow) studentpresence.LiveGroup {
+	return studentpresence.LiveGroup{
 		ID: group.ID, CreatedAt: group.CreatedAt, UpdatedAt: group.UpdatedAt,
 		StartTime: group.StartTime, EndTime: group.EndTime, LastActivity: group.LastActivity,
 		TimeoutMinutes: group.TimeoutMinutes, ActivityGroupID: group.GroupID, DeviceID: group.DeviceID, RoomID: group.RoomID,

@@ -51,7 +51,7 @@ func NewStatistics(deps StatisticsDependencies) (studentpresence.StatisticsRepor
 	if deps.DB == nil || deps.Observe == nil {
 		return nil, errors.New("student presence statistics compose: database and observer are required")
 	}
-	presence := application.New(postgres.New(databaseRuntime(deps.DB)), transaction{}, deps.Observe, ports.AttendanceRulePorts{})
+	presence := application.New(postgres.New(databaseRuntime(deps.DB)), transaction{}, deps.Observe, ports.AttendanceRulePorts{}, nil)
 	return statistics.NewService(statistics.Config{
 		Statistics:      presence,
 		Attendance:      presence,

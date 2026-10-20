@@ -46,16 +46,3 @@ type VisitLocationQuery interface {
 // OpenVisitRoom is distinct per student and room in the whole-school snapshot
 // (room filter zero). A specific room retains one row per open visit.
 type OpenVisitRoom struct{ StudentID, RoomID int64 }
-
-func (m *Module) ListVisitLocations(ctx context.Context, filter VisitLocationFilter) ([]VisitLocation, error) {
-	return m.engine.ListVisitLocations(ctx, filter)
-}
-func (m *Module) CountOpenVisitsInGroup(ctx context.Context, id int64) (int, error) {
-	return m.engine.CountOpenVisitsInGroup(ctx, id)
-}
-func (m *Module) CountOpenVisitsInRoom(ctx context.Context, id int64) (int, error) {
-	return m.engine.CountOpenVisitsInRoom(ctx, id)
-}
-func (m *Module) ListOpenVisitRooms(ctx context.Context, roomID int64) ([]OpenVisitRoom, error) {
-	return m.engine.ListOpenVisitRooms(ctx, roomID)
-}
