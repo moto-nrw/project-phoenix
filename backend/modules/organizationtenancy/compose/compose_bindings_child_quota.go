@@ -4,11 +4,10 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/application"
 )
 
 type retainedChildQuotaLimits struct{}
 
 func (retainedChildQuotaLimits) ChildQuotaLimit(ctx context.Context) (int, bool, error) {
-	return postgres.ReadComposedChildQuota(ctx, application.MapError)
+	return postgres.ReadComposedChildQuota(ctx)
 }

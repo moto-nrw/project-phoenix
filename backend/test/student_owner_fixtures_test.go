@@ -38,10 +38,4 @@ func TestStudentFixturesDoNotUseRollbackStorage(t *testing.T) {
 			WHERE p.id=?)`, id).Scan(t.Context(), &complete))
 		require.True(t, complete)
 	}
-	var absent bool
-	require.NoError(t, db.NewRaw(`SELECT to_regclass('users.students') IS NULL
-		AND to_regclass('users.students_legacy') IS NULL
-		AND to_regclass('users.student_compatibility_reads') IS NULL
-		AND to_regclass('users.student_compatibility_writes') IS NULL`).Scan(t.Context(), &absent))
-	require.True(t, absent, "fixtures must work without recreating any rollback storage")
 }

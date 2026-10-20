@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -35,10 +36,10 @@ func New(database Database) *Store {
 	return &Store{database: database}
 }
 
-func (s *Store) Create(ctx context.Context, input domain.CreateOrganization) (domain.Organization, domain.OperationStats, error) {
+func (s *Store) Create(ctx context.Context, input organizationtenancy.CreateOrganization) (organizationtenancy.Organization, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
-		return domain.Organization{}, domain.OperationStats{}, err
+		return organizationtenancy.Organization{}, domain.OperationStats{}, err
 	}
 	row := organizationRow{Name: input.Name, Slug: input.Slug, Active: input.Active}
 	stats := domain.OperationStats{Queries: 1}
@@ -47,18 +48,18 @@ func (s *Store) Create(ctx context.Context, input domain.CreateOrganization) (do
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		if isIntegrityViolation(err) {
-			return domain.Organization{}, stats, domain.ErrSlugConflict
+			return organizationtenancy.Organization{}, stats, organizationtenancy.ErrOrganizationSlugConflict
 		}
-		return domain.Organization{}, stats, fmt.Errorf("organization tenancy postgres: create organization: %w", err)
+		return organizationtenancy.Organization{}, stats, fmt.Errorf("organization tenancy postgres: create organization: %w", err)
 	}
 	stats.Rows = 1
 	return toDomain(row), stats, nil
 }
 
-func (s *Store) Update(ctx context.Context, input domain.UpdateOrganization) (domain.Organization, domain.OperationStats, error) {
+func (s *Store) Update(ctx context.Context, input organizationtenancy.UpdateOrganization) (organizationtenancy.Organization, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
-		return domain.Organization{}, domain.OperationStats{}, err
+		return organizationtenancy.Organization{}, domain.OperationStats{}, err
 	}
 	row := organizationRow{ID: input.ID, Name: input.Name, Slug: input.Slug, Active: input.Active}
 	stats := domain.OperationStats{Queries: 1}
@@ -72,18 +73,18 @@ func (s *Store) Update(ctx context.Context, input domain.UpdateOrganization) (do
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		if isIntegrityViolation(err) {
-			return domain.Organization{}, stats, domain.ErrSlugConflict
+			return organizationtenancy.Organization{}, stats, organizationtenancy.ErrOrganizationSlugConflict
 		}
-		return domain.Organization{}, stats, fmt.Errorf("organization tenancy postgres: update organization: %w", err)
+		return organizationtenancy.Organization{}, stats, fmt.Errorf("organization tenancy postgres: update organization: %w", err)
 	}
 	stats.Rows = 1
 	return toDomain(row), stats, nil
 }
 
-func (s *Store) FindByID(ctx context.Context, id int64, lock string) (domain.Organization, bool, domain.OperationStats, error) {
+func (s *Store) FindByID(ctx context.Context, id int64, lock string) (organizationtenancy.Organization, bool, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
-		return domain.Organization{}, false, domain.OperationStats{}, err
+		return organizationtenancy.Organization{}, false, domain.OperationStats{}, err
 	}
 	row := organizationRow{}
 	query := db.NewSelect().Model(&row).
@@ -97,18 +98,18 @@ func (s *Store) FindByID(ctx context.Context, id int64, lock string) (domain.Org
 	err = query.Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Organization{}, false, stats, nil
+		return organizationtenancy.Organization{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.Organization{}, false, stats, fmt.Errorf("organization tenancy postgres: find organization by ID: %w", err)
+		return organizationtenancy.Organization{}, false, stats, fmt.Errorf("organization tenancy postgres: find organization by ID: %w", err)
 	}
 	return toDomain(row), true, stats, nil
 }
 
-func (s *Store) FindBySlug(ctx context.Context, slug string) (domain.Organization, bool, domain.OperationStats, error) {
+func (s *Store) FindBySlug(ctx context.Context, slug string) (organizationtenancy.Organization, bool, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
-		return domain.Organization{}, false, domain.OperationStats{}, err
+		return organizationtenancy.Organization{}, false, domain.OperationStats{}, err
 	}
 	row := organizationRow{}
 	stats := domain.OperationStats{Queries: 1}
@@ -119,23 +120,23 @@ func (s *Store) FindBySlug(ctx context.Context, slug string) (domain.Organizatio
 		Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Organization{}, false, stats, nil
+		return organizationtenancy.Organization{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.Organization{}, false, stats, fmt.Errorf("organization tenancy postgres: find organization by slug: %w", err)
+		return organizationtenancy.Organization{}, false, stats, fmt.Errorf("organization tenancy postgres: find organization by slug: %w", err)
 	}
 	return toDomain(row), true, stats, nil
 }
 
-func (s *Store) List(ctx context.Context) ([]domain.Organization, domain.OperationStats, error) {
+func (s *Store) List(ctx context.Context) ([]organizationtenancy.Organization, domain.OperationStats, error) {
 	return s.list(ctx, nil)
 }
 
-func (s *Store) ListByIDs(ctx context.Context, ids []int64) ([]domain.Organization, domain.OperationStats, error) {
+func (s *Store) ListByIDs(ctx context.Context, ids []int64) ([]organizationtenancy.Organization, domain.OperationStats, error) {
 	return s.list(ctx, ids)
 }
 
-func (s *Store) list(ctx context.Context, ids []int64) ([]domain.Organization, domain.OperationStats, error) {
+func (s *Store) list(ctx context.Context, ids []int64) ([]organizationtenancy.Organization, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -154,7 +155,7 @@ func (s *Store) list(ctx context.Context, ids []int64) ([]domain.Organization, d
 		return nil, stats, fmt.Errorf("organization tenancy postgres: list organizations: %w", err)
 	}
 	stats.StatementDuration = time.Since(started)
-	result := make([]domain.Organization, 0, len(rows))
+	result := make([]organizationtenancy.Organization, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, toDomain(row))
 	}
@@ -237,8 +238,8 @@ func (s *Store) setDeleted(ctx context.Context, id int64, deleted bool) (domain.
 	return stats, nil
 }
 
-func toDomain(row organizationRow) domain.Organization {
-	return domain.Organization{
+func toDomain(row organizationRow) organizationtenancy.Organization {
+	return organizationtenancy.Organization{
 		ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		Name: row.Name, Slug: row.Slug, Active: row.Active,
 		DeletedAt: row.DeletedAt, Settings: row.Settings,
