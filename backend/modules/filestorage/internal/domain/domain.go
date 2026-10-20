@@ -9,7 +9,6 @@ package domain
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"strings"
 	"time"
@@ -66,32 +65,6 @@ const (
 	// CleanupDelay keeps a queued intent ineligible until well past
 	// UploadDeadline. It MUST stay larger than UploadDeadline.
 	CleanupDelay = 5 * time.Minute
-)
-
-var (
-	// ErrNotFound marks a folder or file the caller cannot reach: missing, or
-	// invisible to them. The two are indistinguishable so ids cannot be probed.
-	ErrNotFound = errors.New("file storage item not found")
-	// ErrForbidden marks an action the caller may not perform.
-	ErrForbidden = errors.New("file storage action not permitted")
-	// ErrInvalid marks a semantically invalid request.
-	ErrInvalid = errors.New("invalid file storage request")
-	// ErrFolderNameTaken marks a duplicate folder name.
-	ErrFolderNameTaken = errors.New("folder name already exists")
-	// ErrQuotaExceeded marks an upload the school's storage quota does not admit.
-	ErrQuotaExceeded = errors.New("file storage quota exceeded")
-	// ErrObjectNotFound marks stored bytes that are gone although the row exists.
-	ErrObjectNotFound = errors.New("stored object not found")
-	// ErrAttachmentNotFound marks a missing attachment or an announcement the
-	// caller may not see.
-	ErrAttachmentNotFound = errors.New("announcement attachment not found")
-	// ErrAttachmentPublished marks an attempt to change the attachments of an
-	// already published announcement.
-	ErrAttachmentPublished = errors.New("announcement is published; attachments are fixed")
-	// ErrAttachmentLimitReached marks an upload past MaxAnnouncementAttachments.
-	ErrAttachmentLimitReached = errors.New("announcement attachment limit reached")
-	// ErrTenantRequired marks an operation without a tenant in context.
-	ErrTenantRequired = errors.New("tenant is required")
 )
 
 // Actor identifies the acting account for authority checks and audit rows.
@@ -215,56 +188,6 @@ type CleanupIntent struct {
 	FilenameStored string
 	RetryAfter     time.Time
 	CleanedAt      *time.Time
-}
-
-// AudienceRole is one role a folder can be shared with.
-type AudienceRole struct {
-	ID   int64
-	Name string
-}
-
-// AudienceAccount is one account (a person of the school) a folder can be
-// shared with.
-type AudienceAccount struct {
-	AccountID int64
-	FirstName string
-	LastName  string
-}
-
-// FolderInput carries a folder create or update.
-type FolderInput struct {
-	Name       string
-	Visibility string
-	RoleIDs    []int64
-	AccountIDs []int64
-}
-
-// Normalize trims and validates the input and drops the share lists when the
-// visibility does not use them.
-func (input *FolderInput) Normalize() error {
-	input.Name = strings.TrimSpace(input.Name)
-	if input.Name == "" {
-		return fmt.Errorf("%w: name is required", ErrInvalid)
-	}
-	if len([]rune(input.Name)) > MaxFolderNameLength {
-		return fmt.Errorf("%w: name is too long", ErrInvalid)
-	}
-	if !IsValidVisibility(input.Visibility) {
-		return fmt.Errorf("%w: unknown visibility", ErrInvalid)
-	}
-	input.RoleIDs = DedupeIDs(input.RoleIDs)
-	input.AccountIDs = DedupeIDs(input.AccountIDs)
-	if input.Visibility != VisibilitySelected {
-		input.RoleIDs, input.AccountIDs = nil, nil
-	} else if len(input.RoleIDs) == 0 && len(input.AccountIDs) == 0 {
-		return fmt.Errorf("%w: a selected folder needs at least one role or person", ErrInvalid)
-	}
-	return nil
-}
-
-// Audience returns the share list the input describes.
-func (input FolderInput) Audience() Audience {
-	return Audience{RoleIDs: input.RoleIDs, AccountIDs: input.AccountIDs}
 }
 
 // DedupeIDs drops non-positive and repeated ids, keeping first-seen order.

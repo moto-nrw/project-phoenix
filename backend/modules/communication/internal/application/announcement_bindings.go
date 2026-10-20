@@ -20,7 +20,7 @@ func (t targets) CountOrganizationsByID(ctx context.Context, ids []int64) (int, 
 	count, err := t.capability.CountOrganizationsByID(ctx, ids)
 	stats := domain.OperationStats{Queries: 1, Rows: int64(count)}
 	if errors.Is(err, organizationtenancy.ErrInvalidOrganization) {
-		return 0, stats, fmt.Errorf("%w: %v", domain.ErrInvalidTarget, err)
+		return 0, stats, fmt.Errorf("%w: %v", errInvalidTarget, err)
 	}
 	return count, stats, err
 }
@@ -29,7 +29,7 @@ func (t targets) CountSchoolsByID(ctx context.Context, ids []int64) (int, domain
 	count, err := t.capability.CountSchoolsByID(ctx, ids)
 	stats := domain.OperationStats{Queries: 1, Rows: int64(count)}
 	if errors.Is(err, organizationtenancy.ErrInvalidSchool) {
-		return 0, stats, fmt.Errorf("%w: %v", domain.ErrInvalidTarget, err)
+		return 0, stats, fmt.Errorf("%w: %v", errInvalidTarget, err)
 	}
 	return count, stats, err
 }

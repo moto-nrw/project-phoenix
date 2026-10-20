@@ -974,7 +974,7 @@ func mountPeopleRoutes(
 // reminders, the PWA usage report and the platform announcements under /api.
 func mountCommunicationRoutes(
 	tenant chi.Router, chat owners.CommunicationMessaging, announcements communicationModule.ParentAnnouncementCapability,
-	reminders reminder.Capability, devices owners.DeliveryDevices, communication *communicationModule.Module,
+	reminders reminder.Capability, devices owners.DeliveryDevices, communication communicationModule.Capability,
 ) {
 	tenant.Mount("/messages", messagingAPI.NewResource(chat.Messaging).Router(ProtectedTenantRoutes))
 	tenant.Mount("/parent-announcements", announcementAPI.NewResource(announcements, newDeclarationReports()).Router(ProtectedTenantRoutes))
@@ -1013,7 +1013,7 @@ func mountCalendarRoutes(root, tenant chi.Router, logger *slog.Logger, calendarA
 // routes under /api and the portal routes at the root. The portal routes sit
 // at the root because /parent is a catch-all mount; ParentMiddleware and
 // SchoolMiddleware authenticate them.
-func mountDeliveryRoutes(root, tenant chi.Router, logger *slog.Logger, fileStore *filestorageModule.Module, hub *realtime.Hub, caller *owners.CallerRows, identity *identityaccess.Module) error {
+func mountDeliveryRoutes(root, tenant chi.Router, logger *slog.Logger, fileStore filestorageModule.Capability, hub *realtime.Hub, caller *owners.CallerRows, identity *identityaccess.Module) error {
 	files := filestoreAPI.NewResource(fileStore, logger.With("handler", "filestore"))
 	sse, err := sseAPI.NewResourceWithSchoolAccess(hub, caller, NewSSEHTTPRuntime(), identity, logger.With("handler", "sse"))
 	if err != nil {
@@ -1076,7 +1076,7 @@ func newOperatorRouter(
 	iot devicefleetCompose.IoTService, organizations organizationtenancy.Query, settings settingsCompose.SettingsService,
 	hub *realtime.Hub, active studentpresence.Presence, settingsWrites SettingsWrites, identity *identityaccess.Module,
 	provisioning organizationtenancy.Provisioning, caregivers peoplePorts.CaregiverCapabilityService,
-	lifecycle carePlanModule.CareLifecycle, communication *communicationModule.Module,
+	lifecycle carePlanModule.CareLifecycle, communication communicationModule.Capability,
 ) (chi.Router, error) {
 	tagScanReview := tagScanOperatorAPI.NewResource(tagScanOperatorAPI.Config{
 		Scans:     iot.Fleet(),

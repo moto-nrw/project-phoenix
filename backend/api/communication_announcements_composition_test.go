@@ -66,7 +66,7 @@ func (a *auditRecorder) fail(value bool) {
 	a.failing = value
 }
 
-func buildCommunication(t *testing.T, db *bun.DB, audit recordports.Audit, observations ...func(communicationCompose.Observation)) *communication.Module {
+func buildCommunication(t *testing.T, db *bun.DB, audit recordports.Audit, observations ...func(communicationCompose.Observation)) communication.Capability {
 	t.Helper()
 	organizations, err := organizationCompose.New(organizationCompose.Dependencies{DB: db, Observe: func(organizationCompose.Observation) {}})
 	require.NoError(t, err)

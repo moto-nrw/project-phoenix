@@ -91,7 +91,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 		objects          filestorageCompose.ObjectBackend
 		audit            owners.AuditOwner
 		organizations    organizationtenancy.Capability
-		groups           *schoolstructure.Module
+		groups           schoolstructure.Owner
 		rooms            *facilitiesModule.Rooms
 		membership       schoolMembershipModule.Owner
 		bookings         *enrollmentOwner.BookingProjection
