@@ -152,7 +152,7 @@ func validateRecurrenceShiftCoverageOptions(probe timetable.ShiftCoverageProbe) 
 // envelope: valid_from is inclusive, valid_until exclusive, exactly as the
 // materializer treats a template schedule.
 func (d *conflictDetection) resolveSeriesCoverageDates(ctx context.Context, activityGroupID int64, dates []calendar.Date) ([]calendar.Date, error) {
-	rows, err := d.deps.Schedules.FindByGroupID(ctx, activityGroupID)
+	rows, err := groupSchedules(ctx, d.deps.Schedules, activityGroupID)
 	if err != nil {
 		return nil, fmt.Errorf("load series recurrence envelope: %w", err)
 	}

@@ -57,7 +57,7 @@ func (s *materializationService) DetectEditedInWindow(
 	// cancelled ones are individually-deleted occurrences that a
 	// following-series split would rematerialize under the successor template
 	// — reported only when the caller asks for deletions (#1875 review).
-	exceptions, err := s.exceptionRepo.FindByActivityGroupAndDateRange(ctx, activityGroupID, calendar.Date(from), calendar.Date(to))
+	exceptions, err := exceptionsInRange(ctx, s.exceptionRepo, timetable.ActivityExceptionFilter{ActivityGroupID: &activityGroupID}, calendar.Date(from).String(), calendar.Date(to).String(), "find by activity group and date range")
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "detect edited: load exceptions", Err: err}
 	}
@@ -147,7 +147,7 @@ func (s *materializationService) loadTemplateProjection(
 	tmpl *activityContract.Group,
 	ids []int64,
 ) (*templateProjection, error) {
-	schedules, err := s.scheduleRepo.FindByGroupID(ctx, tmpl.ID)
+	schedules, err := groupSchedules(ctx, s.scheduleRepo, tmpl.ID)
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "detect edited: load schedules", Err: err}
 	}

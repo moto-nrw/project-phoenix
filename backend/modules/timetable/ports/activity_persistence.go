@@ -8,39 +8,6 @@ import (
 	activityrecords "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/activityrecords"
 )
 
-// Native activity persistence capabilities are bounded to their record and
-// query shapes. There is no generic CRUD or query-options protocol.
-type ActivityCategoryRecords interface {
-	Create(context.Context, *activityContract.Category) error
-	FindByID(context.Context, int64) (*activityContract.Category, error)
-	Update(context.Context, *activityContract.Category) error
-	Delete(context.Context, int64) error
-
-	// FindByName finds a category by its name
-	FindByName(ctx context.Context, name string) (*activityContract.Category, error)
-
-	// FindByNameIncludingArchivedForShare finds a category by name across active
-	// and archived rows, preferring the active row and holding a transaction-
-	// scoped FOR SHARE lock against a concurrent archive.
-	FindByNameIncludingArchivedForShare(ctx context.Context, name string) (*activityContract.Category, error)
-
-	// FindByIDForShare returns a category while holding a transaction-scoped
-	// FOR SHARE lock. New category assignments use it so an archive cannot
-	// commit between validation and the referencing write.
-	FindByIDForShare(ctx context.Context, id int64) (*activityContract.Category, error)
-
-	// ListAll returns all categories
-	ListAll(ctx context.Context) ([]*activityContract.Category, error)
-
-	// UpdateColumns is the generic partial-update helper promoted from the
-	// embedded base repository: updates only the named columns by primary key
-	// and returns the number of rows affected. Archive/restore writes just
-	// archived_at through it (#2131), so a concurrent rename is never
-	// clobbered and a restore still surfaces the case-insensitive partial
-	// unique-index violation on its own.
-	UpdateColumns(ctx context.Context, category *activityContract.Category, columns ...string) (int64, error)
-}
-
 type ActivityGroupRecords interface {
 	ListAll(context.Context) ([]*activityContract.Group, error)
 	Create(context.Context, *activityContract.Group) error
@@ -142,35 +109,6 @@ type ActivityGroupTargets interface {
 	FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*activityContract.GroupTarget, error)
 	FindTargetStudentIDs(ctx context.Context, groupID int64) ([]int64, error)
 	FindTargetStudentIDsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]int64, error)
-}
-
-type ActivityScheduleRecords interface {
-	Create(context.Context, *activityContract.Schedule) error
-	FindByID(context.Context, int64) (*activityContract.Schedule, error)
-	Update(context.Context, *activityContract.Schedule) error
-	Delete(context.Context, int64) error
-	FindByGroupIDs(context.Context, []int64) ([]*activityContract.Schedule, error)
-
-	// FindByGroupID finds all schedules for a specific group
-	FindByGroupID(ctx context.Context, groupID int64) ([]*activityContract.Schedule, error)
-
-	// DeleteByGroupID removes all schedules of an activity group.
-	DeleteByGroupID(ctx context.Context, groupID int64) error
-
-	// FindTemplateStartTimesByGroupIDs returns (activity_group_id, weekday,
-	// timeframe.start_time) tuples for the given group IDs. Joins
-	// activities.schedules to schedule.timeframes and filters out rows
-	// without a linked timeframe. Both tables are tenant-scoped in the
-	// WHERE clause as defense-in-depth alongside RLS. Returns an empty
-	// slice when groupIDs is empty.
-	FindTemplateStartTimesByGroupIDs(ctx context.Context, groupIDs []int64) ([]*activityrecords.TemplateStartTime, error)
-
-	// CapValidUntil ends the recurrence of every schedule of the given
-	// template at validUntil (exclusive): rows that are open-ended
-	// (valid_until IS NULL) or end later than validUntil are capped to
-	// validUntil. Returns the number of rows changed. Used by the template
-	// split ("Dieser und alle folgenden", WP-B3).
-	CapValidUntil(ctx context.Context, activityGroupID int64, validUntil string) (int64, error)
 }
 
 type PlannedSupervisorRecords interface {

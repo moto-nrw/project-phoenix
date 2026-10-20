@@ -44,19 +44,6 @@ func NewActivityInstanceRepository(reads PresenceReads, capability timetable.Act
 	return newTimetableActivityInstanceRepository(reads, capability, presence)
 }
 
-// ActivityInstanceRepositories are the retained activity instance adapter
-// and its idempotency half, one adapter behind both repositories.
-type ActivityInstanceRepositories struct {
-	ActivityInstance    ports.ActivityInstanceRecords
-	InstanceIdempotency ports.InstanceIdempotencyRecords
-}
-
-// NewActivityInstanceRepositories serves both repositories from one adapter.
-func NewActivityInstanceRepositories(reads PresenceReads, capability timetable.ActivityInstanceCapability, presence ActivityInstanceSessions) ActivityInstanceRepositories {
-	instances := newTimetableActivityInstanceRepository(reads, capability, presence)
-	return ActivityInstanceRepositories{ActivityInstance: instances, InstanceIdempotency: instances}
-}
-
 func newTimetableActivityInstanceRepository(reads PresenceReads, capability timetable.ActivityInstanceCapability, presence ActivityInstanceSessions) timetableActivityInstanceRepository {
 	if reads == nil || capability == nil || presence == nil {
 		panic("timetable activity instance repository: database, timetable and student presence are required")
@@ -131,10 +118,6 @@ func (r timetableActivityInstanceRepository) reload(ctx context.Context, value *
 
 func (r timetableActivityInstanceRepository) CreateTemplateBackedIfAbsent(ctx context.Context, value *scheduleModels.ActivityInstance) (bool, error) {
 	return r.createUnlessPresent(ctx, value, value != nil && value.ActivityGroupID == nil, "activity_group_id is required for template-backed insert", "create template-backed if absent", r.timetable.CreateTemplateBackedActivityInstanceIfAbsent)
-}
-
-func (r timetableActivityInstanceRepository) CreateIdempotent(ctx context.Context, value *scheduleModels.ActivityInstance) (bool, error) {
-	return r.createUnlessPresent(ctx, value, value != nil && value.IdempotencyKey == nil, "idempotency_key is required for idempotent insert", "create idempotent", r.timetable.CreateIdempotentActivityInstance)
 }
 
 // createUnlessPresent validates the instance, inserts it through create when

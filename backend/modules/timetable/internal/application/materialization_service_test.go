@@ -533,16 +533,16 @@ func (r materializationFakeGroupRepo) FindAllTemplates(context.Context) ([]*acti
 }
 
 type materializationFakeScheduleRepo struct {
-	ports.ActivityScheduleRecords
+	timetable.ScheduleQuery
 	schedules []*activityContract.Schedule
 	err       error
 }
 
-func (r materializationFakeScheduleRepo) FindByGroupID(context.Context, int64) ([]*activityContract.Schedule, error) {
+func (r materializationFakeScheduleRepo) ListSchedules(context.Context, timetable.ScheduleFilter) ([]timetable.Schedule, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
-	return r.schedules, nil
+	return publicTestSchedules(r.schedules), nil
 }
 
 type materializationFakeEnrollmentRepo struct {
@@ -617,11 +617,11 @@ func (r materializationFakeStudentRepo) Create(context.Context, *schedule.Instan
 }
 
 type materializationFakeExceptionRepo struct {
-	ports.ActivityExceptionRecords
+	timetable.ActivityExceptionQuery
 	err error
 }
 
-func (r materializationFakeExceptionRepo) FindByDateRange(context.Context, calendar.Date, calendar.Date) ([]*schedule.ActivityException, error) {
+func (r materializationFakeExceptionRepo) ListActivityExceptions(context.Context, timetable.ActivityExceptionFilter) ([]timetable.ActivityException, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -629,16 +629,21 @@ func (r materializationFakeExceptionRepo) FindByDateRange(context.Context, calen
 }
 
 type materializationFakeTimeframeRepo struct {
-	ports.TimeframeRecords
+	timetable.TimeframeQuery
 	timeframes []*schedule.Timeframe
 	err        error
 }
 
-func (r materializationFakeTimeframeRepo) ListAll(context.Context) ([]*schedule.Timeframe, error) {
+func (r materializationFakeTimeframeRepo) ListTimeframes(context.Context, timetable.TimeframeFilter) ([]timetable.Timeframe, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
-	return r.timeframes, nil
+	result := make([]timetable.Timeframe, 0, len(r.timeframes))
+	for _, tf := range r.timeframes {
+		input := publicTimeframeInput(tf)
+		result = append(result, timetable.Timeframe{ID: tf.ID, StartTime: input.StartTime, EndTime: input.EndTime, IsActive: input.IsActive, Description: input.Description})
+	}
+	return result, nil
 }
 
 func TestMaterializeForTenant_DuplicateInsertRaceDoesNotCopyChildren(t *testing.T) {
@@ -1185,15 +1190,15 @@ func TestScheduleNotStartedOn(t *testing.T) {
 // transactions and staffing may be nil.
 func newMaterializationForTest(
 	groupRepo ports.ActivityGroupRecords,
-	scheduleRepo ports.ActivityScheduleRecords,
+	scheduleRepo timetable.ScheduleQuery,
 	enrollmentRepo ports.ActivityEnrollmentRecords,
 	supervisorRepo ports.PlannedSupervisorRecords,
 	periodRepo ports.CalendarPeriodRecords,
 	instanceRepo ports.ActivityInstanceRecords,
 	staffRepo ports.InstanceStaffRecords,
 	studentRepo ports.InstanceStudentRecords,
-	exceptionRepo ports.ActivityExceptionRecords,
-	timeframeRepo ports.TimeframeRecords,
+	exceptionRepo timetable.ActivityExceptionQuery,
+	timeframeRepo timetable.TimeframeQuery,
 	transactions ports.TenantTransactions,
 	staffing ports.StaffingAnnouncer,
 	logger *slog.Logger,

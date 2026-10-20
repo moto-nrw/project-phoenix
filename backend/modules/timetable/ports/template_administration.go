@@ -18,14 +18,14 @@ import (
 // announcement. Staffing, Logger and Today are optional.
 type TemplateAdministrationDependencies struct {
 	Groups               ActivityGroupRecords
-	Categories           ActivityCategoryRecords
-	Schedules            ActivityScheduleRecords
+	Categories           timetable.CategoryQuery
+	Schedules            timetable.ScheduleCapability
 	Enrollments          ActivityEnrollmentRecords
 	Supervisors          PlannedSupervisorRecords
 	Instances            ActivityInstanceRecords
 	InstanceStaff        InstanceStaffRecords
 	Participants         InstanceStudentRecords
-	Timeframes           TimeframeRecords
+	Timeframes           timetable.TimeframeCapability
 	PlanningTracks       PlanningTrackAssignments
 	EducationGroups      EducationGroupDirectory
 	Materialization      timetable.MaterializationCapability

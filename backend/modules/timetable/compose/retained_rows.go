@@ -51,7 +51,7 @@ func ListCalendarShiftTypes(ctx context.Context, rows ports.CalendarShiftTypeRow
 
 // NewActivityCategorySeeder binds the category seeder to the retained
 // category rows.
-func NewActivityCategorySeeder(categories ports.ActivityCategoryRecords) application.ActivityCategorySeeder {
+func NewActivityCategorySeeder(categories timetable.CategoryCommand) application.ActivityCategorySeeder {
 	return application.NewActivityCategorySeeder(categories)
 }
 

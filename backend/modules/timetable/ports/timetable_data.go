@@ -77,10 +77,16 @@ type BlockDisplayMetadata interface {
 	ListBlockDisplayMetadata(ctx context.Context, instanceIDs []int64) (map[int64]timetable.BlockDisplayMetadata, error)
 }
 
+// CategoryRows are the owner's category reads and writes.
+type CategoryRows interface {
+	timetable.CategoryQuery
+	timetable.CategoryCommand
+}
+
 // DataCategories reads and creates the activity categories.
 type DataCategories interface {
-	FindByNameIncludingArchivedForShare(ctx context.Context, name string) (*activityContract.Category, error)
-	Create(ctx context.Context, category *activityContract.Category) error
+	FindCategoryByNameForAssignment(ctx context.Context, name string) (timetable.Category, error)
+	CreateCategory(ctx context.Context, input timetable.CreateCategory) (timetable.Category, error)
 }
 
 // RoomOccupancy reports another open Student Presence session in a room.
