@@ -267,6 +267,10 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 		workloadVersion = acceptanceWorkloadVersion
 		scenarios = acceptance.scenarios()
 	}
+	// Refresh the disposable fixture database only for this opt-in measurement.
+	// Keep planner maintenance outside warm-ups and every measured counter.
+	_, err = db.ExecContext(context.Background(), "ANALYZE")
+	require.NoError(t, err, "collect checkpoint fixture statistics before warm-ups")
 	counter := testpkg.CaptureQueries(t, api.db.Pool())
 	counter.Stop()
 	var postgresVersion string
@@ -291,6 +295,8 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 		"pool_max_open_connections": api.db.Pool().Stats().MaxOpenConnections, "database_settings": databaseSettings, "fixture_rows": volumes,
 		"http_transport": "in-process Runtime.Handler (no TCP/TLS)", "email_transport": "production mock mailer (unavailable)",
 		"lock_poll_interval_ms": 2, "app_env": os.Getenv("APP_ENV"),
+		"planner_statistics":             "fresh statistics",
+		"planner_statistics_preparation": "ANALYZE entire disposable database after fixture setup, before warm-ups and measurement",
 	}
 	if targetRisks != nil {
 		environment["checkpoint_1_v2_fixture_rows"] = targetRisks.fixtureRows(t)

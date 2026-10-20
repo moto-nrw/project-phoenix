@@ -115,7 +115,7 @@ func BuildServeWorkforce(db transactionruntime.Database, membership schoolmember
 }
 
 // BuildServeAppointments composes Appointments.
-func BuildServeAppointments(db transactionruntime.Database) (*appointmentsModule.Module, error) {
+func BuildServeAppointments(db transactionruntime.Database) (appointmentsModule.Owner, error) {
 	return appointmentsCompose.New(appointmentsCompose.Dependencies{
 		DB: db.Pool(),
 		Observe: func(observation appointmentsCompose.Observation) {

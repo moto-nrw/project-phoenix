@@ -12,6 +12,25 @@ default workload is `checkpoint-1-v2` (see
 `-runtime-checkpoint-workload=checkpoint-1-v1`, for the comparison with #3019
 and #3020 and for bridge runs.
 
+## Planner statistics condition
+
+Since [#4410](https://github.com/moto-nrw/project-phoenix/issues/4410), every
+opt-in checkpoint collects **fresh statistics** with a full `ANALYZE` of its
+disposable database after fixture setup and before warm-ups or metric counters.
+The raw evidence records this condition in `environment.planner_statistics`
+and `environment.planner_statistics_preparation`. Normal tests, the template
+and production are unchanged. Later per-request fixture preparation and worker
+writes remain part of the unchanged workload lifecycle; this is a setup-time
+condition, not continuously refreshed statistics or populated-inbox evidence.
+
+This is a measurement-series break, recorded in the
+[checkpoint register](../../backend/architecture/runtime-checkpoints.json).
+The accepted #3019, #3020 and #3021 evidence was captured without an explicit
+fixture `ANALYZE` and remains unchanged. Compare across this boundary only with
+a paired bridge or an explicit statistics-condition qualification. Workload
+versions, scenarios, fixtures, budgets and comparator tolerances do not change.
+See the [paired evidence](fresh-statistics-4410.md).
+
 ## Reproduce version `checkpoint-1-v1`
 
 1. Check out the workload commit linked in #3019. Install the pinned Devbox
@@ -25,7 +44,7 @@ and #3020 and for bridge runs.
 
    ```bash
    checkpoint_dir=$(mktemp -d)
-   GOMAXPROCS=4 scripts/run-go-toolchain.sh go -C backend test ./api \
+   GOMAXPROCS=4 scripts/run-go-toolchain.sh go -C backend test -tags=testhooks ./api \
      -run '^TestFullProductionRouterGolden$' -count=1 -parallel 8 \
      -runtime-checkpoint-output="$checkpoint_dir/raw.json" \
      > "$checkpoint_dir/test.log" 2>&1
