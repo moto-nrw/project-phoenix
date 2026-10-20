@@ -188,3 +188,55 @@ func requireRecurrenceRuleRollback(t *testing.T, ctx context.Context, write func
 	})
 	require.ErrorIs(t, err, wantErr)
 }
+
+func TestModuleRejectsInvalidRecurrenceRuleShapes(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	count := 10
+	endDate := time.Date(2024, 12, 31, 0, 0, 0, 0, time.UTC)
+
+	_, err := module.CreateRecurrenceRule(ctx, timetable.RecurrenceRuleInput{Frequency: "invalid", IntervalCount: 1})
+	assert.Error(t, err)
+	_, err = module.CreateRecurrenceRule(ctx, timetable.RecurrenceRuleInput{
+		Frequency: "daily", IntervalCount: 1, Count: &count, EndDate: &endDate,
+	})
+	assert.Error(t, err)
+}
+
+func TestModuleRecurrenceRuleWithoutEndDateStaysActive(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+
+	open := createOwnedRecurrenceRule(t, module, ctx, timetable.RecurrenceRuleInput{
+		Frequency: "weekly", IntervalCount: 1, Weekdays: []string{"MON"},
+	})
+	searchStart := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	active, err := module.ListRecurrenceRules(ctx, timetable.RecurrenceRuleFilter{ActiveAt: &searchStart})
+	require.NoError(t, err)
+	assert.Contains(t, recurrenceRuleIDs(active), open.ID)
+}
+
+func TestModuleRecurrenceRuleListHonoursFrequenciesSortAndPage(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+
+	createOwnedRecurrenceRule(t, module, ctx, timetable.RecurrenceRuleInput{Frequency: "daily", IntervalCount: 1})
+	weekly := createOwnedRecurrenceRule(t, module, ctx, timetable.RecurrenceRuleInput{Frequency: "weekly", IntervalCount: 2})
+
+	rows, err := module.ListRecurrenceRules(ctx, timetable.RecurrenceRuleFilter{
+		Frequencies: []string{"daily", "weekly"}, SortBy: "interval_count", SortDescending: true, Limit: 1,
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, weekly.ID, rows[0].ID)
+
+	empty, err := module.ListRecurrenceRules(ctx, timetable.RecurrenceRuleFilter{Frequency: "monthly"})
+	require.NoError(t, err)
+	assert.Empty(t, empty)
+}

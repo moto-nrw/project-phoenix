@@ -552,32 +552,6 @@ type InstanceStudentRecords interface {
 	ListStudentInstanceRefsBefore(ctx context.Context, cutoff calendar.Date) ([]schedulerecords.StudentInstanceRef, error)
 }
 
-type PlanningTrackRecords interface {
-	Create(context.Context, *schedulerecords.PlanningTrack) error
-	FindByID(context.Context, int64) (*schedulerecords.PlanningTrack, error)
-	Update(context.Context, *schedulerecords.PlanningTrack) error
-	Delete(context.Context, int64) error
-	ListAll(ctx context.Context) ([]*schedulerecords.PlanningTrack, error)
-	// FindByIDs returns the tracks matching the given IDs in one
-	// tenant-scoped IN query (missing IDs are simply absent). Archived
-	// rows are included so colours for historical references still resolve.
-	FindByIDs(ctx context.Context, ids []int64) ([]*schedulerecords.PlanningTrack, error)
-	FindByIDForShare(ctx context.Context, id int64) (*schedulerecords.PlanningTrack, error)
-	UpdateSortOrders(ctx context.Context, ids []int64) error
-	RestoreAtEnd(ctx context.Context, track *schedulerecords.PlanningTrack) (bool, error)
-	UpdateColumns(ctx context.Context, track *schedulerecords.PlanningTrack, columns ...string) (int64, error)
-}
-
-type RecurrenceRuleRecords interface {
-	Create(context.Context, *schedulerecords.RecurrenceRule) error
-	FindByID(context.Context, int64) (*schedulerecords.RecurrenceRule, error)
-	Update(context.Context, *schedulerecords.RecurrenceRule) error
-	Delete(context.Context, int64) error
-
-	// FindByDateRange finds all recurrence rules that apply within the given date range
-	FindByDateRange(ctx context.Context, startDate, endDate time.Time) ([]*schedulerecords.RecurrenceRule, error)
-}
-
 type StaffNoticeRecords interface {
 	Create(ctx context.Context, n *schedulerecords.StaffNotice) error
 	Update(ctx context.Context, n *schedulerecords.StaffNotice) error

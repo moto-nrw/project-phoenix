@@ -1,4 +1,4 @@
-package behavior_test
+package postgres
 
 import (
 	"context"
@@ -8,33 +8,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
-func nativeMFARecords(t *testing.T, db *bun.DB) identityPorts.AccountMFARecords {
-	t.Helper()
-	var records identityPorts.AccountMFARecords
-	newMFATestModule(t, db, api.WithAuthTestMFARecords(func(native identityPorts.AccountMFARecords) identityPorts.AccountMFARecords {
-		records = native
-		return native
-	}))
-	require.NotNil(t, records)
-	return records
-}
-
 func TestNativeMFAAtomicTransitions(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	records := nativeMFARecords(t, db)
+	records := mfaTestRecords(t, db)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "native-mfa-atomic")
-	challenge, err := records.CreateChallenge(ctx, identityaccess.AccountMFAChallenge{
+	challenge, err := records.CreateChallenge(ctx, domain.AccountMFAChallenge{
 		AccountID: account.ID, TenantID: testpkg.Tenant(t), Scope: "tenant",
 		CodeHash: "opaque-hash", ExpiresAt: time.Now().Add(time.Hour),
 	})
@@ -83,7 +72,7 @@ func TestNativeMFAAtomicTransitions(t *testing.T) {
 func TestNativeMFAIgnoresErasedAccounts(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	records := nativeMFARecords(t, db)
+	records := mfaTestRecords(t, db)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "native-mfa-erased")
 	_, err := db.NewRaw(`UPDATE auth.accounts SET mfa_attempts = 3, mfa_locked_until = NOW() + INTERVAL '1 hour',
@@ -114,12 +103,12 @@ func TestNativeMFAIgnoresErasedAccounts(t *testing.T) {
 func TestNativeMFAPersistenceJoinsAmbientTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	records := nativeMFARecords(t, db)
+	records := mfaTestRecords(t, db)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "native-mfa-rollback")
 	rollback := errors.New("rollback mfa enrollment")
 	err := testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
-		require.NoError(t, records.CreateCredential(txCtx, identityaccess.AccountMFACredential{AccountID: account.ID, Method: "email"}))
+		require.NoError(t, records.CreateCredential(txCtx, domain.AccountMFACredential{AccountID: account.ID, Method: "email"}))
 		credential, found, readErr := records.FindCredential(txCtx, account.ID)
 		require.NoError(t, readErr)
 		require.True(t, found)
@@ -142,7 +131,7 @@ func TestNativeMFAPersistenceJoinsAmbientTransaction(t *testing.T) {
 func TestNativeMFAChallengeAndDeviceScope(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	records := nativeMFARecords(t, db)
+	records := mfaTestRecords(t, db)
 	ctx := testpkg.Ctx(t)
 	home := testpkg.Tenant(t)
 	other, _ := testpkg.CreateTestTenant(t, db)
@@ -150,7 +139,7 @@ func TestNativeMFAChallengeAndDeviceScope(t *testing.T) {
 	peer := testpkg.CreateTestAccount(t, db, "native-mfa-peer")
 	past := time.Now().Add(-time.Minute).Truncate(time.Microsecond)
 	pending := time.Now()
-	challenge, err := records.CreateChallenge(ctx, identityaccess.AccountMFAChallenge{
+	challenge, err := records.CreateChallenge(ctx, domain.AccountMFAChallenge{
 		AccountID: account.ID, TenantID: home, Scope: "tenant", CodeHash: "opaque-hash",
 		ExpiresAt: time.Now().Add(time.Hour), ConsumedAt: &pending,
 		CreatedAt: past, IPAddress: net.ParseIP("127.0.0.1"),
@@ -178,7 +167,7 @@ func TestNativeMFAChallengeAndDeviceScope(t *testing.T) {
 	count, err := records.CountChallengesSince(ctx, account.ID, past.Add(-time.Second))
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
-	device, err := records.CreateTrustedDevice(ctx, identityaccess.AccountTrustedDevice{
+	device, err := records.CreateTrustedDevice(ctx, domain.AccountTrustedDevice{
 		AccountID: account.ID, TenantID: home, TokenHash: "opaque-token-hash", ExpiresAt: time.Now().Add(time.Hour),
 	})
 	require.NoError(t, err)
@@ -193,4 +182,28 @@ func TestNativeMFAChallengeAndDeviceScope(t *testing.T) {
 	devices, err := records.ListActiveTrustedDevices(ctx, account.ID, home)
 	require.NoError(t, err)
 	require.Empty(t, devices)
+}
+
+// mfaTestRecords serves the account MFA records the way the composition hands
+// them to the flows: a statement joins the caller's transaction or runs in an
+// administrative transaction of its own.
+func mfaTestRecords(t *testing.T, db *bun.DB) ports.AccountMFARecords {
+	t.Helper()
+	return application.NewAccountMFACommands(NewAccountMFARecords(NewStore(db)), adminTxRuntime{t: t, db: db})
+}
+
+// adminTxRuntime is the part of the runtime the record commands consult.
+type adminTxRuntime struct {
+	ports.Runtime
+	t  *testing.T
+	db *bun.DB
+}
+
+func (r adminTxRuntime) HasTransaction(ctx context.Context) bool {
+	_, ok := tenant.TransactionFromContext(ctx)
+	return ok
+}
+
+func (r adminTxRuntime) WithAdminTx(ctx context.Context, fn func(context.Context) error) error {
+	return testpkg.WithinAdminContext(r.t, ctx, r.db, fn)
 }

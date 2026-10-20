@@ -54,7 +54,7 @@ func TestInvitationExistingOwnerProof(t *testing.T) {
 			db := testpkg.SetupTestDB(t)
 			service := setupInvitationService(t, db)
 			owner := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("owner-%d@example.com", testpkg.Tenant(t)), testPassword)
-			records := nativeMFARecords(t, db)
+			records := mfaRecordRows(t, db)
 			require.NoError(t, records.CreateCredential(context.Background(), identityaccess.AccountMFACredential{AccountID: owner.ID, Method: "email"}))
 			credential, found, err := records.FindCredential(context.Background(), owner.ID)
 			require.NoError(t, err)

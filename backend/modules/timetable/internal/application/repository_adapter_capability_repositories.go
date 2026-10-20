@@ -17,8 +17,6 @@ type CapabilityRepositories struct {
 	ActivitySupervisor ports.PlannedSupervisorRecords
 	StudentEnrollment  ports.ActivityEnrollmentRecords
 	Timeframe          ports.TimeframeRecords
-	PlanningTrack      ports.PlanningTrackRecords
-	RecurrenceRule     ports.RecurrenceRuleRecords
 	ActivityException  ports.ActivityExceptionRecords
 	InstanceStaff      ports.InstanceStaffRecords
 }
@@ -41,8 +39,6 @@ func NewCapabilityRepositories(capability timetable.Capability, calendar schoolc
 		ActivitySupervisor: personSupervisorPlannedRepository{PlannedSupervisorRecords: supervisors, persons: directories.PersonNames},
 		StudentEnrollment:  timetableStudentEnrollmentRepository{timetable: capability, alumni: directories.StudentAlumni, names: directories.StudentNames},
 		Timeframe:          timetableTimeframeRepository{timetable: capability},
-		PlanningTrack:      timetablePlanningTrackRepository{timetable: capability},
-		RecurrenceRule:     timetableRecurrenceRuleRepository{timetable: capability},
 		ActivityException:  timetableActivityExceptionRepository{timetable: capability},
 		InstanceStaff:      timetableInstanceStaffRepository{timetable: capability},
 	}

@@ -1,10 +1,10 @@
-package behavior_test
+package postgres
 
 import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -13,13 +13,13 @@ import (
 func TestNativeMFACredentialLifecycle(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	records := nativeMFARecords(t, db)
+	records := mfaTestRecords(t, db)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "mfa-credential-lifecycle")
 	peer := testpkg.CreateTestAccount(t, db, "mfa-credential-peer")
-	require.EqualError(t, records.CreateCredential(ctx, identityaccess.AccountMFACredential{Method: "email"}), "account_id is required")
-	require.EqualError(t, records.CreateCredential(ctx, identityaccess.AccountMFACredential{AccountID: account.ID, Method: "totp"}), "unsupported MFA method")
-	require.NoError(t, records.CreateCredential(ctx, identityaccess.AccountMFACredential{AccountID: account.ID, Method: "email"}))
+	require.EqualError(t, records.CreateCredential(ctx, domain.AccountMFACredential{Method: "email"}), "account_id is required")
+	require.EqualError(t, records.CreateCredential(ctx, domain.AccountMFACredential{AccountID: account.ID, Method: "totp"}), "unsupported MFA method")
+	require.NoError(t, records.CreateCredential(ctx, domain.AccountMFACredential{AccountID: account.ID, Method: "email"}))
 	credential, found, err := records.FindCredential(ctx, account.ID)
 	require.NoError(t, err)
 	require.True(t, found)
@@ -50,16 +50,16 @@ func TestNativeMFACredentialLifecycle(t *testing.T) {
 func TestNativeMFATrustedDeviceLifecycle(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	records := nativeMFARecords(t, db)
+	records := mfaTestRecords(t, db)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "mfa-device-lifecycle")
 	home := testpkg.Tenant(t)
 	other, _ := testpkg.CreateTestTenant(t, db)
-	first, err := records.CreateTrustedDevice(ctx, identityaccess.AccountTrustedDevice{
+	first, err := records.CreateTrustedDevice(ctx, domain.AccountTrustedDevice{
 		AccountID: account.ID, TenantID: home, TokenHash: "first", ExpiresAt: time.Now().Add(time.Hour),
 	})
 	require.NoError(t, err)
-	second, err := records.CreateTrustedDevice(ctx, identityaccess.AccountTrustedDevice{
+	second, err := records.CreateTrustedDevice(ctx, domain.AccountTrustedDevice{
 		AccountID: account.ID, TenantID: other, TokenHash: "second", ExpiresAt: time.Now().Add(time.Hour),
 	})
 	require.NoError(t, err)
@@ -72,11 +72,11 @@ func TestNativeMFATrustedDeviceLifecycle(t *testing.T) {
 	require.NotNil(t, active.LastUsedAt)
 	require.True(t, stamp.Equal(*active.LastUsedAt))
 	require.NoError(t, records.RevokeAllTrustedDevices(ctx, account.ID, time.Now()))
-	for _, device := range []identityaccess.AccountTrustedDevice{first, second} {
+	for _, device := range []domain.AccountTrustedDevice{first, second} {
 		_, found, _ := records.FindActiveTrustedDevice(ctx, account.ID, device.TenantID, device.TokenHash)
 		require.False(t, found, "account-wide revocation must reach every school")
 	}
-	_, err = records.CreateTrustedDevice(ctx, identityaccess.AccountTrustedDevice{
+	_, err = records.CreateTrustedDevice(ctx, domain.AccountTrustedDevice{
 		AccountID: account.ID, TenantID: home, TokenHash: "expired", ExpiresAt: time.Now().Add(-time.Minute),
 	})
 	require.NoError(t, err)

@@ -529,10 +529,10 @@ func TestMFAService_VerifyChallenge_ExpiredChallengeRejected(t *testing.T) {
 	// to match — same observable outcome as an expired challenge (the
 	// service can't distinguish "expired" from "already redeemed" at the
 	// row level; both surface as ErrMFACodeInvalid).
-	row, _, err := nativeMFARecords(t, db).FindActiveChallengeInScope(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant)
+	row, _, err := mfaRecordRows(t, db).FindActiveChallengeInScope(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant)
 	require.NoError(t, err)
 	require.NotNil(t, row)
-	require.NoError(t, nativeMFARecords(t, db).ConsumeChallenge(ctx, row.ID, time.Now()))
+	require.NoError(t, mfaRecordRows(t, db).ConsumeChallenge(ctx, row.ID, time.Now()))
 
 	_, err = svc.VerifyMFAChallenge(ctx, challenge, "000000")
 	assert.Error(t, err, "consumed/expired challenge must not verify")
