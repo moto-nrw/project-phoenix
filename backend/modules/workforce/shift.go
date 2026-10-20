@@ -54,16 +54,12 @@ type InvalidStaffShiftError struct{ Reason string }
 func (e *InvalidStaffShiftError) Error() string { return e.Reason }
 func (e *InvalidStaffShiftError) Unwrap() error { return ErrInvalidStaffShift }
 
-func invalidShift(reason string) error { return &InvalidStaffShiftError{Reason: reason} }
-
 // InvalidShiftSeriesError carries the caller-facing validation reason; it
 // unwraps to ErrInvalidShiftSeries.
 type InvalidShiftSeriesError struct{ Reason string }
 
 func (e *InvalidShiftSeriesError) Error() string { return e.Reason }
 func (e *InvalidShiftSeriesError) Unwrap() error { return ErrInvalidShiftSeries }
-
-func invalidSeries(reason string) error { return &InvalidShiftSeriesError{Reason: reason} }
 
 // InvalidShiftTypeError carries the caller-facing validation reason; it
 // unwraps to ErrInvalidShiftType.
@@ -274,184 +270,11 @@ type ShiftTypeCommand interface {
 	DeleteShiftType(context.Context, int64) error
 }
 
-type shiftEngine interface {
-	ShiftQuery
-	ShiftCommand
-}
-
 // --- staff shifts ---
-
-func (m *Module) FindStaffShift(ctx context.Context, id int64) (StaffShift, error) {
-	if id <= 0 {
-		return StaffShift{}, invalidShift("staff shift ID is required")
-	}
-	return m.engine.FindStaffShift(ctx, id)
-}
-
-func (m *Module) ListStaffShifts(ctx context.Context, filter StaffShiftFilter) ([]StaffShift, error) {
-	return m.engine.ListStaffShifts(ctx, filter)
-}
-
-func (m *Module) UsedStaffShiftWeeks(ctx context.Context, from, to string) ([]string, error) {
-	return m.engine.UsedStaffShiftWeeks(ctx, from, to)
-}
-
-func (m *Module) CreateStaffShift(ctx context.Context, shift *StaffShift) (StaffShift, error) {
-	if shift == nil {
-		return StaffShift{}, errors.New("StaffShift cannot be nil or zero value")
-	}
-	return m.engine.CreateStaffShift(ctx, shift)
-}
-
-func (m *Module) CreateStaffShifts(ctx context.Context, shifts []StaffShift) ([]StaffShift, error) {
-	return m.engine.CreateStaffShifts(ctx, shifts)
-}
-
-func (m *Module) UpdateStaffShift(ctx context.Context, shift StaffShift) (StaffShift, error) {
-	if shift.ID <= 0 {
-		return StaffShift{}, invalidShift("staff shift ID is required")
-	}
-	return m.engine.UpdateStaffShift(ctx, shift)
-}
-
-func (m *Module) SetStaffShiftSickAbsence(ctx context.Context, shiftID int64, absenceID *int64) (int64, error) {
-	if shiftID <= 0 {
-		return 0, invalidShift("staff shift ID is required")
-	}
-	if absenceID != nil && *absenceID <= 0 {
-		return 0, invalidShift("sick absence ID must be positive")
-	}
-	return m.engine.SetStaffShiftSickAbsence(ctx, shiftID, absenceID)
-}
-
-func (m *Module) DeleteStaffShift(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return invalidShift("staff shift ID is required")
-	}
-	return m.engine.DeleteStaffShift(ctx, id)
-}
-
-func (m *Module) DeleteUpcomingStaffShifts(ctx context.Context, staffID int64, from string) (int64, error) {
-	if staffID <= 0 {
-		return 0, invalidShift("staff ID is required")
-	}
-	return m.engine.DeleteUpcomingStaffShifts(ctx, staffID, from)
-}
-
-func (m *Module) DeleteRegenerableSeriesShifts(ctx context.Context, seriesID int64, from string) (int64, error) {
-	if seriesID <= 0 {
-		return 0, invalidSeries("series ID is required")
-	}
-	return m.engine.DeleteRegenerableSeriesShifts(ctx, seriesID, from)
-}
-
-func (m *Module) RepointDetachedSeriesShifts(ctx context.Context, fromSeriesID, toSeriesID int64, from string) (int64, error) {
-	if fromSeriesID <= 0 || toSeriesID <= 0 {
-		return 0, invalidSeries("series IDs are required")
-	}
-	return m.engine.RepointDetachedSeriesShifts(ctx, fromSeriesID, toSeriesID, from)
-}
 
 // --- shift series ---
 
-func (m *Module) FindStaffShiftSeries(ctx context.Context, id int64) (StaffShiftSeries, error) {
-	if id <= 0 {
-		return StaffShiftSeries{}, invalidSeries("series ID is required")
-	}
-	return m.engine.FindStaffShiftSeries(ctx, id)
-}
-
-func (m *Module) FindOverlappingSeriesInLineage(ctx context.Context, rootID, excludeID int64, from string) (StaffShiftSeries, error) {
-	if rootID <= 0 {
-		return StaffShiftSeries{}, invalidSeries("series root ID is required")
-	}
-	return m.engine.FindOverlappingSeriesInLineage(ctx, rootID, excludeID, from)
-}
-
-func (m *Module) SeriesExceptionDates(ctx context.Context, seriesID int64) ([]string, error) {
-	if seriesID <= 0 {
-		return nil, invalidSeries("series ID is required")
-	}
-	return m.engine.SeriesExceptionDates(ctx, seriesID)
-}
-
-func (m *Module) CreateStaffShiftSeries(ctx context.Context, series StaffShiftSeries) (StaffShiftSeries, error) {
-	return m.engine.CreateStaffShiftSeries(ctx, series)
-}
-
-func (m *Module) UpdateStaffShiftSeries(ctx context.Context, series StaffShiftSeries) (StaffShiftSeries, error) {
-	if series.ID <= 0 {
-		return StaffShiftSeries{}, invalidSeries("series ID is required")
-	}
-	return m.engine.UpdateStaffShiftSeries(ctx, series)
-}
-
-func (m *Module) DeleteStaffShiftSeries(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return invalidSeries("series ID is required")
-	}
-	return m.engine.DeleteStaffShiftSeries(ctx, id)
-}
-
-func (m *Module) CapStaffShiftSeries(ctx context.Context, id int64, until string) error {
-	if id <= 0 {
-		return invalidSeries("series ID is required")
-	}
-	return m.engine.CapStaffShiftSeries(ctx, id, until)
-}
-
-func (m *Module) CapStaffShiftSeriesForStaff(ctx context.Context, staffID int64, until string) (int64, error) {
-	if staffID <= 0 {
-		return 0, invalidSeries("staff ID is required")
-	}
-	return m.engine.CapStaffShiftSeriesForStaff(ctx, staffID, until)
-}
-
-func (m *Module) RecordSeriesException(ctx context.Context, exception StaffShiftSeriesException) error {
-	return m.engine.RecordSeriesException(ctx, exception)
-}
-
-func (m *Module) RepointSeriesExceptions(ctx context.Context, fromSeriesID, toSeriesID int64, from string) (int64, error) {
-	if fromSeriesID <= 0 || toSeriesID <= 0 {
-		return 0, invalidSeries("series IDs are required")
-	}
-	return m.engine.RepointSeriesExceptions(ctx, fromSeriesID, toSeriesID, from)
-}
-
 // --- shift types ---
-
-func (m *Module) ListShiftTypes(ctx context.Context) ([]ShiftType, error) {
-	return m.engine.ListShiftTypes(ctx)
-}
-
-func (m *Module) FindShiftType(ctx context.Context, id int64) (ShiftType, error) {
-	if id <= 0 {
-		return ShiftType{}, ErrShiftTypeNotFound
-	}
-	return m.engine.FindShiftType(ctx, id)
-}
-
-func (m *Module) CreateShiftType(ctx context.Context, shiftType ShiftType) (ShiftType, error) {
-	return m.engine.CreateShiftType(ctx, shiftType)
-}
-
-func (m *Module) CreateShiftTypeIfAbsent(ctx context.Context, shiftType ShiftType) (ShiftType, bool, error) {
-	return m.engine.CreateShiftTypeIfAbsent(ctx, shiftType)
-}
-
-func (m *Module) UpdateShiftType(ctx context.Context, shiftType ShiftType) (ShiftType, error) {
-	if shiftType.ID <= 0 {
-		return ShiftType{}, ErrShiftTypeNotFound
-	}
-	return m.engine.UpdateShiftType(ctx, shiftType)
-}
-
-func (m *Module) DeleteShiftType(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return ErrShiftTypeNotFound
-	}
-	return m.engine.DeleteShiftType(ctx, id)
-}
 
 // OwnShiftQuery is the slice of the planning capability a staff member's own
 // plan is read from: the time-tracking route lists the caller's shifts with a

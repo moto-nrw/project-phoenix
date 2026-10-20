@@ -3,6 +3,7 @@ package postgres
 import (
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -98,7 +99,7 @@ type staffVacationQuotaChangeRow struct {
 
 // --- mapping ---
 
-func workSessionFromDomain(value domain.WorkSession) *workSessionRow {
+func workSessionFromDomain(value workforce.WorkSession) *workSessionRow {
 	return &workSessionRow{
 		ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID, Date: calendarDate(value.Date),
 		Status: value.Status, Source: value.Source, CheckInTime: value.CheckInTime, CheckOutTime: value.CheckOutTime,
@@ -108,8 +109,8 @@ func workSessionFromDomain(value domain.WorkSession) *workSessionRow {
 	}
 }
 
-func workSessionToDomain(row workSessionRow) domain.WorkSession {
-	return domain.WorkSession{
+func workSessionToDomain(row workSessionRow) workforce.WorkSession {
+	return workforce.WorkSession{
 		ID: row.ID, TenantID: row.TenantID, StaffID: row.StaffID, Date: string(row.Date),
 		Status: row.Status, Source: row.Source, CheckInTime: row.CheckInTime, CheckOutTime: row.CheckOutTime,
 		ReopenedAt: row.ReopenedAt, BreakMinutes: row.BreakMinutes, Notes: row.Notes,
@@ -118,15 +119,15 @@ func workSessionToDomain(row workSessionRow) domain.WorkSession {
 	}
 }
 
-func workSessionsToDomain(rows []workSessionRow) []domain.WorkSession {
-	result := make([]domain.WorkSession, 0, len(rows))
+func workSessionsToDomain(rows []workSessionRow) []workforce.WorkSession {
+	result := make([]workforce.WorkSession, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, workSessionToDomain(row))
 	}
 	return result
 }
 
-func workSessionBreakFromDomain(value domain.WorkSessionBreak) *workSessionBreakRow {
+func workSessionBreakFromDomain(value workforce.WorkSessionBreak) *workSessionBreakRow {
 	return &workSessionBreakRow{
 		ID: value.ID, TenantID: value.TenantID, SessionID: value.SessionID, StartedAt: value.StartedAt,
 		EndedAt: value.EndedAt, DurationMinutes: value.DurationMinutes, PlannedEndTime: value.PlannedEndTime,
@@ -134,23 +135,23 @@ func workSessionBreakFromDomain(value domain.WorkSessionBreak) *workSessionBreak
 	}
 }
 
-func workSessionBreakToDomain(row workSessionBreakRow) domain.WorkSessionBreak {
-	return domain.WorkSessionBreak{
+func workSessionBreakToDomain(row workSessionBreakRow) workforce.WorkSessionBreak {
+	return workforce.WorkSessionBreak{
 		ID: row.ID, TenantID: row.TenantID, SessionID: row.SessionID, StartedAt: row.StartedAt,
 		EndedAt: row.EndedAt, DurationMinutes: row.DurationMinutes, PlannedEndTime: row.PlannedEndTime,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
 }
 
-func workSessionBreaksToDomain(rows []workSessionBreakRow) []domain.WorkSessionBreak {
-	result := make([]domain.WorkSessionBreak, 0, len(rows))
+func workSessionBreaksToDomain(rows []workSessionBreakRow) []workforce.WorkSessionBreak {
+	result := make([]workforce.WorkSessionBreak, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, workSessionBreakToDomain(row))
 	}
 	return result
 }
 
-func staffBalanceAdjustmentFromDomain(value domain.StaffBalanceAdjustment) *staffBalanceAdjustmentRow {
+func staffBalanceAdjustmentFromDomain(value workforce.StaffBalanceAdjustment) *staffBalanceAdjustmentRow {
 	return &staffBalanceAdjustmentRow{
 		ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID, Type: value.Type, MinutesDelta: value.MinutesDelta,
 		EffectiveDate: calendarDate(value.EffectiveDate), Note: value.Note, DecidedBy: value.DecidedBy, DecidedAt: value.DecidedAt,
@@ -158,8 +159,8 @@ func staffBalanceAdjustmentFromDomain(value domain.StaffBalanceAdjustment) *staf
 	}
 }
 
-func staffBalanceAdjustmentToDomain(row staffBalanceAdjustmentRow) domain.StaffBalanceAdjustment {
-	return domain.StaffBalanceAdjustment{
+func staffBalanceAdjustmentToDomain(row staffBalanceAdjustmentRow) workforce.StaffBalanceAdjustment {
+	return workforce.StaffBalanceAdjustment{
 		ID: row.ID, TenantID: row.TenantID, StaffID: row.StaffID, Type: row.Type, MinutesDelta: row.MinutesDelta,
 		EffectiveDate: string(row.EffectiveDate), Note: row.Note, DecidedBy: row.DecidedBy, DecidedAt: row.DecidedAt,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
@@ -184,7 +185,7 @@ func staffVacationOpeningToDomain(row staffVacationOpeningRow) domain.StaffVacat
 	}
 }
 
-func staffVacationQuotaFromDomain(value domain.StaffVacationQuota) *staffVacationQuotaRow {
+func staffVacationQuotaFromDomain(value workforce.StaffVacationQuota) *staffVacationQuotaRow {
 	return &staffVacationQuotaRow{
 		ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID, Year: value.Year,
 		EntitledDays: value.EntitledDays, CarryoverDays: value.CarryoverDays,
@@ -192,8 +193,8 @@ func staffVacationQuotaFromDomain(value domain.StaffVacationQuota) *staffVacatio
 	}
 }
 
-func staffVacationQuotaToDomain(row staffVacationQuotaRow) domain.StaffVacationQuota {
-	return domain.StaffVacationQuota{
+func staffVacationQuotaToDomain(row staffVacationQuotaRow) workforce.StaffVacationQuota {
+	return workforce.StaffVacationQuota{
 		ID: row.ID, TenantID: row.TenantID, StaffID: row.StaffID, Year: row.Year,
 		EntitledDays: row.EntitledDays, CarryoverDays: row.CarryoverDays,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
