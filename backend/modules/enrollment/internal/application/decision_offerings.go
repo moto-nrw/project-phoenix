@@ -25,7 +25,7 @@ import (
 // selection left staff unable to see an approved change before its
 // effective date and unable to answer the family's questions about it.
 func (d *Decisions) ListChildOfferings(ctx context.Context, requestID int64) (publicResult map[int64]enrollmentNative.ChildOfferingSet, publicErr error) {
-	defer func() { publicErr = publicError(publicErr) }()
+	defer func() { publicErr = PublicError(publicErr) }()
 	if requestID <= 0 {
 		return nil, fmt.Errorf("decision: request_id required")
 	}

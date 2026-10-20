@@ -17,7 +17,7 @@ import (
 // caller cannot obtain the PII without the audit, and a failed audit
 // write fails the whole call. Both halves run on the caller's tenant tx.
 func (d *Decisions) ExportPhase(ctx context.Context, phaseID, actorAccountID int64, actorRole, format, childStatusFilter string) (publicResult *enrollmentNative.PhaseExport, publicErr error) {
-	defer func() { publicErr = publicError(publicErr) }()
+	defer func() { publicErr = PublicError(publicErr) }()
 	data, err := d.exportData(ctx, phaseID, childStatusFilter)
 	if err != nil {
 		return nil, err
@@ -32,7 +32,7 @@ func (d *Decisions) ExportPhase(ctx context.Context, phaseID, actorAccountID int
 // ExportStudent exports the requests of one student's kartei tab and
 // records the GDPR access-log row.
 func (d *Decisions) ExportStudent(ctx context.Context, studentID, actorAccountID int64, actorRole, format string) (publicResult *enrollmentNative.StudentEnrollmentExport, publicErr error) {
-	defer func() { publicErr = publicError(publicErr) }()
+	defer func() { publicErr = PublicError(publicErr) }()
 	data, err := d.exportStudentData(ctx, studentID)
 	if err != nil {
 		return nil, err
@@ -433,7 +433,7 @@ func int64SetKeys(values map[int64]struct{}) []int64 {
 // window — the temporal span of the disclosed data — and metadata carries
 // phase_id, format, status_filter and the row counts.
 func (d *Decisions) RecordPhaseExportAudit(ctx context.Context, actorAccountID int64, actorRole string, phase *enrollmentNative.Phase, format, statusFilter string, requestCount, childCount int) (publicErr error) {
-	defer func() { publicErr = publicError(publicErr) }()
+	defer func() { publicErr = PublicError(publicErr) }()
 	const errPrefix = "decision: export audit"
 	if d.deps.AccessLog == nil {
 		return fmt.Errorf("%s: data access log repo not configured", errPrefix)

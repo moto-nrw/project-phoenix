@@ -87,7 +87,7 @@ func (d *Decisions) syncOfferingPickupAfterApproval(ctx context.Context, child *
 
 // UpdateChildOfferings corrects a child's bookings through Care Plan.
 func (d *Decisions) UpdateChildOfferings(ctx context.Context, input enrollment.UpdateChildOfferingsInput) (publicResult *enrollment.RequestChild, publicErr error) {
-	defer func() { publicErr = publicError(publicErr) }()
+	defer func() { publicErr = PublicError(publicErr) }()
 	return d.adjustChildOfferings(ctx, input, careplan.OfferingAdjustmentSourceDirect)
 }
 
