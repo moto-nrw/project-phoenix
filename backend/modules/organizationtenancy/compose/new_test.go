@@ -15,7 +15,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) *organizationtenancy.Module {
+func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) organizationtenancy.Capability {
 	t.Helper()
 	observe := func(Observation) {}
 	if len(observations) > 0 {

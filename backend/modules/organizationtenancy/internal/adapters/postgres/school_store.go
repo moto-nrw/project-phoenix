@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -40,10 +41,10 @@ type schoolRow struct {
 	ChildQuotaBundleSize int  `bun:"child_quota_bundle_size,nullzero,notnull,default:50"`
 }
 
-func (s *Store) CreateSchool(ctx context.Context, input domain.CreateSchool) (domain.School, domain.OperationStats, error) {
+func (s *Store) CreateSchool(ctx context.Context, input organizationtenancy.CreateSchool) (organizationtenancy.School, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
-		return domain.School{}, domain.OperationStats{}, err
+		return organizationtenancy.School{}, domain.OperationStats{}, err
 	}
 	row := schoolRow{
 		OrganizationID: input.OrganizationID, Name: input.Name, Slug: input.Slug,
@@ -56,16 +57,16 @@ func (s *Store) CreateSchool(ctx context.Context, input domain.CreateSchool) (do
 	err = db.NewInsert().Model(&row).ModelTableExpr(`platform.schools`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.School{}, stats, wrapSchoolWriteError("create", err)
+		return organizationtenancy.School{}, stats, wrapSchoolWriteError("create", err)
 	}
 	stats.Rows = 1
 	return toSchoolDomain(row), stats, nil
 }
 
-func (s *Store) UpdateSchool(ctx context.Context, input domain.UpdateSchool) (domain.School, domain.OperationStats, error) {
+func (s *Store) UpdateSchool(ctx context.Context, input organizationtenancy.UpdateSchool) (organizationtenancy.School, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
-		return domain.School{}, domain.OperationStats{}, err
+		return organizationtenancy.School{}, domain.OperationStats{}, err
 	}
 	row := schoolRow{
 		ID: input.ID, OrganizationID: input.OrganizationID, Name: input.Name, Slug: input.Slug,
@@ -82,7 +83,7 @@ func (s *Store) UpdateSchool(ctx context.Context, input domain.UpdateSchool) (do
 		Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.School{}, stats, wrapSchoolWriteError("update", err)
+		return organizationtenancy.School{}, stats, wrapSchoolWriteError("update", err)
 	}
 	stats.Rows = 1
 	return toSchoolDomain(row), stats, nil
@@ -109,19 +110,19 @@ func (s *Store) LockSchoolChildQuota(ctx context.Context, id int64) (domain.Oper
 	return stats, nil
 }
 
-func (s *Store) FindSchoolByID(ctx context.Context, id int64, lock string) (domain.School, bool, domain.OperationStats, error) {
+func (s *Store) FindSchoolByID(ctx context.Context, id int64, lock string) (organizationtenancy.School, bool, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
-		return domain.School{}, false, domain.OperationStats{}, err
+		return organizationtenancy.School{}, false, domain.OperationStats{}, err
 	}
 	row := &schoolRow{}
 	return scanSchool(ctx, row, schoolSelect(db, row).Where(`"school".id = ?`, id), lock)
 }
 
-func (s *Store) FindSchoolBySlug(ctx context.Context, slug string) (domain.School, bool, domain.OperationStats, error) {
+func (s *Store) FindSchoolBySlug(ctx context.Context, slug string) (organizationtenancy.School, bool, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
-		return domain.School{}, false, domain.OperationStats{}, err
+		return organizationtenancy.School{}, false, domain.OperationStats{}, err
 	}
 	row := &schoolRow{}
 	return scanSchool(ctx, row, schoolSelect(db, row).
@@ -129,10 +130,10 @@ func (s *Store) FindSchoolBySlug(ctx context.Context, slug string) (domain.Schoo
 		Where(`"school".deleted_at IS NULL`), "")
 }
 
-func (s *Store) FindSchoolByOrganizationAndSlug(ctx context.Context, organizationID int64, slug string) (domain.School, bool, domain.OperationStats, error) {
+func (s *Store) FindSchoolByOrganizationAndSlug(ctx context.Context, organizationID int64, slug string) (organizationtenancy.School, bool, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
-		return domain.School{}, false, domain.OperationStats{}, err
+		return organizationtenancy.School{}, false, domain.OperationStats{}, err
 	}
 	row := &schoolRow{}
 	return scanSchool(ctx, row, schoolSelect(db, row).
@@ -140,16 +141,16 @@ func (s *Store) FindSchoolByOrganizationAndSlug(ctx context.Context, organizatio
 		Where(`"school".slug = ?`, slug), "")
 }
 
-func (s *Store) FindSchoolBySubdomain(ctx context.Context, subdomain string) (domain.School, bool, domain.OperationStats, error) {
+func (s *Store) FindSchoolBySubdomain(ctx context.Context, subdomain string) (organizationtenancy.School, bool, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
-		return domain.School{}, false, domain.OperationStats{}, err
+		return organizationtenancy.School{}, false, domain.OperationStats{}, err
 	}
 	row := &schoolRow{}
 	return scanSchool(ctx, row, schoolSelect(db, row).Where(`"school".subdomain = ?`, subdomain), "")
 }
 
-func scanSchool(ctx context.Context, row *schoolRow, query *bun.SelectQuery, lock string) (domain.School, bool, domain.OperationStats, error) {
+func scanSchool(ctx context.Context, row *schoolRow, query *bun.SelectQuery, lock string) (organizationtenancy.School, bool, domain.OperationStats, error) {
 	if lock != "" {
 		query = query.For(lock)
 	}
@@ -158,15 +159,15 @@ func scanSchool(ctx context.Context, row *schoolRow, query *bun.SelectQuery, loc
 	err := query.Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.School{}, false, stats, nil
+		return organizationtenancy.School{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.School{}, false, stats, fmt.Errorf("organization tenancy postgres: find school: %w", err)
+		return organizationtenancy.School{}, false, stats, fmt.Errorf("organization tenancy postgres: find school: %w", err)
 	}
 	return toSchoolDomain(*row), true, stats, nil
 }
 
-func (s *Store) ListSchools(ctx context.Context, ids []int64, organizationID *int64, state string) ([]domain.School, domain.OperationStats, error) {
+func (s *Store) ListSchools(ctx context.Context, ids []int64, organizationID *int64, state string) ([]organizationtenancy.School, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -194,7 +195,7 @@ func (s *Store) ListSchools(ctx context.Context, ids []int64, organizationID *in
 	if err != nil {
 		return nil, stats, fmt.Errorf("organization tenancy postgres: list schools: %w", err)
 	}
-	result := make([]domain.School, 0, len(rows))
+	result := make([]organizationtenancy.School, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, toSchoolDomain(row))
 	}
@@ -254,8 +255,8 @@ func schoolSelect(db bun.IDB, model any) *bun.SelectQuery {
 		ModelTableExpr(`platform.schools AS "school"`)
 }
 
-func toSchoolDomain(row schoolRow) domain.School {
-	return domain.School{
+func toSchoolDomain(row schoolRow) organizationtenancy.School {
+	return organizationtenancy.School{
 		ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		OrganizationID: row.OrganizationID, Name: row.Name, Slug: row.Slug, Subdomain: row.Subdomain,
 		Active: row.Active, Hidden: row.Hidden, DeletedAt: row.DeletedAt, Settings: row.Settings,
@@ -266,10 +267,10 @@ func toSchoolDomain(row schoolRow) domain.School {
 
 // SetSchoolChildQuota replaces the school's Kinderkontingent. Nil bundles
 // remove it; the bundle size is kept then, so a later quota starts from it.
-func (s *Store) SetSchoolChildQuota(ctx context.Context, id int64, bundles *int, bundleSize int) (domain.School, domain.OperationStats, error) {
+func (s *Store) SetSchoolChildQuota(ctx context.Context, id int64, bundles *int, bundleSize int) (organizationtenancy.School, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
-		return domain.School{}, domain.OperationStats{}, err
+		return organizationtenancy.School{}, domain.OperationStats{}, err
 	}
 	row := schoolRow{}
 	query := db.NewUpdate().Model(&row).
@@ -285,10 +286,10 @@ func (s *Store) SetSchoolChildQuota(ctx context.Context, id int64, bundles *int,
 	err = query.Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.School{}, stats, domain.ErrSchoolNotFound
+		return organizationtenancy.School{}, stats, organizationtenancy.ErrSchoolNotFound
 	}
 	if err != nil {
-		return domain.School{}, stats, fmt.Errorf("organization tenancy postgres: set school child quota: %w", err)
+		return organizationtenancy.School{}, stats, fmt.Errorf("organization tenancy postgres: set school child quota: %w", err)
 	}
 	stats.Rows = 1
 	return toSchoolDomain(row), stats, nil
@@ -308,7 +309,7 @@ func ReadChildQuota(ctx context.Context, db bun.IDB, schoolID int64) (bundles *i
 		Where(`"school".id = ?`, schoolID).
 		Scan(ctx, &row)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, 0, domain.ErrSchoolNotFound
+		return nil, 0, organizationtenancy.ErrSchoolNotFound
 	}
 	if err != nil {
 		return nil, 0, fmt.Errorf("organization tenancy postgres: read child quota: %w", err)
@@ -321,9 +322,9 @@ func wrapSchoolWriteError(operation string, err error) error {
 	if errors.As(err, &postgresError) && postgresError.IntegrityViolation() {
 		switch postgresError.Field('n') {
 		case "schools_subdomain_key":
-			return domain.ErrSchoolDomainConflict
+			return organizationtenancy.ErrSchoolDomainConflict
 		case "schools_organization_id_slug_key":
-			return domain.ErrSchoolSlugConflict
+			return organizationtenancy.ErrSchoolSlugConflict
 		}
 	}
 	return fmt.Errorf("organization tenancy postgres: %s school: %w", operation, err)

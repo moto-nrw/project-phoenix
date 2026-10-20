@@ -18,7 +18,7 @@ import (
 )
 
 // The provisioning tests drive the application over in-memory owners. The
-// Organizations facade is the real organizationtenancy.Module over an
+// Organizations facade is the real application service over an
 // in-memory engine, so its normalisation and validation stay in play.
 
 var (
@@ -107,7 +107,7 @@ func (tx *fakeTx) RunRead(ctx context.Context, fn func(context.Context) error) e
 }
 
 // fakeEngine is the in-memory organisation and school store behind the real
-// organizationtenancy.Module. fail injects an error per engine method name.
+// application service. fail injects an error per engine method name.
 type fakeEngine struct {
 	orgs    map[int64]*organizationtenancy.Organization
 	schools map[int64]*organizationtenancy.School
@@ -1088,7 +1088,7 @@ func newHarness(t *testing.T) *provisioningHarness {
 	}
 	svc, err := NewProvisioning(ProvisioningDependencies{
 		PWAUsageWindowDays: 30,
-		Organizations:      organizationtenancy.NewModule(engine),
+		Organizations:      newFakeOwner(engine),
 		Transaction:        h.tx, Dashboard: h.dashboard, Identity: h.identity, Devices: h.devices,
 		People: h.people, Presence: h.presence, Categories: h.categories, Settings: h.settings,
 		Audit: h.audit, Secrets: h.secrets,

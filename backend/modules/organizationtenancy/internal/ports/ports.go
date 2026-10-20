@@ -4,31 +4,32 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
 )
 
 type Store interface {
-	Create(context.Context, domain.CreateOrganization) (domain.Organization, domain.OperationStats, error)
-	Update(context.Context, domain.UpdateOrganization) (domain.Organization, domain.OperationStats, error)
-	FindByID(context.Context, int64, string) (domain.Organization, bool, domain.OperationStats, error)
-	FindBySlug(context.Context, string) (domain.Organization, bool, domain.OperationStats, error)
-	List(context.Context) ([]domain.Organization, domain.OperationStats, error)
-	ListByIDs(context.Context, []int64) ([]domain.Organization, domain.OperationStats, error)
+	Create(context.Context, organizationtenancy.CreateOrganization) (organizationtenancy.Organization, domain.OperationStats, error)
+	Update(context.Context, organizationtenancy.UpdateOrganization) (organizationtenancy.Organization, domain.OperationStats, error)
+	FindByID(context.Context, int64, string) (organizationtenancy.Organization, bool, domain.OperationStats, error)
+	FindBySlug(context.Context, string) (organizationtenancy.Organization, bool, domain.OperationStats, error)
+	List(context.Context) ([]organizationtenancy.Organization, domain.OperationStats, error)
+	ListByIDs(context.Context, []int64) ([]organizationtenancy.Organization, domain.OperationStats, error)
 	CountByIDs(context.Context, []int64) (int, domain.OperationStats, error)
 	CountNonDeletedSchools(context.Context, int64) (int, domain.OperationStats, error)
 	SoftDelete(context.Context, int64) (domain.OperationStats, error)
 	Restore(context.Context, int64) (domain.OperationStats, error)
-	CreateSchool(context.Context, domain.CreateSchool) (domain.School, domain.OperationStats, error)
-	UpdateSchool(context.Context, domain.UpdateSchool) (domain.School, domain.OperationStats, error)
+	CreateSchool(context.Context, organizationtenancy.CreateSchool) (organizationtenancy.School, domain.OperationStats, error)
+	UpdateSchool(context.Context, organizationtenancy.UpdateSchool) (organizationtenancy.School, domain.OperationStats, error)
 	// LockSchoolChildQuota serializes a quota change with its membership checks.
 	LockSchoolChildQuota(context.Context, int64) (domain.OperationStats, error)
 	// SetSchoolChildQuota writes the Kinderkontingent; nil bundles remove it.
-	SetSchoolChildQuota(ctx context.Context, id int64, bundles *int, bundleSize int) (domain.School, domain.OperationStats, error)
-	FindSchoolByID(context.Context, int64, string) (domain.School, bool, domain.OperationStats, error)
-	FindSchoolBySlug(context.Context, string) (domain.School, bool, domain.OperationStats, error)
-	FindSchoolByOrganizationAndSlug(context.Context, int64, string) (domain.School, bool, domain.OperationStats, error)
-	FindSchoolBySubdomain(context.Context, string) (domain.School, bool, domain.OperationStats, error)
-	ListSchools(context.Context, []int64, *int64, string) ([]domain.School, domain.OperationStats, error)
+	SetSchoolChildQuota(ctx context.Context, id int64, bundles *int, bundleSize int) (organizationtenancy.School, domain.OperationStats, error)
+	FindSchoolByID(context.Context, int64, string) (organizationtenancy.School, bool, domain.OperationStats, error)
+	FindSchoolBySlug(context.Context, string) (organizationtenancy.School, bool, domain.OperationStats, error)
+	FindSchoolByOrganizationAndSlug(context.Context, int64, string) (organizationtenancy.School, bool, domain.OperationStats, error)
+	FindSchoolBySubdomain(context.Context, string) (organizationtenancy.School, bool, domain.OperationStats, error)
+	ListSchools(context.Context, []int64, *int64, string) ([]organizationtenancy.School, domain.OperationStats, error)
 	CountSchoolsByID(context.Context, []int64) (int, domain.OperationStats, error)
 	SetSchoolDeleted(context.Context, int64, bool) (domain.OperationStats, error)
 }

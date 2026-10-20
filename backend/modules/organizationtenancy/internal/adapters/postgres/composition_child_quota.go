@@ -10,7 +10,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func ReadComposedChildQuota(ctx context.Context, mapError func(error) error) (int, bool, error) {
+func ReadComposedChildQuota(ctx context.Context) (int, bool, error) {
 	tenantID, err := tenant.TenantFromContext(ctx)
 	if err != nil {
 		return 0, false, fmt.Errorf("organization tenancy: child quota: %w", err)
@@ -33,7 +33,7 @@ func ReadComposedChildQuota(ctx context.Context, mapError func(error) error) (in
 	}
 	bundles, bundleSize, err := ReadChildQuota(ctx, db, tenantID.Int64())
 	if err != nil {
-		return 0, false, mapError(err)
+		return 0, false, err
 	}
 	if bundles == nil {
 		return 0, false, nil
