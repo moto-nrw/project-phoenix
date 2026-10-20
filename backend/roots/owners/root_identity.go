@@ -13,6 +13,7 @@ import (
 	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -20,6 +21,7 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/spf13/viper"
 )
 
@@ -40,6 +42,7 @@ func BuildIdentityAccess(
 	people PeopleRows, guardianEnrollments guardianEnrollmentClaims,
 	groups EducationGroupRows, staffGroups schoolstructure.StaffGroupQuery, activityGroups timetablePorts.CallerActivityGroups,
 	sessions presenceCompose.SessionRecords, presence studentpresence.Owner,
+	workTime workforce.Capability, calendar schoolcalendar.Days,
 ) (identityaccess.Owner, *CallerRows, error) {
 	durable, ok := outbox.(DurableMailOutbox)
 	if !ok {
@@ -60,6 +63,15 @@ func BuildIdentityAccess(
 	if err != nil {
 		return nil, nil, err
 	}
+	invitationDeps := InvitationDependencies(&InvitationWiring{
+		Dispatcher: mailDispatcher, DefaultFrom: mailFrom, Durable: durable, StaffURL: links.FrontendURL, SchoolURL: links.SchoolURL,
+		MailIdentity: mailIdentity, Expiry: links.InvitationTokenExpiry, Settings: settings, Outbox: outbox, WelcomeDelay: identityaccess.StaffWelcomeDelay,
+	}, tokens.SessionTokens, authLogger)
+	invitationDeps.EmploymentReset, err = BuildInvitationEmploymentReset(db, env, workTime, persons, membership, people, audit, settings, calendar)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	identityChain := LifecycleRepositories{
 		Persons: people.Persons, Staff: people.Staff, Teachers: people.Teachers, Students: people.Students,
 		GuardianProfiles: people.GuardianProfiles, StudentGuardians: people.StudentGuardians,
@@ -111,13 +123,7 @@ func BuildIdentityAccess(
 			StaffURL: links.FrontendURL, ParentsURL: links.ParentsURL, SchoolURL: links.SchoolURL,
 			Expiry: links.PasswordResetTokenExpiry, RateLimitEnabled: cfg.RateLimitEnabled,
 		}, authLogger),
-		Invitations: InvitationDependencies(&InvitationWiring{
-			Dispatcher: mailDispatcher, DefaultFrom: mailFrom, Durable: durable, StaffURL: links.FrontendURL, SchoolURL: links.SchoolURL,
-			MailIdentity: mailIdentity, Expiry: links.InvitationTokenExpiry,
-			Settings:     settings,
-			Outbox:       outbox,
-			WelcomeDelay: identityaccess.StaffWelcomeDelay,
-		}, tokens.SessionTokens, authLogger),
+		Invitations: invitationDeps,
 		OperatorProvisioning: operatorProvisioningDependencies(&operatorLinkWiring{
 			dispatcher: mailDispatcher, defaultFrom: mailFrom, durable: durable,
 			frontendURL: links.FrontendURL, operatorFrontendURL: operatorFrontendURL,

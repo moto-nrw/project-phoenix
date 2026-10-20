@@ -93,39 +93,45 @@ const (
 
 // SchoolInvitation is an invitation as the owner reports it.
 type SchoolInvitation struct {
-	ID               int64
-	TenantID         int64
-	Email            string
-	Token            string
-	RoleID           int64
-	RoleName         string
-	ExpiresAt        time.Time
-	UsedAt           *time.Time
-	CreatedBy        *int64
-	CreatorEmail     string
-	FirstName        *string
-	LastName         *string
-	Position         *string
-	CaregiverEnabled bool
-	EmploymentAction EmploymentAction
-	PersonID         *int64
-	Delivery         TokenDelivery
-	CreatedAt        time.Time
+	ID                  int64
+	TenantID            int64
+	Email               string
+	Token               string
+	RoleID              int64
+	RoleName            string
+	ExpiresAt           time.Time
+	UsedAt              *time.Time
+	CreatedBy           *int64
+	CreatorEmail        string
+	FirstName           *string
+	LastName            *string
+	Position            *string
+	CaregiverEnabled    bool
+	EmploymentAction    EmploymentAction
+	ResetMasterData     bool
+	ResetQualifications bool
+	ResetWorkTime       bool
+	PersonID            *int64
+	Delivery            TokenDelivery
+	CreatedAt           time.Time
 }
 
 // SchoolInvitationRequest describes the invitation to create.
 type SchoolInvitationRequest struct {
-	Email            string
-	RoleID           int64
-	TenantID         int64
-	FirstName        *string
-	LastName         *string
-	Position         *string
-	CaregiverEnabled bool
-	EmploymentAction EmploymentAction
-	PersonID         *int64
-	CreatedBy        int64
-	SchoolName       string
+	Email               string
+	RoleID              int64
+	TenantID            int64
+	FirstName           *string
+	LastName            *string
+	Position            *string
+	CaregiverEnabled    bool
+	EmploymentAction    EmploymentAction
+	ResetMasterData     bool
+	ResetQualifications bool
+	ResetWorkTime       bool
+	PersonID            *int64
+	CreatedBy           int64
+	SchoolName          string
 	// ActorPermissions are the inviting account's permissions; the empty set
 	// grants nothing beyond the user tier.
 	ActorPermissions []string

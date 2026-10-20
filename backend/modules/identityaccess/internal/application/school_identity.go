@@ -307,8 +307,8 @@ func (l *AccountLifecycle) FindFormerEmploymentByAccount(ctx context.Context, ac
 		return domain.FormerEmployment{}, false, err
 	}
 	return domain.FormerEmployment{
-		StartedOn: calendar.DateFromTime(staff.StartedAt),
-		EndedOn:   calendar.DateFromTime(*staff.RetiredAt),
+		StaffID: staff.ID, StartedOn: calendar.DateFromTime(staff.StartedAt),
+		EndedOn: calendar.DateFromTime(*staff.RetiredAt),
 	}, true, nil
 }
 

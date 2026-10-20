@@ -3,10 +3,7 @@ package careplan
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 var ErrStudentStatusDayNotFound = errors.New("student status day not found")
@@ -88,52 +85,6 @@ type StudentStatusDaysCommand interface {
 	ArchiveStudentStatusFlags(context.Context, StatusFlagArchive) (int64, error)
 }
 
-func (m *Module) FindStudentStatusDay(ctx context.Context, id int64, activeOnly bool) (StudentStatusDay, error) {
-	return m.engine.FindStudentStatusDay(ctx, id, activeOnly)
-}
-
-func (m *Module) ListStudentStatusDays(ctx context.Context, filter StudentStatusDayFilter) ([]StudentStatusDay, error) {
-	filter.IDs = uniquePositive(filter.IDs)
-	filter.StudentIDs = uniquePositive(filter.StudentIDs)
-	return m.engine.ListStudentStatusDays(ctx, filter)
-}
-
-func (m *Module) CountStudentStatusDays(ctx context.Context, options *StudentScheduleQueryOptions) (int, error) {
-	return m.engine.CountStudentStatusDays(ctx, options)
-}
-
-func (m *Module) CountEffectiveStudentAbsences(ctx context.Context, date Date) (StudentStatusCounts, error) {
-	return m.engine.CountEffectiveStudentAbsences(ctx, date)
-}
-
-func (m *Module) ListStatusDaySummaries(ctx context.Context, from, to Date) ([]StatusDaySummary, error) {
-	return m.engine.ListStatusDaySummaries(ctx, from, to)
-}
-
-func (m *Module) ExistingStudentStatusDayIDs(ctx context.Context, ids []int64) ([]int64, error) {
-	return m.engine.ExistingStudentStatusDayIDs(ctx, uniquePositive(ids))
-}
-
-func (m *Module) CountCarePlanDeletionRecords(ctx context.Context, studentID int64) (CarePlanDeletionCounts, error) {
-	return m.engine.CountCarePlanDeletionRecords(ctx, studentID)
-}
-
-func (m *Module) UpsertStudentStatusDay(ctx context.Context, value StudentStatusDay) (StudentStatusDay, error) {
-	return m.engine.UpsertStudentStatusDay(ctx, value)
-}
-
-func (m *Module) ClearStudentStatusDays(ctx context.Context, studentID int64, status string, dates []Date, clearedAt time.Time, source string) error {
-	return m.engine.ClearStudentStatusDays(ctx, studentID, status, dates, clearedAt, source)
-}
-
-func (m *Module) ClearStudentStatusDayByID(ctx context.Context, id int64, clearedAt time.Time, source string) error {
-	return m.engine.ClearStudentStatusDayByID(ctx, id, clearedAt, source)
-}
-
-func (m *Module) ArchiveStudentStatusFlags(ctx context.Context, value StatusFlagArchive) (int64, error) {
-	return m.engine.ArchiveStudentStatusFlags(ctx, value)
-}
-
 // StudentStatusDayRetention deletes a school's status days once their
 // retention window has passed (#3958). Sick, excused and class-trip days are
 // one data kind: the nightly cleanup deletes every day dated before the
@@ -146,19 +97,3 @@ type StudentStatusDayRetention interface {
 // positive: nothing is deleted on a wrong period, and the run is caught up
 // once the setting is fixed.
 var ErrStatusDayRetentionWindow = errors.New("retention window must be positive")
-
-// DeleteExpiredStudentStatusDays deletes the days dated before the first
-// Berlin calendar day a window of retentionDays keeps.
-func (m *Module) DeleteExpiredStudentStatusDays(ctx context.Context, retentionDays int) (int, error) {
-	if retentionDays <= 0 {
-		return 0, fmt.Errorf("%w, got %d", ErrStatusDayRetentionWindow, retentionDays)
-	}
-	return m.DeleteStudentStatusDaysBefore(ctx, Date(calendar.TodayDate().AddDays(-retentionDays)))
-}
-
-func (m *Module) DeleteStudentStatusDaysBefore(ctx context.Context, cutoff Date) (int, error) {
-	if cutoff == "" {
-		return 0, errors.New("care plan: a cutoff is required to delete status days")
-	}
-	return m.engine.DeleteStudentStatusDaysBefore(ctx, cutoff)
-}

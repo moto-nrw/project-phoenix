@@ -35,7 +35,7 @@ func newSchoolInvitation(
 		return nil, errors.New("identity access compose: every invitation dependency is required")
 	}
 	return application.NewSchoolInvitation(application.SchoolInvitationDependencies{
-		Store: store, Logins: store, Roles: postgres.NewRoleStore(store),
+		EmploymentReset: deps.EmploymentReset, Store: store, Logins: store, Roles: postgres.NewRoleStore(store),
 		Policy:    application.RoleAssignmentPolicy{},
 		Grants:    application.InvitationGrantPolicy{Source: deps.Grants},
 		Identity:  lifecycle,

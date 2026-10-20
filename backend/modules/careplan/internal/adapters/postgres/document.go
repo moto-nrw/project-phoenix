@@ -177,7 +177,7 @@ func (s *Store) SoftDeleteCareDocument(ctx context.Context, documentID, deletedB
 		Set("deleted_at = ?", now).Set("deleted_by = ?", deletedBy).
 		Where(`"care_document".id = ?`, documentID).
 		Where(`"care_document".deleted_at IS NULL`).
-		Where(`"care_document".tenant_id = ?`, tenantID), "soft delete care document", domain.ErrCareDocumentNotFound)
+		Where(`"care_document".tenant_id = ?`, tenantID), "soft delete care document", careplan.ErrCareDocumentNotFound)
 	return now, stats, err
 }
 

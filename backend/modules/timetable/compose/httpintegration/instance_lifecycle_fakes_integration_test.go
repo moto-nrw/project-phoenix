@@ -34,14 +34,12 @@ import (
 // collaborator the transition under test does not reach is an unused stub.
 func newFakeLifecycle(t *testing.T, deps timetablePorts.InstanceLifecycleDependencies) fixtures.InstanceLifecycle {
 	t.Helper()
-	deps.IdempotencyRepo = fixtures.IntoInstanceIdempotencyRecords(struct {
-		fixtures.
-			InstanceIdempotencyRecords
-	}{})
-	deps.ExceptionRepo = fixtures.IntoActivityExceptionRecords(struct {
-		fixtures.
-			ActivityExceptionRecords
-	}{})
+	deps.IdempotencyRepo = struct {
+		timetable.ActivityInstanceCommand
+	}{}
+	deps.ExceptionRepo = struct {
+		timetable.ActivityExceptionCapability
+	}{}
 	deps.CalendarPeriodRepo = fixtures.IntoCalendarPeriodRecords(struct {
 		fixtures.
 			CalendarPeriodRecords

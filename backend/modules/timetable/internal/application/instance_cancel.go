@@ -186,7 +186,7 @@ func (s *InstanceLifecycleService) rejectAmbiguousTemplateDelete(ctx context.Con
 // ensureCancelledSlotException consumes the slot with a cancelled
 // exception, converting an existing modified one.
 func (s *InstanceLifecycleService) ensureCancelledSlotException(ctx context.Context, activityGroupID int64, date calendar.Date, reason string) error {
-	existing, err := s.deps.ExceptionRepo.FindByActivityGroupAndDate(ctx, activityGroupID, calendar.Date(date))
+	existing, err := s.slotException(ctx, activityGroupID, date)
 	if err != nil {
 		return &ports.ScheduleError{Op: "delete instance: check slot exception", Err: err}
 	}
@@ -199,7 +199,7 @@ func (s *InstanceLifecycleService) ensureCancelledSlotException(ctx context.Cont
 		existing.EndTime = nil
 		existing.RoomID = nil
 		existing.Reason = &reason
-		if err := s.deps.ExceptionRepo.Update(ctx, existing); err != nil {
+		if err := s.updateSlotException(ctx, existing); err != nil {
 			return &ports.ScheduleError{Op: "delete instance: cancel existing exception", Err: err}
 		}
 		s.getLogger().Info("deleted instance: existing exception converted to cancellation",
@@ -214,8 +214,7 @@ func (s *InstanceLifecycleService) ensureCancelledSlotException(ctx context.Cont
 		ExceptionType:   scheduleModel.ActivityExceptionCancelled,
 		Reason:          &reason,
 	}
-	exc.SetTenantID(tenant.FromContext(ctx))
-	if err := s.deps.ExceptionRepo.Create(ctx, exc); err != nil {
+	if err := s.createSlotException(ctx, exc); err != nil {
 		return &ports.ScheduleError{Op: "delete instance: create cancellation exception", Err: err}
 	}
 	s.getLogger().Info("deleted instance: slot consumed via cancelled exception",

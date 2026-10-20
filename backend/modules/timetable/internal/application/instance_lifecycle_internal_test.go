@@ -453,8 +453,11 @@ func (r *deleteUnitInstanceRepo) Delete(_ context.Context, nativeRecordID int64)
 	return nil
 }
 
+// deleteUnitExceptionRepo serves the slot exception of the owner's
+// exception capability and records the stored rows, stamped with the tenant
+// of the request context the way the store stamps them.
 type deleteUnitExceptionRepo struct {
-	ports.ActivityExceptionRecords
+	timetable.ActivityExceptionCapability
 	existing  *scheduleModel.ActivityException
 	findErr   error
 	createErr error
@@ -464,28 +467,49 @@ type deleteUnitExceptionRepo struct {
 	updated   []*scheduleModel.ActivityException
 }
 
-func (r *deleteUnitExceptionRepo) FindByActivityGroupAndDate(_ context.Context, _ int64, _ calendar.Date) (*scheduleModel.ActivityException, error) {
+func (r *deleteUnitExceptionRepo) ListActivityExceptions(ctx context.Context, _ timetable.ActivityExceptionFilter) ([]timetable.ActivityException, error) {
 	r.findCalls++
 	if r.findErr != nil {
 		return nil, r.findErr
 	}
-	return r.existing, nil
+	if r.existing == nil {
+		return nil, nil
+	}
+	return []timetable.ActivityException{deleteUnitStoredException(ctx, publicActivityExceptionInput(r.existing))}, nil
 }
 
-func (r *deleteUnitExceptionRepo) Create(_ context.Context, exc *scheduleModel.ActivityException) error {
+func (r *deleteUnitExceptionRepo) CreateActivityException(ctx context.Context, input timetable.ActivityExceptionInput) (timetable.ActivityException, error) {
 	if r.createErr != nil {
-		return r.createErr
+		return timetable.ActivityException{}, r.createErr
 	}
-	r.created = append(r.created, exc)
-	return nil
+	stored := deleteUnitStoredException(ctx, input)
+	row, err := legacyActivityException(stored)
+	if err != nil {
+		return timetable.ActivityException{}, err
+	}
+	r.created = append(r.created, row)
+	return stored, nil
 }
 
-func (r *deleteUnitExceptionRepo) Update(_ context.Context, exc *scheduleModel.ActivityException) error {
+func (r *deleteUnitExceptionRepo) UpdateActivityException(ctx context.Context, _ int64, input timetable.ActivityExceptionInput) (timetable.ActivityException, error) {
 	if r.updateErr != nil {
-		return r.updateErr
+		return timetable.ActivityException{}, r.updateErr
 	}
-	r.updated = append(r.updated, exc)
-	return nil
+	stored := deleteUnitStoredException(ctx, input)
+	row, err := legacyActivityException(stored)
+	if err != nil {
+		return timetable.ActivityException{}, err
+	}
+	r.updated = append(r.updated, row)
+	return stored, nil
+}
+
+func deleteUnitStoredException(ctx context.Context, input timetable.ActivityExceptionInput) timetable.ActivityException {
+	return timetable.ActivityException{
+		TenantID: tenant.FromContext(ctx), ActivityGroupID: input.ActivityGroupID, ExceptionDate: input.ExceptionDate,
+		ExceptionType: input.ExceptionType, StartTime: input.StartTime, EndTime: input.EndTime, RoomID: input.RoomID,
+		Reason: input.Reason, CreatedBy: input.CreatedBy,
+	}
 }
 
 func weekendPlanContext(follows bool, err error) context.Context {

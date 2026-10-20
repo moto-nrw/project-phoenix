@@ -8,36 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// Native schedule record capabilities keep each persistence operation scoped
-// to its record family, rather than embedding generic CRUD protocols.
-type ActivityExceptionRecords interface {
-	Create(context.Context, *schedulerecords.ActivityException) error
-	FindByID(context.Context, int64) (*schedulerecords.ActivityException, error)
-	Update(context.Context, *schedulerecords.ActivityException) error
-	Delete(context.Context, int64) error
-
-	// FindByActivityGroupID returns all exceptions for a given template.
-	FindByActivityGroupID(ctx context.Context, activityGroupID int64) ([]*schedulerecords.ActivityException, error)
-
-	// FindByActivityGroupAndDate returns the exception for a specific
-	// (template, date) pair, or nil if none exists.
-	FindByActivityGroupAndDate(ctx context.Context, activityGroupID int64, date calendar.Date) (*schedulerecords.ActivityException, error)
-
-	// FindByActivityGroupAndDateRange returns one template's exceptions within
-	// an inclusive date range in a single tenant-scoped query.
-	FindByActivityGroupAndDateRange(ctx context.Context, activityGroupID int64, from, to calendar.Date) ([]*schedulerecords.ActivityException, error)
-
-	// FindByDateRange returns all exceptions across all templates within the
-	// inclusive range. Used by the materialization service to apply exceptions
-	// efficiently for an entire week.
-	FindByDateRange(ctx context.Context, from, to calendar.Date) ([]*schedulerecords.ActivityException, error)
-
-	// Generic query helpers promoted from the embedded base repository.
-	// Used by the timetable retention cleanup.
-	OldestBefore(ctx context.Context, dateColumn string, cutoff *calendar.Date) (*calendar.Date, error)
-	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff calendar.Date) (int64, error)
-}
-
 type ActivityInstanceRecords interface {
 	Create(context.Context, *schedulerecords.ActivityInstance) error
 	FindByID(context.Context, int64) (*schedulerecords.ActivityInstance, error)
@@ -247,10 +217,6 @@ type DateframeRecords interface {
 
 	// FindByName finds a dateframe by its name
 	FindByName(ctx context.Context, name string) (*schedulerecords.Dateframe, error)
-}
-
-type InstanceIdempotencyRecords interface {
-	CreateIdempotent(ctx context.Context, instance *schedulerecords.ActivityInstance) (inserted bool, err error)
 }
 
 type InstanceStaffRecords interface {
@@ -723,17 +689,6 @@ type StudentPickupScheduleRecords interface {
 
 	// DeleteByStudentID deletes all pickup schedules for a student
 	DeleteByStudentID(ctx context.Context, studentID int64) error
-}
-
-type TimeframeRecords interface {
-	Create(context.Context, *schedulerecords.Timeframe) error
-	FindByID(context.Context, int64) (*schedulerecords.Timeframe, error)
-	Update(context.Context, *schedulerecords.Timeframe) error
-	Delete(context.Context, int64) error
-	ListAll(ctx context.Context) ([]*schedulerecords.Timeframe, error)
-
-	// FindByTimeRange finds all timeframes that overlap with the given time range
-	FindByTimeRange(ctx context.Context, startTime, endTime time.Time) ([]*schedulerecords.Timeframe, error)
 }
 
 // InstanceListing is the bounded instance read used by lifecycle and session completion.

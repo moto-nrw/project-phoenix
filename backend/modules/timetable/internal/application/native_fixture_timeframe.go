@@ -3,28 +3,67 @@
 package application
 
 import (
+	"context"
+	"errors"
+	"fmt"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	models "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
+// nativeFixtureTimeframe writes fixture timeframes through the owner's
+// timeframe capability.
 type nativeFixtureTimeframe struct {
-	fixtureRecord[timetable.Timeframe, models.Timeframe]
+	timeframes timetable.TimeframeCapability
 }
 
-func NativeTimeframeRecords(rows ports.TimeframeRecords) ports.NativeTimeframeRecords {
-	return nativeFixtureTimeframe{fixtureRecord: fixtureRecord[timetable.Timeframe, models.Timeframe]{rows: rows, find: fixtureFind(rows.FindByID), encode: encodeFixtureTimeframe, decode: decodeFixtureTimeframe}}
+func NativeTimeframeRecords(timeframes timetable.TimeframeCapability) ports.NativeTimeframeRecords {
+	return nativeFixtureTimeframe{timeframes: timeframes}
 }
-func encodeFixtureTimeframe(value *timetable.Timeframe) (*models.Timeframe, error) {
+
+func (r nativeFixtureTimeframe) Create(ctx context.Context, value *timetable.Timeframe) error {
 	if value == nil {
-		return nil, nil
+		return errors.New("timeframe cannot be nil or zero value")
 	}
-	return legacyTimeframe(*value)
+	created, err := r.timeframes.CreateTimeframe(ctx, fixtureTimeframeInput(*value))
+	if err != nil {
+		return WrapDatabaseError("create", err)
+	}
+	*value = created
+	return nil
 }
-func decodeFixtureTimeframe(value *models.Timeframe) *timetable.Timeframe {
+
+func (r nativeFixtureTimeframe) Update(ctx context.Context, value *timetable.Timeframe) error {
 	if value == nil {
-		return nil
+		return errors.New("timeframe cannot be nil or zero value")
 	}
-	input := publicTimeframeInput(value)
-	return &timetable.Timeframe{ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt, StartTime: input.StartTime, EndTime: input.EndTime, IsActive: input.IsActive, Description: input.Description}
+	updated, err := r.timeframes.UpdateTimeframe(ctx, value.ID, fixtureTimeframeInput(*value))
+	if err != nil {
+		return fixtureTimeframeError("update", err)
+	}
+	*value = updated
+	return nil
+}
+
+func (r nativeFixtureTimeframe) FindByID(ctx context.Context, id any) (*timetable.Timeframe, error) {
+	timeframeID, ok := LegacyGroupID(id)
+	if !ok {
+		return nil, WrapDatabaseError("find by id", fmt.Errorf("invalid timeframe id %T", id))
+	}
+	value, err := r.timeframes.FindTimeframe(ctx, timeframeID)
+	if err != nil {
+		return nil, fixtureTimeframeError("find by id", err)
+	}
+	return &value, nil
+}
+
+func fixtureTimeframeInput(value timetable.Timeframe) timetable.TimeframeInput {
+	return timetable.TimeframeInput{StartTime: value.StartTime, EndTime: value.EndTime, IsActive: value.IsActive, Description: value.Description}
+}
+
+func fixtureTimeframeError(operation string, err error) error {
+	if errors.Is(err, timetable.ErrTimeframeNotFound) {
+		return WrapNotFoundDatabaseError(operation)
+	}
+	return WrapDatabaseError(operation, err)
 }
