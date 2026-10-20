@@ -19,6 +19,11 @@ import { Input } from "~/components/ui/input";
 import { OccupancyBadges } from "~/components/ui/occupancy-badges";
 import type { PresentChildrenPickerProps } from "~/components/active-supervisions/present-children-picker";
 import { SectionCard } from "~/components/ui/section-card";
+import {
+  GroupIcon,
+  SchoolClassIcon,
+  StudentInfoRow,
+} from "~/components/students/student-card";
 import { overbookedHintFor, type Occupancy } from "~/lib/activity-occupancy";
 import { useNFCEnabled } from "~/lib/tenant-context";
 import {
@@ -90,17 +95,34 @@ export function moveNoticeFromRoster(
     : `${name} wurde aus einer anderen Aktivität hierher geholt.`;
 }
 
-function rosterStudentMeta(
-  row: TimetableRosterRow,
-  instanceIsSpontaneous: boolean,
-): string {
-  return [
-    row.schoolClass,
-    row.groupName,
-    row.isUnplanned && !instanceIsSpontaneous ? "ungeplant" : "",
-  ]
-    .filter((value, index, values) => value && values.indexOf(value) === index)
-    .join(" · ");
+// Class and group carry the same icons as the room cards (#4356); a group
+// named like the class is not repeated.
+function RosterStudentMeta({
+  row,
+  instanceIsSpontaneous,
+}: Readonly<{ row: TimetableRosterRow; instanceIsSpontaneous: boolean }>) {
+  const showGroup = row.groupName && row.groupName !== row.schoolClass;
+  const showUnplanned = row.isUnplanned && !instanceIsSpontaneous;
+  if (!row.schoolClass && !showGroup && !showUnplanned) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-x-3">
+      {row.schoolClass ? (
+        <StudentInfoRow icon={<SchoolClassIcon />}>
+          {row.schoolClass}
+        </StudentInfoRow>
+      ) : null}
+      {showGroup ? (
+        <StudentInfoRow icon={<GroupIcon />}>
+          Gruppe: {row.groupName}
+        </StudentInfoRow>
+      ) : null}
+      {showUnplanned ? (
+        <span className="mt-1 text-xs font-medium text-gray-500">
+          ungeplant
+        </span>
+      ) : null}
+    </div>
+  );
 }
 
 function RosterSummaryStat({
@@ -413,9 +435,10 @@ function TimetableRosterStudentRow({
             {row.studentName || `Kind ${row.studentId}`}
           </div>
         )}
-        <div className="mt-1 text-sm text-gray-500">
-          {rosterStudentMeta(row, instanceIsSpontaneous)}
-        </div>
+        <RosterStudentMeta
+          row={row}
+          instanceIsSpontaneous={instanceIsSpontaneous}
+        />
         {pickupTimeLabel === null ? null : (
           <div className="mt-1 text-sm font-medium text-gray-700">
             Gehzeit: {pickupTimeLabel}
@@ -1251,9 +1274,15 @@ export function TimetableRosterContent({
           />
         </SectionCard>
       ) : null}
+      {/* Children in the room come first, planned or not (#4353). */}
       <TimetableRosterSection
         title="Anwesend"
         rows={visible.present}
+        {...sectionProps}
+      />
+      <TimetableRosterSection
+        title={unplannedTitle}
+        rows={visible.unplanned}
         {...sectionProps}
       />
       <TimetableRosterSection
@@ -1279,11 +1308,6 @@ export function TimetableRosterContent({
       <TimetableRosterSection
         title="Nicht mehr im Raum"
         rows={visible.departed}
-        {...sectionProps}
-      />
-      <TimetableRosterSection
-        title={unplannedTitle}
-        rows={visible.unplanned}
         {...sectionProps}
       />
     </div>
