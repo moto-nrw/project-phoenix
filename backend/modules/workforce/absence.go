@@ -55,8 +55,6 @@ type InvalidStaffAbsenceError struct{ Reason string }
 func (e *InvalidStaffAbsenceError) Error() string { return e.Reason }
 func (e *InvalidStaffAbsenceError) Unwrap() error { return ErrInvalidStaffAbsence }
 
-func invalidAbsence(reason string) error { return &InvalidStaffAbsenceError{Reason: reason} }
-
 // InvalidAbsenceTypeError carries the caller-facing validation reason of an
 // absence type; it unwraps to ErrAbsenceTypeInvalid.
 type InvalidAbsenceTypeError struct{ Reason string }
@@ -345,158 +343,13 @@ type AbsenceTypeAdministration interface {
 	SetAllowance(context.Context, SetAbsenceTypeAllowance) (AbsenceTypeAllowanceSummary, error)
 }
 
-type absenceEngine interface {
-	AbsenceQuery
-	AbsenceCommand
-}
-
-func (m *Module) SetAllowance(ctx context.Context, input SetAbsenceTypeAllowance) (AbsenceTypeAllowanceSummary, error) {
-	return m.engine.SetAllowance(ctx, input)
-}
-
 type InvalidAbsenceAllowanceError struct{ Reason string }
 
 func (e *InvalidAbsenceAllowanceError) Error() string { return e.Reason }
 func (e *InvalidAbsenceAllowanceError) Unwrap() error { return ErrAbsenceTypeAllowanceInvalid }
 
-func (m *Module) AllowanceSummary(ctx context.Context, staffID, absenceTypeID int64, year int) (AbsenceTypeAllowanceSummary, error) {
-	return m.engine.AllowanceSummary(ctx, staffID, absenceTypeID, year)
-}
-
-func (m *Module) PreviewAllowanceBooking(ctx context.Context, staffID, absenceTypeID int64, start, end string, halfDay bool) ([]AbsenceTypeAllowanceSummary, error) {
-	return m.engine.PreviewAllowanceBooking(ctx, staffID, absenceTypeID, start, end, halfDay)
-}
-
-func (m *Module) PreviewAllowanceRebooking(ctx context.Context, staffID, absenceTypeID int64, absenceIDs []int64) ([]AbsenceTypeAllowanceSummary, error) {
-	return m.engine.PreviewAllowanceRebooking(ctx, staffID, absenceTypeID, absenceIDs)
-}
-
-func (m *Module) CreateAbsenceType(ctx context.Context, input CreateAbsenceType) (StaffAbsenceType, error) {
-	return m.engine.CreateAbsenceType(ctx, input)
-}
-
-func (m *Module) UpdateAbsenceType(ctx context.Context, input UpdateAbsenceType) (StaffAbsenceType, error) {
-	return m.engine.UpdateAbsenceType(ctx, input)
-}
-
 // --- staff absences ---
-
-func (m *Module) FindStaffAbsence(ctx context.Context, id int64) (StaffAbsence, error) {
-	if id <= 0 {
-		return StaffAbsence{}, invalidAbsence("staff absence ID is required")
-	}
-	return m.engine.FindStaffAbsence(ctx, id)
-}
-
-func (m *Module) ListStaffAbsences(ctx context.Context, filter StaffAbsenceFilter) ([]StaffAbsence, error) {
-	return m.engine.ListStaffAbsences(ctx, filter)
-}
-
-func (m *Module) CountStaffAbsences(ctx context.Context, filter StaffAbsenceFilter) (int, error) {
-	return m.engine.CountStaffAbsences(ctx, filter)
-}
-
-func (m *Module) ListStaffAbsenceRequests(ctx context.Context, filter StaffAbsenceRequestFilter) ([]StaffAbsence, error) {
-	if len(filter.Statuses) == 0 {
-		return nil, invalidAbsence("at least one status is required")
-	}
-	if filter.FilterSubjects && len(filter.SubjectStaffIDs) == 0 {
-		return []StaffAbsence{}, nil
-	}
-	return m.engine.ListStaffAbsenceRequests(ctx, filter)
-}
-
-func (m *Module) StaffAbsenceMapForDate(ctx context.Context, date string) (map[int64]string, error) {
-	return m.engine.StaffAbsenceMapForDate(ctx, date)
-}
-
-func (m *Module) StaffAbsenceTypeIDMapForDate(ctx context.Context, date string) (map[int64]int64, error) {
-	return m.engine.StaffAbsenceTypeIDMapForDate(ctx, date)
-}
-
-func (m *Module) OldestStaffAbsenceDate(ctx context.Context, column, before string) (string, error) {
-	return m.engine.OldestStaffAbsenceDate(ctx, column, before)
-}
-
-func (m *Module) LockStaffAbsenceWrites(ctx context.Context, staffID int64) error {
-	if staffID <= 0 {
-		return invalidAbsence("staff ID is required")
-	}
-	return m.engine.LockStaffAbsenceWrites(ctx, staffID)
-}
-
-func (m *Module) CreateStaffAbsence(ctx context.Context, absence *StaffAbsence) (StaffAbsence, error) {
-	if absence == nil {
-		return StaffAbsence{}, errors.New("StaffAbsence cannot be nil or zero value")
-	}
-	return m.engine.CreateStaffAbsence(ctx, absence)
-}
-
-func (m *Module) UpdateStaffAbsence(ctx context.Context, absence StaffAbsence) (StaffAbsence, error) {
-	if absence.ID <= 0 {
-		return StaffAbsence{}, invalidAbsence("staff absence ID is required")
-	}
-	return m.engine.UpdateStaffAbsence(ctx, absence)
-}
-
-func (m *Module) DeleteStaffAbsence(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return invalidAbsence("staff absence ID is required")
-	}
-	return m.engine.DeleteStaffAbsence(ctx, id)
-}
-
-func (m *Module) DeleteNonHistoricalStaffAbsences(ctx context.Context, staffID int64, from string) (int64, error) {
-	if staffID <= 0 {
-		return 0, invalidAbsence("staff ID is required")
-	}
-	return m.engine.DeleteNonHistoricalStaffAbsences(ctx, staffID, from)
-}
-
-func (m *Module) DeleteStaffAbsencesOlderThan(ctx context.Context, column, cutoff string) (int64, error) {
-	return m.engine.DeleteStaffAbsencesOlderThan(ctx, column, cutoff)
-}
 
 // --- absence types ---
 
-func (m *Module) ListStaffAbsenceTypes(ctx context.Context) ([]StaffAbsenceType, error) {
-	return m.engine.ListStaffAbsenceTypes(ctx)
-}
-
-func (m *Module) FindStaffAbsenceType(ctx context.Context, id int64) (StaffAbsenceType, error) {
-	if id <= 0 {
-		return StaffAbsenceType{}, ErrAbsenceTypeNotFound
-	}
-	return m.engine.FindStaffAbsenceType(ctx, id)
-}
-
-func (m *Module) LockStaffAbsenceType(ctx context.Context, id int64) (StaffAbsenceType, error) {
-	if id <= 0 {
-		return StaffAbsenceType{}, ErrAbsenceTypeNotFound
-	}
-	return m.engine.LockStaffAbsenceType(ctx, id)
-}
-
-func (m *Module) StaffAbsenceTypeInUse(ctx context.Context, id int64) (bool, error) {
-	if id <= 0 {
-		return false, nil
-	}
-	return m.engine.StaffAbsenceTypeInUse(ctx, id)
-}
-
-func (m *Module) CreateStaffAbsenceType(ctx context.Context, fields StaffAbsenceTypeFields) (StaffAbsenceType, error) {
-	return m.engine.CreateStaffAbsenceType(ctx, fields)
-}
-
-func (m *Module) UpdateStaffAbsenceType(ctx context.Context, value StaffAbsenceType) (StaffAbsenceType, error) {
-	if value.ID <= 0 {
-		return StaffAbsenceType{}, ErrAbsenceTypeNotFound
-	}
-	return m.engine.UpdateStaffAbsenceType(ctx, value)
-}
-
 // --- audit ---
-
-func (m *Module) RecordStaffAbsenceAudit(ctx context.Context, audit StaffAbsenceAudit) (StaffAbsenceAudit, error) {
-	return m.engine.RecordStaffAbsenceAudit(ctx, audit)
-}

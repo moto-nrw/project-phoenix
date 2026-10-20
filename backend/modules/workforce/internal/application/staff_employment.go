@@ -58,7 +58,7 @@ func (e staffEmployment) StaffEmployments(ctx context.Context, membershipIDs []i
 	err := e.read(ctx, "list_staff_employments", 1, func(ctx context.Context) error {
 		values, err := e.store.StaffEmployments(ctx, membershipIDs)
 		for id, value := range values {
-			result[id] = workforce.StaffEmployment(value)
+			result[id] = value
 		}
 		return err
 	})
@@ -75,7 +75,7 @@ func (e staffEmployment) StaffOnWorkTimeModel(ctx context.Context, workTimeModel
 
 func (e staffEmployment) SaveStaffEmployment(ctx context.Context, value workforce.StaffEmployment) error {
 	return e.write(ctx, "save_staff_employment", 1, func(ctx context.Context) error {
-		return e.store.SaveStaffEmployment(ctx, domain.StaffEmployment(value))
+		return e.store.SaveStaffEmployment(ctx, value)
 	})
 }
 
@@ -89,7 +89,7 @@ func (e staffEmployment) AppendStaffNotes(ctx context.Context, membershipID int6
 		if err := e.store.SetStaffNotes(ctx, membershipID, current.StaffNotes); err != nil {
 			return err
 		}
-		result = workforce.StaffEmployment(current)
+		result = current
 		return nil
 	})
 	return result, err
@@ -114,9 +114,9 @@ func mapStaffEmploymentError(err error) error {
 	switch {
 	case err == nil:
 		return nil
-	case errors.Is(err, domain.ErrStaffEmploymentNotFound):
+	case errors.Is(err, workforce.ErrStaffEmploymentNotFound):
 		return workforce.ErrStaffEmploymentNotFound
-	case errors.Is(err, domain.ErrPersonnelNumberTaken):
+	case errors.Is(err, workforce.ErrPersonnelNumberTaken):
 		return workforce.ErrPersonnelNumberTaken
 	}
 	return err

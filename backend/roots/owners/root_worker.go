@@ -215,7 +215,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		bookings         *enrollmentOwner.BookingProjection
 		settings         SettingsOwner
 		calendar         schoolcalendar.Days
-		workTime         *workforceCompose.WorkTime
+		workTime         workforceCompose.WorkTime
 		people           PeopleRows
 		peopleIdentity   *identityaccess.Module
 		guardian         peoplePorts.GuardianService

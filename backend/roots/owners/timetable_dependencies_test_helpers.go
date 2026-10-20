@@ -43,7 +43,7 @@ func MustNewSchoolMembership(db transactionruntime.Database) schoolmembership.Ca
 
 // MustNewWorkforce composes the unobserved Workforce owner over the School
 // Membership owner of db.
-func MustNewWorkforce(db transactionruntime.Database) *workforceCompose.WorkTime {
+func MustNewWorkforce(db transactionruntime.Database) workforceCompose.WorkTime {
 	workTime, err := NewWorkforce(db, MustNewSchoolMembership(db))
 	if err != nil {
 		panic(fmt.Sprintf("compose workforce work-time: %v", err))
