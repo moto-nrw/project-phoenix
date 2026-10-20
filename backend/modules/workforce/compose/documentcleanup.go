@@ -20,7 +20,7 @@ func NewDocumentCleanup(db *bun.DB, now func() time.Time) (*workforce.DocumentCl
 	}
 	store := postgres.New(postgres.DatabaseRuntime(db))
 	service := application.NewDocumentCleanup(store, transaction{lock: store.AcquireXactLock}, now)
-	return workforce.NewDocumentCleanup(service.Enqueue, service.ClaimPublic, service.FinishPublic, service.BacklogPublic), nil
+	return workforce.NewDocumentCleanup(service.Enqueue, service.Claim, service.Finish, service.Backlog), nil
 }
 
 // NewStaffDocumentFileRecovery builds the removal of stored staff document

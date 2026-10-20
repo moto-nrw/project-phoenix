@@ -113,7 +113,7 @@ func BuildDeviceFleet(
 	db transactionruntime.Database, env RootEnvironment, settings settingsCompose.BatchSettingsService,
 	rooms facilitiesModule.Catalog, presence PresenceOwner, owner TimetableOwner,
 	pickups careplan.PickupScheduleService, organizations organizationtenancy.Query,
-) (*devicefleet.Module, error) {
+) (devicefleet.Capability, error) {
 	repos := owner.Repositories
 	observe := env.Observe.DeviceFleet
 	return devicefleetCompose.New(devicefleetCompose.Dependencies{

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports"
 )
@@ -24,57 +25,57 @@ func TestServiceIsDeviceOnlineAt(t *testing.T) {
 		name string
 		// window nil means no resolver injected, so the default applies.
 		window ports.WindowResolver
-		device domain.Device
+		device devicefleet.Device
 		want   bool
 	}{
 		{
 			name:   "nil LastSeen is offline",
-			device: domain.Device{LastSeen: nil},
+			device: devicefleet.Device{LastSeen: nil},
 			want:   false,
 		},
 		{
 			name:   "seen 3 minutes ago is online with default window",
-			device: domain.Device{LastSeen: timePtr(now.Add(-3 * time.Minute))},
+			device: devicefleet.Device{LastSeen: timePtr(now.Add(-3 * time.Minute))},
 			want:   true,
 		},
 		{
 			name:   "seen exactly at the default window is online (inclusive)",
-			device: domain.Device{LastSeen: timePtr(now.Add(-domain.DefaultDeviceOnlineWindow))},
+			device: devicefleet.Device{LastSeen: timePtr(now.Add(-domain.DefaultDeviceOnlineWindow))},
 			want:   true,
 		},
 		{
 			name:   "seen 10 minutes ago is offline with default window",
-			device: domain.Device{LastSeen: timePtr(now.Add(-10 * time.Minute))},
+			device: devicefleet.Device{LastSeen: timePtr(now.Add(-10 * time.Minute))},
 			want:   false,
 		},
 		{
 			name:   "tenant override widens the window",
 			window: fixedWindow(15 * time.Minute),
-			device: domain.Device{LastSeen: timePtr(now.Add(-10 * time.Minute))},
+			device: devicefleet.Device{LastSeen: timePtr(now.Add(-10 * time.Minute))},
 			want:   true,
 		},
 		{
 			name:   "tenant override narrows the window",
 			window: fixedWindow(2 * time.Minute),
-			device: domain.Device{LastSeen: timePtr(now.Add(-3 * time.Minute))},
+			device: devicefleet.Device{LastSeen: timePtr(now.Add(-3 * time.Minute))},
 			want:   false,
 		},
 		{
 			name:   "unresolved override falls back to the default window",
 			window: fixedWindow(0),
-			device: domain.Device{LastSeen: timePtr(now.Add(-4 * time.Minute))},
+			device: devicefleet.Device{LastSeen: timePtr(now.Add(-4 * time.Minute))},
 			want:   true,
 		},
 		{
 			name:   "unresolved override still rejects a stale device",
 			window: fixedWindow(0),
-			device: domain.Device{LastSeen: timePtr(now.Add(-10 * time.Minute))},
+			device: devicefleet.Device{LastSeen: timePtr(now.Add(-10 * time.Minute))},
 			want:   false,
 		},
 		{
 			name:   "negative override falls back to the default window",
 			window: fixedWindow(-time.Minute),
-			device: domain.Device{LastSeen: timePtr(now.Add(-10 * time.Minute))},
+			device: devicefleet.Device{LastSeen: timePtr(now.Add(-10 * time.Minute))},
 			want:   false,
 		},
 	}

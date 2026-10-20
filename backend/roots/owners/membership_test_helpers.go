@@ -65,13 +65,13 @@ func MustNewMembershipTestRepositories(db transactionruntime.Database) Membershi
 // NewWorkforce composes the work-time owner unobserved for the test graphs
 // whose test roles may not name the Workforce composition. Production roots compose the
 // module themselves (api/base.go) so runtime evidence is kept.
-func NewWorkforce(db transactionruntime.Database, membership schoolmembership.Capability) (*workforceCompose.WorkTime, error) {
+func NewWorkforce(db transactionruntime.Database, membership schoolmembership.Capability) (workforceCompose.WorkTime, error) {
 	return NewWorkforceWithClock(db, membership, nil)
 }
 
 // NewWorkforceWithClock is NewWorkforce with a pinned clock for the live
 // work-session window and the calendar day; nil means the wall clock.
-func NewWorkforceWithClock(db transactionruntime.Database, membership schoolmembership.Capability, now func() time.Time) (*workforceCompose.WorkTime, error) {
+func NewWorkforceWithClock(db transactionruntime.Database, membership schoolmembership.Capability, now func() time.Time) (workforceCompose.WorkTime, error) {
 	return workforceCompose.New(workforceCompose.Dependencies{
 		LockStaffAssignment: WorkforceStaffAssignmentLock(membership),
 		DB:                  db.Pool(),

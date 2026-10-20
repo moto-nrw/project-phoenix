@@ -3,30 +3,33 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-func (s *Service) PreviewStaffOffboarding(ctx context.Context, staffID int64, from string) (result domain.OffboardingPreview, err error) {
+func (s *Service) PreviewStaffOffboarding(ctx context.Context, staffID int64, from string) (result workforce.OffboardingPreview, err error) {
 	err = s.run(ctx, "preview_staff_offboarding", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			_, result, err = s.offboardingSnapshot(txCtx, staffID, from, stats)
 			return err
 		})
 	})
-	return result, err
+	return result, MapError(err)
 }
 
-func (s *Service) ExecuteStaffOffboarding(ctx context.Context, staffID, actorID int64, from, revision string, appendDeletion func(context.Context, domain.StaffAbsence, int64) error) (result domain.OffboardingCounts, err error) {
+func (s *Service) ExecuteStaffOffboarding(ctx context.Context, staffID, actorID int64, from, revision string, appendDeletion func(context.Context, workforce.StaffAbsence, int64) error) (result workforce.OffboardingCounts, err error) {
 	err = s.run(ctx, "execute_staff_offboarding", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			snapshot, preview, err := s.offboardingSnapshot(txCtx, staffID, from, stats)
 			if err != nil {
 				return err
 			}
-			if preview.Counts == (domain.OffboardingCounts{}) {
+			if preview.Counts == (workforce.OffboardingCounts{}) {
 				return nil
 			}
 			removal := offboardingRemoval{
@@ -37,7 +40,7 @@ func (s *Service) ExecuteStaffOffboarding(ctx context.Context, staffID, actorID 
 		})
 	})
 	if err != nil {
-		return domain.OffboardingCounts{}, err
+		return workforce.OffboardingCounts{}, MapError(err)
 	}
 	return result, nil
 }
@@ -48,7 +51,7 @@ type offboardingRemoval struct {
 	staffID, actorID int64
 	from             string
 	snapshot         domain.OffboardingSnapshot
-	appendDeletion   func(context.Context, domain.StaffAbsence, int64) error
+	appendDeletion   func(context.Context, workforce.StaffAbsence, int64) error
 }
 
 // removeOffboardedRows checks the preview revision, archives the absences and
@@ -57,16 +60,16 @@ type offboardingRemoval struct {
 func (s *Service) removeOffboardedRows(
 	ctx context.Context,
 	removal offboardingRemoval,
-	preview domain.OffboardingPreview,
+	preview workforce.OffboardingPreview,
 	revision string,
 	stats *domain.OperationStats,
-	result *domain.OffboardingCounts,
+	result *workforce.OffboardingCounts,
 ) error {
 	if err := checkOffboardingPreview(preview, revision); err != nil {
 		return err
 	}
 	for _, absence := range removal.snapshot.Absences {
-		if err := removal.appendDeletion(ctx, absence, removal.actorID); err != nil {
+		if err := removal.appendDeletion(ctx, AbsenceToPublic(absence), removal.actorID); err != nil {
 			return fmt.Errorf("archive absence before offboarding: %w", err)
 		}
 	}
@@ -74,19 +77,19 @@ func (s *Service) removeOffboardedRows(
 		return err
 	}
 	if *result != preview.Counts {
-		return domain.ErrOffboardingConflict
+		return workforce.ErrOffboardingConflict
 	}
 	return nil
 }
 
 // checkOffboardingPreview rejects an execution whose preview revision is stale
 // or whose rows are still in use.
-func checkOffboardingPreview(preview domain.OffboardingPreview, revision string) error {
+func checkOffboardingPreview(preview workforce.OffboardingPreview, revision string) error {
 	if preview.Revision != revision {
-		return domain.ErrOffboardingConflict
+		return workforce.ErrOffboardingConflict
 	}
 	if preview.Blocked {
-		return domain.ErrOffboardingInUse
+		return workforce.ErrOffboardingInUse
 	}
 	return nil
 }
@@ -94,7 +97,7 @@ func checkOffboardingPreview(preview domain.OffboardingPreview, revision string)
 // deleteOffboardedRows removes the staff member's substitutions, upcoming
 // shifts and non-historical absences from from on and caps their series,
 // recording the affected row counts in result.
-func (s *Service) deleteOffboardedRows(ctx context.Context, staffID int64, from string, series []domain.StaffShiftSeries, stats *domain.OperationStats, result *domain.OffboardingCounts) error {
+func (s *Service) deleteOffboardedRows(ctx context.Context, staffID int64, from string, series []domain.StaffShiftSeries, stats *domain.OperationStats, result *workforce.OffboardingCounts) error {
 	var changed domain.OperationStats
 	var err error
 	result.Substitutions, changed, err = s.store.DeleteGroupSubstitutionsForStaff(ctx, staffID, from)
@@ -121,22 +124,25 @@ func (s *Service) deleteOffboardedRows(ctx context.Context, staffID int64, from 
 }
 
 func (s *Service) LockStaffOffboarding(ctx context.Context, staffID int64) error {
+	if _, ok := tenant.TransactionFromContext(ctx); !ok {
+		return errors.New("workforce: offboarding lock requires a transaction")
+	}
 	if err := s.LockStaffAbsenceWrites(ctx, staffID); err != nil {
 		return err
 	}
-	return s.transaction.LockStaffShifts(ctx, staffID)
+	return MapError(s.transaction.LockStaffShifts(ctx, staffID))
 }
 
-func (s *Service) offboardingSnapshot(ctx context.Context, staffID int64, from string, stats *domain.OperationStats) (domain.OffboardingSnapshot, domain.OffboardingPreview, error) {
+func (s *Service) offboardingSnapshot(ctx context.Context, staffID int64, from string, stats *domain.OperationStats) (domain.OffboardingSnapshot, workforce.OffboardingPreview, error) {
 	if err := s.LockStaffOffboarding(ctx, staffID); err != nil {
-		return domain.OffboardingSnapshot{}, domain.OffboardingPreview{}, err
+		return domain.OffboardingSnapshot{}, workforce.OffboardingPreview{}, err
 	}
 	snapshot, readStats, err := s.store.PreviewStaffOffboarding(ctx, staffID, from)
 	stats.Add(readStats)
 	if err != nil {
-		return snapshot, domain.OffboardingPreview{}, err
+		return snapshot, workforce.OffboardingPreview{}, err
 	}
-	preview := domain.OffboardingPreview{Counts: domain.OffboardingCounts{
+	preview := workforce.OffboardingPreview{Counts: workforce.OffboardingCounts{
 		Absences: int64(len(snapshot.Absences)), Shifts: int64(len(snapshot.Shifts)),
 		Series: int64(len(snapshot.Series)), Substitutions: int64(len(snapshot.Substitutions)),
 	}}

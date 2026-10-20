@@ -52,8 +52,9 @@ func transactionRegisterOnlyShrinks(root string, current transactionBoundaryRegi
 		return err
 	}
 	fingerprints := transactionFingerprints(root, base, run)
+	receiverRemoved := removedTransactionReceiverMethods(root)
 	for _, pair := range []struct{ current, previous map[string]string }{{current.Admin, previous.Admin}, {current.Commands, previous.Commands}} {
-		if err := transactionScopeSubset(pair.current, pair.previous, moves, fingerprints); err != nil {
+		if err := transactionScopeSubset(pair.current, pair.previous, moves, fingerprints, receiverRemoved); err != nil {
 			return err
 		}
 	}

@@ -39,12 +39,12 @@ func timeTrackingIdentity(ctx context.Context) timeTrackingHTTP.Identity {
 
 // exportTransferPort adapts the Export Transfer module to the resource's port.
 type exportTransferPort struct {
-	module *exportTransferModule.Module
+	module exportTransferModule.Capability
 }
 
 // newExportTransferPort returns nil when no module is wired, which the
 // resource renders as "not configured".
-func newExportTransferPort(module *exportTransferModule.Module) timeTrackingHTTP.ExportTransfer {
+func newExportTransferPort(module exportTransferModule.Capability) timeTrackingHTTP.ExportTransfer {
 	if module == nil {
 		return nil
 	}
@@ -108,7 +108,7 @@ func newTimeTrackingResource(
 // adapted capabilities; schedules is the Workforce query the schedule views
 // read from and the Sonderarbeitszeiten are written through; notifyChanged
 // invalidates the time-account views after such a write.
-func newStaffAdminResource(capabilities owners.WorkforceAdminCapabilities, schedules workforceModule.Capability, notifyChanged func(context.Context), exportTransfer *exportTransferModule.Module, db transactionruntime.Database, logger *slog.Logger) *timeTrackingHTTP.StaffAdminResource {
+func newStaffAdminResource(capabilities owners.WorkforceAdminCapabilities, schedules workforceModule.Capability, notifyChanged func(context.Context), exportTransfer exportTransferModule.Capability, db transactionruntime.Database, logger *slog.Logger) *timeTrackingHTTP.StaffAdminResource {
 	cleanup, err := workforceCompose.NewDocumentCleanup(db.Pool(), nil)
 	if err != nil {
 		panic(err)
