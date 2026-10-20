@@ -180,7 +180,7 @@ func (graph *compositionGraph) add(source routeBuilderFile, name string, body as
 			graph.initializers[compositionImportPath(source)] = append(graph.initializers[compositionImportPath(source)], key)
 		}
 	}
-	if isTest && !method && (initializer || strings.HasPrefix(name, "Test") || strings.HasPrefix(name, "Benchmark") || strings.HasPrefix(name, "Example")) && !fullRouterGoldenNode(source, name) && !serviceGraphTest(source) {
+	if isTest && !method && (initializer || strings.HasPrefix(name, "Test") || strings.HasPrefix(name, "Benchmark") || strings.HasPrefix(name, "Example")) && !fullRouterGoldenNode(source, name) {
 		graph.roots = append(graph.roots, key)
 	}
 }
@@ -240,23 +240,12 @@ func (graph *compositionGraph) references(node compositionNode) ([]string, []str
 	return edges, broad
 }
 
+// broadCompositionSymbol names the root's full composition: the process
+// runtime and the full-router golden that builds it.
 func broadCompositionSymbol(pkg, name string) bool {
-	if (pkg == rootServicesImport || pkg == projectImportRoot+"/database/repositories") && strings.HasPrefix(name, "NewFactory") {
-		return true
-	}
-	if pkg == testutilImport && (name == "SetupAPITest" || name == "setupAPITest" || name == "SetupFeedbackAPITest") {
-		return true
-	}
-	return pkg == projectImportRoot+"/api" && (name == "New" || name == "newRuntime" || name == "initializeAPIResources" || name == "newServiceGraph" || name == "newServeServiceGraph" || name == "buildFullProductionRouterGolden" || name == "TestFullProductionRouterGolden")
+	return pkg == projectImportRoot+"/api" && (name == "newRuntime" || name == "TestFullProductionRouterGolden")
 }
 
 func fullRouterGoldenNode(source routeBuilderFile, name string) bool {
 	return source.relPath == "api/route_table_golden_test.go" && name == "TestFullProductionRouterGolden"
-}
-
-// serviceGraphTest reports the root service graph's own tests: they build the
-// graph they verify, as the legacy composition's tests did before #2747
-// moved the graph into the root.
-func serviceGraphTest(source routeBuilderFile) bool {
-	return strings.HasPrefix(source.relPath, "api/service_graph") && strings.HasSuffix(source.relPath, "_test.go")
 }

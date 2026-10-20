@@ -17,7 +17,7 @@ Quelle im Code; die Tabelle hält nur den Endstand fest.
 | Ratchet-Keys | 0 | `backend/architecture/legacy.jsonl` |
 | Legacy-Composition | 0 | `legacy_composition` in `policy.json` |
 | Policy-Epoche | 88 | `policy_epoch` in `policy.json` |
-| Regeln mit `issue`-Feld oder Übergangsmarker | 0 von 919 | `rules` in `policy.json`, `TestPolicyTemporaryRulesRatchet` |
+| Regeln mit `issue`-Feld oder Übergangsmarker | 0 von 919 | `rules` in `policy.json`, `validateTargetOnlyRule` in `internal/architecture/target_rule.go` |
 | Composition-Surface | 0 | `scripts/backend-architecture.sh check` |
 | Legacy-LOC in `legacy/`-Bäumen und `legacy_*.go` | 0 und 0 | `backend/test/module_legacy_budget_ratchet_test.go` |
 | Compose-LOC | 12.489 in 54 Paketen | `moduleComposeBudgetTotal`, ebenda |
