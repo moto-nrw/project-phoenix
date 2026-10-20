@@ -7,13 +7,6 @@ import (
 )
 
 var (
-	// ErrOperatorPasskeyNotFound reports a lookup that matched no active
-	// credential, or a use or revocation that found no active credential of
-	// that operator.
-	ErrOperatorPasskeyNotFound = errors.New("operator passkey not found")
-	// ErrOperatorPasskeySessionNotFound reports a consumption that found no
-	// unconsumed, unexpired ceremony with that ID and purpose.
-	ErrOperatorPasskeySessionNotFound = errors.New("operator passkey session not found")
 	// ErrPasskeyJSONInvalid rejects credential state the WebAuthn
 	// library could not read back.
 	ErrPasskeyJSONInvalid = errors.New("credential_json must be valid JSON")

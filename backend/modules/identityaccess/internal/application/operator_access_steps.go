@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -16,7 +17,7 @@ type operatorAccessFacts struct {
 	activeTenantIDs []int64
 }
 
-func (s *OperatorAccountAccess) grantAccessFacts(adminCtx context.Context, request domain.GrantAccountTenantAccess) (facts operatorAccessFacts, err error) {
+func (s *OperatorAccountAccess) grantAccessFacts(adminCtx context.Context, request identityaccess.GrantAccountTenantAccess) (facts operatorAccessFacts, err error) {
 	account, err := s.loadAccount(adminCtx, request.AccountID, true)
 	if err != nil {
 		return facts, err
@@ -34,7 +35,7 @@ func (s *OperatorAccountAccess) grantAccessFacts(adminCtx context.Context, reque
 		return facts, err
 	}
 	if hasAccess {
-		return facts, domain.ErrAccountTenantAccessExists
+		return facts, identityaccess.ErrAccountTenantAccessExists
 	}
 	// A revoke removes the school's roles, but a role assignment left
 	// without its mapping must not let the grant swap a Lehrkraft role
@@ -54,7 +55,7 @@ func (s *OperatorAccountAccess) grantAccessFacts(adminCtx context.Context, reque
 	return facts, nil
 }
 
-func (s *OperatorAccountAccess) grantSchoolIdentity(tenantCtx, adminCtx context.Context, request domain.GrantAccountTenantAccess, account domain.ManagedAccount, role domain.RoleFact, activeTenantIDs []int64) error {
+func (s *OperatorAccountAccess) grantSchoolIdentity(tenantCtx, adminCtx context.Context, request identityaccess.GrantAccountTenantAccess, account domain.ManagedAccount, role domain.RoleFact, activeTenantIDs []int64) error {
 	// Names for the person record that carries the account at this
 	// school, resolved before anything is written and only when one is
 	// actually needed: a re-grant after a revoke finds the person still
@@ -113,7 +114,7 @@ func (s *OperatorAccountAccess) roleChangeFacts(adminCtx context.Context, accoun
 		return facts, err
 	}
 	if !hasAccess {
-		return facts, domain.ErrAccountTenantAccessNotFound
+		return facts, identityaccess.ErrAccountTenantAccessNotFound
 	}
 	current, err := s.rolesAtTenant(adminCtx, accountID, schoolID)
 	if err != nil {

@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"errors"
 	"net/mail"
 	"strings"
 	"time"
@@ -24,25 +23,6 @@ const (
 	// may request within OperatorEmailChangeRateWindow.
 	OperatorEmailChangeRateLimit  = 5
 	OperatorEmailChangeRateWindow = time.Hour
-)
-
-var (
-	// ErrOperatorEmailExists reports an address that already belongs to an
-	// operator. The invitation reports it; the e-mail change deliberately
-	// does not, so an operator cannot enumerate addresses.
-	ErrOperatorEmailExists = errors.New("an operator with this email already exists")
-	// ErrOperatorInvitationRateLimited reports an inviter that has created
-	// too many invitations within the window.
-	ErrOperatorInvitationRateLimited = errors.New("too many invitation attempts, please wait")
-	// ErrOperatorEmailChangeRateLimited reports an operator that has
-	// requested too many confirmation links within the window.
-	ErrOperatorEmailChangeRateLimited = errors.New("too many email change attempts, please wait")
-	// ErrOperatorEmailChangeSameEmail reports a requested address that is
-	// the operator's current one.
-	ErrOperatorEmailChangeSameEmail = errors.New("new email is the same as current email")
-	// ErrOperatorEmailInUse reports a confirmation for an address another
-	// operator took in the meantime.
-	ErrOperatorEmailInUse = errors.New("email address is already in use")
 )
 
 // NormalizeOperatorEmail lower-cases the address, canonicalizes it to the
@@ -75,44 +55,4 @@ func NormalizeOperatorDisplayName(name string) (string, error) {
 		return "", &InvalidInputError{Err: ErrOperatorDisplayNameTooLong}
 	}
 	return trimmed, nil
-}
-
-// OperatorInvitationRequest is one invitation to create.
-type OperatorInvitationRequest struct {
-	Email       string
-	DisplayName *string
-	CreatedBy   int64
-	IPAddress   string
-}
-
-// OperatorInvitationPreview is what the public validation page may show.
-type OperatorInvitationPreview struct {
-	Email       string
-	DisplayName *string
-	ExpiresAt   time.Time
-}
-
-// OperatorInvitationAcceptance is what an invitee supplies.
-type OperatorInvitationAcceptance struct {
-	Token       string
-	DisplayName string
-	Password    string
-	IPAddress   string
-}
-
-// OperatorEmailChangeRequest is one confirmation link to create.
-type OperatorEmailChangeRequest struct {
-	OperatorID      int64
-	NewEmail        string
-	CurrentPassword string
-	IPAddress       string
-}
-
-// OperatorEmailChangeResult is what a confirmation produced: the address
-// that is now the operator's, and the one it replaced.
-type OperatorEmailChangeResult struct {
-	OperatorID  int64
-	DisplayName string
-	OldEmail    string
-	NewEmail    string
 }

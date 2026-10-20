@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,7 +21,7 @@ func TestDeactivateOperatorLeavesTheTimestampToTheDatabase(t *testing.T) {
 		return time.Time{}
 	}
 
-	deactivated, err := fixture.provisioning.ChangeOperatorStatus(context.Background(), domain.OperatorStatusChange{
+	deactivated, err := fixture.provisioning.ChangeOperatorStatus(context.Background(), identityaccess.OperatorStatusChange{
 		OperatorID: target.ID,
 		ActorID:    actor.ID,
 	})
@@ -45,7 +46,7 @@ func TestOperatorStatusChangeRollsBackWhenTheLedgerWriteFails(t *testing.T) {
 			fixture.audit.err = errFakeStore
 			fixture.provisioning.runtime = &operatorStatusRollbackRuntime{fakeRuntime: fixture.runtime, store: fixture.store}
 
-			_, err := fixture.provisioning.ChangeOperatorStatus(context.Background(), domain.OperatorStatusChange{
+			_, err := fixture.provisioning.ChangeOperatorStatus(context.Background(), identityaccess.OperatorStatusChange{
 				OperatorID: target.ID,
 				ActorID:    actor.ID,
 				Active:     active,

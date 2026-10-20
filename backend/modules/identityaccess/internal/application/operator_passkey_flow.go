@@ -11,6 +11,7 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gofrs/uuid"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
@@ -85,7 +86,7 @@ func NewOperatorPasskeyFlows(operators *Service, deps OperatorPasskeyFlowDepende
 
 // StartEnrollmentChallenge mails the code a registration must echo back.
 func (f *OperatorPasskeyFlows) StartEnrollmentChallenge(ctx context.Context, operatorID int64, ip net.IP) (domain.PasskeyEnrollmentChallenge, error) {
-	operator, err := f.operators.FindOperator(ctx, operatorID)
+	operator, err := f.operators.findOperatorByID(ctx, operatorID)
 	if err != nil {
 		return domain.PasskeyEnrollmentChallenge{}, err
 	}
@@ -105,12 +106,12 @@ func (f *OperatorPasskeyFlows) BeginRegistration(ctx context.Context, request do
 	if err := f.mfa.VerifyCodeForOperator(ctx, request.OperatorID, request.Code); err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
-	operator, err := f.operators.FindOperator(ctx, request.OperatorID)
+	operator, err := f.operators.findOperatorByID(ctx, request.OperatorID)
 	if err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
 	if !operator.Active {
-		return domain.PasskeyCeremonyOptions{}, domain.ErrOperatorInactive
+		return domain.PasskeyCeremonyOptions{}, identityaccess.ErrOperatorInactive
 	}
 	user, err := f.passkeyUser(ctx, operator)
 	if err != nil {
@@ -175,7 +176,7 @@ func (f *OperatorPasskeyFlows) FinishRegistration(ctx context.Context, request d
 func (f *OperatorPasskeyFlows) verifyRegistration(ctx context.Context, request domain.OperatorPasskeyRegistrationFinish) (domain.OperatorPasskeyCredential, error) {
 	session, err := f.records.ConsumeSession(ctx, request.SessionID, domain.PasskeySessionPurposeRegistration, f.now())
 	if err != nil {
-		if errors.Is(err, domain.ErrOperatorPasskeySessionNotFound) {
+		if errors.Is(err, identityaccess.ErrOperatorPasskeySessionNotFound) {
 			return domain.OperatorPasskeyCredential{}, rejectCeremony(domain.ErrPasskeySessionInvalid)
 		}
 		return domain.OperatorPasskeyCredential{}, err
@@ -187,7 +188,7 @@ func (f *OperatorPasskeyFlows) verifyRegistration(ctx context.Context, request d
 	if err := json.Unmarshal(session.SessionJSON, &sessionData); err != nil {
 		return domain.OperatorPasskeyCredential{}, rejectCeremony(err)
 	}
-	operator, err := f.operators.FindOperator(ctx, request.OperatorID)
+	operator, err := f.operators.findOperatorByID(ctx, request.OperatorID)
 	if err != nil {
 		return domain.OperatorPasskeyCredential{}, err
 	}
@@ -288,7 +289,7 @@ type verifiedOperatorPasskeyLogin struct {
 func (f *OperatorPasskeyFlows) verifyLogin(ctx context.Context, request domain.OperatorPasskeyLoginFinish) (verifiedOperatorPasskeyLogin, error) {
 	session, err := f.records.ConsumeSession(ctx, request.SessionID, domain.PasskeySessionPurposeLogin, f.now())
 	if err != nil {
-		if errors.Is(err, domain.ErrOperatorPasskeySessionNotFound) {
+		if errors.Is(err, identityaccess.ErrOperatorPasskeySessionNotFound) {
 			return verifiedOperatorPasskeyLogin{}, rejectCeremony(domain.ErrPasskeySessionInvalid)
 		}
 		return verifiedOperatorPasskeyLogin{}, err
@@ -345,7 +346,7 @@ func (f *OperatorPasskeyFlows) ListCredentials(ctx context.Context, operatorID i
 // RevokeCredential revokes one active passkey of the operator.
 func (f *OperatorPasskeyFlows) RevokeCredential(ctx context.Context, operatorID, credentialID int64) error {
 	if err := f.records.RevokeCredential(ctx, operatorID, credentialID, f.now()); err != nil {
-		if errors.Is(err, domain.ErrOperatorPasskeyNotFound) {
+		if errors.Is(err, identityaccess.ErrOperatorPasskeyNotFound) {
 			return domain.ErrPasskeyNotFound
 		}
 		return err
@@ -403,15 +404,15 @@ func newCeremonySession(sessionData *webauthn.SessionData) (string, json.RawMess
 func (f *OperatorPasskeyFlows) resolveLoginPasskeyUser(ctx context.Context, rawID, userHandle []byte, matchedCredentialID *int64, readErr *error) (webauthn.User, error) {
 	row, findErr := f.records.FindActiveCredential(ctx, rawID, userHandle)
 	if findErr != nil {
-		if !errors.Is(findErr, domain.ErrOperatorPasskeyNotFound) {
+		if !errors.Is(findErr, identityaccess.ErrOperatorPasskeyNotFound) {
 			*readErr = findErr
 		}
 		return nil, findErr
 	}
 	*matchedCredentialID = row.ID
-	operator, findErr := f.operators.FindOperator(ctx, row.OperatorID)
+	operator, findErr := f.operators.findOperatorByID(ctx, row.OperatorID)
 	if findErr != nil {
-		if !errors.Is(findErr, domain.ErrOperatorNotFound) {
+		if !errors.Is(findErr, identityaccess.ErrOperatorNotFound) {
 			*readErr = findErr
 		}
 		return nil, findErr
@@ -422,4 +423,62 @@ func (f *OperatorPasskeyFlows) resolveLoginPasskeyUser(ctx context.Context, rawI
 		return nil, userErr
 	}
 	return passkeyUser, nil
+}
+
+func (f *OperatorPasskeyFlows) StartOperatorPasskeyEnrollment(ctx context.Context, operatorID int64, ip net.IP) (identityaccess.PasskeyEnrollmentChallenge, error) {
+	if f == nil {
+		return identityaccess.PasskeyEnrollmentChallenge{}, identityaccess.ErrPasskeyFlowsUnavailable
+	}
+	challenge, err := f.StartEnrollmentChallenge(ctx, operatorID, ip)
+	return identityaccess.PasskeyEnrollmentChallenge(challenge), operatorFlowError(err)
+}
+
+func (f *OperatorPasskeyFlows) BeginOperatorPasskeyRegistration(ctx context.Context, request identityaccess.OperatorPasskeyRegistrationStart) (identityaccess.PasskeyCeremonyOptions, error) {
+	if f == nil {
+		return identityaccess.PasskeyCeremonyOptions{}, identityaccess.ErrPasskeyFlowsUnavailable
+	}
+	options, err := f.BeginRegistration(ctx, domain.OperatorPasskeyRegistrationStart(request))
+	return identityaccess.PasskeyCeremonyOptions(options), operatorFlowError(err)
+}
+
+func (f *OperatorPasskeyFlows) FinishOperatorPasskeyRegistration(ctx context.Context, request identityaccess.OperatorPasskeyRegistrationFinish) (identityaccess.PasskeyCredentialSummary, error) {
+	if f == nil {
+		return identityaccess.PasskeyCredentialSummary{}, identityaccess.ErrPasskeyFlowsUnavailable
+	}
+	summary, err := f.FinishRegistration(ctx, domain.OperatorPasskeyRegistrationFinish(request))
+	return identityaccess.PasskeyCredentialSummary(summary), operatorFlowError(err)
+}
+
+func (f *OperatorPasskeyFlows) BeginOperatorPasskeyLogin(ctx context.Context, expectedOrigin string) (identityaccess.PasskeyCeremonyOptions, error) {
+	if f == nil {
+		return identityaccess.PasskeyCeremonyOptions{}, identityaccess.ErrPasskeyFlowsUnavailable
+	}
+	options, err := f.BeginLogin(ctx, expectedOrigin)
+	return identityaccess.PasskeyCeremonyOptions(options), operatorFlowError(err)
+}
+
+func (f *OperatorPasskeyFlows) FinishOperatorPasskeyLogin(ctx context.Context, request identityaccess.OperatorPasskeyLoginFinish) (identityaccess.PasskeyLoginResult, error) {
+	if f == nil {
+		return identityaccess.PasskeyLoginResult{}, identityaccess.ErrPasskeyFlowsUnavailable
+	}
+	result, err := f.FinishLogin(ctx, domain.OperatorPasskeyLoginFinish(request))
+	return identityaccess.PasskeyLoginResult(result), operatorFlowError(err)
+}
+
+func (f *OperatorPasskeyFlows) ListOperatorPasskeyCredentials(ctx context.Context, operatorID int64) ([]identityaccess.PasskeyCredentialSummary, error) {
+	if f == nil {
+		return nil, identityaccess.ErrPasskeyFlowsUnavailable
+	}
+	summaries, err := f.ListCredentials(ctx, operatorID)
+	if err != nil {
+		return nil, operatorFlowError(err)
+	}
+	return publicPasskeySummaries(summaries), nil
+}
+
+func (f *OperatorPasskeyFlows) RevokeOperatorPasskeyCredential(ctx context.Context, operatorID, credentialID int64) error {
+	if f == nil {
+		return identityaccess.ErrPasskeyFlowsUnavailable
+	}
+	return operatorFlowError(f.RevokeCredential(ctx, operatorID, credentialID))
 }
