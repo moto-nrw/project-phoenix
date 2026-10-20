@@ -187,6 +187,7 @@ func (s *ActivityService) createSupervisorsInTx(ctx context.Context, txService a
 
 // createSchedulesInTx creates schedules for a group within a transaction
 func (s *ActivityService) createSchedulesInTx(ctx context.Context, txService activityContract.ActivityService, group *activityContract.Group, schedules []*activityContract.Schedule) error {
+	txActivities := txService.(*ActivityService)
 	for _, schedule := range schedules {
 		schedule.ActivityGroupID = group.ID
 		schedule.SetTenantID(group.GetTenantID())
@@ -195,7 +196,7 @@ func (s *ActivityService) createSchedulesInTx(ctx context.Context, txService act
 			return &activityContract.ActivityError{Op: opValidateSchedule, Err: err}
 		}
 
-		if err := createLegacySchedule(ctx, txService.(*ActivityService).scheduleRepo, schedule); err != nil {
+		if err := createLegacySchedule(ctx, txActivities.scheduleRepo, schedule); err != nil {
 			return &activityContract.ActivityError{Op: "create schedule", Err: err}
 		}
 	}
