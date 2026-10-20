@@ -198,7 +198,7 @@ func TestPlanningTrackListQueryBudgetStaysFlat(t *testing.T) {
 	}))
 }
 
-func createOwnedPlanningTrack(t *testing.T, module *timetable.Module, ctx context.Context, name, color string, order int) timetable.PlanningTrack {
+func createOwnedPlanningTrack(t *testing.T, module timetable.Owner, ctx context.Context, name, color string, order int) timetable.PlanningTrack {
 	t.Helper()
 	value, err := module.CreatePlanningTrack(ctx, planningTrackInput(name, color, order))
 	require.NoError(t, err)

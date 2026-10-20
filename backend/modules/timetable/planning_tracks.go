@@ -102,7 +102,7 @@ func (d PlanningTrackDraft) Validate() (PlanningTrackDraft, error) {
 		field, reason = "name", "planning track name is required"
 	} else if len(d.Name) > 100 {
 		field, reason = "name", "planning track name cannot exceed 100 characters"
-	} else if !planningTrackColorPattern.MatchString(d.Color) {
+	} else if !ValidPlanningTrackColor(d.Color) {
 		field, reason = "color", "planning track color must use #RRGGBB"
 	} else if d.SortOrder < 0 {
 		field, reason = "sort_order", "planning track sort order cannot be negative"
@@ -125,3 +125,7 @@ func (e *InvalidPlanningTrackError) Error() string {
 }
 
 func (e *InvalidPlanningTrackError) Unwrap() error { return ErrInvalidPlanningTrack }
+
+// ValidPlanningTrackColor reports whether color is a #RRGGBB colour, the only
+// form a planning track stores.
+func ValidPlanningTrackColor(color string) bool { return planningTrackColorPattern.MatchString(color) }

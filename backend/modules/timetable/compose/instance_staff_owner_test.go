@@ -196,7 +196,7 @@ func TestInstanceStaffListQueryBudgetStaysFlat(t *testing.T) {
 	}))
 }
 
-func createOwnedInstanceStaff(t *testing.T, module *timetable.Module, ctx context.Context, instanceID, staffID int64, primary, absent bool) timetable.InstanceStaff {
+func createOwnedInstanceStaff(t *testing.T, module timetable.Owner, ctx context.Context, instanceID, staffID int64, primary, absent bool) timetable.InstanceStaff {
 	t.Helper()
 	value, err := module.CreateInstanceStaff(ctx, ownedInstanceStaffInput(instanceID, staffID, primary, absent))
 	require.NoError(t, err)
