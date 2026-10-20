@@ -3,11 +3,15 @@ package application
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
-	internalports "github.com/moto-nrw/project-phoenix/modules/timetable/internal/ports"
 )
 
-func (s *Service) FindStudentEnrollment(ctx context.Context, id int64) (result domain.StudentEnrollment, err error) {
+func (s *Service) FindStudentEnrollment(ctx context.Context, id int64) (result timetable.StudentEnrollment, err error) {
+	if id <= 0 {
+		return timetable.StudentEnrollment{}, s.reject("find_student_enrollment", timetable.ErrInvalidStudentEnrollmentQuery)
+	}
+
 	err = s.run(ctx, "find_student_enrollment", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, findErr := s.store.FindStudentEnrollment(ctx, id)
 		stats.Add(queryStats)
@@ -15,7 +19,7 @@ func (s *Service) FindStudentEnrollment(ctx context.Context, id int64) (result d
 			return findErr
 		}
 		if !found {
-			return domain.ErrStudentEnrollmentNotFound
+			return timetable.ErrStudentEnrollmentNotFound
 		}
 		result = value
 		return nil
@@ -23,7 +27,12 @@ func (s *Service) FindStudentEnrollment(ctx context.Context, id int64) (result d
 	return result, err
 }
 
-func (s *Service) ListStudentEnrollments(ctx context.Context, filter domain.StudentEnrollmentFilter) (result []domain.StudentEnrollment, err error) {
+func (s *Service) ListStudentEnrollments(ctx context.Context, filter timetable.StudentEnrollmentFilter) (result []timetable.StudentEnrollment, err error) {
+	if hasInvalidID(filter.StudentIDs) || hasInvalidID(filter.ActivityGroupIDs) || filter.Limit < 0 || filter.Offset < 0 ||
+		(filter.ActiveOn != nil && !timetable.ValidDate(*filter.ActiveOn)) {
+		return nil, s.reject("list_student_enrollments", timetable.ErrInvalidStudentEnrollmentQuery)
+	}
+
 	err = s.run(ctx, "list_student_enrollments", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListStudentEnrollments(ctx, filter)
 		stats.Add(queryStats)
@@ -33,7 +42,11 @@ func (s *Service) ListStudentEnrollments(ctx context.Context, filter domain.Stud
 	return result, err
 }
 
-func (s *Service) CreateStudentEnrollment(ctx context.Context, fields domain.StudentEnrollmentFields) (result domain.StudentEnrollment, err error) {
+func (s *Service) CreateStudentEnrollment(ctx context.Context, fields timetable.StudentEnrollmentInput) (result timetable.StudentEnrollment, err error) {
+	if !validStudentEnrollment(fields) {
+		return timetable.StudentEnrollment{}, s.reject("create_student_enrollment", timetable.ErrInvalidStudentEnrollment)
+	}
+
 	err = s.runWrite(ctx, "create_student_enrollment", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		value, queryStats, createErr := s.store.CreateStudentEnrollment(txCtx, fields)
 		stats.Add(queryStats)
@@ -43,7 +56,11 @@ func (s *Service) CreateStudentEnrollment(ctx context.Context, fields domain.Stu
 	return result, err
 }
 
-func (s *Service) UpdateStudentEnrollment(ctx context.Context, id int64, fields domain.StudentEnrollmentFields) (result domain.StudentEnrollment, err error) {
+func (s *Service) UpdateStudentEnrollment(ctx context.Context, id int64, fields timetable.StudentEnrollmentInput) (result timetable.StudentEnrollment, err error) {
+	if id <= 0 || !validStudentEnrollment(fields) {
+		return timetable.StudentEnrollment{}, s.reject("update_student_enrollment", timetable.ErrInvalidStudentEnrollment)
+	}
+
 	err = s.runWrite(ctx, "update_student_enrollment", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, updateErr := s.store.UpdateStudentEnrollment(txCtx, id, fields)
 		stats.Add(queryStats)
@@ -51,7 +68,7 @@ func (s *Service) UpdateStudentEnrollment(ctx context.Context, id int64, fields 
 			return updateErr
 		}
 		if !found {
-			return domain.ErrStudentEnrollmentNotFound
+			return timetable.ErrStudentEnrollmentNotFound
 		}
 		result = value
 		return nil
@@ -60,6 +77,10 @@ func (s *Service) UpdateStudentEnrollment(ctx context.Context, id int64, fields 
 }
 
 func (s *Service) DeleteStudentEnrollment(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return s.reject("delete_student_enrollment", timetable.ErrInvalidStudentEnrollment)
+	}
+
 	return s.runWrite(ctx, "delete_student_enrollment", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.DeleteStudentEnrollment(txCtx, id)
 		stats.Add(queryStats)
@@ -69,9 +90,12 @@ func (s *Service) DeleteStudentEnrollment(ctx context.Context, id int64) error {
 
 // BackfillStudentEnrollmentSource links the eligible enrollments to their
 // request child through the provenance store.
-func BackfillStudentEnrollmentSource(ctx context.Context, s *Service, store internalports.EnrollmentProvenanceStore, studentID, requestChildID int64, groupIDs []int64) (result int64, err error) {
+func (s *Service) BackfillStudentEnrollmentSource(ctx context.Context, studentID, requestChildID int64, groupIDs []int64) (result int64, err error) {
+	if studentID <= 0 || requestChildID <= 0 || hasInvalidID(groupIDs) {
+		return 0, s.reject("backfill_student_enrollment_source", timetable.ErrInvalidStudentEnrollment)
+	}
 	err = s.runWrite(ctx, "backfill_student_enrollment_source", true, func(txCtx context.Context, stats *domain.OperationStats) error {
-		rows, queryStats, writeErr := store.BackfillStudentEnrollmentSource(txCtx, studentID, requestChildID, groupIDs)
+		rows, queryStats, writeErr := s.provenance.BackfillStudentEnrollmentSource(txCtx, studentID, requestChildID, groupIDs)
 		stats.Add(queryStats)
 		result = rows
 		return writeErr
@@ -80,6 +104,10 @@ func BackfillStudentEnrollmentSource(ctx context.Context, s *Service, store inte
 }
 
 func (s *Service) DeleteStudentEnrollmentsBySource(ctx context.Context, studentID, requestChildID int64) (result int64, err error) {
+	if studentID <= 0 || requestChildID <= 0 {
+		return 0, s.reject("delete_student_enrollments_by_source", timetable.ErrInvalidStudentEnrollment)
+	}
+
 	err = s.runWrite(ctx, "delete_student_enrollments_by_source", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		rows, queryStats, writeErr := s.store.DeleteStudentEnrollmentsBySource(txCtx, studentID, requestChildID)
 		stats.Add(queryStats)
@@ -90,6 +118,10 @@ func (s *Service) DeleteStudentEnrollmentsBySource(ctx context.Context, studentI
 }
 
 func (s *Service) CapActiveStudentEnrollments(ctx context.Context, groupID int64, validUntil string) (result int64, err error) {
+	if groupID <= 0 || !timetable.ValidDate(validUntil) {
+		return 0, s.reject("cap_active_student_enrollments", timetable.ErrInvalidStudentEnrollment)
+	}
+
 	err = s.runWrite(ctx, "cap_active_student_enrollments", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		rows, queryStats, writeErr := s.store.CapActiveStudentEnrollments(txCtx, groupID, validUntil)
 		stats.Add(queryStats)
@@ -100,17 +132,25 @@ func (s *Service) CapActiveStudentEnrollments(ctx context.Context, groupID int64
 }
 
 func (s *Service) SetStudentEnrollmentValidUntil(ctx context.Context, id int64, validUntil string) error {
+	if id <= 0 || !timetable.ValidDate(validUntil) {
+		return s.reject("set_student_enrollment_valid_until", timetable.ErrInvalidStudentEnrollment)
+	}
+
 	return s.runWrite(ctx, "set_student_enrollment_valid_until", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		found, queryStats, err := s.store.SetStudentEnrollmentValidUntil(txCtx, id, validUntil)
 		stats.Add(queryStats)
 		if err == nil && !found {
-			return domain.ErrStudentEnrollmentNotFound
+			return timetable.ErrStudentEnrollmentNotFound
 		}
 		return err
 	})
 }
 
 func (s *Service) CloseOpenStudentEnrollments(ctx context.Context, groupID int64, periodID *int64, validUntil string) error {
+	if groupID <= 0 || (periodID != nil && *periodID <= 0) || !timetable.ValidDate(validUntil) {
+		return s.reject("close_open_student_enrollments", timetable.ErrInvalidStudentEnrollment)
+	}
+
 	return s.runWrite(ctx, "close_open_student_enrollments", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.CloseOpenStudentEnrollments(txCtx, groupID, periodID, validUntil)
 		stats.Add(queryStats)

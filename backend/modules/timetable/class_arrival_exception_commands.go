@@ -22,7 +22,7 @@ type ClassArrivalExceptionInput struct {
 }
 
 func (v ClassArrivalExceptionInput) Valid() bool {
-	return strings.TrimSpace(v.SchoolClass) != "" && validDate(v.Date) && !v.ArrivalTime.IsZero() &&
+	return strings.TrimSpace(v.SchoolClass) != "" && ValidDate(v.Date) && !v.ArrivalTime.IsZero() &&
 		(v.Reason == nil || utf8.RuneCountInString(*v.Reason) <= 255) &&
 		(v.CreatedBy == nil || *v.CreatedBy > 0) && (v.Origin == "" || v.Origin == "ogs" || v.Origin == "school")
 }

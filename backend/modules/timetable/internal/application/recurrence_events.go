@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
@@ -18,10 +19,10 @@ func (s *Service) GenerateRecurrenceEvents(ctx context.Context, id int64, start,
 			return readErr
 		}
 		if !found {
-			return domain.ErrRecurrenceRuleNotFound
+			return timetable.ErrRecurrenceRuleNotFound
 		}
 		if start.After(end) {
-			return domain.ErrInvalidRecurrenceRange
+			return timetable.ErrInvalidRecurrenceRange
 		}
 		var generateErr error
 		events, generateErr = recurrenceEventsBetween(&rule, start, end)
@@ -32,7 +33,7 @@ func (s *Service) GenerateRecurrenceEvents(ctx context.Context, id int64, start,
 
 // recurrenceEventsBetween expands a stored rule over [start, end], clipped to
 // the rule's end date and truncated to its count.
-func recurrenceEventsBetween(rule *domain.RecurrenceRule, start, end time.Time) ([]time.Time, error) {
+func recurrenceEventsBetween(rule *timetable.RecurrenceRule, start, end time.Time) ([]time.Time, error) {
 	if rule.IntervalCount <= 0 || (rule.Count != nil && *rule.Count < 0) {
 		return nil, fmt.Errorf("invalid stored recurrence interval or count")
 	}
@@ -64,7 +65,7 @@ func recurrenceEventsBetween(rule *domain.RecurrenceRule, start, end time.Time) 
 // Helper functions for GenerateEvents
 
 // generateDailyEvents generates daily events based on the rule
-func generateDailyEvents(rule *domain.RecurrenceRule, startDate, endDate time.Time) []time.Time {
+func generateDailyEvents(rule *timetable.RecurrenceRule, startDate, endDate time.Time) []time.Time {
 	var events []time.Time
 
 	// Normalize times to start of day if needed
@@ -80,7 +81,7 @@ func generateDailyEvents(rule *domain.RecurrenceRule, startDate, endDate time.Ti
 }
 
 // generateWeeklyEvents generates weekly events based on the rule
-func generateWeeklyEvents(rule *domain.RecurrenceRule, startDate, endDate time.Time) []time.Time {
+func generateWeeklyEvents(rule *timetable.RecurrenceRule, startDate, endDate time.Time) []time.Time {
 	var events []time.Time
 
 	// If no weekdays specified, use the weekday of the start date
@@ -134,7 +135,7 @@ func generateWeeklyEvents(rule *domain.RecurrenceRule, startDate, endDate time.T
 }
 
 // generateMonthlyEvents generates monthly events based on the rule
-func generateMonthlyEvents(rule *domain.RecurrenceRule, startDate, endDate time.Time) []time.Time {
+func generateMonthlyEvents(rule *timetable.RecurrenceRule, startDate, endDate time.Time) []time.Time {
 	var events []time.Time
 
 	// If no month days specified, use the day of month of the start date
@@ -184,7 +185,7 @@ func generateMonthlyEvents(rule *domain.RecurrenceRule, startDate, endDate time.
 }
 
 // generateYearlyEvents generates yearly events based on the rule
-func generateYearlyEvents(rule *domain.RecurrenceRule, startDate, endDate time.Time) []time.Time {
+func generateYearlyEvents(rule *timetable.RecurrenceRule, startDate, endDate time.Time) []time.Time {
 	var events []time.Time
 
 	// Use start date's month and day for yearly events
