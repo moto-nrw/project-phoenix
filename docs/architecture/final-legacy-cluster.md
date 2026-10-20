@@ -1,5 +1,9 @@
 # Final legacy cluster: round 8
 
+> **Historical record.** State at `ab7a534293` (2026-10-19). #2580 and #4069 are closed;
+> counts, budgets and open issues below describe that state, not today.
+> Final state: [`backend/architecture/WORKPLAN.md`](../../backend/architecture/WORKPLAN.md#endstand).
+
 Implementation base: `148e5aeb86cf22fdbfbffedd76ba070f52f80a3e`. The Round 7 record below is historical; its blockers and counts are not the current exit claim.
 
 Integrated development: `e423ad19c732f17966b2f8332eafb5df01196f29`. Upstream retention changes and gocognit 1.3 scores are retained. Two upstream ADRs numbered 0072 were made unique by moving the retention ADR to 0073 and updating its references, without changing either decision.

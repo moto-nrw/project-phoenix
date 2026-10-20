@@ -22,41 +22,34 @@ For role setup, BUN queries, soft deletion, or migrations, read
 
 ## Architecture
 
-### Active Architecture Migration (#2580) — TEMPORARY
+### Target architecture
 
-Until #2580's exit criteria are met, the capability-first target in
-`backend/architecture/policy.json` takes precedence over legacy examples.
-The Handler → Service → Repository layout is migration state, not the target.
-
-`backend/architecture/WORKPLAN.md` holds the open ticket set: what is assignable
-today, what each carrier still owns, and the debt no ratchet counts. Read it
-before picking up or cutting a #2580 ticket.
+The capability-first target in `backend/architecture/policy.json` is the
+architecture; the principle ADRs 0066 to 0071 state its rules. Where older
+code, docs or examples show a Handler → Service → Repository layout, the
+target wins.
 
 Before backend design, implementation, or review:
 
-1. Read `backend/architecture/README.md` and inspect affected owners, packages,
-   data objects, projections, and rules in `backend/architecture/policy.json`.
-   For a new or moved boundary, also read issue #2580.
+1. Read the matching principle ADR (table in `backend/architecture/README.md`)
+   and inspect affected owners, packages, data objects, projections, and rules
+   in `backend/architecture/policy.json`.
 2. Put new behavior behind an existing target owner's public capability.
    Dependencies use consumer-owned ports; cross-module writes use application
    workflows; cross-module reads use named tenant-safe projections.
-3. The root holds no service graph (ADR 0059): `api/service_graph*.go` is
-   being dissolved (#4080). Add no fields, stages, setters, late-bound slots or
-   wrappers to it; build what a mount or job needs as local values from owner
-   compositions, in the build order of the acyclic owner graph (ADR 0058). The
-   root mounts each route resource where it builds it (#2745). The Worker
-   receives every dependency in its constructor literal (#2749); API tests
-   build route-sized routers. The repository and service Factories are
-   deleted (#2743, #2747): build a retained repository where it is used, in its
-   owner composition.
+3. Owners compose themselves, and the roots only wire (ADR 0068). A `compose`
+   package constructs and binds its owner. The root holds no service graph
+   (ADR 0059): build what a mount or job needs as local values from owner
+   compositions, in the build order of the acyclic owner graph (ADR 0058), and
+   mount each route resource where it is built. The Worker receives every
+   dependency in its constructor literal; API tests build route-sized routers.
 4. Assign new writable data objects to existing target owners in the same diff.
-   A new owner requires an architecture decision linked from #2580 first.
-5. A policy rule states the target only (ADR 0057). Never write a rule into
-   another owner's `application`, `domain`, `adapter`, `postgres` or `cli`
+   A new owner requires an accepted ADR first.
+5. A policy rule states the target only (ADRs 0057, 0070). Never write a rule
+   into another owner's `application`, `domain`, `adapter`, `postgres` or `cli`
    role, onto a foreign `models/*` package, from a platform onto a domain,
-   projection or workflow owner, or one that closes a cycle (ADR 0058). Such a
-   dependency is removed in the cutover or stays an exact `legacy.jsonl` key
-   with an open carrier. Open consolidation work: #4069.
+   projection or workflow owner, or one that closes a cycle (ADRs 0058, 0071).
+   `legacy.jsonl` is empty: remove such a dependency in the same change.
 
 Before completing a backend code change:
 
@@ -66,15 +59,14 @@ Before completing a backend code change:
 3. Record owner/capability and before/after counts for touched shrink-only
    surfaces in the PR. Counts must stay equal or decrease.
 
-If a feature cannot fit these boundaries, stop its structural change and
-create or link an urgent #2580 subissue for explicit review. Remove this
-section only after the migration's exit criteria are met.
+If a feature cannot fit these boundaries, stop its structural change and open
+an architecture issue for an ADR decision before continuing.
 
-### Legacy layer safety
+### Code conventions
 
-Read `.claude/rules/backend-conventions.md` for unmigrated code's layer rules,
-repository generics, model conventions, and CI ratchets. These prevent new
-legacy damage; they do not define the target module boundary.
+Read `.claude/rules/backend-conventions.md` for repository generics, model
+conventions, and CI ratchets. They constrain code inside an owner; the policy
+defines the module boundary.
 
 **Query budgets (#2940)**: every list endpoint has a scenario in `test/query_budgets.go` and a test that counts its statements with `testpkg.CaptureQueries` and calls `testpkg.AssertQueryBudget`. The register is shrink-only; `TestQueryBudgetRatchet` rejects unreferenced entries and hand-rolled `BeforeQuery` hooks in tests. Rule 15 in `.claude/rules/backend-conventions.md` has the pattern.
 
@@ -175,7 +167,7 @@ All backend code uses `log/slog` via injected loggers — never logrus or `log.P
 s.logger.Info("visit recorded", "student_id", sid, "group_id", gid)  // snake_case keys
 ```
 
-- Loggers flow through the root composition: `initializeModuleServices(db, publicAPIURL, logger, ...)` hands the root logger to the owners and the service graph; services scope with `logger.With("service", "active")`
+- Loggers flow from the process root (`composeProcess` in `api/server.go`) into the owner compositions; services scope with `logger.With("service", "active")`
 - Structs that tests construct bare use the nil-safe pattern: `getLogger()` returning `slog.Default()` when nil
 - **GDPR: student names never at Info level** — IDs only; names at Debug
 - Known exceptions (intentional `log.Printf`): `modules/identityaccess/sessiontoken/tokenauth.go` startup logging; `cmd/` and `simulator/` route through slog default at WARN

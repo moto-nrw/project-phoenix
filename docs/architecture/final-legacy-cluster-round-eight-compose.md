@@ -1,5 +1,9 @@
 # Final legacy cluster: round 8 compose audit
 
+> **Historical record.** State at `ae894d7538` (2026-10-19). #2580 and #4069 are closed;
+> counts, budgets and open issues below describe that state, not today.
+> Final state: [`backend/architecture/WORKPLAN.md`](../../backend/architecture/WORKPLAN.md#endstand).
+
 Base: `148e5aeb86cf22fdbfbffedd76ba070f52f80a3e`. This inventories **every policy package with role `compose`**, except the root-composition and dev-tools owners. Package role, not directory spelling, selects the inventory. Test-hook declarations are listed separately from production. A LOC reduction alone does not prove the exit.
 
 Integrated development: `e423ad19c732f17966b2f8332eafb5df01196f29`.

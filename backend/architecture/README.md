@@ -24,7 +24,9 @@ The [traceability appendix](#appendix-principle-traceability) maps every rule
 that still holds to exactly one principle and every architecture ADR to its
 principles. The sections below describe how the checker enforces the rules and
 record the migration history; where they differ from a principle, the
-principle states the target.
+principle states the target. The migration (#2580, consolidation #4069) is
+closed; its final state and the follow-up issues are in
+[WORKPLAN.md](WORKPLAN.md#endstand).
 
 ## Canonical module map
 
@@ -76,7 +78,7 @@ Policy validation pins these exact IDs and kinds for the moto module path;
 missing, extra, renamed, or reclassified owners fail before graph analysis.
 Declaration order is irrelevant. Independent evaluator fixtures retain their
 own module maps. A future domain/platform change requires an explicit
-architecture decision, reflected in #2580, this map, and validation.
+architecture decision (ADR), reflected in this map and validation.
 
 File Storage owns the managed file lifecycle: file metadata, folders,
 folder-role/account grants, quota, and cleanup intents. Identity supplies
