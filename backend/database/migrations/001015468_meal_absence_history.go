@@ -54,7 +54,6 @@ const mealAbsenceHistorySQL = `
 				(tenant_id, student_id, date, status, changed_at, reported_at, cleared_at)
 			VALUES
 				(OLD.tenant_id, OLD.student_id, OLD.date, OLD.status, effective_change, OLD.reported_at, effective_change);
-			effective_change := NEW.reported_at;
 		ELSIF TG_OP = 'INSERT' THEN
 			effective_change := NEW.reported_at;
 		ELSIF NEW.reported_at IS DISTINCT FROM OLD.reported_at THEN

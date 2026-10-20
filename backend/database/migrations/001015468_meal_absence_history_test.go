@@ -62,6 +62,19 @@ func TestMealAbsenceHistoryRecordsEveryAbsenceStatus(t *testing.T) {
 	deleteStatusDay(t, db, sickID)
 	assert.Equal(t, []string{"excused:open", "sick:open", "sick:cleared"}, history("2026-09-08"))
 
+	// A changed status counts from the change, not from the first report:
+	// an earlier order snapshot must not see it.
+	changedID := statusDay("2026-09-11", "sick")
+	_, err = db.NewRaw(`UPDATE active.student_status_days SET status = 'excused' WHERE id = ?`, changedID).Exec(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"sick:open", "sick:cleared", "excused:open"}, history("2026-09-11"))
+	var excusedSince time.Time
+	require.NoError(t, db.NewRaw(`
+		SELECT changed_at FROM schedule.meal_sickness_status_history
+		WHERE tenant_id = ? AND student_id = ? AND date = '2026-09-11' AND status = 'excused'
+	`, student.TenantID, student.ID).Scan(ctx, &excusedSince))
+	assert.True(t, excusedSince.After(reportedAt), "the excused row starts at the change, not at %s", reportedAt)
+
 	// Down drops what only Up can read and restores the sick-only trigger.
 	require.NoError(t, mealAbsenceHistoryDown(ctx, db))
 	assert.Equal(t, []string{"sick:open", "sick:cleared"}, historyWithoutStatus(t, db, student.TenantID, student.ID, "2026-09-08"))
