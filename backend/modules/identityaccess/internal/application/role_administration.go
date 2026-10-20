@@ -338,6 +338,26 @@ func (r *RoleAdministration) GetAccountRoles(ctx context.Context, accountID int6
 	return roles, nil
 }
 
+func (r *RoleAdministration) AccountsHoldingRole(ctx context.Context, accountIDs []int64, roleName string) (map[int64]bool, error) {
+	if len(accountIDs) == 0 || roleName == "" {
+		return map[int64]bool{}, nil
+	}
+	uniqueAccountIDs := make([]int64, 0, len(accountIDs))
+	seen := make(map[int64]struct{}, len(accountIDs))
+	for _, accountID := range accountIDs {
+		if _, exists := seen[accountID]; exists {
+			continue
+		}
+		seen[accountID] = struct{}{}
+		uniqueAccountIDs = append(uniqueAccountIDs, accountID)
+	}
+	matches, err := r.store.ListAccountsHoldingRole(ctx, uniqueAccountIDs, roleName)
+	if err != nil {
+		return nil, failed("get accounts holding role", err)
+	}
+	return matches, nil
+}
+
 func (r *RoleAdministration) GetAccountRoleNames(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
 	names, err := r.store.ListAccountRoleNames(ctx, accountIDs)
 	if err != nil {

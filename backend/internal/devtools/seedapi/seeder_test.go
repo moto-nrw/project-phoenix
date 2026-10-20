@@ -361,6 +361,7 @@ func TestCollectSeedState_BasicFields(t *testing.T) {
 		{Email: "demo1@mail.de", Password: "pass1", Name: "Anna Müller", Position: "OGS-Büro"},
 		{Email: "demo11@mail.de", Password: "pass11", Name: "Julia Klein", Position: "Pädagogische Fachkraft"},
 		{Email: "demo12@mail.de", Password: "pass12", Name: "Markus Wolf", Position: "Pädagogische Fachkraft"},
+		{Email: "former@mail.de", Password: "pass13", Name: "Martin Richter", Position: "OGS-Büro"},
 	}
 	fs.staffIDs = map[string]int64{
 		"Anna Müller": 11,

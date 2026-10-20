@@ -1761,6 +1761,9 @@ function findStaffTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Auch ohne Recht für Personalakten sehen Sie, wo die Person gerade ist. Die Karte öffnet dann keine Personalakte. Fragen Sie bei Bedarf Ihre Leitung.",
       "Möchten Sie der Person schreiben? Öffnen Sie den `Team-Chat`.",
     ],
+    notes: [
+      "Hat jemand früher bei Ihnen gearbeitet? Wählen Sie in der Auswahl `Ehemalige`. Die Karte zeigt den Zeitraum in moto.",
+    ],
     related: [HELP_TOPICS.teamChat, HELP_TOPICS.activeSupervision],
   };
 }
@@ -4626,10 +4629,10 @@ function removeStaffTopic(): HelpTopic {
       "Wählen Sie `Endgültig löschen`.",
     ],
     result:
-      "Der Zugang ist aus. Die Person steht in keiner Liste der OGS mehr.",
+      "Der Zugang ist aus. Unter `Mitarbeiter` finden Sie die Person nur noch mit der Auswahl `Ehemalige`.",
     notes: [
       "Anwesenheiten und Zeiterfassung bleiben bis zum Ende der Frist für die Zeiterfassung erhalten. So lange bleiben Ihre Auswertungen vollständig.",
-      "Danach löscht moto die Angaben der Person. Statt des Namens steht dann „Gelöscht Benutzer“. Die Frist sehen Sie unter `Einstellungen` und `Datenschutz` bei `Zeiterfassung aufbewahren`.",
+      "Danach löscht moto die Angaben der Person. Statt des Namens steht dann „Gelöscht Benutzer“, und unter `Ehemalige` steht die Person nicht mehr. Die Frist sehen Sie unter `Einstellungen` und `Datenschutz` bei `Zeiterfassung aufbewahren`.",
       "Sie können dieselbe Person später wieder einladen.",
     ],
     differences: [

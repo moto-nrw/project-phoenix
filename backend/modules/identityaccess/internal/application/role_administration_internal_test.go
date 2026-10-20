@@ -43,6 +43,7 @@ type raStore struct {
 	findRoleErr          error
 	listRolesErr         error
 	listAccountRolesErr  error
+	roleMatchesErr       error
 	roleNamesErr         error
 	avatarsErr           error
 	emailsErr            error
@@ -152,6 +153,22 @@ func (s *raStore) ListAccountRoles(_ context.Context, accountID int64) ([]domain
 		result = append(result, s.roles[id])
 	}
 	return result, nil
+}
+
+func (s *raStore) ListAccountsHoldingRole(_ context.Context, accountIDs []int64, roleName string) (map[int64]bool, error) {
+	if s.roleMatchesErr != nil {
+		return nil, s.roleMatchesErr
+	}
+	matches := make(map[int64]bool)
+	for _, accountID := range accountIDs {
+		for _, roleID := range s.accountRoles[accountID] {
+			if s.roles[roleID].Name == roleName {
+				matches[accountID] = true
+				break
+			}
+		}
+	}
+	return matches, nil
 }
 
 func (s *raStore) ListAccountRoleNames(context.Context, []int64) (map[int64]string, error) {
@@ -409,9 +426,15 @@ func TestRoleAdministration_BatchLookupsWrapStoreFailures(t *testing.T) {
 	t.Parallel()
 
 	f := newRAFixture(t)
+	f.store.roleMatchesErr = errors.New("role matches lookup failed")
 	f.store.roleNamesErr = errors.New("role names lookup failed")
 	f.store.avatarsErr = errors.New("avatar lookup failed")
 	f.store.emailsErr = errors.New("email lookup failed")
+
+	matches, err := f.admin.AccountsHoldingRole(raContext(), []int64{f.account()}, "user")
+	require.ErrorIs(t, err, f.store.roleMatchesErr)
+	assert.Nil(t, matches)
+	assert.EqualError(t, err, "auth error during get accounts holding role: role matches lookup failed")
 
 	names, err := f.admin.GetAccountRoleNames(raContext(), []int64{f.account()})
 	require.ErrorIs(t, err, f.store.roleNamesErr)

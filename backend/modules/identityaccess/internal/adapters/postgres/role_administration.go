@@ -211,6 +211,31 @@ func (s *RoleStore) ListAccountRoles(ctx context.Context, accountID int64) ([]do
 	return managedRoles(rows), nil
 }
 
+func (s *RoleStore) ListAccountsHoldingRole(ctx context.Context, accountIDs []int64, roleName string) (map[int64]bool, error) {
+	result := make(map[int64]bool)
+	if len(accountIDs) == 0 || roleName == "" {
+		return result, nil
+	}
+	db, err := s.database(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var matching []int64
+	query := db.NewSelect().TableExpr("auth.account_roles AS ar").
+		ColumnExpr("ar.account_id").
+		Join("JOIN auth.roles AS role ON role.id = ar.role_id").
+		Where("ar.account_id IN (?)", bun.List(accountIDs)).
+		Where("role.name = ?", roleName)
+	query = scopeTenantQuery(s.scope(ctx), query, "ar.tenant_id = ?")
+	if err := query.Scan(ctx, &matching); err != nil {
+		return nil, fmt.Errorf("find accounts holding role by account IDs: %w", err)
+	}
+	for _, accountID := range matching {
+		result[accountID] = true
+	}
+	return result, nil
+}
+
 func (s *RoleStore) ListAccountRoleNames(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
 	result := make(map[int64]string)
 	if len(accountIDs) == 0 {

@@ -159,14 +159,15 @@ type Runtime struct {
 
 	// The presence and account enrichments below are non-critical: an error
 	// is logged and the field stays empty.
-	PresentStaffIDs func(context.Context) ([]int64, error)
-	WorkStatusMap   func(context.Context) (map[int64]string, error)
-	AbsenceMap      func(context.Context) (map[int64]string, error)
-	AbsenceLabelMap func(context.Context) (map[int64]string, error)
-	AccountRoles    func(context.Context, []int64) (map[int64]string, error)
-	AccountEmails   func(context.Context, []int64) (map[int64]string, error)
-	AccountAvatars  func(context.Context, []int64) (map[int64]string, error)
-	AccountHasRole  func(context.Context, int64, string) bool
+	PresentStaffIDs     func(context.Context) ([]int64, error)
+	WorkStatusMap       func(context.Context) (map[int64]string, error)
+	AbsenceMap          func(context.Context) (map[int64]string, error)
+	AbsenceLabelMap     func(context.Context) (map[int64]string, error)
+	AccountRoles        func(context.Context, []int64) (map[int64]string, error)
+	AccountEmails       func(context.Context, []int64) (map[int64]string, error)
+	AccountAvatars      func(context.Context, []int64) (map[int64]string, error)
+	AccountHasRole      func(context.Context, int64, string) bool
+	AccountsHoldingRole func(context.Context, []int64, string) (map[int64]bool, error)
 
 	// GrantDefaultPermissions grants the default account permissions after a
 	// create; the root decides what a Lehrkraft may and may not receive.
@@ -205,7 +206,7 @@ func NewResource(membership schoolmembership.Capability, runtime Runtime) *Resou
 		runtime.Person == nil || runtime.PersonNotFound == nil || runtime.Persons == nil || runtime.CreatePerson == nil ||
 		runtime.PresentStaffIDs == nil || runtime.WorkStatusMap == nil || runtime.AbsenceMap == nil ||
 		runtime.AbsenceLabelMap == nil || runtime.AccountRoles == nil || runtime.AccountEmails == nil ||
-		runtime.AccountAvatars == nil || runtime.AccountHasRole == nil ||
+		runtime.AccountAvatars == nil || runtime.AccountHasRole == nil || runtime.AccountsHoldingRole == nil ||
 		runtime.GrantDefaultPermissions == nil || runtime.RetryQueuedDocumentCleanups == nil ||
 		runtime.TeacherGroups == nil || runtime.SchoolClasses == nil || runtime.SetSchoolClasses == nil ||
 		runtime.ActiveCaregivers == nil || runtime.StaffByRoles == nil ||

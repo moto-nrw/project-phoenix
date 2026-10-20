@@ -82,11 +82,12 @@ func (s Staff) WithEmployment(employment StaffEmployment) Staff {
 }
 
 type StaffFilter struct {
-	IDs            []int64
-	PersonIDs      []int64
-	TenantIDs      []int64
-	IncludeDeleted bool
-	MembershipOnly bool
+	IDs                   []int64
+	PersonIDs             []int64
+	TenantIDs             []int64
+	IncludeDeleted        bool
+	IncludeInactiveGuests bool
+	MembershipOnly        bool
 }
 
 type Teacher struct {

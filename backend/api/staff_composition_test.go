@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"testing"
+	"time"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
@@ -27,12 +28,22 @@ type staffCompositionContext struct {
 	router chi.Router
 	// createStaff creates a staff member and returns (staffID, personID).
 	createStaff func(firstName, lastName string) (int64, int64)
+	// createStaffWithAccount creates a staff member linked to an account and
+	// returns (staffID, accountID).
+	createStaffWithAccount func(firstName, lastName string) (int64, int64)
+	assignLehrkraft        func(accountID int64)
 	// absentToday records an approved absence of a school-defined type with
 	// the given wording for the staff member on the current day.
 	absentToday func(staffID int64, wording string)
 	// createAccountGuest records a guest profile for a staff member with a
 	// moto account. It returns the staff ID.
 	createAccountGuest func(firstName, lastName string) int64
+	// retire marks a staff membership as left on the given day, the state
+	// the staff offboarding leaves behind.
+	retire func(staffID int64, leftAt time.Time)
+	// countQueries counts the statements of requests marked with the
+	// returned counter's Context; parallel tests share the database.
+	countQueries func() *testpkg.QueryCounter
 }
 
 func setupStaffCompositionRoute(t *testing.T) *staffCompositionContext {
@@ -53,6 +64,13 @@ func setupStaffCompositionRoute(t *testing.T) *staffCompositionContext {
 			staff := testpkg.CreateTestStaff(t, db, firstName, lastName)
 			return staff.ID, staff.PersonID
 		},
+		createStaffWithAccount: func(firstName, lastName string) (int64, int64) {
+			staff, account := testpkg.CreateTestStaffWithAccountForTenant(t, db, testpkg.Tenant(t), firstName, lastName)
+			return staff.ID, account.ID
+		},
+		assignLehrkraft: func(accountID int64) {
+			testpkg.AssignLehrkraftSystemRole(t, db, accountID, testpkg.Tenant(t))
+		},
 		absentToday: func(staffID int64, wording string) {
 			absenceType := testpkg.CreateTestStaffAbsenceType(t, db, wording)
 			testpkg.CreateTestStaffAbsenceToday(t, db, staffID, absenceType.ID)
@@ -64,6 +82,12 @@ func setupStaffCompositionRoute(t *testing.T) *staffCompositionContext {
 			require.NoError(t, err)
 			return staff.ID
 		},
+		retire: func(staffID int64, leftAt time.Time) {
+			_, err := db.NewRaw(`UPDATE users.staff_school_memberships SET deleted_at = ? WHERE id = ?`, leftAt, staffID).
+				Exec(context.Background())
+			require.NoError(t, err)
+		},
+		countQueries: func() *testpkg.QueryCounter { return testpkg.CaptureQueriesForContext(t, db) },
 	}
 }
 

@@ -88,6 +88,27 @@ func (e engine) GetAccountRoles(ctx context.Context, accountID int64) (value0 []
 	return
 }
 
+func (e engine) AccountsHoldingRole(ctx context.Context, accountIDs []int64, roleName string) (value0 map[int64]bool, err error) {
+	if e.roles == nil {
+		return nil, errRoleAdministrationUnavailable
+	}
+	if len(accountIDs) == 0 {
+		return map[int64]bool{}, nil
+	}
+	if roleName == "" {
+		return map[int64]bool{}, nil
+	}
+	operation := func(ctx context.Context) (map[int64]bool, error) {
+		matches, err := e.roles.AccountsHoldingRole(e.attach(ctx), accountIDs, roleName)
+		return matches, roleError(err)
+	}
+	err = globalIdentityRead(ctx, e.roles.runtime, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
+}
+
 func (e engine) AccountHoldsLehrkraftRole(ctx context.Context, accountID int64) (value0 bool, err error) {
 	if e.roles == nil {
 		return false, errRoleAdministrationUnavailable

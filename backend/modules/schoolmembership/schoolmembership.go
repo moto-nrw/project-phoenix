@@ -178,6 +178,10 @@ type StaffFilter struct {
 	// IncludeDeleted also returns soft-deleted rows; history readers use it
 	// to keep resolving offboarded colleagues.
 	IncludeDeleted bool
+	// IncludeInactiveGuests keeps the guest marker after the guest's activity
+	// window ended. Historical readers use it to classify former employments;
+	// ordinary staff reads keep the active-window semantics.
+	IncludeInactiveGuests bool
 	// MembershipOnly skips the Workforce employment half (#2753): the staff
 	// values carry ID, person, tenant and lifecycle only. Callers that read no
 	// employment field set it and save a statement.
