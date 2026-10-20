@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // JSONID accepts a JSON number or a decimal string. Person ids are bigints,
@@ -75,6 +76,8 @@ type PersonResponse struct {
 
 // StaffResponse represents a staff response.
 type StaffResponse struct {
+	StartedOn calendar.Date  `json:"started_on"`
+	EndedOn   *calendar.Date `json:"ended_on"`
 	// ID goes out as a decimal STRING for the same reason as PersonID: staff
 	// IDs are bigints, and the Next.js proxy parses every JSON number before
 	// the mapper can preserve it. A rounded staff ID could address a different
@@ -280,6 +283,8 @@ func buildStaffResponse(access staffFieldAccess, staff schoolmembership.Staff, p
 	isExternal := schoolmembership.ExternalCaregiver(staff.IsGuest, person != nil, person != nil && person.AccountID != nil)
 	response := StaffResponse{
 		ID:               staff.ID,
+		StartedOn:        calendar.DateFromTime(staff.CreatedAt),
+		EndedOn:          staffEndedOn(staff),
 		PersonID:         staff.PersonID,
 		StaffNotes:       staff.StaffNotes,
 		IsTeacher:        isTeacher,
@@ -343,4 +348,12 @@ func buildResponse(access staffFieldAccess, staff schoolmembership.Staff, person
 		return buildTeacherResponse(access, staff, person, *teacher, data)
 	}
 	return buildStaffResponse(access, staff, person, false, data)
+}
+
+func staffEndedOn(staff schoolmembership.Staff) *calendar.Date {
+	if staff.DeletedAt == nil {
+		return nil
+	}
+	date := calendar.DateFromTime(*staff.DeletedAt)
+	return &date
 }

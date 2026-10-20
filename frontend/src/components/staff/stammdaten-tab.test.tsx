@@ -37,6 +37,23 @@ vi.mock("~/lib/staff-api", () => ({
 }));
 
 describe("StammdatenTab", () => {
+  it("keeps financial and payroll write permissions read-only for a former employment", () => {
+    render(
+      <StammdatenTab
+        staffId="42"
+        readOnly
+        canManagePayroll
+        canManagePayrollSettings={false}
+        canViewFinancial
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Bearbeiten" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Speichern" }),
+    ).not.toBeInTheDocument();
+  });
   beforeEach(() => {
     mutate.mockReset();
     useSWRAuth.mockReset();

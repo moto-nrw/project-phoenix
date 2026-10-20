@@ -23,9 +23,7 @@ func (rs *StaffAdminResource) getStaffHistory(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Verify staff exists
-	if _, err := rs.PersonService.StaffByID(r.Context(), staffID); err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
+	if !rs.requireReadableStaffHistory(w, r, staffID) {
 		return
 	}
 
@@ -396,6 +394,10 @@ func (rs *StaffAdminResource) adminUpdateStaffSession(w http.ResponseWriter, r *
 		return
 	}
 
+	if !rs.requireBalanceAdjustmentStaff(w, r, targetStaffID) {
+		return
+	}
+
 	editorStaffID, err := rs.resolveEditorStaffID(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
@@ -436,6 +438,10 @@ func (rs *StaffAdminResource) adminCreateStaffSession(w http.ResponseWriter, r *
 	targetStaffID, err := common.ParseID(r)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	if !rs.requireBalanceAdjustmentStaff(w, r, targetStaffID) {
 		return
 	}
 
