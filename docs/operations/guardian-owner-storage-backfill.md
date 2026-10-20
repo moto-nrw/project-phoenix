@@ -1,5 +1,9 @@
 # Guardian owner storage Backfill (#2755)
 
+> **Historical.** The Contract migration of this move runs in every environment. The
+> backfill commands this runbook names (`backfill …`, `migrate backfill …`,
+> `migrate presence-backfill`) were removed in #4441; there is no manual step left.
+
 > Cutover #2756 (migration 1.15.417) has made the three targets
 > authoritative and turned `users.students_guardians` into a rollback-only
 > mirror. The backfill, its reset and its rollback now refuse to run; see the

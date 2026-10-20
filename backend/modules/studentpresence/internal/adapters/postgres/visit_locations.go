@@ -4,10 +4,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
-func (s *Store) ListVisitLocations(ctx context.Context, filter ports.VisitLocationFilter) ([]ports.VisitLocation, ports.Stats, error) {
+func (s *Store) ListVisitLocations(ctx context.Context, filter studentpresence.VisitLocationFilter) ([]ports.VisitLocation, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
@@ -69,7 +70,7 @@ func (s *Store) CountOpenVisitsInRoom(ctx context.Context, id int64) (int, ports
 	return int(count), ports.Stats{Queries: 1, Rows: 1, StatementDuration: time.Since(started)}, err
 }
 
-func (s *Store) ListOpenVisitRooms(ctx context.Context, roomID int64) ([]ports.OpenVisitRoom, ports.Stats, error) {
+func (s *Store) ListOpenVisitRooms(ctx context.Context, roomID int64) ([]studentpresence.OpenVisitRoom, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
@@ -86,9 +87,9 @@ func (s *Store) ListOpenVisitRooms(ctx context.Context, roomID int64) ([]ports.O
 	started := time.Now()
 	err = query.Scan(ctx, &rows)
 	stats := ports.Stats{Queries: 1, Rows: int64(len(rows)), StatementDuration: time.Since(started)}
-	result := make([]ports.OpenVisitRoom, 0, len(rows))
+	result := make([]studentpresence.OpenVisitRoom, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, ports.OpenVisitRoom(row))
+		result = append(result, studentpresence.OpenVisitRoom(row))
 	}
 	return result, stats, err
 }

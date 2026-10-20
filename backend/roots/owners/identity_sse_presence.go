@@ -9,7 +9,7 @@ import (
 
 // ssePresence reads the room sessions a live-update client subscribes to.
 type ssePresence struct {
-	groups *studentpresence.Module
+	groups studentpresence.Owner
 }
 
 func (s ssePresence) GetStaffActiveGroupIDs(ctx context.Context, staffID int64) ([]int64, error) {

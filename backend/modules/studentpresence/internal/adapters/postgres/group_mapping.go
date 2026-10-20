@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
@@ -40,12 +41,12 @@ func (s *Store) RemoveGroupFromCombination(ctx context.Context, combinedID, grou
 	return stats, err
 }
 
-func (s *Store) ListGroupMappings(ctx context.Context, filter ports.GroupMappingFilter) ([]ports.GroupMapping, ports.Stats, error) {
+func (s *Store) ListGroupMappings(ctx context.Context, filter studentpresence.GroupMappingFilter) ([]studentpresence.GroupMapping, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
 	}
-	rows := []ports.GroupMapping{}
+	rows := []studentpresence.GroupMapping{}
 	query := db.NewSelect().Table("active.group_mappings").Column("id", "tenant_id", "created_at", "updated_at", "active_combined_group_id", "active_group_id").Where("tenant_id = ?", tenantID).Order("id")
 	if filter.CombinedGroupID != nil {
 		query = query.Where("active_combined_group_id = ?", *filter.CombinedGroupID)
@@ -62,18 +63,18 @@ func (s *Store) ListGroupMappings(ctx context.Context, filter ports.GroupMapping
 	return rows, stats, nil
 }
 
-func (s *Store) RecordGroupMapping(ctx context.Context, combinedID, groupID int64) (ports.GroupMapping, ports.Stats, error) {
+func (s *Store) RecordGroupMapping(ctx context.Context, combinedID, groupID int64) (studentpresence.GroupMapping, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return ports.GroupMapping{}, ports.Stats{}, err
+		return studentpresence.GroupMapping{}, ports.Stats{}, err
 	}
-	var row ports.GroupMapping
+	var row studentpresence.GroupMapping
 	started := time.Now()
 	err = db.NewRaw(`INSERT INTO active.group_mappings (tenant_id,active_combined_group_id,active_group_id)
  VALUES (?,?,?) RETURNING id,tenant_id,created_at,updated_at,active_combined_group_id,active_group_id`, tenantID, combinedID, groupID).Scan(ctx, &row)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
-		return ports.GroupMapping{}, stats, fmt.Errorf("record group mapping: %w", err)
+		return studentpresence.GroupMapping{}, stats, fmt.Errorf("record group mapping: %w", err)
 	}
 	stats.Rows = 1
 	return row, stats, nil

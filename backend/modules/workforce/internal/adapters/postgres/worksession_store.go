@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -26,12 +27,14 @@ const (
 	aliasStaffVacationQuota     = "staff_vacation_quota"
 )
 
+const workSessionOpenConstraint = "uq_work_sessions_staff_date_open"
+
 // --- work sessions ---
 
-func (s *Store) FindWorkSession(ctx context.Context, id int64) (domain.WorkSession, bool, domain.OperationStats, error) {
+func (s *Store) FindWorkSession(ctx context.Context, id int64) (workforce.WorkSession, bool, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.WorkSession{}, false, domain.OperationStats{}, err
+		return workforce.WorkSession{}, false, domain.OperationStats{}, err
 	}
 	row := &workSessionRow{}
 	query := withTenant(db.NewSelect().Model(row).
@@ -39,15 +42,15 @@ func (s *Store) FindWorkSession(ctx context.Context, id int64) (domain.WorkSessi
 		Where(`"work_session".id = ?`, id), aliasWorkSession, scope)
 	found, stats, err := scanOne(ctx, query, "find work session")
 	if err != nil || !found {
-		return domain.WorkSession{}, found, stats, err
+		return workforce.WorkSession{}, found, stats, err
 	}
 	return workSessionToDomain(*row), true, stats, nil
 }
 
-func (s *Store) LockOpenWorkSession(ctx context.Context, id int64) (domain.WorkSession, bool, domain.OperationStats, error) {
+func (s *Store) LockOpenWorkSession(ctx context.Context, id int64) (workforce.WorkSession, bool, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.WorkSession{}, false, domain.OperationStats{}, err
+		return workforce.WorkSession{}, false, domain.OperationStats{}, err
 	}
 	row := &workSessionRow{}
 	query := withTenant(db.NewSelect().Model(row).
@@ -57,15 +60,15 @@ func (s *Store) LockOpenWorkSession(ctx context.Context, id int64) (domain.WorkS
 		For("UPDATE")
 	found, stats, err := scanOne(ctx, query, "lock open work session")
 	if err != nil || !found {
-		return domain.WorkSession{}, found, stats, err
+		return workforce.WorkSession{}, found, stats, err
 	}
 	return workSessionToDomain(*row), true, stats, nil
 }
 
-func (s *Store) OpenWorkSessionOn(ctx context.Context, staffID int64, date string, lock bool) (domain.WorkSession, bool, domain.OperationStats, error) {
+func (s *Store) OpenWorkSessionOn(ctx context.Context, staffID int64, date string, lock bool) (workforce.WorkSession, bool, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.WorkSession{}, false, domain.OperationStats{}, err
+		return workforce.WorkSession{}, false, domain.OperationStats{}, err
 	}
 	row := &workSessionRow{}
 	query := withTenant(db.NewSelect().Model(row).
@@ -78,7 +81,7 @@ func (s *Store) OpenWorkSessionOn(ctx context.Context, staffID int64, date strin
 	}
 	found, stats, err := scanOne(ctx, query, "find open work session on day")
 	if err != nil || !found {
-		return domain.WorkSession{}, found, stats, err
+		return workforce.WorkSession{}, found, stats, err
 	}
 	return workSessionToDomain(*row), true, stats, nil
 }
@@ -87,10 +90,10 @@ func (s *Store) OpenWorkSessionOn(ctx context.Context, staffID int64, date strin
 // filed on today or later always counts, an older one only while its check-in
 // is inside MaxOpenWorkSessionDuration. Past that limit a forgotten checkout
 // is not a running block (#2402).
-func (s *Store) LatestOpenWorkSession(ctx context.Context, staffID int64, today string, now time.Time) (domain.WorkSession, bool, domain.OperationStats, error) {
+func (s *Store) LatestOpenWorkSession(ctx context.Context, staffID int64, today string, now time.Time) (workforce.WorkSession, bool, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.WorkSession{}, false, domain.OperationStats{}, err
+		return workforce.WorkSession{}, false, domain.OperationStats{}, err
 	}
 	row := &workSessionRow{}
 	query := withTenant(db.NewSelect().Model(row).
@@ -98,17 +101,17 @@ func (s *Store) LatestOpenWorkSession(ctx context.Context, staffID int64, today 
 		Where(`"work_session".staff_id = ?`, staffID).
 		Where(`"work_session".check_out_time IS NULL`).
 		Where(`("work_session".date >= ? OR "work_session".check_in_time > ?)`,
-			today, now.Add(-domain.MaxOpenWorkSessionDuration)), aliasWorkSession, scope).
+			today, now.Add(-workforce.MaxOpenWorkSessionDuration)), aliasWorkSession, scope).
 		OrderExpr(`"work_session".date DESC, "work_session".check_in_time DESC`).
 		Limit(1)
 	found, stats, err := scanOne(ctx, query, "find latest open work session")
 	if err != nil || !found {
-		return domain.WorkSession{}, found, stats, err
+		return workforce.WorkSession{}, found, stats, err
 	}
 	return workSessionToDomain(*row), true, stats, nil
 }
 
-func (s *Store) ListWorkSessions(ctx context.Context, filter domain.WorkSessionFilter) ([]domain.WorkSession, domain.OperationStats, error) {
+func (s *Store) ListWorkSessions(ctx context.Context, filter workforce.WorkSessionFilter) ([]workforce.WorkSession, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -136,7 +139,7 @@ func (s *Store) ListWorkSessions(ctx context.Context, filter domain.WorkSessionF
 // days, so a date window would miss exactly the blocks that overlap across
 // midnight. An open sibling runs to infinity and intersects anything starting
 // after its check-in.
-func (s *Store) ListOverlappingWorkSessions(ctx context.Context, staffIDs []int64, from time.Time, to *time.Time) ([]domain.WorkSession, domain.OperationStats, error) {
+func (s *Store) ListOverlappingWorkSessions(ctx context.Context, staffIDs []int64, from time.Time, to *time.Time) ([]workforce.WorkSession, domain.OperationStats, error) {
 	if len(staffIDs) == 0 {
 		return nil, domain.OperationStats{}, nil
 	}
@@ -161,7 +164,7 @@ func (s *Store) ListOverlappingWorkSessions(ctx context.Context, staffIDs []int6
 	return workSessionsToDomain(rows), stats, nil
 }
 
-func (s *Store) CountWorkSessions(ctx context.Context, filter domain.WorkSessionFilter) (int, domain.OperationStats, error) {
+func (s *Store) CountWorkSessions(ctx context.Context, filter workforce.WorkSessionFilter) (int, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
@@ -235,7 +238,7 @@ func (s *Store) WorkPresenceMap(ctx context.Context, today string, now time.Time
 		ColumnExpr(`"work_session".status`).
 		ColumnExpr(`"work_session".check_out_time`).
 		Where(`("work_session".date = ? OR ("work_session".check_out_time IS NULL AND "work_session".check_in_time > ?))`,
-			today, now.Add(-domain.MaxOpenWorkSessionDuration)), aliasWorkSession, scope)
+			today, now.Add(-workforce.MaxOpenWorkSessionDuration)), aliasWorkSession, scope)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = query.Scan(ctx, &results)
@@ -257,10 +260,10 @@ func (s *Store) WorkPresenceMap(ctx context.Context, today string, now time.Time
 	return presence, stats, nil
 }
 
-func (s *Store) CreateWorkSession(ctx context.Context, value domain.WorkSession) (domain.WorkSession, domain.OperationStats, error) {
+func (s *Store) CreateWorkSession(ctx context.Context, value workforce.WorkSession) (workforce.WorkSession, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.WorkSession{}, domain.OperationStats{}, err
+		return workforce.WorkSession{}, domain.OperationStats{}, err
 	}
 	row := workSessionFromDomain(value)
 	if row.TenantID == 0 {
@@ -271,19 +274,19 @@ func (s *Store) CreateWorkSession(ctx context.Context, value domain.WorkSession)
 	_, err = db.NewInsert().Model(row).ModelTableExpr(tableWorkSessions).Returning("*").Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		if isUniqueViolationOn(err, domain.WorkSessionOpenConstraint) {
-			return domain.WorkSession{}, stats, &domain.ConflictError{Kind: domain.ErrWorkSessionAlreadyOpen, Cause: err}
+		if isUniqueViolationOn(err, workSessionOpenConstraint) {
+			return workforce.WorkSession{}, stats, &domain.ConflictError{Kind: workforce.ErrWorkSessionAlreadyOpen, Cause: err}
 		}
-		return domain.WorkSession{}, stats, fmt.Errorf("workforce postgres: insert work session: %w", err)
+		return workforce.WorkSession{}, stats, fmt.Errorf("workforce postgres: insert work session: %w", err)
 	}
 	stats.Rows = 1
 	return workSessionToDomain(*row), stats, nil
 }
 
-func (s *Store) UpdateWorkSession(ctx context.Context, value domain.WorkSession) (domain.WorkSession, bool, domain.OperationStats, error) {
+func (s *Store) UpdateWorkSession(ctx context.Context, value workforce.WorkSession) (workforce.WorkSession, bool, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.WorkSession{}, false, domain.OperationStats{}, err
+		return workforce.WorkSession{}, false, domain.OperationStats{}, err
 	}
 	row := workSessionFromDomain(value)
 	if row.TenantID == 0 {
@@ -297,14 +300,14 @@ func (s *Store) UpdateWorkSession(ctx context.Context, value domain.WorkSession)
 		Returning("*"), aliasWorkSession, scope)
 	stats, err := execAffected(ctx, query, "update work session")
 	if err != nil {
-		if isUniqueViolationOn(err, domain.WorkSessionOpenConstraint) {
-			return domain.WorkSession{}, false, stats, &domain.ConflictError{Kind: domain.ErrWorkSessionAlreadyOpen, Cause: err}
+		if isUniqueViolationOn(err, workSessionOpenConstraint) {
+			return workforce.WorkSession{}, false, stats, &domain.ConflictError{Kind: workforce.ErrWorkSessionAlreadyOpen, Cause: err}
 		}
-		return domain.WorkSession{}, false, stats, err
+		return workforce.WorkSession{}, false, stats, err
 	}
 	if stats.Rows != 1 {
 		stats.Rows = 0
-		return domain.WorkSession{}, false, stats, nil
+		return workforce.WorkSession{}, false, stats, nil
 	}
 	return workSessionToDomain(*row), true, stats, nil
 }
@@ -353,7 +356,7 @@ func (s *Store) CloseWorkSession(ctx context.Context, id int64, checkOut time.Ti
 	return stats.Rows == 1, stats, nil
 }
 
-func applyWorkSessionFilter(query *bun.SelectQuery, filter domain.WorkSessionFilter) *bun.SelectQuery {
+func applyWorkSessionFilter(query *bun.SelectQuery, filter workforce.WorkSessionFilter) *bun.SelectQuery {
 	if filter.IDs != nil {
 		if len(filter.IDs) == 0 {
 			return query.Where("FALSE")
@@ -393,10 +396,10 @@ func applyWorkSessionFilter(query *bun.SelectQuery, filter domain.WorkSessionFil
 
 // --- staff balance adjustments ---
 
-func (s *Store) FindStaffBalanceAdjustment(ctx context.Context, id int64) (domain.StaffBalanceAdjustment, bool, domain.OperationStats, error) {
+func (s *Store) FindStaffBalanceAdjustment(ctx context.Context, id int64) (workforce.StaffBalanceAdjustment, bool, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.StaffBalanceAdjustment{}, false, domain.OperationStats{}, err
+		return workforce.StaffBalanceAdjustment{}, false, domain.OperationStats{}, err
 	}
 	row := &staffBalanceAdjustmentRow{}
 	query := withTenant(db.NewSelect().Model(row).
@@ -404,12 +407,12 @@ func (s *Store) FindStaffBalanceAdjustment(ctx context.Context, id int64) (domai
 		Where(`"staff_balance_adjustment".id = ?`, id), aliasStaffBalanceAdjustment, scope)
 	found, stats, err := scanOne(ctx, query, "find staff balance adjustment")
 	if err != nil || !found {
-		return domain.StaffBalanceAdjustment{}, found, stats, err
+		return workforce.StaffBalanceAdjustment{}, found, stats, err
 	}
 	return staffBalanceAdjustmentToDomain(*row), true, stats, nil
 }
 
-func (s *Store) ListStaffBalanceAdjustments(ctx context.Context, filter domain.StaffBalanceAdjustmentFilter) ([]domain.StaffBalanceAdjustment, domain.OperationStats, error) {
+func (s *Store) ListStaffBalanceAdjustments(ctx context.Context, filter workforce.StaffBalanceAdjustmentFilter) ([]workforce.StaffBalanceAdjustment, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -442,17 +445,17 @@ func (s *Store) ListStaffBalanceAdjustments(ctx context.Context, filter domain.S
 		return nil, stats, err
 	}
 	stats.Rows = int64(len(rows))
-	result := make([]domain.StaffBalanceAdjustment, 0, len(rows))
+	result := make([]workforce.StaffBalanceAdjustment, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, staffBalanceAdjustmentToDomain(row))
 	}
 	return result, stats, nil
 }
 
-func (s *Store) CreateStaffBalanceAdjustment(ctx context.Context, value domain.StaffBalanceAdjustment) (domain.StaffBalanceAdjustment, domain.OperationStats, error) {
+func (s *Store) CreateStaffBalanceAdjustment(ctx context.Context, value workforce.StaffBalanceAdjustment) (workforce.StaffBalanceAdjustment, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.StaffBalanceAdjustment{}, domain.OperationStats{}, err
+		return workforce.StaffBalanceAdjustment{}, domain.OperationStats{}, err
 	}
 	row := staffBalanceAdjustmentFromDomain(value)
 	if row.TenantID == 0 {
@@ -463,16 +466,16 @@ func (s *Store) CreateStaffBalanceAdjustment(ctx context.Context, value domain.S
 	_, err = db.NewInsert().Model(row).ModelTableExpr(tableStaffBalanceAdjustments).Returning("*").Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.StaffBalanceAdjustment{}, stats, fmt.Errorf("workforce postgres: insert staff balance adjustment: %w", err)
+		return workforce.StaffBalanceAdjustment{}, stats, fmt.Errorf("workforce postgres: insert staff balance adjustment: %w", err)
 	}
 	stats.Rows = 1
 	return staffBalanceAdjustmentToDomain(*row), stats, nil
 }
 
-func (s *Store) UpdateStaffBalanceAdjustment(ctx context.Context, value domain.StaffBalanceAdjustment) (domain.StaffBalanceAdjustment, bool, domain.OperationStats, error) {
+func (s *Store) UpdateStaffBalanceAdjustment(ctx context.Context, value workforce.StaffBalanceAdjustment) (workforce.StaffBalanceAdjustment, bool, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.StaffBalanceAdjustment{}, false, domain.OperationStats{}, err
+		return workforce.StaffBalanceAdjustment{}, false, domain.OperationStats{}, err
 	}
 	row := staffBalanceAdjustmentFromDomain(value)
 	if row.TenantID == 0 {
@@ -486,11 +489,11 @@ func (s *Store) UpdateStaffBalanceAdjustment(ctx context.Context, value domain.S
 		Returning("*"), aliasStaffBalanceAdjustment, scope)
 	stats, err := execAffected(ctx, query, "update staff balance adjustment")
 	if err != nil {
-		return domain.StaffBalanceAdjustment{}, false, stats, err
+		return workforce.StaffBalanceAdjustment{}, false, stats, err
 	}
 	if stats.Rows != 1 {
 		stats.Rows = 0
-		return domain.StaffBalanceAdjustment{}, false, stats, nil
+		return workforce.StaffBalanceAdjustment{}, false, stats, nil
 	}
 	return staffBalanceAdjustmentToDomain(*row), true, stats, nil
 }
@@ -524,7 +527,7 @@ func (s *Store) FindStaffVacationOpening(ctx context.Context, id int64) (domain.
 	return staffVacationOpeningToDomain(*row), true, stats, nil
 }
 
-func (s *Store) ListStaffVacationOpenings(ctx context.Context, filter domain.StaffVacationFilter) ([]domain.StaffVacationOpening, domain.OperationStats, error) {
+func (s *Store) ListStaffVacationOpenings(ctx context.Context, filter workforce.StaffVacationFilter) ([]domain.StaffVacationOpening, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -603,10 +606,10 @@ func (s *Store) DeleteStaffVacationOpening(ctx context.Context, id int64) (domai
 
 // --- staff vacation quota ---
 
-func (s *Store) FindStaffVacationQuota(ctx context.Context, id int64) (domain.StaffVacationQuota, bool, domain.OperationStats, error) {
+func (s *Store) FindStaffVacationQuota(ctx context.Context, id int64) (workforce.StaffVacationQuota, bool, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.StaffVacationQuota{}, false, domain.OperationStats{}, err
+		return workforce.StaffVacationQuota{}, false, domain.OperationStats{}, err
 	}
 	row := &staffVacationQuotaRow{}
 	query := withTenant(db.NewSelect().Model(row).
@@ -614,12 +617,12 @@ func (s *Store) FindStaffVacationQuota(ctx context.Context, id int64) (domain.St
 		Where(`"staff_vacation_quota".id = ?`, id), aliasStaffVacationQuota, scope)
 	found, stats, err := scanOne(ctx, query, "find staff vacation quota")
 	if err != nil || !found {
-		return domain.StaffVacationQuota{}, found, stats, err
+		return workforce.StaffVacationQuota{}, found, stats, err
 	}
 	return staffVacationQuotaToDomain(*row), true, stats, nil
 }
 
-func (s *Store) ListStaffVacationQuotas(ctx context.Context, filter domain.StaffVacationFilter) ([]domain.StaffVacationQuota, domain.OperationStats, error) {
+func (s *Store) ListStaffVacationQuotas(ctx context.Context, filter workforce.StaffVacationFilter) ([]workforce.StaffVacationQuota, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -632,17 +635,17 @@ func (s *Store) ListStaffVacationQuotas(ctx context.Context, filter domain.Staff
 		return nil, stats, err
 	}
 	stats.Rows = int64(len(rows))
-	result := make([]domain.StaffVacationQuota, 0, len(rows))
+	result := make([]workforce.StaffVacationQuota, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, staffVacationQuotaToDomain(row))
 	}
 	return result, stats, nil
 }
 
-func (s *Store) CreateStaffVacationQuota(ctx context.Context, value domain.StaffVacationQuota) (domain.StaffVacationQuota, domain.OperationStats, error) {
+func (s *Store) CreateStaffVacationQuota(ctx context.Context, value workforce.StaffVacationQuota) (workforce.StaffVacationQuota, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.StaffVacationQuota{}, domain.OperationStats{}, err
+		return workforce.StaffVacationQuota{}, domain.OperationStats{}, err
 	}
 	row := staffVacationQuotaFromDomain(value)
 	if row.TenantID == 0 {
@@ -653,16 +656,16 @@ func (s *Store) CreateStaffVacationQuota(ctx context.Context, value domain.Staff
 	_, err = db.NewInsert().Model(row).ModelTableExpr(tableStaffVacationQuota).Returning("*").Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.StaffVacationQuota{}, stats, fmt.Errorf("workforce postgres: insert staff vacation quota: %w", err)
+		return workforce.StaffVacationQuota{}, stats, fmt.Errorf("workforce postgres: insert staff vacation quota: %w", err)
 	}
 	stats.Rows = 1
 	return staffVacationQuotaToDomain(*row), stats, nil
 }
 
-func (s *Store) UpdateStaffVacationQuota(ctx context.Context, value domain.StaffVacationQuota) (domain.StaffVacationQuota, bool, domain.OperationStats, error) {
+func (s *Store) UpdateStaffVacationQuota(ctx context.Context, value workforce.StaffVacationQuota) (workforce.StaffVacationQuota, bool, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.StaffVacationQuota{}, false, domain.OperationStats{}, err
+		return workforce.StaffVacationQuota{}, false, domain.OperationStats{}, err
 	}
 	row := staffVacationQuotaFromDomain(value)
 	if row.TenantID == 0 {
@@ -676,11 +679,11 @@ func (s *Store) UpdateStaffVacationQuota(ctx context.Context, value domain.Staff
 		Returning("*"), aliasStaffVacationQuota, scope)
 	stats, err := execAffected(ctx, query, "update staff vacation quota")
 	if err != nil {
-		return domain.StaffVacationQuota{}, false, stats, err
+		return workforce.StaffVacationQuota{}, false, stats, err
 	}
 	if stats.Rows != 1 {
 		stats.Rows = 0
-		return domain.StaffVacationQuota{}, false, stats, nil
+		return workforce.StaffVacationQuota{}, false, stats, nil
 	}
 	return staffVacationQuotaToDomain(*row), true, stats, nil
 }
@@ -696,7 +699,7 @@ func (s *Store) DeleteStaffVacationQuota(ctx context.Context, id int64) (domain.
 	return execAffected(ctx, query, "delete staff vacation quota")
 }
 
-func (s *Store) UpsertStaffVacationQuota(ctx context.Context, value domain.StaffVacationQuota) (domain.OperationStats, error) {
+func (s *Store) UpsertStaffVacationQuota(ctx context.Context, value workforce.StaffVacationQuota) (domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
@@ -751,7 +754,7 @@ func (s *Store) UpsertStaffVacationQuota(ctx context.Context, value domain.Staff
 // applyStaffVacationFilter narrows an opening or quota listing. The alias is
 // bound through bun.Ident so the evaluator can resolve every predicate to the
 // one table the query names.
-func applyStaffVacationFilter(query *bun.SelectQuery, alias string, filter domain.StaffVacationFilter) *bun.SelectQuery {
+func applyStaffVacationFilter(query *bun.SelectQuery, alias string, filter workforce.StaffVacationFilter) *bun.SelectQuery {
 	if filter.StaffID > 0 {
 		query = query.Where("? = ?", bun.Ident(alias+".staff_id"), filter.StaffID)
 	}

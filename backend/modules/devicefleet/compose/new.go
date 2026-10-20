@@ -25,7 +25,7 @@ type Observation = ports.Observation
 // ErrDisplayNotFound is what a TenantFacts implementation returns when the
 // tenant behind a display token no longer exists. The owner turns it into
 // devicefleet.ErrDisplayNotFound, so a dead link never reveals tenant state.
-var ErrDisplayNotFound = domain.ErrDisplayNotFound
+var ErrDisplayNotFound = devicefleet.ErrDisplayNotFound
 
 // School is the tenant fact the dashboard reads before a tenant is scoped.
 type School = domain.School
@@ -77,7 +77,7 @@ type Dependencies struct {
 // Device authentication and the public dashboard route both resolve a row
 // before any tenant is known, so the store applies the caller's tenant as a
 // predicate only when there is one; RLS remains the boundary otherwise.
-func New(dependencies Dependencies) (*devicefleet.Module, error) {
+func New(dependencies Dependencies) (devicefleet.Capability, error) {
 	if dependencies.DB == nil || dependencies.Rooms == nil || dependencies.APIKeys == nil || dependencies.Observe == nil {
 		return nil, errors.New("devicefleet compose: database, rooms, API keys and observer are required")
 	}
@@ -104,7 +104,7 @@ func New(dependencies Dependencies) (*devicefleet.Module, error) {
 		tenants = application.UncomposedDashboard{}
 	}
 	runtime := postgres.DatabaseRuntime(dependencies.DB)
-	observe := application.NewObserver(dependencies.Observe)
+	observe := dependencies.Observe
 	service := application.New(application.Dependencies{
 		Devices:   postgres.NewDeviceStore(runtime),
 		Displays:  postgres.NewDisplayStore(runtime),
@@ -120,7 +120,7 @@ func New(dependencies Dependencies) (*devicefleet.Module, error) {
 		Window:    devicefleet.OnlineWindowFromMinutes(dependencies.OnlineWindowMinutes),
 		Observe:   observe,
 	})
-	return devicefleet.NewModule(application.NewEngine(service, observe, now)), nil
+	return service, nil
 }
 
 type transaction struct{ db *bun.DB }

@@ -215,7 +215,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		bookings         *enrollmentOwner.BookingProjection
 		settings         SettingsOwner
 		calendar         schoolcalendar.Days
-		workTime         *workforceCompose.WorkTime
+		workTime         workforceCompose.WorkTime
 		people           PeopleRows
 		peopleIdentity   identityaccess.Owner
 		guardian         peoplePorts.GuardianService
@@ -261,7 +261,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		active           studentpresence.Presence
 		activities       activityContract.ActivityService
 		shifts           *workforceCompose.ShiftPlanning
-		deviceFleet      *devicefleet.Module
+		deviceFleet      devicefleet.Capability
 		materialization  timetable.MaterializationCapability
 		lifecycle        TimetableLifecycle
 		reports          PresenceReports

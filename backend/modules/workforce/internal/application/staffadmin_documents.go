@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -51,7 +52,9 @@ func (a *StaffAdmin) ListStaffDocuments(ctx context.Context, staffID int64, cate
 	documents := []domain.StaffDocument{}
 	if len(query) > 0 {
 		var err error
-		documents, err = a.records.ListStaffDocuments(ctx, domain.StaffDocumentFilter{StaffID: staffID, Categories: query})
+		var rows []workforce.StaffDocument
+		rows, err = a.records.ListStaffDocuments(ctx, workforce.StaffDocumentFilter{StaffID: staffID, Categories: query})
+		documents = documentsToDomain(rows)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -87,7 +90,7 @@ func (a *StaffAdmin) CreateStaffDocument(ctx context.Context, input CreateDocume
 		}); err != nil {
 			return fmt.Errorf("write document audit: %w", err)
 		}
-		created, err := a.records.CreateStaffDocument(ctx, document)
+		created, err := a.records.CreateStaffDocument(ctx, documentToPublic(document))
 		if err != nil {
 			return err
 		}
@@ -105,7 +108,7 @@ func (a *StaffAdmin) CreateStaffDocument(ctx context.Context, input CreateDocume
 			)
 			contractEnd = ""
 		}
-		info = documentInfo(created, contractEnd)
+		info = documentInfo(documentToDomain(created), contractEnd)
 		return nil
 	})
 	if err != nil {
@@ -231,7 +234,8 @@ func (a *StaffAdmin) ListOffboardedStaffDocumentsPendingFileCleanup(ctx context.
 	if len(offboarded) == 0 {
 		return []domain.StaffDocument{}, nil
 	}
-	return a.records.ListStaffDocuments(ctx, domain.OffboardedPendingFileCleanupFilter(offboarded))
+	rows, err := a.records.ListStaffDocuments(ctx, workforce.StaffDocumentFilter(domain.OffboardedPendingFileCleanupFilter(offboarded)))
+	return documentsToDomain(rows), err
 }
 
 // ListDeletedStaffDocumentsPendingFileCleanup returns authorized retry
@@ -241,7 +245,8 @@ func (a *StaffAdmin) ListDeletedStaffDocumentsPendingFileCleanup(ctx context.Con
 	if len(categories) == 0 {
 		return []domain.StaffDocument{}, nil
 	}
-	return a.records.ListStaffDocuments(ctx, domain.DeletedPendingFileCleanupFilter(staffID, categories))
+	rows, err := a.records.ListStaffDocuments(ctx, workforce.StaffDocumentFilter(domain.DeletedPendingFileCleanupFilter(staffID, categories)))
+	return documentsToDomain(rows), err
 }
 
 // MarkStaffDocumentFileDeleted records successful physical cleanup so it is
@@ -262,7 +267,7 @@ func (a *StaffAdmin) QueueStaffDocumentFileCleanup(ctx context.Context, staffID 
 		return fmt.Errorf("%w: cleanup file details are required", domain.ErrStaffDocumentInvalid)
 	}
 	return a.transaction.RunWrite(ctx, func(ctx context.Context) error {
-		return a.records.QueueStaffDocumentFileCleanup(ctx, domain.StaffDocumentFileCleanup{
+		return a.records.QueueStaffDocumentFileCleanup(ctx, workforce.StaffDocumentFileCleanup{
 			StaffID: staffID, FilenameStored: storedName, RetryAfter: a.clock.Now().Add(domain.StaffDocumentCleanupDelay),
 		})
 	})
@@ -306,9 +311,9 @@ func (a *StaffAdmin) authorizedDocument(ctx context.Context, staffID, documentID
 func (a *StaffAdmin) findDocument(ctx context.Context, staffID, documentID int64, includeDeleted bool) (domain.StaffDocument, error) {
 	document, err := a.records.FindStaffDocument(ctx, staffID, documentID, includeDeleted)
 	if err == nil {
-		return document, nil
+		return documentToDomain(document), nil
 	}
-	if errors.Is(err, domain.ErrStaffDocumentNotFound) || errors.Is(err, domain.ErrInvalidStaffRecord) {
+	if errors.Is(err, workforce.ErrStaffDocumentNotFound) || errors.Is(err, workforce.ErrInvalidStaffRecord) {
 		return domain.StaffDocument{}, &domain.RecordNotFoundError{Op: "find staff document"}
 	}
 	return domain.StaffDocument{}, err

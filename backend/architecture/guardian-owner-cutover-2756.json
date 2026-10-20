@@ -45,10 +45,8 @@
     "sources": [
       "docs/operations/guardian-owner-storage-cutover.md",
       "docs/operations/guardian-owner-storage-cutover.sql",
-      "backend/database/migrations/guardian_owner_cutover_test.go",
       "backend/modules/peopledirectory/contracttest/guardian_relationships_unit_of_work_test.go",
       "backend/modules/peopledirectory/compose/guardian_link_owners_test.go",
-      "backend/test/guardian_storage_caller_inventory_test.go",
       "backend/test/query_budgets.go"
     ],
     "workload": "go test through scripts/run-go-toolchain.sh against the local postgres-test server with per-test tenants and default package parallelism: the migration, owner, unit-of-work, query-budget and ratchet suites listed under tests.",

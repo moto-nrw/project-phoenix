@@ -22,8 +22,8 @@ import (
 // room, activity, device and staff owners, the attendance reads and the
 // scheduled day statuses over Care Plan.
 type PresenceOwner struct {
-	Presence                  *studentpresence.Module
-	UnloggedPresence          *studentpresence.Module
+	Presence                  studentpresence.Owner
+	UnloggedPresence          studentpresence.Owner
 	SessionRecords            presenceCompose.SessionRecords
 	AttendanceStaff           presenceservice.AttendanceStaff
 	AttendanceEducationGroups presenceservice.AttendanceEducationGroups

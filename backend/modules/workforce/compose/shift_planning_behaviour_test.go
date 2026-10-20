@@ -71,7 +71,7 @@ func (planningGroups) FindByIDs(context.Context, []int64) ([]*timetable.Group, e
 	return nil, nil
 }
 
-func buildPlanningWorkforce(t *testing.T, db *bun.DB) *compose.WorkTime {
+func buildPlanningWorkforce(t *testing.T, db *bun.DB) compose.WorkTime {
 	t.Helper()
 	runtime := testpkg.ConfigRuntime(db)
 	capability, err := compose.New(compose.Dependencies{LockStaffAssignment: runtime.LockStaffAssignment,
@@ -86,7 +86,7 @@ func buildPlanningWorkforce(t *testing.T, db *bun.DB) *compose.WorkTime {
 // planningDependencies composes the planning over a staff directory that
 // knows the one fixture staff member, read back with its person through the
 // retained staff repository in ctx's tenant.
-func planningDependencies(t *testing.T, ctx context.Context, db *bun.DB, capability *compose.WorkTime, staffID int64) compose.ShiftPlanningDependencies {
+func planningDependencies(t *testing.T, ctx context.Context, db *bun.DB, capability compose.WorkTime, staffID int64) compose.ShiftPlanningDependencies {
 	t.Helper()
 	ownersRooms := owners.MustNewUnobservedRooms(testpkg.NewDatabase(t, db))
 	calendarOwner := api.MustNewSchoolCalendar(testpkg.NewDatabase(t, db))

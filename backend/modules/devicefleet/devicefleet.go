@@ -235,60 +235,6 @@ type Capability interface {
 	UnregisteredTagScanRetention
 }
 
-// engine is the composed runtime behind the facade. Device authentication
-// and the public dashboard route resolve a device or display before any
-// tenant is known, so this owner never demands an ambient tenant of its own:
-// the store applies the caller's tenant as a predicate when there is one and
-// RLS remains the boundary when there is not.
-type engine interface {
-	ObserveRejection(string, time.Duration, error)
-
-	FindDevice(context.Context, int64) (Device, error)
-	FindDeviceForUpdate(context.Context, int64) (Device, error)
-	FindDeviceByDeviceID(context.Context, string) (Device, error)
-	FindDeviceByAPIKey(context.Context, string) (Device, error)
-	ListDevices(context.Context, DeviceFilter) ([]Device, error)
-	ListDevicesByID(context.Context, []int64) ([]Device, error)
-	ListOfflineDevices(context.Context, time.Duration) ([]Device, error)
-	CountDevicesByType(context.Context) (map[string]int, error)
-	CountDevicesByTenant(context.Context) (map[int64]int, error)
-	ListDevicesByTenant(context.Context, []int64) ([]Device, error)
-	DeviceOnlineWindow(context.Context) time.Duration
-	IsDeviceOnlineAt(context.Context, Device, time.Time) bool
-	Now() time.Time
-	CreateDevice(context.Context, CreateDevice) (Device, error)
-	UpdateDevice(context.Context, UpdateDevice) (Device, error)
-	UpdateDeviceColumns(context.Context, UpdateDevice, []string) (int64, error)
-	DeleteDevice(context.Context, int64) error
-	UpdateDeviceStatus(context.Context, string, DeviceStatus) error
-	UpdateDeviceLastSeen(context.Context, int64, time.Time) error
-	UpdateDeviceRoom(context.Context, int64, int64) error
-
-	ListDisplays(context.Context) ([]Display, error)
-	CreateDisplay(context.Context, string) (Display, string, error)
-	UpdateDisplay(context.Context, int64, *string, *bool) (Display, error)
-	RegenerateDisplayToken(context.Context, int64) (string, error)
-	DeleteDisplay(context.Context, int64) error
-	Dashboard(context.Context, string) (Dashboard, error)
-
-	FindUnregisteredTagScan(context.Context, int64) (UnregisteredTagScan, error)
-	ListUnregisteredTagScans(context.Context, UnregisteredTagScanFilter) ([]UnregisteredTagScan, error)
-	RecordUnregisteredTagScan(context.Context, RecordUnregisteredTagScan) (UnregisteredTagScan, error)
-	ResolveUnregisteredTagScan(context.Context, ResolveUnregisteredTagScan) (UnregisteredTagScan, error)
-	DeleteExpiredUnregisteredTagScans(context.Context, time.Time) (int64, error)
-}
-
-// Module is the public facade every caller holds.
-type Module struct{ engine engine }
-
-// NewModule wraps a composed engine.
-func NewModule(engine engine) *Module {
-	if engine == nil {
-		panic("devicefleet: engine is required")
-	}
-	return &Module{engine: engine}
-}
-
 // ErrorCode maps an owner error to the stable label the runtime evidence
 // groups operations by.
 func ErrorCode(err error) string {
@@ -324,7 +270,38 @@ func ErrorCode(err error) string {
 	}
 }
 
-func (m *Module) reject(operation string, err error) error {
-	m.engine.ObserveRejection(operation, 0, err)
-	return err
+// Validate applies device invariants and defaults an empty status to active.
+func (input *CreateDevice) Validate() error {
+	status, err := validatedDeviceStatus(input.DeviceID, input.DeviceType, input.Status)
+	if err != nil {
+		return err
+	}
+	input.Status = status
+	return nil
+}
+
+func validatedDeviceStatus(deviceID, deviceType string, status DeviceStatus) (DeviceStatus, error) {
+	if deviceID == "" {
+		return "", errors.New("device ID is required")
+	}
+	if deviceType == "" {
+		return "", errors.New("device type is required")
+	}
+	if status == "" {
+		return DeviceStatusActive, nil
+	}
+	if !ValidDeviceStatus(status) {
+		return "", errors.New("invalid device status")
+	}
+	return status, nil
+}
+
+// Validate applies the device invariants to a full-row update.
+func (input *UpdateDevice) Validate() error {
+	status, err := validatedDeviceStatus(input.DeviceID, input.DeviceType, input.Status)
+	if err != nil {
+		return err
+	}
+	input.Status = status
+	return nil
 }

@@ -97,15 +97,11 @@ does not make it a dry-run.
 ```bash
 # CLI (run inside the container via `docker compose run server go run . <cmd>`)
 go run . migrate status|validate|reset
-go run . migrate backfill request-child-storage [--tenant ID] [--verify-only] [--restart]  # resumable #2713 copy; see docs/operations/enrollment-storage-backfill-2713.md
 go run ./cmd/devtools seed --email <op-email> --password <pw> --pin 1234   # flags required; seeds via the HTTP API, server must be running
 go run . cleanup preview|stats      # visit-retention dry-run / statistics
 go run . cleanup visits             # REAL deletion — there is no `cleanup visits preview`; extra args are silently ignored
 go run . cleanup timetable|time-tracking [preview|stats]      # nested dry-runs exist only for these two
 go run . cleanup tokens|invitations|rate-limits|attendance|sessions|supervisors
-go run . backfill staff-owner [status|reset]   # resumable users.staff → Membership/Workforce copy (#2752); exits 1 while unstable
-go run . backfill student-owner [status|reset] # resumable users.students → People/Membership/Care Plan copy (#2758); exits 1 while unstable
-go run . backfill guardian-owner [status|reset] # resumable users.students_guardians → People/Care Plan/Identity copy (#2755); exits 1 while unstable; refused after Cutover #2756 (runbook: docs/operations/guardian-owner-storage-cutover.md)
 go run . gendoc                     # Generates routes.md + docs/openapi.yaml
 ```
 

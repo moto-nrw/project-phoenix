@@ -95,7 +95,7 @@ func composeServeRoot(
 		bookings         *enrollmentOwner.BookingProjection
 		settings         owners.SettingsOwner
 		calendar         schoolcalendar.Days
-		workTime         *workforceCompose.WorkTime
+		workTime         workforceCompose.WorkTime
 		people           owners.PeopleRows
 		peopleIdentity   identityaccess.Owner
 		guardian         peoplePorts.GuardianService
@@ -144,7 +144,7 @@ func composeServeRoot(
 		activities       activityContract.ActivityService
 		yard             FacilitiesYard
 		shifts           *workforceCompose.ShiftPlanning
-		deviceFleet      *devicefleetModule.Module
+		deviceFleet      devicefleetModule.Capability
 		materialization  timetable.MaterializationCapability
 		lifecycle        owners.TimetableLifecycle
 		structureViews   StructureServices

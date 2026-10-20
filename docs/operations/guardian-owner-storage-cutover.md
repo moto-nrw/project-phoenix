@@ -1,5 +1,9 @@
 # Guardian storage cutover and rollback window (#2756)
 
+> **Historical.** The Contract migration of this move runs in every environment. The
+> backfill commands this runbook names (`backfill …`, `migrate backfill …`,
+> `migrate presence-backfill`) were removed in #4441; there is no manual step left.
+
 Migration 1.15.417 applies the final delta of the
 [guardian owner backfill](guardian-owner-storage-backfill.md) under one write
 lock, verifies every school, and makes the three owner tables authoritative:

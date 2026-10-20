@@ -10,74 +10,25 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports"
 )
-
-// Dashboard is the public info-point aggregate. GDPR contract: it carries
-// counts and room/activity metadata ONLY — never student names, student IDs,
-// photos, or per-child pickup times.
-type Dashboard struct {
-	Status             string
-	SchoolName         string
-	DisplayName        string
-	ServerTime         time.Time
-	Date               time.Time
-	RoomOccupancy      []RoomOccupancy
-	RunningActivities  []RunningActivity
-	UpcomingActivities []UpcomingActivity
-	PickupTimes        []PickupBucket
-	StudentsPresent    int
-	RoomsOccupied      int
-	ActivitiesRunning  int
-}
-
-// RoomOccupancy is one room with its live student count.
-type RoomOccupancy struct {
-	Name         string
-	GroupName    *string
-	CategoryName *string
-	StudentCount int
-	Capacity     *int
-	IsOccupied   bool
-}
-
-// RunningActivity is one currently running activity session.
-type RunningActivity struct {
-	ID           string
-	Name         string
-	Category     string
-	RoomName     string
-	Participants int
-	MaxCapacity  *int
-}
-
-// UpcomingActivity is one planned activity instance later today.
-type UpcomingActivity struct {
-	ID        string
-	Name      string
-	Category  string
-	StartTime string
-	RoomName  string
-}
-
-// PickupBucket aggregates how many present students share a pickup time.
-type PickupBucket struct {
-	Time  string
-	Count int
-}
 
 const (
 	spontaneousActivityName = "Spontane Aktivität"
 	fallbackCategoryName    = "Sonstiges"
 )
 
-// ResolveDashboard turns a raw display token into the public dashboard
+// Dashboard turns a raw display token into the public dashboard
 // aggregate. The token is resolved under the admin scope because no tenant is
 // known yet; every fact afterwards is read inside that display's tenant
 // transaction.
-func (s *Service) ResolveDashboard(ctx context.Context, rawToken string) (Dashboard, error) {
-	var dashboard Dashboard
+func (s *Service) Dashboard(ctx context.Context, rawToken string) (devicefleet.Dashboard, error) {
+	if rawToken == "" {
+		return devicefleet.Dashboard{}, s.reject("display_dashboard", devicefleet.ErrDashboardTokenMissing)
+	}
+	var dashboard devicefleet.Dashboard
 	err := s.run(ctx, "display_dashboard", func(ctx context.Context, stats *domain.OperationStats) error {
 		display, school, err := s.resolveDisplayToken(ctx, rawToken, stats)
 		if err != nil {
@@ -102,7 +53,7 @@ func (s *Service) ResolveDashboard(ctx context.Context, rawToken string) (Dashbo
 		return nil
 	})
 	if err != nil {
-		return Dashboard{}, err
+		return devicefleet.Dashboard{}, err
 	}
 	return dashboard, nil
 }
@@ -121,15 +72,15 @@ func (s *Service) resolveDisplayToken(
 			return err
 		}
 		if !exists {
-			return domain.ErrDisplayNotFound
+			return devicefleet.ErrDisplayNotFound
 		}
 		display = found
 		school, err = s.deps.Tenants.School(adminCtx, found.TenantID)
 		return err
 	})
 	if err != nil {
-		if errors.Is(err, domain.ErrDisplayNotFound) {
-			return domain.Display{}, domain.School{}, domain.ErrDisplayNotFound
+		if errors.Is(err, devicefleet.ErrDisplayNotFound) {
+			return domain.Display{}, domain.School{}, devicefleet.ErrDisplayNotFound
 		}
 		return domain.Display{}, domain.School{}, fmt.Errorf("failed to resolve display token: %w", err)
 	}
@@ -139,38 +90,38 @@ func (s *Service) resolveDisplayToken(
 // observePickupFailure records the degraded pickup panel without failing the
 // dashboard.
 func observePickupFailure(err error) ports.Observation {
-	return ports.Observation{Operation: "display_dashboard_pickup", Err: err}
+	return ports.Observation{Operation: "display_dashboard_pickup", Err: publicError(err)}
 }
 
 // aggregate builds the tenant-scoped dashboard body. Callers run it inside
 // the display tenant's transaction.
-func (s *Service) aggregate(ctx context.Context) (Dashboard, error) {
+func (s *Service) aggregate(ctx context.Context) (devicefleet.Dashboard, error) {
 	now := s.deps.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 	rooms, err := s.deps.Rooms.ListRooms(ctx)
 	if err != nil {
-		return Dashboard{}, fmt.Errorf("rooms: %w", err)
+		return devicefleet.Dashboard{}, fmt.Errorf("rooms: %w", err)
 	}
 	sessions, err := s.deps.Dashboard.ListActiveSessions(ctx)
 	if err != nil {
-		return Dashboard{}, fmt.Errorf("active groups: %w", err)
+		return devicefleet.Dashboard{}, fmt.Errorf("active groups: %w", err)
 	}
 	visits, err := s.deps.Presence.ListOpenVisits(ctx)
 	if err != nil {
-		return Dashboard{}, fmt.Errorf("active visits: %w", err)
+		return devicefleet.Dashboard{}, fmt.Errorf("active visits: %w", err)
 	}
 	templates, err := s.deps.Dashboard.ListActivityTemplates(ctx)
 	if err != nil {
-		return Dashboard{}, fmt.Errorf("activity templates: %w", err)
+		return devicefleet.Dashboard{}, fmt.Errorf("activity templates: %w", err)
 	}
 	planned, err := s.deps.Dashboard.ListPlannedActivities(ctx, today)
 	if err != nil {
-		return Dashboard{}, fmt.Errorf("activity instances: %w", err)
+		return devicefleet.Dashboard{}, fmt.Errorf("activity instances: %w", err)
 	}
 	present, err := s.deps.Presence.ListPresentStudents(ctx, today)
 	if err != nil {
-		return Dashboard{}, fmt.Errorf("attendance: %w", err)
+		return devicefleet.Dashboard{}, fmt.Errorf("attendance: %w", err)
 	}
 
 	roomNames := roomNamesByID(rooms)
@@ -179,7 +130,7 @@ func (s *Service) aggregate(ctx context.Context) (Dashboard, error) {
 	upcoming := buildUpcomingActivities(planned, templates, roomNames, now)
 	pickups := s.buildPickupBuckets(ctx, present, today, now)
 
-	return Dashboard{
+	return devicefleet.Dashboard{
 		ServerTime: now, Date: today, RoomOccupancy: occupancy, RunningActivities: running,
 		UpcomingActivities: upcoming, PickupTimes: pickups, StudentsPresent: len(present),
 		RoomsOccupied: roomsOccupied, ActivitiesRunning: len(running),
@@ -218,7 +169,7 @@ func buildRoomOccupancy(
 	sessions []domain.ActiveSession,
 	visits []domain.PresentVisit,
 	templates []domain.ActivityTemplate,
-) ([]RoomOccupancy, int) {
+) ([]devicefleet.RoomOccupancy, int) {
 	byTemplate := templatesByID(templates)
 	sessionsByRoom := make(map[int64][]domain.ActiveSession)
 	for _, session := range sessions {
@@ -226,7 +177,7 @@ func buildRoomOccupancy(
 	}
 	studentsByGroup := studentsBySession(visits)
 
-	result := make([]RoomOccupancy, 0, len(rooms))
+	result := make([]devicefleet.RoomOccupancy, 0, len(rooms))
 	occupied := 0
 	for _, room := range rooms {
 		row := roomOccupancy(room, sessionsByRoom[room.ID], studentsByGroup, byTemplate)
@@ -243,7 +194,7 @@ func roomOccupancy(
 	sessions []domain.ActiveSession,
 	studentsByGroup map[int64]map[int64]struct{},
 	templates map[int64]domain.ActivityTemplate,
-) RoomOccupancy {
+) devicefleet.RoomOccupancy {
 	names := make([]string, 0, len(sessions))
 	categories := make([]string, 0, len(sessions))
 	students := make(map[int64]struct{})
@@ -260,7 +211,7 @@ func roomOccupancy(
 			students[studentID] = struct{}{}
 		}
 	}
-	return RoomOccupancy{
+	return devicefleet.RoomOccupancy{
 		Name: room.Name, GroupName: joinedNames(names), CategoryName: joinedNames(categories),
 		StudentCount: len(students), Capacity: room.Capacity, IsOccupied: len(sessions) > 0,
 	}
@@ -285,7 +236,7 @@ func buildRunningActivities(
 	templates []domain.ActivityTemplate,
 	planned []domain.PlannedActivity,
 	roomNames map[int64]string,
-) []RunningActivity {
+) []devicefleet.RunningActivity {
 	participants := studentsBySession(visits)
 	byTemplate := templatesByID(templates)
 
@@ -296,7 +247,7 @@ func buildRunningActivities(
 		}
 	}
 
-	running := make([]RunningActivity, 0, len(sessions))
+	running := make([]devicefleet.RunningActivity, 0, len(sessions))
 	for _, session := range sessions {
 		if !session.Running {
 			continue
@@ -319,7 +270,7 @@ func buildRunningActivities(
 		} else if instance, ok := plannedBySession[session.ID]; ok {
 			name = instance.Title
 		}
-		running = append(running, RunningActivity{
+		running = append(running, devicefleet.RunningActivity{
 			ID: strconv.FormatInt(session.ID, 10), Name: name, Category: category,
 			RoomName: roomNames[session.RoomID], Participants: len(participants[session.ID]),
 			MaxCapacity: maxCapacity,
@@ -336,11 +287,11 @@ func buildUpcomingActivities(
 	templates []domain.ActivityTemplate,
 	roomNames map[int64]string,
 	now time.Time,
-) []UpcomingActivity {
+) []devicefleet.UpcomingActivity {
 	byTemplate := templatesByID(templates)
 	nowClock := wallClock(now)
 
-	upcoming := make([]UpcomingActivity, 0)
+	upcoming := make([]devicefleet.UpcomingActivity, 0)
 	for _, instance := range planned {
 		if !instance.Planned {
 			continue
@@ -354,7 +305,7 @@ func buildUpcomingActivities(
 				category = *template.CategoryName
 			}
 		}
-		upcoming = append(upcoming, UpcomingActivity{
+		upcoming = append(upcoming, devicefleet.UpcomingActivity{
 			ID: strconv.FormatInt(instance.ID, 10), Name: instance.Title, Category: category,
 			StartTime: instance.StartWallClock.Format("15:04"), RoomName: roomNames[instance.RoomID],
 		})
@@ -378,8 +329,8 @@ func (s *Service) buildPickupBuckets(
 	presentIDs []int64,
 	today time.Time,
 	now time.Time,
-) []PickupBucket {
-	buckets := make([]PickupBucket, 0)
+) []devicefleet.PickupBucket {
+	buckets := make([]devicefleet.PickupBucket, 0)
 	if len(presentIDs) == 0 {
 		return buckets
 	}
@@ -402,7 +353,7 @@ func (s *Service) buildPickupBuckets(
 		counts[effective.PickupWallTime.Format("15:04")]++
 	}
 	for clock, count := range counts {
-		buckets = append(buckets, PickupBucket{Time: clock, Count: count})
+		buckets = append(buckets, devicefleet.PickupBucket{Time: clock, Count: count})
 	}
 	sort.Slice(buckets, func(i, j int) bool { return buckets[i].Time < buckets[j].Time })
 	return buckets
@@ -413,7 +364,7 @@ func (s *Service) requireDashboardDisplay(ctx context.Context, display domain.Di
 	// data to already-open displays. Not found — not "inactive": the link
 	// is dead and the response must not reveal the school's state.
 	if school.Deleted || !school.Active {
-		return domain.ErrDisplayNotFound
+		return devicefleet.ErrDisplayNotFound
 	}
 	// The feature is opt-in and defaults off. A token for a school that
 	// never enabled it must behave exactly like an unknown token.
@@ -422,10 +373,10 @@ func (s *Service) requireDashboardDisplay(ctx context.Context, display domain.Di
 		return fmt.Errorf("failed to resolve display.enabled: %w", err)
 	}
 	if !enabled {
-		return domain.ErrDisplayNotFound
+		return devicefleet.ErrDisplayNotFound
 	}
 	if !display.IsActive {
-		return domain.ErrDisplayInactive
+		return devicefleet.ErrDisplayInactive
 	}
 	return nil
 }

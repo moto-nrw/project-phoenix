@@ -5,16 +5,17 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/uptrace/bun"
 )
 
-func (s *Store) QueryLiveGroups(ctx context.Context, filter ports.LiveGroupFilter) ([]ports.LiveGroup, ports.Stats, error) {
+func (s *Store) QueryLiveGroups(ctx context.Context, filter studentpresence.LiveGroupFilter) ([]studentpresence.LiveGroup, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
 	}
-	result := []ports.LiveGroup{}
+	result := []studentpresence.LiveGroup{}
 	if (filter.IDs != nil && len(filter.IDs) == 0) || (filter.ActivityGroupIDs != nil && len(filter.ActivityGroupIDs) == 0) {
 		return result, ports.Stats{}, nil
 	}
@@ -97,12 +98,12 @@ func (s *Store) StaffIDsWithSupervisionOn(ctx context.Context, date ports.Date) 
 	return result, stats, nil
 }
 
-func (s *Store) SupervisedRoomsOn(ctx context.Context, date ports.Date) ([]ports.StaffRoomSupervision, ports.Stats, error) {
+func (s *Store) SupervisedRoomsOn(ctx context.Context, date ports.Date) ([]studentpresence.StaffRoomSupervision, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
 	}
-	result := []ports.StaffRoomSupervision{}
+	result := []studentpresence.StaffRoomSupervision{}
 	started := time.Now()
 	err = db.NewSelect().TableExpr("active.group_supervisors AS supervision").
 		ColumnExpr("supervision.staff_id, session.room_id").Distinct().
@@ -120,7 +121,7 @@ func (s *Store) SupervisedRoomsOn(ctx context.Context, date ports.Date) ([]ports
 
 // applyLiveGroupScopeFilter narrows the live group listing to the requested
 // sessions, activity groups, rooms and devices, in the filter's clause order.
-func applyLiveGroupScopeFilter(query *bun.SelectQuery, filter ports.LiveGroupFilter) *bun.SelectQuery {
+func applyLiveGroupScopeFilter(query *bun.SelectQuery, filter studentpresence.LiveGroupFilter) *bun.SelectQuery {
 	if filter.IDs != nil {
 		query = query.Where("id IN (?)", bun.List(filter.IDs))
 	}
@@ -147,7 +148,7 @@ func applyLiveGroupScopeFilter(query *bun.SelectQuery, filter ports.LiveGroupFil
 
 // applyLiveGroupWindowFilter applies paging and the open/time-window clauses
 // of the live group listing.
-func applyLiveGroupWindowFilter(query *bun.SelectQuery, filter ports.LiveGroupFilter) *bun.SelectQuery {
+func applyLiveGroupWindowFilter(query *bun.SelectQuery, filter studentpresence.LiveGroupFilter) *bun.SelectQuery {
 	if filter.Limit > 0 {
 		query = query.Limit(int64(filter.Limit))
 	}
