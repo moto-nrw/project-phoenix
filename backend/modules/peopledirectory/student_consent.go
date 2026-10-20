@@ -55,17 +55,6 @@ type StudentConsentQuery interface {
 	CurrentStudentConsents(ctx context.Context, snapshot StudentConsentSnapshot, canManagePhoto bool) ([]StudentConsentState, error)
 }
 
-func (m *Module) CurrentStudentConsents(
-	ctx context.Context,
-	snapshot StudentConsentSnapshot,
-	canManagePhoto bool,
-) ([]StudentConsentState, error) {
-	if snapshot.StudentID <= 0 {
-		return nil, invalidStudent("a persisted student is required")
-	}
-	return m.engine.CurrentStudentConsents(ctx, snapshot, canManagePhoto)
-}
-
 // StudentConsentTransition is one consent whose timestamp appeared or
 // disappeared between two snapshots of a child.
 type StudentConsentTransition struct {

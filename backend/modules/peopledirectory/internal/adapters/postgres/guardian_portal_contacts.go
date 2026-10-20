@@ -6,14 +6,15 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 	"github.com/uptrace/bun"
 )
 
 // ListPortalContacts batches the two directory-owned tables in one statement.
 // The application filters these candidates through the identity projection.
-func (s *GuardianStore) ListPortalContacts(ctx context.Context, guardianIDs, studentIDs []int64) ([]domain.GuardianPortalContact, domain.OperationStats, error) {
-	result := []domain.GuardianPortalContact{}
+func (s *GuardianStore) ListPortalContacts(ctx context.Context, guardianIDs, studentIDs []int64) ([]peopledirectory.GuardianPortalContact, domain.OperationStats, error) {
+	result := []peopledirectory.GuardianPortalContact{}
 	if len(guardianIDs) == 0 && len(studentIDs) == 0 {
 		return result, domain.OperationStats{}, nil
 	}
@@ -50,7 +51,7 @@ func (s *GuardianStore) ListPortalContacts(ctx context.Context, guardianIDs, stu
 		return nil, stats, fmt.Errorf("people directory postgres: guardian portal contacts: %w", err)
 	}
 	for _, row := range rows {
-		result = append(result, domain.GuardianPortalContact{
+		result = append(result, peopledirectory.GuardianPortalContact{
 			GuardianProfileID: row.GuardianProfileID, TenantID: row.TenantID, AccountID: row.AccountID,
 			FirstName: row.FirstName, LastName: row.LastName, Email: row.Email, PortalLocale: row.PortalLocale,
 			StudentID:        row.StudentID,

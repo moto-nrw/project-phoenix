@@ -1,9 +1,6 @@
 package peopledirectory
 
 import (
-	"context"
-	"strings"
-
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/enrollment"
 )
 
@@ -15,75 +12,3 @@ type EnrollmentStudent = enrollment.Input
 type CreatedEnrollmentStudent = enrollment.CreatedStudent
 type EnrollmentProfilePatch = enrollment.ProfilePatch
 type EnrollmentRecord = enrollment.Record
-
-// ReadEnrollmentStudent optionally locks the row using "" (read), "update",
-// or "nowait". Locking takes the shared class-write gate before the row lock.
-func (m *Module) ReadEnrollmentStudent(ctx context.Context, id int64, lock string) (EnrollmentRecord, error) {
-	if id <= 0 || (lock != "" && lock != "update" && lock != "nowait") {
-		return EnrollmentRecord{}, &InvalidStudentError{Reason: "invalid enrollment student read"}
-	}
-	return m.engine.ReadEnrollmentStudent(ctx, id, lock)
-}
-
-func (m *Module) LockEnrollmentClassWrites(ctx context.Context) error {
-	return m.engine.LockEnrollmentClassWrites(ctx)
-}
-
-func (m *Module) ApplyEnrollmentProfile(ctx context.Context, id int64, input enrollment.ProfilePatch) error {
-	if id <= 0 {
-		return &InvalidStudentError{Reason: "student ID is required"}
-	}
-	if err := normalizeEnrollmentDeparture(&input); err != nil {
-		return err
-	}
-	return m.engine.ApplyEnrollmentProfile(ctx, id, input)
-}
-
-// CreateEnrollmentStudent inserts a student for an existing person in the same
-// tenant, under the shared class-write gate and the caller's transaction.
-func (m *Module) CreateEnrollmentStudent(ctx context.Context, input EnrollmentStudent) (CreatedEnrollmentStudent, error) {
-	if input.PersonID <= 0 {
-		return CreatedEnrollmentStudent{}, &InvalidStudentError{Reason: "person ID is required"}
-	}
-	if err := normalizeEnrollmentStudent(&input); err != nil {
-		return CreatedEnrollmentStudent{}, err
-	}
-	if input.InitialProfile != nil {
-		profile := *input.InitialProfile
-		if err := normalizeEnrollmentDeparture(&profile); err != nil {
-			return CreatedEnrollmentStudent{}, err
-		}
-		input.InitialProfile = &profile
-	}
-	return m.engine.CreateEnrollmentStudent(ctx, input)
-}
-
-// RenewEnrollmentStudent updates only class, lifecycle dates/status and contact
-// columns. Callers retain the old contact values for rollover without a form.
-func (m *Module) RenewEnrollmentStudent(ctx context.Context, id int64, input EnrollmentStudent) error {
-	if input.InitialProfile != nil {
-		return &InvalidStudentError{Reason: "initial profile is only valid for creation"}
-	}
-	if id <= 0 {
-		return &InvalidStudentError{Reason: "student ID is required"}
-	}
-	if err := normalizeEnrollmentStudent(&input); err != nil {
-		return err
-	}
-	return m.engine.RenewEnrollmentStudent(ctx, id, input)
-}
-
-func normalizeEnrollmentStudent(input *EnrollmentStudent) error {
-	if input.SchoolClass == "" {
-		return &InvalidStudentError{Reason: "school class is required"}
-	}
-	input.SchoolClass = strings.TrimSpace(input.SchoolClass)
-	if err := validateBirthday(input.EnrolledFrom); err != nil {
-		return &InvalidStudentError{Reason: "invalid enrolled_from calendar date"}
-	}
-	if err := validateBirthday(input.EnrolledUntil); err != nil {
-		return &InvalidStudentError{Reason: "invalid enrolled_until calendar date"}
-	}
-
-	return nil
-}

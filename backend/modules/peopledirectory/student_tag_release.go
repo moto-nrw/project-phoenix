@@ -6,33 +6,3 @@ import "context"
 type StudentTagRelease interface {
 	ReleaseStudentTagsByIDs(context.Context, []int64) (map[int64]string, error)
 }
-
-// ReleaseStudentTagsByIDs clears the RFID tag on the given students' person
-// rows and returns what each of them was holding, keyed by student id.
-func (m *Module) ReleaseStudentTagsByIDs(ctx context.Context, studentIDs []int64) (map[int64]string, error) {
-	if len(studentIDs) == 0 {
-		return nil, nil
-	}
-	students, err := m.ListStudentsByID(ctx, studentIDs)
-	if err != nil {
-		return nil, err
-	}
-	personIDs := make([]int64, 0, len(students))
-	studentsByPerson := make(map[int64]int64, len(students))
-	for _, student := range students {
-		personIDs = append(personIDs, student.PersonID)
-		studentsByPerson[student.PersonID] = student.ID
-	}
-	released, err := m.ReleaseTags(ctx, personIDs)
-	if err != nil {
-		return nil, err
-	}
-	if len(released) == 0 {
-		return nil, nil
-	}
-	result := make(map[int64]string, len(released))
-	for _, entry := range released {
-		result[studentsByPerson[entry.PersonID]] = entry.TagID
-	}
-	return result, nil
-}
