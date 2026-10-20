@@ -31,15 +31,13 @@ type Dependencies struct {
 	Provenance          postgres.EnrollmentProvenance
 }
 
-func New(dependencies Dependencies) (*timetable.Module, error) {
+func New(dependencies Dependencies) (timetable.Owner, error) {
 	if dependencies.DB == nil || dependencies.Students == nil || dependencies.Rooms == nil || dependencies.Sessions == nil || dependencies.LockStaffAssignment == nil || dependencies.Observe == nil || dependencies.Provenance == nil {
 		return nil, errors.New("timetable compose: all dependencies are required")
 	}
 	store := postgres.New(postgres.DatabaseRuntime(dependencies.DB))
-	observe := application.NewObserver(dependencies.Observe)
-	service := application.New(store, transaction{}, application.NewStudentDirectory(dependencies.Students), application.NewRoomDirectory(dependencies.Rooms), dependencies.Sessions,
-		dependencies.LockStaffAssignment, application.NewToday(), observe)
-	return timetable.NewModule(application.NewEngine(service, observe, postgres.NewProvenanceStore(store, dependencies.Provenance))), nil
+	return application.New(store, transaction{}, application.NewStudentDirectory(dependencies.Students), application.NewRoomDirectory(dependencies.Rooms), dependencies.Sessions,
+		dependencies.LockStaffAssignment, application.NewToday(), dependencies.Observe, postgres.NewProvenanceStore(store, dependencies.Provenance)), nil
 }
 
 type transaction struct{}

@@ -41,24 +41,3 @@ type ConflictAckCapability interface {
 	ConflictAckQuery
 	ConflictAckCommand
 }
-
-func (m *Module) ListConflictAcks(ctx context.Context, accountID int64) ([]string, error) {
-	if accountID <= 0 {
-		return nil, m.reject("list_conflict_acks", ErrInvalidConflictAck)
-	}
-	return m.engine.ListConflictAcks(ctx, accountID)
-}
-
-func (m *Module) AcknowledgeConflict(ctx context.Context, accountID int64, fingerprint string) error {
-	if accountID <= 0 || !ValidConflictAckFingerprint(fingerprint) {
-		return m.reject("acknowledge_conflict", ErrInvalidConflictAck)
-	}
-	return m.engine.AcknowledgeConflict(ctx, accountID, fingerprint)
-}
-
-func (m *Module) UnacknowledgeConflict(ctx context.Context, accountID int64, fingerprint string) error {
-	if accountID <= 0 || !ValidConflictAckFingerprint(fingerprint) {
-		return m.reject("unacknowledge_conflict", ErrInvalidConflictAck)
-	}
-	return m.engine.UnacknowledgeConflict(ctx, accountID, fingerprint)
-}

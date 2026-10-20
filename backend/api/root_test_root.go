@@ -101,7 +101,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 		peopleIdentity   identityaccess.Owner
 		guardian         peoplePorts.GuardianService
 		photoRuntime     owners.StudentPhotoRuntime
-		timetableOwner   *timetable.Module
+		timetableOwner   timetable.Owner
 		timetableRepos   owners.TimetableRepositories
 		carePlan         *carePlanModule.Module
 		operatorAuditLog owners.OperatorAuditEntries

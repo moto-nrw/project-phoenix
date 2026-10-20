@@ -8,10 +8,6 @@ import (
 
 var ErrInvalidRecurrenceRange = errors.New("invalid date range")
 
-func (m *Module) GenerateRecurrenceEvents(ctx context.Context, id int64, start, end time.Time) ([]time.Time, error) {
-	return m.engine.GenerateRecurrenceEvents(ctx, id, start, end)
-}
-
 type RecurrenceRule struct {
 	ID            int64      `json:"id"`
 	TenantID      int64      `json:"tenant_id"`

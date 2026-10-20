@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
@@ -16,12 +17,12 @@ const careExitRosterColumns = `s.id AS participant_id, s.tenant_id, s.student_id
 // ListPlannedRosterForCareExit lists the students' participants on not
 // cancelled instances after the day. Which of them are observed or on a
 // block that ended is Student Presence's answer; the application asks it.
-func (s *Store) ListPlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after string) ([]domain.CareExitRosterRow, domain.OperationStats, error) {
+func (s *Store) ListPlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after string) ([]timetable.CareExitRosterRow, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
-	rows := []domain.CareExitRosterRow{}
+	rows := []timetable.CareExitRosterRow{}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = db.NewRaw(`SELECT `+careExitRosterColumns+` FROM schedule.instance_students AS s
@@ -36,15 +37,15 @@ func (s *Store) ListPlannedRosterForCareExit(ctx context.Context, studentIDs []i
 	return rows, stats, nil
 }
 
-func (s *Store) RemovePlannedRosterForCareExit(ctx context.Context, participantIDs []int64) ([]domain.CareExitRosterRow, domain.OperationStats, error) {
+func (s *Store) RemovePlannedRosterForCareExit(ctx context.Context, participantIDs []int64) ([]timetable.CareExitRosterRow, domain.OperationStats, error) {
 	if len(participantIDs) == 0 {
-		return []domain.CareExitRosterRow{}, domain.OperationStats{}, nil
+		return []timetable.CareExitRosterRow{}, domain.OperationStats{}, nil
 	}
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
-	rows := []domain.CareExitRosterRow{}
+	rows := []timetable.CareExitRosterRow{}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = db.NewRaw(`DELETE FROM schedule.instance_students AS s
@@ -61,7 +62,7 @@ func (s *Store) RemovePlannedRosterForCareExit(ctx context.Context, participantI
 // RestoreRosterForCareExit re-inserts removed participants whose instance is
 // not cancelled and not among the excluded (ended) ones, and returns the
 // rows it inserted with their new ids.
-func (s *Store) RestoreRosterForCareExit(ctx context.Context, studentIDs []int64, rows []domain.CareExitRosterRow, excludedInstanceIDs []int64) ([]domain.CareExitRosterRow, domain.OperationStats, error) {
+func (s *Store) RestoreRosterForCareExit(ctx context.Context, studentIDs []int64, rows []timetable.CareExitRosterRow, excludedInstanceIDs []int64) ([]timetable.CareExitRosterRow, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -74,7 +75,7 @@ func (s *Store) RestoreRosterForCareExit(ctx context.Context, studentIDs []int64
 	if excluded == nil {
 		excluded = []int64{}
 	}
-	restored := []domain.CareExitRosterRow{}
+	restored := []timetable.CareExitRosterRow{}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = db.NewRaw(`WITH restored AS (
@@ -98,7 +99,7 @@ func (s *Store) RestoreRosterForCareExit(ctx context.Context, studentIDs []int64
 
 // ListRestorableRosterForCareExit returns the removed rows whose instance is
 // still after `after`, not cancelled, and does not list the child again.
-func (s *Store) ListRestorableRosterForCareExit(ctx context.Context, studentIDs []int64, after string, restorable []domain.CareExitRosterRow) ([]domain.CareExitRosterRow, domain.OperationStats, error) {
+func (s *Store) ListRestorableRosterForCareExit(ctx context.Context, studentIDs []int64, after string, restorable []timetable.CareExitRosterRow) ([]timetable.CareExitRosterRow, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -107,7 +108,7 @@ func (s *Store) ListRestorableRosterForCareExit(ctx context.Context, studentIDs 
 	if err != nil {
 		return nil, domain.OperationStats{}, fmt.Errorf("timetable postgres: encode restorable care exit roster: %w", err)
 	}
-	rows := []domain.CareExitRosterRow{}
+	rows := []timetable.CareExitRosterRow{}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = db.NewRaw(`SELECT rm.participant_id, rm.tenant_id, rm.student_id, rm.instance_id, rm.room_id
