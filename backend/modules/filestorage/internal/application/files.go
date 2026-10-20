@@ -86,15 +86,8 @@ func (s *Service) requireUpload(ctx context.Context, o *op, folderID int64, acto
 func (s *Service) UploadFile(ctx context.Context, folderID int64, upload domain.Upload, actor domain.Actor) (file domain.Document, err error) {
 	err = s.run("upload_file", func(o *op) error {
 		tenantID := s.deps.Tx.TenantID(ctx)
-		if tenantID <= 0 {
-			return fmt.Errorf("%w: no tenant context", domain.ErrInvalid)
-		}
-		if err := requireActor(actor); err != nil {
+		if err := normalizeUpload(tenantID, actor, &upload); err != nil {
 			return err
-		}
-		upload.FilenameDisplay = strings.TrimSpace(upload.FilenameDisplay)
-		if upload.FilenameDisplay == "" {
-			return fmt.Errorf("%w: filename is required", domain.ErrInvalid)
 		}
 		// Authorize BEFORE anything is written, so a request that was never
 		// allowed costs neither disk nor a cleanup row.
@@ -234,47 +227,16 @@ func (s *Service) DeleteFile(ctx context.Context, folderID, fileID int64, actor 
 		if err := requireActor(actor); err != nil {
 			return err
 		}
-		var document domain.Document
+		var deletedDocument domain.Document
 		if err := s.write(ctx, o, func(txCtx context.Context, o *op) error {
-			if _, err := s.requireVisible(txCtx, o, folderID, actor); err != nil {
-				return err
-			}
-			live, found, stats, err := s.deps.Files.FindForOwner(txCtx, folderID, fileID, false)
-			o.add(stats)
-			if err != nil {
-				return err
-			}
-			if !found {
-				deleted, found, stats, err := s.deps.Files.FindForOwner(txCtx, folderID, fileID, true)
-				o.add(stats)
-				if err != nil {
-					return err
-				}
-				if !found {
-					return domain.ErrNotFound
-				}
-				if err := s.requireDeleteRight(txCtx, deleted, actor); err != nil {
-					return err
-				}
-				document = deleted
-				return nil
-			}
-			if err := s.requireDeleteRight(txCtx, live, actor); err != nil {
-				return err
-			}
-			deleted, stats, err := s.deps.Files.SoftDelete(txCtx, live.ID, actor.AccountID)
-			o.add(stats)
-			if err != nil {
-				return err
-			}
-			document = deleted
-			return s.record(txCtx, actor, ports.EventFileDeleted, &folderID, nil, &deleted.ID,
-				fmt.Sprintf("Datei „%s“ gelöscht", deleted.FilenameDisplay))
+			document, err := s.deleteFileRecord(txCtx, o, folderID, fileID, actor)
+			deletedDocument = document
+			return err
 		}); err != nil {
 			return err
 		}
-		if document.BytesPresent() {
-			s.scheduleCleanup(ctx, s.files(), document, "delete")
+		if deletedDocument.BytesPresent() {
+			s.scheduleCleanup(ctx, s.files(), deletedDocument, "delete")
 		}
 		return nil
 	})
@@ -287,6 +249,57 @@ func (s *Service) requireDeleteRight(ctx context.Context, document domain.Docume
 	}
 	if !allowed {
 		return fmt.Errorf("%w: only own uploads can be deleted", domain.ErrForbidden)
+	}
+	return nil
+}
+
+func (s *Service) deleteFileRecord(txCtx context.Context, o *op, folderID, fileID int64, actor domain.Actor) (document domain.Document, err error) {
+	if _, err := s.requireVisible(txCtx, o, folderID, actor); err != nil {
+		return document, err
+	}
+	live, found, stats, err := s.deps.Files.FindForOwner(txCtx, folderID, fileID, false)
+	o.add(stats)
+	if err != nil {
+		return document, err
+	}
+	if !found {
+		deleted, found, stats, err := s.deps.Files.FindForOwner(txCtx, folderID, fileID, true)
+		o.add(stats)
+		if err != nil {
+			return document, err
+		}
+		if !found {
+			return document, domain.ErrNotFound
+		}
+		if err := s.requireDeleteRight(txCtx, deleted, actor); err != nil {
+			return document, err
+		}
+		document = deleted
+		return document, nil
+	}
+	if err := s.requireDeleteRight(txCtx, live, actor); err != nil {
+		return document, err
+	}
+	deleted, stats, err := s.deps.Files.SoftDelete(txCtx, live.ID, actor.AccountID)
+	o.add(stats)
+	if err != nil {
+		return document, err
+	}
+	document = deleted
+	return document, s.record(txCtx, actor, ports.EventFileDeleted, &folderID, nil, &deleted.ID,
+		fmt.Sprintf("Datei „%s“ gelöscht", deleted.FilenameDisplay))
+}
+
+func normalizeUpload(tenantID int64, actor domain.Actor, upload *domain.Upload) error {
+	if tenantID <= 0 {
+		return fmt.Errorf("%w: no tenant context", domain.ErrInvalid)
+	}
+	if err := requireActor(actor); err != nil {
+		return err
+	}
+	upload.FilenameDisplay = strings.TrimSpace(upload.FilenameDisplay)
+	if upload.FilenameDisplay == "" {
+		return fmt.Errorf("%w: filename is required", domain.ErrInvalid)
 	}
 	return nil
 }

@@ -114,31 +114,9 @@ func (s *service) PublishCareCancellation(ctx context.Context, in CareCancellati
 	if err := s.repo.Create(ctx, a); err != nil {
 		return nil, fmt.Errorf("announcement: create cancellation notice: %w", err)
 	}
-	targets := make([]*StaffParentAnnouncementTarget, 0, len(studentIDs))
-	for _, studentID := range studentIDs {
-		id := studentID
-		targets = append(targets, &StaffParentAnnouncementTarget{
-			TargetType:  StaffAnnouncementTargetStudent,
-			TargetRefID: &id,
-		})
+	if err := s.publishCancellationTargets(ctx, a, studentIDs); err != nil {
+		return nil, err
 	}
-	// Targets can only be set on a draft, so the row is created unpublished
-	// and flipped right after. PublishIfDraft is the same atomic flip the
-	// hand-written path uses.
-	if err := s.repo.ReplaceTargets(ctx, a.GetTenantID(), a.ID, targets); err != nil {
-		return nil, fmt.Errorf("announcement: set cancellation notice targets: %w", err)
-	}
-	now := time.Now()
-	published, err := s.repo.PublishIfDraft(ctx, a.ID, now)
-	if err != nil {
-		return nil, fmt.Errorf("announcement: publish cancellation notice: %w", err)
-	}
-	if !published {
-		return nil, fmt.Errorf("announcement: publish cancellation notice: row %d was not a draft", a.ID)
-	}
-	a.PublishedAt = &now
-	a.Targets = targets
-
 	recipients, err := s.repo.AudienceRecipients(ctx, a.GetTenantID(), a.ID)
 	if err != nil {
 		return nil, fmt.Errorf("announcement: resolve cancellation notice audience: %w", err)
@@ -201,4 +179,33 @@ func uniquePositive(ids []int64) []int64 {
 		out = append(out, id)
 	}
 	return out
+}
+
+func (s *service) publishCancellationTargets(ctx context.Context, a *StaffParentAnnouncement, studentIDs []int64) error {
+	targets := make([]*StaffParentAnnouncementTarget, 0, len(studentIDs))
+	for _, studentID := range studentIDs {
+		id := studentID
+		targets = append(targets, &StaffParentAnnouncementTarget{
+			TargetType:  StaffAnnouncementTargetStudent,
+			TargetRefID: &id,
+		})
+	}
+	// Targets can only be set on a draft, so the row is created unpublished
+	// and flipped right after. PublishIfDraft is the same atomic flip the
+	// hand-written path uses.
+	if err := s.repo.ReplaceTargets(ctx, a.GetTenantID(), a.ID, targets); err != nil {
+		return fmt.Errorf("announcement: set cancellation notice targets: %w", err)
+	}
+	now := time.Now()
+	published, err := s.repo.PublishIfDraft(ctx, a.ID, now)
+	if err != nil {
+		return fmt.Errorf("announcement: publish cancellation notice: %w", err)
+	}
+	if !published {
+		return fmt.Errorf("announcement: publish cancellation notice: row %d was not a draft", a.ID)
+	}
+	a.PublishedAt = &now
+	a.Targets = targets
+
+	return nil
 }

@@ -61,18 +61,9 @@ func (s *Service) UpdateDisplay(ctx context.Context, id int64, name *string, isA
 		if !found {
 			return domain.ErrDisplayNotFound
 		}
-		input := domain.UpdateDisplay{ID: id}
-		if name != nil {
-			validated, err := validateDisplayName(*name)
-			if err != nil {
-				return err
-			}
-			input.Name = &validated
-			existing.Name = validated
-		}
-		if isActive != nil {
-			input.IsActive = isActive
-			existing.IsActive = *isActive
+		input, err := applyDisplayUpdate(&existing, name, isActive)
+		if err != nil {
+			return err
 		}
 		if input.Name == nil && input.IsActive == nil {
 			result = existing
@@ -165,4 +156,21 @@ func validateDisplayName(name string) (string, error) {
 		}
 	}
 	return name, nil
+}
+
+func applyDisplayUpdate(existing *domain.Display, name *string, isActive *bool) (domain.UpdateDisplay, error) {
+	input := domain.UpdateDisplay{ID: existing.ID}
+	if name != nil {
+		validated, err := validateDisplayName(*name)
+		if err != nil {
+			return domain.UpdateDisplay{}, err
+		}
+		input.Name = &validated
+		existing.Name = validated
+	}
+	if isActive != nil {
+		input.IsActive = isActive
+		existing.IsActive = *isActive
+	}
+	return input, nil
 }

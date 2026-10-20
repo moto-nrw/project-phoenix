@@ -164,6 +164,11 @@ func (p *Projection) ListInbox(ctx context.Context, accountID int64, onlyUnread 
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list staff message inbox: %w", err)
 	}
+	threads := inboxThreads(rows)
+	return threads, nil
+}
+
+func inboxThreads(rows []inboxRow) []*contract.StaffInboxThread {
 	threads := make([]*contract.StaffInboxThread, 0, len(rows))
 	for _, row := range rows {
 		threads = append(threads, &contract.StaffInboxThread{
@@ -173,5 +178,5 @@ func (p *Projection) ListInbox(ctx context.Context, accountID int64, onlyUnread 
 			LastSenderAccountID: row.LastSenderAccountID, UnreadCount: row.UnreadCount,
 		})
 	}
-	return threads, nil
+	return threads
 }

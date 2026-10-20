@@ -77,6 +77,13 @@ type UpdateOrganization struct {
 }
 
 type Query interface {
+	OrganizationQuery
+	SchoolQuery
+	SchoolListQuery
+}
+
+// OrganizationQuery reads organizations and locks them before mutation.
+type OrganizationQuery interface {
 	FindOrganization(context.Context, int64) (Organization, error)
 	FindOrganizationBySlug(context.Context, string) (Organization, error)
 	ListOrganizations(context.Context) ([]Organization, error)
@@ -84,12 +91,20 @@ type Query interface {
 	CountOrganizationsByID(context.Context, []int64) (int, error)
 	FindOrganizationForMutation(context.Context, int64) (Organization, error)
 	FindOrganizationForSchoolMutation(context.Context, int64) (Organization, error)
+}
+
+// SchoolQuery resolves individual schools and their mutation locks.
+type SchoolQuery interface {
 	FindSchool(context.Context, int64) (School, error)
 	FindSchoolForShare(context.Context, int64) (School, error)
 	FindSchoolForMutation(context.Context, int64) (School, error)
 	FindSchoolBySlug(context.Context, string) (School, error)
 	FindSchoolByOrganizationAndSlug(context.Context, int64, string) (School, error)
 	FindSchoolBySubdomain(context.Context, string) (School, error)
+}
+
+// SchoolListQuery lists and counts schools for directory consumers.
+type SchoolListQuery interface {
 	ListSchools(context.Context) ([]School, error)
 	ListSchoolsByID(context.Context, []int64) ([]School, error)
 	ListSchoolsByOrganization(context.Context, int64) ([]School, error)

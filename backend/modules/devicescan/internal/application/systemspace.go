@@ -260,13 +260,7 @@ func (s *Service) systemActivity(ctx context.Context, sp systemSpace) (*devicesc
 		return nil, fmt.Errorf("failed to query %s activity: %w", sp.label, err)
 	}
 	selectExisting := func(candidates []devicescan.Activity) *devicescan.Activity {
-		if sp.selectActivity != nil {
-			return sp.selectActivity(candidates, room)
-		}
-		if len(candidates) > 0 {
-			return &candidates[0]
-		}
-		return nil
+		return selectSystemActivity(sp, candidates, room)
 	}
 	if existing := selectExisting(candidates); existing != nil {
 		s.logger.DebugContext(ctx, "found existing "+sp.label+" activity",
@@ -287,15 +281,29 @@ func (s *Service) systemActivity(ctx context.Context, sp systemSpace) (*devicesc
 		return nil, fmt.Errorf("failed to ensure %s category: %w", sp.label, err)
 	}
 
+	return s.createSystemActivity(ctx, sp, room, category.ID)
+}
+
+func selectSystemActivity(sp systemSpace, candidates []devicescan.Activity, room *facilities.Room) *devicescan.Activity {
+	if sp.selectActivity != nil {
+		return sp.selectActivity(candidates, room)
+	}
+	if len(candidates) > 0 {
+		return &candidates[0]
+	}
+	return nil
+}
+
+func (s *Service) createSystemActivity(ctx context.Context, sp systemSpace, room *facilities.Room, categoryID int64) (*devicescan.Activity, error) {
 	// created_by stays unset: the activity is system-created.
 	created, err := s.activities.CreateActivity(ctx, devicescan.NewActivity{
 		Name: sp.activityName, MaxParticipants: sp.maxParticipants, IsOpen: true,
-		CategoryID: category.ID, PlannedRoomID: &room.ID, IsSystem: true,
+		CategoryID: categoryID, PlannedRoomID: &room.ID, IsSystem: true,
 	})
 	if err != nil {
 		// Retry: a concurrent request may have created it.
 		if retry, retryErr := s.activities.ListByName(ctx, sp.activityName); retryErr == nil {
-			if existing := selectExisting(retry); existing != nil {
+			if existing := selectSystemActivity(sp, retry, room); existing != nil {
 				return existing, nil
 			}
 		}
@@ -303,7 +311,7 @@ func (s *Service) systemActivity(ctx context.Context, sp systemSpace) (*devicesc
 	}
 	s.logger.InfoContext(ctx, "successfully auto-created "+sp.label+" infrastructure",
 		slog.Int64("room_id", room.ID),
-		slog.Int64("category_id", category.ID),
+		slog.Int64("category_id", categoryID),
 		slog.Int64("activity_id", created.ID),
 	)
 	return &created, nil

@@ -76,19 +76,24 @@ func (c correctionLog) History(ctx context.Context, filter requestreview.QueueFi
 		}
 		person := persons[student.PersonID]
 		name := strings.TrimSpace(person.FirstName + " " + person.LastName)
-		entries, diffErr := careplan.ReviewCorrectionDiff(row.Before, row.After)
-		if diffErr != nil {
-			slog.Warn("offering change: decode direct correction snapshot failed",
-				"adjustment_id", row.ID,
-			)
-		}
-		diff := make([]requestreview.OfferingRequestDiffResponse, 0, len(entries))
-		for _, entry := range entries {
-			diff = append(diff, requestreview.OfferingRequestDiffResponse{OfferingID: strconv.FormatInt(entry.OfferingID, 10), Label: entry.Label, Old: requestreview.GermanOfferingDiffLabel(entry.OldState, entry.OldDays), New: requestreview.GermanOfferingDiffLabel(entry.NewState, entry.NewDays)})
-		}
+		diff := correctionDiff(row)
 		result = append(result, requestreview.Row{Type: requestreview.TypeDirectCorrection, SortTime: row.ChangedAt, ID: row.ID, StudentID: row.StudentID, StudentName: name, DecidedAt: row.ChangedAt,
 			Data: requestreview.DirectCorrectionResponse{ID: strconv.FormatInt(row.ID, 10), StudentID: strconv.FormatInt(row.StudentID, 10), StudentName: name, ChangedAt: row.ChangedAt, ChangedByName: row.ActorName(), Reason: row.Reason, Diff: diff},
 		})
 	}
 	return result, next, nil
+}
+
+func correctionDiff(row auditlog.DirectCorrection) []requestreview.OfferingRequestDiffResponse {
+	entries, diffErr := careplan.ReviewCorrectionDiff(row.Before, row.After)
+	if diffErr != nil {
+		slog.Warn("offering change: decode direct correction snapshot failed",
+			"adjustment_id", row.ID,
+		)
+	}
+	diff := make([]requestreview.OfferingRequestDiffResponse, 0, len(entries))
+	for _, entry := range entries {
+		diff = append(diff, requestreview.OfferingRequestDiffResponse{OfferingID: strconv.FormatInt(entry.OfferingID, 10), Label: entry.Label, Old: requestreview.GermanOfferingDiffLabel(entry.OldState, entry.OldDays), New: requestreview.GermanOfferingDiffLabel(entry.NewState, entry.NewDays)})
+	}
+	return diff
 }

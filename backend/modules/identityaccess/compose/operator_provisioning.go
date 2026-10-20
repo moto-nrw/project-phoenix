@@ -69,7 +69,3 @@ func newOperatorProvisioning(
 		Logger: operators.Logger,
 	})
 }
-
-// --- port adapters ---------------------------------------------------------
-
-// --- engine methods --------------------------------------------------------

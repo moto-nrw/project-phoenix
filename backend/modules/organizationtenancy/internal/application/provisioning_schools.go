@@ -236,27 +236,11 @@ func (p *Provisioning) schoolChangeSet(ctx context.Context, existing organizatio
 		}
 		diff["organization_id"] = map[string]int64{"old": existing.OrganizationID, "new": changes.OrganizationID}
 	}
-	if changes.Slug != existing.Slug || changes.OrganizationID != existing.OrganizationID {
-		taken, err := p.schoolBySlug(ctx, changes.OrganizationID, changes.Slug)
-		if err != nil {
-			return nil, err
-		}
-		if taken != nil && taken.ID != existing.ID {
-			return nil, &organizationtenancy.ProvisioningConflictError{Kind: organizationtenancy.ConflictSchoolSlug, Err: errors.New("school slug already exists in this organization")}
-		}
-		if changes.Slug != existing.Slug {
-			diff["slug"] = map[string]string{"old": existing.Slug, "new": changes.Slug}
-		}
+	if err := p.schoolSlugChange(ctx, existing, changes, diff); err != nil {
+		return nil, err
 	}
-	if changes.Subdomain != existing.Subdomain {
-		taken, err := p.schoolBySubdomain(ctx, changes.Subdomain)
-		if err != nil {
-			return nil, err
-		}
-		if taken != nil && taken.ID != existing.ID {
-			return nil, &organizationtenancy.ProvisioningConflictError{Kind: organizationtenancy.ConflictSchoolSubdomain, Err: errors.New("school subdomain already exists")}
-		}
-		diff["subdomain"] = map[string]string{"old": existing.Subdomain, "new": changes.Subdomain}
+	if err := p.schoolSubdomainChange(ctx, existing, changes, diff); err != nil {
+		return nil, err
 	}
 	if changes.Name != existing.Name {
 		diff["name"] = map[string]string{"old": existing.Name, "new": changes.Name}
@@ -385,4 +369,34 @@ func optionalSchool(school organizationtenancy.School, err error) (*organization
 		return nil, err
 	}
 	return &school, nil
+}
+
+func (p *Provisioning) schoolSubdomainChange(ctx context.Context, existing organizationtenancy.School, changes organizationtenancy.SchoolChanges, diff map[string]any) error {
+	if changes.Subdomain != existing.Subdomain {
+		taken, err := p.schoolBySubdomain(ctx, changes.Subdomain)
+		if err != nil {
+			return err
+		}
+		if taken != nil && taken.ID != existing.ID {
+			return &organizationtenancy.ProvisioningConflictError{Kind: organizationtenancy.ConflictSchoolSubdomain, Err: errors.New("school subdomain already exists")}
+		}
+		diff["subdomain"] = map[string]string{"old": existing.Subdomain, "new": changes.Subdomain}
+	}
+	return nil
+}
+
+func (p *Provisioning) schoolSlugChange(ctx context.Context, existing organizationtenancy.School, changes organizationtenancy.SchoolChanges, diff map[string]any) error {
+	if changes.Slug != existing.Slug || changes.OrganizationID != existing.OrganizationID {
+		taken, err := p.schoolBySlug(ctx, changes.OrganizationID, changes.Slug)
+		if err != nil {
+			return err
+		}
+		if taken != nil && taken.ID != existing.ID {
+			return &organizationtenancy.ProvisioningConflictError{Kind: organizationtenancy.ConflictSchoolSlug, Err: errors.New("school slug already exists in this organization")}
+		}
+		if changes.Slug != existing.Slug {
+			diff["slug"] = map[string]string{"old": existing.Slug, "new": changes.Slug}
+		}
+	}
+	return nil
 }

@@ -375,24 +375,10 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) 
 		return nil, err
 	}
 
-	// Serialize appends for this thread so message order matches commit order.
-	if err := s.ThreadRepo.LockForMessageAppend(ctx, threadID); err != nil {
+	message, err := s.appendMessage(ctx, threadID, accountID, trimmed)
+	if err != nil {
 		return nil, err
 	}
-
-	message := &StaffMessage{
-		ThreadID:        threadID,
-		SenderAccountID: accountID,
-		SenderName:      s.resolveSenderName(ctx, accountID),
-		Body:            trimmed,
-	}
-	if err := s.MessageRepo.Create(ctx, message); err != nil {
-		return nil, err
-	}
-	if err := s.ThreadRepo.TouchLastMessage(ctx, threadID, message.CreatedAt, message.ID, accountID, trimmed); err != nil {
-		return nil, err
-	}
-
 	// Deliberately NO read-cursor advance here.
 	//
 	// The tempting version ("you have read what you just wrote") is both
@@ -464,4 +450,26 @@ func (s *Service) buildDetail(ctx context.Context, thread *StaffMessageThread, v
 		detail.CounterpartRoleKind = kinds[detail.CounterpartAccountID]
 	}
 	return detail, nil
+}
+
+func (s *Service) appendMessage(ctx context.Context, threadID, accountID int64, trimmed string) (*StaffMessage, error) {
+	// Serialize appends for this thread so message order matches commit order.
+	if err := s.ThreadRepo.LockForMessageAppend(ctx, threadID); err != nil {
+		return nil, err
+	}
+
+	message := &StaffMessage{
+		ThreadID:        threadID,
+		SenderAccountID: accountID,
+		SenderName:      s.resolveSenderName(ctx, accountID),
+		Body:            trimmed,
+	}
+	if err := s.MessageRepo.Create(ctx, message); err != nil {
+		return nil, err
+	}
+	if err := s.ThreadRepo.TouchLastMessage(ctx, threadID, message.CreatedAt, message.ID, accountID, trimmed); err != nil {
+		return nil, err
+	}
+
+	return message, nil
 }

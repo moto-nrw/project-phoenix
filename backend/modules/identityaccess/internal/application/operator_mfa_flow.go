@@ -102,22 +102,9 @@ func (f *OperatorMFAFlows) StartChallenge(ctx context.Context, operatorID int64,
 		return "", domain.ErrMFALocked
 	}
 
-	// The hard cap of three codes per fifteen minutes is an abuse defense,
-	// so a failed count refuses the send instead of waving it through:
-	// ignoring the error meant the cap silently stopped existing exactly
-	// when the database was least healthy.
-	since := f.now().Add(-domain.OperatorMFARateLimitWindow)
-	count, err := f.records.CountChallengesSince(ctx, operatorID, since)
-	if err != nil {
-		f.logger.Warn("operator mfa rate-limit lookup failed; refusing to issue a code",
-			slog.Int64("operator_id", operatorID),
-			slog.String("error", err.Error()))
-		return "", domain.ErrMFAStatusUnavailable
+	if err := f.requireChallengeRateLimit(ctx, operatorID); err != nil {
+		return "", err
 	}
-	if count >= domain.OperatorMFARateLimitMaxSent {
-		return "", domain.ErrMFARateLimited
-	}
-
 	plainCode, err := domain.GenerateEmailCode()
 	if err != nil {
 		return "", fmt.Errorf("generate email code: %w", err)
@@ -458,4 +445,24 @@ func (f *OperatorMFAFlows) activateDeliveredChallenge(ctx context.Context, chall
 		}
 		return f.recordAudit(txCtx, challenge.OperatorID, domain.OperatorAuditActionMFAEmailSent, challenge.IPAddress, &challenge.ID, nil)
 	})
+}
+
+func (f *OperatorMFAFlows) requireChallengeRateLimit(ctx context.Context, operatorID int64) error {
+	// The hard cap of three codes per fifteen minutes is an abuse defense,
+	// so a failed count refuses the send instead of waving it through:
+	// ignoring the error meant the cap silently stopped existing exactly
+	// when the database was least healthy.
+	since := f.now().Add(-domain.OperatorMFARateLimitWindow)
+	count, err := f.records.CountChallengesSince(ctx, operatorID, since)
+	if err != nil {
+		f.logger.Warn("operator mfa rate-limit lookup failed; refusing to issue a code",
+			slog.Int64("operator_id", operatorID),
+			slog.String("error", err.Error()))
+		return domain.ErrMFAStatusUnavailable
+	}
+	if count >= domain.OperatorMFARateLimitMaxSent {
+		return domain.ErrMFARateLimited
+	}
+
+	return nil
 }

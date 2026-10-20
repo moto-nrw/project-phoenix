@@ -184,82 +184,19 @@ func messageEmailCopy(locale, firstName, lastName, schoolName, childName string,
 	child := strings.TrimSpace(childName)
 	switch policy.NormalizeLocale(locale) {
 	case "en":
-		return parentMessageEmailCopy{
-			Subject: "New message from the OGS", Kicker: "New message",
-			Greeting: localizedGreeting("Hello", name, ","),
-			Intro:    localizedMessageIntro("The OGS", school, "sent you a message", "about", child),
-			Reply:    "Reply", FallbackHint: "If the button does not work, copy this link:",
-			PreferenceHint: "You are receiving this email because you are registered as a guardian in moto. You can choose which notifications you receive in the app under Notifications.",
-			FooterText:     localizedEmailFooter("This email was sent on behalf of", school, "This email was sent automatically."),
-			PoweredByLabel: "Powered by", SchoolLogoAlt: "School logo",
-			DefaultBrandKicker: "Parent portal", DefaultSchoolName: "Your OGS",
-		}
+		return englishMessageEmailCopy(name, school, child)
 	case "ru":
-		return parentMessageEmailCopy{
-			Subject: "Новое сообщение от продлёнки", Kicker: "Новое сообщение",
-			Greeting: localizedGreeting("Здравствуйте", name, "!"),
-			Intro:    localizedMessageIntro("Продлёнка", school, "отправила вам сообщение", "о ребёнке", child),
-			Reply:    "Ответить", FallbackHint: "Если кнопка не работает, скопируйте эту ссылку:",
-			PreferenceHint: "Вы получили это письмо, потому что указаны в moto как законный представитель. В разделе «Уведомления» приложения можно выбрать, о чём мы будем вас информировать.",
-			FooterText:     localizedEmailFooter("Это письмо отправлено от имени", school, "Это письмо отправлено автоматически."),
-			PoweredByLabel: "При поддержке", SchoolLogoAlt: "Логотип школы",
-			DefaultBrandKicker: "Родительский портал", DefaultSchoolName: "Ваша продлёнка",
-		}
+		return russianMessageEmailCopy(name, school, child)
 	case "sq":
-		return parentMessageEmailCopy{
-			Subject: "Mesazh i ri nga OGS-ja", Kicker: "Mesazh i ri",
-			Greeting: localizedGreeting("Përshëndetje", name, ","),
-			Intro:    localizedMessageIntro("OGS-ja", school, "ju ka dërguar një mesazh", "për", child),
-			Reply:    "Përgjigju", FallbackHint: "Nëse butoni nuk funksionon, kopjoni këtë lidhje:",
-			PreferenceHint: "Po e merrni këtë email sepse jeni regjistruar si kujdestar në moto. Te Njoftimet në aplikacion mund të zgjidhni për çfarë dëshironi të njoftoheni.",
-			FooterText:     localizedEmailFooter("Ky email u dërgua në emër të", school, "Ky email u dërgua automatikisht."),
-			PoweredByLabel: "Mundësuar nga", SchoolLogoAlt: "Logoja e shkollës",
-			DefaultBrandKicker: "Portali i prindërve", DefaultSchoolName: "OGS-ja juaj",
-		}
+		return albanianMessageEmailCopy(name, school, child)
 	case "pl":
-		return parentMessageEmailCopy{
-			Subject: "Nowa wiadomość od OGS", Kicker: "Nowa wiadomość",
-			Greeting: localizedGreeting("Dzień dobry", name, ","),
-			Intro:    localizedMessageIntro("OGS", school, "napisała do Państwa wiadomość", "w sprawie", child),
-			Reply:    "Odpowiedz", FallbackHint: "Jeśli przycisk nie działa, proszę skopiować ten link:",
-			PreferenceHint: "Otrzymują Państwo ten e-mail, ponieważ są Państwo zapisani w moto jako opiekun. W aplikacji, w sekcji „Powiadomienia”, mogą Państwo wybrać, o czym chcą być informowani.",
-			FooterText:     localizedEmailFooter("Ten e-mail został wysłany w imieniu", school, "Ten e-mail został wysłany automatycznie."),
-			PoweredByLabel: "Obsługiwane przez", SchoolLogoAlt: "Logo szkoły",
-			DefaultBrandKicker: "Portal dla rodziców", DefaultSchoolName: "Państwa OGS",
-		}
+		return polishMessageEmailCopy(name, school, child)
 	case "tr":
-		return parentMessageEmailCopy{
-			Subject: "OGS'den yeni mesaj", Kicker: "Yeni mesaj",
-			Greeting: localizedGreeting("Merhaba", name, ","),
-			Intro:    localizedMessageIntro("OGS", school, "size bir mesaj gönderdi", "hakkında", child),
-			Reply:    "Yanıtla", FallbackHint: "Düğme çalışmazsa lütfen bu bağlantıyı kopyalayın:",
-			PreferenceHint: "Bu e-postayı, moto'da veli olarak kayıtlı olduğunuz için alıyorsunuz. Uygulamada “Bildirimler” bölümünden hangi konularda bilgilendirilmek istediğinizi seçebilirsiniz.",
-			FooterText:     localizedEmailFooter("Bu e-posta şu kurum adına gönderildi:", school, "Bu e-posta otomatik olarak gönderildi."),
-			PoweredByLabel: "Destekleyen", SchoolLogoAlt: "Okul logosu",
-			DefaultBrandKicker: "Veli portalı", DefaultSchoolName: "OGS'niz",
-		}
+		return turkishMessageEmailCopy(name, school, child)
 	case "uk":
-		return parentMessageEmailCopy{
-			Subject: "Нове повідомлення від OGS", Kicker: "Нове повідомлення",
-			Greeting: localizedGreeting("Добрий день", name, "!"),
-			Intro:    localizedMessageIntro("OGS", school, "надіслала вам повідомлення", "про", child),
-			Reply:    "Відповісти", FallbackHint: "Якщо кнопка не працює, скопіюйте це посилання:",
-			PreferenceHint: "Ви отримали цей лист, тому що зазначені в moto як законний представник. У розділі «Сповіщення» в застосунку можна вибрати, про що ми вас повідомлятимемо.",
-			FooterText:     localizedEmailFooter("Цей лист надіслано від імені", school, "Цей лист надіслано автоматично."),
-			PoweredByLabel: "За підтримки", SchoolLogoAlt: "Логотип школи",
-			DefaultBrandKicker: "Батьківський портал", DefaultSchoolName: "Ваша OGS",
-		}
+		return ukrainianMessageEmailCopy(name, school, child)
 	default:
-		return parentMessageEmailCopy{
-			Subject: "Neue Nachricht von der OGS", Kicker: "Neue Nachricht",
-			Greeting: localizedGreeting("Guten Tag", name, ","),
-			Intro:    localizedMessageIntro("Die OGS", school, "hat Ihnen eine Nachricht geschrieben", "zu", child),
-			Reply:    "Antworten", FallbackHint: "Falls der Button nicht funktioniert, kopieren Sie bitte diesen Link:",
-			PreferenceHint: "Sie erhalten diese E-Mail, weil Sie in moto als sorgeberechtigte Person hinterlegt sind. In der App können Sie unter „Benachrichtigungen“ einstellen, worüber wir Sie informieren.",
-			FooterText:     localizedEmailFooter("Diese E-Mail wurde im Auftrag von", school, "Diese E-Mail wurde automatisch versendet."),
-			PoweredByLabel: "Unterstützt von", SchoolLogoAlt: "Logo der Schule",
-			DefaultBrandKicker: "Elternportal", DefaultSchoolName: "Ihre OGS",
-		}
+		return germanMessageEmailCopy(name, school, child)
 	}
 }
 
@@ -323,4 +260,95 @@ func (s *Service) resolveSchoolBrand(ctx context.Context, tenantID int64) (strin
 		}
 	}
 	return name, logoURL
+}
+
+func englishMessageEmailCopy(name, school, child string) parentMessageEmailCopy {
+	return parentMessageEmailCopy{
+		Subject: "New message from the OGS", Kicker: "New message",
+		Greeting: localizedGreeting("Hello", name, ","),
+		Intro:    localizedMessageIntro("The OGS", school, "sent you a message", "about", child),
+		Reply:    "Reply", FallbackHint: "If the button does not work, copy this link:",
+		PreferenceHint: "You are receiving this email because you are registered as a guardian in moto. You can choose which notifications you receive in the app under Notifications.",
+		FooterText:     localizedEmailFooter("This email was sent on behalf of", school, "This email was sent automatically."),
+		PoweredByLabel: "Powered by", SchoolLogoAlt: "School logo",
+		DefaultBrandKicker: "Parent portal", DefaultSchoolName: "Your OGS",
+	}
+}
+
+func russianMessageEmailCopy(name, school, child string) parentMessageEmailCopy {
+	return parentMessageEmailCopy{
+		Subject: "Новое сообщение от продлёнки", Kicker: "Новое сообщение",
+		Greeting: localizedGreeting("Здравствуйте", name, "!"),
+		Intro:    localizedMessageIntro("Продлёнка", school, "отправила вам сообщение", "о ребёнке", child),
+		Reply:    "Ответить", FallbackHint: "Если кнопка не работает, скопируйте эту ссылку:",
+		PreferenceHint: "Вы получили это письмо, потому что указаны в moto как законный представитель. В разделе «Уведомления» приложения можно выбрать, о чём мы будем вас информировать.",
+		FooterText:     localizedEmailFooter("Это письмо отправлено от имени", school, "Это письмо отправлено автоматически."),
+		PoweredByLabel: "При поддержке", SchoolLogoAlt: "Логотип школы",
+		DefaultBrandKicker: "Родительский портал", DefaultSchoolName: "Ваша продлёнка",
+	}
+}
+
+func albanianMessageEmailCopy(name, school, child string) parentMessageEmailCopy {
+	return parentMessageEmailCopy{
+		Subject: "Mesazh i ri nga OGS-ja", Kicker: "Mesazh i ri",
+		Greeting: localizedGreeting("Përshëndetje", name, ","),
+		Intro:    localizedMessageIntro("OGS-ja", school, "ju ka dërguar një mesazh", "për", child),
+		Reply:    "Përgjigju", FallbackHint: "Nëse butoni nuk funksionon, kopjoni këtë lidhje:",
+		PreferenceHint: "Po e merrni këtë email sepse jeni regjistruar si kujdestar në moto. Te Njoftimet në aplikacion mund të zgjidhni për çfarë dëshironi të njoftoheni.",
+		FooterText:     localizedEmailFooter("Ky email u dërgua në emër të", school, "Ky email u dërgua automatikisht."),
+		PoweredByLabel: "Mundësuar nga", SchoolLogoAlt: "Logoja e shkollës",
+		DefaultBrandKicker: "Portali i prindërve", DefaultSchoolName: "OGS-ja juaj",
+	}
+}
+
+func polishMessageEmailCopy(name, school, child string) parentMessageEmailCopy {
+	return parentMessageEmailCopy{
+		Subject: "Nowa wiadomość od OGS", Kicker: "Nowa wiadomość",
+		Greeting: localizedGreeting("Dzień dobry", name, ","),
+		Intro:    localizedMessageIntro("OGS", school, "napisała do Państwa wiadomość", "w sprawie", child),
+		Reply:    "Odpowiedz", FallbackHint: "Jeśli przycisk nie działa, proszę skopiować ten link:",
+		PreferenceHint: "Otrzymują Państwo ten e-mail, ponieważ są Państwo zapisani w moto jako opiekun. W aplikacji, w sekcji „Powiadomienia”, mogą Państwo wybrać, o czym chcą być informowani.",
+		FooterText:     localizedEmailFooter("Ten e-mail został wysłany w imieniu", school, "Ten e-mail został wysłany automatycznie."),
+		PoweredByLabel: "Obsługiwane przez", SchoolLogoAlt: "Logo szkoły",
+		DefaultBrandKicker: "Portal dla rodziców", DefaultSchoolName: "Państwa OGS",
+	}
+}
+
+func turkishMessageEmailCopy(name, school, child string) parentMessageEmailCopy {
+	return parentMessageEmailCopy{
+		Subject: "OGS'den yeni mesaj", Kicker: "Yeni mesaj",
+		Greeting: localizedGreeting("Merhaba", name, ","),
+		Intro:    localizedMessageIntro("OGS", school, "size bir mesaj gönderdi", "hakkında", child),
+		Reply:    "Yanıtla", FallbackHint: "Düğme çalışmazsa lütfen bu bağlantıyı kopyalayın:",
+		PreferenceHint: "Bu e-postayı, moto'da veli olarak kayıtlı olduğunuz için alıyorsunuz. Uygulamada “Bildirimler” bölümünden hangi konularda bilgilendirilmek istediğinizi seçebilirsiniz.",
+		FooterText:     localizedEmailFooter("Bu e-posta şu kurum adına gönderildi:", school, "Bu e-posta otomatik olarak gönderildi."),
+		PoweredByLabel: "Destekleyen", SchoolLogoAlt: "Okul logosu",
+		DefaultBrandKicker: "Veli portalı", DefaultSchoolName: "OGS'niz",
+	}
+}
+
+func ukrainianMessageEmailCopy(name, school, child string) parentMessageEmailCopy {
+	return parentMessageEmailCopy{
+		Subject: "Нове повідомлення від OGS", Kicker: "Нове повідомлення",
+		Greeting: localizedGreeting("Добрий день", name, "!"),
+		Intro:    localizedMessageIntro("OGS", school, "надіслала вам повідомлення", "про", child),
+		Reply:    "Відповісти", FallbackHint: "Якщо кнопка не працює, скопіюйте це посилання:",
+		PreferenceHint: "Ви отримали цей лист, тому що зазначені в moto як законний представник. У розділі «Сповіщення» в застосунку можна вибрати, про що ми вас повідомлятимемо.",
+		FooterText:     localizedEmailFooter("Цей лист надіслано від імені", school, "Цей лист надіслано автоматично."),
+		PoweredByLabel: "За підтримки", SchoolLogoAlt: "Логотип школи",
+		DefaultBrandKicker: "Батьківський портал", DefaultSchoolName: "Ваша OGS",
+	}
+}
+
+func germanMessageEmailCopy(name, school, child string) parentMessageEmailCopy {
+	return parentMessageEmailCopy{
+		Subject: "Neue Nachricht von der OGS", Kicker: "Neue Nachricht",
+		Greeting: localizedGreeting("Guten Tag", name, ","),
+		Intro:    localizedMessageIntro("Die OGS", school, "hat Ihnen eine Nachricht geschrieben", "zu", child),
+		Reply:    "Antworten", FallbackHint: "Falls der Button nicht funktioniert, kopieren Sie bitte diesen Link:",
+		PreferenceHint: "Sie erhalten diese E-Mail, weil Sie in moto als sorgeberechtigte Person hinterlegt sind. In der App können Sie unter „Benachrichtigungen“ einstellen, worüber wir Sie informieren.",
+		FooterText:     localizedEmailFooter("Diese E-Mail wurde im Auftrag von", school, "Diese E-Mail wurde automatisch versendet."),
+		PoweredByLabel: "Unterstützt von", SchoolLogoAlt: "Logo der Schule",
+		DefaultBrandKicker: "Elternportal", DefaultSchoolName: "Ihre OGS",
+	}
 }

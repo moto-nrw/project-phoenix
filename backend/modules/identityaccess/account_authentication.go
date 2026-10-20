@@ -305,14 +305,41 @@ type PendingAccountWideWipe struct {
 // AccountAuthentication is the capability tenant, parent and school login,
 // MFA exchange, refresh, switching, logout and session validation consume.
 type AccountAuthentication interface {
+	AccountLogin
+	AccountSessionAuthentication
 	AccountPasswordConfirmation
+}
+
+// AccountLogin combines tenant, parent and school sign-in capabilities.
+type AccountLogin interface {
+	TenantAccountLogin
+	ParentAccountLogin
+	SchoolAccountLogin
+}
+
+// TenantAccountLogin authenticates accounts at the tenant portal.
+type TenantAccountLogin interface {
 	LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (accessToken, refreshToken string, err error)
 	LoginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie string) (*LoginResult, error)
+	IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+}
+
+// ParentAccountLogin authenticates guardians and confirms their passwords.
+type ParentAccountLogin interface {
+	AccountPasswordConfirmation
 	LoginParentWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+}
+
+// SchoolAccountLogin authenticates accounts and switches their school portal.
+type SchoolAccountLogin interface {
+	SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 	LoginSchoolWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*LoginResult, error)
 	LoginSchoolAtTenantWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie, tenantSlug string) (*LoginResult, error)
-	IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 	IssueSchoolTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+}
+
+// AccountSessionAuthentication renews and validates account sessions.
+type AccountSessionAuthentication interface {
 	// RefreshTokenWithAudit rotates the presented session. recoveryProof is
 	// the independent secret the caller sends with every refresh; it lets a
 	// retried predecessor recover the persisted successor within the grace.
@@ -324,7 +351,7 @@ type AccountAuthentication interface {
 	// the browser replaces that session with the returned pair; an empty
 	// presentedFamilyID skips the retirement.
 	SwitchTenant(ctx context.Context, accountID int64, tenantSlug, presentedFamilyID string) (accessToken, refreshToken string, err error)
-	SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+
 	HasSchoolPortalAccess(ctx context.Context, accountID, tenantID int64) (bool, error)
 	ValidateSessionTokens(ctx context.Context, accessToken, refreshToken, portal string) (SessionClaims, error)
 	VerifyAccountTenantMembership(ctx context.Context, accountID, tenantID int64) (bool, error)

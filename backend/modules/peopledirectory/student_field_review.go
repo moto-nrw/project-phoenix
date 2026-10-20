@@ -98,25 +98,11 @@ func reviewStudentField(change StudentFieldChange, student *Student, person *Per
 	valid, readable := false, false
 	switch change.Target {
 	case "person":
-		if person == nil {
-			result.BulkIneligibleReason, result.BulkIneligibleText = "child_unavailable", "Die Stammdaten sind nicht mehr verfügbar."
+		var unavailable bool
+		result, current, readable, valid = reviewPersonField(result, change, person)
+		unavailable = person == nil
+		if unavailable {
 			return result
-		}
-		switch change.Field {
-		case "first_name":
-			current, _ = json.Marshal(person.FirstName)
-			readable, valid = true, validFieldString(change.NewValue)
-		case "last_name":
-			current, _ = json.Marshal(person.LastName)
-			readable, valid = true, validFieldString(change.NewValue)
-		case "birthday":
-			current = json.RawMessage("null")
-			if person.Birthday != "" {
-				current, _ = json.Marshal(person.Birthday)
-			}
-			var birthday string
-			valid = json.Unmarshal(change.NewValue, &birthday) == nil && strings.TrimSpace(birthday) != "" && validateBirthday(birthday) == nil
-			readable = true
 		}
 	case "student":
 		if change.Field == "school_class" {
@@ -208,4 +194,30 @@ func normalizedReviewDeparture(modes map[string][]string) map[string][]string {
 		}
 	}
 	return result
+}
+
+func reviewPersonField(result StudentFieldReview, change StudentFieldChange, person *Person) (StudentFieldReview, json.RawMessage, bool, bool) {
+	var current json.RawMessage
+	valid, readable := false, false
+	if person == nil {
+		result.BulkIneligibleReason, result.BulkIneligibleText = "child_unavailable", "Die Stammdaten sind nicht mehr verfügbar."
+		return result, current, readable, valid
+	}
+	switch change.Field {
+	case "first_name":
+		current, _ = json.Marshal(person.FirstName)
+		readable, valid = true, validFieldString(change.NewValue)
+	case "last_name":
+		current, _ = json.Marshal(person.LastName)
+		readable, valid = true, validFieldString(change.NewValue)
+	case "birthday":
+		current = json.RawMessage("null")
+		if person.Birthday != "" {
+			current, _ = json.Marshal(person.Birthday)
+		}
+		var birthday string
+		valid = json.Unmarshal(change.NewValue, &birthday) == nil && strings.TrimSpace(birthday) != "" && validateBirthday(birthday) == nil
+		readable = true
+	}
+	return result, current, readable, valid
 }

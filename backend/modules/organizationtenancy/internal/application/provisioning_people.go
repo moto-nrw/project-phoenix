@@ -99,10 +99,8 @@ func (p *Provisioning) SoftDeletePerson(ctx context.Context, personID int64, ope
 		if err := p.ensureNoActiveSupervision(adminCtx, personID); err != nil {
 			return err
 		}
-		if person.HasRFIDCard {
-			if err := p.people.UnlinkRFIDCard(adminCtx, personID); err != nil {
-				return fmt.Errorf("SoftDeletePerson: unlink rfid: %w", err)
-			}
+		if err := p.unlinkPersonCard(adminCtx, person); err != nil {
+			return err
 		}
 		if err := p.releaseAccount(adminCtx, person); err != nil {
 			return err
@@ -178,6 +176,15 @@ func (p *Provisioning) retireAccount(ctx context.Context, personID, accountID in
 	}
 	if err := p.people.UnlinkAccount(ctx, personID); err != nil {
 		return fmt.Errorf("SoftDeletePerson: unlink account: %w", err)
+	}
+	return nil
+}
+
+func (p *Provisioning) unlinkPersonCard(ctx context.Context, person domain.Person) error {
+	if person.HasRFIDCard {
+		if err := p.people.UnlinkRFIDCard(ctx, person.ID); err != nil {
+			return fmt.Errorf("SoftDeletePerson: unlink rfid: %w", err)
+		}
 	}
 	return nil
 }

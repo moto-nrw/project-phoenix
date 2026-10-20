@@ -61,28 +61,7 @@ func ParseStructToMap(c any) (map[string]any, error) {
 			claims["scope"] = appClaims.Scope
 		}
 
-		// Multi-tenancy fields (only include when non-zero)
-		if appClaims.TenantID != 0 {
-			claims["tenant_id"] = appClaims.TenantID
-		}
-		if appClaims.OrgID != 0 {
-			claims["org_id"] = appClaims.OrgID
-		}
-		if appClaims.FamilyID != "" {
-			claims["family_id"] = appClaims.FamilyID
-		}
-		// Admin staff-view preview claims (#2893) — explicit like the fields
-		// above so the allowlist stays the single source of truth.
-		if appClaims.ReadOnly {
-			claims["read_only"] = true
-		}
-		if appClaims.ActingAdminID != 0 {
-			claims["acting_admin_id"] = appClaims.ActingAdminID
-		}
-		if appClaims.PreviewID != "" {
-			claims["preview_id"] = appClaims.PreviewID
-		}
-
+		addScopedAppClaims(claims, appClaims)
 		// Set common claims manually to ensure they're included
 		claims["exp"] = appClaims.ExpiresAt
 		claims["iat"] = appClaims.IssuedAt
@@ -256,4 +235,29 @@ func (a *TokenAuth) ParseMFAEnrollmentJWT(tokenString string) (*MFAEnrollmentCla
 		return nil, errors.New("enrollment token expired")
 	}
 	return &claims, nil
+}
+
+func addScopedAppClaims(claims map[string]any, appClaims AppClaims) {
+	// Multi-tenancy fields (only include when non-zero)
+	if appClaims.TenantID != 0 {
+		claims["tenant_id"] = appClaims.TenantID
+	}
+	if appClaims.OrgID != 0 {
+		claims["org_id"] = appClaims.OrgID
+	}
+	if appClaims.FamilyID != "" {
+		claims["family_id"] = appClaims.FamilyID
+	}
+	// Admin staff-view preview claims (#2893) — explicit like the fields
+	// above so the allowlist stays the single source of truth.
+	if appClaims.ReadOnly {
+		claims["read_only"] = true
+	}
+	if appClaims.ActingAdminID != 0 {
+		claims["acting_admin_id"] = appClaims.ActingAdminID
+	}
+	if appClaims.PreviewID != "" {
+		claims["preview_id"] = appClaims.PreviewID
+	}
+
 }

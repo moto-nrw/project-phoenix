@@ -192,64 +192,7 @@ func writeHinweiseSheet(f *excelize.File) {
 		49: "Allgemeine Hinweise",
 	}
 
-	dataRows := [][]string{
-		// row 1: header
-		{"Spalte", "Pflicht?", "Erlaubte Werte / Format", "Beschreibung"},
-		// rows 2-6: student fields
-		{"Vorname", "Ja", "Text", "Vorname des Kindes"},
-		{"Nachname", "Ja", "Text", "Nachname des Kindes"},
-		{"Klasse", "Ja", "Text (z.B. 1A, 2B)", "Schulklasse"},
-		{"Gruppe", "Nein", "Text (exakter Gruppenname)", "OGS-Gruppe — muss in der Datenbank existieren"},
-		{"Geburtstag", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Geburtsdatum, z.B. 2015-08-15, 15.08.2015 oder 15.08.15"},
-		{"RFID", "Nein", "Chip-ID der Karte", "Karte des Kindes. Die Karte muss an dieser Schule angelegt und noch niemandem zugeordnet sein, sonst wird die Zeile abgelehnt."},
-		{"Straße", "Nein", "Text", "Anschrift des Kindes: Straße und Hausnummer"},
-		{"PLZ", "Nein", "5-stellig", "Anschrift des Kindes: Postleitzahl"},
-		{"Ort", "Nein", "Text", "Anschrift des Kindes: Ort"},
-		// row 11: section header (injected)
-		// rows 8-20: guardian fields
-		{"Erz1.Vorname", "Nein", "Text", "Vorname des Erziehungsberechtigten"},
-		{"Erz1.Nachname", "Nein", "Text", "Nachname des Erziehungsberechtigten"},
-		{"Erz1.Email", "Nein*", "gültige E-Mail", "* Mindestens Email ODER Telefon erforderlich"},
-		{"Erz1.Telefon", "Nein*", "z.B. 0123-456789, +49 123 456789", "Festnetznummer"},
-		{"Erz1.Mobil", "Nein", "z.B. 0176-12345678", "Mobilnummer"},
-		{"Erz1.Dienstlich", "Nein", "z.B. 0221-9876543", "Dienstliche Telefonnummer"},
-		{"Erz1.Verhältnis", "Nein", "Mutter, Vater, Oma, Opa, Tante, Onkel, Vormund, Sonstige", "Beziehung zum Kind"},
-		{"Erz1.Rolle", "Nein", "Hauptsorgeberechtigt, Sorgeberechtigt, Mitsorgeberechtigt, Notfallkontakt, Nur Abholung, Sozialarbeit", "Rolle im Elternportal. Leer = wird aus Verhältnis und Ja/Nein-Feldern abgeleitet."},
-		{"Erz1.Hauptansprechpartner", "Nein", hintYesNo, "Erster Ansprechpartner für die OGS"},
-		{"Erz1.Notfall", "Nein", hintYesNo, "Als Notfallkontakt hinterlegt"},
-		{"Erz1.Abholberechtigt", "Nein", hintYesNo, "Darf das Kind abholen"},
-		{"Erz1.Abholhinweis", "Nein", "Text", "Hinweis zur Abholung durch diese Person (z.B. nur dienstags)"},
-		{"Erz1.Notfallpriorität", "Nein", "1, 2, 3, ...", "Reihenfolge im Notfall (1 = zuerst anrufen)"},
-		{"Erz1.Straße", "Nein", "Text", "Straße und Hausnummer"},
-		{"Erz1.Stadt", "Nein", "Text", "Ort / Stadt"},
-		{"Erz1.PLZ", "Nein", "5-stellig (z.B. 50667)", "Postleitzahl"},
-		{"Erz1.Notizen", "Nein", "Text", "Interne Notizen zum Erziehungsberechtigten"},
-		{"Erz1.Sprache", "Nein", "de, en, tr, ar, ...", "Bevorzugte Sprache (ISO 639-1, Standard: de)"},
-		// row 23: section header "Kinder-Zusatzinfos" (injected)
-		{"Gesundheitsinfo", "Nein", "Text", "Allergien, Medikamente, etc."},
-		{"Betreuernotizen", "Nein", "Text", "Dauerhafter Hinweis zum Kind. Steht danach im Reiter Notizen. Eltern sehen ihn nicht."},
-		{"Zusatzinfo", "Nein", "Text", "Sonstige Informationen (Elternnotizen)"},
-		{"Datenschutz", "Ja", hintYesNo, "Datenschutzerklärung akzeptiert"},
-		{"Aufbewahrung(Tage)", "Nein", "1-31 (Standard: 30)", "Datenaufbewahrungsfrist in Tagen"},
-		{"Gehweise.Mo", "Nein", "alleine, bus, abholung oder mit anderem Kind", "Wie das Kind am Montag nach Hause geht. Di, Mi, Do, Fr analog: Gehweise.Di … Gehweise.Fr. Leer = geht alleine. (Ältere Dateien mit 'Abholstatus' und 'Bus.Mo'–'Bus.Fr' bzw. einer einzelnen Spalte 'Bus' werden weiterhin akzeptiert.)"},
-		{"Begleitung", "Nein", "Text", "Mit wem das Kind geht, wenn ein Tag auf 'mit anderem Kind' steht (z.B. Geschwisterkind, Freund). Ohne einen solchen Tag wird der Eintrag ignoriert."},
-		{"Einschreibung von", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Beginn der Betreuung. Zukünftiges Datum: Kind wird erst dann aktiv."},
-		{"Einschreibung bis", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Ende der Betreuung; darf nicht vor 'Einschreibung von' liegen"},
-		{"AGB akzeptiert am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der AGB-Einwilligung. Leer = keine Einwilligung erfasst. Kein Zukunftsdatum."},
-		{"Datenverarbeitung akzeptiert am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der Einwilligung zur Datenverarbeitung. Leer = keine Einwilligung."},
-		{"E-Mail-Kontakt akzeptiert am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der Einwilligung zur E-Mail-Kontaktaufnahme. Leer = keine Einwilligung."},
-		{"Foto-Einwilligung am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der Foto-Einwilligung. Leer = keine Einwilligung."},
-		// row 37: section header "Abholzeiten" (injected)
-		{"Abholung.Mo", "Nein", "HH:MM (z.B. 15:30, 16:00)", "Regelmäßige Gehzeit am Montag (wann das Kind geht)"},
-		{"Abholung.Mo.Notizen", "Nein", "Text", "Notiz zur Gehzeit am Montag"},
-		{"", "", "(Di, Mi, Do, Fr analog)", "Gleiche Spalten für alle Wochentage"},
-		// row 33: section header (injected)
-		// row 34: general hints
-		{"Ja/Nein-Felder", "", "Ja, Nein, Yes, No, true, false, 1, 0", "Groß-/Kleinschreibung egal"},
-		{"Erz2, Erz3, ...", "", "Gleiche Spalten wie Erz1", "Beliebig viele Erziehungsberechtigte möglich; die Vorlage enthält Erz1 bis Erz4"},
-		{"Geburtstag", "", "Beispiele: 2015-08-15, 15.08.2015, 15.08.15", "Alle drei Formate werden beim Import akzeptiert"},
-		{"Aktualisieren", "", "Modus 'Bestehende aktualisieren' oder 'Beides'", "Bestehende Kinder werden über Vorname + Nachname + Klasse erkannt, bei Klassenwechsel über RFID oder Vorname + Nachname + Geburtstag. Leere Zellen ändern nichts."},
-	}
+	dataRows := studentImportHintRows
 
 	// Create styles
 	headerStyle, _ := f.NewStyle(&excelize.Style{
@@ -266,44 +209,7 @@ func writeHinweiseSheet(f *excelize.File) {
 		Font: &excelize.Font{Bold: true, Color: "C00000"},
 	})
 
-	// Write data, inserting section headers at the right positions
-	excelRow := 1
-	dataIdx := 0
-	totalRows := len(dataRows) + len(sectionRows)
-	for excelRow <= totalRows {
-		// Check if this row is a section header
-		if label, ok := sectionRows[excelRow]; ok {
-			cell, _ := excelCellName(1, excelRow)
-			_ = f.SetCellValue(sheetName, cell, label)
-			_ = f.MergeCell(sheetName, cell, fmt.Sprintf("D%d", excelRow))
-			_ = f.SetCellStyle(sheetName, cell, fmt.Sprintf("D%d", excelRow), sectionStyle)
-			excelRow++
-			continue
-		}
-
-		if dataIdx >= len(dataRows) {
-			break
-		}
-
-		row := dataRows[dataIdx]
-		for colIdx, val := range row {
-			cell, _ := excelCellName(colIdx+1, excelRow)
-			_ = f.SetCellValue(sheetName, cell, val)
-
-			// Style header row
-			if excelRow == 1 {
-				_ = f.SetCellStyle(sheetName, cell, cell, headerStyle)
-			}
-			// Bold red "Ja" in Pflicht column
-			if colIdx == 1 && val == "Ja" {
-				_ = f.SetCellStyle(sheetName, cell, cell, requiredStyle)
-			}
-		}
-
-		dataIdx++
-		excelRow++
-	}
-
+	writeStudentHintRows(f, sheetName, dataRows, sectionRows, headerStyle, sectionStyle, requiredStyle)
 	// Column widths
 	_ = f.SetColWidth(sheetName, "A", "A", 30)
 	_ = f.SetColWidth(sheetName, "B", "B", 10)
@@ -513,4 +419,104 @@ func newExcelSheet(sheetName string) (*excelize.File, error) {
 
 func excelCellName(column, row int) (string, error) {
 	return excelize.CoordinatesToCellName(column, row)
+}
+
+var studentImportHintRows = [][]string{
+	// row 1: header
+	{"Spalte", "Pflicht?", "Erlaubte Werte / Format", "Beschreibung"},
+	// rows 2-6: student fields
+	{"Vorname", "Ja", "Text", "Vorname des Kindes"},
+	{"Nachname", "Ja", "Text", "Nachname des Kindes"},
+	{"Klasse", "Ja", "Text (z.B. 1A, 2B)", "Schulklasse"},
+	{"Gruppe", "Nein", "Text (exakter Gruppenname)", "OGS-Gruppe — muss in der Datenbank existieren"},
+	{"Geburtstag", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Geburtsdatum, z.B. 2015-08-15, 15.08.2015 oder 15.08.15"},
+	{"RFID", "Nein", "Chip-ID der Karte", "Karte des Kindes. Die Karte muss an dieser Schule angelegt und noch niemandem zugeordnet sein, sonst wird die Zeile abgelehnt."},
+	{"Straße", "Nein", "Text", "Anschrift des Kindes: Straße und Hausnummer"},
+	{"PLZ", "Nein", "5-stellig", "Anschrift des Kindes: Postleitzahl"},
+	{"Ort", "Nein", "Text", "Anschrift des Kindes: Ort"},
+	// row 11: section header (injected)
+	// rows 8-20: guardian fields
+	{"Erz1.Vorname", "Nein", "Text", "Vorname des Erziehungsberechtigten"},
+	{"Erz1.Nachname", "Nein", "Text", "Nachname des Erziehungsberechtigten"},
+	{"Erz1.Email", "Nein*", "gültige E-Mail", "* Mindestens Email ODER Telefon erforderlich"},
+	{"Erz1.Telefon", "Nein*", "z.B. 0123-456789, +49 123 456789", "Festnetznummer"},
+	{"Erz1.Mobil", "Nein", "z.B. 0176-12345678", "Mobilnummer"},
+	{"Erz1.Dienstlich", "Nein", "z.B. 0221-9876543", "Dienstliche Telefonnummer"},
+	{"Erz1.Verhältnis", "Nein", "Mutter, Vater, Oma, Opa, Tante, Onkel, Vormund, Sonstige", "Beziehung zum Kind"},
+	{"Erz1.Rolle", "Nein", "Hauptsorgeberechtigt, Sorgeberechtigt, Mitsorgeberechtigt, Notfallkontakt, Nur Abholung, Sozialarbeit", "Rolle im Elternportal. Leer = wird aus Verhältnis und Ja/Nein-Feldern abgeleitet."},
+	{"Erz1.Hauptansprechpartner", "Nein", hintYesNo, "Erster Ansprechpartner für die OGS"},
+	{"Erz1.Notfall", "Nein", hintYesNo, "Als Notfallkontakt hinterlegt"},
+	{"Erz1.Abholberechtigt", "Nein", hintYesNo, "Darf das Kind abholen"},
+	{"Erz1.Abholhinweis", "Nein", "Text", "Hinweis zur Abholung durch diese Person (z.B. nur dienstags)"},
+	{"Erz1.Notfallpriorität", "Nein", "1, 2, 3, ...", "Reihenfolge im Notfall (1 = zuerst anrufen)"},
+	{"Erz1.Straße", "Nein", "Text", "Straße und Hausnummer"},
+	{"Erz1.Stadt", "Nein", "Text", "Ort / Stadt"},
+	{"Erz1.PLZ", "Nein", "5-stellig (z.B. 50667)", "Postleitzahl"},
+	{"Erz1.Notizen", "Nein", "Text", "Interne Notizen zum Erziehungsberechtigten"},
+	{"Erz1.Sprache", "Nein", "de, en, tr, ar, ...", "Bevorzugte Sprache (ISO 639-1, Standard: de)"},
+	// row 23: section header "Kinder-Zusatzinfos" (injected)
+	{"Gesundheitsinfo", "Nein", "Text", "Allergien, Medikamente, etc."},
+	{"Betreuernotizen", "Nein", "Text", "Dauerhafter Hinweis zum Kind. Steht danach im Reiter Notizen. Eltern sehen ihn nicht."},
+	{"Zusatzinfo", "Nein", "Text", "Sonstige Informationen (Elternnotizen)"},
+	{"Datenschutz", "Ja", hintYesNo, "Datenschutzerklärung akzeptiert"},
+	{"Aufbewahrung(Tage)", "Nein", "1-31 (Standard: 30)", "Datenaufbewahrungsfrist in Tagen"},
+	{"Gehweise.Mo", "Nein", "alleine, bus, abholung oder mit anderem Kind", "Wie das Kind am Montag nach Hause geht. Di, Mi, Do, Fr analog: Gehweise.Di … Gehweise.Fr. Leer = geht alleine. (Ältere Dateien mit 'Abholstatus' und 'Bus.Mo'–'Bus.Fr' bzw. einer einzelnen Spalte 'Bus' werden weiterhin akzeptiert.)"},
+	{"Begleitung", "Nein", "Text", "Mit wem das Kind geht, wenn ein Tag auf 'mit anderem Kind' steht (z.B. Geschwisterkind, Freund). Ohne einen solchen Tag wird der Eintrag ignoriert."},
+	{"Einschreibung von", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Beginn der Betreuung. Zukünftiges Datum: Kind wird erst dann aktiv."},
+	{"Einschreibung bis", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Ende der Betreuung; darf nicht vor 'Einschreibung von' liegen"},
+	{"AGB akzeptiert am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der AGB-Einwilligung. Leer = keine Einwilligung erfasst. Kein Zukunftsdatum."},
+	{"Datenverarbeitung akzeptiert am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der Einwilligung zur Datenverarbeitung. Leer = keine Einwilligung."},
+	{"E-Mail-Kontakt akzeptiert am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der Einwilligung zur E-Mail-Kontaktaufnahme. Leer = keine Einwilligung."},
+	{"Foto-Einwilligung am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der Foto-Einwilligung. Leer = keine Einwilligung."},
+	// row 37: section header "Abholzeiten" (injected)
+	{"Abholung.Mo", "Nein", "HH:MM (z.B. 15:30, 16:00)", "Regelmäßige Gehzeit am Montag (wann das Kind geht)"},
+	{"Abholung.Mo.Notizen", "Nein", "Text", "Notiz zur Gehzeit am Montag"},
+	{"", "", "(Di, Mi, Do, Fr analog)", "Gleiche Spalten für alle Wochentage"},
+	// row 33: section header (injected)
+	// row 34: general hints
+	{"Ja/Nein-Felder", "", "Ja, Nein, Yes, No, true, false, 1, 0", "Groß-/Kleinschreibung egal"},
+	{"Erz2, Erz3, ...", "", "Gleiche Spalten wie Erz1", "Beliebig viele Erziehungsberechtigte möglich; die Vorlage enthält Erz1 bis Erz4"},
+	{"Geburtstag", "", "Beispiele: 2015-08-15, 15.08.2015, 15.08.15", "Alle drei Formate werden beim Import akzeptiert"},
+	{"Aktualisieren", "", "Modus 'Bestehende aktualisieren' oder 'Beides'", "Bestehende Kinder werden über Vorname + Nachname + Klasse erkannt, bei Klassenwechsel über RFID oder Vorname + Nachname + Geburtstag. Leere Zellen ändern nichts."},
+}
+
+func writeStudentHintRows(f *excelize.File, sheetName string, dataRows [][]string, sectionRows map[int]string, headerStyle, sectionStyle, requiredStyle int) {
+	// Write data, inserting section headers at the right positions
+	excelRow := 1
+	dataIdx := 0
+	totalRows := len(dataRows) + len(sectionRows)
+	for excelRow <= totalRows {
+		// Check if this row is a section header
+		if label, ok := sectionRows[excelRow]; ok {
+			cell, _ := excelCellName(1, excelRow)
+			_ = f.SetCellValue(sheetName, cell, label)
+			_ = f.MergeCell(sheetName, cell, fmt.Sprintf("D%d", excelRow))
+			_ = f.SetCellStyle(sheetName, cell, fmt.Sprintf("D%d", excelRow), sectionStyle)
+			excelRow++
+			continue
+		}
+
+		if dataIdx >= len(dataRows) {
+			break
+		}
+
+		row := dataRows[dataIdx]
+		for colIdx, val := range row {
+			cell, _ := excelCellName(colIdx+1, excelRow)
+			_ = f.SetCellValue(sheetName, cell, val)
+
+			// Style header row
+			if excelRow == 1 {
+				_ = f.SetCellStyle(sheetName, cell, cell, headerStyle)
+			}
+			// Bold red "Ja" in Pflicht column
+			if colIdx == 1 && val == "Ja" {
+				_ = f.SetCellStyle(sheetName, cell, cell, requiredStyle)
+			}
+		}
+
+		dataIdx++
+		excelRow++
+	}
+
 }
