@@ -48,7 +48,7 @@ func TestDeadlineValidity(t *testing.T) {
 
 func TestOrderingRulesValidityChecksOnlyWhatTheModelUses(t *testing.T) {
 	t.Parallel()
-	rules := DefaultOrderingRules("09:00")
+	rules := defaultOrderingRules("09:00")
 	assert.True(t, rules.Valid())
 
 	rules.Cancellation = Deadline{}
@@ -56,24 +56,24 @@ func TestOrderingRulesValidityChecksOnlyWhatTheModelUses(t *testing.T) {
 	rules.Model = ModelSplit
 	assert.False(t, rules.Valid())
 
-	annual := DefaultOrderingRules("09:00")
+	annual := defaultOrderingRules("09:00")
 	annual.Model = ModelAnnual
 	annual.Registration = Deadline{}
 	assert.True(t, annual.Valid(), "the annual model never reads the registration deadline")
 	annual.AnnualChanges = "sometimes"
 	assert.False(t, annual.Valid())
 
-	broken := DefaultOrderingRules("09:00")
+	broken := defaultOrderingRules("09:00")
 	broken.Rhythm = "monthly"
 	assert.False(t, broken.Valid())
-	broken = DefaultOrderingRules("09:00")
+	broken = defaultOrderingRules("09:00")
 	broken.Model = "weekly"
 	assert.False(t, broken.Valid())
 }
 
 func TestSingleModelKeepsTheSameDayCutoff(t *testing.T) {
 	t.Parallel()
-	rules := DefaultOrderingRules("09:00")
+	rules := defaultOrderingRules("09:00")
 	before, after := berlin(thursday, 8, 59), berlin(thursday, 9, 1)
 
 	assert.True(t, rules.ParentCanRegister(before, thursday))
@@ -87,7 +87,7 @@ func TestSingleModelKeepsTheSameDayCutoff(t *testing.T) {
 
 func TestSplitModelRegistersEarlyAndCancelsLate(t *testing.T) {
 	t.Parallel()
-	rules := DefaultOrderingRules("12:00")
+	rules := defaultOrderingRules("12:00")
 	rules.Model = ModelSplit
 	rules.Registration = Deadline{Kind: DeadlinePreviousWeek, Weekday: time.Thursday, Clock: "12:00"}
 	rules.Cancellation = Deadline{Kind: DeadlineDaysBefore, Clock: "08:00"}
@@ -102,7 +102,7 @@ func TestSplitModelRegistersEarlyAndCancelsLate(t *testing.T) {
 
 func TestSplitModelFreezesAtACancellationDeadlineThatComesFirst(t *testing.T) {
 	t.Parallel()
-	rules := DefaultOrderingRules("09:00")
+	rules := defaultOrderingRules("09:00")
 	rules.Model = ModelSplit
 	rules.Cancellation = Deadline{Kind: DeadlineDaysBefore, LeadDays: 3, Clock: "09:00"}
 
@@ -114,7 +114,7 @@ func TestSplitModelFreezesAtACancellationDeadlineThatComesFirst(t *testing.T) {
 
 func TestAnnualModelClosesRegistrationAfterTheDeadline(t *testing.T) {
 	t.Parallel()
-	rules := DefaultOrderingRules("09:00")
+	rules := defaultOrderingRules("09:00")
 	rules.Model = ModelAnnual
 	rules.Cancellation = Deadline{Kind: DeadlineDaysBefore, LeadDays: 1, Clock: "18:00"}
 	rules.AnnualDeadline = calendar.NewDate(2026, time.August, 31)
@@ -138,7 +138,7 @@ func TestAnnualModelClosesRegistrationAfterTheDeadline(t *testing.T) {
 
 func TestAbsenceCutoffFollowsTheSickMode(t *testing.T) {
 	t.Parallel()
-	rules := DefaultOrderingRules("09:00")
+	rules := defaultOrderingRules("09:00")
 	assert.Equal(t, berlin(thursday, 9, 0), rules.AbsenceCutoff(thursday))
 	rules.Sick = SickCancelled
 	assert.Equal(t, thursday.EndOfDay(), rules.AbsenceCutoff(thursday))
@@ -146,7 +146,7 @@ func TestAbsenceCutoffFollowsTheSickMode(t *testing.T) {
 
 func TestNextEffectiveDateSkipsFrozenDaysAndWeekends(t *testing.T) {
 	t.Parallel()
-	rules := DefaultOrderingRules("09:00")
+	rules := defaultOrderingRules("09:00")
 	assert.Equal(t, thursday, rules.NextEffectiveDate(berlin(thursday, 8, 0)))
 	assert.Equal(t, thursday.AddDays(1), rules.NextEffectiveDate(berlin(thursday, 10, 0)))
 	friday := thursday.AddDays(1)
@@ -168,4 +168,14 @@ func TestDeadlinesKeepTheirClockAcrossTheDaylightSavingSwitch(t *testing.T) {
 	twoDays := Deadline{Kind: DeadlineDaysBefore, LeadDays: 2, Clock: "09:00"}
 	assert.Equal(t, time.Date(2026, 10, 24, 7, 0, 0, 0, time.UTC), twoDays.At(monday).UTC(), "Saturday before the switch")
 	assert.Equal(t, time.Date(2026, 10, 25, 8, 0, 0, 0, time.UTC), twoDays.At(monday.AddDays(1)).UTC(), "Sunday after the switch: 09:00 is 08:00 UTC")
+}
+
+// defaultOrderingRules are the rules of a school that changed nothing: one
+// deadline on the meal day at the given clock time, as before #3873.
+func defaultOrderingRules(clock string) OrderingRules {
+	deadline := Deadline{Kind: DeadlineDaysBefore, Clock: clock}
+	return OrderingRules{
+		Model: ModelSingle, Registration: deadline, Cancellation: deadline,
+		AnnualChanges: AnnualParentsCancel, Sick: SickStaysOrdered, Rhythm: RhythmDaily, Detail: DetailByClass,
+	}
 }

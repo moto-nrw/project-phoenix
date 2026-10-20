@@ -10,7 +10,7 @@ import (
 
 func TestOpenDaysSkipsPastAndOrderedDays(t *testing.T) {
 	t.Parallel()
-	rules := domain.DefaultOrderingRules("09:00")
+	rules := defaultOrderingRules("09:00")
 	monday, wednesday := calendar.NewDate(2026, 9, 14), calendar.NewDate(2026, 9, 16)
 	state := domain.OrderState{Orders: []domain.Order{{ID: 7, Days: []domain.Date{calendar.NewDate(2026, 9, 17)}}}}
 
@@ -61,4 +61,14 @@ func TestRecordChangesNamesOnlyTheWrittenChild(t *testing.T) {
 	assert.Equal(t, -1, byStudent[2].Delta)
 	assert.Equal(t, 1, byStudent[3].Delta)
 	assert.Empty(t, recordChanges(state, current, today.AddDays(2), nil), "nothing from a day already over")
+}
+
+// defaultOrderingRules are the rules of a school that changed nothing: one
+// deadline on the meal day at the given clock time, as before #3873.
+func defaultOrderingRules(clock string) domain.OrderingRules {
+	deadline := domain.Deadline{Kind: domain.DeadlineDaysBefore, Clock: clock}
+	return domain.OrderingRules{
+		Model: domain.ModelSingle, Registration: deadline, Cancellation: deadline,
+		AnnualChanges: domain.AnnualParentsCancel, Sick: domain.SickStaysOrdered, Rhythm: domain.RhythmDaily, Detail: domain.DetailByClass,
+	}
 }

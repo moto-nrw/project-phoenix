@@ -113,16 +113,6 @@ type OrderingRules struct {
 	CatererNames bool
 }
 
-// DefaultOrderingRules are the rules of a school that changed nothing: one
-// deadline on the meal day at the given clock time, as before #3873.
-func DefaultOrderingRules(clock string) OrderingRules {
-	deadline := Deadline{Kind: DeadlineDaysBefore, Clock: clock}
-	return OrderingRules{
-		Model: ModelSingle, Registration: deadline, Cancellation: deadline,
-		AnnualChanges: AnnualParentsCancel, Sick: SickStaysOrdered, Rhythm: RhythmDaily, Detail: DetailByClass,
-	}
-}
-
 // Valid reports whether every rule the model uses can be evaluated.
 func (r OrderingRules) Valid() bool {
 	switch r.Model {
