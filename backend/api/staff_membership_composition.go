@@ -137,7 +137,7 @@ type StaffMembershipRuntime struct {
 	AccountEmails       func(context.Context, []int64) (map[int64]string, error)
 	AccountAvatars      func(context.Context, []int64) (map[int64]string, error)
 	AccountHasRole      func(context.Context, int64, string) bool
-	AccountsHoldingRole func(context.Context, []int64, string) map[int64]bool
+	AccountsHoldingRole func(context.Context, []int64, string) (map[int64]bool, error)
 
 	GrantDefaultPermissions func(context.Context, int64, bool)
 
@@ -182,12 +182,12 @@ func bindStaffMembershipRuntime(users peoplePorts.PersonDirectory, education sch
 		AccountEmails:   identity.GetAccountEmails,
 		AccountAvatars:  identity.GetAccountAvatars,
 		AccountHasRole:  identity.AccountHoldsRole,
-		AccountsHoldingRole: func(ctx context.Context, accountIDs []int64, role string) map[int64]bool {
+		AccountsHoldingRole: func(ctx context.Context, accountIDs []int64, role string) (map[int64]bool, error) {
 			matches, err := identity.AccountsHoldingRole(ctx, accountIDs, role)
 			if err != nil {
-				return nil
+				return nil, err
 			}
-			return matches
+			return matches, nil
 		},
 
 		GrantDefaultPermissions: func(ctx context.Context, accountID int64, isTeacher bool) {

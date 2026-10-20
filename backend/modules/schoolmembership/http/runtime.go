@@ -167,7 +167,7 @@ type Runtime struct {
 	AccountEmails       func(context.Context, []int64) (map[int64]string, error)
 	AccountAvatars      func(context.Context, []int64) (map[int64]string, error)
 	AccountHasRole      func(context.Context, int64, string) bool
-	AccountsHoldingRole func(context.Context, []int64, string) map[int64]bool
+	AccountsHoldingRole func(context.Context, []int64, string) (map[int64]bool, error)
 
 	// GrantDefaultPermissions grants the default account permissions after a
 	// create; the root decides what a Lehrkraft may and may not receive.

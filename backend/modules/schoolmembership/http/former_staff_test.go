@@ -164,4 +164,9 @@ func TestListStaffFormerReportsLookupFailures(t *testing.T) {
 	h.allow("users:read")
 	h.personsErr = assert.AnError
 	assert.Equal(t, http.StatusInternalServerError, h.do(t, http.MethodGet, "/staff?employment=former", nil).Code)
+
+	h = withFormerPersons(newHarness(t, formerStaffFixture()))
+	h.allow("users:read")
+	h.roleMatchesErr = assert.AnError
+	assert.Equal(t, http.StatusInternalServerError, h.do(t, http.MethodGet, "/staff?employment=former&role=teacher", nil).Code)
 }

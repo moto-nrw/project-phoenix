@@ -144,16 +144,17 @@ type harness struct {
 	accountID   int64
 	username    string
 
-	persons     map[int64]staffHTTP.Person
-	personErr   error
-	accountRole map[int64]string
-	emails      map[int64]string
-	avatars     map[int64]string
-	roles       map[int64]string // accountID -> role name for the ?role= filter
-	present     []int64
-	workStatus  map[int64]string
-	absence     map[int64]string
-	absenceLbl  map[int64]string
+	persons        map[int64]staffHTTP.Person
+	personErr      error
+	accountRole    map[int64]string
+	emails         map[int64]string
+	avatars        map[int64]string
+	roles          map[int64]string // accountID -> role name for the ?role= filter
+	roleMatchesErr error
+	present        []int64
+	workStatus     map[int64]string
+	absence        map[int64]string
+	absenceLbl     map[int64]string
 
 	groups        []staffHTTP.Group
 	classes       []string
@@ -273,14 +274,17 @@ func newHarness(t *testing.T, membership *fakeMembership) *harness {
 		AccountHasRole: func(_ context.Context, accountID int64, role string) bool {
 			return h.roles[accountID] == role
 		},
-		AccountsHoldingRole: func(_ context.Context, accountIDs []int64, role string) map[int64]bool {
+		AccountsHoldingRole: func(_ context.Context, accountIDs []int64, role string) (map[int64]bool, error) {
+			if h.roleMatchesErr != nil {
+				return nil, h.roleMatchesErr
+			}
 			matches := make(map[int64]bool)
 			for _, accountID := range accountIDs {
 				if h.roles[accountID] == role {
 					matches[accountID] = true
 				}
 			}
-			return matches
+			return matches, nil
 		},
 		GrantDefaultPermissions: func(_ context.Context, accountID int64, isTeacher bool) {
 			h.grantedTo = append(h.grantedTo, accountID)

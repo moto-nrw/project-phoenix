@@ -44,7 +44,11 @@ func (rs *Resource) listFormerStaff(w http.ResponseWriter, r *http.Request, filt
 	}
 	roleMatches := map[int64]bool(nil)
 	if filters.filterByRole != "" {
-		roleMatches = rs.runtime.AccountsHoldingRole(ctx, accountIDsOf(persons), filters.filterByRole)
+		roleMatches, err = rs.runtime.AccountsHoldingRole(ctx, accountIDsOf(persons), filters.filterByRole)
+		if err != nil {
+			rs.internal(w, r, err)
+			return
+		}
 	}
 	teachers := map[int64]schoolmembership.Teacher{}
 	if filters.teachersOnly {

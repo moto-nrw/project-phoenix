@@ -416,6 +416,10 @@ func (s *FixedSeeder) seedRooms(_ context.Context, result *FixedResult) error {
 	return nil
 }
 
+// formerDemoStaffIndex selects an account-backed staff member who is not used
+// for group assignments, so the standard seed includes a former employment.
+const formerDemoStaffIndex = 9
+
 func (s *FixedSeeder) seedStaff(_ context.Context, result *FixedResult) error {
 	for _, staff := range DemoStaff {
 		personKey := fmt.Sprintf("%s %s", staff.FirstName, staff.LastName)
@@ -468,6 +472,15 @@ func (s *FixedSeeder) seedStaff(_ context.Context, result *FixedResult) error {
 			s.teacherIDs[personKey] = resp.Data.TeacherID
 		}
 		result.StaffCount++
+	}
+	former := DemoStaff[formerDemoStaffIndex]
+	formerKey := fmt.Sprintf("%s %s", former.FirstName, former.LastName)
+	formerStaffID := s.staffIDs[formerKey]
+	if formerStaffID == 0 {
+		return fmt.Errorf("former demo staff %s not available", formerKey)
+	}
+	if _, err := s.client.Delete(fmt.Sprintf("/api/staff/%d", formerStaffID)); err != nil {
+		return fmt.Errorf("failed to retire demo staff %s: %w", formerKey, err)
 	}
 
 	if s.verbose {

@@ -160,6 +160,38 @@ func TestFixedSeeder_SeedStaff(t *testing.T) {
 	assert.Len(t, fs.staffIDs, len(DemoStaff))
 }
 
+func TestFixedSeeder_SeedStaffRetiresAFormerEmployment(t *testing.T) {
+	t.Parallel()
+
+	retiredPath := ""
+	staffID := int64(0)
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(seedHTTPStatusOK)
+		switch {
+		case r.Method == seedHTTPMethodPost && r.URL.Path == "/api/staff":
+			staffID++
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"id":"%d","teacher_id":%d}}`, staffID, staffID)
+		case r.Method == seedHTTPMethodDelete:
+			retiredPath = r.URL.Path
+			_, _ = w.Write([]byte(`{"status":"success"}`))
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	})
+	defer srv.Close()
+
+	client := newTestClient(srv.URL, false)
+	client.token = "test-token"
+	seeder := NewFixedSeeder(client, false, "")
+	for _, staff := range DemoStaff {
+		seeder.personIDs[fmt.Sprintf("%s %s", staff.FirstName, staff.LastName)] = int64(len(seeder.personIDs) + 1)
+	}
+
+	require.NoError(t, seeder.seedStaff(context.Background(), &FixedResult{}))
+	assert.Equal(t, fmt.Sprintf("/api/staff/%d", formerDemoStaffIndex+1), retiredPath)
+}
+
 func TestFixedSeeder_SeedStaff_MissingPerson(t *testing.T) {
 	t.Parallel()
 
@@ -182,11 +214,20 @@ func TestFixedSeeder_SeedStaff_StringStaffID(t *testing.T) {
 	t.Parallel()
 
 	created := int64(0)
+	retiredPath := ""
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
-		require.Equal(t, "/api/staff", r.URL.Path)
-		created++
-		_, _ = fmt.Fprintf(w, `{"status":"success","data":{"id":"%d","teacher_id":%d}}`, 9007199254740993+created, created)
+		switch r.Method {
+		case seedHTTPMethodPost:
+			require.Equal(t, "/api/staff", r.URL.Path)
+			created++
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"id":"%d","teacher_id":%d}}`, 9007199254740993+created, created)
+		case seedHTTPMethodDelete:
+			retiredPath = r.URL.Path
+			_, _ = w.Write([]byte(`{"status":"success"}`))
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
 	})
 	defer srv.Close()
 
@@ -201,6 +242,7 @@ func TestFixedSeeder_SeedStaff_StringStaffID(t *testing.T) {
 	require.NoError(t, fs.seedStaff(context.TODO(), &FixedResult{}))
 	first := fmt.Sprintf("%s %s", DemoStaff[0].FirstName, DemoStaff[0].LastName)
 	assert.Equal(t, int64(9007199254740994), fs.staffIDs[first])
+	assert.Equal(t, fmt.Sprintf("/api/staff/%d", 9007199254740993+formerDemoStaffIndex+1), retiredPath)
 }
 
 func TestFixedSeeder_SeedGroups(t *testing.T) {
