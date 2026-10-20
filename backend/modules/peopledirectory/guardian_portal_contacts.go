@@ -25,10 +25,3 @@ type GuardianPortalContact struct {
 type GuardianPortalContacts interface {
 	ListGuardianPortalContacts(context.Context, []int64, []int64) ([]GuardianPortalContact, error)
 }
-
-func (m *Module) ListGuardianPortalContacts(ctx context.Context, guardianIDs, studentIDs []int64) ([]GuardianPortalContact, error) {
-	if len(guardianIDs) == 0 && len(studentIDs) == 0 {
-		return []GuardianPortalContact{}, nil
-	}
-	return m.engine.ListGuardianPortalContacts(ctx, guardianIDs, studentIDs)
-}

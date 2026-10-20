@@ -8,21 +8,15 @@ import (
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
-// Guardian directory composition (#2663). The People Directory facade owns
-// the guardian, phone-number and link capability; the application behind it
-// is still the legacy guardian service of the same owner.
-
-// newModule wraps the engine and installs the guardian provider
-// Dependencies.GuardianProvider names at construction; every part of a
-// named provider is required.
-func newModule(engine application.Engine, provider *GuardianDirectoryProvider) (*peopledirectory.Module, error) {
+// guardianProviders validates and constructs the optional guardian directory.
+func guardianProviders(provider *GuardianDirectoryProvider) ([]peopledirectory.GuardianProvider, error) {
 	if provider == nil {
-		return peopledirectory.NewModule(engine), nil
+		return nil, nil
 	}
 	if provider.Guardians == nil || provider.Runtime == nil || provider.PermissionGranted == nil {
 		return nil, errors.New("people directory compose: the guardian provider needs the guardian service, the tenant transactions and the permission rule")
 	}
-	return peopledirectory.NewModule(engine, application.NewGuardianDirectory(provider.Guardians, provider.Runtime, provider.PermissionGranted)), nil
+	return []peopledirectory.GuardianProvider{application.NewGuardianDirectory(provider.Guardians, provider.Runtime, provider.PermissionGranted)}, nil
 }
 
 // GuardianDirectoryProvider is what the root composes the guardian provider

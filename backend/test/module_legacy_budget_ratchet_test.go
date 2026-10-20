@@ -138,7 +138,7 @@ var moduleLegacyFileBudgets = map[string]int{}
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063 and by ADR 0073 (the parent
 // announcement retention of modules/communication/composition).
-const moduleComposeBudgetTotal = 12424
+const moduleComposeBudgetTotal = 12423
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -173,7 +173,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/mealplan/compose":                        69,
 	"modules/organizationtenancy/compose":             253,
 	"modules/parentrequestfeedprojection/compose":     11,
-	"modules/peopledirectory/compose":                 964,
+	"modules/peopledirectory/compose":                 963,
 	"modules/presenceprojection/compose":              7,
 	"modules/requestreview/compose":                   12,
 	"modules/schedulerruntime/compose":                45,

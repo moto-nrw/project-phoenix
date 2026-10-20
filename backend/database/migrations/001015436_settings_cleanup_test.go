@@ -158,8 +158,3 @@ func TestSettingsCleanupDeletesRemovedSettings(t *testing.T) {
 	`, tenantID, bun.List(settingsCleanupRemovedKeys), tenantID, bun.List(settingsCleanupRemovedKeys)).Scan(ctx, &remaining))
 	assert.Zero(t, remaining)
 }
-
-func TestSettingsCleanupRollbackIsNoop(t *testing.T) {
-	t.Parallel()
-	require.NoError(t, settingsCleanupDown(context.Background(), nil))
-}

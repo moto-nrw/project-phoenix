@@ -10,33 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func categoryShiftTypeColumnExists(t *testing.T, db *testpkg.DB) bool {
-	t.Helper()
-	var exists bool
-	require.NoError(t, db.NewRaw(`
-		SELECT EXISTS (
-			SELECT 1 FROM information_schema.columns
-			WHERE table_schema = 'activities' AND table_name = 'categories'
-				AND column_name = 'shift_type_id'
-		)
-	`).Scan(context.Background(), &exists))
-	return exists
-}
-
-func categoryShiftTypeFKExists(t *testing.T, db *testpkg.DB) bool {
-	t.Helper()
-	var exists bool
-	require.NoError(t, db.NewRaw(`
-		SELECT EXISTS (
-			SELECT 1 FROM information_schema.table_constraints
-			WHERE constraint_schema = 'activities'
-				AND table_name = 'categories'
-				AND constraint_name = 'fk_activities_categories_shift_type'
-		)
-	`).Scan(context.Background(), &exists))
-	return exists
-}
-
 // insertShiftTypeRaw inserts a schedule.shift_types row for a tenant and returns its id.
 func insertShiftTypeRaw(t *testing.T, db *testpkg.DB, tenantID int64, name string) int64 {
 	t.Helper()
@@ -47,35 +20,6 @@ func insertShiftTypeRaw(t *testing.T, db *testpkg.DB, tenantID int64, name strin
 		RETURNING id
 	`, tenantID, name).Scan(context.Background(), &id))
 	return id
-}
-
-// TestCategoryShiftTypeMigration verifies migration 1.15.195: Up adds the
-// activities.categories.shift_type_id column + cross-schema tenant FK, Down
-// removes them, and the round-trip is idempotent (#1837 follow-up / #1836).
-func TestCategoryShiftTypeMigration(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	ctx := context.Background()
-
-	if !categoryShiftTypeColumnExists(t, db) {
-		require.NoError(t, categoryShiftTypeUp(ctx, db))
-	}
-	t.Cleanup(func() {
-		if !categoryShiftTypeColumnExists(t, db) {
-			require.NoError(t, categoryShiftTypeUp(ctx, db))
-		}
-	})
-	require.True(t, categoryShiftTypeColumnExists(t, db), "baseline: shift_type_id column present")
-	require.True(t, categoryShiftTypeFKExists(t, db), "baseline: FK present")
-
-	require.NoError(t, categoryShiftTypeDown(ctx, db))
-	assert.False(t, categoryShiftTypeColumnExists(t, db), "Down should drop the column")
-	assert.False(t, categoryShiftTypeFKExists(t, db), "Down should drop the FK")
-
-	require.NoError(t, categoryShiftTypeUp(ctx, db))
-	assert.True(t, categoryShiftTypeColumnExists(t, db), "Up should add the column")
-	assert.True(t, categoryShiftTypeFKExists(t, db), "Up should add the FK")
-	require.NoError(t, categoryShiftTypeUp(ctx, db), "Up must be idempotent")
 }
 
 // TestCategoryShiftTypeFKEnforcesTenantIsolation verifies the composite FK

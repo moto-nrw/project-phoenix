@@ -144,7 +144,7 @@ type StudentDirectory interface {
 	StudentModelRows(db bun.IDB, tenantID int64, model any) *bun.SelectQuery
 }
 
-func newStudentDirectory(tb TB, db *bun.DB, directory StudentDirectory) *peopledirectory.Module {
+func newStudentDirectory(tb TB, db *bun.DB, directory StudentDirectory) peopledirectory.Capability {
 	tb.Helper()
 	students, err := peopleCompose.New(peopleCompose.Dependencies{
 		StudentDirectory: directory,
@@ -153,7 +153,7 @@ func newStudentDirectory(tb TB, db *bun.DB, directory StudentDirectory) *peopled
 	if err != nil {
 		tb.Fatalf("compose test People Directory: %v", err)
 	}
-	return students.Module
+	return students.Owner
 }
 
 func studentNameFinder(students peopledirectory.Capability) carePlanPorts.StudentNameFinder {
