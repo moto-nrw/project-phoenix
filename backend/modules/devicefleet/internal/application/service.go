@@ -48,7 +48,7 @@ func New(deps Dependencies) *Service {
 func (s *Service) run(ctx context.Context, operation string, body func(context.Context, *domain.OperationStats) error) error {
 	stats := domain.OperationStats{}
 	started := time.Now()
-	err := body(ctx, &stats)
+	err := publicError(body(ctx, &stats))
 	s.deps.Observe(ports.Observation{
 		Operation: operation, Duration: time.Since(started), Stats: stats, Err: err,
 	})
@@ -65,9 +65,10 @@ func (s *Service) runWrite(ctx context.Context, operation string, body func(cont
 	})
 }
 
-// Reject records a rejection the public facade made before any statement ran.
-func (s *Service) Reject(operation string, err error) {
+// reject records validation failures before any statement runs.
+func (s *Service) reject(operation string, err error) error {
 	s.deps.Observe(ports.Observation{Operation: operation, Err: err})
+	return err
 }
 
 // runInTenant establishes RLS for a standalone owner read. Public-token

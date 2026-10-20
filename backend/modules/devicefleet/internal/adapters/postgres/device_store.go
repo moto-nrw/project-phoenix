@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -61,10 +62,10 @@ func (s *DeviceStore) selectDevices(db bun.IDB, scope TenantScope, model any) *b
 }
 
 // Create inserts one device and returns the stored row.
-func (s *DeviceStore) Create(ctx context.Context, input domain.CreateDevice) (domain.Device, domain.OperationStats, error) {
+func (s *DeviceStore) Create(ctx context.Context, input devicefleet.CreateDevice) (devicefleet.Device, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.Device{}, domain.OperationStats{}, err
+		return devicefleet.Device{}, domain.OperationStats{}, err
 	}
 	row := deviceRow{
 		TenantID: scope.TenantID, DeviceID: input.DeviceID, DeviceType: input.DeviceType, Name: input.Name,
@@ -76,21 +77,21 @@ func (s *DeviceStore) Create(ctx context.Context, input domain.CreateDevice) (do
 	err = db.NewInsert().Model(&row).ModelTableExpr(`iot.devices`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.Device{}, stats, fmt.Errorf("devicefleet postgres: create device: %w", err)
+		return devicefleet.Device{}, stats, fmt.Errorf("devicefleet postgres: create device: %w", err)
 	}
 	stats.Rows = 1
 	return toDeviceDomain(row), stats, nil
 }
 
 // Update replaces every writable column of one device.
-func (s *DeviceStore) Update(ctx context.Context, input domain.UpdateDevice) (domain.Device, domain.OperationStats, error) {
+func (s *DeviceStore) Update(ctx context.Context, input domain.UpdateDevice) (devicefleet.Device, domain.OperationStats, error) {
 	columns := []string{
 		"device_id", "device_type", "name", "status", "api_key", "last_seen",
 		"registered_by_id", "room_id", "archived_at", "transferred_to_device_id", "updated_at",
 	}
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.Device{}, domain.OperationStats{}, err
+		return devicefleet.Device{}, domain.OperationStats{}, err
 	}
 	row := deviceRowFromUpdate(input)
 	if row.UpdatedAt.IsZero() {
@@ -108,10 +109,10 @@ func (s *DeviceStore) Update(ctx context.Context, input domain.UpdateDevice) (do
 	err = query.Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Device{}, stats, domain.ErrDeviceNotFound
+		return devicefleet.Device{}, stats, devicefleet.ErrDeviceNotFound
 	}
 	if err != nil {
-		return domain.Device{}, stats, fmt.Errorf("devicefleet postgres: update device: %w", err)
+		return devicefleet.Device{}, stats, fmt.Errorf("devicefleet postgres: update device: %w", err)
 	}
 	stats.Rows = 1
 	return toDeviceDomain(row), stats, nil
@@ -152,7 +153,7 @@ func (s *DeviceStore) UpdateColumns(ctx context.Context, input domain.UpdateDevi
 
 // UpdateStatusByDeviceID sets the status of one live device addressed by its
 // tenant-unique device_id.
-func (s *DeviceStore) UpdateStatusByDeviceID(ctx context.Context, deviceID string, status domain.DeviceStatus) (int64, domain.OperationStats, error) {
+func (s *DeviceStore) UpdateStatusByDeviceID(ctx context.Context, deviceID string, status devicefleet.DeviceStatus) (int64, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
@@ -208,14 +209,14 @@ func (s *DeviceStore) Delete(ctx context.Context, id int64) (int64, domain.Opera
 }
 
 // FindByID reads one live device, optionally taking the supplied row lock.
-func (s *DeviceStore) FindByID(ctx context.Context, id int64, lock string) (domain.Device, bool, domain.OperationStats, error) {
+func (s *DeviceStore) FindByID(ctx context.Context, id int64, lock string) (devicefleet.Device, bool, domain.OperationStats, error) {
 	return s.findOne(ctx, "find device", lock, func(query *bun.SelectQuery) *bun.SelectQuery {
 		return query.Where(`"device".id = ?`, id)
 	})
 }
 
 // FindByDeviceID reads one live device by its tenant-unique device_id.
-func (s *DeviceStore) FindByDeviceID(ctx context.Context, deviceID string) (domain.Device, bool, domain.OperationStats, error) {
+func (s *DeviceStore) FindByDeviceID(ctx context.Context, deviceID string) (devicefleet.Device, bool, domain.OperationStats, error) {
 	return s.findOne(ctx, "find device by device id", "", func(query *bun.SelectQuery) *bun.SelectQuery {
 		return query.Where(`"device".device_id = ?`, deviceID)
 	})
@@ -224,7 +225,7 @@ func (s *DeviceStore) FindByDeviceID(ctx context.Context, deviceID string) (doma
 // FindByAPIKey reads one live device by its API key. Device authentication
 // calls this before any tenant is known, so the tenant predicate is absent
 // unless the caller already established one.
-func (s *DeviceStore) FindByAPIKey(ctx context.Context, apiKey string) (domain.Device, bool, domain.OperationStats, error) {
+func (s *DeviceStore) FindByAPIKey(ctx context.Context, apiKey string) (devicefleet.Device, bool, domain.OperationStats, error) {
 	return s.findOne(ctx, "find device by api key", "", func(query *bun.SelectQuery) *bun.SelectQuery {
 		return query.Where(`"device".api_key = ?`, apiKey)
 	})
@@ -235,10 +236,10 @@ func (s *DeviceStore) findOne(
 	operation string,
 	lock string,
 	restrict func(*bun.SelectQuery) *bun.SelectQuery,
-) (domain.Device, bool, domain.OperationStats, error) {
+) (devicefleet.Device, bool, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.Device{}, false, domain.OperationStats{}, err
+		return devicefleet.Device{}, false, domain.OperationStats{}, err
 	}
 	row := deviceRow{}
 	query := restrict(s.selectDevices(db, scope, &row))
@@ -250,17 +251,17 @@ func (s *DeviceStore) findOne(
 	err = query.Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Device{}, false, stats, nil
+		return devicefleet.Device{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.Device{}, false, stats, fmt.Errorf("devicefleet postgres: %s: %w", operation, err)
+		return devicefleet.Device{}, false, stats, fmt.Errorf("devicefleet postgres: %s: %w", operation, err)
 	}
 	stats.Rows = 1
 	return toDeviceDomain(row), true, stats, nil
 }
 
 // List reads every live device matching filter.
-func (s *DeviceStore) List(ctx context.Context, filter domain.DeviceFilter) ([]domain.Device, domain.OperationStats, error) {
+func (s *DeviceStore) List(ctx context.Context, filter devicefleet.DeviceFilter) ([]devicefleet.Device, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -271,9 +272,9 @@ func (s *DeviceStore) List(ctx context.Context, filter domain.DeviceFilter) ([]d
 }
 
 // ListByIDs reads the live devices visible for the given primary keys.
-func (s *DeviceStore) ListByIDs(ctx context.Context, ids []int64) ([]domain.Device, domain.OperationStats, error) {
+func (s *DeviceStore) ListByIDs(ctx context.Context, ids []int64) ([]devicefleet.Device, domain.OperationStats, error) {
 	if len(ids) == 0 {
-		return []domain.Device{}, domain.OperationStats{}, nil
+		return []devicefleet.Device{}, domain.OperationStats{}, nil
 	}
 	db, scope, err := s.database(ctx)
 	if err != nil {
@@ -286,7 +287,7 @@ func (s *DeviceStore) ListByIDs(ctx context.Context, ids []int64) ([]domain.Devi
 
 // ListOffline reads devices last seen before cutoff, including devices that
 // were never seen and created before it.
-func (s *DeviceStore) ListOffline(ctx context.Context, cutoff time.Time) ([]domain.Device, domain.OperationStats, error) {
+func (s *DeviceStore) ListOffline(ctx context.Context, cutoff time.Time) ([]devicefleet.Device, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -302,7 +303,7 @@ func (s *DeviceStore) scanList(
 	query *bun.SelectQuery,
 	rows *[]deviceRow,
 	operation string,
-) ([]domain.Device, domain.OperationStats, error) {
+) ([]devicefleet.Device, domain.OperationStats, error) {
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err := query.Scan(ctx)
@@ -311,7 +312,7 @@ func (s *DeviceStore) scanList(
 		return nil, stats, fmt.Errorf("devicefleet postgres: %s: %w", operation, err)
 	}
 	stats.Rows = int64(len(*rows))
-	devices := make([]domain.Device, 0, len(*rows))
+	devices := make([]devicefleet.Device, 0, len(*rows))
 	for _, row := range *rows {
 		devices = append(devices, toDeviceDomain(row))
 	}
@@ -390,7 +391,7 @@ func (s *DeviceStore) CountByTenant(ctx context.Context) (map[int64]int, domain.
 
 // ListByTenants reads the live devices of the given tenants. An empty tenant
 // list means every tenant the caller may see.
-func (s *DeviceStore) ListByTenants(ctx context.Context, tenantIDs []int64) ([]domain.Device, domain.OperationStats, error) {
+func (s *DeviceStore) ListByTenants(ctx context.Context, tenantIDs []int64) ([]devicefleet.Device, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -405,7 +406,7 @@ func (s *DeviceStore) ListByTenants(ctx context.Context, tenantIDs []int64) ([]d
 
 // applyDeviceFilter builds the predicates from fixed columns only, so every
 // device query resolves to iot.devices statically.
-func applyDeviceFilter(query *bun.SelectQuery, filter domain.DeviceFilter) *bun.SelectQuery {
+func applyDeviceFilter(query *bun.SelectQuery, filter devicefleet.DeviceFilter) *bun.SelectQuery {
 	if filter.DeviceIDContains != nil {
 		query = query.Where(`"device".device_id ILIKE ?`, "%"+*filter.DeviceIDContains+"%")
 	}
@@ -455,11 +456,11 @@ func deviceRowFromUpdate(input domain.UpdateDevice) deviceRow {
 	}
 }
 
-func toDeviceDomain(row deviceRow) domain.Device {
-	return domain.Device{
+func toDeviceDomain(row deviceRow) devicefleet.Device {
+	return devicefleet.Device{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		DeviceID: row.DeviceID, DeviceType: row.DeviceType, Name: row.Name,
-		Status: domain.DeviceStatus(row.Status), APIKey: row.APIKey, LastSeen: row.LastSeen,
+		Status: devicefleet.DeviceStatus(row.Status), APIKey: row.APIKey, LastSeen: row.LastSeen,
 		RegisteredByID: row.RegisteredByID, RoomID: row.RoomID, ArchivedAt: row.ArchivedAt,
 		TransferredToDeviceID: row.TransferredToDeviceID,
 	}
