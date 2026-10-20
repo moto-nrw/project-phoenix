@@ -19,13 +19,13 @@ type Dependencies struct {
 	Observe func(Observation)
 }
 
-func New(dependencies Dependencies) (*organizationtenancy.Module, error) {
+func New(dependencies Dependencies) (organizationtenancy.Capability, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("organization tenancy compose: all dependencies are required")
 	}
 	store := postgres.New(postgres.NewDatabase())
-	service := application.New(store, transaction{}, application.NewObserver(dependencies.Observe))
-	return organizationtenancy.NewModule(application.NewEngine(service)), nil
+	service := application.New(store, transaction{}, dependencies.Observe)
+	return service, nil
 }
 
 type transaction struct{}

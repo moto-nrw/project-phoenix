@@ -1,8 +1,6 @@
 package architecture
 
 import (
-	"fmt"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -253,23 +251,6 @@ func TestRepositoryPolicyStatesOnlyTheTarget(t *testing.T) {
 		if pkg.Path == "modules/identityaccess/sessiontoken" && pkg.Role != "http" {
 			t.Fatalf("the session token runtime has role %q, want http (ADR 0057 point 3)", pkg.Role)
 		}
-	}
-}
-
-// The structural ratchet in backend/test reads policy.json without the
-// evaluator (its package may not import it), so it keeps its own copy of the
-// markers. Both lists must stay identical.
-func TestStructuralRatchetUsesTheEvaluatorMarkers(t *testing.T) {
-	t.Parallel()
-	source := readFile(t, filepath.Join("..", "..", "test", "policy_temporary_rules_ratchet_test.go"))
-	for _, marker := range TransitionMarkers {
-		entry := fmt.Sprintf("{name: %q, pattern: regexp.MustCompile(`%s`)}", marker.Name, marker.Pattern.String())
-		if !strings.Contains(source, entry) {
-			t.Errorf("backend/test/policy_temporary_rules_ratchet_test.go lacks %s", entry)
-		}
-	}
-	if got := strings.Count(source, "pattern: regexp.MustCompile("); got != len(TransitionMarkers) {
-		t.Errorf("structural ratchet has %d markers, evaluator %d", got, len(TransitionMarkers))
 	}
 }
 

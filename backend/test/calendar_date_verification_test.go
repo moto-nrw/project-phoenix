@@ -79,7 +79,7 @@ var unmappedDateColumns = map[string]string{
 	"schedule.pickup_extension_tasks.task_date":      "timetable adapter-local row uses the typed domain.Date — no models/ struct",
 	"schedule.pickup_extension_tasks.effective_from": "timetable adapter-local row uses the typed domain.Date — no models/ struct",
 	// The billing key-date counts (#2791) are owned by Organisation & Tenancy,
-	// which may not depend on internal/timezone or the shared calendar. Its
+	// which may not depend on the shared calendar. Its
 	// raw SQL binds the YYYY-MM-DD strings with an explicit ::date cast and
 	// reads them back as ::text, so no time.Time ever meets these columns.
 	"platform.billing_key_date_counts.period":   "organization-tenancy raw SQL binds and reads YYYY-MM-DD through ::date / ::text casts — no models/ struct",
@@ -221,7 +221,7 @@ func TestDateColumnTypes(t *testing.T) {
 					}
 				case "Date", "*Date":
 					// Domain owners may keep the same ISO calendar-date value shape
-					// without importing the legacy shared timezone package.
+					// without importing sharedkernel/calendar.
 					if !strings.HasPrefix(f.file, "models/activities/") &&
 						!strings.HasPrefix(f.file, "modules/auditlog/records/") &&
 						!strings.HasPrefix(f.file, "models/calendar/") &&
@@ -230,8 +230,8 @@ func TestDateColumnTypes(t *testing.T) {
 							col+" uses Date outside an approved owner package — use calendar.Date"))
 					}
 				case "CalendarDate", "*CalendarDate":
-					// modules/settings/records (formerly models/config) is being detached from the legacy timezone
-					// package by #2646. CalendarDate is an ISO string value, so
+					// modules/settings/records (formerly models/config) keeps its own
+					// CalendarDate (#2646). It is an ISO string value, so
 					// BUN binds it without converting a time.Time instant to UTC.
 					if !strings.HasPrefix(f.file, "modules/settings/records/") {
 						violations = append(violations, formatViolation(f.file, f.line,

@@ -93,7 +93,7 @@
     "module": "organization-tenancy",
     "contract_package": "modules/organizationtenancy",
     "test_file": "modules/organizationtenancy/organizationtenancy_test.go",
-    "test": "TestCommandNormalizesOrganizationAtPublicSeam"
+    "test": "TestErrorCodeIsStable"
   },
   {
     "module": "people-directory",

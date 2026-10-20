@@ -27,13 +27,9 @@ import (
 //     until the entry is lowered/removed — the ratchet only turns one way.
 //     Never raise a number.
 //
-// The handlers #2580 moved out of api/ are scored too (#4071): every function
-// in a non-test .go file under modules/*/http, modules/*/inbound and
-// workflows/*/http (isModuleHandlerFile) against the same threshold, with a
-// register of its own (moduleHTTPComplexityAllowlist), first measured on
-// 2026-10-15 on top of development c49b81c3a9. Those functions are also in
-// TestModuleComplexityRatchet; this ratchet holds them to the handler rule and
-// keeps both registers shrink-only.
+// The handlers #2580 moved out of api/ (modules/*/http, modules/*/inbound,
+// workflows/*/http) are scored by TestModuleComplexityRatchet, which scans
+// all of modules/ and workflows/ against the same threshold.
 //
 // Keys are "relative/file.go:FuncName" with methods rendered exactly like the
 // gocognit CLI ("(*Resource).applyDeviations"), so `gocognit -over 15 api/`
@@ -43,15 +39,6 @@ const handlerComplexityThreshold = 15
 // Seeded 2026-07-12 from `gocognit -over 15 api/` (non-test files only), the
 // issue #575 B0 baseline. 75 functions.
 var handlerComplexityAllowlist = map[string]int{}
-
-// moduleHTTPComplexityAllowlist holds the module handlers over the threshold
-// (#4071). Shrink-only; no new entry.
-var moduleHTTPComplexityAllowlist = map[string]int{
-	// The one module handler over the threshold when #4071 extended the scan:
-	// the scheduled staff-document file cleanup walks the offboarded, deleted
-	// and queued documents and branches per document in the inbound resource
-	// instead of in the Workforce application layer (#4071).
-}
 
 func TestHandlerComplexityRatchet(t *testing.T) {
 	t.Parallel()
@@ -68,11 +55,6 @@ func TestHandlerComplexityRatchet(t *testing.T) {
 	}
 
 	violations := complexityViolations(scores, handlerComplexityAllowlist)
-	moduleScores, err := scanModuleHandlerComplexity(backendRoot)
-	if err != nil {
-		t.Fatalf("module handler complexity scan failed: %v", err)
-	}
-	violations = append(violations, complexityViolations(moduleScores, moduleHTTPComplexityAllowlist)...)
 	if len(violations) > 0 {
 		sort.Strings(violations)
 		t.Errorf("Handler-complexity ratchet check failed (%d issue(s)):\n\n%s",
@@ -162,62 +144,6 @@ func scanHandlerComplexity(backendRoot string) (map[string]int, error) {
 	})
 	if err != nil {
 		return nil, err
-	}
-	return scores, nil
-}
-
-// scanModuleHandlerComplexity scores every function under the module handler
-// trees like scanHandlerComplexity scores api/.
-func scanModuleHandlerComplexity(backendRoot string) (map[string]int, error) {
-	scores := make(map[string]int)
-	for _, top := range []string{"modules", "workflows"} {
-		root := filepath.Join(backendRoot, top)
-		err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if d.IsDir() {
-				if strings.HasPrefix(d.Name(), ".") && path != root {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-				return nil
-			}
-			rel, relErr := filepath.Rel(backendRoot, path)
-			if relErr != nil {
-				return relErr
-			}
-			rel = filepath.ToSlash(rel)
-			if !isModuleHandlerFile(rel) {
-				return nil
-			}
-			active, buildErr := productionGoSources(backendRoot)
-			if buildErr != nil {
-				return buildErr
-			}
-			if !active[filepath.Clean(path)] {
-				return nil
-			}
-			_, file, parseErr := parseGoSourceCached(path, nil)
-			if parseErr != nil {
-				return fmt.Errorf("parse %s: %w", rel, parseErr)
-			}
-			for _, decl := range file.Decls {
-				fn, ok := decl.(*ast.FuncDecl)
-				if !ok {
-					continue
-				}
-				if score := gocognit.Complexity(fn); score > handlerComplexityThreshold {
-					scores[rel+":"+funcDisplayName(fn)] = score
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			return nil, err
-		}
 	}
 	return scores, nil
 }

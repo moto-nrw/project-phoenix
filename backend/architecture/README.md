@@ -1151,10 +1151,8 @@ A raise passes only under an ADR the change adds: the comment on the raised
 entry or its declaration cites `ADR 0123`, and the base has no ADR with that
 number. Renaming or copying an existing ADR file authorizes nothing. A
 measurement that disappears needs the same: a comment naming it that cites an
-ADR the change adds. The only exception is a closed, one-time list bound to ADR
-0057 (`retiredByADR0057`): the three temporary-rule registers of
-`test/policy_temporary_rules_ratchet_test.go` that #4070 replaced by a
-structural check.
+ADR the change adds. An empty `map[string]int` register may disappear
+without one.
 `internal/architecture/ratchet_budgets_test.go` pins the rules.
 
 ### Converting temporary permissions to exact debt

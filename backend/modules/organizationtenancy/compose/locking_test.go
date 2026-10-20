@@ -63,7 +63,7 @@ func TestOrganizationLifecycleLockingContract(t *testing.T) {
 	})
 }
 
-func holdOrganizationLock(t *testing.T, ctx context.Context, module *organizationtenancy.Module, id int64, update bool) (chan struct{}, chan error) {
+func holdOrganizationLock(t *testing.T, ctx context.Context, module organizationtenancy.Capability, id int64, update bool) (chan struct{}, chan error) {
 	t.Helper()
 	acquired := make(chan struct{})
 	release := make(chan struct{})
