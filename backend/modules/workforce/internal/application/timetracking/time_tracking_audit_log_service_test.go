@@ -150,7 +150,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 		adj.SetTenantID(tenantID)
 		createdTimeRecord2, err := workTime.CreateStaffBalanceAdjustment(ctx, timetracking.StaffBalanceAdjustmentToCapability(adj))
 		require.NoError(t, err)
-		*adj = *timetracking.BalanceAdjustmentRecord(createdTimeRecord2)
+		*adj = *balanceAdjustmentRecord(createdTimeRecord2)
 		return adj
 	}
 	makeAdjustment(staffA.ID, 10)

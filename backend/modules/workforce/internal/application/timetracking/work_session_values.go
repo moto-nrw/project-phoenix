@@ -154,14 +154,6 @@ func breakMutationError(op string, affected int64, err error) error {
 	return nil
 }
 
-func optionalSessionDate(value string) *calendar.Date {
-	if value == "" {
-		return nil
-	}
-	date := calendar.Date(value)
-	return &date
-}
-
 // workSessionReadRecord keeps failed lookups nil: some clock flows explicitly
 // ignore not-found before deciding whether to create today's first block.
 func workSessionReadRecord(value workforce.WorkSession, err error) *WorkSession {

@@ -235,7 +235,7 @@ func TestTimeTrackingOverview_MatchesMonthSummary(t *testing.T) {
 	adjustment.SetTenantID(f.tenantID)
 	createdTimeRecord2, err := f.workforce.CreateStaffBalanceAdjustment(f.ctx, timetracking.StaffBalanceAdjustmentToCapability(adjustment))
 	require.NoError(t, err)
-	*adjustment = *timetracking.BalanceAdjustmentRecord(createdTimeRecord2)
+	*adjustment = *balanceAdjustmentRecord(createdTimeRecord2)
 
 	overview, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetTimeTrackingOverview, timetracking.OverviewFilters{})
 	require.NoError(t, err)
@@ -486,7 +486,7 @@ func TestDashboardSummary_WeekExcludesAdjustmentsOutsideRange(t *testing.T) {
 	adjustment.SetTenantID(f.tenantID)
 	createdTimeRecord3, err := f.workforce.CreateStaffBalanceAdjustment(f.ctx, timetracking.StaffBalanceAdjustmentToCapability(adjustment))
 	require.NoError(t, err)
-	*adjustment = *timetracking.BalanceAdjustmentRecord(createdTimeRecord3)
+	*adjustment = *balanceAdjustmentRecord(createdTimeRecord3)
 
 	after, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetDashboardSummary, timetracking.OverviewPeriodWeek)
 	require.NoError(t, err)

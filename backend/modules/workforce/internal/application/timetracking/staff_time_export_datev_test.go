@@ -110,7 +110,7 @@ func newDatevFixture(t *testing.T) *overviewFixture {
 		adjustment.SetTenantID(f.tenantID)
 		createdTimeRecord1, err := f.workforce.CreateStaffBalanceAdjustment(f.ctx, timetracking.StaffBalanceAdjustmentToCapability(adjustment))
 		require.NoError(t, err)
-		*adjustment = *timetracking.BalanceAdjustmentRecord(createdTimeRecord1)
+		*adjustment = *balanceAdjustmentRecord(createdTimeRecord1)
 	}
 	return f
 }

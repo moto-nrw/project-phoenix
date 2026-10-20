@@ -5,6 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func recordAbsenceAudit(ctx context.Context, records timetracking.AbsenceAuditRecords, audit *timetracking.StaffAbsenceAudit) error {
@@ -33,4 +34,20 @@ func vacationOpeningRowsByStaff(ctx context.Context, records timetracking.Vacati
 		result[value.StaffID] = value
 	}
 	return result, nil
+}
+
+func balanceAdjustmentRecord(value workforce.StaffBalanceAdjustment) *timetracking.StaffBalanceAdjustment {
+	entity := &timetracking.StaffBalanceAdjustment{}
+	entity.ID = value.ID
+	entity.CreatedAt = value.CreatedAt
+	entity.UpdatedAt = value.UpdatedAt
+	entity.TenantID = value.TenantID
+	entity.StaffID = value.StaffID
+	entity.Type = value.Type
+	entity.MinutesDelta = value.MinutesDelta
+	entity.EffectiveDate = calendar.Date(value.EffectiveDate)
+	entity.Note = value.Note
+	entity.DecidedBy = value.DecidedBy
+	entity.DecidedAt = value.DecidedAt
+	return entity
 }

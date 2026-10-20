@@ -130,7 +130,3 @@ func quotasByStaff(values []workforce.StaffVacationQuota) map[int64]*StaffVacati
 	}
 	return result
 }
-
-func BalanceAdjustmentRecord(value workforce.StaffBalanceAdjustment) *StaffBalanceAdjustment {
-	return adjustmentToRecord(value)
-}

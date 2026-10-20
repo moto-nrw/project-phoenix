@@ -120,7 +120,7 @@ func TestMonthExportRows_MatchMonthSummary(t *testing.T) {
 		adjustment.SetTenantID(f.tenantID)
 		createdTimeRecord1, err := f.workforce.CreateStaffBalanceAdjustment(f.ctx, timetracking.StaffBalanceAdjustmentToCapability(adjustment))
 		require.NoError(t, err)
-		*adjustment = *timetracking.BalanceAdjustmentRecord(createdTimeRecord1)
+		*adjustment = *balanceAdjustmentRecord(createdTimeRecord1)
 	}
 
 	rows, err := testpkg.TenantQuery2(t, f.ctx, f.db, f.svc.GetMonthExportRows, f.today.Year(), int(f.today.Month()))
