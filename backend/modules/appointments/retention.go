@@ -14,12 +14,12 @@ type AppointmentRetention interface {
 	DeleteExpiredAppointments(ctx context.Context, retentionDays int) (int, error)
 }
 
-// DeleteExpiredAppointments runs the retention the module was composed with.
-func (m *Module) DeleteExpiredAppointments(ctx context.Context, retentionDays int) (int, error) {
-	if m.retention == nil {
-		return 0, errors.New("appointments: the retention of ended appointments is not composed")
-	}
-	return m.retention.DeleteExpiredAppointments(ctx, retentionDays)
+// Owner is the whole Appointments owner surface: the Capability and the
+// retention of ended appointments. The composition roots hand it to the
+// nightly cleanup; narrower consumers name only the slice they use.
+type Owner interface {
+	Capability
+	AppointmentRetention
 }
 
 // ErrAppointmentRetentionWindow refuses a retention window that is not

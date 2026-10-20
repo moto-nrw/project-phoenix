@@ -26,7 +26,7 @@ func (l *observationLog) record(observation Observation) {
 	l.seen = append(l.seen, observation)
 }
 
-func buildModule(t *testing.T, db *bun.DB, observe ...func(Observation)) *appointments.Module {
+func buildModule(t *testing.T, db *bun.DB, observe ...func(Observation)) appointments.Owner {
 	t.Helper()
 	observer := func(Observation) {}
 	if len(observe) > 0 {
@@ -332,7 +332,7 @@ func TestAppointmentRecipientsAreAtomicTenantScopedAndDeduplicateReminderPushes(
 	assertReminderClaimLifecycle(t, module, ctx, created, guardian.ID, log)
 }
 
-func assertRecipientPersistenceAndResponse(t *testing.T, module *appointments.Module, ctx context.Context, appointmentID, studentID int64, recipients []*appointments.AppointmentRecipient, links []*appointments.AppointmentRecipientStudent) {
+func assertRecipientPersistenceAndResponse(t *testing.T, module appointments.Owner, ctx context.Context, appointmentID, studentID int64, recipients []*appointments.AppointmentRecipient, links []*appointments.AppointmentRecipientStudent) {
 	t.Helper()
 	stored, err := module.FindAppointmentRecipients(ctx, appointmentID)
 	require.NoError(t, err)
@@ -359,7 +359,7 @@ func assertRecipientPersistenceAndResponse(t *testing.T, module *appointments.Mo
 	assert.NotNil(t, responded.RespondedAt)
 }
 
-func assertReminderClaimLifecycle(t *testing.T, module *appointments.Module, ctx context.Context, appointment *appointments.Appointment, guardianID int64, log *observationLog) {
+func assertReminderClaimLifecycle(t *testing.T, module appointments.Owner, ctx context.Context, appointment *appointments.Appointment, guardianID int64, log *observationLog) {
 	t.Helper()
 	claimed, err := module.ClaimReminderPushDelivery(ctx, appointment.ID, appointment.Revision, appointment.StartDate, guardianID)
 	require.NoError(t, err)
@@ -402,7 +402,7 @@ func TestNamedAppointmentRecipientTablesEnforceTwoTenantRLS(t *testing.T) {
 	assert.Equal(t, appointments.ResponseStatusPending, firstRecipient.Status)
 }
 
-func seedAppointmentRecipientTables(t *testing.T, db *bun.DB, module *appointments.Module, ctx context.Context, tenantID int64, label string) int64 {
+func seedAppointmentRecipientTables(t *testing.T, db *bun.DB, module appointments.Owner, ctx context.Context, tenantID int64, label string) int64 {
 	t.Helper()
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "RLS", label)
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "RLS", label, "1a")
