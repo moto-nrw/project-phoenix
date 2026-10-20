@@ -1,8 +1,12 @@
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { ParentPageHeader } from "~/components/parent/parent-page";
 import { HELP_TOPICS, type HelpTopicId } from "~/lib/help-topics";
+import {
+  expectIdleRenderBudget,
+  RENDER_BUDGET_MAX_COMMITS,
+} from "~/test/render-budget";
 import { MobilePageHelpPortal } from "./mobile-page-help-portal";
 import { MobilePageHelpLink } from "./mobile-page-help-link";
 
@@ -42,10 +46,9 @@ beforeEach(() => {
 describe("mobile page help", () => {
   it("opens staff help from the page header, preserving filters and return path", async () => {
     render(
-      <>
-        <MobilePageHelpPortal />
+      <MobilePageHelpPortal>
         <TenantPage title="Kinder" />
-      </>,
+      </MobilePageHelpPortal>,
     );
     const link = await screen.findByRole("link", {
       name: "Hilfe zu dieser Seite",
@@ -70,10 +73,9 @@ describe("mobile page help", () => {
       state.roles = ["guardian"];
       state.pathname = pathname;
       render(
-        <>
-          <MobilePageHelpPortal />
+        <MobilePageHelpPortal>
           <ParentPageHeader title="Mein Kind" />
-        </>,
+        </MobilePageHelpPortal>,
       );
       const link = await screen.findByRole("link", {
         name: "Hilfe zu dieser Seite",
@@ -97,10 +99,17 @@ describe("mobile page help", () => {
     );
   });
 
-  it("does not send caregivers to an article for school leads", () => {
+  it("does not send caregivers to an article for school leads", async () => {
     state.pathname = "/testschule/settings";
     state.roles = ["user"];
-    render(<TenantPage title="Einstellungen" />);
+    render(
+      <MobilePageHelpPortal>
+        <TenantPage title="Einstellungen" />
+      </MobilePageHelpPortal>,
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Einstellungen" }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
@@ -118,4 +127,21 @@ describe("mobile page help", () => {
       expect(screen.queryByRole("link")).not.toBeInTheDocument();
     },
   );
+
+  // The target registers once with the persistent portal shell. This catches
+  // an accidental registration loop without observing unrelated DOM changes.
+  describe("render budget", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it(`commits at most ${RENDER_BUDGET_MAX_COMMITS} times while idle`, async () => {
+      vi.useFakeTimers();
+      await expectIdleRenderBudget(
+        <MobilePageHelpPortal>
+          <TenantPage title="Kinder" />
+        </MobilePageHelpPortal>,
+      );
+    });
+  });
 });

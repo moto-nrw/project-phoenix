@@ -61,46 +61,47 @@ export function ParentShell({
     <div
       className={eveningRow ? "pt-20" : demoBannerShown ? "pt-12" : undefined}
     >
-      <PortalShell
-        header={<Header />}
-        headerClassName={
-          eveningRow
-            ? "sticky top-20 z-50 hidden lg:block"
-            : demoBannerShown
-              ? "sticky top-12 z-50 hidden lg:block"
-              : "sticky top-0 z-50 hidden lg:block"
-        }
-        backgroundClassName="moto-dotted-background--parent"
-        topLayer={
-          <>
-            {demoBannerShown ? <DemoBanner /> : null}
-            <div
-              data-parent-safe-area-top
-              className="relative z-10 h-[env(safe-area-inset-top)] min-h-8 bg-transparent lg:hidden"
-              aria-hidden="true"
+      <MobilePageHelpPortal>
+        <PortalShell
+          header={<Header />}
+          headerClassName={
+            eveningRow
+              ? "sticky top-20 z-50 hidden lg:block"
+              : demoBannerShown
+                ? "sticky top-12 z-50 hidden lg:block"
+                : "sticky top-0 z-50 hidden lg:block"
+          }
+          backgroundClassName="moto-dotted-background--parent"
+          topLayer={
+            <>
+              {demoBannerShown ? <DemoBanner /> : null}
+              <div
+                data-parent-safe-area-top
+                className="relative z-10 h-[env(safe-area-inset-top)] min-h-8 bg-transparent lg:hidden"
+                aria-hidden="true"
+              />
+            </>
+          }
+          sidebar={
+            <ParentSidebar
+              badges={badges}
+              gates={gates}
+              childCount={childCount}
+              demoBannerShown={demoBannerShown}
+              eveningRow={eveningRow}
             />
-          </>
-        }
-        sidebar={
-          <ParentSidebar
-            badges={badges}
-            gates={gates}
-            childCount={childCount}
-            demoBannerShown={demoBannerShown}
-            eveningRow={eveningRow}
-          />
-        }
-        bottomNav={
-          <ParentBottomNav
-            badges={badges}
-            gates={gates}
-            childCount={childCount}
-          />
-        }
-      >
-        <MobilePageHelpPortal />
-        {children}
-      </PortalShell>
+          }
+          bottomNav={
+            <ParentBottomNav
+              badges={badges}
+              gates={gates}
+              childCount={childCount}
+            />
+          }
+        >
+          {children}
+        </PortalShell>
+      </MobilePageHelpPortal>
       {authenticated && shellAuth.user?.id && linkedChildren ? (
         <ParentFirstSteps
           accountId={shellAuth.user.id}

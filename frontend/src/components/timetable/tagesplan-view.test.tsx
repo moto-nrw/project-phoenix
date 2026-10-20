@@ -158,10 +158,9 @@ describe("TagesplanView", () => {
     searchParams.current = new URLSearchParams("d=2026-07-15");
 
     render(
-      <>
-        <MobilePageHelpPortal />
+      <MobilePageHelpPortal>
         <TagesplanView />
-      </>,
+      </MobilePageHelpPortal>,
     );
 
     const help = await screen.findByRole("link", {
