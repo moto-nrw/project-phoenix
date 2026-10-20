@@ -3,6 +3,7 @@ package timetracking
 import (
 	"context"
 	"errors"
+	"io"
 	"mime"
 	"net/http"
 	"os"
@@ -243,11 +244,7 @@ func (rs *StaffAdminResource) uploadStaffDocument(w http.ResponseWriter, r *http
 		return
 	}
 
-	if err := rs.StaffDocumentService.QueueStaffDocumentFileCleanup(r.Context(), id, storedName); err != nil {
-		rs.logger.Error("staff document upload cleanup intent failed",
-			"staff_id", id,
-			"error", err,
-		)
+	if err := rs.queueUploadFileCleanup(r.Context(), id, storedName); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -261,15 +258,8 @@ func (rs *StaffAdminResource) uploadStaffDocument(w http.ResponseWriter, r *http
 	uploadCtx, cancelUpload := context.WithTimeout(r.Context(), workforce.StaffDocumentUploadDeadline)
 	defer cancelUpload()
 
-	dir := staffDocumentsDir(tenant.FromContext(r.Context()), rs.uploads)
-	filePath, err := common.SavePrivateNamedFile(uploaded.File, dir, storedName, rs.uploads)
+	filePath, err := rs.writeUploadedDocumentFile(r.Context(), id, uploaded.File, storedName)
 	if err != nil {
-		if completeErr := rs.StaffDocumentService.MarkQueuedStaffDocumentFileCleanupCompleteByFilename(r.Context(), storedName); completeErr != nil {
-			rs.logger.Warn("staff document cleanup intent completion failed after upload write error",
-				"staff_id", id,
-				"error", completeErr,
-			)
-		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -289,6 +279,37 @@ func (rs *StaffAdminResource) uploadStaffDocument(w http.ResponseWriter, r *http
 
 	resp := newStaffDocumentResponse(*info)
 	common.Respond(w, r, http.StatusCreated, &resp, "Staff document uploaded successfully")
+}
+
+// queueUploadFileCleanup queues the cleanup intent for the file about to be
+// written and logs a failure.
+func (rs *StaffAdminResource) queueUploadFileCleanup(ctx context.Context, staffID int64, storedName string) error {
+	if err := rs.StaffDocumentService.QueueStaffDocumentFileCleanup(ctx, staffID, storedName); err != nil {
+		rs.logger.Error("staff document upload cleanup intent failed",
+			"staff_id", staffID,
+			"error", err,
+		)
+		return err
+	}
+	return nil
+}
+
+// writeUploadedDocumentFile stores the upload in the tenant's document
+// directory. When the write fails nothing is left to clean up, so the queued
+// intent is completed right away.
+func (rs *StaffAdminResource) writeUploadedDocumentFile(ctx context.Context, staffID int64, file io.Reader, storedName string) (string, error) {
+	dir := staffDocumentsDir(tenant.FromContext(ctx), rs.uploads)
+	filePath, err := common.SavePrivateNamedFile(file, dir, storedName, rs.uploads)
+	if err != nil {
+		if completeErr := rs.StaffDocumentService.MarkQueuedStaffDocumentFileCleanupCompleteByFilename(ctx, storedName); completeErr != nil {
+			rs.logger.Warn("staff document cleanup intent completion failed after upload write error",
+				"staff_id", staffID,
+				"error", completeErr,
+			)
+		}
+		return "", err
+	}
+	return filePath, nil
 }
 
 // downloadStaffDocument serves GET /{id}/documents/{documentId}/download.

@@ -50,46 +50,11 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 		return s.createDirectVacation(ctx, subjectStaffID, createdByStaffID, req)
 	}
 
-	dateStart, dateEnd, err := parseDateRange(req.DateStart, req.DateEnd)
+	dateStart, dateEnd, err := s.admitAbsenceRange(ctx, subjectStaffID, req)
 	if err != nil {
 		return nil, err
 	}
-	if err = validateSickAbsenceRange(req.AbsenceType, dateStart, dateEnd); err != nil {
-		return nil, err
-	}
-	if err := s.rejectPreAccountCompTime(ctx, req.AbsenceType, dateStart, dateEnd); err != nil {
-		return nil, err
-	}
-	if err := s.lockStaffAbsenceWrites(ctx, subjectStaffID); err != nil {
-		return nil, err
-	}
-	if req.AbsenceTypeID != nil {
-		if _, err := s.absenceTypes.PreviewAllowanceBooking(
-			ctx, subjectStaffID, *req.AbsenceTypeID, dateStart, dateEnd, req.HalfDay,
-		); err != nil {
-			return nil, err
-		}
-	}
-
-	// Check for overlapping absences, merge if same type, reject if different type.
-	existing, err := s.absenceRepo.GetByStaffAndDateRange(ctx, subjectStaffID, dateStart, dateEnd)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check existing absences: %w", err)
-	}
-
-	var resp *StaffAbsenceResponse
-	if blocking := filterBlockingAbsences(existing); len(blocking) > 0 {
-		if selectedType != nil && selectedType.AllowanceEnabled {
-			return nil, ErrAllowanceBookingOverlap
-		}
-		resp, err = s.mergeOverlappingAbsences(ctx, blocking, dateStart, dateEnd, createdByStaffID, req)
-	} else {
-		if err := validateSingleDayHalfDayAbsence(req.AbsenceType, req.HalfDay, dateStart, dateEnd); err != nil {
-			return nil, err
-		}
-		s.warnIfWorkSessionsExist(ctx, subjectStaffID, dateStart, dateEnd)
-		resp, err = s.createNewAbsence(ctx, subjectStaffID, createdByStaffID, dateStart, dateEnd, req)
-	}
+	resp, err := s.storeAbsence(ctx, subjectStaffID, createdByStaffID, selectedType, dateStart, dateEnd, req)
 	if err != nil {
 		return nil, err
 	}
@@ -99,6 +64,54 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 	}
 	s.broadcastTimeTrackingChanged(ctx)
 	return resp, nil
+}
+
+// admitAbsenceRange parses and checks the requested range of a non-vacation
+// absence and takes the subject's absence lock; an allowance-backed type
+// must also fit its allowance.
+func (s *staffAbsenceService) admitAbsenceRange(ctx context.Context, subjectStaffID int64, req CreateAbsenceRequest) (calendar.Date, calendar.Date, error) {
+	dateStart, dateEnd, err := parseDateRange(req.DateStart, req.DateEnd)
+	if err != nil {
+		return dateStart, dateEnd, err
+	}
+	if err = validateSickAbsenceRange(req.AbsenceType, dateStart, dateEnd); err != nil {
+		return dateStart, dateEnd, err
+	}
+	if err := s.rejectPreAccountCompTime(ctx, req.AbsenceType, dateStart, dateEnd); err != nil {
+		return dateStart, dateEnd, err
+	}
+	if err := s.lockStaffAbsenceWrites(ctx, subjectStaffID); err != nil {
+		return dateStart, dateEnd, err
+	}
+	if req.AbsenceTypeID != nil {
+		if _, err := s.absenceTypes.PreviewAllowanceBooking(
+			ctx, subjectStaffID, *req.AbsenceTypeID, dateStart, dateEnd, req.HalfDay,
+		); err != nil {
+			return dateStart, dateEnd, err
+		}
+	}
+	return dateStart, dateEnd, nil
+}
+
+// storeAbsence checks for overlapping absences, merges if same type, rejects
+// if different type, and otherwise creates a new absence.
+func (s *staffAbsenceService) storeAbsence(ctx context.Context, subjectStaffID, createdByStaffID int64, selectedType *StaffAbsenceType, dateStart, dateEnd calendar.Date, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
+	existing, err := s.absenceRepo.GetByStaffAndDateRange(ctx, subjectStaffID, dateStart, dateEnd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check existing absences: %w", err)
+	}
+
+	if blocking := filterBlockingAbsences(existing); len(blocking) > 0 {
+		if selectedType != nil && selectedType.AllowanceEnabled {
+			return nil, ErrAllowanceBookingOverlap
+		}
+		return s.mergeOverlappingAbsences(ctx, blocking, dateStart, dateEnd, createdByStaffID, req)
+	}
+	if err := validateSingleDayHalfDayAbsence(req.AbsenceType, req.HalfDay, dateStart, dateEnd); err != nil {
+		return nil, err
+	}
+	s.warnIfWorkSessionsExist(ctx, subjectStaffID, dateStart, dateEnd)
+	return s.createNewAbsence(ctx, subjectStaffID, createdByStaffID, dateStart, dateEnd, req)
 }
 
 // cascadeSickReport fans a full-day sick report out into the plans (#1843).

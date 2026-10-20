@@ -74,8 +74,7 @@ func (s *ScheduleReviews) ListPending(ctx context.Context, filter careplan.Reque
 	if err != nil {
 		today = s.deps.Today()
 	}
-	plans := map[int64]reviewPlanFacts{}
-	planErrors := map[int64]error{}
+	plans := reviewPlanCache{plans: map[int64]reviewPlanFacts{}, errs: map[int64]error{}}
 	for i := range rows {
 		row := &rows[i]
 		student, found := students[row.StudentID]
@@ -84,33 +83,7 @@ func (s *ScheduleReviews) ListPending(ctx context.Context, filter careplan.Reque
 		}
 		name := names[student.PersonID]
 		item := &careplan.CareScheduleReviewItem{Request: row, FirstName: name.FirstName, LastName: name.LastName}
-		if row.RequestKind == "pickup_change" {
-			item.Diff, err = s.pickupDiff(ctx, row, student, item)
-		} else {
-			plan, loaded := plans[student.ID]
-			planErr, failed := planErrors[student.ID]
-			if !loaded && !failed {
-				plan, planErr = s.plan(ctx, student, today, true)
-				if planErr != nil {
-					planErrors[student.ID] = planErr
-				} else {
-					plans[student.ID] = plan
-				}
-			}
-			err = planErr
-			if err == nil {
-				var payload careplan.CareWeeklyChange
-				err = json.Unmarshal(row.Payload, &payload)
-				if err == nil {
-					var current careplan.CareWeeklyPlan
-					current, err = plan.weekly(today)
-					if err == nil {
-						item.Diff = careplan.WeeklyCareDiff(payload.Weekdays, current)
-					}
-				}
-			}
-		}
-		if err != nil {
+		if err := s.careRequestDiff(ctx, row, student, item, today, plans); err != nil {
 			s.deps.Logger.Warn("schedule: build care request diff failed",
 				"request_id", row.ID,
 				"error", err.Error(),
@@ -120,6 +93,52 @@ func (s *ScheduleReviews) ListPending(ctx context.Context, filter careplan.Reque
 		items = append(items, item)
 	}
 	return items, next, nil
+}
+
+// reviewPlanCache holds one weekly plan, or its load error, per student so a
+// student with several requests is read once.
+type reviewPlanCache struct {
+	plans map[int64]reviewPlanFacts
+	errs  map[int64]error
+}
+
+func (s *ScheduleReviews) cachedPlan(ctx context.Context, cache reviewPlanCache, student careplan.ReviewStudent, today careplan.Date) (reviewPlanFacts, error) {
+	plan, loaded := cache.plans[student.ID]
+	planErr, failed := cache.errs[student.ID]
+	if loaded || failed {
+		return plan, planErr
+	}
+	plan, planErr = s.plan(ctx, student, today, true)
+	if planErr != nil {
+		cache.errs[student.ID] = planErr
+	} else {
+		cache.plans[student.ID] = plan
+	}
+	return plan, planErr
+}
+
+// careRequestDiff sets the item's diff: a pickup change against the stored
+// pickups, any other request against the student's current weekly plan.
+func (s *ScheduleReviews) careRequestDiff(ctx context.Context, row *careplan.CareScheduleChangeRequest, student careplan.ReviewStudent, item *careplan.CareScheduleReviewItem, today careplan.Date, plans reviewPlanCache) error {
+	if row.RequestKind == "pickup_change" {
+		var err error
+		item.Diff, err = s.pickupDiff(ctx, row, student, item)
+		return err
+	}
+	plan, err := s.cachedPlan(ctx, plans, student, today)
+	if err != nil {
+		return err
+	}
+	var payload careplan.CareWeeklyChange
+	if err := json.Unmarshal(row.Payload, &payload); err != nil {
+		return err
+	}
+	current, err := plan.weekly(today)
+	if err != nil {
+		return err
+	}
+	item.Diff = careplan.WeeklyCareDiff(payload.Weekdays, current)
+	return nil
 }
 
 func (s *ScheduleReviews) people(ctx context.Context, rows []careplan.CareScheduleChangeRequest, operation string) (map[int64]careplan.ReviewStudent, map[int64]careplan.PersonName, error) {
@@ -204,61 +223,85 @@ func (s *ScheduleReviews) plan(ctx context.Context, student careplan.ReviewStude
 	}
 	from, to := date, date
 	if weekly {
-		from = date.StartOfISOWeek()
-		to = from.AddDays(4)
-		if date.After(to) {
-			to = date
-		}
-		facts.arrivals, err = s.deps.Schedules.ListArrivalSchedules(ctx, filter)
-		if err != nil {
+		from, to = reviewWeekRange(date)
+		if err := s.weeklyPlanFacts(ctx, student, filter, &facts); err != nil {
 			return facts, err
 		}
-		classes, readErr := s.deps.Classes.ListClassArrivalTimes(ctx, []string{student.SchoolClass})
-		if readErr != nil {
-			return facts, readErr
-		}
-		facts.classTimes = classes[strings.ToLower(strings.TrimSpace(student.SchoolClass))]
-		modes, readErr := s.deps.People.DepartureModes(ctx, []int64{student.ID})
-		if readErr != nil {
-			return facts, readErr
-		}
-		facts.departureModes = modes[student.ID]
 	}
 	facts.authoritative, err = s.deps.BookingsAuthoritative(ctx)
 	if err != nil {
 		return facts, err
 	}
-	bookings, err := s.deps.Bookings.ApprovedForStudents(ctx, []int64{student.ID}, from, to)
+	facts.bookings, err = s.planBookings(ctx, student.ID, from, to)
+	return facts, err
+}
+
+// reviewWeekRange spans Monday to Friday of the date's ISO week, extended to
+// the date itself when it falls on the weekend.
+func reviewWeekRange(date careplan.Date) (careplan.Date, careplan.Date) {
+	from := date.StartOfISOWeek()
+	to := from.AddDays(4)
+	if date.After(to) {
+		to = date
+	}
+	return from, to
+}
+
+// weeklyPlanFacts loads the stored arrivals, class arrival times and
+// departure modes a weekly plan needs.
+func (s *ScheduleReviews) weeklyPlanFacts(ctx context.Context, student careplan.ReviewStudent, filter careplan.StudentScheduleFilter, facts *reviewPlanFacts) error {
+	var err error
+	facts.arrivals, err = s.deps.Schedules.ListArrivalSchedules(ctx, filter)
 	if err != nil {
-		return facts, err
+		return err
+	}
+	classes, err := s.deps.Classes.ListClassArrivalTimes(ctx, []string{student.SchoolClass})
+	if err != nil {
+		return err
+	}
+	facts.classTimes = classes[strings.ToLower(strings.TrimSpace(student.SchoolClass))]
+	modes, err := s.deps.People.DepartureModes(ctx, []int64{student.ID})
+	if err != nil {
+		return err
+	}
+	facts.departureModes = modes[student.ID]
+	return nil
+}
+
+// planBookings resolves the student's approved bookings in the range to their
+// offerings; bookings of an unknown offering are dropped.
+func (s *ScheduleReviews) planBookings(ctx context.Context, studentID int64, from, to careplan.Date) ([]reviewPlanSelection, error) {
+	bookings, err := s.deps.Bookings.ApprovedForStudents(ctx, []int64{studentID}, from, to)
+	if err != nil {
+		return nil, err
 	}
 	ids := make([]int64, 0, len(bookings))
 	for _, booking := range bookings {
-		if booking.StudentID == student.ID {
+		if booking.StudentID == studentID {
 			ids = append(ids, booking.OfferingID)
 		}
 	}
 	if len(ids) == 0 {
-		return facts, nil
+		return nil, nil
 	}
 	offerings, err := s.deps.Schedules.ListCareOfferings(ctx, domain.CareOfferingFilter{IDs: ids})
 	if err != nil {
-		return facts, err
+		return nil, err
 	}
 	byID := make(map[int64]careplan.CareOffering, len(offerings))
 	for _, row := range offerings {
 		byID[row.ID] = careplan.CareOffering{ID: row.ID, IsActive: row.IsActive, CountsAsCare: row.CountsAsCare, DaysOfWeekMode: row.DaysOfWeekMode, AvailableDays: row.AvailableDays, PickupTimes: row.PickupTimes}
 	}
+	var selections []reviewPlanSelection
 	for _, booking := range bookings {
-		if booking.StudentID != student.ID {
+		if booking.StudentID != studentID {
 			continue
 		}
-		offering, found := byID[booking.OfferingID]
-		if found {
-			facts.bookings = append(facts.bookings, reviewPlanSelection{offering: offering, selectedDays: booking.SelectedDays, from: booking.ValidFrom, until: booking.ValidUntil})
+		if offering, found := byID[booking.OfferingID]; found {
+			selections = append(selections, reviewPlanSelection{offering: offering, selectedDays: booking.SelectedDays, from: booking.ValidFrom, until: booking.ValidUntil})
 		}
 	}
-	return facts, nil
+	return selections, nil
 }
 
 type scheduleReviewCommands struct{ commands *ScheduleReviews }

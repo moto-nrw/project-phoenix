@@ -45,51 +45,69 @@ func (s *service) getLogger() *slog.Logger {
 // and carries the more specific wording.
 func (s *service) nonWorkingDays(ctx context.Context, from, to calendar.Date) map[Date]string {
 	labels := map[Date]string{}
-
 	if s.deps.Holidays != nil {
-		holidays, err := s.deps.Holidays.HolidaysInRange(ctx, dayKey(from), dayKey(to))
-		if err != nil {
-			// A missing holiday label costs a line on the sheet, not its
-			// correctness — the plan itself is unaffected.
-			s.getLogger().Warn("plan export: holiday lookup failed", "error", err.Error())
-		}
-		for _, holiday := range holidays {
-			labels[holiday.Date] = "Feiertag: " + holiday.Name
-		}
+		s.addHolidayLabels(ctx, from, to, labels)
 	}
-
 	if s.deps.ClosingDays != nil {
-		ranges, err := s.deps.ClosingDays.ClosingDaysInRange(ctx, dayKey(from), dayKey(to))
-		if err != nil {
-			s.getLogger().Warn("plan export: closing day lookup failed", "error", err.Error())
+		s.addClosingDayLabels(ctx, from, to, labels)
+	}
+	return labels
+}
+
+// addHolidayLabels labels every public holiday in the range.
+func (s *service) addHolidayLabels(ctx context.Context, from, to calendar.Date, labels map[Date]string) {
+	holidays, err := s.deps.Holidays.HolidaysInRange(ctx, dayKey(from), dayKey(to))
+	if err != nil {
+		// A missing holiday label costs a line on the sheet, not its
+		// correctness — the plan itself is unaffected.
+		s.getLogger().Warn("plan export: holiday lookup failed", "error", err.Error())
+	}
+	for _, holiday := range holidays {
+		labels[holiday.Date] = "Feiertag: " + holiday.Name
+	}
+}
+
+// addClosingDayLabels labels every closing day in the range, overwriting a
+// holiday label on the same day.
+func (s *service) addClosingDayLabels(ctx context.Context, from, to calendar.Date, labels map[Date]string) {
+	ranges, err := s.deps.ClosingDays.ClosingDaysInRange(ctx, dayKey(from), dayKey(to))
+	if err != nil {
+		s.getLogger().Warn("plan export: closing day lookup failed", "error", err.Error())
+	}
+	for _, closing := range ranges {
+		if closing == nil {
+			continue
 		}
-		for _, closing := range ranges {
-			if closing == nil {
-				continue
-			}
-			start, err := calendar.ParseDate(string(closing.StartDate))
-			if err != nil {
-				s.getLogger().Warn("plan export: closing day has no valid start", "error", err.Error())
-				continue
-			}
-			end, err := calendar.ParseDate(string(closing.EndDate))
-			if err != nil {
-				s.getLogger().Warn("plan export: closing day has no valid end", "error", err.Error())
-				continue
-			}
-			if start.Before(from) {
-				start = from
-			}
-			if end.After(to) {
-				end = to
-			}
-			for day := start; !day.After(end); day = day.AddDays(1) {
-				labels[dayKey(day)] = "Schließtag: " + closing.Reason
-			}
+		start, end, ok := s.closingDayBounds(closing, from, to)
+		if !ok {
+			continue
+		}
+		for day := start; !day.After(end); day = day.AddDays(1) {
+			labels[dayKey(day)] = "Schließtag: " + closing.Reason
 		}
 	}
+}
 
-	return labels
+// closingDayBounds parses a closing range and clamps it to [from, to]. It
+// logs and reports false when either bound is not a valid date.
+func (s *service) closingDayBounds(closing *ClosingPeriod, from, to calendar.Date) (calendar.Date, calendar.Date, bool) {
+	start, err := calendar.ParseDate(string(closing.StartDate))
+	if err != nil {
+		s.getLogger().Warn("plan export: closing day has no valid start", "error", err.Error())
+		return "", "", false
+	}
+	end, err := calendar.ParseDate(string(closing.EndDate))
+	if err != nil {
+		s.getLogger().Warn("plan export: closing day has no valid end", "error", err.Error())
+		return "", "", false
+	}
+	if start.Before(from) {
+		start = from
+	}
+	if end.After(to) {
+		end = to
+	}
+	return start, end, true
 }
 
 // document assembles the finished document from per-week row builders.

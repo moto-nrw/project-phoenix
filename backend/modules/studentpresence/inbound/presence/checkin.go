@@ -109,21 +109,9 @@ func (rs *Resource) parseAndValidateCheckinRequest(ctx context.Context, r *http.
 		return nil, &checkinError{statusCode: http.StatusBadRequest, message: "active_group_id is required"}
 	}
 
-	// Get and validate the active group
-	activeGroup, groupErr := rs.presenceLiveGroup(ctx, req.ActiveGroupID)
-	if groupErr != nil {
-		// Distinguish "not found" from other errors (DB failures, timeouts)
-		if errors.Is(groupErr, studentpresence.ErrGroupNotFound) {
-			return nil, &checkinError{statusCode: http.StatusNotFound, message: "Active group not found"}
-		}
-		return nil, &checkinError{statusCode: http.StatusInternalServerError, message: "Failed to retrieve active group"}
-	}
-	if activeGroup == nil {
-		return nil, &checkinError{statusCode: http.StatusNotFound, message: "Active group not found"}
-	}
-
-	if !activeGroup.IsOpen() {
-		return nil, &checkinError{statusCode: http.StatusConflict, message: "The selected room session is no longer active"}
+	activeGroup, groupCheckErr := rs.openCheckinGroup(ctx, req.ActiveGroupID)
+	if groupCheckErr != nil {
+		return nil, groupCheckErr
 	}
 
 	// Get staff authorization
@@ -138,6 +126,27 @@ func (rs *Resource) parseAndValidateCheckinRequest(ctx context.Context, r *http.
 		staff:       staff,
 		request:     req,
 	}, nil
+}
+
+// openCheckinGroup loads the room session a check-in targets and requires it
+// to be open.
+func (rs *Resource) openCheckinGroup(ctx context.Context, activeGroupID int64) (*studentpresence.LiveGroup, *checkinError) {
+	activeGroup, groupErr := rs.presenceLiveGroup(ctx, activeGroupID)
+	if groupErr != nil {
+		// Distinguish "not found" from other errors (DB failures, timeouts)
+		if errors.Is(groupErr, studentpresence.ErrGroupNotFound) {
+			return nil, &checkinError{statusCode: http.StatusNotFound, message: "Active group not found"}
+		}
+		return nil, &checkinError{statusCode: http.StatusInternalServerError, message: "Failed to retrieve active group"}
+	}
+	if activeGroup == nil {
+		return nil, &checkinError{statusCode: http.StatusNotFound, message: "Active group not found"}
+	}
+
+	if !activeGroup.IsOpen() {
+		return nil, &checkinError{statusCode: http.StatusConflict, message: "The selected room session is no longer active"}
+	}
+	return activeGroup, nil
 }
 
 // getAuthorizedStaff checks if the user is authorized to check in the student

@@ -68,16 +68,7 @@ func (s *staffAbsenceService) ensureVacationFits(ctx context.Context, candidate 
 		if err != nil {
 			return err
 		}
-		counted := make([]*StaffAbsence, 0, len(in.absences))
-		for _, a := range in.absences {
-			if a.ID == excludeID && excludeID != 0 {
-				continue
-			}
-			if !withReserved && (a.Status == AbsenceStatusRequested || a.Status == AbsenceStatusQuestion) {
-				continue
-			}
-			counted = append(counted, a)
-		}
+		counted := countedVacationAbsences(in.absences, excludeID, withReserved)
 		summary := computeVacationQuotaSummary(candidate.StaffID, year, in.entitled, in.carryover, counted, in.opening)
 		needed := vacationDaysForYear(candidate, year)
 		if needed > summary.RemainingDays+vacationDayEpsilon {
@@ -85,6 +76,23 @@ func (s *staffAbsenceService) ensureVacationFits(ctx context.Context, candidate 
 		}
 	}
 	return nil
+}
+
+// countedVacationAbsences is the part of a year's absences the account of a
+// candidate booking counts: without the candidate's own stored row
+// (excludeID) and, unless withReserved, without the open requests.
+func countedVacationAbsences(absences []*StaffAbsence, excludeID int64, withReserved bool) []*StaffAbsence {
+	counted := make([]*StaffAbsence, 0, len(absences))
+	for _, a := range absences {
+		if a.ID == excludeID && excludeID != 0 {
+			continue
+		}
+		if !withReserved && (a.Status == AbsenceStatusRequested || a.Status == AbsenceStatusQuestion) {
+			continue
+		}
+		counted = append(counted, a)
+	}
+	return counted
 }
 
 // vacationDayEpsilon absorbs float noise from half-day sums.

@@ -45,12 +45,7 @@ type LaborTimeEvaluation struct {
 func EvaluateLaborTime(ws *WorkSession, breaks []*WorkSessionBreak, now time.Time) LaborTimeEvaluation {
 	net := netMinutesWithBreaks(ws, breaks, now)
 	taken := totalBreakMinutes(ws, breaks, now)
-	required := 0
-	if net > breakShortThresholdMinutes {
-		required = breakLongRequiredMinutes
-	} else if net > breakNoneThresholdMinutes {
-		required = breakShortRequiredMinutes
-	}
+	required := requiredBreakMinutes(net)
 	return LaborTimeEvaluation{
 		NetMinutes:           net,
 		BreakMinutes:         taken,
@@ -83,28 +78,42 @@ func EvaluateWorkSessionsLaborTime(sessions []*WorkSession, breaksBySession map[
 		net += worked
 		taken += breakMinutes
 		qualifyingBreaks += qualifyingBreakMinutes(breaks, start, end, breakMinutes)
-		if prevEnd != nil && start.After(*prevEnd) {
-			gap := int(start.Sub(*prevEnd).Minutes())
-			if gap >= minimumQualifyingBreakMinutes {
-				qualifyingGaps += gap
-			}
-		}
+		qualifyingGaps += qualifyingGapMinutes(prevEnd, start)
 		if prevEnd == nil || end.After(*prevEnd) {
 			prevEnd = &end
 		}
 	}
-	required := 0
-	if net > breakShortThresholdMinutes {
-		required = breakLongRequiredMinutes
-	} else if net > breakNoneThresholdMinutes {
-		required = breakShortRequiredMinutes
-	}
+	required := requiredBreakMinutes(net)
 	return LaborTimeEvaluation{
 		NetMinutes:           net,
 		BreakMinutes:         taken,
 		RequiredBreakMinutes: required,
 		IsBreakCompliant:     qualifyingBreaks+qualifyingGaps >= required,
 	}
+}
+
+// requiredBreakMinutes is the break §4 ArbZG requires for the net work time.
+func requiredBreakMinutes(net int) int {
+	if net > breakShortThresholdMinutes {
+		return breakLongRequiredMinutes
+	}
+	if net > breakNoneThresholdMinutes {
+		return breakShortRequiredMinutes
+	}
+	return 0
+}
+
+// qualifyingGapMinutes is the gap between the previous block's end and the
+// next block's start when it is long enough to count as a break.
+func qualifyingGapMinutes(prevEnd *time.Time, start time.Time) int {
+	if prevEnd == nil || !start.After(*prevEnd) {
+		return 0
+	}
+	gap := int(start.Sub(*prevEnd).Minutes())
+	if gap < minimumQualifyingBreakMinutes {
+		return 0
+	}
+	return gap
 }
 
 func qualifyingBreakMinutes(breaks []*WorkSessionBreak, start, end time.Time, fallback int) int {
@@ -209,31 +218,8 @@ func netMinutesByDate(session *WorkSession, breaks []*WorkSessionBreak, end time
 		return minutesByDate
 	}
 	for day := calendar.DateFromTime(session.CheckInTime); !day.After(calendar.DateFromTime(end)); day = day.AddDays(1) {
-		start := session.CheckInTime
-		if midnight := day.BerlinMidnight(); start.Before(midnight) {
-			start = midnight
-		}
-		dayEnd := day.AddDays(1).BerlinMidnight()
-		if end.Before(dayEnd) {
-			dayEnd = end
-		}
-		minutes := int(dayEnd.Sub(start).Minutes())
-		for _, brk := range breaks {
-			breakEnd := end
-			if brk.EndedAt != nil && brk.EndedAt.Before(breakEnd) {
-				breakEnd = *brk.EndedAt
-			}
-			breakStart := brk.StartedAt
-			if breakStart.Before(start) {
-				breakStart = start
-			}
-			if breakEnd.After(dayEnd) {
-				breakEnd = dayEnd
-			}
-			if breakEnd.After(breakStart) {
-				minutes -= int(breakEnd.Sub(breakStart).Minutes())
-			}
-		}
+		start, dayEnd := sessionDaySpan(session.CheckInTime, end, day)
+		minutes := int(dayEnd.Sub(start).Minutes()) - breakMinutesWithin(breaks, end, start, dayEnd)
 		// Legacy rows may carry only the cached break total. New rows always
 		// have break intervals, which take precedence for correct day mapping.
 		if len(breaks) == 0 && cachedBreakMinutes > 0 {
@@ -249,6 +235,42 @@ func netMinutesByDate(session *WorkSession, breaks []*WorkSessionBreak, end time
 		}
 	}
 	return minutesByDate
+}
+
+// sessionDaySpan is the part of a session [checkIn, end) that falls on day.
+func sessionDaySpan(checkIn, end time.Time, day calendar.Date) (time.Time, time.Time) {
+	start := checkIn
+	if midnight := day.BerlinMidnight(); start.Before(midnight) {
+		start = midnight
+	}
+	dayEnd := day.AddDays(1).BerlinMidnight()
+	if end.Before(dayEnd) {
+		dayEnd = end
+	}
+	return start, dayEnd
+}
+
+// breakMinutesWithin sums the break time inside [start, dayEnd); a running
+// break lasts until the session end.
+func breakMinutesWithin(breaks []*WorkSessionBreak, end, start, dayEnd time.Time) int {
+	minutes := 0
+	for _, brk := range breaks {
+		breakEnd := end
+		if brk.EndedAt != nil && brk.EndedAt.Before(breakEnd) {
+			breakEnd = *brk.EndedAt
+		}
+		breakStart := brk.StartedAt
+		if breakStart.Before(start) {
+			breakStart = start
+		}
+		if breakEnd.After(dayEnd) {
+			breakEnd = dayEnd
+		}
+		if breakEnd.After(breakStart) {
+			minutes += int(breakEnd.Sub(breakStart).Minutes())
+		}
+	}
+	return minutes
 }
 
 // isOvertime reports whether net work time exceeds the statutory overtime

@@ -325,32 +325,11 @@ func (s *Service) UpdateAbsenceType(ctx context.Context, id int64, name *string,
 		AllowanceEnabled: existing.AllowanceEnabled, CarryoverUntil: existing.CarryoverUntil,
 	}
 	if name != nil {
-		fields.Name = *name
-		if err := fields.Normalize(); err != nil {
+		if err := s.renameAbsenceType(ctx, id, existing.Name, *name, &fields); err != nil {
 			return domain.StaffAbsenceType{}, err
 		}
-		if err := s.checkAbsenceTypeName(ctx, fields.Name, id); err != nil {
-			return domain.StaffAbsenceType{}, err
-		}
-		if fields.Name != existing.Name {
-			inUse, err := s.StaffAbsenceTypeInUse(ctx, id)
-			if err != nil {
-				return domain.StaffAbsenceType{}, fmt.Errorf("check absence type usage: database error during check staff absence type usage: %w", err)
-			}
-			if inUse {
-				return domain.StaffAbsenceType{}, domain.ErrAbsenceTypeInUse
-			}
-		}
 	}
-	if isActive != nil {
-		fields.IsActive = *isActive
-	}
-	if allowanceEnabled != nil {
-		fields.AllowanceEnabled = *allowanceEnabled
-	}
-	if carryoverUntil != nil {
-		fields.CarryoverUntil = *carryoverUntil
-	}
+	applyAbsenceTypeSettings(&fields, isActive, allowanceEnabled, carryoverUntil)
 	if err := fields.Normalize(); err != nil {
 		return domain.StaffAbsenceType{}, err
 	}
@@ -366,6 +345,43 @@ func (s *Service) UpdateAbsenceType(ctx context.Context, id int64, name *string,
 		return domain.StaffAbsenceType{}, fmt.Errorf("database error during update staff absence type: %w", err)
 	}
 	return updated, nil
+}
+
+// renameAbsenceType sets the normalized new name on fields. The name must be
+// free and not reserved; a changed name additionally requires that no absence
+// uses the type yet.
+func (s *Service) renameAbsenceType(ctx context.Context, id int64, currentName, name string, fields *domain.StaffAbsenceTypeFields) error {
+	fields.Name = name
+	if err := fields.Normalize(); err != nil {
+		return err
+	}
+	if err := s.checkAbsenceTypeName(ctx, fields.Name, id); err != nil {
+		return err
+	}
+	if fields.Name == currentName {
+		return nil
+	}
+	inUse, err := s.StaffAbsenceTypeInUse(ctx, id)
+	if err != nil {
+		return fmt.Errorf("check absence type usage: database error during check staff absence type usage: %w", err)
+	}
+	if inUse {
+		return domain.ErrAbsenceTypeInUse
+	}
+	return nil
+}
+
+// applyAbsenceTypeSettings overwrites the settings the update supplied.
+func applyAbsenceTypeSettings(fields *domain.StaffAbsenceTypeFields, isActive, allowanceEnabled *bool, carryoverUntil *string) {
+	if isActive != nil {
+		fields.IsActive = *isActive
+	}
+	if allowanceEnabled != nil {
+		fields.AllowanceEnabled = *allowanceEnabled
+	}
+	if carryoverUntil != nil {
+		fields.CarryoverUntil = *carryoverUntil
+	}
 }
 
 func (s *Service) CreateStaffAbsenceType(ctx context.Context, fields domain.StaffAbsenceTypeFields) (result domain.StaffAbsenceType, err error) {

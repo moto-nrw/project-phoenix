@@ -144,36 +144,9 @@ func (s *Store) ListGroupAssignments(ctx context.Context, filter domain.GroupAss
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []groupAssignmentRow{}
-	query := withTenant(groupAssignmentSelect(db, &rows), "group_assignment", scope)
-	if filter.IDs != nil {
-		if len(filter.IDs) == 0 {
-			return []domain.GroupAssignment{}, domain.OperationStats{}, nil
-		}
-		query = query.Where(`"group_assignment".id IN (?)`, bun.List(filter.IDs))
-	}
-	if filter.GroupIDs != nil {
-		if len(filter.GroupIDs) == 0 {
-			return []domain.GroupAssignment{}, domain.OperationStats{}, nil
-		}
-		query = query.Where(`"group_assignment".group_id IN (?)`, bun.List(filter.GroupIDs))
-	}
-	if filter.TeacherIDs != nil {
-		if len(filter.TeacherIDs) == 0 {
-			return []domain.GroupAssignment{}, domain.OperationStats{}, nil
-		}
-		query = query.Where(`"group_assignment".teacher_id IN (?)`, bun.List(filter.TeacherIDs))
-	}
-	if filter.TeacherStaffIDs != nil {
-		if len(filter.TeacherStaffIDs) == 0 {
-			return []domain.GroupAssignment{}, domain.OperationStats{}, nil
-		}
-		query = query.
-			Join(`INNER JOIN users.teachers AS "teacher" ON "teacher".id = "group_assignment".teacher_id`).
-			Where(`"teacher".staff_id IN (?)`, bun.List(filter.TeacherStaffIDs))
-	}
-	query = query.OrderExpr(`"group_assignment".id ASC`)
-	if filter.ForUpdate {
-		query = query.For("UPDATE OF group_assignment")
+	query, ok := groupAssignmentListQuery(withTenant(groupAssignmentSelect(db, &rows), "group_assignment", scope), filter)
+	if !ok {
+		return []domain.GroupAssignment{}, domain.OperationStats{}, nil
 	}
 	stats, err := scanAll(ctx, query, "list group assignments")
 	if err != nil {

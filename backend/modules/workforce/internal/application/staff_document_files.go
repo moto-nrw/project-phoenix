@@ -17,7 +17,7 @@ import (
 // staffDocumentFiles removes the stored bytes of staff documents below the
 // public upload directory.
 type staffDocumentFiles struct {
-	documents workforce.StaffDocuments
+	documents workforce.StaffDocumentFileCleanups
 	queue     workforce.DocumentCleanupQueue
 	uploads   workforce.StaffDocumentUploads
 	logger    *slog.Logger
@@ -26,7 +26,7 @@ type staffDocumentFiles struct {
 // NewStaffDocumentFileRecovery builds the staff document file removal over
 // the document service, the offboarding cleanup queue and the upload
 // directory. Every dependency is required.
-func NewStaffDocumentFileRecovery(documents workforce.StaffDocuments, queue workforce.DocumentCleanupQueue, uploads workforce.StaffDocumentUploads, logger *slog.Logger) (workforce.StaffDocumentFileRecovery, error) {
+func NewStaffDocumentFileRecovery(documents workforce.StaffDocumentFileCleanups, queue workforce.DocumentCleanupQueue, uploads workforce.StaffDocumentUploads, logger *slog.Logger) (workforce.StaffDocumentFileRecovery, error) {
 	if documents == nil || queue == nil || uploads == nil || logger == nil {
 		return nil, errors.New("workforce staff document files: all dependencies are required")
 	}

@@ -12,25 +12,9 @@ import (
 )
 
 func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, req UpdateAbsenceRequest) (*StaffAbsenceResponse, error) {
-	if err := s.lockStaffAbsenceWrites(ctx, staffID); err != nil {
-		return nil, err
-	}
-	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
+	absence, err := s.loadSelfEditableAbsence(ctx, staffID, absenceID, req)
 	if err != nil {
-		return nil, workforce.ErrAbsenceNotFound
-	}
-
-	// Verify ownership
-	if absence.StaffID != staffID {
-		return nil, workforce.ErrAbsenceUpdateNotOwned
-	}
-	if err := s.rejectManagerControlledCustomUpdate(ctx, absence, req); err != nil {
 		return nil, err
-	}
-	if absence.AbsenceType == AbsenceTypeCompTime ||
-		(req.AbsenceType != nil && *req.AbsenceType == AbsenceTypeCompTime) ||
-		isDirectVacation(absence) {
-		return nil, ErrManagerControlledAbsence
 	}
 	before := *absence
 	if err := validateAbsenceUpdate(absence, req); err != nil {
@@ -41,44 +25,10 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 	if err := applyAbsenceUpdates(absence, req); err != nil {
 		return nil, err
 	}
-	// A re-pointed Abwesenheitsart (#2403) also re-pins the canonical type, so
-	// the name and the arithmetic can never drift apart on an edit either. An
-	// unchanged retired art is deliberately preserved: historic entries remain
-	// editable, while resolving a newly selected retired art still rejects it.
-	if req.AbsenceTypeIDSet || req.AbsenceTypeID != nil {
-		if before.AbsenceType == AbsenceTypeSick &&
-			!sameAbsenceTypeID(req.AbsenceTypeID, before.AbsenceTypeID) {
-			return nil, &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid absence type change: sick absences must be deleted and re-created, not converted")}
-		}
-		if sameAbsenceTypeID(req.AbsenceTypeID, before.AbsenceTypeID) {
-			absence.AbsenceTypeID = before.AbsenceTypeID
-			// Only a kept custom art re-pins the canonical type. With no art on
-			// either side there is nothing to pin to, and restoring the old type
-			// here would swallow a plain standard-type change: the client sends
-			// absence_type_id: null alongside every standard selection, so this
-			// branch is exactly the "Fortbildung → Sonstige" case.
-			if before.AbsenceTypeID != nil {
-				absence.AbsenceType = before.AbsenceType
-			}
-		} else {
-			_, typeID, baseType, err := s.resolveAbsenceTypeSelection(ctx, req.AbsenceTypeID, absence.AbsenceType)
-			if err != nil {
-				return nil, err
-			}
-			absence.AbsenceTypeID, absence.AbsenceType = typeID, baseType
-		}
-	} else if req.AbsenceType != nil && before.AbsenceTypeID != nil {
-		// A canonical type update without an art ID means the standard type. Do
-		// not retain the old custom ID, as that pair violates the DB constraint.
-		absence.AbsenceTypeID = nil
-	}
-	if err := validateSickAbsenceRange(absence.AbsenceType, absence.DateStart, absence.DateEnd); err != nil {
+	if err := s.repinAbsenceType(ctx, absence, &before, req); err != nil {
 		return nil, err
 	}
-	if err := validateSingleDayHalfDayAbsence(absence.AbsenceType, absence.HalfDay, absence.DateStart, absence.DateEnd); err != nil {
-		return nil, err
-	}
-	if err := s.rejectVacationBeforeOpening(ctx, absence); err != nil {
+	if err := s.validateUpdatedAbsenceRange(ctx, absence); err != nil {
 		return nil, err
 	}
 
@@ -103,6 +53,88 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 
 	s.broadcastTimeTrackingChanged(ctx)
 	return s.withLabel(ctx, toAbsenceResponse(absence)), nil
+}
+
+// loadSelfEditableAbsence takes the staff member's absence lock and returns
+// the absence when it is theirs and not manager-controlled.
+func (s *staffAbsenceService) loadSelfEditableAbsence(ctx context.Context, staffID, absenceID int64, req UpdateAbsenceRequest) (*StaffAbsence, error) {
+	if err := s.lockStaffAbsenceWrites(ctx, staffID); err != nil {
+		return nil, err
+	}
+	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
+	if err != nil {
+		return nil, workforce.ErrAbsenceNotFound
+	}
+
+	// Verify ownership
+	if absence.StaffID != staffID {
+		return nil, workforce.ErrAbsenceUpdateNotOwned
+	}
+	if err := s.rejectManagerControlledCustomUpdate(ctx, absence, req); err != nil {
+		return nil, err
+	}
+	if absence.AbsenceType == AbsenceTypeCompTime ||
+		(req.AbsenceType != nil && *req.AbsenceType == AbsenceTypeCompTime) ||
+		isDirectVacation(absence) {
+		return nil, ErrManagerControlledAbsence
+	}
+	return absence, nil
+}
+
+// repinAbsenceType keeps the Abwesenheitsart and the canonical type of an
+// edited absence consistent. A re-pointed Abwesenheitsart (#2403) also
+// re-pins the canonical type, so the name and the arithmetic can never drift
+// apart on an edit either. An unchanged retired art is deliberately
+// preserved: historic entries remain editable, while resolving a newly
+// selected retired art still rejects it.
+func (s *staffAbsenceService) repinAbsenceType(ctx context.Context, absence, before *StaffAbsence, req UpdateAbsenceRequest) error {
+	if req.AbsenceTypeIDSet || req.AbsenceTypeID != nil {
+		return s.repinSelectedAbsenceType(ctx, absence, before, req.AbsenceTypeID)
+	}
+	if req.AbsenceType != nil && before.AbsenceTypeID != nil {
+		// A canonical type update without an art ID means the standard type. Do
+		// not retain the old custom ID, as that pair violates the DB constraint.
+		absence.AbsenceTypeID = nil
+	}
+	return nil
+}
+
+// repinSelectedAbsenceType applies an Abwesenheitsart the edit names
+// explicitly, possibly as null.
+func (s *staffAbsenceService) repinSelectedAbsenceType(ctx context.Context, absence, before *StaffAbsence, typeID *int64) error {
+	if before.AbsenceType == AbsenceTypeSick &&
+		!sameAbsenceTypeID(typeID, before.AbsenceTypeID) {
+		return &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid absence type change: sick absences must be deleted and re-created, not converted")}
+	}
+	if !sameAbsenceTypeID(typeID, before.AbsenceTypeID) {
+		_, resolvedID, baseType, err := s.resolveAbsenceTypeSelection(ctx, typeID, absence.AbsenceType)
+		if err != nil {
+			return err
+		}
+		absence.AbsenceTypeID, absence.AbsenceType = resolvedID, baseType
+		return nil
+	}
+	absence.AbsenceTypeID = before.AbsenceTypeID
+	// Only a kept custom art re-pins the canonical type. With no art on
+	// either side there is nothing to pin to, and restoring the old type
+	// here would swallow a plain standard-type change: the client sends
+	// absence_type_id: null alongside every standard selection, so this
+	// branch is exactly the "Fortbildung → Sonstige" case.
+	if before.AbsenceTypeID != nil {
+		absence.AbsenceType = before.AbsenceType
+	}
+	return nil
+}
+
+// validateUpdatedAbsenceRange re-checks the range rules on the edited absence.
+func (s *staffAbsenceService) validateUpdatedAbsenceRange(ctx context.Context, absence *StaffAbsence) error {
+	if err := validateSickAbsenceRange(absence.AbsenceType, absence.DateStart, absence.DateEnd); err != nil {
+		return err
+	}
+	if err := validateSingleDayHalfDayAbsence(absence.AbsenceType, absence.HalfDay, absence.DateStart, absence.DateEnd); err != nil {
+		return err
+	}
+	return s.rejectVacationBeforeOpening(ctx, absence)
 }
 
 func (s *staffAbsenceService) rejectManagerControlledCustomUpdate(ctx context.Context, current *StaffAbsence, req UpdateAbsenceRequest) error {

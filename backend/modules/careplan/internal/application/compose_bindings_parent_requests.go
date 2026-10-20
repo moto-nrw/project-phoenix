@@ -6,14 +6,22 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 )
 
+// ExcusedCrossKindRequests is the part of the excused-absence workflow the
+// cross-kind bulk approval and conflict resolution use.
+type ExcusedCrossKindRequests interface {
+	excusedrequests.BulkApproval
+	excusedrequests.ConflictResolution
+}
+
 // excusedParentRequests presents the excused-absence workflow to the
 // cross-kind commands in the coordinator's vocabulary.
 type ExcusedParentRequests struct {
-	Requests careplan.ExcusedAbsenceRequests
+	Requests ExcusedCrossKindRequests
 }
 
 func (p ExcusedParentRequests) GetExcusedBulkCandidate(ctx context.Context, requestID int64) (*ports.ExcusedBulkCandidate, error) {

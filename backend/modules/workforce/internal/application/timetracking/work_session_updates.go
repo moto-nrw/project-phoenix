@@ -50,36 +50,43 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 		return nil, workforce.ErrSessionUpdateNotOwned
 	}
 
-	// A status change (Vor Ort ↔ Homeoffice) carries audit weight and must be
-	// justified. Otherwise the audit trail loses meaning. Requires the caller
-	// to send the reason in `notes` on the same request.
-	if updates.Status != nil && *updates.Status != session.Status {
-		if updates.Notes == nil || strings.TrimSpace(*updates.Notes) == "" {
-			return nil, workforce.ErrSessionStatusNoteRequired
-		}
-	}
-
-	// F8: with the deviation-reason setting active, self-edits of the
-	// recorded times (check-in, check-out, break minutes — including
-	// per-break duration edits, which are break-minute changes) need notes
-	// too, not only status changes. For the scalar fields the change
-	// detection mirrors applyTimeFieldUpdates/applyBreakUpdates, so an
-	// unchanged resend never trips the gate; a non-empty per-break list
-	// always counts as an edit intent (comparing it against stored rows
-	// would need an extra query before the ownership checks ran).
-	if s.selfEditChangesRecordedTimes(session, updates) {
-		if updates.Notes == nil || strings.TrimSpace(*updates.Notes) == "" {
-			required, err := s.deviationReasonRequired(ctx)
-			if err != nil {
-				return nil, err
-			}
-			if required {
-				return nil, workforce.ErrSessionTimesNoteRequired
-			}
-		}
+	if err := s.ensureSelfEditJustified(ctx, session, updates); err != nil {
+		return nil, err
 	}
 
 	return s.applySessionUpdate(ctx, staffID, session, updates)
+}
+
+// ensureSelfEditJustified enforces the notes a self-edit must carry.
+//
+// A status change (Vor Ort ↔ Homeoffice) carries audit weight and must be
+// justified. Otherwise the audit trail loses meaning. Requires the caller
+// to send the reason in `notes` on the same request.
+//
+// F8: with the deviation-reason setting active, self-edits of the
+// recorded times (check-in, check-out, break minutes — including
+// per-break duration edits, which are break-minute changes) need notes
+// too, not only status changes. For the scalar fields the change
+// detection mirrors applyTimeFieldUpdates/applyBreakUpdates, so an
+// unchanged resend never trips the gate; a non-empty per-break list
+// always counts as an edit intent (comparing it against stored rows
+// would need an extra query before the ownership checks ran).
+func (s *workSessionService) ensureSelfEditJustified(ctx context.Context, session *WorkSession, updates SessionUpdateRequest) error {
+	notesMissing := updates.Notes == nil || strings.TrimSpace(*updates.Notes) == ""
+	if updates.Status != nil && *updates.Status != session.Status && notesMissing {
+		return workforce.ErrSessionStatusNoteRequired
+	}
+	if !s.selfEditChangesRecordedTimes(session, updates) || !notesMissing {
+		return nil
+	}
+	required, err := s.deviationReasonRequired(ctx)
+	if err != nil {
+		return err
+	}
+	if required {
+		return workforce.ErrSessionTimesNoteRequired
+	}
+	return nil
 }
 
 // deviationReasonRequired resolves the F8/F9 tenant setting; nil settings
@@ -183,23 +190,8 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 }
 
 func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, req AdminCreateSessionRequest) (*WorkSession, error) {
-	if targetStaffID <= 0 {
-		return nil, workforce.ErrTargetStaffRequired
-	}
-	if strings.TrimSpace(req.Notes) == "" {
-		return nil, workforce.ErrAdminSessionCreateNoteRequired
-	}
-	if req.CheckInTime.IsZero() || req.CheckOutTime.IsZero() {
-		return nil, fmt.Errorf("check-in and check-out are required")
-	}
-	if !req.CheckOutTime.After(req.CheckInTime) {
-		return nil, workforce.ErrSessionCheckoutOrder
-	}
-	if req.Status == "" {
-		req.Status = WorkSessionStatusPresent
-	}
-	if req.BreakMinutes < 0 {
-		return nil, workforce.ErrAdminBreakMinutesNegative
+	if err := validateAdminCreateSession(targetStaffID, &req); err != nil {
+		return nil, err
 	}
 	if err := s.lockStaffBalanceWrites(ctx, targetStaffID); err != nil {
 		return nil, err
@@ -234,15 +226,49 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
-	// Audit trail: one entry per field so the EditHistoryAccordion can render
-	// the create as a normal change list with empty "Vorher" values.
+	edits := adminCreateAuditEdits(session.ID, targetStaffID, editorStaffID, date, req, tenant.FromContext(ctx))
+	if err := s.auditRepo.CreateBatch(ctx, edits); err != nil {
+		return nil, fmt.Errorf("failed to create audit entries: %w", err)
+	}
+
+	s.broadcastTimeTrackingChanged(ctx)
+	return session, nil
+}
+
+// validateAdminCreateSession checks an admin Nachtrag before anything is
+// locked or read, and defaults a missing status to present.
+func validateAdminCreateSession(targetStaffID int64, req *AdminCreateSessionRequest) error {
+	if targetStaffID <= 0 {
+		return workforce.ErrTargetStaffRequired
+	}
+	if strings.TrimSpace(req.Notes) == "" {
+		return workforce.ErrAdminSessionCreateNoteRequired
+	}
+	if req.CheckInTime.IsZero() || req.CheckOutTime.IsZero() {
+		return fmt.Errorf("check-in and check-out are required")
+	}
+	if !req.CheckOutTime.After(req.CheckInTime) {
+		return workforce.ErrSessionCheckoutOrder
+	}
+	if req.Status == "" {
+		req.Status = WorkSessionStatusPresent
+	}
+	if req.BreakMinutes < 0 {
+		return workforce.ErrAdminBreakMinutesNegative
+	}
+	return nil
+}
+
+// adminCreateAuditEdits builds the audit trail of an admin Nachtrag: one
+// entry per field so the EditHistoryAccordion can render the create as a
+// normal change list with empty "Vorher" values.
+func adminCreateAuditEdits(sessionID, targetStaffID, editorStaffID int64, date calendar.Date, req AdminCreateSessionRequest, tenantID int64) []*WorkSessionEdit {
 	now := time.Now()
 	notesPtr := req.Notes
 	strPtr := func(s string) *string { return &s }
-	tenantID := tenant.FromContext(ctx)
 	baseEdit := func(field string, newVal string) *WorkSessionEdit {
 		e := &WorkSessionEdit{
-			SessionID: session.ID,
+			SessionID: sessionID,
 			StaffID:   targetStaffID,
 			EditedBy:  editorStaffID,
 			FieldName: field,
@@ -254,19 +280,13 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 		e.SetTenantID(tenantID)
 		return e
 	}
-	edits := []*WorkSessionEdit{
+	return []*WorkSessionEdit{
 		baseEdit("date", date.String()),
 		baseEdit("check_in_time", req.CheckInTime.Format(time.RFC3339)),
 		baseEdit("check_out_time", req.CheckOutTime.Format(time.RFC3339)),
 		baseEdit("break_minutes", fmt.Sprintf("%d", req.BreakMinutes)),
 		baseEdit("status", req.Status),
 	}
-	if err := s.auditRepo.CreateBatch(ctx, edits); err != nil {
-		return nil, fmt.Errorf("failed to create audit entries: %w", err)
-	}
-
-	s.broadcastTimeTrackingChanged(ctx)
-	return session, nil
 }
 
 // assertNoBlockOverlap rejects a block whose [check-in, check-out) interval

@@ -31,11 +31,8 @@ func (s *workSessionService) CheckInOn(ctx context.Context, staffID int64, _ cal
 // the daily history, in shift and deviation lookups, and in every total built
 // from the date column.
 func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status, source, reason string, enforceDeviationGate bool) (*WorkSession, error) {
-	if status != WorkSessionStatusPresent && status != WorkSessionStatusHomeOffice {
-		return nil, workforce.ErrSessionStatusInvalid
-	}
-	if source != WorkSessionSourceApp && source != WorkSessionSourceNFC {
-		return nil, workforce.ErrSessionSourceInvalid
+	if err := validateCheckInChannel(status, source); err != nil {
+		return nil, err
 	}
 	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, err
@@ -44,43 +41,9 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status,
 	now := s.now()
 	stampDay := calendar.DateFromTime(now)
 
-	// Every block that reaches into the present, in one read: the open ones
-	// (they run to infinity, so the query returns them whatever day they were
-	// filed on) and the closed ones that still end after "now". The same rows
-	// answer both questions below — whether somebody is clocked in, and
-	// whether the new block would overlap an existing one.
-	siblings, err := s.repo.ListOverlappingByStaffID(ctx, staffID, now, nil)
+	siblings, err := s.presentSiblings(ctx, staffID, now)
 	if err != nil {
-		return nil, fmt.Errorf("failed to check existing session: %w", err)
-	}
-
-	// An open block anywhere means the person is clocked in — the check is
-	// deliberately NOT limited to the stamp's day. A block opened before
-	// Berlin midnight is still running after it; starting a second one there
-	// would leave two open blocks, and the checkout (which closes exactly
-	// one) would then report a different day's work than the totals do.
-	// The still-open block has to be closed first.
-	//
-	// A block whose live limit has passed is the exception, and it has to be
-	// CLOSED here, not merely skipped: the database permits a single open
-	// block per staff member (uq_work_sessions_staff_date_open), so a
-	// forgotten checkout that is only ignored lets this guard pass and then
-	// fails the INSERT — locking the person out of the clock entirely, which
-	// is exactly what #2402 set out to fix. It is closed at the instant it
-	// stopped counting as work everywhere else (BalanceSessionEnd), so no
-	// total, balance or history row changes value; the row merely stops
-	// hanging open and disappears from the kiosk's running block.
-	for _, sibling := range siblings {
-		if sibling.CheckOutTime != nil {
-			continue
-		}
-		expired, stale := ExpireStaleOpenBlock(sibling, now)
-		if !stale {
-			return nil, workforce.ErrAlreadyCheckedIn
-		}
-		if err := s.closeStaleOpenBlock(ctx, sibling, *expired.CheckOutTime); err != nil {
-			return nil, err
-		}
+		return nil, err
 	}
 
 	// Since #2402 a day carries a LIST of blocks. Closed blocks never block a
@@ -111,7 +74,86 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status,
 		}
 	}
 
-	// Create new session
+	session, err := s.createCheckInSession(ctx, staffID, stampDay, status, source, now)
+	if err != nil {
+		return nil, err
+	}
+
+	if deviation != nil {
+		if err := s.recordDeviationReason(ctx, session, deviation, reason, now); err != nil {
+			return nil, err
+		}
+	}
+
+	s.broadcastTimeTrackingChanged(ctx)
+	return session, nil
+}
+
+// validateCheckInChannel accepts the two work statuses and the two stamping
+// channels a check-in may carry.
+func validateCheckInChannel(status, source string) error {
+	if status != WorkSessionStatusPresent && status != WorkSessionStatusHomeOffice {
+		return workforce.ErrSessionStatusInvalid
+	}
+	if source != WorkSessionSourceApp && source != WorkSessionSourceNFC {
+		return workforce.ErrSessionSourceInvalid
+	}
+	return nil
+}
+
+// presentSiblings reads every block that reaches into the present, in one
+// read: the open ones (they run to infinity, so the query returns them
+// whatever day they were filed on) and the closed ones that still end after
+// "now". The same rows answer both questions of a check-in — whether somebody
+// is clocked in, and whether the new block would overlap an existing one.
+// Stale open blocks among them are closed before they are returned.
+func (s *workSessionService) presentSiblings(ctx context.Context, staffID int64, now time.Time) ([]*WorkSession, error) {
+	siblings, err := s.repo.ListOverlappingByStaffID(ctx, staffID, now, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check existing session: %w", err)
+	}
+	if err := s.closeStaleOpenSiblings(ctx, siblings, now); err != nil {
+		return nil, err
+	}
+	return siblings, nil
+}
+
+// closeStaleOpenSiblings refuses the check-in while a block is open. An open
+// block anywhere means the person is clocked in — the check is deliberately
+// NOT limited to the stamp's day. A block opened before Berlin midnight is
+// still running after it; starting a second one there would leave two open
+// blocks, and the checkout (which closes exactly one) would then report a
+// different day's work than the totals do. The still-open block has to be
+// closed first.
+//
+// A block whose live limit has passed is the exception, and it has to be
+// CLOSED here, not merely skipped: the database permits a single open block
+// per staff member (uq_work_sessions_staff_date_open), so a forgotten
+// checkout that is only ignored lets this guard pass and then fails the
+// INSERT — locking the person out of the clock entirely, which is exactly
+// what #2402 set out to fix. It is closed at the instant it stopped counting
+// as work everywhere else (BalanceSessionEnd), so no total, balance or
+// history row changes value; the row merely stops hanging open and
+// disappears from the kiosk's running block.
+func (s *workSessionService) closeStaleOpenSiblings(ctx context.Context, siblings []*WorkSession, now time.Time) error {
+	for _, sibling := range siblings {
+		if sibling.CheckOutTime != nil {
+			continue
+		}
+		expired, stale := ExpireStaleOpenBlock(sibling, now)
+		if !stale {
+			return workforce.ErrAlreadyCheckedIn
+		}
+		if err := s.closeStaleOpenBlock(ctx, sibling, *expired.CheckOutTime); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// createCheckInSession validates and stores the new open block filed on the
+// day of its own stamp.
+func (s *workSessionService) createCheckInSession(ctx context.Context, staffID int64, stampDay calendar.Date, status, source string, now time.Time) (*WorkSession, error) {
 	session := &WorkSession{
 		StaffID:      staffID,
 		Date:         stampDay,
@@ -131,14 +173,6 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status,
 	if err := s.repo.Create(ctx, session); err != nil {
 		return nil, fmt.Errorf("failed to create work session: %w", err)
 	}
-
-	if deviation != nil {
-		if err := s.recordDeviationReason(ctx, session, deviation, reason, now); err != nil {
-			return nil, err
-		}
-	}
-
-	s.broadcastTimeTrackingChanged(ctx)
 	return session, nil
 }
 

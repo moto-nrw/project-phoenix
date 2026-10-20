@@ -381,24 +381,10 @@ func (s *Service) ensurePickupWeekdayEnrollment(
 		return err
 	}
 	for _, enrollment := range enrollments {
-		if (enrollment.ValidUntil != nil && *enrollment.ValidUntil <= validFrom.String()) || (enrollment.Weekday != nil && *enrollment.Weekday != weekday) ||
-			!samePickupExtensionPeriod(enrollment.CalendarPeriodID, block.CalendarPeriodID) {
+		if !pickupEnrollmentExtendable(enrollment, block, weekday, validFrom) {
 			continue
 		}
-		fields := domain.StudentEnrollmentFields{
-			StudentID:                enrollment.StudentID,
-			ActivityGroupID:          enrollment.ActivityGroupID,
-			ValidFrom:                min(enrollment.ValidFrom, validFrom.String()),
-			ValidUntil:               enrollment.ValidUntil,
-			CalendarPeriodID:         enrollment.CalendarPeriodID,
-			EnrollmentRequestChildID: enrollment.EnrollmentRequestChildID,
-			SelectedWeekdays:         enrollment.SelectedWeekdays,
-			AttendanceStatus:         enrollment.AttendanceStatus,
-			Weekday:                  enrollment.Weekday,
-		}
-		if len(fields.SelectedWeekdays) > 0 && !slices.Contains(fields.SelectedWeekdays, weekday) {
-			fields.SelectedWeekdays = append(fields.SelectedWeekdays, weekday)
-		}
+		fields := extendedPickupEnrollmentFields(enrollment, weekday, validFrom)
 		_, found, updateStats, updateErr := s.store.UpdateStudentEnrollment(ctx, enrollment.ID, fields)
 		stats.Add(updateStats)
 		if updateErr != nil {
@@ -423,6 +409,39 @@ func (s *Service) ensurePickupWeekdayEnrollment(
 	return nil
 }
 
+// pickupEnrollmentExtendable reports whether an existing enrollment of the
+// child in the block can carry the weekday from validFrom on: it is still
+// valid then, not bound to another weekday, and in the block's period.
+func pickupEnrollmentExtendable(enrollment domain.StudentEnrollment, block domain.PickupExtensionBlock, weekday int, validFrom domain.Date) bool {
+	if enrollment.ValidUntil != nil && *enrollment.ValidUntil <= validFrom.String() {
+		return false
+	}
+	if enrollment.Weekday != nil && *enrollment.Weekday != weekday {
+		return false
+	}
+	return samePickupExtensionPeriod(enrollment.CalendarPeriodID, block.CalendarPeriodID)
+}
+
+// extendedPickupEnrollmentFields keeps the enrollment, starts it no later than
+// validFrom and adds the weekday to a non-empty weekday selection.
+func extendedPickupEnrollmentFields(enrollment domain.StudentEnrollment, weekday int, validFrom domain.Date) domain.StudentEnrollmentFields {
+	fields := domain.StudentEnrollmentFields{
+		StudentID:                enrollment.StudentID,
+		ActivityGroupID:          enrollment.ActivityGroupID,
+		ValidFrom:                min(enrollment.ValidFrom, validFrom.String()),
+		ValidUntil:               enrollment.ValidUntil,
+		CalendarPeriodID:         enrollment.CalendarPeriodID,
+		EnrollmentRequestChildID: enrollment.EnrollmentRequestChildID,
+		SelectedWeekdays:         enrollment.SelectedWeekdays,
+		AttendanceStatus:         enrollment.AttendanceStatus,
+		Weekday:                  enrollment.Weekday,
+	}
+	if len(fields.SelectedWeekdays) > 0 && !slices.Contains(fields.SelectedWeekdays, weekday) {
+		fields.SelectedWeekdays = append(fields.SelectedWeekdays, weekday)
+	}
+	return fields
+}
+
 func samePickupExtensionPeriod(a, b *int64) bool {
 	return (a == nil && b == nil) || (a != nil && b != nil && *a == *b)
 }
@@ -440,15 +459,7 @@ func (s *Service) addPlannedStudent(ctx context.Context, instanceID, studentID i
 // task ID. A template whose dynamic target group already contains the child
 // counts as a block the child is on.
 func (s *Service) pickupExtensionBlocks(ctx context.Context, tasks []domain.PickupExtensionTask, stats *domain.OperationStats) (map[int64][]domain.PickupExtensionBlock, error) {
-	dayTasks := make([]domain.PickupExtensionTask, 0, len(tasks))
-	weekdayTasks := make([]domain.PickupExtensionTask, 0, len(tasks))
-	for _, task := range tasks {
-		if task.IsDay() {
-			dayTasks = append(dayTasks, task)
-		} else {
-			weekdayTasks = append(weekdayTasks, task)
-		}
-	}
+	dayTasks, weekdayTasks := partitionPickupExtensionTasks(tasks)
 	byTask := make(map[int64][]domain.PickupExtensionBlock, len(tasks))
 	if len(dayTasks) > 0 {
 		blocks, err := s.pickupExtensionDayBlocks(ctx, dayTasks, stats)
@@ -462,10 +473,36 @@ func (s *Service) pickupExtensionBlocks(ctx context.Context, tasks []domain.Pick
 	if len(weekdayTasks) == 0 {
 		return byTask, nil
 	}
+	if err := s.collectPickupExtensionWeekdayBlocks(ctx, weekdayTasks, byTask, stats); err != nil {
+		return nil, err
+	}
+	return byTask, nil
+}
+
+// partitionPickupExtensionTasks splits the tasks into single-day and weekday
+// tasks, keeping their order.
+func partitionPickupExtensionTasks(tasks []domain.PickupExtensionTask) ([]domain.PickupExtensionTask, []domain.PickupExtensionTask) {
+	dayTasks := make([]domain.PickupExtensionTask, 0, len(tasks))
+	weekdayTasks := make([]domain.PickupExtensionTask, 0, len(tasks))
+	for _, task := range tasks {
+		if task.IsDay() {
+			dayTasks = append(dayTasks, task)
+		} else {
+			weekdayTasks = append(weekdayTasks, task)
+		}
+	}
+	return dayTasks, weekdayTasks
+}
+
+// collectPickupExtensionWeekdayBlocks adds the overlapping template blocks of
+// the weekday tasks to byTask. A block the child is not enrolled in whose
+// template's target group holds the child counts as a block the child is on;
+// one whose target group leaves the child out is dropped.
+func (s *Service) collectPickupExtensionWeekdayBlocks(ctx context.Context, weekdayTasks []domain.PickupExtensionTask, byTask map[int64][]domain.PickupExtensionBlock, stats *domain.OperationStats) error {
 	blocks, queryStats, err := s.store.ListPickupExtensionWeekdayBlocks(ctx, weekdayTasks, s.pickupExtensionToday())
 	stats.Add(queryStats)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	tasksByID := make(map[int64]domain.PickupExtensionTask, len(weekdayTasks))
 	for _, task := range weekdayTasks {
@@ -473,7 +510,7 @@ func (s *Service) pickupExtensionBlocks(ctx context.Context, tasks []domain.Pick
 	}
 	targets, err := s.pickupExtensionTargets(ctx, blocks, tasksByID, stats)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	for _, block := range blocks {
 		if !block.Member {
@@ -487,7 +524,7 @@ func (s *Service) pickupExtensionBlocks(ctx context.Context, tasks []domain.Pick
 		}
 		byTask[block.TaskID] = append(byTask[block.TaskID], block)
 	}
-	return byTask, nil
+	return nil
 }
 
 func (s *Service) pickupExtensionTargets(

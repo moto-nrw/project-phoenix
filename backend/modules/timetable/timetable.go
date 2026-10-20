@@ -175,7 +175,7 @@ type ScheduleCapability interface {
 }
 
 type Query interface {
-	CountCalendarPeriodReferences(context.Context) (map[int64]CalendarPeriodReferences, error)
+	CalendarPeriodReferenceQuery
 	CourseGroupQuery
 	ScheduleQuery
 	PlannedSupervisorQuery
@@ -190,6 +190,19 @@ type Query interface {
 	ConflictAckQuery
 	PickupExtensionQuery
 	SessionRosterQuery
+	CategoryQuery
+	ActivityGroupQuery
+	TemplateRowQuery
+}
+
+// CalendarPeriodReferenceQuery counts the Timetable rows that reference each
+// calendar period.
+type CalendarPeriodReferenceQuery interface {
+	CountCalendarPeriodReferences(context.Context) (map[int64]CalendarPeriodReferences, error)
+}
+
+// CategoryQuery reads activity categories and their usage.
+type CategoryQuery interface {
 	FindCategory(context.Context, int64) (Category, error)
 	FindCategoryForAssignment(context.Context, int64) (Category, error)
 	FindCategoryForShare(context.Context, int64) (Category, error)
@@ -197,18 +210,25 @@ type Query interface {
 	FindCategoryByNameForAssignment(context.Context, string) (Category, error)
 	ListCategories(context.Context) ([]Category, error)
 	CountCategoryUsage(context.Context) (map[int64]int, error)
+}
+
+// ActivityGroupQuery reads activity groups and their target groups.
+type ActivityGroupQuery interface {
 	FindGroup(context.Context, int64) (Group, error)
 	FindGroupForUpdate(context.Context, int64) (Group, error)
 	FindGroupByName(context.Context, string) (Group, error)
 	ListGroups(context.Context, GroupFilter) ([]Group, error)
-	ListCourseGroups(context.Context, CourseGroupFilter) ([]CourseGroup, error)
+	ListGroupTargets(context.Context, []int64) (map[int64][]GroupTarget, error)
+	ListTargetStudentIDs(context.Context, []int64) (map[int64][]int64, error)
+}
+
+// TemplateRowQuery reads the template list, weekday roster and capacity rows.
+type TemplateRowQuery interface {
 	ListTemplateRows(context.Context, *int64) ([]TemplateListRow, error)
 	ListTemplateRowsForTemplatePeriod(context.Context, int64, int64) ([]TemplateListRow, error)
 	ListTemplateRowsForPeriod(context.Context, *int64) ([]TemplateListRow, error)
 	ListTemplateWeekdayRoster(context.Context, *int64, *int64) ([]TemplateWeekdayRosterRow, error)
 	ListTemplateCapacityOccurrences(context.Context, *int64, []int64, []TemplateCapacityPeriod) ([]TemplateCapacityOccurrence, error)
-	ListGroupTargets(context.Context, []int64) (map[int64][]GroupTarget, error)
-	ListTargetStudentIDs(context.Context, []int64) (map[int64][]int64, error)
 }
 
 type Command interface {
@@ -225,6 +245,13 @@ type Command interface {
 	InstanceStudentCommand
 	ConflictAckCommand
 	PickupExtensionCommand
+	CategoryCommand
+	CareExitEnrollmentCommand
+	ActivityGroupCommand
+}
+
+// CategoryCommand writes activity categories and their shift type links.
+type CategoryCommand interface {
 	CreateCategory(context.Context, CreateCategory) (Category, error)
 	UpdateCategory(context.Context, UpdateCategory) (Category, error)
 	ArchiveCategory(context.Context, int64) (Category, error)
@@ -232,9 +259,19 @@ type Command interface {
 	DeleteCategory(context.Context, int64) error
 	SetCategoryShiftTypeID(context.Context, int64, *int64) error
 	SetCategoryShiftTypeLinks(context.Context, int64, []int64) error
+}
+
+// CareExitEnrollmentCommand ends and restores the activity enrollments of
+// children leaving care.
+type CareExitEnrollmentCommand interface {
 	LockStudentEnrollmentsForCareExit(context.Context, []int64, string) error
 	EndStudentEnrollmentsForCareExit(context.Context, []int64, string) (CareExitEnrollmentChanges, error)
 	RestoreStudentEnrollmentsForCareExit(context.Context, []int64, []int64, []CareExitEnrollmentRemoval) (int, error)
+}
+
+// ActivityGroupCommand writes activity groups, templates and their sources
+// and target groups.
+type ActivityGroupCommand interface {
 	CreateGroup(context.Context, GroupInput) (Group, error)
 	UpdateGroup(context.Context, int64, GroupInput) (Group, error)
 	DeleteGroup(context.Context, int64) error

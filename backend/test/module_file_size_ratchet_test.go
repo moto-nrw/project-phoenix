@@ -52,10 +52,7 @@ var moduleFileSizeTrees = []string{"modules", "workflows"}
 //
 //	cd backend && find modules workflows -name '*.go' ! -name '*_test.go' \
 //	  -exec wc -l {} + | awk '$1 > 800 {print $2, $1}' | sort
-var moduleFileSizeAllowlist = map[string]int{
-	"modules/careplan/internal/application/excused_requests.go":     1542,
-	"modules/schoolcalendar/portal/internal/application/service.go": 1697,
-}
+var moduleFileSizeAllowlist = map[string]int{}
 
 func TestModuleFileSizeRatchet(t *testing.T) {
 	t.Parallel()

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
 )
 
 // StaffAppointmentICS renders an appointment the current staff member can see
@@ -43,11 +44,8 @@ func (s *service) StaffAppointmentICS(ctx context.Context, appointmentID int64) 
 // child is a recipient) as an iCalendar document. Scans the parent's tenants
 // exactly like the parent overview path.
 func (s *service) ParentAppointmentICS(ctx context.Context, accountID, appointmentID int64) (string, string, error) {
-	if accountID <= 0 {
-		return "", "", fmt.Errorf("%w: account id is required", ErrForbidden)
-	}
-	if appointmentID <= 0 {
-		return "", "", fmt.Errorf("%w: appointment id is required", ErrInvalidRequest)
+	if err := validateParentAppointmentRequest(accountID, appointmentID); err != nil {
+		return "", "", err
 	}
 	children, err := s.parentChildren(ctx, accountID)
 	if err != nil {
@@ -55,31 +53,9 @@ func (s *service) ParentAppointmentICS(ctx context.Context, accountID, appointme
 	}
 	var filename, content string
 	for tenantID, tenantChildren := range groupChildrenByTenant(children) {
-		tenantID := tenantID
-		tenantChildren := tenantChildren
 		if err := s.cfg.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
-			appointment, err := s.findAppointment(txCtx, appointmentID)
-			if err != nil {
-				return err
-			}
-			// A soft-deleted appointment is downloadable only as a feed tombstone.
-			if appointment == nil || appointment.DeletedAt != nil {
-				return nil
-			}
-			recipients, err := s.cfg.Appointments.FindAppointmentRecipients(txCtx, appointment.ID)
-			if err != nil {
-				return err
-			}
-			guardianProfileIDs := distinctGuardianProfileIDs(tenantChildren)
-			studentIDs := distinctChildStudentIDs(tenantChildren)
-			_, recipientID, err := s.guardianRecipientStatusForStudents(txCtx, recipients, guardianProfileIDs, studentIDs)
-			if err != nil {
-				return err
-			}
-			if recipientID == nil {
-				return nil
-			}
-			filename, content, err = s.renderAppointmentICS(txCtx, appointment)
+			var err error
+			filename, content, err = s.parentTenantAppointmentICS(txCtx, appointmentID, tenantChildren)
 			return err
 		}); err != nil {
 			return "", "", err
@@ -89,6 +65,17 @@ func (s *service) ParentAppointmentICS(ctx context.Context, accountID, appointme
 		}
 	}
 	return "", "", ErrNotFound
+}
+
+// parentTenantAppointmentICS renders the appointment inside one tenant when it
+// is addressed to the parent there; otherwise it returns empty content.
+func (s *service) parentTenantAppointmentICS(ctx context.Context, appointmentID int64, tenantChildren []*ports.ChildSummary) (string, string, error) {
+	// A soft-deleted appointment is downloadable only as a feed tombstone.
+	appointment, _, err := s.parentVisibleAppointment(ctx, appointmentID, tenantChildren)
+	if err != nil || appointment == nil {
+		return "", "", err
+	}
+	return s.renderAppointmentICS(ctx, appointment)
 }
 
 func (s *service) renderAppointmentICS(ctx context.Context, appointment *appointmentcap.Appointment) (string, string, error) {
@@ -109,37 +96,7 @@ func (s *service) renderAppointmentICS(ctx context.Context, appointment *appoint
 }
 
 func appointmentICSEvent(appointment *appointmentcap.Appointment, recurrence *appointmentcap.RecurrenceRule, cancelledOverrides []*appointmentcap.AppointmentOccurrenceOverride) CalendarEvent {
-	description := ""
-	if appointment.Description != nil {
-		description = *appointment.Description
-	}
-	location := ""
-	if appointment.Location != nil {
-		location = *appointment.Location
-	}
-	event := CalendarEvent{
-		// Include the tenant so the UID is globally unique: a parent's feed
-		// aggregates appointments across schools, and appointment IDs repeat per
-		// tenant — a tenant-local UID would let one school's event overwrite
-		// another's in the subscriber's calendar.
-		UID:         fmt.Sprintf("appointment-%d-%d@moto-app.de", appointment.TenantID, appointment.ID),
-		Summary:     appointment.Title,
-		Description: description,
-		Location:    location,
-		StartDate:   appointment.StartDate.String(),
-		EndDate:     appointment.EndDate.String(),
-		StartClock:  appointment.StartTime,
-		EndClock:    appointment.EndTime,
-		AllDay:      appointment.AllDay,
-		// A deleted appointment survives only as a feed tombstone; export it (like a
-		// cancelled one) as STATUS:CANCELLED so subscribers purge it.
-		Cancelled: appointment.CancelledAt != nil || appointment.DeletedAt != nil,
-		Sequence:  appointment.Revision,
-		Stamp:     appointment.UpdatedAt,
-		// LAST-MODIFIED + SEQUENCE together tell subscribers this VEVENT is a newer
-		// revision, so edits and cancellations are honoured rather than ignored.
-		LastModified: appointment.UpdatedAt,
-	}
+	event := baseAppointmentICSEvent(appointment)
 	// Only emit an RRULE when the rule actually produces an occurrence. A rule
 	// that generates none (e.g. weekly weekdays outside its EndsOn window) is
 	// rejected at create/update, so this guard is defensive: it prevents a
@@ -165,11 +122,57 @@ func appointmentICSEvent(appointment *appointmentcap.Appointment, recurrence *ap
 		event.StartDate = first.String()
 		event.EndDate = first.AddDays(appointment.StartDate.DaysUntil(appointment.EndDate)).String()
 	}
+	event.Recurrence = calendarRecurrence(recurrence)
+	// Single occurrences cancelled via "Nur diesen Termin" become EXDATEs so
+	// subscribed external calendars drop them from the RRULE expansion.
+	for _, override := range cancelledOverrides {
+		event.ExDates = append(event.ExDates, override.OccurrenceDate.String())
+	}
+	return event
+}
+
+// baseAppointmentICSEvent maps the appointment row itself, before any
+// recurrence anchoring.
+func baseAppointmentICSEvent(appointment *appointmentcap.Appointment) CalendarEvent {
+	description := ""
+	if appointment.Description != nil {
+		description = *appointment.Description
+	}
+	location := ""
+	if appointment.Location != nil {
+		location = *appointment.Location
+	}
+	return CalendarEvent{
+		// Include the tenant so the UID is globally unique: a parent's feed
+		// aggregates appointments across schools, and appointment IDs repeat per
+		// tenant — a tenant-local UID would let one school's event overwrite
+		// another's in the subscriber's calendar.
+		UID:         fmt.Sprintf("appointment-%d-%d@moto-app.de", appointment.TenantID, appointment.ID),
+		Summary:     appointment.Title,
+		Description: description,
+		Location:    location,
+		StartDate:   appointment.StartDate.String(),
+		EndDate:     appointment.EndDate.String(),
+		StartClock:  appointment.StartTime,
+		EndClock:    appointment.EndTime,
+		AllDay:      appointment.AllDay,
+		// A deleted appointment survives only as a feed tombstone; export it (like a
+		// cancelled one) as STATUS:CANCELLED so subscribers purge it.
+		Cancelled: appointment.CancelledAt != nil || appointment.DeletedAt != nil,
+		Sequence:  appointment.Revision,
+		Stamp:     appointment.UpdatedAt,
+		// LAST-MODIFIED + SEQUENCE together tell subscribers this VEVENT is a newer
+		// revision, so edits and cancellations are honoured rather than ignored.
+		LastModified: appointment.UpdatedAt,
+	}
+}
+
+func calendarRecurrence(recurrence *appointmentcap.RecurrenceRule) *CalendarRecurrence {
 	until := ""
 	if recurrence.EndsOn != nil {
 		until = recurrence.EndsOn.String()
 	}
-	event.Recurrence = &CalendarRecurrence{
+	return &CalendarRecurrence{
 		Frequency: recurrence.Frequency,
 		Interval:  recurrence.IntervalCount,
 		Weekdays:  recurrence.Weekdays,
@@ -177,12 +180,6 @@ func appointmentICSEvent(appointment *appointmentcap.Appointment, recurrence *ap
 		Until:     until,
 		Count:     recurrence.OccurrenceCount,
 	}
-	// Single occurrences cancelled via "Nur diesen Termin" become EXDATEs so
-	// subscribed external calendars drop them from the RRULE expansion.
-	for _, override := range cancelledOverrides {
-		event.ExDates = append(event.ExDates, override.OccurrenceDate.String())
-	}
-	return event
 }
 
 func (s *service) renderCalendar(ctx context.Context, name string, events []CalendarEvent) (string, error) {

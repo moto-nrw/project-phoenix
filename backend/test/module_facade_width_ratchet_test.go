@@ -78,29 +78,7 @@ var moduleFacadeNonRootDirs = map[string]bool{
 // width measured today:
 //
 //	cd backend && ../scripts/run-go-toolchain.sh go test ./test/ -run TestModuleFacadeWidthRatchet
-var moduleFacadeAllowlist = map[string]int{
-	"modules/appointments/appointments.go:Command":          16,
-	"modules/appointments/appointments.go:Query":            20,
-	"modules/careplan/excusedrequests/contract.go:Service":  18,
-	"modules/careplan/records.go:CareRecordsCommand":        14,
-	"modules/careplan/records.go:CareRecordsQuery":          15,
-	"modules/careplan/requests.go:CareRequestsCommand":      16,
-	"modules/careplan/schedules.go:StudentSchedulesCommand": 32,
-	"modules/careplan/schedules.go:StudentSchedulesQuery":   13,
-	"modules/schoolcalendar/portal/contract.go:Service":     21,
-	"modules/schoolmembership/schoolmembership.go:Command":  25,
-	"modules/schoolmembership/schoolmembership.go:Query":    17,
-	"modules/studentpresence/studentpresence.go:Command":    26,
-	"modules/studentpresence/studentpresence.go:Query":      17,
-	"modules/timetable/timetable.go:Command":                17,
-	"modules/timetable/timetable.go:Query":                  20,
-	"modules/workforce/shift.go:ShiftCommand":               19,
-	"modules/workforce/staffadmin.go:StaffDocuments":        16,
-	"modules/workforce/staffrecord.go:StaffRecordCommand":   13,
-	"modules/workforce/timetracking.go:StaffAbsences":       22,
-	"modules/workforce/worksession.go:WorkSessionCommand":   24,
-	"modules/workforce/worksession.go:WorkSessionQuery":     18,
-}
+var moduleFacadeAllowlist = map[string]int{}
 
 func TestModuleFacadeWidthRatchet(t *testing.T) {
 	t.Parallel()
