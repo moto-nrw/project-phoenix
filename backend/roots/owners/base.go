@@ -98,7 +98,7 @@ func SchoolMembershipDependencies(db transactionruntime.Database) (schoolMembers
 }
 
 // composeFeedback composes the observed Feedback owner over its settings.
-func composeFeedback(db transactionruntime.Database, settings *feedbackCompose.Settings) (*feedbackModule.Module, error) {
+func composeFeedback(db transactionruntime.Database, settings *feedbackCompose.Settings) (feedbackModule.Capability, error) {
 	return feedbackCompose.New(feedbackCompose.Dependencies{
 		DB:       db.Pool(),
 		Settings: settings,

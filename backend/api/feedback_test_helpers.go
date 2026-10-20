@@ -16,7 +16,7 @@ import (
 // FeedbackTestModule is the Feedback owner the kiosk feedback routes drive;
 // the feedback students come from NewRFIDTestModule.
 type FeedbackTestModule struct {
-	Feedback *feedbackModule.Module
+	Feedback feedbackModule.Capability
 }
 
 // NewFeedbackTestModule composes the Feedback owner over db with its tenant

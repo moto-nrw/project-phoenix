@@ -1,4 +1,4 @@
-package mealplan_test
+package application
 
 import (
 	"context"
@@ -50,7 +50,7 @@ func TestModuleRejectsWeekendWritesAtPublicSeam(t *testing.T) {
 	if dateErr != nil {
 		t.Fatal(dateErr)
 	}
-	module := mealplan.NewModule(&recordingEngine{available: true})
+	module := newTestModule(&recordingEngine{available: true})
 	err := module.ReplaceDay(context.Background(), mealplan.ReplaceDay{
 		Date:   date,
 		Dishes: []mealplan.Dish{{Dish: "Suppe"}},
@@ -65,7 +65,7 @@ func TestModuleNormalizesRegularParticipationWeekdays(t *testing.T) {
 	t.Parallel()
 
 	engine := &recordingEngine{available: true}
-	module := mealplan.NewModule(engine)
+	module := newTestModule(engine)
 	effectiveFrom, err := module.ReplaceParticipationSchedule(context.Background(), mealplan.ReplaceParticipationSchedule{
 		StudentID: 42, GuardianAccountID: 7,
 		Weekdays: []mealplan.Weekday{mealplan.Friday, mealplan.Monday, mealplan.Friday},
@@ -86,7 +86,7 @@ func TestModuleNormalizesRegularParticipationWeekdays(t *testing.T) {
 func TestModuleRejectsWeekendParticipationOverride(t *testing.T) {
 	t.Parallel()
 
-	module := mealplan.NewModule(&recordingEngine{available: true})
+	module := newTestModule(&recordingEngine{available: true})
 	err := module.SetParticipationForDay(context.Background(), mealplan.SetParticipationDay{
 		StudentID: 42, GuardianAccountID: 7, Date: "2026-09-05", Participating: true,
 	})
@@ -100,7 +100,7 @@ func TestModuleNormalizesDishesAtPublicSeam(t *testing.T) {
 	t.Parallel()
 
 	engine := &recordingEngine{available: true}
-	module := mealplan.NewModule(engine)
+	module := newTestModule(engine)
 	date, dateErr := mealplan.ParseDate("2026-09-07")
 	if dateErr != nil {
 		t.Fatal(dateErr)

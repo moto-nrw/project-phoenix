@@ -27,7 +27,7 @@ func MustNewSchoolStructure(db transactionruntime.Database) schoolstructure.Capa
 }
 
 // MustNewSchoolCalendar composes the School Calendar owner.
-func MustNewSchoolCalendar(db transactionruntime.Database) *schoolcalendar.Module {
+func MustNewSchoolCalendar(db transactionruntime.Database) schoolcalendar.Calendar {
 	calendar, err := owners.NewSchoolCalendar(db)
 	if err != nil {
 		panic(fmt.Sprintf("compose timetable calendar: %v", err))

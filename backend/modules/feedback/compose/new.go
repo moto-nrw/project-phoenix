@@ -30,15 +30,15 @@ type Dependencies struct {
 	Observe func(Observation)
 }
 
-func New(dependencies Dependencies) (*feedback.Module, error) {
+func New(dependencies Dependencies) (feedback.Capability, error) {
 	if dependencies.DB == nil || dependencies.Settings == nil || dependencies.Today == nil || dependencies.Observe == nil {
 		return nil, errors.New("feedback compose: all dependencies are required")
 	}
 	store := postgres.New(postgres.NewDatabase(tenant.TransactionFromContext, tenant.TenantFromContext))
 	today := application.NewCurrentDate(dependencies.Today)
-	observe := application.NewPublicObserver(dependencies.Observe)
+	observe := ports.Observer(dependencies.Observe)
 	service := application.New(store, dependencies.Settings, TransactionFunc(tenant.NewTransactionRunner().RunInTx), observe, today)
-	return application.NewPublicModule(service, dependencies.Observe), nil
+	return service, nil
 }
 
 // Settings are the feedback settings resolvers, bound at construction.

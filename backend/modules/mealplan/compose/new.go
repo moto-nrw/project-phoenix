@@ -33,13 +33,13 @@ type Dependencies struct {
 	Participants mealplan.ParticipantFinder
 }
 
-func New(dependencies Dependencies) (*mealplan.Module, error) {
+func New(dependencies Dependencies) (mealplan.Capability, error) {
 	if dependencies.DB == nil || dependencies.Settings == nil || dependencies.Observe == nil || dependencies.Now == nil || dependencies.Participants == nil {
 		return nil, errors.New("meal plan compose: all dependencies are required")
 	}
 	store := postgres.New(postgres.NewDatabase(tenant.TransactionFromContext, tenant.TenantFromContext))
 	service := application.New(store, application.NewParticipantDirectory(dependencies.Participants), dependencies.Settings, TransactionFunc(tenant.NewTransactionRunner().RunInTx), dependencies.Observe, dependencies.Now)
-	return application.NewPublicModule(service), nil
+	return service, nil
 }
 
 // Settings are the meal plan's settings resolvers, bound at construction.

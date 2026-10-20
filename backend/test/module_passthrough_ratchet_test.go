@@ -217,7 +217,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063 and by ADR 0064 (3,011 to 3,091), and by ADR 0073 (one each
 // for modules/communication and modules/schoolcalendar).
-const modulePassthroughOwnerBudgetTotal = 2556
+const modulePassthroughOwnerBudgetTotal = 2500
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -242,17 +242,17 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/devicescan":          41,
 	"modules/enrollment":          35,
 	"modules/exporttransfer":      1,
-	"modules/facilities":          18,
-	"modules/feedback":            14,
+	"modules/facilities":          13,
+	"modules/feedback":            2,
 	"modules/filestorage":         9,
 	"modules/identityaccess":      497,
-	"modules/mealplan":            15,
+	"modules/mealplan":            3,
 	"modules/organizationtenancy": 12,
 	"modules/peopledirectory":     265,
 	"modules/requestreview":       17,
 	"modules/schedulerruntime":    4,
 	// Raised by ADR 0073: the feed cleanup keeps only the staff feed tombstones.
-	"modules/schoolcalendar":   45,
+	"modules/schoolcalendar":   18,
 	"modules/schoolmembership": 16,
 	"modules/schoolsetup":      2,
 	"modules/schoolstructure":  43,

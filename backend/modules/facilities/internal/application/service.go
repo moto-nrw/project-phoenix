@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/facilities"
+
 	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/ports"
 )
@@ -39,68 +41,22 @@ func NewRooms(store ports.Store, tx ports.Transaction, observe ports.Observer) *
 	return &Service{store: store, tx: tx, observe: observe}
 }
 
-func (s *Service) Create(ctx context.Context, input domain.CreateRoom) (result domain.Room, err error) {
-	err = s.runWrite(ctx, "create_room", func(txCtx context.Context, stats *domain.OperationStats) error {
-		if err := s.lockRoomName(txCtx, input.Name); err != nil {
-			return err
-		}
-		existing, found, queryStats, findErr := s.store.FindByName(txCtx, input.Name)
-		stats.Add(queryStats)
-		if findErr != nil {
-			return findErr
-		}
-		if found {
-			return duplicateRoomError(input.Name, existing.Name)
-		}
-		result, queryStats, err = s.store.Create(txCtx, input)
-		stats.Add(queryStats)
-		return err
-	})
-	return result, err
-}
-
 func roomNameLock(name string) string {
 	return "facilities:room-name:" + strings.ToLower(name)
 }
 
-func (s *Service) Update(ctx context.Context, input domain.UpdateRoom) (result domain.Room, err error) {
-	err = s.runWrite(ctx, "update_room", func(txCtx context.Context, stats *domain.OperationStats) error {
-		if err := s.lockRoomName(txCtx, input.Name); err != nil {
-			return err
-		}
-		existing, found, queryStats, findErr := s.store.FindByID(txCtx, input.ID, "UPDATE")
-		stats.Add(queryStats)
-		if findErr != nil {
-			return findErr
-		}
-		if !found {
-			return domain.ErrNotFound
-		}
-		if err := validateRoomUpdate(existing, &input); err != nil {
-			return err
-		}
-		if err := s.ensureUpdateNameAvailable(txCtx, existing, input, stats); err != nil {
-			return err
-		}
-		result, queryStats, err = s.store.Update(txCtx, input)
-		stats.Add(queryStats)
-		return err
-	})
-	return result, err
-}
-
-func validateRoomUpdate(existing domain.Room, input *domain.UpdateRoom) error {
+func validateRoomUpdate(existing facilities.Room, input *facilities.UpdateRoom) error {
 	if isSystemRoomName(existing.Name) && input.Name != existing.Name {
-		return domain.ErrSystemProtected
+		return facilities.ErrSystemRoomProtected
 	}
 	if existing.Name != input.Name && strings.EqualFold(input.Name, domain.SchulhofRoomName) {
-		return domain.ErrSystemNameReserved
+		return facilities.ErrSystemRoomNameReserved
 	}
 	if !isWCRoomName(existing.Name) {
 		return nil
 	}
 	if input.Color != nil && !equalStringPointer(input.Color, existing.Color) {
-		return domain.ErrSystemProtected
+		return facilities.ErrSystemRoomProtected
 	}
 	input.Color = existing.Color
 	return nil
@@ -108,8 +64,8 @@ func validateRoomUpdate(existing domain.Room, input *domain.UpdateRoom) error {
 
 func (s *Service) ensureUpdateNameAvailable(
 	ctx context.Context,
-	existing domain.Room,
-	input domain.UpdateRoom,
+	existing facilities.Room,
+	input facilities.UpdateRoom,
 	stats *domain.OperationStats,
 ) error {
 	if existing.Name == input.Name {
@@ -128,37 +84,9 @@ func (s *Service) ensureUpdateNameAvailable(
 
 func duplicateRoomError(name, duplicate string) error {
 	if isWCRoomName(name) && isWCRoomName(duplicate) {
-		return domain.ErrDuplicateToilet
+		return facilities.ErrDuplicateToiletRoom
 	}
-	return domain.ErrDuplicate
-}
-
-func (s *Service) Delete(ctx context.Context, id int64) (err error) {
-	return s.runWrite(ctx, "delete_room", func(txCtx context.Context, stats *domain.OperationStats) error {
-		// Timetable writers take the recurrence lock before room FK locks. Keep
-		// deletion in the same order so concurrent template creation cannot
-		// deadlock with a room delete.
-		if err := s.lockDeletion(txCtx); err != nil {
-			return err
-		}
-		existing, found, queryStats, findErr := s.store.FindByID(txCtx, id, "UPDATE")
-		stats.Add(queryStats)
-		if findErr != nil {
-			return findErr
-		}
-		if !found {
-			return domain.ErrNotFound
-		}
-		if isSystemRoomName(existing.Name) {
-			return domain.ErrSystemProtected
-		}
-		if err := s.refuseUsedRoom(txCtx, id); err != nil {
-			return err
-		}
-		queryStats, err = s.store.Delete(txCtx, id)
-		stats.Add(queryStats)
-		return err
-	})
+	return facilities.ErrDuplicateRoom
 }
 
 // refuseUsedRoom keeps a room while a session runs in it or a care offering
@@ -169,14 +97,14 @@ func (s *Service) refuseUsedRoom(ctx context.Context, id int64) error {
 		return err
 	}
 	if active {
-		return domain.ErrInUse
+		return facilities.ErrRoomInUse
 	}
 	required, err := s.usage.RequiredByCareOffering(ctx, id)
 	if err != nil {
 		return err
 	}
 	if required {
-		return domain.ErrRequiredByOffering
+		return facilities.ErrRoomRequiredByOffering
 	}
 	return nil
 }
@@ -204,38 +132,6 @@ func (s *Service) lockRoomName(ctx context.Context, name string) error {
 		return s.tx.AcquireLock(ctx, "facilities:room-name:wc-alias")
 	}
 	return nil
-}
-
-func (s *Service) FindByID(ctx context.Context, id int64) (result domain.Room, err error) {
-	err = s.runWrite(ctx, "find_room", func(txCtx context.Context, stats *domain.OperationStats) error {
-		room, found, queryStats, findErr := s.store.FindByID(txCtx, id, "")
-		stats.Add(queryStats)
-		if findErr != nil {
-			return findErr
-		}
-		if !found {
-			return domain.ErrNotFound
-		}
-		result = room
-		return nil
-	})
-	return result, err
-}
-
-func (s *Service) FindToilet(ctx context.Context, excludeRoomID int64) (result domain.Room, err error) {
-	err = s.runWrite(ctx, "find_toilet_room", func(txCtx context.Context, stats *domain.OperationStats) error {
-		room, found, queryStats, findErr := s.store.FindToilet(txCtx, excludeRoomID)
-		stats.Add(queryStats)
-		if findErr != nil {
-			return findErr
-		}
-		if !found {
-			return domain.ErrNotFound
-		}
-		result = room
-		return nil
-	})
-	return result, err
 }
 
 func (s *Service) runWrite(ctx context.Context, operation string, fn func(context.Context, *domain.OperationStats) error) (err error) {

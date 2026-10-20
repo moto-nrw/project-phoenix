@@ -17,49 +17,49 @@ func TestEveryOperationRejectsMissingTenantContext(t *testing.T) {
 	const id int64 = 1
 	operations := []struct {
 		name string
-		call func(context.Context, *facilities.Module) error
+		call func(context.Context, facilities.Capability) error
 	}{
-		{name: "find room", call: func(ctx context.Context, module *facilities.Module) error {
+		{name: "find room", call: func(ctx context.Context, module facilities.Capability) error {
 			_, err := module.FindRoom(ctx, id)
 			return err
 		}},
-		{name: "find room for update", call: func(ctx context.Context, module *facilities.Module) error {
+		{name: "find room for update", call: func(ctx context.Context, module facilities.Capability) error {
 			_, err := module.FindRoomForUpdate(ctx, id)
 			return err
 		}},
-		{name: "find room by name", call: func(ctx context.Context, module *facilities.Module) error {
+		{name: "find room by name", call: func(ctx context.Context, module facilities.Capability) error {
 			_, err := module.FindRoomByName(ctx, "Igelraum")
 			return err
 		}},
-		{name: "find toilet room", call: func(ctx context.Context, module *facilities.Module) error {
+		{name: "find toilet room", call: func(ctx context.Context, module facilities.Capability) error {
 			_, err := module.FindToiletRoom(ctx, 0)
 			return err
 		}},
-		{name: "list rooms", call: func(ctx context.Context, module *facilities.Module) error {
+		{name: "list rooms", call: func(ctx context.Context, module facilities.Capability) error {
 			_, err := module.ListRooms(ctx, facilities.RoomFilter{})
 			return err
 		}},
-		{name: "list room page", call: func(ctx context.Context, module *facilities.Module) error {
+		{name: "list room page", call: func(ctx context.Context, module facilities.Capability) error {
 			_, err := module.ListRoomsPage(ctx, facilities.RoomFilter{}, 0, 10)
 			return err
 		}},
-		{name: "list rooms by ID", call: func(ctx context.Context, module *facilities.Module) error {
+		{name: "list rooms by ID", call: func(ctx context.Context, module facilities.Capability) error {
 			_, err := module.ListRoomsByID(ctx, nil)
 			return err
 		}},
-		{name: "lock rooms by ID", call: func(ctx context.Context, module *facilities.Module) error {
+		{name: "lock rooms by ID", call: func(ctx context.Context, module facilities.Capability) error {
 			_, err := module.LockRoomsByID(ctx, nil)
 			return err
 		}},
-		{name: "create room", call: func(ctx context.Context, module *facilities.Module) error {
+		{name: "create room", call: func(ctx context.Context, module facilities.Capability) error {
 			_, err := module.CreateRoom(ctx, facilities.CreateRoom{Name: "Igelraum"})
 			return err
 		}},
-		{name: "update room", call: func(ctx context.Context, module *facilities.Module) error {
+		{name: "update room", call: func(ctx context.Context, module facilities.Capability) error {
 			_, err := module.UpdateRoom(ctx, facilities.UpdateRoom{ID: id, Name: "Igelraum"})
 			return err
 		}},
-		{name: "delete room", call: func(ctx context.Context, module *facilities.Module) error { return module.DeleteRoom(ctx, id) }},
+		{name: "delete room", call: func(ctx context.Context, module facilities.Capability) error { return module.DeleteRoom(ctx, id) }},
 	}
 	db := testpkg.SetupTestDB(t)
 	checkOperations := func(name string, ctx context.Context) {

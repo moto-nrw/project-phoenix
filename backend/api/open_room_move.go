@@ -17,7 +17,7 @@ import (
 // Activities for the room's system activity, and the retained Student
 // Presence service for the room session and the move until that owner exposes
 // them publicly.
-func newOpenRoomMove(rooms *facilitiesModule.Module, activities timetable.Capability, presence movebinding.Presence, logger *slog.Logger) (openroommove.Command, error) {
+func newOpenRoomMove(rooms facilitiesModule.Capability, activities timetable.Capability, presence movebinding.Presence, logger *slog.Logger) (openroommove.Command, error) {
 	log := logger.With("workflow", "open-room-move")
 	return openRoomMoveCompose.New(openRoomMoveCompose.Dependencies{
 		Rooms:        rooms,
