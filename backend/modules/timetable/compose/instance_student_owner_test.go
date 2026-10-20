@@ -155,7 +155,7 @@ func TestInstanceStudentListQueryBudgetStaysFlat(t *testing.T) {
 	}))
 }
 
-func createOwnedInstanceStudent(t *testing.T, module *timetable.Module, ctx context.Context, instanceID, studentID int64) timetable.InstanceStudent {
+func createOwnedInstanceStudent(t *testing.T, module timetable.Owner, ctx context.Context, instanceID, studentID int64) timetable.InstanceStudent {
 	t.Helper()
 	value, err := module.CreateInstanceStudent(ctx, ownedInstanceStudentInput(instanceID, studentID))
 	require.NoError(t, err)

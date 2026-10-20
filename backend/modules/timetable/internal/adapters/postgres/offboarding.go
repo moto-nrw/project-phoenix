@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
@@ -16,12 +17,13 @@ type offboardingInstanceRow struct {
 
 // Lock all assigned instances, including history: a date/status edit must
 // not move an unlocked row into the delete set.
-func (s *Store) PreviewStaffOffboarding(ctx context.Context, staffID int64, from string) (domain.OffboardingSnapshot, domain.OperationStats, error) {
-	snapshot := domain.OffboardingSnapshot{StaffID: staffID, From: from}
+func (s *Store) PreviewStaffOffboarding(ctx context.Context, staffID int64, from string) ([]domain.OffboardingInstance, []timetable.PlannedSupervisor, domain.OperationStats, error) {
+	var instances []domain.OffboardingInstance
+	var plannedSupervisors []timetable.PlannedSupervisor
 	stats := domain.OperationStats{}
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return snapshot, stats, err
+		return instances, plannedSupervisors, stats, err
 	}
 	rows := []offboardingInstanceRow{}
 	query := instanceStaffSelect(db, &rows, tenantID).
@@ -32,11 +34,12 @@ func (s *Store) PreviewStaffOffboarding(ctx context.Context, staffID int64, from
 	readStats, err := scanAll(ctx, query, "preview offboarding instance assignments")
 	stats.Add(readStats)
 	if err != nil {
-		return snapshot, stats, err
+		return instances, plannedSupervisors, stats, err
 	}
 	for _, row := range rows {
 		if row.Date > from || (row.Date == from && row.Status == "planned") {
-			snapshot.Instances = append(snapshot.Instances, domain.OffboardingInstance{Assignment: instanceStaffToDomain(row.instanceStaffRow), Date: row.Date, Status: row.Status, InstanceUpdatedAt: row.InstanceUpdatedAt})
+			instances = append(instances, domain.OffboardingInstance{AssignmentID: row.ID, AssignmentUpdatedAt: row.UpdatedAt,
+				InstanceID: row.InstanceID, Date: row.Date, Status: row.Status, InstanceUpdatedAt: row.InstanceUpdatedAt})
 		}
 	}
 	supervisors := []plannedSupervisorRow{}
@@ -45,10 +48,10 @@ func (s *Store) PreviewStaffOffboarding(ctx context.Context, staffID int64, from
 	readStats, err = scanAll(ctx, query, "preview offboarding planned supervisors")
 	stats.Add(readStats)
 	if err != nil {
-		return snapshot, stats, err
+		return instances, plannedSupervisors, stats, err
 	}
 	for _, row := range supervisors {
-		snapshot.Supervisors = append(snapshot.Supervisors, plannedSupervisorToDomain(row))
+		plannedSupervisors = append(plannedSupervisors, plannedSupervisorToDomain(row))
 	}
-	return snapshot, stats, nil
+	return instances, plannedSupervisors, stats, nil
 }

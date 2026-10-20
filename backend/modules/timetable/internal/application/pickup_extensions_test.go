@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	internalports "github.com/moto-nrw/project-phoenix/modules/timetable/internal/ports"
 	"github.com/stretchr/testify/assert"
@@ -12,10 +13,10 @@ import (
 
 type pickupExtensionTargetStore struct {
 	internalports.Store
-	targets map[int64][]domain.GroupTarget
+	targets map[int64][]timetable.GroupTarget
 }
 
-func (s pickupExtensionTargetStore) ListGroupTargets(_ context.Context, _ []int64) (map[int64][]domain.GroupTarget, domain.OperationStats, error) {
+func (s pickupExtensionTargetStore) ListGroupTargets(_ context.Context, _ []int64) (map[int64][]timetable.GroupTarget, domain.OperationStats, error) {
 	return s.targets, domain.OperationStats{}, nil
 }
 
@@ -30,12 +31,12 @@ func (d pickupExtensionTargetStudents) ListEnrolledStudents(context.Context) ([]
 
 type pickupExtensionInstanceStore struct {
 	internalports.Store
-	instance  domain.ActivityInstance
+	instance  timetable.ActivityInstance
 	lockedID  int64
 	exclusive bool
 }
 
-func (s *pickupExtensionInstanceStore) LockActivityInstance(_ context.Context, id int64, exclusive bool) (domain.ActivityInstance, bool, domain.OperationStats, error) {
+func (s *pickupExtensionInstanceStore) LockActivityInstance(_ context.Context, id int64, exclusive bool) (timetable.ActivityInstance, bool, domain.OperationStats, error) {
 	s.lockedID = id
 	s.exclusive = exclusive
 	return s.instance, true, domain.OperationStats{}, nil
@@ -45,14 +46,14 @@ func TestPickupExtensionInstanceLockRejectsChangedSelection(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name     string
-		instance domain.ActivityInstance
+		instance timetable.ActivityInstance
 	}{
-		{name: "cancelled", instance: domain.ActivityInstance{ID: 7, Date: "2099-03-03", Status: "cancelled"}},
-		{name: "completed", instance: domain.ActivityInstance{ID: 7, Date: "2099-03-03", Status: "completed"}},
-		{name: "spontaneous", instance: domain.ActivityInstance{
+		{name: "cancelled", instance: timetable.ActivityInstance{ID: 7, Date: "2099-03-03", Status: "cancelled"}},
+		{name: "completed", instance: timetable.ActivityInstance{ID: 7, Date: "2099-03-03", Status: "completed"}},
+		{name: "spontaneous", instance: timetable.ActivityInstance{
 			ID: 7, Date: "2099-03-03", Status: "planned", StartTime: "14:45:00", EndTime: "16:00:00", IsSpontaneous: true,
 		}},
-		{name: "moved outside pickup time", instance: domain.ActivityInstance{
+		{name: "moved outside pickup time", instance: timetable.ActivityInstance{
 			ID: 7, Date: "2099-03-03", Status: "planned", StartTime: "16:00:00", EndTime: "17:00:00",
 		}},
 	} {
@@ -68,7 +69,7 @@ func TestPickupExtensionInstanceLockRejectsChangedSelection(t *testing.T) {
 				&domain.OperationStats{},
 			)
 
-			require.ErrorIs(t, err, domain.ErrPickupExtensionBlockGone)
+			require.ErrorIs(t, err, timetable.ErrPickupExtensionBlockGone)
 			assert.Equal(t, store.instance.ID, store.lockedID)
 			assert.True(t, store.exclusive)
 		})
@@ -79,7 +80,7 @@ func TestPickupExtensionTargetsUsesTaskOperationalDateForEligibility(t *testing.
 	t.Parallel()
 	class := "1a"
 	service := &Service{
-		store: pickupExtensionTargetStore{targets: map[int64][]domain.GroupTarget{
+		store: pickupExtensionTargetStore{targets: map[int64][]timetable.GroupTarget{
 			7: {{TargetGroupType: "klasse", TargetSchoolClass: &class}},
 		}},
 		students: pickupExtensionTargetStudents{students: []domain.TargetStudent{{

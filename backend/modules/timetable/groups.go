@@ -272,12 +272,3 @@ func ValidateTemplateShape(shape TemplateShape) error {
 	}
 	return nil
 }
-
-// validDutyGroup applies the duty rule to a group write; other types pass.
-func validDutyGroup(input *GroupInput) bool {
-	return input.Type != GroupTypeDuty || ValidateTemplateShape(TemplateShape{
-		Type: input.Type, TargetGroupType: input.TargetGroupType, EducationGroupID: input.EducationGroupID,
-		HasOfferingSource: len(input.SourceCareOfferingIDs) > 0, MaxParticipants: input.MaxParticipants,
-		ListKind: input.ListKind,
-	}) == nil
-}

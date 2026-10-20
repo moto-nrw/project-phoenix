@@ -14,10 +14,3 @@ type RetiredStaffAssignments struct {
 type StaffRetentionCapability interface {
 	DeleteRetiredStaffAssignments(context.Context, int64) (RetiredStaffAssignments, error)
 }
-
-func (m *Module) DeleteRetiredStaffAssignments(ctx context.Context, staffID int64) (RetiredStaffAssignments, error) {
-	if staffID <= 0 {
-		return RetiredStaffAssignments{}, m.reject("delete_retired_staff_assignments", ErrInvalidInstanceStaff)
-	}
-	return m.engine.DeleteRetiredStaffAssignments(ctx, staffID)
-}
