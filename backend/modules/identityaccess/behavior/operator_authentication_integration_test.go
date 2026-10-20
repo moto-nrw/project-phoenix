@@ -239,7 +239,7 @@ func testSchoolID(tb testing.TB) int64 { return testpkg.Tenant(tb) }
 
 // buildOperatorIdentity composes the service root and returns the public
 // Identity & Access module the operator routes call.
-func buildOperatorIdentity(t *testing.T, db *bun.DB) *identityaccess.Module {
+func buildOperatorIdentity(t *testing.T, db *bun.DB) identityaccess.Owner {
 	t.Helper()
 	module, err := api.NewTestIdentityAccessWithConfig(testpkg.NewDatabase(t, db), slog.Default(), authTestFactoryConfig(false))
 	require.NoError(t, err, "Failed to create service factory")

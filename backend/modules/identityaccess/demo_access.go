@@ -191,15 +191,3 @@ func (d *DemoAccess) RedeemDemoAccess(ctx context.Context, token, role, ipAddres
 func (d *DemoAccess) ResetDemoAccess(ctx context.Context, token, clientIP string) error {
 	return d.engine.ResetDemoAccess(ctx, token, clientIP)
 }
-
-// NewDemoModule is NewModule with the demo-only capability; access is nil
-// outside the demo environment.
-func NewDemoModule(engine Engine, access *DemoAccess) *Module {
-	module := NewModule(engine)
-	module.demoAccess = access
-	return module
-}
-
-// DemoAccess returns the demo-only capability when this module was composed
-// in the demo environment.
-func (m *Module) DemoAccess() *DemoAccess { return m.demoAccess }

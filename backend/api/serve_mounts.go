@@ -759,7 +759,7 @@ func mountStaffRoutes(
 	workTime workforceModule.Capability, users peoplePorts.PersonDirectory, staffAdmin *workforceModule.StaffAdmin,
 	workforce owners.WorkforcePlanning, shifts *workforceCompose.ShiftPlanning, education schoolstructure.GroupManagement,
 	substitution schoolStructureCompose.SubstitutionModule, persons peopledirectory.Capability, settings settingsCompose.SettingsService,
-	hub *realtime.Hub, identity *identityaccess.Module, caller *owners.CallerRows, calendar schoolcalendar.Calendar,
+	hub *realtime.Hub, identity identityaccess.Owner, caller *owners.CallerRows, calendar schoolcalendar.Calendar,
 ) error {
 	staff, _, err := newStaffComposition(membership, workTime, users, staffAdmin, workforce.TimeTracking, education, persons, settings, hub, identity, db, logger.With("handler", "staff"))
 	if err != nil {
@@ -794,7 +794,7 @@ func mountSchoolPortalRoutes(
 	planningTracks timetableModule.PlanningTrackAdministration, users peoplePorts.PersonDirectory, schedules owners.CarePlanSchedules,
 	caller *owners.CallerRows, settings settingsCompose.SettingsService, careOfferings carePlanModule.CareOfferingCapability,
 	planExport planexport.Service, chat owners.CommunicationMessaging, persons peopledirectory.Capability, notifications owners.DeliveryNotifications,
-	devices owners.DeliveryDevices, classDay ClassDayViews, identity *identityaccess.Module,
+	devices owners.DeliveryDevices, classDay ClassDayViews, identity identityaccess.Owner,
 ) error {
 	pickupExtensions, err := careexit.NewPickupExtensions(timetableOwner, presence)
 	if err != nil {
@@ -920,7 +920,7 @@ func mountSchoolRoutes(
 func newEnrollmentResource(
 	logger *slog.Logger, settings settingsCompose.SettingsService, careOfferings carePlanModule.CareOfferingCapability,
 	flows owners.EnrollmentFlows, phases enrollmentOwner.PhaseAdministration, decisions enrollmentOwner.Decisions,
-	deletions enrollmentOwner.EnrollmentDeletions, identity *identityaccess.Module,
+	deletions enrollmentOwner.EnrollmentDeletions, identity identityaccess.Owner,
 	guardianProfiles *peopleCompose.GuardianProfileLoader, organizations organizationtenancy.Query,
 	renderer *lists.RendererService, persons peopledirectory.Capability, carePlan carePlanModule.Capability,
 ) *enrollmentAPI.Resource {
@@ -952,7 +952,7 @@ func newEnrollmentResource(
 // the meal plan under /api.
 func mountPeopleRoutes(
 	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, reports owners.PresenceReports, renderer *lists.RendererService,
-	persons *peopleCompose.Directory, guardians peoplePorts.GuardianService, identity *identityaccess.Module, caller *owners.CallerRows,
+	persons *peopleCompose.Directory, guardians peoplePorts.GuardianService, identity identityaccess.Owner, caller *owners.CallerRows,
 	feedback feedbackModule.Capability, mealPlan mealplanModule.Capability, birthdays peopledirectory.Birthdays,
 	emergency emergencysnapshot.Query,
 ) {
@@ -1013,7 +1013,7 @@ func mountCalendarRoutes(root, tenant chi.Router, logger *slog.Logger, calendarA
 // routes under /api and the portal routes at the root. The portal routes sit
 // at the root because /parent is a catch-all mount; ParentMiddleware and
 // SchoolMiddleware authenticate them.
-func mountDeliveryRoutes(root, tenant chi.Router, logger *slog.Logger, fileStore filestorageModule.Capability, hub *realtime.Hub, caller *owners.CallerRows, identity *identityaccess.Module) error {
+func mountDeliveryRoutes(root, tenant chi.Router, logger *slog.Logger, fileStore filestorageModule.Capability, hub *realtime.Hub, caller *owners.CallerRows, identity identityaccess.Owner) error {
 	files := filestoreAPI.NewResource(fileStore, logger.With("handler", "filestore"))
 	sse, err := sseAPI.NewResourceWithSchoolAccess(hub, caller, NewSSEHTTPRuntime(), identity, logger.With("handler", "sse"))
 	if err != nil {
@@ -1058,7 +1058,7 @@ func caregiverCapabilityViews(db transactionruntime.Database, caregivers peopleP
 
 // newAccountResource composes the tenant account routes. Their caregiver
 // capability is the one the operator routes provision with.
-func newAccountResource(db transactionruntime.Database, identity *identityaccess.Module, organizations organizationtenancy.Query, caregivers peoplePorts.CaregiverCapabilityService, settings settingsCompose.SettingsService) *authAPI.Resource {
+func newAccountResource(db transactionruntime.Database, identity identityaccess.Owner, organizations organizationtenancy.Query, caregivers peoplePorts.CaregiverCapabilityService, settings settingsCompose.SettingsService) *authAPI.Resource {
 	authSchools := authSchoolDirectory{schools: organizations, memberships: identity.ListActiveAccountSchoolIDs}
 	resource := authAPI.NewResource(identity, identity, authSchools, identity, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	resource.CaregiverCapabilityService = caregiverCapabilityViews(db, caregivers)
@@ -1074,7 +1074,7 @@ func newAccountResource(db transactionruntime.Database, identity *identityaccess
 func newOperatorRouter(
 	db transactionruntime.Database, logger *slog.Logger, sessionAuth *sessiontoken.TokenAuth, limiters authRateLimiters,
 	iot devicefleetCompose.IoTService, organizations organizationtenancy.Query, settings settingsCompose.SettingsService,
-	hub *realtime.Hub, active studentpresence.Presence, settingsWrites SettingsWrites, identity *identityaccess.Module,
+	hub *realtime.Hub, active studentpresence.Presence, settingsWrites SettingsWrites, identity identityaccess.Owner,
 	provisioning organizationtenancy.Provisioning, caregivers peoplePorts.CaregiverCapabilityService,
 	lifecycle carePlanModule.CareLifecycle, communication communicationModule.Capability,
 ) (chi.Router, error) {
@@ -1141,7 +1141,7 @@ func newOperatorRouter(
 // newParentResource composes the cross-tenant guardian portal: public
 // /parent/auth/login and the protected /parent/* routes.
 func newParentResource(
-	identity *identityaccess.Module, parent *parentportal.Portal, calendarApp calendarCompose.Application, flows owners.EnrollmentFlows,
+	identity identityaccess.Owner, parent *parentportal.Portal, calendarApp calendarCompose.Application, flows owners.EnrollmentFlows,
 	guardianProfiles *peopleCompose.GuardianProfileLoader, organizations organizationtenancy.Query,
 	devices owners.DeliveryDevices, notifications owners.DeliveryNotifications,
 ) *parentAPI.Resource {

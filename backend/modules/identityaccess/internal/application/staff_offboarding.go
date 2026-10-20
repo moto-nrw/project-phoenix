@@ -46,33 +46,39 @@ func (l *AccountLifecycle) ExecuteStaffOffboarding(ctx context.Context, accountI
 		return result, errors.New("account, tenant and preview revision are required for staff offboarding")
 	}
 	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		preview, proceed, err := l.requireStaffOffboarding(txCtx, accountID, revision, &result)
-		if err != nil || !proceed {
-			return err
-		}
-		result, err = l.revokeStaffGrants(txCtx, accountID, preview)
-		if err != nil {
-			return err
-		}
-		tenantID := l.runtime.TenantID(txCtx)
-		if preview.PreserveGuardian {
-			return nil
-		}
-		if preview.DeactivateAccount {
-			// Deactivation records the durable account-wide revocation intent
-			// in this transaction; the existing worker retries post-commit cleanup.
-			if err := l.admin.DeactivateAccount(txCtx, accountID); err != nil {
-				return err
-			}
-			result.AccountDeactivated = true
-		}
-		_, err = l.store.DeactivateTenantMapping(txCtx, accountID, tenantID)
-		return err
+		return l.offboardStaffInTx(txCtx, accountID, revision, &result)
 	})
 	if err != nil {
 		return identityaccess.StaffOffboardingResult{}, err
 	}
 	return result, nil
+}
+
+// offboardStaffInTx revokes the staff grants the preview names and closes
+// the school mapping inside the caller's transaction.
+func (l *AccountLifecycle) offboardStaffInTx(txCtx context.Context, accountID int64, revision string, result *identityaccess.StaffOffboardingResult) error {
+	preview, proceed, err := l.requireStaffOffboarding(txCtx, accountID, revision, result)
+	if err != nil || !proceed {
+		return err
+	}
+	*result, err = l.revokeStaffGrants(txCtx, accountID, preview)
+	if err != nil {
+		return err
+	}
+	tenantID := l.runtime.TenantID(txCtx)
+	if preview.PreserveGuardian {
+		return nil
+	}
+	if preview.DeactivateAccount {
+		// Deactivation records the durable account-wide revocation intent
+		// in this transaction; the existing worker retries post-commit cleanup.
+		if err := l.admin.DeactivateAccount(txCtx, accountID); err != nil {
+			return err
+		}
+		result.AccountDeactivated = true
+	}
+	_, err = l.store.DeactivateTenantMapping(txCtx, accountID, tenantID)
+	return err
 }
 
 func (l *AccountLifecycle) staffOffboardingSnapshot(ctx context.Context, accountID int64) (identityaccess.StaffOffboardingPreview, error) {

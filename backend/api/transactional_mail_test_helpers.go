@@ -23,7 +23,7 @@ func (enqueue fixtureMailOutbox) EnqueueTransactionalMail(ctx context.Context, m
 	return enqueue(ctx, mail)
 }
 
-func newAuthFixtureOutbox(outbox owners.OutboxEnqueuer, runtime *deliveryCompose.Runtime, mailer email.Mailer, logger *slog.Logger, identity func() *identityaccess.Module) owners.DurableMailOutbox {
+func newAuthFixtureOutbox(outbox owners.OutboxEnqueuer, runtime *deliveryCompose.Runtime, mailer email.Mailer, logger *slog.Logger, identity func() identityaccess.Owner) owners.DurableMailOutbox {
 	return fixtureMailOutbox(func(ctx context.Context, mail owners.DurableMail) error {
 		queued, err := outbox.EnqueueMailIntent(ctx, mail)
 		if err != nil {

@@ -224,22 +224,6 @@ type RoleAdministration interface {
 	PermissionCommand
 }
 
-// AccountHoldsRole reports whether the account holds the role of that exact
-// name. A failed lookup counts as not holding it: the answer only ever
-// withholds.
-func (m *Module) AccountHoldsRole(ctx context.Context, accountID int64, roleName string) bool {
-	held, err := m.engine.GetAccountRoles(ctx, accountID)
-	if err != nil {
-		return false
-	}
-	for _, role := range held {
-		if role.Name == roleName {
-			return true
-		}
-	}
-	return false
-}
-
 // SystemRoles are the system roles among roles, in their order.
 func SystemRoles(roles []Role) []Role {
 	result := make([]Role, 0, len(roles))

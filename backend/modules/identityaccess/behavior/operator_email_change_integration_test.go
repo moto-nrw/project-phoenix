@@ -23,7 +23,7 @@ import (
 const operatorTestPassword = "SecurePass123!" //nolint:gosec // pragma: allowlist secret
 
 // buildServiceFactory composes the service root the way the server does.
-func buildServiceFactory(t *testing.T, db *bun.DB) *identityaccess.Module {
+func buildServiceFactory(t *testing.T, db *bun.DB) identityaccess.Owner {
 	t.Helper()
 	identityModule, err := api.NewTestIdentityAccess(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err, "Failed to create service factory")

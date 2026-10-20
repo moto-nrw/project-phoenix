@@ -239,36 +239,42 @@ func (r *RoleAdministration) ReplaceAccountRole(ctx context.Context, accountID, 
 	defer func() { err = roleError(err) }()
 	ctx = bindRuntime(r.attach, ctx)
 	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		// Take the same account lock as single-role mutations before changing
-		// an assignment. This serializes replacements with individual
-		// assignments and removals for the same account.
-		if err := r.lockManageableAccount(txCtx, accountID, "replace account role"); err != nil {
-			return err
-		}
-
-		if err := r.AssignRoleToAccount(txCtx, accountID, roleID); err != nil {
-			return err
-		}
-
-		// The listing applies the tenant filter, so roles held at other
-		// schools are never in it and never removed here.
-		current, err := r.store.ListAccountRoles(txCtx, accountID)
-		if err != nil {
-			return failed("replace account role", err)
-		}
-		for _, role := range current {
-			// Guardian is decided by tier, not by name: a school role labelled
-			// "Guardian" is not the parent-portal role, and the parent-portal
-			// role may carry a custom label.
-			if role.ID == roleID || r.policy.IsGuardianTierRole(role.Facts()) {
-				continue
-			}
-			if err := r.RemoveRoleFromAccount(txCtx, accountID, role.ID); err != nil {
-				return err
-			}
-		}
-		return nil
+		return r.replaceAccountRoleInTx(txCtx, accountID, roleID)
 	})
+}
+
+// replaceAccountRoleInTx assigns the role and removes the account's other
+// school roles inside the caller's transaction.
+func (r *RoleAdministration) replaceAccountRoleInTx(txCtx context.Context, accountID, roleID int64) error {
+	// Take the same account lock as single-role mutations before changing
+	// an assignment. This serializes replacements with individual
+	// assignments and removals for the same account.
+	if err := r.lockManageableAccount(txCtx, accountID, "replace account role"); err != nil {
+		return err
+	}
+
+	if err := r.AssignRoleToAccount(txCtx, accountID, roleID); err != nil {
+		return err
+	}
+
+	// The listing applies the tenant filter, so roles held at other
+	// schools are never in it and never removed here.
+	current, err := r.store.ListAccountRoles(txCtx, accountID)
+	if err != nil {
+		return failed("replace account role", err)
+	}
+	for _, role := range current {
+		// Guardian is decided by tier, not by name: a school role labelled
+		// "Guardian" is not the parent-portal role, and the parent-portal
+		// role may carry a custom label.
+		if role.ID == roleID || r.policy.IsGuardianTierRole(role.Facts()) {
+			continue
+		}
+		if err := r.RemoveRoleFromAccount(txCtx, accountID, role.ID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ensureIdentityForAssignedRole completes the school identity chain for a

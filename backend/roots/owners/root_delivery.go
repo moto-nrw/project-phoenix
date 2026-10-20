@@ -43,7 +43,7 @@ type DeliveryNotifications struct {
 func BuildDeliveryNotifications(
 	db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, pushVAPID deliveryCompose.VAPIDConfig, hub *realtime.Hub, module *deliveryModule.Module,
 	settings settingsCompose.BatchSettingsService, consent communication.NotificationConsentCapability,
-	identity *identityaccess.Module, people PeopleRows, structure StructureRows, workTime workforce.Capability,
+	identity identityaccess.Owner, people PeopleRows, structure StructureRows, workTime workforce.Capability,
 	messaging parentStore.MessagingRepositories,
 ) (DeliveryNotifications, error) {
 	logger := env.Logger

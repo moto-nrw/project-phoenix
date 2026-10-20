@@ -73,7 +73,7 @@ func BuildPresenceReports(
 func BuildCalendarApp(
 	db transactionruntime.Database, env RootEnvironment, people PeopleRows, structure StructureRows, portal carePlanCompose.ParentPortalRepositories,
 	owner TimetableOwner, rooms facilitiesModule.Catalog, workTime workforce.Capability, organizations organizationtenancy.Query,
-	identity *identityaccess.Module, caller identityaccess.CallerContext, appointments appointmentsModule.Capability,
+	identity identityaccess.Owner, caller identityaccess.CallerContext, appointments appointmentsModule.Capability,
 	calendar schoolcalendar.Days, delivery DeliveryRuntime, notifications DeliveryNotifications, settings settingsCompose.BatchSettingsService,
 	persons peopledirectory.GuardianPortalContacts,
 ) calendarCompose.Application {
@@ -139,7 +139,7 @@ func BuildReminders(
 // BuildProvisioning binds Organisation & Tenancy's operator
 // provisioning (#3253) over the owners it provisions and the device fleet.
 func BuildProvisioning(
-	db transactionruntime.Database, env RootEnvironment, organizations organizationtenancy.Capability, identity *identityaccess.Module,
+	db transactionruntime.Database, env RootEnvironment, organizations organizationtenancy.Capability, identity identityaccess.Owner,
 	persons peopledirectory.Capability, membership schoolmembership.Capability, people PeopleRows, devices devicefleet.Capability,
 	sessions presenceCompose.SessionRecords, supervisions studentpresence.SupervisionRecords, owner TimetableOwner,
 	operatorAuditLog OperatorAuditEntries, settings settingsCompose.SettingsService,
@@ -168,7 +168,7 @@ type DeliveryDevices struct {
 
 // BuildDeliveryDevices binds the push subscriptions and the PWA standalone
 // usage over the root's unit of work.
-func BuildDeliveryDevices(db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, pushVAPID deliveryCompose.VAPIDConfig, identity *identityaccess.Module, provisioning organizationtenancy.Provisioning, settings settingsCompose.SettingsService) (DeliveryDevices, error) {
+func BuildDeliveryDevices(db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, pushVAPID deliveryCompose.VAPIDConfig, identity identityaccess.Owner, provisioning organizationtenancy.Provisioning, settings settingsCompose.SettingsService) (DeliveryDevices, error) {
 	push, err := deliveryCompose.NewTenantPushSubscriptionService(unit, db.Pool(), deliveryCompose.NewPushSubscriptionRepository(db.Pool()), identity,
 		pushVAPID, env.Logger.With("service", "push_subscriptions"))
 	if err != nil {

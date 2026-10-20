@@ -2,16 +2,13 @@ package application
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
-// EngineParts are the application services the engine serves the Identity &
-// Access capability over. A nil member reports its flows as unavailable.
-type EngineParts struct {
+// OwnerParts are the application services that serve the Identity & Access
+// capability. A nil member reports its flows as unavailable.
+type OwnerParts struct {
 	CalendarFeeds         CalendarFeeds
 	RFIDCards             *RFIDCards
 	AccountRoleQueries    *AccountRoleQueries
@@ -38,10 +35,16 @@ type EngineParts struct {
 	MFAFlows              MFAFlows
 	// Runtime attaches the composed unit of work ahead of every session flow.
 	Runtime func(context.Context) context.Context
+	// DemoAccess is the demo-only capability; nil outside the demo
+	// environment.
+	DemoAccess *identityaccess.DemoAccess
 }
 
-// NewEngine serves the Identity & Access capability over parts (#4084).
-func NewEngine(parts EngineParts) identityaccess.Engine {
+// NewOwner serves the Identity & Access capability from its services
+// (#4452). The services serve their public capabilities themselves; the
+// engine keeps only the lifecycle and role operations whose transaction
+// boundaries the register keys on it until #4469, and the attach they use.
+func NewOwner(parts OwnerParts) identityaccess.Owner {
 	return engine{
 		CalendarFeeds:               parts.CalendarFeeds,
 		RFIDCards:                   parts.RFIDCards,
@@ -73,131 +76,54 @@ func NewEngine(parts EngineParts) identityaccess.Engine {
 		AccountPasskeyFlows:         parts.MFAFlows.AccountPasskey,
 		accountMFACapability:        newAccountMFACapability(parts.MFAFlows.Capability),
 		runtime:                     parts.Runtime,
+		demoAccess:                  parts.DemoAccess,
 	}
 }
 
+// engine is the Identity & Access owner value. Each embedded service serves
+// its public capability itself and reports it unavailable when the owner was
+// composed without its dependencies. The records, the second factor and the
+// passkey ceremonies are embedded through their public capabilities because
+// their own steps share names with each other. The engine's own methods are
+// only the lifecycle and role operations whose transaction boundaries the
+// register keys on it (#4469); lifecycle and roles reach the same services
+// for them.
 type engine struct {
 	CalendarFeeds
-	// AccountRetention is always composed like signInRetention (#4043).
 	*AccountRetention
 	*RFIDCards
 	*AccountRoleQueries
 	*GuardianSchools
 	*AccountProfiles
 	*Service
-	// The records, the second factor and the ceremonies are embedded through
-	// their public capabilities: their own steps share names with each other.
 	identityaccess.OperatorMFARecords
 	identityaccess.OperatorTokens
 	identityaccess.OperatorPasskeyRecords
 	identityaccess.AccountPasskeyRecords
-	// AccountAuthentication serves its public capabilities itself and reports
-	// them unavailable when the module was composed without session
-	// dependencies.
 	*AccountAuthentication
-	// The operator flows serve their public capabilities themselves and
-	// report them unavailable when the module was composed without operator
-	// dependencies.
 	*OperatorAuthentication
 	*OperatorAccountAccess
-	// AccountLifecycle serves its public capability itself and reports it
-	// unavailable when the module was composed without lifecycle
-	// dependencies. lifecycle reaches the same flows for the engine
-	// operations the transaction register keys (#4469).
 	*AccountLifecycle
-	lifecycle *AccountLifecycle
-	// RoleAdministration serves its public capability itself and reports it
-	// unavailable when the module was composed without lifecycle
-	// dependencies. roles reaches the same flows for the engine operations
-	// the transaction register keys (#4469).
 	*RoleAdministration
-	roles *RoleAdministration
-	// PasswordReset serves its public capability itself and reports it
-	// unavailable when the module was composed without password reset
-	// dependencies.
 	*PasswordReset
-	// SchoolInvitation serves its public capability itself and reports it
-	// unavailable when the module was composed without the school invitation
-	// dependencies.
 	*SchoolInvitation
-	// AccountProvisioning serves its public capability itself and reports
-	// it unavailable when the module was composed without lifecycle
-	// dependencies.
 	*AccountProvisioning
-	// AccountAdministration serves its public capability itself and reports
-	// it unavailable when the module was composed without lifecycle
-	// dependencies.
 	*AccountAdministration
-	// OperatorProvisioning serves its public capability itself and reports
-	// it unavailable when the module was composed without the operator
-	// provisioning dependencies.
 	*OperatorProvisioning
-	// SchoolInvitationMaintenance is always composed: spending a deleted
-	// school's invitations and deleting expired ones need no flow
-	// dependencies.
 	*SchoolInvitationMaintenance
-	// SignInDataRetention is always composed: the fixed retention of
-	// short-lived sign-in data needs no flow dependencies (#3954).
 	*SignInDataRetention
-	// The second factor and the passkey ceremonies serve their public
-	// capabilities themselves and report them unavailable when the module
-	// was composed without them.
 	identityaccess.OperatorMFAFlows
 	identityaccess.OperatorPasskeyFlows
 	identityaccess.AccountPasskeyFlows
-	// accountMFACapability serves the account second factor.
 	accountMFACapability
-	// runtime attaches the composed unit of work ahead of every session flow.
+	lifecycle *AccountLifecycle
+	roles     *RoleAdministration
+	// runtime attaches the composed unit of work ahead of every engine
+	// operation.
 	runtime func(context.Context) context.Context
-}
-
-func MapError(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case errors.Is(err, domain.ErrAccountNotFound):
-		return identityaccess.ErrAccountNotFound
-	case errors.Is(err, domain.ErrRoleNotFound):
-		return identityaccess.ErrRoleNotFound
-	case errors.Is(err, domain.ErrTenantRequired):
-		return identityaccess.ErrTenantRequired
-	case errors.Is(err, domain.ErrGuardianRoleMissing):
-		return identityaccess.ErrGuardianRoleMissing
-	case errors.Is(err, domain.ErrGuardianStudentAccessTenantMismatch):
-		return fmt.Errorf("%w: %w", identityaccess.ErrGuardianStudentAccessTenantMismatch, err)
-	case errors.Is(err, identityaccess.ErrOperatorNotFound):
-		return identityaccess.ErrOperatorNotFound
-	case errors.Is(err, identityaccess.ErrOperatorSessionNotFound):
-		return identityaccess.ErrOperatorSessionNotFound
-	case errors.Is(err, identityaccess.ErrOperatorSessionRotated):
-		return identityaccess.ErrOperatorSessionRotated
-	case errors.Is(err, identityaccess.ErrAccountSessionNotFound):
-		return identityaccess.ErrAccountSessionNotFound
-	case errors.Is(err, identityaccess.ErrAccountSessionRotated):
-		return identityaccess.ErrAccountSessionRotated
-	case errors.Is(err, identityaccess.ErrOperatorMFACredentialNotFound):
-		return identityaccess.ErrOperatorMFACredentialNotFound
-	case errors.Is(err, identityaccess.ErrOperatorMFAChallengeNotFound):
-		return identityaccess.ErrOperatorMFAChallengeNotFound
-	case errors.Is(err, identityaccess.ErrOperatorMFAChallengeStateChanged):
-		return identityaccess.ErrOperatorMFAChallengeStateChanged
-	case errors.Is(err, identityaccess.ErrOperatorTrustedDeviceNotFound):
-		return identityaccess.ErrOperatorTrustedDeviceNotFound
-	case errors.Is(err, identityaccess.ErrOperatorInvitationNotFound):
-		return identityaccess.ErrOperatorInvitationNotFound
-	case errors.Is(err, identityaccess.ErrOperatorEmailChangeNotFound):
-		return identityaccess.ErrOperatorEmailChangeNotFound
-	case errors.Is(err, identityaccess.ErrOperatorPasskeyNotFound):
-		return identityaccess.ErrOperatorPasskeyNotFound
-	case errors.Is(err, identityaccess.ErrOperatorPasskeySessionNotFound):
-		return identityaccess.ErrOperatorPasskeySessionNotFound
-	case errors.Is(err, identityaccess.ErrAccountPasskeyNotFound):
-		return identityaccess.ErrAccountPasskeyNotFound
-	case errors.Is(err, identityaccess.ErrAccountPasskeySessionNotFound):
-		return identityaccess.ErrAccountPasskeySessionNotFound
-	default:
-		return err
-	}
+	// demoAccess is the demo-only capability; nil outside the demo
+	// environment.
+	demoAccess *identityaccess.DemoAccess
 }
 
 // attach hands every session flow the unit of work it was composed with so
@@ -208,3 +134,7 @@ func (e engine) attach(ctx context.Context) context.Context {
 	}
 	return e.runtime(ctx)
 }
+
+// DemoAccess returns the demo-only capability when the owner was composed in
+// the demo environment.
+func (e engine) DemoAccess() *identityaccess.DemoAccess { return e.demoAccess }

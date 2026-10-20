@@ -123,7 +123,7 @@ func newStaffComposition(
 	module schoolMembershipModule.Capability, workforce workforceModule.Capability, users peoplePorts.PersonDirectory,
 	documents *workforceModule.StaffAdmin, timeTracking *workforceCompose.TimeTracking, education schoolstructure.GroupManagement,
 	people peopleModule.Capability, settings settingsCompose.SettingsService, hub *realtime.Hub,
-	identity *identityaccess.Module, db transactionruntime.Database, logger *slog.Logger,
+	identity identityaccess.Owner, db transactionruntime.Database, logger *slog.Logger,
 ) (*staffHTTP.Resource, *timeTrackingHTTP.StaffAdminResource, error) {
 	exportTransfer, err := newExportTransferModule(settings, db, logger)
 	if err != nil {

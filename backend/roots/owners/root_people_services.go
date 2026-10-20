@@ -81,8 +81,8 @@ func GuardianDirectoryProvider(db transactionruntime.Database, guardian peoplePo
 // is composed first, so the directory receives its participation decision
 // at construction.
 func BuildPeopleServices(
-	db transactionruntime.Database, env RootEnvironment, persons *peopleCompose.Directory, people PeopleRows, peopleIdentity *identityaccess.Module,
-	identity *identityaccess.Module, participation careplan.CareParticipation, audit AuditOwner, tokens TokenAdapter,
+	db transactionruntime.Database, env RootEnvironment, persons *peopleCompose.Directory, people PeopleRows, peopleIdentity identityaccess.Owner,
+	identity identityaccess.Owner, participation careplan.CareParticipation, audit AuditOwner, tokens TokenAdapter,
 	guardian peoplePorts.GuardianService, studentAudit peoplePorts.StudentAuditService, photos StudentPhotoRuntime,
 	caregiverLock peoplePorts.CaregiverBindingLocker, groupSupervisions studentpresence.SupervisionRecords,
 	groupSubstitutions GroupSubstitutions, structure StructureRows, plannedSupervisors peoplePorts.PlannedSupervisionBlockers,

@@ -80,7 +80,7 @@ func BuildEnrollmentPhases(
 func BuildEnrollmentDecisions(
 	db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, enrollment EnrollmentRows, notices EnrollmentNotices,
 	audit AuditOwner, people PeopleRows, careRows TimetableCareRows, persons peopledirectory.Capability, carePlan careplan.Capability,
-	offerings CarePlanOfferings, identity *identityaccess.Module, services PeopleServices, schedules CarePlanSchedules,
+	offerings CarePlanOfferings, identity identityaccess.Owner, services PeopleServices, schedules CarePlanSchedules,
 	carePlanRows CarePlanRows, owner TimetableOwner, settings settingsCompose.BatchSettingsService,
 ) *enrollmentCompose.Decisions {
 	records := enrollment.Bookings
@@ -145,7 +145,7 @@ type EnrollmentFlows struct {
 func BuildEnrollmentFlows(
 	db transactionruntime.Database, env RootEnvironment, enrollment EnrollmentRows, notices EnrollmentNotices,
 	decisions *enrollmentCompose.Decisions, phases *enrollmentCompose.Phases, offerings CarePlanOfferings,
-	consent communication.NotificationConsentCapability, identity *identityaccess.Module, people PeopleRows,
+	consent communication.NotificationConsentCapability, identity identityaccess.Owner, people PeopleRows,
 	structure StructureRows, carePlan careplan.Capability, carePlanRows CarePlanRows, schedules CarePlanSchedules,
 	membership schoolmembership.Capability, organizations organizationtenancy.Query, audit AuditOwner,
 	settings settingsCompose.BatchSettingsService, outbox MailOutbox,

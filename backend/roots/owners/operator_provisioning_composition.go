@@ -26,7 +26,7 @@ import (
 // directory, the adapters NewOperatorProvisioningAdapters bound and the
 // settings.
 func newOperatorProvisioning(
-	organizations organizationtenancy.Capability, identity *identityaccess.Module, accounts OperatorAccountDirectory,
+	organizations organizationtenancy.Capability, identity identityaccess.Owner, accounts OperatorAccountDirectory,
 	adapters OperatorProvisioningAdapters, settings settingsCompose.SettingsService, logger *slog.Logger,
 ) (organizationtenancy.Provisioning, error) {
 	return organizationCompose.NewProvisioning(organizationCompose.ProvisioningDependencies{

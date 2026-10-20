@@ -347,28 +347,3 @@ func (e engine) RevokeAccess(ctx context.Context, req identityaccess.RevokeAcces
 	})
 	return
 }
-
-var lifecycleSentinels = []struct {
-	internal error
-	public   error
-}{
-	{identityaccess.ErrPreviewSelf, identityaccess.ErrPreviewSelf},
-	{identityaccess.ErrPreviewTargetNotStaff, identityaccess.ErrPreviewTargetNotStaff},
-	{identityaccess.ErrPreviewTokenInvalid, identityaccess.ErrPreviewTokenInvalid},
-	{identityaccess.ErrStaffOffboardingConflict, identityaccess.ErrStaffOffboardingConflict},
-	{domain.ErrSchoolIdentityNamesRequired, identityaccess.ErrSchoolIdentityNamesRequired},
-	{domain.ErrSchoolIdentityPersonIsStudent, identityaccess.ErrSchoolIdentityPersonIsStudent},
-	{domain.ErrSchoolIdentityTagUnknown, identityaccess.ErrSchoolIdentityTagUnknown},
-	{domain.ErrSchoolIdentityTagConflict, identityaccess.ErrSchoolIdentityTagConflict},
-	{domain.ErrSchoolIdentityTagTaken, identityaccess.ErrSchoolIdentityTagTaken},
-	{identityaccess.ErrParentAccountNotFound, identityaccess.ErrParentAccountNotFound},
-	{identityaccess.ErrEmailAlreadyExists, identityaccess.ErrEmailAlreadyExists},
-	{identityaccess.ErrUsernameAlreadyExists, identityaccess.ErrUsernameAlreadyExists},
-	{identityaccess.ErrCannotRemovePrimaryGuardian, identityaccess.ErrCannotRemovePrimaryGuardian},
-	{identityaccess.ErrCannotRemoveStaffManagedGuardian, identityaccess.ErrCannotRemoveStaffManagedGuardian},
-	{identityaccess.ErrCannotRemoveOwnAccess, identityaccess.ErrCannotRemoveOwnAccess},
-	{identityaccess.ErrCannotRemovePayerGuardian, identityaccess.ErrCannotRemovePayerGuardian},
-	{identityaccess.ErrInviteSocialWorkerManaged, identityaccess.ErrInviteSocialWorkerManaged},
-	{domain.ErrGuardianInvitationNotFound, identityaccess.ErrGuardianInvitationNotFound},
-	{identityaccess.ErrGuardianInvitationExpired, identityaccess.ErrGuardianInvitationExpired},
-}

@@ -40,7 +40,7 @@ func BuildIdentityAccess(
 	people PeopleRows, guardianEnrollments guardianEnrollmentClaims,
 	groups EducationGroupRows, staffGroups schoolstructure.StaffGroupQuery, activityGroups timetablePorts.CallerActivityGroups,
 	sessions presenceCompose.SessionRecords, presence *studentpresence.Module,
-) (*identityaccess.Module, *CallerRows, error) {
+) (identityaccess.Owner, *CallerRows, error) {
 	durable, ok := outbox.(DurableMailOutbox)
 	if !ok {
 		return nil, nil, fmt.Errorf("identity access: transactional outbox is required")
@@ -153,7 +153,7 @@ type guardianEnrollmentClaims interface {
 // IdentityDeliveryRenderers render the Identity & Access mail kinds of the
 // Delivery outbox: the guardian invitation, the guardian welcome and the
 // staff welcome.
-func IdentityDeliveryRenderers(module *identityaccess.Module, defaultFrom email.Email, mailIdentity email.ReplyToResolver, mailState IdentityMailState, env RootEnvironment) map[string]deliveryCompose.MailRenderer {
+func IdentityDeliveryRenderers(module identityaccess.Owner, defaultFrom email.Email, mailIdentity email.ReplyToResolver, mailState IdentityMailState, env RootEnvironment) map[string]deliveryCompose.MailRenderer {
 	logger := env.Logger.With("service", "auth")
 	return map[string]deliveryCompose.MailRenderer{
 		TransactionalMailKind: TransactionalMailRenderer{Identity: module, Logger: logger},

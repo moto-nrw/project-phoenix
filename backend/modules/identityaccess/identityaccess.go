@@ -311,8 +311,10 @@ type AccountSessionAccess interface {
 	AccountSessionCommand
 }
 
-// Engine is the composed implementation behind the public module.
-type Engine interface {
+// Owner is the Identity & Access capability the owner's composition serves:
+// every public capability above, the role check the staff membership binds
+// and the demo-only capability.
+type Owner interface {
 	StaffCalendarFeeds
 	ParentCalendarFeeds
 	SchoolAccountListings
@@ -356,6 +358,13 @@ type Engine interface {
 	AccountAdministration
 	OperatorProvisioning
 	OperatorStatus
+	// AccountHoldsRole reports whether the account holds the role of that
+	// exact name. A failed lookup counts as not holding it: the answer only
+	// ever withholds.
+	AccountHoldsRole(ctx context.Context, accountID int64, roleName string) bool
+	// DemoAccess returns the demo-only capability when the owner was
+	// composed in the demo environment, and nil otherwise.
+	DemoAccess() *DemoAccess
 }
 
 // InvitedPersonQuery retains the person identities of unused invitations in
@@ -382,68 +391,4 @@ type SchoolAccountQuery interface {
 // tenant. Missing cards return found=false. A tenant is always required.
 type RFIDQuery interface {
 	FindRFIDCard(ctx context.Context, tag string) (id string, found bool, err error)
-}
-
-// Module is the public Identity & Access facade. The capabilities in
-// ownerServices are served by the owner's services directly; the module no
-// longer forwards them (#4452).
-type Module struct {
-	engine Engine
-	ownerServices
-	demoAccess *DemoAccess
-}
-
-type ownerServices interface {
-	RoleAdministration
-	AccountLifecycle
-	SchoolInvitations
-	AccountAdministration
-	AccountProvisioning
-	AccountProfiles
-	AccountRoleQueries
-	GuardianPortalLoginQuery
-	GuardianPortalQuery
-	GuardianSchools
-	ParentCalendarFeeds
-	RFIDCards
-	SchoolAccountListings
-	StaffAccountQueries
-	StaffCalendarFeeds
-	GuardianAccess
-	InvitedPersonQuery
-	RFIDQuery
-	RolePermissionQuery
-	SchoolAccountQuery
-	SchoolMembershipQuery
-	SchoolRoleQuery
-	StudentGuardianInvitationQuery
-	AccountAuthentication
-	AccountMFA
-	AccountClaimsQuery
-	AccountPasskeyFlows
-	AccountPasskeyRecords
-	AccountSessionAccess
-	AccountSessionMaintenance
-	AccountRetention
-	PasswordResets
-	SignInDataRetention
-	OperatorAccess
-	OperatorAccountAccess
-	OperatorAuthentication
-	OperatorProvisioning
-	OperatorStatus
-	OperatorMFARecords
-	OperatorMFAFlows
-	OperatorPasskeyFlows
-	OperatorPasskeyRecords
-	OperatorTokens
-}
-
-// NewModule wraps the composed engine; the composition binds the unit of
-// work its transactions run under into the engine at construction.
-func NewModule(engine Engine) *Module {
-	if engine == nil {
-		panic("identity access: engine is required")
-	}
-	return &Module{engine: engine, ownerServices: engine}
 }

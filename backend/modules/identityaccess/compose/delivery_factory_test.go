@@ -30,7 +30,7 @@ type resetPasswords struct {
 func TestPasswordResetDeliveryFor_RecordsLikeTheModule(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	compose := func(resets *PasswordResetDependencies) (*identityaccess.Module, error) {
+	compose := func(resets *PasswordResetDependencies) (identityaccess.Owner, error) {
 		return New(Dependencies{
 			DB: db, Observe: func(Observation) {}, TenantRuntime: testpkg.TenantRuntime(t, db), Resets: resets,
 			Sessions: &identityPorts.SessionDependencies{

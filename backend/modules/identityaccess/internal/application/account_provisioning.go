@@ -89,10 +89,7 @@ func (s *AccountProvisioning) RegisterSchoolAccount(ctx context.Context, registr
 	}
 	defer func() { err = provisioningError(err) }()
 	ctx = bindRuntime(s.attach, ctx)
-	request := domain.SchoolAccountRegistration{
-		TenantID: registration.TenantID, Email: registration.Email, Username: registration.Username,
-		Password: registration.Password, RoleID: registration.RoleID, Identity: provisioningIdentity(registration.Identity),
-	}
+	request := domainSchoolAccountRegistration(registration)
 	email, err := domain.NormalizeAccountEmail(request.Email)
 	if err != nil {
 		return identityaccess.ProvisionedAccount{}, failed(opRegisterAccount, err)
@@ -105,16 +102,9 @@ func (s *AccountProvisioning) RegisterSchoolAccount(ctx context.Context, registr
 	if err := s.ensureCredentialsFree(ctx, email, username); err != nil {
 		return identityaccess.ProvisionedAccount{}, err
 	}
-	if assignsRole(request.RoleID) && request.TenantID <= 0 {
-		return identityaccess.ProvisionedAccount{}, failed(opRegisterAccount, domain.ErrTenantRequiredForRoleAssignment)
-	}
-	var role *domain.ManagedRole
-	if assignsRole(request.RoleID) {
-		resolved, err := s.resolveAssignableRole(ctx, *request.RoleID, request.TenantID)
-		if err != nil {
-			return identityaccess.ProvisionedAccount{}, failed(opRegisterAccount, err)
-		}
-		role = &resolved
+	role, err := s.registrationRole(ctx, request)
+	if err != nil {
+		return identityaccess.ProvisionedAccount{}, err
 	}
 	hash, hashErr := s.passwords.HashPassword(request.Password)
 	if hashErr != nil {
@@ -160,9 +150,7 @@ func (s *AccountProvisioning) LinkSchoolAccount(ctx context.Context, link identi
 	}
 	defer func() { err = provisioningError(err) }()
 	ctx = bindRuntime(s.attach, ctx)
-	request := domain.SchoolAccountLink{
-		TenantID: link.TenantID, Email: link.Email, RoleID: link.RoleID, Identity: provisioningIdentity(link.Identity),
-	}
+	request := domainSchoolAccountLink(link)
 	email := normalizeEmail(request.Email)
 	if request.TenantID <= 0 {
 		return identityaccess.ProvisionedAccount{}, failed(opLinkAccount, domain.ErrTenantRequiredForRoleAssignment)
@@ -415,4 +403,33 @@ func provisioningError(err error) error {
 		return &translatedError{text: err.Error(), public: sentinel.public, cause: err}
 	}
 	return roleError(err)
+}
+
+// registrationRole resolves the role a registration assigns; a role needs a
+// school.
+func (s *AccountProvisioning) registrationRole(ctx context.Context, request domain.SchoolAccountRegistration) (*domain.ManagedRole, error) {
+	if !assignsRole(request.RoleID) {
+		return nil, nil
+	}
+	if request.TenantID <= 0 {
+		return nil, failed(opRegisterAccount, domain.ErrTenantRequiredForRoleAssignment)
+	}
+	resolved, err := s.resolveAssignableRole(ctx, *request.RoleID, request.TenantID)
+	if err != nil {
+		return nil, failed(opRegisterAccount, err)
+	}
+	return &resolved, nil
+}
+
+func domainSchoolAccountRegistration(registration identityaccess.SchoolAccountRegistration) domain.SchoolAccountRegistration {
+	return domain.SchoolAccountRegistration{
+		TenantID: registration.TenantID, Email: registration.Email, Username: registration.Username,
+		Password: registration.Password, RoleID: registration.RoleID, Identity: provisioningIdentity(registration.Identity),
+	}
+}
+
+func domainSchoolAccountLink(link identityaccess.SchoolAccountLink) domain.SchoolAccountLink {
+	return domain.SchoolAccountLink{
+		TenantID: link.TenantID, Email: link.Email, RoleID: link.RoleID, Identity: provisioningIdentity(link.Identity),
+	}
 }

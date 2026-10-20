@@ -264,3 +264,20 @@ func translateRoleError(err error) error {
 	}
 	return lifecycleError(err)
 }
+
+// AccountHoldsRole reports whether the account holds the role of that exact
+// name. A failed lookup counts as not holding it: the answer only ever
+// withholds. It reads through GetAccountRoles, whose transaction boundary the
+// register keys on the engine until #4469.
+func (e engine) AccountHoldsRole(ctx context.Context, accountID int64, roleName string) bool {
+	held, err := e.GetAccountRoles(ctx, accountID)
+	if err != nil {
+		return false
+	}
+	for _, role := range held {
+		if role.Name == roleName {
+			return true
+		}
+	}
+	return false
+}

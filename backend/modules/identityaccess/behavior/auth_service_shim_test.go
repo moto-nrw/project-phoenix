@@ -23,7 +23,7 @@ type retainedSessionCalls interface {
 }
 
 // sessions is the module the shims delegate to.
-func (s *fixtureOwnedAuthService) sessions() *identityaccess.Module { return s.module }
+func (s *fixtureOwnedAuthService) sessions() identityaccess.Owner { return s.module }
 
 func (s *fixtureOwnedAuthService) Login(ctx context.Context, email, password string) (string, string, error) {
 	return s.sessions().LoginWithAudit(ctx, email, password, "", "", "")

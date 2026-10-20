@@ -15,7 +15,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func newOperatorPasskeyRecords(t *testing.T, db *bun.DB) *identityaccess.Module {
+func newOperatorPasskeyRecords(t *testing.T, db *bun.DB) identityaccess.Owner {
 	t.Helper()
 	module, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityCompose.Observation) {}})
 	require.NoError(t, err)
