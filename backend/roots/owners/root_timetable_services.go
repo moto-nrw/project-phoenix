@@ -36,6 +36,8 @@ type TimetableLifecycle struct {
 	AutoStart       timetable.InstanceAutoStart
 	AutoEnd         timetable.InstanceAutoEnd
 	Operations      timetable.OperationCapability
+	// BlockMetadata names each planned block's room and planning track (#4413).
+	BlockMetadata timetablePorts.BlockDisplayMetadata
 }
 
 // BuildTimetableMaterialization binds the recurrence engine: it turns
@@ -99,7 +101,10 @@ func BuildTimetableLifecycle(
 	if err != nil {
 		return TimetableLifecycle{}, err
 	}
-	return TimetableLifecycle{Rows: rows, Materialization: materialization, Conflicts: conflicts, Instances: instances, Deviations: deviations}, nil
+	return TimetableLifecycle{
+		Rows: rows, Materialization: materialization, Conflicts: conflicts, Instances: instances, Deviations: deviations,
+		BlockMetadata: owner.BlockMetadata,
+	}, nil
 }
 
 // buildTimetableDeviations binds the deviation writes: the cancel branch and
@@ -139,7 +144,8 @@ func BuildTimetableDay(
 		return TimetableLifecycle{}, fmt.Errorf("compose timetable auto start and end: %w", err)
 	}
 	operations, err := NewTimetableOperations(timetablePorts.OperationDependencies{
-		Session: session, PlanningTracks: timetableOwner, Sessions: presence.SessionRecords, Supervisions: supervisions,
+		Session: session, PlanningTracks: timetableOwner, BlockMetadata: lifecycle.BlockMetadata,
+		Sessions: presence.SessionRecords, Supervisions: supervisions,
 		Visits: presence.Presence, People: TimetableOperationPeople{OperationPeople: NewTimetableOperationPeople(users), Membership: membership},
 		Lifecycle: arrivalTimetable.NewOperationLifecycle(lifecycle.Instances),
 		Logger:    env.Logger.With("service", "timetable-operations"), Now: env.Now,

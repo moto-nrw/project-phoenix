@@ -1,12 +1,17 @@
 "use client";
 
+import { Fragment } from "react";
+
 import Link from "~/components/ui/navigation-link";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { blockTintStyle } from "~/components/timetable/block-row-parts";
+import { useOperationalOverviewScope } from "~/lib/tenant-context";
 import { blockChildrenLabel, blockTimeRange } from "~/lib/block-children";
 import { formatMinutesAhead, minutesBetween } from "~/lib/home-clock";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
@@ -60,6 +65,9 @@ export function DayFlowBlock() {
   );
 
   const now = useBerlinClock();
+  // Eigene Blöcke sind in ihrer Farbe hinterlegt wie im Tagesplan (#4350),
+  // aber nur, wo eigene und fremde nebeneinander stehen.
+  const showMine = useOperationalOverviewScope() === "all_staff";
   const blocks = data ?? [];
   // Ab dem Block, der gerade läuft: sonst stünde um 16 Uhr immer noch die
   // Frühbetreuung in der Karte.
@@ -121,45 +129,57 @@ export function DayFlowBlock() {
         return (
           <>
             <ul className="space-y-2">
-              {shown.map((block) => (
-                <li key={block.id}>
-                  {/* Jede Zeile führt in den Tagesplan, wo der Block bedient
+              {shown.map((block) => {
+                const mine = showMine && block.isAssigned;
+                return (
+                  <li key={block.id}>
+                    {/* Jede Zeile führt in den Tagesplan, wo der Block bedient
                       wird — wie die Zeilen der Nachbarkarten. */}
-                  <Link
-                    href={dayPlanHref}
-                    aria-label={`${block.title}: im Tagesplan öffnen`}
-                    className={`flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors hover:bg-gray-100/50 ${
-                      block.status === "completed" ? "opacity-60" : ""
-                    }`}
-                  >
-                    <span className="w-24 flex-shrink-0 text-sm font-medium text-gray-900 tabular-nums">
-                      {blockTimeRange(block)}
-                    </span>
-                    {/* Eine Zeile je Block: zweizeilige Einträge lassen in
+                    <Link
+                      href={dayPlanHref}
+                      aria-label={`${block.title}${mine ? " (Mein Block)" : ""}: im Tagesplan öffnen`}
+                      className={`flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors hover:bg-gray-100/50 ${
+                        block.status === "completed" ? "opacity-60" : ""
+                      }`}
+                      style={blockTintStyle(block, mine)}
+                    >
+                      <span className="w-24 flex-shrink-0 text-sm font-medium text-gray-900 tabular-nums">
+                        {blockTimeRange(block)}
+                      </span>
+                      {/* Eine Zeile je Block: zweizeilige Einträge lassen in
                         eine Karte dieser Höhe nur zwei ganz hinein, und zwei
                         Blöcke sind kein Tagesablauf. */}
-                    <p className="min-w-0 flex-1 truncate text-sm">
-                      <span className="font-medium text-gray-900">
-                        {block.title}
-                      </span>
-                      <span className="text-gray-500">
-                        {" · "}
-                        {[
-                          block.roomName,
-                          block.isDuty === true
-                            ? "Dienst"
-                            : block.status === "cancelled"
-                              ? null
-                              : blockChildrenLabel(block),
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </span>
-                    </p>
-                    <BlockState block={block} now={now} />
-                  </Link>
-                </li>
-              ))}
+                      <p className="min-w-0 flex-1 truncate text-sm">
+                        <span className="font-medium text-gray-900">
+                          {block.title}
+                        </span>
+                        <span className="text-gray-500">
+                          {[
+                            block.roomName ? (
+                              <Fragment key="room">
+                                <MotoConceptIcon
+                                  concept="rooms"
+                                  size={14}
+                                  className="mr-1 inline-block align-[-2px]"
+                                />
+                                {block.roomName}
+                              </Fragment>
+                            ) : null,
+                            block.isDuty === true
+                              ? "Dienst"
+                              : block.status === "cancelled"
+                                ? null
+                                : blockChildrenLabel(block),
+                          ]
+                            .filter(Boolean)
+                            .flatMap((part) => [" · ", part])}
+                        </span>
+                      </p>
+                      <BlockState block={block} now={now} />
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
             <HomeMoreRow
               hidden={hidden}

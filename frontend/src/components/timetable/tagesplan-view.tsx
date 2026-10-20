@@ -19,6 +19,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import {
   Fragment,
+  type ReactNode,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -30,10 +31,15 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
-import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-style";
+import {
+  OwnBlockHint,
+  blockRowStyle,
+  blockStaffNames,
+} from "~/components/timetable/block-row-parts";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { blockChildrenLabel, blockEndLine } from "~/lib/block-children";
@@ -104,18 +110,6 @@ function readScrollPosition(day: string): number | null {
   }
 }
 
-function staffLine(instance: PlannedTimetableInstance): string | null {
-  const names = instance.staffNames ?? [];
-  if (names.length === 0) return null;
-  return names
-    .map((entry) =>
-      entry.isSubstitute
-        ? `${entry.displayName} (Vertretung)`
-        : entry.displayName,
-    )
-    .join(", ");
-}
-
 // Kinderzahl so knapp wie möglich — der Tagesplan soll sich in einem Blick
 // lesen, nicht in Sätzen ("4 Kinder" statt "4 Kinder erwartet"). Laufend
 // zählt, wer gerade da ist, und wer gegangen ist, steht daneben (#3921).
@@ -152,12 +146,14 @@ function TagesplanRow({
   isToday,
   dayIsPast,
   nowHHMM,
+  showMine,
   startBusy,
   onOpenSession,
   onStart,
 }: Readonly<{
   instance: PlannedTimetableInstance;
   isToday: boolean;
+  showMine: boolean;
   dayIsPast: boolean;
   nowHHMM: string;
   startBusy: boolean;
@@ -188,13 +184,30 @@ function TagesplanRow({
     instance.status === "completed" ||
     ended ||
     (cancelled && (dayIsPast || (isToday && instance.endTime <= nowHHMM)));
-  const staff = staffLine(instance);
+  const staff = blockStaffNames(instance);
+  // Eigener Block (#4350): die Zeile ist in ihrer Blockfarbe hinterlegt, wie
+  // ein PlanBlock im Raster; Vorleseprogramme hören "Mein Block". isAssigned
+  // gilt auch für eine Vertretung, nur wer abwesend gemeldet ist, fällt
+  // heraus. Sieht jemand ohnehin nur die eigene Einteilung, wäre jede Zeile
+  // hinterlegt und die Farbe sagte nichts mehr.
+  const mine = showMine && instance.isAssigned;
 
-  const metaParts = [
+  // Der Raum trägt sein Konzeptsymbol mitten in der Metazeile. Die Symbole
+  // sind Schmuck: der Text daneben sagt schon, was gemeint ist.
+  const metaParts: ReactNode[] = [
     instance.status === "completed" ? "Beendet" : null,
     missed ? "Nicht gestartet" : null,
     isDuty ? "Dienst" : null,
-    room,
+    room ? (
+      <Fragment key="room">
+        <MotoConceptIcon
+          concept="rooms"
+          size={14}
+          className="mr-1 inline-block align-[-2px]"
+        />
+        {room}
+      </Fragment>
+    ) : null,
     instance.groupName,
     cancelled || isDuty ? null : childrenShort(instance),
   ].filter(Boolean);
@@ -216,6 +229,7 @@ function TagesplanRow({
           className={`block truncate text-sm text-gray-900 ${running ? "font-semibold" : "font-medium"}`}
         >
           {instance.title}
+          <OwnBlockHint mine={mine} />
           {instance.planningTrackName ? (
             <span className="ml-2 text-xs font-normal text-gray-500">
               {instance.planningTrackName}
@@ -233,10 +247,19 @@ function TagesplanRow({
           </span>
         ) : null}
         <span className="block truncate text-xs text-gray-500">
-          {metaParts.join(" · ")}
+          {metaParts.flatMap((part, index) =>
+            index === 0 ? [part] : [" · ", part],
+          )}
         </span>
         {staff && !cancelled ? (
-          <span className="block truncate text-xs text-gray-400">{staff}</span>
+          <span className="block truncate text-xs text-gray-400">
+            <MotoConceptIcon
+              concept="staff"
+              size={14}
+              className="mr-1 inline-block align-[-2px]"
+            />
+            {staff}
+          </span>
         ) : null}
       </span>
       {running ? (
@@ -248,9 +271,7 @@ function TagesplanRow({
   );
 
   const edgeStyle = {
-    borderLeftColor: cancelled
-      ? LOCATION_COLORS.DANGER
-      : (instance.planningTrackColor ?? TIMETABLE_UNTYPED_EDGE_COLOR),
+    ...blockRowStyle(instance, mine),
     ...(over ? { opacity: 0.9 } : {}),
   };
 
@@ -510,6 +531,7 @@ export function TagesplanView() {
                     isToday={isToday}
                     dayIsPast={day < today}
                     nowHHMM={nowHHMM}
+                    showMine={overviewScope === "all_staff"}
                     startBusy={startBusyId === instance.id}
                     onOpenSession={openSession}
                     onStart={(entry) => void handleStart(entry)}

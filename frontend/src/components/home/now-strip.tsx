@@ -1,8 +1,9 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 import { Button, ButtonLink } from "~/components/ui/button";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -242,7 +243,16 @@ function NowText({
             </>
           }
           detail={[
-            block.roomName,
+            block.roomName ? (
+              <Fragment key="room">
+                <MotoConceptIcon
+                  concept="rooms"
+                  size={14}
+                  className="mr-1 inline-block align-[-2px]"
+                />
+                {block.roomName}
+              </Fragment>
+            ) : null,
             blockEndLine(block),
             next
               ? `danach ${next.startTime} ${next.title}`
@@ -267,7 +277,19 @@ function NowText({
               )}
             </>
           }
-          detail={[blockTimeRange(block), block.roomName]}
+          detail={[
+            blockTimeRange(block),
+            block.roomName ? (
+              <Fragment key="room">
+                <MotoConceptIcon
+                  concept="rooms"
+                  size={14}
+                  className="mr-1 inline-block align-[-2px]"
+                />
+                {block.roomName}
+              </Fragment>
+            ) : null,
+          ]}
         />
       );
     }
@@ -352,9 +374,14 @@ function Lines({
 }: {
   readonly headline: string;
   readonly badges?: ReactNode;
-  readonly detail: readonly string[];
+  // Raumangaben tragen ihr Symbol wie in den Blockzeilen (#4350).
+  readonly detail: readonly ReactNode[];
 }) {
-  const text = detail.filter(Boolean).join(" · ");
+  const parts = detail.filter(Boolean);
+  const text =
+    parts.length > 0
+      ? parts.flatMap((part, index) => (index === 0 ? [part] : [" · ", part]))
+      : null;
   return (
     <div className="min-w-0 flex-1">
       {/* Auf dem Handy darf der Satz umbrechen; erst nebeneinander mit den

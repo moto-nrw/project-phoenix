@@ -593,6 +593,43 @@ describe("GET /api/active-supervision-dashboard", () => {
     expect(json.data.openRooms[0]?.students[1]?.activityName).toBeUndefined();
   });
 
+  it("passes the planning-track colour of a planned block through (#4413)", async () => {
+    const planned = {
+      id: 7,
+      title: "Basteln",
+      date: "2026-08-31",
+      start_time: "14:00",
+      end_time: "15:00",
+      room_id: 3,
+      status: "planned",
+      is_overdue: false,
+      minutes_until_start: 10,
+      expected_students_count: 0,
+      present_students_count: 0,
+      assigned_staff_ids: [],
+    };
+    mockApiGet.mockResolvedValueOnce({
+      data: {
+        ...emptyWire,
+        planned_now: [
+          { ...planned, planning_track_color: "#5080D8" },
+          { ...planned, id: 8 },
+        ],
+      },
+    });
+
+    const response = await GET(
+      createMockRequest("/api/active-supervision-dashboard"),
+      createMockContext(),
+    );
+    const json = await parseJsonResponse<{
+      data: { plannedNow: Array<{ planningTrackColor: string | null }> };
+    }>(response);
+
+    expect(json.data.plannedNow[0]?.planningTrackColor).toBe("#5080D8");
+    expect(json.data.plannedNow[1]?.planningTrackColor).toBeNull();
+  });
+
   it("propagates backend errors instead of degrading to empty sections", async () => {
     mockApiGet.mockRejectedValueOnce(new ApiResponseError(403, "forbidden"));
 

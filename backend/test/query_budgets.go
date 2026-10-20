@@ -168,7 +168,8 @@ var queryBudgets = map[string]queryBudget{
 	// here instead of at a runtime checkpoint (#3020).
 	"api.timetable.periods.list": {max: 7, exact: true},
 	// modules/timetable/compose operational day (#3551) — GET /planned-now backing list, 8 eligible instances:
-	// instance list + rooms + staff batch + student batch (#2941).
+	// instance list + staff batch + student batch (#2941) + block display
+	// batch, which names the room and the planning track (#4413).
 	"services.schedule.planned_now": {max: 4},
 	// modules/timetable/compose — POST /instances/bulk-cancel
 	// dry run (#3594): tenant transaction (BEGIN, SET LOCAL ROLE, set_config,

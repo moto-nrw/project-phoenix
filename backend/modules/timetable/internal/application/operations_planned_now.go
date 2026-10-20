@@ -28,7 +28,7 @@ type plannedNowCandidate struct {
 	instance    *scheduleModels.ActivityInstance
 	staffRows   []*scheduleModels.InstanceStaff
 	studentRows []*scheduleModels.InstanceStudent
-	roomName    *string
+	display     timetable.BlockDisplayMetadata
 	canStart    bool
 }
 
@@ -45,11 +45,7 @@ func (s *operations) PlannedNow(ctx context.Context, accountID int64, isAdmin bo
 	if err != nil {
 		return nil, err
 	}
-	roomNames, err := s.roomNameMap(ctx)
-	if err != nil {
-		return nil, err
-	}
-	candidates, err := s.plannedNowCandidates(ctx, eligiblePlannedNow(instances, now, opts, startLead), access, opts.Limit, roomNames)
+	candidates, err := s.plannedNowCandidates(ctx, eligiblePlannedNow(instances, now, opts, startLead), access, opts.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -137,13 +133,13 @@ func eligiblePlannedNow(instances []*scheduleModels.ActivityInstance, now time.T
 
 // plannedNowCandidates keeps the blocks the caller may see (all of them
 // under the operational overview, otherwise their own assignments) up to
-// the limit and loads their staff and participant rows in one read each.
+// the limit and loads their staff rows, participant rows and display
+// metadata (room name and planning track, #4413) in one read each.
 func (s *operations) plannedNowCandidates(
 	ctx context.Context,
 	eligible []*scheduleModels.ActivityInstance,
 	access plannedNowAccess,
 	limit int,
-	roomNames map[int64]*string,
 ) ([]plannedNowCandidate, error) {
 	staffRows, err := s.deps.InstanceStaff.FindByInstanceIDs(ctx, retainedInstanceIDs(eligible))
 	if err != nil {
@@ -165,13 +161,17 @@ func (s *operations) plannedNowCandidates(
 		return nil, err
 	}
 	studentsByInstance := indexInstanceStudentRows(studentRows)
+	display, err := s.deps.BlockMetadata.ListBlockDisplayMetadata(ctx, retainedInstanceIDs(visible))
+	if err != nil {
+		return nil, err
+	}
 	candidates := make([]plannedNowCandidate, 0, len(visible))
 	for _, inst := range visible {
 		candidates = append(candidates, plannedNowCandidate{
 			instance:    inst,
 			staffRows:   staffByInstance[inst.ID],
 			studentRows: studentsByInstance[inst.ID],
-			roomName:    roomNames[inst.RoomID],
+			display:     display[inst.ID],
 			canStart: inst.TemplateType != timetable.GroupTypeDuty && access.hasStaff &&
 				(access.adminActions || staffAssigned(staffByInstance[inst.ID], access.staffID) ||
 					access.startsAny && s.scopeAdmits(ports.ScopedBlockStart, inst)),
@@ -241,7 +241,7 @@ func (s *operations) mapPlannedInstance(candidate plannedNowCandidate, now time.
 		StartTime:             inst.StartTime.Format("15:04"),
 		EndTime:               inst.EndTime.Format("15:04"),
 		RoomID:                inst.RoomID,
-		RoomName:              candidate.roomName,
+		RoomName:              optionalText(candidate.display.RoomName),
 		ActivityType:          inst.TemplateType,
 		Status:                inst.Status,
 		IsOverdue:             start.Before(now),
@@ -255,6 +255,8 @@ func (s *operations) mapPlannedInstance(candidate plannedNowCandidate, now time.
 		Warnings:              []timetable.InstanceConflictWarning{},
 		ActiveGroupID:         inst.ActiveGroupID,
 		CancelReason:          inst.CancelReason,
+		PlanningTrackName:     optionalText(candidate.display.PlanningTrackName),
+		PlanningTrackColor:    optionalText(candidate.display.PlanningTrackColor),
 	}
 	applyPlannedStaff(&mapped, candidate.staffRows, currentStaffID)
 	return mapped
@@ -362,6 +364,14 @@ func instanceStartAt(inst *scheduleModels.ActivityInstance, loc *time.Location) 
 
 func instanceEndAt(inst *scheduleModels.ActivityInstance, loc *time.Location) time.Time {
 	return time.Date(inst.Date.Year(), inst.Date.Month(), inst.Date.Day(), inst.EndTime.Hour(), inst.EndTime.Minute(), inst.EndTime.Second(), 0, loc)
+}
+
+// optionalText is nil for an empty display value.
+func optionalText(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 // roomNameMap names every room of the tenant.
