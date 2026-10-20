@@ -42,6 +42,10 @@ func (rs *Resource) listFormerStaff(w http.ResponseWriter, r *http.Request, filt
 		rs.internal(w, r, err)
 		return
 	}
+	roleMatches := map[int64]bool(nil)
+	if filters.filterByRole != "" {
+		roleMatches = rs.runtime.AccountsHoldingRole(ctx, accountIDsOf(persons), filters.filterByRole)
+	}
 	teachers := map[int64]schoolmembership.Teacher{}
 	if filters.teachersOnly {
 		teachers, err = rs.teacherIndex(ctx, staffIDsOf(former), true)
@@ -56,7 +60,7 @@ func (rs *Resource) listFormerStaff(w http.ResponseWriter, r *http.Request, filt
 		person := persons[staff.PersonID]
 		if person == nil ||
 			schoolmembership.ExternalCaregiver(staff.IsGuest, true, person.AccountID != nil) ||
-			!rs.passesRoleFilter(ctx, person, filters.filterByRole) ||
+			!matchesBatchRoleFilter(person, filters.filterByRole, roleMatches) ||
 			!matchesNameFilter(person, filters.firstName, filters.lastName) {
 			continue
 		}
@@ -71,6 +75,13 @@ func (rs *Resource) listFormerStaff(w http.ResponseWriter, r *http.Request, filt
 		})
 	}
 	rs.respond(w, r, http.StatusOK, responses, "Former staff members retrieved successfully")
+}
+
+func matchesBatchRoleFilter(person *Person, role string, matches map[int64]bool) bool {
+	if role == "" {
+		return true
+	}
+	return person.AccountID != nil && matches[*person.AccountID]
 }
 
 // formerEmployments keeps, per person, the latest retired membership the

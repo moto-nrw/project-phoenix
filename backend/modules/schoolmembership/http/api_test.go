@@ -273,6 +273,15 @@ func newHarness(t *testing.T, membership *fakeMembership) *harness {
 		AccountHasRole: func(_ context.Context, accountID int64, role string) bool {
 			return h.roles[accountID] == role
 		},
+		AccountsHoldingRole: func(_ context.Context, accountIDs []int64, role string) map[int64]bool {
+			matches := make(map[int64]bool)
+			for _, accountID := range accountIDs {
+				if h.roles[accountID] == role {
+					matches[accountID] = true
+				}
+			}
+			return matches
+		},
 		GrantDefaultPermissions: func(_ context.Context, accountID int64, isTeacher bool) {
 			h.grantedTo = append(h.grantedTo, accountID)
 			h.grants = append(h.grants, isTeacher)

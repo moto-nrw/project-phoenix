@@ -28,6 +28,10 @@ type staffCompositionContext struct {
 	router chi.Router
 	// createStaff creates a staff member and returns (staffID, personID).
 	createStaff func(firstName, lastName string) (int64, int64)
+	// createStaffWithAccount creates a staff member linked to an account and
+	// returns (staffID, accountID).
+	createStaffWithAccount func(firstName, lastName string) (int64, int64)
+	assignLehrkraft        func(accountID int64)
 	// absentToday records an approved absence of a school-defined type with
 	// the given wording for the staff member on the current day.
 	absentToday func(staffID int64, wording string)
@@ -59,6 +63,13 @@ func setupStaffCompositionRoute(t *testing.T) *staffCompositionContext {
 		createStaff: func(firstName, lastName string) (int64, int64) {
 			staff := testpkg.CreateTestStaff(t, db, firstName, lastName)
 			return staff.ID, staff.PersonID
+		},
+		createStaffWithAccount: func(firstName, lastName string) (int64, int64) {
+			staff, account := testpkg.CreateTestStaffWithAccountForTenant(t, db, testpkg.Tenant(t), firstName, lastName)
+			return staff.ID, account.ID
+		},
+		assignLehrkraft: func(accountID int64) {
+			testpkg.AssignLehrkraftSystemRole(t, db, accountID, testpkg.Tenant(t))
 		},
 		absentToday: func(staffID int64, wording string) {
 			absenceType := testpkg.CreateTestStaffAbsenceType(t, db, wording)

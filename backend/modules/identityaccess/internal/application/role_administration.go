@@ -391,6 +391,14 @@ func (r *RoleAdministration) GetAccountRoles(ctx context.Context, accountID int6
 	return roles, nil
 }
 
+func (r *RoleAdministration) AccountsHoldingRole(ctx context.Context, accountIDs []int64, roleName string) (map[int64]bool, error) {
+	matches, err := r.store.ListAccountsHoldingRole(ctx, accountIDs, roleName)
+	if err != nil {
+		return nil, failed("get accounts holding role", err)
+	}
+	return matches, nil
+}
+
 func (r *RoleAdministration) GetAccountRoleNames(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
 	names, err := r.store.ListAccountRoleNames(ctx, accountIDs)
 	if err != nil {

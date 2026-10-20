@@ -79,3 +79,49 @@ func TestStaffListFormerEmploymentsAgainstTheDatabase(t *testing.T) {
 	assert.Len(t, largeQueries, len(smallQueries), "flat in the number of former employments")
 	testpkg.AssertQueryBudget(t, "modules.schoolmembership.staff.list_former", largeQueries)
 }
+
+// TestStaffListFormerEmploymentsWithRoleFilterHasFixedQueryCount ensures the
+// optional role filter adds one account-role batch, not a query per former
+// employment.
+func TestStaffListFormerEmploymentsWithRoleFilterHasFixedQueryCount(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupStaffCompositionRoute(t)
+	counter := ctx.countQueries()
+	token := staffCompositionToken(t, betreuerPermissions...)
+	leftOn := calendar.NewDate(2026, 7, 31)
+	retireOne := func(n int) {
+		staffID, accountID := ctx.createStaffWithAccount(fmt.Sprintf("RollenEhemalige%d", n), "Kollegin")
+		ctx.assignLehrkraft(accountID)
+		ctx.retire(staffID, leftOn.BerlinMidnight().Add(10*time.Hour))
+	}
+	list := func() ([]string, []string) {
+		counter.Reset()
+		req := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/staff?employment=former&role=lehrkraft", nil, testutil.WithJWTBearer(token))
+		req = req.WithContext(counter.Context(req.Context()))
+		rr := testutil.ExecuteRequest(ctx.router, req)
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		var body struct {
+			Data []struct {
+				ID string `json:"id"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+		ids := make([]string, 0, len(body.Data))
+		for _, row := range body.Data {
+			ids = append(ids, row.ID)
+		}
+		return ids, counter.Queries()
+	}
+
+	retireOne(1)
+	small, smallQueries := list()
+	retireOne(2)
+	retireOne(3)
+	large, largeQueries := list()
+
+	require.Len(t, small, 1)
+	require.Len(t, large, 3)
+	assert.Len(t, largeQueries, len(smallQueries), "role filtering stays flat in the number of former employments")
+	testpkg.AssertQueryBudget(t, "modules.schoolmembership.staff.list_former.role", largeQueries)
+}

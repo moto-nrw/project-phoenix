@@ -214,6 +214,9 @@ var queryBudgets = map[string]queryBudget{
 	// memberships with the retired ones, then one batch of their persons.
 	// Flat in the number of former employments.
 	"modules.schoolmembership.staff.list_former": {max: 6},
+	// The role-filtered Ehemalige variant adds one auth.account_roles batch;
+	// it stays flat in the number of former employments.
+	"modules.schoolmembership.staff.list_former.role": {max: 7},
 	// modules/schoolstructure — staff-keyed group reads (#3499): teacher
 	// groups, substituted groups and school classes in one pass, 1 and then
 	// 4 rows each, on the caller's tenant transaction. Every read resolves

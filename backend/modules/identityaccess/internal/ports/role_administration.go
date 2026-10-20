@@ -34,6 +34,9 @@ type RoleStore interface {
 	// ListAccountRoles returns the roles the account holds at the tenant in
 	// context.
 	ListAccountRoles(ctx context.Context, accountID int64) ([]domain.ManagedRole, error)
+	// ListAccountsHoldingRole maps the supplied accounts that hold roleName at
+	// the tenant in context. Accounts without that role are absent from the map.
+	ListAccountsHoldingRole(ctx context.Context, accountIDs []int64, roleName string) (map[int64]bool, error)
 	ListAccountRoleNames(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 
 	// AccountHoldsRole reports whether the account-role mapping exists.

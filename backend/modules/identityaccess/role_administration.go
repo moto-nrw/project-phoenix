@@ -153,6 +153,9 @@ type RoleQuery interface {
 	// role is reported as is.
 	ResolveAssignableSchoolRole(ctx context.Context, roleID, tenantID int64) (*AssignableSchoolRole, error)
 	GetAccountRoles(ctx context.Context, accountID int64) ([]Role, error)
+	// AccountsHoldingRole maps the given accounts that hold roleName at the
+	// tenant in context. Accounts without that role are absent from the map.
+	AccountsHoldingRole(ctx context.Context, accountIDs []int64, roleName string) (map[int64]bool, error)
 	// AccountHoldsLehrkraftRole reports whether the account holds the
 	// Lehrkraft system role at the tenant in context.
 	AccountHoldsLehrkraftRole(ctx context.Context, accountID int64) (bool, error)
@@ -235,6 +238,10 @@ func (m *Module) ResolveAssignableSchoolRole(ctx context.Context, roleID, tenant
 
 func (m *Module) GetAccountRoles(ctx context.Context, accountID int64) ([]Role, error) {
 	return m.engine.GetAccountRoles(ctx, accountID)
+}
+
+func (m *Module) AccountsHoldingRole(ctx context.Context, accountIDs []int64, roleName string) (map[int64]bool, error) {
+	return m.engine.AccountsHoldingRole(ctx, accountIDs, roleName)
 }
 
 // AccountHoldsRole reports whether the account holds the role of that exact
