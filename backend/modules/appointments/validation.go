@@ -6,7 +6,9 @@ import (
 	"time"
 )
 
-func validateRecipientFields(fields AppointmentRecipientFields) error {
+// ValidateRecipientFields checks one resolved audience member: its type, the
+// one subject ID that type needs and its response status.
+func ValidateRecipientFields(fields AppointmentRecipientFields) error {
 	switch fields.RecipientType {
 	case RecipientTypeStaff:
 		if fields.StaffID == nil || *fields.StaffID <= 0 || fields.GuardianProfileID != nil {
@@ -22,13 +24,15 @@ func validateRecipientFields(fields AppointmentRecipientFields) error {
 	default:
 		return invalid("invalid recipient_type")
 	}
-	if !validResponseStatus(fields.Status) {
+	if !ValidResponseStatus(fields.Status) {
 		return invalid("invalid recipient status")
 	}
 	return nil
 }
 
-func validResponseStatus(status string) bool {
+// ValidResponseStatus reports whether status is one of the ResponseStatus
+// values.
+func ValidResponseStatus(status string) bool {
 	switch status {
 	case ResponseStatusPending, ResponseStatusAccepted, ResponseStatusDeclined, ResponseStatusInfo:
 		return true
@@ -37,7 +41,10 @@ func validResponseStatus(status string) bool {
 	}
 }
 
-func validateFields(fields AppointmentFields) (AppointmentFields, error) {
+// ValidateAppointmentFields checks the fields of an appointment and returns
+// them normalized: the title trimmed and the overview visibility defaulted to
+// the organizer.
+func ValidateAppointmentFields(fields AppointmentFields) (AppointmentFields, error) {
 	if fields.OrganizerStaffID <= 0 {
 		return fields, invalid("organizer_staff_id is required")
 	}
@@ -100,22 +107,6 @@ func applyFields(value *Appointment, fields AppointmentFields) {
 
 func normalizeWallClock(value time.Time) time.Time {
 	return time.Date(1, time.January, 1, value.Hour(), value.Minute(), value.Second(), value.Nanosecond(), time.UTC)
-}
-
-func positiveIDs(values []int64) []int64 {
-	seen := make(map[int64]struct{}, len(values))
-	result := make([]int64, 0, len(values))
-	for _, value := range values {
-		if value <= 0 {
-			continue
-		}
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		result = append(result, value)
-	}
-	return result
 }
 
 func normalizeWeekdays(values []string) ([]string, error) {
