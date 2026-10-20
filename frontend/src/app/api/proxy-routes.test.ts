@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { describe, expect, it, vi } from "vitest";
-import { PROXY_ROUTES } from "./proxy-routes.table";
+import { PROXY_ROUTES } from "~/test/proxy-routes.table";
 
 /**
  * Table test for every pure proxy route: a `route.ts` whose only top-level
@@ -11,7 +11,7 @@ import { PROXY_ROUTES } from "./proxy-routes.table";
  * `src/lib/route-proxy.server.test.ts`, `src/lib/route-wrapper.test.ts` and the
  * portal wrapper tests; per route only the portal, the backend path (with the
  * route params encoded) and the `raw` flag can differ. Those live in
- * `proxy-routes.table.ts`. A new pure proxy route without a table row fails.
+ * `src/test/proxy-routes.table.ts`. A new pure proxy route without a table row fails.
  */
 
 type Portal = "tenant" | "operator" | "parent" | "school";
