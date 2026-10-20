@@ -209,27 +209,27 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		mailFrom         email.Email
 		pushVAPID        deliveryCompose.VAPIDConfig
 		organizations    organizationtenancy.Capability
-		groups           *schoolstructure.Module
-		rooms            *facilitiesModule.Rooms
-		membership       *schoolMembershipModule.Module
+		groups           schoolstructure.Owner
+		rooms            facilitiesModule.Catalog
+		membership       schoolMembershipModule.Owner
 		bookings         *enrollmentOwner.BookingProjection
 		settings         SettingsOwner
-		calendar         *schoolcalendar.Records
-		workTime         *workforceCompose.WorkTime
+		calendar         schoolcalendar.Days
+		workTime         workforceCompose.WorkTime
 		people           PeopleRows
 		peopleIdentity   *identityaccess.Module
 		guardian         peoplePorts.GuardianService
 		photoRuntime     StudentPhotoRuntime
 		persons          *peopleCompose.Directory
-		timetableOwner   *timetable.Module
+		timetableOwner   timetable.Owner
 		timetableRepos   TimetableRepositories
 		carePlan         *carePlanModule.Module
 		appointments     appointmentsModule.Capability
 		operatorAuditLog OperatorAuditEntries
 		mealPlanSettings *mealplanCompose.Settings
-		mealPlan         *mealplanModule.Module
+		mealPlan         mealplanModule.Capability
 		feedbackSettings *feedbackCompose.Settings
-		feedback         *feedbackModule.Module
+		feedback         feedbackModule.Capability
 		structure        StructureRows
 		presencePeople   PresencePeopleReads
 		careRows         TimetableCareRows
@@ -261,7 +261,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		active           studentpresence.Presence
 		activities       activityContract.ActivityService
 		shifts           *workforceCompose.ShiftPlanning
-		deviceFleet      *devicefleet.Module
+		deviceFleet      devicefleet.Capability
 		materialization  timetable.MaterializationCapability
 		lifecycle        TimetableLifecycle
 		reports          PresenceReports
@@ -275,7 +275,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		chat             CommunicationMessaging
 		calendarApp      calendarCompose.Application
 		parent           *parentportal.Portal
-		fileStore        *filestorageModule.Module
+		fileStore        filestorageModule.Capability
 		planExport       planexport.Service
 		workforce        WorkforcePlanning
 		staffAdmin       *workforceModule.StaffAdmin
@@ -283,7 +283,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		deliveryDevices  DeliveryDevices
 		reminders        reminder.Module
 		studentDeletion  *studentdeletion.Workflow
-		facilities       *facilitiesModule.Module
+		facilities       facilitiesModule.Capability
 		outbox           *deliveryModule.Worker
 		staffGroups      schoolstructure.StaffGroupQuery
 	)

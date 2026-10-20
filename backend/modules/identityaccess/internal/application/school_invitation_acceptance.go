@@ -51,7 +51,8 @@ func (s *SchoolInvitation) provisionInvitationIdentity(ctx context.Context, invi
 		FirstName: firstName, LastName: lastName, Position: position,
 		// The staff import created the person before the invitation went out;
 		// accepting reuses it instead of filing a second one (#2600).
-		PersonID: invitation.PersonID,
+		PersonID:         invitation.PersonID,
+		EmploymentAction: invitation.EmploymentAction,
 		// A Lehrkraft never gets a caregiver profile, caregiver_enabled or
 		// not — the same invariant the role assignment applies (#1772).
 		CaregiverUpgrade: invitation.CaregiverEnabled && !lehrkraft,

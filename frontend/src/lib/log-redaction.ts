@@ -22,7 +22,7 @@ const SENSITIVE_LOG_KEYS = new Set([
 
 const SENSITIVE_PATH_SEGMENT_PATTERN =
   /((?:^|\/)(?:anmeldung\/status|enroll\/status|accept-guardian-invite|calendar-feed|request-feed|public\/calendar|public\/request-feed|enrollment\/requests|guardian-invitations)\/)[^/?#\s"']+/gi;
-// The caterer's mailed invitation names its school, then the token (ADR 0074).
+// The caterer's mailed invitation names its school, then the token (ADR 0075).
 const SENSITIVE_CATERER_INVITATION_PATTERN =
   /((?:^|\/)(?:einladung|caterer\/invitations)\/[^/?#\s"']+\/)[^/?#\s"']+/gi;
 const SENSITIVE_INVITATION_PATH_PATTERN =

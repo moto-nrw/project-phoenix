@@ -1,5 +1,5 @@
 import { proxyPost } from "~/lib/route-proxy.server";
 
 // Einladung an den Caterer: der Link geht nur per E-Mail an ihn, nie an die
-// Schule (ADR 0074). meals:manage erzwingt das Backend.
+// Schule (ADR 0075). meals:manage erzwingt das Backend.
 export const POST = proxyPost("/api/meal-caterer/invitations");

@@ -16,7 +16,7 @@ func TestNewProvisioningRequiresEveryDependency(t *testing.T) {
 	h := newHarness(t)
 	complete := ProvisioningDependencies{
 		PWAUsageWindowDays: 30,
-		Organizations:      organizationtenancy.NewModule(h.engine), Transaction: h.tx, Dashboard: h.dashboard,
+		Organizations:      newFakeOwner(h.engine), Transaction: h.tx, Dashboard: h.dashboard,
 		Identity: h.identity, Devices: h.devices, People: h.people, Presence: h.presence,
 		Categories: h.categories, Settings: h.settings, Audit: h.audit, Secrets: h.secrets,
 	}

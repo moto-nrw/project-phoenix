@@ -88,29 +88,29 @@ func composeServeRoot(
 		mailFrom         email.Email
 		pushVAPID        deliveryCompose.VAPIDConfig
 		organizations    organizationtenancy.Capability
-		groups           *schoolstructure.Module
-		rooms            *facilitiesModule.Rooms
-		membership       *schoolMembershipModule.Module
-		classListEntries *schoolMembershipModule.Module
+		groups           schoolstructure.Owner
+		rooms            facilitiesModule.Catalog
+		membership       schoolMembershipModule.Owner
+		classListEntries schoolMembershipModule.Owner
 		bookings         *enrollmentOwner.BookingProjection
 		settings         owners.SettingsOwner
-		calendar         *schoolcalendar.Records
-		workTime         *workforceCompose.WorkTime
+		calendar         schoolcalendar.Days
+		workTime         workforceCompose.WorkTime
 		people           owners.PeopleRows
 		peopleIdentity   *identityaccess.Module
 		guardian         peoplePorts.GuardianService
 		photoRuntime     owners.StudentPhotoRuntime
 		persons          *peopleCompose.Directory
-		timetableOwner   *timetable.Module
+		timetableOwner   timetable.Owner
 		timetableRepos   owners.TimetableRepositories
 		carePlan         *carePlanModule.Module
 		appointments     appointmentsModule.Capability
 		operatorAuditLog owners.OperatorAuditEntries
-		communication    *communicationModule.Module
+		communication    communicationModule.Capability
 		mealPlanSettings *mealplanCompose.Settings
-		mealPlan         *mealplanModule.Module
+		mealPlan         mealplanModule.Capability
 		feedbackSettings *feedbackCompose.Settings
-		feedback         *feedbackModule.Module
+		feedback         feedbackModule.Capability
 		structure        owners.StructureRows
 		presencePeople   owners.PresencePeopleReads
 		careRows         owners.TimetableCareRows
@@ -144,7 +144,7 @@ func composeServeRoot(
 		activities       activityContract.ActivityService
 		yard             FacilitiesYard
 		shifts           *workforceCompose.ShiftPlanning
-		deviceFleet      *devicefleetModule.Module
+		deviceFleet      devicefleetModule.Capability
 		materialization  timetable.MaterializationCapability
 		lifecycle        owners.TimetableLifecycle
 		structureViews   StructureServices
@@ -161,7 +161,7 @@ func composeServeRoot(
 		chat             owners.CommunicationMessaging
 		calendarApp      calendarCompose.Application
 		parent           *parentportal.Portal
-		fileStore        *filestorageModule.Module
+		fileStore        filestorageModule.Capability
 		planExport       planexport.Service
 		workforce        owners.WorkforcePlanning
 		staffAdmin       *workforceModule.StaffAdmin
@@ -174,8 +174,8 @@ func composeServeRoot(
 		planning         TimetablePlanning
 		settingsWrites   SettingsWrites
 		studentDeletion  *studentdeletion.Workflow
-		facilities       *facilitiesModule.Module
-		calendarAdmin    *schoolcalendar.Module
+		facilities       facilitiesModule.Capability
+		calendarAdmin    schoolcalendar.Calendar
 		outbox           *deliveryModule.Worker
 		iot              devicefleetCompose.IoTService
 		guardianProfiles *peopleCompose.GuardianProfileLoader

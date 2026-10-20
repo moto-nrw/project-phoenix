@@ -503,7 +503,7 @@ func newDeviceAuthentication(iot devicefleetCompose.IoTService, organizations or
 // mountStudentRoutes serves /api/students.
 func mountStudentRoutes(
 	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, deviceAuth *deviceauth.Authenticators, presence *studentpresence.Module,
-	persons peopledirectory.Capability, services owners.PeopleServices, membership *schoolMembershipModule.Module, caller *owners.CallerRows,
+	persons peopledirectory.Capability, services owners.PeopleServices, membership schoolMembershipModule.Owner, caller *owners.CallerRows,
 	reviewPolicy *owners.ParentRequestReviewPolicy, settings settingsCompose.SettingsService, hub *realtime.Hub, carePlan carePlanModule.Capability,
 	companions carePlanModule.StudentCompanions, schedules owners.CarePlanSchedules, requests owners.CarePlanRequests, planning TimetablePlanning,
 	emitter eventContract.Emitter, activities activityContract.ActivityService, lifecycle owners.TimetableLifecycle,
@@ -635,12 +635,12 @@ func mountStudentRoutes(
 func mountPresenceRoutes(
 	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, errorReportDSN string,
 	deviceAuth *deviceauth.Authenticators, presence *studentpresence.Module, active studentpresence.Presence,
-	facilities *facilitiesModule.Module, timetableOwner timetableModule.Capability, timetableRepos timetableCompose.Repositories,
+	facilities facilitiesModule.Capability, timetableOwner timetableModule.Capability, timetableRepos timetableCompose.Repositories,
 	days owners.TimetableDays, persons peopledirectory.Capability, users peoplePorts.PersonDirectory, caller *owners.CallerRows,
 	settings settingsCompose.SettingsService, hub *realtime.Hub, emitter eventContract.Emitter,
 	groupLive grouplive.Query, dashboard supervisiondashboard.Query, yard FacilitiesYard, iot devicefleetCompose.IoTService,
 	activities activityContract.ActivityService, education schoolstructure.GroupManagement, pickups carePlanModule.PickupScheduleService,
-	timeTracking *workforceCompose.TimeTracking, rooms FacilitiesRooms, feedback *feedbackModule.Module,
+	timeTracking *workforceCompose.TimeTracking, rooms FacilitiesRooms, feedback feedbackModule.Capability,
 	organizations organizationtenancy.Query,
 ) error {
 	openRoomMove, err := newOpenRoomMove(facilities, timetableOwner, active, logger)
@@ -701,11 +701,11 @@ func teacherGroupIDs(education schoolstructure.GroupManagement) func(context.Con
 func newIoTResource(
 	db transactionruntime.Database, logger *slog.Logger, errorReportDSN string, deviceAuth *deviceauth.Authenticators,
 	presence *studentpresence.Module, openRoomMove openroommove.Command, sessionEnd sessionend.Command,
-	iot devicefleetCompose.IoTService, facilities *facilitiesModule.Module, active studentpresence.Presence,
+	iot devicefleetCompose.IoTService, facilities facilitiesModule.Capability, active studentpresence.Presence,
 	users peoplePorts.PersonDirectory, activities activityContract.ActivityService, timetableOwner timetableModule.Capability,
 	timetableRepos timetableCompose.Repositories, education schoolstructure.GroupManagement, pickups carePlanModule.PickupScheduleService,
 	settings settingsCompose.SettingsService, timeTracking *workforceCompose.TimeTracking, rooms FacilitiesRooms,
-	feedback *feedbackModule.Module, organizations organizationtenancy.Query, hub *realtime.Hub,
+	feedback feedbackModule.Capability, organizations organizationtenancy.Query, hub *realtime.Hub,
 ) (*iotAPI.Resource, error) {
 	errorReports, err := NewIoTErrorReportRelay(errorReportDSN)
 	if err != nil {
@@ -870,7 +870,7 @@ func newTimetableResource(
 // enrollment, settings, info-point displays and data administration under
 // /api.
 func mountSchoolRoutes(
-	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, facilities *facilitiesModule.Module, rooms FacilitiesRooms,
+	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, facilities facilitiesModule.Capability, rooms FacilitiesRooms,
 	settings settingsCompose.SettingsService, caller *owners.CallerRows, active studentpresence.Presence, users peoplePorts.PersonDirectory,
 	education schoolstructure.GroupManagement, renderer *lists.RendererService, activities activityContract.ActivityService,
 	timetableOwner timetableModule.Capability, iot devicefleetCompose.IoTService, calendar schoolcalendar.Calendar,
@@ -953,7 +953,7 @@ func newEnrollmentResource(
 func mountPeopleRoutes(
 	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, reports owners.PresenceReports, renderer *lists.RendererService,
 	persons *peopleCompose.Directory, guardians peoplePorts.GuardianService, identity *identityaccess.Module, caller *owners.CallerRows,
-	feedback *feedbackModule.Module, mealPlan *mealplanModule.Module, birthdays peopledirectory.Birthdays,
+	feedback feedbackModule.Capability, mealPlan mealplanModule.Capability, birthdays peopledirectory.Birthdays,
 	emergency emergencysnapshot.Query,
 ) {
 	tenant.Mount("/statistics", statisticsAPI.NewResource(reports.Statistics, statisticsHTTPRuntime(renderer), logger.With("handler", "statistics")).Router(ProtectedTenantRoutes))
@@ -974,7 +974,7 @@ func mountPeopleRoutes(
 // reminders, the PWA usage report and the platform announcements under /api.
 func mountCommunicationRoutes(
 	tenant chi.Router, chat owners.CommunicationMessaging, announcements communicationModule.ParentAnnouncementCapability,
-	reminders reminder.Capability, devices owners.DeliveryDevices, communication *communicationModule.Module,
+	reminders reminder.Capability, devices owners.DeliveryDevices, communication communicationModule.Capability,
 ) {
 	tenant.Mount("/messages", messagingAPI.NewResource(chat.Messaging).Router(ProtectedTenantRoutes))
 	tenant.Mount("/parent-announcements", announcementAPI.NewResource(announcements, newDeclarationReports()).Router(ProtectedTenantRoutes))
@@ -1013,7 +1013,7 @@ func mountCalendarRoutes(root, tenant chi.Router, logger *slog.Logger, calendarA
 // routes under /api and the portal routes at the root. The portal routes sit
 // at the root because /parent is a catch-all mount; ParentMiddleware and
 // SchoolMiddleware authenticate them.
-func mountDeliveryRoutes(root, tenant chi.Router, logger *slog.Logger, fileStore *filestorageModule.Module, hub *realtime.Hub, caller *owners.CallerRows, identity *identityaccess.Module) error {
+func mountDeliveryRoutes(root, tenant chi.Router, logger *slog.Logger, fileStore filestorageModule.Capability, hub *realtime.Hub, caller *owners.CallerRows, identity *identityaccess.Module) error {
 	files := filestoreAPI.NewResource(fileStore, logger.With("handler", "filestore"))
 	sse, err := sseAPI.NewResourceWithSchoolAccess(hub, caller, NewSSEHTTPRuntime(), identity, logger.With("handler", "sse"))
 	if err != nil {
@@ -1076,7 +1076,7 @@ func newOperatorRouter(
 	iot devicefleetCompose.IoTService, organizations organizationtenancy.Query, settings settingsCompose.SettingsService,
 	hub *realtime.Hub, active studentpresence.Presence, settingsWrites SettingsWrites, identity *identityaccess.Module,
 	provisioning organizationtenancy.Provisioning, caregivers peoplePorts.CaregiverCapabilityService,
-	lifecycle carePlanModule.CareLifecycle, communication *communicationModule.Module,
+	lifecycle carePlanModule.CareLifecycle, communication communicationModule.Capability,
 ) (chi.Router, error) {
 	tagScanReview := tagScanOperatorAPI.NewResource(tagScanOperatorAPI.Config{
 		Scans:     iot.Fleet(),

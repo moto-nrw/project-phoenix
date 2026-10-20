@@ -10,8 +10,11 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
+	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	mealplanHTTP "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type engine struct {
@@ -50,7 +53,7 @@ func resolveModuleFailure(err error) (int, error) {
 func TestStaffRoutesKeepProtectedPermissionBoundaries(t *testing.T) {
 	t.Parallel()
 
-	module := mealplanModule.NewModule(engine{available: true})
+	module := engine{available: true}
 	protected := false
 	var accesses []mealplanHTTP.Access
 	resource := mealplanHTTP.NewResource(module, mealplanHTTP.Runtime{
@@ -84,39 +87,52 @@ func TestStaffRoutesKeepProtectedPermissionBoundaries(t *testing.T) {
 }
 
 func (e engine) Available(context.Context) (bool, error) { return e.available, nil }
-func (e engine) Week(context.Context, string) ([]mealplanModule.Entry, error) {
+func (e engine) Week(context.Context, mealplanModule.Date) ([]mealplanModule.Entry, error) {
 	if !e.available {
 		return nil, mealplanModule.ErrDisabled
 	}
 	return e.entries, nil
 }
-func (e engine) Replace(context.Context, string, []mealplanModule.Dish) error {
+func (e engine) ReplaceDay(context.Context, mealplanModule.ReplaceDay) error {
 	if !e.available {
 		return mealplanModule.ErrDisabled
 	}
 	return nil
 }
-func (e engine) Clear(context.Context, string) error                 { return nil }
+func (e engine) ClearDay(context.Context, mealplanModule.Date) error { return nil }
 func (e engine) RegistrationAvailable(context.Context) (bool, error) { return e.available, nil }
-func (e engine) Participation(context.Context, int64, string, string) (mealplanModule.ParticipationPlan, error) {
+func (e engine) Participation(context.Context, int64, mealplanModule.Date, mealplanModule.Date) (mealplanModule.ParticipationPlan, error) {
 	return mealplanModule.ParticipationPlan{}, nil
 }
-func (e engine) ReplaceParticipationSchedule(context.Context, int64, int64, []mealplanModule.Weekday, string) (mealplanModule.Date, error) {
+func (e engine) ReplaceParticipationSchedule(context.Context, mealplanModule.ReplaceParticipationSchedule) (mealplanModule.Date, error) {
 	return "2026-09-07", nil
 }
-func (e engine) SetParticipationDay(_ context.Context, _ int64, accountID int64, date string, participating, bySchool bool) error {
-	if e.dayChange != nil {
-		*e.dayChange = dayChange{accountID: accountID, date: date, participating: participating, bySchool: bySchool}
-	}
+func (e engine) ReplaceScheduleBySchool(context.Context, mealplanModule.SchoolSchedule) (mealplanModule.Date, error) {
+	return "2026-09-07", nil
+}
+func (e engine) SetParticipationForDay(_ context.Context, command mealplanModule.SetParticipationDay) error {
+	e.record(command.GuardianAccountID, command.Date, command.Participating, false)
 	return nil
 }
-func (e engine) SetParticipationWeek(context.Context, int64, int64, string, bool) (mealplanModule.WeekChange, error) {
+func (e engine) SetParticipationBySchool(_ context.Context, command mealplanModule.SchoolChange) error {
+	e.record(command.StaffAccountID, command.Date, command.Participating, true)
+	return nil
+}
+func (e engine) record(accountID int64, date mealplanModule.Date, participating, bySchool bool) {
+	if e.dayChange != nil {
+		*e.dayChange = dayChange{accountID: accountID, date: string(date), participating: participating, bySchool: bySchool}
+	}
+}
+func (e engine) SetParticipationForWeek(context.Context, mealplanModule.SetParticipationWeek) (mealplanModule.WeekChange, error) {
 	return mealplanModule.WeekChange{}, nil
 }
-func (e engine) ClearParticipationDay(context.Context, int64, int64, string, bool) error {
+func (e engine) ClearParticipationForDay(context.Context, mealplanModule.SetParticipationDay) error {
 	return nil
 }
-func (e engine) DailyParticipants(context.Context, string) (mealplanModule.DailyList, error) {
+func (e engine) ClearParticipationBySchool(context.Context, mealplanModule.SchoolChange) error {
+	return nil
+}
+func (e engine) DailyList(context.Context, mealplanModule.Date) (mealplanModule.DailyList, error) {
 	return mealplanModule.DailyList{Date: "2026-09-07", CutoffTime: "09:00", Deadline: time.Date(2026, 9, 7, 7, 0, 0, 0, time.UTC), Participants: []mealplanModule.DailyParticipant{{StudentID: 42, FirstName: "Mia", LastName: "Muster", SchoolClass: "2a"}},
 		Others: []mealplanModule.DailyParticipant{{StudentID: 43, FirstName: "Ben", LastName: "Bauer", SchoolClass: "3b"}}}, nil
 }
@@ -129,9 +145,13 @@ func resource(available bool) *mealplanHTTP.Resource {
 // level (registering) or only those below a school's change.
 func resourceAllowing(available, registering bool) *mealplanHTTP.Resource {
 	date, _ := mealplanModule.ParseDate("2026-09-07")
-	module := mealplanModule.NewModule(engine{available: available, entries: []mealplanModule.Entry{{
+	module := engine{available: available, entries: []mealplanModule.Entry{{
 		Date: date, Position: 0, Dish: "Nudeln",
-	}}})
+	}}}
+	return resourceFor(module, registering)
+}
+
+func resourceFor(module mealplanModule.Capability, registering bool) *mealplanHTTP.Resource {
 	return mealplanHTTP.NewResource(module, mealplanHTTP.Runtime{
 		Protected: routetest.UnprotectedGroupFunc(),
 		Permission: func(mealplanHTTP.Access) mealplanHTTP.Middleware {
@@ -200,7 +220,21 @@ func TestStaffDeleteKeepsWeekendNoOpContract(t *testing.T) {
 func TestStaffWeekendWriteKeepsItsErrorContract(t *testing.T) {
 	t.Parallel()
 
-	response := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest(
+	enabled := func(context.Context) (bool, error) { return true, nil }
+	settings, err := mealplanCompose.NewBoundSettings(enabled, enabled, func(context.Context) (mealplanCompose.OrderingSettings, error) {
+		return mealplanCompose.OrderingSettings{}, nil
+	})
+	require.NoError(t, err)
+	module, err := mealplanCompose.New(mealplanCompose.Dependencies{
+		DB: testpkg.SetupTestDB(t), Settings: settings,
+		Observe: func(mealplanCompose.Observation) {}, Now: time.Now,
+		Participants: func(context.Context, string) ([]mealplanModule.ParticipantCandidate, error) { return nil, nil },
+		StudentNames: func(context.Context, []int64) ([]mealplanModule.ParticipantCandidate, error) { return nil, nil },
+		Calendar:     func(context.Context, string, string) (map[string]bool, map[string]bool, error) { return nil, nil, nil },
+	})
+	require.NoError(t, err)
+
+	response := routetest.ExecuteRequest(resourceFor(module, true).Router(), routetest.NewRequest(
 		"PUT", "/2026-09-05", strings.NewReader(`{"dishes":[{"dish":"Suppe"}]}`),
 	))
 	if response.Code != 400 {
@@ -231,7 +265,7 @@ func TestStaffDailyListListsTheOthersOnRequest(t *testing.T) {
 func TestStaffDayChangeIsTheSchools(t *testing.T) {
 	t.Parallel()
 	recorded := &dayChange{}
-	module := mealplanModule.NewModule(engine{available: true, dayChange: recorded})
+	module := engine{available: true, dayChange: recorded}
 	router := mealplanHTTP.NewResource(module, mealplanHTTP.Runtime{
 		Protected:  routetest.UnprotectedGroupFunc(),
 		Permission: func(mealplanHTTP.Access) mealplanHTTP.Middleware { return routetest.IdentityMiddleware },
@@ -266,19 +300,19 @@ func (e engine) CurrentSupply(context.Context) (mealplanModule.Supply, bool, err
 	return mealplanModule.Supply{}, false, nil
 }
 
-func (e engine) CatererOrders(context.Context, int64, string, string) (mealplanModule.OrderWeek, error) {
+func (e engine) CatererOrders(context.Context, int64, mealplanModule.Date, mealplanModule.Date) (mealplanModule.OrderWeek, error) {
 	return mealplanModule.OrderWeek{}, nil
 }
 
 func (e engine) ConfirmOrder(context.Context, int64, int64, int64) error { return nil }
 
-func (e engine) Orders(_ context.Context, from, _ string) (mealplanModule.OrderWeek, error) {
+func (e engine) Orders(_ context.Context, from, _ mealplanModule.Date) (mealplanModule.OrderWeek, error) {
 	confirmed := time.Date(2026, 9, 7, 9, 30, 0, 0, time.UTC)
 	return mealplanModule.OrderWeek{Rhythm: "daily", Detail: "by_class", Days: []mealplanModule.OrderDay{{
-		Date: mealplanModule.Date(from), Deadline: time.Date(2026, 9, 7, 7, 0, 0, 0, time.UTC), Status: mealplanModule.OrderConfirmed, OrderID: 12, ConfirmedAt: &confirmed, Total: 1,
+		Date: from, Deadline: time.Date(2026, 9, 7, 7, 0, 0, 0, time.UTC), Status: mealplanModule.OrderConfirmed, OrderID: 12, ConfirmedAt: &confirmed, Total: 1,
 		Classes:  []mealplanModule.ClassCount{{SchoolClass: "2a", Count: 1}},
 		Children: []mealplanModule.OrderChild{{StudentID: 42, FirstName: "Mia", LastName: "Muster", SchoolClass: "2a"}},
-		Changes:  []mealplanModule.OrderChange{{Sequence: 3, Date: mealplanModule.Date(from), Child: mealplanModule.OrderChild{StudentID: 43, FirstName: "Ben", SchoolClass: "3b"}, Delta: -1, DetectedAt: time.Date(2026, 9, 7, 8, 0, 0, 0, time.UTC)}},
+		Changes:  []mealplanModule.OrderChange{{Sequence: 3, Date: from, Child: mealplanModule.OrderChild{StudentID: 43, FirstName: "Ben", SchoolClass: "3b"}, Delta: -1, DetectedAt: time.Date(2026, 9, 7, 8, 0, 0, 0, time.UTC)}},
 	}}}, nil
 }
 

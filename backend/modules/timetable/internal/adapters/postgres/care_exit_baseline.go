@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -17,7 +18,7 @@ type careExitCount struct {
 
 // CountRunningEnrollmentsForCareExit counts the live bookings still running on
 // validUntil. A booking the earlier exit capped is judged by its previous end.
-func (s *Store) CountRunningEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil string, capped []domain.CareExitEnrollmentRemoval) (map[int64]int, domain.OperationStats, error) {
+func (s *Store) CountRunningEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil string, capped []timetable.CareExitEnrollmentRemoval) (map[int64]int, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -39,7 +40,7 @@ func (s *Store) CountRunningEnrollmentsForCareExit(ctx context.Context, studentI
 
 // CountRestorableEnrollmentsForCareExit counts the bookings the earlier exit
 // deleted that would still run on validUntil and have not been re-created.
-func (s *Store) CountRestorableEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil string, deleted []domain.CareExitEnrollmentRemoval) (map[int64]int, domain.OperationStats, error) {
+func (s *Store) CountRestorableEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil string, deleted []timetable.CareExitEnrollmentRemoval) (map[int64]int, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err

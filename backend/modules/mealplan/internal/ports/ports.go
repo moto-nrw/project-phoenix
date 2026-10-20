@@ -4,12 +4,13 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
 )
 
 type Store interface {
 	FindWeek(context.Context, domain.Date, domain.Date) ([]domain.Entry, domain.OperationStats, error)
-	ReplaceDay(context.Context, domain.Date, []domain.Dish) (domain.OperationStats, error)
+	ReplaceDay(context.Context, domain.Date, []mealplan.Dish) (domain.OperationStats, error)
 	ClearDay(context.Context, domain.Date) (domain.OperationStats, error)
 	FindParticipation(context.Context, int64, domain.Date, domain.Date) (domain.ParticipationData, domain.OperationStats, error)
 	InsertParticipationSchedule(context.Context, int64, int64, domain.Date, []domain.Weekday) (domain.OperationStats, error)
@@ -23,7 +24,7 @@ type Store interface {
 	SupplyStore
 }
 
-// SupplyStore holds the school's supply by its caterer (ADR 0074).
+// SupplyStore holds the school's supply by its caterer (ADR 0075).
 type SupplyStore interface {
 	// FindActiveSupply reads the running supply; forUpdate locks it for the
 	// unit of work.
@@ -81,7 +82,7 @@ type OrderingSettings struct {
 	SickAfterDeadline    string
 	OrderRhythm          string
 	OrderDetail          string
-	// CatererNames is gdpr.meal_caterer_names_enabled (ADR 0074).
+	// CatererNames is gdpr.meal_caterer_names_enabled (ADR 0075).
 	CatererNames bool
 }
 

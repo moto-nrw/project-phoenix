@@ -35,7 +35,7 @@ const logger = createLogger({ component: "MealCaterer" });
 const EMPTY_FORM = { email: "", catererName: "", deliveryAddress: "" };
 
 /**
- * Der Caterer der Schule (ADR 0074): wer liefert, eine Einladung per E-Mail
+ * Der Caterer der Schule (ADR 0075): wer liefert, eine Einladung per E-Mail
  * und das Ende der Belieferung. Der Link der Einladung geht nur an den
  * Caterer; die Schule sieht ihn nie.
  */

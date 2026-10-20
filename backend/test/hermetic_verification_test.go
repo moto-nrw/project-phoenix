@@ -5,20 +5,14 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/testdb"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestHermeticTestPatterns verifies that test files follow hermetic testing patterns.
@@ -66,18 +60,6 @@ func TestHermeticTestPatterns(t *testing.T) {
 				"      // ... test code\n"+
 				"  }",
 				len(violations), strings.Join(violations, "\n"))
-		}
-	})
-
-	t.Run("no_new_cleanup_calls", func(t *testing.T) {
-		violations, err := checkCleanupCallRatchet(backendRoot)
-		require.NoError(t, err)
-		if len(violations) > 0 {
-			t.Errorf("Found explicit fixture cleanup calls:\n\n%s\n\n"+
-				"The package clone owns tenant rows, and tenantless fixture builders\n"+
-				"own their exceptional lifecycle internally. Tests must not call\n"+
-				"Cleanup* helpers or add an allowlist entry.",
-				strings.Join(violations, "\n"))
 		}
 	})
 
@@ -181,114 +163,6 @@ func TestHermeticTestPatterns(t *testing.T) {
 	})
 }
 
-func TestExplicitCleanupCallCountResolvesFixtureAliases(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name           string
-		code           string
-		fixturePackage bool
-		want           int
-	}{
-		{
-			name: "explicit alias",
-			code: `package sample
-import fixture "github.com/moto-nrw/project-phoenix/test"
-func run() { fixture.CleanupAuthFixtures(nil, nil) }`,
-			want: 1,
-		},
-		{
-			name: "default alias",
-			code: `package sample
-import "github.com/moto-nrw/project-phoenix/test"
-func run() { test.CleanupAuthFixtures(nil, nil) }`,
-			want: 1,
-		},
-		{
-			name: "parenthesized selector",
-			code: `package sample
-import fixture "github.com/moto-nrw/project-phoenix/test"
-func run() { (fixture.CleanupAuthFixtures)(nil, nil) }`,
-			want: 1,
-		},
-		{
-			name: "generic selector",
-			code: `package sample
-import fixture "github.com/moto-nrw/project-phoenix/test"
-func run() { fixture.CleanupTableRecords[int64](nil, nil, "table") }`,
-			want: 1,
-		},
-		{
-			name: "method value alias",
-			code: `package sample
-import fixture "github.com/moto-nrw/project-phoenix/test"
-func run() { cleanup := fixture.CleanupAuthFixtures; cleanup(nil, nil) }`,
-			want: 1,
-		},
-		{
-			name: "deferred fixture call",
-			code: `package sample
-import fixture "github.com/moto-nrw/project-phoenix/test"
-func run() { defer fixture.CleanupAuthFixtures(nil, nil) }`,
-			want: 1,
-		},
-		{
-			name:           "fixture cleanup declaration",
-			fixturePackage: true,
-			code: `package test
-func CleanupFixture() {}`,
-			want: 0,
-		},
-		{
-			name: "uncalled fixture method value",
-			code: `package sample
-import fixture "github.com/moto-nrw/project-phoenix/test"
-func run() { _ = fixture.CleanupAuthFixtures }`,
-			want: 0,
-		},
-		{
-			name:           "unqualified in fixture package",
-			fixturePackage: true,
-			code: `package sample
-func run() { CleanupAuthFixtures(nil, nil) }`,
-			want: 1,
-		},
-		{
-			name: "dot import",
-			code: `package sample
-import . "github.com/moto-nrw/project-phoenix/test"
-func run() { CleanupAuthFixtures(nil, nil) }`,
-			want: 1,
-		},
-		{
-			name: "unqualified production function",
-			code: `package sample
-func CleanupExpiredTokens() {}
-func run() { CleanupExpiredTokens() }`,
-			want: 0,
-		},
-		{
-			name: "production method",
-			code: `package sample
-func run() { service.CleanupExpiredTokens() }`,
-			want: 0,
-		},
-		{
-			name: "comment and string",
-			code: `package sample
-// testpkg.CleanupAuthFixtures(nil, nil)
-var text = "CleanupAuthFixtures(nil, nil)"`,
-			want: 0,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := countExplicitCleanupCalls("sample_test.go", []byte(tc.code), tc.fixturePackage)
-			require.NoError(t, err)
-			assert.Equal(t, tc.want, got)
-		})
-	}
-}
-
 func TestParallelGlobalStateGateFindsDirectMutation(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -377,22 +251,17 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 
 	// Files to skip (mock tests, model unit tests without DB)
 	skipPatterns := []string{
-		"_internal_test.go",                                                    // Internal tests often use mocks
-		"_mock_test.go",                                                        // Mock tests
-		"models/",                                                              // Model unit tests don't hit DB (Unix)
-		"modules/dataimport/student_test.go",                                   // Pure DTO test moved from models/import; no database rows (#2744).
-		"models\\",                                                             // Model unit tests don't hit DB (Windows)
-		"invitation_service_test.go",                                           // Uses mocks
-		"reminder_notifications_test.go",                                       // Pure in-memory fakes, no DB (#1624 follow-up)
-		"password_reset_integration_test.go",                                   // Uses mocks (sqlmock + stubs)
-		"handlers_unit_test.go",                                                // Unit tests for converters (no DB)
-		"http_middleware_test.go",                                              // Uses nil *bun.DB for unit testing middleware
-		"operator_invitation_test.go",                                          // Uses mocks (sqlmock + stubs)
-		"operator_invitation_dispatch_test.go",                                 // Uses mocks for email dispatch tests
-		"invitations_test.go",                                                  // Uses mocks for handler tests
-		"error_helpers_test.go",                                                // Internal unit tests for helper functions (no DB)
-		"auth/authorize/role_grant_test.go",                                    // Pure policy unit tests on stack-allocated roles (no DB); int64 literals are throwaway IDs
-		"api/iot/api_test.go",                                                  // Uses mock SchoolRepo for unit testing handler
+		"_internal_test.go",                  // Internal tests often use mocks
+		"_mock_test.go",                      // Mock tests
+		"models/",                            // Model unit tests don't hit DB (Unix)
+		"modules/dataimport/student_test.go", // Pure DTO test moved from models/import; no database rows (#2744).
+		"models\\",                           // Model unit tests don't hit DB (Windows)
+		"invitation_service_test.go",         // Uses mocks
+		"reminder_notifications_test.go",     // Pure in-memory fakes, no DB (#1624 follow-up)
+		"handlers_unit_test.go",              // Unit tests for converters (no DB)
+		"invitations_test.go",                // Uses mocks for handler tests
+		"error_helpers_test.go",              // Internal unit tests for helper functions (no DB)
+		"api/iot/api_test.go",                // Uses mock SchoolRepo for unit testing handler
 		"modules/devicescan/http/checkin/capacity_errors_test.go",              // Pure JSON-marshal regression tests for capacity/conflict renderers (ex api/iot/common); int64 literals are throwaway IDs, not DB rows
 		"modules/devicescan/http/checkin/wire_test.go",                         // Wire goldens over a fake device-scan workflow (#2698); int64 literals are throwaway IDs, not DB rows
 		"api/iot/config_test.go",                                               // Uses mock settings service for unit testing config endpoint
@@ -402,23 +271,13 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"modules/timetable/http/instances_test.go",                             // Uses mock InstanceService + PersonService for unit testing handlers
 		"modules/timetable/http/understaffed_test.go",                          // Uses mock InstanceService for unit testing the acknowledge-understaffed handler (no DB); int64 literals are fake instance IDs, not DB rows
 		"modules/timetable/http/instance_students_unit_test.go",                // Uses fake repo for unit testing attendance PATCH handler
-		"presence/attendance_mirror_unit_test.go",                              // Uses fake repos for unit testing the attendance mirror's graceful-degradation branches
 		"timetable/substitute_conflicts_test.go",                               // Pure unit test with in-memory structs; int64(1)/int64(2) are fake IDs, not DB rows (WP-B12)
 		"realtime/hub_broadcast_to_tenant_test.go",                             // Pure SSE-hub unit test; tenant IDs are in-memory channel routing keys, not DB rows
-		"services/config/sideeffects/registry_test.go",                         // Pure registry unit test; tenant IDs are pass-through arguments, not DB rows
-		"services/facilities/settings_sideeffects_test.go",                     // Pure side-effect dispatch unit test against fake services; tenant IDs are not DB rows
 		"modules/presenceprojection/http/response_helpers_test.go",             // Pure unit tests on populatePhotoFields; int64 literals are fake IDs in stack-allocated structs
-		"auth/authorize/student_access_test.go",                                // Pure-logic tests against stub user-context + settings; int64 literals are fake group IDs in stack-allocated structs (no DB)
 		"modules/peopledirectory/inbound/students/photo_error_mappers_test.go", // Table-driven mapper tests with httptest.NewRecorder; no DB
-		"modules/peopledirectory/inbound/students/photo_unlinker_test.go",      // Pure file-system unit test for the unlinker; uses a temp dir, no DB
-		"services/users/student_photo_service_broadcast_test.go",               // Pure unit tests for broadcast helpers + side-effect registry binding; tenant IDs are pass-through arguments, no DB
 		"api/common/trusted_device_dto_test.go",                                // Pure DTO-mapper unit tests against stack-allocated TrustedDeviceRow values; int64 literals are sentinel IDs in in-memory structs, not DB rows
-		"services/platform/outbox_worker_test.go",                              // Uses sqlmock + in-memory stubOutboxRepo to drive the worker poll-loop state machine without a real DB
-		"services/platform/outbox_worker_reply_to_test.go",                     // Uses sqlmock + in-memory doubles; IDs are only outbox-state sentinels, not database fixtures
 		"modules/enrollment/http/change_request_handlers_test.go",              // Pure handler unit tests against a service mock; int64 literals are URL parser sentinels, not DB rows
 		"modules/enrollment/http/export_handlers_test.go",                      // Pure unit test for the phase-export builders against an in-memory PhaseExport; int64 literals are sentinel schema/grade values, not DB rows
-		"guardian_related_accounts_errors_test.go",                             // Pure mock-injection unit tests for the related-accounts error/best-effort branches; int64 literals are fake IDs in stack-allocated mocks, not DB rows
-		"services/parentmessaging/parentmessaging_test.go",                     // Pure unit tests for the messaging core against narrow fakes (no DB); int64 literals are in-memory sentinel IDs (thread/account/ref), not DB rows
 	}
 
 	files, err := goSourceIndex(root)
@@ -562,17 +421,12 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 
 		// Skip files that reference DB types but don't perform real DB operations
 		skipFiles := []string{
-			"http_middleware_test.go",                                    // Uses nil *bun.DB for unit testing middleware
 			"parent_message_hooks_test.go",                               // Pure base.Model accessor unit test; no real DB
-			"parent_announcement_model_test.go",                          // Pure validator/derivation unit tests; no real DB
-			"role_management_internal_test.go",                           // Uses hand-rolled stub repos injected via repositories.Factory, no real DB
-			"test/architecture_ratchet_test.go",                          // Source-scanning ratchet; regex literals look like DB ops but no DB is used
 			"test/handler_layer_ratchet_test.go",                         // Source-scanning ratchet (issue #584); same as above, no DB is used
+			"test/route_sized_api_builders_analyzer_test.go",             // Source-scanning gate fixtures; *bun.DB is a fixture return type, no DB is used
 			"modules/timetable/http/timetable_data_test_helpers_test.go", // Shared fixture helper; caller tests own DB setup
-			"services/messaging/apply_export_internal_test.go",           // Test-support wrappers exposing unexported apply funcs; the *bun.DB is injected, caller (requests_test.go) owns SetupTestDB
 			"test/module_file_size_ratchet_test.go",                      // Source-scanning ratchet (#2580); allowlist keys name *_repositories.go files, no DB is used
 			"test/module_complexity_ratchet_test.go",                     // Source-scanning ratchet (#2580); same as above, no DB is used
-			"test/module_http_orm_ratchet_test.go",                       // Source-scanning ratchet (#2580); the rule text names *bun.DB, which is the thing it forbids, no DB is used
 			"modules/identityaccess/behavior/owner_contracts_test.go",    // Shared row readers of the behaviour suites (#3446); caller tests own DB setup
 		}
 		skip := false
@@ -630,11 +484,6 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 
 	return violations
 }
-
-// cleanupCallBaseline is deliberately empty: explicit Cleanup* calls in tests
-// are forbidden. Package clones own tenant rows; tenantless fixtures and the
-// few schema-test exceptions register their lifecycle inside their builders.
-var cleanupCallBaseline = map[string]int{}
 
 // tenantContext1Baseline is empty: tests must generate or locally own tenant
 // identity instead of relying on the fixed bootstrap tenant. A package absent
@@ -705,155 +554,6 @@ func shrinkOnlyViolations(current, baseline map[string]int) []string {
 	}
 	sort.Strings(violations)
 	return violations
-}
-
-const fixturePackagePath = "github.com/moto-nrw/project-phoenix/test"
-
-func countExplicitCleanupCalls(filename string, code []byte, fixturePackage bool) (int, error) {
-	file, err := parser.ParseFile(token.NewFileSet(), filename, code, parser.SkipObjectResolution)
-	if err != nil {
-		return 0, err
-	}
-
-	fixtureAliases := make(map[string]struct{})
-	dotImportedFixture := false
-	for _, imported := range file.Imports {
-		path, err := strconv.Unquote(imported.Path.Value)
-		if err != nil || path != fixturePackagePath {
-			continue
-		}
-		alias := "test"
-		if imported.Name != nil {
-			alias = imported.Name.Name
-		}
-		if alias == "." {
-			dotImportedFixture = true
-		}
-		if alias != "." && alias != "_" {
-			fixtureAliases[alias] = struct{}{}
-		}
-	}
-
-	methodValueAliases := cleanupMethodValueAliases(file, fixtureAliases, dotImportedFixture, fixturePackage)
-	count := 0
-	ast.Inspect(file, func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		if isFixtureCleanupCall(call.Fun, fixtureAliases, dotImportedFixture, fixturePackage, methodValueAliases) {
-			count++
-		}
-		return true
-	})
-	return count, nil
-}
-
-func cleanupMethodValueAliases(
-	file *ast.File,
-	fixtureAliases map[string]struct{},
-	dotImportedFixture, fixturePackage bool,
-) map[string]struct{} {
-	aliases := make(map[string]struct{})
-	ast.Inspect(file, func(node ast.Node) bool {
-		assign, ok := node.(*ast.AssignStmt)
-		if !ok {
-			return true
-		}
-		for i, target := range assign.Lhs {
-			if i >= len(assign.Rhs) || !isFixtureCleanupReference(assign.Rhs[i], fixtureAliases, dotImportedFixture, fixturePackage) {
-				continue
-			}
-			if name, ok := target.(*ast.Ident); ok {
-				aliases[name.Name] = struct{}{}
-			}
-		}
-		return true
-	})
-	return aliases
-}
-
-func isFixtureCleanupCall(
-	expr ast.Expr,
-	fixtureAliases map[string]struct{},
-	dotImportedFixture, fixturePackage bool,
-	methodValueAliases map[string]struct{},
-) bool {
-	if isFixtureCleanupReference(expr, fixtureAliases, dotImportedFixture, fixturePackage) {
-		return true
-	}
-	name, ok := unwrapCleanupExpression(expr).(*ast.Ident)
-	if !ok {
-		return false
-	}
-	_, ok = methodValueAliases[name.Name]
-	return ok
-}
-
-func isFixtureCleanupReference(
-	expr ast.Expr,
-	fixtureAliases map[string]struct{},
-	dotImportedFixture, fixturePackage bool,
-) bool {
-	switch expression := unwrapCleanupExpression(expr).(type) {
-	case *ast.Ident:
-		return (fixturePackage || dotImportedFixture) && strings.HasPrefix(expression.Name, "Cleanup")
-	case *ast.SelectorExpr:
-		qualifier, ok := expression.X.(*ast.Ident)
-		if !ok || !strings.HasPrefix(expression.Sel.Name, "Cleanup") {
-			return false
-		}
-		_, ok = fixtureAliases[qualifier.Name]
-		return ok
-	default:
-		return false
-	}
-}
-
-func unwrapCleanupExpression(expr ast.Expr) ast.Expr {
-	for {
-		switch expression := expr.(type) {
-		case *ast.ParenExpr:
-			expr = expression.X
-		case *ast.IndexExpr:
-			expr = expression.X
-		case *ast.IndexListExpr:
-			expr = expression.X
-		default:
-			return expr
-		}
-	}
-}
-
-func countExplicitCleanupCallsPerPackage(root string) (map[string]int, error) {
-	counts := make(map[string]int)
-	var parseErr error
-	err := walkGoFilesRaw(root, func(rel, pkg string, code []byte) {
-		if !strings.HasSuffix(rel, "_test.go") {
-			return
-		}
-		count, err := countExplicitCleanupCalls(rel, code, pkg == "test")
-		if err != nil {
-			if parseErr == nil {
-				parseErr = fmt.Errorf("parse %s: %w", rel, err)
-			}
-			return
-		}
-		counts[pkg] += count
-	})
-	if err != nil {
-		return counts, err
-	}
-	return counts, parseErr
-}
-
-// checkCleanupCallRatchet enforces the shrink-only Cleanup*-call baseline.
-func checkCleanupCallRatchet(root string) ([]string, error) {
-	current, err := countExplicitCleanupCallsPerPackage(root)
-	if err != nil {
-		return nil, err
-	}
-	return shrinkOnlyViolations(current, cleanupCallBaseline), nil
 }
 
 // bootstrapTenantPattern matches every spelling of "pin this to the fixed

@@ -14,7 +14,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func newCareExitBaselineModule(t *testing.T, db *bun.DB, sessions timetable.SessionFacts) *timetable.Module {
+func newCareExitBaselineModule(t *testing.T, db *bun.DB, sessions timetable.SessionFacts) timetable.Owner {
 	t.Helper()
 	module, err := New(Dependencies{
 		Provenance:          testpkg.EnrollmentProvenance{},

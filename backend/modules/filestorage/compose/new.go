@@ -104,26 +104,26 @@ func NewAttachmentPurger(dependencies AttachmentPurgerDependencies) (filestorage
 		return nil, errors.New("file storage compose: all dependencies are required")
 	}
 	runtime := postgres.DatabaseRuntime(dependencies.DB)
-	return application.NewPublicPurger(application.NewAttachmentPurger(application.AttachmentPurgerDependencies{
+	return application.NewAttachmentPurger(application.AttachmentPurgerDependencies{
 		Attachments:        postgres.NewAttachmentStore(runtime),
 		AttachmentCleanups: postgres.NewAttachmentCleanupStore(runtime),
 		AttachmentObjects:  application.ObjectStore{Kind: attachmentObjectKind, Backend: dependencies.Objects},
 		Tx:                 transaction{},
-		Observe:            application.Observer(dependencies.Observe),
+		Observe:            dependencies.Observe,
 		Now:                dependencies.Now,
-	})), nil
+	}), nil
 }
 
-// New composes the File Storage module. Every operation resolves the tenant
+// New composes the File Storage capability. Every operation resolves the tenant
 // from the context; the stores apply it as a defense-in-depth predicate.
-func New(dependencies Dependencies) (*filestorage.Module, error) {
+func New(dependencies Dependencies) (filestorage.Capability, error) {
 	if dependencies.DB == nil || dependencies.Objects == nil || dependencies.Identity == nil ||
 		dependencies.People == nil || dependencies.Settings == nil || dependencies.Events == nil ||
 		dependencies.Observe == nil || dependencies.Logger == nil || dependencies.HasPermission == nil {
 		return nil, errors.New("file storage compose: all dependencies are required")
 	}
 	runtime := postgres.DatabaseRuntime(dependencies.DB)
-	service := application.New(application.Dependencies{
+	return application.New(application.Dependencies{
 		Folders:            postgres.NewFolderStore(runtime),
 		Files:              postgres.NewFileStore(runtime),
 		FileCleanups:       postgres.NewFileCleanupStore(runtime),
@@ -139,11 +139,11 @@ func New(dependencies Dependencies) (*filestorage.Module, error) {
 		GuardianAudience:   dependencies.GuardianAudience,
 		Tx:                 transaction{},
 		StoredNames:        apiDocuments.NewStoredName,
-		Observe:            application.Observer(dependencies.Observe),
+		Observe:            dependencies.Observe,
 		Logger:             dependencies.Logger,
+		HasPermission:      dependencies.HasPermission,
 		Now:                dependencies.Now,
-	})
-	return filestorage.NewModule(application.NewPublicEngine(service, dependencies.HasPermission)), nil
+	}), nil
 }
 
 // --- tenant runtime ------------------------------------------------------------

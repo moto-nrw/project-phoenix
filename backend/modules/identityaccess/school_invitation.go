@@ -82,6 +82,15 @@ const (
 	InvitationPortalSchool InvitationPortal = "school"
 )
 
+// EmploymentAction is the school's choice for a returning member (ADR 0021).
+// An omitted choice continues the former employment, including existing links.
+type EmploymentAction string
+
+const (
+	EmploymentActionResume EmploymentAction = "resume"
+	EmploymentActionNew    EmploymentAction = "new"
+)
+
 // SchoolInvitation is an invitation as the owner reports it.
 type SchoolInvitation struct {
 	ID               int64
@@ -98,6 +107,7 @@ type SchoolInvitation struct {
 	LastName         *string
 	Position         *string
 	CaregiverEnabled bool
+	EmploymentAction EmploymentAction
 	PersonID         *int64
 	Delivery         TokenDelivery
 	CreatedAt        time.Time
@@ -112,6 +122,7 @@ type SchoolInvitationRequest struct {
 	LastName         *string
 	Position         *string
 	CaregiverEnabled bool
+	EmploymentAction EmploymentAction
 	PersonID         *int64
 	CreatedBy        int64
 	SchoolName       string

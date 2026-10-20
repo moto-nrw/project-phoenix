@@ -207,7 +207,7 @@ func NewComposedModule(engine Engine, access *DemoAccess, caterers *CatererAcces
 	return module
 }
 
-// Caterers returns the caterer flows (ADR 0074), nil when the module was
+// Caterers returns the caterer flows (ADR 0075), nil when the module was
 // composed without them.
 func (m *Module) Caterers() *CatererAccess { return m.caterers }
 

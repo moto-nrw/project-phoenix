@@ -21,7 +21,7 @@ const (
 	ScopePlatform     Scope = "platform"
 	ScopeParent       Scope = "parent"
 	ScopeSchool       Scope = "school"
-	// ScopeCaterer is the caterer portal (ADR 0074): no tenant, like parents.
+	// ScopeCaterer is the caterer portal (ADR 0075): no tenant, like parents.
 	ScopeCaterer Scope = "caterer"
 )
 

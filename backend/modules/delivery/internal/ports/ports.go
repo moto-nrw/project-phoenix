@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
 )
 
@@ -29,17 +30,17 @@ type Store interface {
 	OldestPendingAge(context.Context, time.Time) (time.Duration, error)
 	ReplaceEmailDeliveries(context.Context, int64, string, int64, []domain.EmailDelivery) error
 	DeleteEmailDeliveries(context.Context, int64, string, int64) (int64, error)
-	EmailDeliveryStatuses(context.Context, int64, string, int64) ([]domain.EmailDeliveryStatus, error)
+	EmailDeliveryStatuses(context.Context, int64, string, int64) ([]deliveryContract.EmailDeliveryStatus, error)
 	AttachEmailOutbox(context.Context, int64, int64, int64) error
 	ClaimFailedEmailDelivery(context.Context, int64, int64) (bool, error)
 }
 
 type Provider interface {
-	Send(context.Context, domain.Intent) (domain.ProviderResult, error)
+	Send(context.Context, domain.Intent) (deliveryContract.ProviderResult, error)
 }
 
 type GuardianDirectory interface {
-	Resolve(context.Context, []int64) (map[int64]domain.GuardianDisplay, error)
+	ResolveGuardianDisplays(context.Context, []int64) ([]deliveryContract.GuardianDisplay, error)
 }
 
 type Observer func(domain.Observation)

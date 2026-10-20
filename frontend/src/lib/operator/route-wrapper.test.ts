@@ -7,8 +7,10 @@ const {
   mockGetServerApiUrl,
   mockAuth,
   mockGetClientForwardHeaders,
+  mockRecordBackendProxyMetric,
 } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
+  mockRecordBackendProxyMetric: vi.fn(),
   mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
   mockAuth: vi.fn(),
   mockGetClientForwardHeaders: vi.fn(() => ({
@@ -20,6 +22,10 @@ const {
 
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: mockGetServerApiUrl,
+}));
+
+vi.mock("~/lib/backend-proxy-metrics", () => ({
+  recordBackendProxyMetric: mockRecordBackendProxyMetric,
 }));
 
 vi.mock("~/server/auth/operator", () => ({
@@ -139,6 +145,17 @@ describe("operatorServerFetch", () => {
 
     // Only one fetch call (no retry)
     expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("rethrows a network failure and records it as network_error", async () => {
+    const failure = new TypeError("fetch failed");
+    mockFetch.mockRejectedValue(failure);
+
+    await expect(operatorApiGet("/api/test", "my-token")).rejects.toBe(failure);
+
+    expect(mockRecordBackendProxyMetric).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: "network_error", status: 0 }),
+    );
   });
 
   it("sends POST body correctly", async () => {

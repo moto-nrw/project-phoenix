@@ -31,36 +31,3 @@ type CareExitRosterCommand interface {
 	// not ended or been cancelled and returns them with their new ids.
 	RestoreRosterForCareExit(context.Context, []int64, []CareExitRosterRow) ([]CareExitRosterRow, error)
 }
-
-func (m *Module) LockPlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after string) error {
-	if hasInvalidID(studentIDs) || !validDate(after) {
-		return m.reject("lock_planned_roster_for_care_exit", ErrInvalidInstanceStudentQuery)
-	}
-	return m.engine.LockPlannedRosterForCareExit(ctx, studentIDs, after)
-}
-
-func (m *Module) PreviewPlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after string) ([]CareExitRosterRow, error) {
-	if hasInvalidID(studentIDs) || !validDate(after) {
-		return nil, m.reject("preview_planned_roster_for_care_exit", ErrInvalidInstanceStudentQuery)
-	}
-	return m.engine.PreviewPlannedRosterForCareExit(ctx, studentIDs, after)
-}
-
-func (m *Module) RemovePlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after string) ([]CareExitRosterRow, error) {
-	if hasInvalidID(studentIDs) || !validDate(after) {
-		return nil, m.reject("remove_planned_roster_for_care_exit", ErrInvalidInstanceStudentQuery)
-	}
-	return m.engine.RemovePlannedRosterForCareExit(ctx, studentIDs, after)
-}
-
-func (m *Module) RestoreRosterForCareExit(ctx context.Context, studentIDs []int64, rows []CareExitRosterRow) ([]CareExitRosterRow, error) {
-	if hasInvalidID(studentIDs) {
-		return nil, m.reject("restore_roster_for_care_exit", ErrInvalidInstanceStudentQuery)
-	}
-	for _, row := range rows {
-		if row.TenantID <= 0 || row.StudentID <= 0 || row.InstanceID <= 0 {
-			return nil, m.reject("restore_roster_for_care_exit", ErrInvalidInstanceStudent)
-		}
-	}
-	return m.engine.RestoreRosterForCareExit(ctx, studentIDs, rows)
-}

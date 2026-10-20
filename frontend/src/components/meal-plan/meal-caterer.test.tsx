@@ -32,7 +32,7 @@ describe("MealCaterer", () => {
     mocks.endMealCatererSupply.mockResolvedValue(undefined);
   });
 
-  it("invites the caterer by mail and lists the open invitation (ADR 0074)", async () => {
+  it("invites the caterer by mail and lists the open invitation (ADR 0075)", async () => {
     mocks.getMealCaterer
       .mockResolvedValueOnce({ supply: null, invitations: [] })
       .mockResolvedValue({ supply: null, invitations: [invitation] });

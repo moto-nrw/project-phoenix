@@ -56,14 +56,14 @@
   {
     "module": "facilities",
     "contract_package": "modules/facilities",
-    "test_file": "modules/facilities/facilities_test.go",
-    "test": "TestModuleForwardsValidReadsToTheEngine"
+    "test_file": "modules/facilities/compose/public_contract_test.go",
+    "test": "TestPublicRoomContractReturnsStoredRoom"
   },
   {
     "module": "feedback",
     "contract_package": "modules/feedback",
-    "test_file": "modules/feedback/feedback_test.go",
-    "test": "TestModuleNormalizesAndValidatesCreateAtPublicSeam"
+    "test_file": "modules/feedback/compose/public_contract_test.go",
+    "test": "TestPublicFeedbackContractPreservesNormalizedEntry"
   },
   {
     "module": "file-storage",
@@ -80,8 +80,8 @@
   {
     "module": "meal-plan",
     "contract_package": "modules/mealplan",
-    "test_file": "modules/mealplan/mealplan_test.go",
-    "test": "TestModuleNormalizesRegularParticipationWeekdays"
+    "test_file": "modules/mealplan/compose/public_contract_test.go",
+    "test": "TestPublicMealPlanContractPersistsNormalizedDishes"
   },
   {
     "module": "observability",
@@ -93,13 +93,13 @@
     "module": "organization-tenancy",
     "contract_package": "modules/organizationtenancy",
     "test_file": "modules/organizationtenancy/organizationtenancy_test.go",
-    "test": "TestCommandNormalizesOrganizationAtPublicSeam"
+    "test": "TestErrorCodeIsStable"
   },
   {
     "module": "people-directory",
     "contract_package": "modules/peopledirectory",
     "test_file": "modules/peopledirectory/peopledirectory_test.go",
-    "test": "TestCreatePersonNormalizesNamesAndTag"
+    "test": "TestErrorCodeIsStable"
   },
   {
     "module": "scheduler-runtime",
@@ -117,13 +117,13 @@
     "module": "school-membership",
     "contract_package": "modules/schoolmembership",
     "test_file": "modules/schoolmembership/schoolmembership_test.go",
-    "test": "TestStaffWritesNormalizeThePersonnelNumber"
+    "test": "TestErrorCodeIsStable"
   },
   {
     "module": "school-structure",
     "contract_package": "modules/schoolstructure",
-    "test_file": "modules/schoolstructure/schoolstructure_test.go",
-    "test": "TestModuleForwardsValidReadsToTheEngine"
+    "test_file": "modules/schoolstructure/public_contract_test.go",
+    "test": "TestPublicSchoolStructureContractReadsGroupsByID"
   },
   {
     "module": "security-runtime",
@@ -153,7 +153,7 @@
     "module": "timetable-activities",
     "contract_package": "modules/timetable",
     "test_file": "modules/timetable/timetable_test.go",
-    "test": "TestModuleNormalizesCategoryWrites"
+    "test": "TestErrorCodeIsStable"
   },
   {
     "module": "transaction-runtime",

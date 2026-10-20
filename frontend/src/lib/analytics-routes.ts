@@ -162,7 +162,7 @@ export const TRACKED_SCHOOL_ROUTE_TEMPLATES = [
   "/tagesinformationen",
 ] as const;
 
-/** Pages of the caterer portal (ADR 0074), as its host shows them. */
+/** Pages of the caterer portal (ADR 0075), as its host shows them. */
 export const TRACKED_CATERER_ROUTE_TEMPLATES = [
   "/",
   "/einladung/:schoolId/:token",

@@ -11,7 +11,7 @@ import (
 )
 
 type CourseGroupRecords interface {
-	ListCourseGroups(context.Context, domain.CourseGroupFilter) ([]domain.CourseGroup, domain.OperationStats, error)
+	ListCourseGroups(context.Context, timetable.CourseGroupFilter) ([]timetable.CourseGroup, domain.OperationStats, error)
 }
 
 func NewCourseGroupQueries(store CourseGroupRecords, tx internalports.Transaction, observe func(internalports.Observation)) timetable.CourseGroupQuery {
@@ -33,20 +33,16 @@ func (q courseGroupQueries) ListCourseGroups(ctx context.Context, filter timetab
 		return []timetable.CourseGroup{}, nil
 	}
 	started := time.Now()
-	var values []domain.CourseGroup
+	var values []timetable.CourseGroup
 	var stats domain.OperationStats
 	err := q.tx.RunWrite(ctx, false, func(txCtx context.Context) error {
 		var err error
-		values, stats, err = q.store.ListCourseGroups(txCtx, domain.CourseGroupFilter{LegacyGroupIDs: filter.LegacyGroupIDs, SourceOfferingIDs: filter.SourceOfferingIDs, EffectiveOn: filter.EffectiveOn})
+		values, stats, err = q.store.ListCourseGroups(txCtx, timetable.CourseGroupFilter{LegacyGroupIDs: filter.LegacyGroupIDs, SourceOfferingIDs: filter.SourceOfferingIDs, EffectiveOn: filter.EffectiveOn})
 		return err
 	})
 	q.observe(internalports.Observation{Operation: "list_course_groups", Duration: time.Since(started), Stats: stats, Err: err})
 	if err != nil {
-		return nil, MapError(err)
+		return nil, err
 	}
-	result := make([]timetable.CourseGroup, 0, len(values))
-	for _, value := range values {
-		result = append(result, CourseGroupToPublic(value))
-	}
-	return result, nil
+	return values, nil
 }

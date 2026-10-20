@@ -809,7 +809,7 @@ export default function MealPlanPage() {
         <MealParticipantList canRegister={canRegister} />
       ) : null}
 
-      {/* Der Caterer der Schule (ADR 0074): nur wer den Essensplan
+      {/* Der Caterer der Schule (ADR 0075): nur wer den Essensplan
           verwaltet, lädt ihn ein oder beendet die Belieferung. */}
       {canEdit && mealRegistrationEnabled === true ? <MealCaterer /> : null}
 

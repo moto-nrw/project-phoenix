@@ -109,7 +109,7 @@ func (s *AccountAuthentication) doRefreshTokenWithAudit(ctx context.Context, ref
 // validated against, since the route carries no tenant and the fallback
 // would attribute a multi-school account's refresh to its first mapping. A
 // caterer has no school membership; its refresh is filed at the school its
-// successor session is pinned to (ADR 0074).
+// successor session is pinned to (ADR 0075).
 func (s *AccountAuthentication) refreshAuditContext(ctx context.Context, claims domain.RefreshClaims, session domain.AccountSession) context.Context {
 	switch {
 	case claims.Scope == domain.ScopeCaterer:
@@ -122,7 +122,7 @@ func (s *AccountAuthentication) refreshAuditContext(ctx context.Context, claims 
 }
 
 // catererRefreshClaims keeps a caterer session a caterer session, and only
-// while the account still belongs to a caterer (ADR 0074).
+// while the account still belongs to a caterer (ADR 0075).
 func (s *AccountAuthentication) catererRefreshClaims(ctx context.Context, account domain.LoginAccount, out **domain.AccountClaimsPayload) error {
 	if s.caterers == nil {
 		return domain.ErrAccountNotCaterer
@@ -139,7 +139,7 @@ func (s *AccountAuthentication) catererRefreshClaims(ctx context.Context, accoun
 // catererSessionSchool is the school a caterer's successor session is pinned
 // to: the current one while it still supplies the caterer, else the first
 // school it supplies. A caterer whose last school ended its supply has
-// nothing left to see (ADR 0074).
+// nothing left to see (ADR 0075).
 func (s *AccountAuthentication) catererSessionSchool(ctx context.Context, accountID, pinned int64) (int64, error) {
 	caterer, isCaterer, _, err := s.caterers.FindCatererOfAccount(ctx, accountID)
 	if err != nil {
@@ -336,7 +336,7 @@ func (r *refreshRotation) persist(ctx context.Context, current domain.AccountSes
 	// account's default mapping.
 	effectiveTenantID := r.tenantID
 	// A caterer belongs to no school: its successor stays pinned to a
-	// school that still supplies it (ADR 0074).
+	// school that still supplies it (ADR 0075).
 	if effectiveTenantID == 0 && r.claims.Scope == domain.ScopeCaterer {
 		pinned, err := r.service.catererSessionSchool(ctx, r.account.ID, current.TenantID)
 		if err != nil {

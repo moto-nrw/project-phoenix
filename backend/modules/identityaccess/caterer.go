@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// The caterer is an identity across schools (ADR 0074): a school invites its
+// The caterer is an identity across schools (ADR 0075): a school invites its
 // caterer, the caterer accepts with a password and signs in to the caterer
 // portal. The school-side flows and the acceptance run in the school's
 // transaction the caller opens; the caterer's schools come from the global

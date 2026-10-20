@@ -651,9 +651,9 @@ describe("MeinRaumPage (Active Supervisions) (4/5)", () => {
       ).toBeInTheDocument();
       expect(screen.getByText("Nicht mehr im Raum (1)")).toBeInTheDocument();
       expect(screen.getByText("Ungeplant (1)")).toBeInTheDocument();
-      expect(
-        screen.getByText("1b · OGS Gruppe A · ungeplant"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("ungeplant").parentElement).toHaveTextContent(
+        /Klasse 1b\s*Gruppe OGS Gruppe A\s*ungeplant/,
+      );
       expect(screen.getByText("Krank · Abgemeldet")).toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: "Einchecken" }),

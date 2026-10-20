@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// Delivery outbox kind of the caterer invitation (ADR 0074) and the entity
+// Delivery outbox kind of the caterer invitation (ADR 0075) and the entity
 // it relates to. The composition root enqueues the mail and registers its
 // renderer under the same kind.
 const (

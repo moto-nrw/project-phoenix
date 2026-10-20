@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"strings"
 	"time"
 )
 
@@ -132,135 +131,6 @@ type Capability interface {
 	Command
 }
 
-type engine interface {
-	Create(context.Context, CreateOrganization) (Organization, error)
-	Update(context.Context, UpdateOrganization) (Organization, error)
-	SoftDelete(context.Context, int64) (Organization, error)
-	Restore(context.Context, int64) (Organization, error)
-	FindByID(context.Context, int64) (Organization, error)
-	FindBySlug(context.Context, string) (Organization, error)
-	List(context.Context) ([]Organization, error)
-	ListByIDs(context.Context, []int64) ([]Organization, error)
-	CountByIDs(context.Context, []int64) (int, error)
-	FindForMutation(context.Context, int64) (Organization, error)
-	FindForSchoolMutation(context.Context, int64) (Organization, error)
-	CreateSchool(context.Context, CreateSchool) (School, error)
-	UpdateSchool(context.Context, UpdateSchool) (School, error)
-	SetSchoolChildQuota(context.Context, int64, *ChildQuota) (School, error)
-	SoftDeleteSchool(context.Context, int64) (School, error)
-	RestoreSchool(context.Context, int64) (School, error)
-	FindSchoolByID(context.Context, int64, string) (School, error)
-	FindSchoolBySlug(context.Context, string) (School, error)
-	FindSchoolByOrganizationAndSlug(context.Context, int64, string) (School, error)
-	FindSchoolBySubdomain(context.Context, string) (School, error)
-	ListSchools(context.Context) ([]School, error)
-	ListSchoolsByID(context.Context, []int64) ([]School, error)
-	ListSchoolsByOrganization(context.Context, int64) ([]School, error)
-	ListNonDeletedSchools(context.Context) ([]School, error)
-	ListActiveSchools(context.Context) ([]School, error)
-	ListPublicSchools(context.Context) ([]School, error)
-	CountSchoolsByID(context.Context, []int64) (int, error)
-}
-
-type Module struct{ engine engine }
-
-func NewModule(engine engine) *Module {
-	if engine == nil {
-		panic("organization tenancy: engine is required")
-	}
-	return &Module{engine: engine}
-}
-
-func (m *Module) CreateOrganization(ctx context.Context, input CreateOrganization) (Organization, error) {
-	input.Name, input.Slug = normalizeNameAndSlug(input.Name, input.Slug)
-	if err := validateNameAndSlug(input.Name, input.Slug); err != nil {
-		return Organization{}, err
-	}
-	return m.engine.Create(ctx, input)
-}
-
-func (m *Module) UpdateOrganization(ctx context.Context, input UpdateOrganization) (Organization, error) {
-	input.Name, input.Slug = normalizeNameAndSlug(input.Name, input.Slug)
-	if input.ID <= 0 {
-		return Organization{}, ErrInvalidOrganization
-	}
-	if err := validateNameAndSlug(input.Name, input.Slug); err != nil {
-		return Organization{}, err
-	}
-	return m.engine.Update(ctx, input)
-}
-
-func (m *Module) SoftDeleteOrganization(ctx context.Context, id int64) (Organization, error) {
-	if id <= 0 {
-		return Organization{}, ErrInvalidOrganization
-	}
-	return m.engine.SoftDelete(ctx, id)
-}
-
-func (m *Module) RestoreOrganization(ctx context.Context, id int64) (Organization, error) {
-	if id <= 0 {
-		return Organization{}, ErrInvalidOrganization
-	}
-	return m.engine.Restore(ctx, id)
-}
-
-func (m *Module) FindOrganization(ctx context.Context, id int64) (Organization, error) {
-	if id <= 0 {
-		return Organization{}, ErrInvalidOrganization
-	}
-	return m.engine.FindByID(ctx, id)
-}
-
-func (m *Module) FindOrganizationBySlug(ctx context.Context, slug string) (Organization, error) {
-	slug = strings.TrimSpace(strings.ToLower(slug))
-	if err := ValidateSlug(slug); err != nil {
-		return Organization{}, err
-	}
-	return m.engine.FindBySlug(ctx, slug)
-}
-
-func (m *Module) ListOrganizations(ctx context.Context) ([]Organization, error) {
-	return m.engine.List(ctx)
-}
-
-func (m *Module) ListOrganizationsByID(ctx context.Context, ids []int64) ([]Organization, error) {
-	if len(ids) == 0 {
-		return []Organization{}, nil
-	}
-	for _, id := range ids {
-		if id <= 0 {
-			return nil, ErrInvalidOrganization
-		}
-	}
-	return m.engine.ListByIDs(ctx, ids)
-}
-
-func (m *Module) CountOrganizationsByID(ctx context.Context, ids []int64) (int, error) {
-	if len(ids) == 0 {
-		return 0, nil
-	}
-	for _, id := range ids {
-		if id <= 0 {
-			return 0, ErrInvalidOrganization
-		}
-	}
-	return m.engine.CountByIDs(ctx, ids)
-}
-
-func (m *Module) FindOrganizationForSchoolMutation(ctx context.Context, id int64) (Organization, error) {
-	if id <= 0 {
-		return Organization{}, ErrInvalidOrganization
-	}
-	return m.engine.FindForSchoolMutation(ctx, id)
-}
-
-func (m *Module) FindOrganizationForMutation(ctx context.Context, id int64) (Organization, error) {
-	if id <= 0 {
-		return Organization{}, invalid("organization ID is required")
-	}
-	return m.engine.FindForMutation(ctx, id)
-}
-
 func ValidateSlug(slug string) error {
 	if slug == "" {
 		return invalid("slug is required")
@@ -276,22 +146,6 @@ func ValidateSlug(slug string) error {
 	}
 	return nil
 }
-
-func normalizeNameAndSlug(name, slug string) (string, string) {
-	return strings.TrimSpace(name), strings.TrimSpace(strings.ToLower(slug))
-}
-
-func validateNameAndSlug(name, slug string) error {
-	if name == "" || len(name) > MaxNameLength {
-		if name == "" {
-			return invalid("name is required")
-		}
-		return invalid("name must not exceed 200 characters")
-	}
-	return ValidateSlug(slug)
-}
-
-func invalid(reason string) error { return &InvalidOrganizationError{Reason: reason} }
 
 func ErrorCode(err error) string {
 	switch {
@@ -327,3 +181,5 @@ func ErrorCode(err error) string {
 		return "internal_error"
 	}
 }
+
+func invalid(reason string) error { return &InvalidOrganizationError{Reason: reason} }

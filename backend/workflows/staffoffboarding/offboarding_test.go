@@ -31,9 +31,9 @@ type fixture struct {
 	staffID    int64
 	personID   int64
 	shiftID    int64
-	membership *schoolmembership.Module
-	workforce  *workforce.Module
-	people     *peopledirectory.Module
+	membership schoolmembership.Owner
+	workforce  workforce.Capability
+	people     peopledirectory.Capability
 }
 
 func newFixture(t *testing.T) fixture {
@@ -92,7 +92,7 @@ func newFixture(t *testing.T) fixture {
 		GroupAccessChanged: func(context.Context) {},
 		Observe:            func(staffoffboarding.Observation) {},
 	}
-	return fixture{deps: deps, staffID: staff.ID, personID: staff.PersonID, shiftID: shift.ID, membership: membership, workforce: work.Module, people: people.Module}
+	return fixture{deps: deps, staffID: staff.ID, personID: staff.PersonID, shiftID: shift.ID, membership: membership, workforce: work, people: people.Owner}
 }
 
 func (f fixture) assertOperational(t *testing.T) {

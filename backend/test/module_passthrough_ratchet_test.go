@@ -216,10 +216,10 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063 and by ADR 0064 (3,011 to 3,091), and by ADR 0073 (one each
-// for modules/communication and modules/schoolcalendar), by ADR 0074 (four
-// for modules/identityaccess, two for modules/mealplan) and by ADR 0075 (one
-// for workflows/parentportal).
-const modulePassthroughOwnerBudgetTotal = 2715
+// for modules/communication and modules/schoolcalendar), by ADR 0075 (four
+// for modules/identityaccess) and by ADR 0076 (one for
+// workflows/parentportal).
+const modulePassthroughOwnerBudgetTotal = 2124
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -237,35 +237,34 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/classday":     18,
 	// Raised by ADR 0073: the composition forwards the parent announcement
 	// retention to its service.
-	"modules/communication":  71,
+	"modules/communication":  58,
 	"modules/dataimport":     1,
-	"modules/delivery":       12,
-	"modules/devicefleet":    58,
+	"modules/delivery":       6,
+	"modules/devicefleet":    35,
 	"modules/devicescan":     41,
 	"modules/enrollment":     35,
 	"modules/exporttransfer": 1,
-	"modules/facilities":     18,
-	"modules/feedback":       14,
-	"modules/filestorage":    27,
-	// Raised by ADR 0074: the caterer flows.
-	"modules/identityaccess": 501,
-	// Raised by ADR 0074: the caterer supply.
-	"modules/mealplan":            17,
-	"modules/organizationtenancy": 42,
-	"modules/peopledirectory":     265,
+	"modules/facilities":     13,
+	"modules/feedback":       2,
+	"modules/filestorage":    9,
+	// Raised by ADR 0075: the caterer flows.
+	"modules/identityaccess":      501,
+	"modules/mealplan":            3,
+	"modules/organizationtenancy": 12,
+	"modules/peopledirectory":     242,
 	"modules/requestreview":       17,
 	"modules/schedulerruntime":    4,
 	// Raised by ADR 0073: the feed cleanup keeps only the staff feed tombstones.
-	"modules/schoolcalendar":   45,
-	"modules/schoolmembership": 80,
+	"modules/schoolcalendar":   18,
+	"modules/schoolmembership": 16,
 	"modules/schoolsetup":      2,
-	"modules/schoolstructure":  70,
+	"modules/schoolstructure":  43,
 	"modules/settings":         19,
 	"modules/studentpresence":  240,
-	"modules/timetable":        469,
-	"modules/workforce":        319,
+	"modules/timetable":        308,
+	"modules/workforce":        151,
 	"workflows/openroommove":   1,
-	// Raised by ADR 0075: the week change of the meal plan adapter.
+	// Raised by ADR 0076: the week change of the meal plan adapter.
 	"workflows/parentportal":  18,
 	"workflows/shiftplansync": 3,
 }

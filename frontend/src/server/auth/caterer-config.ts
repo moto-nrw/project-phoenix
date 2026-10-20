@@ -1,5 +1,5 @@
 /**
- * Caterer-specific NextAuth configuration (ADR 0074).
+ * Caterer-specific NextAuth configuration (ADR 0075).
  *
  * Cookie: "caterer.session-token" with NO domain (host-only), so the caterer
  * session is visible on the caterer host only. Mirrors parent-config.ts:

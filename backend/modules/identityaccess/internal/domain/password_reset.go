@@ -15,7 +15,7 @@ const (
 	PasswordResetScopeParent PasswordResetScope = "parent"
 	PasswordResetScopeSchool PasswordResetScope = "school"
 	// PasswordResetScopeCaterer serves caterer accounts only; the link lands
-	// on the caterer portal (ADR 0074).
+	// on the caterer portal (ADR 0075).
 	PasswordResetScopeCaterer PasswordResetScope = "caterer"
 )
 

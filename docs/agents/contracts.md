@@ -143,7 +143,7 @@ pending → active → inactive.
 
 | Layer | Scoping mechanism |
 |---|---|
-| JWT | `tenant_id`, `org_id`, `scope`: `""` tenant, `org`, `platform`, `parent`, `school`, `caterer` (no tenant; ADR 0074) |
+| JWT | `tenant_id`, `org_id`, `scope`: `""` tenant, `org`, `platform`, `parent`, `school`, `caterer` (no tenant; ADR 0075) |
 | Context | `tenant.WithTenantID(ctx, id)` / `tenant.FromContext(ctx)` |
 | Database | `TenantTxMiddleware` sets local role and RLS configuration; rolls back on 5xx |
 | Models | `base.TenantModel` and `TenantScoped` |
@@ -187,7 +187,7 @@ Backend paths in this section are relative to `backend/`:
   it when that school ends the supply and fails once none is left. The token
   carries no school: `CatererMiddleware` accepts only `scope=caterer`, and the
   caterer portal (`workflows/catererportal`) opens each supplied school's
-  tenant transaction itself (ADR 0074). The `caterer scope matrix` contract in
+  tenant transaction itself (ADR 0075). The `caterer scope matrix` contract in
   `TestFullProductionRouterGolden` checks both directions.
 - `TenantMiddleware` rejects parent, school and caterer scopes.
   `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.

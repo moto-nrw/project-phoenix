@@ -552,7 +552,7 @@ describe("proxy", () => {
     });
   });
 
-  describe("caterer subdomain (ADR 0074)", () => {
+  describe("caterer subdomain (ADR 0075)", () => {
     const caterer = (path: string) =>
       proxy(makeRequest(`http://${CATERER_HOSTNAME}${path}`, CATERER_HOSTNAME));
 

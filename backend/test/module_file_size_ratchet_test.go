@@ -11,15 +11,15 @@ import (
 )
 
 // TestModuleFileSizeRatchet caps the size of production files under modules/
-// and workflows/ at 800 lines. The existing quality gates in this package all
-// stop at the api/ and models/ directory boundaries, so the 228k production
-// lines that migration #2580 moved into modules/ grew unwatched: 55 files are
-// over the cap today and the largest, instance_service.go, holds 3194 lines.
-// A file that big has no discoverable seam — nobody can review it, split it
-// safely, or find the one function that matters in it.
+// and workflows/ at 800 lines. No gate in this package measured file size
+// there when migration #2580 moved 228k production lines into modules/: on
+// 2026-09-18, 55 files were over the cap and the largest,
+// instance_service.go, held 3194 lines. A file that big has no discoverable
+// seam — nobody can review it, split it safely, or find the one function that
+// matters in it.
 //
-// This test does not ask anyone to fix those files today. It freezes them at
-// their current size so the number can only fall.
+// The register froze those files at their size; it is empty now, so every
+// file stays at or below the cap.
 //
 // Allowlist semantics (per file, like handler_complexity_ratchet_test.go, but
 // counting lines rather than gocognit scores):
@@ -31,8 +31,8 @@ import (
 //     turns one way. Never raise a number.
 //
 // Scope: every non-test .go file under modules/ and workflows/, including the
-// legacy/ subtrees — those hold 19 of the biggest files in the backend and are
-// the part of the problem most in need of a floor. Keys are repo-relative
+// legacy/ subtrees — at seed time they held 19 of the biggest files in the
+// backend, and moving code there must not silence the gate. Keys are repo-relative
 // slash paths starting at "modules/" or "workflows/".
 //
 // A line is a newline, exactly as `wc -l` counts one.

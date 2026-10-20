@@ -17,9 +17,9 @@ var (
 	ErrOrderNotFound = errors.New("meal order not found")
 )
 
-// StartSupply starts the school's supply by a caterer (ADR 0074). Starting
+// startSupply starts the school's supply by a caterer (ADR 0075). Starting
 // the running supply again changes nothing; another caterer's is refused.
-func (s *Service) StartSupply(ctx context.Context, catererID int64, deliveryAddress string, accountID int64) error {
+func (s *Service) startSupply(ctx context.Context, catererID int64, deliveryAddress string, accountID int64) error {
 	return mapPublicError(s.run(ctx, "start_supply", func(txCtx context.Context) (domain.OperationStats, error) {
 		supply, active, stats, err := s.store.FindActiveSupply(txCtx, true)
 		if err != nil {
@@ -57,10 +57,10 @@ func (s *Service) CurrentSupply(ctx context.Context) (mealplan.Supply, bool, err
 	return mealplan.Supply(supply), active, mapPublicError(err)
 }
 
-// CatererOrders is the school's orders of [from, to] as its caterer reads
+// catererOrders is the school's orders of [from, to] as its caterer reads
 // them: only while the caterer supplies the school, settled like every other
 // read, and cut down to what the caterer may see.
-func (s *Service) CatererOrders(ctx context.Context, catererID int64, from, to string) (mealplan.OrderWeek, error) {
+func (s *Service) catererOrders(ctx context.Context, catererID int64, from, to string) (mealplan.OrderWeek, error) {
 	var view domain.OrderView
 	var supply domain.Supply
 	err := s.run(ctx, "read_caterer_orders", func(txCtx context.Context) (domain.OperationStats, error) {
@@ -98,9 +98,9 @@ func daysSince(days []domain.OrderDay, start domain.Date) []domain.OrderDay {
 	return kept
 }
 
-// ConfirmOrder records that the caterer received a fixed order. It is the
-// caterer's only write (ADR 0074); confirming twice keeps the first.
-func (s *Service) ConfirmOrder(ctx context.Context, catererID, orderID, accountID int64) error {
+// confirmOrder records that the caterer received a fixed order. It is the
+// caterer's only write (ADR 0075); confirming twice keeps the first.
+func (s *Service) confirmOrder(ctx context.Context, catererID, orderID, accountID int64) error {
 	return mapPublicError(s.run(ctx, "confirm_order", func(txCtx context.Context) (domain.OperationStats, error) {
 		// Locked: a supply ending at the same time waits, or wins.
 		supply, stats, err := s.requireSupplier(txCtx, catererID, true)
@@ -130,7 +130,7 @@ func (s *Service) requireSupplier(ctx context.Context, catererID int64, forUpdat
 }
 
 // catererWeek cuts the school's view down to what its caterer may read
-// (ADR 0074): no child's ID, class numbers only when the school orders by
+// (ADR 0075): no child's ID, class numbers only when the school orders by
 // class, and names only while the school shows them to the caterer.
 func catererWeek(week mealplan.OrderWeek, rules domain.OrderingRules) mealplan.OrderWeek {
 	byClass := rules.Detail == domain.DetailByClass

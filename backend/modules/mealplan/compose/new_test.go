@@ -173,12 +173,12 @@ func enabledTestSettings(settingErr error) testMealPlanSettings {
 	return testMealPlanSettings{mealPlanEnabled: true, mealRegistrationEnabled: true, cutoff: "09:00", err: settingErr}
 }
 
-func buildModule(t *testing.T, db *bun.DB, enabled bool, settingErr error) *mealplan.Module {
+func buildModule(t *testing.T, db *bun.DB, enabled bool, settingErr error) mealplan.Capability {
 	t.Helper()
 	return buildModuleAt(t, db, enabled, settingErr, time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin))
 }
 
-func buildModuleAt(t *testing.T, db *bun.DB, enabled bool, settingErr error, now time.Time) *mealplan.Module {
+func buildModuleAt(t *testing.T, db *bun.DB, enabled bool, settingErr error, now time.Time) mealplan.Capability {
 	t.Helper()
 	module, err := New(Dependencies{
 		DB:           db,
@@ -573,7 +573,7 @@ func TestParticipationUsesLatestSicknessSnapshotWhenTimestampsMatch(t *testing.T
 	assert.Contains(t, dailyParticipantIDs(list), student.ID)
 }
 
-func buildModuleWithRules(t *testing.T, db *bun.DB, ordering OrderingSettings, now time.Time) *mealplan.Module {
+func buildModuleWithRules(t *testing.T, db *bun.DB, ordering OrderingSettings, now time.Time) mealplan.Capability {
 	t.Helper()
 	module, err := New(Dependencies{
 		DB:           db,
@@ -760,7 +760,7 @@ func TestSickCancelledModeCancelsAbsencesReportedAfterTheDeadline(t *testing.T) 
 	assert.True(t, plan.Days[0].Participating, "with the default the meal stays ordered")
 }
 
-func buildModuleWithCalendar(t *testing.T, db *bun.DB, calendar mealplan.CalendarFinder, now time.Time) *mealplan.Module {
+func buildModuleWithCalendar(t *testing.T, db *bun.DB, calendar mealplan.CalendarFinder, now time.Time) mealplan.Capability {
 	t.Helper()
 	module, err := New(Dependencies{
 		DB:           db,

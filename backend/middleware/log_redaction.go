@@ -12,7 +12,7 @@ import (
 var feedPathMarkers = []string{"/public/calendar/", "/public/request-feed/"}
 
 // invitationPathMarkers precede a school's ID and then the caterer's mailed
-// invitation token (ADR 0074): the token alone accepts the invitation.
+// invitation token (ADR 0075): the token alone accepts the invitation.
 var invitationPathMarkers = []string{"/caterer/invitations/", "/einladung/"}
 
 // attrRedactor wraps a slog.Handler and rewrites the message and every string

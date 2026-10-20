@@ -211,7 +211,7 @@ func TestActivityExceptionListQueryBudgetStaysFlat(t *testing.T) {
 	}))
 }
 
-func createOwnedActivityException(t *testing.T, module *timetable.Module, ctx context.Context, groupID int64, date string) timetable.ActivityException {
+func createOwnedActivityException(t *testing.T, module timetable.Owner, ctx context.Context, groupID int64, date string) timetable.ActivityException {
 	t.Helper()
 	value, err := module.CreateActivityException(ctx, cancelledActivityException(groupID, date))
 	require.NoError(t, err)

@@ -22,7 +22,7 @@ import (
 
 // composeClassListEntries composes the observed School Membership owner with
 // its audited class-list administration. The Klassenliste routes mount it.
-func composeClassListEntries(db transactionruntime.Database, persons peopledirectory.Capability, audit auditModels.Command) (*schoolmembership.Module, error) {
+func composeClassListEntries(db transactionruntime.Database, persons peopledirectory.Capability, audit auditModels.Command) (schoolmembership.Owner, error) {
 	if persons == nil || audit == nil {
 		return nil, errors.New("class list entry administration: people directory and audit command are required")
 	}

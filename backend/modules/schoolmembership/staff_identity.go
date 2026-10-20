@@ -1,9 +1,6 @@
 package schoolmembership
 
-import (
-	"context"
-	"errors"
-)
+import "context"
 
 // StaffLink names how far an account or person reaches into the school's
 // staff: StaffLinkStaff and StaffLinkTeacher are staff, the other two are not.
@@ -58,65 +55,4 @@ type StaffIdentities interface {
 	// membership row alone, without the Workforce employment half (#2753);
 	// found is false when the person has no live membership.
 	FindStaffIDByPerson(ctx context.Context, personID int64) (staffID int64, found bool, err error)
-}
-
-func (m *Module) FindStaffIDByPerson(ctx context.Context, personID int64) (int64, bool, error) {
-	if personID <= 0 {
-		return 0, false, invalid("person ID is required")
-	}
-	staff, err := m.engine.FindStaffMembershipByPerson(ctx, personID)
-	if errors.Is(err, ErrStaffNotFound) {
-		return 0, false, nil
-	}
-	if err != nil {
-		return 0, false, err
-	}
-	return staff.ID, true, nil
-}
-
-func (m *Module) ResolveStaffIdentityByAccount(ctx context.Context, accountID int64, persons AccountPersons) (StaffIdentity, error) {
-	if accountID <= 0 {
-		return StaffIdentity{}, invalid("account ID is required")
-	}
-	if persons == nil {
-		return StaffIdentity{}, invalid("a person directory is required")
-	}
-	var identity StaffIdentity
-	err := m.engine.ReadInTenant(ctx, func(ctx context.Context) error {
-		personID, found, err := persons.FindPersonIDByAccount(ctx, accountID)
-		if err != nil {
-			return err
-		}
-		if !found {
-			identity = StaffIdentity{Link: StaffLinkNoPerson}
-			return nil
-		}
-		identity, err = m.resolveStaffIdentity(ctx, personID)
-		return err
-	})
-	if err != nil {
-		return StaffIdentity{}, err
-	}
-	return identity, nil
-}
-
-func (m *Module) resolveStaffIdentity(ctx context.Context, personID int64) (StaffIdentity, error) {
-	if personID <= 0 {
-		return StaffIdentity{}, invalid("person ID is required")
-	}
-	staff, err := m.engine.FindStaffMembershipByPerson(ctx, personID)
-	if errors.Is(err, ErrStaffNotFound) {
-		return StaffIdentity{Link: StaffLinkNotStaff, PersonID: personID}, nil
-	}
-	if err != nil {
-		return StaffIdentity{}, err
-	}
-	teacher, err := m.FindTeacherByStaff(ctx, staff.ID)
-	if errors.Is(err, ErrTeacherNotFound) {
-		return StaffIdentity{Link: StaffLinkStaff, PersonID: personID, StaffID: staff.ID}, nil
-	}
-	if err != nil {
-		return StaffIdentity{}, err
-	}
-	return StaffIdentity{Link: StaffLinkTeacher, PersonID: personID, StaffID: staff.ID, TeacherID: teacher.ID}, nil
 }

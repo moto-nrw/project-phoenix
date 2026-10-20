@@ -3,7 +3,7 @@ package peopledirectory
 import (
 	"context"
 	"errors"
-	"strings"
+
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -223,37 +223,4 @@ func ValidStudentNoteCategory(category string) bool {
 	default:
 		return false
 	}
-}
-
-func (m *Module) ListStudentNotes(ctx context.Context, filter StudentNoteFilter) ([]StudentNote, error) {
-	if filter.StudentID <= 0 {
-		return nil, &InvalidStudentError{Reason: "student notes require a positive student ID"}
-	}
-	if filter.Kind != "" && !ValidStudentNoteKind(filter.Kind) {
-		return nil, ErrStudentNoteInvalid
-	}
-	return m.engine.ListStudentNotes(ctx, filter)
-}
-
-func (m *Module) CreateStudentNote(ctx context.Context, input CreateStudentNote) (StudentNote, error) {
-	input.Body = strings.TrimSpace(input.Body)
-	if input.StudentID <= 0 || input.AuthorAccountID <= 0 {
-		return StudentNote{}, ErrStudentNoteInvalid
-	}
-	return m.engine.CreateStudentNote(ctx, input)
-}
-
-func (m *Module) UpdateStudentNote(ctx context.Context, input UpdateStudentNote) (StudentNote, error) {
-	input.Body = strings.TrimSpace(input.Body)
-	if input.ID <= 0 || input.StudentID <= 0 || input.ActorAccountID <= 0 {
-		return StudentNote{}, ErrStudentNoteInvalid
-	}
-	return m.engine.UpdateStudentNote(ctx, input)
-}
-
-func (m *Module) DeleteStudentNote(ctx context.Context, input DeleteStudentNote) error {
-	if input.ID <= 0 || input.StudentID <= 0 || input.ActorAccountID <= 0 {
-		return ErrStudentNoteInvalid
-	}
-	return m.engine.DeleteStudentNote(ctx, input)
 }

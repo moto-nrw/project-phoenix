@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 )
 
@@ -28,13 +29,13 @@ type TransitionStore interface {
 	// FindTransition returns the transition with its mappings; found is
 	// false when the tenant has no such row. lock "update" takes the row
 	// FOR UPDATE.
-	FindTransition(ctx context.Context, tenantID, id int64, lock string) (domain.Transition, bool, domain.OperationStats, error)
-	ListTransitions(ctx context.Context, tenantID int64, filter domain.TransitionFilter) ([]domain.Transition, int, domain.OperationStats, error)
-	InsertTransition(ctx context.Context, tenantID int64, draft domain.TransitionDraft) (domain.Transition, domain.OperationStats, error)
+	FindTransition(ctx context.Context, tenantID, id int64, lock string) (schoolstructure.Transition, bool, domain.OperationStats, error)
+	ListTransitions(ctx context.Context, tenantID int64, filter schoolstructure.TransitionFilter) ([]schoolstructure.Transition, int, domain.OperationStats, error)
+	InsertTransition(ctx context.Context, tenantID int64, draft schoolstructure.TransitionDraft) (schoolstructure.Transition, domain.OperationStats, error)
 	// UpdateTransitionFields rewrites academic year and notes of a DRAFT;
 	// rows is 0 when the transition does not exist or is no longer a draft.
 	UpdateTransitionFields(ctx context.Context, tenantID, id int64, academicYear string, notes *string) (int64, domain.OperationStats, error)
-	ReplaceMappings(ctx context.Context, tenantID, transitionID int64, mappings []domain.TransitionMappingInput) ([]domain.TransitionMapping, domain.OperationStats, error)
+	ReplaceMappings(ctx context.Context, tenantID, transitionID int64, mappings []schoolstructure.TransitionMappingInput) ([]schoolstructure.TransitionMapping, domain.OperationStats, error)
 	// DeleteTransition removes a DRAFT with its mappings; rows is 0 when the
 	// transition does not exist or is no longer a draft.
 	DeleteTransition(ctx context.Context, tenantID, id int64) (int64, domain.OperationStats, error)
@@ -43,19 +44,19 @@ type TransitionStore interface {
 	LockTransitions(ctx context.Context, tenantID int64) (domain.OperationStats, error)
 	// LockLatestApplied returns the most recently applied transition FOR
 	// UPDATE; found is false when none is applied.
-	LockLatestApplied(ctx context.Context, tenantID int64) (domain.Transition, bool, domain.OperationStats, error)
+	LockLatestApplied(ctx context.Context, tenantID int64) (schoolstructure.Transition, bool, domain.OperationStats, error)
 	// MarkApplied flips a draft to applied and records the roster baseline;
 	// rows is 0 when the row is no longer a draft.
 	MarkApplied(ctx context.Context, tenantID, id, accountID int64, at time.Time, rosterBaselineInstanceID *int64) (int64, domain.OperationStats, error)
 	// MarkReverted flips an applied transition to reverted; rows is 0 when
 	// the row is not applied.
 	MarkReverted(ctx context.Context, tenantID, id, accountID int64, at time.Time) (int64, domain.OperationStats, error)
-	InsertHistory(ctx context.Context, tenantID int64, entries []domain.TransitionHistoryEntry) (domain.OperationStats, error)
-	ListHistory(ctx context.Context, tenantID, transitionID int64) ([]domain.TransitionHistoryEntry, domain.OperationStats, error)
-	InsertClassTeacherLedger(ctx context.Context, tenantID int64, entries []domain.TransitionClassTeacherEntry) (domain.OperationStats, error)
-	ListClassTeacherLedger(ctx context.Context, tenantID, transitionID int64) ([]domain.TransitionClassTeacherEntry, domain.OperationStats, error)
-	InsertClassListLedger(ctx context.Context, tenantID int64, entries []domain.TransitionClassListEntry) (domain.OperationStats, error)
-	ListClassListLedger(ctx context.Context, tenantID, transitionID int64) ([]domain.TransitionClassListEntry, domain.OperationStats, error)
+	InsertHistory(ctx context.Context, tenantID int64, entries []schoolstructure.TransitionHistoryEntry) (domain.OperationStats, error)
+	ListHistory(ctx context.Context, tenantID, transitionID int64) ([]schoolstructure.TransitionHistoryEntry, domain.OperationStats, error)
+	InsertClassTeacherLedger(ctx context.Context, tenantID int64, entries []schoolstructure.TransitionClassTeacherEntry) (domain.OperationStats, error)
+	ListClassTeacherLedger(ctx context.Context, tenantID, transitionID int64) ([]schoolstructure.TransitionClassTeacherEntry, domain.OperationStats, error)
+	InsertClassListLedger(ctx context.Context, tenantID int64, entries []schoolstructure.TransitionClassListEntry) (domain.OperationStats, error)
+	ListClassListLedger(ctx context.Context, tenantID, transitionID int64) ([]schoolstructure.TransitionClassListEntry, domain.OperationStats, error)
 }
 
 type Observation struct {

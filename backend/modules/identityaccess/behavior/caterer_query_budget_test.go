@@ -13,7 +13,7 @@ import (
 )
 
 // The school's caterer page lists its invitations in a fixed number of
-// statements, however many it sent (ADR 0074, #2940).
+// statements, however many it sent (ADR 0075, #2940).
 func TestCatererInvitationsQueryBudget(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -45,7 +45,7 @@ func TestCatererInvitationsQueryBudget(t *testing.T) {
 }
 
 // The caterer portal names a caterer's schools in a fixed number of
-// statements, however many schools it supplies (ADR 0074, #2940).
+// statements, however many schools it supplies (ADR 0075, #2940).
 func TestCatererSchoolsQueryBudget(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

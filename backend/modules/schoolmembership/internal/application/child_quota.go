@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
 )
 
@@ -57,17 +58,31 @@ func (s *Service) countingWrite(ctx context.Context, stats *domain.OperationStat
 		if err != nil {
 			return err
 		}
-		return domain.CheckChildQuota(limit, before, after)
+		return CheckChildQuota(limit, before, after)
 	})
+}
+
+// CheckChildQuota decides a counting write: it is refused when it adds
+// children and the Kontingentzahl after it exceeds the Kinderkontingent. A
+// write that adds nobody passes even when the school is already above its
+// Kinderkontingent, so a lowered contract never blocks existing children.
+func CheckChildQuota(limit, before, after int) error {
+	if after <= before || after <= limit {
+		return nil
+	}
+	return &schoolmembership.ChildQuotaReachedError{Booked: limit, Occupied: before, Requested: after - before}
 }
 
 // ChildQuotaUsage reads the Kinderkontingent and today's Kontingentzahl for
 // the Datenverwaltung (#3569). A school without Kinderkontingent is not
 // counted. The read takes no quota lock: it shows a snapshot and decides
 // nothing, so a concurrent write may move the number right after it.
-func (s *Service) ChildQuotaUsage(ctx context.Context) (usage domain.ChildQuotaUsage, limited bool, err error) {
+func (s *Service) ChildQuotaUsage(ctx context.Context) (usage schoolmembership.ChildQuotaUsage, limited bool, err error) {
+	if err := ctx.Err(); err != nil {
+		return schoolmembership.ChildQuotaUsage{}, false, err
+	}
 	if s.quota == nil {
-		return domain.ChildQuotaUsage{}, false, errChildQuotaUnbound
+		return schoolmembership.ChildQuotaUsage{}, false, errChildQuotaUnbound
 	}
 	err = s.runRead(ctx, "child_quota_usage", func(txCtx context.Context, stats *domain.OperationStats) error {
 		limit, ok, readErr := s.quota.ChildQuotaLimit(txCtx)
@@ -82,11 +97,11 @@ func (s *Service) ChildQuotaUsage(ctx context.Context) (usage domain.ChildQuotaU
 		if countErr != nil {
 			return countErr
 		}
-		usage, limited = domain.ChildQuotaUsage{Booked: limit, Occupied: occupied}, true
+		usage, limited = schoolmembership.ChildQuotaUsage{Booked: limit, Occupied: occupied}, true
 		return nil
 	})
 	if err != nil {
-		return domain.ChildQuotaUsage{}, false, err
+		return schoolmembership.ChildQuotaUsage{}, false, err
 	}
 	return usage, limited, nil
 }
@@ -128,6 +143,6 @@ func (s *Service) countingTransition(ctx context.Context, stats *domain.Operatio
 		if err != nil {
 			return err
 		}
-		return domain.CheckChildQuota(limit, before, after)
+		return CheckChildQuota(limit, before, after)
 	})
 }

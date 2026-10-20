@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
 )
@@ -37,7 +38,7 @@ func NewWorker(store ports.Store, provider ports.Provider, observe ports.Observe
 	return &Worker{store: store, provider: provider, observe: observe, leaseDuration: defaultLeaseDuration}
 }
 
-func (w *Worker) RunOnce(ctx context.Context, batchSize, maxAttempts int) (stats domain.WorkerStats, err error) {
+func (w *Worker) RunOnce(ctx context.Context, batchSize, maxAttempts int) (stats deliveryContract.WorkerStats, err error) {
 	if maxAttempts <= 0 {
 		return stats, errors.New("delivery worker: max attempts must be positive")
 	}
@@ -67,7 +68,10 @@ func (w *Worker) RunOnce(ctx context.Context, batchSize, maxAttempts int) (stats
 	return stats, err
 }
 
-func (w *Worker) runTransport(ctx context.Context, transport domain.Transport, limit, maxAttempts int, stats *domain.WorkerStats) error {
+// Backlog counts the intents still waiting for delivery.
+func (w *Worker) Backlog(ctx context.Context) (int, error) { return w.store.Backlog(ctx) }
+
+func (w *Worker) runTransport(ctx context.Context, transport domain.Transport, limit, maxAttempts int, stats *deliveryContract.WorkerStats) error {
 	now := time.Now()
 	unknown, err := w.store.DeadLetterExpiredDispatches(ctx, transport, now)
 	if err != nil {
@@ -94,7 +98,7 @@ func (w *Worker) runTransport(ctx context.Context, transport domain.Transport, l
 	return nil
 }
 
-func (w *Worker) process(ctx context.Context, intent domain.Intent, maxAttempts int, stats *domain.WorkerStats) {
+func (w *Worker) process(ctx context.Context, intent domain.Intent, maxAttempts int, stats *deliveryContract.WorkerStats) {
 	var policy struct {
 		MaxAttempts int `json:"delivery_max_attempts"`
 	}
@@ -147,7 +151,7 @@ func (w *Worker) process(ctx context.Context, intent domain.Intent, maxAttempts 
 	w.observe(domain.Observation{Operation: "sent", Transport: string(intent.Transport), Template: intent.Template, Count: 1})
 }
 
-func (w *Worker) finalizeCancelled(ctx context.Context, intent domain.Intent, token string, reason error, stats *domain.WorkerStats) {
+func (w *Worker) finalizeCancelled(ctx context.Context, intent domain.Intent, token string, reason error, stats *deliveryContract.WorkerStats) {
 	finalized, err := w.store.FinalizeCancelled(ctx, intent.Transport, intent.ID, token, reason.Error(), time.Now())
 	if err != nil {
 		w.observe(domain.Observation{Operation: "finalize_error", Transport: string(intent.Transport), Template: intent.Template, Count: 1, Err: err})
@@ -162,7 +166,7 @@ func (w *Worker) finalizeCancelled(ctx context.Context, intent domain.Intent, to
 	w.observe(domain.Observation{Operation: "cancelled", Transport: string(intent.Transport), Template: intent.Template, Count: 1})
 }
 
-func (w *Worker) finalizeDeferred(ctx context.Context, intent domain.Intent, token string, reason error, stats *domain.WorkerStats) {
+func (w *Worker) finalizeDeferred(ctx context.Context, intent domain.Intent, token string, reason error, stats *deliveryContract.WorkerStats) {
 	finalized, err := w.store.FinalizeDeferred(ctx, intent.Transport, intent.ID, token, reason.Error(), time.Now().Add(retryBackoff[0]))
 	if err != nil {
 		w.observe(domain.Observation{Operation: "finalize_error", Transport: string(intent.Transport), Template: intent.Template, Count: 1, Err: err})
@@ -177,7 +181,7 @@ func (w *Worker) finalizeDeferred(ctx context.Context, intent domain.Intent, tok
 	w.observe(domain.Observation{Operation: "deferred", Transport: string(intent.Transport), Template: intent.Template, Count: 1, Err: reason})
 }
 
-func (w *Worker) finalizeFailure(ctx context.Context, intent domain.Intent, token string, sendErr error, maxAttempts int, stats *domain.WorkerStats) {
+func (w *Worker) finalizeFailure(ctx context.Context, intent domain.Intent, token string, sendErr error, maxAttempts int, stats *deliveryContract.WorkerStats) {
 	attempts := intent.Attempts + 1
 	delay := backoff(attempts)
 	var policy struct {

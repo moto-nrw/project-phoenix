@@ -9,6 +9,7 @@ import {
   validateInvitation,
   acceptInvitation,
   createInvitation,
+  findFormerEmployment,
   listPendingInvitations,
   resendInvitation,
   revokeInvitation,
@@ -483,6 +484,23 @@ describe("invitation-api", () => {
 
       await expect(createInvitation(createRequest)).rejects.toThrow(
         "Einladung konnte nicht erstellt werden.",
+      );
+    });
+  });
+
+  describe("findFormerEmployment", () => {
+    it("forwards cancellation to the former employment lookup", async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { former_employment: null } }),
+      });
+      const controller = new AbortController();
+
+      await findFormerEmployment("former@example.com", controller.signal);
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/invitations/former-employment",
+        expect.objectContaining({ signal: controller.signal }),
       );
     });
   });

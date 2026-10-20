@@ -38,9 +38,12 @@ interface IncomingCreateInvitationPayload {
   last_name?: string;
   lastName?: string;
   position?: string;
+  employment_action?: string;
+  employmentAction?: string;
 }
 
 interface BackendCreateInvitationPayload {
+  employment_action?: string;
   email: string;
   role_id?: string;
   first_name?: string;
@@ -88,6 +91,7 @@ export const POST = createPostHandler<
       first_name: body.first_name ?? body.firstName,
       last_name: body.last_name ?? body.lastName,
       position: body.position,
+      employment_action: body.employment_action ?? body.employmentAction,
     };
 
     const response = await apiPost<

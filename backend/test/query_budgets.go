@@ -189,7 +189,7 @@ var queryBudgets = map[string]queryBudget{
 	"services.auth.pending_guardian_approvals.reads":       {max: 6},
 	"services.auth.pending_invitations.reads":              {max: 1, exact: true},
 	"services.platform.pending_operator_invitations.reads": {max: 1, exact: true},
-	// ADR 0074: the school's caterer invitations and the caterer's schools.
+	// ADR 0075: the school's caterer invitations and the caterer's schools.
 	"modules.identityaccess.caterer_invitations.reads":   {max: 1, exact: true},
 	"modules.identityaccess.caterer_schools.reads":       {max: 2, exact: true},
 	"services.education.suggest_mappings.reads":          {max: 4},

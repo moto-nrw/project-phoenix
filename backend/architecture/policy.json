@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 89,
+  "policy_epoch": 90,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -15323,6 +15323,42 @@
       "target_package": "modules/delivery/subscriptions"
     },
     {
+      "id": "delivery-platform.port.delivery-platform.contract",
+      "description": "Same-owner native contract values replace field-identical domain copies (ADR 0074, #4461).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "port",
+      "target_owner": "delivery-platform",
+      "target_role": "contract",
+      "target_package": "modules/delivery/contract"
+    },
+    {
+      "id": "delivery-platform.postgres.delivery-platform.contract",
+      "description": "Same-owner native contract values replace field-identical domain copies (ADR 0074, #4461).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "postgres",
+      "target_owner": "delivery-platform",
+      "target_role": "contract",
+      "target_package": "modules/delivery/contract"
+    },
+    {
+      "id": "export-transfer.application.export-transfer.contract",
+      "description": "The Export Transfer service speaks its own public request and result vocabulary (ADR 0074, #4461).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "application",
+      "target_owner": "export-transfer",
+      "target_role": "contract",
+      "target_package": "modules/exporttransfer"
+    },
+    {
       "id": "delivery.application.native-contracts",
       "description": "Actual native mail, subscription and intent values replace the mixed facade/legacy model vocabulary. Fresh contract points; no implementation grant.",
       "scopes": [
@@ -15464,7 +15500,7 @@
     },
     {
       "id": "caterer-portal.public.identity-access",
-      "description": "The caterer portal contract speaks the caterer types of Identity & Access (ADR 0074).",
+      "description": "The caterer portal contract speaks the caterer types of Identity & Access (ADR 0075).",
       "scopes": [
         "production"
       ],
@@ -15475,7 +15511,7 @@
     },
     {
       "id": "caterer-portal.public.meal-plan",
-      "description": "The caterer portal contract speaks the order types of the Meal Plan (ADR 0074).",
+      "description": "The caterer portal contract speaks the order types of the Meal Plan (ADR 0075).",
       "scopes": [
         "production"
       ],

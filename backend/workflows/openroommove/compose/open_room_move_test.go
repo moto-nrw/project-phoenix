@@ -80,7 +80,7 @@ func (p *recordingPresence) MoveStudentsToOpenRoomSessionAuthorized(ctx context.
 }
 
 type moveStack struct {
-	rooms     *facilities.Module
+	rooms     facilities.Capability
 	timetable timetable.Capability
 	presence  *recordingPresence
 	command   openroommove.Command

@@ -13,10 +13,10 @@ import (
 // TestModuleFunctionLengthRatchet caps function body length in the modules
 // that migration #2580 already carved out of api/ and models/.
 //
-// Why a second length gate: every existing quality gate in this package stops
-// at the api/ or models/ directory boundary. #2580 moved 228,306 of 638,717
-// production LOC into backend/modules/ and backend/workflows/, so the code
-// that grows fastest is exactly the code nothing measures. A 300-line service
+// Why a length gate: #2580 moved 228,306 of 638,717 production LOC into
+// backend/modules/ and backend/workflows/, where no gate in this package
+// measured function length, so the code that grew fastest was exactly the
+// code nothing measured. A 300-line service
 // method is the shape .claude/rules/backend-conventions.md keeps legislating
 // against from three directions — Rule 4 (thin handlers), Rule 8 (services
 // encapsulate, not delegate) and Rule 12 (models hold data, not decisions) —
@@ -64,8 +64,8 @@ import (
 // statement that these 299 functions are acceptable.
 const moduleFuncLenThreshold = 60
 
-// Seeded 2026-09-18 from merge commit ecf0003369. Shrink-only: lower or
-// delete entries, never add one and never raise a number.
+// Seeded 2026-09-18 from merge commit ecf0003369; empty now. Shrink-only:
+// never add an entry.
 var moduleFuncLenAllowlist = map[string]int{}
 
 func TestModuleFunctionLengthRatchet(t *testing.T) {

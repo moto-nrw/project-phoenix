@@ -403,7 +403,7 @@ function appOverviewTopic(): HelpTopic {
       {
         title: "Hilfe öffnen",
         steps: [
-          "Sehen Sie oben neben dem Seitennamen ein Fragezeichen? Wählen Sie es, um die passende Anleitung zu öffnen.",
+          "Sehen Sie am Computer oben rechts ein Fragezeichen? Wählen Sie es, um die passende Anleitung zu öffnen.",
           "Oder wählen Sie `Hilfe`: am Computer unten in der Seitenleiste, auf dem Handy unter `Mehr`.",
         ],
       },
@@ -4086,7 +4086,7 @@ function mealOrderingTopic(): HelpTopic {
 }
 
 /**
- * Der Caterer der Schule (ADR 0074): Einladung per E-Mail unter
+ * Der Caterer der Schule (ADR 0075): Einladung per E-Mail unter
  * `Essensplan`, Ende der Belieferung, und was der Caterer sieht.
  */
 function mealCatererTopic(): HelpTopic {
@@ -4516,6 +4516,7 @@ function inviteStaffTopic(): HelpTopic {
           "Öffnen Sie `Datenverwaltung` und danach `Personal`.",
           "Wählen Sie oben rechts `+ Personal`.",
           "Tragen Sie die `E-Mail-Adresse` ein.",
+          "Zeigt moto eine frühere Beschäftigung? Wählen Sie `Wiederaufnahme` oder `Neuaufnahme`.",
           "Wählen Sie eine `Rolle`.",
           "Tragen Sie bei Bedarf `Vorname (optional)` und `Nachname (optional)` ein.",
           "Tragen Sie bei Bedarf eine `Position (optional)` ein, zum Beispiel `Pädagogische Fachkraft`.",
@@ -4543,7 +4544,10 @@ function inviteStaffTopic(): HelpTopic {
     notes: [
       "Die `Rolle` bestimmt, was die Person später sehen und tun darf.",
       "Nach der Annahme steht die Person unter `Mitarbeiter` und lässt sich einer Gruppe zuweisen.",
-      "War die Person schon einmal bei Ihnen beschäftigt? Dann sagt moto das direkt unter der `E-Mail-Adresse`, mit dem, was zurückkommt und was nicht. Gruppen, Klassen und Vertretungen legen Sie nach der Annahme neu fest.",
+      "Bei `Wiederaufnahme` wird die frühere Beschäftigung fortgeführt. Stammdaten, Qualifikationen, Stundenkonto und Urlaub kommen zurück. Ist die Personalnummer inzwischen vergeben, bleibt sie leer.",
+      "Bei `Neuaufnahme` beginnt eine neue Beschäftigung an derselben Person. Die frühere bleibt beendet. Stammdaten, Qualifikationen, Stundenkonto und Urlaub beginnen neu.",
+      "Den früheren Zeitraum sehen Sie unter der `E-Mail-Adresse`. Dokumente und künftige Schichten und Abwesenheiten kommen nicht zurück. Gruppen, Klassen und Vertretungen legen Sie danach neu fest.",
+      "Ist die Person bei der Annahme schon wieder beschäftigt? Dann wird nur der Schulzugang hergestellt. Die eingeladene Person muss nichts zur Beschäftigung entscheiden.",
       "Das Blatt `Hinweise` in der Vorlage erklärt jede Spalte.",
     ],
     differences: [

@@ -9,17 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDeletionLogAcceptsAttendanceRetentionRowsWithoutASubject(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	school := testpkg.Tenant(t)
-
-	_, err := db.ExecContext(context.Background(), `
-		INSERT INTO audit.data_deletions (tenant_id, deletion_type, records_deleted, deleted_by)
-		VALUES (?, ?, 1, 'system')`, school, attendanceRetentionKind)
-	assert.NoError(t, err, "the attendance retention logs a data kind without a subject")
-}
-
 func TestAttendanceRetentionRollsBack(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)

@@ -6,10 +6,11 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
 )
 
-func (s *Store) EnrollStudent(ctx context.Context, input domain.StudentEnrollment) (int64, domain.OperationStats, error) {
+func (s *Store) EnrollStudent(ctx context.Context, input schoolmembership.StudentEnrollment) (int64, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
@@ -44,7 +45,7 @@ func (s *Store) EnrollStudent(ctx context.Context, input domain.StudentEnrollmen
 	return id, stats, err
 }
 
-func (s *Store) RenewStudentEnrollment(ctx context.Context, input domain.StudentEnrollment) (int64, domain.OperationStats, error) {
+func (s *Store) RenewStudentEnrollment(ctx context.Context, input schoolmembership.StudentEnrollment) (int64, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err

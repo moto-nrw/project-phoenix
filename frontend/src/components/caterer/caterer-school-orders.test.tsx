@@ -52,7 +52,7 @@ describe("CatererSchoolOrders", () => {
     mocks.onConfirmed.mockResolvedValue(undefined);
   });
 
-  it("shows numbers only, and one confirmation per order (ADR 0074)", async () => {
+  it("shows numbers only, and one confirmation per order (ADR 0075)", async () => {
     // A weekly order spans two days with one order ID.
     renderOrders({
       school,

@@ -66,7 +66,7 @@ func (r *recordingDeviationRetention) DeleteDeviationEventsBefore(_ context.Cont
 type cleanupFixture struct {
 	Db     *bun.DB
 	ctx    context.Context
-	owner  *timetable.Module
+	owner  timetable.Owner
 	roomID int64
 }
 

@@ -20,22 +20,23 @@ type TransitionRetentionStore interface {
 	DeleteTransitionsEndedBefore(ctx context.Context, tenantID int64, cutoff time.Time) (int64, domain.OperationStats, error)
 }
 
-type transitionRetention struct{ store TransitionRetentionStore }
+// TransitionRetention is the School Structure grade-transition retention.
+type TransitionRetention struct{ store TransitionRetentionStore }
 
 // NewTransitionRetention composes the deletion of expired grade transitions
 // (#4045) over the store, counted in Berlin calendar days.
-func NewTransitionRetention(store TransitionRetentionStore) schoolstructure.GradeTransitionRetention {
+func NewTransitionRetention(store TransitionRetentionStore) *TransitionRetention {
 	if store == nil {
 		panic("school structure application: transition retention requires its store")
 	}
-	return transitionRetention{store: store}
+	return &TransitionRetention{store: store}
 }
 
 // DeleteExpiredGradeTransitions deletes the transitions that ended before the
 // Berlin midnight of the first calendar day a window of retentionDays keeps.
 // It holds the transition gate, so no apply or revert of the school runs
 // meanwhile.
-func (r transitionRetention) DeleteExpiredGradeTransitions(ctx context.Context, retentionDays int) (int, error) {
+func (r *TransitionRetention) DeleteExpiredGradeTransitions(ctx context.Context, retentionDays int) (int, error) {
 	if retentionDays <= 0 {
 		return 0, fmt.Errorf("%w, got %d", schoolstructure.ErrGradeTransitionRetentionWindow, retentionDays)
 	}

@@ -17,7 +17,10 @@ export interface InvitationAcceptRequest {
   confirmPassword: string;
 }
 
+export type EmploymentAction = "resume" | "new";
+
 export interface CreateInvitationRequest {
+  employmentAction?: EmploymentAction;
   email: string;
   roleId: string | undefined;
   firstName?: string;
@@ -26,6 +29,7 @@ export interface CreateInvitationRequest {
 }
 
 export interface PendingInvitation {
+  employmentAction?: EmploymentAction;
   id: number;
   email: string;
   roleId: string;
@@ -51,6 +55,7 @@ export interface BackendInvitationValidation {
 }
 
 export interface BackendInvitation {
+  employment_action?: EmploymentAction;
   id: number;
   email: string;
   role_id: string;
@@ -81,6 +86,7 @@ export const mapPendingInvitationResponse = (
   data: BackendInvitation,
 ): PendingInvitation => {
   return {
+    employmentAction: data.employment_action,
     id: data.id,
     email: data.email,
     roleId: data.role_id,

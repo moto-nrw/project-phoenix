@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
-// ADR 0074: the caterer's invitation links to its school on the caterer
+// ADR 0075: the caterer's invitation links to its school on the caterer
 // portal and says how long it is valid.
 func TestCatererInvitationMailNamesTheSchoolInItsLink(t *testing.T) {
 	t.Parallel()

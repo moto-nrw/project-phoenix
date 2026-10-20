@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports"
 )
@@ -48,7 +49,7 @@ func New(store ports.Store, directory ports.Directory, calendar ports.Calendar, 
 	return &Service{store: store, directory: directory, calendar: calendar, settings: settings, tx: tx, observe: observe, now: now}
 }
 
-func (s *Service) RegistrationAvailable(ctx context.Context) (available bool, err error) {
+func (s *Service) registrationAvailable(ctx context.Context) (available bool, err error) {
 	err = s.run(ctx, "registration_availability", func(txCtx context.Context) (domain.OperationStats, error) {
 		if err = s.requireEnabled(txCtx); err != nil {
 			return domain.OperationStats{}, err
@@ -59,7 +60,7 @@ func (s *Service) RegistrationAvailable(ctx context.Context) (available bool, er
 	return available, err
 }
 
-func (s *Service) Participation(ctx context.Context, studentID int64, from, to domain.Date) (plan domain.ParticipationPlan, err error) {
+func (s *Service) participationPlan(ctx context.Context, studentID int64, from, to domain.Date) (plan domain.ParticipationPlan, err error) {
 	err = s.run(ctx, "read_participation", func(txCtx context.Context) (domain.OperationStats, error) {
 		rules, rulesErr := s.requireRegistration(txCtx)
 		if rulesErr != nil {
@@ -72,11 +73,11 @@ func (s *Service) Participation(ctx context.Context, studentID int64, from, to d
 	return plan, err
 }
 
-// ReplaceParticipationSchedule replaces the regular days. A parent's change
+// replaceSchedule replaces the regular days. A parent's change
 // takes effect on the first day whose order is not fixed yet; the school's
 // (schoolFrom set) on the day it names, from today up to a year ahead
 // (#3873).
-func (s *Service) ReplaceParticipationSchedule(ctx context.Context, studentID, accountID int64, weekdays []domain.Weekday, schoolFrom domain.Date) (effectiveFrom domain.Date, err error) {
+func (s *Service) replaceSchedule(ctx context.Context, studentID, accountID int64, weekdays []domain.Weekday, schoolFrom domain.Date) (effectiveFrom domain.Date, err error) {
 	err = s.run(ctx, "replace_participation_schedule", func(txCtx context.Context) (domain.OperationStats, error) {
 		rules, rulesErr := s.requireRegistration(txCtx)
 		if rulesErr != nil {
@@ -179,9 +180,9 @@ func mayChangeDay(rules domain.OrderingRules, now time.Time, date domain.Date, p
 	}
 }
 
-// SetParticipationDay registers (participating) or cancels the day: for a
+// setParticipationDay registers (participating) or cancels the day: for a
 // parent each until its own deadline, for the school at any time.
-func (s *Service) SetParticipationDay(ctx context.Context, studentID, accountID int64, date domain.Date, participating, bySchool bool) error {
+func (s *Service) setParticipationDay(ctx context.Context, studentID, accountID int64, date domain.Date, participating, bySchool bool) error {
 	return s.run(ctx, "set_participation_day", func(txCtx context.Context) (domain.OperationStats, error) {
 		rules, rulesErr := s.requireRegistration(txCtx)
 		if rulesErr != nil {
@@ -207,12 +208,12 @@ func (s *Service) SetParticipationDay(ctx context.Context, studentID, accountID 
 	})
 }
 
-// SetParticipationWeek registers or cancels the remaining weekdays of the
+// setParticipationWeek registers or cancels the remaining weekdays of the
 // week for a parent: only the days that would change, so cancelling never
 // touches a day the child does not eat. A day whose deadline has passed stays
 // as it is and is returned as locked. Nothing left to change but a locked day
 // is a passed deadline; nothing to change at all is no error.
-func (s *Service) SetParticipationWeek(ctx context.Context, studentID, accountID int64, monday domain.Date, participating bool) (changed, locked []domain.Date, err error) {
+func (s *Service) setParticipationWeek(ctx context.Context, studentID, accountID int64, monday domain.Date, participating bool) (changed, locked []domain.Date, err error) {
 	err = s.run(ctx, "set_participation_week", func(txCtx context.Context) (domain.OperationStats, error) {
 		rules, rulesErr := s.requireRegistration(txCtx)
 		if rulesErr != nil {
@@ -275,11 +276,11 @@ func (s *Service) readParticipation(ctx context.Context, studentID int64, from, 
 	return s.resolveParticipation(data, from, to, rules, days), stats, nil
 }
 
-// ClearParticipationDay drops the day's exception, so the weekly pattern
+// clearParticipationDay drops the day's exception, so the weekly pattern
 // applies again. Whether that registers or cancels the day depends on the
 // pattern, and for a parent the matching deadline decides. Nobody changes a
 // day the school is closed, and the school no day already over.
-func (s *Service) ClearParticipationDay(ctx context.Context, studentID, accountID int64, date domain.Date, bySchool bool) error {
+func (s *Service) clearParticipationDay(ctx context.Context, studentID, accountID int64, date domain.Date, bySchool bool) error {
 	return s.run(ctx, "clear_participation_day", func(txCtx context.Context) (domain.OperationStats, error) {
 		rules, rulesErr := s.requireRegistration(txCtx)
 		if rulesErr != nil {
@@ -334,7 +335,7 @@ func parentMayChange(rules domain.OrderingRules, now time.Time, date domain.Date
 	return rules.ParentCanCancel(now, date)
 }
 
-func (s *Service) DailyParticipants(ctx context.Context, date domain.Date) (list domain.DailyList, err error) {
+func (s *Service) dailyParticipants(ctx context.Context, date domain.Date) (list domain.DailyList, err error) {
 	err = s.run(ctx, "read_daily_participants", func(txCtx context.Context) (domain.OperationStats, error) {
 		rules, rulesErr := s.requireRegistration(txCtx)
 		if rulesErr != nil {
@@ -390,7 +391,7 @@ func (s *Service) Available(ctx context.Context) (available bool, err error) {
 	return available, err
 }
 
-func (s *Service) Week(ctx context.Context, monday domain.Date) (entries []domain.Entry, err error) {
+func (s *Service) weekEntries(ctx context.Context, monday domain.Date) (entries []domain.Entry, err error) {
 	err = s.run(ctx, "read_week", func(txCtx context.Context) (domain.OperationStats, error) {
 		if err := s.requireEnabled(txCtx); err != nil {
 			return domain.OperationStats{}, err
@@ -402,7 +403,7 @@ func (s *Service) Week(ctx context.Context, monday domain.Date) (entries []domai
 	return entries, err
 }
 
-func (s *Service) Replace(ctx context.Context, date domain.Date, dishes []domain.Dish) error {
+func (s *Service) replace(ctx context.Context, date domain.Date, dishes []mealplan.Dish) error {
 	return s.run(ctx, "replace_day", func(txCtx context.Context) (domain.OperationStats, error) {
 		if err := s.requireEnabled(txCtx); err != nil {
 			return domain.OperationStats{}, err
@@ -411,7 +412,7 @@ func (s *Service) Replace(ctx context.Context, date domain.Date, dishes []domain
 	})
 }
 
-func (s *Service) Clear(ctx context.Context, date domain.Date) error {
+func (s *Service) clear(ctx context.Context, date domain.Date) error {
 	return s.run(ctx, "clear_day", func(txCtx context.Context) (domain.OperationStats, error) {
 		if err := s.requireEnabled(txCtx); err != nil {
 			return domain.OperationStats{}, err

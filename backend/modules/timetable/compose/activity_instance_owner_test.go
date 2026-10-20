@@ -302,7 +302,7 @@ func newOwnedActivityInstanceFixture(t *testing.T, db *bun.DB, suffix string) ow
 	return ownedActivityInstanceFixture{roomID: room.ID, groupID: group.ID}
 }
 
-func createOwnedActivityInstance(t *testing.T, module *timetable.Module, ctx context.Context, fixture ownedActivityInstanceFixture, date, start, title string) timetable.ActivityInstance {
+func createOwnedActivityInstance(t *testing.T, module timetable.Owner, ctx context.Context, fixture ownedActivityInstanceFixture, date, start, title string) timetable.ActivityInstance {
 	t.Helper()
 	value, err := module.CreateActivityInstance(ctx, ownedActivityInstanceInput(fixture, date, start, title))
 	require.NoError(t, err)
@@ -347,7 +347,7 @@ func createOwnerCalendarPeriod(t *testing.T, db *bun.DB, start, end string) int6
 	return id
 }
 
-func assertActivityInstanceListKind(t *testing.T, module *timetable.Module, ctx context.Context, id int64, want *string) {
+func assertActivityInstanceListKind(t *testing.T, module timetable.Owner, ctx context.Context, id int64, want *string) {
 	t.Helper()
 	value, err := module.FindActivityInstance(ctx, id)
 	require.NoError(t, err)

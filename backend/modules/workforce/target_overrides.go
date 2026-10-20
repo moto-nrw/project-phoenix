@@ -111,35 +111,3 @@ type StaffTargetOverrides interface {
 	StaffTargetOverrideQuery
 	StaffTargetOverrideCommand
 }
-
-type targetOverrideEngine interface {
-	StaffTargetOverrides
-}
-
-func (m *Module) ListStaffTargetOverrides(ctx context.Context, staffID int64) ([]StaffTargetOverride, error) {
-	if staffID <= 0 {
-		return nil, invalid("staff ID is required")
-	}
-	return m.engine.ListStaffTargetOverrides(ctx, staffID)
-}
-
-func (m *Module) StaffTargetOverrideDays(ctx context.Context, staffIDs []int64, from, to string) (TargetOverrideDays, error) {
-	if len(staffIDs) == 0 {
-		return TargetOverrideDays{}, nil
-	}
-	return m.engine.StaffTargetOverrideDays(ctx, staffIDs, from, to)
-}
-
-func (m *Module) CreateStaffTargetOverride(ctx context.Context, staffID int64, fields StaffTargetOverrideFields, createdBy *int64) (StaffTargetOverride, error) {
-	if staffID <= 0 {
-		return StaffTargetOverride{}, invalid("staff ID is required")
-	}
-	return m.engine.CreateStaffTargetOverride(ctx, staffID, fields, createdBy)
-}
-
-func (m *Module) DeleteStaffTargetOverride(ctx context.Context, staffID, id int64) error {
-	if staffID <= 0 || id <= 0 {
-		return invalid("staff ID and override ID are required")
-	}
-	return m.engine.DeleteStaffTargetOverride(ctx, staffID, id)
-}

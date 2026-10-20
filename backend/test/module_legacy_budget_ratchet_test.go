@@ -1,10 +1,9 @@
 package test
 
 import (
-	"bufio"
+	"bytes"
 	"fmt"
-	"os"
-	"path/filepath"
+	"path"
 	"sort"
 	"strings"
 	"testing"
@@ -139,16 +138,16 @@ var moduleLegacyFileBudgets = map[string]int{}
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063 and by ADR 0073 (the parent
 // announcement retention of modules/communication/composition), and by
-// ADR 0075 (the meal ordering rules) and ADR 0074 (the caterer flows and
+// ADR 0076 (the meal ordering rules) and ADR 0075 (the caterer flows and
 // the caterer portal).
-const moduleComposeBudgetTotal = 12561
+const moduleComposeBudgetTotal = 12534
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
 // packages, 90627 LOC. #4084 carries the reduction to construction only;
 // modules/timetable/compose is the largest by far. Shrink-only — a new owner
 // composition starts small and is no reason to raise the total; split code
-// keeps its LOC counted. ADR 0075 raised modules/mealplan/compose and
+// keeps its LOC counted. ADR 0076 raised modules/mealplan/compose and
 // workflows/parentportal/compose for the meal ordering rules.
 var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose":         45,
@@ -160,24 +159,24 @@ var moduleComposeBudgets = map[string]int{
 	"modules/communication/composition":               367,
 	"modules/dataimport/compose":                      85,
 	"modules/dataimport/compose/imports":              29,
-	"modules/delivery/compose":                        363,
+	"modules/delivery/compose":                        361,
 	"modules/devicefleet/compose":                     219,
 	"modules/devicefleet/compose/repositoryadapter":   10,
 	"modules/devicescan/compose":                      531,
 	"modules/emergencysnapshot/compose":               13,
 	"modules/enrollment/compose":                      540,
-	"modules/exporttransfer/compose":                  168,
+	"modules/exporttransfer/compose":                  149,
 	"modules/facilities/compose":                      184,
 	"modules/facilities/compose/repositoryadapter":    11,
 	"modules/feedback/compose":                        61,
 	"modules/filestorage/compose":                     217,
 	"modules/grouplive/compose":                       14,
 	"modules/guardianlinkview/compose":                8,
-	"modules/identityaccess/compose":                  1357, // raised by ADR 0074
-	"modules/mealplan/compose":                        74,   // raised by ADR 0075
-	"modules/organizationtenancy/compose":             254,
+	"modules/identityaccess/compose":                  1357, // raised by ADR 0075
+	"modules/mealplan/compose":                        74,   // raised by ADR 0076
+	"modules/organizationtenancy/compose":             253,
 	"modules/parentrequestfeedprojection/compose":     11,
-	"modules/peopledirectory/compose":                 964,
+	"modules/peopledirectory/compose":                 963,
 	"modules/presenceprojection/compose":              7,
 	"modules/requestreview/compose":                   12,
 	"modules/schedulerruntime/compose":                45,
@@ -191,16 +190,16 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 243,
 	"modules/studentpresence/compose/presenceservice": 110,
 	"modules/supervisiondashboard/compose":            11,
-	"modules/timetable/compose":                       1179,
+	"modules/timetable/compose":                       1175,
 	"modules/timetableblockdisplay/compose":           9,
 	"modules/timetableenrollmentprovenance/compose":   10,
 	"modules/timetableprojection/compose":             7,
 	"modules/transactionruntime/compose":              133,
 	"modules/workforce/compose":                       919,
-	"workflows/catererportal/compose":                 36, // added by ADR 0074
+	"workflows/catererportal/compose":                 36, // added by ADR 0075
 	"workflows/gradetransition/compose":               49,
 	"workflows/openroommove/compose":                  46,
-	"workflows/parentportal/compose":                  308, // raised by ADR 0075
+	"workflows/parentportal/compose":                  308, // raised by ADR 0076
 	"workflows/reminderdelivery/compose":              30,
 	"workflows/sessionend/compose":                    59,
 	"workflows/shiftplansync/compose":                 127,
@@ -317,100 +316,53 @@ func moduleLegacyBudgetTotalViolations(counts map[string]int) []string {
 // keyed by its repo-relative slash path. Trees holding only *_test.go files
 // are omitted, so their budget entry surfaces as "dissolved, remove it".
 func moduleLegacyBudgetScan(backendRoot string) (map[string]int, error) {
-	roots, err := moduleLegacyBudgetRoots(backendRoot)
+	files, err := goSourceIndex(backendRoot)
 	if err != nil {
 		return nil, err
 	}
-	counts := make(map[string]int, len(roots))
-	for _, tree := range roots {
-		loc, locErr := moduleLegacyBudgetTreeLOC(filepath.Join(backendRoot, filepath.FromSlash(tree)))
-		if locErr != nil {
-			return nil, locErr
+	counts := make(map[string]int)
+	for _, f := range files {
+		if strings.HasSuffix(f.rel, "_test.go") {
+			continue
 		}
-		if loc > 0 {
-			counts[tree] = loc
+		if tree, ok := moduleLegacyBudgetRoot(f.rel); ok {
+			if lines := moduleLegacyBudgetCountLines(f.content); lines > 0 {
+				counts[tree] += lines
+			}
 		}
 	}
 	return counts, nil
 }
 
-// moduleLegacyBudgetRoots lists the topmost directories named "legacy" below
-// modules/ and workflows/. Descent stops at a hit, so a legacy directory
-// nested inside a legacy tree is counted with its parent instead of forming a
-// second entry.
-func moduleLegacyBudgetRoots(backendRoot string) ([]string, error) {
-	var roots []string
-	for _, top := range []string{"modules", "workflows"} {
-		err := filepath.WalkDir(filepath.Join(backendRoot, top), func(path string, d os.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if !d.IsDir() {
-				return nil
-			}
-			if strings.HasPrefix(d.Name(), ".") {
-				return filepath.SkipDir
-			}
-			if d.Name() != "legacy" {
-				return nil
-			}
-			rel, relErr := filepath.Rel(backendRoot, path)
-			if relErr != nil {
-				return relErr
-			}
-			roots = append(roots, filepath.ToSlash(rel))
-			return filepath.SkipDir
-		})
-		if err != nil {
-			return nil, err
+// moduleLegacyBudgetRoot returns the topmost directory named "legacy" above
+// rel below modules/ and workflows/. A hidden directory above it hides the
+// tree, so a legacy directory nested inside a legacy tree is counted with its
+// parent instead of forming a second entry.
+func moduleLegacyBudgetRoot(rel string) (string, bool) {
+	parts := strings.Split(rel, "/")
+	if parts[0] != "modules" && parts[0] != "workflows" {
+		return "", false
+	}
+	for index := 1; index < len(parts)-1; index++ {
+		switch {
+		case strings.HasPrefix(parts[index], "."):
+			return "", false
+		case parts[index] == "legacy":
+			return strings.Join(parts[:index+1], "/"), true
 		}
 	}
-	sort.Strings(roots)
-	return roots, nil
+	return "", false
 }
 
-// moduleLegacyBudgetTreeLOC sums the lines of every non-test .go file below
-// root. Lines, not statements: the budget measures how much code still has to
-// move out, and a comment-heavy file is no cheaper to migrate.
-func moduleLegacyBudgetTreeLOC(root string) (int, error) {
-	total := 0
-	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		lines, countErr := moduleLegacyBudgetCountLines(path)
-		if countErr != nil {
-			return countErr
-		}
-		total += lines
-		return nil
-	})
-	if err != nil {
-		return 0, err
-	}
-	return total, nil
-}
-
-func moduleLegacyBudgetCountLines(path string) (int, error) {
-	f, err := os.Open(path) // #nosec G304 -- test scans repo-local source files
-	if err != nil {
-		return 0, err
-	}
-	defer func() { _ = f.Close() }()
-
-	lines := 0
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
-	for scanner.Scan() {
+// moduleLegacyBudgetCountLines counts lines, not statements: the budget
+// measures how much code still has to move out, and a comment-heavy file is
+// no cheaper to migrate.
+func moduleLegacyBudgetCountLines(content []byte) int {
+	lines := bytes.Count(content, []byte("\n"))
+	if len(content) > 0 && content[len(content)-1] != '\n' {
 		lines++
 	}
-	return lines, scanner.Err()
+	return lines
 }
 
 // moduleLOCBudgetViolations compares measured LOC per key with a register of
@@ -475,34 +427,20 @@ func moduleLOCBudgetTotalViolations(check, name string, counts map[string]int, b
 // path. Test helpers (legacy_*_test_helpers.go) compile into production and
 // count.
 func moduleLegacyFileScan(backendRoot string) (map[string]int, error) {
+	files, err := goSourceIndex(backendRoot)
+	if err != nil {
+		return nil, err
+	}
 	counts := map[string]int{}
-	err := filepath.WalkDir(backendRoot, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
+	for _, f := range files {
+		name := path.Base(f.rel)
+		if !strings.HasPrefix(name, "legacy_") || strings.HasSuffix(name, "_test.go") ||
+			inDirNamed(f.rel, "legacy", "testdata", "vendor", "node_modules") {
+			continue
 		}
-		if d.IsDir() {
-			name := d.Name()
-			if path != backendRoot && (strings.HasPrefix(name, ".") || name == "legacy" || name == "testdata" || name == "vendor" || name == "node_modules") {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		name := d.Name()
-		if !strings.HasPrefix(name, "legacy_") || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			return nil
-		}
-		rel, relErr := filepath.Rel(backendRoot, path)
-		if relErr != nil {
-			return relErr
-		}
-		lines, countErr := moduleLegacyBudgetCountLines(path)
-		if countErr != nil {
-			return countErr
-		}
-		counts[filepath.ToSlash(rel)] = lines
-		return nil
-	})
-	return counts, err
+		counts[f.rel] = moduleLegacyBudgetCountLines(f.content)
+	}
+	return counts, nil
 }
 
 // moduleComposeScan returns the production LOC of every owner composition
@@ -510,39 +448,18 @@ func moduleLegacyFileScan(backendRoot string) (map[string]int, error) {
 // composition when a path segment below the module directory is compose or
 // composition; legacy trees are counted by moduleLegacyBudgets instead.
 func moduleComposeScan(backendRoot string) (map[string]int, error) {
+	files, err := goSourceIndex(backendRoot)
+	if err != nil {
+		return nil, err
+	}
 	counts := map[string]int{}
-	for _, top := range []string{"modules", "workflows"} {
-		err := filepath.WalkDir(filepath.Join(backendRoot, top), func(path string, d os.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if d.IsDir() {
-				if strings.HasPrefix(d.Name(), ".") || d.Name() == "legacy" || d.Name() == "testdata" {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-				return nil
-			}
-			rel, relErr := filepath.Rel(backendRoot, filepath.Dir(path))
-			if relErr != nil {
-				return relErr
-			}
-			rel = filepath.ToSlash(rel)
-			if !moduleComposePackage(rel) {
-				return nil
-			}
-			lines, countErr := moduleLegacyBudgetCountLines(path)
-			if countErr != nil {
-				return countErr
-			}
-			counts[rel] += lines
-			return nil
-		})
-		if err != nil {
-			return nil, err
+	for _, f := range files {
+		if !strings.HasPrefix(f.rel, "modules/") && !strings.HasPrefix(f.rel, "workflows/") ||
+			strings.HasSuffix(f.rel, "_test.go") || inDirNamed(f.rel, "legacy", "testdata") ||
+			!moduleComposePackage(f.pkg) {
+			continue
 		}
+		counts[f.pkg] += moduleLegacyBudgetCountLines(f.content)
 	}
 	return counts, nil
 }

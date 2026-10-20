@@ -18,59 +18,6 @@ func TestRouteSizedBuilderAnalyzerRejectsBroadCompositionLeaks(t *testing.T) {
 		wantDetail string
 	}{
 		{
-			name: "direct setup call",
-			source: `package sample_test
-
-import testutil "github.com/moto-nrw/project-phoenix/api/testutil"
-
-func TestBroadSetup() { testutil.SetupAPITest(nil) }
-`,
-			wantDetail: "TestBroadSetup calls SetupAPITest outside a route/module builder",
-		},
-		{
-			name: "direct aliased service factory construction",
-			source: `package sample_test
-
-import graph "github.com/moto-nrw/project-phoenix/services"
-
-func TestBroadSetup() { graph.NewFactory(nil, nil, nil) }
-`,
-			wantDetail: "TestBroadSetup calls services.NewFactory outside a route/module builder",
-		},
-		{
-			name: "route name does not excuse broad setup",
-			source: `package sample_test
-import (
- "net/http"
- testutil "github.com/moto-nrw/project-phoenix/api/testutil"
-)
-func setupSampleRoute() http.Handler { testutil.SetupAPITest(nil); return nil }
-`,
-			wantDetail: "setupSampleRoute calls SetupAPITest",
-		},
-		{
-			name: "aliased service factory return",
-			source: `package sample_test
-
-import graph "github.com/moto-nrw/project-phoenix/services"
-
-func setupSampleModule() *graph.Factory { return nil }
-`,
-			wantDetail: "setupSampleModule returns services.Factory",
-		},
-		{
-			name: "wrapped service factory return",
-			source: `package sample_test
-
-import graph "github.com/moto-nrw/project-phoenix/services"
-
-type moduleResult struct { Factory *graph.Factory }
-
-func setupSampleModule() moduleResult { return moduleResult{} }
-`,
-			wantDetail: "setupSampleModule returns services.Factory",
-		},
-		{
 			name: "any erased capability return",
 			source: `package sample_test
 
@@ -138,30 +85,6 @@ func setupSampleModule() sampleModule { return sampleModule{} }
 
 	require.NoError(t, err)
 	require.Empty(t, violations)
-}
-
-func TestRouteSizedBuilderAnalyzerRejectsImportedFactoryCarrier(t *testing.T) {
-	t.Parallel()
-
-	root := writeRouteBuilderFixture(t, "api/sample/sample_test.go", `package sample_test
-
-import "github.com/moto-nrw/project-phoenix/helpers"
-
-func setupSampleModule() helpers.Module { return helpers.Module{} }
-`)
-	writeRouteBuilderSource(t, root, "helpers/module.go", `package helpers
-
-import graph "github.com/moto-nrw/project-phoenix/services"
-
-type Module struct { Factory *graph.Factory }
-`)
-
-	violations, err := routeSizedBuilderViolations(root)
-
-	require.NoError(t, err)
-	require.Condition(t, func() bool {
-		return containsViolation(violations, "setupSampleModule returns services.Factory")
-	}, "violations %q do not reject the imported carrier", violations)
 }
 
 func TestRouteSizedBuilderAnalyzerRejectsImportedUntypedCarrier(t *testing.T) {

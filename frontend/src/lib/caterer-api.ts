@@ -1,4 +1,4 @@
-// Client-side API of the caterer portal (ADR 0074). Every call goes through a
+// Client-side API of the caterer portal (ADR 0075). Every call goes through a
 // Next.js route under /api/caterer/*, which forwards it with the caterer
 // session to the backend's /caterer/* routes. The invitation and the
 // password reset need no session: the mailed link is the proof.

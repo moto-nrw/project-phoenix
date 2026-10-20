@@ -192,7 +192,7 @@ export async function confirmSchoolPasswordReset(
   );
 }
 
-/** The caterer portal's reset: the link lands on the caterer host (ADR 0074). */
+/** The caterer portal's reset: the link lands on the caterer host (ADR 0075). */
 export async function requestCatererPasswordReset(
   email: string,
 ): Promise<{ message: string }> {

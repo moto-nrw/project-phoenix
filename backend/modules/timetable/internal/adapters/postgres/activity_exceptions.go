@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -27,10 +28,10 @@ type activityExceptionRow struct {
 	CreatedBy       *int64    `bun:"created_by"`
 }
 
-func (s *Store) FindActivityException(ctx context.Context, id int64) (domain.ActivityException, bool, domain.OperationStats, error) {
+func (s *Store) FindActivityException(ctx context.Context, id int64) (timetable.ActivityException, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.ActivityException{}, false, domain.OperationStats{}, err
+		return timetable.ActivityException{}, false, domain.OperationStats{}, err
 	}
 	row := activityExceptionRow{}
 	found, stats, err := scanOne(ctx, activityExceptionSelect(db, &row, tenantID).
@@ -38,7 +39,7 @@ func (s *Store) FindActivityException(ctx context.Context, id int64) (domain.Act
 	return activityExceptionToDomain(row), found, stats, err
 }
 
-func (s *Store) ListActivityExceptions(ctx context.Context, filter domain.ActivityExceptionFilter) ([]domain.ActivityException, domain.OperationStats, error) {
+func (s *Store) ListActivityExceptions(ctx context.Context, filter timetable.ActivityExceptionFilter) ([]timetable.ActivityException, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -49,7 +50,7 @@ func (s *Store) ListActivityExceptions(ctx context.Context, filter domain.Activi
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.ActivityException, 0, len(rows))
+	result := make([]timetable.ActivityException, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, activityExceptionToDomain(row))
 	}
@@ -57,7 +58,7 @@ func (s *Store) ListActivityExceptions(ctx context.Context, filter domain.Activi
 	return result, stats, nil
 }
 
-func filterActivityExceptions(query *bun.SelectQuery, filter domain.ActivityExceptionFilter) *bun.SelectQuery {
+func filterActivityExceptions(query *bun.SelectQuery, filter timetable.ActivityExceptionFilter) *bun.SelectQuery {
 	if filter.ActivityGroupID != nil {
 		query = query.Where(`"activity_exception".activity_group_id = ?`, *filter.ActivityGroupID)
 	}
@@ -129,10 +130,10 @@ func (s *Store) OldestActivityExceptionBefore(ctx context.Context, before *strin
 	return oldest, stats, nil
 }
 
-func (s *Store) CreateActivityException(ctx context.Context, fields domain.ActivityExceptionFields) (domain.ActivityException, domain.OperationStats, error) {
+func (s *Store) CreateActivityException(ctx context.Context, fields timetable.ActivityExceptionInput) (timetable.ActivityException, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.ActivityException{}, domain.OperationStats{}, err
+		return timetable.ActivityException{}, domain.OperationStats{}, err
 	}
 	row := activityExceptionRow{TenantID: tenantID}
 	applyActivityExceptionFields(&row, fields)
@@ -142,16 +143,16 @@ func (s *Store) CreateActivityException(ctx context.Context, fields domain.Activ
 		Returning(activityExceptionColumns).Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.ActivityException{}, stats, classifyWriteError("create activity exception", err, &stats)
+		return timetable.ActivityException{}, stats, classifyWriteError("create activity exception", err, &stats)
 	}
 	stats.Rows = 1
 	return activityExceptionToDomain(row), stats, nil
 }
 
-func (s *Store) UpdateActivityException(ctx context.Context, id int64, fields domain.ActivityExceptionFields) (domain.ActivityException, bool, domain.OperationStats, error) {
+func (s *Store) UpdateActivityException(ctx context.Context, id int64, fields timetable.ActivityExceptionInput) (timetable.ActivityException, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.ActivityException{}, false, domain.OperationStats{}, err
+		return timetable.ActivityException{}, false, domain.OperationStats{}, err
 	}
 	row := activityExceptionRow{}
 	stats := domain.OperationStats{Queries: 1}
@@ -164,10 +165,10 @@ func (s *Store) UpdateActivityException(ctx context.Context, id int64, fields do
 		Where("id = ?", id).Where("tenant_id = ?", tenantID).Returning(activityExceptionColumns).Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.ActivityException{}, false, stats, nil
+		return timetable.ActivityException{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.ActivityException{}, false, stats, classifyWriteError("update activity exception", err, &stats)
+		return timetable.ActivityException{}, false, stats, classifyWriteError("update activity exception", err, &stats)
 	}
 	stats.Rows = 1
 	return activityExceptionToDomain(row), true, stats, nil
@@ -205,14 +206,14 @@ func activityExceptionSelect(db bun.IDB, model any, tenantID int64) *bun.SelectQ
 		Where(`"activity_exception".tenant_id = ?`, tenantID)
 }
 
-func applyActivityExceptionFields(row *activityExceptionRow, fields domain.ActivityExceptionFields) {
+func applyActivityExceptionFields(row *activityExceptionRow, fields timetable.ActivityExceptionInput) {
 	row.ActivityGroupID, row.ExceptionDate, row.ExceptionType = fields.ActivityGroupID, fields.ExceptionDate, fields.ExceptionType
 	row.StartTime, row.EndTime, row.RoomID = fields.StartTime, fields.EndTime, fields.RoomID
 	row.Reason, row.CreatedBy = fields.Reason, fields.CreatedBy
 }
 
-func activityExceptionToDomain(row activityExceptionRow) domain.ActivityException {
-	return domain.ActivityException{
+func activityExceptionToDomain(row activityExceptionRow) timetable.ActivityException {
+	return timetable.ActivityException{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		ActivityGroupID: row.ActivityGroupID, ExceptionDate: row.ExceptionDate, ExceptionType: row.ExceptionType,
 		StartTime: row.StartTime, EndTime: row.EndTime, RoomID: row.RoomID, Reason: row.Reason, CreatedBy: row.CreatedBy,

@@ -1,6 +1,6 @@
 "use client";
 
-// Login of the caterer portal (ADR 0074). Like the school login without the
+// Login of the caterer portal (ADR 0075). Like the school login without the
 // second factor: the backend checks e-mail and password, refuses every other
 // kind of account like a wrong password, and the page hands the token pair
 // to the caterer NextAuth session.

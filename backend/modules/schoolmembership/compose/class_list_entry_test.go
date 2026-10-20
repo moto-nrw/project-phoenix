@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createEntry(t *testing.T, ctx context.Context, module *schoolmembership.Module, firstName, lastName, schoolClass string) schoolmembership.ClassListEntry {
+func createEntry(t *testing.T, ctx context.Context, module schoolmembership.Owner, firstName, lastName, schoolClass string) schoolmembership.ClassListEntry {
 	t.Helper()
 	entry, err := module.CreateClassListEntry(ctx, schoolmembership.CreateClassListEntry{
 		ClassListEntryFields: schoolmembership.ClassListEntryFields{FirstName: firstName, LastName: lastName, SchoolClass: schoolClass},

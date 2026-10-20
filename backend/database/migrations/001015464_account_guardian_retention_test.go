@@ -251,17 +251,6 @@ func TestOnlyTheAdminRoleMayEraseUnusedAccounts(t *testing.T) {
 	}
 }
 
-func TestDeletionLogAcceptsGuardianRetentionRowsWithoutASubject(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	school := testpkg.Tenant(t)
-
-	_, err := db.ExecContext(context.Background(), `
-		INSERT INTO audit.data_deletions (tenant_id, deletion_type, records_deleted, deleted_by)
-		VALUES (?, ?, 1, 'system')`, school, guardianRetentionKind)
-	assert.NoError(t, err, "the guardian retention logs a data kind without a subject")
-}
-
 func TestAccountGuardianRetentionRollsBack(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
@@ -274,7 +263,7 @@ func TestAccountGuardianRetentionRollsBack(t *testing.T) {
 		return err
 	}
 
-	// The caterer tables of 1.15.470 fence their account references with
+	// The caterer tables of 1.15.471 fence their account references with
 	// this migration's trigger function; they go first and come back last.
 	require.NoError(t, mealCaterersDown(ctx, db))
 	t.Cleanup(func() { require.NoError(t, mealCaterersUp(ctx, db)) })

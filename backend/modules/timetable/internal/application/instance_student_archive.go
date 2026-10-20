@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
@@ -12,7 +13,11 @@ import (
 // Student Presence. Which participants may go is the caller's decision; a
 // participant with observed presence is refused here because a transition
 // must never erase a recorded day.
-func (s *Service) ArchivePlannedInstanceStudents(ctx context.Context, transitionID int64, entries []domain.RosterArchiveEntry) (rows int, err error) {
+func (s *Service) ArchivePlannedInstanceStudents(ctx context.Context, transitionID int64, entries []timetable.RosterArchiveEntry) (rows int, err error) {
+	if transitionID <= 0 || !validRosterArchiveEntries(entries) {
+		return 0, s.reject("archive_planned_instance_students", timetable.ErrInvalidInstanceStudent)
+	}
+
 	if len(entries) == 0 {
 		return 0, nil
 	}
@@ -25,7 +30,7 @@ func (s *Service) ArchivePlannedInstanceStudents(ctx context.Context, transition
 		if err != nil {
 			return err
 		}
-		eligible := make([]domain.RosterArchiveEntry, 0, len(entries))
+		eligible := make([]timetable.RosterArchiveEntry, 0, len(entries))
 		for _, entry := range entries {
 			if !observed[entry.ParticipantID] {
 				eligible = append(eligible, entry)
@@ -44,8 +49,12 @@ func (s *Service) ArchivePlannedInstanceStudents(ctx context.Context, transition
 // are dated before the restore stay untouched, as does a roster that lists
 // the child again. The archived attendance travels back with each restored
 // participant for Student Presence to apply.
-func (s *Service) RestoreArchivedInstanceStudents(ctx context.Context, transitionID int64, studentIDs []int64, from string) (result []domain.RestoredInstanceStudent, err error) {
-	result = []domain.RestoredInstanceStudent{}
+func (s *Service) RestoreArchivedInstanceStudents(ctx context.Context, transitionID int64, studentIDs []int64, from string) (result []timetable.RestoredInstanceStudent, err error) {
+	if transitionID <= 0 || hasInvalidID(studentIDs) || !timetable.ValidDate(from) {
+		return nil, s.reject("restore_archived_instance_students", timetable.ErrInvalidInstanceStudent)
+	}
+
+	result = []timetable.RestoredInstanceStudent{}
 	if len(studentIDs) == 0 {
 		return result, nil
 	}
@@ -60,7 +69,7 @@ func (s *Service) RestoreArchivedInstanceStudents(ctx context.Context, transitio
 		if roomErr != nil {
 			return roomErr
 		}
-		instances, instanceStats, listErr := s.store.ListActivityInstances(txCtx, domain.ActivityInstanceFilter{IDs: rosterInstanceIDs(removals)})
+		instances, instanceStats, listErr := s.store.ListActivityInstances(txCtx, timetable.ActivityInstanceFilter{IDs: rosterInstanceIDs(removals)})
 		stats.Add(instanceStats)
 		if listErr != nil {
 			return listErr
@@ -83,46 +92,46 @@ func (s *Service) RestoreArchivedInstanceStudents(ctx context.Context, transitio
 
 // restoredInstanceStudents pairs every restored row with its block and the
 // attendance snapshot the archive kept for it.
-func restoredInstanceStudents(inserted []domain.InstanceStudent, instances []domain.ActivityInstance, snapshots map[domain.InstanceStudentKey]domain.ArchivedAttendance) []domain.RestoredInstanceStudent {
-	instanceByID := make(map[int64]domain.ActivityInstance, len(instances))
+func restoredInstanceStudents(inserted []timetable.InstanceStudent, instances []timetable.ActivityInstance, snapshots map[timetable.InstanceStudentKey]timetable.ArchivedAttendance) []timetable.RestoredInstanceStudent {
+	instanceByID := make(map[int64]timetable.ActivityInstance, len(instances))
 	for _, instance := range instances {
 		instanceByID[instance.ID] = instance
 	}
-	result := make([]domain.RestoredInstanceStudent, 0, len(inserted))
+	result := make([]timetable.RestoredInstanceStudent, 0, len(inserted))
 	for _, participant := range inserted {
 		instance := instanceByID[participant.InstanceID]
-		result = append(result, domain.RestoredInstanceStudent{
+		result = append(result, timetable.RestoredInstanceStudent{
 			ID: participant.ID, InstanceID: participant.InstanceID, StudentID: participant.StudentID, RoomID: participant.RoomID,
 			Date: instance.Date, StartTime: instance.StartTime,
-			Attendance: snapshots[domain.InstanceStudentKey{InstanceID: participant.InstanceID, StudentID: participant.StudentID}],
+			Attendance: snapshots[timetable.InstanceStudentKey{InstanceID: participant.InstanceID, StudentID: participant.StudentID}],
 		})
 	}
 	return result
 }
 
-func restorableInstanceStudents(removals []domain.RosterRemoval, instances []domain.ActivityInstance, validRooms map[int64]int64, completed map[int64]bool, from string) ([]domain.InstanceStudentFields, map[domain.InstanceStudentKey]domain.ArchivedAttendance) {
-	instanceByID := make(map[int64]domain.ActivityInstance, len(instances))
+func restorableInstanceStudents(removals []domain.RosterRemoval, instances []timetable.ActivityInstance, validRooms map[int64]int64, completed map[int64]bool, from string) ([]timetable.InstanceStudentInput, map[timetable.InstanceStudentKey]timetable.ArchivedAttendance) {
+	instanceByID := make(map[int64]timetable.ActivityInstance, len(instances))
 	for _, instance := range instances {
 		instanceByID[instance.ID] = instance
 	}
-	fields := make([]domain.InstanceStudentFields, 0, len(removals))
-	snapshots := make(map[domain.InstanceStudentKey]domain.ArchivedAttendance, len(removals))
+	fields := make([]timetable.InstanceStudentInput, 0, len(removals))
+	snapshots := make(map[timetable.InstanceStudentKey]timetable.ArchivedAttendance, len(removals))
 	for _, removal := range removals {
 		instance, ok := instanceByID[removal.InstanceID]
 		if !ok || instance.Date < from || instance.Status == domain.InstanceStatusCancelled || completed[removal.InstanceID] {
 			continue
 		}
-		field := domain.InstanceStudentFields{InstanceID: removal.InstanceID, StudentID: removal.StudentID}
+		field := timetable.InstanceStudentInput{InstanceID: removal.InstanceID, StudentID: removal.StudentID}
 		if removal.RoomID != nil && validRooms[*removal.RoomID] == removal.TenantID {
 			field.RoomID = removal.RoomID
 		}
 		fields = append(fields, field)
-		snapshots[domain.InstanceStudentKey{InstanceID: removal.InstanceID, StudentID: removal.StudentID}] = removal.Attendance
+		snapshots[timetable.InstanceStudentKey{InstanceID: removal.InstanceID, StudentID: removal.StudentID}] = timetable.ArchivedAttendance(removal.Attendance)
 	}
 	return fields, snapshots
 }
 
-func validRosterRooms(values []domain.RoomRef) map[int64]int64 {
+func validRosterRooms(values []timetable.RoomRef) map[int64]int64 {
 	result := make(map[int64]int64, len(values))
 	for _, value := range values {
 		result[value.ID] = value.TenantID

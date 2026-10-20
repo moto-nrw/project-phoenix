@@ -1,5 +1,5 @@
 /**
- * Client-side log ingestion from the caterer portal (ADR 0074), with the
+ * Client-side log ingestion from the caterer portal (ADR 0075), with the
  * caterer session, so its errors reach the logs.
  */
 

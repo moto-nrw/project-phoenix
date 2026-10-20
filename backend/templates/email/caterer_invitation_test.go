@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// The caterer's invitation (ADR 0074) carries its link in both parts of
+// The caterer's invitation (ADR 0075) carries its link in both parts of
 // the mail and says how long it is valid.
 func TestCatererInvitationMailRenders(t *testing.T) {
 	t.Parallel()

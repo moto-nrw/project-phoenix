@@ -8,7 +8,7 @@ import (
 
 // NewOffboarding binds the Membership-owned part of staff offboarding and of
 // the automatic deletion of retired staff (#3963). It uses the same store and
-// ambient transaction as the regular Membership facade.
+// ambient transaction as the Membership service.
 func NewOffboarding(dependencies Dependencies) (*schoolmembership.Offboarding, error) {
 	service, err := newApplication(dependencies)
 	if err != nil {

@@ -1,5 +1,5 @@
 // lib/meal-caterer-api.ts
-// The school's caterer (ADR 0074): who supplies the school, its invitations,
+// The school's caterer (ADR 0075): who supplies the school, its invitations,
 // a new invitation, taking one back, and ending the supply. The invitation
 // link reaches the caterer by mail only; the school never sees it.
 

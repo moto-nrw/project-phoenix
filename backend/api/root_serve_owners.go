@@ -26,7 +26,7 @@ import (
 // administration: the recurrence gate serializes it against every
 // recurrence-derived write, and Care Plan's catalog refuses a period change
 // a linked care offering still needs.
-func buildCalendarAdministration(db transactionruntime.Database, observe func(schoolCalendarCompose.Observation), records *schoolcalendar.Records, lock timetable.RecurrenceWriteLock, offerings careplan.CareOfferingGuards) (*schoolcalendar.Module, error) {
+func buildCalendarAdministration(db transactionruntime.Database, observe func(schoolCalendarCompose.Observation), records schoolcalendar.Days, lock timetable.RecurrenceWriteLock, offerings careplan.CareOfferingGuards) (schoolcalendar.Calendar, error) {
 	return schoolCalendarCompose.NewAdministration(records, schoolCalendarCompose.AdministrationDependencies{
 		DB: db.Pool(), Observe: observe, RecurrenceGate: lock.LockRecurrenceWrites,
 		CareOfferingGuard: func(ctx context.Context, periodID int64, replacement *schoolcalendar.CalendarPeriodFields) error {
@@ -41,7 +41,7 @@ func buildCalendarAdministration(db transactionruntime.Database, observe func(sc
 
 // buildCommunicationModule composes Communication over Organisation &
 // Tenancy, the People Directory's viewer names and the operator audit log.
-func buildCommunicationModule(db transactionruntime.Database, env owners.RootEnvironment, organizations organizationtenancy.Capability, persons peopledirectory.Capability, operatorAuditLog owners.OperatorAuditEntries) (*communicationModule.Module, error) {
+func buildCommunicationModule(db transactionruntime.Database, env owners.RootEnvironment, organizations organizationtenancy.Capability, persons peopledirectory.Capability, operatorAuditLog owners.OperatorAuditEntries) (communicationModule.Capability, error) {
 	return NewCommunicationAnnouncements(communicationCompose.Dependencies{
 		DB:            db.Pool(),
 		Organizations: organizations,
@@ -52,6 +52,6 @@ func buildCommunicationModule(db transactionruntime.Database, env owners.RootEnv
 }
 
 // NewCommunicationAnnouncements binds the staff audience projection at the root.
-func NewCommunicationAnnouncements(deps communicationCompose.Dependencies) (*communicationModule.Module, error) {
+func NewCommunicationAnnouncements(deps communicationCompose.Dependencies) (communicationModule.Capability, error) {
 	return communicationCompose.New(deps, staffAudience.Map(staffAudience.New(communicationCompose.AnnouncementDatabase()), communicationCompose.AudienceMapping()))
 }

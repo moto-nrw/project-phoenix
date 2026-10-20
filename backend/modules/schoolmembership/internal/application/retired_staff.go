@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
 )
 
@@ -14,9 +15,9 @@ import (
 // assignments, the guest profile and the class assignments. The marking
 // comes first and locks the tombstone, so a concurrent run never takes the
 // same staff member. found is false when none is due.
-func (s *Service) EraseNextRetiredStaff(ctx context.Context, retiredBefore time.Time, afterID int64) (result domain.RetiredStaffErasure, found bool, err error) {
+func (s *Service) EraseNextRetiredStaff(ctx context.Context, retiredBefore time.Time, afterID int64) (result schoolmembership.RetiredStaffErasure, found bool, err error) {
 	if retiredBefore.IsZero() || afterID < 0 {
-		return domain.RetiredStaffErasure{}, false, errors.New("school membership: cutoff and cursor are required")
+		return schoolmembership.RetiredStaffErasure{}, false, errors.New("school membership: cutoff and cursor are required")
 	}
 	err = s.runWrite(ctx, "erase_next_retired_staff", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var markStats domain.OperationStats
@@ -44,7 +45,7 @@ func (s *Service) EraseNextRetiredStaff(ctx context.Context, retiredBefore time.
 		return nil
 	})
 	if err != nil {
-		return domain.RetiredStaffErasure{}, false, err
+		return schoolmembership.RetiredStaffErasure{}, false, err
 	}
 	return result, found, nil
 }

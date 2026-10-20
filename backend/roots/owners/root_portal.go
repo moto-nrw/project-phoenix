@@ -43,7 +43,7 @@ func BuildParentPortal(
 	db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, settings settingsCompose.BatchSettingsService,
 	people PeopleRows, portal carePlanCompose.ParentPortalRepositories, messaging parentStore.MessagingRepositories,
 	presence PresenceOwner, carePlanRows CarePlanRows, carePlan careplan.Capability, persons peopledirectory.Capability,
-	mealPlan *mealplanModule.Module, schedules CarePlanSchedules, requests CarePlanRequests, services PeopleServices,
+	mealPlan mealplanModule.Capability, schedules CarePlanSchedules, requests CarePlanRequests, services PeopleServices,
 	emitter eventContract.Emitter, notifications DeliveryNotifications, identity *identityaccess.Module,
 	enrollment EnrollmentRows, notices EnrollmentNotices,
 ) (*parentportal.Portal, error) {
@@ -101,7 +101,7 @@ func BuildFileStore(
 	db transactionruntime.Database, env RootEnvironment, objects filestorageCompose.ObjectBackend, identity *identityaccess.Module,
 	persons peopledirectory.Capability, settings settingsCompose.SettingsService, audit AuditOwner,
 	announcements communication.ParentAnnouncementCapability, parent *parentportal.Portal,
-) (*filestorageModule.Module, error) {
+) (filestorageModule.Capability, error) {
 	return filestorageCompose.New(filestorageCompose.Dependencies{
 		DB: db.Pool(), Objects: objects, Identity: identity, People: persons,
 		Settings: FileStorageSettings{Service: settings}, Events: FileStorageEvents{Repo: audit.Persistence.FileEvent},

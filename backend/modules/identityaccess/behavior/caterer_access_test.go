@@ -74,7 +74,7 @@ func accept(t *testing.T, db *bun.DB, caterers *identityaccess.CatererAccess, sc
 	return acceptance, err
 }
 
-// ADR 0074: a school invites its caterer, the caterer accepts with a
+// ADR 0075: a school invites its caterer, the caterer accepts with a
 // password, and signs in to the caterer portal only.
 func TestCatererInvitationAcceptanceAndLogin(t *testing.T) {
 	t.Parallel()
@@ -310,7 +310,7 @@ func TestCatererSessionsAreLoggedAndEndWithTheLastSchool(t *testing.T) {
 	require.Error(t, err, "without a school the session cannot be renewed")
 }
 
-// ADR 0074: the caterer portal's reset serves caterer accounts only, and the
+// ADR 0075: the caterer portal's reset serves caterer accounts only, and the
 // new password signs the caterer in.
 func TestCatererPasswordResetServesCaterersOnly(t *testing.T) {
 	t.Parallel()
@@ -342,7 +342,7 @@ func TestCatererPasswordResetServesCaterersOnly(t *testing.T) {
 	})
 }
 
-// ADR 0074: a caterer account joins no school: a staff invitation to its
+// ADR 0075: a caterer account joins no school: a staff invitation to its
 // address answers like an address that is taken.
 func TestCatererAccountJoinsNoSchool(t *testing.T) {
 	t.Parallel()

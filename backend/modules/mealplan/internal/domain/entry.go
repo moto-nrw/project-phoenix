@@ -13,11 +13,6 @@ func ParseDate(value string) (Date, error) { return calendar.ParseDate(value) }
 // DateFromInstant is the Berlin calendar day of an instant.
 func DateFromInstant(instant time.Time) Date { return calendar.DateFromTime(instant) }
 
-type Dish struct {
-	Dish string
-	Note *string
-}
-
 type Entry struct {
 	Date     Date
 	Position int

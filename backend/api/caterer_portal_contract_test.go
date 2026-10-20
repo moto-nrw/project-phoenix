@@ -63,7 +63,7 @@ func forgetContractCaterer(t *testing.T, db *bun.DB, email string) {
 	})
 }
 
-// checkCatererPortal drives the caterer portal (ADR 0074) through the
+// checkCatererPortal drives the caterer portal (ADR 0075) through the
 // production router: the school invites, the caterer accepts the mailed
 // link, signs in to its own portal only, reads its school and loses it the
 // moment the school ends the supply.
@@ -184,7 +184,7 @@ func checkCatererPortal(t *testing.T, graph *goldenRuntime) {
 	assert.Equal(t, "meals.not_supplied", decodeCatererResponse(t, body, nil), "the end takes the school at once")
 }
 
-// checkCatererScopeMatrix walks the assembled router (ADR 0074): a caterer
+// checkCatererScopeMatrix walks the assembled router (ADR 0075): a caterer
 // token unlocks no route of another portal, and no other portal's token
 // unlocks a caterer route. A JWT-gated route answers 401 to the foreign
 // token; a public one answers it exactly like an anonymous request.

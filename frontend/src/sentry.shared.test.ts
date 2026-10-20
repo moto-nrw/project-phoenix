@@ -224,7 +224,7 @@ describe("scrubEvent", () => {
     );
   });
 
-  it("redacts the caterer's invitation token but keeps the school (ADR 0074)", () => {
+  it("redacts the caterer's invitation token but keeps the school (ADR 0075)", () => {
     const event = makeEvent({
       request: { url: "https://caterer.test/einladung/42/invite-secret" },
       transaction: "GET /caterer/einladung/42/invite-secret",

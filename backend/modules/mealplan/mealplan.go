@@ -3,8 +3,6 @@ package mealplan
 
 import (
 	"context"
-	"slices"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -201,198 +199,63 @@ var (
 	ErrChildNotEnrolled = &Fault{Code: "meal_child_not_enrolled", Detail: "the child is not in care that day"}
 )
 
-type engine interface {
+// Capability is the whole Meal Plan: the menu, the children's registration
+// and the school's orders.
+type Capability interface {
+	Menu
+	Registration
+	Ordering
+}
+
+// Menu is the school's weekly meal plan.
+type Menu interface {
 	Available(context.Context) (bool, error)
-	Week(context.Context, string) ([]Entry, error)
-	Replace(context.Context, string, []Dish) error
-	Clear(context.Context, string) error
+	Week(context.Context, Date) ([]Entry, error)
+	ReplaceDay(context.Context, ReplaceDay) error
+	ClearDay(context.Context, Date) error
+}
+
+// Registration is the children's meal registration, by their parents and by
+// the school (#3873).
+type Registration interface {
 	RegistrationAvailable(context.Context) (bool, error)
-	Participation(context.Context, int64, string, string) (ParticipationPlan, error)
-	// The empty effective date is a parent's change; a set one is the
-	// school's.
-	ReplaceParticipationSchedule(ctx context.Context, studentID, accountID int64, weekdays []Weekday, effectiveFrom string) (Date, error)
-	SetParticipationDay(ctx context.Context, studentID, accountID int64, date string, participating, bySchool bool) error
-	SetParticipationWeek(context.Context, int64, int64, string, bool) (WeekChange, error)
-	ClearParticipationDay(ctx context.Context, studentID, accountID int64, date string, bySchool bool) error
-	DailyParticipants(context.Context, string) (DailyList, error)
-	Orders(ctx context.Context, from, to string) (OrderWeek, error)
+	Participation(context.Context, int64, Date, Date) (ParticipationPlan, error)
+	ReplaceParticipationSchedule(context.Context, ReplaceParticipationSchedule) (Date, error)
+	ReplaceScheduleBySchool(context.Context, SchoolSchedule) (Date, error)
+	SetParticipationForDay(context.Context, SetParticipationDay) error
+	SetParticipationForWeek(context.Context, SetParticipationWeek) (WeekChange, error)
+	ClearParticipationForDay(context.Context, SetParticipationDay) error
+	SetParticipationBySchool(context.Context, SchoolChange) error
+	ClearParticipationBySchool(context.Context, SchoolChange) error
+	DailyList(context.Context, Date) (DailyList, error)
+}
+
+// Ordering is the school's meal orders and its supply by a caterer
+// (ADR 0075, #3873).
+type Ordering interface {
+	// SettleOrders fixes the due orders of the school in ctx and records
+	// every change of an ordered day since. The worker runs it every few
+	// minutes; without meal registration it does nothing.
 	SettleOrders(context.Context) error
+	// Orders returns the school's orders of [from, to]. Reading fixes every
+	// due order and numbers every change since, so all readers see the same
+	// state.
+	Orders(ctx context.Context, from, to Date) (OrderWeek, error)
+	// StartSupply starts the school's supply by a caterer in the caller's
+	// unit of work. Starting the running supply again changes nothing.
 	StartSupply(ctx context.Context, catererID int64, deliveryAddress string, accountID int64) error
+	// EndSupply ends the school's supply and reports whether one ran.
 	EndSupply(ctx context.Context, accountID int64) (bool, error)
+	// CurrentSupply reads the school's running supply.
 	CurrentSupply(context.Context) (Supply, bool, error)
-	CatererOrders(ctx context.Context, catererID int64, from, to string) (OrderWeek, error)
+	// CatererOrders returns the school's orders of [from, to] as its caterer
+	// reads them: numbers by class only when the school orders by class, and
+	// the children's names only while the school shows them to the caterer.
+	// A caterer that does not supply the school gets ErrNotSupplied.
+	CatererOrders(ctx context.Context, catererID int64, from, to Date) (OrderWeek, error)
+	// ConfirmOrder records that the caterer received a fixed order;
+	// confirming twice keeps the first.
 	ConfirmOrder(ctx context.Context, catererID, orderID, accountID int64) error
-}
-
-type Module struct{ engine engine }
-
-func NewModule(engine engine) *Module {
-	if engine == nil {
-		panic("meal plan: engine is required")
-	}
-	return &Module{engine: engine}
-}
-
-func (m *Module) Available(ctx context.Context) (bool, error) {
-	return m.engine.Available(ctx)
-}
-
-func (m *Module) Week(ctx context.Context, weekStart Date) ([]Entry, error) {
-	date, err := calendar.ParseDate(string(weekStart))
-	if err != nil {
-		return nil, ErrInvalidMealDate
-	}
-	monday := date.StartOfISOWeek()
-	return m.engine.Week(ctx, monday.String())
-}
-
-func (m *Module) ReplaceDay(ctx context.Context, command ReplaceDay) error {
-	date, err := calendar.ParseDate(string(command.Date))
-	if err != nil {
-		return ErrInvalidMealDate
-	}
-	if date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
-		return ErrInvalidMealDate
-	}
-
-	dishes := make([]Dish, 0, len(command.Dishes))
-	for _, input := range command.Dishes {
-		dish := strings.TrimSpace(input.Dish)
-		if dish == "" {
-			continue
-		}
-		dishes = append(dishes, Dish{Dish: dish, Note: trimOptional(input.Note)})
-	}
-	return m.engine.Replace(ctx, date.String(), dishes)
-}
-
-func (m *Module) ClearDay(ctx context.Context, date Date) error {
-	parsed, err := calendar.ParseDate(string(date))
-	if err != nil {
-		return ErrInvalidMealDate
-	}
-	return m.engine.Clear(ctx, parsed.String())
-}
-
-func (m *Module) RegistrationAvailable(ctx context.Context) (bool, error) {
-	return m.engine.RegistrationAvailable(ctx)
-}
-
-func (m *Module) Participation(ctx context.Context, studentID int64, from, to Date) (ParticipationPlan, error) {
-	start, startErr := calendar.ParseDate(string(from))
-	end, endErr := calendar.ParseDate(string(to))
-	if studentID <= 0 || startErr != nil || endErr != nil || end.Before(start) || start.DaysUntil(end) > 31 {
-		return ParticipationPlan{}, ErrInvalidParticipation
-	}
-	return m.engine.Participation(ctx, studentID, start.String(), end.String())
-}
-
-func (m *Module) ReplaceParticipationSchedule(ctx context.Context, command ReplaceParticipationSchedule) (Date, error) {
-	if command.StudentID <= 0 || command.GuardianAccountID <= 0 {
-		return "", ErrInvalidParticipation
-	}
-	weekdays, ok := normalizeWeekdays(command.Weekdays)
-	if !ok {
-		return "", ErrInvalidParticipation
-	}
-	return m.engine.ReplaceParticipationSchedule(ctx, command.StudentID, command.GuardianAccountID, weekdays, "")
-}
-
-// ReplaceScheduleBySchool sets a child's regular days for the school.
-func (m *Module) ReplaceScheduleBySchool(ctx context.Context, command SchoolSchedule) (Date, error) {
-	weekdays, ok := normalizeWeekdays(command.Weekdays)
-	effectiveFrom, err := calendar.ParseDate(string(command.EffectiveFrom))
-	if command.StudentID <= 0 || command.StaffAccountID <= 0 || !ok || err != nil {
-		return "", ErrInvalidParticipation
-	}
-	return m.engine.ReplaceParticipationSchedule(ctx, command.StudentID, command.StaffAccountID, weekdays, effectiveFrom.String())
-}
-
-// SetParticipationBySchool registers or cancels a day for the school.
-func (m *Module) SetParticipationBySchool(ctx context.Context, command SchoolChange) error {
-	date, err := participationDate(command.Date)
-	if command.StudentID <= 0 || command.StaffAccountID <= 0 || err != nil {
-		return ErrInvalidParticipation
-	}
-	return m.engine.SetParticipationDay(ctx, command.StudentID, command.StaffAccountID, date.String(), command.Participating, true)
-}
-
-// ClearParticipationBySchool drops a day's exception for the school, so the
-// regular days apply again.
-func (m *Module) ClearParticipationBySchool(ctx context.Context, command SchoolChange) error {
-	date, err := participationDate(command.Date)
-	if command.StudentID <= 0 || command.StaffAccountID <= 0 || err != nil {
-		return ErrInvalidParticipation
-	}
-	return m.engine.ClearParticipationDay(ctx, command.StudentID, command.StaffAccountID, date.String(), true)
-}
-
-func (m *Module) SetParticipationForDay(ctx context.Context, command SetParticipationDay) error {
-	date, err := participationDate(command.Date)
-	if command.StudentID <= 0 || command.GuardianAccountID <= 0 || err != nil {
-		return ErrInvalidParticipation
-	}
-	return m.engine.SetParticipationDay(ctx, command.StudentID, command.GuardianAccountID, date.String(), command.Participating, false)
-}
-
-func (m *Module) SetParticipationForWeek(ctx context.Context, command SetParticipationWeek) (WeekChange, error) {
-	date, err := calendar.ParseDate(string(command.WeekOf))
-	if command.StudentID <= 0 || command.GuardianAccountID <= 0 || err != nil {
-		return WeekChange{}, ErrInvalidParticipation
-	}
-	return m.engine.SetParticipationWeek(ctx, command.StudentID, command.GuardianAccountID, date.StartOfISOWeek().String(), command.Participating)
-}
-
-func (m *Module) ClearParticipationForDay(ctx context.Context, command SetParticipationDay) error {
-	date, err := participationDate(command.Date)
-	if command.StudentID <= 0 || command.GuardianAccountID <= 0 || err != nil {
-		return ErrInvalidParticipation
-	}
-	return m.engine.ClearParticipationDay(ctx, command.StudentID, command.GuardianAccountID, date.String(), false)
-}
-
-func (m *Module) DailyList(ctx context.Context, date Date) (DailyList, error) {
-	parsed, err := participationDate(date)
-	if err != nil {
-		return DailyList{}, ErrInvalidParticipation
-	}
-	return m.engine.DailyParticipants(ctx, parsed.String())
-}
-
-func participationDate(value Date) (calendar.Date, error) {
-	date, err := calendar.ParseDate(string(value))
-	if err != nil || date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
-		return "", ErrInvalidParticipation
-	}
-	return date, nil
-}
-
-func normalizeWeekdays(values []Weekday) ([]Weekday, bool) {
-	seen := make(map[Weekday]struct{}, len(values))
-	result := make([]Weekday, 0, len(values))
-	for _, weekday := range values {
-		if weekday < Monday || weekday > Friday {
-			return nil, false
-		}
-		if _, exists := seen[weekday]; exists {
-			continue
-		}
-		seen[weekday] = struct{}{}
-		result = append(result, weekday)
-	}
-	slices.Sort(result)
-	return result, true
-}
-
-func trimOptional(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	trimmed := strings.TrimSpace(*value)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
 }
 
 // OrderStatus is where a day's order stands (#3873).
@@ -462,25 +325,4 @@ type OrderWeek struct {
 	Rhythm string
 	Detail string
 	Days   []OrderDay
-}
-
-// maxOrderWindowDays bounds one read of the orders: a month and a few days.
-const maxOrderWindowDays = 42
-
-// SettleOrders fixes the due orders of the school in ctx and records every
-// change of an ordered day since (#3873). The worker runs it every few
-// minutes; without meal registration it does nothing.
-func (m *Module) SettleOrders(ctx context.Context) error {
-	return m.engine.SettleOrders(ctx)
-}
-
-// Orders returns the school's orders of [from, to]. Reading fixes every due
-// order and numbers every change since, so all readers see the same state.
-func (m *Module) Orders(ctx context.Context, from, to Date) (OrderWeek, error) {
-	start, startErr := calendar.ParseDate(string(from))
-	end, endErr := calendar.ParseDate(string(to))
-	if startErr != nil || endErr != nil || end.Before(start) || start.DaysUntil(end) > maxOrderWindowDays {
-		return OrderWeek{}, ErrInvalidParticipation
-	}
-	return m.engine.Orders(ctx, start.String(), end.String())
 }

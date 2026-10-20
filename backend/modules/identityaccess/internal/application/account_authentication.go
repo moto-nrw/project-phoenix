@@ -34,7 +34,7 @@ type AccountAuthentication struct {
 	runtime   ports.Runtime
 	rotation  ports.Rotation
 	// caterers lets a caterer session refresh only while its account
-	// belongs to a caterer (ADR 0074).
+	// belongs to a caterer (ADR 0075).
 	caterers ports.CatererStore
 	logger   *slog.Logger
 	// refreshSF deduplicates concurrent refresh calls for the same refresh

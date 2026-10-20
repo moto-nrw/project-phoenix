@@ -2,7 +2,7 @@ import { CatererProviders } from "./providers";
 import { CatererAuthGuard } from "./auth-guard";
 
 /**
- * Server layout of the caterer portal (ADR 0074): the caterer session, then
+ * Server layout of the caterer portal (ADR 0075): the caterer session, then
  * the client-side guard. German-only like the school portal.
  */
 export default function CatererLayout({

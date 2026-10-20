@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/mealplan"
+
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
@@ -87,7 +89,7 @@ func (s *Store) FindWeek(ctx context.Context, start, end domain.Date) ([]domain.
 	return entries, stats, nil
 }
 
-func (s *Store) ReplaceDay(ctx context.Context, date domain.Date, dishes []domain.Dish) (domain.OperationStats, error) {
+func (s *Store) ReplaceDay(ctx context.Context, date domain.Date, dishes []mealplan.Dish) (domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err

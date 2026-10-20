@@ -612,7 +612,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/demo/access/sessions"}: session("demo_started"),
 	{http.MethodPost, "/demo/access/reset"}:    notCaptured,
 
-	// Caterer portal (ADR 0074). Accepting the mailed invitation starts no
+	// Caterer portal (ADR 0075). Accepting the mailed invitation starts no
 	// session yet, so it counts on the caterer surface itself.
 	{http.MethodPost, "/caterer/auth/password-reset"}:                         notCaptured,
 	{http.MethodPost, "/caterer/auth/password-reset/confirm"}:                 notCaptured,

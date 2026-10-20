@@ -5,7 +5,7 @@ import { PortalAnalyticsSession } from "~/components/analytics/portal-analytics-
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 
 /**
- * Caterer-scoped providers (ADR 0074). SessionProvider reads the host-only
+ * Caterer-scoped providers (ADR 0075). SessionProvider reads the host-only
  * caterer cookie ("caterer.session-token") through basePath
  * "/api/caterer/auth".
  */

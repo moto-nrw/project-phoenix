@@ -1151,10 +1151,8 @@ A raise passes only under an ADR the change adds: the comment on the raised
 entry or its declaration cites `ADR 0123`, and the base has no ADR with that
 number. Renaming or copying an existing ADR file authorizes nothing. A
 measurement that disappears needs the same: a comment naming it that cites an
-ADR the change adds. The only exception is a closed, one-time list bound to ADR
-0057 (`retiredByADR0057`): the three temporary-rule registers of
-`test/policy_temporary_rules_ratchet_test.go` that #4070 replaced by a
-structural check.
+ADR the change adds. An empty `map[string]int` register may disappear
+without one.
 `internal/architecture/ratchet_budgets_test.go` pins the rules.
 
 ### Converting temporary permissions to exact debt
@@ -4119,6 +4117,23 @@ error mapping (`groups.NewManagement`, `groups.PublicGroup`,
 retained testhooks adapters keep calling them there. The composition goes from
 1,258 to 904 LOC.
 
+### Same-owner contract reach of Delivery and Export Transfer (#4461)
+
+[ADR 0074](../../docs/adr/0074-delivery-and-export-transfer-speak-their-own-contract.md)
+(policy epoch 88 → 89) lets two platform owners' implementations speak their
+own published values. `reviewedSameOwnerContractRule`
+(`internal/architecture/same_owner_contract_rule.go`) accepts, only in an
+increased epoch and only in production, exactly these rules:
+
+| Rule | Source | Target package |
+|---|---|---|
+| `delivery-platform.port.delivery-platform.contract` | `delivery-platform/port` | `modules/delivery/contract` |
+| `delivery-platform.postgres.delivery-platform.contract` | `delivery-platform/postgres` | `modules/delivery/contract` |
+| `export-transfer.application.export-transfer.contract` | `export-transfer/application` | `modules/exporttransfer` |
+
+Each rule is pinned to its target package; the target stays inside the
+source owner, so the owner graph gains no edge.
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured
@@ -5105,7 +5120,7 @@ numbered decision of the principle ADR.
 | Ratchet budgets only fall; a raise needs an ADR the change adds | ADR 0057 point 5, ADR 0063, ADR 0064, ADR 0072, ADR 0073 | 0070 point 4 |
 | Pass-throughs count per owner; moved code stays in the scan | ADR 0061, ADR 0064 | 0070 point 5 |
 | A relocation renames keys and grants nothing | ADR 0020 | 0070 point 6 |
-| The epoch rises only for a reviewed decision with a finite, tested acceptor; dead acceptors are deleted | ADR 0053 point 9, ADR 0013, ADR 0015, ADR 0045, ADR 0057 point 7 | 0070 point 7 |
+| The epoch rises only for a reviewed decision with a finite, tested acceptor; dead acceptors are deleted | ADR 0053 point 9, ADR 0013, ADR 0015, ADR 0045, ADR 0057 point 7, ADR 0074 | 0070 point 7 |
 | Exact package selectors only narrow | ADR 0057 addendum of 2026-10-16 | 0070 point 8 |
 | Migration evidence keeps its provenance and fails closed | ADR 0026 | 0070 point 9 |
 | The target owner graph is acyclic | ADR 0058 point 1 | 0071 point 1 |
@@ -5136,7 +5151,7 @@ one-time conversion (#4070); ADR 0058 points 5 and 6, the transition (#3417,
 | 0010, 0012, 0033 | accepted | 0066 |
 | 0013 | accepted | 0066, 0067, 0070 |
 | 0014, 0039, 0040 | accepted | 0069 |
-| 0015, 0020, 0026, 0045, 0061, 0063, 0064 | accepted | 0070 |
+| 0015, 0020, 0026, 0045, 0061, 0063, 0064, 0074 | accepted | 0070 |
 | 0016, 0017, 0018, 0022, 0062 | accepted | 0067 |
 | 0023 | accepted | 0066, 0067 |
 | 0025 | historical | 0066 |

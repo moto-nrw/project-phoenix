@@ -11,7 +11,7 @@ import (
 // ReinstateStaff continues a retired staff membership, the Wiederaufnahme of
 // ADR 0021. Membership and employment profile come back under the same ID, so
 // every record keyed by it belongs to the resumed employment again.
-func (s *Service) ReinstateStaff(ctx context.Context, id int64) (result domain.Staff, err error) {
+func (s *Service) ReinstateStaff(ctx context.Context, id int64) (result schoolmembership.Staff, err error) {
 	err = s.runStaffWrite(ctx, "reinstate_staff", func(txCtx context.Context, stats *domain.OperationStats) error {
 		retired, err := s.lockRetiredStaff(txCtx, id, stats)
 		if err != nil {
@@ -39,21 +39,21 @@ func (s *Service) ReinstateStaff(ctx context.Context, id int64) (result domain.S
 				return err
 			}
 		}
-		result = result.WithEmployment(employment)
+		result = staffWithEmployment(result, employment)
 		return nil
 	})
 	return result, err
 }
 
 // lockRetiredStaff locks a retired membership and composes its employment.
-func (s *Service) lockRetiredStaff(ctx context.Context, id int64, stats *domain.OperationStats) (domain.Staff, error) {
+func (s *Service) lockRetiredStaff(ctx context.Context, id int64, stats *domain.OperationStats) (schoolmembership.Staff, error) {
 	retired, found, queryStats, err := s.store.FindStaff(ctx, id, "UPDATE", true)
 	stats.Add(queryStats)
 	if err != nil {
-		return domain.Staff{}, err
+		return schoolmembership.Staff{}, err
 	}
 	if !found || !retired.IsDeleted() {
-		return domain.Staff{}, domain.ErrStaffNotFound
+		return schoolmembership.Staff{}, schoolmembership.ErrStaffNotFound
 	}
 	return s.withEmployment(ctx, retired, stats)
 }
@@ -85,15 +85,15 @@ func (s *Service) restorePersonnelNumber(ctx context.Context, employment domain.
 
 // ReinstateTeacher revives a retired caregiver profile of a live staff
 // membership instead of growing a second one next to it (ADR 0021).
-func (s *Service) ReinstateTeacher(ctx context.Context, id int64) (result domain.Teacher, err error) {
+func (s *Service) ReinstateTeacher(ctx context.Context, id int64) (result schoolmembership.Teacher, err error) {
 	err = s.runWrite(ctx, "reinstate_teacher", func(txCtx context.Context, stats *domain.OperationStats) error {
-		retired, queryStats, err := s.store.ListTeachers(txCtx, domain.TeacherFilter{IDs: []int64{id}, IncludeDeleted: true})
+		retired, queryStats, err := s.store.ListTeachers(txCtx, schoolmembership.TeacherFilter{IDs: []int64{id}, IncludeDeleted: true})
 		stats.Add(queryStats)
 		if err != nil {
 			return err
 		}
 		if len(retired) != 1 || !retired[0].IsDeleted() {
-			return domain.ErrTeacherNotFound
+			return schoolmembership.ErrTeacherNotFound
 		}
 		// Staff before teacher, the order every teacher write locks in.
 		if err := s.requireStaffLocked(txCtx, retired[0].StaffID, stats); err != nil {

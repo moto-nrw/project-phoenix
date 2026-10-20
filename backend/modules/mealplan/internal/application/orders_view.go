@@ -9,10 +9,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
 )
 
-// Orders returns the school's orders of [from, to] (#3873). Reading settles
+// orderView returns the school's orders of [from, to] (#3873). Reading settles
 // them first: every due order is fixed and every change since is numbered,
 // so school, caterer and export always see the same state.
-func (s *Service) Orders(ctx context.Context, from, to domain.Date) (view domain.OrderView, err error) {
+func (s *Service) orderView(ctx context.Context, from, to domain.Date) (view domain.OrderView, err error) {
 	err = s.run(ctx, "read_orders", func(txCtx context.Context) (domain.OperationStats, error) {
 		rules, rulesErr := s.requireRegistration(txCtx)
 		if rulesErr != nil {
@@ -60,12 +60,12 @@ func (s *Service) lockedWindow(ctx context.Context, rules domain.OrderingRules, 
 	return orderWindow{days: days, state: state}, addStats(stats, findStats), err
 }
 
-// SettleOrders fixes the school's due orders and records every change of an
+// settleDueOrders fixes the school's due orders and records every change of an
 // ordered day since (#3873). The worker runs it every few minutes, so an order
 // is fixed close to its deadline and a change nobody reads is still recorded
 // before its day ends. A school without meal registration has nothing to
 // settle.
-func (s *Service) SettleOrders(ctx context.Context) error {
+func (s *Service) settleDueOrders(ctx context.Context) error {
 	return s.run(ctx, "settle_orders", func(txCtx context.Context) (domain.OperationStats, error) {
 		rules, err := s.requireRegistration(txCtx)
 		if errors.Is(err, ErrDisabled) || errors.Is(err, ErrRegistrationDisabled) {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/ports"
 	"github.com/stretchr/testify/assert"
@@ -102,8 +103,8 @@ func configuredTarget() domain.Target {
 	}
 }
 
-func testRequest() domain.Request {
-	return domain.Request{
+func testRequest() exporttransfer.Request {
+	return exporttransfer.Request{
 		Kind:           "staff_time_tracking",
 		Format:         "datev_lodas",
 		Filename:       "zeitkonten-2026-08.txt",
@@ -122,7 +123,7 @@ func TestTransfer_SuccessIsRecordedWithoutCredentials(t *testing.T) {
 
 	result, err := service.Transfer(context.Background(), testRequest())
 	require.NoError(t, err)
-	assert.True(t, result.Success)
+	assert.True(t, result.Transferred)
 	assert.Empty(t, result.Reason, "a success carries no reason")
 	assert.Equal(t, "dateien.beispiel.de", result.TargetHost)
 
@@ -151,7 +152,7 @@ func TestTransfer_FailureIsRecordedAsFailureWithItsReason(t *testing.T) {
 
 	result, err := service.Transfer(context.Background(), testRequest())
 	require.NoError(t, err, "a counterpart that refuses is a normal answer, not a server error")
-	assert.False(t, result.Success)
+	assert.False(t, result.Transferred)
 	assert.Equal(t, domain.ReasonHostKey, result.Reason)
 
 	require.Len(t, journal.entries, 1)
@@ -170,7 +171,7 @@ func TestTransfer_UnnamedFailureBecomesAnInternalReason(t *testing.T) {
 
 	result, err := service.Transfer(context.Background(), testRequest())
 	require.NoError(t, err)
-	assert.False(t, result.Success)
+	assert.False(t, result.Transferred)
 	assert.Equal(t, domain.ReasonInternal, result.Reason)
 }
 
@@ -184,7 +185,7 @@ func TestTransfer_UnconfiguredTargetAttemptsAndRecordsNothing(t *testing.T) {
 
 	result, err := service.Transfer(context.Background(), testRequest())
 	require.NoError(t, err)
-	assert.False(t, result.Success)
+	assert.False(t, result.Transferred)
 	assert.Equal(t, domain.ReasonNotConfigured, result.Reason)
 	assert.Zero(t, uploader.calls, "an unconfigured target must not be dialed")
 	assert.Empty(t, journal.entries)
@@ -201,7 +202,7 @@ func TestTransfer_UnrecordableAttemptIsNotReportedAsSuccess(t *testing.T) {
 	result, err := service.Transfer(context.Background(), testRequest())
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrUnavailable)
-	assert.False(t, result.Success)
+	assert.False(t, result.Transferred)
 	assert.Zero(t, uploader.calls, "an unrecordable intent must never touch the remote file")
 }
 
@@ -234,15 +235,15 @@ func TestTransfer_SendsTheFileItWasGivenUnchanged(t *testing.T) {
 	assert.Equal(t, request.Data, uploader.data)
 }
 
-func TestState_PassesTheConfigurationThrough(t *testing.T) {
+func TestStatus_PassesTheConfigurationThrough(t *testing.T) {
 	t.Parallel()
 
 	state := domain.TargetState{Enabled: true, Host: "dateien.beispiel.de", Port: 22, RemoteDirectory: "/upload/lohn"}
 	service := newTestService(fakeResolver{state: state}, &fakeUploader{}, &fakeJournal{})
 
-	got, err := service.State(context.Background())
+	got, err := service.Status(context.Background())
 	require.NoError(t, err)
-	assert.True(t, got.Ready())
+	assert.True(t, got.Ready)
 	assert.Equal(t, "dateien.beispiel.de", got.Host)
 }
 
@@ -252,7 +253,7 @@ func TestAccessAuditFailurePreventsTransfer(t *testing.T) {
 	journal := &fakeJournal{}
 	service := newTestService(fakeResolver{target: configuredTarget()}, uploader, journal)
 	auditErr := errors.New("access audit unavailable")
-	_, err := service.Transfer(context.Background(), domain.Request{
+	_, err := service.Transfer(context.Background(), exporttransfer.Request{
 		PrepareFile: func(context.Context) (string, []byte, error) {
 			return "", nil, auditErr
 		},
@@ -267,13 +268,13 @@ func TestTransferUsesTheFilePreparedWithItsAccessAudit(t *testing.T) {
 	uploader := &fakeUploader{}
 	journal := &fakeJournal{}
 	service := newTestService(fakeResolver{target: configuredTarget()}, uploader, journal)
-	result, err := service.Transfer(context.Background(), domain.Request{
+	result, err := service.Transfer(context.Background(), exporttransfer.Request{
 		PrepareFile: func(context.Context) (string, []byte, error) {
 			return "prepared.csv", []byte("prepared export"), nil
 		},
 	})
 	require.NoError(t, err)
-	require.True(t, result.Success)
+	require.True(t, result.Transferred)
 	assert.Equal(t, "prepared.csv", uploader.filename)
 	assert.Equal(t, []byte("prepared export"), uploader.data)
 	require.Len(t, journal.entries, 1)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
 )
@@ -239,7 +240,7 @@ func noteAuthorAccountIDs(notes []domain.StudentNote) []int64 {
 
 // withAuthorNames fills in the display name of each author. An author whose
 // person row is gone keeps an empty name rather than losing the note.
-func withAuthorNames(notes []domain.StudentNote, persons []domain.Person) []domain.StudentNote {
+func withAuthorNames(notes []domain.StudentNote, persons []peopledirectory.Person) []domain.StudentNote {
 	if len(notes) == 0 {
 		return notes
 	}

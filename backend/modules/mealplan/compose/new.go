@@ -38,13 +38,13 @@ type Dependencies struct {
 	Calendar     mealplan.CalendarFinder
 }
 
-func New(dependencies Dependencies) (*mealplan.Module, error) {
+func New(dependencies Dependencies) (mealplan.Capability, error) {
 	if dependencies.DB == nil || dependencies.Settings == nil || dependencies.Observe == nil || dependencies.Now == nil || dependencies.Participants == nil || dependencies.StudentNames == nil || dependencies.Calendar == nil {
 		return nil, errors.New("meal plan compose: all dependencies are required")
 	}
 	store := postgres.New(postgres.NewDatabase(tenant.TransactionFromContext, tenant.TenantFromContext))
 	service := application.New(store, application.NewParticipantDirectory(dependencies.Participants, dependencies.StudentNames), application.NewSchoolCalendar(dependencies.Calendar), dependencies.Settings, TransactionFunc(tenant.NewTransactionRunner().RunInTx), dependencies.Observe, dependencies.Now)
-	return application.NewPublicModule(service), nil
+	return service, nil
 }
 
 // Settings are the meal plan's settings resolvers, bound at construction.
