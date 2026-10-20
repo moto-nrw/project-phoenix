@@ -24,7 +24,7 @@ type Dependencies struct {
 	HashToken   func(string) string
 }
 
-func New(dependencies Dependencies) (*requestfeed.Module, error) {
+func New(dependencies Dependencies) (requestfeed.Capability, error) {
 	if dependencies.DB == nil || dependencies.Feed == nil || dependencies.FrontendURL == "" || dependencies.Now == nil || dependencies.NewToken == nil || dependencies.HashToken == nil {
 		return nil, errors.New("request feed compose: all dependencies are required")
 	}
@@ -41,7 +41,7 @@ func New(dependencies Dependencies) (*requestfeed.Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	return requestfeed.NewModule(service), nil
+	return service, nil
 }
 
 type tokenAdapter struct {

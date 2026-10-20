@@ -9,14 +9,13 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 )
 
 type ScheduleReviewSchedules interface {
 	ListPickupSchedules(context.Context, careplan.StudentScheduleFilter) ([]careplan.PickupSchedule, error)
 	ListArrivalSchedules(context.Context, careplan.StudentScheduleFilter) ([]careplan.ArrivalSchedule, error)
 	ListPickupExceptions(context.Context, careplan.StudentScheduleFilter) ([]careplan.PickupException, error)
-	ListCareOfferings(context.Context, domain.CareOfferingFilter) ([]domain.CareOffering, error)
+	ListCareOfferings(context.Context, careplan.CareOfferingFilter) ([]careplan.CareOffering, error)
 }
 
 type ScheduleReviewDependencies struct {
@@ -284,7 +283,7 @@ func (s *ScheduleReviews) planBookings(ctx context.Context, studentID int64, fro
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	offerings, err := s.deps.Schedules.ListCareOfferings(ctx, domain.CareOfferingFilter{IDs: ids})
+	offerings, err := s.deps.Schedules.ListCareOfferings(ctx, careplan.CareOfferingFilter{IDs: ids})
 	if err != nil {
 		return nil, err
 	}

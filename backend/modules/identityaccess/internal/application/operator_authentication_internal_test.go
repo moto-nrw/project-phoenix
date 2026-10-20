@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,7 @@ func TestOperatorLogin_WithoutGateIssuesTokenPairAndAudits(t *testing.T) {
 	f := newOperatorFixture(t)
 	operator := f.seedOperator(42)
 
-	result, err := f.auth.LoginWithMFAGate(context.Background(), " Operator42@Example.com ", "secret", "127.0.0.1", "ua", "")
+	result, err := f.auth.loginWithMFAGate(context.Background(), " Operator42@Example.com ", "secret", "127.0.0.1", "ua", "")
 	require.NoError(t, err)
 	assert.Equal(t, domain.LoginStatusAuthenticated, result.Status)
 	assert.NotEmpty(t, result.AccessToken)
@@ -54,7 +55,7 @@ func TestOperatorLogin_AuditFailureDoesNotFailLogin(t *testing.T) {
 	f.audit.err = errors.New("audit log service unavailable")
 	f.store.recordLoginErr = errors.New("stamp failed")
 
-	result, err := f.auth.LoginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "")
+	result, err := f.auth.loginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "")
 	require.NoError(t, err, "a failed audit row or login stamp is logged, never fatal")
 	assert.NotEmpty(t, result.AccessToken)
 	assert.Len(t, f.store.operatorSessionsOf(42), 1)
@@ -66,8 +67,8 @@ func TestOperatorLogin_CredentialFailures(t *testing.T) {
 		t.Parallel()
 		f := newOperatorFixture(t)
 		f.mfa.configured = true
-		_, err := f.auth.LoginWithMFAGate(context.Background(), "nobody@example.com", "secret", "", "", "")
-		require.ErrorIs(t, err, domain.ErrOperatorInvalidCredentials)
+		_, err := f.auth.loginWithMFAGate(context.Background(), "nobody@example.com", "secret", "", "", "")
+		require.ErrorIs(t, err, identityaccess.ErrOperatorInvalidCredentials)
 		assert.Empty(t, f.mfa.calls, "the gate is never consulted before the password check")
 	})
 	t.Run("wrong password", func(t *testing.T) {
@@ -75,8 +76,8 @@ func TestOperatorLogin_CredentialFailures(t *testing.T) {
 		f := newOperatorFixture(t)
 		f.mfa.configured = true
 		f.seedOperator(42)
-		_, err := f.auth.LoginWithMFAGate(context.Background(), "operator42@example.com", "wrong", "", "", "")
-		require.ErrorIs(t, err, domain.ErrOperatorInvalidCredentials)
+		_, err := f.auth.loginWithMFAGate(context.Background(), "operator42@example.com", "wrong", "", "", "")
+		require.ErrorIs(t, err, identityaccess.ErrOperatorInvalidCredentials)
 		assert.Empty(t, f.mfa.calls)
 		assert.Empty(t, f.store.operatorSessionsOf(42))
 	})
@@ -84,16 +85,16 @@ func TestOperatorLogin_CredentialFailures(t *testing.T) {
 		t.Parallel()
 		f := newOperatorFixture(t)
 		f.store.addOperator(7, "inactive@example.com", "hash:secret", false)
-		_, err := f.auth.LoginWithMFAGate(context.Background(), "inactive@example.com", "secret", "", "", "")
-		require.ErrorIs(t, err, domain.ErrOperatorInactive)
+		_, err := f.auth.loginWithMFAGate(context.Background(), "inactive@example.com", "secret", "", "", "")
+		require.ErrorIs(t, err, identityaccess.ErrOperatorInactive)
 	})
 	t.Run("lookup failure propagates", func(t *testing.T) {
 		t.Parallel()
 		f := newOperatorFixture(t)
 		f.store.findOperatorErr = errDB
-		_, err := f.auth.LoginWithMFAGate(context.Background(), "operator@example.com", "secret", "", "", "")
+		_, err := f.auth.loginWithMFAGate(context.Background(), "operator@example.com", "secret", "", "", "")
 		require.ErrorIs(t, err, errDB)
-		require.NotErrorIs(t, err, domain.ErrOperatorInvalidCredentials)
+		require.NotErrorIs(t, err, identityaccess.ErrOperatorInvalidCredentials)
 	})
 }
 
@@ -106,7 +107,7 @@ func TestOperatorLogin_MFAGate(t *testing.T) {
 		f.mfa.configured = true
 		f.mfa.enrolled = false
 
-		result, err := f.auth.LoginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "")
+		result, err := f.auth.loginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "")
 		require.NoError(t, err)
 		assert.Equal(t, domain.LoginStatusMFAEnrollmentRequired, result.Status, "operator MFA is mandatory: no full session before enrollment")
 		assert.Equal(t, "enroll:42:0:platform", result.AccessToken, "the enrollment token is platform-scoped")
@@ -125,7 +126,7 @@ func TestOperatorLogin_MFAGate(t *testing.T) {
 		f.mfa.enrolled = true
 		f.mfa.challenge = "challenge-xyz"
 
-		result, err := f.auth.LoginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "")
+		result, err := f.auth.loginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "")
 		require.NoError(t, err)
 		assert.Equal(t, domain.LoginStatusMFARequired, result.Status)
 		assert.Equal(t, "challenge-xyz", result.ChallengeToken)
@@ -142,7 +143,7 @@ func TestOperatorLogin_MFAGate(t *testing.T) {
 		f.mfa.enrolled = true
 		f.mfa.trustedCookie = "valid-cookie"
 
-		result, err := f.auth.LoginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "valid-cookie")
+		result, err := f.auth.loginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "valid-cookie")
 		require.NoError(t, err)
 		assert.Equal(t, domain.LoginStatusAuthenticated, result.Status)
 		assert.NotEmpty(t, result.RefreshToken)
@@ -156,7 +157,7 @@ func TestOperatorLogin_MFAGate(t *testing.T) {
 		f.mfa.enrolled = true
 		f.mfa.trustedCookie = "valid-cookie"
 
-		result, err := f.auth.LoginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "stale-cookie")
+		result, err := f.auth.loginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "stale-cookie")
 		require.NoError(t, err)
 		assert.Equal(t, domain.LoginStatusMFARequired, result.Status, "a non-verifiable cookie must not skip MFA")
 	})
@@ -167,7 +168,7 @@ func TestOperatorLogin_MFAGate(t *testing.T) {
 		f.mfa.configured = true
 		f.mfa.enrolledErr = errDB
 
-		_, err := f.auth.LoginWithMFAGate(context.Background(), "operator42@example.com", "secret", "", "", "")
+		_, err := f.auth.loginWithMFAGate(context.Background(), "operator42@example.com", "secret", "", "", "")
 		require.ErrorIs(t, err, errDB, "an infrastructure error never downgrades an enrolled operator to the enrollment flow")
 		assert.Empty(t, f.store.operatorSessionsOf(42))
 	})
@@ -179,7 +180,7 @@ func TestOperatorLogin_MFAGate(t *testing.T) {
 		f.mfa.enrolled = true
 		f.mfa.challengeErr = errDB
 
-		_, err := f.auth.LoginWithMFAGate(context.Background(), "operator42@example.com", "secret", "", "", "")
+		_, err := f.auth.loginWithMFAGate(context.Background(), "operator42@example.com", "secret", "", "", "")
 		require.ErrorIs(t, err, errDB)
 	})
 }
@@ -201,14 +202,14 @@ func TestIssueTokensForAuthenticatedOperator(t *testing.T) {
 		t.Parallel()
 		f := newOperatorFixture(t)
 		_, _, err := f.auth.IssueTokensForAuthenticatedOperator(context.Background(), 404, "", "")
-		require.ErrorIs(t, err, domain.ErrOperatorNotFound)
+		require.ErrorIs(t, err, identityaccess.ErrOperatorNotFound)
 	})
 	t.Run("inactive operator", func(t *testing.T) {
 		t.Parallel()
 		f := newOperatorFixture(t)
 		f.store.addOperator(7, "inactive@example.com", "hash:secret", false)
 		_, _, err := f.auth.IssueTokensForAuthenticatedOperator(context.Background(), 7, "", "")
-		require.ErrorIs(t, err, domain.ErrOperatorInactive, "inactive operators never receive a session token")
+		require.ErrorIs(t, err, identityaccess.ErrOperatorInactive, "inactive operators never receive a session token")
 	})
 	t.Run("lookup failure propagates", func(t *testing.T) {
 		t.Parallel()
@@ -222,7 +223,7 @@ func TestIssueTokensForAuthenticatedOperator(t *testing.T) {
 // login mints a session for operator 42 and returns its persisted handle.
 func login(t *testing.T, f *operatorFixture) string {
 	t.Helper()
-	result, err := f.auth.LoginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "")
+	result, err := f.auth.loginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "")
 	require.NoError(t, err)
 	return decodeRefresh(t, result.RefreshToken).Token
 }
@@ -268,14 +269,14 @@ func TestOperatorRefresh_RejectsBlankForeignAndUnknownHandles(t *testing.T) {
 	handle := login(t, f)
 
 	_, _, err := f.auth.RefreshToken(context.Background(), 42, " \t ")
-	require.ErrorIs(t, err, domain.ErrOperatorRefreshTokenInvalid)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid)
 	assert.Equal(t, 0, f.runtime.adminTxCount, "a blank handle never opens a transaction")
 
 	_, _, err = f.auth.RefreshToken(context.Background(), 42, "no-such-handle")
-	require.ErrorIs(t, err, domain.ErrOperatorRefreshTokenInvalid, "a handle without a row is stale or from the stateless scheme")
+	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid, "a handle without a row is stale or from the stateless scheme")
 
 	_, _, err = f.auth.RefreshToken(context.Background(), 43, handle)
-	require.ErrorIs(t, err, domain.ErrOperatorRefreshTokenInvalid, "another operator's handle is refused")
+	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid, "another operator's handle is refused")
 	assert.Len(t, f.store.operatorSessionsOf(42), 1, "a foreign presentation does not touch the family")
 }
 
@@ -338,7 +339,7 @@ func TestOperatorRefresh_ReplayAfterGraceRevokesFamily(t *testing.T) {
 	}
 
 	_, _, err = f.auth.RefreshToken(ctx, 42, predecessor)
-	require.ErrorIs(t, err, domain.ErrOperatorRefreshTokenInvalid)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid)
 	assert.Empty(t, f.store.operatorSessionsOf(42), "replay outside the recovery boundary revokes the whole family")
 	revocations := f.audit.actions(domain.OperatorAuditActionTokenRevoked)
 	require.Len(t, revocations, 1)
@@ -355,7 +356,7 @@ func TestOperatorRefresh_WrongRecoveryProofRevokesFamily(t *testing.T) {
 	require.NoError(t, err)
 
 	_, _, err = f.auth.RefreshToken(withProof(context.Background(), "attacker-proof"), 42, predecessor)
-	require.ErrorIs(t, err, domain.ErrOperatorRefreshTokenInvalid)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid)
 	assert.Empty(t, f.store.operatorSessionsOf(42), "a failed possession proof revokes the family")
 }
 
@@ -370,7 +371,7 @@ func TestOperatorRefresh_ExpiredSessionRevokesFamily(t *testing.T) {
 	}
 
 	_, _, err := f.auth.RefreshToken(context.Background(), 42, handle)
-	require.ErrorIs(t, err, domain.ErrOperatorRefreshTokenInvalid)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid)
 	assert.Empty(t, f.store.operatorSessionsOf(42))
 	require.Len(t, f.audit.actions(domain.OperatorAuditActionTokenRevoked), 1)
 	assert.Equal(t, "token_expired", f.audit.actions(domain.OperatorAuditActionTokenRevoked)[0].RevokedSessions.Reason)
@@ -390,7 +391,7 @@ func TestOperatorRefresh_LineageMismatchRevokesFamily(t *testing.T) {
 	require.NoError(t, err)
 
 	_, _, err = f.auth.RefreshToken(context.Background(), 42, handle)
-	require.ErrorIs(t, err, domain.ErrOperatorRefreshTokenInvalid)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid)
 	assert.Empty(t, f.store.operatorSessionsOf(42))
 	assert.Equal(t, "lineage_mismatch", f.audit.actions(domain.OperatorAuditActionTokenRevoked)[0].RevokedSessions.Reason)
 }
@@ -408,7 +409,7 @@ func TestOperatorRefresh_HandoffLookupErrorDoesNotRevokeFamily(t *testing.T) {
 	_, _, err = f.auth.RefreshToken(ctx, 42, predecessor)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "temporary database timeout")
-	require.NotErrorIs(t, err, domain.ErrOperatorRefreshTokenInvalid)
+	require.NotErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid)
 	assert.Len(t, f.store.operatorSessionsOf(42), 2, "transient infrastructure errors stay retryable and never revoke a valid session")
 	assert.Empty(t, f.audit.actions(domain.OperatorAuditActionTokenRevoked))
 }
@@ -422,7 +423,7 @@ func TestOperatorRefresh_OperatorStateIsRechecked(t *testing.T) {
 		handle := login(t, f)
 		delete(f.store.operators, 42)
 		_, _, err := f.auth.RefreshToken(context.Background(), 42, handle)
-		require.ErrorIs(t, err, domain.ErrOperatorNotFound)
+		require.ErrorIs(t, err, identityaccess.ErrOperatorNotFound)
 	})
 	t.Run("operator deactivated", func(t *testing.T) {
 		t.Parallel()
@@ -433,7 +434,7 @@ func TestOperatorRefresh_OperatorStateIsRechecked(t *testing.T) {
 		operator.Active = false
 		f.store.operators[42] = operator
 		_, _, err := f.auth.RefreshToken(context.Background(), 42, handle)
-		require.ErrorIs(t, err, domain.ErrOperatorInactive)
+		require.ErrorIs(t, err, identityaccess.ErrOperatorInactive)
 		assert.Len(t, f.store.operatorSessionsOf(42), 1, "the refusal rolls back, nothing is rotated")
 	})
 	t.Run("operator lookup failure", func(t *testing.T) {
@@ -474,7 +475,7 @@ func TestUpdateOperatorProfile(t *testing.T) {
 		t.Parallel()
 		f := newOperatorFixture(t)
 		_, err := f.auth.UpdateProfile(context.Background(), 404, "Name")
-		require.ErrorIs(t, err, domain.ErrOperatorNotFound)
+		require.ErrorIs(t, err, identityaccess.ErrOperatorNotFound)
 	})
 	t.Run("write failure", func(t *testing.T) {
 		t.Parallel()
@@ -503,7 +504,7 @@ func TestChangeOperatorPassword(t *testing.T) {
 		assert.Len(t, f.audit.actions(domain.OperatorAuditActionTokenRevoked), 2, "one revocation entry per family")
 		assert.Equal(t, 1, f.runtime.adminTxCount, "the rotation and the revocations share one administrative transaction")
 
-		_, err := f.auth.LoginWithMFAGate(context.Background(), "operator42@example.com", "ChangedPass789!", "", "", "")
+		_, err := f.auth.loginWithMFAGate(context.Background(), "operator42@example.com", "ChangedPass789!", "", "", "")
 		require.NoError(t, err)
 	})
 	t.Run("wrong current password", func(t *testing.T) {
@@ -511,7 +512,7 @@ func TestChangeOperatorPassword(t *testing.T) {
 		f := newOperatorFixture(t)
 		f.seedOperator(42)
 		err := f.auth.ChangePassword(context.Background(), 42, "wrong", "ChangedPass789!")
-		require.ErrorIs(t, err, domain.ErrOperatorPasswordMismatch)
+		require.ErrorIs(t, err, identityaccess.ErrOperatorPasswordMismatch)
 		assert.Equal(t, "hash:secret", f.store.operators[42].PasswordHash)
 	})
 	t.Run("weak new password", func(t *testing.T) {
@@ -528,7 +529,7 @@ func TestChangeOperatorPassword(t *testing.T) {
 		t.Parallel()
 		f := newOperatorFixture(t)
 		err := f.auth.ChangePassword(context.Background(), 404, "secret", "ChangedPass789!")
-		require.ErrorIs(t, err, domain.ErrOperatorNotFound)
+		require.ErrorIs(t, err, identityaccess.ErrOperatorNotFound)
 	})
 	t.Run("revocation failure rolls the password back", func(t *testing.T) {
 		t.Parallel()

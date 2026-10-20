@@ -17,6 +17,8 @@ const logger = createLogger({ component: "StaffDetailRoute" });
  * Type definition for staff member response from backend
  */
 interface BackendStaffResponse {
+  started_on?: string;
+  ended_on?: string | null;
   id: WireID;
   // Decimal string since #2222 — see the note on the mapping below.
   person_id: WireID;
@@ -107,6 +109,8 @@ export const GET = createGetHandler(
 
       // Map the response data to match the Teacher interface from teacher-api.ts
       return {
+        started_on: staff.started_on,
+        ended_on: staff.ended_on,
         id: toIdString(staff.id), // This should be the staff ID since that's what we use for the API
         name: staff.person
           ? `${staff.person.first_name} ${staff.person.last_name}`

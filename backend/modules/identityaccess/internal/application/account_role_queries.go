@@ -18,6 +18,7 @@ func NewAccountRoleQueries(service *Service, store ports.AccountRoleQueryStore, 
 }
 
 func (q *AccountRoleQueries) CountActiveAccountsBySchoolGroups(ctx context.Context, groups map[int64][]int64) (counts map[int64]int, err error) {
+	defer func() { err = MapError(err) }()
 	err = q.service.run(ctx, q.service.tx.RunAdmin, "count_active_accounts_by_school_groups", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		var queryErr error
@@ -29,6 +30,7 @@ func (q *AccountRoleQueries) CountActiveAccountsBySchoolGroups(ctx context.Conte
 }
 
 func (q *AccountRoleQueries) ListEffectiveAdminAccountIDs(ctx context.Context) (ids []int64, err error) {
+	defer func() { err = MapError(err) }()
 	err = q.service.run(ctx, q.service.tx.RunPlatform, "list_effective_admin_account_ids", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		var queryErr error
@@ -40,6 +42,7 @@ func (q *AccountRoleQueries) ListEffectiveAdminAccountIDs(ctx context.Context) (
 }
 
 func (q *AccountRoleQueries) FindActiveSchoolMemberships(ctx context.Context, accountIDs, schoolIDs []int64) (result map[int64][]int64, err error) {
+	defer func() { err = MapError(err) }()
 	err = q.service.run(ctx, q.service.tx.RunAdmin, "find_active_school_memberships", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		var queryErr error
@@ -51,6 +54,7 @@ func (q *AccountRoleQueries) FindActiveSchoolMemberships(ctx context.Context, ac
 }
 
 func (q *AccountRoleQueries) ListActiveAccountSchoolIDs(ctx context.Context, accountID int64) (ids []int64, err error) {
+	defer func() { err = MapError(err) }()
 	err = q.service.run(ctx, q.service.tx.RunAdmin, "list_active_account_school_ids", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		var queryErr error
@@ -62,6 +66,7 @@ func (q *AccountRoleQueries) ListActiveAccountSchoolIDs(ctx context.Context, acc
 }
 
 func (q *AccountRoleQueries) ListSchoolAccountRoleNames(ctx context.Context, accountID int64) (names []string, err error) {
+	defer func() { err = MapError(err) }()
 	err = q.service.run(ctx, q.service.withinSchoolRead, "list_school_account_role_names", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		var queryErr error
@@ -73,6 +78,7 @@ func (q *AccountRoleQueries) ListSchoolAccountRoleNames(ctx context.Context, acc
 }
 
 func (q *AccountRoleQueries) FindSystemRoleID(ctx context.Context, name string) (id int64, found bool, err error) {
+	defer func() { err = MapError(err) }()
 	err = q.service.run(ctx, q.service.tx.RunPlatform, "find_system_role_id", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		var queryErr error

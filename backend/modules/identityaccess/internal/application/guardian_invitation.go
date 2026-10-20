@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -116,7 +117,12 @@ func (l *AccountLifecycle) mailExistingAccountAccess(ctx context.Context, profil
 // ValidateGuardianInvitation returns the public details of a redeemable
 // invitation. The route is public, so the lookup runs administratively; the
 // guardian's own school scopes everything read afterwards.
-func (l *AccountLifecycle) ValidateGuardianInvitation(ctx context.Context, token string) (result domain.GuardianInvitationPreview, err error) {
+func (l *AccountLifecycle) ValidateGuardianInvitation(ctx context.Context, token string) (result identityaccess.GuardianInvitationPreview, err error) {
+	if l == nil {
+		return identityaccess.GuardianInvitationPreview{}, errAccountLifecycleUnavailable
+	}
+	defer func() { err = invitationError(err) }()
+	ctx = bindRuntime(l.auth.attach, ctx)
 	err = l.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
 		invitation, fetchErr := l.redeemableGuardianInvitation(txCtx, token)
 		if fetchErr != nil {
@@ -130,7 +136,7 @@ func (l *AccountLifecycle) ValidateGuardianInvitation(ctx context.Context, token
 		if !found {
 			return failed(opGuardianInviteValidate, fmt.Errorf("guardian profile not found"))
 		}
-		result = domain.GuardianInvitationPreview{
+		result = identityaccess.GuardianInvitationPreview{
 			Email:     strings.TrimSpace(profile.Email),
 			FirstName: strings.TrimSpace(profile.FirstName),
 			LastName:  strings.TrimSpace(profile.LastName),
@@ -140,14 +146,14 @@ func (l *AccountLifecycle) ValidateGuardianInvitation(ctx context.Context, token
 		return nil
 	})
 	if err != nil {
-		return domain.GuardianInvitationPreview{}, err
+		return identityaccess.GuardianInvitationPreview{}, err
 	}
 	return result, nil
 }
 
 // applySchoolBranding adds the school's name, slug and logo to the preview.
 // Best-effort: an unreachable or deleted school leaves the page unbranded.
-func (l *AccountLifecycle) applySchoolBranding(ctx context.Context, tenantID int64, preview *domain.GuardianInvitationPreview) {
+func (l *AccountLifecycle) applySchoolBranding(ctx context.Context, tenantID int64, preview *identityaccess.GuardianInvitationPreview) {
 	if tenantID <= 0 {
 		return
 	}
@@ -164,12 +170,18 @@ func (l *AccountLifecycle) applySchoolBranding(ctx context.Context, tenantID int
 // access: the account (created or the address's existing one), its school
 // mapping, the guardian role, the profile link and the spent invitation
 // commit together.
-func (l *AccountLifecycle) AcceptGuardianInvitation(ctx context.Context, token string, registration domain.GuardianRegistration) (result domain.LoginAccount, err error) {
+func (l *AccountLifecycle) AcceptGuardianInvitation(ctx context.Context, token string, registration identityaccess.GuardianRegistration) (_ identityaccess.Account, err error) {
+	if l == nil {
+		return identityaccess.Account{}, errAccountLifecycleUnavailable
+	}
+	defer func() { err = invitationError(err) }()
+	ctx = bindRuntime(l.auth.attach, ctx)
+	var result domain.LoginAccount
 	if registration.Password != registration.ConfirmPassword {
-		return domain.LoginAccount{}, failed(opGuardianInviteAccept, domain.ErrPasswordMismatch)
+		return identityaccess.Account{}, failed(opGuardianInviteAccept, domain.ErrPasswordMismatch)
 	}
 	if err := l.passwords.ValidatePasswordStrength(registration.Password); err != nil {
-		return domain.LoginAccount{}, failed(opGuardianInviteAccept, err)
+		return identityaccess.Account{}, failed(opGuardianInviteAccept, err)
 	}
 	err = l.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
 		invitation, fetchErr := l.redeemableGuardianInvitation(txCtx, token)
@@ -188,16 +200,16 @@ func (l *AccountLifecycle) AcceptGuardianInvitation(ctx context.Context, token s
 		return nil
 	})
 	if err != nil {
-		return domain.LoginAccount{}, err
+		return identityaccess.Account{}, err
 	}
 	l.logger.Info("guardian invitation accepted",
 		slog.Int64("account_id", result.ID))
-	return result, nil
+	return identityaccess.Account{ID: result.ID, Email: result.Email}, nil
 }
 
 // provisionGuardianAccount returns the account the address already owns —
 // with its credential untouched — or creates one from the registration.
-func (l *AccountLifecycle) provisionGuardianAccount(ctx context.Context, email string, registration domain.GuardianRegistration) (domain.LoginAccount, error) {
+func (l *AccountLifecycle) provisionGuardianAccount(ctx context.Context, email string, registration identityaccess.GuardianRegistration) (domain.LoginAccount, error) {
 	account, found, _, err := l.logins.LockLoginAccountByEmail(ctx, email)
 	if err != nil {
 		return domain.LoginAccount{}, failed(opGuardianInviteAccept, err)
@@ -302,6 +314,10 @@ func (l *AccountLifecycle) ResendGuardianInvitation(ctx context.Context, invitat
 // so the accepted guardian lands on their school's host. Best-effort: an
 // error or a deleted school yields "".
 func (l *AccountLifecycle) GuardianInvitationSchoolSlug(ctx context.Context, token string) string {
+	if l == nil {
+		return ""
+	}
+	ctx = bindRuntime(l.auth.attach, ctx)
 	var slug string
 	_ = l.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
 		invitation, found, err := l.invitations.FindGuardianInvitationByToken(txCtx, strings.TrimSpace(token))
@@ -353,7 +369,7 @@ func (l *AccountLifecycle) requireInvitationSchool(txCtx context.Context, invita
 	return nil
 }
 
-func (l *AccountLifecycle) acceptGuardianAtSchool(invitationCtx context.Context, invitation domain.GuardianInvitation, registration domain.GuardianRegistration) (domain.LoginAccount, error) {
+func (l *AccountLifecycle) acceptGuardianAtSchool(invitationCtx context.Context, invitation domain.GuardianInvitation, registration identityaccess.GuardianRegistration) (domain.LoginAccount, error) {
 	profile, found, profileErr := l.guardians.FindGuardianProfile(invitationCtx, invitation.GuardianProfileID)
 	if profileErr != nil {
 		return domain.LoginAccount{}, failed(opGuardianInviteAccept, profileErr)

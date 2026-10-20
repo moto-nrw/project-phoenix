@@ -180,7 +180,7 @@ func (s *InstanceLifecycleService) insertCreatedInstance(ctx context.Context, in
 		}
 		return inst, true, nil
 	}
-	inserted, err := s.deps.IdempotencyRepo.CreateIdempotent(ctx, inst)
+	inserted, err := s.createIdempotentInstance(ctx, inst)
 	if err != nil {
 		return nil, false, &ports.ScheduleError{Op: "create instance: insert idempotent", Err: duplicateTemplateInstance(err)}
 	}
@@ -270,4 +270,26 @@ func duplicateTemplateInstance(err error) error {
 		return fmt.Errorf("%w: %w", timetable.ErrDuplicateTemplateInstance, err)
 	}
 	return err
+}
+
+// createIdempotentInstance inserts inst unless a row with its idempotency
+// key exists, and reloads the stored row, with its session facts, into inst
+// after an insert.
+func (s *InstanceLifecycleService) createIdempotentInstance(ctx context.Context, inst *scheduleModel.ActivityInstance) (bool, error) {
+	if err := inst.Validate(); err != nil {
+		return false, err
+	}
+	created, inserted, err := s.deps.IdempotencyRepo.CreateIdempotentActivityInstance(ctx, publicActivityInstanceInput(inst))
+	if err != nil {
+		return false, WrapDatabaseError("create idempotent", err)
+	}
+	if !inserted {
+		return false, nil
+	}
+	stored, err := s.deps.InstanceRepo.FindByID(ctx, created.ID)
+	if err != nil {
+		return true, err
+	}
+	*inst = *stored
+	return true, nil
 }

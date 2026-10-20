@@ -3,7 +3,6 @@ package timetablehttp
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -75,9 +74,8 @@ func TestOperationsCreateAndStartSpontaneousResolvesActivityAgainstRealRepositor
 		return *service.lastSpontaneousInput.ActivityGroupID
 	}
 
-	_, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.ActivityCategory.FindByNameIncludingArchivedForShare, "Spontan")
-	var notFound interface{ RepositoryNotFound() }
-	require.True(t, errors.As(err, &notFound), "the tenant starts without a Spontan category: %v", err)
+	_, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.ActivityCategory.FindCategoryByNameForAssignment, "Spontan")
+	require.ErrorIs(t, err, timetable.ErrCategoryNotFound, "the tenant starts without a Spontan category")
 
 	newTitle := fmt.Sprintf("Neue Werkstatt %d", time.Now().UnixNano())
 	createdGroupID := start(newTitle)
@@ -86,7 +84,7 @@ func TestOperationsCreateAndStartSpontaneousResolvesActivityAgainstRealRepositor
 	createdGroup, err := repos.ActivityGroup.FindByID(testpkg.Ctx(t), createdGroupID)
 	require.NoError(t, err)
 	assert.Equal(t, newTitle, createdGroup.Name)
-	category, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.ActivityCategory.FindByNameIncludingArchivedForShare, "Spontan")
+	category, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.ActivityCategory.FindCategoryByNameForAssignment, "Spontan")
 	require.NoError(t, err, "a tenant without the Spontan category gets one on the first spontaneous start")
 	assert.Equal(t, category.ID, createdGroup.CategoryID)
 

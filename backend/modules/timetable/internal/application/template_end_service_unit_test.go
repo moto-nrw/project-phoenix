@@ -290,7 +290,7 @@ func (r *templateEndUnitGroupRepo) FindTemplateSeries(_ context.Context, _ int64
 }
 
 type templateEndUnitScheduleRepo struct {
-	ports.ActivityScheduleRecords
+	timetable.ScheduleCapability
 	schedules  []*activityContract.Schedule
 	findErr    error
 	capped     int64
@@ -299,21 +299,14 @@ type templateEndUnitScheduleRepo struct {
 	validUntil calendar.Date
 }
 
-func (r *templateEndUnitScheduleRepo) FindByGroupID(_ context.Context, _ int64) ([]*activityContract.Schedule, error) {
+func (r *templateEndUnitScheduleRepo) ListSchedules(_ context.Context, _ timetable.ScheduleFilter) ([]timetable.Schedule, error) {
 	if r.findErr != nil {
 		return nil, r.findErr
 	}
-	return r.schedules, nil
+	return publicTestSchedules(r.schedules), nil
 }
 
-func (r *templateEndUnitScheduleRepo) FindByGroupIDs(_ context.Context, _ []int64) ([]*activityContract.Schedule, error) {
-	if r.findErr != nil {
-		return nil, r.findErr
-	}
-	return r.schedules, nil
-}
-
-func (r *templateEndUnitScheduleRepo) CapValidUntil(_ context.Context, groupID int64, validUntil string) (int64, error) {
+func (r *templateEndUnitScheduleRepo) CapScheduleValidUntil(_ context.Context, groupID int64, validUntil string) (int64, error) {
 	r.groupID = groupID
 	r.validUntil = calendar.Date(validUntil)
 	if r.err != nil {

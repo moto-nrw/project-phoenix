@@ -19,9 +19,6 @@ func NewStaffEmployment(db *bun.DB, observe func(Observation)) (workforce.StaffE
 	if db == nil {
 		return nil, errors.New("workforce staff employment: database is required")
 	}
-	if observe == nil {
-		observe = func(Observation) {}
-	}
 	return application.NewStaffEmployment(postgres.New(postgres.DatabaseRuntime(db)), observe), nil
 }
 

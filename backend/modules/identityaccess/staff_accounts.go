@@ -27,27 +27,3 @@ type SchoolRoleClass struct {
 	IsAdmin     bool
 	IsLehrkraft bool
 }
-
-func (m *Module) ClassifySchoolRoles(ctx context.Context, tenantID int64, accountIDs []int64) ([]SchoolRoleClass, error) {
-	return m.engine.ClassifySchoolRoles(ctx, tenantID, accountIDs)
-}
-
-func (m *Module) ListActiveAccountIDsForTenant(ctx context.Context, tenantID int64, accountIDs []int64) ([]int64, error) {
-	return m.engine.ListActiveAccountIDsForTenant(ctx, tenantID, accountIDs)
-}
-
-func (m *Module) FindEffectivePermissionNamesByAccountIDsForTenant(ctx context.Context, accountIDs []int64, tenantID int64) (map[int64][]string, error) {
-	return m.engine.FindEffectivePermissionNamesByAccountIDsForTenant(ctx, accountIDs, tenantID)
-}
-
-func (m *Module) CountRoleNameMatchesByAccountIDs(ctx context.Context, accountIDs []int64, roleNames []string) (map[int64]int, error) {
-	return m.engine.CountRoleNameMatchesByAccountIDs(ctx, accountIDs, roleNames)
-}
-
-func (m *Module) ListAccountIDsWithSystemRoleNames(ctx context.Context, accountIDs []int64, roleNames []string, tenantID int64) ([]int64, error) {
-	return m.engine.ListAccountIDsWithSystemRoleNames(ctx, accountIDs, roleNames, tenantID)
-}
-
-func (m *Module) ListAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
-	return m.engine.ListAccountEmails(ctx, accountIDs)
-}

@@ -1761,10 +1761,16 @@ function findStaffTopic(presenceMode: HelpPresenceMode): HelpTopic {
     differences: [
       "Auch ohne Recht für Personalakten sehen Sie, wo die Person gerade ist. Die Karte öffnet dann keine Personalakte. Fragen Sie bei Bedarf Ihre Leitung.",
       "Möchten Sie der Person schreiben? Öffnen Sie den `Team-Chat`.",
+      "Unter `Ehemalige` können Sie frühere Beschäftigungen nur lesen. Die Personalakte zeigt den Zeitraum, Stammdaten und frühere Arbeitszeiten. Welche Angaben Sie sehen, hängt von Ihren Rechten ab.",
+      "Personaldokumente wurden beim Austritt endgültig gelöscht. Sie stehen auch in der früheren Personalakte nicht mehr bereit.",
+      "Mit `Zurück zu den Mitarbeitenden` kommen Sie wieder zur Auswahl `Ehemalige`. Eine Wiederaufnahme erfolgt beim Einladen.",
     ],
     notes: [
-      "Hat jemand früher bei Ihnen gearbeitet? Wählen Sie in der Auswahl `Ehemalige`. Die Karte zeigt den Zeitraum in moto.",
+      "Hat jemand früher bei Ihnen gearbeitet? Wählen Sie in der Auswahl `Ehemalige`. Die Karte zeigt den Zeitraum in moto. Öffnen Sie die Karte für die früheren Angaben.",
     ],
+    image: "/help/screens/personal-ehemalige.webp",
+    imageAlt:
+      "Frühere Beschäftigung mit Zeitraum. Die Angaben sind nur lesbar.",
     related: [HELP_TOPICS.teamChat, HELP_TOPICS.activeSupervision],
   };
 }
@@ -4507,6 +4513,9 @@ function inviteStaffTopic(): HelpTopic {
     group: "einrichten",
     audience: "lead",
     icon: "UserRoundPlus",
+    image: "/help/screens/personal-wiederaufnahme.webp",
+    imageAlt:
+      "Einladung zur Wiederaufnahme mit der Auswahl für Stammdaten, Qualifikationen und Arbeitszeit",
     steps: [],
     instructionGroups: [
       {
@@ -4517,6 +4526,7 @@ function inviteStaffTopic(): HelpTopic {
           "Wählen Sie oben rechts `+ Personal`.",
           "Tragen Sie die `E-Mail-Adresse` ein.",
           "Zeigt moto eine frühere Beschäftigung? Wählen Sie `Wiederaufnahme` oder `Neuaufnahme`.",
+          "Bei `Wiederaufnahme`: Prüfen Sie `Diese Daten übernehmen`. Entfernen Sie ein Häkchen, um den Bereich zurückzusetzen.",
           "Wählen Sie eine `Rolle`.",
           "Tragen Sie bei Bedarf `Vorname (optional)` und `Nachname (optional)` ein.",
           "Tragen Sie bei Bedarf eine `Position (optional)` ein, zum Beispiel `Pädagogische Fachkraft`.",
@@ -4544,7 +4554,9 @@ function inviteStaffTopic(): HelpTopic {
     notes: [
       "Die `Rolle` bestimmt, was die Person später sehen und tun darf.",
       "Nach der Annahme steht die Person unter `Mitarbeiter` und lässt sich einer Gruppe zuweisen.",
-      "Bei `Wiederaufnahme` wird die frühere Beschäftigung fortgeführt. Stammdaten, Qualifikationen, Stundenkonto und Urlaub kommen zurück. Ist die Personalnummer inzwischen vergeben, bleibt sie leer.",
+      "Bei `Wiederaufnahme` wird die frühere Beschäftigung fortgeführt. Ausgewählte Bereiche bleiben unverändert. Zurückgesetzte Angaben bleiben als Historie erhalten.",
+      "`Arbeitszeit` umfasst Stundenkonto, Urlaub und Arbeitszeitmodell gemeinsam. Nach dem Zurücksetzen startet der Urlaub mit dem vollen Jahresanspruch. Übertrag gibt es dann nicht. Den Jahresanspruch können Sie danach korrigieren.",
+      "Ist eine übernommene Personalnummer inzwischen vergeben, bleibt sie leer.",
       "Bei `Neuaufnahme` beginnt eine neue Beschäftigung an derselben Person. Die frühere bleibt beendet. Stammdaten, Qualifikationen, Stundenkonto und Urlaub beginnen neu.",
       "Den früheren Zeitraum sehen Sie unter der `E-Mail-Adresse`. Dokumente und künftige Schichten und Abwesenheiten kommen nicht zurück. Gruppen, Klassen und Vertretungen legen Sie danach neu fest.",
       "Ist die Person bei der Annahme schon wieder beschäftigt? Dann wird nur der Schulzugang hergestellt. Die eingeladene Person muss nichts zur Beschäftigung entscheiden.",

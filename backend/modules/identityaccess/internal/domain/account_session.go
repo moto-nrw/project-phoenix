@@ -5,15 +5,6 @@ import (
 	"time"
 )
 
-var (
-	// ErrAccountSessionNotFound reports a lookup that matched no account
-	// refresh session in the caller's tenant scope.
-	ErrAccountSessionNotFound = errors.New("account session not found")
-	// ErrAccountSessionRotated reports a rotation hand-off that found no
-	// un-rotated row: the session was already rotated or does not exist.
-	ErrAccountSessionRotated = errors.New("account session was already rotated or not found")
-)
-
 // Portal scopes an account refresh session is persisted under. Tenant and
 // org share the staff portal; unknown marks legacy rows minted before the
 // scope was recorded.

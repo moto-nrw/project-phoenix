@@ -117,7 +117,7 @@ func composeFeedback(db transactionruntime.Database, settings *feedbackCompose.S
 	})
 }
 
-func ComposeCarePlan(db transactionruntime.Database, persons peopleModule.Capability, slots carePlanCompose.StatusSlotDirectory) (*carePlanModule.Module, error) {
+func ComposeCarePlan(db transactionruntime.Database, persons peopleModule.Capability, slots carePlanCompose.StatusSlotDirectory) (carePlanModule.Owner, error) {
 	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewReader(), func(carePlanCompose.Observation) {})
 	if err != nil {
 		return nil, err

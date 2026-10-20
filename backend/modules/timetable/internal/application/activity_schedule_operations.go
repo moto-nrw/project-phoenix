@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 )
 
@@ -26,7 +27,7 @@ func (s *ActivityService) AddSchedule(ctx context.Context, groupID int64, schedu
 	}
 
 	// Create the schedule
-	if err := s.scheduleRepo.Create(ctx, schedule); err != nil {
+	if err := createLegacySchedule(ctx, s.scheduleRepo, schedule); err != nil {
 		return nil, &activityContract.ActivityError{Op: "create schedule", Err: err}
 	}
 
@@ -35,8 +36,9 @@ func (s *ActivityService) AddSchedule(ctx context.Context, groupID int64, schedu
 
 // GetSchedule retrieves a schedule by ID
 func (s *ActivityService) GetSchedule(ctx context.Context, id int64) (*activityContract.Schedule, error) {
-	schedule, err := s.scheduleRepo.FindByID(ctx, id)
+	value, err := s.scheduleRepo.FindSchedule(ctx, id)
 	if err != nil {
+		err = legacyActivityScheduleError("find by id", err)
 		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
 		if isRepositoryNotFound(err) {
 			return nil, &activityContract.ActivityError{Op: opGetSchedule, Err: activityContract.ErrScheduleNotFound}
@@ -44,23 +46,23 @@ func (s *ActivityService) GetSchedule(ctx context.Context, id int64) (*activityC
 		return nil, &activityContract.ActivityError{Op: opGetSchedule, Err: err}
 	}
 
-	return schedule, nil
+	return legacySchedule(value), nil
 }
 
 // GetGroupSchedules retrieves all schedules for a group
 func (s *ActivityService) GetGroupSchedules(ctx context.Context, groupID int64) ([]*activityContract.Schedule, error) {
-	schedules, err := s.scheduleRepo.FindByGroupID(ctx, groupID)
+	values, err := s.scheduleRepo.ListSchedules(ctx, timetable.ScheduleFilter{GroupIDs: []int64{groupID}})
 	if err != nil {
-		return nil, &activityContract.ActivityError{Op: "get group schedules", Err: err}
+		return nil, &activityContract.ActivityError{Op: "get group schedules", Err: legacyActivityScheduleError("find by group ID", err)}
 	}
 
-	return schedules, nil
+	return legacySchedules(values), nil
 }
 
 // DeleteSchedule deletes a schedule
 func (s *ActivityService) DeleteSchedule(ctx context.Context, id int64) error {
 	// Check if schedule exists
-	schedule, err := s.scheduleRepo.FindByID(ctx, id)
+	schedule, err := findLegacySchedule(ctx, s.scheduleRepo, id)
 	if err != nil {
 		if isRepositoryNotFound(err) {
 			return &activityContract.ActivityError{Op: "delete schedule", Err: activityContract.ErrScheduleNotFound}
@@ -72,7 +74,7 @@ func (s *ActivityService) DeleteSchedule(ctx context.Context, id int64) error {
 	}
 
 	// Delete the schedule
-	if err := s.scheduleRepo.Delete(ctx, id); err != nil {
+	if err := deleteLegacySchedule(ctx, s.scheduleRepo, id); err != nil {
 		return &activityContract.ActivityError{Op: "delete schedule", Err: err}
 	}
 
@@ -82,7 +84,7 @@ func (s *ActivityService) DeleteSchedule(ctx context.Context, id int64) error {
 // UpdateSchedule updates an existing schedule
 func (s *ActivityService) UpdateSchedule(ctx context.Context, schedule *activityContract.Schedule) (*activityContract.Schedule, error) {
 	// Check if schedule exists
-	existingSchedule, err := s.scheduleRepo.FindByID(ctx, schedule.ID)
+	existingSchedule, err := findLegacySchedule(ctx, s.scheduleRepo, schedule.ID)
 	if err != nil {
 		if isRepositoryNotFound(err) {
 			return nil, &activityContract.ActivityError{Op: opUpdateSchedule, Err: activityContract.ErrScheduleNotFound}
@@ -104,12 +106,12 @@ func (s *ActivityService) UpdateSchedule(ctx context.Context, schedule *activity
 	}
 
 	// Update the schedule
-	if err := s.scheduleRepo.Update(ctx, schedule); err != nil {
+	if err := updateLegacySchedule(ctx, s.scheduleRepo, schedule); err != nil {
 		return nil, &activityContract.ActivityError{Op: opUpdateSchedule, Err: err}
 	}
 
 	// Get the updated schedule
-	updatedSchedule, err := s.scheduleRepo.FindByID(ctx, schedule.ID)
+	updatedSchedule, err := findLegacySchedule(ctx, s.scheduleRepo, schedule.ID)
 	if err != nil {
 		return nil, &activityContract.ActivityError{Op: opUpdateSchedule, Err: err}
 	}

@@ -33,7 +33,7 @@ func (d *conflictCommands) DetectExceptionConflicts(ctx context.Context, from, t
 }
 
 func (d *conflictDetection) DetectExceptionConflicts(ctx context.Context, from, to calendar.Date) ([]timetable.ExceptionConflict, error) {
-	exceptions, err := d.deps.Exceptions.FindByDateRange(ctx, calendar.Date(from), calendar.Date(to))
+	exceptions, err := exceptionsInRange(ctx, d.deps.Exceptions, timetable.ActivityExceptionFilter{}, from.String(), to.String(), "find by date range")
 	if err != nil {
 		return nil, err
 	}
@@ -333,7 +333,7 @@ func (d *conflictDetection) loadTemplatePreload(ctx context.Context, affected []
 	if len(needed) == 0 {
 		return pre, nil
 	}
-	rows, err := d.deps.Schedules.FindTemplateStartTimesByGroupIDs(ctx, slices.Collect(maps.Keys(needed)))
+	rows, err := templateStartTimes(ctx, d.deps.Schedules, slices.Collect(maps.Keys(needed)))
 	if err != nil {
 		return nil, err
 	}

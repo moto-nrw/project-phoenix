@@ -140,7 +140,7 @@ var moduleLegacyFileBudgets = map[string]int{}
 // announcement retention of modules/communication/composition), and by
 // ADR 0076 (the meal ordering rules) and ADR 0075 (the caterer flows and
 // the caterer portal).
-const moduleComposeBudgetTotal = 12534
+const moduleComposeBudgetTotal = 12522
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -152,7 +152,7 @@ const moduleComposeBudgetTotal = 12534
 var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose":         45,
 	"modules/auditlog/compose":             183,
-	"modules/careplan/compose":             1646,
+	"modules/careplan/compose":             1644,
 	"modules/careplan/requestfeed/compose": 53,
 	"modules/classday/compose":             213,
 	// Raised by ADR 0073: the parent announcement retention.
@@ -172,7 +172,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/filestorage/compose":                     217,
 	"modules/grouplive/compose":                       14,
 	"modules/guardianlinkview/compose":                8,
-	"modules/identityaccess/compose":                  1357, // raised by ADR 0075
+	"modules/identityaccess/compose":                  1349, // raised by ADR 0075
 	"modules/mealplan/compose":                        74,   // raised by ADR 0076
 	"modules/organizationtenancy/compose":             253,
 	"modules/parentrequestfeedprojection/compose":     11,
@@ -190,7 +190,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 243,
 	"modules/studentpresence/compose/presenceservice": 110,
 	"modules/supervisiondashboard/compose":            11,
-	"modules/timetable/compose":                       1175,
+	"modules/timetable/compose":                       1173,
 	"modules/timetableblockdisplay/compose":           9,
 	"modules/timetableenrollmentprovenance/compose":   10,
 	"modules/timetableprojection/compose":             7,

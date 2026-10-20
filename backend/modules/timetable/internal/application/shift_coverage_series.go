@@ -29,7 +29,7 @@ func (d *conflictDetection) resolveSeriesEffectiveCoverageDays(
 	if err != nil {
 		return nil, nil, fmt.Errorf("load concrete series occurrences: %w", err)
 	}
-	exceptions, err := d.deps.Exceptions.FindByActivityGroupAndDateRange(ctx, activityGroupID, from, to)
+	exceptions, err := exceptionsInRange(ctx, d.deps.Exceptions, timetable.ActivityExceptionFilter{ActivityGroupID: &activityGroupID}, from.String(), to.String(), "find by activity group and date range")
 	if err != nil {
 		return nil, nil, fmt.Errorf("load concrete series exceptions: %w", err)
 	}

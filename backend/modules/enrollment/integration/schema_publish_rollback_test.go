@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -58,7 +59,7 @@ func TestSchemaPublishStandaloneRollsBackEveryWrite(t *testing.T) {
 				return id.Int64(), nil
 			})
 			engine := &schemaRepointFailure{Store: store, before: stage == "after schema insert", failure: failure}
-			module := enrollment.NewModule(engine, tenant.NewTransactionRunner())
+			module := compose.NewWithStore(engine, nil)
 			input := enrollment.FormSchema{Name: "Application", CreatedBy: actor.ID}
 			first, err := module.PublishSchema(ctx, input)
 			require.NoError(t, err)

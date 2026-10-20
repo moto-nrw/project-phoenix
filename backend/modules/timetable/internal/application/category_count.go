@@ -3,11 +3,11 @@ package application
 import (
 	"context"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 type CategoryCountRecords interface {
-	ListAll(context.Context) ([]*activityContract.Category, error)
+	ListCategories(context.Context) ([]timetable.Category, error)
 }
 
 // CategoryCount supplies the category total from the tenant's category directory.
@@ -20,6 +20,9 @@ func NewCategoryCount(records CategoryCountRecords) *CategoryCount {
 }
 
 func (r *CategoryCount) CountCategories(ctx context.Context) (int, error) {
-	rows, err := r.records.ListAll(ctx)
-	return len(rows), err
+	rows, err := r.records.ListCategories(ctx)
+	if err != nil {
+		return 0, legacyDatabaseError("list all", err)
+	}
+	return len(rows), nil
 }

@@ -299,7 +299,7 @@ func (c *CatererAccess) catererAccount(ctx context.Context, invitation domain.Ca
 			return 0, 0, domain.ErrCatererAddressTaken
 		}
 		if valid, verifyErr := c.verifier.VerifyPassword(registration.Password, account.PasswordHash); verifyErr != nil || !valid {
-			return 0, 0, domain.ErrInvalidCredentials
+			return 0, 0, identityaccess.ErrInvalidCredentials
 		}
 		return account.ID, caterer.ID, nil
 	}
@@ -457,7 +457,7 @@ func catererError(err error) error {
 			return &translatedError{text: err.Error(), public: sentinel.public, cause: err}
 		}
 	}
-	if errors.Is(err, domain.ErrInvalidCredentials) || errors.Is(err, domain.ErrAccountNotFound) || errors.Is(err, domain.ErrAccountInactive) {
+	if errors.Is(err, identityaccess.ErrInvalidCredentials) || errors.Is(err, domain.ErrAccountNotFound) || errors.Is(err, identityaccess.ErrAccountInactive) {
 		return authenticationError(err)
 	}
 	return invitationError(err)
@@ -472,7 +472,7 @@ func refuseCatererAccount(ctx context.Context, logins ports.AccountLoginStore, a
 		return failed(op, err)
 	}
 	if isCaterer {
-		return failed(op, domain.ErrEmailAlreadyExists)
+		return failed(op, identityaccess.ErrEmailAlreadyExists)
 	}
 	return nil
 }

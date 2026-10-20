@@ -12,6 +12,7 @@ import (
 // invitation. The CLI owns its environment guard and profile linking; Identity
 // owns the account, membership and role writes in the same ambient transaction.
 func (s *Service) SeedGuardianAccount(ctx context.Context, email, passwordHash string) (accountID int64, reused bool, err error) {
+	defer func() { err = authenticationError(err) }()
 	err = s.run(ctx, s.tx.RunWrite, "seed_guardian_account", func(txCtx context.Context, stats *domain.OperationStats) error {
 		if s.tenantOf(txCtx) <= 0 {
 			return domain.ErrTenantRequired

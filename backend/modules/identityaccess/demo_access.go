@@ -191,20 +191,3 @@ func (d *DemoAccess) RedeemDemoAccess(ctx context.Context, token, role, ipAddres
 func (d *DemoAccess) ResetDemoAccess(ctx context.Context, token, clientIP string) error {
 	return d.engine.ResetDemoAccess(ctx, token, clientIP)
 }
-
-// NewComposedModule is NewModule with the capabilities composed beside the
-// engine: the demo access (nil outside the demo environment) and the caterer
-// flows (nil without their dependencies).
-func NewComposedModule(engine Engine, access *DemoAccess, caterers *CatererAccess) *Module {
-	module := NewModule(engine)
-	module.demoAccess, module.caterers = access, caterers
-	return module
-}
-
-// Caterers returns the caterer flows (ADR 0075), nil when the module was
-// composed without them.
-func (m *Module) Caterers() *CatererAccess { return m.caterers }
-
-// DemoAccess returns the demo-only capability when this module was composed
-// in the demo environment.
-func (m *Module) DemoAccess() *DemoAccess { return m.demoAccess }

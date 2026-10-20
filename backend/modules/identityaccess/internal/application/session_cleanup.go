@@ -4,12 +4,18 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // CountExpiredTokens reports how many refresh sessions a cleanup would
 // remove, across every school.
-func (s *AccountAuthentication) CountExpiredTokens(ctx context.Context) (int, error) {
+func (s *AccountAuthentication) CountExpiredTokens(ctx context.Context) (_ int, err error) {
+	if s == nil {
+		return 0, errAccountAuthenticationUnavailable
+	}
+	defer func() { err = authenticationError(err) }()
+	ctx = bindRuntime(s.attach, ctx)
 	count, err := s.sessions.CountExpiredAccountSessions(ctx)
 	if err != nil {
 		return 0, failed("count expired tokens", err)
@@ -19,7 +25,7 @@ func (s *AccountAuthentication) CountExpiredTokens(ctx context.Context) (int, er
 
 // CleanupExpiredTokens removes expired refresh sessions and then reconciles
 // revocations whose after-commit follow-up did not complete.
-func (s *AccountAuthentication) CleanupExpiredTokens(ctx context.Context) (int, error) {
+func (s *AccountAuthentication) cleanupExpiredTokens(ctx context.Context) (int, error) {
 	count, err := s.sessions.DeleteExpiredAccountSessions(ctx)
 	if err != nil {
 		return 0, failed("cleanup expired tokens", err)
@@ -62,8 +68,13 @@ func (s *AccountAuthentication) reconcileRevokedSessions(ctx context.Context) er
 
 // ListActiveSessions returns the account's live refresh sessions in the
 // caller's tenant scope.
-func (s *AccountAuthentication) ListActiveSessions(ctx context.Context, accountID int64) ([]domain.AccountSession, error) {
-	sessions, err := s.sessions.ListAccountSessions(ctx, domain.AccountSessionFilter{AccountID: accountID, Liveness: domain.AccountSessionsLive})
+func (s *AccountAuthentication) ListActiveSessions(ctx context.Context, accountID int64) (_ []identityaccess.AccountSession, err error) {
+	if s == nil {
+		return nil, errAccountAuthenticationUnavailable
+	}
+	defer func() { err = authenticationError(err) }()
+	ctx = bindRuntime(s.attach, ctx)
+	sessions, err := s.sessions.ListAccountSessions(ctx, identityaccess.AccountSessionFilter{AccountID: accountID, Liveness: identityaccess.AccountSessionsLive})
 	if err != nil {
 		return nil, failed("get active tokens", err)
 	}
@@ -72,8 +83,13 @@ func (s *AccountAuthentication) ListActiveSessions(ctx context.Context, accountI
 
 // ListSessionIDs returns the identifiers of every session of the account in
 // the caller's tenant scope, for revision fingerprints.
-func (s *AccountAuthentication) ListSessionIDs(ctx context.Context, accountID int64) ([]int64, error) {
-	sessions, err := s.sessions.ListAccountSessions(ctx, domain.AccountSessionFilter{AccountID: accountID})
+func (s *AccountAuthentication) ListSessionIDs(ctx context.Context, accountID int64) (_ []int64, err error) {
+	if s == nil {
+		return nil, errAccountAuthenticationUnavailable
+	}
+	defer func() { err = authenticationError(err) }()
+	ctx = bindRuntime(s.attach, ctx)
+	sessions, err := s.sessions.ListAccountSessions(ctx, identityaccess.AccountSessionFilter{AccountID: accountID})
 	if err != nil {
 		return nil, err
 	}

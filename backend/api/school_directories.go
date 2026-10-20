@@ -48,7 +48,9 @@ func schoolName(schools organizationModule.Query) func(context.Context, int64) (
 
 // accountSchoolMemberships lists the schools an account holds an active
 // membership in.
-type accountSchoolMemberships func(ctx context.Context, accountID int64) ([]int64, error)
+type accountSchoolMemberships interface {
+	ListActiveAccountSchoolIDs(ctx context.Context, accountID int64) ([]int64, error)
+}
 
 // authSchoolDirectory answers the auth routes.
 type authSchoolDirectory struct {
@@ -89,7 +91,7 @@ func (d authSchoolDirectory) ListActiveSchoolsByAccountID(ctx context.Context, a
 	if d.memberships == nil {
 		return nil, errors.New("auth school directory: membership query is required")
 	}
-	ids, err := d.memberships(ctx, accountID)
+	ids, err := d.memberships.ListActiveAccountSchoolIDs(ctx, accountID)
 	if err != nil || len(ids) == 0 {
 		return []authAPI.TenantSchool{}, err
 	}

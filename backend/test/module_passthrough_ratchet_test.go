@@ -216,10 +216,10 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063 and by ADR 0064 (3,011 to 3,091), and by ADR 0073 (one each
-// for modules/communication and modules/schoolcalendar), by ADR 0075 (four
+// for modules/communication and modules/schoolcalendar), by ADR 0075 (three
 // for modules/identityaccess) and by ADR 0076 (one for
 // workflows/parentportal).
-const modulePassthroughOwnerBudgetTotal = 2029
+const modulePassthroughOwnerBudgetTotal = 1641
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -233,7 +233,7 @@ const modulePassthroughOwnerBudgetTotal = 2029
 var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/appointments": 21,
 	"modules/auditlog":     1,
-	"modules/careplan":     285,
+	"modules/careplan":     163,
 	"modules/classday":     18,
 	// Raised by ADR 0073: the composition forwards the parent announcement
 	// retention to its service.
@@ -242,13 +242,13 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/delivery":       6,
 	"modules/devicefleet":    35,
 	"modules/devicescan":     41,
-	"modules/enrollment":     35,
+	"modules/enrollment":     31,
 	"modules/exporttransfer": 1,
 	"modules/facilities":     13,
 	"modules/feedback":       2,
 	"modules/filestorage":    9,
 	// Raised by ADR 0075: the caterer flows.
-	"modules/identityaccess":      501,
+	"modules/identityaccess":      257,
 	"modules/mealplan":            3,
 	"modules/organizationtenancy": 12,
 	"modules/peopledirectory":     242,
@@ -261,7 +261,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/schoolstructure":  43,
 	"modules/settings":         19,
 	"modules/studentpresence":  145,
-	"modules/timetable":        308,
+	"modules/timetable":        290,
 	"modules/workforce":        151,
 	"workflows/openroommove":   1,
 	// Raised by ADR 0076: the week change of the meal plan adapter.

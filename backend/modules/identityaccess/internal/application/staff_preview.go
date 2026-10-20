@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -27,14 +28,19 @@ import (
 // holds as previousToken; when that token proves the SAME preview instance,
 // the new token inherits its preview id and NO second started event is
 // written.
-func (l *AccountLifecycle) StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, previousToken, ipAddress, userAgent string) (*domain.StaffPreviewSession, error) {
+func (l *AccountLifecycle) StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, previousToken, ipAddress, userAgent string) (_ *identityaccess.StaffPreviewSession, err error) {
+	if l == nil {
+		return nil, errAccountLifecycleUnavailable
+	}
+	defer func() { err = lifecycleError(err) }()
+	ctx = bindRuntime(l.auth.attach, ctx)
 	const op = "start staff preview"
 
 	if tenantID <= 0 {
-		return nil, failed(op, domain.ErrTenantNotFound)
+		return nil, failed(op, identityaccess.ErrTenantNotFound)
 	}
 	if targetAccountID == adminAccountID {
-		return nil, failed(op, domain.ErrPreviewSelf)
+		return nil, failed(op, identityaccess.ErrPreviewSelf)
 	}
 
 	// Everything that decides whether this person may be previewed and the
@@ -52,7 +58,7 @@ func (l *AccountLifecycle) StartStaffPreview(ctx context.Context, adminAccountID
 		previewID   string
 		isRemint    bool
 	)
-	err := l.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+	err = l.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
 		var err error
 		account, claims, err = l.staffPreviewIdentity(txCtx, tenantID, targetAccountID)
 		if err != nil {
@@ -68,7 +74,7 @@ func (l *AccountLifecycle) StartStaffPreview(ctx context.Context, adminAccountID
 	if err := l.recordStaffPreviewOutcome(ctx, isRemint, adminAccountID, tenantID, targetAccountID, previewID, ipAddress, userAgent); err != nil {
 		return nil, err
 	}
-	return &domain.StaffPreviewSession{
+	return &identityaccess.StaffPreviewSession{
 		AccessToken:     accessToken,
 		ExpiresIn:       int64(l.codec.AccessExpiry().Seconds()),
 		TargetAccountID: targetAccountID,
@@ -76,7 +82,12 @@ func (l *AccountLifecycle) StartStaffPreview(ctx context.Context, adminAccountID
 	}, nil
 }
 
-func (l *AccountLifecycle) EndStaffPreview(ctx context.Context, previewToken, ipAddress, userAgent string) (int64, error) {
+func (l *AccountLifecycle) EndStaffPreview(ctx context.Context, previewToken, ipAddress, userAgent string) (_ int64, err error) {
+	if l == nil {
+		return 0, errAccountLifecycleUnavailable
+	}
+	defer func() { err = lifecycleError(err) }()
+	ctx = bindRuntime(l.auth.attach, ctx)
 	const op = "end staff preview"
 
 	claims, err := l.codec.ParseAccessTokenAllowExpired(previewToken)
@@ -84,12 +95,12 @@ func (l *AccountLifecycle) EndStaffPreview(ctx context.Context, previewToken, ip
 		l.logger.Warn("staff preview end: token not parseable",
 			slog.String("error", err.Error()),
 		)
-		return 0, failed(op, domain.ErrPreviewTokenInvalid)
+		return 0, failed(op, identityaccess.ErrPreviewTokenInvalid)
 	}
 	if !claims.ReadOnly || claims.ActingAdminID <= 0 ||
 		claims.TenantID <= 0 || claims.AccountID <= 0 || claims.PreviewID == "" {
 		l.logger.Warn("staff preview end: token is not a preview token")
-		return 0, failed(op, domain.ErrPreviewTokenInvalid)
+		return 0, failed(op, identityaccess.ErrPreviewTokenInvalid)
 	}
 	event := domain.StaffPreviewEvent{
 		AdminAccountID: claims.ActingAdminID, TenantID: claims.TenantID, TargetAccountID: claims.AccountID,
@@ -299,7 +310,7 @@ func (l *AccountLifecycle) staffPreviewIdentity(txCtx context.Context, tenantID,
 		return account, claims, failed(op, domain.ErrAccountNotFound)
 	}
 	if !account.Active {
-		return account, claims, failed(op, domain.ErrAccountInactive)
+		return account, claims, failed(op, identityaccess.ErrAccountInactive)
 	}
 
 	mapped, _, err := l.logins.LockActiveTenantMappingShared(txCtx, targetAccountID, tenantID)
@@ -307,7 +318,7 @@ func (l *AccountLifecycle) staffPreviewIdentity(txCtx context.Context, tenantID,
 		return account, claims, failed(op, err)
 	}
 	if !mapped {
-		return account, claims, failed(op, domain.ErrTenantAccessDenied)
+		return account, claims, failed(op, identityaccess.ErrTenantAccessDenied)
 	}
 
 	// Pin what the token is BUILT from, in the same account -> roles ->
@@ -320,7 +331,7 @@ func (l *AccountLifecycle) staffPreviewIdentity(txCtx context.Context, tenantID,
 		return account, claims, failed(op, err)
 	}
 
-	claims, err = l.auth.LoadAccountClaims(txCtx, targetAccountID, tenantID)
+	claims, err = l.auth.loadAccountClaims(txCtx, targetAccountID, tenantID)
 	if err != nil {
 		return account, claims, err
 	}
@@ -330,10 +341,10 @@ func (l *AccountLifecycle) staffPreviewIdentity(txCtx context.Context, tenantID,
 	// parents portal, Lehrkraft-only accounts in moto schule, and an
 	// account with no role at this school could not even log in.
 	if len(claims.RoleNames) == 0 || domain.IsGuardianOnly(claims.RoleNames) {
-		return account, claims, failed(op, domain.ErrPreviewTargetNotStaff)
+		return account, claims, failed(op, identityaccess.ErrPreviewTargetNotStaff)
 	}
 	if domain.IsSchoolPortalOnly(claims.Roles) {
-		return account, claims, failed(op, domain.ErrMustUseSchoolPortal)
+		return account, claims, failed(op, identityaccess.ErrMustUseSchoolPortal)
 	}
 
 	return account, claims, nil

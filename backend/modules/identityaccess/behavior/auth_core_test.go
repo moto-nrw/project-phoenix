@@ -81,7 +81,7 @@ func setupAuthService(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) testAu
 // setupAuthFactory composes the service factory the auth service and the
 // Identity & Access module are wired through, for tests that drive the
 // module's public contract directly.
-func setupAuthFactory(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) *identityaccess.Module {
+func setupAuthFactory(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) identityaccess.Owner {
 	t.Helper()
 	enabled := len(rateLimitEnabled) > 0 && rateLimitEnabled[0]
 	identityModule, err := api.NewTestIdentityAccessWithConfig(testpkg.NewDatabase(t, db), slog.Default(), authTestFactoryConfig(enabled))
@@ -97,7 +97,7 @@ func setupInvitationService(t *testing.T, db *bun.DB) api.InvitationCapability {
 
 // newFixtureAuthService binds every capability the suites drive to the one
 // composed Identity & Access module.
-func newFixtureAuthService(t *testing.T, db *bun.DB, module *identityaccess.Module) *fixtureOwnedAuthService {
+func newFixtureAuthService(t *testing.T, db *bun.DB, module identityaccess.Owner) *fixtureOwnedAuthService {
 	return &fixtureOwnedAuthService{
 		ParentAccountAccess:       module,
 		AccountAuthentication:     module,
@@ -118,7 +118,7 @@ type fixtureOwnedAuthService struct {
 	identityaccess.AccountSessionMaintenance
 	identityaccess.StaffPreview
 	identityaccess.StaffOffboardingAccess
-	module         *identityaccess.Module
+	module         identityaccess.Owner
 	provisioning   identityaccess.AccountProvisioning
 	administration identityaccess.AccountAdministration
 	t              *testing.T

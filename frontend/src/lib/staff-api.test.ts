@@ -1310,6 +1310,22 @@ describe("staff-api", () => {
   });
 
   describe("staffService.getStaffById", () => {
+    it("maps the retained employment period without converting calendar dates", async () => {
+      vi.mocked(globalThis.fetch).mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              ...sampleBackendStaff,
+              started_on: "2024-09-02",
+              ended_on: "2026-07-31",
+            },
+          }),
+      } as Response);
+      const staff = await staffService.getStaffById("1");
+      expect(staff.startedOn).toBe("2024-09-02");
+      expect(staff.endedOn).toBe("2026-07-31");
+    });
     it("fetches and maps a single staff member", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({

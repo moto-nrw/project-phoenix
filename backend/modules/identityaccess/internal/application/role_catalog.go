@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
@@ -32,4 +33,20 @@ func (r *RoleCatalog) inUnitListPermissions(ctx context.Context, filter domain.P
 		return nil, failed("list permissions", err)
 	}
 	return permissions, nil
+}
+
+func (q *AccountRoleQueries) ListRoles(ctx context.Context, filter identityaccess.RoleFilter) ([]identityaccess.Role, error) {
+	if q == nil {
+		return nil, errRoleAdministrationUnavailable
+	}
+	roles, err := q.listRoles(ctx, domain.RoleFilter(filter))
+	return publicRoles(roles), roleError(err)
+}
+
+func (q *AccountRoleQueries) ListPermissions(ctx context.Context, filter identityaccess.PermissionFilter) ([]identityaccess.Permission, error) {
+	if q == nil {
+		return nil, errRoleAdministrationUnavailable
+	}
+	permissions, err := q.listPermissions(ctx, domain.PermissionFilter(filter))
+	return publicPermissions(permissions), roleError(err)
 }

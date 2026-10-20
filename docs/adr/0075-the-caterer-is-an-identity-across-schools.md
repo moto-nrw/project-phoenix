@@ -136,6 +136,14 @@ moved to the public ports), and with ADR 0076 and the 36 lines of
 The Meal Plan's public contract splits into `Menu`, `Registration` and
 `Ordering`, each at most twelve methods wide; `Capability` embeds all three.
 
+Measured once more after development collapsed the Identity & Access facade
+(#4452) the same day: the owner value serves the caterer flows beside the
+demo access, so `modulePassthroughOwnerBudgets["modules/identityaccess"]`
+rises from 254 to 257 and, with ADR 0076, the total from 1,637 to 1,641.
+`moduleComposeBudgets["modules/identityaccess/compose"]` rises from 1,304 to
+1,349, and with ADR 0076 and `workflows/catererportal/compose` the total
+from 12,407 to 12,522.
+
 ## Policy
 
 Policy epoch 89 → 90 registers the data-less workflow owner `caterer-portal`

@@ -66,7 +66,6 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 		return nil, errors.New("workforce compose: all dependencies are required")
 	}
 	store := postgres.New(postgres.DatabaseRuntime(dependencies.DB))
-	observe := application.NewObserver(dependencies.Observe)
 	now := dependencies.Now
 	if now == nil {
 		now = time.Now
@@ -78,7 +77,7 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 		dependencies.LockStaffAssignment,
 		application.Clock{Time: now},
 		application.AllowanceUses,
-		observe,
+		application.NewObserver(dependencies.Observe),
 		dependencies.StatutoryHolidays,
 	)
 	return service, nil

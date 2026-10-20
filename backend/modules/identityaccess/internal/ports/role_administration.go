@@ -3,6 +3,7 @@ package ports
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -79,14 +80,14 @@ type SchoolIdentity interface {
 // membership it would continue for an account at the school in context.
 type InvitationIdentity interface {
 	SchoolIdentity
-	FindFormerEmployment(ctx context.Context, accountID int64) (domain.FormerEmployment, bool, error)
+	FindFormerEmploymentByAccount(ctx context.Context, accountID int64) (domain.FormerEmployment, bool, error)
 }
 
 // SessionRevocation revokes an account's sessions at the school on the
 // caller's transaction and queues the push cleanup once it committed.
 type SessionRevocation interface {
-	DeleteAccountSessionsWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]domain.AccountSession, error)
-	QueuePushCleanup(ctx context.Context, accountID int64, sessions []domain.AccountSession, reason string)
+	DeleteAccountSessionsWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]identityaccess.AccountSession, error)
+	QueuePushCleanup(ctx context.Context, accountID int64, sessions []identityaccess.AccountSession, reason string)
 }
 
 // CaregiverProfiles answers whether the account's identity at the tenant in
@@ -123,5 +124,5 @@ type PermissionStore interface {
 // ManageableAccounts applies the account administration's visibility rules.
 // Missing and out-of-scope accounts return ErrAccountNotFound.
 type ManageableAccounts interface {
-	FindManageableAccount(ctx context.Context, accountID int64) (domain.ManagedAccountRecord, error)
+	FindManageableAccount(ctx context.Context, accountID int64) (identityaccess.ManagedAccount, error)
 }

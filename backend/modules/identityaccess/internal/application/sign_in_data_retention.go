@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -44,7 +45,10 @@ func (r *SignInDataRetention) DeleteExpiredGuardianInvitations(ctx context.Conte
 		value0, err = r.inUnitDeleteExpiredGuardianInvitations(txCtx)
 		return err
 	})
-	return
+	if err != nil {
+		return 0, fmt.Errorf("identity access: delete expired guardian invitations: %w", MapError(err))
+	}
+	return value0, nil
 }
 
 func (r *SignInDataRetention) inUnitDeleteExpiredGuardianInvitations(ctx context.Context) (int, error) {
@@ -67,7 +71,10 @@ func (r *SignInDataRetention) DeleteExpiredCatererInvitations(ctx context.Contex
 		value0, err = r.inUnitDeleteExpiredCatererInvitations(txCtx)
 		return err
 	})
-	return
+	if err != nil {
+		return 0, fmt.Errorf("identity access: delete expired caterer invitations: %w", MapError(err))
+	}
+	return value0, nil
 }
 
 func (r *SignInDataRetention) inUnitDeleteExpiredCatererInvitations(ctx context.Context) (int, error) {
@@ -84,7 +91,10 @@ func (r *SignInDataRetention) DeleteExpiredMFAEmailChallenges(ctx context.Contex
 		value0, err = r.inUnitDeleteExpiredMFAEmailChallenges(txCtx)
 		return err
 	})
-	return
+	if err != nil {
+		return 0, fmt.Errorf("identity access: delete expired mfa email challenges: %w", MapError(err))
+	}
+	return value0, nil
 }
 
 func (r *SignInDataRetention) inUnitDeleteExpiredMFAEmailChallenges(ctx context.Context) (int, error) {
@@ -106,7 +116,10 @@ func (r *SignInDataRetention) DeleteExpiredPasskeySessions(ctx context.Context) 
 		value0, err = r.inUnitDeleteExpiredPasskeySessions(txCtx)
 		return err
 	})
-	return
+	if err != nil {
+		return 0, fmt.Errorf("identity access: delete expired passkey sessions: %w", MapError(err))
+	}
+	return value0, nil
 }
 
 func (r *SignInDataRetention) inUnitDeleteExpiredPasskeySessions(ctx context.Context) (int, error) {

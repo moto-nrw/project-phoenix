@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -33,10 +34,10 @@ func (l *AccountLifecycle) CreateParentAccount(ctx context.Context, email, usern
 		return domain.ParentAccount{}, failed(opCreateParentAccount, err)
 	}
 	if _, found, _, err := l.store.FindParentAccountByEmail(ctx, email); err == nil && found {
-		return domain.ParentAccount{}, failed(opCreateParentAccount, domain.ErrEmailAlreadyExists)
+		return domain.ParentAccount{}, failed(opCreateParentAccount, identityaccess.ErrEmailAlreadyExists)
 	}
 	if _, found, _, err := l.store.FindParentAccountByUsername(ctx, username); err == nil && found {
-		return domain.ParentAccount{}, failed(opCreateParentAccount, domain.ErrUsernameAlreadyExists)
+		return domain.ParentAccount{}, failed(opCreateParentAccount, identityaccess.ErrUsernameAlreadyExists)
 	}
 	hash, err := l.passwords.HashPassword(password)
 	if err != nil {
@@ -57,7 +58,7 @@ func (l *AccountLifecycle) findParentAccount(ctx context.Context, op string, id 
 		return domain.ParentAccount{}, failed(op, err)
 	}
 	if !found {
-		return domain.ParentAccount{}, failed(op, domain.ErrParentAccountNotFound)
+		return domain.ParentAccount{}, failed(op, identityaccess.ErrParentAccountNotFound)
 	}
 	return account, nil
 }
@@ -72,7 +73,7 @@ func (l *AccountLifecycle) GetParentAccountByEmail(ctx context.Context, email st
 		return domain.ParentAccount{}, failed(opGetParentAccountByEmail, err)
 	}
 	if !found {
-		return domain.ParentAccount{}, failed(opGetParentAccountByEmail, domain.ErrParentAccountNotFound)
+		return domain.ParentAccount{}, failed(opGetParentAccountByEmail, identityaccess.ErrParentAccountNotFound)
 	}
 	return account, nil
 }
@@ -94,7 +95,7 @@ func (l *AccountLifecycle) UpdateParentAccount(ctx context.Context, account doma
 		return failed(opUpdateParentAccount, err)
 	}
 	if !updated {
-		return failed(opUpdateParentAccount, domain.ErrParentAccountNotFound)
+		return failed(opUpdateParentAccount, identityaccess.ErrParentAccountNotFound)
 	}
 	return nil
 }

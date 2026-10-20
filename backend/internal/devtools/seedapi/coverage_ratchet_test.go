@@ -121,7 +121,6 @@ var seedCoverageExemptions = map[string]string{
 	// Cutover #2753 froze users.staff as this rollback archive; the owner
 	// tables users.staff_school_memberships and users.staff_employment_profiles
 	// hold every seeded staff member. A fresh stack archives nothing.
-	"users.staff_qualifications":              "empty in prod too",
 	"users.student_companions":                "empty in prod too",
 	"users.student_care_exit_removals":        "transient by design (#2487): holds a planned exit's removed plan only until the exit is cancelled or takes effect",
 	"users.student_care_exit_source_removals": "transient by design: holds source bookings and weekly plans only until a planned care exit is cancelled or takes effect",

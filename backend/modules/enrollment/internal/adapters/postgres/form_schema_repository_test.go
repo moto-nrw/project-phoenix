@@ -29,7 +29,7 @@ func uniqueSchemaName(prefix string) string {
 // the DB, the repo under test, the tenant id, and the creator id.
 // Cleans up the creator account on test end; schema rows are wiped
 // per-test by the caller via defer.
-func setupSchemaRepoTest(t *testing.T) (*bun.DB, *capability.Module, int64, int64) {
+func setupSchemaRepoTest(t *testing.T) (*bun.DB, capability.Owner, int64, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)

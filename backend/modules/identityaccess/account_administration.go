@@ -70,39 +70,3 @@ type AccountAdministration interface {
 	DeactivateAccount(ctx context.Context, accountID int64) error
 	ChangeAccountPassword(ctx context.Context, accountID int64, currentPassword, newPassword string) error
 }
-
-func (m *Module) AnonymizeAccountForDeletion(ctx context.Context, accountID int64, email string) error {
-	return m.engine.AnonymizeAccountForDeletion(ctx, accountID, email)
-}
-
-func (m *Module) FindOwnAccount(ctx context.Context, accountID int64) (ManagedAccount, error) {
-	return m.engine.FindOwnAccount(ctx, accountID)
-}
-
-func (m *Module) FindManageableAccount(ctx context.Context, accountID int64) (ManagedAccount, error) {
-	return m.engine.FindManageableAccount(ctx, accountID)
-}
-
-func (m *Module) ListManageableAccounts(ctx context.Context, filter AccountListFilter) ([]ManagedAccount, error) {
-	return m.engine.ListManageableAccounts(ctx, filter)
-}
-
-func (m *Module) ListManageableAccountsByRole(ctx context.Context, roleName string) ([]ManagedAccount, error) {
-	return m.engine.ListManageableAccountsByRole(ctx, roleName)
-}
-
-func (m *Module) UpdateManageableAccount(ctx context.Context, update AccountIdentityUpdate) error {
-	return m.engine.UpdateManageableAccount(ctx, update)
-}
-
-func (m *Module) ActivateAccount(ctx context.Context, accountID int64) error {
-	return m.engine.ActivateAccount(ctx, accountID)
-}
-
-func (m *Module) DeactivateAccount(ctx context.Context, accountID int64) error {
-	return m.engine.DeactivateAccount(ctx, accountID)
-}
-
-func (m *Module) ChangeAccountPassword(ctx context.Context, accountID int64, currentPassword, newPassword string) error {
-	return m.engine.ChangeAccountPassword(ctx, accountID, currentPassword, newPassword)
-}

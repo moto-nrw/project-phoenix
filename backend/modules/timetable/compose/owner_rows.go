@@ -3,6 +3,7 @@ package compose
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -21,7 +22,7 @@ type OwnerRows struct {
 	InstanceStaff     ports.InstanceStaffRecords
 	Participants      ports.InstanceStudentRecords
 	Templates         ports.ActivityGroupRecords
-	Categories        ports.ActivityCategoryRecords
+	Categories        ports.DataCategories
 	Students          RosterStudents
 	EducationGroups   ports.EducationGroupNames
 	Rooms             OwnerRooms
@@ -71,15 +72,15 @@ func (r OwnerRows) SickCascadeRows(dayLock func(context.Context, calendar.Date) 
 // composition root fills them from its repository set.
 type TemplateRows struct {
 	Groups          ports.ActivityGroupRecords
-	Categories      ports.ActivityCategoryRecords
-	Schedules       ports.ActivityScheduleRecords
+	Categories      timetable.CategoryQuery
+	Schedules       timetable.ScheduleCapability
 	Enrollments     ports.ActivityEnrollmentRecords
 	Supervisors     ports.PlannedSupervisorRecords
 	Instances       ports.ActivityInstanceRecords
 	InstanceStaff   ports.InstanceStaffRecords
 	Participants    ports.InstanceStudentRecords
-	Timeframes      ports.TimeframeRecords
+	Timeframes      timetable.TimeframeCapability
 	CalendarPeriods ports.CalendarPeriodRecords
-	Exceptions      ports.ActivityExceptionRecords
+	Exceptions      timetable.ActivityExceptionCapability
 	EducationGroups ports.EducationGroupDirectory
 }

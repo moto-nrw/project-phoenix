@@ -15,11 +15,3 @@ type GuardianPortalQuery interface {
 type GuardianPortalLoginQuery interface {
 	FindLoginReadyGuardianMemberships(context.Context, []int64) (map[int64][]int64, error)
 }
-
-func (m *Module) FindActiveGuardianMemberships(ctx context.Context, accountIDs []int64) (map[int64][]int64, error) {
-	return m.engine.FindActiveGuardianMemberships(ctx, accountIDs)
-}
-
-func (m *Module) FindLoginReadyGuardianMemberships(ctx context.Context, accountIDs []int64) (map[int64][]int64, error) {
-	return m.engine.FindLoginReadyGuardianMemberships(ctx, accountIDs)
-}

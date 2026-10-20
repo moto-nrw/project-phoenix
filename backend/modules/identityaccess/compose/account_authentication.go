@@ -38,14 +38,12 @@ func newAccountAuthentication(service *application.Service, store ports.AccountL
 		Audit:     application.AuthAudit{Source: deps.Audit},
 		Push:      deps.Push,
 		Runtime:   tenantRuntime{attach: attach, runner: application.NewTransactionRunner()},
-		Rotation:  rotation.RotationPolicy{},
-		Caterers:  caterers,
-		Logger:    deps.Logger,
+		Attach:    attach,
+		Rotation:  rotation.RotationPolicy{}, WithRecoveryProof: rotation.WithRecoveryProof,
+		Caterers: caterers,
+		Logger:   deps.Logger,
 	})
 }
-
-// Engine methods: every flow answers ErrAccountAuthenticationUnavailable
-// when the module was composed without session dependencies.
 
 // tenantRuntime binds the shared tenant transaction runtime: administrative
 // transactions for the pre-authentication flows, tenant transactions for

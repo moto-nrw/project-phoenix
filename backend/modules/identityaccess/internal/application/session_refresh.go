@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -17,7 +18,7 @@ import (
 func (s *AccountAuthentication) parseRefreshClaims(refreshToken string) (domain.RefreshClaims, error) {
 	claims, err := s.codec.ParseRefreshToken(refreshToken)
 	if err != nil {
-		return domain.RefreshClaims{}, failed("parse refresh token", domain.ErrInvalidToken)
+		return domain.RefreshClaims{}, failed("parse refresh token", identityaccess.ErrInvalidToken)
 	}
 	return claims, nil
 }
@@ -35,7 +36,7 @@ func refreshSingleflightKey(refreshToken string, proofHash []byte) string {
 // pair. Concurrent calls with the same refresh token and recovery proof are
 // deduplicated; the caller's context keeps cancelling the transaction so an
 // interrupted rotation rolls back and the presented token stays valid.
-func (s *AccountAuthentication) RefreshTokenWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) (string, string, error) {
+func (s *AccountAuthentication) refreshTokenWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) (string, string, error) {
 	sfCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	// A refresh token alone must not join another caller's in-flight
@@ -69,7 +70,7 @@ func (s *AccountAuthentication) doRefreshTokenWithAudit(ctx context.Context, ref
 	// the rotation keeps the caller's refresh token intact.
 	if claims.Scope == domain.ScopeSchool && claims.TenantID <= 0 {
 		s.logRefreshDecision("refresh_session_rejected", "school_token_without_tenant", claims.AccountID, claims.TenantID)
-		return nil, failed("refresh school session", domain.ErrTenantAccessDenied)
+		return nil, failed("refresh school session", identityaccess.ErrTenantAccessDenied)
 	}
 	// Every refresh carries its authorization and its claims into the
 	// rotation transaction: either the rotation and the claims commit
@@ -191,7 +192,7 @@ func (s *AccountAuthentication) refreshClaimsGuard(scope string, tenantID int64,
 		// A tenant refresh must not outlive the role change that turned the
 		// account into a school-portal-only one (#2207).
 		if domain.IsSchoolPortalOnly(metadata.Roles) {
-			return failed("refresh token", domain.ErrMustUseSchoolPortal)
+			return failed("refresh token", identityaccess.ErrMustUseSchoolPortal)
 		}
 		*out = metadata
 		return nil
@@ -248,8 +249,8 @@ func (r *refreshRotation) run(ctx context.Context) error {
 	}
 	current, wasRecovered, err := r.service.resolveRefreshHandoff(ctx, presented, now)
 	if err != nil {
-		if errors.Is(err, domain.ErrInvalidToken) {
-			return r.reject(ctx, current, "replay_detected", "revoke replayed refresh-token family", domain.ErrInvalidToken)
+		if errors.Is(err, identityaccess.ErrInvalidToken) {
+			return r.reject(ctx, current, "replay_detected", "revoke replayed refresh-token family", identityaccess.ErrInvalidToken)
 		}
 		return err
 	}
@@ -260,18 +261,18 @@ func (r *refreshRotation) run(ctx context.Context) error {
 }
 
 func (r *refreshRotation) lockAccount(ctx context.Context) error {
-	unlocked, err := r.service.sessions.FindAccountSession(ctx, r.claims.Token)
+	unlocked, err := r.service.sessions.findAccountSessionByToken(ctx, r.claims.Token)
 	if err != nil {
-		if errors.Is(err, domain.ErrAccountSessionNotFound) {
+		if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
 			r.service.logRefreshDecision("refresh_session_rejected", "token_not_found", r.claims.AccountID, r.claims.TenantID)
-			return failed("get token", domain.ErrTokenNotFound)
+			return failed("get token", identityaccess.ErrTokenNotFound)
 		}
 		return fmt.Errorf("find refresh token owner: %w", err)
 	}
 	r.account, err = r.service.fetchAndValidateAccountForUpdate(ctx, unlocked.AccountID)
 	if err != nil {
 		reason := "account_lookup_failed"
-		if errors.Is(err, domain.ErrAccountInactive) {
+		if errors.Is(err, identityaccess.ErrAccountInactive) {
 			reason = "account_inactive"
 		} else if errors.Is(err, domain.ErrAccountNotFound) {
 			reason = "account_not_found"
@@ -286,11 +287,11 @@ func (r *refreshRotation) lockAccount(ctx context.Context) error {
 }
 
 func (r *refreshRotation) presentedSession(ctx context.Context) (domain.AccountSession, error) {
-	presented, err := r.service.sessions.FindAccountSessionForUpdate(ctx, r.claims.Token)
+	presented, err := r.service.sessions.findAccountSessionForUpdate(ctx, r.claims.Token)
 	if err != nil {
-		if errors.Is(err, domain.ErrAccountSessionNotFound) {
+		if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
 			r.service.logRefreshDecision("refresh_session_rejected", "token_not_found", r.claims.AccountID, r.claims.TenantID)
-			return domain.AccountSession{}, failed("get token", domain.ErrTokenNotFound)
+			return domain.AccountSession{}, failed("get token", identityaccess.ErrTokenNotFound)
 		}
 		return domain.AccountSession{}, fmt.Errorf("find refresh token: %w", err)
 	}
@@ -299,10 +300,10 @@ func (r *refreshRotation) presentedSession(ctx context.Context) (domain.AccountS
 
 func (r *refreshRotation) validatePresented(ctx context.Context, presented domain.AccountSession, now time.Time) error {
 	if presented.AccountID != r.claims.AccountID || (r.claims.TenantID > 0 && presented.TenantID != r.claims.TenantID) {
-		return r.reject(ctx, presented, "claim_mismatch", "revoke mismatched refresh-token family", domain.ErrInvalidToken)
+		return r.reject(ctx, presented, "claim_mismatch", "revoke mismatched refresh-token family", identityaccess.ErrInvalidToken)
 	}
 	if now.After(presented.Expiry) {
-		return r.reject(ctx, presented, "token_expired", "delete expired refresh-token family", domain.ErrTokenExpired)
+		return r.reject(ctx, presented, "token_expired", "delete expired refresh-token family", identityaccess.ErrTokenExpired)
 	}
 	return nil
 }
@@ -316,7 +317,7 @@ func (r *refreshRotation) validateLineage(ctx context.Context, current domain.Ac
 		return fmt.Errorf("inspect refresh-token family: %w", err)
 	}
 	if latest.Generation > current.Generation {
-		return r.reject(ctx, current, "lineage_mismatch", "revoke inconsistent refresh-token family", domain.ErrInvalidToken)
+		return r.reject(ctx, current, "lineage_mismatch", "revoke inconsistent refresh-token family", identityaccess.ErrInvalidToken)
 	}
 	return nil
 }
@@ -368,7 +369,7 @@ func (r *refreshRotation) persist(ctx context.Context, current domain.AccountSes
 }
 
 func (s *AccountAuthentication) auditRejectedRefresh(ctx context.Context, accountID int64, ipAddress, userAgent string, err error) {
-	if !errors.Is(err, domain.ErrAccountInactive) || ipAddress == "" {
+	if !errors.Is(err, identityaccess.ErrAccountInactive) || ipAddress == "" {
 		return
 	}
 	if auditErr := s.logAuthEvent(ctx, accountID, domain.AuthEventTokenRefresh, false, ipAddress, userAgent, "Account inactive"); auditErr != nil {
@@ -389,7 +390,7 @@ func (s *AccountAuthentication) fetchAndValidateAccountForUpdate(ctx context.Con
 		return domain.LoginAccount{}, failed("get account", domain.ErrAccountNotFound)
 	}
 	if !account.Active {
-		return domain.LoginAccount{}, failed("check account status", domain.ErrAccountInactive)
+		return domain.LoginAccount{}, failed("check account status", identityaccess.ErrAccountInactive)
 	}
 	return account, nil
 }
@@ -407,27 +408,27 @@ func (s *AccountAuthentication) resolveRefreshHandoff(ctx context.Context, prese
 			return current, current.ID != presented.ID, nil
 		}
 		if current.ReplacementToken == nil || current.RotatedAt.After(now) || now.Sub(*current.RotatedAt) > s.rotation.RecoveryGrace() {
-			return current, false, domain.ErrInvalidToken
+			return current, false, identityaccess.ErrInvalidToken
 		}
 		if err := s.requireAccountRecoveryProof(ctx, current.RecoveryProofHash, proofValidated); err != nil {
 			return current, false, err
 		}
 		proofValidated = true
-		next, err := s.sessions.FindAccountSessionForUpdate(ctx, *current.ReplacementToken)
+		next, err := s.sessions.findAccountSessionForUpdate(ctx, *current.ReplacementToken)
 		if err != nil {
-			if errors.Is(err, domain.ErrAccountSessionNotFound) {
-				return current, false, domain.ErrInvalidToken
+			if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
+				return current, false, identityaccess.ErrInvalidToken
 			}
 			return current, false, fmt.Errorf("follow refresh-token handoff: %w", err)
 		}
 		// Tenant 0 is the legacy pre-tenant-claim state whose first successor
 		// may carry the resolved tenant; modern lineage stays pinned.
 		if !sameAccountSessionLineage(current, next) {
-			return current, false, domain.ErrInvalidToken
+			return current, false, identityaccess.ErrInvalidToken
 		}
 		current = next
 	}
-	return current, false, domain.ErrInvalidToken
+	return current, false, identityaccess.ErrInvalidToken
 }
 
 // createAndPersistSuccessor mints the successor and records the bounded
@@ -451,10 +452,11 @@ func (s *AccountAuthentication) createAndPersistSuccessor(ctx context.Context, p
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
-	stored, err := s.sessions.CreateAccountSession(ctx, successor)
+	created, err := s.sessions.CreateAccountSession(ctx, identityaccess.AccountSession(successor))
 	if err != nil {
 		return domain.AccountSession{}, err
 	}
+	stored := domain.AccountSession(created)
 	if err := s.sessions.MarkAccountSessionRotated(ctx, predecessor.ID, stored.Token, s.rotation.RecoveryProofHash(ctx), now); err != nil {
 		return domain.AccountSession{}, err
 	}
@@ -488,7 +490,7 @@ func (s *AccountAuthentication) validateTenantAccessInTransaction(ctx context.Co
 	}
 	if !exists {
 		s.logRefreshDecision("refresh_session_rejected", "tenant_access_revoked", claims.AccountID, claims.TenantID)
-		return failed("validate tenant access", domain.ErrTenantAccessDenied)
+		return failed("validate tenant access", identityaccess.ErrTenantAccessDenied)
 	}
 	school, found, err := s.schools.FindSchool(ctx, claims.TenantID)
 	if err != nil {
@@ -500,15 +502,15 @@ func (s *AccountAuthentication) validateTenantAccessInTransaction(ctx context.Co
 	}
 	if !found {
 		s.logRefreshDecision("refresh_session_rejected", "tenant_not_found", claims.AccountID, claims.TenantID)
-		return failed("validate tenant access", domain.ErrTenantNotFound)
+		return failed("validate tenant access", identityaccess.ErrTenantNotFound)
 	}
 	if school.Deleted {
 		s.logRefreshDecision("refresh_session_rejected", "tenant_deleted", claims.AccountID, claims.TenantID)
-		return failed("validate tenant access", domain.ErrTenantNotFound)
+		return failed("validate tenant access", identityaccess.ErrTenantNotFound)
 	}
 	if !school.Active {
 		s.logRefreshDecision("refresh_session_rejected", "tenant_inactive", claims.AccountID, claims.TenantID)
-		return failed("validate tenant access", domain.ErrTenantNotFound)
+		return failed("validate tenant access", identityaccess.ErrTenantNotFound)
 	}
 	return nil
 }
@@ -517,17 +519,22 @@ func (s *AccountAuthentication) validateTenantAccessInTransaction(ctx context.Co
 // devices and portals keep their sessions. Logout runs in an administrative
 // transaction because auth.tokens is RLS-guarded and the route carries no
 // tenant.
-func (s *AccountAuthentication) LogoutWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) error {
+func (s *AccountAuthentication) LogoutWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) (err error) {
+	if s == nil {
+		return errAccountAuthenticationUnavailable
+	}
+	defer func() { err = authenticationError(err) }()
+	ctx = bindRuntime(s.attach, ctx)
 	claims, err := s.codec.ParseRefreshToken(refreshToken)
 	if err != nil {
-		return failed("parse refresh token", domain.ErrInvalidToken)
+		return failed("parse refresh token", identityaccess.ErrInvalidToken)
 	}
 	var (
 		revoked  *domain.AccountSession
 		sessions []domain.AccountSession
 	)
 	err = s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		presented, err := s.sessions.FindAccountSession(txCtx, claims.Token)
+		presented, err := s.sessions.findAccountSessionByToken(txCtx, claims.Token)
 		if err != nil {
 			// An unknown token is a successful logout.
 			return nil
@@ -537,7 +544,9 @@ func (s *AccountAuthentication) LogoutWithAudit(ctx context.Context, refreshToke
 			deleteErr = s.sessions.DeleteAccountSession(txCtx, presented.ID)
 			sessions = []domain.AccountSession{presented}
 		} else {
-			sessions, deleteErr = s.sessions.RevokeAccountSessionFamily(txCtx, presented.FamilyID)
+			var family []identityaccess.AccountSession
+			family, deleteErr = s.sessions.RevokeAccountSessionFamily(txCtx, presented.FamilyID)
+			sessions = domainAccountSessions(family)
 		}
 		if deleteErr != nil {
 			return failed("delete token family", deleteErr)
@@ -604,7 +613,7 @@ func (s *AccountAuthentication) isCatererAccount(ctx context.Context, accountID 
 func (s *AccountAuthentication) requireAccountRecoveryProof(ctx context.Context, proofHash []byte, alreadyValidated bool) error {
 	if !alreadyValidated {
 		if !s.rotation.MatchesRecoveryProof(ctx, proofHash) {
-			return domain.ErrInvalidToken
+			return identityaccess.ErrInvalidToken
 		}
 
 	}

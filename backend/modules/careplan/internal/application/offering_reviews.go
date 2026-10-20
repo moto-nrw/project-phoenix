@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 )
 
 type OfferingReviewDependencies struct {
@@ -252,11 +251,11 @@ func (s *OfferingReviews) requestedItems(ctx context.Context, payload []byte) ([
 	for _, item := range selected {
 		ids = append(ids, item.OfferingID)
 	}
-	offerings, err := s.Catalog.ListCareOfferings(ctx, domain.CareOfferingFilter{IDs: ids})
+	offerings, err := s.Catalog.ListCareOfferings(ctx, careplan.CareOfferingFilter{IDs: ids})
 	if err != nil {
 		return nil, fmt.Errorf("list requested offerings: %w", err)
 	}
-	byID := make(map[int64]domain.CareOffering, len(offerings))
+	byID := make(map[int64]careplan.CareOffering, len(offerings))
 	for _, offering := range offerings {
 		byID[offering.ID] = offering
 	}
@@ -274,7 +273,7 @@ func (s *OfferingReviews) requestedItems(ctx context.Context, payload []byte) ([
 	return result, nil
 }
 
-func offeringLabel(id int64, catalog map[int64]domain.CareOffering) string {
+func offeringLabel(id int64, catalog map[int64]careplan.CareOffering) string {
 	if name := catalog[id].Name; name != "" {
 		return name
 	}

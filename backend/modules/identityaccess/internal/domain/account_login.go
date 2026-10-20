@@ -7,30 +7,10 @@ import (
 	"time"
 )
 
-// Account authentication errors. The messages are the wire and log contract
-// the retained auth service established; the HTTP layers switch on the
-// sentinels and the frontend maps ErrTenantAccessDenied's text.
+// Account authentication errors. The login and session sentinels are the
+// public Identity & Access ones: the HTTP layers switch on them and the
+// frontend maps ErrTenantAccessDenied's text.
 var (
-	ErrInvalidCredentials = errors.New("invalid username or password")
-	ErrAccountInactive    = errors.New("account is inactive")
-	ErrTenantNotFound     = errors.New("tenant not found")
-	ErrTenantAccessDenied = errors.New("account does not have access to this tenant")
-	// ErrParentMustUseParentPortal refuses a guardian-only account at the
-	// tenant login; ErrAccountNoGuardianRole refuses an account without a
-	// guardian role at the parents login.
-	ErrParentMustUseParentPortal = errors.New("guardian accounts must log in at the parents portal")
-	ErrAccountNoGuardianRole     = errors.New("account is not a guardian at any school")
-	// ErrAccountNoSchoolPortalRole refuses an account without a school-portal
-	// role at the school login; ErrMustUseSchoolPortal refuses a
-	// school-portal-only account at the tenant login (#2207).
-	ErrAccountNoSchoolPortalRole = errors.New("account has no school portal role at any school")
-	ErrMustUseSchoolPortal       = errors.New("school portal accounts must log in at the school portal")
-	ErrInvalidToken              = errors.New("invalid token format")
-	ErrTokenExpired              = errors.New("token has expired")
-	ErrTokenNotFound             = errors.New("token not found")
-	// ErrMFAStatusUnavailable refuses a login whose MFA gate could not be
-	// decided: the second factor is never dropped on an infrastructure error.
-	ErrMFAStatusUnavailable = errors.New("mfa status unavailable, please retry")
 	// ErrAccountAuthenticationUnavailable reports a module composed without
 	// the account-authentication dependencies.
 	ErrAccountAuthenticationUnavailable = errors.New("account authentication is not composed")

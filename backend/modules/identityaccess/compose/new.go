@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application/rotation"
 	internalports "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -72,7 +71,7 @@ type Dependencies struct {
 // administrative transaction their rotation and audit evidence must commit
 // in before a tenant is known. Account-session statements apply the tenant
 // filter the runtime scoped the caller to.
-func New(dependencies Dependencies) (*identityaccess.Module, error) {
+func New(dependencies Dependencies) (identityaccess.Owner, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("identity access compose: all dependencies are required")
 	}
@@ -118,7 +117,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	e := application.NewEngine(application.EngineParts{
+	owner := application.NewOwner(application.OwnerParts{
 		CalendarFeeds: application.NewCalendarFeeds(application.NewStaffCalendarFeeds(service, store), application.NewParentCalendarFeeds(service, store)),
 		Profiles:      application.NewAccountProfiles(service, store), GuardianSchools: application.NewGuardianSchools(service, store),
 		Service: service, MFA: operatorMFARecords, Tokens: tokens, RFIDCards: application.NewRFIDCards(service, store),
@@ -127,13 +126,13 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		Resets: resets, Invitations: invitations, Provisioning: provisioning, Administration: administration,
 		MFAFlows: flows, OperatorProvisioning: operatorProvisioning, SignInRetention: application.NewSignInDataRetention(store, application.InvitationLogger(dependencies.Invitations), newCommandTransactions(attach).RunAdmin), AccountRetention: application.NewAccountRetention(store, attach, tenant.RegisterAfterCommit, application.InvitationLogger(dependencies.Invitations)),
 		InvitationMaintenance: application.NewSchoolInvitationMaintenance(store, application.InvitationLogger(dependencies.Invitations), newCommandTransactions(attach).RunPlatform),
-		Runtime:               attach, WithRecoveryProof: rotation.WithRecoveryProof,
+		Runtime:               attach, DemoAccess: demoAccess, Caterers: caterers,
 	})
-	return identityaccess.NewComposedModule(e, demoAccess, caterers), nil
+	return owner, nil
 }
 
-// composeBesideEngine composes the capabilities the module carries beside
-// its engine: the demo access and the caterer flows.
+// composeBesideEngine composes the capabilities the owner carries beside its
+// services: the demo access and the caterer flows.
 func composeBesideEngine(dependencies Dependencies, auth *application.AccountAuthentication, store *postgres.Store) (*identityaccess.DemoAccess, *identityaccess.CatererAccess, error) {
 	demoAccess, err := composeDemoAccess(dependencies.DB, auth, dependencies.Demo)
 	if err != nil {

@@ -28,7 +28,7 @@ func CatererSessionChain(r chi.Router) {
 // caterer under /api/meal-caterer and the caterer's own routes under
 // /caterer, where the auth rate limiter guards the sign-in and the
 // invitation.
-func mountCatererPortal(root, tenantRouter chi.Router, limiters authRateLimiters, identity *identityaccess.Module, mealPlan mealplanModule.Capability, schools organizationtenancy.Capability) error {
+func mountCatererPortal(root, tenantRouter chi.Router, limiters authRateLimiters, identity identityaccess.Owner, mealPlan mealplanModule.Capability, schools organizationtenancy.Capability) error {
 	caterers := identity.Caterers()
 	if caterers == nil {
 		return errors.New("caterer portal: identity access composed no caterer flows")

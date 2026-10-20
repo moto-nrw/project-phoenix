@@ -150,8 +150,9 @@ type InvitationOwnerTokens interface {
 // the session and lifecycle dependencies: the flows reuse the school
 // directory, the role storage and the identity chain.
 type SchoolInvitationDependencies struct {
-	Grants InvitationGrantPolicy
-	Owners InvitationOwnerTokens
+	EmploymentReset *EmploymentResetCommands
+	Grants          InvitationGrantPolicy
+	Owners          InvitationOwnerTokens
 	// DeliveryFor builds the delivery over the recorder of its outcome; the
 	// composition calls it once.
 	DeliveryFor func(identityaccess.SchoolInvitationDeliveryRecorder) SchoolInvitationDelivery

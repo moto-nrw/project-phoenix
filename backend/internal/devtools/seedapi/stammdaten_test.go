@@ -164,10 +164,14 @@ func TestFixedSeeder_RetireFormerStaffRemovesActiveReferences(t *testing.T) {
 	t.Parallel()
 
 	retiredPath := ""
+	var seededSections []string
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(seedHTTPStatusOK)
 		switch r.Method {
+		case seedHTTPMethodPut:
+			seededSections = append(seededSections, r.URL.Path)
+			_, _ = w.Write([]byte(`{"status":"success"}`))
 		case seedHTTPMethodDelete:
 			retiredPath = r.URL.Path
 			_, _ = w.Write([]byte(`{"status":"success"}`))
@@ -187,6 +191,7 @@ func TestFixedSeeder_RetireFormerStaffRemovesActiveReferences(t *testing.T) {
 
 	require.NoError(t, seeder.retireFormerStaff())
 	assert.Equal(t, "/api/staff/11", retiredPath)
+	assert.ElementsMatch(t, []string{"/api/staff/11/stammdaten/kontakt", "/api/staff/11/stammdaten/qualifikationen"}, seededSections)
 	assert.NotContains(t, seeder.staffIDs, formerKey)
 	assert.NotContains(t, seeder.teacherIDs, formerKey)
 }
