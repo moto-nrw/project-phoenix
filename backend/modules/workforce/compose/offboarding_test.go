@@ -195,3 +195,20 @@ func TestOffboardingWorkforcePreservesHistoryAndRequiresAbsenceAudit(t *testing.
 	_, err = module.FindStaffAbsence(ctx, history.ID)
 	require.NoError(t, err)
 }
+
+func TestOffboardingLockRequiresAmbientTransaction(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	staff := testpkg.CreateTestStaff(t, db, "Transaction", "Offboarding")
+	runtime := testpkg.ConfigRuntime(db)
+	offboarding, err := NewOffboarding(Dependencies{
+		LockStaffAssignment: runtime.LockStaffAssignment,
+		DB:                  db, LiveStaffIDs: runtime.LiveStaffIDs, Observe: func(Observation) {},
+	}, func(context.Context, workforce.StaffAbsence, int64) error { return nil })
+	require.NoError(t, err)
+	require.EqualError(t, offboarding.Lock(ctx, staff.ID), "workforce: offboarding lock requires a transaction")
+	require.NoError(t, testpkg.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		return offboarding.Lock(txCtx, staff.ID)
+	}))
+}

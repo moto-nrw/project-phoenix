@@ -1,7 +1,6 @@
 package application
 
 import (
-	"context"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -56,25 +55,6 @@ func allowanceSummaryToPublic(value domain.AbsenceTypeAllowanceSummary) workforc
 		}
 	}
 	return result
-}
-
-func (e Engine) PreviewAllowanceBooking(ctx context.Context, staffID, absenceTypeID int64, start, end string, halfDay bool) ([]workforce.AbsenceTypeAllowanceSummary, error) {
-	from, err := calendar.ParseDate(start)
-	if err != nil || from.IsZero() {
-		return nil, workforce.ErrAbsenceTypeAllowanceInvalid
-	}
-	to, err := calendar.ParseDate(end)
-	if err != nil || to.IsZero() || to.Before(from) {
-		return nil, workforce.ErrAbsenceTypeAllowanceInvalid
-	}
-	values, err := e.service.PreviewAllowanceBooking(ctx, staffID, absenceTypeID, domain.StaffAbsence{
-		DateStart: start, DateEnd: end, HalfDay: halfDay, StartHalfDay: halfDay, EndHalfDay: halfDay,
-	}, from.Year(), to.Year())
-	return allowancePreviewsToPublic(values, err)
-}
-
-func (e Engine) PreviewAllowanceRebooking(ctx context.Context, staffID, absenceTypeID int64, absenceIDs []int64) ([]workforce.AbsenceTypeAllowanceSummary, error) {
-	return allowancePreviewsToPublic(e.service.PreviewAllowanceRebooking(ctx, staffID, absenceTypeID, absenceIDs))
 }
 
 func allowancePreviewsToPublic(values []domain.AbsenceTypeAllowanceSummary, err error) ([]workforce.AbsenceTypeAllowanceSummary, error) {

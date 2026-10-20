@@ -17,7 +17,7 @@ func NewOffboarding(dependencies Dependencies, appendDeletion func(context.Conte
 		return nil, err
 	}
 	return workforce.NewOffboarding(
-		application.NewOffboardingLock(service),
-		application.NewOffboardingPreview(service),
+		service.LockStaffOffboarding,
+		service.PreviewStaffOffboarding,
 		application.NewOffboardingExecute(service, appendDeletion)), nil
 }
