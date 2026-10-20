@@ -40,9 +40,6 @@ func newMFACore(
 	records = application.NewAccountMFACommands(records, runtime)
 	trail := application.MFAAuditTrail{Events: application.AuthAudit{Source: sessions.Audit}, Operator: deps.OperatorAudit}
 	secret := domain.DeriveMFASecret(deps.JWTSecret)
-	if deps.DecorateRecords != nil {
-		records = application.AccountMFARecords{Source: deps.DecorateRecords(application.PublicAccountMFARecords{Source: records})}
-	}
 
 	account, err := application.NewAccountMFAFlows(application.AccountMFAFlowDependencies{
 		Records: records, Settings: deps.Settings,
@@ -65,12 +62,6 @@ func newMFACore(
 	}
 	return application.MFAFlows{Records: records, Account: account, Capability: capability, Operator: operator}, nil
 }
-
-// --- the seams the root fills ------------------------------------------------
-
-// --- the account MFA records -------------------------------------------------
-
-var _ ports.AccountMFARecords = application.AccountMFARecords{}
 
 // --- the engine methods ------------------------------------------------------
 

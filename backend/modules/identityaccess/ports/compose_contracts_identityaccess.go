@@ -119,14 +119,11 @@ type PasskeyDependencies struct {
 // compositions without them report ErrAccountMFAUnavailable and
 // ErrOperatorMFAUnavailable.
 type MFADependencies struct {
-	// DecorateRecords lets behavior tests inject persistence failures.
-	// Production leaves it nil and uses the native records directly.
-	DecorateRecords func(AccountMFARecords) AccountMFARecords
-	Settings        MFASettings
-	Codec           MFAChallengeCodec
-	Codes           ShortCodeHasher
-	Mail            MFAMail
-	OperatorAudit   OperatorActionLog
+	Settings      MFASettings
+	Codec         MFAChallengeCodec
+	Codes         ShortCodeHasher
+	Mail          MFAMail
+	OperatorAudit OperatorActionLog
 	// JWTSecret derives the trusted-device HMAC key, so the cookie signature
 	// and the JWT signing key stay independent.
 	JWTSecret string
