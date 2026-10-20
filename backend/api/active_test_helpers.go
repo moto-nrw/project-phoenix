@@ -40,6 +40,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	blockDisplayCompose "github.com/moto-nrw/project-phoenix/modules/timetableblockdisplay/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
@@ -306,6 +307,7 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		Supervisions: r.GroupSupervisor, Visits: owners.NewLoggedStudentPresence(db, logger),
 		People:         owners.TimetableOperationPeople{OperationPeople: owners.NewTimetableOperationPeople(dataUsers), Membership: membership},
 		PlanningTracks: rt.Timetable, Logger: logger, Now: OptionalClock(clocks),
+		BlockMetadata: NewTimetableBlockDisplayForTests(db),
 	}, operationRows, presence, settings.Settings, careDay, arrivals, pickups, hub, WithAttendanceStaff)
 	if err != nil {
 		return fail(err)
@@ -444,4 +446,11 @@ func iotSessionEndTestFailures() (notFound, alreadyEnded error) {
 
 func iotSessionEndTestInvalidRequest(message string) error {
 	return devicescan.InvalidRequest(message)
+}
+
+// NewTimetableBlockDisplayForTests binds the block display projection the
+// root hands the operational day: room name and planning track of each
+// planned block (#4413).
+func NewTimetableBlockDisplayForTests(db transactionruntime.Database) timetablePorts.BlockDisplayMetadata {
+	return arrivalTimetable.NewBlockDisplayMetadata(db.Pool(), blockDisplayCompose.List)
 }

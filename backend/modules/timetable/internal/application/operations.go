@@ -36,7 +36,7 @@ func NewOperations(deps ports.OperationDependencies, caller ports.OperationCalle
 	}
 	if caller == nil || deps.Instances == nil || deps.InstanceStaff == nil || deps.Participants == nil || deps.Templates == nil ||
 		deps.Sessions == nil || deps.Supervisions == nil || deps.Visits == nil || deps.Attendance == nil ||
-		deps.Students == nil || deps.People == nil || deps.EducationGroups == nil || deps.Rooms == nil ||
+		deps.Students == nil || deps.People == nil || deps.EducationGroups == nil || deps.Rooms == nil || deps.BlockMetadata == nil ||
 		deps.Settings == nil || deps.CareDays == nil || deps.Arrivals == nil || deps.Pickups == nil ||
 		deps.Lifecycle == nil || deps.NormalizeSchoolClass == nil {
 		return nil, errors.New("timetable operations: required dependency is nil")

@@ -197,7 +197,8 @@ type RequestClaims struct {
 // OperationDependencies wires the operational day. PlanningTracks and
 // Locks are optional: without tracks day-scope blocks carry no colour,
 // without locks attendance patches skip the completion lock. Announcer is
-// optional too. Every other collaborator is required.
+// optional too. Every other collaborator is required. BlockMetadata names
+// the room and planning track of the planned blocks (#4413).
 type OperationDependencies struct {
 	Instances            OperationInstances
 	InstanceStaff        OperationInstanceStaff
@@ -212,6 +213,7 @@ type OperationDependencies struct {
 	People               OperationPeople
 	EducationGroups      EducationGroupNames
 	Rooms                RoomNames
+	BlockMetadata        BlockDisplayMetadata
 	Settings             OperationSettings
 	CareDays             CareDays
 	Arrivals             EffectiveArrivals

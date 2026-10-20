@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	blockDisplayCompose "github.com/moto-nrw/project-phoenix/modules/timetableblockdisplay/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
@@ -35,7 +34,7 @@ func buildTimetablePlanning(
 ) (TimetablePlanning, error) {
 	data, err := NewTimetableData(lifecycle.Rows, schedules.ArrivalBaselines, schedules.PickupBaselines,
 		presence.Presence, timetableOwner, presence.SessionRecords, timetableOwner,
-		arrivalTimetable.NewBlockDisplayMetadata(db.Pool(), blockDisplayCompose.List),
+		owner.BlockMetadata,
 		true, env.Logger.With("service", "timetable-data"))
 	if err != nil {
 		return TimetablePlanning{}, fmt.Errorf("compose timetable data: %w", err)

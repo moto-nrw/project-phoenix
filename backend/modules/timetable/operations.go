@@ -95,8 +95,8 @@ type OperationPlannedInstance struct {
 	ActiveGroupID *int64 `json:"active_group_id,omitempty"`
 	// CancelReason explains a cancelled block ("fällt aus: …", #1840).
 	CancelReason *string `json:"cancel_reason,omitempty"`
-	// PlanningTrackName/Color carry the planned colour coding into the
-	// whole-day scope (#2383). Nil outside scope=day and without a track.
+	// PlanningTrackName/Color carry the planned colour coding of the
+	// block's template (#2383, #4413) in every scope. Nil without a track.
 	PlanningTrackName  *string `json:"planning_track_name,omitempty"`
 	PlanningTrackColor *string `json:"planning_track_color,omitempty"`
 	// GroupName is the education group the block's template targets. Nil

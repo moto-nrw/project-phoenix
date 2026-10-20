@@ -22,8 +22,9 @@ import (
 // The planned-now read runs over the retained repository rows the way the
 // composition root binds them (repositories.TimetableOwnerRows); the People
 // Directory, Settings Platform and Care Plan are fixed stand-ins, so the
-// count covers the timetable's own statements: the day's blocks, the room
-// names, and one staff and one participant read for every block.
+// count covers the timetable's own statements: the day's blocks, and one
+// staff, one participant and one display read (room name and planning
+// track, #4413) for every block.
 func TestTimetableOperationsPlannedNowQueryBudget(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
@@ -105,7 +106,66 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testp
 	deps.Instances, deps.InstanceStaff, deps.Participants = fixtures.IntoOperationInstances(fixtures.FromActivityInstanceRecords(rows.Instances)), fixtures.IntoOperationInstanceStaff(fixtures.FromInstanceStaffRecords(rows.InstanceStaff)), fixtures.IntoOperationParticipants(fixtures.FromInstanceStudentRecords(rows.Participants))
 	deps.Templates, deps.Students = templates, rows.Students
 	deps.EducationGroups, deps.Rooms = rows.EducationGroups, rows.Rooms
+	deps.BlockMetadata = api.NewTimetableBlockDisplayForTests(testpkg.MustDatabase(db))
 	operations, err := compose.NewOperations(deps, owners.TimetableOperationCaller{RequestSession: deps.Session})
 	require.NoError(t, err)
 	return operations
+}
+
+// The Aufsicht's „Als Nächstes“ reads the default (now) scope. Its blocks
+// carry the planning-track colour of their template like the Tagesplan does
+// (#4413), and the colour costs no statement of its own: it is read along
+// with the day's blocks.
+func TestTimetableOperationsPlannedNowCarriesPlanningTrackColour(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	date := calendar.NewDate(2026, time.October, 19)
+	now := date.BerlinMidnight().Add(13*time.Hour + 50*time.Minute)
+	staff := testpkg.CreateTestStaff(t, db, "PlannedTrack", "Teacher")
+	room := testpkg.CreateTestRoom(t, db, "PlannedTrackRoom")
+	template := testpkg.CreateTestActivityGroup(t, db, "PlannedTrackTemplate")
+	track, err := scenarioPlanningTracks(t, db).AddPlanningTrack(ctx, timetable.PlanningTrackDraft{
+		Name: "Angebote", Color: "#5080D8", SortOrder: 0,
+	})
+	require.NoError(t, err)
+	_, err = db.NewUpdate().Table("activities.groups").
+		Set("planning_track_id = ?", track.ID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Where("id = ?", template.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+	operations := newPlannedNowBudgetOperations(t, db, staff, now)
+
+	tracked := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
+		ActivityGroupID: &template.ID, StartHHMM: "14:00", EndHHMM: "15:00", Title: "Mit Spur",
+	})
+	untracked := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "14:00", EndHHMM: "15:00", Title: "Ohne Spur",
+	})
+	for _, instance := range []*testpkg.ActivityInstance{tracked, untracked} {
+		testpkg.CreateTestInstanceStaff(t, db, instance.ID, staff.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
+	}
+
+	require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, testpkg.TenantIDFromContext(ctx), func(ctx context.Context) error {
+		counter := testpkg.CaptureQueries(t, db)
+		result, err := operations.PlannedNow(ctx, 1, false, date, now, timetable.PlannedNowOptions{})
+		require.NoError(t, err)
+		testpkg.AssertQueryBudget(t, "services.schedule.planned_now", counter.Queries())
+
+		byID := map[int64]timetable.OperationPlannedInstance{}
+		for _, planned := range result {
+			byID[planned.ID] = planned
+		}
+		require.Contains(t, byID, tracked.ID)
+		require.NotNil(t, byID[tracked.ID].PlanningTrackColor)
+		assert.Equal(t, "#5080D8", *byID[tracked.ID].PlanningTrackColor)
+		require.NotNil(t, byID[tracked.ID].PlanningTrackName)
+		assert.Equal(t, "Angebote", *byID[tracked.ID].PlanningTrackName)
+		require.Contains(t, byID, untracked.ID)
+		assert.Nil(t, byID[untracked.ID].PlanningTrackColor)
+		assert.Nil(t, byID[untracked.ID].PlanningTrackName)
+		return nil
+	}))
 }
