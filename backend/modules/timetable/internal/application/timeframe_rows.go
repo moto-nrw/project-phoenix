@@ -1,7 +1,6 @@
 package application
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -64,10 +63,3 @@ func publicTimeframeInput(value *scheduleModels.Timeframe) timetable.TimeframeIn
 }
 
 func PublicClock(value time.Time) string { return value.Format("15:04:05.999999999") }
-
-func legacyTimeframeError(operation string, err error) error {
-	if errors.Is(err, timetable.ErrTimeframeNotFound) {
-		return WrapNotFoundDatabaseError(operation)
-	}
-	return WrapDatabaseError(operation, err)
-}

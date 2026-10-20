@@ -6,42 +6,6 @@ import (
 	records "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 )
 
-func fromNative0(value *records.ActivityException) *ActivityException {
-	if value == nil {
-		return nil
-	}
-	return &ActivityException{*value}
-}
-
-func toNative0(value *ActivityException) *records.ActivityException {
-	if value == nil {
-		return nil
-	}
-	return &value.ActivityException
-}
-
-func fromNative1(value []*records.ActivityException) []*ActivityException {
-	if value == nil {
-		return nil
-	}
-	result := make([]*ActivityException, len(value))
-	for index, row := range value {
-		result[index] = fromNative0(row)
-	}
-	return result
-}
-
-func toNative1(value []*ActivityException) []*records.ActivityException {
-	if value == nil {
-		return nil
-	}
-	result := make([]*records.ActivityException, len(value))
-	for index, row := range value {
-		result[index] = toNative0(row)
-	}
-	return result
-}
-
 func fromNative2(value *records.ActivityInstance) *ActivityInstance {
 	if value == nil {
 		return nil
@@ -505,42 +469,6 @@ func fromNative42(value []*records.StudentArrivalNote) []*StudentArrivalNote {
 	result := make([]*StudentArrivalNote, len(value))
 	for index, row := range value {
 		result[index] = fromNative41(row)
-	}
-	return result
-}
-
-func fromNative43(value *records.Timeframe) *Timeframe {
-	if value == nil {
-		return nil
-	}
-	return &Timeframe{*value}
-}
-
-func toNative43(value *Timeframe) *records.Timeframe {
-	if value == nil {
-		return nil
-	}
-	return &value.Timeframe
-}
-
-func fromNative44(value []*records.Timeframe) []*Timeframe {
-	if value == nil {
-		return nil
-	}
-	result := make([]*Timeframe, len(value))
-	for index, row := range value {
-		result[index] = fromNative43(row)
-	}
-	return result
-}
-
-func toNative44(value []*Timeframe) []*records.Timeframe {
-	if value == nil {
-		return nil
-	}
-	result := make([]*records.Timeframe, len(value))
-	for index, row := range value {
-		result[index] = toNative43(row)
 	}
 	return result
 }
