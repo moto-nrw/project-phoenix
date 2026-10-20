@@ -100,6 +100,8 @@ describe("DayFlowBlock (#2180)", () => {
       name: "Fußball-AG: im Tagesplan öffnen",
     });
     expect(own).toHaveStyle({ backgroundColor: "#5080D81A" });
+    expect(own).not.toHaveClass("border-l-4");
+    expect(own.style.borderLeftColor).toBe("");
     expect(other.style.backgroundColor).toBe("");
     expect(
       own

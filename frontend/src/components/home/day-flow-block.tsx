@@ -9,7 +9,7 @@ import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import {
   BlockRoom,
-  blockRowStyle,
+  blockTintStyle,
 } from "~/components/timetable/block-row-parts";
 import { useOperationalOverviewScope } from "~/lib/tenant-context";
 import { blockChildrenLabel, blockTimeRange } from "~/lib/block-children";
@@ -138,10 +138,10 @@ export function DayFlowBlock() {
                     <Link
                       href={dayPlanHref}
                       aria-label={`${block.title}${mine ? " (Mein Block)" : ""}: im Tagesplan öffnen`}
-                      className={`flex items-center justify-between gap-3 rounded-l-sm rounded-r-xl border-l-4 bg-gray-50/50 px-3 py-2 transition-colors hover:bg-gray-100/50 ${
+                      className={`flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors hover:bg-gray-100/50 ${
                         block.status === "completed" ? "opacity-60" : ""
                       }`}
-                      style={blockRowStyle(block, mine)}
+                      style={blockTintStyle(block, mine)}
                     >
                       <span className="w-24 flex-shrink-0 text-sm font-medium text-gray-900 tabular-nums">
                         {blockTimeRange(block)}

@@ -14,7 +14,6 @@ import { BlockState } from "~/components/home/day-flow-block";
 import {
   BlockRoom,
   BlockStaff,
-  blockRowStyle,
   blockStaffNames,
 } from "~/components/timetable/block-row-parts";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
@@ -277,13 +276,10 @@ function BlockRow({
           <NowLine now={now} />
         </div>
       )}
-      {/* Kante in der Blockfarbe wie im Tagesplan (#4350). Getönt wird
-          nichts: hier steht ohnehin nur die eigene Einteilung. */}
       <div
-        className={`flex items-center gap-3 rounded-l-sm rounded-r-xl border-l-4 bg-gray-50/50 px-3 py-2 sm:py-1 ${
+        className={`flex items-center gap-3 rounded-xl bg-gray-50/50 px-3 py-2 sm:py-1 ${
           over ? "opacity-60" : ""
         }`}
-        style={blockRowStyle(block, false)}
       >
         <Link
           href={href}
