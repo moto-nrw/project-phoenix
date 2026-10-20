@@ -36,7 +36,13 @@ type ClassArrivalException struct {
 var ErrInvalidClassArrivalExceptionRange = errors.New("invalid class arrival exception date range")
 
 func ValidClassArrivalExceptionDates(from, to string) bool {
-	return validDate(from) && validDate(to)
+	return ValidDate(from) && ValidDate(to)
+}
+
+// ValidDate reports whether value is a YYYY-MM-DD calendar date.
+func ValidDate(value string) bool {
+	_, err := time.Parse(time.DateOnly, value)
+	return err == nil
 }
 
 // ClassArrivalQuery supplies the recurring dismissal times used by Care Plan.

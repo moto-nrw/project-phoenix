@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -28,17 +29,17 @@ type plannedSupervisorRow struct {
 	Weekday          *int           `bun:"weekday"`
 }
 
-func (s *Store) FindPlannedSupervisor(ctx context.Context, id int64) (domain.PlannedSupervisor, bool, domain.OperationStats, error) {
+func (s *Store) FindPlannedSupervisor(ctx context.Context, id int64) (timetable.PlannedSupervisor, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.PlannedSupervisor{}, false, domain.OperationStats{}, err
+		return timetable.PlannedSupervisor{}, false, domain.OperationStats{}, err
 	}
 	row := plannedSupervisorRow{}
 	found, stats, err := scanOne(ctx, plannedSupervisorSelect(db, &row, tenantID).Where(`"supervisor".id = ?`, id), "find planned supervisor")
 	return plannedSupervisorToDomain(row), found, stats, err
 }
 
-func (s *Store) ListPlannedSupervisors(ctx context.Context, filter domain.PlannedSupervisorFilter) ([]domain.PlannedSupervisor, domain.OperationStats, error) {
+func (s *Store) ListPlannedSupervisors(ctx context.Context, filter timetable.PlannedSupervisorFilter) ([]timetable.PlannedSupervisor, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -56,7 +57,7 @@ func (s *Store) ListPlannedSupervisors(ctx context.Context, filter domain.Planne
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.PlannedSupervisor, 0, len(rows))
+	result := make([]timetable.PlannedSupervisor, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, plannedSupervisorToDomain(row))
 	}
@@ -64,12 +65,12 @@ func (s *Store) ListPlannedSupervisors(ctx context.Context, filter domain.Planne
 	return result, stats, nil
 }
 
-func (s *Store) ListPlannedSupervisionBlockers(ctx context.Context, staffID int64) ([]domain.PlannedSupervisionBlocker, domain.OperationStats, error) {
+func (s *Store) ListPlannedSupervisionBlockers(ctx context.Context, staffID int64) ([]timetable.PlannedSupervisionBlocker, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
-	rows := []domain.PlannedSupervisionBlocker{}
+	rows := []timetable.PlannedSupervisionBlocker{}
 	query := db.NewSelect().Model(&rows).ModelTableExpr(`activities.supervisors AS "supervisor"`).
 		ColumnExpr(`"supervisor".id`).ColumnExpr(`"supervisor".group_id AS activity_id`).
 		ColumnExpr(`COALESCE("group".name, 'Unbekannte Aktivität') AS activity_name`).
@@ -82,10 +83,10 @@ func (s *Store) ListPlannedSupervisionBlockers(ctx context.Context, staffID int6
 	return rows, stats, err
 }
 
-func (s *Store) CreatePlannedSupervisor(ctx context.Context, fields domain.PlannedSupervisorFields) (domain.PlannedSupervisor, domain.OperationStats, error) {
+func (s *Store) CreatePlannedSupervisor(ctx context.Context, fields timetable.PlannedSupervisorInput) (timetable.PlannedSupervisor, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.PlannedSupervisor{}, domain.OperationStats{}, err
+		return timetable.PlannedSupervisor{}, domain.OperationStats{}, err
 	}
 	row := plannedSupervisorRow{TenantID: tenantID}
 	applyPlannedSupervisorFields(&row, fields)
@@ -94,16 +95,16 @@ func (s *Store) CreatePlannedSupervisor(ctx context.Context, fields domain.Plann
 	err = db.NewInsert().Model(&row).ModelTableExpr(`activities.supervisors`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.PlannedSupervisor{}, stats, classifyWriteError("create planned supervisor", err, &stats)
+		return timetable.PlannedSupervisor{}, stats, classifyWriteError("create planned supervisor", err, &stats)
 	}
 	stats.Rows = 1
 	return plannedSupervisorToDomain(row), stats, nil
 }
 
-func (s *Store) UpdatePlannedSupervisor(ctx context.Context, id int64, fields domain.PlannedSupervisorFields) (domain.PlannedSupervisor, bool, domain.OperationStats, error) {
+func (s *Store) UpdatePlannedSupervisor(ctx context.Context, id int64, fields timetable.PlannedSupervisorInput) (timetable.PlannedSupervisor, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.PlannedSupervisor{}, false, domain.OperationStats{}, err
+		return timetable.PlannedSupervisor{}, false, domain.OperationStats{}, err
 	}
 	row := plannedSupervisorRow{ID: id, TenantID: tenantID}
 	applyPlannedSupervisorFields(&row, fields)
@@ -114,10 +115,10 @@ func (s *Store) UpdatePlannedSupervisor(ctx context.Context, id int64, fields do
 		Where("id = ?", id).Where("tenant_id = ?", tenantID).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.PlannedSupervisor{}, false, stats, nil
+		return timetable.PlannedSupervisor{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.PlannedSupervisor{}, false, stats, classifyWriteError("update planned supervisor", err, &stats)
+		return timetable.PlannedSupervisor{}, false, stats, classifyWriteError("update planned supervisor", err, &stats)
 	}
 	stats.Rows = 1
 	return plannedSupervisorToDomain(row), true, stats, nil
@@ -269,14 +270,14 @@ func plannedSupervisorSelect(db bun.IDB, model any, tenantID int64) *bun.SelectQ
 		ColumnExpr(`"supervisor".*`).Where(`"supervisor".tenant_id = ?`, tenantID)
 }
 
-func applyPlannedSupervisorFields(row *plannedSupervisorRow, fields domain.PlannedSupervisorFields) {
+func applyPlannedSupervisorFields(row *plannedSupervisorRow, fields timetable.PlannedSupervisorInput) {
 	row.StaffID, row.GroupID, row.IsPrimary = fields.StaffID, fields.GroupID, fields.IsPrimary
 	row.ValidFrom, row.ValidUntil = calendar.Date(fields.ValidFrom), (*calendar.Date)(fields.ValidUntil)
 	row.CalendarPeriodID, row.Weekday = fields.CalendarPeriodID, fields.Weekday
 }
 
-func plannedSupervisorToDomain(row plannedSupervisorRow) domain.PlannedSupervisor {
-	return domain.PlannedSupervisor{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+func plannedSupervisorToDomain(row plannedSupervisorRow) timetable.PlannedSupervisor {
+	return timetable.PlannedSupervisor{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		StaffID: row.StaffID, GroupID: row.GroupID, IsPrimary: row.IsPrimary, ValidFrom: string(row.ValidFrom),
 		ValidUntil: (*string)(row.ValidUntil), CalendarPeriodID: row.CalendarPeriodID, Weekday: row.Weekday}
 }

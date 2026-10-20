@@ -1,12 +1,21 @@
-// Package timetable is the public Timetable & Activities capability. It owns
-// activity categories, templates, target groups, schedules, rosters, and
-// materialized activity instances.
-package timetable
+package application
 
 import (
+	"regexp"
 	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
+
+const (
+	categoryNameMaxLength        = 60
+	categoryDescriptionMaxLength = 255
+)
+
+var categoryColorPattern = regexp.MustCompile(`^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$`)
+
+var pickupClockPattern = regexp.MustCompile(`^([01][0-9]|2[0-3]):[0-5][0-9]$`)
 
 func invalidActivityInstanceWeekdays(weekdays []int) bool {
 	for _, weekday := range weekdays {
@@ -17,12 +26,12 @@ func invalidActivityInstanceWeekdays(weekdays []int) bool {
 	return false
 }
 
-func validInstanceStaff(input InstanceStaffInput) bool {
+func validInstanceStaff(input timetable.InstanceStaffInput) bool {
 	return input.InstanceID > 0 && input.StaffID > 0 &&
 		(input.RoomID == nil || *input.RoomID > 0) && (input.SickAbsenceID == nil || *input.SickAbsenceID > 0)
 }
 
-func validInstanceStaffFilter(filter InstanceStaffFilter) bool {
+func validInstanceStaffFilter(filter timetable.InstanceStaffFilter) bool {
 	orders := 0
 	for _, ordered := range []bool{filter.OrderByCreated, filter.OrderByInstanceAndCreated, filter.OrderByActivityTime, filter.OrderByActivityDateTime} {
 		if ordered {
@@ -52,24 +61,20 @@ func normalizeCategory(name, description, color *string) error {
 	*description = strings.TrimSpace(*description)
 	*color = strings.TrimSpace(*color)
 	if *name == "" || len([]rune(*name)) > categoryNameMaxLength || len([]rune(*description)) > categoryDescriptionMaxLength {
-		return ErrInvalidCategory
+		return timetable.ErrInvalidCategory
 	}
 	if *color != "" && !strings.HasPrefix(*color, "#") {
 		*color = "#" + *color
 	}
 	if *color != "" && !categoryColorPattern.MatchString(*color) {
-		return ErrInvalidCategory
+		return timetable.ErrInvalidCategory
 	}
 	return nil
 }
 
 func reservedCategoryName(name string) bool {
-	return strings.EqualFold(name, WCCategoryName) || strings.EqualFold(name, SchulhofCategoryName) ||
-		strings.EqualFold(name, OpenRoomCategoryName)
-}
-
-func IsSystemActivityName(name string) bool {
-	return name == SchulhofActivityName || name == WCActivityName || name == OpenRoomActivityName
+	return strings.EqualFold(name, timetable.WCCategoryName) || strings.EqualFold(name, timetable.SchulhofCategoryName) ||
+		strings.EqualFold(name, timetable.OpenRoomCategoryName)
 }
 
 func hasInvalidID(ids []int64) bool {
@@ -81,32 +86,29 @@ func hasInvalidID(ids []int64) bool {
 	return false
 }
 
-func validDate(value string) bool {
-	_, err := time.Parse(time.DateOnly, value)
-	return err == nil
+func validWeekday(value int) bool {
+	return value >= timetable.WeekdayMonday && value <= timetable.WeekdaySunday
 }
 
-func validWeekday(value int) bool { return value >= WeekdayMonday && value <= WeekdaySunday }
-
-func normalizeSchedule(input *ScheduleInput) bool {
+func normalizeSchedule(input *timetable.ScheduleInput) bool {
 	if input.ActivityGroupID <= 0 || !validWeekday(input.Weekday) {
 		return false
 	}
-	return (input.ValidFrom == nil || validDate(*input.ValidFrom)) &&
-		(input.ValidUntil == nil || validDate(*input.ValidUntil))
+	return (input.ValidFrom == nil || timetable.ValidDate(*input.ValidFrom)) &&
+		(input.ValidUntil == nil || timetable.ValidDate(*input.ValidUntil))
 }
 
-func normalizePlannedSupervisor(input *PlannedSupervisorInput) bool {
+func normalizePlannedSupervisor(input *timetable.PlannedSupervisorInput) bool {
 	if input.StaffID <= 0 || input.GroupID <= 0 || (input.Weekday != nil && !validWeekday(*input.Weekday)) {
 		return false
 	}
-	return (input.ValidFrom == "" || validDate(input.ValidFrom)) &&
-		(input.ValidUntil == nil || validDate(*input.ValidUntil))
+	return (input.ValidFrom == "" || timetable.ValidDate(input.ValidFrom)) &&
+		(input.ValidUntil == nil || timetable.ValidDate(*input.ValidUntil))
 }
 
-func validStudentEnrollment(input StudentEnrollmentInput) bool {
-	if input.StudentID <= 0 || input.ActivityGroupID <= 0 || !validDate(input.ValidFrom) ||
-		(input.ValidUntil != nil && !validDate(*input.ValidUntil)) ||
+func validStudentEnrollment(input timetable.StudentEnrollmentInput) bool {
+	if input.StudentID <= 0 || input.ActivityGroupID <= 0 || !timetable.ValidDate(input.ValidFrom) ||
+		(input.ValidUntil != nil && !timetable.ValidDate(*input.ValidUntil)) ||
 		(input.CalendarPeriodID != nil && *input.CalendarPeriodID <= 0) ||
 		(input.EnrollmentRequestChildID != nil && *input.EnrollmentRequestChildID <= 0) ||
 		(input.Weekday != nil && !validWeekday(*input.Weekday)) {
@@ -135,10 +137,10 @@ func validSelectedWeekdays(weekdays []int) bool {
 }
 
 func validAttendanceStatus(value string) bool {
-	return value == AttendancePresent || value == AttendanceAbsent || value == AttendanceExcused || value == AttendanceUnknown
+	return value == timetable.AttendancePresent || value == timetable.AttendanceAbsent || value == timetable.AttendanceExcused || value == timetable.AttendanceUnknown
 }
 
-func validTimeframe(input TimeframeInput) bool {
+func validTimeframe(input timetable.TimeframeInput) bool {
 	start, err := time.Parse("15:04:05", input.StartTime)
 	if err != nil {
 		return false
@@ -155,7 +157,7 @@ func validClock(value string) bool {
 	return err == nil
 }
 
-func validActivityExceptionFilter(filter ActivityExceptionFilter) bool {
+func validActivityExceptionFilter(filter timetable.ActivityExceptionFilter) bool {
 	return filter.Limit >= 0 && filter.Offset >= 0 &&
 		(filter.ActivityGroupID == nil || *filter.ActivityGroupID > 0) &&
 		validOptionalDate(filter.ExceptionDate) && validOptionalDate(filter.FromDate) &&
@@ -163,25 +165,25 @@ func validActivityExceptionFilter(filter ActivityExceptionFilter) bool {
 }
 
 func validOptionalDate(value *string) bool {
-	return value == nil || validDate(*value)
+	return value == nil || timetable.ValidDate(*value)
 }
 
-func validActivityException(input ActivityExceptionInput) bool {
-	if input.ActivityGroupID <= 0 || !validDate(input.ExceptionDate) ||
-		(input.Reason != nil && len(*input.Reason) > ActivityExceptionReasonMaxLength) {
+func validActivityException(input timetable.ActivityExceptionInput) bool {
+	if input.ActivityGroupID <= 0 || !timetable.ValidDate(input.ExceptionDate) ||
+		(input.Reason != nil && len(*input.Reason) > timetable.ActivityExceptionReasonMaxLength) {
 		return false
 	}
 	switch input.ExceptionType {
-	case ActivityExceptionCancelled:
+	case timetable.ActivityExceptionCancelled:
 		return input.StartTime == nil && input.EndTime == nil && input.RoomID == nil
-	case ActivityExceptionModified:
+	case timetable.ActivityExceptionModified:
 		return validActivityExceptionOverride(input)
 	default:
 		return false
 	}
 }
 
-func validActivityExceptionOverride(input ActivityExceptionInput) bool {
+func validActivityExceptionOverride(input timetable.ActivityExceptionInput) bool {
 	if input.StartTime == nil && input.EndTime == nil && input.RoomID == nil {
 		return false
 	}
@@ -199,7 +201,7 @@ func validActivityExceptionOverride(input ActivityExceptionInput) bool {
 	return end.After(start)
 }
 
-func validActivityInstanceFilter(filter ActivityInstanceFilter) bool {
+func validActivityInstanceFilter(filter timetable.ActivityInstanceFilter) bool {
 	if filter.Limit < 0 || filter.Offset < 0 || hasInvalidID(filter.IDs) ||
 		hasInvalidID(filter.ActivityGroupIDs) ||
 		(filter.ActivityGroupID != nil && *filter.ActivityGroupID <= 0) ||
@@ -207,19 +209,19 @@ func validActivityInstanceFilter(filter ActivityInstanceFilter) bool {
 		return false
 	}
 	for _, date := range filter.Dates {
-		if !validDate(date) {
+		if !timetable.ValidDate(date) {
 			return false
 		}
 	}
 	return filter.Status == "" || validActivityInstanceStatus(filter.Status)
 }
 
-func normalizeActivityInstance(input ActivityInstanceInput) (ActivityInstanceInput, bool) {
+func normalizeActivityInstance(input timetable.ActivityInstanceInput) (timetable.ActivityInstanceInput, bool) {
 	if input.ListKind != nil && *input.ListKind == "" {
 		input.ListKind = nil
 	}
-	if input.Title == "" || len(input.Title) > ActivityInstanceTitleMaxLength ||
-		!validDate(input.Date) || !validClock(input.StartTime) || !validClock(input.EndTime) ||
+	if input.Title == "" || len(input.Title) > timetable.ActivityInstanceTitleMaxLength ||
+		!timetable.ValidDate(input.Date) || !validClock(input.StartTime) || !validClock(input.EndTime) ||
 		input.RoomID < 0 || !validActivityInstanceStatus(input.Status) ||
 		(input.RequiredStaff != nil && *input.RequiredStaff < 0) || !normalizeListKind(&input.ListKind) {
 		return input, false
@@ -230,7 +232,7 @@ func normalizeActivityInstance(input ActivityInstanceInput) (ActivityInstanceInp
 		return input, false
 	}
 	if input.IdempotencyKey != nil {
-		if strings.TrimSpace(*input.IdempotencyKey) == "" || len(*input.IdempotencyKey) > ActivityInstanceIdempotencyKeyMaxLength {
+		if strings.TrimSpace(*input.IdempotencyKey) == "" || len(*input.IdempotencyKey) > timetable.ActivityInstanceIdempotencyKeyMaxLength {
 			return input, false
 		}
 	}
@@ -248,13 +250,13 @@ func hasDuplicateString(values []string) bool {
 	return false
 }
 
-func normalizePlanningTrack(input PlanningTrackInput) (PlanningTrackInput, bool) {
+func normalizePlanningTrack(input timetable.PlanningTrackInput) (timetable.PlanningTrackInput, bool) {
 	input.Name = strings.TrimSpace(input.Name)
-	valid := input.Name != "" && len(input.Name) <= 100 && planningTrackColorPattern.MatchString(input.Color) && input.SortOrder >= 0
+	valid := input.Name != "" && len(input.Name) <= 100 && timetable.ValidPlanningTrackColor(input.Color) && input.SortOrder >= 0
 	return input, valid
 }
 
-func normalizeRecurrenceRule(input RecurrenceRuleInput) (RecurrenceRuleInput, bool) {
+func normalizeRecurrenceRule(input timetable.RecurrenceRuleInput) (timetable.RecurrenceRuleInput, bool) {
 	input.Frequency = strings.ToLower(input.Frequency)
 	if !validRecurrenceFrequency(input.Frequency) || input.IntervalCount < 1 {
 		return input, false
@@ -297,44 +299,44 @@ func hasDuplicateID(ids []int64) bool {
 	return false
 }
 
-func invalidCareExitRemovals(removals []CareExitEnrollmentRemoval) bool {
+func invalidCareExitRemovals(removals []timetable.CareExitEnrollmentRemoval) bool {
 	for _, removal := range removals {
 		if removal.ID <= 0 || removal.TenantID <= 0 || removal.StudentID <= 0 {
 			return true
 		}
-		if removal.WasDeleted && (removal.ActivityGroupID <= 0 || !validDate(removal.ValidFrom)) {
+		if removal.WasDeleted && (removal.ActivityGroupID <= 0 || !timetable.ValidDate(removal.ValidFrom)) {
 			return true
 		}
-		if (removal.ValidUntil != nil && !validDate(*removal.ValidUntil)) ||
-			(removal.PreviousValidUntil != nil && !validDate(*removal.PreviousValidUntil)) {
+		if (removal.ValidUntil != nil && !timetable.ValidDate(*removal.ValidUntil)) ||
+			(removal.PreviousValidUntil != nil && !timetable.ValidDate(*removal.PreviousValidUntil)) {
 			return true
 		}
 	}
 	return false
 }
 
-func normalizeGroup(input *GroupInput) error {
+func normalizeGroup(input *timetable.GroupInput) error {
 	if input.Name == "" || input.MaxParticipants < 0 || input.CategoryID <= 0 ||
 		(input.RequiredStaff != nil && *input.RequiredStaff < 0) {
-		return ErrInvalidGroup
+		return timetable.ErrInvalidGroup
 	}
 	if input.Type == "" {
-		input.Type = GroupTypeActivity
+		input.Type = timetable.GroupTypeActivity
 	}
-	if !IsValidGroupType(input.Type) || !normalizeListKind(&input.ListKind) {
-		return ErrInvalidGroup
+	if !timetable.IsValidGroupType(input.Type) || !normalizeListKind(&input.ListKind) {
+		return timetable.ErrInvalidGroup
 	}
 	if input.TargetGroupType == "" {
-		input.TargetGroupType = TargetGroupTypeNone
+		input.TargetGroupType = timetable.TargetGroupTypeNone
 	}
 	if !validGroupTarget(input) || !normalizeOfferingSource(input) || !validDutyGroup(input) {
-		return ErrInvalidGroup
+		return timetable.ErrInvalidGroup
 	}
 	return nil
 }
 
-func normalizeTemplateUpdate(input *TemplateUpdate) bool {
-	group := GroupInput{
+func normalizeTemplateUpdate(input *timetable.TemplateUpdate) bool {
+	group := timetable.GroupInput{
 		Name: input.Name, Type: input.Type, CategoryID: input.CategoryID,
 		EducationGroupID: input.EducationGroupID, MaxParticipants: input.MaxParticipants,
 		RequiredStaff: input.RequiredStaff, ListKind: input.ListKind, IsTemplate: true,
@@ -362,34 +364,34 @@ func normalizeListKind(value **string) bool {
 		return true
 	}
 	switch **value {
-	case ListKindEdgeHours, ListKindLearningTime, ListKindActivity, ListKindMensa:
+	case timetable.ListKindEdgeHours, timetable.ListKindLearningTime, timetable.ListKindActivity, timetable.ListKindMensa:
 		return true
 	default:
 		return false
 	}
 }
 
-func validGroupTarget(input *GroupInput) bool {
+func validGroupTarget(input *timetable.GroupInput) bool {
 	switch input.TargetGroupType {
-	case TargetGroupTypeGrade:
+	case timetable.TargetGroupTypeGrade:
 		return input.TargetGradeLevel != nil && *input.TargetGradeLevel >= 1 && *input.TargetGradeLevel <= 13 && input.TargetSchoolClass == nil
-	case TargetGroupTypeSchoolClass:
+	case timetable.TargetGroupTypeSchoolClass:
 		if input.TargetSchoolClass == nil || strings.TrimSpace(*input.TargetSchoolClass) == "" || input.TargetGradeLevel != nil {
 			return false
 		}
 		trimmed := strings.TrimSpace(*input.TargetSchoolClass)
 		input.TargetSchoolClass = &trimmed
 		return true
-	case TargetGroupTypeEducationGroup:
+	case timetable.TargetGroupTypeEducationGroup:
 		return input.EducationGroupID != nil && input.TargetGradeLevel == nil && input.TargetSchoolClass == nil
-	case TargetGroupTypeOffering, TargetGroupTypeNone:
+	case timetable.TargetGroupTypeOffering, timetable.TargetGroupTypeNone:
 		return input.TargetGradeLevel == nil && input.TargetSchoolClass == nil
 	default:
 		return false
 	}
 }
 
-func normalizeOfferingSource(input *GroupInput) bool {
+func normalizeOfferingSource(input *timetable.GroupInput) bool {
 	if len(input.SourceCareOfferingIDs) == 0 {
 		input.SourceCareOfferingIDs = nil
 		if len(input.SourceGradeLevels) > 0 || len(input.SourceSchoolClasses) > 0 {
@@ -398,7 +400,7 @@ func normalizeOfferingSource(input *GroupInput) bool {
 		input.SourceGradeLevels, input.SourceSchoolClasses = nil, nil
 		return true
 	}
-	if input.TargetGroupType != TargetGroupTypeOffering || hasInvalidOrDuplicateIDs(input.SourceCareOfferingIDs) ||
+	if input.TargetGroupType != timetable.TargetGroupTypeOffering || hasInvalidOrDuplicateIDs(input.SourceCareOfferingIDs) ||
 		hasInvalidOrDuplicateGrades(input.SourceGradeLevels) {
 		return false
 	}
@@ -453,16 +455,16 @@ func normalizedSourceClasses(classes []string) ([]string, bool) {
 	return result, true
 }
 
-func normalizeGroupTargets(groupID int64, targets []GroupTargetInput) ([]GroupTargetInput, error) {
+func normalizeGroupTargets(groupID int64, targets []timetable.GroupTargetInput) ([]timetable.GroupTargetInput, error) {
 	if groupID <= 0 {
-		return nil, ErrInvalidGroupTarget
+		return nil, timetable.ErrInvalidGroupTarget
 	}
-	result := make([]GroupTargetInput, len(targets))
+	result := make([]timetable.GroupTargetInput, len(targets))
 	var targetType string
 	for index, target := range targets {
 		normalized, err := normalizeGroupTarget(target)
 		if err != nil || (targetType != "" && normalized.TargetGroupType != targetType) {
-			return nil, ErrInvalidGroupTarget
+			return nil, timetable.ErrInvalidGroupTarget
 		}
 		targetType = normalized.TargetGroupType
 		result[index] = normalized
@@ -470,30 +472,32 @@ func normalizeGroupTargets(groupID int64, targets []GroupTargetInput) ([]GroupTa
 	return result, nil
 }
 
-func normalizeGroupTarget(target GroupTargetInput) (GroupTargetInput, error) {
+func normalizeGroupTarget(target timetable.GroupTargetInput) (timetable.GroupTargetInput, error) {
 	switch target.TargetGroupType {
-	case TargetGroupTypeGrade:
+	case timetable.TargetGroupTypeGrade:
 		if target.TargetGradeLevel == nil || *target.TargetGradeLevel < 1 || *target.TargetGradeLevel > 13 || target.TargetSchoolClass != nil || target.EducationGroupID != nil {
-			return GroupTargetInput{}, ErrInvalidGroupTarget
+			return timetable.GroupTargetInput{}, timetable.ErrInvalidGroupTarget
 		}
-	case TargetGroupTypeSchoolClass:
+	case timetable.TargetGroupTypeSchoolClass:
 		if target.TargetSchoolClass == nil || strings.TrimSpace(*target.TargetSchoolClass) == "" || target.TargetGradeLevel != nil || target.EducationGroupID != nil {
-			return GroupTargetInput{}, ErrInvalidGroupTarget
+			return timetable.GroupTargetInput{}, timetable.ErrInvalidGroupTarget
 		}
 		trimmed := strings.TrimSpace(*target.TargetSchoolClass)
 		target.TargetSchoolClass = &trimmed
-	case TargetGroupTypeEducationGroup:
+	case timetable.TargetGroupTypeEducationGroup:
 		if target.EducationGroupID == nil || *target.EducationGroupID <= 0 || target.TargetGradeLevel != nil || target.TargetSchoolClass != nil {
-			return GroupTargetInput{}, ErrInvalidGroupTarget
+			return timetable.GroupTargetInput{}, timetable.ErrInvalidGroupTarget
 		}
 	default:
-		return GroupTargetInput{}, ErrInvalidGroupTarget
+		return timetable.GroupTargetInput{}, timetable.ErrInvalidGroupTarget
 	}
 	return target, nil
 }
 
+// validActivityInstanceStatus accepts the planning states only: whether a
+// block runs or ended is Student Presence's session.
 func validActivityInstanceStatus(value string) bool {
-	return value == InstanceStatusPlanned || value == InstanceStatusCancelled
+	return value == timetable.InstanceStatusPlanned || value == timetable.InstanceStatusCancelled
 }
 
 // validActivityInstanceColumns names the planning columns a patch may write.
@@ -509,4 +513,48 @@ func validActivityInstanceColumns(columns []string) bool {
 		}
 	}
 	return true
+}
+
+func validInstanceStudent(input timetable.InstanceStudentInput) bool {
+	return input.InstanceID > 0 && input.StudentID > 0 && (input.RoomID == nil || *input.RoomID > 0)
+}
+
+func validInstanceStudentFilter(filter timetable.InstanceStudentFilter) bool {
+	orders := 0
+	for _, ordered := range []bool{filter.OrderByCreated, filter.OrderByInstanceStudent,
+		filter.OrderByStudentActivityTime, filter.OrderByActivityDateTime} {
+		if ordered {
+			orders++
+		}
+	}
+	return filter.Limit >= 0 && filter.Offset >= 0 && orders <= 1 &&
+		!hasInvalidID(filter.IDs) && !hasInvalidID(filter.InstanceIDs) && !hasInvalidID(filter.StudentIDs) &&
+		validOptionalDate(filter.Date) && validOptionalDate(filter.FromDate) && validOptionalDate(filter.ToDate) &&
+		(filter.CurrentTime == nil || (filter.Date != nil && validClock(*filter.CurrentTime))) &&
+		(filter.FromClock == nil || validClock(*filter.FromClock))
+}
+
+func validRosterArchiveEntries(entries []timetable.RosterArchiveEntry) bool {
+	for _, entry := range entries {
+		if entry.ParticipantID <= 0 || entry.Attendance.Status == "" {
+			return false
+		}
+	}
+	return true
+}
+
+func validPickupClock(value string) bool { return pickupClockPattern.MatchString(value) }
+
+func validRecurrenceRuleSort(value string) bool {
+	return value == "" || value == "id" || value == "frequency" || value == "interval_count" ||
+		value == "end_date" || value == "count" || value == "created_at" || value == "updated_at"
+}
+
+// validDutyGroup applies the duty rule to a group write; other types pass.
+func validDutyGroup(input *timetable.GroupInput) bool {
+	return input.Type != timetable.GroupTypeDuty || timetable.ValidateTemplateShape(timetable.TemplateShape{
+		Type: input.Type, TargetGroupType: input.TargetGroupType, EducationGroupID: input.EducationGroupID,
+		HasOfferingSource: len(input.SourceCareOfferingIDs) > 0, MaxParticipants: input.MaxParticipants,
+		ListKind: input.ListKind,
+	}) == nil
 }

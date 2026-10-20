@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
@@ -18,15 +19,15 @@ type classArrivalPlanRow struct {
 	UpdatedBy    *int64            `bun:"updated_by"`
 }
 
-func classArrivalPlanValue(row classArrivalPlanRow) domain.ClassArrivalPlan {
-	return domain.ClassArrivalPlan{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+func classArrivalPlanValue(row classArrivalPlanRow) timetable.ClassArrivalPlan {
+	return timetable.ClassArrivalPlan{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		SchoolClass: row.SchoolClass, ArrivalTimes: row.ArrivalTimes, UpdatedBy: row.UpdatedBy}
 }
 
-func (s *Store) SaveClassArrivalPlan(ctx context.Context, input domain.ClassArrivalPlan) (domain.ClassArrivalPlan, domain.OperationStats, error) {
+func (s *Store) SaveClassArrivalPlan(ctx context.Context, input timetable.ClassArrivalPlan) (timetable.ClassArrivalPlan, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.ClassArrivalPlan{}, domain.OperationStats{}, err
+		return timetable.ClassArrivalPlan{}, domain.OperationStats{}, err
 	}
 	row := classArrivalPlanRow{TenantID: tenantID, SchoolClass: input.SchoolClass, ArrivalTimes: input.ArrivalTimes, UpdatedBy: input.UpdatedBy}
 	if row.ArrivalTimes == nil {
@@ -41,7 +42,7 @@ func (s *Store) SaveClassArrivalPlan(ctx context.Context, input domain.ClassArri
 		Set("updated_by = EXCLUDED.updated_by").Set("updated_at = NOW()").Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.ClassArrivalPlan{}, stats, classifyWriteError("upsert class arrival plan", err, &stats)
+		return timetable.ClassArrivalPlan{}, stats, classifyWriteError("upsert class arrival plan", err, &stats)
 	}
 	stats.Rows = 1
 	return classArrivalPlanValue(row), stats, nil
