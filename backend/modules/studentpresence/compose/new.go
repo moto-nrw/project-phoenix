@@ -31,7 +31,7 @@ type Dependencies struct {
 	CareDays studentpresence.SessionCareDayLocker
 }
 
-func New(deps Dependencies) (*studentpresence.Module, error) {
+func New(deps Dependencies) (studentpresence.Owner, error) {
 	if deps.DB == nil || deps.Observe == nil {
 		return nil, errors.New("student presence compose: all dependencies are required")
 	}
@@ -40,8 +40,7 @@ func New(deps Dependencies) (*studentpresence.Module, error) {
 	if now == nil {
 		now = time.Now
 	}
-	service := application.New(store, transaction{}, deps.Observe, sessionAttendancePorts(deps))
-	return studentpresence.NewModule(application.NewEngine(service, now)), nil
+	return application.New(store, transaction{}, deps.Observe, sessionAttendancePorts(deps), now), nil
 }
 
 func sessionAttendancePorts(deps Dependencies) ports.AttendanceRulePorts {

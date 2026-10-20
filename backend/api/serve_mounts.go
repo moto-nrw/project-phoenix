@@ -502,7 +502,7 @@ func newDeviceAuthentication(iot devicefleetCompose.IoTService, organizations or
 
 // mountStudentRoutes serves /api/students.
 func mountStudentRoutes(
-	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, deviceAuth *deviceauth.Authenticators, presence *studentpresence.Module,
+	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, deviceAuth *deviceauth.Authenticators, presence studentpresence.Owner,
 	persons peopledirectory.Capability, services owners.PeopleServices, membership schoolMembershipModule.Owner, caller *owners.CallerRows,
 	reviewPolicy *owners.ParentRequestReviewPolicy, settings settingsCompose.SettingsService, hub *realtime.Hub, carePlan carePlanModule.Capability,
 	companions carePlanModule.StudentCompanions, schedules owners.CarePlanSchedules, requests owners.CarePlanRequests, planning TimetablePlanning,
@@ -634,7 +634,7 @@ func mountStudentRoutes(
 // move children through one open-room move over the Student Presence owner.
 func mountPresenceRoutes(
 	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, errorReportDSN string,
-	deviceAuth *deviceauth.Authenticators, presence *studentpresence.Module, active studentpresence.Presence,
+	deviceAuth *deviceauth.Authenticators, presence studentpresence.Owner, active studentpresence.Presence,
 	facilities facilitiesModule.Capability, timetableOwner timetableModule.Capability, timetableRepos timetableCompose.Repositories,
 	days owners.TimetableDays, persons peopledirectory.Capability, users peoplePorts.PersonDirectory, caller *owners.CallerRows,
 	settings settingsCompose.SettingsService, hub *realtime.Hub, emitter eventContract.Emitter,
@@ -700,7 +700,7 @@ func teacherGroupIDs(education schoolstructure.GroupManagement) func(context.Con
 // services behind its ports are compatibility bindings (#2698).
 func newIoTResource(
 	db transactionruntime.Database, logger *slog.Logger, errorReportDSN string, deviceAuth *deviceauth.Authenticators,
-	presence *studentpresence.Module, openRoomMove openroommove.Command, sessionEnd sessionend.Command,
+	presence studentpresence.Owner, openRoomMove openroommove.Command, sessionEnd sessionend.Command,
 	iot devicefleetCompose.IoTService, facilities facilitiesModule.Capability, active studentpresence.Presence,
 	users peoplePorts.PersonDirectory, activities activityContract.ActivityService, timetableOwner timetableModule.Capability,
 	timetableRepos timetableCompose.Repositories, education schoolstructure.GroupManagement, pickups carePlanModule.PickupScheduleService,
@@ -789,7 +789,7 @@ func mountStaffRoutes(
 // staff reach under /api (#2207, #2527).
 func mountSchoolPortalRoutes(
 	root, tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, limiters authRateLimiters,
-	presence *studentpresence.Module, timetableOwner timetableModule.Capability, calendar schoolcalendar.Calendar,
+	presence studentpresence.Owner, timetableOwner timetableModule.Capability, calendar schoolcalendar.Calendar,
 	materialization timetableModule.MaterializationCapability, lifecycle owners.TimetableLifecycle, planning TimetablePlanning,
 	planningTracks timetableModule.PlanningTrackAdministration, users peoplePorts.PersonDirectory, schedules owners.CarePlanSchedules,
 	caller *owners.CallerRows, settings settingsCompose.SettingsService, careOfferings carePlanModule.CareOfferingCapability,

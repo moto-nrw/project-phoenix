@@ -18,7 +18,7 @@ type FacilitiesRooms struct {
 
 // buildFacilitiesRooms builds the retained room service and the open
 // groups of the yard over Student Presence.
-func buildFacilitiesRooms(presence *studentpresence.Module, rooms facilitiesModule.Catalog, timetableOwner timetable.Capability, membership schoolmembership.Capability, persons peopledirectory.Capability) FacilitiesRooms {
+func buildFacilitiesRooms(presence studentpresence.Owner, rooms facilitiesModule.Catalog, timetableOwner timetable.Capability, membership schoolmembership.Capability, persons peopledirectory.Capability) FacilitiesRooms {
 	return FacilitiesRooms{
 		RoomService: facilitiesCompose.NewRoomService(facilitiesCompose.RoomServiceConfig{
 			Rooms:     rooms,

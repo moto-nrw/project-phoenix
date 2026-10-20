@@ -61,7 +61,7 @@ func (w *recordingWaker) BroadcastChildUpdateToGuardians(tenantID, studentID int
 }
 
 type stack struct {
-	presence   *studentpresence.Module
+	presence   studentpresence.Owner
 	timetable  timetable.Capability
 	completion *recordingCompletion
 	bc         *testpkg.RecordingBroadcaster

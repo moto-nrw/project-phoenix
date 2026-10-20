@@ -24,7 +24,7 @@ type ActiveTestRepositories struct {
 	SessionStartLock interface {
 		LockSessionStart(context.Context, int64) error
 	}
-	GroupMapping *studentpresence.Module
+	GroupMapping studentpresence.Owner
 	CrossTenant  owners.CrossTenantQuery
 }
 
