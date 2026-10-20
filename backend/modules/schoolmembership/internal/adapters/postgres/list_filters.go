@@ -1,7 +1,7 @@
 package postgres
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/uptrace/bun"
 )
 
@@ -18,7 +18,7 @@ func matchesNothing(ids ...[]int64) bool {
 }
 
 // teacherListQuery applies a teacher filter; false means it matches nothing.
-func teacherListQuery(query *bun.SelectQuery, filter domain.TeacherFilter) (*bun.SelectQuery, bool) {
+func teacherListQuery(query *bun.SelectQuery, filter schoolmembership.TeacherFilter) (*bun.SelectQuery, bool) {
 	if !filter.IncludeDeleted {
 		query = query.Where(`"teacher".deleted_at IS NULL`)
 	}
@@ -51,7 +51,7 @@ func teacherListQuery(query *bun.SelectQuery, filter domain.TeacherFilter) (*bun
 }
 
 // guestListQuery applies a guest filter; false means it matches nothing.
-func guestListQuery(query *bun.SelectQuery, filter domain.GuestFilter) (*bun.SelectQuery, bool, error) {
+func guestListQuery(query *bun.SelectQuery, filter schoolmembership.GuestFilter) (*bun.SelectQuery, bool, error) {
 	if matchesNothing(filter.IDs, filter.StaffIDs) {
 		return query, false, nil
 	}
@@ -87,7 +87,7 @@ func guestListQuery(query *bun.SelectQuery, filter domain.GuestFilter) (*bun.Sel
 
 // groupAssignmentListQuery applies a group assignment filter; false means it
 // matches nothing.
-func groupAssignmentListQuery(query *bun.SelectQuery, filter domain.GroupAssignmentFilter) (*bun.SelectQuery, bool) {
+func groupAssignmentListQuery(query *bun.SelectQuery, filter schoolmembership.GroupAssignmentFilter, forUpdate bool) (*bun.SelectQuery, bool) {
 	if matchesNothing(filter.IDs, filter.GroupIDs, filter.TeacherIDs, filter.TeacherStaffIDs) {
 		return query, false
 	}
@@ -106,7 +106,7 @@ func groupAssignmentListQuery(query *bun.SelectQuery, filter domain.GroupAssignm
 			Where(`"teacher".staff_id IN (?)`, bun.List(filter.TeacherStaffIDs))
 	}
 	query = query.OrderExpr(`"group_assignment".id ASC`)
-	if filter.ForUpdate {
+	if forUpdate {
 		query = query.For("UPDATE OF group_assignment")
 	}
 	return query, true

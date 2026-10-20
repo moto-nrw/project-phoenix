@@ -93,7 +93,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 		organizations    organizationtenancy.Capability
 		groups           schoolstructure.Owner
 		rooms            facilitiesModule.Catalog
-		membership       *schoolMembershipModule.Module
+		membership       schoolMembershipModule.Owner
 		bookings         *enrollmentOwner.BookingProjection
 		calendar         schoolcalendar.Days
 		workTime         *workforceCompose.WorkTime

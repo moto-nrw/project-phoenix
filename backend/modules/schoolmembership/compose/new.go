@@ -41,17 +41,17 @@ type ChildQuota interface {
 	ChildQuotaLimit(ctx context.Context) (limit int, limited bool, err error)
 }
 
-// New composes the School Membership module. Every operation runs on the
-// caller's ambient tenant transaction when one exists and otherwise opens
-// one for the tenant in context, so row-level security decides visibility
-// exactly as it did for the legacy repositories.
-func New(dependencies Dependencies) (*schoolmembership.Module, error) {
+// New composes the School Membership service, which is the whole Owner
+// surface. Every operation runs on the caller's ambient tenant transaction
+// when one exists and otherwise opens one for the tenant in context, so
+// row-level security decides visibility exactly as it did for the legacy
+// repositories.
+func New(dependencies Dependencies) (schoolmembership.Owner, error) {
 	service, err := newApplication(dependencies)
 	if err != nil {
 		return nil, err
 	}
-	moduleEngine := application.NewEngine(service)
-	return schoolmembership.NewModule(moduleEngine, moduleEngine), nil
+	return service, nil
 }
 
 func newApplication(dependencies Dependencies) (*application.Service, error) {
@@ -64,7 +64,7 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 	var classList *application.ClassListAdministration
 	switch {
 	case dependencies.ClassListStudents != nil && dependencies.ClassListTrail != nil:
-		classList = application.NewClassListAdministration(dependencies.ClassListStudents, dependencies.ClassListTrail)
+		classList = &application.ClassListAdministration{Students: dependencies.ClassListStudents, Trail: dependencies.ClassListTrail}
 	case dependencies.ClassListStudents != nil || dependencies.ClassListTrail != nil:
 		return nil, errors.New("school membership compose: the class list entries need a student directory and an audit trail")
 	}
@@ -73,6 +73,6 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 	if dependencies.ChildQuota != nil {
 		quota = dependencies.ChildQuota
 	}
-	service := application.New(store, application.NewStaffEmployment(dependencies.Employment), quota, postgres.BerlinToday, application.TenantTransaction{}, application.NewObserver(dependencies.Observe), classList)
+	service := application.New(store, application.NewStaffEmployment(dependencies.Employment), quota, postgres.BerlinToday, application.TenantTransaction{}, dependencies.Observe, classList)
 	return service, nil
 }

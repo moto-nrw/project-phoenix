@@ -55,7 +55,7 @@ func newTimetable(db transactionruntime.Database, students peopleModule.StudentQ
 // ComposeSchoolMembership composes the observed School Membership owner. A
 // staff member is School Membership's membership row plus Workforce's
 // employment profile (#2753); the membership owner composes the two.
-func ComposeSchoolMembership(db transactionruntime.Database) (*schoolMembershipModule.Module, error) {
+func ComposeSchoolMembership(db transactionruntime.Database) (schoolMembershipModule.Owner, error) {
 	dependencies, err := SchoolMembershipDependencies(db)
 	if err != nil {
 		return nil, err

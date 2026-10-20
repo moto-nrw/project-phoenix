@@ -31,7 +31,7 @@ type fixture struct {
 	staffID    int64
 	personID   int64
 	shiftID    int64
-	membership *schoolmembership.Module
+	membership schoolmembership.Owner
 	workforce  *workforce.Module
 	people     *peopledirectory.Module
 }

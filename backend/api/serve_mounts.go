@@ -503,7 +503,7 @@ func newDeviceAuthentication(iot devicefleetCompose.IoTService, organizations or
 // mountStudentRoutes serves /api/students.
 func mountStudentRoutes(
 	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, deviceAuth *deviceauth.Authenticators, presence *studentpresence.Module,
-	persons peopledirectory.Capability, services owners.PeopleServices, membership *schoolMembershipModule.Module, caller *owners.CallerRows,
+	persons peopledirectory.Capability, services owners.PeopleServices, membership schoolMembershipModule.Owner, caller *owners.CallerRows,
 	reviewPolicy *owners.ParentRequestReviewPolicy, settings settingsCompose.SettingsService, hub *realtime.Hub, carePlan carePlanModule.Capability,
 	companions carePlanModule.StudentCompanions, schedules owners.CarePlanSchedules, requests owners.CarePlanRequests, planning TimetablePlanning,
 	emitter eventContract.Emitter, activities activityContract.ActivityService, lifecycle owners.TimetableLifecycle,

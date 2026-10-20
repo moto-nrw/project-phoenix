@@ -117,7 +117,7 @@
     "module": "school-membership",
     "contract_package": "modules/schoolmembership",
     "test_file": "modules/schoolmembership/schoolmembership_test.go",
-    "test": "TestStaffWritesNormalizeThePersonnelNumber"
+    "test": "TestErrorCodeIsStable"
   },
   {
     "module": "school-structure",
