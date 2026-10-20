@@ -29,8 +29,6 @@ type InvalidGroupSubstitutionError struct{ Reason string }
 func (e *InvalidGroupSubstitutionError) Error() string { return e.Reason }
 func (e *InvalidGroupSubstitutionError) Unwrap() error { return ErrInvalidGroupSubstitution }
 
-func invalidSubstitution(reason string) error { return &InvalidGroupSubstitutionError{Reason: reason} }
-
 // GroupSubstitution is a temporary assignment of a substitute staff member to
 // an education group. Dates are calendar days in DateLayout, inclusive.
 type GroupSubstitution struct {
@@ -91,58 +89,6 @@ type SubstitutionCommand interface {
 	// group substitution rows for the caller's transaction, so a caregiver
 	// capability re-check cannot race a concurrent substitution write.
 	LockGroupSubstitutions(context.Context) error
-}
-
-type substitutionEngine interface {
-	SubstitutionQuery
-	SubstitutionCommand
-}
-
-func (m *Module) FindGroupSubstitution(ctx context.Context, id int64) (GroupSubstitution, error) {
-	if id <= 0 {
-		return GroupSubstitution{}, invalidSubstitution("group substitution ID is required")
-	}
-	return m.engine.FindGroupSubstitution(ctx, id)
-}
-
-func (m *Module) LockGroupSubstitution(ctx context.Context, id int64) (GroupSubstitution, error) {
-	if id <= 0 {
-		return GroupSubstitution{}, invalidSubstitution("group substitution ID is required")
-	}
-	return m.engine.LockGroupSubstitution(ctx, id)
-}
-
-func (m *Module) ListGroupSubstitutions(ctx context.Context, filter GroupSubstitutionFilter) ([]GroupSubstitution, error) {
-	return m.engine.ListGroupSubstitutions(ctx, filter)
-}
-
-func (m *Module) CreateGroupSubstitution(ctx context.Context, value GroupSubstitution) (GroupSubstitution, error) {
-	return m.engine.CreateGroupSubstitution(ctx, value)
-}
-
-func (m *Module) UpdateGroupSubstitution(ctx context.Context, value GroupSubstitution) (GroupSubstitution, error) {
-	if value.ID <= 0 {
-		return GroupSubstitution{}, invalidSubstitution("group substitution ID is required")
-	}
-	return m.engine.UpdateGroupSubstitution(ctx, value)
-}
-
-func (m *Module) DeleteGroupSubstitution(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return invalidSubstitution("group substitution ID is required")
-	}
-	return m.engine.DeleteGroupSubstitution(ctx, id)
-}
-
-func (m *Module) DeleteGroupSubstitutionsForStaff(ctx context.Context, staffID int64, from string) (int64, error) {
-	if staffID <= 0 {
-		return 0, invalidSubstitution("staff ID is required")
-	}
-	return m.engine.DeleteGroupSubstitutionsForStaff(ctx, staffID, from)
-}
-
-func (m *Module) LockGroupSubstitutions(ctx context.Context) error {
-	return m.engine.LockGroupSubstitutions(ctx)
 }
 
 // --- substitution operations contract ---

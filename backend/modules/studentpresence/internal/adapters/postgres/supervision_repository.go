@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // SupervisionRepository reads and writes the supervision of room sessions
@@ -42,8 +44,8 @@ func (r *SupervisionRepository) FindActiveByStaffIDForUpdate(ctx context.Context
 }
 
 // ListActiveSupervisedRooms returns distinct staff/room pairs in open sessions.
-func (r *SupervisionRepository) ListActiveSupervisedRooms(ctx context.Context) ([]ports.StaffRoomSupervision, error) {
-	return r.records.SupervisedRoomsOn(ctx, r.today())
+func (r *SupervisionRepository) ListActiveSupervisedRooms(ctx context.Context) ([]studentpresence.StaffRoomSupervision, error) {
+	return r.records.SupervisedRoomsOn(ctx, r.today().String())
 }
 
 // FindStaleOpen returns supervisor rows started before the given day that
@@ -110,16 +112,16 @@ func (r *SupervisionRepository) attachStaff(ctx context.Context, rows []*ports.G
 }
 
 func (r *SupervisionRepository) querySupervisions(ctx context.Context, filter ports.GroupSupervisionFilter) ([]*ports.GroupSupervisor, error) {
-	rows, err := r.records.QueryGroupSupervisions(ctx, filter)
+	rows, err := r.records.QueryGroupSupervisions(ctx, publicSupervisionFilter(filter))
 	if err != nil {
 		return nil, err
 	}
-	return groupSupervisors(rows), nil
+	return groupSupervisors(rows)
 }
 
 // EndSupervision marks a supervision as ended at the current date
 func (r *SupervisionRepository) EndSupervision(ctx context.Context, id int64) error {
-	_, err := r.records.EndSupervisionOn(ctx, id, r.today())
+	_, err := r.records.EndSupervisionOn(ctx, id, r.today().String())
 	return err
 }
 
@@ -146,7 +148,7 @@ func (r *SupervisionRepository) Update(ctx context.Context, row *ports.GroupSupe
 		return err
 	}
 	result, err := r.records.ReviseSupervision(ctx, groupSupervision(row))
-	if errors.Is(err, ports.ErrSupervisionNotFound) {
+	if errors.Is(err, studentpresence.ErrSupervisionNotFound) {
 		return r.errors.MissingRecordError("update")
 	}
 	if err != nil {
@@ -175,60 +177,97 @@ func (r *SupervisionRepository) FindByID(ctx context.Context, id int64) (*ports.
 // Sets end_date to today for every supervision active today and returns the
 // number of supervisions that were ended.
 func (r *SupervisionRepository) EndAllActiveByStaffID(ctx context.Context, staffID int64) (int, error) {
-	return r.records.EndStaffSupervisionsOn(ctx, staffID, r.today())
+	return r.records.EndStaffSupervisionsOn(ctx, staffID, r.today().String())
 }
 
 // EndByActiveGroupAndStaffID ends active supervisions matching both the
 // active_group_id and staff_id. Idempotent — zero matches is not an error.
 // Tenant-scoped.
 func (r *SupervisionRepository) EndByActiveGroupAndStaffID(ctx context.Context, activeGroupID, staffID int64) (int, error) {
-	return r.records.EndOpenGroupSupervisions(ctx, activeGroupID, staffID, r.today())
+	return r.records.EndOpenGroupSupervisions(ctx, activeGroupID, staffID, r.today().String())
 }
 
 func (r *SupervisionRepository) SetEndDate(ctx context.Context, row *ports.GroupSupervisor) (int64, error) {
 	if row == nil || row.EndDate == nil {
 		return 0, fmt.Errorf("supervision end date is required")
 	}
-	return r.records.SetSupervisionEnd(ctx, row.ID, *row.EndDate, row.UpdatedAt)
+	return r.records.SetSupervisionEnd(ctx, row.ID, row.EndDate.String(), row.UpdatedAt)
 }
 
 // GetStaffIDsWithSupervisionToday returns staff IDs who had any supervision
 // activity today: supervision that started today, ended today or spans today.
 // This determines the "Anwesend" status of staff present via PyrePortal.
 func (r *SupervisionRepository) GetStaffIDsWithSupervisionToday(ctx context.Context) ([]int64, error) {
-	return r.records.StaffIDsWithSupervisionOn(ctx, r.today())
+	return r.records.StaffIDsWithSupervisionOn(ctx, r.today().String())
 }
 
 // ListActiveSupervisionBlockers projects tenant-owned supervision rows for
 // caregiver checks, latest start first.
 func (r *SupervisionRepository) ListActiveSupervisionBlockers(ctx context.Context, staffID int64) ([]ports.SupervisionBlocker, error) {
-	day := r.today()
-	rows, err := r.records.QueryGroupSupervisions(ctx, ports.GroupSupervisionFilter{StaffID: &staffID, ActiveOn: &day})
+	day := r.today().String()
+	rows, err := r.records.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &staffID, ActiveOn: &day})
 	if err != nil {
 		return nil, err
 	}
 	result := make([]ports.SupervisionBlocker, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, ports.SupervisionBlocker{ID: row.ID, GroupID: row.GroupID, StartDate: row.StartDate.String()})
+		result = append(result, ports.SupervisionBlocker{ID: row.ID, GroupID: row.GroupID, StartDate: row.StartDate})
 	}
 	sort.SliceStable(result, func(i, j int) bool { return result[i].StartDate > result[j].StartDate })
 	return result, nil
 }
 
-func groupSupervisors(rows []ports.GroupSupervision) []*ports.GroupSupervisor {
+// The repository rows keep their calendar dates typed; the owner's records
+// carry them as YYYY-MM-DD.
+func groupSupervisors(rows []studentpresence.GroupSupervision) ([]*ports.GroupSupervisor, error) {
 	result := make([]*ports.GroupSupervisor, 0, len(rows))
 	for _, row := range rows {
+		start, err := calendar.ParseDate(row.StartDate)
+		if err != nil {
+			return nil, err
+		}
+		end, err := optionalDate(row.EndDate)
+		if err != nil {
+			return nil, err
+		}
 		result = append(result, &ports.GroupSupervisor{
 			ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-			GroupID: row.GroupID, StaffID: row.StaffID, Role: row.Role, StartDate: row.StartDate, EndDate: row.EndDate,
+			GroupID: row.GroupID, StaffID: row.StaffID, Role: row.Role, StartDate: start, EndDate: end,
 		})
 	}
-	return result
+	return result, nil
 }
 
-func groupSupervision(row *ports.GroupSupervisor) ports.GroupSupervision {
-	return ports.GroupSupervision{
+func groupSupervision(row *ports.GroupSupervisor) studentpresence.GroupSupervision {
+	return studentpresence.GroupSupervision{
 		ID: row.ID, StaffID: row.StaffID, GroupID: row.GroupID, Role: row.Role,
-		StartDate: row.StartDate, EndDate: row.EndDate, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		StartDate: row.StartDate.String(), EndDate: dateString(row.EndDate), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
+}
+
+func publicSupervisionFilter(filter ports.GroupSupervisionFilter) studentpresence.GroupSupervisionFilter {
+	return studentpresence.GroupSupervisionFilter{
+		IDs: filter.IDs, GroupIDs: filter.GroupIDs, StaffIDs: filter.StaffIDs, StaffID: filter.StaffID,
+		EndedBy: dateString(filter.EndedBy), StartedBefore: dateString(filter.StartedBefore), ActiveOn: dateString(filter.ActiveOn),
+		OpenOnly: filter.OpenOnly, ForUpdate: filter.ForUpdate, Limit: filter.Limit, Offset: filter.Offset,
+	}
+}
+
+func dateString(date *ports.Date) *string {
+	if date == nil {
+		return nil
+	}
+	value := date.String()
+	return &value
+}
+
+func optionalDate(value *string) (*ports.Date, error) {
+	if value == nil {
+		return nil, nil
+	}
+	date, err := calendar.ParseDate(*value)
+	if err != nil {
+		return nil, err
+	}
+	return &date, nil
 }

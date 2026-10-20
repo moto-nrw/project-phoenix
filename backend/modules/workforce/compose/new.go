@@ -43,8 +43,8 @@ type Dependencies struct {
 
 // WorkTime is the owner composition: its public capability and native shift
 // reads share one application service, transaction runtime and observer.
-type WorkTime struct {
-	*workforce.Module
+type WorkTime interface {
+	workforce.Capability
 	planning.ShiftReads
 }
 
@@ -52,12 +52,12 @@ type WorkTime struct {
 // caller's ambient tenant transaction when one exists and otherwise opens one,
 // so row-level security decides visibility exactly as it did for the legacy
 // repositories.
-func New(dependencies Dependencies) (*WorkTime, error) {
+func New(dependencies Dependencies) (WorkTime, error) {
 	service, err := newApplication(dependencies)
 	if err != nil {
 		return nil, err
 	}
-	return &WorkTime{Module: workforce.NewModule(application.NewEngine(service)), ShiftReads: service}, nil
+	return service, nil
 }
 
 func newApplication(dependencies Dependencies) (*application.Service, error) {

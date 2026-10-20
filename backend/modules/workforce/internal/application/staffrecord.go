@@ -4,12 +4,18 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 )
 
 // --- master data ---
 
-func (s *Service) FindStaffMasterData(ctx context.Context, staffID int64) (result domain.StaffMasterData, err error) {
+func (s *Service) FindStaffMasterData(ctx context.Context, staffID int64) (workforce.StaffMasterData, error) {
+	if staffID <= 0 {
+		return workforce.StaffMasterData{}, invalidStaffRecord("staff ID is required")
+	}
+	var result domain.StaffMasterData
+	var err error
 	err = s.run(ctx, "find_staff_master_data", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
@@ -20,33 +26,42 @@ func (s *Service) FindStaffMasterData(ctx context.Context, staffID int64) (resul
 		}
 		return err
 	})
-	return result, err
+	return masterDataToPublic(result), mapStaffRecordError(err)
 }
 
-func (s *Service) CreateStaffMasterData(ctx context.Context, value domain.StaffMasterData) (result domain.StaffMasterData, err error) {
-	if validationErr := value.Validate(); validationErr != nil {
-		return domain.StaffMasterData{}, validationErr
+func (s *Service) CreateStaffMasterData(ctx context.Context, value workforce.StaffMasterData) (workforce.StaffMasterData, error) {
+	storedValue := masterDataToDomain(value)
+	var result domain.StaffMasterData
+	var err error
+	if validationErr := storedValue.Validate(); validationErr != nil {
+		return masterDataToPublic(domain.StaffMasterData{}), mapStaffRecordError(validationErr)
 	}
 	err = s.run(ctx, "create_staff_master_data", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
-			result, writeStats, err = s.store.CreateStaffMasterData(txCtx, value)
+			result, writeStats, err = s.store.CreateStaffMasterData(txCtx, storedValue)
 			stats.Add(writeStats)
 			return err
 		})
 	})
-	return result, err
+	return masterDataToPublic(result), mapStaffRecordError(err)
 }
 
-func (s *Service) UpdateStaffMasterData(ctx context.Context, value domain.StaffMasterData) (result domain.StaffMasterData, err error) {
-	if validationErr := value.Validate(); validationErr != nil {
-		return domain.StaffMasterData{}, validationErr
+func (s *Service) UpdateStaffMasterData(ctx context.Context, value workforce.StaffMasterData) (workforce.StaffMasterData, error) {
+	if value.ID <= 0 {
+		return workforce.StaffMasterData{}, invalidStaffRecord("staff master data ID is required")
+	}
+	storedValue := masterDataToDomain(value)
+	var result domain.StaffMasterData
+	var err error
+	if validationErr := storedValue.Validate(); validationErr != nil {
+		return masterDataToPublic(domain.StaffMasterData{}), mapStaffRecordError(validationErr)
 	}
 	err = s.run(ctx, "update_staff_master_data", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var found bool
 			var writeStats domain.OperationStats
-			result, found, writeStats, err = s.store.UpdateStaffMasterData(txCtx, value)
+			result, found, writeStats, err = s.store.UpdateStaffMasterData(txCtx, storedValue)
 			stats.Add(writeStats)
 			if err == nil && !found {
 				return domain.ErrStaffMasterDataNotFound
@@ -54,19 +69,24 @@ func (s *Service) UpdateStaffMasterData(ctx context.Context, value domain.StaffM
 			return err
 		})
 	})
-	return result, err
+	return masterDataToPublic(result), mapStaffRecordError(err)
 }
 
 // --- qualifications ---
 
-func (s *Service) ListStaffQualifications(ctx context.Context, staffID int64) (result []domain.StaffQualification, err error) {
+func (s *Service) ListStaffQualifications(ctx context.Context, staffID int64) ([]workforce.StaffQualification, error) {
+	if staffID <= 0 {
+		return nil, invalidStaffRecord("staff ID is required")
+	}
+	var result []domain.StaffQualification
+	var err error
 	err = s.run(ctx, "list_staff_qualifications", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListStaffQualifications(ctx, staffID)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	return qualificationsToPublic(result), mapStaffRecordError(err)
 }
 
 // ReplaceStaffQualifications makes the submitted list the live qualification
@@ -77,15 +97,25 @@ func (s *Service) ListStaffQualifications(ctx context.Context, staffID int64) (r
 // continues are retired, and the remaining submitted rows are inserted. Saving
 // the same list again therefore writes nothing, and the list keeps its order.
 // The result follows the submitted order.
-func (s *Service) ReplaceStaffQualifications(ctx context.Context, staffID int64, values []domain.StaffQualification) (result []domain.StaffQualification, err error) {
+func (s *Service) ReplaceStaffQualifications(ctx context.Context, staffID int64, values []workforce.StaffQualification) ([]workforce.StaffQualification, error) {
 	if staffID <= 0 {
-		return nil, &domain.InvalidStaffRecordError{Reason: "staff_id is required"}
+		return nil, invalidStaffRecord("staff ID is required")
 	}
-	rows := make([]domain.StaffQualification, 0, len(values))
+	converted := make([]domain.StaffQualification, 0, len(values))
 	for _, value := range values {
+		converted = append(converted, domain.StaffQualification{
+			ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID, Name: value.Name,
+			AcquiredOn: value.AcquiredOn, ExpiresOn: value.ExpiresOn, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		})
+	}
+	storedValues := converted
+	var result []domain.StaffQualification
+	var err error
+	rows := make([]domain.StaffQualification, 0, len(storedValues))
+	for _, value := range storedValues {
 		value.StaffID = staffID
 		if validationErr := value.Validate(); validationErr != nil {
-			return nil, validationErr
+			return qualificationsToPublic(nil), mapStaffRecordError(validationErr)
 		}
 		rows = append(rows, value)
 	}
@@ -103,7 +133,7 @@ func (s *Service) ReplaceStaffQualifications(ctx context.Context, staffID int64,
 			return err
 		})
 	})
-	return result, err
+	return qualificationsToPublic(result), mapStaffRecordError(err)
 }
 
 func (s *Service) applyQualificationPlan(ctx context.Context, staffID int64, plan qualificationReplacePlan, stats *domain.OperationStats) ([]domain.StaffQualification, error) {
@@ -237,7 +267,12 @@ func sameQualification(live, submitted domain.StaffQualification) bool {
 
 // --- financial data ---
 
-func (s *Service) FindStaffFinancialData(ctx context.Context, staffID int64) (result domain.StaffFinancialData, err error) {
+func (s *Service) FindStaffFinancialData(ctx context.Context, staffID int64) (workforce.StaffFinancialData, error) {
+	if staffID <= 0 {
+		return workforce.StaffFinancialData{}, invalidStaffRecord("staff ID is required")
+	}
+	var result domain.StaffFinancialData
+	var err error
 	err = s.run(ctx, "find_staff_financial_data", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
@@ -248,33 +283,42 @@ func (s *Service) FindStaffFinancialData(ctx context.Context, staffID int64) (re
 		}
 		return err
 	})
-	return result, err
+	return financialToPublic(result), mapStaffRecordError(err)
 }
 
-func (s *Service) CreateStaffFinancialData(ctx context.Context, value domain.StaffFinancialData) (result domain.StaffFinancialData, err error) {
-	if validationErr := value.Validate(); validationErr != nil {
-		return domain.StaffFinancialData{}, validationErr
+func (s *Service) CreateStaffFinancialData(ctx context.Context, value workforce.StaffFinancialData) (workforce.StaffFinancialData, error) {
+	storedValue := financialToDomain(value)
+	var result domain.StaffFinancialData
+	var err error
+	if validationErr := storedValue.Validate(); validationErr != nil {
+		return financialToPublic(domain.StaffFinancialData{}), mapStaffRecordError(validationErr)
 	}
 	err = s.run(ctx, "create_staff_financial_data", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
-			result, writeStats, err = s.store.CreateStaffFinancialData(txCtx, value)
+			result, writeStats, err = s.store.CreateStaffFinancialData(txCtx, storedValue)
 			stats.Add(writeStats)
 			return err
 		})
 	})
-	return result, err
+	return financialToPublic(result), mapStaffRecordError(err)
 }
 
-func (s *Service) UpdateStaffFinancialData(ctx context.Context, value domain.StaffFinancialData) (result domain.StaffFinancialData, err error) {
-	if validationErr := value.Validate(); validationErr != nil {
-		return domain.StaffFinancialData{}, validationErr
+func (s *Service) UpdateStaffFinancialData(ctx context.Context, value workforce.StaffFinancialData) (workforce.StaffFinancialData, error) {
+	if value.ID <= 0 {
+		return workforce.StaffFinancialData{}, invalidStaffRecord("staff financial data ID is required")
+	}
+	storedValue := financialToDomain(value)
+	var result domain.StaffFinancialData
+	var err error
+	if validationErr := storedValue.Validate(); validationErr != nil {
+		return financialToPublic(domain.StaffFinancialData{}), mapStaffRecordError(validationErr)
 	}
 	err = s.run(ctx, "update_staff_financial_data", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var found bool
 			var writeStats domain.OperationStats
-			result, found, writeStats, err = s.store.UpdateStaffFinancialData(txCtx, value)
+			result, found, writeStats, err = s.store.UpdateStaffFinancialData(txCtx, storedValue)
 			stats.Add(writeStats)
 			if err == nil && !found {
 				return domain.ErrStaffFinancialDataNotFound
@@ -282,27 +326,35 @@ func (s *Service) UpdateStaffFinancialData(ctx context.Context, value domain.Sta
 			return err
 		})
 	})
-	return result, err
+	return financialToPublic(result), mapStaffRecordError(err)
 }
 
 // --- documents ---
 
-func (s *Service) CreateStaffDocument(ctx context.Context, value domain.StaffDocument) (result domain.StaffDocument, err error) {
-	if validationErr := value.Validate(); validationErr != nil {
-		return domain.StaffDocument{}, validationErr
+func (s *Service) CreateStaffDocument(ctx context.Context, value workforce.StaffDocument) (workforce.StaffDocument, error) {
+	storedValue := documentToDomain(value)
+	var result domain.StaffDocument
+	var err error
+	if validationErr := storedValue.Validate(); validationErr != nil {
+		return documentToPublic(domain.StaffDocument{}), mapStaffRecordError(validationErr)
 	}
 	err = s.run(ctx, "create_staff_document", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
-			result, writeStats, err = s.store.CreateStaffDocument(txCtx, value)
+			result, writeStats, err = s.store.CreateStaffDocument(txCtx, storedValue)
 			stats.Add(writeStats)
 			return err
 		})
 	})
-	return result, err
+	return documentToPublic(result), mapStaffRecordError(err)
 }
 
-func (s *Service) FindStaffDocument(ctx context.Context, staffID, documentID int64, includeDeleted bool) (result domain.StaffDocument, err error) {
+func (s *Service) FindStaffDocument(ctx context.Context, staffID, documentID int64, includeDeleted bool) (workforce.StaffDocument, error) {
+	if staffID <= 0 || documentID <= 0 {
+		return workforce.StaffDocument{}, invalidStaffRecord("staff ID and document ID are required")
+	}
+	var result domain.StaffDocument
+	var err error
 	err = s.run(ctx, "find_staff_document", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
@@ -313,22 +365,41 @@ func (s *Service) FindStaffDocument(ctx context.Context, staffID, documentID int
 		}
 		return err
 	})
-	return result, err
+	return documentToPublic(result), mapStaffRecordError(err)
 }
 
-func (s *Service) ListStaffDocuments(ctx context.Context, filter domain.StaffDocumentFilter) (result []domain.StaffDocument, err error) {
+func (s *Service) ListStaffDocuments(ctx context.Context, filter workforce.StaffDocumentFilter) ([]workforce.StaffDocument, error) {
+	storedFilter := domain.StaffDocumentFilter{
+		StaffID: filter.StaffID, StaffIDs: filter.StaffIDs, Categories: filter.Categories,
+		IncludeDeleted: filter.IncludeDeleted, DeletedOnly: filter.DeletedOnly, FilePending: filter.FilePending,
+	}
+	var result []domain.StaffDocument
+	var err error
 	err = s.run(ctx, "list_staff_documents", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
-		result, queryStats, err = s.store.ListStaffDocuments(ctx, filter)
+		result, queryStats, err = s.store.ListStaffDocuments(ctx, storedFilter)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	values, storedErr := result, err
+	if values == nil {
+		return nil, mapStaffRecordError(storedErr)
+	}
+	storedResult := make([]workforce.StaffDocument, 0, len(values))
+	for _, value := range values {
+		storedResult = append(storedResult, documentToPublic(value))
+	}
+	return storedResult, mapStaffRecordError(storedErr)
 }
 
-func (s *Service) SoftDeleteStaffDocument(ctx context.Context, id, deletedBy int64, at time.Time) (result int64, err error) {
+func (s *Service) SoftDeleteStaffDocument(ctx context.Context, id, deletedBy int64, at time.Time) (int64, error) {
+	if id <= 0 {
+		return 0, invalidStaffRecord("staff document ID is required")
+	}
+	var result int64
+	var err error
 	if deletedBy <= 0 {
-		return 0, &domain.InvalidStaffRecordError{Reason: "deleted_by is required"}
+		return 0, mapStaffRecordError(&domain.InvalidStaffRecordError{Reason: "deleted_by is required"})
 	}
 	err = s.run(ctx, "soft_delete_staff_document", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
@@ -338,76 +409,99 @@ func (s *Service) SoftDeleteStaffDocument(ctx context.Context, id, deletedBy int
 			return err
 		})
 	})
-	return result, err
+	return result, mapStaffRecordError(err)
 }
 
 func (s *Service) MarkStaffDocumentFileDeleted(ctx context.Context, id int64, at time.Time) error {
-	return s.run(ctx, "mark_staff_document_file_deleted", func(ctx context.Context, stats *domain.OperationStats) error {
+	if id <= 0 {
+		return invalidStaffRecord("staff document ID is required")
+	}
+	return mapStaffRecordError(s.run(ctx, "mark_staff_document_file_deleted", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			writeStats, err := s.store.MarkStaffDocumentFileDeleted(txCtx, id, at)
 			stats.Add(writeStats)
 			return err
 		})
-	})
+	}))
 }
 
 // --- file cleanup intents ---
 
-func (s *Service) QueueStaffDocumentFileCleanup(ctx context.Context, value domain.StaffDocumentFileCleanup) error {
-	if validationErr := value.Validate(); validationErr != nil {
-		return validationErr
+func (s *Service) QueueStaffDocumentFileCleanup(ctx context.Context, value workforce.StaffDocumentFileCleanup) error {
+	storedValue := domain.StaffDocumentFileCleanup{
+		ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID, FilenameStored: value.FilenameStored,
+		RetryAfter: value.RetryAfter, CleanedAt: value.CleanedAt, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
-	return s.run(ctx, "queue_staff_document_file_cleanup", func(ctx context.Context, stats *domain.OperationStats) error {
+	if validationErr := storedValue.Validate(); validationErr != nil {
+		return mapStaffRecordError(validationErr)
+	}
+	return mapStaffRecordError(s.run(ctx, "queue_staff_document_file_cleanup", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
-			writeStats, err := s.store.QueueStaffDocumentFileCleanup(txCtx, value)
+			writeStats, err := s.store.QueueStaffDocumentFileCleanup(txCtx, storedValue)
 			stats.Add(writeStats)
 			return err
 		})
-	})
+	}))
 }
 
-func (s *Service) ListQueuedStaffDocumentFileCleanups(ctx context.Context, staffID int64) (result []domain.StaffDocumentFileCleanup, err error) {
+func (s *Service) ListQueuedStaffDocumentFileCleanups(ctx context.Context, staffID int64) ([]workforce.StaffDocumentFileCleanup, error) {
+	var result []domain.StaffDocumentFileCleanup
+	var err error
 	err = s.run(ctx, "list_queued_staff_document_file_cleanups", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListQueuedStaffDocumentFileCleanups(ctx, staffID, s.clock.Now())
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	values, storedErr := result, err
+	if values == nil {
+		return nil, mapStaffRecordError(storedErr)
+	}
+	storedResult := make([]workforce.StaffDocumentFileCleanup, 0, len(values))
+	for _, value := range values {
+		storedResult = append(storedResult, workforce.StaffDocumentFileCleanup{
+			ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID, FilenameStored: value.FilenameStored,
+			RetryAfter: value.RetryAfter, CleanedAt: value.CleanedAt, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		})
+	}
+	return storedResult, mapStaffRecordError(storedErr)
 }
 
 func (s *Service) CompleteStaffDocumentFileCleanup(ctx context.Context, id int64) error {
-	return s.run(ctx, "complete_staff_document_file_cleanup", func(ctx context.Context, stats *domain.OperationStats) error {
+	if id <= 0 {
+		return invalidStaffRecord("staff document file cleanup ID is required")
+	}
+	return mapStaffRecordError(s.run(ctx, "complete_staff_document_file_cleanup", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			writeStats, err := s.store.CompleteStaffDocumentFileCleanup(txCtx, id, s.clock.Now())
 			stats.Add(writeStats)
 			return err
 		})
-	})
+	}))
 }
 
 func (s *Service) CompleteStaffDocumentFileCleanupByFilename(ctx context.Context, filename string) error {
 	if filename == "" {
-		return &domain.InvalidStaffRecordError{Reason: "filename_stored is required"}
+		return mapStaffRecordError(&domain.InvalidStaffRecordError{Reason: "filename_stored is required"})
 	}
-	return s.run(ctx, "complete_staff_document_file_cleanup_by_filename", func(ctx context.Context, stats *domain.OperationStats) error {
+	return mapStaffRecordError(s.run(ctx, "complete_staff_document_file_cleanup_by_filename", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			writeStats, err := s.store.CompleteStaffDocumentFileCleanupByFilename(txCtx, filename, s.clock.Now())
 			stats.Add(writeStats)
 			return err
 		})
-	})
+	}))
 }
 
 func (s *Service) ActivateStaffDocumentFileCleanup(ctx context.Context, filename string) error {
 	if filename == "" {
-		return &domain.InvalidStaffRecordError{Reason: "filename_stored is required"}
+		return mapStaffRecordError(&domain.InvalidStaffRecordError{Reason: "filename_stored is required"})
 	}
-	return s.run(ctx, "activate_staff_document_file_cleanup", func(ctx context.Context, stats *domain.OperationStats) error {
+	return mapStaffRecordError(s.run(ctx, "activate_staff_document_file_cleanup", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			writeStats, err := s.store.ActivateStaffDocumentFileCleanup(txCtx, filename, s.clock.Now())
 			stats.Add(writeStats)
 			return err
 		})
-	})
+	}))
 }

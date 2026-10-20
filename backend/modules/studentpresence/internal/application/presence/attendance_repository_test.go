@@ -1419,7 +1419,7 @@ func TestPresenceAttendance_CloseOpenForTodayUsesCallerDate(t *testing.T) {
 	assert.Equal(t, open.ID, closed[0].ID)
 }
 
-func newPresence(t *testing.T, db *testpkg.DB) *studentpresence.Module {
+func newPresence(t *testing.T, db *testpkg.DB) studentpresence.Owner {
 	t.Helper()
 	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)

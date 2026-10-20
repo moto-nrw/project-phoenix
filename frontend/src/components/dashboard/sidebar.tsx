@@ -537,8 +537,8 @@ function asideClasses(collapsed: boolean, className: string): string {
   } ${SIDEBAR_WIDTH_TRANSITION} ${className}`;
 }
 
-// Der klebende Innenbereich beginnt unter der Kopfzeile (48px + 1px Rand,
-// #2827) plus 8px Luft und trägt dieselbe Breite und dieselbe Bewegung wie
+// Der klebende Innenbereich beginnt unter der Kopfzeile (ab lg 64px + 1px Rand,
+// #4345) plus 8px Luft und trägt dieselbe Breite und dieselbe Bewegung wie
 // die Hülle.
 //
 // Mitarbeiter-Vorschau (#2893): der feste Hinweisstreifen (h-12 = 48px)
@@ -553,10 +553,10 @@ function stickyClasses(
   eveningRow = false,
 ): string {
   const offset = eveningRow
-    ? "top-[137px] h-[calc(100vh-137px)]"
+    ? "top-[153px] h-[calc(100vh-153px)]"
     : stripActive
-      ? "top-[105px] h-[calc(100vh-105px)]"
-      : "top-[57px] h-[calc(100vh-57px)]";
+      ? "top-[121px] h-[calc(100vh-121px)]"
+      : "top-[73px] h-[calc(100vh-73px)]";
   return `sticky ${offset} flex flex-col ${
     collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED
   } ${SIDEBAR_WIDTH_TRANSITION}`;
@@ -1982,7 +1982,7 @@ export function Sidebar({ className = "" }: SidebarProps) {
     <Suspense
       fallback={
         <aside className={asideClasses(collapsed, className)}>
-          <div className={`sticky top-[57px] ${SIDEBAR_NAV_PADDING}`}>
+          <div className={`sticky top-[73px] ${SIDEBAR_NAV_PADDING}`}>
             {/* Platzhalter im selben Raster wie die fertigen Zeilen: 40px
                 hoch, Icon an derselben Stelle — der Wechsel vom Platzhalter
                 zur Navigation verschiebt nichts. */}
