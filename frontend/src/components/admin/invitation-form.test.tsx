@@ -929,6 +929,22 @@ describe("InvitationForm employment choice", () => {
     );
   });
 
+  it("explains when unchecked qualifications will be reset", async () => {
+    await openFormer();
+    expect(
+      screen.getByText("Bisherige Qualifikationen bleiben erhalten."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Qualifikationen/ }));
+
+    expect(
+      screen.getByText("Bisherige Qualifikationen werden zurückgesetzt."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Bisherige Qualifikationen bleiben erhalten."),
+    ).not.toBeInTheDocument();
+  });
+
   it("hides and omits reset choices for a new employment", async () => {
     await openFormer();
     fireEvent.click(screen.getByRole("checkbox", { name: /Qualifikationen/ }));
