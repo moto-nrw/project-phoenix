@@ -261,7 +261,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		active           studentpresence.Presence
 		activities       activityContract.ActivityService
 		shifts           *workforceCompose.ShiftPlanning
-		deviceFleet      *devicefleet.Module
+		deviceFleet      devicefleet.Capability
 		materialization  timetable.MaterializationCapability
 		lifecycle        TimetableLifecycle
 		reports          PresenceReports
