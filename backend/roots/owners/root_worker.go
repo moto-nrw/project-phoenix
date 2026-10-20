@@ -211,7 +211,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		organizations    organizationtenancy.Capability
 		groups           schoolstructure.Owner
 		rooms            *facilitiesModule.Rooms
-		membership       *schoolMembershipModule.Module
+		membership       schoolMembershipModule.Owner
 		bookings         *enrollmentOwner.BookingProjection
 		settings         SettingsOwner
 		calendar         *schoolcalendar.Records

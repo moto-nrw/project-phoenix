@@ -3,11 +3,23 @@ package application
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
 )
 
-func (s *Service) TransitionStudentStatus(ctx context.Context, id int64, expected, next string) (changed bool, err error) {
+// TransitionStatus is the scheduler's compare-and-set. Graduation and
+// reactivation are separate commands and cannot be requested through it.
+func (s *Service) TransitionStatus(ctx context.Context, id int64, expected, next string) (changed bool, err error) {
+	if id <= 0 {
+		return false, invalid("student ID is required")
+	}
+	for _, value := range []string{expected, next} {
+		if !lifecycleStatus(value) {
+			return false, invalid("status transition requires non-alumni lifecycle states")
+		}
+	}
 	err = s.runWrite(ctx, "transition_student_status", func(txCtx context.Context, stats *domain.OperationStats) error {
 		gateStats, gateErr := s.store.LockStudentClassWrites(txCtx, false)
 		stats.Add(gateStats)
@@ -32,10 +44,16 @@ func (s *Service) TransitionStudentStatus(ctx context.Context, id int64, expecte
 	return changed, nil
 }
 
-// SetStudentStatus is the unconditional status change. Unlike the
-// scheduler's compare-and-set it can bring an inactive child back, so it is
-// checked against the Kinderkontingent (#3567).
-func (s *Service) SetStudentStatus(ctx context.Context, id int64, status string) (changed bool, err error) {
+// SetStatus is the unconditional status change. Unlike the scheduler's
+// compare-and-set it can bring an inactive child back, so it is checked
+// against the Kinderkontingent (#3567).
+func (s *Service) SetStatus(ctx context.Context, id int64, status string) (changed bool, err error) {
+	if id <= 0 {
+		return false, invalid("student ID is required")
+	}
+	if !lifecycleStatus(status) {
+		return false, invalid("status change requires a non-alumni lifecycle state")
+	}
 	err = s.runWrite(ctx, "set_student_status", func(txCtx context.Context, stats *domain.OperationStats) error {
 		gateStats, gateErr := s.store.LockStudentClassWrites(txCtx, false)
 		stats.Add(gateStats)
@@ -55,7 +73,24 @@ func (s *Service) SetStudentStatus(ctx context.Context, id int64, status string)
 	return changed, nil
 }
 
-func (s *Service) ResumeStudentCare(ctx context.Context, id int64, from, status, on string) (changed bool, err error) {
+// ResumeCare changes only an ended, non-alumni care interval. On is the
+// caller's frozen calendar day, not the database server's timezone.
+func (s *Service) ResumeCare(ctx context.Context, id int64, from, status, on string) (changed bool, err error) {
+	if id <= 0 {
+		return false, invalid("student ID is required")
+	}
+	if from == "" || on == "" {
+		return false, invalid("care start and current day are required")
+	}
+	if err := validateDate(from, "care start"); err != nil {
+		return false, err
+	}
+	if err := validateDate(on, "current day"); err != nil {
+		return false, err
+	}
+	if !lifecycleStatus(status) {
+		return false, invalid("care resume requires a non-alumni lifecycle status")
+	}
 	err = s.runWrite(ctx, "resume_student_care", func(txCtx context.Context, stats *domain.OperationStats) error {
 		gateStats, gateErr := s.store.LockStudentClassWrites(txCtx, false)
 		stats.Add(gateStats)
@@ -75,7 +110,14 @@ func (s *Service) ResumeStudentCare(ctx context.Context, id int64, from, status,
 	return changed, nil
 }
 
-func (s *Service) EndStudentCare(ctx context.Context, ids []int64, until string) (changed int64, err error) {
+func (s *Service) EndCare(ctx context.Context, ids []int64, until string) (changed int64, err error) {
+	ids = uniquePositive(ids)
+	if err := validateDate(until, "care end"); err != nil {
+		return 0, err
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
 	err = s.runWrite(ctx, "end_student_care", func(txCtx context.Context, stats *domain.OperationStats) error {
 		gateStats, gateErr := s.store.LockStudentClassWrites(txCtx, false)
 		stats.Add(gateStats)
@@ -90,9 +132,22 @@ func (s *Service) EndStudentCare(ctx context.Context, ids []int64, until string)
 	return changed, err
 }
 
-// ReactivateStudents brings graduates back. Only the grade-transition revert
-// passes enforceChildQuota=false (#3567).
-func (s *Service) ReactivateStudents(ctx context.Context, ids []int64, status string, enforceChildQuota bool) (changed []int64, err error) {
+// Reactivate brings graduated children back. The whole batch is checked
+// against the Kinderkontingent as one write unless the caller reverts a grade
+// transition and says so (#3567).
+func (s *Service) Reactivate(ctx context.Context, ids []int64, status string, check schoolmembership.ChildQuotaCheck) (changed []int64, err error) {
+	ids = uniquePositive(ids)
+	status = strings.TrimSpace(status)
+	if !lifecycleStatus(status) {
+		return nil, invalid("reactivation requires a non-alumni lifecycle status")
+	}
+	if !validChildQuotaCheck(check) {
+		return nil, invalid("reactivation requires an explicit child quota check")
+	}
+	if len(ids) == 0 {
+		return []int64{}, nil
+	}
+	enforceChildQuota := check == schoolmembership.EnforceChildQuota
 	err = s.runWrite(ctx, "reactivate_students", func(txCtx context.Context, stats *domain.OperationStats) error {
 		gateStats, gateErr := s.store.LockStudentClassWrites(txCtx, false)
 		stats.Add(gateStats)
@@ -116,7 +171,11 @@ func (s *Service) ReactivateStudents(ctx context.Context, ids []int64, status st
 	return changed, nil
 }
 
-func (s *Service) GraduateStudents(ctx context.Context, ids []int64) (changed int64, err error) {
+func (s *Service) Graduate(ctx context.Context, ids []int64) (changed int64, err error) {
+	ids = uniquePositive(ids)
+	if len(ids) == 0 {
+		return 0, nil
+	}
 	err = s.runWrite(ctx, "graduate_students", func(txCtx context.Context, stats *domain.OperationStats) error {
 		gateStats, gateErr := s.store.LockStudentClassWrites(txCtx, false)
 		stats.Add(gateStats)
@@ -131,7 +190,17 @@ func (s *Service) GraduateStudents(ctx context.Context, ids []int64) (changed in
 	return changed, err
 }
 
-func (s *Service) ChangeStudentClass(ctx context.Context, ids []int64, from, to string) (changed int64, err error) {
+// ChangeClass compares the current class before changing it, making retry
+// and grade-transition reversal conditional on the state the caller
+// observed.
+func (s *Service) ChangeClass(ctx context.Context, ids []int64, from, to string) (changed int64, err error) {
+	if strings.TrimSpace(from) == "" || strings.TrimSpace(to) == "" {
+		return 0, invalid("source and destination class are required")
+	}
+	ids = uniquePositive(ids)
+	if len(ids) == 0 {
+		return 0, nil
+	}
 	err = s.runWrite(ctx, "change_student_class", func(txCtx context.Context, stats *domain.OperationStats) error {
 		gateStats, gateErr := s.store.LockStudentClassWrites(txCtx, false)
 		stats.Add(gateStats)
@@ -146,6 +215,8 @@ func (s *Service) ChangeStudentClass(ctx context.Context, ids []int64, from, to 
 	return changed, err
 }
 
+// LockStudentClassWrites fences membership writers before any student row
+// lock. Grade transition takes it exclusively; individual writers share it.
 func (s *Service) LockStudentClassWrites(ctx context.Context, exclusive bool) error {
 	if err := ctx.Err(); err != nil {
 		return err

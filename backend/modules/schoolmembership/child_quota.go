@@ -59,10 +59,6 @@ const (
 	SkipChildQuotaForGradeTransitionRevert
 )
 
-func (c ChildQuotaCheck) valid() bool {
-	return c == EnforceChildQuota || c == SkipChildQuotaForGradeTransitionRevert
-}
-
 // ChildQuotaUsage is the school's Kinderkontingent next to its
 // Kontingentzahl, the numbers the Datenverwaltung shows (#3569). Booked is
 // the Kinderkontingent, Occupied the Kontingentzahl of today.
@@ -109,11 +105,4 @@ func CountsTowardChildQuota(status, enrolledFrom, enrolledUntil, day string) boo
 // the Kontingentzahl is not counted.
 type ChildQuotaUsages interface {
 	ChildQuotaUsage(context.Context) (usage ChildQuotaUsage, limited bool, err error)
-}
-
-func (m *Module) ChildQuotaUsage(ctx context.Context) (ChildQuotaUsage, bool, error) {
-	if err := ctx.Err(); err != nil {
-		return ChildQuotaUsage{}, false, err
-	}
-	return m.engine.ChildQuotaUsage(ctx)
 }

@@ -53,7 +53,7 @@ func (t *recordingTrail) AppendClassListEntryChange(_ context.Context, change sc
 	return nil
 }
 
-func buildAdministeredModule(t *testing.T, db *bun.DB) (*schoolmembership.Module, *recordingStudents, *recordingTrail) {
+func buildAdministeredModule(t *testing.T, db *bun.DB) (schoolmembership.Owner, *recordingStudents, *recordingTrail) {
 	t.Helper()
 	students := &recordingStudents{byName: map[string][]int64{}, enrolled: map[int64]bool{}}
 	trail := &recordingTrail{}
