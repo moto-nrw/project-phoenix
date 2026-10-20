@@ -58,14 +58,14 @@ func (p PersonWrites) AnonymizeAndSoftDeletePerson(ctx context.Context, personID
 }
 
 // lock holds the person's row for the write.
-func (p PersonWrites) lock(ctx context.Context, personID int64, stats *domain.OperationStats) (domain.Person, error) {
+func (p PersonWrites) lock(ctx context.Context, personID int64, stats *domain.OperationStats) (peopledirectory.Person, error) {
 	person, found, lockStats, err := p.persons.store.FindByID(ctx, personID, "UPDATE")
 	stats.Add(lockStats)
 	if err != nil {
-		return domain.Person{}, err
+		return peopledirectory.Person{}, err
 	}
 	if !found {
-		return domain.Person{}, domain.ErrNotFound
+		return peopledirectory.Person{}, peopledirectory.ErrPersonNotFound
 	}
 	return person, nil
 }

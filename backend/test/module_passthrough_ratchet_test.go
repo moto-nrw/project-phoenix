@@ -248,7 +248,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/identityaccess":      497,
 	"modules/mealplan":            3,
 	"modules/organizationtenancy": 12,
-	"modules/peopledirectory":     265,
+	"modules/peopledirectory":     242,
 	"modules/requestreview":       17,
 	"modules/schedulerruntime":    4,
 	// Raised by ADR 0073: the feed cleanup keeps only the staff feed tombstones.

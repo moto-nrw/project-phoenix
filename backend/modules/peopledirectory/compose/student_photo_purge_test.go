@@ -31,7 +31,7 @@ func (r *enabledPhotoRuntime) RecordPhotoConsent(
 	return nil
 }
 
-func buildPhotoModule(t *testing.T, db *bun.DB) (*peopledirectory.Module, *enabledPhotoRuntime) {
+func buildPhotoModule(t *testing.T, db *bun.DB) (peopledirectory.Owner, *enabledPhotoRuntime) {
 	t.Helper()
 	runtime := &enabledPhotoRuntime{}
 	module, err := New(Dependencies{
@@ -41,7 +41,7 @@ func buildPhotoModule(t *testing.T, db *bun.DB) (*peopledirectory.Module, *enabl
 		StudentPhotos:    runtime,
 	}, nil)
 	require.NoError(t, err)
-	return module.Module, runtime
+	return module.Owner, runtime
 }
 
 func setStudentPhotoPath(t *testing.T, db *bun.DB, studentID int64, path *string) {
