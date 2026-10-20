@@ -23,22 +23,8 @@ func (rs *StaffAdminResource) getStaffHistory(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Verify staff exists
-	if _, err := rs.PersonService.StaffByID(r.Context(), staffID); err != nil {
-		if !common.IsNotFound(err) {
-			common.RenderError(w, r, common.ErrorInternalServer(err))
-			return
-		}
-		// Retained employment reads use the personnel-record capability;
-		// session writes below still require a live membership.
-		if _, readErr := rs.PersonService.StaffStammdaten(r.Context(), staffID); readErr != nil {
-			if common.IsNotFound(readErr) {
-				common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
-			} else {
-				common.RenderError(w, r, common.ErrorInternalServer(readErr))
-			}
-			return
-		}
+	if !rs.requireReadableStaffHistory(w, r, staffID) {
+		return
 	}
 
 	// Parse date range from query parameters
