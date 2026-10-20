@@ -30,15 +30,6 @@ func setupIsolatedStaffStorageBeforeCutover(t *testing.T) *testpkg.DB {
 	return db
 }
 
-// Repairs older than both cutovers read and write users.students and
-// users.staff as the base tables they were.
-func setupPeopleStorageBeforeCutover(t *testing.T) *testpkg.DB {
-	t.Helper()
-	db := setupStudentStorageBeforeCutover(t)
-	restoreStaffStorageBeforeCutover(t, db)
-	return db
-}
-
 // restoreStaffStorageBeforeCutover reconstructs the staff-deletion foreign key
 // that existed when the staff owner cutover ran. The shared fixture only
 // restores storage; this migration-specific prerequisite belongs with the

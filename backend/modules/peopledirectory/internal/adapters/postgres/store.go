@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres/calendar"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 	"github.com/uptrace/bun"
@@ -48,17 +49,17 @@ func New(database Database) *Store {
 	return &Store{database: database}
 }
 
-func (s *Store) Create(ctx context.Context, input domain.CreatePerson) (domain.Person, domain.OperationStats, error) {
+func (s *Store) Create(ctx context.Context, input peopledirectory.CreatePerson) (peopledirectory.Person, domain.OperationStats, error) {
 	birthday, err := optionalDate(input.Birthday)
 	if err != nil {
-		return domain.Person{}, domain.OperationStats{}, err
+		return peopledirectory.Person{}, domain.OperationStats{}, err
 	}
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.Person{}, domain.OperationStats{}, err
+		return peopledirectory.Person{}, domain.OperationStats{}, err
 	}
 	if scope.TenantID <= 0 {
-		return domain.Person{}, domain.OperationStats{}, errors.New("people directory postgres: tenant is required to create a person")
+		return peopledirectory.Person{}, domain.OperationStats{}, errors.New("people directory postgres: tenant is required to create a person")
 	}
 	row := personRow{
 		TenantID: scope.TenantID, FirstName: input.FirstName, LastName: input.LastName,
@@ -69,20 +70,20 @@ func (s *Store) Create(ctx context.Context, input domain.CreatePerson) (domain.P
 	err = db.NewInsert().Model(&row).ModelTableExpr(`users.persons`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.Person{}, stats, wrapWriteError("create", err)
+		return peopledirectory.Person{}, stats, wrapWriteError("create", err)
 	}
 	stats.Rows = 1
 	return toDomain(row), stats, nil
 }
 
-func (s *Store) Update(ctx context.Context, input domain.UpdatePerson) (domain.Person, domain.OperationStats, error) {
+func (s *Store) Update(ctx context.Context, input peopledirectory.UpdatePerson) (peopledirectory.Person, domain.OperationStats, error) {
 	birthday, err := optionalDate(input.Birthday)
 	if err != nil {
-		return domain.Person{}, domain.OperationStats{}, err
+		return peopledirectory.Person{}, domain.OperationStats{}, err
 	}
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.Person{}, domain.OperationStats{}, err
+		return peopledirectory.Person{}, domain.OperationStats{}, err
 	}
 	row := personRow{
 		ID: input.ID, FirstName: input.FirstName, LastName: input.LastName,
@@ -100,19 +101,19 @@ func (s *Store) Update(ctx context.Context, input domain.UpdatePerson) (domain.P
 	err = query.Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Person{}, stats, domain.ErrNotFound
+		return peopledirectory.Person{}, stats, peopledirectory.ErrPersonNotFound
 	}
 	if err != nil {
-		return domain.Person{}, stats, wrapWriteError("update", err)
+		return peopledirectory.Person{}, stats, wrapWriteError("update", err)
 	}
 	stats.Rows = 1
 	return toDomain(row), stats, nil
 }
 
-func (s *Store) FindByID(ctx context.Context, id int64, lock string) (domain.Person, bool, domain.OperationStats, error) {
+func (s *Store) FindByID(ctx context.Context, id int64, lock string) (peopledirectory.Person, bool, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.Person{}, false, domain.OperationStats{}, err
+		return peopledirectory.Person{}, false, domain.OperationStats{}, err
 	}
 	row := &personRow{}
 	query := withTenant(personSelect(db, row).Where(`"person".id = ?`, id), scope)
@@ -122,10 +123,10 @@ func (s *Store) FindByID(ctx context.Context, id int64, lock string) (domain.Per
 	return scanPerson(ctx, row, query)
 }
 
-func (s *Store) FindByAccount(ctx context.Context, accountID int64) (domain.Person, bool, domain.OperationStats, error) {
+func (s *Store) FindByAccount(ctx context.Context, accountID int64) (peopledirectory.Person, bool, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.Person{}, false, domain.OperationStats{}, err
+		return peopledirectory.Person{}, false, domain.OperationStats{}, err
 	}
 	row := &personRow{}
 	query := withTenant(personSelect(db, row).
@@ -136,10 +137,10 @@ func (s *Store) FindByAccount(ctx context.Context, accountID int64) (domain.Pers
 	return scanPerson(ctx, row, query)
 }
 
-func (s *Store) FindByTag(ctx context.Context, tagID string) (domain.Person, bool, domain.OperationStats, error) {
+func (s *Store) FindByTag(ctx context.Context, tagID string) (peopledirectory.Person, bool, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.Person{}, false, domain.OperationStats{}, err
+		return peopledirectory.Person{}, false, domain.OperationStats{}, err
 	}
 	row := &personRow{}
 	query := withTenant(personSelect(db, row).
@@ -149,21 +150,21 @@ func (s *Store) FindByTag(ctx context.Context, tagID string) (domain.Person, boo
 	return scanPerson(ctx, row, query)
 }
 
-func scanPerson(ctx context.Context, row *personRow, query *bun.SelectQuery) (domain.Person, bool, domain.OperationStats, error) {
+func scanPerson(ctx context.Context, row *personRow, query *bun.SelectQuery) (peopledirectory.Person, bool, domain.OperationStats, error) {
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err := query.Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Person{}, false, stats, nil
+		return peopledirectory.Person{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.Person{}, false, stats, fmt.Errorf("people directory postgres: find person: %w", err)
+		return peopledirectory.Person{}, false, stats, fmt.Errorf("people directory postgres: find person: %w", err)
 	}
 	return toDomain(*row), true, stats, nil
 }
 
-func (s *Store) ListByIDs(ctx context.Context, ids []int64) ([]domain.Person, domain.OperationStats, error) {
+func (s *Store) ListByIDs(ctx context.Context, ids []int64) ([]peopledirectory.Person, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -175,7 +176,7 @@ func (s *Store) ListByIDs(ctx context.Context, ids []int64) ([]domain.Person, do
 	return scanPersons(ctx, rows, query.OrderExpr(`"person".id ASC`), "list persons by id")
 }
 
-func (s *Store) ListByTenantIDs(ctx context.Context, tenantIDs []int64) ([]domain.Person, domain.OperationStats, error) {
+func (s *Store) ListByTenantIDs(ctx context.Context, tenantIDs []int64) ([]peopledirectory.Person, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -187,7 +188,7 @@ func (s *Store) ListByTenantIDs(ctx context.Context, tenantIDs []int64) ([]domai
 	return scanPersons(ctx, rows, query.OrderExpr(`"person".last_name ASC, "person".first_name ASC, "person".id ASC`), "list persons by tenant")
 }
 
-func (s *Store) ListByAccounts(ctx context.Context, accountIDs []int64) ([]domain.Person, domain.OperationStats, error) {
+func (s *Store) ListByAccounts(ctx context.Context, accountIDs []int64) ([]peopledirectory.Person, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -199,7 +200,7 @@ func (s *Store) ListByAccounts(ctx context.Context, accountIDs []int64) ([]domai
 	return scanPersons(ctx, rows, query.OrderExpr(`"person".account_id ASC, "person".updated_at DESC, "person".id ASC`), "list persons by account")
 }
 
-func (s *Store) Search(ctx context.Context, filter domain.Filter) ([]domain.Person, domain.OperationStats, error) {
+func (s *Store) Search(ctx context.Context, filter peopledirectory.PersonFilter) ([]peopledirectory.Person, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -237,7 +238,7 @@ func (s *Store) Search(ctx context.Context, filter domain.Filter) ([]domain.Pers
 	return scanPersons(ctx, rows, query, "search persons")
 }
 
-func scanPersons(ctx context.Context, rows []personRow, query *bun.SelectQuery, operation string) ([]domain.Person, domain.OperationStats, error) {
+func scanPersons(ctx context.Context, rows []personRow, query *bun.SelectQuery, operation string) ([]peopledirectory.Person, domain.OperationStats, error) {
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err := query.Scan(ctx, &rows)
@@ -245,7 +246,7 @@ func scanPersons(ctx context.Context, rows []personRow, query *bun.SelectQuery, 
 	if err != nil {
 		return nil, stats, fmt.Errorf("people directory postgres: %s: %w", operation, err)
 	}
-	result := make([]domain.Person, 0, len(rows))
+	result := make([]peopledirectory.Person, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, toDomain(row))
 	}
@@ -388,7 +389,7 @@ func (s *Store) SetTag(ctx context.Context, personID int64, tagID *string) (doma
 	return execOne(ctx, query, "set person tag")
 }
 
-func (s *Store) LockHeldTags(ctx context.Context, personIDs []int64) ([]domain.ReleasedTag, domain.OperationStats, error) {
+func (s *Store) LockHeldTags(ctx context.Context, personIDs []int64) ([]peopledirectory.ReleasedTag, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -417,9 +418,9 @@ func (s *Store) LockHeldTags(ctx context.Context, personIDs []int64) ([]domain.R
 	if err != nil {
 		return nil, stats, fmt.Errorf("people directory postgres: lock held tags: %w", err)
 	}
-	result := make([]domain.ReleasedTag, 0, len(rows))
+	result := make([]peopledirectory.ReleasedTag, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, domain.ReleasedTag{PersonID: row.PersonID, TagID: row.TagID})
+		result = append(result, peopledirectory.ReleasedTag{PersonID: row.PersonID, TagID: row.TagID})
 	}
 	return result, stats, nil
 }
@@ -480,7 +481,7 @@ func (s *Store) RestoreTag(ctx context.Context, personID int64, tagID string) (b
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		if isUniqueViolationOn(err, tenantTagIndex) {
-			return false, stats, domain.ErrTagConflict
+			return false, stats, peopledirectory.ErrTagConflict
 		}
 		return false, stats, fmt.Errorf("people directory postgres: restore tag: %w", err)
 	}
@@ -504,7 +505,7 @@ func execOne(ctx context.Context, query *bun.UpdateQuery, operation string) (dom
 		return stats, fmt.Errorf("people directory postgres: %s: count rows: %w", operation, err)
 	}
 	if rows != 1 {
-		return stats, domain.ErrNotFound
+		return stats, peopledirectory.ErrPersonNotFound
 	}
 	stats.Rows = rows
 	return stats, nil
@@ -531,12 +532,12 @@ func escapeLike(value string) string {
 	return strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(value)
 }
 
-func toDomain(row personRow) domain.Person {
+func toDomain(row personRow) peopledirectory.Person {
 	birthday := ""
 	if row.Birthday != nil {
 		birthday = row.Birthday.String()
 	}
-	return domain.Person{
+	return peopledirectory.Person{
 		ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, TenantID: row.TenantID,
 		FirstName: row.FirstName, LastName: row.LastName, Birthday: birthday,
 		TagID: row.TagID, AccountID: row.AccountID, DeletedAt: row.DeletedAt,
@@ -557,9 +558,9 @@ func optionalDate(value string) (*calendar.Date, error) {
 func wrapWriteError(operation string, err error) error {
 	switch {
 	case isUniqueViolationOn(err, tenantTagIndex):
-		return domain.ErrTagConflict
+		return peopledirectory.ErrTagConflict
 	case isUniqueViolationOn(err, tenantAccountIndex):
-		return domain.ErrAccountConflict
+		return peopledirectory.ErrAccountConflict
 	}
 	return fmt.Errorf("people directory postgres: %s person: %w", operation, err)
 }

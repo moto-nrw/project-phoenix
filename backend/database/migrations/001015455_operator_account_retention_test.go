@@ -70,8 +70,6 @@ func TestOperatorAccountRetentionRollsBack(t *testing.T) {
 
 // Only the operator ledger may refuse the deletion of a deactivated account
 // (#4047); every other reference to platform.operators cascades or lets go.
-// suggestions.operator_comments, which once referenced operators without an
-// action, went with migration 1.12.1.
 func TestOnlyTheOperatorLedgerRefusesAnOperatorDeletion(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -83,8 +81,4 @@ func TestOnlyTheOperatorLedgerRefusesAnOperatorDeletion(t *testing.T) {
 		WHERE con.contype = 'f' AND con.confrelid = 'platform.operators'::regclass AND con.confdeltype IN ('a', 'r')
 		ORDER BY 1`).Scan(ctx, &refusing))
 	assert.Equal(t, []string{"platform.operator_audit_log"}, refusing)
-
-	var operatorComments *string
-	require.NoError(t, db.NewRaw(`SELECT to_regclass('suggestions.operator_comments')::text`).Scan(ctx, &operatorComments))
-	assert.Nil(t, operatorComments, "suggestions.operator_comments no longer exists")
 }

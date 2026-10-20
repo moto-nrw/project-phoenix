@@ -12,9 +12,7 @@ import (
 )
 
 var (
-	_ schoolcalendar.Days     = (*schoolcalendar.Records)(nil)
-	_ schoolcalendar.Days     = (*schoolcalendar.Module)(nil)
-	_ schoolcalendar.Calendar = (*schoolcalendar.Module)(nil)
+	_ schoolcalendar.Days = (schoolcalendar.Calendar)(nil)
 )
 
 func federalState(context.Context) (string, error) { return "DE-NW", nil }

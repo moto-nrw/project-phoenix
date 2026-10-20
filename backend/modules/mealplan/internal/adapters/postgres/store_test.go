@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -21,7 +21,7 @@ func TestStoreScopesReadsAndDeletesWithoutRLS(t *testing.T) {
 	tenantID := testpkg.Tenant(t)
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
-	date, err := domain.ParseDate("2026-09-07")
+	date, err := calendar.ParseDate("2026-09-07")
 	require.NoError(t, err)
 
 	rows := []row{

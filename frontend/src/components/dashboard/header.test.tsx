@@ -313,6 +313,20 @@ describe("Header", () => {
     );
   });
 
+  it("groups the help link with the header actions, not with the page name", () => {
+    render(<Header />);
+
+    const helpLink = screen.getByTestId("context-help-link");
+    const pageTitle = screen.getByTestId("page-title");
+    let actions = screen.getByTestId("profile-trigger").parentElement;
+    while (actions && !actions.contains(helpLink)) {
+      actions = actions.parentElement;
+    }
+
+    expect(actions).not.toBeNull();
+    expect(actions).not.toContainElement(pageTitle);
+  });
+
   it("does not show a generic help link when no matching topic exists", () => {
     mockUsePathname.mockReturnValue("/dashboard");
 
