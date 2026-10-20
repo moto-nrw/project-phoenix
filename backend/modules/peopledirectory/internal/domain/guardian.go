@@ -30,24 +30,6 @@ type Guardian struct {
 // account see the child.
 const GuardianPermissionPortalAccess = "parent_portal.access"
 
-// GuardianLink is one student-guardian relationship. Permissions carries the
-// granted parents-portal permission names.
-type GuardianLink struct {
-	ID                 int64
-	TenantID           int64
-	StudentID          int64
-	GuardianProfileID  int64
-	RelationshipType   string
-	GuardianRole       string
-	IsPrimary          bool
-	IsEmergencyContact bool
-	CanPickup          bool
-	PickupNotes        *string
-	EmergencyPriority  int
-	IsPayer            bool
-	Permissions        []string
-}
-
 // GrantedPermissions reduces the stored permissions object to the names
 // whose value reads as true. The legacy SQL used
 // COALESCE((permissions ->> name)::boolean, false), so booleans, boolean

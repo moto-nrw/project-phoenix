@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -45,13 +46,13 @@ type activityInstanceRow struct {
 // that may still take place.
 const activityInstanceNotCancelled = `"activity_instance".status <> 'cancelled'`
 
-func (s *Store) FindActivityInstance(ctx context.Context, id int64) (domain.ActivityInstance, bool, domain.OperationStats, error) {
+func (s *Store) FindActivityInstance(ctx context.Context, id int64) (timetable.ActivityInstance, bool, domain.OperationStats, error) {
 	return s.findActivityInstance(ctx, id, "")
 }
 
 // Assignment writers share the instance lock; date/status writers take it
 // exclusively after their staff locks and then recheck the assignment set.
-func (s *Store) LockActivityInstance(ctx context.Context, id int64, exclusive bool) (domain.ActivityInstance, bool, domain.OperationStats, error) {
+func (s *Store) LockActivityInstance(ctx context.Context, id int64, exclusive bool) (timetable.ActivityInstance, bool, domain.OperationStats, error) {
 	mode := "KEY SHARE"
 	if exclusive {
 		mode = "UPDATE"
@@ -59,10 +60,10 @@ func (s *Store) LockActivityInstance(ctx context.Context, id int64, exclusive bo
 	return s.findActivityInstance(ctx, id, mode)
 }
 
-func (s *Store) findActivityInstance(ctx context.Context, id int64, lock string) (domain.ActivityInstance, bool, domain.OperationStats, error) {
+func (s *Store) findActivityInstance(ctx context.Context, id int64, lock string) (timetable.ActivityInstance, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.ActivityInstance{}, false, domain.OperationStats{}, err
+		return timetable.ActivityInstance{}, false, domain.OperationStats{}, err
 	}
 	row := activityInstanceRow{}
 	query := activityInstanceSelect(db, &row, tenantID).Where(`"activity_instance".id = ?`, id)
@@ -73,7 +74,7 @@ func (s *Store) findActivityInstance(ctx context.Context, id int64, lock string)
 	return activityInstanceToDomain(row), found, stats, err
 }
 
-func (s *Store) ListActivityInstances(ctx context.Context, filter domain.ActivityInstanceFilter) ([]domain.ActivityInstance, domain.OperationStats, error) {
+func (s *Store) ListActivityInstances(ctx context.Context, filter timetable.ActivityInstanceFilter) ([]timetable.ActivityInstance, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -84,7 +85,7 @@ func (s *Store) ListActivityInstances(ctx context.Context, filter domain.Activit
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.ActivityInstance, 0, len(rows))
+	result := make([]timetable.ActivityInstance, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, activityInstanceToDomain(row))
 	}
@@ -92,7 +93,7 @@ func (s *Store) ListActivityInstances(ctx context.Context, filter domain.Activit
 	return result, stats, nil
 }
 
-func filterActivityInstances(query *bun.SelectQuery, filter domain.ActivityInstanceFilter) *bun.SelectQuery {
+func filterActivityInstances(query *bun.SelectQuery, filter timetable.ActivityInstanceFilter) *bun.SelectQuery {
 	query = filterActivityInstanceIDs(query, filter)
 	query = filterActivityInstanceDates(query, filter)
 	switch filter.Status {
@@ -122,7 +123,7 @@ func filterActivityInstances(query *bun.SelectQuery, filter domain.ActivityInsta
 	return query
 }
 
-func filterActivityInstanceIDs(query *bun.SelectQuery, filter domain.ActivityInstanceFilter) *bun.SelectQuery {
+func filterActivityInstanceIDs(query *bun.SelectQuery, filter timetable.ActivityInstanceFilter) *bun.SelectQuery {
 	if len(filter.IDs) > 0 {
 		query = query.Where(`"activity_instance".id IN (?)`, bun.List(filter.IDs))
 	}
@@ -135,7 +136,7 @@ func filterActivityInstanceIDs(query *bun.SelectQuery, filter domain.ActivityIns
 	return query
 }
 
-func filterActivityInstanceDates(query *bun.SelectQuery, filter domain.ActivityInstanceFilter) *bun.SelectQuery {
+func filterActivityInstanceDates(query *bun.SelectQuery, filter timetable.ActivityInstanceFilter) *bun.SelectQuery {
 	if filter.Date != nil {
 		query = query.Where(`"activity_instance".date = ?::date`, *filter.Date)
 	}
@@ -217,10 +218,10 @@ func (s *Store) OldestActivityInstanceBefore(ctx context.Context, before *string
 	return oldest, stats, nil
 }
 
-func (s *Store) CreateActivityInstance(ctx context.Context, fields domain.ActivityInstanceFields) (domain.ActivityInstance, domain.OperationStats, error) {
+func (s *Store) CreateActivityInstance(ctx context.Context, fields timetable.ActivityInstanceInput) (timetable.ActivityInstance, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.ActivityInstance{}, domain.OperationStats{}, err
+		return timetable.ActivityInstance{}, domain.OperationStats{}, err
 	}
 	row := newActivityInstanceRow(tenantID, fields)
 	stats := domain.OperationStats{Queries: 1}
@@ -229,16 +230,16 @@ func (s *Store) CreateActivityInstance(ctx context.Context, fields domain.Activi
 		Returning(activityInstanceColumns).Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.ActivityInstance{}, stats, classifyWriteError("create activity instance", err, &stats)
+		return timetable.ActivityInstance{}, stats, classifyWriteError("create activity instance", err, &stats)
 	}
 	stats.Rows = 1
 	return activityInstanceToDomain(row), stats, nil
 }
 
-func (s *Store) CreateTemplateBackedActivityInstanceIfAbsent(ctx context.Context, fields domain.ActivityInstanceFields) (domain.ActivityInstance, bool, domain.OperationStats, error) {
+func (s *Store) CreateTemplateBackedActivityInstanceIfAbsent(ctx context.Context, fields timetable.ActivityInstanceInput) (timetable.ActivityInstance, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.ActivityInstance{}, false, domain.OperationStats{}, err
+		return timetable.ActivityInstance{}, false, domain.OperationStats{}, err
 	}
 	row := newActivityInstanceRow(tenantID, fields)
 	stats := domain.OperationStats{Queries: 1}
@@ -250,10 +251,10 @@ func (s *Store) CreateTemplateBackedActivityInstanceIfAbsent(ctx context.Context
 	return activityInstanceInsertResult(row, stats, err, "create template-backed activity instance")
 }
 
-func (s *Store) CreateIdempotentActivityInstance(ctx context.Context, fields domain.ActivityInstanceFields) (domain.ActivityInstance, bool, domain.OperationStats, error) {
+func (s *Store) CreateIdempotentActivityInstance(ctx context.Context, fields timetable.ActivityInstanceInput) (timetable.ActivityInstance, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.ActivityInstance{}, false, domain.OperationStats{}, err
+		return timetable.ActivityInstance{}, false, domain.OperationStats{}, err
 	}
 	row := newActivityInstanceRow(tenantID, fields)
 	stats := domain.OperationStats{Queries: 1}
@@ -265,13 +266,13 @@ func (s *Store) CreateIdempotentActivityInstance(ctx context.Context, fields dom
 	return activityInstanceInsertResult(row, stats, err, "create idempotent activity instance")
 }
 
-func activityInstanceInsertResult(row activityInstanceRow, stats domain.OperationStats, err error, operation string) (domain.ActivityInstance, bool, domain.OperationStats, error) {
+func activityInstanceInsertResult(row activityInstanceRow, stats domain.OperationStats, err error, operation string) (timetable.ActivityInstance, bool, domain.OperationStats, error) {
 	if errors.Is(err, sql.ErrNoRows) {
 		stats.DuplicatePreventionConflicts = 1
-		return domain.ActivityInstance{}, false, stats, nil
+		return timetable.ActivityInstance{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.ActivityInstance{}, false, stats, classifyWriteError(operation, err, &stats)
+		return timetable.ActivityInstance{}, false, stats, classifyWriteError(operation, err, &stats)
 	}
 	stats.Rows = 1
 	return activityInstanceToDomain(row), true, stats, nil
@@ -279,10 +280,10 @@ func activityInstanceInsertResult(row activityInstanceRow, stats domain.Operatio
 
 // UpdateActivityInstance replaces every planning field except the status,
 // which only PatchActivityInstance changes.
-func (s *Store) UpdateActivityInstance(ctx context.Context, id int64, fields domain.ActivityInstanceFields) (domain.ActivityInstance, bool, domain.OperationStats, error) {
+func (s *Store) UpdateActivityInstance(ctx context.Context, id int64, fields timetable.ActivityInstanceInput) (timetable.ActivityInstance, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.ActivityInstance{}, false, domain.OperationStats{}, err
+		return timetable.ActivityInstance{}, false, domain.OperationStats{}, err
 	}
 	row := newActivityInstanceRow(tenantID, fields)
 	stats := domain.OperationStats{Queries: 1}
@@ -298,16 +299,16 @@ func (s *Store) UpdateActivityInstance(ctx context.Context, id int64, fields dom
 	err = query.Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.ActivityInstance{}, false, stats, nil
+		return timetable.ActivityInstance{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.ActivityInstance{}, false, stats, classifyWriteError("update activity instance", err, &stats)
+		return timetable.ActivityInstance{}, false, stats, classifyWriteError("update activity instance", err, &stats)
 	}
 	stats.Rows = 1
 	return activityInstanceToDomain(row), true, stats, nil
 }
 
-func (s *Store) PatchActivityInstance(ctx context.Context, id int64, fields domain.ActivityInstanceFields, columns []string) (int64, domain.OperationStats, error) {
+func (s *Store) PatchActivityInstance(ctx context.Context, id int64, fields timetable.ActivityInstanceInput, columns []string) (int64, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
@@ -467,7 +468,7 @@ func activityInstanceSelect(db bun.IDB, model any, tenantID int64) *bun.SelectQu
 		Where(`"activity_instance".tenant_id = ?`, tenantID)
 }
 
-func newActivityInstanceRow(tenantID int64, fields domain.ActivityInstanceFields) activityInstanceRow {
+func newActivityInstanceRow(tenantID int64, fields timetable.ActivityInstanceInput) activityInstanceRow {
 	status := fields.Status
 	if status == "" {
 		status = domain.InstanceStatusPlanned
@@ -484,8 +485,8 @@ func newActivityInstanceRow(tenantID int64, fields domain.ActivityInstanceFields
 	}
 }
 
-func activityInstanceToDomain(row activityInstanceRow) domain.ActivityInstance {
-	return domain.ActivityInstance{
+func activityInstanceToDomain(row activityInstanceRow) timetable.ActivityInstance {
+	return timetable.ActivityInstance{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		Date: row.Date, ActivityGroupID: row.ActivityGroupID, CalendarPeriodID: row.CalendarPeriodID,
 		Title: row.Title, Description: row.Description, StartTime: row.StartTime, EndTime: row.EndTime,
@@ -504,7 +505,7 @@ var activityInstanceWritableColumns = []string{
 	"idempotency_fingerprint", "created_by",
 }
 
-func setActivityInstanceField(query *bun.UpdateQuery, fields domain.ActivityInstanceFields, column string) *bun.UpdateQuery {
+func setActivityInstanceField(query *bun.UpdateQuery, fields timetable.ActivityInstanceInput, column string) *bun.UpdateQuery {
 	switch column {
 	case "date":
 		return query.Set("date = ?::date", fields.Date)
@@ -538,7 +539,7 @@ func setActivityInstanceField(query *bun.UpdateQuery, fields domain.ActivityInst
 	}
 }
 
-func setActivityInstanceAnnotation(query *bun.UpdateQuery, fields domain.ActivityInstanceFields, column string) *bun.UpdateQuery {
+func setActivityInstanceAnnotation(query *bun.UpdateQuery, fields timetable.ActivityInstanceInput, column string) *bun.UpdateQuery {
 	switch column {
 	case "understaffed_ack":
 		return query.Set("understaffed_ack = ?", fields.UnderstaffedAck)

@@ -354,7 +354,7 @@ export function Header() {
                 {mobileLocation}
               </span>
             )}
-            <div className="flex min-w-0 items-center gap-1">
+            <div className="flex min-w-0 items-center">
               <HeaderBreadcrumb
                 pathname={pathname}
                 pageTitle={displayedPageTitle}
@@ -371,23 +371,26 @@ export function Header() {
                 ogsGroupSection={ogsGroupSection}
                 activeSupervisionName={activeSupervisionName}
               />
-              {contextualHelpTopic ? (
-                <ContextHelpLink
-                  topic={contextualHelpTopic}
-                  // Eltern sind fast immer am Handy. Ein Fragezeichen, das
-                  // erst ab Tablet auftaucht, erreicht sie nie. Im
-                  // Personal-Portal bleibt die schmale Kopfzeile frei: dort
-                  // ist die Hilfe über die Seitenleiste erreichbar.
-                  containerClassName={
-                    mode === "parent" ? undefined : "hidden md:inline-flex"
-                  }
-                />
-              ) : null}
             </div>
           </div>
 
           {/* Right section: Actions + Profile */}
           <div className="ml-auto flex flex-shrink-0 items-center space-x-2">
+            {/* Das Fragezeichen steht bei den Aktionen (#4345): direkt hinter
+                der Brotkrume las es sich als Teil des Seitennamens oder als
+                Darstellungsfehler. */}
+            {contextualHelpTopic ? (
+              <ContextHelpLink
+                topic={contextualHelpTopic}
+                // Eltern sind fast immer am Handy. Ein Fragezeichen, das
+                // erst ab Tablet auftaucht, erreicht sie nie. Im
+                // Personal-Portal bleibt die schmale Kopfzeile frei: dort
+                // ist die Hilfe über die Seitenleiste erreichbar.
+                containerClassName={
+                  mode === "parent" ? undefined : "hidden md:inline-flex"
+                }
+              />
+            ) : null}
             {/* Desktop actions */}
             <div className="hidden items-center space-x-2 lg:flex">
               <SessionWarning isExpired={isSessionExpired} variant="desktop" />

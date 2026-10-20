@@ -199,6 +199,6 @@ func BuildPlanExport(env RootEnvironment, shifts *workforceCompose.ShiftPlanning
 }
 
 // DeliveryModuleOf is Delivery's module of a runtime.
-func DeliveryModuleOf(delivery DeliveryRuntime) *deliveryModule.Module {
+func DeliveryModuleOf(delivery DeliveryRuntime) deliveryModule.Capability {
 	return delivery.Runtime.Module
 }

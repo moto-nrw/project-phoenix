@@ -92,16 +92,16 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 		audit            owners.AuditOwner
 		organizations    organizationtenancy.Capability
 		groups           schoolstructure.Owner
-		rooms            *facilitiesModule.Rooms
+		rooms            facilitiesModule.Catalog
 		membership       schoolMembershipModule.Owner
 		bookings         *enrollmentOwner.BookingProjection
-		calendar         *schoolcalendar.Records
+		calendar         schoolcalendar.Days
 		workTime         *workforceCompose.WorkTime
 		people           owners.PeopleRows
 		peopleIdentity   *identityaccess.Module
 		guardian         peoplePorts.GuardianService
 		photoRuntime     owners.StudentPhotoRuntime
-		timetableOwner   *timetable.Module
+		timetableOwner   timetable.Owner
 		timetableRepos   owners.TimetableRepositories
 		carePlan         *carePlanModule.Module
 		operatorAuditLog owners.OperatorAuditEntries

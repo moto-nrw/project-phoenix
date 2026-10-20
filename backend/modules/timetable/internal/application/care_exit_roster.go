@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
@@ -10,7 +11,7 @@ import (
 // takes away: the students' rows on not cancelled instances after that day,
 // minus the ones Student Presence already observed or whose block ended.
 // A manually set future status is still a plan and stays in the set.
-func (s *Service) plannedCareExitRoster(ctx context.Context, studentIDs []int64, after string, stats *domain.OperationStats) ([]domain.CareExitRosterRow, error) {
+func (s *Service) plannedCareExitRoster(ctx context.Context, studentIDs []int64, after string, stats *domain.OperationStats) ([]timetable.CareExitRosterRow, error) {
 	candidates, measured, err := s.store.ListPlannedRosterForCareExit(ctx, studentIDs, after)
 	stats.Add(measured)
 	if err != nil || len(candidates) == 0 {
@@ -30,7 +31,7 @@ func (s *Service) plannedCareExitRoster(ctx context.Context, studentIDs []int64,
 	if err != nil {
 		return nil, err
 	}
-	result := make([]domain.CareExitRosterRow, 0, len(candidates))
+	result := make([]timetable.CareExitRosterRow, 0, len(candidates))
 	for _, row := range candidates {
 		if observed[row.ParticipantID] || completed[row.InstanceID] {
 			continue
@@ -40,7 +41,7 @@ func (s *Service) plannedCareExitRoster(ctx context.Context, studentIDs []int64,
 	return result, nil
 }
 
-func careExitParticipantIDs(rows []domain.CareExitRosterRow) []int64 {
+func careExitParticipantIDs(rows []timetable.CareExitRosterRow) []int64 {
 	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		ids = append(ids, row.ParticipantID)
@@ -49,6 +50,10 @@ func careExitParticipantIDs(rows []domain.CareExitRosterRow) []int64 {
 }
 
 func (s *Service) LockPlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after string) error {
+	if hasInvalidID(studentIDs) || !timetable.ValidDate(after) {
+		return s.reject("lock_planned_roster_for_care_exit", timetable.ErrInvalidInstanceStudentQuery)
+	}
+
 	if len(studentIDs) == 0 {
 		return nil
 	}
@@ -66,8 +71,12 @@ func (s *Service) LockPlannedRosterForCareExit(ctx context.Context, studentIDs [
 // PreviewPlannedRosterForCareExit lists what RemovePlannedRosterForCareExit
 // would remove, so the caller can read the attendance those participants
 // carry before the rows are gone.
-func (s *Service) PreviewPlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after string) (rows []domain.CareExitRosterRow, err error) {
-	rows = []domain.CareExitRosterRow{}
+func (s *Service) PreviewPlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after string) (rows []timetable.CareExitRosterRow, err error) {
+	if hasInvalidID(studentIDs) || !timetable.ValidDate(after) {
+		return nil, s.reject("preview_planned_roster_for_care_exit", timetable.ErrInvalidInstanceStudentQuery)
+	}
+
+	rows = []timetable.CareExitRosterRow{}
 	if len(studentIDs) == 0 {
 		return rows, nil
 	}
@@ -82,8 +91,12 @@ func (s *Service) PreviewPlannedRosterForCareExit(ctx context.Context, studentID
 	return rows, err
 }
 
-func (s *Service) RemovePlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after string) (rows []domain.CareExitRosterRow, err error) {
-	rows = []domain.CareExitRosterRow{}
+func (s *Service) RemovePlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after string) (rows []timetable.CareExitRosterRow, err error) {
+	if hasInvalidID(studentIDs) || !timetable.ValidDate(after) {
+		return nil, s.reject("remove_planned_roster_for_care_exit", timetable.ErrInvalidInstanceStudentQuery)
+	}
+
+	rows = []timetable.CareExitRosterRow{}
 	if len(studentIDs) == 0 {
 		return rows, nil
 	}
@@ -103,8 +116,17 @@ func (s *Service) RemovePlannedRosterForCareExit(ctx context.Context, studentIDs
 // RestoreRosterForCareExit puts removed participants back onto rosters that
 // have not ended or been cancelled and returns the restored rows with their
 // new participant ids.
-func (s *Service) RestoreRosterForCareExit(ctx context.Context, studentIDs []int64, rows []domain.CareExitRosterRow) (restored []domain.CareExitRosterRow, err error) {
-	restored = []domain.CareExitRosterRow{}
+func (s *Service) RestoreRosterForCareExit(ctx context.Context, studentIDs []int64, rows []timetable.CareExitRosterRow) (restored []timetable.CareExitRosterRow, err error) {
+	if hasInvalidID(studentIDs) {
+		return nil, s.reject("restore_roster_for_care_exit", timetable.ErrInvalidInstanceStudentQuery)
+	}
+	for _, row := range rows {
+		if row.TenantID <= 0 || row.StudentID <= 0 || row.InstanceID <= 0 {
+			return nil, s.reject("restore_roster_for_care_exit", timetable.ErrInvalidInstanceStudent)
+		}
+	}
+
+	restored = []timetable.CareExitRosterRow{}
 	if len(studentIDs) == 0 || len(rows) == 0 {
 		return restored, nil
 	}
@@ -133,14 +155,14 @@ func (s *Service) RestoreRosterForCareExit(ctx context.Context, studentIDs []int
 	return restored, err
 }
 
-func (s *Service) validateCareExitRosterRooms(ctx context.Context, rows []domain.CareExitRosterRow, stats *domain.OperationStats) ([]domain.CareExitRosterRow, error) {
+func (s *Service) validateCareExitRosterRooms(ctx context.Context, rows []timetable.CareExitRosterRow, stats *domain.OperationStats) ([]timetable.CareExitRosterRow, error) {
 	var roomIDs []int64
 	for _, row := range rows {
 		if row.RoomID != nil {
 			roomIDs = append(roomIDs, *row.RoomID)
 		}
 	}
-	rooms := []domain.RoomRef{}
+	rooms := []timetable.RoomRef{}
 	if len(roomIDs) > 0 {
 		values, measured, err := s.rooms.LockRoomsByID(ctx, sortedUniqueIDs(roomIDs))
 		stats.Add(measured)
@@ -150,7 +172,7 @@ func (s *Service) validateCareExitRosterRooms(ctx context.Context, rows []domain
 		rooms = values
 	}
 	validRooms := validRosterRooms(rooms)
-	result := make([]domain.CareExitRosterRow, 0, len(rows))
+	result := make([]timetable.CareExitRosterRow, 0, len(rows))
 	for _, row := range rows {
 		if row.RoomID != nil && validRooms[*row.RoomID] != row.TenantID {
 			row.RoomID = nil

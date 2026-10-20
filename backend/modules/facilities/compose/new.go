@@ -29,25 +29,25 @@ type Dependencies struct {
 // NewRooms composes the Facilities Catalog without the room deletion over
 // DB and Observe alone, for the owners a root builds before the deletion
 // guard's (#4080); New adds it.
-func NewRooms(dependencies Dependencies) (*facilities.Rooms, error) {
+func NewRooms(dependencies Dependencies) (facilities.Catalog, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("facilities compose: all dependencies are required")
 	}
-	observe := application.Observer(dependencies.Observe)
+	observe := ports.Observer(dependencies.Observe)
 	service := application.NewRooms(postgres.New(postgres.DatabaseRuntime(dependencies.DB)), transaction{}, observe)
-	return facilities.NewRooms(application.EngineBinding{Engine: application.NewEngine(service, observe)}), nil
+	return service, nil
 }
 
 // New composes the Facilities module. Every operation requires the caller's
 // tenant, which the store also applies as a defense-in-depth predicate.
-func New(dependencies Dependencies) (*facilities.Module, error) {
+func New(dependencies Dependencies) (facilities.Capability, error) {
 	if dependencies.DB == nil || dependencies.DeletionLock == nil || dependencies.Usage == nil || dependencies.Observe == nil {
 		return nil, errors.New("facilities compose: all dependencies are required")
 	}
 	store := postgres.New(postgres.DatabaseRuntime(dependencies.DB))
-	observe := application.Observer(dependencies.Observe)
+	observe := ports.Observer(dependencies.Observe)
 	service := application.New(store, transaction{}, dependencies.DeletionLock, dependencies.Usage, observe)
-	return facilities.NewModule(application.EngineBinding{Engine: application.NewEngine(service, observe)}), nil
+	return service, nil
 }
 
 type transaction struct{}

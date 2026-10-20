@@ -10,9 +10,7 @@ import (
 )
 
 var (
-	_ facilities.Catalog    = (*facilities.Rooms)(nil)
-	_ facilities.Catalog    = (*facilities.Module)(nil)
-	_ facilities.Capability = (*facilities.Module)(nil)
+	_ facilities.Catalog = (facilities.Capability)(nil)
 )
 
 func TestNewRoomsRequiresEveryDependency(t *testing.T) {

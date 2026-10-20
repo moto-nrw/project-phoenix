@@ -64,14 +64,14 @@ func ObserveFacilities(observation facilitiesCompose.Observation) {
 
 // BuildServeRooms composes the Facilities room catalog every owner reads; the
 // room deletion is composed once its guard exists.
-func BuildServeRooms(db transactionruntime.Database) (*facilitiesModule.Rooms, error) {
+func BuildServeRooms(db transactionruntime.Database) (facilitiesModule.Catalog, error) {
 	return facilitiesCompose.NewRooms(facilitiesCompose.Dependencies{DB: db.Pool(), Observe: ObserveFacilities})
 }
 
 // BuildFacilitiesModule composes Facilities with its room deletion: the
 // deletion asks Student Presence for open sessions and Care Plan's
 // care-offering catalog for the rooms its offerings need (#4010).
-func BuildFacilitiesModule(db transactionruntime.Database, observe func(facilitiesCompose.Observation), lock timetable.RecurrenceWriteLock, sessions *studentpresence.Module, offerings careplan.CareOfferingGuards) (*facilitiesModule.Module, error) {
+func BuildFacilitiesModule(db transactionruntime.Database, observe func(facilitiesCompose.Observation), lock timetable.RecurrenceWriteLock, sessions *studentpresence.Module, offerings careplan.CareOfferingGuards) (facilitiesModule.Capability, error) {
 	return facilitiesCompose.New(facilitiesCompose.Dependencies{
 		DB: db.Pool(), DeletionLock: lock.LockRecurrenceWrites,
 		Usage:   &RoomUsage{Sessions: sessions, Offerings: offerings},
@@ -87,7 +87,7 @@ func ObserveSchoolCalendar(observation schoolCalendarCompose.Observation) {
 // BuildSchoolCalendarRecords composes the School Calendar every owner reads,
 // over the tenant's federal state; the period administration is composed
 // once its guards exist.
-func BuildSchoolCalendarRecords(db transactionruntime.Database, observe func(schoolCalendarCompose.Observation), settings settingsCompose.SettingsService) (*schoolcalendar.Records, error) {
+func BuildSchoolCalendarRecords(db transactionruntime.Database, observe func(schoolCalendarCompose.Observation), settings settingsCompose.SettingsService) (schoolcalendar.Days, error) {
 	return schoolCalendarCompose.NewRecords(schoolCalendarCompose.RecordsDependencies{
 		DB: db.Pool(), Observe: observe,
 		FederalState: func(ctx context.Context) (string, error) {
@@ -159,7 +159,7 @@ func ObservePeopleDirectory(observation peopleCompose.Observation) {
 
 // BuildServeMealPlan composes the Meal Plan over its settings and the
 // participants of the day.
-func BuildServeMealPlan(db transactionruntime.Database, settings *mealplanCompose.Settings, students StudentRootReads) (*mealplanModule.Module, error) {
+func BuildServeMealPlan(db transactionruntime.Database, settings *mealplanCompose.Settings, students StudentRootReads) (mealplanModule.Capability, error) {
 	return mealplanCompose.New(mealplanCompose.Dependencies{
 		DB:       db.Pool(),
 		Settings: settings,
@@ -172,13 +172,13 @@ func BuildServeMealPlan(db transactionruntime.Database, settings *mealplanCompos
 }
 
 // BuildServeFeedback composes Feedback over its settings.
-func BuildServeFeedback(db transactionruntime.Database, settings *feedbackCompose.Settings) (*feedbackModule.Module, error) {
+func BuildServeFeedback(db transactionruntime.Database, settings *feedbackCompose.Settings) (feedbackModule.Capability, error) {
 	return composeFeedback(db, settings)
 }
 
 // BuildServeTimetable composes the observed Timetable owner over the People
 // Directory, the room catalog and School Membership.
-func BuildServeTimetable(db transactionruntime.Database, persons peopledirectory.StudentQuery, rooms facilitiesModule.Query, membership schoolmembership.Capability) (*timetable.Module, error) {
+func BuildServeTimetable(db transactionruntime.Database, persons peopledirectory.StudentQuery, rooms facilitiesModule.Query, membership schoolmembership.Capability) (timetable.Owner, error) {
 	return newTimetable(db, persons, rooms, membership, func(observation timetableCompose.Observation) {
 		observability.ObserveTimetableActivitiesOperation(
 			observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows,

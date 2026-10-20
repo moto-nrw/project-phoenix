@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -12,7 +13,7 @@ import (
 // day, but rows planned before the edit would otherwise stay, whatever window
 // a later re-plan covers. Blocks that started and occurrences with individual
 // staff changes or an understaffed acknowledgement keep their row.
-func (s *Service) dropOccurrencesAfterSeriesEnd(ctx context.Context, groupID int64, fields domain.TemplateFields, stats *domain.OperationStats) error {
+func (s *Service) dropOccurrencesAfterSeriesEnd(ctx context.Context, groupID int64, fields timetable.TemplateUpdate, stats *domain.OperationStats) error {
 	if !fields.SeriesLastDayProvided || fields.SeriesLastDay == nil {
 		return nil
 	}

@@ -13,15 +13,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Migrations older than the Contract read and write users.students_guardians.
-// Their tests restore the rollback mirror inside their own clone.
-func setupGuardianStorageBeforeContract(t *testing.T) *testpkg.DB {
-	t.Helper()
-	db := testpkg.SetupIsolatedTestDB(t)
-	testpkg.RestoreGuardianStorageBeforeContract(t, db)
-	return db
-}
-
 // Isolated DDL tests use the same live checks as ordinary deployments.
 // Registered execution enters through guardianOwnerContractUp.
 func contractGuardianOwnerStorage(ctx context.Context, db *bun.DB) error {

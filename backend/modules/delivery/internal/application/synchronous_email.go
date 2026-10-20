@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
 )
 
@@ -79,13 +80,13 @@ func (w *Worker) deliverEmail(ctx context.Context, store targetedEmailStore, int
 	return w.finalizeSynchronousPush(finalizeCtx, intent, token, result)
 }
 
-func (w *Worker) sendEmailAttempts(ctx context.Context, store targetedEmailStore, intent domain.Intent, token string) (domain.ProviderResult, int, error) {
+func (w *Worker) sendEmailAttempts(ctx context.Context, store targetedEmailStore, intent domain.Intent, token string) (deliveryContract.ProviderResult, int, error) {
 	policy := struct {
 		MaxAttempts int             `json:"delivery_max_attempts"`
 		Backoff     []time.Duration `json:"delivery_backoff"`
 	}{MaxAttempts: 3, Backoff: []time.Duration{time.Second, 5 * time.Second, 15 * time.Second}}
 	if err := json.Unmarshal(intent.Payload, &policy); err != nil {
-		return domain.ProviderResult{}, intent.Attempts, err
+		return deliveryContract.ProviderResult{}, intent.Attempts, err
 	}
 	for {
 		result, sendErr := w.provider.Send(ctx, intent)

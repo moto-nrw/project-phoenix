@@ -35,11 +35,11 @@ type Runtime struct {
 }
 
 type Resource struct {
-	module  *feedbackModule.Module
+	module  feedbackModule.Capability
 	runtime Runtime
 }
 
-func NewResource(module *feedbackModule.Module, runtime Runtime) *Resource {
+func NewResource(module feedbackModule.Capability, runtime Runtime) *Resource {
 	if module == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.Success == nil || runtime.Failure == nil || runtime.ObserveResponse == nil {
 		panic("feedback HTTP: all dependencies are required")
 	}

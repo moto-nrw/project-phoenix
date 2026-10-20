@@ -7,26 +7,27 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 	"github.com/uptrace/bun"
 )
 
-func (s *StudentStore) CreateEnrollment(ctx context.Context, input domain.EnrollmentStudent) (domain.Student, domain.OperationStats, error) {
+func (s *StudentStore) CreateEnrollment(ctx context.Context, input domain.EnrollmentStudent) (peopledirectory.Student, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.Student{}, domain.OperationStats{}, err
+		return peopledirectory.Student{}, domain.OperationStats{}, err
 	}
 	stats := domain.OperationStats{}
 	started := time.Now()
 	result, err := s.createEnrollmentStudent(ctx, db, scope.TenantID, input, &stats)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.Student{}, stats, fmt.Errorf("people directory postgres: create enrollment student: %w", err)
+		return peopledirectory.Student{}, stats, fmt.Errorf("people directory postgres: create enrollment student: %w", err)
 	}
 	return result, stats, nil
 }
 
-func (s *StudentStore) createEnrollmentStudent(ctx context.Context, db bun.IDB, tenantID int64, input domain.EnrollmentStudent, stats *domain.OperationStats) (domain.Student, error) {
+func (s *StudentStore) createEnrollmentStudent(ctx context.Context, db bun.IDB, tenantID int64, input domain.EnrollmentStudent, stats *domain.OperationStats) (peopledirectory.Student, error) {
 	var gate *bun.SelectQuery
 	var err error
 	if s.classGateQuery != nil {
@@ -37,7 +38,7 @@ func (s *StudentStore) createEnrollmentStudent(ctx context.Context, db bun.IDB, 
 		gate = db.NewSelect().ColumnExpr("TRUE")
 	}
 	if err != nil {
-		return domain.Student{}, err
+		return peopledirectory.Student{}, err
 	}
 	record := domain.StudentRecord{PersonID: input.PersonID}
 	if input.InitialProfile != nil {
@@ -49,11 +50,11 @@ func (s *StudentStore) createEnrollmentStudent(ctx context.Context, db bun.IDB, 
 	}
 	row.EnrolledFrom, err = optionalDate(input.EnrolledFrom)
 	if err != nil {
-		return domain.Student{}, err
+		return peopledirectory.Student{}, err
 	}
 	row.EnrolledUntil, err = optionalDate(input.EnrolledUntil)
 	if err != nil {
-		return domain.Student{}, err
+		return peopledirectory.Student{}, err
 	}
 	stats.Queries++
 	err = db.NewRaw(`WITH class_write_gate AS MATERIALIZED (?),
@@ -71,10 +72,10 @@ func (s *StudentStore) createEnrollmentStudent(ctx context.Context, db bun.IDB, 
 		record.AddressPostalCode, record.ExtraInfo, record.PhotoConsentGivenAt, record.PhotoConsentGivenBy,
 		record.AGBAcceptedAt, record.DataProcessingAcceptedAt, record.EmailContactAcceptedAt).Scan(ctx, &row)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Student{}, domain.ErrNotFound
+		return peopledirectory.Student{}, peopledirectory.ErrPersonNotFound
 	}
 	if err != nil {
-		return domain.Student{}, err
+		return peopledirectory.Student{}, err
 	}
 	stats.Rows = 1
 	return toStudent(row), nil

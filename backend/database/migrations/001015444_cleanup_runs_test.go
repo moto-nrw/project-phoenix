@@ -22,11 +22,26 @@ func TestDeletionLogAcceptsRetentionRowsWithoutASubjectOnly(t *testing.T) {
 		return err
 	}
 
-	for _, deletionType := range []string{
-		"unregistered_tag_scan_retention", "status_day_retention", "parent_message_retention",
-		"auth_event_retention", "data_access_log_retention", "deletion_log_retention",
+	// One table instead of a test per migration: each SetupTestDB call clones
+	// the database, and these rows only need the fully migrated schema.
+	for _, migration := range []struct {
+		version       string
+		deletionTypes []string
+	}{
+		{"1.15.444", []string{
+			"unregistered_tag_scan_retention", "status_day_retention", "parent_message_retention",
+			"auth_event_retention", "data_access_log_retention", "deletion_log_retention",
+		}},
+		{"1.15.449", cleanupJobRetentionKinds},
+		{"1.15.452", []string{settledEnrollmentRetentionKind}},
+		{"1.15.453", []string{staffSickNoteRetentionKind}},
+		{"1.15.460", []string{attendanceRetentionKind}},
+		{"1.15.464", []string{guardianRetentionKind}},
+		{"1.15.465", schoolContentRetentionKinds},
 	} {
-		assert.NoError(t, insert(deletionType, nil, nil), "%s logs a data kind without a subject", deletionType)
+		for _, deletionType := range migration.deletionTypes {
+			assert.NoError(t, insert(deletionType, nil, nil), "%s (%s) logs a data kind without a subject", deletionType, migration.version)
+		}
 	}
 
 	assert.Error(t, insert("manual", nil, nil), "a manual deletion still names its subject")

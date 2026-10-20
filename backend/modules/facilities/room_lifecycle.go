@@ -1,7 +1,6 @@
 package facilities
 
 import (
-	"regexp"
 	"strings"
 )
 
@@ -26,8 +25,6 @@ const (
 	WCRoomCapacity              = 20
 	WCMaxParticipants           = 20
 )
-
-var roomColorPattern = regexp.MustCompile(`^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$`)
 
 var reservedRoomColors = map[string]struct{}{
 	"#83CD2D": {}, "#5080D8": {}, "#6B7280": {}, "#F78C10": {},
@@ -118,37 +115,3 @@ type InvalidRoomError struct{ Reason string }
 
 func (e *InvalidRoomError) Error() string { return e.Reason }
 func (e *InvalidRoomError) Unwrap() error { return ErrInvalidRoom }
-
-func normalizeAndValidateCreateRoom(input *CreateRoom) error {
-	return normalizeAndValidateRoom(&input.Name, input.Capacity, &input.Color)
-}
-
-func normalizeAndValidateRoom(name *string, capacity *int, color **string) error {
-	*name = strings.TrimSpace(*name)
-	if *name == "" {
-		return &InvalidRoomError{Reason: "room name is required"}
-	}
-	if capacity != nil && *capacity <= 0 {
-		return &InvalidRoomError{Reason: "capacity must be greater than zero"}
-	}
-	if *color == nil || strings.TrimSpace(**color) == "" {
-		return nil
-	}
-
-	normalized := strings.TrimSpace(**color)
-	if !strings.HasPrefix(normalized, "#") {
-		normalized = "#" + normalized
-	}
-	if !roomColorPattern.MatchString(normalized) {
-		return &InvalidRoomError{Reason: "invalid color format, must be a valid hex color"}
-	}
-	if len(normalized) == 4 {
-		normalized = string([]byte{'#', normalized[1], normalized[1], normalized[2], normalized[2], normalized[3], normalized[3]})
-	}
-	normalized = strings.ToUpper(normalized)
-	if IsReservedRoomColor(normalized) {
-		return ErrRoomColorReserved
-	}
-	*color = &normalized
-	return nil
-}

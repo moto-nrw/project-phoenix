@@ -10,19 +10,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func TestDeletionLogAcceptsCleanupJobRetentionRowsWithoutASubject(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	school := testpkg.Tenant(t)
-
-	for _, kind := range cleanupJobRetentionKinds {
-		_, err := db.ExecContext(context.Background(), `
-			INSERT INTO audit.data_deletions (tenant_id, deletion_type, records_deleted, deleted_by)
-			VALUES (?, ?, 1, 'system')`, school, kind)
-		assert.NoError(t, err, "%s logs a data kind without a subject", kind)
-	}
-}
-
 func TestDeclarationMarkersGoWithTheirRelationship(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)

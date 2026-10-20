@@ -158,7 +158,7 @@ func TestRecurrenceRuleListQueryBudgetStaysFlat(t *testing.T) {
 	}))
 }
 
-func createOwnedRecurrenceRule(t *testing.T, module *timetable.Module, ctx context.Context, input timetable.RecurrenceRuleInput) timetable.RecurrenceRule {
+func createOwnedRecurrenceRule(t *testing.T, module timetable.Owner, ctx context.Context, input timetable.RecurrenceRuleInput) timetable.RecurrenceRule {
 	t.Helper()
 	value, err := module.CreateRecurrenceRule(ctx, input)
 	require.NoError(t, err)

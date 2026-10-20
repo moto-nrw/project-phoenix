@@ -150,7 +150,7 @@ func TestTimeframeListQueryBudgetStaysFlat(t *testing.T) {
 	}))
 }
 
-func createOwnedTimeframe(t *testing.T, module *timetable.Module, ctx context.Context, start, end string, active bool, description string) timetable.Timeframe {
+func createOwnedTimeframe(t *testing.T, module timetable.Owner, ctx context.Context, start, end string, active bool, description string) timetable.Timeframe {
 	t.Helper()
 	value, err := module.CreateTimeframe(ctx, timeframeInput(start, end, active, description))
 	require.NoError(t, err)

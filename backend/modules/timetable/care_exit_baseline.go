@@ -18,22 +18,3 @@ type CareExitBaselineQuery interface {
 	// bookings still running on validUntil (YYYY-MM-DD, exclusive end).
 	CountRunningEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil string, restorable []CareExitEnrollmentRemoval) (map[int64]int, error)
 }
-
-func (m *Module) CountPlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after string, restorable []CareExitRosterRow) (map[int64]int, error) {
-	if hasInvalidID(studentIDs) || !validDate(after) {
-		return nil, m.reject("count_planned_roster_for_care_exit", ErrInvalidInstanceStudentQuery)
-	}
-	for _, row := range restorable {
-		if row.TenantID <= 0 || row.StudentID <= 0 || row.InstanceID <= 0 {
-			return nil, m.reject("count_planned_roster_for_care_exit", ErrInvalidInstanceStudent)
-		}
-	}
-	return m.engine.CountPlannedRosterForCareExit(ctx, studentIDs, after, restorable)
-}
-
-func (m *Module) CountRunningEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil string, restorable []CareExitEnrollmentRemoval) (map[int64]int, error) {
-	if hasInvalidID(studentIDs) || !validDate(validUntil) || invalidCareExitRemovals(restorable) {
-		return nil, m.reject("count_running_enrollments_for_care_exit", ErrInvalidCareExitEnrollment)
-	}
-	return m.engine.CountRunningEnrollmentsForCareExit(ctx, studentIDs, validUntil, restorable)
-}

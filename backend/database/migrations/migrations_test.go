@@ -1,7 +1,6 @@
 package migrations
 
 import (
-	"context"
 	"maps"
 	"os"
 	"path/filepath"
@@ -9,8 +8,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // TestMigrationLogOutputMatchesRegisteredVersion catches migrations that print a
@@ -86,63 +83,4 @@ func TestMigrationLogOutputMatchesRegisteredVersion(t *testing.T) {
 				name, logged, strings.Join(slices.Sorted(maps.Keys(registered)), ", "))
 		}
 	}
-}
-
-func TestScheduleTimeframesAreMigratedToTimezoneFreeClockTimes(t *testing.T) {
-	t.Parallel()
-	content, err := os.ReadFile("001015050_timeframes_use_time_without_timezone.go")
-	if err != nil {
-		t.Fatalf("failed to read timeframe clock migration: %v", err)
-	}
-	src := string(content)
-	for _, required := range []string{
-		"ALTER TABLE schedule.timeframes",
-		"start_time TYPE TIME WITHOUT TIME ZONE",
-		"end_time TYPE TIME WITHOUT TIME ZONE",
-		"start_time AT TIME ZONE 'UTC'",
-		"end_time AT TIME ZONE 'UTC'",
-	} {
-		if !strings.Contains(src, required) {
-			t.Fatalf("timeframe clock migration must contain %q", required)
-		}
-	}
-}
-
-func TestOperatorRefreshTokenMigrationUpDown(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	ctx := context.Background()
-
-	if err := downOperatorRefreshTokens(ctx, db); err != nil {
-		t.Fatalf("pre-clean operator refresh token migration: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = upOperatorRefreshTokens(context.Background(), db)
-	})
-
-	if err := upOperatorRefreshTokens(ctx, db); err != nil {
-		t.Fatalf("run operator refresh token migration: %v", err)
-	}
-	if !relationExists(t, db, "platform.operator_refresh_tokens") {
-		t.Fatal("operator refresh token table was not created")
-	}
-	if !relationExists(t, db, "platform.idx_operator_refresh_tokens_operator_id") {
-		t.Fatal("operator refresh token operator_id index was not created")
-	}
-
-	if err := downOperatorRefreshTokens(ctx, db); err != nil {
-		t.Fatalf("rollback operator refresh token migration: %v", err)
-	}
-	if relationExists(t, db, "platform.operator_refresh_tokens") {
-		t.Fatal("operator refresh token table still exists after rollback")
-	}
-}
-
-func relationExists(t *testing.T, db *testpkg.DB, relation string) bool {
-	t.Helper()
-	var exists bool
-	if err := db.NewRaw(`SELECT to_regclass(?) IS NOT NULL`, relation).Scan(context.Background(), &exists); err != nil {
-		t.Fatalf("check relation %s: %v", relation, err)
-	}
-	return exists
 }

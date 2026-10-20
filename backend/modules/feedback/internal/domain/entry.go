@@ -1,13 +1,10 @@
 package domain
 
 import (
-	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
-
-var ErrEntryNotFound = errors.New("feedback entry not found")
 
 type Date = calendar.Date
 

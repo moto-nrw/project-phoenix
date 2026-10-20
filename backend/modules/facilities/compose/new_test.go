@@ -35,7 +35,7 @@ func (l *observationLog) operations() []string {
 	return names
 }
 
-func buildModule(t *testing.T, db *bun.DB, observe func(Observation)) *facilities.Module {
+func buildModule(t *testing.T, db *bun.DB, observe func(Observation)) facilities.Capability {
 	t.Helper()
 	module, err := New(Dependencies{
 		DB: db, DeletionLock: func(context.Context) error { return nil },

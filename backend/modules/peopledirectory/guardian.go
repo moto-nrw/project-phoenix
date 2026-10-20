@@ -442,35 +442,3 @@ type GuardianProvider interface {
 	ListGuardianStudents(context.Context, int64) ([]StudentWithLink, error)
 	FindGuardianLink(context.Context, int64) (GuardianLink, error)
 }
-
-// guardianEngine is the row-level half the composition supplies together
-// with the person and student engines, plus the observation seam every
-// provider-backed operation reports through so the guardian capability
-// records the same per-operation evidence as the person and student reads.
-type guardianEngine interface {
-	ListGuardianPortalContacts(context.Context, []int64, []int64) ([]GuardianPortalContact, error)
-	ListGuardianLinksByAccount(context.Context, int64) ([]GuardianLink, error)
-	ListGuardiansByAccounts(context.Context, []int64) ([]Guardian, error)
-	ListGuardiansByIDs(context.Context, []int64) ([]Guardian, error)
-	CountGuardianLinks(context.Context, []int64) (map[int64]int, error)
-	StudentsWithPortalGuardian(context.Context, []int64) (map[int64]bool, error)
-	ObserveGuardianOperation(operation string, duration time.Duration, err error)
-}
-
-// observed runs one provider-backed operation and reports its outcome under
-// a stable operation name.
-func (m *Module) observed(operation string, fn func() error) error {
-	started := time.Now()
-	err := fn()
-	m.engine.ObserveGuardianOperation(operation, time.Since(started), err)
-	return err
-}
-
-func (m *Module) guardianProvider() (GuardianProvider, error) {
-	if m.guardians == nil {
-		return nil, ErrGuardianProviderUnbound
-	}
-	return m.guardians, nil
-}
-
-func invalidGuardian(reason string) error { return &InvalidGuardianError{Reason: reason} }

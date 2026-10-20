@@ -39,7 +39,7 @@ type EnrollmentNotices struct {
 // change requests, the capacity gate and the reports read.
 func BuildEnrollmentNotices(
 	env RootEnvironment, enrollment EnrollmentRows, settings settingsCompose.BatchSettingsService, outbox MailOutbox,
-	organizations organizationtenancy.Query, audit AuditOwner, carePlan careplan.Capability, module *deliveryModule.Module,
+	organizations organizationtenancy.Query, audit AuditOwner, carePlan careplan.Capability, module deliveryModule.Capability,
 ) EnrollmentNotices {
 	deletions := NewEnrollmentDeletionModule(EnrollmentDeletionSources{
 		Owner: enrollment.Bookings, Guardians: enrollment.Guardians,

@@ -26,7 +26,7 @@ import (
 // administration: the recurrence gate serializes it against every
 // recurrence-derived write, and Care Plan's catalog refuses a period change
 // a linked care offering still needs.
-func buildCalendarAdministration(db transactionruntime.Database, observe func(schoolCalendarCompose.Observation), records *schoolcalendar.Records, lock timetable.RecurrenceWriteLock, offerings careplan.CareOfferingGuards) (*schoolcalendar.Module, error) {
+func buildCalendarAdministration(db transactionruntime.Database, observe func(schoolCalendarCompose.Observation), records schoolcalendar.Days, lock timetable.RecurrenceWriteLock, offerings careplan.CareOfferingGuards) (schoolcalendar.Calendar, error) {
 	return schoolCalendarCompose.NewAdministration(records, schoolCalendarCompose.AdministrationDependencies{
 		DB: db.Pool(), Observe: observe, RecurrenceGate: lock.LockRecurrenceWrites,
 		CareOfferingGuard: func(ctx context.Context, periodID int64, replacement *schoolcalendar.CalendarPeriodFields) error {

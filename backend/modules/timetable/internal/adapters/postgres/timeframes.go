@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -22,17 +23,17 @@ type timeframeRow struct {
 	Description   string    `bun:"description"`
 }
 
-func (s *Store) FindTimeframe(ctx context.Context, id int64) (domain.Timeframe, bool, domain.OperationStats, error) {
+func (s *Store) FindTimeframe(ctx context.Context, id int64) (timetable.Timeframe, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.Timeframe{}, false, domain.OperationStats{}, err
+		return timetable.Timeframe{}, false, domain.OperationStats{}, err
 	}
 	row := timeframeRow{}
 	found, stats, err := scanOne(ctx, timeframeSelect(db, &row, tenantID).Where(`"timeframe".id = ?`, id), "find timeframe")
 	return timeframeToDomain(row), found, stats, err
 }
 
-func (s *Store) ListTimeframes(ctx context.Context, filter domain.TimeframeFilter) ([]domain.Timeframe, domain.OperationStats, error) {
+func (s *Store) ListTimeframes(ctx context.Context, filter timetable.TimeframeFilter) ([]timetable.Timeframe, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -43,7 +44,7 @@ func (s *Store) ListTimeframes(ctx context.Context, filter domain.TimeframeFilte
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.Timeframe, 0, len(rows))
+	result := make([]timetable.Timeframe, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, timeframeToDomain(row))
 	}
@@ -51,7 +52,7 @@ func (s *Store) ListTimeframes(ctx context.Context, filter domain.TimeframeFilte
 	return result, stats, nil
 }
 
-func filterTimeframes(query *bun.SelectQuery, filter domain.TimeframeFilter) *bun.SelectQuery {
+func filterTimeframes(query *bun.SelectQuery, filter timetable.TimeframeFilter) *bun.SelectQuery {
 	if filter.DescriptionContains != "" {
 		query = query.Where(`"timeframe".description ILIKE ?`, "%"+filter.DescriptionContains+"%")
 	}
@@ -70,10 +71,10 @@ func filterTimeframes(query *bun.SelectQuery, filter domain.TimeframeFilter) *bu
 	return query
 }
 
-func (s *Store) CreateTimeframe(ctx context.Context, fields domain.TimeframeFields) (domain.Timeframe, domain.OperationStats, error) {
+func (s *Store) CreateTimeframe(ctx context.Context, fields timetable.TimeframeInput) (timetable.Timeframe, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.Timeframe{}, domain.OperationStats{}, err
+		return timetable.Timeframe{}, domain.OperationStats{}, err
 	}
 	row := timeframeRow{TenantID: tenantID}
 	applyTimeframeFields(&row, fields)
@@ -83,16 +84,16 @@ func (s *Store) CreateTimeframe(ctx context.Context, fields domain.TimeframeFiel
 		Returning(`id, tenant_id, created_at, updated_at, start_time::text AS start_time, end_time::text AS end_time, is_active, description`).Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.Timeframe{}, stats, classifyWriteError("create timeframe", err, &stats)
+		return timetable.Timeframe{}, stats, classifyWriteError("create timeframe", err, &stats)
 	}
 	stats.Rows = 1
 	return timeframeToDomain(row), stats, nil
 }
 
-func (s *Store) UpdateTimeframe(ctx context.Context, id int64, fields domain.TimeframeFields) (domain.Timeframe, bool, domain.OperationStats, error) {
+func (s *Store) UpdateTimeframe(ctx context.Context, id int64, fields timetable.TimeframeInput) (timetable.Timeframe, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.Timeframe{}, false, domain.OperationStats{}, err
+		return timetable.Timeframe{}, false, domain.OperationStats{}, err
 	}
 	row := timeframeRow{ID: id, TenantID: tenantID}
 	applyTimeframeFields(&row, fields)
@@ -104,10 +105,10 @@ func (s *Store) UpdateTimeframe(ctx context.Context, id int64, fields domain.Tim
 		Returning(`id, tenant_id, created_at, updated_at, start_time::text AS start_time, end_time::text AS end_time, is_active, description`).Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Timeframe{}, false, stats, nil
+		return timetable.Timeframe{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.Timeframe{}, false, stats, classifyWriteError("update timeframe", err, &stats)
+		return timetable.Timeframe{}, false, stats, classifyWriteError("update timeframe", err, &stats)
 	}
 	stats.Rows = 1
 	return timeframeToDomain(row), true, stats, nil
@@ -130,12 +131,12 @@ func timeframeSelect(db bun.IDB, model any, tenantID int64) *bun.SelectQuery {
 		Where(`"timeframe".tenant_id = ?`, tenantID)
 }
 
-func applyTimeframeFields(row *timeframeRow, fields domain.TimeframeFields) {
+func applyTimeframeFields(row *timeframeRow, fields timetable.TimeframeInput) {
 	row.StartTime, row.EndTime = fields.StartTime, fields.EndTime
 	row.IsActive, row.Description = fields.IsActive, fields.Description
 }
 
-func timeframeToDomain(row timeframeRow) domain.Timeframe {
-	return domain.Timeframe{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+func timeframeToDomain(row timeframeRow) timetable.Timeframe {
+	return timetable.Timeframe{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		StartTime: row.StartTime, EndTime: row.EndTime, IsActive: row.IsActive, Description: row.Description}
 }
