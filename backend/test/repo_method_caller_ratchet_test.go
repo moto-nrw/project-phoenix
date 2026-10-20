@@ -124,7 +124,7 @@ func collectCallerFileContents(t *testing.T, backendRoot string) []string {
 	}
 	var contents []string
 	for _, f := range files {
-		if strings.HasSuffix(f.rel, "_test.go") || inHiddenDir(f.rel) ||
+		if strings.HasSuffix(f.rel, "_test.go") || inDirNamed(f.rel) ||
 			strings.HasPrefix(f.rel, "models/") || strings.HasPrefix(f.rel, "database/") {
 			continue
 		}

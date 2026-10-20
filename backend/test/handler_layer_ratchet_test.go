@@ -271,7 +271,7 @@ func scanSources(backendRoot string, selected func(string) bool, countLine func(
 	}
 	counts := make(map[string]int)
 	for _, f := range files {
-		if strings.HasSuffix(f.rel, "_test.go") || !selected(f.rel) || inHiddenDir(f.rel) {
+		if strings.HasSuffix(f.rel, "_test.go") || !selected(f.rel) || inDirNamed(f.rel) {
 			continue
 		}
 		if !active[filepath.Join(backendRoot, filepath.FromSlash(f.rel))] {
@@ -282,16 +282,6 @@ func scanSources(backendRoot string, selected func(string) bool, countLine func(
 		}
 	}
 	return counts, nil
-}
-
-func inHiddenDir(rel string) bool {
-	parts := strings.Split(rel, "/")
-	for _, part := range parts[:len(parts)-1] {
-		if strings.HasPrefix(part, ".") {
-			return true
-		}
-	}
-	return false
 }
 
 func countContentHits(content []byte, countLine func(string) int) int {

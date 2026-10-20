@@ -263,7 +263,7 @@ err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 
 ### Enforcement — architecture policy
 
-`scripts/backend-architecture.sh check` enforces this through `backend/architecture/policy.json`: a package may import the `orm-sql` class (`github.com/uptrace/bun`, `database/sql`) only when a production rule grants it. The `postgres`, `migration` and `test-support` roles have one; the `http` role has none, and an `application` package has one only where a named owner rule grants it. Without the import, a package cannot build a query. The former text ratchet `TestServiceRepositoryRatchet` scanned only `modules/schedulerruntime/internal/application`, which has no grant, and was removed in #4427.
+`scripts/backend-architecture.sh check` enforces this through `backend/architecture/policy.json`: a package may import the `orm-sql` class (`github.com/uptrace/bun`, `database/sql`) only when a production rule grants it. The `postgres`, `migration` and `test-support` roles have one, `compose`, `adapter` and `application` packages only where a named owner rule grants it, and the `http` role has none. Without the import, a package cannot build a query. The former text ratchet `TestServiceRepositoryRatchet` scanned only `modules/schedulerruntime/internal/application`, which has no grant, and was removed in #4427.
 
 ### Exceptions
 

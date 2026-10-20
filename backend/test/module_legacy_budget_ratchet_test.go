@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"path"
-	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -459,18 +458,6 @@ func moduleComposeScan(backendRoot string) (map[string]int, error) {
 		counts[f.pkg] += moduleLegacyBudgetCountLines(f.content)
 	}
 	return counts, nil
-}
-
-// inDirNamed reports whether a directory above rel is hidden or carries one
-// of names.
-func inDirNamed(rel string, names ...string) bool {
-	parts := strings.Split(rel, "/")
-	for _, part := range parts[:len(parts)-1] {
-		if strings.HasPrefix(part, ".") || slices.Contains(names, part) {
-			return true
-		}
-	}
-	return false
 }
 
 func moduleComposePackage(dir string) bool {

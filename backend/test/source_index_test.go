@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -64,6 +65,19 @@ func goSourceIndex(root string) ([]sourceFile, error) {
 		})
 	})
 	return idx.files, idx.err
+}
+
+// inDirNamed reports whether a directory above the backend-relative path rel
+// is hidden or carries one of names. Index consumers use it for their
+// directory exclusions.
+func inDirNamed(rel string, names ...string) bool {
+	parts := strings.Split(rel, "/")
+	for _, part := range parts[:len(parts)-1] {
+		if strings.HasPrefix(part, ".") || slices.Contains(names, part) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestGoSourceIndexReportsWalkErrors(t *testing.T) {

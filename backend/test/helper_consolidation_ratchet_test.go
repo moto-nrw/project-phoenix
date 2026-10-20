@@ -138,22 +138,12 @@ func scanMultiLineGetLoggers(backendRoot string) ([]string, error) {
 	}
 	var files []string
 	for _, f := range sources {
-		if !strings.HasSuffix(f.rel, "_test.go") && !inSkippedDir(f.rel) && hasMultiLineGetLogger(string(f.content)) {
+		if !strings.HasSuffix(f.rel, "_test.go") && !inDirNamed(f.rel, "node_modules") && hasMultiLineGetLogger(string(f.content)) {
 			files = append(files, f.rel)
 		}
 	}
 	sort.Strings(files)
 	return files, nil
-}
-
-func inSkippedDir(rel string) bool {
-	parts := strings.Split(rel, "/")
-	for _, part := range parts[:len(parts)-1] {
-		if part == "node_modules" || part == ".git" {
-			return true
-		}
-	}
-	return false
 }
 
 func hasMultiLineGetLogger(content string) bool {

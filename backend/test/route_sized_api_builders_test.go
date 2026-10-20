@@ -13,7 +13,6 @@ import (
 )
 
 const (
-	testutilImport    = "github.com/moto-nrw/project-phoenix/api/testutil"
 	chiImport         = "github.com/go-chi/chi/v5"
 	httpImport        = "net/http"
 	projectImportRoot = "github.com/moto-nrw/project-phoenix"
