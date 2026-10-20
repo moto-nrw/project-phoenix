@@ -8,6 +8,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
@@ -94,7 +95,7 @@ func (f *OperatorMFAFlows) TrustedDeviceDays() int {
 // The row is stored consumed and only activated once the transport accepted
 // the message, so a failed send never leaves a redeemable code behind.
 func (f *OperatorMFAFlows) StartChallenge(ctx context.Context, operatorID int64, ip net.IP) (string, error) {
-	operator, err := f.operators.FindOperator(ctx, operatorID)
+	operator, err := f.operators.findOperatorByID(ctx, operatorID)
 	if err != nil {
 		return "", fmt.Errorf("look up operator: %w", err)
 	}
@@ -200,7 +201,7 @@ func (f *OperatorMFAFlows) verifyActiveCode(ctx context.Context, operatorID int6
 	var result redeemed
 	var verificationErr error
 	err := f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		operator, err := f.operators.FindOperator(txCtx, operatorID)
+		operator, err := f.operators.findOperatorByID(txCtx, operatorID)
 		if err != nil {
 			return lookupError
 		}
@@ -392,7 +393,7 @@ func (f *OperatorMFAFlows) RevokeTrustedDevice(ctx context.Context, operatorID, 
 
 func (f *OperatorMFAFlows) findCredential(ctx context.Context, operatorID int64) (domain.OperatorMFACredential, bool, error) {
 	credential, err := f.records.FindCredential(ctx, operatorID)
-	if errors.Is(err, domain.ErrOperatorMFACredentialNotFound) {
+	if errors.Is(err, identityaccess.ErrOperatorMFACredentialNotFound) {
 		return domain.OperatorMFACredential{}, false, nil
 	}
 	if err != nil {
@@ -402,7 +403,7 @@ func (f *OperatorMFAFlows) findCredential(ctx context.Context, operatorID int64)
 }
 
 func (f *OperatorMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, operatorID, deviceID int64, userAgent string, ip net.IP) error {
-	operator, err := f.operators.FindOperator(ctx, operatorID)
+	operator, err := f.operators.findOperatorByID(ctx, operatorID)
 	if err != nil {
 		f.logger.Warn("could not load operator for trusted-device-added mail",
 			slog.Int64("operator_id", operatorID),
@@ -465,4 +466,107 @@ func (f *OperatorMFAFlows) requireChallengeRateLimit(ctx context.Context, operat
 	}
 
 	return nil
+}
+
+func (f *OperatorMFAFlows) HasOperatorMFAEnrollment(ctx context.Context, operatorID int64) (bool, error) {
+	if f == nil {
+		return false, identityaccess.ErrOperatorMFAUnavailable
+	}
+	enrolled, err := f.HasEnrollment(ctx, operatorID)
+	return enrolled, operatorFlowError(err)
+}
+
+func (f *OperatorMFAFlows) OperatorTrustedDeviceDays() int {
+	if f == nil {
+		return 0
+	}
+	return f.TrustedDeviceDays()
+}
+
+func (f *OperatorMFAFlows) StartOperatorMFAChallenge(ctx context.Context, operatorID int64, ip net.IP) (string, error) {
+	if f == nil {
+		return "", identityaccess.ErrOperatorMFAUnavailable
+	}
+	token, err := f.StartChallenge(ctx, operatorID, ip)
+	return token, operatorFlowError(err)
+}
+
+// VerifyOperatorMFAChallenge returns the operator the redeemed code belongs
+// to, so the login mints its token pair without re-reading the JWT.
+func (f *OperatorMFAFlows) VerifyOperatorMFAChallenge(ctx context.Context, challengeToken, code string) (int64, error) {
+	if f == nil {
+		return 0, identityaccess.ErrOperatorMFAUnavailable
+	}
+	verified, err := f.VerifyChallenge(ctx, challengeToken, code)
+	if err != nil {
+		return 0, operatorFlowError(err)
+	}
+	return verified.OperatorID, nil
+}
+
+func (f *OperatorMFAFlows) ResendOperatorMFAChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
+	if f == nil {
+		return "", identityaccess.ErrOperatorMFAUnavailable
+	}
+	token, err := f.ResendChallenge(ctx, challengeToken, ip)
+	return token, operatorFlowError(err)
+}
+
+func (f *OperatorMFAFlows) VerifyOperatorMFACode(ctx context.Context, operatorID int64, code string) error {
+	if f == nil {
+		return identityaccess.ErrOperatorMFAUnavailable
+	}
+	return operatorFlowError(f.VerifyCodeForOperator(ctx, operatorID, code))
+}
+
+func (f *OperatorMFAFlows) EnrollOperatorMFA(ctx context.Context, operatorID int64) error {
+	if f == nil {
+		return identityaccess.ErrOperatorMFAUnavailable
+	}
+	return operatorFlowError(f.Enroll(ctx, operatorID))
+}
+
+func (f *OperatorMFAFlows) DisableOperatorMFA(ctx context.Context, operatorID int64) error {
+	if f == nil {
+		return identityaccess.ErrOperatorMFAUnavailable
+	}
+	return operatorFlowError(f.Disable(ctx, operatorID))
+}
+
+func (f *OperatorMFAFlows) IssueOperatorTrustedDevice(ctx context.Context, operatorID int64, userAgent string, ip net.IP) (string, time.Time, error) {
+	if f == nil {
+		return "", time.Time{}, identityaccess.ErrOperatorMFAUnavailable
+	}
+	cookie, expiresAt, err := f.IssueTrustedDevice(ctx, operatorID, userAgent, ip)
+	return cookie, expiresAt, operatorFlowError(err)
+}
+
+func (f *OperatorMFAFlows) VerifyOperatorTrustedDevice(ctx context.Context, operatorID int64, signedCookie string) (bool, error) {
+	if f == nil {
+		return false, identityaccess.ErrOperatorMFAUnavailable
+	}
+	verified, err := f.VerifyTrustedDevice(ctx, operatorID, signedCookie)
+	return verified, operatorFlowError(err)
+}
+
+func (f *OperatorMFAFlows) ListOperatorTrustedDevices(ctx context.Context, operatorID int64) ([]identityaccess.OperatorTrustedDevice, error) {
+	if f == nil {
+		return nil, identityaccess.ErrOperatorMFAUnavailable
+	}
+	devices, err := f.records.ListActiveTrustedDevices(ctx, operatorID)
+	if err != nil {
+		return nil, operatorFlowError(err)
+	}
+	result := make([]identityaccess.OperatorTrustedDevice, 0, len(devices))
+	for _, device := range devices {
+		result = append(result, identityaccess.OperatorTrustedDevice(device))
+	}
+	return result, nil
+}
+
+func (f *OperatorMFAFlows) RevokeOperatorTrustedDeviceOwned(ctx context.Context, operatorID, deviceID int64) error {
+	if f == nil {
+		return identityaccess.ErrOperatorMFAUnavailable
+	}
+	return operatorFlowError(f.RevokeTrustedDevice(ctx, operatorID, deviceID))
 }

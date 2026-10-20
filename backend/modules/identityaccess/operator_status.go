@@ -33,11 +33,3 @@ type OperatorStatus interface {
 	ChangeOperatorStatus(ctx context.Context, change OperatorStatusChange) (Operator, error)
 	DeleteDeactivatedOperators(ctx context.Context) (int, error)
 }
-
-func (m *Module) ChangeOperatorStatus(ctx context.Context, change OperatorStatusChange) (Operator, error) {
-	return m.engine.ChangeOperatorStatus(ctx, change)
-}
-
-func (m *Module) DeleteDeactivatedOperators(ctx context.Context) (int, error) {
-	return m.engine.DeleteDeactivatedOperators(ctx)
-}

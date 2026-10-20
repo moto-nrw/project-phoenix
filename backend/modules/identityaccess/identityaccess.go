@@ -420,10 +420,26 @@ func (m *Module) FindRFIDCard(ctx context.Context, tag string) (string, bool, er
 	return id, found, nil
 }
 
-// Module is the public Identity & Access facade.
+// Module is the public Identity & Access facade. The capabilities in
+// ownerServices are served by the owner's services directly; the module no
+// longer forwards them (#4452).
 type Module struct {
-	engine     Engine
+	engine Engine
+	ownerServices
 	demoAccess *DemoAccess
+}
+
+type ownerServices interface {
+	OperatorAccess
+	OperatorAccountAccess
+	OperatorAuthentication
+	OperatorProvisioning
+	OperatorStatus
+	OperatorMFARecords
+	OperatorMFAFlows
+	OperatorPasskeyFlows
+	OperatorPasskeyRecords
+	OperatorTokens
 }
 
 // NewModule wraps the composed engine; the composition binds the unit of
@@ -432,7 +448,7 @@ func NewModule(engine Engine) *Module {
 	if engine == nil {
 		panic("identity access: engine is required")
 	}
-	return &Module{engine: engine}
+	return &Module{engine: engine, ownerServices: engine}
 }
 
 func (m *Module) FindAccount(ctx context.Context, id int64) (Account, error) {
@@ -462,152 +478,6 @@ func (m *Module) GrantGuardianTenantAccess(ctx context.Context, accountID int64)
 // SeedGuardianAccount returns the account ID and whether it was reused.
 func (m *Module) SeedGuardianAccount(ctx context.Context, email, passwordHash string) (int64, bool, error) {
 	return m.engine.SeedGuardianAccount(ctx, email, passwordHash)
-}
-
-func (m *Module) FindOperator(ctx context.Context, id int64) (Operator, error) {
-	operator, err := m.engine.FindOperator(ctx, id)
-	if err != nil {
-		return Operator{}, fmt.Errorf("identity access: find operator: %w", err)
-	}
-	return operator, nil
-}
-
-func (m *Module) FindOperatorForUpdate(ctx context.Context, id int64) (Operator, error) {
-	operator, err := m.engine.FindOperatorForUpdate(ctx, id)
-	if err != nil {
-		return Operator{}, fmt.Errorf("identity access: find operator for update: %w", err)
-	}
-	return operator, nil
-}
-
-func (m *Module) FindOperatorByEmail(ctx context.Context, email string) (Operator, error) {
-	operator, err := m.engine.FindOperatorByEmail(ctx, email)
-	if err != nil {
-		return Operator{}, fmt.Errorf("identity access: find operator by email: %w", err)
-	}
-	return operator, nil
-}
-
-func (m *Module) ListOperators(ctx context.Context) ([]Operator, error) {
-	operators, err := m.engine.ListOperators(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("identity access: list operators: %w", err)
-	}
-	return operators, nil
-}
-
-func (m *Module) CreateOperator(ctx context.Context, operator Operator) (Operator, error) {
-	stored, err := m.engine.CreateOperator(ctx, operator)
-	if err != nil {
-		return Operator{}, fmt.Errorf("identity access: create operator: %w", err)
-	}
-	return stored, nil
-}
-
-func (m *Module) UpdateOperator(ctx context.Context, operator Operator) (Operator, error) {
-	stored, err := m.engine.UpdateOperator(ctx, operator)
-	if err != nil {
-		return Operator{}, fmt.Errorf("identity access: update operator: %w", err)
-	}
-	return stored, nil
-}
-
-func (m *Module) DeleteOperator(ctx context.Context, id int64) error {
-	if err := m.engine.DeleteOperator(ctx, id); err != nil {
-		return fmt.Errorf("identity access: delete operator: %w", err)
-	}
-	return nil
-}
-
-func (m *Module) RecordOperatorLogin(ctx context.Context, id int64) error {
-	if err := m.engine.RecordOperatorLogin(ctx, id); err != nil {
-		return fmt.Errorf("identity access: record operator login: %w", err)
-	}
-	return nil
-}
-
-func (m *Module) IncrementOperatorMFAAttempts(ctx context.Context, id int64, threshold int, lockout time.Duration) (OperatorMFAAttempts, error) {
-	attempts, err := m.engine.IncrementOperatorMFAAttempts(ctx, id, threshold, lockout)
-	if err != nil {
-		return OperatorMFAAttempts{}, fmt.Errorf("identity access: increment operator mfa attempts: %w", err)
-	}
-	return attempts, nil
-}
-
-func (m *Module) ResetOperatorMFAAttempts(ctx context.Context, id int64) error {
-	if err := m.engine.ResetOperatorMFAAttempts(ctx, id); err != nil {
-		return fmt.Errorf("identity access: reset operator mfa attempts: %w", err)
-	}
-	return nil
-}
-
-func (m *Module) FindOperatorSessionForUpdate(ctx context.Context, token string) (OperatorSession, error) {
-	session, err := m.engine.FindOperatorSessionForUpdate(ctx, token)
-	if err != nil {
-		return OperatorSession{}, fmt.Errorf("identity access: find operator session for update: %w", err)
-	}
-	return session, nil
-}
-
-func (m *Module) LatestOperatorSessionInFamily(ctx context.Context, familyID string) (OperatorSession, error) {
-	session, err := m.engine.LatestOperatorSessionInFamily(ctx, familyID)
-	if err != nil {
-		return OperatorSession{}, fmt.Errorf("identity access: latest operator session in family: %w", err)
-	}
-	return session, nil
-}
-
-func (m *Module) CreateOperatorSession(ctx context.Context, session OperatorSession) (OperatorSession, error) {
-	stored, err := m.engine.CreateOperatorSession(ctx, session)
-	if err != nil {
-		return OperatorSession{}, fmt.Errorf("identity access: create operator session: %w", err)
-	}
-	return stored, nil
-}
-
-func (m *Module) MarkOperatorSessionRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error {
-	if err := m.engine.MarkOperatorSessionRotated(ctx, id, replacementToken, recoveryProofHash, rotatedAt); err != nil {
-		return fmt.Errorf("identity access: mark operator session rotated: %w", err)
-	}
-	return nil
-}
-
-func (m *Module) DeleteExpiredRotatedOperatorSessions(ctx context.Context, familyID string, now time.Time) error {
-	if err := m.engine.DeleteExpiredRotatedOperatorSessions(ctx, familyID, now); err != nil {
-		return fmt.Errorf("identity access: delete expired rotated operator sessions: %w", err)
-	}
-	return nil
-}
-
-func (m *Module) DeleteOperatorSession(ctx context.Context, id int64) error {
-	if err := m.engine.DeleteOperatorSession(ctx, id); err != nil {
-		return fmt.Errorf("identity access: delete operator session: %w", err)
-	}
-	return nil
-}
-
-func (m *Module) RevokeOperatorSessions(ctx context.Context, operatorID int64) ([]OperatorSession, error) {
-	sessions, err := m.engine.RevokeOperatorSessions(ctx, operatorID)
-	if err != nil {
-		return nil, fmt.Errorf("identity access: revoke operator sessions: %w", err)
-	}
-	return sessions, nil
-}
-
-func (m *Module) RevokeOperatorSessionFamily(ctx context.Context, familyID string) ([]OperatorSession, error) {
-	sessions, err := m.engine.RevokeOperatorSessionFamily(ctx, familyID)
-	if err != nil {
-		return nil, fmt.Errorf("identity access: revoke operator session family: %w", err)
-	}
-	return sessions, nil
-}
-
-func (m *Module) DeleteExpiredOperatorSessions(ctx context.Context, now time.Time) (int, error) {
-	deleted, err := m.engine.DeleteExpiredOperatorSessions(ctx, now)
-	if err != nil {
-		return 0, fmt.Errorf("identity access: delete expired operator sessions: %w", err)
-	}
-	return deleted, nil
 }
 
 func (m *Module) FindAccountSession(ctx context.Context, token string) (AccountSession, error) {

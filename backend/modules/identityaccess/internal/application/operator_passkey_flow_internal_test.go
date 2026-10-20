@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
@@ -265,7 +266,7 @@ func TestOperatorPasskeyBeginRegistrationErrors(t *testing.T) {
 			request: domain.OperatorPasskeyRegistrationStart{
 				OperatorID: 999, ExpectedOrigin: "http://operator.localhost:3000",
 			},
-			wantErr: domain.ErrOperatorNotFound,
+			wantErr: identityaccess.ErrOperatorNotFound,
 		},
 		{
 			name: "inactive operator",
@@ -273,7 +274,7 @@ func TestOperatorPasskeyBeginRegistrationErrors(t *testing.T) {
 				OperatorID: inactive.ID, ExpectedOrigin: "http://operator.localhost:3000",
 			},
 			operators: []domain.Operator{inactive},
-			wantErr:   domain.ErrOperatorInactive,
+			wantErr:   identityaccess.ErrOperatorInactive,
 		},
 		{
 			name: "credential lookup fails while building the user",
@@ -410,7 +411,7 @@ func TestOperatorPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.
 				OperatorID: &operatorID, SessionJSON: json.RawMessage(`{}`),
 				ExpectedOrigin: "http://operator.localhost:3000",
 			},
-			wantErr: domain.ErrOperatorNotFound,
+			wantErr: identityaccess.ErrOperatorNotFound,
 		},
 		{
 			name: "credential lookup failure",

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -25,7 +26,7 @@ func TestInviteOperatorStoresAndMailsTheLink(t *testing.T) {
 	inviter := f.seedInviter(1)
 	displayName := "Neue Operatorin"
 
-	require.NoError(t, f.provisioning.InviteOperator(context.Background(), domain.OperatorInvitationRequest{
+	require.NoError(t, f.provisioning.InviteOperator(context.Background(), identityaccess.OperatorInvitationRequest{
 		Email: "  Invitee@Example.COM  ", DisplayName: &displayName, CreatedBy: inviter.ID, IPAddress: "10.0.0.1",
 	}))
 
@@ -59,10 +60,10 @@ func TestInviteOperatorRefusesAnUnusableAddress(t *testing.T) {
 			f := newOperatorProvisioningFixture(t)
 			inviter := f.seedInviter(1)
 
-			err := f.provisioning.InviteOperator(context.Background(), domain.OperatorInvitationRequest{
+			err := f.provisioning.InviteOperator(context.Background(), identityaccess.OperatorInvitationRequest{
 				Email: address, CreatedBy: inviter.ID,
 			})
-			var invalid *domain.InvalidInputError
+			var invalid *identityaccess.InvalidInputError
 			require.ErrorAs(t, err, &invalid)
 			assert.Empty(t, f.invites.dispatched, "a refused invitation mails nothing")
 			assert.Empty(t, f.tokens.recorded(), "a refused invitation writes nothing")
@@ -77,10 +78,10 @@ func TestInviteOperatorRefusesAnAddressThatIsAlreadyAnOperator(t *testing.T) {
 	inviter := f.seedInviter(1)
 	f.seedOperatorWithEmail(2, "taken@example.com")
 
-	err := f.provisioning.InviteOperator(context.Background(), domain.OperatorInvitationRequest{
+	err := f.provisioning.InviteOperator(context.Background(), identityaccess.OperatorInvitationRequest{
 		Email: "taken@example.com", CreatedBy: inviter.ID,
 	})
-	require.ErrorIs(t, err, domain.ErrOperatorEmailExists)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorEmailExists)
 	assert.Empty(t, f.invites.dispatched)
 }
 
@@ -93,12 +94,12 @@ func TestInviteOperatorSpendsThePreviousLinks(t *testing.T) {
 	inviter := f.seedInviter(1)
 	stale := f.seedInvitation("invitee@example.com", "stale-token", inviter.ID)
 
-	require.NoError(t, f.provisioning.InviteOperator(context.Background(), domain.OperatorInvitationRequest{
+	require.NoError(t, f.provisioning.InviteOperator(context.Background(), identityaccess.OperatorInvitationRequest{
 		Email: "invitee@example.com", CreatedBy: inviter.ID,
 	}))
 
 	_, err := f.provisioning.ValidateOperatorInvitation(context.Background(), stale.Token)
-	require.ErrorIs(t, err, domain.ErrOperatorInvitationNotFound)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorInvitationNotFound)
 	require.Len(t, f.invites.dispatched, 1)
 	_, err = f.provisioning.ValidateOperatorInvitation(context.Background(), f.invites.dispatched[0].invitation.Token)
 	require.NoError(t, err)
@@ -116,10 +117,10 @@ func TestInviteOperatorRateLimitRefusesWithoutSpendingTheExistingLink(t *testing
 	}
 	live := f.seedInvitation("invitee@example.com", "live-token", inviter.ID)
 
-	err := f.provisioning.InviteOperator(context.Background(), domain.OperatorInvitationRequest{
+	err := f.provisioning.InviteOperator(context.Background(), identityaccess.OperatorInvitationRequest{
 		Email: "invitee@example.com", CreatedBy: inviter.ID,
 	})
-	require.ErrorIs(t, err, domain.ErrOperatorInvitationRateLimited)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorInvitationRateLimited)
 	assert.Empty(t, f.invites.dispatched)
 
 	preview, err := f.provisioning.ValidateOperatorInvitation(context.Background(), live.Token)
@@ -136,7 +137,7 @@ func TestInviteOperatorAllowsTheRequestBelowTheLimit(t *testing.T) {
 		f.seedInvitation("earlier@example.com", "token-"+string(rune('a'+i)), inviter.ID)
 	}
 
-	require.NoError(t, f.provisioning.InviteOperator(context.Background(), domain.OperatorInvitationRequest{
+	require.NoError(t, f.provisioning.InviteOperator(context.Background(), identityaccess.OperatorInvitationRequest{
 		Email: "invitee@example.com", CreatedBy: inviter.ID,
 	}))
 	assert.Len(t, f.invites.dispatched, 1)
@@ -150,7 +151,7 @@ func TestInviteOperatorLocksTheInviterBeforeCounting(t *testing.T) {
 	f := newOperatorProvisioningFixture(t)
 	inviter := f.seedInviter(1)
 
-	require.NoError(t, f.provisioning.InviteOperator(context.Background(), domain.OperatorInvitationRequest{
+	require.NoError(t, f.provisioning.InviteOperator(context.Background(), identityaccess.OperatorInvitationRequest{
 		Email: "invitee@example.com", CreatedBy: inviter.ID,
 	}))
 
@@ -170,7 +171,7 @@ func TestInviteOperatorReportsALockFailure(t *testing.T) {
 	f.seedInviter(1)
 	f.store.findOperatorErr = nil
 
-	err := f.provisioning.InviteOperator(context.Background(), domain.OperatorInvitationRequest{
+	err := f.provisioning.InviteOperator(context.Background(), identityaccess.OperatorInvitationRequest{
 		Email: "invitee@example.com", CreatedBy: 404,
 	})
 	require.Error(t, err)
@@ -184,7 +185,7 @@ func TestInviteOperatorReportsACountFailure(t *testing.T) {
 	inviter := f.seedInviter(1)
 	f.tokens.countInvitationsErr = errFakeStore
 
-	err := f.provisioning.InviteOperator(context.Background(), domain.OperatorInvitationRequest{
+	err := f.provisioning.InviteOperator(context.Background(), identityaccess.OperatorInvitationRequest{
 		Email: "invitee@example.com", CreatedBy: inviter.ID,
 	})
 	require.ErrorIs(t, err, errFakeStore)
@@ -200,7 +201,7 @@ func TestInviteOperatorSurvivesAFailedAuditAppend(t *testing.T) {
 	inviter := f.seedInviter(1)
 	f.audit.err = errFakeStore
 
-	require.NoError(t, f.provisioning.InviteOperator(context.Background(), domain.OperatorInvitationRequest{
+	require.NoError(t, f.provisioning.InviteOperator(context.Background(), identityaccess.OperatorInvitationRequest{
 		Email: "invitee@example.com", CreatedBy: inviter.ID,
 	}))
 	assert.Len(t, f.invites.dispatched, 1)
@@ -217,10 +218,10 @@ func TestValidateOperatorInvitationRefusesASpentLink(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, invitation.Email, preview.Email)
 
-	require.NoError(t, f.provisioning.RevokeOperatorInvitation(context.Background(), invitation.ID, inviter.ID, "10.0.0.1"))
+	require.NoError(t, f.provisioning.RevokeOperatorInvitationByActor(context.Background(), invitation.ID, inviter.ID, "10.0.0.1"))
 
 	_, err = f.provisioning.ValidateOperatorInvitation(context.Background(), invitation.Token)
-	require.ErrorIs(t, err, domain.ErrOperatorInvitationNotFound)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorInvitationNotFound)
 }
 
 func TestAcceptOperatorInvitationCreatesTheOperator(t *testing.T) {
@@ -230,7 +231,7 @@ func TestAcceptOperatorInvitationCreatesTheOperator(t *testing.T) {
 	inviter := f.seedInviter(1)
 	invitation := f.seedInvitation("invitee@example.com", "live-token", inviter.ID)
 
-	operator, err := f.provisioning.AcceptOperatorInvitation(context.Background(), domain.OperatorInvitationAcceptance{
+	operator, err := f.provisioning.AcceptOperatorInvitation(context.Background(), identityaccess.OperatorInvitationAcceptance{
 		Token: invitation.Token, DisplayName: "  Neue Operatorin  ", Password: "StrongPass1!", IPAddress: "10.0.0.2",
 	})
 	require.NoError(t, err)
@@ -239,10 +240,10 @@ func TestAcceptOperatorInvitationCreatesTheOperator(t *testing.T) {
 	assert.True(t, operator.Active)
 
 	// The link is spent exactly once.
-	_, err = f.provisioning.AcceptOperatorInvitation(context.Background(), domain.OperatorInvitationAcceptance{
+	_, err = f.provisioning.AcceptOperatorInvitation(context.Background(), identityaccess.OperatorInvitationAcceptance{
 		Token: invitation.Token, DisplayName: "Zweite", Password: "StrongPass1!",
 	})
-	require.ErrorIs(t, err, domain.ErrOperatorInvitationNotFound)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorInvitationNotFound)
 
 	entries := f.audit.actions(domain.OperatorAuditActionInvitationAccepted)
 	require.Len(t, entries, 1)
@@ -256,17 +257,17 @@ func TestAcceptOperatorInvitationSpendsTheTokenBeforeHashing(t *testing.T) {
 
 	f := newOperatorProvisioningFixture(t)
 
-	_, err := f.provisioning.AcceptOperatorInvitation(context.Background(), domain.OperatorInvitationAcceptance{
+	_, err := f.provisioning.AcceptOperatorInvitation(context.Background(), identityaccess.OperatorInvitationAcceptance{
 		Token: "never-issued", DisplayName: "Niemand", Password: "StrongPass1!",
 	})
-	require.ErrorIs(t, err, domain.ErrOperatorInvitationNotFound)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorInvitationNotFound)
 	assert.Equal(t, []string{"RedeemOperatorInvitation"}, f.tokens.recorded())
 }
 
 func TestAcceptOperatorInvitationRefusesTheCallersMistakesFirst(t *testing.T) {
 	t.Parallel()
 
-	for name, acceptance := range map[string]domain.OperatorInvitationAcceptance{
+	for name, acceptance := range map[string]identityaccess.OperatorInvitationAcceptance{
 		"weak password":   {Token: "live-token", DisplayName: "Operatorin", Password: "short"},
 		"no display name": {Token: "live-token", DisplayName: "   ", Password: "StrongPass1!"},
 		"oversized name":  {Token: "live-token", DisplayName: strings.Repeat("a", 101), Password: "StrongPass1!"},
@@ -278,7 +279,7 @@ func TestAcceptOperatorInvitationRefusesTheCallersMistakesFirst(t *testing.T) {
 			invitation := f.seedInvitation("invitee@example.com", "live-token", inviter.ID)
 
 			_, err := f.provisioning.AcceptOperatorInvitation(context.Background(), acceptance)
-			var invalid *domain.InvalidInputError
+			var invalid *identityaccess.InvalidInputError
 			require.ErrorAs(t, err, &invalid)
 
 			// The link survives a refused acceptance.
@@ -296,10 +297,10 @@ func TestAcceptOperatorInvitationRefusesAnAddressTakenInTheMeantime(t *testing.T
 	invitation := f.seedInvitation("invitee@example.com", "live-token", inviter.ID)
 	f.seedOperatorWithEmail(2, invitation.Email)
 
-	_, err := f.provisioning.AcceptOperatorInvitation(context.Background(), domain.OperatorInvitationAcceptance{
+	_, err := f.provisioning.AcceptOperatorInvitation(context.Background(), identityaccess.OperatorInvitationAcceptance{
 		Token: invitation.Token, DisplayName: "Operatorin", Password: "StrongPass1!",
 	})
-	require.ErrorIs(t, err, domain.ErrOperatorEmailExists)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorEmailExists)
 }
 
 // A resend extends the link, restarts its delivery tracking and mails it
@@ -331,10 +332,10 @@ func TestResendOperatorInvitationRefusesASpentLink(t *testing.T) {
 	f := newOperatorProvisioningFixture(t)
 	inviter := f.seedInviter(1)
 	invitation := f.seedInvitation("invitee@example.com", "live-token", inviter.ID)
-	require.NoError(t, f.provisioning.RevokeOperatorInvitation(context.Background(), invitation.ID, inviter.ID, ""))
+	require.NoError(t, f.provisioning.RevokeOperatorInvitationByActor(context.Background(), invitation.ID, inviter.ID, ""))
 
 	err := f.provisioning.ResendOperatorInvitation(context.Background(), invitation.ID, inviter.ID, "")
-	require.ErrorIs(t, err, domain.ErrOperatorInvitationNotFound)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorInvitationNotFound)
 	assert.Empty(t, f.invites.dispatched)
 }
 
@@ -342,8 +343,8 @@ func TestRevokeOperatorInvitationRefusesAnUnknownLink(t *testing.T) {
 	t.Parallel()
 
 	f := newOperatorProvisioningFixture(t)
-	err := f.provisioning.RevokeOperatorInvitation(context.Background(), 404, 1, "")
-	require.ErrorIs(t, err, domain.ErrOperatorInvitationNotFound)
+	err := f.provisioning.RevokeOperatorInvitationByActor(context.Background(), 404, 1, "")
+	require.ErrorIs(t, err, identityaccess.ErrOperatorInvitationNotFound)
 	assert.Empty(t, f.audit.actions(domain.OperatorAuditActionInvitationRevoked))
 }
 
@@ -354,7 +355,7 @@ func TestListPendingOperatorInvitationsSkipsTheSpentOnes(t *testing.T) {
 	inviter := f.seedInviter(1)
 	live := f.seedInvitation("live@example.com", "live-token", inviter.ID)
 	spent := f.seedInvitation("spent@example.com", "spent-token", inviter.ID)
-	require.NoError(t, f.provisioning.RevokeOperatorInvitation(context.Background(), spent.ID, inviter.ID, ""))
+	require.NoError(t, f.provisioning.RevokeOperatorInvitationByActor(context.Background(), spent.ID, inviter.ID, ""))
 
 	pending, err := f.provisioning.tokens.ListRedeemableInvitations(context.Background())
 	require.NoError(t, err)
@@ -370,7 +371,7 @@ func TestInitiateOperatorEmailChangeMailsTheLinkAndTheHeadsUp(t *testing.T) {
 	f := newOperatorProvisioningFixture(t)
 	operator := f.seedOperatorWithEmail(1, "old@example.com")
 
-	require.NoError(t, f.provisioning.InitiateOperatorEmailChange(context.Background(), domain.OperatorEmailChangeRequest{
+	require.NoError(t, f.provisioning.InitiateOperatorEmailChange(context.Background(), identityaccess.OperatorEmailChangeRequest{
 		OperatorID: operator.ID, NewEmail: "  New@Example.COM  ", CurrentPassword: "secret", IPAddress: "10.0.0.4",
 	}))
 
@@ -395,10 +396,10 @@ func TestInitiateOperatorEmailChangeRefusesAWrongPassword(t *testing.T) {
 	f := newOperatorProvisioningFixture(t)
 	operator := f.seedOperatorWithEmail(1, "old@example.com")
 
-	err := f.provisioning.InitiateOperatorEmailChange(context.Background(), domain.OperatorEmailChangeRequest{
+	err := f.provisioning.InitiateOperatorEmailChange(context.Background(), identityaccess.OperatorEmailChangeRequest{
 		OperatorID: operator.ID, NewEmail: "new@example.com", CurrentPassword: "wrong",
 	})
-	require.ErrorIs(t, err, domain.ErrOperatorPasswordMismatch)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorPasswordMismatch)
 	assert.Empty(t, f.changes.verifications)
 	assert.Empty(t, f.tokens.recorded(), "a refused request writes nothing")
 }
@@ -416,10 +417,10 @@ func TestInitiateOperatorEmailChangeDetectsAConcurrentPasswordRotation(t *testin
 		f.store.operators[operator.ID] = rotated
 	}
 
-	err := f.provisioning.InitiateOperatorEmailChange(context.Background(), domain.OperatorEmailChangeRequest{
+	err := f.provisioning.InitiateOperatorEmailChange(context.Background(), identityaccess.OperatorEmailChangeRequest{
 		OperatorID: operator.ID, NewEmail: "new@example.com", CurrentPassword: "secret",
 	})
-	require.ErrorIs(t, err, domain.ErrOperatorPasswordMismatch)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorPasswordMismatch)
 	assert.Empty(t, f.changes.verifications)
 }
 
@@ -429,10 +430,10 @@ func TestInitiateOperatorEmailChangeRefusesTheCurrentAddress(t *testing.T) {
 	f := newOperatorProvisioningFixture(t)
 	operator := f.seedOperatorWithEmail(1, "old@example.com")
 
-	err := f.provisioning.InitiateOperatorEmailChange(context.Background(), domain.OperatorEmailChangeRequest{
+	err := f.provisioning.InitiateOperatorEmailChange(context.Background(), identityaccess.OperatorEmailChangeRequest{
 		OperatorID: operator.ID, NewEmail: "OLD@example.com", CurrentPassword: "secret",
 	})
-	require.ErrorIs(t, err, domain.ErrOperatorEmailChangeSameEmail)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorEmailChangeSameEmail)
 }
 
 func TestInitiateOperatorEmailChangeRefusesAnInactiveOperator(t *testing.T) {
@@ -441,10 +442,10 @@ func TestInitiateOperatorEmailChangeRefusesAnInactiveOperator(t *testing.T) {
 	f := newOperatorProvisioningFixture(t)
 	f.store.addOperator(1, "old@example.com", "hash:secret", false)
 
-	err := f.provisioning.InitiateOperatorEmailChange(context.Background(), domain.OperatorEmailChangeRequest{
+	err := f.provisioning.InitiateOperatorEmailChange(context.Background(), identityaccess.OperatorEmailChangeRequest{
 		OperatorID: 1, NewEmail: "new@example.com", CurrentPassword: "secret",
 	})
-	require.ErrorIs(t, err, domain.ErrOperatorInactive)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorInactive)
 }
 
 // An address another operator already holds is answered with success and no
@@ -458,7 +459,7 @@ func TestInitiateOperatorEmailChangeStaysSilentForATakenAddress(t *testing.T) {
 	operator := f.seedOperatorWithEmail(1, "old@example.com")
 	f.seedOperatorWithEmail(2, "taken@example.com")
 
-	require.NoError(t, f.provisioning.InitiateOperatorEmailChange(context.Background(), domain.OperatorEmailChangeRequest{
+	require.NoError(t, f.provisioning.InitiateOperatorEmailChange(context.Background(), identityaccess.OperatorEmailChangeRequest{
 		OperatorID: operator.ID, NewEmail: "taken@example.com", CurrentPassword: "secret",
 	}))
 
@@ -479,10 +480,10 @@ func TestInitiateOperatorEmailChangeRateLimitKeepsTheExistingLink(t *testing.T) 
 		f.seedEmailChange(operator.ID, "earlier@example.com", "token-"+string(rune('a'+i)))
 	}
 
-	err := f.provisioning.InitiateOperatorEmailChange(context.Background(), domain.OperatorEmailChangeRequest{
+	err := f.provisioning.InitiateOperatorEmailChange(context.Background(), identityaccess.OperatorEmailChangeRequest{
 		OperatorID: operator.ID, NewEmail: "new@example.com", CurrentPassword: "secret",
 	})
-	require.ErrorIs(t, err, domain.ErrOperatorEmailChangeRateLimited)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorEmailChangeRateLimited)
 	assert.NotContains(t, f.tokens.recorded(), "RevokeOperatorEmailChanges",
 		"a refused request must not spend the operator's existing link")
 }
@@ -494,7 +495,7 @@ func TestInitiateOperatorEmailChangeSurvivesAFailedAuditAppend(t *testing.T) {
 	operator := f.seedOperatorWithEmail(1, "old@example.com")
 	f.audit.err = errFakeStore
 
-	require.NoError(t, f.provisioning.InitiateOperatorEmailChange(context.Background(), domain.OperatorEmailChangeRequest{
+	require.NoError(t, f.provisioning.InitiateOperatorEmailChange(context.Background(), identityaccess.OperatorEmailChangeRequest{
 		OperatorID: operator.ID, NewEmail: "new@example.com", CurrentPassword: "secret",
 	}))
 	assert.Len(t, f.changes.verifications, 1)
@@ -535,7 +536,7 @@ func TestConfirmOperatorEmailChangeSpendsTheLinkOnce(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = f.provisioning.ConfirmOperatorEmailChange(context.Background(), change.Token, "")
-	require.ErrorIs(t, err, domain.ErrOperatorEmailChangeNotFound)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorEmailChangeNotFound)
 	assert.Len(t, f.changes.confirmed, 1)
 }
 
@@ -548,7 +549,7 @@ func TestConfirmOperatorEmailChangeRefusesAnAddressTakenSinceTheRequest(t *testi
 	f.seedOperatorWithEmail(2, "new@example.com")
 
 	_, err := f.provisioning.ConfirmOperatorEmailChange(context.Background(), change.Token, "")
-	require.ErrorIs(t, err, domain.ErrOperatorEmailInUse)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorEmailInUse)
 	assert.Equal(t, "old@example.com", f.store.operators[operator.ID].Email)
 	assert.Empty(t, f.changes.confirmed)
 }
@@ -561,7 +562,7 @@ func TestConfirmOperatorEmailChangeRefusesAnInactiveOperator(t *testing.T) {
 	change := f.seedEmailChange(1, "new@example.com", "live-token")
 
 	_, err := f.provisioning.ConfirmOperatorEmailChange(context.Background(), change.Token, "")
-	require.ErrorIs(t, err, domain.ErrOperatorInactive)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorInactive)
 	assert.Equal(t, "old@example.com", f.store.operators[1].Email)
 }
 
