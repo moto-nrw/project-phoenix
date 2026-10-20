@@ -6,19 +6,6 @@ import (
 	"time"
 )
 
-var (
-	ErrOperatorMFACredentialNotFound = errors.New("operator mfa credential not found")
-	ErrOperatorMFAChallengeNotFound  = errors.New("operator mfa challenge not found")
-	// ErrOperatorMFAChallengeStateChanged reports an activation or
-	// consumption that found no row in the expected state: a concurrent
-	// verification consumed the code first, or the row is gone.
-	ErrOperatorMFAChallengeStateChanged = errors.New("operator mfa challenge was already consumed or activated")
-	// ErrOperatorTrustedDeviceNotFound reports a lookup that matched no
-	// active trusted device, or a revocation of a device that is already
-	// revoked or gone.
-	ErrOperatorTrustedDeviceNotFound = errors.New("operator trusted device not found")
-)
-
 // OperatorMFAMethodEmail is the only enrollment method operators have.
 const OperatorMFAMethodEmail = "email"
 

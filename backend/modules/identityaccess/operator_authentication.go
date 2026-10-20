@@ -112,23 +112,3 @@ type OperatorAuthentication interface {
 	// session and pending e-mail change of the operator atomically.
 	ChangeOperatorPassword(ctx context.Context, operatorID int64, currentPassword, newPassword string) error
 }
-
-func (m *Module) LoginOperatorWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*OperatorLoginResult, error) {
-	return m.engine.LoginOperatorWithMFAGate(ctx, email, password, ipAddress, userAgent, trustedDeviceCookie)
-}
-
-func (m *Module) IssueTokensForAuthenticatedOperator(ctx context.Context, operatorID int64, ipAddress, userAgent string) (string, string, error) {
-	return m.engine.IssueTokensForAuthenticatedOperator(ctx, operatorID, ipAddress, userAgent)
-}
-
-func (m *Module) RefreshOperatorToken(ctx context.Context, operatorID int64, refreshToken string) (string, string, error) {
-	return m.engine.RefreshOperatorToken(ctx, operatorID, refreshToken)
-}
-
-func (m *Module) UpdateOperatorProfile(ctx context.Context, operatorID int64, displayName string) (Operator, error) {
-	return m.engine.UpdateOperatorProfile(ctx, operatorID, displayName)
-}
-
-func (m *Module) ChangeOperatorPassword(ctx context.Context, operatorID int64, currentPassword, newPassword string) error {
-	return m.engine.ChangeOperatorPassword(ctx, operatorID, currentPassword, newPassword)
-}

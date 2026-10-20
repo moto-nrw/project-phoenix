@@ -3,136 +3,14 @@ package application
 import (
 	"context"
 	"net"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
-// Engine methods for the operator MFA flows and both portals' passkey
-// ceremonies (#3331). A composition without the MFA dependencies reports
-// ErrOperatorMFAUnavailable; one without the relying-party facts reports
+// Engine methods for the school-portal passkey ceremonies (#3331). A
+// composition without the relying-party facts reports
 // ErrPasskeyFlowsUnavailable for the ceremonies alone.
-
-func (e engine) operatorMFA() (*OperatorMFAFlows, error) {
-	if e.mfaFlows.Operator == nil {
-		return nil, identityaccess.ErrOperatorMFAUnavailable
-	}
-	return e.mfaFlows.Operator, nil
-}
-
-func (e engine) HasOperatorMFAEnrollment(ctx context.Context, operatorID int64) (bool, error) {
-	flows, err := e.operatorMFA()
-	if err != nil {
-		return false, err
-	}
-	enrolled, err := flows.HasEnrollment(ctx, operatorID)
-	return enrolled, operatorFlowError(err)
-}
-
-func (e engine) OperatorTrustedDeviceDays() int {
-	flows, err := e.operatorMFA()
-	if err != nil {
-		return 0
-	}
-	return flows.TrustedDeviceDays()
-}
-
-func (e engine) StartOperatorMFAChallenge(ctx context.Context, operatorID int64, ip net.IP) (string, error) {
-	flows, err := e.operatorMFA()
-	if err != nil {
-		return "", err
-	}
-	token, err := flows.StartChallenge(ctx, operatorID, ip)
-	return token, operatorFlowError(err)
-}
-
-func (e engine) VerifyOperatorMFAChallenge(ctx context.Context, challengeToken, code string) (int64, error) {
-	flows, err := e.operatorMFA()
-	if err != nil {
-		return 0, err
-	}
-	verified, err := flows.VerifyChallenge(ctx, challengeToken, code)
-	if err != nil {
-		return 0, operatorFlowError(err)
-	}
-	return verified.OperatorID, nil
-}
-
-func (e engine) ResendOperatorMFAChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
-	flows, err := e.operatorMFA()
-	if err != nil {
-		return "", err
-	}
-	token, err := flows.ResendChallenge(ctx, challengeToken, ip)
-	return token, operatorFlowError(err)
-}
-
-func (e engine) VerifyOperatorMFACode(ctx context.Context, operatorID int64, code string) error {
-	flows, err := e.operatorMFA()
-	if err != nil {
-		return err
-	}
-	return operatorFlowError(flows.VerifyCodeForOperator(ctx, operatorID, code))
-}
-
-func (e engine) EnrollOperatorMFA(ctx context.Context, operatorID int64) error {
-	flows, err := e.operatorMFA()
-	if err != nil {
-		return err
-	}
-	return operatorFlowError(flows.Enroll(ctx, operatorID))
-}
-
-func (e engine) DisableOperatorMFA(ctx context.Context, operatorID int64) error {
-	flows, err := e.operatorMFA()
-	if err != nil {
-		return err
-	}
-	return operatorFlowError(flows.Disable(ctx, operatorID))
-}
-
-func (e engine) IssueOperatorTrustedDevice(ctx context.Context, operatorID int64, userAgent string, ip net.IP) (string, time.Time, error) {
-	flows, err := e.operatorMFA()
-	if err != nil {
-		return "", time.Time{}, err
-	}
-	cookie, expiresAt, err := flows.IssueTrustedDevice(ctx, operatorID, userAgent, ip)
-	return cookie, expiresAt, operatorFlowError(err)
-}
-
-func (e engine) VerifyOperatorTrustedDevice(ctx context.Context, operatorID int64, signedCookie string) (bool, error) {
-	flows, err := e.operatorMFA()
-	if err != nil {
-		return false, err
-	}
-	verified, err := flows.VerifyTrustedDevice(ctx, operatorID, signedCookie)
-	return verified, operatorFlowError(err)
-}
-
-func (e engine) ListOperatorTrustedDevices(ctx context.Context, operatorID int64) ([]identityaccess.OperatorTrustedDevice, error) {
-	flows, err := e.operatorMFA()
-	if err != nil {
-		return nil, err
-	}
-	devices, err := flows.records.ListActiveTrustedDevices(ctx, operatorID)
-	if err != nil {
-		return nil, operatorFlowError(err)
-	}
-	result := make([]identityaccess.OperatorTrustedDevice, 0, len(devices))
-	for _, device := range devices {
-		result = append(result, identityaccess.OperatorTrustedDevice(device))
-	}
-	return result, nil
-}
-
-func (e engine) RevokeOperatorTrustedDeviceOwned(ctx context.Context, operatorID, deviceID int64) error {
-	flows, err := e.operatorMFA()
-	if err != nil {
-		return err
-	}
-	return operatorFlowError(flows.RevokeTrustedDevice(ctx, operatorID, deviceID))
-}
 
 func (e engine) accountPasskeyFlows() (*AccountPasskeyFlows, error) {
 	if e.mfaFlows.AccountPasskey == nil {
@@ -204,78 +82,6 @@ func (e engine) RevokeAccountPasskeyCredential(ctx context.Context, accountID, c
 		return err
 	}
 	return passkeyError(flows.RevokeCredential(e.attach(ctx), accountID, credentialID))
-}
-
-func (e engine) operatorPasskeyFlows() (*OperatorPasskeyFlows, error) {
-	if e.mfaFlows.OperatorPasskey == nil {
-		return nil, identityaccess.ErrPasskeyFlowsUnavailable
-	}
-	return e.mfaFlows.OperatorPasskey, nil
-}
-
-func (e engine) StartOperatorPasskeyEnrollment(ctx context.Context, operatorID int64, ip net.IP) (identityaccess.PasskeyEnrollmentChallenge, error) {
-	flows, err := e.operatorPasskeyFlows()
-	if err != nil {
-		return identityaccess.PasskeyEnrollmentChallenge{}, err
-	}
-	challenge, err := flows.StartEnrollmentChallenge(ctx, operatorID, ip)
-	return identityaccess.PasskeyEnrollmentChallenge(challenge), operatorFlowError(err)
-}
-
-func (e engine) BeginOperatorPasskeyRegistration(ctx context.Context, request identityaccess.OperatorPasskeyRegistrationStart) (identityaccess.PasskeyCeremonyOptions, error) {
-	flows, err := e.operatorPasskeyFlows()
-	if err != nil {
-		return identityaccess.PasskeyCeremonyOptions{}, err
-	}
-	options, err := flows.BeginRegistration(ctx, domain.OperatorPasskeyRegistrationStart(request))
-	return identityaccess.PasskeyCeremonyOptions(options), operatorFlowError(err)
-}
-
-func (e engine) FinishOperatorPasskeyRegistration(ctx context.Context, request identityaccess.OperatorPasskeyRegistrationFinish) (identityaccess.PasskeyCredentialSummary, error) {
-	flows, err := e.operatorPasskeyFlows()
-	if err != nil {
-		return identityaccess.PasskeyCredentialSummary{}, err
-	}
-	summary, err := flows.FinishRegistration(ctx, domain.OperatorPasskeyRegistrationFinish(request))
-	return identityaccess.PasskeyCredentialSummary(summary), operatorFlowError(err)
-}
-
-func (e engine) BeginOperatorPasskeyLogin(ctx context.Context, expectedOrigin string) (identityaccess.PasskeyCeremonyOptions, error) {
-	flows, err := e.operatorPasskeyFlows()
-	if err != nil {
-		return identityaccess.PasskeyCeremonyOptions{}, err
-	}
-	options, err := flows.BeginLogin(ctx, expectedOrigin)
-	return identityaccess.PasskeyCeremonyOptions(options), operatorFlowError(err)
-}
-
-func (e engine) FinishOperatorPasskeyLogin(ctx context.Context, request identityaccess.OperatorPasskeyLoginFinish) (identityaccess.PasskeyLoginResult, error) {
-	flows, err := e.operatorPasskeyFlows()
-	if err != nil {
-		return identityaccess.PasskeyLoginResult{}, err
-	}
-	result, err := flows.FinishLogin(ctx, domain.OperatorPasskeyLoginFinish(request))
-	return identityaccess.PasskeyLoginResult(result), operatorFlowError(err)
-}
-
-func (e engine) ListOperatorPasskeyCredentials(ctx context.Context, operatorID int64) ([]identityaccess.PasskeyCredentialSummary, error) {
-	flows, err := e.operatorPasskeyFlows()
-	if err != nil {
-		return nil, err
-	}
-	summaries, err := flows.ListCredentials(ctx, operatorID)
-	if err != nil {
-		return nil, operatorFlowError(err)
-	}
-	return publicPasskeySummaries(summaries), nil
-}
-
-func (e engine) RevokeOperatorPasskeyCredential(ctx context.Context, operatorID, credentialID int64) error {
-	flows, err := e.operatorPasskeyFlows()
-	if err != nil {
-		return err
-	}
-	return operatorFlowError(flows.RevokeCredential(ctx, operatorID, credentialID))
 }
 
 func publicPasskeySummaries(values []domain.PasskeyCredentialSummary) []identityaccess.PasskeyCredentialSummary {

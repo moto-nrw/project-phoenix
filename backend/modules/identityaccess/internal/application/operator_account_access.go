@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
@@ -34,6 +35,7 @@ type OperatorAccountAccess struct {
 	audit         ports.AuthAudit
 	operatorAudit ports.OperatorAudit
 	runtime       ports.Runtime
+	attach        func(context.Context) context.Context
 	logger        *slog.Logger
 }
 
@@ -50,7 +52,9 @@ type OperatorAccountAccessDependencies struct {
 	Audit         ports.AuthAudit
 	OperatorAudit ports.OperatorAudit
 	Runtime       ports.Runtime
-	Logger        *slog.Logger
+	// Attach binds the composed unit of work ahead of every public flow.
+	Attach func(context.Context) context.Context
+	Logger *slog.Logger
 }
 
 // NewOperatorAccountAccess composes the flows.
@@ -68,14 +72,18 @@ func NewOperatorAccountAccess(deps OperatorAccountAccessDependencies) (*Operator
 	return &OperatorAccountAccess{
 		store: deps.Store, login: deps.Login, access: deps.Access, sessions: deps.Sessions, schools: deps.Schools,
 		organizations: deps.Organizations, identities: deps.Identities, policy: deps.Policy, audit: deps.Audit,
-		operatorAudit: deps.OperatorAudit, runtime: deps.Runtime, logger: logger.With("component", "operator-account-access"),
+		operatorAudit: deps.OperatorAudit, runtime: deps.Runtime, attach: deps.Attach, logger: logger.With("component", "operator-account-access"),
 	}, nil
 }
 
 const lehrkraftCaregiverProfileMessage = "cannot assign the lehrkraft role: the account has a caregiver profile at this school; remove it via staff offboarding first"
 
 // ListAccountTenantAccess returns every school mapping of one account.
-func (s *OperatorAccountAccess) ListAccountTenantAccess(ctx context.Context, accountID int64) ([]domain.AccountTenantAccess, error) {
+func (s *OperatorAccountAccess) ListAccountTenantAccess(ctx context.Context, accountID int64) ([]identityaccess.AccountTenantAccess, error) {
+	if s == nil {
+		return nil, errOperatorAuthenticationUnavailable
+	}
+	ctx = bindRuntime(s.attach, ctx)
 	var result []domain.AccountTenantAccess
 	err := s.runtime.WithAdminTx(ctx, func(adminCtx context.Context) error {
 		if _, err := s.loadAccount(adminCtx, accountID, false); err != nil {
@@ -89,15 +97,19 @@ func (s *OperatorAccountAccess) ListAccountTenantAccess(ctx context.Context, acc
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, operatorError(err)
 	}
-	return result, nil
+	return accountTenantAccess(result), nil
 }
 
 // ListAssignableSchoolRoles returns the system and target-school roles an
 // operator may select. The same policy as the mutation paths applies, so the
 // UI cannot offer roles the backend would reject.
-func (s *OperatorAccountAccess) ListAssignableSchoolRoles(ctx context.Context, schoolID int64) ([]domain.AccountTenantRole, error) {
+func (s *OperatorAccountAccess) ListAssignableSchoolRoles(ctx context.Context, schoolID int64) ([]identityaccess.AccountTenantRole, error) {
+	if s == nil {
+		return nil, errOperatorAuthenticationUnavailable
+	}
+	ctx = bindRuntime(s.attach, ctx)
 	var result []domain.AccountTenantRole
 	err := s.runtime.WithAdminTx(ctx, func(adminCtx context.Context) error {
 		if _, err := s.loadActiveSchool(adminCtx, schoolID); err != nil {
@@ -116,15 +128,19 @@ func (s *OperatorAccountAccess) ListAssignableSchoolRoles(ctx context.Context, s
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, operatorError(err)
 	}
-	return result, nil
+	return accountTenantRoles(result), nil
 }
 
 // GrantAccountTenantAccess gives an existing account access to an
 // additional school and assigns the requested role there. Reactivating a
 // previously revoked mapping goes through the same path.
-func (s *OperatorAccountAccess) GrantAccountTenantAccess(ctx context.Context, request domain.GrantAccountTenantAccess) ([]domain.AccountTenantAccess, error) {
+func (s *OperatorAccountAccess) GrantAccountTenantAccess(ctx context.Context, request identityaccess.GrantAccountTenantAccess) ([]identityaccess.AccountTenantAccess, error) {
+	if s == nil {
+		return nil, errOperatorAuthenticationUnavailable
+	}
+	ctx = bindRuntime(s.attach, ctx)
 	var result []domain.AccountTenantAccess
 	err := s.runtime.WithAdminTx(ctx, func(adminCtx context.Context) error {
 		facts, err := s.grantAccessFacts(adminCtx, request)
@@ -153,9 +169,9 @@ func (s *OperatorAccountAccess) GrantAccountTenantAccess(ctx context.Context, re
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, operatorError(err)
 	}
-	return result, nil
+	return accountTenantAccess(result), nil
 }
 
 // UpdateAccountTenantRole changes the role an account holds at one school:
@@ -164,7 +180,11 @@ func (s *OperatorAccountAccess) GrantAccountTenantAccess(ctx context.Context, re
 // account between Verwaltung and Betreuung works, while an admin who also
 // does care work keeps the caregiver role until it is removed through the
 // caregiver flow.
-func (s *OperatorAccountAccess) UpdateAccountTenantRole(ctx context.Context, accountID, schoolID, roleID, operatorID int64, clientIP string) ([]domain.AccountTenantAccess, error) {
+func (s *OperatorAccountAccess) UpdateAccountTenantRole(ctx context.Context, accountID, schoolID, roleID, operatorID int64, clientIP string) ([]identityaccess.AccountTenantAccess, error) {
+	if s == nil {
+		return nil, errOperatorAuthenticationUnavailable
+	}
+	ctx = bindRuntime(s.attach, ctx)
 	var result []domain.AccountTenantAccess
 	err := s.runtime.WithAdminTx(ctx, func(adminCtx context.Context) error {
 		facts, err := s.roleChangeFacts(adminCtx, accountID, schoolID, roleID)
@@ -175,9 +195,9 @@ func (s *OperatorAccountAccess) UpdateAccountTenantRole(ctx context.Context, acc
 		return err
 	})
 	if err != nil {
-		return nil, err
+		return nil, operatorError(err)
 	}
-	return result, nil
+	return accountTenantAccess(result), nil
 }
 
 // RevokeAccountTenantAccess withdraws an account's access to one school:
@@ -188,47 +208,54 @@ func (s *OperatorAccountAccess) UpdateAccountTenantRole(ctx context.Context, acc
 // Person and staff records at that school are deliberately left untouched;
 // they carry the name for historical attendance and work-session rows.
 // Removing them is the school's own staff offboarding.
-func (s *OperatorAccountAccess) RevokeAccountTenantAccess(ctx context.Context, accountID, schoolID, operatorID int64, clientIP string) ([]domain.AccountTenantAccess, error) {
+func (s *OperatorAccountAccess) RevokeAccountTenantAccess(ctx context.Context, accountID, schoolID, operatorID int64, clientIP string) ([]identityaccess.AccountTenantAccess, error) {
+	if s == nil {
+		return nil, errOperatorAuthenticationUnavailable
+	}
+	ctx = bindRuntime(s.attach, ctx)
 	var result []domain.AccountTenantAccess
 	err := s.runtime.WithAdminTx(ctx, func(adminCtx context.Context) error {
-		facts, err := s.removeTenantAccessRoles(adminCtx, accountID, schoolID)
-		if err != nil {
-			return err
-		}
-		account, school := facts.account, facts.school
-		if _, err := s.access.DeleteAccountPermissionsAtTenant(adminCtx, accountID, schoolID); err != nil {
-			return fmt.Errorf("delete direct account permissions: %w", err)
-		}
-		tenantCtx := s.runtime.WithTenantID(adminCtx, schoolID)
-		if err := s.sessions.RevokeAllTokensWithReason(tenantCtx, accountID, domain.RevocationReasonTenantAccessRevoked); err != nil {
-			return fmt.Errorf("revoke tokens after access revocation: %w", err)
-		}
-		if _, err := s.access.DeactivateTenantMapping(adminCtx, accountID, schoolID); err != nil {
-			return err
-		}
-		accountDeactivated, err := s.deactivateAfterLastSchool(adminCtx, accountID)
-		if err != nil {
-			return err
-		}
-		s.logOperatorAction(adminCtx, operatorID, domain.OperatorAuditActionDelete, accountID, clientIP, domain.OperatorAccessChange{
-			SchoolID: school.ID, Email: account.Email, AccountDeactivated: accountDeactivated,
-		})
-		if err := s.recordAccessAuthEvent(tenantCtx, accountID, schoolID, domain.AuthEventTenantAccessRevoked, domain.TenantAccessEvidence{
-			SchoolID: school.ID, SchoolName: school.Name, AccountDeactivated: accountDeactivated, OperatorID: operatorID,
-		}); err != nil {
-			return err
-		}
-		entries, err := s.loadTenantAccess(adminCtx, accountID)
-		if err != nil {
-			return err
-		}
-		result = entries
-		return nil
+		var err error
+		result, err = s.revokeTenantAccessInAdmin(adminCtx, accountID, schoolID, operatorID, clientIP)
+		return err
 	})
+	if err != nil {
+		return nil, operatorError(err)
+	}
+	return accountTenantAccess(result), nil
+}
+
+// revokeTenantAccessInAdmin withdraws the access inside the administrative
+// transaction and returns the account's remaining mappings.
+func (s *OperatorAccountAccess) revokeTenantAccessInAdmin(adminCtx context.Context, accountID, schoolID, operatorID int64, clientIP string) ([]domain.AccountTenantAccess, error) {
+	facts, err := s.removeTenantAccessRoles(adminCtx, accountID, schoolID)
 	if err != nil {
 		return nil, err
 	}
-	return result, nil
+	account, school := facts.account, facts.school
+	if _, err := s.access.DeleteAccountPermissionsAtTenant(adminCtx, accountID, schoolID); err != nil {
+		return nil, fmt.Errorf("delete direct account permissions: %w", err)
+	}
+	tenantCtx := s.runtime.WithTenantID(adminCtx, schoolID)
+	if err := s.sessions.RevokeAllTokensWithReason(tenantCtx, accountID, domain.RevocationReasonTenantAccessRevoked); err != nil {
+		return nil, fmt.Errorf("revoke tokens after access revocation: %w", err)
+	}
+	if _, err := s.access.DeactivateTenantMapping(adminCtx, accountID, schoolID); err != nil {
+		return nil, err
+	}
+	accountDeactivated, err := s.deactivateAfterLastSchool(adminCtx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	s.logOperatorAction(adminCtx, operatorID, domain.OperatorAuditActionDelete, accountID, clientIP, domain.OperatorAccessChange{
+		SchoolID: school.ID, Email: account.Email, AccountDeactivated: accountDeactivated,
+	})
+	if err := s.recordAccessAuthEvent(tenantCtx, accountID, schoolID, domain.AuthEventTenantAccessRevoked, domain.TenantAccessEvidence{
+		SchoolID: school.ID, SchoolName: school.Name, AccountDeactivated: accountDeactivated, OperatorID: operatorID,
+	}); err != nil {
+		return nil, err
+	}
+	return s.loadTenantAccess(adminCtx, accountID)
 }
 
 // loadAccount resolves the account or reports ErrAccountNotFound. With
@@ -256,10 +283,10 @@ func (s *OperatorAccountAccess) loadActiveSchool(ctx context.Context, schoolID i
 		return domain.School{}, err
 	}
 	if !found {
-		return domain.School{}, domain.ErrSchoolNotFound
+		return domain.School{}, identityaccess.ErrSchoolNotFound
 	}
 	if school.Deleted {
-		return domain.School{}, domain.ErrSchoolDeleted
+		return domain.School{}, identityaccess.ErrSchoolDeleted
 	}
 	if !school.Active {
 		return domain.School{}, domain.InvalidInput("school is inactive")
@@ -527,14 +554,14 @@ func (s *OperatorAccountAccess) removeTenantAccessRoles(adminCtx context.Context
 		return facts, err
 	}
 	if !found {
-		return facts, domain.ErrSchoolNotFound
+		return facts, identityaccess.ErrSchoolNotFound
 	}
 	hasAccess, _, err := s.store.HasActiveAccountTenant(adminCtx, accountID, schoolID)
 	if err != nil {
 		return facts, err
 	}
 	if !hasAccess {
-		return facts, domain.ErrAccountTenantAccessNotFound
+		return facts, identityaccess.ErrAccountTenantAccessNotFound
 	}
 	current, err := s.rolesAtTenant(adminCtx, accountID, schoolID)
 	if err != nil {
@@ -600,4 +627,35 @@ func (s *OperatorAccountAccess) deactivateAfterLastSchool(adminCtx context.Conte
 		}
 	}
 	return len(remaining) == 0, nil
+}
+
+func accountTenantRoles(values []domain.AccountTenantRole) []identityaccess.AccountTenantRole {
+	if values == nil {
+		return nil
+	}
+	result := make([]identityaccess.AccountTenantRole, 0, len(values))
+	for _, value := range values {
+		result = append(result, identityaccess.AccountTenantRole(value))
+	}
+	return result
+}
+
+func accountTenantAccess(values []domain.AccountTenantAccess) []identityaccess.AccountTenantAccess {
+	if values == nil {
+		return nil
+	}
+	result := make([]identityaccess.AccountTenantAccess, 0, len(values))
+	for _, value := range values {
+		roles := accountTenantRoles(value.Roles)
+		if roles == nil {
+			roles = []identityaccess.AccountTenantRole{}
+		}
+		result = append(result, identityaccess.AccountTenantAccess{
+			TenantID: value.TenantID, SchoolName: value.SchoolName, SchoolSlug: value.SchoolSlug, SchoolActive: value.SchoolActive,
+			OrganizationID: value.OrganizationID, OrganizationName: value.OrganizationName, Status: value.Status,
+			ActivatedAt: value.ActivatedAt, DeactivatedAt: value.DeactivatedAt, HasPerson: value.HasPerson, HasStaff: value.HasStaff,
+			Roles: roles,
+		})
+	}
+	return result
 }
