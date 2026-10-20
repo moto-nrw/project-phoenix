@@ -167,9 +167,10 @@ type RoleFacts struct {
 
 // SchoolIdentityInput describes the identity to provision.
 type SchoolIdentityInput struct {
-	AccountID int64
-	TenantID  int64
-	Role      *RoleFacts
+	EmploymentAction EmploymentAction
+	AccountID        int64
+	TenantID         int64
+	Role             *RoleFacts
 
 	// FirstName/LastName are consulted only when no person exists yet.
 	FirstName string

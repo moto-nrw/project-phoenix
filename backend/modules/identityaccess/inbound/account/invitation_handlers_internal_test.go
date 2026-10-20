@@ -383,3 +383,28 @@ func postFormerEmployment(resource *Resource, body string) *httptest.ResponseRec
 	resource.findFormerEmployment(rr, req)
 	return rr
 }
+
+func TestInvitationEmploymentActionWireContract(t *testing.T) {
+	t.Parallel()
+	for _, action := range []identityaccess.EmploymentAction{"", identityaccess.EmploymentActionResume, identityaccess.EmploymentActionNew, "unknown"} {
+		req := CreateInvitationRequest{Email: "invitee@example.com", RoleID: 42, EmploymentAction: action}
+		err := req.Bind(httptest.NewRequest(http.MethodPost, "/auth/invitations", nil))
+		if action == "unknown" {
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "employment_action")
+			continue
+		}
+		require.NoError(t, err)
+		resource := &Resource{}
+		request := httptest.NewRequest(http.MethodPost, "/auth/invitations", nil)
+		mapped := resource.buildInvitationRequest(request, &req, testutil.DefaultTestClaims())
+		require.Equal(t, action, mapped.EmploymentAction)
+	}
+	// The public validation response must not expose the school's decision.
+	body, err := json.Marshal(toInvitationValidationResponse(identityaccess.InvitationPreview{}))
+	require.NoError(t, err)
+	require.NotContains(t, string(body), "employment_action")
+	body, err = json.Marshal(toInvitationResponse(identityaccess.SchoolInvitation{EmploymentAction: identityaccess.EmploymentActionNew}))
+	require.NoError(t, err)
+	require.Contains(t, string(body), `"employment_action":"new"`)
+}
