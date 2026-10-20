@@ -21,13 +21,13 @@ type Dependencies struct {
 	Observe func(Observation)
 }
 
-func New(dependencies Dependencies) (*appointments.Module, error) {
+// New composes the Appointments service, which is the whole Owner surface.
+func New(dependencies Dependencies) (appointments.Owner, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("appointments compose: all dependencies are required")
 	}
 	store := postgres.New(postgres.DatabaseBinding(dependencies.DB))
-	service := application.New(store, application.NewObserver(dependencies.Observe), withinTenant)
-	return application.NewPublicModule(service, application.NewRetention(store)), nil
+	return application.New(store, application.NewRetention(store), dependencies.Observe, withinTenant), nil
 }
 
 func withinTenant(ctx context.Context, command func(context.Context) error) error {
