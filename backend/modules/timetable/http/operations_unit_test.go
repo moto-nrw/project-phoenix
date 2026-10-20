@@ -1051,9 +1051,12 @@ type (
 	}
 	stubOpEducationGroups struct{}
 	stubOpRooms           struct{ timetablePorts.RoomNames }
-	stubOpCareDays        struct{ timetablePorts.CareDays }
-	stubOpArrivals        struct{}
-	stubOpPickups         struct{}
+	stubOpBlockMetadata   struct {
+		timetablePorts.BlockDisplayMetadata
+	}
+	stubOpCareDays struct{ timetablePorts.CareDays }
+	stubOpArrivals struct{}
+	stubOpPickups  struct{}
 )
 
 func (stubOpEducationGroups) EducationGroupNames(context.Context, []int64) (map[int64]string, error) {
@@ -1159,6 +1162,7 @@ func newRealSpontaneousOpsService(t *testing.T, instanceSvc timetable.InstanceLi
 		People:               personSvc,
 		EducationGroups:      stubOpEducationGroups{},
 		Rooms:                stubOpRooms{},
+		BlockMetadata:        stubOpBlockMetadata{},
 		Settings:             testOperationSettings{settings: settings},
 		CareDays:             stubOpCareDays{},
 		Arrivals:             stubOpArrivals{},

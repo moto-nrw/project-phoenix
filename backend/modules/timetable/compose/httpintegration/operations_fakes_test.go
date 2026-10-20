@@ -171,6 +171,7 @@ func (deps *timetableOpsTestDeps) dependencies() timetablePorts.OperationDepende
 		People:               deps.personService,
 		EducationGroups:      deps.groups,
 		Rooms:                deps.rooms,
+		BlockMetadata:        fakeOpsBlockDisplay{instances: deps.instanceRepo, rooms: deps.rooms},
 		Settings:             deps.settings,
 		CareDays:             deps.careDayService,
 		Arrivals:             deps.arrivalService,
@@ -565,6 +566,32 @@ func (r *fakeOpsEducationGroups) EducationGroupNames(_ context.Context, ids []in
 	for _, id := range ids {
 		if name, ok := r.names[id]; ok {
 			out[id] = name
+		}
+	}
+	return out, nil
+}
+
+// fakeOpsBlockDisplay serves the block display projection over the fake
+// day's blocks: each block carries the name of its room, a room lookup
+// error fails the read.
+type fakeOpsBlockDisplay struct {
+	instances *fakeOpsInstanceRepo
+	rooms     *fakeOpsRooms
+}
+
+func (d fakeOpsBlockDisplay) ListBlockDisplayMetadata(ctx context.Context, instanceIDs []int64) (map[int64]timetable.BlockDisplayMetadata, error) {
+	names, err := d.rooms.AllRoomNames(ctx)
+	if err != nil {
+		return nil, err
+	}
+	wanted := make(map[int64]bool, len(instanceIDs))
+	for _, id := range instanceIDs {
+		wanted[id] = true
+	}
+	out := make(map[int64]timetable.BlockDisplayMetadata, len(instanceIDs))
+	for _, inst := range d.instances.byDate {
+		if inst != nil && wanted[inst.ID] {
+			out[inst.ID] = timetable.BlockDisplayMetadata{RoomName: names[inst.RoomID]}
 		}
 	}
 	return out, nil

@@ -2,14 +2,20 @@ package ports
 
 import (
 	"context"
+	"time"
 )
 
-// StaffMember is the users.staff fact of a school.
+// StaffMember is the users.staff fact of a school. FindStaffByPerson also
+// reports when the membership was created and retired, and Erased for a
+// retired membership the automatic deletion of staff erased.
 type StaffMember struct {
-	ID       int64
-	TenantID int64
-	PersonID int64
-	Deleted  bool
+	ID        int64
+	TenantID  int64
+	PersonID  int64
+	Deleted   bool
+	StartedAt time.Time
+	RetiredAt *time.Time
+	Erased    bool
 }
 
 // PersonRecord is the users.persons fact the lifecycle reads and, for the

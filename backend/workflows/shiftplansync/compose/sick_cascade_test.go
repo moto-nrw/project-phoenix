@@ -120,7 +120,7 @@ func (e *sickCascadeEnv) createShift(t *testing.T, staffID int64, date calendar.
 	if mutate != nil {
 		mutate(&shift)
 	}
-	created, err := e.shifts.CreateStaffShift(e.ctx, shift)
+	created, err := e.shifts.CreateStaffShift(e.ctx, &shift)
 	require.NoError(t, err)
 	return created
 }
@@ -594,10 +594,10 @@ func TestSickCascade_MarkWaitsForConcurrentShiftWrite(t *testing.T) {
 	writerDone := make(chan error, 1)
 	go func() {
 		writerDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
-			if err := e.lock(ctx, e.subject.ID); err != nil {
+			if err := e.Lock(ctx, e.subject.ID); err != nil {
 				return err
 			}
-			shift, err := e.shifts.CreateStaffShift(ctx, workforce.StaffShift{
+			shift, err := e.shifts.CreateStaffShift(ctx, &workforce.StaffShift{
 				StaffID: e.subject.ID, Date: day.String(), StartTime: clock("08:00"),
 				EndTime: clock("09:00"), CreatedBy: e.admin.ID,
 			})
@@ -648,10 +648,10 @@ func TestSickCascade_ClearWaitsForConcurrentReplacement(t *testing.T) {
 	writerDone := make(chan error, 1)
 	go func() {
 		writerDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
-			if err := e.lock(ctx, e.subject.ID); err != nil {
+			if err := e.Lock(ctx, e.subject.ID); err != nil {
 				return err
 			}
-			cover, err := e.shifts.CreateStaffShift(ctx, workforce.StaffShift{
+			cover, err := e.shifts.CreateStaffShift(ctx, &workforce.StaffShift{
 				StaffID: e.sub.ID, Date: day.String(), StartTime: clock("08:00"),
 				EndTime: clock("10:00"), CreatedBy: e.admin.ID, OriginShiftID: &origin.ID,
 			})
@@ -705,7 +705,7 @@ func TestSickCascade_ClearLocksCommittedReplacementStaffBeforeReversal(t *testin
 	lockerDone := make(chan error, 1)
 	go func() {
 		lockerDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
-			if err := e.lock(ctx, cover.StaffID); err != nil {
+			if err := e.Lock(ctx, cover.StaffID); err != nil {
 				return err
 			}
 			close(locked)
@@ -863,7 +863,7 @@ func TestSickCascade_DeleteDoesNotReactivateManuallyRetainedCancellation(t *test
 
 	manualReason := "Teamtag"
 	e.inTx(t, func(ctx context.Context) error {
-		_, err := e.planning.ApplyCancellation(ctx, workforce.CancelStaffShift{
+		_, err := e.Planning.ApplyCancellation(ctx, workforce.CancelStaffShift{
 			ShiftID:      shift.ID,
 			Cancelled:    true,
 			ChangeReason: &manualReason,

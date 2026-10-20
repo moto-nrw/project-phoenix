@@ -122,9 +122,18 @@ what the caterer adds:
    lines, and `moduleComposeBudgetTotal` rises by the same 36: binding the
    caterer portal to each school's tenant transaction.
 
+Measured again after development contracted the registers on 2026-10-20,
+the same code raises `modulePassthroughOwnerBudgets["modules/identityaccess"]`
+from 497 to 501, `modules/mealplan` from 15 to 17 and, with ADR 0075,
+`modulePassthroughOwnerBudgetTotal` from 2,708 to 2,715.
+`moduleComposeBudgets["modules/identityaccess/compose"]` rises from 1,312 to
+1,357 (one more line imports the session dependencies, which development
+moved to the public ports), and with ADR 0075 and the 36 lines of
+`workflows/catererportal/compose` the total rises from 12,446 to 12,561.
+
 ## Policy
 
-Policy epoch 87 → 88 registers the data-less workflow owner `caterer-portal`
+Policy epoch 88 → 89 registers the data-less workflow owner `caterer-portal`
 with its five new packages (ADR 0013 path, #3130) and the rules its code
 uses: its public contract and ports speak the public Identity & Access and
 Meal Plan contracts, its composition binds the tenant runtime, and its HTTP

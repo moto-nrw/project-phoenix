@@ -5,6 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
+	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
 // newAccountProvisioning composes the registration and link flows (#3332).
@@ -14,7 +15,7 @@ import (
 func newAccountProvisioning(
 	store *postgres.Store,
 	lifecycle *application.AccountLifecycle,
-	sessions *SessionDependencies,
+	sessions *identityBindingPorts.SessionDependencies,
 	deps *LifecycleDependencies,
 ) (*application.AccountProvisioning, error) {
 	if deps == nil {
@@ -32,7 +33,7 @@ func newAccountProvisioning(
 		Identity:  lifecycle,
 		Profiles:  application.StaffDirectory{Source: deps.Staff},
 		Passwords: deps.Passwords,
-		Runtime:   tenantRuntime{attach: sessions.TenantRuntime, runner: newTransactionRunner()},
+		Runtime:   tenantRuntime{attach: sessions.TenantRuntime, runner: application.NewTransactionRunner()},
 		Logger:    deps.Logger,
 	})
 }

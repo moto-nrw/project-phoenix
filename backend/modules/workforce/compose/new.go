@@ -6,12 +6,12 @@ package compose
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -41,16 +41,23 @@ type Dependencies struct {
 	StatutoryHolidays func(ctx context.Context, from, to string) (map[string]bool, error)
 }
 
+// WorkTime is the owner composition: its public capability and native shift
+// reads share one application service, transaction runtime and observer.
+type WorkTime struct {
+	*workforce.Module
+	planning.ShiftReads
+}
+
 // New composes the Workforce work-time module. Every operation runs on the
 // caller's ambient tenant transaction when one exists and otherwise opens one,
 // so row-level security decides visibility exactly as it did for the legacy
 // repositories.
-func New(dependencies Dependencies) (*workforce.Module, error) {
+func New(dependencies Dependencies) (*WorkTime, error) {
 	service, err := newApplication(dependencies)
 	if err != nil {
 		return nil, err
 	}
-	return workforce.NewModule(application.NewEngine(service)), nil
+	return &WorkTime{Module: workforce.NewModule(application.NewEngine(service)), ShiftReads: service}, nil
 }
 
 func newApplication(dependencies Dependencies) (*application.Service, error) {
@@ -58,11 +65,8 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 		dependencies.LockStaffAssignment == nil || dependencies.Observe == nil {
 		return nil, errors.New("workforce compose: all dependencies are required")
 	}
-	store := postgres.New(databaseRuntime(dependencies.DB))
-	observe := func(observation Observation) {
-		observation.Err = application.MapError(observation.Err)
-		dependencies.Observe(observation)
-	}
+	store := postgres.New(postgres.DatabaseRuntime(dependencies.DB))
+	observe := application.NewObserver(dependencies.Observe)
 	now := dependencies.Now
 	if now == nil {
 		now = time.Now
@@ -70,7 +74,7 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 	service := application.New(
 		store,
 		transaction{lock: store.AcquireXactLock},
-		assignments{store: store, live: dependencies.LiveStaffIDs},
+		postgres.Assignments{Store: store, Live: dependencies.LiveStaffIDs},
 		dependencies.LockStaffAssignment,
 		application.Clock{Time: now},
 		application.AllowanceUses,
@@ -80,16 +84,6 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 	return service, nil
 }
 
-func databaseRuntime(db *bun.DB) postgres.Database {
-	return func(ctx context.Context) (bun.IDB, postgres.TenantScope, error) {
-		id, scopeErr := tenant.TenantFromContext(ctx)
-		raw, ok := tenant.TransactionFromContext(ctx)
-
-		return postgres.ResolveDatabase(raw, ok, id.Int64(), scopeErr, tenant.IsAdminTx(ctx))
-	}
-
-}
-
 // transaction runs units of work on the tenant runtime. lock is the Postgres
 // adapter's advisory-lock statement, used when no runtime is bound.
 type transaction struct {
@@ -97,41 +91,18 @@ type transaction struct {
 }
 
 func (transaction) RunWrite(ctx context.Context, callback func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return callback(ctx)
-	}
-	return tenant.WithinCurrentTenant(ctx, callback)
+	return postgres.TransactionRunWriteBinding(ctx, callback, tenant.WithinCurrentTenant)
 }
 
 func (t transaction) LockStaffQualifications(ctx context.Context, staffID int64) error {
-	if staffID <= 0 {
-		return errors.New("workforce compose: staff id is required")
-	}
-	tenantID := tenant.FromContext(ctx)
-	if tenantID <= 0 {
-		return errors.New("workforce compose: tenant id is required")
-	}
-	if err := t.acquireXactLock(ctx, fmt.Sprintf("staff-qualifications:%d:%d", tenantID, staffID)); err != nil {
-		return fmt.Errorf("lock staff qualification writes: %w", err)
-	}
-	return nil
+	return postgres.LockStaffQualificationsGate(ctx, staffID, t.acquireXactLock)
 }
 
 // LockStaffBalance serializes every writer that changes one staff member's
 // target working time, so a template refresh and a manual schedule change
 // cannot interleave into a half-closed version history.
 func (t transaction) LockStaffBalance(ctx context.Context, staffID int64) error {
-	if staffID <= 0 {
-		return errors.New("workforce compose: staff id is required")
-	}
-	tenantID := tenant.FromContext(ctx)
-	if tenantID <= 0 {
-		return errors.New("workforce compose: tenant id is required")
-	}
-	if err := t.acquireXactLock(ctx, fmt.Sprintf("staff-balance:%d:%d", tenantID, staffID)); err != nil {
-		return fmt.Errorf("lock staff balance writes: %w", err)
-	}
-	return nil
+	return postgres.LockStaffBalanceGate(ctx, staffID, t.acquireXactLock)
 }
 
 // acquireXactLock takes the transaction-scoped advisory lock through the
@@ -140,46 +111,15 @@ func (t transaction) LockStaffBalance(ctx context.Context, staffID int64) error 
 // repositories did: outside a transaction the lock releases at statement
 // end, so a caller that never opened one keeps its behavior.
 func (t transaction) acquireXactLock(ctx context.Context, key string) error {
-	if _, inTransaction := tenant.TransactionFromContext(ctx); inTransaction {
-		err := tenant.AcquireLock(ctx, key, false)
-		if err == nil || !errors.Is(err, tenant.ErrRuntimeRequired) {
-			return err
-		}
-	}
-	return t.lock(ctx, key)
+	return postgres.AcquireXactLock(ctx, key, t.lock)
 }
 
 func (t transaction) LockStaffShifts(ctx context.Context, staffID int64) error {
-	if staffID <= 0 || tenant.FromContext(ctx) <= 0 {
-		return errors.New("workforce: staff and tenant are required")
-	}
-	return t.acquireXactLock(ctx, fmt.Sprintf("staff-shift:%d:%d", tenant.FromContext(ctx), staffID))
-}
-
-// assignments reads the template binding from the employment profile and
-// keeps only the memberships School Membership still holds as live.
-type assignments struct {
-	store *postgres.Store
-	live  func(context.Context, []int64) ([]int64, error)
-}
-
-func (a assignments) AssignedStaffIDs(ctx context.Context, workTimeModelID int64) ([]int64, error) {
-	ids, err := a.store.StaffOnWorkTimeModel(ctx, workTimeModelID)
-	if err != nil || len(ids) == 0 {
-		return ids, err
-	}
-	return a.live(ctx, ids)
-}
-
-func (a assignments) RebaseAnchor(ctx context.Context, staffIDs []int64, anchorDate string) error {
-	if len(staffIDs) == 0 {
-		return nil
-	}
-	return a.store.RebaseStaffRotationAnchor(ctx, staffIDs, anchorDate)
+	return postgres.LockStaffShiftsGate(ctx, staffID, t.acquireXactLock)
 }
 
 // RunRead establishes RLS for standalone owner queries; workflows and HTTP
 // requests keep their existing transaction.
 func (t transaction) RunRead(ctx context.Context, callback func(context.Context) error) error {
-	return t.RunWrite(ctx, callback)
+	return postgres.TransactionRunReadBinding(ctx, callback, t.RunWrite)
 }

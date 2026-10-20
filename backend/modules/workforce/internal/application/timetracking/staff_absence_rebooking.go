@@ -76,15 +76,9 @@ func (s *staffAbsenceService) RebookAbsences(ctx context.Context, req RebookAbse
 	if err != nil {
 		return nil, err
 	}
-	selectedType, typeID, baseType, err := s.resolveAbsenceTypeSelection(ctx, req.AbsenceTypeID, req.AbsenceType)
+	selectedType, typeID, baseType, err := s.resolveRebookingTarget(ctx, req)
 	if err != nil {
 		return nil, err
-	}
-	if !slices.Contains(ValidAbsenceTypes, baseType) {
-		return nil, &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid absence type")}
-	}
-	if baseType == AbsenceTypeSick {
-		return nil, rebookingBlocked(workforce.RebookingIntoSickReportCode, workforce.RebookingValues{}, "In eine Krankmeldung lässt sich nicht umbuchen. Löschen Sie den Eintrag und tragen Sie die Krankmeldung neu ein.")
 	}
 	if err := s.lockStaffAbsenceWrites(ctx, req.StaffID); err != nil {
 		return nil, err
@@ -94,7 +88,50 @@ func (s *staffAbsenceService) RebookAbsences(ctx context.Context, req RebookAbse
 	if err != nil {
 		return nil, err
 	}
-	absences, err := s.loadRebookingAbsences(ctx, req.StaffID, entries)
+	result, err := s.previewRebooking(ctx, req.StaffID, ids, selectedType, typeID, entries)
+	if err != nil {
+		return nil, err
+	}
+
+	if req.DryRun {
+		result.Absences = s.withLabels(ctx, rebookedResponses(entries)...)
+		return result, nil
+	}
+	if result.AllowanceExceeded {
+		return nil, fmt.Errorf("%w: rebooking needs more days than the allowance has left", ErrAbsenceTypeAllowanceExceeded)
+	}
+	if result.VacationExceeded {
+		return nil, fmt.Errorf("%w: rebooking needs more days than the vacation account has left", ErrVacationQuotaExceeded)
+	}
+	if err := s.writeRebookedAbsences(ctx, req.ActorAccountID, reason, entries); err != nil {
+		return nil, err
+	}
+	result.Applied = true
+	result.Absences = s.withLabels(ctx, rebookedResponses(entries)...)
+	s.broadcastTimeTrackingChanged(ctx)
+	return result, nil
+}
+
+// resolveRebookingTarget resolves the type the entries are rebooked to, like
+// on create; a sick report is never a target.
+func (s *staffAbsenceService) resolveRebookingTarget(ctx context.Context, req RebookAbsencesRequest) (*StaffAbsenceType, *int64, string, error) {
+	selectedType, typeID, baseType, err := s.resolveAbsenceTypeSelection(ctx, req.AbsenceTypeID, req.AbsenceType)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	if !slices.Contains(ValidAbsenceTypes, baseType) {
+		return nil, nil, "", &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid absence type")}
+	}
+	if baseType == AbsenceTypeSick {
+		return nil, nil, "", rebookingBlocked(workforce.RebookingIntoSickReportCode, workforce.RebookingValues{}, "In eine Krankmeldung lässt sich nicht umbuchen. Löschen Sie den Eintrag und tragen Sie die Krankmeldung neu ein.")
+	}
+	return selectedType, typeID, baseType, nil
+}
+
+// previewRebooking validates the prepared entries and computes the effects
+// of the rebooking without writing anything.
+func (s *staffAbsenceService) previewRebooking(ctx context.Context, staffID int64, ids []int64, selectedType *StaffAbsenceType, typeID *int64, entries []rebookedAbsence) (*AbsenceRebookingResult, error) {
+	absences, err := s.loadRebookingAbsences(ctx, staffID, entries)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +152,7 @@ func (s *staffAbsenceService) RebookAbsences(ctx context.Context, req RebookAbse
 	result.BalanceDeltaMinutes = delta
 
 	if selectedType != nil && selectedType.AllowanceEnabled {
-		allowances, err := s.absenceTypes.PreviewAllowanceRebooking(ctx, req.StaffID, *typeID, ids)
+		allowances, err := s.absenceTypes.PreviewAllowanceRebooking(ctx, staffID, *typeID, ids)
 		switch {
 		case errors.Is(err, ErrAbsenceTypeAllowanceExceeded):
 			result.AllowanceExceeded = true
@@ -124,26 +161,9 @@ func (s *staffAbsenceService) RebookAbsences(ctx context.Context, req RebookAbse
 		}
 		result.Allowances = allowances
 	}
-	if result.Vacation, result.VacationExceeded, err = s.previewVacationRebooking(ctx, req.StaffID, entries); err != nil {
+	if result.Vacation, result.VacationExceeded, err = s.previewVacationRebooking(ctx, staffID, entries); err != nil {
 		return nil, err
 	}
-
-	if req.DryRun {
-		result.Absences = s.withLabels(ctx, rebookedResponses(entries)...)
-		return result, nil
-	}
-	if result.AllowanceExceeded {
-		return nil, fmt.Errorf("%w: rebooking needs more days than the allowance has left", ErrAbsenceTypeAllowanceExceeded)
-	}
-	if result.VacationExceeded {
-		return nil, fmt.Errorf("%w: rebooking needs more days than the vacation account has left", ErrVacationQuotaExceeded)
-	}
-	if err := s.writeRebookedAbsences(ctx, req.ActorAccountID, reason, entries); err != nil {
-		return nil, err
-	}
-	result.Applied = true
-	result.Absences = s.withLabels(ctx, rebookedResponses(entries)...)
-	s.broadcastTimeTrackingChanged(ctx)
 	return result, nil
 }
 
@@ -178,7 +198,9 @@ func validateRebookingRequest(req RebookAbsencesRequest, reason string) ([]int64
 func (s *staffAbsenceService) loadRebookedAbsences(ctx context.Context, staffID int64, ids []int64, baseType string, typeID *int64) ([]rebookedAbsence, error) {
 	entries := make([]rebookedAbsence, 0, len(ids))
 	for _, id := range ids {
-		absence, err := s.absenceRepo.FindByID(ctx, id)
+		storedAbsence, err := s.absenceRepo.FindStaffAbsence(ctx, id)
+		absence := absenceToRecord(storedAbsence)
+		err = rowReadError("find by id", err, workforce.ErrStaffAbsenceNotFound)
 		if err != nil {
 			if isRecordNotFound(err) {
 				return nil, workforce.ErrAbsenceNotFound
@@ -217,7 +239,9 @@ func (s *staffAbsenceService) loadRebookedAbsences(ctx context.Context, staffID 
 // overlap check and the balance preview.
 func (s *staffAbsenceService) loadRebookingAbsences(ctx context.Context, staffID int64, entries []rebookedAbsence) ([]*StaffAbsence, error) {
 	start, end := rebookedDateRange(entries)
-	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, start, end)
+	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staffID, OverlapFrom: start.String(), OverlapTo: end.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}}})
+	absences := absencesToRecord(absenceValues)
+	err = rowReadError("get absences by staff and date range", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing absences for rebooking: %w", err)
 	}
@@ -237,29 +261,37 @@ func (s *staffAbsenceService) validateRebookedAbsence(ctx context.Context, entry
 	}
 	switch after.AbsenceType {
 	case AbsenceTypeCompTime:
-		if err := validateSingleDayHalfDayAbsence(after.AbsenceType, after.HalfDay, after.DateStart, after.DateEnd); err != nil {
-			return err
-		}
-		err := s.rejectPreAccountCompTime(ctx, after.AbsenceType, after.DateStart, after.DateEnd)
-		if err != nil && strings.HasPrefix(err.Error(), "invalid comp_time") {
-			return rebookingBlocked(workforce.RebookingOutsideBalanceCode, workforce.RebookingValues{Day: day}, "Der Eintrag vom %s liegt außerhalb des Stundenkontos. Dort ist kein Freizeitausgleich möglich.", day)
-		}
-		if err != nil {
-			return err
-		}
+		return s.validateRebookedCompTime(ctx, after, day)
 	case AbsenceTypeVacation:
-		if after.WorkingDays == nil || *after.WorkingDays <= 0 {
-			return rebookingBlocked(workforce.RebookingNoWorkingDayCode, workforce.RebookingValues{Day: day}, "Der Eintrag vom %s hat keinen Arbeitstag. Urlaub braucht mindestens einen.", day)
-		}
-		err := s.rejectVacationBeforeOpening(ctx, after)
-		if errors.Is(err, ErrVacationOpeningAbsencesBeforeCutoff) {
-			return rebookingBlocked(workforce.RebookingBeforeVacationOpeningCode, workforce.RebookingValues{Day: day}, "Der Eintrag vom %s liegt vor der Urlaubsübernahme. Dort lässt sich kein Urlaub eintragen.", day)
-		}
-		if err != nil {
-			return err
-		}
+		return s.validateRebookedVacation(ctx, after, day)
 	}
 	return nil
+}
+
+// validateRebookedCompTime applies the Freizeitausgleich rules to an entry
+// rebooked into comp time.
+func (s *staffAbsenceService) validateRebookedCompTime(ctx context.Context, after *StaffAbsence, day string) error {
+	if err := validateSingleDayHalfDayAbsence(after.AbsenceType, after.HalfDay, after.DateStart, after.DateEnd); err != nil {
+		return err
+	}
+	err := s.rejectPreAccountCompTime(ctx, after.AbsenceType, after.DateStart, after.DateEnd)
+	if err != nil && strings.HasPrefix(err.Error(), "invalid comp_time") {
+		return rebookingBlocked(workforce.RebookingOutsideBalanceCode, workforce.RebookingValues{Day: day}, "Der Eintrag vom %s liegt außerhalb des Stundenkontos. Dort ist kein Freizeitausgleich möglich.", day)
+	}
+	return err
+}
+
+// validateRebookedVacation applies the vacation rules to an entry rebooked
+// into vacation.
+func (s *staffAbsenceService) validateRebookedVacation(ctx context.Context, after *StaffAbsence, day string) error {
+	if after.WorkingDays == nil || *after.WorkingDays <= 0 {
+		return rebookingBlocked(workforce.RebookingNoWorkingDayCode, workforce.RebookingValues{Day: day}, "Der Eintrag vom %s hat keinen Arbeitstag. Urlaub braucht mindestens einen.", day)
+	}
+	err := s.rejectVacationBeforeOpening(ctx, after)
+	if errors.Is(err, ErrVacationOpeningAbsencesBeforeCutoff) {
+		return rebookingBlocked(workforce.RebookingBeforeVacationOpeningCode, workforce.RebookingValues{Day: day}, "Der Eintrag vom %s liegt vor der Urlaubsübernahme. Dort lässt sich kein Urlaub eintragen.", day)
+	}
+	return err
 }
 
 // validateRebookedAbsenceOverlaps keeps rebooking aligned with creation:
@@ -395,6 +427,28 @@ func rebookedDateRange(entries []rebookedAbsence) (calendar.Date, calendar.Date)
 // touches when vacation is the old or the new type. It reports an overdraft
 // only for years the rebooking makes worse, like the other allowances.
 func (s *staffAbsenceService) previewVacationRebooking(ctx context.Context, staffID int64, entries []rebookedAbsence) ([]VacationRebookingYear, bool, error) {
+	years, replaced := vacationRebookingYears(entries)
+	result := make([]VacationRebookingYear, 0, len(years))
+	exceeded := false
+	for _, year := range years {
+		in, err := s.loadVacationQuotaInputs(ctx, staffID, year)
+		if err != nil {
+			return nil, false, err
+		}
+		changed := replaceRebookedAbsences(in.absences, replaced)
+		before := computeVacationQuotaSummary(staffID, year, in.entitled, in.carryover, in.absences, in.opening)
+		after := computeVacationQuotaSummary(staffID, year, in.entitled, in.carryover, changed, in.opening)
+		if after.RemainingDays < -vacationDayEpsilon && after.RemainingDays < before.RemainingDays-vacationDayEpsilon {
+			exceeded = true
+		}
+		result = append(result, VacationRebookingYear{Year: year, RemainingBefore: before.RemainingDays, RemainingAfter: after.RemainingDays})
+	}
+	return result, exceeded, nil
+}
+
+// vacationRebookingYears collects, sorted, the years touched by entries whose
+// old or new type is vacation, and those entries' new shape by ID.
+func vacationRebookingYears(entries []rebookedAbsence) ([]int, map[int64]*StaffAbsence) {
 	var years []int
 	replaced := make(map[int64]*StaffAbsence, len(entries))
 	for _, entry := range entries {
@@ -409,29 +463,20 @@ func (s *staffAbsenceService) previewVacationRebooking(ctx context.Context, staf
 		}
 	}
 	slices.Sort(years)
-	result := make([]VacationRebookingYear, 0, len(years))
-	exceeded := false
-	for _, year := range years {
-		in, err := s.loadVacationQuotaInputs(ctx, staffID, year)
-		if err != nil {
-			return nil, false, err
+	return years, replaced
+}
+
+// replaceRebookedAbsences swaps the rebooked entries into a year's absences.
+func replaceRebookedAbsences(absences []*StaffAbsence, replaced map[int64]*StaffAbsence) []*StaffAbsence {
+	changed := make([]*StaffAbsence, 0, len(absences))
+	for _, absence := range absences {
+		if next, ok := replaced[absence.ID]; ok {
+			changed = append(changed, next)
+			continue
 		}
-		changed := make([]*StaffAbsence, 0, len(in.absences))
-		for _, absence := range in.absences {
-			if next, ok := replaced[absence.ID]; ok {
-				changed = append(changed, next)
-				continue
-			}
-			changed = append(changed, absence)
-		}
-		before := computeVacationQuotaSummary(staffID, year, in.entitled, in.carryover, in.absences, in.opening)
-		after := computeVacationQuotaSummary(staffID, year, in.entitled, in.carryover, changed, in.opening)
-		if after.RemainingDays < -vacationDayEpsilon && after.RemainingDays < before.RemainingDays-vacationDayEpsilon {
-			exceeded = true
-		}
-		result = append(result, VacationRebookingYear{Year: year, RemainingBefore: before.RemainingDays, RemainingAfter: after.RemainingDays})
+		changed = append(changed, absence)
 	}
-	return result, exceeded, nil
+	return changed
 }
 
 func (s *staffAbsenceService) writeRebookedAbsences(ctx context.Context, actorAccountID int64, reason string, entries []rebookedAbsence) error {
@@ -445,21 +490,28 @@ func (s *staffAbsenceService) writeRebookedAbsences(ctx context.Context, actorAc
 		if err := after.Validate(); err != nil {
 			return &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid absence data: %w", err)}
 		}
-		if err := s.absenceRepo.Update(ctx, after); err != nil {
+		updatedAbsence, err := s.absenceRepo.UpdateStaffAbsence(ctx, StaffAbsenceToCapability(after))
+		err = absenceUpdateError(err)
+		if err == nil {
+			applyAbsenceToRecord(after, updatedAbsence)
+		}
+		if err != nil {
 			return fmt.Errorf("failed to rebook absence: %w", err)
 		}
 		status := after.Status
-		if err := s.auditRepo.Create(ctx, &StaffAbsenceAudit{
-			AbsenceID:  after.ID,
-			FromStatus: &status,
-			ToStatus:   status,
-			ActorID:    actorAccountID,
-			Note:       reason,
-			TypeChange: &StaffAbsenceTypeChange{
-				FromType: entry.before.AbsenceType, FromTypeID: entry.before.AbsenceTypeID,
-				ToType: after.AbsenceType, ToTypeID: after.AbsenceTypeID,
-			},
-		}); err != nil {
+		audit := &StaffAbsenceAudit{
+			AbsenceID: after.ID, FromStatus: &status, ToStatus: status, ActorID: actorAccountID, Note: reason,
+			TypeChange: &StaffAbsenceTypeChange{FromType: entry.before.AbsenceType, FromTypeID: entry.before.AbsenceTypeID, ToType: after.AbsenceType, ToTypeID: after.AbsenceTypeID},
+		}
+		if err := audit.Validate(); err != nil {
+			return fmt.Errorf("failed to audit absence rebooking: %w", err)
+		}
+		recordedAudit, err := s.auditRepo.RecordStaffAbsenceAudit(ctx, absenceAuditValue(audit))
+		err = absenceWriteError("create staff absence audit", err)
+		if err == nil {
+			applyAbsenceAudit(audit, recordedAudit)
+		}
+		if err != nil {
 			return fmt.Errorf("failed to audit absence rebooking: %w", err)
 		}
 	}

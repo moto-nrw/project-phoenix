@@ -19,8 +19,8 @@ import (
 // Bankverbindungen list. It talks to the People Directory only; identity,
 // invitations and document rendering are injected by the root.
 
-// Messages the legacy handlers produced verbatim; changing one changes the
-// contract the staff screens read.
+// Diagnostic messages retained from the legacy handlers. The staff screens
+// show the catalog text selected by the error code.
 const (
 	msgInvalidGuardianID      = "invalid guardian ID"
 	msgInvalidPhoneID         = "invalid phone ID"

@@ -34,6 +34,9 @@ type RoleStore interface {
 	// ListAccountRoles returns the roles the account holds at the tenant in
 	// context.
 	ListAccountRoles(ctx context.Context, accountID int64) ([]domain.ManagedRole, error)
+	// ListAccountsHoldingRole maps the supplied accounts that hold roleName at
+	// the tenant in context. Accounts without that role are absent from the map.
+	ListAccountsHoldingRole(ctx context.Context, accountIDs []int64, roleName string) (map[int64]bool, error)
 	ListAccountRoleNames(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 
 	// AccountHoldsRole reports whether the account-role mapping exists.
@@ -69,6 +72,14 @@ type RoleAssignmentPolicy interface {
 // caller's transaction.
 type SchoolIdentity interface {
 	EnsureSchoolIdentity(ctx context.Context, input domain.SchoolIdentityInput) (*domain.SchoolIdentity, error)
+}
+
+// InvitationIdentity is the school identity chain as the invitation flows see
+// it: the chain an acceptance completes, and beforehand the retired
+// membership it would continue for an account at the school in context.
+type InvitationIdentity interface {
+	SchoolIdentity
+	FindFormerEmployment(ctx context.Context, accountID int64) (domain.FormerEmployment, bool, error)
 }
 
 // SessionRevocation revokes an account's sessions at the school on the

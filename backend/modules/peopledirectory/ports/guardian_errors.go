@@ -9,7 +9,7 @@ import (
 var (
 	// ErrGuardianDeletePreviewChanged indicates the affected guardian links no
 	// longer match the set the admin confirmed.
-	ErrGuardianDeletePreviewChanged = errors.New("Die Verknüpfungen haben sich seit der Vorschau geändert. Bitte erneut prüfen.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrGuardianDeletePreviewChanged = errors.New("die Verknüpfungen haben sich seit der Vorschau geändert. Bitte erneut prüfen")
 	// ErrGuardianForceDeleteRequiresAdmin indicates a full delete of a guardian
 	// still linked to students was requested by a non-admin. The full delete
 	// reaches across siblings the caller may not supervise, so it is restricted
@@ -20,7 +20,7 @@ var (
 	// the payer mark changes who is charged for the child; that decision is
 	// owned by the financial permission, so users:update alone must not reach
 	// it through a plain unlink.
-	ErrPayerRemovalRequiresFinancial = errors.New("Diese Person ist als Zahler für das Kind eingetragen. Zum Entfernen ist die Berechtigung für Bankverbindungen nötig. Bitte wenden Sie sich an die Schulleitung.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrPayerRemovalRequiresFinancial = errors.New("diese Person ist als Zahler für das Kind eingetragen. Zum Entfernen ist die Berechtigung für Bankverbindungen nötig. Bitte wenden Sie sich an die Schulleitung")
 )
 
 // GuardianStillLinkedError signals that a guardian delete was refused because the

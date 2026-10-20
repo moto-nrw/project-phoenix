@@ -255,78 +255,9 @@ func (s *OperatorAuthentication) RefreshToken(ctx context.Context, operatorID in
 		recovered                 bool
 	)
 	err := s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		session, err := s.operators.FindOperatorSessionForUpdate(txCtx, refreshTokenValue)
-		if errors.Is(err, domain.ErrOperatorSessionNotFound) {
-			return domain.ErrOperatorRefreshTokenInvalid
-		}
-		if err != nil {
-			return fmt.Errorf("failed to find operator refresh token: %w", err)
-		}
-		if session.OperatorID != operatorID {
-			return domain.ErrOperatorRefreshTokenInvalid
-		}
-		now := time.Now()
-		if now.After(session.Expiry) {
-			if err := s.revokeFamilyWithAudit(txCtx, session, "token_expired"); err != nil {
-				return fmt.Errorf("failed to delete expired operator refresh-token family: %w", err)
-			}
-			rejectAfterCommit = true
-			s.logRefreshRejected("token_expired", operatorID, session.Generation)
-			return nil
-		}
-		session, recovered, err = s.resolveRefreshHandoff(txCtx, session, now)
-		if err != nil {
-			if !errors.Is(err, domain.ErrOperatorRefreshTokenInvalid) {
-				return err
-			}
-			if err := s.revokeFamilyWithAudit(txCtx, session, "replay_detected"); err != nil {
-				return fmt.Errorf("failed to revoke replayed operator refresh-token family: %w", err)
-			}
-			rejectAfterCommit = true
-			s.logRefreshRejected("replay_detected", operatorID, session.Generation)
-			return nil
-		}
-		latest, err := s.operators.LatestOperatorSessionInFamily(txCtx, session.FamilyID)
-		if err != nil && !errors.Is(err, domain.ErrOperatorSessionNotFound) {
-			return fmt.Errorf("failed to inspect operator refresh token family: %w", err)
-		}
-		if err == nil && latest.Generation > session.Generation {
-			if err := s.revokeFamilyWithAudit(txCtx, session, "lineage_mismatch"); err != nil {
-				return fmt.Errorf("failed to revoke operator refresh token family: %w", err)
-			}
-			rejectAfterCommit = true
-			s.logRefreshRejected("lineage_mismatch", operatorID, session.Generation)
-			return nil
-		}
-		operator, err := s.operators.FindOperator(txCtx, operatorID)
-		if errors.Is(err, domain.ErrOperatorNotFound) {
-			return domain.ErrOperatorNotFound
-		}
-		if err != nil {
-			return fmt.Errorf("failed to find operator: %w", err)
-		}
-		if !operator.Active {
-			return domain.ErrOperatorInactive
-		}
-		if recovered {
-			accessToken, refreshToken, err = s.mintTokenPair(operator, session)
-			return err
-		}
-		successor := s.newRefreshSession(operator.ID, session.FamilyID, session.Generation+1)
-		accessToken, refreshToken, err = s.mintTokenPair(operator, successor)
-		if err != nil {
-			return err
-		}
-		if _, err := s.operators.CreateOperatorSession(txCtx, successor); err != nil {
-			return fmt.Errorf("failed to persist rotated operator refresh token: %w", err)
-		}
-		if err := s.operators.MarkOperatorSessionRotated(txCtx, session.ID, successor.Token, s.rotation.RecoveryProofHash(txCtx), now); err != nil {
-			return fmt.Errorf("failed to persist operator refresh-token handoff: %w", err)
-		}
-		if err := s.operators.DeleteExpiredRotatedOperatorSessions(txCtx, session.FamilyID, now); err != nil {
-			return fmt.Errorf("failed to clean operator refresh-token handoffs: %w", err)
-		}
-		return nil
+		var err error
+		accessToken, refreshToken, recovered, rejectAfterCommit, err = s.rotateOperatorRefresh(txCtx, operatorID, refreshTokenValue)
+		return err
 	})
 	if err != nil {
 		return "", "", err
@@ -356,12 +287,10 @@ func (s *OperatorAuthentication) resolveRefreshHandoff(ctx context.Context, pres
 		if current.ReplacementToken == nil || current.RotatedAt.After(now) || now.Sub(*current.RotatedAt) > s.rotation.RecoveryGrace() {
 			return current, false, domain.ErrOperatorRefreshTokenInvalid
 		}
-		if !proofValidated {
-			if !s.rotation.MatchesRecoveryProof(ctx, current.RecoveryProofHash) {
-				return current, false, domain.ErrOperatorRefreshTokenInvalid
-			}
-			proofValidated = true
+		if err := s.requireOperatorRecoveryProof(ctx, current.RecoveryProofHash, proofValidated); err != nil {
+			return current, false, err
 		}
+		proofValidated = true
 		next, err := s.operators.FindOperatorSessionForUpdate(ctx, *current.ReplacementToken)
 		if errors.Is(err, domain.ErrOperatorSessionNotFound) {
 			return current, false, domain.ErrOperatorRefreshTokenInvalid
@@ -653,4 +582,109 @@ func operatorRoleFacts(role domain.RoleFact) *identityaccess.RoleFacts {
 
 func schoolRoleFact(role domain.RoleFact) identityaccess.SchoolRole {
 	return identityaccess.SchoolRole{ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole}
+}
+
+func (s *OperatorAuthentication) mintRotatedOperatorSession(txCtx context.Context, operator domain.Operator, session domain.OperatorSession, recovered bool, now time.Time) (accessToken, refreshToken string, err error) {
+	if recovered {
+		accessToken, refreshToken, err = s.mintTokenPair(operator, session)
+		return accessToken, refreshToken, err
+	}
+	successor := s.newRefreshSession(operator.ID, session.FamilyID, session.Generation+1)
+	accessToken, refreshToken, err = s.mintTokenPair(operator, successor)
+	if err != nil {
+		return accessToken, refreshToken, err
+	}
+	if _, err := s.operators.CreateOperatorSession(txCtx, successor); err != nil {
+		return accessToken, refreshToken, fmt.Errorf("failed to persist rotated operator refresh token: %w", err)
+	}
+	if err := s.operators.MarkOperatorSessionRotated(txCtx, session.ID, successor.Token, s.rotation.RecoveryProofHash(txCtx), now); err != nil {
+		return accessToken, refreshToken, fmt.Errorf("failed to persist operator refresh-token handoff: %w", err)
+	}
+	if err := s.operators.DeleteExpiredRotatedOperatorSessions(txCtx, session.FamilyID, now); err != nil {
+		return accessToken, refreshToken, fmt.Errorf("failed to clean operator refresh-token handoffs: %w", err)
+	}
+	return accessToken, refreshToken, nil
+}
+
+func (s *OperatorAuthentication) rejectOperatorLineage(txCtx context.Context, session domain.OperatorSession, operatorID int64) (bool, error) {
+	latest, err := s.operators.LatestOperatorSessionInFamily(txCtx, session.FamilyID)
+	if err != nil && !errors.Is(err, domain.ErrOperatorSessionNotFound) {
+		return false, fmt.Errorf("failed to inspect operator refresh token family: %w", err)
+	}
+	if err == nil && latest.Generation > session.Generation {
+		if err := s.revokeFamilyWithAudit(txCtx, session, "lineage_mismatch"); err != nil {
+			return false, fmt.Errorf("failed to revoke operator refresh token family: %w", err)
+		}
+		s.logRefreshRejected("lineage_mismatch", operatorID, session.Generation)
+		return true, nil
+	}
+	return false, nil
+}
+
+func (s *OperatorAuthentication) rotateOperatorRefresh(txCtx context.Context, operatorID int64, refreshTokenValue string) (accessToken, refreshToken string, recovered, rejectAfterCommit bool, err error) {
+	session, err := s.operators.FindOperatorSessionForUpdate(txCtx, refreshTokenValue)
+	if errors.Is(err, domain.ErrOperatorSessionNotFound) {
+		return accessToken, refreshToken, recovered, rejectAfterCommit, domain.ErrOperatorRefreshTokenInvalid
+	}
+	if err != nil {
+		return accessToken, refreshToken, recovered, rejectAfterCommit, fmt.Errorf("failed to find operator refresh token: %w", err)
+	}
+	if session.OperatorID != operatorID {
+		return accessToken, refreshToken, recovered, rejectAfterCommit, domain.ErrOperatorRefreshTokenInvalid
+	}
+	now := time.Now()
+	if now.After(session.Expiry) {
+		if err := s.revokeFamilyWithAudit(txCtx, session, "token_expired"); err != nil {
+			return accessToken, refreshToken, recovered, rejectAfterCommit, fmt.Errorf("failed to delete expired operator refresh-token family: %w", err)
+		}
+		rejectAfterCommit = true
+		s.logRefreshRejected("token_expired", operatorID, session.Generation)
+		return accessToken, refreshToken, recovered, rejectAfterCommit, nil
+	}
+	session, recovered, err = s.resolveRefreshHandoff(txCtx, session, now)
+	if err != nil {
+		if !errors.Is(err, domain.ErrOperatorRefreshTokenInvalid) {
+			return accessToken, refreshToken, recovered, rejectAfterCommit, err
+		}
+		if err := s.revokeFamilyWithAudit(txCtx, session, "replay_detected"); err != nil {
+			return accessToken, refreshToken, recovered, rejectAfterCommit, fmt.Errorf("failed to revoke replayed operator refresh-token family: %w", err)
+		}
+		rejectAfterCommit = true
+		s.logRefreshRejected("replay_detected", operatorID, session.Generation)
+		return accessToken, refreshToken, recovered, rejectAfterCommit, nil
+	}
+	rejectAfterCommit, err = s.rejectOperatorLineage(txCtx, session, operatorID)
+	if err != nil || rejectAfterCommit {
+		return accessToken, refreshToken, recovered, rejectAfterCommit, err
+	}
+	operator, err := s.activeOperatorForRefresh(txCtx, operatorID)
+	if err != nil {
+		return accessToken, refreshToken, recovered, rejectAfterCommit, err
+	}
+	accessToken, refreshToken, err = s.mintRotatedOperatorSession(txCtx, operator, session, recovered, now)
+	return accessToken, refreshToken, recovered, rejectAfterCommit, err
+}
+
+func (s *OperatorAuthentication) requireOperatorRecoveryProof(ctx context.Context, proofHash []byte, alreadyValidated bool) error {
+	if !alreadyValidated {
+		if !s.rotation.MatchesRecoveryProof(ctx, proofHash) {
+			return domain.ErrOperatorRefreshTokenInvalid
+		}
+
+	}
+	return nil
+}
+
+func (s *OperatorAuthentication) activeOperatorForRefresh(txCtx context.Context, operatorID int64) (domain.Operator, error) {
+	operator, err := s.operators.FindOperator(txCtx, operatorID)
+	if errors.Is(err, domain.ErrOperatorNotFound) {
+		return domain.Operator{}, domain.ErrOperatorNotFound
+	}
+	if err != nil {
+		return domain.Operator{}, fmt.Errorf("failed to find operator: %w", err)
+	}
+	if !operator.Active {
+		return domain.Operator{}, domain.ErrOperatorInactive
+	}
+	return operator, nil
 }

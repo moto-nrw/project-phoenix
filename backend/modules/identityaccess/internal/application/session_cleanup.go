@@ -36,20 +36,9 @@ func (s *AccountAuthentication) CleanupExpiredTokens(ctx context.Context) (int, 
 // subscriptions, in one administrative transaction.
 func (s *AccountAuthentication) reconcileRevokedSessions(ctx context.Context) error {
 	return s.runtime.WithAdminTx(s.runtime.WithoutTransaction(ctx), func(adminCtx context.Context) error {
-		seen := map[int64]struct{}{}
-		inactive, err := s.sessions.ListInactiveAccountIDsWithLiveSessions(adminCtx)
+		seen, err := s.reconcileInactiveSessions(adminCtx)
 		if err != nil {
 			return err
-		}
-		for _, id := range inactive {
-			if id > 0 {
-				seen[id] = struct{}{}
-			}
-		}
-		for accountID := range seen {
-			if err := s.wipeAccountWideIndependently(adminCtx, accountID, "account_deactivated", "", ""); err != nil {
-				return err
-			}
 		}
 		pending, err := s.audit.ListPendingAccountWideWipes(adminCtx)
 		if err != nil {
@@ -93,4 +82,23 @@ func (s *AccountAuthentication) ListSessionIDs(ctx context.Context, accountID in
 		ids = append(ids, session.ID)
 	}
 	return ids, nil
+}
+
+func (s *AccountAuthentication) reconcileInactiveSessions(adminCtx context.Context) (map[int64]struct{}, error) {
+	seen := map[int64]struct{}{}
+	inactive, err := s.sessions.ListInactiveAccountIDsWithLiveSessions(adminCtx)
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range inactive {
+		if id > 0 {
+			seen[id] = struct{}{}
+		}
+	}
+	for accountID := range seen {
+		if err := s.wipeAccountWideIndependently(adminCtx, accountID, "account_deactivated", "", ""); err != nil {
+			return nil, err
+		}
+	}
+	return seen, nil
 }

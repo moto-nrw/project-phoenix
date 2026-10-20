@@ -66,17 +66,18 @@ func TestActiveSupervisionsCarryTheirStaffMember(t *testing.T) {
 func createAbsence(tb testing.TB, ctx context.Context, factory *api.StaffAbsenceSuiteRepositories, staffID int64, approvedBy *int64) {
 	tb.Helper()
 	today := calendar.TodayDate()
-	absence := &api.StaffAbsenceRow{
+	absence := &workforce.StaffAbsence{
 		StaffID:     staffID,
 		AbsenceType: workforce.AbsenceTypeVacation,
-		DateStart:   today,
-		DateEnd:     today,
+		DateStart:   today.String(),
+		DateEnd:     today.String(),
 		Status:      workforce.AbsenceStatusRequested,
 		ApprovedBy:  approvedBy,
 		CreatedBy:   staffID,
 		RequestedAt: time.Now(),
 	}
-	require.NoError(tb, factory.StaffAbsence.Create(ctx, absence))
+	_, err := factory.StaffAbsence.CreateStaffAbsence(ctx, absence)
+	require.NoError(tb, err)
 }
 
 func TestAbsenceRequestsCarryTheirSubjectAndDeciderPerson(t *testing.T) {

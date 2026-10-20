@@ -1,8 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
-import { ArrowLeft, Check, ChevronRight } from "lucide-react";
+import { Check, ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { loginImageSrc, type TenantInfo } from "~/lib/tenant-api";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
@@ -141,24 +140,6 @@ export function PublicEnrollmentSteps({
  * standalone top-right on pages without a header (see PublicEnrollmentPageShell). */
 export function PublicEnrollmentLocaleSwitcher() {
   return <LanguageSwitcher compact />;
-}
-
-export function PublicEnrollmentBackLink({
-  href,
-  children,
-}: {
-  readonly href: string;
-  readonly children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className="inline-flex items-center gap-2 rounded-lg px-2 py-1 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-    >
-      <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-      {children}
-    </Link>
-  );
 }
 
 export function PublicEnrollmentPageShell({

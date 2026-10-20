@@ -13,5 +13,5 @@ func NewClassArrivals(db *bun.DB, observe func(Observation)) (timetable.ClassArr
 	if db == nil || observe == nil {
 		return nil, errors.New("class arrival exceptions: database and observer are required")
 	}
-	return application.NewClassArrivals(postgres.New(databaseRuntime(db)), transaction{}, observe), nil
+	return application.NewClassArrivals(postgres.New(postgres.DatabaseRuntime(db)), transaction{}, observe), nil
 }

@@ -25,7 +25,10 @@ import {
 import { ApiError } from "~/lib/api-error";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { resolveDetailReferrer } from "~/lib/tenant-path";
+import {
+  resolveStudentReferrer,
+  studentReferrerBackLabel,
+} from "./student-referrer";
 import { groupService, studentService } from "~/lib/api";
 import { schoolCheckinStudent } from "~/lib/student-api";
 import { isAtSchoolLocation } from "~/lib/location-helper";
@@ -399,26 +402,8 @@ function StudentDetailPageContent() {
   const navRouter = useRouter();
   const tenantRouter = useTenantRouter();
   const studentId = params.id as string;
-  const referrer = resolveDetailReferrer(
-    searchParams.get("from"),
-    "/students/search",
-    [
-      "/students/search",
-      "/database/students",
-      "/rooms",
-      "/active-supervisions",
-      "/day-log",
-      "/messages",
-      "/absences",
-      "/ogs-groups",
-    ],
-  );
-  // Der Rückweg heißt wie die Sammlung, aus der man kam: die Kinderdaten der
-  // Datenverwaltung verlinken seit #3115 hierher, statt ein eigenes Pane zu
-  // tragen.
-  const backLabel = referrer.startsWith("/database/students")
-    ? "Zurück zu den Kinderdaten"
-    : "Zurück zur Kinderübersicht";
+  const referrer = resolveStudentReferrer(searchParams.get("from"));
+  const backLabel = studentReferrerBackLabel(referrer);
   const toast = useToast();
   // Die Bestätigungsdialoge bleiben bei einem Fehler offen. Ein Toast läge
   // hinter ihrem Hintergrund, also steht der Fehler im Dialog selbst. Es ist
@@ -908,7 +893,7 @@ function StudentDetailPageContent() {
   }, [loading, student, sessionStatus, urlTab, activeTab, handleTabChange]);
 
   // Show loading state. `referrer` needs no fetched data (it's derived from
-  // the `?from=` query param above), so the BackButton renders for real here
+  // the `?from=` query param above), so the back link renders for real here
   // instead of a placeholder — see page-skeleton.tsx. The rest of the body
   // stays skeletonized: `visibleTabs` and the FullAccessView/LimitedAccessView
   // split both depend on `hasFullAccess`, a field on the student object that

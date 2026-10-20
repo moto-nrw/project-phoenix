@@ -1,8 +1,6 @@
 package compose
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -11,8 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // BillingCounts are the owners' live figures the billing report captures:
@@ -40,17 +36,7 @@ func NewBilling(dependencies BillingDependencies) (organizationtenancy.BillingRe
 	if err != nil {
 		return nil, fmt.Errorf("organization tenancy billing: load Europe/Berlin: %w", err)
 	}
-	store := postgres.NewBillingStore(func(ctx context.Context) (bun.IDB, error) {
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return nil, errors.New("organization tenancy billing: transaction is required")
-		}
-		tx, ok := transaction.(bun.Tx)
-		if !ok {
-			return nil, fmt.Errorf("organization tenancy billing: unsupported transaction %T", transaction)
-		}
-		return tx, nil
-	})
+	store := postgres.NewBillingStore(postgres.NewBillingDatabase())
 	billing, err := application.NewBilling(application.BillingDependencies{
 		Transaction: transaction{}, Store: store, Counts: dependencies.Counts,
 		Clock: ports.BillingClock(now), Location: berlin, Logger: dependencies.Logger,

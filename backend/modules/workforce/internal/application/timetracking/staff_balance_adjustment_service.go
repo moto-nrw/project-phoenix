@@ -113,7 +113,7 @@ type adjustmentFreezeReader interface {
 type staffBalanceAdjustmentService struct {
 	runInTx        func(context.Context, func(context.Context) error) error
 	todayFunc      func() calendar.Date
-	adjustmentRepo StaffBalanceAdjustmentRepository
+	adjustmentRepo BalanceAdjustmentRecords
 	monthService   WorkTimeMonthService
 	settings       monthSettingsResolver
 	snapshotRepo   adjustmentFreezeReader
@@ -127,7 +127,7 @@ func (s *staffBalanceAdjustmentService) broadcastTimeTrackingChanged(ctx context
 }
 
 func NewStaffBalanceAdjustmentService(
-	adjustmentRepo StaffBalanceAdjustmentRepository,
+	adjustmentRepo BalanceAdjustmentRecords,
 	monthService WorkTimeMonthService,
 	settings monthSettingsResolver,
 	logger *slog.Logger,
@@ -204,30 +204,16 @@ func (s *staffBalanceAdjustmentService) ListAdjustments(ctx context.Context, sta
 	if from.IsZero() || to.IsZero() || to.Before(from) {
 		return nil, fmt.Errorf("%w: from and to must form a valid range", ErrAdjustmentInvalid)
 	}
-	return s.adjustmentRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
+	values, err := s.adjustmentRepo.ListStaffBalanceAdjustments(ctx, workforce.StaffBalanceAdjustmentFilter{StaffID: staffID, EffectiveFrom: from.String(), EffectiveTo: to.String()})
+	if err != nil {
+		return nil, rowReadError("get balance adjustments by staff+range", err, nil)
+	}
+	return adjustmentsToRecords(values), nil
 }
 
 func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, staffID, decidedBy int64, req CreateBalanceAdjustmentRequest) (*StaffBalanceAdjustment, error) {
-	if req.Type != BalanceAdjustmentTypePayout && req.Type != BalanceAdjustmentTypeCompTime {
-		return nil, fmt.Errorf("%w: type must be payout or comp_time", ErrAdjustmentInvalid)
-	}
-	if req.MinutesDelta >= 0 {
-		return nil, fmt.Errorf("%w: minutes_delta must be negative", ErrAdjustmentInvalid)
-	}
-	if req.MinutesDelta < -maxBalanceAdjustmentMinutes {
-		return nil, fmt.Errorf("%w: minutes_delta must not exceed %d minutes", ErrAdjustmentInvalid, maxBalanceAdjustmentMinutes)
-	}
-	if err := validateAdjustmentCommon(staffID, decidedBy, req.EffectiveDate, req.Note); err != nil {
+	if err := s.validateAdjustmentRequest(staffID, decidedBy, req); err != nil {
 		return nil, err
-	}
-	// Mirror the Monatskarte's future bound: beyond it the closing-balance
-	// read has no defined result (and far enough out it fails), so an
-	// unbounded date must be a 400, not a 500 (#1420 review).
-	if horizon := monthOf(s.today()).addMonths(maxFutureMonths); horizon.before(monthOf(req.EffectiveDate)) {
-		return nil, fmt.Errorf(
-			"%w: effective_date %s is more than %d months ahead",
-			ErrAdjustmentInvalid, req.EffectiveDate.String(), maxFutureMonths,
-		)
 	}
 	if err := s.rejectPreAccountDate(ctx, req.EffectiveDate); err != nil {
 		return nil, err
@@ -238,32 +224,11 @@ func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, st
 	if err := s.rejectFrozenMonth(ctx, staffID, req.EffectiveDate); err != nil {
 		return nil, err
 	}
-	resets, err := s.listRebaselinesOnOrAfter(ctx, staffID, req.EffectiveDate)
-	if err != nil {
+	if err := s.rejectAdjustmentBeforeRebaseline(ctx, staffID, req.EffectiveDate); err != nil {
 		return nil, err
 	}
-	if len(resets) > 0 {
-		return nil, fmt.Errorf(
-			"%w: effective_date %s is not after reset %s",
-			ErrAdjustmentHasDependentReset,
-			req.EffectiveDate.String(),
-			resets[0].EffectiveDate.String(),
-		)
-	}
-
-	reductionCapacity, err := s.monthService.GetBalanceReductionCapacity(ctx, staffID, req.EffectiveDate)
-	if err != nil {
-		return nil, fmt.Errorf("failed to compute reduction capacity for adjustment: %w", err)
-	}
-	requestedMinutes := -req.MinutesDelta
-	if requestedMinutes > reductionCapacity {
-		return nil, fmt.Errorf(
-			"%w: requested reduction of %d minutes exceeds available capacity of %d minutes from %s onward",
-			ErrAdjustmentExceedsBalance,
-			requestedMinutes,
-			reductionCapacity,
-			req.EffectiveDate.String(),
-		)
+	if err := s.ensureAdjustmentCapacity(ctx, staffID, req); err != nil {
+		return nil, err
 	}
 
 	adjustment := &StaffBalanceAdjustment{
@@ -275,7 +240,15 @@ func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, st
 		DecidedBy:     decidedBy,
 		DecidedAt:     time.Now(),
 	}
-	if err := s.adjustmentRepo.Create(ctx, adjustment); err != nil {
+	createdAdjustment, err := workforce.StaffBalanceAdjustment{}, adjustment.Validate()
+	if err == nil {
+		createdAdjustment, err = s.adjustmentRepo.CreateStaffBalanceAdjustment(ctx, StaffBalanceAdjustmentToCapability(adjustment))
+		err = workSessionWriteError("create", err)
+	}
+	if err == nil {
+		applyAdjustmentToRecord(adjustment, createdAdjustment)
+	}
+	if err != nil {
 		return nil, fmt.Errorf("failed to create balance adjustment: %w", err)
 	}
 	s.getLogger().Info("balance adjustment created",
@@ -289,6 +262,71 @@ func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, st
 	return adjustment, nil
 }
 
+// validateAdjustmentRequest checks a payout or comp-time grant before
+// anything is locked or read.
+func (s *staffBalanceAdjustmentService) validateAdjustmentRequest(staffID, decidedBy int64, req CreateBalanceAdjustmentRequest) error {
+	if req.Type != BalanceAdjustmentTypePayout && req.Type != BalanceAdjustmentTypeCompTime {
+		return fmt.Errorf("%w: type must be payout or comp_time", ErrAdjustmentInvalid)
+	}
+	if req.MinutesDelta >= 0 {
+		return fmt.Errorf("%w: minutes_delta must be negative", ErrAdjustmentInvalid)
+	}
+	if req.MinutesDelta < -maxBalanceAdjustmentMinutes {
+		return fmt.Errorf("%w: minutes_delta must not exceed %d minutes", ErrAdjustmentInvalid, maxBalanceAdjustmentMinutes)
+	}
+	if err := validateAdjustmentCommon(staffID, decidedBy, req.EffectiveDate, req.Note); err != nil {
+		return err
+	}
+	// Mirror the Monatskarte's future bound: beyond it the closing-balance
+	// read has no defined result (and far enough out it fails), so an
+	// unbounded date must be a 400, not a 500 (#1420 review).
+	if horizon := monthOf(s.today()).addMonths(maxFutureMonths); horizon.before(monthOf(req.EffectiveDate)) {
+		return fmt.Errorf(
+			"%w: effective_date %s is more than %d months ahead",
+			ErrAdjustmentInvalid, req.EffectiveDate.String(), maxFutureMonths,
+		)
+	}
+	return nil
+}
+
+// rejectAdjustmentBeforeRebaseline fails an adjustment dated on or before a
+// reset or opening: that rebaseline's stored delta was computed without it.
+func (s *staffBalanceAdjustmentService) rejectAdjustmentBeforeRebaseline(ctx context.Context, staffID int64, effectiveDate calendar.Date) error {
+	resets, err := s.listRebaselinesOnOrAfter(ctx, staffID, effectiveDate)
+	if err != nil {
+		return err
+	}
+	if len(resets) > 0 {
+		return fmt.Errorf(
+			"%w: effective_date %s is not after reset %s",
+			ErrAdjustmentHasDependentReset,
+			effectiveDate.String(),
+			resets[0].EffectiveDate.String(),
+		)
+	}
+	return nil
+}
+
+// ensureAdjustmentCapacity fails a reduction the account cannot carry from
+// the effective date onward.
+func (s *staffBalanceAdjustmentService) ensureAdjustmentCapacity(ctx context.Context, staffID int64, req CreateBalanceAdjustmentRequest) error {
+	reductionCapacity, err := s.monthService.GetBalanceReductionCapacity(ctx, staffID, req.EffectiveDate)
+	if err != nil {
+		return fmt.Errorf("failed to compute reduction capacity for adjustment: %w", err)
+	}
+	requestedMinutes := -req.MinutesDelta
+	if requestedMinutes > reductionCapacity {
+		return fmt.Errorf(
+			"%w: requested reduction of %d minutes exceeds available capacity of %d minutes from %s onward",
+			ErrAdjustmentExceedsBalance,
+			requestedMinutes,
+			reductionCapacity,
+			req.EffectiveDate.String(),
+		)
+	}
+	return nil
+}
+
 func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, staffID, adjustmentID, deletedBy int64) error {
 	if staffID <= 0 || adjustmentID <= 0 {
 		return fmt.Errorf("%w: staff id and adjustment id are required", ErrAdjustmentInvalid)
@@ -299,18 +337,55 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 	if err := s.adjustmentRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
 		return fmt.Errorf("failed to lock staff balance writes: %w", err)
 	}
-	adjustment, err := s.adjustmentRepo.FindByID(ctx, adjustmentID)
+	adjustment, err := s.loadStaffAdjustment(ctx, staffID, adjustmentID)
+	if err != nil {
+		return err
+	}
+	if err := s.ensureAdjustmentDeletable(ctx, staffID, adjustmentID, adjustment); err != nil {
+		return err
+	}
+	// Tombstone first, delete second, same transaction: a deleted booking
+	// must stay visible in the audit log (#1417).
+	if err := s.writeAdjustmentDeletionAudit(ctx, staffID, deletedBy, adjustment); err != nil {
+		return err
+	}
+	if err := s.adjustmentRepo.DeleteStaffBalanceAdjustment(ctx, adjustmentID); err != nil {
+		err = workSessionWriteError("delete", err)
+		return fmt.Errorf("failed to delete balance adjustment: %w", err)
+	}
+	s.getLogger().Info("balance adjustment deleted",
+		"staff_id", staffID,
+		"adjustment_id", adjustmentID,
+		"type", adjustment.Type,
+		"minutes_delta", adjustment.MinutesDelta,
+	)
+	s.broadcastTimeTrackingChanged(ctx)
+	return nil
+}
+
+// loadStaffAdjustment returns the staff member's adjustment, or
+// ErrAdjustmentNotFound when it is missing or belongs to somebody else.
+func (s *staffBalanceAdjustmentService) loadStaffAdjustment(ctx context.Context, staffID, adjustmentID int64) (*StaffBalanceAdjustment, error) {
+	storedAdjustment, err := s.adjustmentRepo.FindStaffBalanceAdjustment(ctx, adjustmentID)
+	adjustment := adjustmentToRecord(storedAdjustment)
+	err = rowReadError("find by id", err, workforce.ErrStaffBalanceAdjustmentNotFound)
 	if err != nil {
 		// Only a genuine missing row is a 404; a database or transaction
 		// failure must stay a 500 (#1420 review).
 		if isRecordNotFound(err) {
-			return fmt.Errorf("%w: id %d", ErrAdjustmentNotFound, adjustmentID)
+			return nil, fmt.Errorf("%w: id %d", ErrAdjustmentNotFound, adjustmentID)
 		}
-		return fmt.Errorf("failed to load balance adjustment: %w", err)
+		return nil, fmt.Errorf("failed to load balance adjustment: %w", err)
 	}
 	if adjustment == nil || adjustment.StaffID != staffID {
-		return fmt.Errorf("%w: id %d", ErrAdjustmentNotFound, adjustmentID)
+		return nil, fmt.Errorf("%w: id %d", ErrAdjustmentNotFound, adjustmentID)
 	}
+	return adjustment, nil
+}
+
+// ensureAdjustmentDeletable runs the guards of a deletion that need the
+// loaded row.
+func (s *staffBalanceAdjustmentService) ensureAdjustmentDeletable(ctx context.Context, staffID, adjustmentID int64, adjustment *StaffBalanceAdjustment) error {
 	// Checked here rather than up front: the effective date only exists once
 	// the row is loaded. Deleting out of a frozen month is the same violation
 	// as inserting into one.
@@ -329,12 +404,14 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 	// delete + re-create, so do not reject the transient deletion solely
 	// because later consumption would make the account negative.
 	if adjustment.Type != BalanceAdjustmentTypeOpening {
-		if err := s.validatePositiveAdjustmentDeletion(ctx, adjustment); err != nil {
-			return err
-		}
+		return s.validatePositiveAdjustmentDeletion(ctx, adjustment)
 	}
-	// Tombstone first, delete second, same transaction: a deleted booking
-	// must stay visible in the audit log (#1417).
+	return nil
+}
+
+// writeAdjustmentDeletionAudit writes the append-only tombstone of a
+// deleted booking (audit.time_tracking_deletions, #1417).
+func (s *staffBalanceAdjustmentService) writeAdjustmentDeletionAudit(ctx context.Context, staffID, deletedBy int64, adjustment *StaffBalanceAdjustment) error {
 	if s.deletionRepo == nil {
 		return fmt.Errorf("time tracking deletion audit repository is not configured")
 	}
@@ -352,16 +429,6 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 	}); err != nil {
 		return fmt.Errorf("failed to write deletion audit: %w", err)
 	}
-	if err := s.adjustmentRepo.Delete(ctx, adjustmentID); err != nil {
-		return fmt.Errorf("failed to delete balance adjustment: %w", err)
-	}
-	s.getLogger().Info("balance adjustment deleted",
-		"staff_id", staffID,
-		"adjustment_id", adjustmentID,
-		"type", adjustment.Type,
-		"minutes_delta", adjustment.MinutesDelta,
-	)
-	s.broadcastTimeTrackingChanged(ctx)
 	return nil
 }
 
@@ -392,21 +459,8 @@ func (s *staffBalanceAdjustmentService) validatePositiveAdjustmentDeletion(ctx c
 }
 
 func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate calendar.Date, carryoverMinutes int, note string) (*StaffBalanceAdjustment, error) {
-	if err := validateAdjustmentCommon(staffID, decidedBy, effectiveDate, note); err != nil {
+	if err := s.validateResetRequest(staffID, decidedBy, effectiveDate, carryoverMinutes, note); err != nil {
 		return nil, err
-	}
-	if carryoverMinutes < 0 || carryoverMinutes > maxBalanceCarryoverMinutes {
-		return nil, fmt.Errorf(
-			"%w: carryover_minutes must be between 0 and %d",
-			ErrAdjustmentInvalid,
-			maxBalanceCarryoverMinutes,
-		)
-	}
-	// A reset needs a closed cutoff. Today's sessions, absences, and targets
-	// can still change after this request, which would make the stored delta
-	// stale before the day ends.
-	if !effectiveDate.Before(s.today()) {
-		return nil, fmt.Errorf("%w: effective_date must be before today", ErrAdjustmentInvalid)
 	}
 	if err := s.rejectPreAccountDate(ctx, effectiveDate); err != nil {
 		return nil, err
@@ -420,46 +474,12 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 	if err := s.rejectFrozenMonth(ctx, staffID, effectiveDate); err != nil {
 		return nil, err
 	}
-	resets, err := s.listRebaselinesOnOrAfter(ctx, staffID, effectiveDate)
-	if err != nil {
+	if err := s.rejectResetBeforeRebaseline(ctx, staffID, effectiveDate); err != nil {
 		return nil, err
 	}
-	if len(resets) > 0 {
-		if resets[0].EffectiveDate == effectiveDate && resets[0].Type == BalanceAdjustmentTypeReset {
-			return nil, fmt.Errorf("%w: %s", ErrBalanceAlreadyReset, effectiveDate.String())
-		}
-		return nil, fmt.Errorf(
-			"%w: reset date %s is not after existing %s booking %s",
-			ErrAdjustmentHasDependentReset,
-			effectiveDate.String(),
-			resets[0].Type,
-			resets[0].EffectiveDate.String(),
-		)
-	}
-
-	previousBalance, err := s.monthService.GetClosingBalanceAsOf(ctx, staffID, effectiveDate)
+	delta, previousBalance, err := s.resetDelta(ctx, staffID, effectiveDate, carryoverMinutes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to compute balance for reset: %w", err)
-	}
-	delta := int64(carryoverMinutes) - int64(previousBalance)
-	if delta < minPostgresInteger || delta > maxPostgresInteger {
-		return nil, fmt.Errorf("%w: calculated reset delta is outside the supported range", ErrAdjustmentInvalid)
-	}
-	if delta < 0 {
-		reductionCapacity, err := s.monthService.GetBalanceReductionCapacity(ctx, staffID, effectiveDate)
-		if err != nil {
-			return nil, fmt.Errorf("failed to compute reduction capacity for balance reset: %w", err)
-		}
-		requestedMinutes := int(-delta)
-		if requestedMinutes > reductionCapacity {
-			return nil, fmt.Errorf(
-				"%w: reset reduction of %d minutes exceeds available capacity of %d minutes from %s onward",
-				ErrAdjustmentExceedsBalance,
-				requestedMinutes,
-				reductionCapacity,
-				effectiveDate.String(),
-			)
-		}
+		return nil, err
 	}
 
 	adjustment := &StaffBalanceAdjustment{
@@ -471,7 +491,15 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 		DecidedBy:     decidedBy,
 		DecidedAt:     time.Now(),
 	}
-	if err := s.adjustmentRepo.Create(ctx, adjustment); err != nil {
+	createdAdjustment, err := workforce.StaffBalanceAdjustment{}, adjustment.Validate()
+	if err == nil {
+		createdAdjustment, err = s.adjustmentRepo.CreateStaffBalanceAdjustment(ctx, StaffBalanceAdjustmentToCapability(adjustment))
+		err = workSessionWriteError("create", err)
+	}
+	if err == nil {
+		applyAdjustmentToRecord(adjustment, createdAdjustment)
+	}
+	if err != nil {
 		if isUniqueViolationOn(err, resetUniqueConstraintName) {
 			return nil, fmt.Errorf("%w: %s", ErrBalanceAlreadyReset, effectiveDate.String())
 		}
@@ -489,6 +517,87 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 	return adjustment, nil
 }
 
+// validateResetRequest checks a reset before anything is locked or read.
+func (s *staffBalanceAdjustmentService) validateResetRequest(staffID, decidedBy int64, effectiveDate calendar.Date, carryoverMinutes int, note string) error {
+	if err := validateAdjustmentCommon(staffID, decidedBy, effectiveDate, note); err != nil {
+		return err
+	}
+	if carryoverMinutes < 0 || carryoverMinutes > maxBalanceCarryoverMinutes {
+		return fmt.Errorf(
+			"%w: carryover_minutes must be between 0 and %d",
+			ErrAdjustmentInvalid,
+			maxBalanceCarryoverMinutes,
+		)
+	}
+	// A reset needs a closed cutoff. Today's sessions, absences, and targets
+	// can still change after this request, which would make the stored delta
+	// stale before the day ends.
+	if !effectiveDate.Before(s.today()) {
+		return fmt.Errorf("%w: effective_date must be before today", ErrAdjustmentInvalid)
+	}
+	return nil
+}
+
+// rejectResetBeforeRebaseline fails a reset on or before an existing reset
+// or opening; one on the same day as a reset is a duplicate.
+func (s *staffBalanceAdjustmentService) rejectResetBeforeRebaseline(ctx context.Context, staffID int64, effectiveDate calendar.Date) error {
+	resets, err := s.listRebaselinesOnOrAfter(ctx, staffID, effectiveDate)
+	if err != nil {
+		return err
+	}
+	if len(resets) == 0 {
+		return nil
+	}
+	if resets[0].EffectiveDate == effectiveDate && resets[0].Type == BalanceAdjustmentTypeReset {
+		return fmt.Errorf("%w: %s", ErrBalanceAlreadyReset, effectiveDate.String())
+	}
+	return fmt.Errorf(
+		"%w: reset date %s is not after existing %s booking %s",
+		ErrAdjustmentHasDependentReset,
+		effectiveDate.String(),
+		resets[0].Type,
+		resets[0].EffectiveDate.String(),
+	)
+}
+
+// resetDelta computes the delta that turns the closing balance as of
+// effectiveDate into carryoverMinutes, and that previous balance.
+func (s *staffBalanceAdjustmentService) resetDelta(ctx context.Context, staffID int64, effectiveDate calendar.Date, carryoverMinutes int) (int64, int, error) {
+	previousBalance, err := s.monthService.GetClosingBalanceAsOf(ctx, staffID, effectiveDate)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to compute balance for reset: %w", err)
+	}
+	delta := int64(carryoverMinutes) - int64(previousBalance)
+	if delta < minPostgresInteger || delta > maxPostgresInteger {
+		return 0, 0, fmt.Errorf("%w: calculated reset delta is outside the supported range", ErrAdjustmentInvalid)
+	}
+	if delta < 0 {
+		if err := s.ensureResetCapacity(ctx, staffID, effectiveDate, int(-delta)); err != nil {
+			return 0, 0, err
+		}
+	}
+	return delta, previousBalance, nil
+}
+
+// ensureResetCapacity fails a reset whose reduction the account cannot carry
+// from the effective date onward.
+func (s *staffBalanceAdjustmentService) ensureResetCapacity(ctx context.Context, staffID int64, effectiveDate calendar.Date, requestedMinutes int) error {
+	reductionCapacity, err := s.monthService.GetBalanceReductionCapacity(ctx, staffID, effectiveDate)
+	if err != nil {
+		return fmt.Errorf("failed to compute reduction capacity for balance reset: %w", err)
+	}
+	if requestedMinutes > reductionCapacity {
+		return fmt.Errorf(
+			"%w: reset reduction of %d minutes exceeds available capacity of %d minutes from %s onward",
+			ErrAdjustmentExceedsBalance,
+			requestedMinutes,
+			reductionCapacity,
+			effectiveDate.String(),
+		)
+	}
+	return nil
+}
+
 func (s *staffBalanceAdjustmentService) CreateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate calendar.Date, balanceMinutes int, note string) (*StaffBalanceAdjustment, error) {
 	delta, err := s.validateOpeningBalance(ctx, staffID, decidedBy, effectiveDate, balanceMinutes, note, true)
 	if err != nil {
@@ -504,7 +613,15 @@ func (s *staffBalanceAdjustmentService) CreateOpeningBalance(ctx context.Context
 		DecidedBy:     decidedBy,
 		DecidedAt:     time.Now(),
 	}
-	if err := s.adjustmentRepo.Create(ctx, adjustment); err != nil {
+	createdAdjustment, err := workforce.StaffBalanceAdjustment{}, adjustment.Validate()
+	if err == nil {
+		createdAdjustment, err = s.adjustmentRepo.CreateStaffBalanceAdjustment(ctx, StaffBalanceAdjustmentToCapability(adjustment))
+		err = workSessionWriteError("create", err)
+	}
+	if err == nil {
+		applyAdjustmentToRecord(adjustment, createdAdjustment)
+	}
+	if err != nil {
 		if isUniqueViolationOn(err, openingUniqueConstraintName) {
 			return nil, fmt.Errorf("%w: %s", ErrOpeningAlreadyExists, effectiveDate.String())
 		}
@@ -600,9 +717,11 @@ func (s *staffBalanceAdjustmentService) rejectConflictingRebaselines(ctx context
 // listOpenings lists all opening bookings for a staff member regardless of
 // date — the one-opening-ever guard (#2132).
 func (s *staffBalanceAdjustmentService) listOpenings(ctx context.Context, staffID int64) ([]*StaffBalanceAdjustment, error) {
-	openings, err := s.adjustmentRepo.ListWithFilter(ctx, workforce.StaffBalanceAdjustmentFilter{
+	adjustmentValues, err := s.adjustmentRepo.ListStaffBalanceAdjustments(ctx, workforce.StaffBalanceAdjustmentFilter{
 		StaffID: staffID, Types: []string{BalanceAdjustmentTypeOpening},
 	})
+	openings := adjustmentsToRecords(adjustmentValues)
+	err = rowReadError("list with options", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing opening balances: %w", err)
 	}
@@ -629,10 +748,12 @@ func (s *staffBalanceAdjustmentService) hasDependentReset(ctx context.Context, a
 // silently shift the balance they pinned — the shared dependent-booking
 // guard treats them identically (#1420, #2132).
 func (s *staffBalanceAdjustmentService) listRebaselinesOnOrAfter(ctx context.Context, staffID int64, effectiveDate calendar.Date) ([]*StaffBalanceAdjustment, error) {
-	resets, err := s.adjustmentRepo.ListWithFilter(ctx, workforce.StaffBalanceAdjustmentFilter{
+	adjustmentValues, err := s.adjustmentRepo.ListStaffBalanceAdjustments(ctx, workforce.StaffBalanceAdjustmentFilter{
 		StaffID: staffID, Types: []string{BalanceAdjustmentTypeReset, BalanceAdjustmentTypeOpening},
 		EffectiveFrom: effectiveDate.String(),
 	})
+	resets := adjustmentsToRecords(adjustmentValues)
+	err = rowReadError("list with options", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check dependent balance resets: %w", err)
 	}

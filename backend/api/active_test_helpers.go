@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	scanBindings "github.com/moto-nrw/project-phoenix/roots/devicescanbinding"
+
 	presenceHTTP "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
 	endbinding "github.com/moto-nrw/project-phoenix/roots/sessionendbinding"
 
@@ -38,6 +40,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	blockDisplayCompose "github.com/moto-nrw/project-phoenix/modules/timetableblockdisplay/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
@@ -304,6 +307,7 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		Supervisions: r.GroupSupervisor, Visits: owners.NewLoggedStudentPresence(db, logger),
 		People:         owners.TimetableOperationPeople{OperationPeople: owners.NewTimetableOperationPeople(dataUsers), Membership: membership},
 		PlanningTracks: rt.Timetable, Logger: logger, Now: OptionalClock(clocks),
+		BlockMetadata: NewTimetableBlockDisplayForTests(db),
 	}, operationRows, presence, settings.Settings, careDay, arrivals, pickups, hub, WithAttendanceStaff)
 	if err != nil {
 		return fail(err)
@@ -329,7 +333,7 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		return fail(err)
 	}
 	scan := ActiveDeviceScan{
-		SessionLifecycle: devicescanCompose.NewSessionLifecycle(presence, devicescanCompose.NewSupervisionQuery(owners.NewLoggedStudentPresence(db, logger)), NewDeviceScanPeople(dataUsers), dataDevices.IoT, nil, logger, DeviceScanPrincipal),
+		SessionLifecycle: scanBindings.NewSessionLifecycle(presence, scanBindings.NewSupervisionQuery(owners.NewLoggedStudentPresence(db, logger)), NewDeviceScanPeople(dataUsers), dataDevices.IoT, nil, logger, DeviceScanPrincipal),
 		RoomAvailability: data.RoomAvailability, Configuration: data.Configuration, Directory: data.Directory, TagAssignments: data.TagAssignments,
 	}
 	return ActiveTestModule{PickupSchedule: pickups, ArrivalSchedule: arrivals, CareDay: careDay},
@@ -442,4 +446,11 @@ func iotSessionEndTestFailures() (notFound, alreadyEnded error) {
 
 func iotSessionEndTestInvalidRequest(message string) error {
 	return devicescan.InvalidRequest(message)
+}
+
+// NewTimetableBlockDisplayForTests binds the block display projection the
+// root hands the operational day: room name and planning track of each
+// planned block (#4413).
+func NewTimetableBlockDisplayForTests(db transactionruntime.Database) timetablePorts.BlockDisplayMetadata {
+	return arrivalTimetable.NewBlockDisplayMetadata(db.Pool(), blockDisplayCompose.List)
 }

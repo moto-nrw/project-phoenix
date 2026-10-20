@@ -30,7 +30,7 @@ func ComposePeopleDirectory(
 	directory peopleCompose.Dependencies, membership schoolmembership.Capability, careProfiles careplan.StudentProfileCommands,
 	companions careplanCompose.CompanionRecords, audit peopleDirectoryAuditTrails, guardianLinks guardianLinkOwners,
 	guardianMemberships peopleCompose.GuardianMembershipQuery,
-) (*peopledirectory.Module, error) {
+) (*peopleCompose.Directory, error) {
 	directory.StudentOwners = NewStudentOwners(membership, careProfiles)
 	directory.StudentFieldAudit = studentFieldAuditLog{repo: audit.StudentFieldEdit}
 	directory.StudentNoteDeletionAudit = studentNoteDeletionAudit{repo: audit.DataDeletion}
@@ -40,7 +40,7 @@ func ComposePeopleDirectory(
 	directory.GuardianRolePresets = GuardianRolePresets
 	directory.GuardianLinkRows = guardianLinkView.NewReader()
 	directory.StudentDirectory = studentDirectoryView.NewReader()
-	return peopleCompose.NewWithGuardianMemberships(directory, guardianMemberships)
+	return peopleCompose.New(directory, guardianMemberships)
 }
 
 func identityAccessObservation(observe IdentityAccessObserver) func(identityCompose.Observation) {

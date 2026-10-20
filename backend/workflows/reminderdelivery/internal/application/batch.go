@@ -93,38 +93,10 @@ func (s *service) ComputeBatch(ctx context.Context, scopes []reminder.BatchScope
 		return nil, err
 	}
 
-	// Per-staff pass one: which pickups are due, and the soonest boundary. Both
-	// are per person by construction — a shared next-change would leak the
-	// earliest pickup minute in the school to everyone.
-	type staffPickups struct {
-		dues       []duePickup
-		nextChange int
+	pickupsByRecipient, dueIDSet, err := s.batchDuePickups(ctx, recipients, cfg, in)
+	if err != nil {
+		return nil, err
 	}
-	pickupsByRecipient := make(map[int64]staffPickups, len(recipients))
-	dueIDSet := make(map[int64]struct{})
-
-	for _, sc := range recipients {
-		resultKey := resultKey(sc)
-		if !cfg.anyPickup() {
-			pickupsByRecipient[resultKey] = staffPickups{nextChange: -1}
-			continue
-		}
-		readable, rerr := s.batchReadableStudents(sc, cfg, in)
-		if rerr != nil {
-			return nil, rerr
-		}
-		dues, next := duePickups(in.presenceByStaff[sc.StaffID], in.pickupTimes, readable, pickupWindow{
-			nowMin:   in.nowMin,
-			lead:     cfg.pickupLead,
-			upcoming: cfg.pickupUpcoming,
-			overdue:  cfg.pickupOverdue,
-		})
-		pickupsByRecipient[resultKey] = staffPickups{dues: dues, nextChange: next}
-		for _, d := range dues {
-			dueIDSet[d.id] = struct{}{}
-		}
-	}
-
 	// One name hydration for the union of everyone's due students. Deliberately
 	// not derived from the admin set: in detailed mode a caregiver's presence
 	// comes from active.visits while an admin's comes from active.attendance,
@@ -135,51 +107,7 @@ func (s *service) ComputeBatch(ctx context.Context, scopes []reminder.BatchScope
 		return nil, err
 	}
 
-	// Per-staff pass two: render.
-	for _, sc := range recipients {
-		sp := pickupsByRecipient[resultKey(sc)]
-
-		pickupPart, dropped := buildPickupReminders(sp.dues, names)
-		s.logDroppedPickups(dropped)
-		nextChange := sp.nextChange
-
-		var activityPart []reminder.Reminder
-		if cfg.anyActivity() {
-			roomFilter := activityRoomFilter(sc.Scope, in.roomsByStaff[sc.StaffID])
-			part, next := buildActivityReminders(in.instances,
-				activityScopeFilter(roomFilter, nil), activityWindow{
-					nowMin:           in.nowMin,
-					lead:             cfg.activityLead,
-					overdueThreshold: cfg.overdueThreshold,
-					upcoming:         cfg.activityStart,
-					overdue:          cfg.activityOverdue,
-				})
-			if sc.IncludeAssignedActivityStart {
-				assignedPart, assignedNext := buildActivityReminders(
-					in.instances,
-					assignedUpcomingFilter(
-						in.assignedInstances[sc.StaffID],
-						roomFilter,
-						cfg.activityStart,
-					),
-					activityWindow{
-						nowMin:   in.nowMin,
-						lead:     cfg.activityLead,
-						upcoming: true,
-					},
-				)
-				part = append(part, assignedPart...)
-				next = minFuture(next, assignedNext)
-			}
-			activityPart = part
-			nextChange = minFuture(nextChange, next)
-		}
-
-		result := assembleResult(pickupPart, activityPart, nextChange)
-		result.AssignedActivityInstanceIDs = assignedIDStrings(in.assignedInstances[sc.StaffID])
-		results[resultKey(sc)] = result
-	}
-
+	results = s.renderBatchResults(recipients, pickupsByRecipient, names, cfg, in)
 	return results, nil
 }
 
@@ -277,17 +205,9 @@ func (s *service) loadBatchConfig(ctx context.Context, recipients []reminder.Bat
 
 	caregivers := hasCaregiver(recipients)
 
-	if cfg.anyPickup() {
-		if cfg.pickupLead, err = s.leadMinutes(ctx, s.Settings.PickupLeadMinutes); err != nil {
-			return cfg, err
-		}
-		if caregivers {
-			if cfg.binaryPresence, err = s.binaryMode(ctx); err != nil {
-				return cfg, err
-			}
-		}
+	if err := s.loadBatchPickupConfig(ctx, &cfg, caregivers); err != nil {
+		return cfg, err
 	}
-
 	if cfg.activityStart || cfg.assignedStart {
 		if cfg.activityLead, err = s.leadMinutes(ctx, s.Settings.ActivityLeadMinutes); err != nil {
 			return cfg, err
@@ -424,4 +344,112 @@ func unionOf(byStaff map[int64][]int64) []int64 {
 		}
 	}
 	return sortedIDs(set)
+}
+
+type staffPickups struct {
+	dues       []duePickup
+	nextChange int
+}
+
+func (s *service) batchDuePickups(ctx context.Context, recipients []reminder.BatchScope, cfg batchConfig, in *batchInputs) (map[int64]staffPickups, map[int64]struct{}, error) {
+	// Per-staff pass one: which pickups are due, and the soonest boundary. Both
+	// are per person by construction — a shared next-change would leak the
+	// earliest pickup minute in the school to everyone.
+	pickupsByRecipient := make(map[int64]staffPickups, len(recipients))
+	dueIDSet := make(map[int64]struct{})
+
+	for _, sc := range recipients {
+		resultKey := resultKey(sc)
+		if !cfg.anyPickup() {
+			pickupsByRecipient[resultKey] = staffPickups{nextChange: -1}
+			continue
+		}
+		readable, rerr := s.batchReadableStudents(sc, cfg, in)
+		if rerr != nil {
+			return nil, nil, rerr
+		}
+		dues, next := duePickups(in.presenceByStaff[sc.StaffID], in.pickupTimes, readable, pickupWindow{
+			nowMin:   in.nowMin,
+			lead:     cfg.pickupLead,
+			upcoming: cfg.pickupUpcoming,
+			overdue:  cfg.pickupOverdue,
+		})
+		pickupsByRecipient[resultKey] = staffPickups{dues: dues, nextChange: next}
+		for _, d := range dues {
+			dueIDSet[d.id] = struct{}{}
+		}
+	}
+
+	return pickupsByRecipient, dueIDSet, nil
+}
+
+func batchActivityResult(sc reminder.BatchScope, cfg batchConfig, in *batchInputs, nextChange int) ([]reminder.Reminder, int) {
+	var activityPart []reminder.Reminder
+	if cfg.anyActivity() {
+		roomFilter := activityRoomFilter(sc.Scope, in.roomsByStaff[sc.StaffID])
+		part, next := buildActivityReminders(in.instances,
+			activityScopeFilter(roomFilter, nil), activityWindow{
+				nowMin:           in.nowMin,
+				lead:             cfg.activityLead,
+				overdueThreshold: cfg.overdueThreshold,
+				upcoming:         cfg.activityStart,
+				overdue:          cfg.activityOverdue,
+			})
+		if sc.IncludeAssignedActivityStart {
+			assignedPart, assignedNext := buildActivityReminders(
+				in.instances,
+				assignedUpcomingFilter(
+					in.assignedInstances[sc.StaffID],
+					roomFilter,
+					cfg.activityStart,
+				),
+				activityWindow{
+					nowMin:   in.nowMin,
+					lead:     cfg.activityLead,
+					upcoming: true,
+				},
+			)
+			part = append(part, assignedPart...)
+			next = minFuture(next, assignedNext)
+		}
+		activityPart = part
+		nextChange = minFuture(nextChange, next)
+	}
+
+	return activityPart, nextChange
+}
+
+func (s *service) loadBatchPickupConfig(ctx context.Context, cfg *batchConfig, caregivers bool) error {
+	var err error
+	if cfg.anyPickup() {
+		if cfg.pickupLead, err = s.leadMinutes(ctx, s.Settings.PickupLeadMinutes); err != nil {
+			return err
+		}
+		if caregivers {
+			if cfg.binaryPresence, err = s.binaryMode(ctx); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *service) renderBatchResults(recipients []reminder.BatchScope, pickupsByRecipient map[int64]staffPickups, names map[int64]studentNameInfo, cfg batchConfig, in *batchInputs) map[int64]*reminder.Result {
+	results := make(map[int64]*reminder.Result, len(recipients))
+	// Per-staff pass two: render.
+	for _, sc := range recipients {
+		sp := pickupsByRecipient[resultKey(sc)]
+
+		pickupPart, dropped := buildPickupReminders(sp.dues, names)
+		s.logDroppedPickups(dropped)
+		nextChange := sp.nextChange
+
+		activityPart, nextChange := batchActivityResult(sc, cfg, in, nextChange)
+		result := assembleResult(pickupPart, activityPart, nextChange)
+		result.AssignedActivityInstanceIDs = assignedIDStrings(in.assignedInstances[sc.StaffID])
+		results[resultKey(sc)] = result
+	}
+
+	return results
 }

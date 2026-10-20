@@ -133,7 +133,7 @@ func TestClassListEntriesCompositionRunsTheCRUDAndAssignFlow(t *testing.T) {
 	req = httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/%d", entryID), nil)
 	rec = testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:delete"})
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), "Klassenlisteneintrag nicht gefunden")
+	assert.Contains(t, rec.Body.String(), "klassenlisteneintrag nicht gefunden")
 
 	// A different school may have an audit row with the same historical entry
 	// ID. The trail below belongs only to this test's school.

@@ -97,7 +97,7 @@ isolated Git repositories without running expensive analyzers.
 - Put only cross-task information in the root. Put domain-specific examples
   beside their domain; versions and script inventories come from manifests.
 - Temporary migration guidance names its issue and removal criteria.
-  Current #2580 guidance in `backend/CLAUDE.md` overrides legacy layer examples.
+  The target architecture in `backend/CLAUDE.md` overrides legacy layer examples.
 - Keep user preferences out of team rules. Optional `CLAUDE.local.md` is read
   if present; global Codex/Claude instruction files are outside this repo.
 - Run `node scripts/check-agent-context.mjs`, its fixture tests with
@@ -114,7 +114,7 @@ isolated Git repositories without running expensive analyzers.
 
 | Example task | Expected references / behavior |
 |---|---|
-| Fix a backend calendar-day bug | Backend migration policy, calendar-date rule, hermetic tests; fix implementation without asking to preserve an unchanged contract |
+| Fix a backend calendar-day bug | Backend target architecture, calendar-date rule, hermetic tests; fix implementation without asking to preserve an unchanged contract |
 | Change a tenant UI flow | Frontend entry points, UI kit, Verständlichkeit, German-copy skill, help-guide and screenshot rules |
 | Review a login/refresh change | Review skill, affected area rules, contracts and security; include MFA and wrong-portal rejection |
 

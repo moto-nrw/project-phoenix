@@ -123,25 +123,7 @@ func toReportResponse(report *studentpresence.StatisticsReport) reportResponse {
 		CourseDataDays: report.CourseDataDays,
 		CourseDataFrom: report.CourseDataFrom.String(),
 	}
-	for _, st := range report.Students {
-		row := studentResponse{
-			StudentID:       strconv.FormatInt(st.StudentID, 10),
-			FirstName:       st.FirstName,
-			LastName:        st.LastName,
-			SchoolClass:     st.SchoolClass,
-			GroupName:       st.GroupName,
-			PresentDays:     st.PresentDays,
-			SickDays:        st.SickDays,
-			ExcusedDays:     st.ExcusedDays,
-			UnexplainedDays: st.UnexplainedDays,
-			AttendanceRate:  st.AttendanceRate,
-		}
-		if st.GroupID != nil {
-			id := strconv.FormatInt(*st.GroupID, 10)
-			row.GroupID = &id
-		}
-		out.Students = append(out.Students, row)
-	}
+	appendReportStudents(&out, report)
 	for _, g := range report.Groups {
 		out.Groups = append(out.Groups, toGroupResponse(g))
 	}
@@ -205,5 +187,27 @@ func toGroupResponse(g studentpresence.StatisticsGroupRow) groupResponse {
 		ExcusedDays:     g.ExcusedDays,
 		UnexplainedDays: g.UnexplainedDays,
 		AttendanceRate:  g.AttendanceRate,
+	}
+}
+
+func appendReportStudents(out *reportResponse, report *studentpresence.StatisticsReport) {
+	for _, st := range report.Students {
+		row := studentResponse{
+			StudentID:       strconv.FormatInt(st.StudentID, 10),
+			FirstName:       st.FirstName,
+			LastName:        st.LastName,
+			SchoolClass:     st.SchoolClass,
+			GroupName:       st.GroupName,
+			PresentDays:     st.PresentDays,
+			SickDays:        st.SickDays,
+			ExcusedDays:     st.ExcusedDays,
+			UnexplainedDays: st.UnexplainedDays,
+			AttendanceRate:  st.AttendanceRate,
+		}
+		if st.GroupID != nil {
+			id := strconv.FormatInt(*st.GroupID, 10)
+			row.GroupID = &id
+		}
+		out.Students = append(out.Students, row)
 	}
 }

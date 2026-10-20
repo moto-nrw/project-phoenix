@@ -32,7 +32,9 @@ func (s *staffAbsenceService) loadVacationQuotaInputs(ctx context.Context, staff
 	// Bare-constructed services (unit tests) have no quota repository and
 	// fall back to the default entitlement.
 	if s.quotaRepo != nil {
-		quota, err := s.quotaRepo.GetByStaffAndYear(ctx, staffID, year)
+		quotaValues, err := s.quotaRepo.ListStaffVacationQuotas(ctx, workforce.StaffVacationFilter{StaffID: staffID, Year: year, Limit: 1})
+		quota := firstQuota(quotaValues)
+		err = rowReadError("get vacation quota by staff+year", err, nil)
 		if err != nil {
 			return vacationQuotaInputs{}, fmt.Errorf("failed to fetch quota: %w", err)
 		}
@@ -44,13 +46,17 @@ func (s *staffAbsenceService) loadVacationQuotaInputs(ctx context.Context, staff
 
 	yearStart := calendar.NewDate(year, time.January, 1)
 	yearEnd := calendar.NewDate(year, time.December, 31)
-	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, yearStart, yearEnd)
+	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staffID, OverlapFrom: yearStart.String(), OverlapTo: yearEnd.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}}})
+	absences := absencesToRecord(absenceValues)
+	err = rowReadError("get absences by staff and date range", err, nil)
 	if err != nil {
 		return vacationQuotaInputs{}, fmt.Errorf("failed to fetch year absences: %w", err)
 	}
 	in.absences = absences
 	if s.openingRepo != nil {
-		in.opening, err = s.openingRepo.GetByStaffAndYear(ctx, staffID, year)
+		openingValues, err := s.openingRepo.ListStaffVacationOpenings(ctx, workforce.StaffVacationFilter{StaffID: staffID, Year: year, Limit: 1})
+		in.opening = firstOpening(openingValues)
+		err = rowReadError("get vacation opening by staff+year", err, nil)
 		if err != nil {
 			return vacationQuotaInputs{}, fmt.Errorf("failed to fetch vacation opening: %w", err)
 		}
@@ -68,16 +74,7 @@ func (s *staffAbsenceService) ensureVacationFits(ctx context.Context, candidate 
 		if err != nil {
 			return err
 		}
-		counted := make([]*StaffAbsence, 0, len(in.absences))
-		for _, a := range in.absences {
-			if a.ID == excludeID && excludeID != 0 {
-				continue
-			}
-			if !withReserved && (a.Status == AbsenceStatusRequested || a.Status == AbsenceStatusQuestion) {
-				continue
-			}
-			counted = append(counted, a)
-		}
+		counted := countedVacationAbsences(in.absences, excludeID, withReserved)
 		summary := computeVacationQuotaSummary(candidate.StaffID, year, in.entitled, in.carryover, counted, in.opening)
 		needed := vacationDaysForYear(candidate, year)
 		if needed > summary.RemainingDays+vacationDayEpsilon {
@@ -85,6 +82,23 @@ func (s *staffAbsenceService) ensureVacationFits(ctx context.Context, candidate 
 		}
 	}
 	return nil
+}
+
+// countedVacationAbsences is the part of a year's absences the account of a
+// candidate booking counts: without the candidate's own stored row
+// (excludeID) and, unless withReserved, without the open requests.
+func countedVacationAbsences(absences []*StaffAbsence, excludeID int64, withReserved bool) []*StaffAbsence {
+	counted := make([]*StaffAbsence, 0, len(absences))
+	for _, a := range absences {
+		if a.ID == excludeID && excludeID != 0 {
+			continue
+		}
+		if !withReserved && (a.Status == AbsenceStatusRequested || a.Status == AbsenceStatusQuestion) {
+			continue
+		}
+		counted = append(counted, a)
+	}
+	return counted
 }
 
 // vacationDayEpsilon absorbs float noise from half-day sums.
@@ -110,7 +124,9 @@ func (s *staffAbsenceService) createDirectVacation(ctx context.Context, staffID,
 	if err := s.lockStaffAbsenceWrites(ctx, staffID); err != nil {
 		return nil, err
 	}
-	existing, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, dateStart, dateEnd)
+	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staffID, OverlapFrom: dateStart.String(), OverlapTo: dateEnd.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}}})
+	existing := absencesToRecord(absenceValues)
+	err = rowReadError("get absences by staff and date range", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing absences: %w", err)
 	}
@@ -122,24 +138,7 @@ func (s *staffAbsenceService) createDirectVacation(ctx context.Context, staffID,
 		return nil, workforce.ErrAbsenceNoWorkingDays
 	}
 
-	now := time.Now()
-	absence := &StaffAbsence{
-		StaffID:      staffID,
-		AbsenceType:  AbsenceTypeVacation,
-		DateStart:    dateStart,
-		DateEnd:      dateEnd,
-		HalfDay:      req.HalfDay,
-		StartHalfDay: req.HalfDay,
-		EndHalfDay:   req.HalfDay,
-		Note:         req.Note,
-		Status:       AbsenceStatusReported,
-		CreatedBy:    createdBy,
-		WorkingDays:  &workingDays,
-		RequestedAt:  now,
-	}
-	absence.CreatedAt = now
-	absence.UpdatedAt = now
-	absence.SetTenantID(tenant.FromContext(ctx))
+	absence := directVacationRecord(ctx, staffID, createdBy, req, dateStart, dateEnd, workingDays)
 
 	if err := s.rejectVacationBeforeOpening(ctx, absence); err != nil {
 		return nil, err
@@ -148,11 +147,26 @@ func (s *staffAbsenceService) createDirectVacation(ctx context.Context, staffID,
 		return nil, err
 	}
 	s.warnIfWorkSessionsExist(ctx, staffID, dateStart, dateEnd)
-	if err := s.absenceRepo.Create(ctx, absence); err != nil {
+	absenceCommand := StaffAbsenceToCapability(absence)
+	createdAbsence, err := s.absenceRepo.CreateStaffAbsence(ctx, &absenceCommand)
+	err = absenceWriteError("create", err)
+	if err == nil {
+		applyAbsenceToRecord(absence, createdAbsence)
+	}
+	if err != nil {
 		return nil, fmt.Errorf("failed to create vacation: %w", err)
 	}
 	s.broadcastTimeTrackingChanged(ctx)
 	return s.withLabel(ctx, toAbsenceResponse(absence)), nil
+}
+
+func directVacationRecord(ctx context.Context, staffID, createdBy int64, req CreateAbsenceRequest, dateStart, dateEnd calendar.Date, workingDays float64) *StaffAbsence {
+	now := time.Now()
+	absence := &StaffAbsence{StaffID: staffID, AbsenceType: AbsenceTypeVacation, DateStart: dateStart, DateEnd: dateEnd, HalfDay: req.HalfDay, StartHalfDay: req.HalfDay, EndHalfDay: req.HalfDay, Note: req.Note, Status: AbsenceStatusReported, CreatedBy: createdBy, WorkingDays: &workingDays, RequestedAt: now}
+	absence.CreatedAt = now
+	absence.UpdatedAt = now
+	absence.SetTenantID(tenant.FromContext(ctx))
+	return absence
 }
 
 // computeVacationQuotaSummary is the pure tail of GetVacationQuotaSummary: the
@@ -323,7 +337,8 @@ func (s *staffAbsenceService) upsertVacationQuota(ctx context.Context, change Va
 		return fmt.Errorf("%w: %d: remaining %s", ErrVacationQuotaExceeded, year,
 			strconv.FormatFloat(summary.RemainingDays, 'f', -1, 64))
 	}
-	if err := s.quotaRepo.Upsert(ctx, quota); err != nil {
+	if err := s.quotaRepo.UpsertStaffVacationQuota(ctx, quotaToCapability(quota)); err != nil {
+		err = workSessionWriteError("upsert vacation quota", err)
 		return err
 	}
 	s.broadcastTimeTrackingChanged(ctx)

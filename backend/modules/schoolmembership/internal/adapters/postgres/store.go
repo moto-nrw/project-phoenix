@@ -96,7 +96,7 @@ func (s *Store) FindStaff(ctx context.Context, id int64, lock string, includeDel
 		return domain.Staff{}, false, domain.OperationStats{}, err
 	}
 	row := &staffRow{}
-	query := withTenant(staffSelect(db, row).Where(`"staff".id = ?`, id), "staff", scope)
+	query := withTenant(staffSelect(db, row, false).Where(`"staff".id = ?`, id), "staff", scope)
 	if !includeDeleted {
 		query = query.Where(`"staff".deleted_at IS NULL`)
 	}
@@ -116,7 +116,7 @@ func (s *Store) FindStaffByPerson(ctx context.Context, personID int64) (domain.S
 		return domain.Staff{}, false, domain.OperationStats{}, err
 	}
 	row := &staffRow{}
-	query := withTenant(staffSelect(db, row).
+	query := withTenant(staffSelect(db, row, false).
 		Where(`"staff".person_id = ?`, personID).
 		Where(`"staff".deleted_at IS NULL`).
 		OrderExpr(`"staff".id ASC`).
@@ -134,7 +134,7 @@ func (s *Store) ListStaff(ctx context.Context, filter domain.StaffFilter) ([]dom
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []staffRow{}
-	query := withTenant(staffSelect(db, &rows), "staff", scope)
+	query := withTenant(staffSelect(db, &rows, filter.IncludeInactiveGuests), "staff", scope)
 	if !filter.IncludeDeleted {
 		query = query.Where(`"staff".deleted_at IS NULL`)
 	}
@@ -303,37 +303,9 @@ func (s *Store) ListTeachers(ctx context.Context, filter domain.TeacherFilter) (
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []teacherRow{}
-	query := withTenant(teacherSelect(db, &rows), "teacher", scope)
-	if !filter.IncludeDeleted {
-		query = query.Where(`"teacher".deleted_at IS NULL`)
-	}
-	if filter.IDs != nil {
-		if len(filter.IDs) == 0 {
-			return []domain.Teacher{}, domain.OperationStats{}, nil
-		}
-		query = query.Where(`"teacher".id IN (?)`, bun.List(filter.IDs))
-	}
-	if filter.StaffIDs != nil {
-		if len(filter.StaffIDs) == 0 {
-			return []domain.Teacher{}, domain.OperationStats{}, nil
-		}
-		query = query.Where(`"teacher".staff_id IN (?)`, bun.List(filter.StaffIDs))
-	}
-	if filter.Specialization != "" {
-		query = query.Where(`LOWER("teacher".specialization) = LOWER(?)`, filter.Specialization)
-	}
-	if filter.SpecializationContains != "" {
-		query = query.Where(`"teacher".specialization ILIKE ?`, "%"+escapeLike(filter.SpecializationContains)+"%")
-	}
-	if filter.RoleContains != "" {
-		query = query.Where(`"teacher".role ILIKE ?`, "%"+escapeLike(filter.RoleContains)+"%")
-	}
-	if filter.HasQualifications != nil {
-		if *filter.HasQualifications {
-			query = query.Where(`"teacher".qualifications IS NOT NULL AND "teacher".qualifications <> ''`)
-		} else {
-			query = query.Where(`("teacher".qualifications IS NULL OR "teacher".qualifications = '')`)
-		}
+	query, ok := teacherListQuery(withTenant(teacherSelect(db, &rows), "teacher", scope), filter)
+	if !ok {
+		return []domain.Teacher{}, domain.OperationStats{}, nil
 	}
 	stats, err := scanAll(ctx, query.OrderExpr(`"teacher".id ASC`), "list teachers")
 	if err != nil {
@@ -483,39 +455,12 @@ func (s *Store) ListGuests(ctx context.Context, filter domain.GuestFilter) ([]do
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []guestRow{}
-	query := withTenant(guestSelect(db, &rows), "guest", scope)
-	if filter.IDs != nil {
-		if len(filter.IDs) == 0 {
-			return []domain.Guest{}, domain.OperationStats{}, nil
-		}
-		query = query.Where(`"guest".id IN (?)`, bun.List(filter.IDs))
+	query, ok, err := guestListQuery(withTenant(guestSelect(db, &rows), "guest", scope), filter)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
 	}
-	if filter.StaffIDs != nil {
-		if len(filter.StaffIDs) == 0 {
-			return []domain.Guest{}, domain.OperationStats{}, nil
-		}
-		query = query.Where(`"guest".staff_id IN (?)`, bun.List(filter.StaffIDs))
-	}
-	if filter.ActiveOn != "" {
-		activeOn, err := optionalDate(filter.ActiveOn, "active-on date")
-		if err != nil {
-			return nil, domain.OperationStats{}, err
-		}
-		query = query.Where(`("guest".start_date IS NULL OR "guest".start_date <= ?)`, activeOn).
-			Where(`("guest".end_date IS NULL OR "guest".end_date >= ?)`, activeOn)
-	}
-	if filter.OrganizationContains != "" {
-		query = query.Where(`"guest".organization ILIKE ?`, "%"+escapeLike(filter.OrganizationContains)+"%")
-	}
-	if filter.ExpertiseContains != "" {
-		query = query.Where(`"guest".activity_expertise ILIKE ?`, "%"+escapeLike(filter.ExpertiseContains)+"%")
-	}
-	if filter.HasOrganization != nil {
-		if *filter.HasOrganization {
-			query = query.Where(`"guest".organization IS NOT NULL`)
-		} else {
-			query = query.Where(`"guest".organization IS NULL`)
-		}
+	if !ok {
+		return []domain.Guest{}, domain.OperationStats{}, nil
 	}
 	stats, err := scanAll(ctx, query.OrderExpr(`"guest".id ASC`), "list guests")
 	if err != nil {
@@ -610,12 +555,20 @@ func (s *Store) DeleteGuest(ctx context.Context, id int64) (domain.OperationStat
 // --- helpers ---
 
 // staffSelect reads the membership row together with its guest marker. The
-// guest columns are correlated subqueries rather than a join, so FOR UPDATE
-// locks stay on the membership row alone.
-func staffSelect(db bun.IDB, model any) *bun.SelectQuery {
+// marker normally follows the guest's activity window; historical readers
+// may retain it after that window ended. The guest columns are correlated
+// subqueries rather than a join, so FOR UPDATE locks stay on the membership
+// row alone.
+func staffSelect(db bun.IDB, model any, includeInactiveGuests bool) *bun.SelectQuery {
+	query := db.NewSelect().Model(model).ModelTableExpr(`users.staff_school_memberships AS "staff"`).
+		ColumnExpr(`"staff".*`)
+	if includeInactiveGuests {
+		return query.
+			ColumnExpr(`EXISTS (SELECT 1 FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id) AS is_guest`).
+			ColumnExpr(`COALESCE((SELECT "guest".organization FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id), '') AS guest_organization`)
+	}
 	today := calendar.TodayDate()
-	return db.NewSelect().Model(model).ModelTableExpr(`users.staff_school_memberships AS "staff"`).
-		ColumnExpr(`"staff".*`).
+	return query.
 		ColumnExpr(`EXISTS (SELECT 1 FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id AND ("guest".start_date IS NULL OR "guest".start_date <= ?) AND ("guest".end_date IS NULL OR "guest".end_date >= ?)) AS is_guest`, today, today).
 		ColumnExpr(`COALESCE((SELECT "guest".organization FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id AND ("guest".start_date IS NULL OR "guest".start_date <= ?) AND ("guest".end_date IS NULL OR "guest".end_date >= ?)), '') AS guest_organization`, today, today)
 }
@@ -705,7 +658,7 @@ func guestRowFrom(id int64, fields domain.GuestFields) (guestRow, error) {
 func staffToDomain(row staffRow) domain.Staff {
 	return domain.Staff{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-		PersonID: row.PersonID, DeletedAt: row.DeletedAt,
+		PersonID: row.PersonID, DeletedAt: row.DeletedAt, PersonalDataErasedAt: row.PersonalDataErasedAt,
 		IsGuest: row.IsGuest, GuestOrganization: row.GuestOrganization,
 	}
 }

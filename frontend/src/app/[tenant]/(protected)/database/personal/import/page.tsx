@@ -451,7 +451,13 @@ export default function StaffImportPage() {
 
   if (status === "loading") {
     return (
-      <TenantPage title="Personal importieren" stats={statusLine} back>
+      <TenantPage
+        title="Personal importieren"
+        stats={statusLine}
+        back
+        backHref="/database/personal"
+        backLabel="Zurück zum Personal"
+      >
         <SkeletonRegion label="Mitarbeiter-Import wird geladen…">
           <FormSkeleton fields={2} />
         </SkeletonRegion>
@@ -460,7 +466,13 @@ export default function StaffImportPage() {
   }
 
   return (
-    <TenantPage title="Personal importieren" stats={statusLine} back>
+    <TenantPage
+      title="Personal importieren"
+      stats={statusLine}
+      back
+      backHref="/database/personal"
+      backLabel="Zurück zum Personal"
+    >
       {/* Info Section */}
       <SectionCard title="Import-Anleitung" icon={Info}>
         <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">

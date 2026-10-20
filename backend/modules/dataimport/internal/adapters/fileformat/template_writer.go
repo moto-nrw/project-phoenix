@@ -35,21 +35,7 @@ func (Decoder) Template(kind dataimport.TemplateKind, format dataimport.FileForm
 	var output bytes.Buffer
 	switch format {
 	case dataimport.CSV:
-		writer := csv.NewWriter(&output)
-		if err := writer.Write(headers); err != nil {
-			return nil, err
-		}
-		for _, row := range examples {
-			values := make([]string, len(row))
-			for i, value := range row {
-				values[i] = fmt.Sprint(value)
-			}
-			if err := writer.Write(values); err != nil {
-				return nil, err
-			}
-		}
-		writer.Flush()
-		return output.Bytes(), writer.Error()
+		return writeCSVTemplate(&output, headers, examples)
 	case dataimport.XLSX:
 		file, err := newExcelSheet(sheetName)
 		if err != nil {
@@ -71,4 +57,22 @@ func (Decoder) Template(kind dataimport.TemplateKind, format dataimport.FileForm
 	default:
 		return nil, fmt.Errorf("unsupported import format %q", format)
 	}
+}
+
+func writeCSVTemplate(output *bytes.Buffer, headers []string, examples [][]any) ([]byte, error) {
+	writer := csv.NewWriter(output)
+	if err := writer.Write(headers); err != nil {
+		return nil, err
+	}
+	for _, row := range examples {
+		values := make([]string, len(row))
+		for i, value := range row {
+			values[i] = fmt.Sprint(value)
+		}
+		if err := writer.Write(values); err != nil {
+			return nil, err
+		}
+	}
+	writer.Flush()
+	return output.Bytes(), writer.Error()
 }

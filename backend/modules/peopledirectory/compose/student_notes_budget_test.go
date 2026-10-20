@@ -19,7 +19,7 @@ import (
 func TestStudentNotesListQueryBudget(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	module, err := New(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(Observation) {}})
+	module, err := New(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(Observation) {}}, nil)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 

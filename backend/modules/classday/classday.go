@@ -10,11 +10,11 @@ import (
 
 // ErrClassNotAssigned is returned when the requested class is not among the
 // caller's education.class_teachers assignments.
-var ErrClassNotAssigned = errors.New("Diese Klasse ist Ihnen nicht zugewiesen") //nolint:staticcheck // ST1005: user-facing German message
+var ErrClassNotAssigned = errors.New("diese Klasse ist Ihnen nicht zugewiesen")
 
 // ErrStaffRecordRequired is returned when the caller has no users.staff row
 // to attribute an entry to.
-var ErrStaffRecordRequired = errors.New("Zu Ihrem Konto gibt es keinen Mitarbeiterdatensatz") //nolint:staticcheck // ST1005: user-facing German message
+var ErrStaffRecordRequired = errors.New("zu Ihrem Konto gibt es keinen Mitarbeiterdatensatz")
 
 // ErrInvalidReportFilter marks a day-report request the report refuses
 // before reading anything (an empty class name).

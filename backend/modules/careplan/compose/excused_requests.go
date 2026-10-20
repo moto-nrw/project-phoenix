@@ -5,10 +5,11 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Consumer-owned ports of the excused-absence workflow, re-exported so the
@@ -71,10 +72,8 @@ func NewExcusedAbsenceRequests(deps ExcusedRequestDependencies) (*ExcusedAbsence
 	})
 }
 
-// TenantHooks binds the workflows' after-commit effects to the ambient
-// tenant transaction. The zero value is ready.
 type TenantHooks struct{}
 
-func (TenantHooks) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
-
+func (TenantHooks) TenantID(ctx context.Context) int64         { return tenant.FromContext(ctx) }
 func (TenantHooks) AfterCommit(ctx context.Context, fn func()) { tenant.RegisterAfterCommit(ctx, fn) }
+func (TenantHooks) MarkRollback(ctx context.Context)           { tenant.MarkRollback(ctx) }

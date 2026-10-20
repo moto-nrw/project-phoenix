@@ -5,18 +5,18 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
+	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
 
 	"github.com/moto-nrw/project-phoenix/api"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
 	importService "github.com/moto-nrw/project-phoenix/modules/dataimport/internal/application/importservice"
 	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // Tests for the Stammdaten import (#2600): the staff import files real
@@ -239,7 +239,7 @@ func newStammdatenStudentConfig(t *testing.T, db *bun.DB) (*importService.Studen
 	require.NoError(t, err)
 	rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	references := dataImportCompose.NewReferences(groups, rooms)
+	references := owners.NewReferences(groups, rooms)
 	rfid, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	config := importService.NewStudentImportConfig(ports.StudentImportDeps{Transactions: dataImportCompose.NewTransactions(),

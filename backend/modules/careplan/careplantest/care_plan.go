@@ -149,11 +149,11 @@ func newStudentDirectory(tb TB, db *bun.DB, directory StudentDirectory) *peopled
 	students, err := peopleCompose.New(peopleCompose.Dependencies{
 		StudentDirectory: directory,
 		DB:               db, Observe: func(peopleCompose.Observation) {},
-	})
+	}, nil)
 	if err != nil {
 		tb.Fatalf("compose test People Directory: %v", err)
 	}
-	return students
+	return students.Module
 }
 
 func studentNameFinder(students peopledirectory.Capability) carePlanPorts.StudentNameFinder {

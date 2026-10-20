@@ -1,11 +1,9 @@
 "use client";
 
 import { use, useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 // eslint-disable-next-line no-restricted-imports -- public/parents token flow is outside tenant-router
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ArrowLeft } from "lucide-react";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
 import { PublicEnrollmentContentSkeleton } from "~/components/enrollment/public-enrollment-shell";
 import { TenantProvider } from "~/lib/tenant-context";
@@ -20,6 +18,7 @@ import {
 import { createLogger } from "~/lib/logger";
 import { useApiLoadError, useToast } from "~/contexts/ToastContext";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { ParentPageHeader } from "~/components/parent/parent-page";
 
 const logger = createLogger({ component: "EnrollmentEditPage" });
 
@@ -128,32 +127,34 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
     );
   }
 
+  const isChangeRequestMode = bootstrap?.edit_mode === "change_request";
+  const title = adjustOnly
+    ? t("adjustTitle")
+    : isChangeRequestMode
+      ? t("changeRequestTitle")
+      : t("editFull");
+
   if (loadError || !bootstrap) {
     return (
       <main className="mx-auto w-full max-w-4xl space-y-5 px-4 py-5 sm:px-6 sm:py-6">
-        <Link
-          href={statusHref}
-          className="text-moto-blue inline-flex items-center gap-2 text-sm font-semibold hover:underline focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          {t("backToStatus")}
-        </Link>
+        <ParentPageHeader
+          title={title}
+          backHref={statusHref}
+          backLabel={t("backToStatus")}
+        />
         <LoadErrorAlert error={loadError ?? t("editLoadError")} />
       </main>
     );
   }
 
-  const isChangeRequestMode = bootstrap.edit_mode === "change_request";
   if (!isSupportedGradeLevelMax(bootstrap.grade_level_max)) {
     return (
       <main className="mx-auto w-full max-w-4xl space-y-5 px-4 py-5 sm:px-6 sm:py-6">
-        <Link
-          href={statusHref}
-          className="text-moto-blue inline-flex items-center gap-2 text-sm font-semibold hover:underline focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          {t("backToStatus")}
-        </Link>
+        <ParentPageHeader
+          title={title}
+          backHref={statusHref}
+          backLabel={t("backToStatus")}
+        />
         {/* The school allows grades this form cannot show: no API error,
             but the same dead end, so it reads like one. */}
         <LoadErrorAlert error={t("editLoadError")} />
@@ -163,31 +164,18 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
 
   return (
     <main className="mx-auto w-full max-w-4xl space-y-5 px-4 py-5 sm:space-y-6 sm:px-6 sm:py-6">
-      <header className="space-y-2">
-        <Link
-          href={statusHref}
-          className="text-moto-blue inline-flex items-center gap-2 text-sm font-semibold hover:underline focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          {t("backToStatus")}
-        </Link>
-        <h1 className="text-2xl font-semibold text-wrap text-gray-900">
-          {adjustOnly
-            ? t("adjustTitle")
+      <ParentPageHeader
+        title={title}
+        description={
+          adjustOnly
+            ? t("adjustDescription")
             : isChangeRequestMode
-              ? t("changeRequestTitle")
-              : t("editFull")}
-        </h1>
-        {adjustOnly ? (
-          <p className="max-w-3xl text-sm leading-6 text-gray-600">
-            {t("adjustDescription")}
-          </p>
-        ) : isChangeRequestMode ? (
-          <p className="max-w-3xl text-sm leading-6 text-gray-600">
-            {t("changeRequestDescription")}
-          </p>
-        ) : null}
-      </header>
+              ? t("changeRequestDescription")
+              : undefined
+        }
+        backHref={statusHref}
+        backLabel={t("backToStatus")}
+      />
 
       {isChangeRequestMode ? (
         <section className="moto-content-surface rounded-xl border p-5 shadow-sm sm:p-6">

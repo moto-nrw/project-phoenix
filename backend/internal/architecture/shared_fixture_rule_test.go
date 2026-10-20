@@ -156,3 +156,55 @@ func TestSharedFixtureEpochGrantsNothingElse(t *testing.T) {
 		}
 	}
 }
+
+// Even an old policy permission cannot authorize shared owner construction.
+func TestSharedFixtureCompositionGuard(t *testing.T) {
+	t.Parallel()
+	packages := map[string]Package{
+		"test":           {Owner: "test-support", Role: "test-support"},
+		"enrollmenttest": {Owner: "enrollment", Role: "test-support"},
+		"presence":       {Owner: "student-presence", Role: "compose"},
+		"enrollment":     {Owner: "enrollment", Role: "compose"},
+		"bootstrap":      {Owner: "transaction-runtime", Role: "compose"},
+		"root":           {Owner: "root-composition", Role: "compose"},
+	}
+	cases := []struct {
+		name  string
+		edges []Edge
+		count int
+	}{
+		{"formerly permitted presence", []Edge{{ScopeProduction, "test", "presence"}}, 1},
+		{"bootstrap", []Edge{{ScopeProduction, "test", "bootstrap"}}, 0},
+		{"owner-local support not shared", []Edge{{ScopeProduction, "enrollmenttest", "enrollment"}}, 0},
+		{"suite builds root", []Edge{{ScopeInternalTest, "test", "root"}}, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			violations := sharedFixtureCompositionViolations(packages, &Graph{Edges: tc.edges})
+			if len(violations) != tc.count {
+				t.Fatalf("got %v, want %d violations", violations, tc.count)
+			}
+		})
+	}
+}
+
+func TestSharedFixtureCompositionGuardOverridesPolicyPermission(t *testing.T) {
+	t.Parallel()
+	policy := &Policy{
+		ModulePath: "fixture",
+		Packages: []Package{
+			{Path: "test", Owner: "test-support", Role: "test-support"},
+			{Path: "presence", Owner: "student-presence", Role: "compose"},
+		},
+		Rules: []Rule{{ID: "test-support.to.student-presence-compose", Scopes: []string{"production"},
+			SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "student-presence", TargetRole: "compose"}},
+	}
+	graph := &Graph{
+		Packages: []string{"fixture/test", "fixture/presence"},
+		Edges:    []Edge{{ScopeProduction, "fixture/test", "fixture/presence"}},
+	}
+	violations := Check(policy, graph)
+	if len(violations) != 1 || violations[0].Rule != "imports.forbidden" {
+		t.Fatalf("shared owner composition passed an explicit policy permission: %v", violations)
+	}
+}

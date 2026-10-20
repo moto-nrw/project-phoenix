@@ -46,7 +46,8 @@ func (e Engine) FindStaffMembershipByPerson(ctx context.Context, personID int64)
 func (e Engine) ListStaff(ctx context.Context, filter schoolmembership.StaffFilter) ([]schoolmembership.Staff, error) {
 	values, err := e.service.ListStaff(ctx, domain.StaffFilter{
 		IDs: filter.IDs, PersonIDs: filter.PersonIDs,
-		TenantIDs: filter.TenantIDs, IncludeDeleted: filter.IncludeDeleted, MembershipOnly: filter.MembershipOnly,
+		TenantIDs: filter.TenantIDs, IncludeDeleted: filter.IncludeDeleted,
+		IncludeInactiveGuests: filter.IncludeInactiveGuests, MembershipOnly: filter.MembershipOnly,
 	})
 	if err != nil {
 		return nil, MapError(err)
@@ -222,7 +223,8 @@ func staffToPublic(value domain.Staff) schoolmembership.Staff {
 		PersonID: value.PersonID, StaffNotes: value.StaffNotes, EmploymentType: value.EmploymentType,
 		WorkTimeModelID: value.WorkTimeModelID, PersonnelNumber: value.PersonnelNumber,
 		RotationAnchorDate: value.RotationAnchorDate, BirthdayDisplayOptOut: value.BirthdayDisplayOptOut,
-		DeletedAt: value.DeletedAt, IsGuest: value.IsGuest, GuestOrganization: value.GuestOrganization,
+		DeletedAt: value.DeletedAt, PersonalDataErasedAt: value.PersonalDataErasedAt,
+		IsGuest: value.IsGuest, GuestOrganization: value.GuestOrganization,
 	}
 }
 

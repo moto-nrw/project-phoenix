@@ -8,31 +8,31 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type lifecycleStoreStub struct {
 	LifecycleStore
-	group                                                   LifecycleSession
+	group                                                   ports.LifecycleSession
 	startErr, timeoutErr, touchErr, countErr, supervisorErr error
 	conflict                                                devicescan.ConflictInfoResponse
 	conflictErr                                             error
 	starts, touches                                         int
 }
 
-func (s *lifecycleStoreStub) Start(context.Context, int64, devicescan.StartSessionCommand) (LifecycleSession, error) {
+func (s *lifecycleStoreStub) Start(context.Context, int64, devicescan.StartSessionCommand) (ports.LifecycleSession, error) {
 	s.starts++
 	return s.group, s.startErr
 }
-func (s *lifecycleStoreStub) Current(context.Context, int64) (*LifecycleSession, error) {
+func (s *lifecycleStoreStub) Current(context.Context, int64) (*ports.LifecycleSession, error) {
 	return &s.group, nil
 }
-func (s *lifecycleStoreStub) ReplaceSupervisors(context.Context, int64, []int64) (LifecycleSession, error) {
+func (s *lifecycleStoreStub) ReplaceSupervisors(context.Context, int64, []int64) (ports.LifecycleSession, error) {
 	return s.group, nil
 }
-func (s *lifecycleStoreStub) Supervisors(context.Context, int64) ([]LifecycleSupervisor, error) {
+func (s *lifecycleStoreStub) Supervisors(context.Context, int64) ([]ports.LifecycleSupervisor, error) {
 	return s.group.Supervisors, s.supervisorErr
 }
 func (s *lifecycleStoreStub) CountStudents(context.Context, int64) (int, error) { return 4, s.countErr }
@@ -75,18 +75,18 @@ func TestReplaceSessionSupervisorsFiltersEndedAndInvalidStaff(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name        string
-		supervisors []LifecycleSupervisor
+		supervisors []ports.LifecycleSupervisor
 		ids         []int64
 	}{
-		{"all active", []LifecycleSupervisor{{StaffID: 1}, {StaffID: 2}, {StaffID: 3}}, []int64{1, 2, 3}},
-		{"some ended", []LifecycleSupervisor{{StaffID: 1}, {StaffID: 2, Ended: true}, {StaffID: 3}}, []int64{1, 3}},
-		{"all ended", []LifecycleSupervisor{{StaffID: 1, Ended: true}, {StaffID: 2, Ended: true}}, nil},
+		{"all active", []ports.LifecycleSupervisor{{StaffID: 1}, {StaffID: 2}, {StaffID: 3}}, []int64{1, 2, 3}},
+		{"some ended", []ports.LifecycleSupervisor{{StaffID: 1}, {StaffID: 2, Ended: true}, {StaffID: 3}}, []int64{1, 3}},
+		{"all ended", []ports.LifecycleSupervisor{{StaffID: 1, Ended: true}, {StaffID: 2, Ended: true}}, nil},
 		{"empty", nil, nil},
-		{"invalid IDs", []LifecycleSupervisor{{StaffID: 1}, {StaffID: 0}, {StaffID: -1}, {StaffID: 2}}, []int64{1, 2}},
+		{"invalid IDs", []ports.LifecycleSupervisor{{StaffID: 1}, {StaffID: 0}, {StaffID: -1}, {StaffID: 2}}, []int64{1, 2}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			store := &lifecycleStoreStub{group: LifecycleSession{ID: 77, Supervisors: tc.supervisors}}
+			store := &lifecycleStoreStub{group: ports.LifecycleSession{ID: 77, Supervisors: tc.supervisors}}
 			people := &lifecyclePeopleStub{}
 			result, err := lifecycleForTest(store, people).ReplaceSessionSupervisors(t.Context(), 77, []int64{1})
 			require.NoError(t, err)
@@ -102,7 +102,7 @@ func TestReplaceSessionSupervisorsFiltersEndedAndInvalidStaff(t *testing.T) {
 
 func TestSessionSupervisorLookupFailureProducesEmptyJSONArray(t *testing.T) {
 	t.Parallel()
-	store := &lifecycleStoreStub{group: LifecycleSession{ID: 77, Supervisors: []LifecycleSupervisor{{StaffID: 303, Role: "supervisor"}}}}
+	store := &lifecycleStoreStub{group: ports.LifecycleSession{ID: 77, Supervisors: []ports.LifecycleSupervisor{{StaffID: 303, Role: "supervisor"}}}}
 	result, err := lifecycleForTest(store, &lifecyclePeopleStub{err: errors.New("database unavailable")}).ReplaceSessionSupervisors(t.Context(), 77, []int64{303})
 	require.NoError(t, err)
 	require.NotNil(t, result.Supervisors)
@@ -112,7 +112,7 @@ func TestSessionSupervisorLookupFailureProducesEmptyJSONArray(t *testing.T) {
 func TestCurrentSessionKeepsBestEffortFailuresOptional(t *testing.T) {
 	t.Parallel()
 	errUnavailable := errors.New("unavailable")
-	store := &lifecycleStoreStub{group: LifecycleSession{ID: 77, RoomID: 5, StartTime: time.Now()}, touchErr: errUnavailable, countErr: errUnavailable, supervisorErr: errUnavailable}
+	store := &lifecycleStoreStub{group: ports.LifecycleSession{ID: 77, RoomID: 5, StartTime: time.Now()}, touchErr: errUnavailable, countErr: errUnavailable, supervisorErr: errUnavailable}
 	service := lifecycleForTest(store, &lifecyclePeopleStub{})
 	heartbeat := &lifecycleHeartbeatStub{err: errUnavailable}
 	service.heartbeat = heartbeat
@@ -128,7 +128,7 @@ func TestCurrentSessionKeepsBestEffortFailuresOptional(t *testing.T) {
 
 func TestStartSessionRechecksConflictWithoutMaskingLookupFailure(t *testing.T) {
 	t.Parallel()
-	store := &lifecycleStoreStub{startErr: &SessionStartConflict{Cause: ports.ErrConflict}, conflict: devicescan.ConflictInfoResponse{HasConflict: true, ConflictMessage: "already active"}}
+	store := &lifecycleStoreStub{startErr: &ports.SessionStartConflict{Cause: ports.ErrConflict}, conflict: devicescan.ConflictInfoResponse{HasConflict: true, ConflictMessage: "already active"}}
 	service := lifecycleForTest(store, &lifecyclePeopleStub{})
 	result, err := service.StartSession(t.Context(), devicescan.StartSessionCommand{ActivityID: 4, SupervisorIDs: []int64{1}})
 	require.NoError(t, err)

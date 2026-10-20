@@ -1,5 +1,9 @@
 # People Directory contract cluster
 
+> **Historical record.** State at `63d041ef0e` (2026-10-18). #2580 and #4069 are closed;
+> counts, budgets and open issues below describe that state, not today.
+> Final state: [`backend/architecture/WORKPLAN.md`](../../backend/architecture/WORKPLAN.md#endstand).
+
 Inventory base: `a52dccfc01e977e18c112d164949b819eda552f3` (development, including Timetable PR #4324). Parsed Go imports and selector expressions, not text matches. Production, internal tests and external tests are separate scopes. Composition vocabulary imports are included.
 
 ## Outcome

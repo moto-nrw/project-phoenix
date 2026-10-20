@@ -94,3 +94,54 @@ export const mapPendingInvitationResponse = (
     position: data.position,
   };
 };
+
+/**
+ * The parts of a former employment the backend names (ADR 0021): what a
+ * Wiederaufnahme brings back and what never returns.
+ */
+export const FORMER_EMPLOYMENT_PART_LABELS = {
+  master_data: "Stammdaten",
+  qualifications: "Qualifikationen",
+  work_time: "Stundenkonto, Urlaub und Arbeitszeitmodell",
+  past_shifts_and_absences: "vergangene Schichten und Abwesenheiten",
+  staff_documents: "Dokumente",
+  future_shifts_and_absences: "künftige Schichten und Abwesenheiten",
+  groups_classes_substitutions: "Gruppen, Klassen und Vertretungen",
+} as const;
+
+export type FormerEmploymentPart = keyof typeof FORMER_EMPLOYMENT_PART_LABELS;
+
+/**
+ * The former employment an invitation to an address would continue at this
+ * school (ADR 0021, #3402). Dates are calendar days ("YYYY-MM-DD"): the days
+ * the person was entered in moto and left.
+ */
+export interface FormerEmployment {
+  startedOn: string;
+  endedOn: string;
+  resumes: FormerEmploymentPart[];
+  notReturning: FormerEmploymentPart[];
+}
+
+export interface BackendFormerEmployment {
+  started_on: string;
+  ended_on: string;
+  resumes: string[];
+  not_returning: string[];
+}
+
+const isFormerEmploymentPart = (part: string): part is FormerEmploymentPart =>
+  Object.hasOwn(FORMER_EMPLOYMENT_PART_LABELS, part);
+
+/** A part key this frontend does not know yet is left out, not shown raw. */
+export const mapFormerEmploymentResponse = (
+  data: BackendFormerEmployment | null | undefined,
+): FormerEmployment | null =>
+  data
+    ? {
+        startedOn: data.started_on,
+        endedOn: data.ended_on,
+        resumes: data.resumes.filter(isFormerEmploymentPart),
+        notReturning: data.not_returning.filter(isFormerEmploymentPart),
+      }
+    : null;

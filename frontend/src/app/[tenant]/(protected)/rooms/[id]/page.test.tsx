@@ -285,11 +285,9 @@ describe("RoomDetailPage", () => {
     searchParams.set("from", "//attacker.example");
     render(<RoomDetailPage />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Zurück zu den Räumen" }),
-    );
-
-    expect(pushMock).toHaveBeenCalledWith("/rooms");
+    expect(
+      screen.getByRole("link", { name: "Zurück zu den Räumen" }),
+    ).toHaveAttribute("href", "/rooms");
   });
 
   it("renders the loading page with the referrer's back label", () => {

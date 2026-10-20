@@ -680,28 +680,9 @@ func normalizeDelivery(in *Input) error {
 		return fmt.Errorf("%w: email_audience %q requires an Elternbrief", ErrValidation, in.EmailAudience)
 	}
 
-	if in.DeliveryMode == StaffParentAnnouncementDeliveryLetter {
-		// A poll asks a question per child; a letter demands one acknowledgement
-		// per child. Combining them would need a single row to carry two different
-		// per-child completion semantics, so v1 keeps the axes separate (the
-		// chk_parent_announcements_letter_not_poll constraint mirrors this).
-		if in.ResponseType != "" && in.ResponseType != StaffParentAnnouncementResponseNone {
-			return fmt.Errorf("%w: an Elternbrief cannot also be a poll", ErrValidation)
-		}
-		// Targeting people with an open enrollment reaches guardians that have no
-		// student link yet — "the letter is fulfilled for this child" has no
-		// meaning for them, and they would sit in the recipient matrix as
-		// permanently outstanding. Refused rather than silently dropped so the
-		// author notices while composing.
-		for _, t := range in.Targets {
-			if t.TargetType == StaffAnnouncementTargetPendingEnrollment {
-				return fmt.Errorf("%w: an Elternbrief cannot target pending enrollments", ErrValidation)
-			}
-		}
-		in.SendEmail = true
-		in.RequiresAcknowledgement = true
+	if err := normalizeLetterDelivery(in); err != nil {
+		return err
 	}
-
 	// Widening the e-mail audience without sending e-mail at all is a
 	// contradiction that almost certainly means the client lost a flag. Refuse it
 	// instead of persisting a setting that does nothing.
@@ -781,4 +762,30 @@ func dedupeKey(t *StaffParentAnnouncementTarget) string {
 	default:
 		return t.TargetType
 	}
+}
+
+func normalizeLetterDelivery(in *Input) error {
+	if in.DeliveryMode == StaffParentAnnouncementDeliveryLetter {
+		// A poll asks a question per child; a letter demands one acknowledgement
+		// per child. Combining them would need a single row to carry two different
+		// per-child completion semantics, so v1 keeps the axes separate (the
+		// chk_parent_announcements_letter_not_poll constraint mirrors this).
+		if in.ResponseType != "" && in.ResponseType != StaffParentAnnouncementResponseNone {
+			return fmt.Errorf("%w: an Elternbrief cannot also be a poll", ErrValidation)
+		}
+		// Targeting people with an open enrollment reaches guardians that have no
+		// student link yet — "the letter is fulfilled for this child" has no
+		// meaning for them, and they would sit in the recipient matrix as
+		// permanently outstanding. Refused rather than silently dropped so the
+		// author notices while composing.
+		for _, t := range in.Targets {
+			if t.TargetType == StaffAnnouncementTargetPendingEnrollment {
+				return fmt.Errorf("%w: an Elternbrief cannot target pending enrollments", ErrValidation)
+			}
+		}
+		in.SendEmail = true
+		in.RequiresAcknowledgement = true
+	}
+
+	return nil
 }

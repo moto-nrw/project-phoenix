@@ -156,6 +156,12 @@ type StudentDirectoryFilter struct {
 // StudentDirectoryQuery is the staff-facing directory read: one filtered,
 // ordered page and the total of the same selection.
 type StudentDirectoryQuery interface {
+	StudentDirectorySelection
+	StudentRosterQuery
+}
+
+// StudentDirectorySelection reads filtered student records and directory counts.
+type StudentDirectorySelection interface {
 	ListStudentDirectory(context.Context, StudentDirectoryFilter) ([]StudentRecord, error)
 	CountStudentDirectory(context.Context, StudentDirectoryFilter) (int, error)
 	// ListStudentDirectoryIDs returns the ids of every non-alumni child.
@@ -168,15 +174,6 @@ type StudentDirectoryQuery interface {
 	ListAllStudentIDs(context.Context) ([]int64, error)
 	// FindStudentRecord reads one owned row.
 	FindStudentRecord(context.Context, int64) (StudentRecord, error)
-	// ListStudentRoster is the school's live roster on the given day: the
-	// children it currently cares for, with the identity each renders under.
-	ListStudentRoster(context.Context, string) ([]StudentRosterEntry, error)
-	// ListStudentRosterByGroup narrows the same roster to the given groups.
-	ListStudentRosterByGroup(context.Context, []int64, string) ([]StudentRosterEntry, error)
-	// ListStudentRosterOverlapping returns the children enrolled on at least
-	// one day of a window. Unlike the live roster it keeps children whose care
-	// has since ended and omits later enrolments.
-	ListStudentRosterOverlapping(context.Context, string, string, string) ([]StudentRosterEntry, error)
 	// ListStudentRecordsByPerson resolves the children of the given identities,
 	// alumni included.
 	ListStudentRecordsByPerson(context.Context, []int64) ([]StudentRecord, error)
@@ -193,6 +190,19 @@ type StudentDirectoryQuery interface {
 	ListStudentRecordsDueForStatus(context.Context, string, string, string) ([]StudentRecord, error)
 	// CountStudentsByGroup counts the non-alumni children of each group.
 	CountStudentsByGroup(context.Context, []int64) (map[int64]int, error)
+}
+
+// StudentRosterQuery reads enrollment-aware student rosters.
+type StudentRosterQuery interface {
+	// ListStudentRoster is the school's live roster on the given day: the
+	// children it currently cares for, with the identity each renders under.
+	ListStudentRoster(context.Context, string) ([]StudentRosterEntry, error)
+	// ListStudentRosterByGroup narrows the same roster to the given groups.
+	ListStudentRosterByGroup(context.Context, []int64, string) ([]StudentRosterEntry, error)
+	// ListStudentRosterOverlapping returns the children enrolled on at least
+	// one day of a window. Unlike the live roster it keeps children whose care
+	// has since ended and omits later enrolments.
+	ListStudentRosterOverlapping(context.Context, string, string, string) ([]StudentRosterEntry, error)
 	// ListEnrolledStudentIDsByNameAndBirthday resolves already-enrolled
 	// children by name and birthday. The tenant is explicit because the parent
 	// submit path runs outside a tenant transaction.
@@ -226,7 +236,7 @@ type StudentDirectoryCommand interface {
 }
 
 func (m *Module) ListStudentDirectory(ctx context.Context, filter StudentDirectoryFilter) ([]StudentRecord, error) {
-	filter, err := normalizeStudentDirectoryFilter(filter)
+	filter, err := NormalizeStudentDirectoryFilter(filter)
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +244,7 @@ func (m *Module) ListStudentDirectory(ctx context.Context, filter StudentDirecto
 }
 
 func (m *Module) CountStudentDirectory(ctx context.Context, filter StudentDirectoryFilter) (int, error) {
-	filter, err := normalizeStudentDirectoryFilter(filter)
+	filter, err := NormalizeStudentDirectoryFilter(filter)
 	if err != nil {
 		return 0, err
 	}
@@ -255,7 +265,7 @@ func (m *Module) FindStudentRecordForMutation(ctx context.Context, studentID int
 }
 
 func (m *Module) ListStudentRecordsByID(ctx context.Context, ids []int64) ([]StudentRecord, error) {
-	ids = uniquePositive(ids)
+	ids = PositiveIDs(ids)
 	if len(ids) == 0 {
 		return []StudentRecord{}, nil
 	}
@@ -266,10 +276,11 @@ func (m *Module) LockStudentPhotoFeature(ctx context.Context) error {
 	return m.engine.LockStudentPhotoFeature(ctx)
 }
 
-func normalizeStudentDirectoryFilter(filter StudentDirectoryFilter) (StudentDirectoryFilter, error) {
-	filter.IDs = uniquePositive(filter.IDs)
-	filter.KeepAlumni = uniquePositive(filter.KeepAlumni)
-	filter.SchoolClasses = uniqueClasses(filter.SchoolClasses)
+// NormalizeStudentDirectoryFilter validates and normalizes the directory selection.
+func NormalizeStudentDirectoryFilter(filter StudentDirectoryFilter) (StudentDirectoryFilter, error) {
+	filter.IDs = PositiveIDs(filter.IDs)
+	filter.KeepAlumni = PositiveIDs(filter.KeepAlumni)
+	filter.SchoolClasses = SchoolClasses(filter.SchoolClasses)
 	if filter.Page < 0 || filter.PageSize < 0 {
 		return filter, invalidStudent("page and page size must not be negative")
 	}
@@ -299,7 +310,7 @@ func (m *Module) FindStudentRecord(ctx context.Context, studentID int64) (Studen
 }
 
 func (m *Module) ListStudentRecordsByPerson(ctx context.Context, personIDs []int64) ([]StudentRecord, error) {
-	personIDs = uniquePositive(personIDs)
+	personIDs = PositiveIDs(personIDs)
 	if len(personIDs) == 0 {
 		return []StudentRecord{}, nil
 	}
@@ -311,7 +322,7 @@ func (m *Module) ListStudentRecordsByGroup(
 	groupIDs []int64,
 	scope StudentScope,
 ) ([]StudentRecord, error) {
-	groupIDs = uniquePositive(groupIDs)
+	groupIDs = PositiveIDs(groupIDs)
 	if len(groupIDs) == 0 {
 		return []StudentRecord{}, nil
 	}
@@ -327,7 +338,7 @@ func (m *Module) ListStudentRecordsByClass(
 	classes []string,
 	scope StudentScope,
 ) ([]StudentRecord, error) {
-	classes = uniqueClasses(classes)
+	classes = SchoolClasses(classes)
 	if len(classes) == 0 {
 		return []StudentRecord{}, nil
 	}
@@ -350,7 +361,7 @@ func (m *Module) ListStudentRecordsDueForStatus(ctx context.Context, status, bou
 }
 
 func (m *Module) LockStudentRecordsByID(ctx context.Context, ids []int64) ([]StudentRecord, error) {
-	ids = uniquePositive(ids)
+	ids = PositiveIDs(ids)
 	if len(ids) == 0 {
 		return []StudentRecord{}, nil
 	}
@@ -358,7 +369,7 @@ func (m *Module) LockStudentRecordsByID(ctx context.Context, ids []int64) ([]Stu
 }
 
 func (m *Module) CountStudentsByGroup(ctx context.Context, groupIDs []int64) (map[int64]int, error) {
-	groupIDs = uniquePositive(groupIDs)
+	groupIDs = PositiveIDs(groupIDs)
 	if len(groupIDs) == 0 {
 		return map[int64]int{}, nil
 	}
@@ -370,16 +381,8 @@ func (m *Module) ListEnrolledStudentIDsByNameAndBirthday(
 	tenantID int64,
 	firstName, lastName, birthday string,
 ) ([]int64, error) {
-	if tenantID <= 0 {
-		return nil, invalidStudent("tenant is required")
-	}
-	if strings.TrimSpace(firstName) == "" || strings.TrimSpace(lastName) == "" {
-		return nil, invalidStudent("both names are required")
-	}
-	// A child without a recorded birthday cannot be matched this way, and a
-	// blank one must not match every child of the name.
-	if _, err := time.Parse(BirthdayLayout, birthday); err != nil {
-		return nil, invalidStudent("birthday must be a calendar date in YYYY-MM-DD format")
+	if err := ValidateStudentMatch(tenantID, firstName, lastName, birthday); err != nil {
+		return nil, err
 	}
 	return m.engine.ListEnrolledStudentIDsByNameAndBirthday(ctx, tenantID, firstName, lastName, birthday)
 }
@@ -396,18 +399,18 @@ func (m *Module) FindStudentRecordForMutationNoWait(ctx context.Context, student
 }
 
 func (m *Module) ListStudentRoster(ctx context.Context, today string) ([]StudentRosterEntry, error) {
-	if err := validateRosterDay(today); err != nil {
+	if err := ValidateRosterDay(today); err != nil {
 		return nil, err
 	}
 	return m.engine.ListStudentRoster(ctx, today)
 }
 
 func (m *Module) ListStudentRosterByGroup(ctx context.Context, groupIDs []int64, today string) ([]StudentRosterEntry, error) {
-	groupIDs = uniquePositive(groupIDs)
+	groupIDs = PositiveIDs(groupIDs)
 	if len(groupIDs) == 0 {
 		return []StudentRosterEntry{}, nil
 	}
-	if err := validateRosterDay(today); err != nil {
+	if err := ValidateRosterDay(today); err != nil {
 		return nil, err
 	}
 	return m.engine.ListStudentRosterByGroup(ctx, groupIDs, today)
@@ -415,7 +418,7 @@ func (m *Module) ListStudentRosterByGroup(ctx context.Context, groupIDs []int64,
 
 func (m *Module) ListStudentRosterOverlapping(ctx context.Context, from, to, today string) ([]StudentRosterEntry, error) {
 	for _, day := range []string{from, to, today} {
-		if err := validateRosterDay(day); err != nil {
+		if err := ValidateRosterDay(day); err != nil {
 			return nil, err
 		}
 	}
@@ -425,9 +428,25 @@ func (m *Module) ListStudentRosterOverlapping(ctx context.Context, from, to, tod
 // validateRosterDay refuses a roster whose day the caller could not name: the
 // care boundary is a date comparison, and a missing day would widen it to
 // every child rather than fail.
-func validateRosterDay(day string) error {
+func ValidateRosterDay(day string) error {
 	if _, err := time.Parse(BirthdayLayout, day); err != nil {
 		return invalidStudent("the roster day must be a calendar date in YYYY-MM-DD format")
+	}
+	return nil
+}
+
+// ValidateStudentMatch validates an exact enrolled-child identity lookup.
+func ValidateStudentMatch(tenantID int64, firstName, lastName, birthday string) error {
+	if tenantID <= 0 {
+		return invalidStudent("tenant is required")
+	}
+	if strings.TrimSpace(firstName) == "" || strings.TrimSpace(lastName) == "" {
+		return invalidStudent("both names are required")
+	}
+	// A child without a recorded birthday cannot be matched this way, and a
+	// blank one must not match every child of the name.
+	if _, err := time.Parse(BirthdayLayout, birthday); err != nil {
+		return invalidStudent("birthday must be a calendar date in YYYY-MM-DD format")
 	}
 	return nil
 }

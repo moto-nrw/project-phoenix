@@ -45,11 +45,11 @@ type Rows struct {
 	TargetOverrides  workforce.StaffTargetOverrideQuery
 	MonthSnapshots   MonthSnapshots
 	AbsenceTypes     AbsenceTypeReader
-	Sessions         WorkSessionRepository
-	Breaks           WorkSessionBreakRepository
-	Adjustments      StaffBalanceAdjustmentRepository
-	VacationQuotas   StaffVacationQuotaRepository
-	VacationOpenings StaffVacationOpeningRepository
+	Sessions         WorkSessionRecords
+	Breaks           WorkSessionBreakRecords
+	Adjustments      BalanceAdjustmentRecords
+	VacationQuotas   VacationQuotaRecords
+	VacationOpenings VacationOpeningRecords
 }
 
 // Ports are the consumer-owned readers and writers the composition root
@@ -57,8 +57,8 @@ type Rows struct {
 // trails, the staff, schedule, shift, calendar and settings reads of other
 // owners, and the renderers.
 type Ports struct {
-	Absences      StaffAbsenceRepository
-	AbsenceAudits StaffAbsenceAuditRepository
+	Absences      AbsenceRequestRecords
+	AbsenceAudits AbsenceAuditRecords
 
 	EditAudit       WorkSessionAudit
 	DeletionAudit   TimeTrackingDeletionAudit
@@ -289,8 +289,8 @@ func (deps Dependencies) validate() error {
 // CleanupDependencies are the collaborators of the retention cleanup, which
 // the cleanup CLI composes without the rest of the time-tracking services.
 type CleanupDependencies struct {
-	Sessions WorkSessionRepository
-	Absences StaffAbsenceRepository
+	Sessions WorkSessionRecords
+	Absences AbsenceRecords
 	// Audit records the deletion evidence; nil runs without it.
 	Audit    DeletionAudit
 	Settings Settings

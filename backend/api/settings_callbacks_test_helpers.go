@@ -47,7 +47,7 @@ func NewSettingsCallbacksTestModule(db transactionruntime.Database, unit tenant.
 		StudentDirectory: studentDirectoryView.NewReader(),
 		DB:               db.Pool(), Observe: func(peopleCompose.Observation) {},
 		StudentPhotos: NewStudentPhotoRuntime(photoDeps),
-	})
+	}, nil)
 	if err != nil {
 		return SettingsCallbacksTestModule{}, nil, err
 	}

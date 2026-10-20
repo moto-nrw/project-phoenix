@@ -18,20 +18,20 @@ func (roomNotFoundError) RepositoryNotFound() {}
 var (
 	ErrRoomNotFound                 error = roomNotFoundError{}
 	ErrInvalidRoom                        = errors.New("invalid room")
-	ErrDuplicateRoom                      = errors.New("Ein Raum mit diesem Namen existiert bereits")                                               //nolint:staticcheck // ST1005: stable user-facing contract
-	ErrDuplicateToiletRoom                = errors.New("Es existiert bereits ein Toilettenraum (WC oder Toilette)")                                 //nolint:staticcheck // ST1005: stable user-facing contract
-	ErrRoomColorReserved                  = errors.New("Diese Farbe ist für Statusbadges reserviert und kann nicht für Räume verwendet werden")     //nolint:staticcheck // ST1005: stable user-facing contract
-	ErrRoomColorAlreadyInUse              = errors.New("Diese Farbe ist bereits einem anderen Raum zugeordnet")                                     //nolint:staticcheck // ST1005: stable user-facing contract
-	ErrRoomInUse                          = errors.New("Raum kann nicht gelöscht werden: Raum wird aktuell von einer aktiven Gruppe verwendet")     //nolint:staticcheck // ST1005: stable user-facing contract
-	ErrRoomRequiredByOffering             = errors.New("Raum kann nicht gelöscht werden: Raum wird für ein verknüpftes Betreuungsangebot benötigt") //nolint:staticcheck // ST1005: stable user-facing contract
+	ErrDuplicateRoom                      = errors.New("ein Raum mit diesem Namen existiert bereits")
+	ErrDuplicateToiletRoom                = errors.New("es existiert bereits ein Toilettenraum (WC oder Toilette)")
+	ErrRoomColorReserved                  = errors.New("diese Farbe ist für Statusbadges reserviert und kann nicht für Räume verwendet werden")
+	ErrRoomColorAlreadyInUse              = errors.New("diese Farbe ist bereits einem anderen Raum zugeordnet")
+	ErrRoomInUse                          = errors.New("raum kann nicht gelöscht werden: Raum wird aktuell von einer aktiven Gruppe verwendet")
+	ErrRoomRequiredByOffering             = errors.New("raum kann nicht gelöscht werden: Raum wird für ein verknüpftes Betreuungsangebot benötigt")
 	ErrRoomDeletionGuardUnavailable       = errors.New("room deletion guard is unavailable")
-	ErrSystemRoomProtected                = errors.New("Systemraum kann nicht gelöscht oder umbenannt werden")      //nolint:staticcheck // ST1005: stable user-facing contract
-	ErrSystemRoomNameReserved             = errors.New("Der Raumname „Schulhof“ ist für den Systemraum reserviert") //nolint:staticcheck // ST1005: stable user-facing contract
+	ErrSystemRoomProtected                = errors.New("systemraum kann nicht gelöscht oder umbenannt werden")
+	ErrSystemRoomNameReserved             = errors.New("der Raumname „Schulhof“ ist für den Systemraum reserviert")
 	// ErrToiletRoomNotReleasable rejects releasing a toilet room. The toilets
 	// are infrastructure the kiosk drives through its own short-stay flow; a
 	// released WC would offer children a permanent destination the product
 	// never intended and that no school asked for.
-	ErrToiletRoomNotReleasable = errors.New("Toilettenräume können nicht als offener Raum freigegeben werden") //nolint:staticcheck // ST1005: stable user-facing contract
+	ErrToiletRoomNotReleasable = errors.New("toilettenräume können nicht als offener Raum freigegeben werden")
 )
 
 // Room is the facilities view of one physical room.

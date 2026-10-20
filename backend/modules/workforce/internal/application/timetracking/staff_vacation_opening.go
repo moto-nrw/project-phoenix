@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -53,7 +55,11 @@ func (s *staffAbsenceService) GetVacationOpening(ctx context.Context, staffID in
 	if s.openingRepo == nil {
 		return nil, nil
 	}
-	return s.openingRepo.GetByStaffAndYear(ctx, staffID, year)
+	values, err := s.openingRepo.ListStaffVacationOpenings(ctx, workforce.StaffVacationFilter{StaffID: staffID, Year: year, Limit: 1})
+	if err != nil {
+		return nil, rowReadError("get vacation opening by staff+year", err, nil)
+	}
+	return firstOpening(values), nil
 }
 
 // validateSetVacationOpening runs the pure request guards. Split out so the
@@ -100,7 +106,9 @@ func (s *staffAbsenceService) SetVacationOpening(ctx context.Context, staffID, d
 	}
 
 	year := req.EffectiveDate.Year()
-	existing, err := s.openingRepo.GetByStaffAndYear(ctx, staffID, year)
+	openingValues, err := s.openingRepo.ListStaffVacationOpenings(ctx, workforce.StaffVacationFilter{StaffID: staffID, Year: year, Limit: 1})
+	existing := firstOpening(openingValues)
+	err = rowReadError("get vacation opening by staff+year", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing vacation opening: %w", err)
 	}
@@ -111,34 +119,22 @@ func (s *staffAbsenceService) SetVacationOpening(ctx context.Context, staffID, d
 		return nil, err
 	}
 
-	quota, err := s.quotaRepo.GetByStaffAndYear(ctx, staffID, year)
+	takenBefore, err := s.vacationTakenBefore(ctx, staffID, year, req.RemainingDays)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch quota for vacation opening: %w", err)
+		return nil, err
 	}
-	entitled, carryover := defaultEntitledDays, 0.0
-	if quota != nil {
-		entitled, carryover = quota.EntitledDays, quota.CarryoverDays
-	}
-	takenBefore := entitled + carryover - req.RemainingDays
 
-	now := time.Now()
-	opening := &StaffVacationOpening{
-		StaffID:              staffID,
-		Year:                 year,
-		EffectiveDate:        req.EffectiveDate,
-		TakenBeforeDays:      takenBefore,
-		EnteredRemainingDays: req.RemainingDays,
-		Note:                 req.Note,
-		DecidedBy:            decidedBy,
-		DecidedAt:            now,
-	}
-	opening.CreatedAt = now
-	opening.UpdatedAt = now
-	opening.SetTenantID(tenant.FromContext(ctx))
+	opening := vacationOpeningRecord(ctx, staffID, decidedBy, req, takenBefore)
+
 	if err := opening.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrVacationOpeningInvalid, err.Error())
 	}
-	if err := s.openingRepo.Create(ctx, opening); err != nil {
+	createdOpening, err := s.openingRepo.CreateStaffVacationOpening(ctx, openingToCapability(opening))
+	err = workSessionWriteError("create", err)
+	if err == nil {
+		applyOpeningToRecord(opening, createdOpening)
+	}
+	if err != nil {
 		if isUniqueViolationOn(err, vacationOpeningUniqueConstraintName) {
 			return nil, fmt.Errorf("%w: %d", ErrVacationOpeningExists, year)
 		}
@@ -146,6 +142,31 @@ func (s *staffAbsenceService) SetVacationOpening(ctx context.Context, staffID, d
 	}
 	s.broadcastTimeTrackingChanged(ctx)
 	return opening, nil
+}
+
+func vacationOpeningRecord(ctx context.Context, staffID, decidedBy int64, req SetVacationOpeningRequest, takenBefore float64) *StaffVacationOpening {
+	now := time.Now()
+	opening := &StaffVacationOpening{StaffID: staffID, Year: req.EffectiveDate.Year(), EffectiveDate: req.EffectiveDate, TakenBeforeDays: takenBefore, EnteredRemainingDays: req.RemainingDays, Note: req.Note, DecidedBy: decidedBy, DecidedAt: now}
+	opening.CreatedAt = now
+	opening.UpdatedAt = now
+	opening.SetTenantID(tenant.FromContext(ctx))
+	return opening
+}
+
+// vacationTakenBefore derives the days taken before the takeover from the
+// year's entitlement and the entered Resturlaub.
+func (s *staffAbsenceService) vacationTakenBefore(ctx context.Context, staffID int64, year int, remainingDays float64) (float64, error) {
+	quotaValues, err := s.quotaRepo.ListStaffVacationQuotas(ctx, workforce.StaffVacationFilter{StaffID: staffID, Year: year, Limit: 1})
+	quota := firstQuota(quotaValues)
+	err = rowReadError("get vacation quota by staff+year", err, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch quota for vacation opening: %w", err)
+	}
+	entitled, carryover := defaultEntitledDays, 0.0
+	if quota != nil {
+		entitled, carryover = quota.EntitledDays, quota.CarryoverDays
+	}
+	return entitled + carryover - remainingDays, nil
 }
 
 func (s *staffAbsenceService) ValidateVacationOpeningAbsencesBefore(ctx context.Context, staffID int64, effectiveDate calendar.Date) error {
@@ -160,7 +181,9 @@ func (s *staffAbsenceService) rejectVacationBeforeOpening(ctx context.Context, a
 		return nil
 	}
 	for year := absence.DateStart.Year(); year <= absence.DateEnd.Year(); year++ {
-		opening, err := s.openingRepo.GetByStaffAndYear(ctx, absence.StaffID, year)
+		openingValues, err := s.openingRepo.ListStaffVacationOpenings(ctx, workforce.StaffVacationFilter{StaffID: absence.StaffID, Year: year, Limit: 1})
+		opening := firstOpening(openingValues)
+		err = rowReadError("get vacation opening by staff+year", err, nil)
 		if err != nil {
 			return fmt.Errorf("failed to check vacation opening: %w", err)
 		}
@@ -188,7 +211,9 @@ func (s *staffAbsenceService) DeleteVacationOpening(ctx context.Context, staffID
 	if err := s.absenceRepo.LockStaffAbsenceWrites(ctx, staffID); err != nil {
 		return fmt.Errorf("failed to lock staff absence writes: %w", err)
 	}
-	opening, err := s.openingRepo.GetByStaffAndYear(ctx, staffID, year)
+	openingValues, err := s.openingRepo.ListStaffVacationOpenings(ctx, workforce.StaffVacationFilter{StaffID: staffID, Year: year, Limit: 1})
+	opening := firstOpening(openingValues)
+	err = rowReadError("get vacation opening by staff+year", err, nil)
 	if err != nil {
 		return fmt.Errorf("failed to load vacation opening: %w", err)
 	}
@@ -212,7 +237,8 @@ func (s *staffAbsenceService) DeleteVacationOpening(ctx context.Context, staffID
 	}); err != nil {
 		return fmt.Errorf("failed to write deletion audit: %w", err)
 	}
-	if err := s.openingRepo.Delete(ctx, opening.ID); err != nil {
+	if err := s.openingRepo.DeleteStaffVacationOpening(ctx, opening.ID); err != nil {
+		err = workSessionWriteError("delete", err)
 		return fmt.Errorf("failed to delete vacation opening: %w", err)
 	}
 	s.broadcastTimeTrackingChanged(ctx)
@@ -224,7 +250,9 @@ func (s *staffAbsenceService) DeleteVacationOpening(ctx context.Context, staffID
 func (s *staffAbsenceService) rejectVacationAbsencesBefore(ctx context.Context, staffID int64, effectiveDate calendar.Date) error {
 	yearStart := calendar.NewDate(effectiveDate.Year(), time.January, 1)
 	yearEnd := calendar.NewDate(effectiveDate.Year(), time.December, 31)
-	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, yearStart, yearEnd)
+	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staffID, OverlapFrom: yearStart.String(), OverlapTo: yearEnd.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}}})
+	absences := absencesToRecord(absenceValues)
+	err = rowReadError("get absences by staff and date range", err, nil)
 	if err != nil {
 		return fmt.Errorf("failed to check absences for vacation opening: %w", err)
 	}

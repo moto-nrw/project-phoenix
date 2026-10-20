@@ -336,27 +336,10 @@ func (s *preferenceService) FilterOptedInByType(
 		return filtered, nil
 	}
 
-	gateKeys := make([]string, 0, len(notificationTypes))
-	gateByType := make(map[string]string, len(notificationTypes))
-	seenGates := make(map[string]struct{}, len(notificationTypes))
-	for _, notificationType := range notificationTypes {
-		def, known := GetType(notificationType)
-		if !known {
-			// Fail closed: an unknown type reaches nobody. A producer naming a
-			// type outside the catalogue is a bug.
-			return nil, fmt.Errorf("%w: %s", ErrUnknownNotificationType, notificationType)
-		}
-		gateByType[notificationType] = def.TenantGate
-		if def.TenantGate == "" {
-			continue
-		}
-		if _, seen := seenGates[def.TenantGate]; seen {
-			continue
-		}
-		seenGates[def.TenantGate] = struct{}{}
-		gateKeys = append(gateKeys, def.TenantGate)
+	gateKeys, gateByType, err := notificationGateKeys(notificationTypes)
+	if err != nil {
+		return nil, err
 	}
-
 	allowedByGate := make(map[string]bool)
 	if len(gateKeys) > 0 {
 		if s.settings == nil {
@@ -441,14 +424,8 @@ func (s *preferenceService) GetForParent(ctx context.Context, accountID int64) (
 
 	err := s.forEachGuardianTenant(ctx, accountID, func(tenantCtx context.Context, _ int64) error {
 		tenantCount++
-		stored, err := s.consent.StoredConsent(tenantCtx, accountID)
-		if err != nil {
-			return fmt.Errorf("load notification preferences: %w", err)
-		}
-		for notificationType, enabled := range stored {
-			if enabled {
-				enabledTenantCount[notificationType]++
-			}
+		if err := s.countParentConsents(tenantCtx, accountID, enabledTenantCount); err != nil {
+			return err
 		}
 		// Any school allowing dispatch is enough for the card to stop saying
 		// "your school switched this off".
@@ -459,20 +436,7 @@ func (s *preferenceService) GetForParent(ctx context.Context, accountID int64) (
 		if tenantEnabled {
 			overview.TenantEnabled = true
 		}
-		for _, def := range defs {
-			if def.TenantGate == "" {
-				availableTenantCount[def.Key]++
-				continue
-			}
-			available, err := s.resolveBool(tenantCtx, def.TenantGate)
-			if err != nil {
-				return err
-			}
-			if available {
-				availableTenantCount[def.Key]++
-			}
-		}
-		return nil
+		return s.countAvailableTypes(tenantCtx, defs, availableTenantCount)
 	})
 	if err != nil {
 		return nil, err
@@ -574,4 +538,59 @@ func (s *preferenceService) resolveBool(ctx context.Context, key string) (bool, 
 		return false, fmt.Errorf("resolve %s: %w", key, err)
 	}
 	return v, nil
+}
+
+func notificationGateKeys(notificationTypes []string) ([]string, map[string]string, error) {
+	gateKeys := make([]string, 0, len(notificationTypes))
+	gateByType := make(map[string]string, len(notificationTypes))
+	seenGates := make(map[string]struct{}, len(notificationTypes))
+	for _, notificationType := range notificationTypes {
+		def, known := GetType(notificationType)
+		if !known {
+			// Fail closed: an unknown type reaches nobody. A producer naming a
+			// type outside the catalogue is a bug.
+			return nil, nil, fmt.Errorf("%w: %s", ErrUnknownNotificationType, notificationType)
+		}
+		gateByType[notificationType] = def.TenantGate
+		if def.TenantGate == "" {
+			continue
+		}
+		if _, seen := seenGates[def.TenantGate]; seen {
+			continue
+		}
+		seenGates[def.TenantGate] = struct{}{}
+		gateKeys = append(gateKeys, def.TenantGate)
+	}
+
+	return gateKeys, gateByType, nil
+}
+
+func (s *preferenceService) countAvailableTypes(ctx context.Context, defs []TypeDefinition, counts map[string]int) error {
+	for _, def := range defs {
+		if def.TenantGate == "" {
+			counts[def.Key]++
+			continue
+		}
+		available, err := s.resolveBool(ctx, def.TenantGate)
+		if err != nil {
+			return err
+		}
+		if available {
+			counts[def.Key]++
+		}
+	}
+	return nil
+}
+
+func (s *preferenceService) countParentConsents(tenantCtx context.Context, accountID int64, enabledTenantCount map[string]int) error {
+	stored, err := s.consent.StoredConsent(tenantCtx, accountID)
+	if err != nil {
+		return fmt.Errorf("load notification preferences: %w", err)
+	}
+	for notificationType, enabled := range stored {
+		if enabled {
+			enabledTenantCount[notificationType]++
+		}
+	}
+	return nil
 }

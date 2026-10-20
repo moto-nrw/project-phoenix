@@ -56,7 +56,7 @@ func (m *Module) CurrentFamilyProtection(ctx context.Context, studentIDs []int64
 	if len(studentIDs) == 0 {
 		return map[int64]bool{}, nil
 	}
-	return m.engine.CurrentFamilyProtection(ctx, uniquePositive(studentIDs))
+	return m.engine.CurrentFamilyProtection(ctx, PositiveIDs(studentIDs))
 }
 
 func (m *Module) SetFamilyProtection(ctx context.Context, input SetFamilyProtection) (bool, error) {

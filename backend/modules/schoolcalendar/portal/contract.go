@@ -40,9 +40,20 @@ var (
 	ErrConflict = errors.New("calendar item changed concurrently")
 )
 
+// Service is the whole calendar portal surface: the staff and parent
+// calendars, their subscription feeds and the token-authenticated feed
+// downloads. Consumers that need one side depend on the narrow facade.
 type Service interface {
+	StaffCalendar
+	StaffCalendarFeeds
+	ParentCalendar
+	PublicCalendarFeeds
+}
+
+// StaffCalendar is the staff member's calendar: their events, the
+// appointments they organize, their RSVPs and the recipient picker.
+type StaffCalendar interface {
 	ListMyStaffEvents(ctx context.Context, from, to Date) ([]Event, error)
-	ListMyParentEvents(ctx context.Context, accountID int64, from, to Date) ([]Event, error)
 	CreateStaffAppointment(ctx context.Context, req CreateAppointmentRequest) (*AppointmentDetail, error)
 	GetStaffAppointmentDetail(ctx context.Context, appointmentID int64) (*AppointmentDetail, error)
 	UpdateStaffAppointment(ctx context.Context, appointmentID int64, req UpdateAppointmentRequest) (*AppointmentDetail, error)
@@ -50,18 +61,34 @@ type Service interface {
 	DeleteStaffAppointment(ctx context.Context, appointmentID int64) error
 	CancelStaffAppointmentOccurrence(ctx context.Context, appointmentID int64, occurrenceDate Date) error
 	GetStaffAppointmentOverview(ctx context.Context, appointmentID int64) (*AppointmentOverview, error)
-	GetParentAppointmentOverview(ctx context.Context, accountID, appointmentID int64) (*AppointmentOverview, error)
 	StaffAppointmentICS(ctx context.Context, appointmentID int64) (filename, content string, err error)
+	RespondToStaffInvitation(ctx context.Context, recipientID int64, status string) error
+	RecipientOptions(ctx context.Context, query string, limit int) (*RecipientOptions, error)
+}
+
+// StaffCalendarFeeds issues and rotates the current staff member's
+// subscription feed URLs.
+type StaffCalendarFeeds interface {
+	StaffCalendarFeedURL(ctx context.Context) (httpsURL, webcalURL string, err error)
+	RotateStaffCalendarFeed(ctx context.Context) (httpsURL, webcalURL string, err error)
+}
+
+// ParentCalendar is the parent portal's calendar: the appointments addressed
+// to the parent's children, their RSVPs and the parent's feed URLs.
+type ParentCalendar interface {
+	ListMyParentEvents(ctx context.Context, accountID int64, from, to Date) ([]Event, error)
+	GetParentAppointmentOverview(ctx context.Context, accountID, appointmentID int64) (*AppointmentOverview, error)
 	ParentAppointmentICS(ctx context.Context, accountID, appointmentID int64) (filename, content string, err error)
 	ParentCalendarFeedURL(ctx context.Context, accountID int64) (httpsURL, webcalURL string, err error)
 	RotateParentCalendarFeed(ctx context.Context, accountID int64) (httpsURL, webcalURL string, err error)
-	ParentCalendarFeedByToken(ctx context.Context, token string) (filename, content string, err error)
-	StaffCalendarFeedURL(ctx context.Context) (httpsURL, webcalURL string, err error)
-	RotateStaffCalendarFeed(ctx context.Context) (httpsURL, webcalURL string, err error)
-	StaffCalendarFeedByToken(ctx context.Context, token string) (filename, content string, err error)
-	RespondToStaffInvitation(ctx context.Context, recipientID int64, status string) error
 	RespondToParentInvitation(ctx context.Context, accountID, recipientID int64, status string) error
-	RecipientOptions(ctx context.Context, query string, limit int) (*RecipientOptions, error)
+}
+
+// PublicCalendarFeeds renders the subscription feeds whose only credential is
+// the feed token.
+type PublicCalendarFeeds interface {
+	ParentCalendarFeedByToken(ctx context.Context, token string) (filename, content string, err error)
+	StaffCalendarFeedByToken(ctx context.Context, token string) (filename, content string, err error)
 }
 
 type FeedCleanupService interface {

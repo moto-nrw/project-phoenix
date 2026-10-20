@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The identity an account needs to be usable as personnel at a school:
@@ -289,6 +290,26 @@ func (l *AccountLifecycle) ensureIdentityStaff(ctx context.Context, in domain.Sc
 		return 0, fmt.Errorf("create staff: %w", err)
 	}
 	return id, nil
+}
+
+// FindFormerEmployment reports the retired membership ensureIdentityStaff
+// would continue for the account at the school in context: the account's live
+// person there, with no live membership and a latest retired one the
+// automatic deletion of staff has not erased. Any other state starts a new
+// employment, so it reports nothing.
+func (l *AccountLifecycle) FindFormerEmployment(ctx context.Context, accountID int64) (domain.FormerEmployment, bool, error) {
+	person, found, err := l.staff.FindPersonByAccount(ctx, accountID)
+	if err != nil || !found || person.Deleted {
+		return domain.FormerEmployment{}, false, err
+	}
+	staff, found, err := l.staff.FindStaffByPerson(ctx, person.ID)
+	if err != nil || !found || !staff.Deleted || staff.Erased || staff.RetiredAt == nil {
+		return domain.FormerEmployment{}, false, err
+	}
+	return domain.FormerEmployment{
+		StartedOn: calendar.DateFromTime(staff.StartedAt),
+		EndedOn:   calendar.DateFromTime(*staff.RetiredAt),
+	}, true, nil
 }
 
 func (l *AccountLifecycle) ensureIdentityTeacher(ctx context.Context, in domain.SchoolIdentityInput, staffID int64) (int64, error) {

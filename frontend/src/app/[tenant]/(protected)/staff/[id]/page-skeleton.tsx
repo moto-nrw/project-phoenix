@@ -1,6 +1,7 @@
 "use client";
 
-import { BackButton } from "~/components/ui/back-button";
+import type React from "react";
+import { TenantBackLink } from "~/components/ui/tenant-page";
 import { Skeleton } from "~/components/ui/skeleton";
 import { TenantPageHeaderSkeleton } from "~/components/ui/page-skeletons";
 import { UebersichtTabSkeleton } from "~/components/staff/uebersicht-tab-skeleton";
@@ -14,15 +15,18 @@ import { UebersichtTabSkeleton } from "~/components/staff/uebersicht-tab-skeleto
  * flight — the name/status/menu are all data-bound, so they stay skeletons
  * until `staff` loads.
  */
-function StaffHeaderSkeleton() {
+function StaffHeaderSkeleton({ back }: Readonly<{ back: React.ReactNode }>) {
   return (
     // Spiegelt die Kopfkarte des geladenen Zustands: dieselbe
-    // moto-content-surface-Karte mit Avatar, Kicker, Titel und Aktionen.
-    <TenantPageHeaderSkeleton leading />
+    // moto-content-surface-Karte mit Rückweg, Avatar, Titel und Aktionen.
+    <TenantPageHeaderSkeleton leading back={back} />
   );
 }
 
-export function StaffDetailSkeleton() {
+export function StaffDetailSkeleton({
+  referrer = "/staff",
+  backLabel = "Zurück zu den Mitarbeitenden",
+}: Readonly<{ referrer?: string; backLabel?: string }> = {}) {
   // Mirrors StaffHeader (avatar + name block + status badge) and the
   // TabsList line, then the Übersicht tab body, so the loaded page swaps in
   // without layout shift. Used only while the session (and therefore
@@ -37,9 +41,9 @@ export function StaffDetailSkeleton() {
       data-testid="staff-detail-skeleton"
       className="w-full"
     >
-      <BackButton referrer="/staff" />
-
-      <StaffHeaderSkeleton />
+      <StaffHeaderSkeleton
+        back={<TenantBackLink href={referrer} label={backLabel} />}
+      />
 
       <div className="mb-6 flex gap-6 border-b border-gray-200 pb-px">
         {Array.from({ length: 4 }, (_, i) => (

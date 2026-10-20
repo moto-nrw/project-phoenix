@@ -53,7 +53,7 @@ func newTimeTrackingTestModule(db transactionruntime.Database, repos WorkSession
 	}
 	employment := workforceCompose.MustNewStaffEmployment(db.Pool())
 	side, err := newTimeTracking(repos.Workforce, workforceCompose.TimeTrackingPorts{
-		Absences: repos.StaffAbsence, AbsenceAudits: workforceCompose.NewStaffAbsenceAuditRepository(repos.Workforce),
+		Absences: repos.StaffAbsence, AbsenceAudits: repos.Workforce,
 		Staff:        owners.WorkSessionStaff(staffRows, employment, membership),
 		Supervisions: presence.GroupSupervisor, SessionRecords: presence.ActiveGroup, Holidays: graph.Holidays,
 		Events: graph.Events, Logger: graph.Logger, Today: graph.Today, AbsenceEmail: absenceEmail,

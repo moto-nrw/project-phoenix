@@ -36,7 +36,7 @@ type OperatorProvisioningDependencies struct {
 func newOperatorProvisioning(
 	service *application.Service,
 	tokens *application.OperatorTokens,
-	sessions *SessionDependencies,
+	sessions *identityPorts.SessionDependencies,
 	operators *OperatorDependencies,
 	deps *OperatorProvisioningDependencies,
 ) (*application.OperatorProvisioning, error) {
@@ -69,7 +69,3 @@ func newOperatorProvisioning(
 		Logger: operators.Logger,
 	})
 }
-
-// --- port adapters ---------------------------------------------------------
-
-// --- engine methods --------------------------------------------------------

@@ -14,8 +14,8 @@
 // eine Betreuungskraft im OGS-Portal bedient, nur ohne das Nachtragen fremder
 // Kinder: dafür hat eine Lehrkraft keine Kindersuche und keine Berechtigung.
 
-import { ChevronLeft } from "lucide-react";
 import {
+  type ReactNode,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -24,6 +24,7 @@ import {
   useState,
 } from "react";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { BackAction } from "~/components/ui/back-link";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
@@ -90,10 +91,13 @@ function SupervisionIntro({
   instance,
   busy,
   onStart,
+  back,
 }: Readonly<{
   instance: PlannedTimetableInstance;
   busy: boolean;
   onStart: () => void;
+  /** Rückweg zum Überblick, über dem Titel (nur wenn es einen gibt). */
+  back?: ReactNode;
 }>) {
   const room = instance.roomName ?? `Raum ${instance.roomId}`;
   // Die Minutenuhr, weil "noch nicht" von selbst in "jetzt" übergehen muss,
@@ -110,6 +114,7 @@ function SupervisionIntro({
 
   return (
     <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+      {back ? <div className="mb-3">{back}</div> : null}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h2 className="truncate text-base font-semibold text-gray-900">
@@ -373,6 +378,16 @@ export function SchoolSupervisionsView() {
     ? upcomingAfter(openInstance, sortedInstances)
     : [];
 
+  // Die Detailansicht hat keine eigene Adresse: ein Knopf im Aussehen des
+  // Rückwegs, kein Link.
+  const backToOverview =
+    view.mode === "detail" && view.canGoBack ? (
+      <BackAction
+        onClick={() => setIntent({ kind: "overview" })}
+        label="Zurück zu allen Aufsichten heute"
+      />
+    ) : null;
+
   return (
     <div className="w-full space-y-4">
       <LoadErrorAlert error={listLoadError} />
@@ -390,21 +405,13 @@ export function SchoolSupervisionsView() {
         />
       ) : null}
 
-      {view.mode === "detail" && view.canGoBack ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="compact"
-          className="-ml-2"
-          onClick={() => setIntent({ kind: "overview" })}
-        >
-          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-          Alle Aufsichten heute
-        </Button>
-      ) : null}
+      {/* Ohne Einführungskarte (Kinderliste) steht der Rückweg allein über
+          der Liste; sonst sitzt er in der Karte über dem Titel. */}
+      {showRoster ? backToOverview : null}
 
       {openInstance && !showRoster ? (
         <SupervisionIntro
+          back={backToOverview}
           instance={openInstance}
           busy={busyId === openInstance.id}
           onStart={() => void handleStart(openInstance)}

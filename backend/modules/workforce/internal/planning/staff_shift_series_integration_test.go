@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
@@ -24,9 +26,9 @@ type seriesTestEnv struct {
 	staff          *testpkg.Staff
 	repos          *api.SchoolCalendarSuiteRepositories
 	reposPeople    *api.PeopleRepositorySuiteFactory
-	shiftRows      *planning.ShiftRows
-	seriesRows     *planning.ShiftSeriesRows
-	exceptionRows  *planning.ShiftSeriesExceptionRows
+	shiftRows      *shiftFixtureStore
+	seriesRows     *seriesFixtureStore
+	exceptionRows  *exceptionFixtureStore
 	series         planning.StaffShiftSeriesService
 	shifts         planning.StaffShiftService
 	capStaffSeries func(context.Context, int64, string) (int64, error)
@@ -47,17 +49,17 @@ func setupSeriesTest(t *testing.T) *seriesTestEnv {
 	today := calendar.CalendarDateClock(func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
-	shiftRows := planning.NewShiftRows(workTime)
-	seriesRows := planning.NewShiftSeriesRows(workTime)
-	exceptionRows := planning.NewShiftSeriesExceptionRows(workTime)
-	shiftTypes := planning.NewShiftTypeService(planning.NewShiftTypeRows(workTime), slog.Default())
+	shiftRows := newShiftFixtureStore(workTime)
+	seriesRows := newSeriesFixtureStore(workTime)
+	exceptionRows := newExceptionFixtureStore(workTime)
+	shiftTypes := planning.NewShiftTypeService(workTime, slog.Default())
 	lockStaffShifts := workforceCompose.NewStaffShiftLock(db)
-	shifts := planning.NewStaffShiftService(shiftRows, owners.NewPlanStaffDirectory(repoFactoryPeople.Staff), shiftTypes, lockStaffShifts, slog.Default(),
-		planning.WithStaffShiftSeriesExceptions(exceptionRows),
+	shifts := planning.NewStaffShiftService(shiftRows.Capability, owners.NewPlanStaffDirectory(repoFactoryPeople.Staff), shiftTypes, lockStaffShifts, slog.Default(),
+		planning.WithStaffShiftSeriesExceptions(exceptionRows.Capability),
 		planning.WithStaffShiftDeviationEvents(owners.NewShiftMoveAudit(owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DeviationEvent)),
 	)
 	series := planning.NewStaffShiftSeriesService(
-		seriesRows, exceptionRows, shiftRows, owners.NewPlanStaffDirectory(repoFactoryPeople.Staff), planning.SchoolCalendarPeriods(calendarOwner),
+		seriesRows.Capability, exceptionRows.Capability, shiftRows.Capability, owners.NewPlanStaffDirectory(repoFactoryPeople.Staff), planning.SchoolCalendarPeriods(calendarOwner),
 		shiftTypes, lockStaffShifts, slog.Default(), shifts,
 		planning.WithStaffShiftSeriesToday(today),
 	)
@@ -138,7 +140,7 @@ func (e *seriesTestEnv) buildSeries(t *testing.T, periodID int64, validFrom cale
 	return series
 }
 
-func (e *seriesTestEnv) shiftsInRange(t *testing.T, from, to calendar.Date) []*planning.StaffShift {
+func (e *seriesTestEnv) shiftsInRange(t *testing.T, from, to calendar.Date) []*workforce.ShiftRecord {
 	t.Helper()
 	rows, err := e.shiftRows.FindByStaffAndDateRange(e.scope.Context(), e.staff.ID, calendar.Date(from), calendar.Date(to))
 	require.NoError(t, err)
@@ -304,7 +306,7 @@ func TestStaffShiftSeries_CollisionSkipsAndReports(t *testing.T) {
 	periodEnd := today.AddDays(10)
 	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
 
-	standalone := &planning.StaffShift{
+	standalone := &workforce.ShiftRecord{
 		StaffID:   env.staff.ID,
 		Date:      calendar.Date(tomorrow),
 		StartTime: seriesClock(t, "08:00"),
@@ -355,7 +357,7 @@ func TestStaffShiftSeries_EditDetachesAndDeleteRecordsException(t *testing.T) {
 	// "Nur diese Woche" edit through the EXISTING single-shift path detaches
 	// the row automatically.
 	env.inTx(t, func(ctx context.Context) error {
-		updated := &planning.StaffShift{
+		updated := &workforce.ShiftRecord{
 			StaffID:   editRow.StaffID,
 			Date:      editRow.Date,
 			StartTime: seriesClock(t, "11:00"),
@@ -399,7 +401,7 @@ func TestStaffShiftSeries_SplitTodayUpdatesOccurrenceAndReplansTomorrow(t *testi
 
 	seriesID := series.ID
 	occurrenceDate := calendar.Date(today)
-	todayShift := &planning.StaffShift{
+	todayShift := &workforce.ShiftRecord{
 		StaffID:              env.staff.ID,
 		Date:                 occurrenceDate,
 		StartTime:            series.StartTime,
@@ -590,7 +592,7 @@ func TestStaffShiftSeries_RepeatedMoveKeepsOriginalOccurrenceIdentity(t *testing
 	tuesdayRows := env.shiftsInRange(t, tuesday, tuesday)
 	require.Len(t, tuesdayRows, 2)
 
-	var movedOnTuesday *planning.StaffShift
+	var movedOnTuesday *workforce.ShiftRecord
 	for _, row := range tuesdayRows {
 		if row.ID == moved.ID {
 			movedOnTuesday = row
@@ -669,7 +671,7 @@ func TestStaffShiftSeries_SplitPreservesDeviationsOnSuccessor(t *testing.T) {
 	editRow := env.shiftsInRange(t, editDate, editDate)[0]
 	deleteRow := env.shiftsInRange(t, deleteDate, deleteDate)[0]
 	env.inTx(t, func(ctx context.Context) error {
-		updated := &planning.StaffShift{
+		updated := &workforce.ShiftRecord{
 			StaffID:   editRow.StaffID,
 			Date:      editRow.Date,
 			StartTime: seriesClock(t, "14:00"),
@@ -768,7 +770,7 @@ func TestStaffShiftSeries_EndSeriesKeepsDetachedAndPast(t *testing.T) {
 	detachDate := today.AddDays(8)
 	detachRow := env.shiftsInRange(t, detachDate, detachDate)[0]
 	env.inTx(t, func(ctx context.Context) error {
-		updated := &planning.StaffShift{
+		updated := &workforce.ShiftRecord{
 			StaffID:   detachRow.StaffID,
 			Date:      detachRow.Date,
 			StartTime: seriesClock(t, "13:00"),
@@ -824,9 +826,9 @@ func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
 	countedDependenciesWorkforce := owners.MustNewWorkforce(testpkg.NewDatabase(t, countedDB))
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, countedDB))
 	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(countedDB))
-	countedShifts := planning.NewShiftRows(countedDependenciesWorkforce)
+	countedShifts := newShiftFixtureStore(countedDependenciesWorkforce)
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
-		Shifts:    countedShifts,
+		Shifts:    countedShifts.Capability,
 		Instances: timetableRepos.InstanceReads(), InstanceStaff: timetableRepos.InstanceStaffReads(),
 		Rooms: owners.NewTimetableRoomNames(rooms), Staff: owners.NewPlanStaffDirectory(repos.Staff),
 		PlanningProfiles: countedDependenciesWorkforce, WorkSchedules: countedDependenciesWorkforce, WorkModels: countedDependenciesWorkforce,

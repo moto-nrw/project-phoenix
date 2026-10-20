@@ -41,6 +41,7 @@ import { Button, ButtonLink } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
+import { BackLink } from "~/components/ui/back-link";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
 import type { EnrollmentChangeRequestDiffCopy } from "~/lib/enrollment-change-request-diff";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
@@ -144,12 +145,18 @@ interface Props {
   readonly token: string;
   readonly justSubmitted?: boolean;
   readonly duplicateWarning?: boolean;
+  /**
+   * Start page of the parents app, set only by the parents-portal route. The
+   * public status page on the school host has no page above it.
+   */
+  readonly parentAppHref?: string;
 }
 
 export function EnrollmentStatusView({
   token,
   justSubmitted = false,
   duplicateWarning = false,
+  parentAppHref,
 }: Props) {
   const t = useTranslations("enrollmentStatus");
   const toast = useToast();
@@ -432,6 +439,7 @@ export function EnrollmentStatusView({
           replyId: replyErrorId,
         }}
         justSubmitted={justSubmitted}
+        parentAppHref={parentAppHref}
         replyDrafts={replyDrafts}
         replyingChangeRequest={replyingChangeRequest}
         savingEdit={savingEdit}
@@ -499,6 +507,7 @@ interface EnrollmentStatusContentProps {
   readonly editing: boolean;
   readonly errors: StatusErrors;
   readonly justSubmitted: boolean;
+  readonly parentAppHref: string | undefined;
   readonly replyDrafts: Record<string, string>;
   readonly replyingChangeRequest: string | null;
   readonly savingEdit: boolean;
@@ -529,6 +538,7 @@ function EnrollmentStatusContent({
   editing,
   errors,
   justSubmitted,
+  parentAppHref,
   replyDrafts,
   replyingChangeRequest,
   savingEdit,
@@ -605,6 +615,15 @@ function EnrollmentStatusContent({
         </div>
       ) : null}
       <EnrollmentStatusHero
+        // Back to the parents app only for families who can use it: without
+        // an account the link would end at a login that cannot work (#3742).
+        backHref={
+          parentAppHref &&
+          parentAccess !== "invitation" &&
+          parentAccess !== "contact_ogs"
+            ? parentAppHref
+            : null
+        }
         allEditable={allEditable}
         canRequestChange={canRequestChange}
         editHref={editHref}
@@ -732,6 +751,7 @@ function EnrollmentStatusContent({
 }
 
 interface EnrollmentStatusHeroProps {
+  readonly backHref: string | null;
   readonly allEditable: boolean;
   readonly canRequestChange: boolean;
   readonly editHref: string;
@@ -740,6 +760,7 @@ interface EnrollmentStatusHeroProps {
 }
 
 function EnrollmentStatusHero({
+  backHref,
   allEditable,
   canRequestChange,
   editHref,
@@ -755,6 +776,13 @@ function EnrollmentStatusHero({
     <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
       <div className="grid lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="p-5 sm:p-8 lg:p-10">
+          {backHref ? (
+            <BackLink
+              href={backHref}
+              label={t("backToParentApp")}
+              className="mb-4"
+            />
+          ) : null}
           <div
             className={`flex h-12 w-12 items-center justify-center rounded-xl sm:h-14 sm:w-14 ${statusIconClass}`}
           >

@@ -229,7 +229,7 @@ func NewCareScheduleSuiteRepositories(db transactionruntime.Database) *CareSched
 // StaffAbsenceSuiteRepositories are the Workforce absence rows the retained
 // suites drive.
 type StaffAbsenceSuiteRepositories struct {
-	StaffAbsence workforceCompose.StaffAbsenceRepository
+	StaffAbsence workforceCompose.AbsenceRequestRecords
 }
 
 // NewStaffAbsenceSuiteRepositories composes the absence rows over the
@@ -306,9 +306,9 @@ func NewPeopleRepositorySuiteParentMessaging(db transactionruntime.Database) (Pa
 }
 
 // NewPeopleRepositorySuiteAnnouncements is the parent announcement store over
-// the given Enrollment audience queries.
-func NewPeopleRepositorySuiteAnnouncements(db transactionruntime.Database, audience owners.AnnouncementEnrollmentQueries, clocks ...func() time.Time) recordports.ParentAnnouncementRepository {
-	return parentStore.NewParentAnnouncementRepository(db.Pool(), owners.NewParentAnnouncementAudience(db, owners.ParentAnnouncementApplicants(audience), clocks...))
+// its Enrollment audience, constructed here rather than by shared fixtures.
+func NewPeopleRepositorySuiteAnnouncements(db transactionruntime.Database, clocks ...func() time.Time) recordports.ParentAnnouncementRepository {
+	return parentStore.NewParentAnnouncementRepository(db.Pool(), owners.NewParentAnnouncementAudience(db, owners.ParentAnnouncementApplicants(enrollmentCompose.New()), clocks...))
 }
 
 // NewPeopleRepositorySuiteCaregiverBindingLocker is the caregiver binding

@@ -9,12 +9,12 @@ import (
 var (
 	ErrAdministrationDeviceNotFound    = errors.New("device not found")
 	ErrAdministrationInvalidDeviceData = errors.New("invalid device data")
-	ErrAdministrationDuplicateDeviceID = errors.New("Diese Geräte-ID ist bereits vergeben") //nolint:staticcheck // ST1005: user-facing German message
+	ErrAdministrationDuplicateDeviceID = errors.New("diese Geräte-ID ist bereits vergeben")
 	ErrAdministrationInvalidStatus     = errors.New("invalid device status")
 	ErrAdministrationDeviceOffline     = errors.New("device is offline")
 	ErrAdministrationNetworkScanFailed = errors.New("network scan failed")
 	ErrAdministrationDatabaseOperation = errors.New("database operation failed")
-	ErrAdministrationDeviceProtected   = errors.New("Systemgerät kann nicht geändert oder gelöscht werden") //nolint:staticcheck // ST1005: user-facing German message
+	ErrAdministrationDeviceProtected   = errors.New("systemgerät kann nicht geändert oder gelöscht werden")
 )
 
 // AdministrationError wraps IoT service errors with operation context

@@ -38,8 +38,6 @@ type Repositories struct {
 	ActivitySupervisor  ports.PlannedSupervisorRecords
 	StudentEnrollment   ports.ActivityEnrollmentRecords
 	Timeframe           ports.TimeframeRecords
-	PlanningTrack       ports.PlanningTrackRecords
-	RecurrenceRule      ports.RecurrenceRuleRecords
 	ActivityException   ports.ActivityExceptionRecords
 	ActivityInstance    ports.ActivityInstanceRecords
 	InstanceIdempotency ports.InstanceIdempotencyRecords
@@ -58,7 +56,6 @@ func NewRepositories(dependencies RepositoryDependencies, reads application.Pres
 		ActivityCategory: rows.ActivityCategory, ActivityGroup: rows.ActivityGroup,
 		ActivitySchedule: rows.ActivitySchedule, ActivitySupervisor: rows.ActivitySupervisor,
 		StudentEnrollment: rows.StudentEnrollment, Timeframe: rows.Timeframe,
-		PlanningTrack: rows.PlanningTrack, RecurrenceRule: rows.RecurrenceRule,
 		ActivityException: rows.ActivityException,
 		ActivityInstance:  instances.ActivityInstance, InstanceIdempotency: instances.InstanceIdempotency,
 		InstanceStaff:   rows.InstanceStaff,

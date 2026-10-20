@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
 // MustNewUnobservedTimetable composes the unobserved Timetable owner over
@@ -43,7 +43,7 @@ func MustNewSchoolMembership(db transactionruntime.Database) schoolmembership.Ca
 
 // MustNewWorkforce composes the unobserved Workforce owner over the School
 // Membership owner of db.
-func MustNewWorkforce(db transactionruntime.Database) workforce.Capability {
+func MustNewWorkforce(db transactionruntime.Database) *workforceCompose.WorkTime {
 	workTime, err := NewWorkforce(db, MustNewSchoolMembership(db))
 	if err != nil {
 		panic(fmt.Sprintf("compose workforce work-time: %v", err))

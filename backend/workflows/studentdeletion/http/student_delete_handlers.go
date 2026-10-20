@@ -237,8 +237,7 @@ func (rs *Resource) studentDeletionErrorRenderer(err error) render.Renderer {
 		}},
 		{Match: rs.ConstraintViolation, Render: func(error) render.Renderer {
 			return common.ErrorConflictWithCode(
-				//nolint:staticcheck // ST1005: user-facing German message
-				errors.New("Kind konnte wegen gleichzeitig geänderter Verknüpfungen nicht gelöscht werden. Bitte erneut prüfen."),
+				errors.New("kind konnte wegen gleichzeitig geänderter Verknüpfungen nicht gelöscht werden. Bitte erneut prüfen"),
 				common.CodeStudentsDeletionConstraintsChanged,
 			)
 		}},

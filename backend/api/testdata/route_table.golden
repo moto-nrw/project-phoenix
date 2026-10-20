@@ -898,6 +898,7 @@ POST /auth/accounts/{accountId}/roles/{roleId}
 POST /auth/guardian-invitations/{id}/resend
 POST /auth/guardian-invitations/{token}/accept
 POST /auth/invitations/
+POST /auth/invitations/former-employment
 POST /auth/invitations/{id}/resend
 POST /auth/invitations/{token}/accept
 POST /auth/link-to-tenant

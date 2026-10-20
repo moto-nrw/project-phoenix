@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -54,6 +55,9 @@ func TestRolePersistenceScopeOrderingAndRollback(t *testing.T) {
 	require.Len(t, roles, 2)
 	require.Equal(t, first.ID, roles[0].ID, "assignment id breaks equal creation timestamps")
 	require.Equal(t, second.ID, roles[1].ID)
+	matches, err := identity.AccountsHoldingRole(ctx, []int64{account.ID}, second.Name)
+	require.NoError(t, err)
+	assert.True(t, matches[account.ID], "the batch lookup considers every role of an account")
 	names, err := identity.GetAccountRoleNames(ctx, []int64{account.ID})
 	require.NoError(t, err)
 	require.Equal(t, first.Name, names[account.ID])

@@ -88,7 +88,7 @@ func (c *StudentImportConfig) upsertPickupSchedules(ctx context.Context, student
 func (c *StudentImportConfig) upsertArrivalSchedule(ctx context.Context, studentID int64, sched importModels.ArrivalScheduleImportData) error {
 	existing, err := c.Schedules.ListArrivalSchedules(ctx, ports.StudentScheduleFilter{StudentIDs: []int64{studentID}, Weekday: sched.Weekday})
 	if err != nil {
-		return fmt.Errorf("Ankunftszeit für Wochentag %d laden: %w", sched.Weekday, err) //nolint:staticcheck // ST1005: user-facing German message
+		return copyErrorf("Ankunftszeit für Wochentag %d laden: %w", sched.Weekday, err)
 	}
 	if len(existing) == 0 {
 		if err := c.createArrivalSchedules(ctx, studentID, []importModels.ArrivalScheduleImportData{sched}); err != nil {
@@ -98,7 +98,7 @@ func (c *StudentImportConfig) upsertArrivalSchedule(ctx context.Context, student
 	}
 	arrival, err := parseWallClock(sched.ExpectedArrival)
 	if err != nil {
-		return fmt.Errorf("Ungültige Ankunftszeit '%s': %w", sched.ExpectedArrival, err) //nolint:staticcheck // ST1005: user-facing German message
+		return copyErrorf("Ungültige Ankunftszeit '%s': %w", sched.ExpectedArrival, err)
 	}
 	current := existing[0]
 	current.ExpectedArrival = arrival
@@ -106,7 +106,7 @@ func (c *StudentImportConfig) upsertArrivalSchedule(ctx context.Context, student
 		current.Notes = importModels.OptionalCell(sched.Notes)
 	}
 	if err := c.Schedules.UpdateArrivalSchedule(ctx, current); err != nil {
-		return fmt.Errorf("Ankunftszeit für Wochentag %d aktualisieren: %w", sched.Weekday, err) //nolint:staticcheck // ST1005: user-facing German message
+		return copyErrorf("Ankunftszeit für Wochentag %d aktualisieren: %w", sched.Weekday, err)
 	}
 	return nil
 }
@@ -114,7 +114,7 @@ func (c *StudentImportConfig) upsertArrivalSchedule(ctx context.Context, student
 func (c *StudentImportConfig) upsertPickupSchedule(ctx context.Context, studentID int64, sched importModels.PickupScheduleImportData) error {
 	existing, err := c.Schedules.ListPickupSchedules(ctx, ports.StudentScheduleFilter{StudentIDs: []int64{studentID}, Weekday: sched.Weekday})
 	if err != nil {
-		return fmt.Errorf("Abholzeit für Wochentag %d laden: %w", sched.Weekday, err) //nolint:staticcheck // ST1005: user-facing German message
+		return copyErrorf("Abholzeit für Wochentag %d laden: %w", sched.Weekday, err)
 	}
 	if len(existing) == 0 {
 		if err := c.createPickupSchedules(ctx, studentID, []importModels.PickupScheduleImportData{sched}); err != nil {
@@ -124,7 +124,7 @@ func (c *StudentImportConfig) upsertPickupSchedule(ctx context.Context, studentI
 	}
 	pickup, err := parseWallClock(sched.PickupTime)
 	if err != nil {
-		return fmt.Errorf("Ungültige Abholzeit '%s': %w", sched.PickupTime, err) //nolint:staticcheck // ST1005: user-facing German message
+		return copyErrorf("Ungültige Abholzeit '%s': %w", sched.PickupTime, err)
 	}
 	current := existing[0]
 	current.PickupTime = pickup
@@ -132,7 +132,7 @@ func (c *StudentImportConfig) upsertPickupSchedule(ctx context.Context, studentI
 		current.Notes = importModels.OptionalCell(sched.Notes)
 	}
 	if err := c.Schedules.UpdatePickupSchedule(ctx, current); err != nil {
-		return fmt.Errorf("Abholzeit für Wochentag %d aktualisieren: %w", sched.Weekday, err) //nolint:staticcheck // ST1005: user-facing German message
+		return copyErrorf("Abholzeit für Wochentag %d aktualisieren: %w", sched.Weekday, err)
 	}
 	return nil
 }

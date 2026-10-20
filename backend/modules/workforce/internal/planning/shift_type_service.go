@@ -40,29 +40,29 @@ var defaultShiftTypes = []defaultShiftType{
 type ShiftTypeService interface {
 	// ListShiftTypes returns all shift types for the current tenant (active and
 	// inactive), ordered by name.
-	ListShiftTypes(ctx context.Context) ([]*ShiftType, error)
+	ListShiftTypes(ctx context.Context) ([]*workforce.ShiftTypeRecord, error)
 	// GetShiftType returns a single shift type by ID.
-	GetShiftType(ctx context.Context, id int64) (*ShiftType, error)
+	GetShiftType(ctx context.Context, id int64) (*workforce.ShiftTypeRecord, error)
 	// CreateShiftType validates and persists a new shift type.
-	CreateShiftType(ctx context.Context, shiftType *ShiftType) (*ShiftType, error)
+	CreateShiftType(ctx context.Context, shiftType *workforce.ShiftTypeRecord) (*workforce.ShiftTypeRecord, error)
 	// UpdateShiftType validates and persists changes to an existing shift type.
-	UpdateShiftType(ctx context.Context, shiftType *ShiftType) (*ShiftType, error)
+	UpdateShiftType(ctx context.Context, shiftType *workforce.ShiftTypeRecord) (*workforce.ShiftTypeRecord, error)
 	// DeleteShiftType removes a shift type. Shifts referencing it keep the shift
 	// but lose the type (ON DELETE SET NULL).
 	DeleteShiftType(ctx context.Context, id int64) error
 	// CreateDefaultShiftTypes seeds example shift types for the current tenant,
 	// skipping any whose name already exists (idempotent). Returns the full
 	// list afterwards.
-	CreateDefaultShiftTypes(ctx context.Context) ([]*ShiftType, error)
+	CreateDefaultShiftTypes(ctx context.Context) ([]*workforce.ShiftTypeRecord, error)
 }
 
 type shiftTypeService struct {
-	repo   shiftTypeRows
+	repo   shiftTypeOperations
 	logger *slog.Logger
 }
 
 // NewShiftTypeService creates a new shift type service.
-func NewShiftTypeService(repo shiftTypeRows, logger *slog.Logger) ShiftTypeService {
+func NewShiftTypeService(repo shiftTypeOperations, logger *slog.Logger) ShiftTypeService {
 	return &shiftTypeService{repo: repo, logger: logger}
 }
 
@@ -70,15 +70,21 @@ func (s *shiftTypeService) getLogger() *slog.Logger {
 	return loggerOrDefault(s.logger)
 }
 
-func (s *shiftTypeService) ListShiftTypes(ctx context.Context) ([]*ShiftType, error) {
-	return s.repo.ListAll(ctx)
+func (s *shiftTypeService) ListShiftTypes(ctx context.Context) ([]*workforce.ShiftTypeRecord, error) {
+	values, err := s.repo.ListShiftTypes(ctx)
+	if err != nil {
+		return nil, shiftReadError("list all shift types", err, nil)
+	}
+	return shiftTypesToRows(values), nil
 }
 
-func (s *shiftTypeService) GetShiftType(ctx context.Context, id int64) (*ShiftType, error) {
+func (s *shiftTypeService) GetShiftType(ctx context.Context, id int64) (*workforce.ShiftTypeRecord, error) {
 	if id <= 0 {
 		return nil, ErrShiftTypeNotFound
 	}
-	shiftType, err := s.repo.FindByID(ctx, id)
+	shiftTypeValue, err := s.repo.FindShiftType(ctx, id)
+	err = shiftReadError("find by id", err, workforce.ErrShiftTypeNotFound)
+	shiftType := shiftTypeToRow(shiftTypeValue)
 	if err != nil {
 		if isRecordNotFound(err) {
 			return nil, ErrShiftTypeNotFound
@@ -94,7 +100,9 @@ func (s *shiftTypeService) GetShiftType(ctx context.Context, id int64) (*ShiftTy
 // nameTaken reports whether another shift type (id != excludeID) already uses
 // the given name (case-insensitive) within the tenant.
 func (s *shiftTypeService) nameTaken(ctx context.Context, name string, excludeID int64) (bool, error) {
-	existing, err := s.repo.ListAll(ctx)
+	existingValue, err := s.repo.ListShiftTypes(ctx)
+	err = shiftReadError("list all shift types", err, nil)
+	existing := shiftTypesToRows(existingValue)
 	if err != nil {
 		return false, err
 	}
@@ -114,13 +122,13 @@ func (s *shiftTypeService) nameTaken(ctx context.Context, name string, excludeID
 // case-insensitive unique index from migration 1.15.170 (schedule.shift_types
 // on (tenant_id, LOWER(name))). Two concurrent creates can both pass the
 // nameTaken pre-check; the Workforce store classifies the loser's unique
-// violation as workforce.ErrShiftTypeNameTaken, and the row adapter keeps it
+// violation as workforce.ErrShiftTypeNameTaken, and the planning write keeps it
 // in the chain, so it surfaces as ErrShiftTypeNameTaken (409), not a raw 500.
 func isShiftTypeNameConflict(err error) bool {
 	return errors.Is(err, workforce.ErrShiftTypeNameTaken)
 }
 
-func (s *shiftTypeService) CreateShiftType(ctx context.Context, shiftType *ShiftType) (*ShiftType, error) {
+func (s *shiftTypeService) CreateShiftType(ctx context.Context, shiftType *workforce.ShiftTypeRecord) (*workforce.ShiftTypeRecord, error) {
 	if err := shiftType.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrShiftTypeInvalid, err.Error())
 	}
@@ -132,21 +140,27 @@ func (s *shiftTypeService) CreateShiftType(ctx context.Context, shiftType *Shift
 		return nil, ErrShiftTypeNameTaken
 	}
 	shiftType.TenantID = tenant.FromContext(ctx)
-	if err := s.repo.Create(ctx, shiftType); err != nil {
+	written, err := s.repo.CreateShiftType(ctx, shiftTypeRowToCapability(shiftType))
+	if err != nil {
+		err = shiftWriteError("create", err)
+
 		if isShiftTypeNameConflict(err) {
 			return nil, ErrShiftTypeNameTaken
 		}
 		return nil, err
 	}
+	applyShiftTypeToRow(shiftType, written)
 	s.getLogger().Info("shift type created", "shift_type_id", shiftType.ID)
 	return shiftType, nil
 }
 
-func (s *shiftTypeService) UpdateShiftType(ctx context.Context, shiftType *ShiftType) (*ShiftType, error) {
+func (s *shiftTypeService) UpdateShiftType(ctx context.Context, shiftType *workforce.ShiftTypeRecord) (*workforce.ShiftTypeRecord, error) {
 	if shiftType.ID <= 0 {
 		return nil, ErrShiftTypeNotFound
 	}
-	existing, err := s.repo.FindByID(ctx, shiftType.ID)
+	existingValue, err := s.repo.FindShiftType(ctx, shiftType.ID)
+	err = shiftReadError("find by id", err, workforce.ErrShiftTypeNotFound)
+	existing := shiftTypeToRow(existingValue)
 	if err != nil {
 		if isRecordNotFound(err) {
 			return nil, ErrShiftTypeNotFound
@@ -167,12 +181,20 @@ func (s *shiftTypeService) UpdateShiftType(ctx context.Context, shiftType *Shift
 		return nil, ErrShiftTypeNameTaken
 	}
 	shiftType.TenantID = existing.TenantID
-	if err := s.repo.Update(ctx, shiftType); err != nil {
+	written, err := s.repo.UpdateShiftType(ctx, shiftTypeRowToCapability(shiftType))
+	if err != nil {
+		if errors.Is(err, workforce.ErrShiftTypeNotFound) {
+			err = shiftRowsAffectedError("update shift type")
+		} else {
+			err = shiftWriteError("update shift type", err)
+		}
+
 		if isShiftTypeNameConflict(err) {
 			return nil, ErrShiftTypeNameTaken
 		}
 		return nil, err
 	}
+	applyShiftTypeToRow(shiftType, written)
 	s.getLogger().Info("shift type updated", "shift_type_id", shiftType.ID)
 	return shiftType, nil
 }
@@ -181,7 +203,9 @@ func (s *shiftTypeService) DeleteShiftType(ctx context.Context, id int64) error 
 	if id <= 0 {
 		return ErrShiftTypeNotFound
 	}
-	existing, err := s.repo.FindByID(ctx, id)
+	existingValue, err := s.repo.FindShiftType(ctx, id)
+	err = shiftReadError("find by id", err, workforce.ErrShiftTypeNotFound)
+	existing := shiftTypeToRow(existingValue)
 	if err != nil {
 		if isRecordNotFound(err) {
 			return ErrShiftTypeNotFound
@@ -191,15 +215,17 @@ func (s *shiftTypeService) DeleteShiftType(ctx context.Context, id int64) error 
 	if existing == nil {
 		return ErrShiftTypeNotFound
 	}
-	if err := s.repo.Delete(ctx, id); err != nil {
+	if err := shiftWriteError("delete shift type", s.repo.DeleteShiftType(ctx, id)); err != nil {
 		return err
 	}
 	s.getLogger().Info("shift type deleted", "shift_type_id", id)
 	return nil
 }
 
-func (s *shiftTypeService) CreateDefaultShiftTypes(ctx context.Context) ([]*ShiftType, error) {
-	existing, err := s.repo.ListAll(ctx)
+func (s *shiftTypeService) CreateDefaultShiftTypes(ctx context.Context) ([]*workforce.ShiftTypeRecord, error) {
+	existingValue, err := s.repo.ListShiftTypes(ctx)
+	err = shiftReadError("list all shift types", err, nil)
+	existing := shiftTypesToRows(existingValue)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +239,7 @@ func (s *shiftTypeService) CreateDefaultShiftTypes(ctx context.Context) ([]*Shif
 		if _, ok := present[strings.ToLower(def.name)]; ok {
 			continue
 		}
-		shiftType := &ShiftType{
+		shiftType := &workforce.ShiftTypeRecord{
 			Name:     def.name,
 			Color:    def.color,
 			IsActive: true,
@@ -227,10 +253,15 @@ func (s *shiftTypeService) CreateDefaultShiftTypes(ctx context.Context) ([]*Shif
 		// our ListAll snapshot and here is a clean no-op, not a unique violation.
 		// Catching the violation after the fact instead would abort the request's
 		// tenant transaction and break the later inserts and the final ListAll.
-		if _, err := s.repo.CreateIfAbsent(ctx, shiftType); err != nil {
+		if _, _, err := s.repo.CreateShiftTypeIfAbsent(ctx, shiftTypeRowToCapability(shiftType)); err != nil {
+			err = shiftWriteError("create shift type if absent", err)
 			return nil, err
 		}
 	}
 	s.getLogger().Info("default shift types seeded")
-	return s.repo.ListAll(ctx)
+	values, err := s.repo.ListShiftTypes(ctx)
+	if err != nil {
+		return nil, shiftReadError("list all shift types", err, nil)
+	}
+	return shiftTypesToRows(values), nil
 }

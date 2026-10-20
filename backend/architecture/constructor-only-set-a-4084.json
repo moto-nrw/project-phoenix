@@ -114,5 +114,5 @@
   "rollback_and_cleanup": "Revert source, imports, policy and measured budgets together. No data, credential or environment rollback.",
   "exit_criterion": "Set A runtime-retained count is 2, all other owned compose functions are constructors or evidenced bindings, and both exact transaction-register blockers are documented. This is not an exit claim for all compose owners.",
   "ticket_kind": "migration",
-  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020"
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3021"
 }

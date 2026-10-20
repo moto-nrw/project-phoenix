@@ -75,6 +75,13 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
       </button>
       <button
         type="button"
+        data-testid="filter-ehemalige"
+        onClick={() => filters?.[0]?.onChange("ehemalige")}
+      >
+        Ehemalige
+      </button>
+      <button
+        type="button"
         data-testid="clear-filters"
         onClick={onClearAllFilters}
       >
@@ -258,6 +265,102 @@ describe("StaffPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Kein Personal gefunden")).toBeInTheDocument();
+    });
+  });
+
+  describe("Ehemalige (#3403)", () => {
+    const formerStaff = [
+      {
+        id: "7",
+        firstName: "Grace",
+        lastName: "Hopper",
+        startedOn: "2024-09-02",
+        endedOn: "2026-07-31",
+      },
+    ];
+    const formerKey = "staff-former-list";
+    const serveByKey = (former: unknown[]) =>
+      vi.mocked(useSWRAuth).mockImplementation(((key: string | null) =>
+        key === formerKey
+          ? { data: former, isLoading: false, error: null }
+          : {
+              data: key === "staff-list" ? mockStaff : undefined,
+              isLoading: false,
+              error: null,
+            }) as never);
+    const requestedKeys = () =>
+      vi.mocked(useSWRAuth).mock.calls.map(([key]) => key);
+
+    it("lists only current staff and loads no former employments without the filter", () => {
+      serveByKey(formerStaff);
+
+      render(<StaffPage />);
+
+      expect(screen.getByText("Anna Meyer")).toBeInTheDocument();
+      expect(screen.queryByText("Grace Hopper")).not.toBeInTheDocument();
+      expect(requestedKeys()).not.toContain(formerKey);
+    });
+
+    it("shows former employments with their period instead of current staff", async () => {
+      serveByKey(formerStaff);
+
+      render(<StaffPage />);
+      fireEvent.click(screen.getByTestId("filter-ehemalige"));
+
+      expect(await screen.findByText("Grace Hopper")).toBeInTheDocument();
+      expect(screen.queryByText("Anna Meyer")).not.toBeInTheDocument();
+      expect(screen.getByText("Ehemalig")).toBeInTheDocument();
+      expect(
+        screen.getByText("In moto eingetragen vom 02.09.2024 bis 31.07.2026."),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/Nur zur Information/)).toBeInTheDocument();
+      expect(screen.getByText("1 ehemalige Person")).toBeInTheDocument();
+      // A display without a target: no button to press (#3405 brings the record).
+      expect(
+        screen.queryByRole("button", { name: /Grace Hopper/ }),
+      ).not.toBeInTheDocument();
+      expect(requestedKeys()).toContain(formerKey);
+    });
+
+    it("searches former employments by name", async () => {
+      serveByKey(formerStaff);
+
+      render(<StaffPage />);
+      fireEvent.click(screen.getByTestId("filter-ehemalige"));
+      fireEvent.change(screen.getByTestId("search-input"), {
+        target: { value: "nobody" },
+      });
+
+      expect(
+        await screen.findByText("Keine Ehemaligen gefunden"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Grace Hopper")).not.toBeInTheDocument();
+    });
+
+    it("says where former employments appear when there are none", async () => {
+      serveByKey([]);
+
+      render(<StaffPage />);
+      fireEvent.click(screen.getByTestId("filter-ehemalige"));
+
+      expect(
+        await screen.findByText(
+          "Hier erscheint, wer die Schule verlassen hat.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("does not load former employments without access to the staff list", () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: { user: { id: "1", permissions: ["time_tracking:manage"] } },
+        status: "authenticated",
+      } as never);
+      serveByKey(formerStaff);
+
+      render(<StaffPage />);
+
+      expect(requestedKeys()).not.toContain(formerKey);
+      expect(screen.queryByText("Grace Hopper")).not.toBeInTheDocument();
     });
   });
 

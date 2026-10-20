@@ -19,7 +19,7 @@ import (
 type WorkSessionTestRepositories struct {
 	// Workforce is the capability the time-tracking rows are served from.
 	Workforce    workforce.Capability
-	StaffAbsence workforceCompose.StaffAbsenceRepository
+	StaffAbsence workforceCompose.AbsenceRequestRecords
 }
 
 func NewWorkSessionTestRepositoriesWithMembers(db transactionruntime.Database, members owners.MembershipTestRepositories, clocks ...func() time.Time) (WorkSessionTestRepositories, error) {

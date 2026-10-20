@@ -171,25 +171,20 @@ describe("AnnouncementDetailPage", () => {
     searchParams.set("from", "/parent-announcements?art=umfragen");
     render(<AnnouncementDetailPage />);
 
-    // Der Rückweg ist der Knopf der Kopfzeile (auf dem Telefon sichtbar);
+    // Der Rückweg ist der Link der Kopfkarte (auf jeder Breite sichtbar);
     // er trägt die Beschriftung der Art und führt auf den Herkunftsreiter.
-    fireEvent.click(
-      screen.getByRole("button", { name: "Zurück zu den Mitteilungen" }),
-    );
-    expect(pushMock).toHaveBeenCalledWith("/parent-announcements?art=umfragen");
+    expect(
+      screen.getByRole("link", { name: "Zurück zu den Mitteilungen" }),
+    ).toHaveAttribute("href", "/parent-announcements?art=umfragen");
   });
 
   it("falls back to the collection for an external referrer", () => {
     searchParams.set("from", "//attacker.example");
     render(<AnnouncementDetailPage />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Zurück zu den Mitteilungen" }),
-    );
-
-    expect(pushMock).toHaveBeenCalledWith(
-      "/parent-announcements?art=mitteilungen",
-    );
+    expect(
+      screen.getByRole("link", { name: "Zurück zu den Mitteilungen" }),
+    ).toHaveAttribute("href", "/parent-announcements?art=mitteilungen");
   });
 
   it("sends Bearbeiten to the list with the wizard request", () => {

@@ -599,6 +599,8 @@ export default function ClassListEntriesPage() {
         ) : undefined
       }
       back
+      backHref="/database/students"
+      backLabel="Zurück zu den Kinderdaten"
       overlays={
         <>
           <Modal

@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,12 +41,12 @@ func TestShiftService_MoveAcrossStaffPreservesIdentityAndConsumesSeriesOccurrenc
 	existing.SeriesOccurrenceDate = &existing.Date
 	existing.Notes = "Nur Hintereingang"
 	existing.ChangeReason = &reason
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
 
-	var persisted *StaffShift
-	repo.updateFunc = func(_ context.Context, shift *StaffShift) error {
+	var persisted *workforce.ShiftRecord
+	repo.updateFunc = func(_ context.Context, shift *workforce.ShiftRecord) error {
 		persisted = shift
 		return nil
 	}
@@ -91,11 +92,11 @@ func TestShiftService_MoveRetryReturnsAlreadyMovedRowWithoutWriting(t *testing.T
 	alreadyMoved := validShift(8)
 	alreadyMoved.ID = 5
 	alreadyMoved.Date = alreadyMoved.Date.AddDays(1)
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return alreadyMoved, nil
 	}
 	updates := 0
-	repo.updateFunc = func(_ context.Context, _ *StaffShift) error {
+	repo.updateFunc = func(_ context.Context, _ *workforce.ShiftRecord) error {
 		updates++
 		return nil
 	}
@@ -125,7 +126,7 @@ func TestShiftService_MoveSeriesDateRetainsDeviationAndConsumesOriginalDate(t *t
 	existing.ID = 5
 	existing.SeriesID = &seriesID
 	existing.SeriesOccurrenceDate = &existing.Date
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
 	var exceptionDate calendar.Date
@@ -163,11 +164,11 @@ func TestShiftService_MoveSeriesNoOpDoesNotDetachOrWrite(t *testing.T) {
 	existing.ID = 5
 	existing.SeriesID = &seriesID
 	existing.SeriesOccurrenceDate = &existing.Date
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
 	updates := 0
-	repo.updateFunc = func(_ context.Context, _ *StaffShift) error {
+	repo.updateFunc = func(_ context.Context, _ *workforce.ShiftRecord) error {
 		updates++
 		return nil
 	}
@@ -195,4 +196,14 @@ func TestShiftService_MoveSeriesNoOpDoesNotDetachOrWrite(t *testing.T) {
 	assert.False(t, moved.Detached)
 	assert.Zero(t, updates)
 	assert.Zero(t, exceptions)
+}
+
+func (m *shiftMoveExceptionRepo) RecordSeriesException(ctx context.Context, v workforce.StaffShiftSeriesException) error {
+	return m.Create(ctx, &StaffShiftSeriesException{ID: v.ID, SeriesID: v.SeriesID, TenantID: v.TenantID, Date: calendar.Date(v.Date), CreatedBy: v.CreatedBy, CreatedAt: v.CreatedAt})
+}
+func (*shiftMoveExceptionRepo) SeriesExceptionDates(context.Context, int64) ([]string, error) {
+	return nil, nil
+}
+func (*shiftMoveExceptionRepo) RepointSeriesExceptions(context.Context, int64, int64, string) (int64, error) {
+	return 0, nil
 }

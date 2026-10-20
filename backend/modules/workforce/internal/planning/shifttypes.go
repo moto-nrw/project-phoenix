@@ -101,8 +101,8 @@ func (a shiftTypeAdministration) syncCategoryLinks(ctx context.Context, shiftTyp
 	return nil
 }
 
-func shiftTypeInputToModel(input workforce.ShiftTypeInput) *ShiftType {
-	shiftType := &ShiftType{Name: input.Name, Color: input.Color, Description: input.Description}
+func shiftTypeInputToModel(input workforce.ShiftTypeInput) *workforce.ShiftTypeRecord {
+	shiftType := &workforce.ShiftTypeRecord{Name: input.Name, Color: input.Color, Description: input.Description}
 	shiftType.ID = input.ID
 	if input.IsActive != nil {
 		shiftType.IsActive = *input.IsActive
@@ -110,7 +110,7 @@ func shiftTypeInputToModel(input workforce.ShiftTypeInput) *ShiftType {
 	return shiftType
 }
 
-func shiftTypeToCapability(shiftType *ShiftType) workforce.ShiftType {
+func shiftTypeToCapability(shiftType *workforce.ShiftTypeRecord) workforce.ShiftType {
 	if shiftType == nil {
 		return workforce.ShiftType{}
 	}
@@ -120,7 +120,7 @@ func shiftTypeToCapability(shiftType *ShiftType) workforce.ShiftType {
 	}
 }
 
-func shiftTypesToCapability(types []*ShiftType) []workforce.ShiftType {
+func shiftTypesToCapability(types []*workforce.ShiftTypeRecord) []workforce.ShiftType {
 	result := make([]workforce.ShiftType, 0, len(types))
 	for _, shiftType := range types {
 		if shiftType == nil {

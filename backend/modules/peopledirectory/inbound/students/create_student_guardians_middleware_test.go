@@ -75,7 +75,7 @@ func TestCreateStudent_BadGuardianDoesNotCommitUnderTenantTx(t *testing.T) {
 		},
 	}
 
-	assertNoStudentCommittedUnderTenantTx(t, tc, firstName, lastName, body, "Erziehungsberechtigte")
+	assertNoStudentCommittedUnderTenantTx(t, tc, firstName, lastName, body, "erziehungsberechtigte")
 }
 
 // TestCreateStudent_GuardianInvalidRelationshipType covers the Critical finding:

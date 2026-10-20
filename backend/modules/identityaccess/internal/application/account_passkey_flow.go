@@ -330,28 +330,7 @@ func (f *AccountPasskeyFlows) verifyLogin(ctx context.Context, request domain.Ac
 	// assertion; a failed read is kept apart.
 	var readErr error
 	user, credential, err := relyingParty.ValidatePasskeyLogin(func(rawID, userHandle []byte) (webauthn.User, error) {
-		row, findErr := f.records.FindActiveCredential(ctx, rawID, userHandle)
-		if findErr != nil {
-			if !errors.Is(findErr, domain.ErrAccountPasskeyNotFound) {
-				readErr = findErr
-			}
-			return nil, findErr
-		}
-		matchedCredentialID = row.ID
-		account, found, accountErr := f.accounts.FindAccountIdentity(ctx, row.AccountID)
-		if accountErr != nil {
-			readErr = accountErr
-			return nil, accountErr
-		}
-		if !found {
-			return nil, domain.ErrAccountNotFound
-		}
-		passkeyUser, userErr := f.passkeyUser(ctx, account)
-		if userErr != nil {
-			readErr = userErr
-			return nil, userErr
-		}
-		return passkeyUser, nil
+		return f.resolveLoginPasskeyUser(ctx, rawID, userHandle, &matchedCredentialID, &readErr)
 	}, sessionData, parsed)
 	if readErr != nil {
 		return verifiedAccountPasskeyLogin{}, readErr
@@ -437,4 +416,29 @@ func (f *AccountPasskeyFlows) passkeyUser(ctx context.Context, account domain.Ac
 		ID: account.ID, UserHandle: handle, Name: account.Email,
 		DisplayName: account.Email, Credentials: credentials,
 	}, nil
+}
+
+func (f *AccountPasskeyFlows) resolveLoginPasskeyUser(ctx context.Context, rawID, userHandle []byte, matchedCredentialID *int64, readErr *error) (webauthn.User, error) {
+	row, findErr := f.records.FindActiveCredential(ctx, rawID, userHandle)
+	if findErr != nil {
+		if !errors.Is(findErr, domain.ErrAccountPasskeyNotFound) {
+			*readErr = findErr
+		}
+		return nil, findErr
+	}
+	*matchedCredentialID = row.ID
+	account, found, accountErr := f.accounts.FindAccountIdentity(ctx, row.AccountID)
+	if accountErr != nil {
+		*readErr = accountErr
+		return nil, accountErr
+	}
+	if !found {
+		return nil, domain.ErrAccountNotFound
+	}
+	passkeyUser, userErr := f.passkeyUser(ctx, account)
+	if userErr != nil {
+		*readErr = userErr
+		return nil, userErr
+	}
+	return passkeyUser, nil
 }

@@ -15,7 +15,9 @@ import (
 )
 
 func (s *workSessionService) GetCurrentSession(ctx context.Context, staffID int64) (*WorkSession, error) {
-	session, err := s.repo.GetCurrentByStaffID(ctx, staffID)
+	sessionRecords, err := s.repo.TodayOpenWorkSession(ctx, staffID)
+	session := workSessionReadRecord(sessionRecords, err)
+	err = rowReadError("get current by staff ID", err, workforce.ErrWorkSessionNotFound)
 	if err != nil {
 		if isRecordNotFound(err) {
 			return nil, nil
@@ -27,7 +29,9 @@ func (s *workSessionService) GetCurrentSession(ctx context.Context, staffID int6
 }
 
 func (s *workSessionService) GetLatestOpenSession(ctx context.Context, staffID int64) (*WorkSession, error) {
-	session, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
+	sessionRecords, err := s.repo.LatestOpenWorkSession(ctx, staffID)
+	session := workSessionReadRecord(sessionRecords, err)
+	err = rowReadError("get latest open by staff ID", err, workforce.ErrWorkSessionNotFound)
 	if err != nil {
 		if isRecordNotFound(err) {
 			return nil, nil
@@ -39,7 +43,9 @@ func (s *workSessionService) GetLatestOpenSession(ctx context.Context, staffID i
 }
 
 func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from, to calendar.Date) (*HistoryResponse, error) {
-	sessions, err := s.repo.GetHistoryByStaffID(ctx, staffID, from, to)
+	sessionsRecords, err := s.repo.ListWorkSessions(ctx, workforce.WorkSessionFilter{StaffID: staffID, DateFrom: from.String(), DateTo: to.String(), Order: workSessionOrder(workforce.WorkSessionOrderDate, workforce.WorkSessionOrderCheckInTime)})
+	sessions := workSessionsToRecords(sessionsRecords)
+	err = rowReadError("get history by staff ID", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get session history: %w", err)
 	}
@@ -48,7 +54,9 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 
 func (s *workSessionService) GetHistoryIntersecting(ctx context.Context, staffID int64, from, to calendar.Date) (*HistoryResponse, error) {
 	end := to.AddDays(1).BerlinMidnight()
-	sessions, err := s.repo.ListOverlappingByStaffID(ctx, staffID, from.BerlinMidnight(), &end)
+	sessionsRecords, err := s.repo.ListOverlappingWorkSessions(ctx, []int64{staffID}, from.BerlinMidnight(), &end)
+	sessions := workSessionsToRecords(sessionsRecords)
+	err = rowReadError("list overlapping by staff ID", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get intersecting session history: %w", err)
 	}
@@ -78,7 +86,14 @@ func (s *workSessionService) historyResponse(ctx context.Context, staffID int64,
 	if err != nil {
 		return nil, fmt.Errorf("failed to get audit counts: %w", err)
 	}
-	breaksBySession, err := s.breakRepo.GetBySessionIDs(ctx, sessionIDs)
+	var breaksBySessionRecords []workforce.WorkSessionBreak
+	var breakErr error
+	if len(sessionIDs) > 0 {
+		breaksBySessionRecords, breakErr = s.breakRepo.ListWorkSessionBreaks(ctx, workforce.WorkSessionBreakFilter{SessionIDs: sessionIDs})
+	}
+	err = breakErr
+	breaksBySession := workBreaksBySession(breaksBySessionRecords)
+	err = rowReadError("get breaks by session IDs", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get breaks: %w", err)
 	}
@@ -140,45 +155,18 @@ func sessionHistoryResponses(sessions []*WorkSession, breaksBySession map[int64]
 // asked about — including ISO weeks with no visible row to explain them — so
 // only the days inside the range are counted (#2402).
 func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, targetsByWeek map[summaryWeekKey]int, from, to calendar.Date) []WeeklySummary {
-	weekMap := make(map[summaryWeekKey]*WeeklySummary)
-	var weekOrder []summaryWeekKey
+	weeks := weeklySummaryAccumulator{weekMap: make(map[summaryWeekKey]*WeeklySummary), targetsByWeek: targetsByWeek}
 	now := time.Now()
 
 	for _, session := range sessions {
 		end := BalanceSessionEnd(session.WorkSession, now)
 		countedWeeks := make(map[summaryWeekKey]struct{})
-		// The first day is derived from the check-in instant, never from the
-		// stored date: an admin Nachtrag files a block under a date it may
-		// choose freely (CreateSessionAsAdmin), so a block stamped 23:00 and
-		// filed on the following day would lose its pre-midnight minutes here
-		// while the balance — which starts at the check-in — still counts them.
-		firstDay, lastDay := calendar.DateFromTime(session.CheckInTime), calendar.DateFromTime(end)
-		if firstDay.Before(from) {
-			firstDay = from
-		}
-		if lastDay.After(to) {
-			lastDay = to
-		}
+		firstDay, lastDay := summarySessionDays(session.CheckInTime, end, from, to)
 		for day, minutes := range netMinutesByDate(session.WorkSession, session.Breaks, end, firstDay, lastDay) {
 			year, week := day.UTCMidnight().ISOWeek()
 			key := summaryWeekKey{Year: year, Week: week}
 
-			summary, exists := weekMap[key]
-			if !exists {
-				var targetMinutes *int
-				if target, ok := targetsByWeek[key]; ok {
-					targetCopy := target
-					targetMinutes = &targetCopy
-				}
-				summary = &WeeklySummary{
-					WeekNumber:    week,
-					Year:          year,
-					TargetMinutes: targetMinutes,
-				}
-				weekMap[key] = summary
-				weekOrder = append(weekOrder, key)
-			}
-
+			summary := weeks.week(key)
 			summary.TotalNetMinutes += minutes
 			if _, counted := countedWeeks[key]; !counted {
 				summary.SessionCount++
@@ -187,7 +175,53 @@ func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, t
 		}
 	}
 
-	return weeklySummaryValues(weekMap, weekOrder)
+	return weeklySummaryValues(weeks.weekMap, weeks.weekOrder)
+}
+
+// summarySessionDays returns the days a block contributes to, clamped to the
+// summary range. The first day is derived from the check-in instant, never
+// from the stored date: an admin Nachtrag files a block under a date it may
+// choose freely (CreateSessionAsAdmin), so a block stamped 23:00 and filed on
+// the following day would lose its pre-midnight minutes here while the
+// balance — which starts at the check-in — still counts them.
+func summarySessionDays(checkIn, end time.Time, from, to calendar.Date) (calendar.Date, calendar.Date) {
+	firstDay, lastDay := calendar.DateFromTime(checkIn), calendar.DateFromTime(end)
+	if firstDay.Before(from) {
+		firstDay = from
+	}
+	if lastDay.After(to) {
+		lastDay = to
+	}
+	return firstDay, lastDay
+}
+
+// weeklySummaryAccumulator collects the weekly summaries in the order their
+// weeks are first encountered.
+type weeklySummaryAccumulator struct {
+	weekMap       map[summaryWeekKey]*WeeklySummary
+	weekOrder     []summaryWeekKey
+	targetsByWeek map[summaryWeekKey]int
+}
+
+// week returns the summary of the week, starting it with the week's target
+// on first use.
+func (w *weeklySummaryAccumulator) week(key summaryWeekKey) *WeeklySummary {
+	if summary, exists := w.weekMap[key]; exists {
+		return summary
+	}
+	var targetMinutes *int
+	if target, ok := w.targetsByWeek[key]; ok {
+		targetCopy := target
+		targetMinutes = &targetCopy
+	}
+	summary := &WeeklySummary{
+		WeekNumber:    key.Week,
+		Year:          key.Year,
+		TargetMinutes: targetMinutes,
+	}
+	w.weekMap[key] = summary
+	w.weekOrder = append(w.weekOrder, key)
+	return summary
 }
 
 // weeklySummaryValues keeps the encountered week order and derives the limit and target deltas.
@@ -375,7 +409,9 @@ func summaryKeysOf(targets map[calendar.Date]int) map[summaryWeekKey]int {
 
 func (s *workSessionService) GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error) {
 	// Verify ownership: session must belong to requesting staff
-	session, err := s.repo.FindByID(ctx, sessionID)
+	sessionRecords, err := s.repo.FindWorkSession(ctx, sessionID)
+	session := workSessionReadRecord(sessionRecords, err)
+	err = rowReadError("find by id", err, workforce.ErrWorkSessionNotFound)
 	if err != nil {
 		return nil, s.handleSessionNotFoundError(err)
 	}
@@ -387,7 +423,9 @@ func (s *workSessionService) GetSessionEdits(ctx context.Context, staffID, sessi
 }
 
 func (s *workSessionService) GetSessionEditsForStaff(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error) {
-	session, err := s.repo.FindByID(ctx, sessionID)
+	sessionRecords, err := s.repo.FindWorkSession(ctx, sessionID)
+	session := workSessionReadRecord(sessionRecords, err)
+	err = rowReadError("find by id", err, workforce.ErrWorkSessionNotFound)
 	if err != nil {
 		return nil, s.handleSessionNotFoundError(err)
 	}

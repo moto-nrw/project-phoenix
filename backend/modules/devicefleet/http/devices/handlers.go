@@ -202,7 +202,7 @@ func (rs *Resource) deleteDevice(w http.ResponseWriter, r *http.Request) {
 	// Delete device
 	if err := rs.IoTService.DeleteDevice(r.Context(), id); err != nil {
 		if rs.runtime.ConstraintViolation(err) {
-			rs.runtime.Failure(w, r, http.StatusConflict, errors.New("Gerät kann nicht gelöscht werden: Gerät wird aktuell von einer aktiven Gruppe verwendet"), "") //nolint:staticcheck // Preserve the existing user-facing wire message.
+			rs.runtime.Failure(w, r, http.StatusConflict, errors.New("gerät kann nicht gelöscht werden: Gerät wird aktuell von einer aktiven Gruppe verwendet"), "")
 			return
 		}
 		rs.renderError(w, r, err)

@@ -14,7 +14,7 @@ import (
 )
 
 type recordingBalanceAdjustmentRepo struct {
-	StaffBalanceAdjustmentRepository
+	BalanceAdjustmentRecords
 	events     *[]string
 	adjustment *StaffBalanceAdjustment
 	resets     []*StaffBalanceAdjustment

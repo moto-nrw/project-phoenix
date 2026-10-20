@@ -552,12 +552,16 @@ func (s *Seeder) populateSeedAccounts(state *SeedState, fs *FixedSeeder) {
 	betreuerIndex := 0
 	for _, cred := range fs.staffCredentials {
 		staffKey := cred.Name
+		staffID, ok := fs.staffIDs[staffKey]
+		if !ok {
+			continue
+		}
 		ac := AccountCredentials{
 			AccountID: cred.AccountID,
 			Email:     cred.Email,
 			Password:  cred.Password,
 			Name:      cred.Name,
-			StaffID:   fs.staffIDs[staffKey],
+			StaffID:   staffID,
 		}
 		if len(DemoStaff) > 0 && cred.Name == DemoStaff[0].FirstName+" "+DemoStaff[0].LastName {
 			ac.Key = sharedDeveloperAdminKey

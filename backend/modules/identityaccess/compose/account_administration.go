@@ -5,6 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	internalports "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
 // newAccountAdministration composes the account administration flows
@@ -14,7 +15,7 @@ import (
 func newAccountAdministration(
 	store internalports.AccountAdministrationStore,
 	auth *application.AccountAuthentication,
-	sessions *SessionDependencies,
+	sessions *identityBindingPorts.SessionDependencies,
 	deps *LifecycleDependencies,
 ) (*application.AccountAdministration, error) {
 	if deps == nil {
@@ -31,7 +32,7 @@ func newAccountAdministration(
 		Schools:   application.SchoolDirectory{Source: sessions.Schools},
 		Verifier:  sessions.Passwords,
 		Passwords: deps.Passwords,
-		Runtime:   tenantRuntime{attach: sessions.TenantRuntime, runner: newTransactionRunner()},
+		Runtime:   tenantRuntime{attach: sessions.TenantRuntime, runner: application.NewTransactionRunner()},
 		Logger:    deps.Logger,
 	})
 }

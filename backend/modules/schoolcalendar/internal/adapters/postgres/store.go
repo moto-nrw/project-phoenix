@@ -357,39 +357,9 @@ func (s *Store) ListDateframes(ctx context.Context, filter domain.DateframeFilte
 		}
 		query = query.Where(`"dateframe".id IN (?)`, bun.List(filter.IDs))
 	}
-	if filter.Name != "" {
-		query = query.Where(`"dateframe".name = ?`, filter.Name)
-	}
-	if filter.NameFold != "" {
-		query = query.Where(`LOWER("dateframe".name) = LOWER(?)`, filter.NameFold)
-	}
-	if filter.NamePattern != "" {
-		query = query.Where(`"dateframe".name ILIKE ?`, filter.NamePattern)
-	}
-	if filter.Contains != nil {
-		query = query.
-			Where(`"dateframe".start_date <= ?`, *filter.Contains).
-			Where(`"dateframe".end_date >= ?`, *filter.Contains)
-	}
-	if filter.OverlappingFrom != nil && filter.OverlappingTo != nil {
-		query = query.
-			Where(`"dateframe".start_date <= ?`, *filter.OverlappingTo).
-			Where(`"dateframe".end_date >= ?`, *filter.OverlappingFrom)
-	}
-	if len(filter.Sort) == 0 {
-		query = query.OrderExpr(`"dateframe".id ASC`)
-	}
-	for _, sort := range filter.Sort {
-		query, err = orderDateframes(query, sort)
-		if err != nil {
-			return nil, domain.OperationStats{}, err
-		}
-	}
-	if filter.Limit > 0 {
-		query = query.Limit(int64(filter.Limit))
-	}
-	if filter.Offset > 0 {
-		query = query.Offset(int64(filter.Offset))
+	query, err = orderAndPageDateframes(filterDateframes(query, filter), filter)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
 	}
 	stats, err := scanAll(ctx, query, "list dateframes")
 	if err != nil {
@@ -457,6 +427,53 @@ func (s *Store) DeleteDateframe(ctx context.Context, id int64) (domain.Operation
 		ModelTableExpr(`schedule.dateframes AS "dateframe"`).
 		Where(`"dateframe".id = ?`, id), "dateframe", tenantID)
 	return execDelete(ctx, query, "delete dateframe", domain.ErrDateframeNotFound)
+}
+
+// filterDateframes applies the name and date-range conditions of a dateframe
+// filter.
+func filterDateframes(query *bun.SelectQuery, filter domain.DateframeFilter) *bun.SelectQuery {
+	if filter.Name != "" {
+		query = query.Where(`"dateframe".name = ?`, filter.Name)
+	}
+	if filter.NameFold != "" {
+		query = query.Where(`LOWER("dateframe".name) = LOWER(?)`, filter.NameFold)
+	}
+	if filter.NamePattern != "" {
+		query = query.Where(`"dateframe".name ILIKE ?`, filter.NamePattern)
+	}
+	if filter.Contains != nil {
+		query = query.
+			Where(`"dateframe".start_date <= ?`, *filter.Contains).
+			Where(`"dateframe".end_date >= ?`, *filter.Contains)
+	}
+	if filter.OverlappingFrom != nil && filter.OverlappingTo != nil {
+		query = query.
+			Where(`"dateframe".start_date <= ?`, *filter.OverlappingTo).
+			Where(`"dateframe".end_date >= ?`, *filter.OverlappingFrom)
+	}
+	return query
+}
+
+// orderAndPageDateframes applies the sort order (id ascending by default),
+// limit and offset of a dateframe filter.
+func orderAndPageDateframes(query *bun.SelectQuery, filter domain.DateframeFilter) (*bun.SelectQuery, error) {
+	if len(filter.Sort) == 0 {
+		query = query.OrderExpr(`"dateframe".id ASC`)
+	}
+	var err error
+	for _, sort := range filter.Sort {
+		query, err = orderDateframes(query, sort)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if filter.Limit > 0 {
+		query = query.Limit(int64(filter.Limit))
+	}
+	if filter.Offset > 0 {
+		query = query.Offset(int64(filter.Offset))
+	}
+	return query, nil
 }
 
 func dateframeSelect(db bun.IDB, model any) *bun.SelectQuery {

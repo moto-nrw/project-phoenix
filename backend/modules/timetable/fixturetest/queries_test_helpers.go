@@ -34,20 +34,6 @@ func (adapter fromTimeframeRecords) List(ctx context.Context, options *QueryOpti
 	values, err := source.ListTimeframes(ctx, timetable.TimeframeFilter{DescriptionContains: strings.TrimSuffix(strings.TrimPrefix(description, "%"), "%"), Limit: limit, Offset: offset})
 	return fromNative44(values), err
 }
-func (adapter fromRecurrenceRuleRecords) List(ctx context.Context, options *QueryOptions) ([]*RecurrenceRule, error) {
-	frequency, frequencies, sortBy, descending, limit, offset, err := RecurrenceRuleListOptions(options)
-	if err != nil {
-		return nil, queryError("list", err)
-	}
-	source, ok := adapter.value.(interface {
-		ListRecurrences(context.Context, timetable.RecurrenceRuleFilter) ([]*records.RecurrenceRule, error)
-	})
-	if !ok {
-		return nil, fmt.Errorf("fixture RecurrenceRule query is not configured for %T", adapter.value)
-	}
-	values, err := source.ListRecurrences(ctx, timetable.RecurrenceRuleFilter{Frequency: frequency, Frequencies: frequencies, SortBy: sortBy, SortDescending: descending, Limit: limit, Offset: offset})
-	return fromNative37(values), err
-}
 func (adapter fromActivityExceptionRecords) List(ctx context.Context, options *QueryOptions) ([]*ActivityException, error) {
 	groupID, limit, offset, err := ActivityExceptionListOptions(options)
 	if err != nil {

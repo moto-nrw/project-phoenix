@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/adapters/postgres"
+	applicationBindings "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application"
 )
 
 // DeletionOwner is the Enrollment owner slice the admin deletion and the
@@ -54,7 +55,7 @@ func NewDeletionModule(deps DeletionModuleDependencies) DeletionModule {
 	})
 	deletions := NewDeletions(DeletionDependencies{
 		Requests: deps.Owner, Children: deps.Owner, Preview: preview, Audit: deps.Audit,
-		Delivery: deps.Delivery, Logger: withService(deps.Logger, "enrollment-deletion"),
+		Delivery: deps.Delivery, Logger: applicationBindings.WithService(deps.Logger, "enrollment-deletion"),
 	})
 	// The cleanup audits through the shared preview only with an audit trail
 	// bound; without one (focused suites) it runs its unaudited path.
@@ -65,14 +66,7 @@ func NewDeletionModule(deps DeletionModuleDependencies) DeletionModule {
 	cleanup := NewRejectedCleanup(RejectedCleanupDependencies{
 		Requests: deps.Owner, Children: deps.Owner, LateInvites: deps.Owner, Delivery: deps.Delivery,
 		Settings: deps.Retention, Preview: cleanupPreview, Audit: deps.Audit,
-		Logger: withService(deps.Logger, "enrollment-rejected-cleanup"),
+		Logger: applicationBindings.WithService(deps.Logger, "enrollment-rejected-cleanup"),
 	})
 	return DeletionModule{Preview: preview, Deletions: deletions, Cleanup: cleanup}
-}
-
-func withService(logger *slog.Logger, service string) *slog.Logger {
-	if logger == nil {
-		return nil
-	}
-	return logger.With("service", service)
 }

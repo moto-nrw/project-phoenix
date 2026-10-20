@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -26,11 +25,11 @@ func TestWorkSessionHistoryQueryBudget(t *testing.T) {
 				Status: workforce.WorkSessionStatusPresent, Source: workforce.WorkSessionSourceApp,
 				CheckInTime: checkIn, CheckOutTime: &checkOut, CreatedBy: f.staff}
 			session.SetTenantID(f.tenantID)
-			require.NoError(t, workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions.Create(f.ctx, session))
+			createSessionFixture(t, f.workforce, f.ctx, session)
 			ended := checkIn.Add(30 * time.Minute)
 			brk := &timetracking.WorkSessionBreak{SessionID: session.ID, StartedAt: checkIn, EndedAt: &ended, DurationMinutes: 30}
 			brk.SetTenantID(f.tenantID)
-			require.NoError(t, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks.Create(f.ctx, brk))
+			createBreakFixture(t, f.workforce, f.ctx, brk)
 		}
 	}
 	add(0, 2)

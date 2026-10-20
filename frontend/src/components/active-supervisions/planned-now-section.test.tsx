@@ -278,6 +278,94 @@ describe("PlannedNowSection", () => {
     expect(screen.queryByLabelText(/Planungs-Hinweis/)).toBeNull();
   });
 
+  // #4350: dieselbe Markierung wie im Tagesplan. Ob ein Block der eigene ist,
+  // zeigt die Tönung der Karte; eine Pille gibt es nur noch für eine Rolle.
+  it("tints the caller's own cards and keeps pills only for a role (#4350)", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          { ...plannedInstance, id: "own", title: "Basteln", isPrimary: false },
+          {
+            ...plannedInstance,
+            id: "sub",
+            title: "Hausaufgaben",
+            isPrimary: false,
+            isSubstitute: true,
+          },
+          {
+            ...plannedInstance,
+            id: "foreign",
+            title: "Fußball-AG",
+            isAssigned: false,
+            isPrimary: false,
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    const card = (title: string) =>
+      screen
+        .getByRole("heading", { name: new RegExp(title) })
+        .closest("article") as HTMLElement;
+    expect(card("Basteln").style.backgroundColor).not.toBe("");
+    expect(card("Basteln")).toHaveTextContent("Mein Block");
+    expect(card("Fußball-AG").style.backgroundColor).toBe("");
+    expect(card("Fußball-AG")).not.toHaveTextContent("Mein Block");
+    expect(screen.getByText("Vertretung")).toBeInTheDocument();
+    expect(screen.queryByText("Zugewiesen")).toBeNull();
+    expect(screen.queryByText("Info")).toBeNull();
+  });
+
+  it("tints only the own card in its track colour, without a coloured left edge (#4413)", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            id: "own",
+            title: "Basteln",
+            planningTrackColor: "#5080D8",
+          },
+          {
+            ...plannedInstance,
+            id: "foreign",
+            title: "Fußball-AG",
+            isAssigned: false,
+            isPrimary: false,
+            planningTrackColor: "#5080D8",
+          },
+          {
+            ...plannedInstance,
+            id: "cancelled",
+            title: "Chor",
+            status: "cancelled",
+            planningTrackColor: "#5080D8",
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    const card = (title: string) =>
+      screen
+        .getByRole("heading", { name: new RegExp(title) })
+        .closest("article") as HTMLElement;
+    const own = card("Basteln");
+    const tint = document.createElement("div");
+    tint.style.backgroundColor = "#5080D81A";
+    expect(own.style.backgroundColor).toBe(tint.style.backgroundColor);
+    expect(own.style.borderLeftColor).toBe("");
+    expect(own).not.toHaveClass("border-l-4");
+    for (const title of ["Fußball-AG", "Chor"]) {
+      expect(card(title).style.backgroundColor).toBe("");
+      expect(card(title).style.borderLeftColor).toBe("");
+      expect(card(title)).not.toHaveClass("border-l-4");
+    }
+  });
+
   it("keeps slots the caller is not assigned to collapsed until opened", () => {
     render(
       <PlannedNowSection

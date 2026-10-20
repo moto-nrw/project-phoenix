@@ -68,7 +68,7 @@ func (p staffShiftPlanning) ListShifts(ctx context.Context, query workforce.Shif
 	if err != nil {
 		return nil, err
 	}
-	var shifts []*StaffShift
+	var shifts []*workforce.ShiftRecord
 	if query.StaffID > 0 {
 		shifts, err = p.deps.Shifts.ListShiftsForStaff(ctx, query.StaffID, from, to)
 	} else {
@@ -293,7 +293,7 @@ func (p staffShiftPlanning) ExportPlan(ctx context.Context, request workforce.Pl
 
 // --- mapping ---
 
-func shiftInputToModel(input workforce.StaffShiftInput) (*StaffShift, error) {
+func shiftInputToModel(input workforce.StaffShiftInput) (*workforce.ShiftRecord, error) {
 	date, err := planningDate(input.Date, "date")
 	if err != nil {
 		return nil, err
@@ -302,7 +302,7 @@ func shiftInputToModel(input workforce.StaffShiftInput) (*StaffShift, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &StaffShift{
+	return &workforce.ShiftRecord{
 		StaffID: input.StaffID, Date: date, StartTime: start, EndTime: end,
 		BreakMinutes: input.BreakMinutes, ShiftTypeID: input.ShiftTypeID, Notes: input.Notes,
 		Cancelled: input.Cancelled, ChangeReason: input.ChangeReason, OriginShiftID: input.OriginShiftID,
@@ -342,7 +342,7 @@ func seriesInputToModel(input workforce.StaffShiftSeriesInput) (*StaffShiftSerie
 	}, nil
 }
 
-func plannedShiftToCapability(shift *StaffShift) workforce.PlannedShift {
+func plannedShiftToCapability(shift *workforce.ShiftRecord) workforce.PlannedShift {
 	if shift == nil {
 		return workforce.PlannedShift{}
 	}
@@ -363,7 +363,7 @@ func plannedShiftToCapability(shift *StaffShift) workforce.PlannedShift {
 	return value
 }
 
-func plannedShiftsToCapability(shifts []*StaffShift) []workforce.PlannedShift {
+func plannedShiftsToCapability(shifts []*workforce.ShiftRecord) []workforce.PlannedShift {
 	result := make([]workforce.PlannedShift, 0, len(shifts))
 	for _, shift := range shifts {
 		if shift == nil {

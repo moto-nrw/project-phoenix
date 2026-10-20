@@ -230,3 +230,50 @@ func requirePlanningTrackRollback(t *testing.T, ctx context.Context, write func(
 }
 
 func planningTrackTime(value time.Time) *time.Time { return &value }
+
+// Archived rows resolve by ID too (historical references keep their colour);
+// unknown IDs are simply absent instead of an error.
+func TestModulePlanningTracksResolveArchivedAndUnknownIDs(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+
+	active := createOwnedPlanningTrack(t, module, ctx, "Früh", "#5080D8", 0)
+	archived := createOwnedPlanningTrack(t, module, ctx, "Mittag", "#F78C10", 1)
+	_, ok, err := module.SetPlanningTrackArchivedAt(ctx, archived.ID, planningTrackTime(time.Now()))
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	tracks, err := module.ListPlanningTracks(ctx, timetable.PlanningTrackFilter{IDs: []int64{active.ID, archived.ID, archived.ID + 1000}})
+	require.NoError(t, err)
+	require.Len(t, tracks, 2)
+	byID := map[int64]timetable.PlanningTrack{}
+	for _, track := range tracks {
+		byID[track.ID] = track
+	}
+	require.Contains(t, byID, active.ID)
+	require.Contains(t, byID, archived.ID)
+	assert.NotNil(t, byID[archived.ID].ArchivedAt)
+}
+
+func TestModulePlanningTrackRejectsPartialOrder(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	first := createOwnedPlanningTrack(t, module, ctx, "Früh", "#5080D8", 0)
+	second := createOwnedPlanningTrack(t, module, ctx, "Mittag", "#F78C10", 1)
+
+	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		return module.ReorderPlanningTracks(txCtx, []int64{first.ID})
+	})
+	require.ErrorIs(t, err, timetable.ErrPlanningTrackNotFound, "partial order must report not found")
+
+	err = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		require.NoError(t, module.ReorderPlanningTracks(txCtx, nil))
+		return module.ReorderPlanningTracks(txCtx, []int64{first.ID, first.ID + second.ID + 1000})
+	})
+	require.Error(t, err)
+	require.Error(t, module.ReorderPlanningTracks(context.Background(), []int64{first.ID, second.ID}))
+}

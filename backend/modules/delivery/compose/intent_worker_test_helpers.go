@@ -9,8 +9,8 @@ import (
 )
 
 func DrainEmailForTest(ctx context.Context, runtime *Runtime, provider Provider, tenantID, id int64) error {
-	return application.DrainEmailForTest(ctx, runtime.store, providerAdapter{provider: provider}, runtime.observe, tenantID, id)
+	return application.DrainEmailForTest(ctx, runtime.Store, application.ProviderAdapter{Provider: provider}, runtime.Observe, tenantID, id)
 }
 func DeleteSystemEmailForTest(ctx context.Context, runtime *Runtime, id int64) error {
-	return application.DeleteSystemEmailForTest(ctx, runtime.store, id)
+	return application.DeleteSystemEmailForTest(ctx, runtime.Store, id)
 }

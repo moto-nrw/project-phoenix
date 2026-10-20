@@ -259,7 +259,12 @@ describe("ParentCalendarPage", () => {
     expect(
       within(dialog).getByRole("heading", { name: "Elternabend" }),
     ).toBeInTheDocument();
-    expect(within(dialog).getByText("Für Hannah Klein")).toBeInTheDocument();
+    const childRow = within(dialog).getByText("Für Hannah Klein");
+    expect(
+      childRow.parentElement?.querySelector(
+        'svg[data-moto-duotone-tone="greenVivid"]',
+      ),
+    ).toBeInTheDocument();
     expect(within(dialog).getByText("Aula")).toBeInTheDocument();
 
     fireEvent.keyDown(dialog, { key: "Escape" });

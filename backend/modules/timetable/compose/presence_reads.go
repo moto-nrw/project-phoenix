@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
-
+	postgresNative "github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -24,5 +24,5 @@ func NewPresenceReads(projection ports.PresenceProjection) (PresenceReads, error
 
 // PresenceDatabase exposes the existing runtime for root binding, not a projection dependency.
 func PresenceDatabase(db *bun.DB) func(context.Context) (bun.IDB, int64, error) {
-	return databaseRuntime(db)
+	return postgresNative.DatabaseRuntime(db)
 }

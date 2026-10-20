@@ -3,13 +3,10 @@ package compose
 import (
 	"context"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-
-	"github.com/uptrace/bun"
-
 	usersRepo "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	"github.com/uptrace/bun"
 )
 
 // The retained People Directory repositories (database/repositories/users) are
@@ -75,16 +72,7 @@ func NewGuardianRelationshipRepository(db *bun.DB, dependencies GuardianRelation
 	return application.NewGuardianRelationshipCommands(usersRepo.NewGuardianRelationshipRepository(NewLegacyRepositoryRuntime(db), dependencies.Students, dependencies.Links,
 		usersRepo.WithGuardianRelationshipMemberships(dependencies.Memberships),
 		usersRepo.WithGuardianRelationshipOwners(dependencies.Pickup, dependencies.Access),
-		usersRepo.WithGuardianDefaultRole(defaultGuardianRole(dependencies.RolePresets))), NewLegacyRepositoryRuntime(db))
-}
-
-// defaultGuardianRole applies the default preset, or nothing without a
-// policy.
-func defaultGuardianRole(presets peoplePorts.GuardianRolePresets) func(*peopleValues.GuardianRelationshipSnapshot) {
-	if presets == nil {
-		return nil
-	}
-	return func(link *peopleValues.GuardianRelationshipSnapshot) { ApplyDefaultGuardianRole(presets, link) }
+		usersRepo.WithGuardianDefaultRole(application.DefaultGuardianRole(dependencies.RolePresets))), NewLegacyRepositoryRuntime(db))
 }
 
 // NewGuardianPhoneNumberRepository is the guardian phone number repository.

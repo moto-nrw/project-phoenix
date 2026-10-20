@@ -65,7 +65,10 @@ measured the registers again:
    After development contracted the compositions (base 16,742 lines, the
    parent binding at 279), the same changes measure 5 lines for
    `modules/mealplan/compose` and 29 for `workflows/parentportal/compose`
-   (279 to 308); with ADR 0074 the total is 16,856.
+   (279 to 308); with ADR 0074 the total is 16,856. After the next
+   contraction (2026-10-20, base 12,446 lines) they measure the same 5 and
+   29 lines: `modules/mealplan/compose` from 69 to 74, and with ADR 0074 the
+   total is 12,561.
    `modulePassthroughOwnerBudgets["workflows/parentportal"]` rises from 17
    to 18 for the adapter's week method.
 4. `modulePassthroughOwnerBudgets["modules/mealplan"]` stays at 15 and the

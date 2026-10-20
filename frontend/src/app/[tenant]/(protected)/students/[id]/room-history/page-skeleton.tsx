@@ -1,6 +1,7 @@
 "use client";
 
 import { Skeleton } from "~/components/ui/skeleton";
+import { StudentHistoryLoadingBack } from "../student-history-loading-back";
 import { TenantPageHeaderSkeleton } from "~/components/ui/page-skeletons";
 
 // Mirrors the loaded page: back button, student header (name + plain
@@ -15,10 +16,8 @@ export function RoomHistorySkeleton() {
       data-testid="room-history-skeleton"
       className="w-full"
     >
-      <Skeleton className="mb-4 h-9 w-24 rounded-lg" />
-
       {/* Spiegelt die Kopfkarte des geladenen Zustands. */}
-      <TenantPageHeaderSkeleton leading />
+      <TenantPageHeaderSkeleton leading back={<StudentHistoryLoadingBack />} />
 
       <div className="mb-4 grid grid-cols-1 gap-4 md:mb-6 md:grid-cols-2 md:gap-6">
         {Array.from({ length: 2 }, (_, i) => (

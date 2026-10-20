@@ -491,6 +491,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/auth/guardian-invitations/{token}/accept"}:                   sessionOr("guardian_invite_accepted", SurfaceParents),
 	{http.MethodPost, "/auth/invitations/"}:                                          event("staff_invited"),
 	{http.MethodDelete, "/auth/invitations/{id}/"}:                                   notCaptured,
+	{http.MethodPost, "/auth/invitations/former-employment"}:                         notCaptured,
 	{http.MethodPost, "/auth/invitations/{id}/resend"}:                               notCaptured,
 	{http.MethodPost, "/auth/invitations/{token}/accept"}:                            notCaptured,
 	{http.MethodPost, "/auth/link-to-tenant"}:                                        notCaptured,

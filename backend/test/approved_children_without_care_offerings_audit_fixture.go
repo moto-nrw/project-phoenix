@@ -36,7 +36,8 @@ func verifyApprovedChildrenWithoutCareOfferingsAudit(t *testing.T) {
 	ctx := Ctx(t)
 	phase := CreateTestEnrollmentPhase(t, db)
 	phase.CareOfferingSelectionMode = enrollmentOwner.PhaseCareOfferingSelectionAtLeastOne
-	require.NoError(t, TenantCommand1(t, ctx, db, enrollmentOwner.New().UpdatePhase, phase))
+	_, err := db.NewUpdate().Table("enrollment.phases").Set("care_offering_selection_mode = ?", phase.CareOfferingSelectionMode).Set("updated_at = NOW()").Where("tenant_id = ?", phase.TenantID).Where("id = ?", phase.ID).Exec(ctx)
+	require.NoError(t, err)
 	primary := seedApprovedWithoutOfferingScenario(t, db, ctx, phase)
 
 	other := NewTenantScope(t, db)
@@ -105,7 +106,7 @@ func createApprovedWithoutOfferingPhase(
 		CareOfferingSelectionMode: enrollmentOwner.PhaseCareOfferingSelectionOptional, IsActive: true,
 	}
 	phase.TenantID = tenantID
-	require.NoError(t, TenantCommand1(t, ctx, db, enrollmentOwner.New().InsertPhase, phase))
+	require.NoError(t, insertEnrollmentPhase(t, ctx, db, phase))
 	return phase
 }
 
@@ -129,7 +130,7 @@ func createApprovedWithoutOfferingRequest(
 		SubmittedAt:       time.Now(),
 	}
 	request.TenantID = tenantID
-	require.NoError(t, TenantCommand1(t, ctx, db, enrollmentOwner.New().InsertRequest, request))
+	require.NoError(t, insertEnrollmentRequest(t, ctx, db, request))
 	return request
 }
 
@@ -148,7 +149,7 @@ func createApprovedWithoutOfferingChild(
 		Status: enrollmentOwner.ChildStatusApproved, ActivationMode: enrollmentOwner.ChildActivationScheduled,
 	}
 	child.TenantID = tenantID
-	require.NoError(t, TenantCommand1(t, ctx, db, enrollmentOwner.New().InsertChild, child))
+	require.NoError(t, insertEnrollmentChild(t, ctx, db, child))
 	return child
 }
 

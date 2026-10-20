@@ -48,7 +48,7 @@ func newFixture(t *testing.T) fixture {
 	require.NoError(t, err)
 	retirement, err := membershipcompose.NewOffboarding(memberDeps)
 	require.NoError(t, err)
-	people, err := peoplecompose.New(peoplecompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peoplecompose.Observation) {}})
+	people, err := peoplecompose.New(peoplecompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peoplecompose.Observation) {}}, nil)
 	require.NoError(t, err)
 	presence, err := presencecompose.New(presencecompose.Dependencies{DB: db, Observe: func(presencecompose.Observation) {}})
 	require.NoError(t, err)
@@ -68,7 +68,7 @@ func newFixture(t *testing.T) fixture {
 	room := testpkg.CreateTestRoom(t, db, "Offboarding workflow")
 	instance := testpkg.CreateTestActivityInstance(t, db, testpkg.Date(2027, 10, 4), room.ID, testpkg.ActivityInstanceOpts{})
 	testpkg.CreateTestInstanceStaff(t, db, instance.ID, staff.ID, testpkg.InstanceStaffOpts{})
-	shift, err := work.CreateStaffShift(ctx, workforce.StaffShift{StaffID: staff.ID, Date: "2027-10-04", StartTime: "08:00:00", EndTime: "12:00:00", CreatedBy: actor.ID})
+	shift, err := work.CreateStaffShift(ctx, &workforce.StaffShift{StaffID: staff.ID, Date: "2027-10-04", StartTime: "08:00:00", EndTime: "12:00:00", CreatedBy: actor.ID})
 	require.NoError(t, err)
 	_, err = membership.CreateClassAssignment(ctx, schoolmembership.CreateClassAssignment{StaffID: staff.ID, SchoolClass: "4a"})
 	require.NoError(t, err)
@@ -92,7 +92,7 @@ func newFixture(t *testing.T) fixture {
 		GroupAccessChanged: func(context.Context) {},
 		Observe:            func(staffoffboarding.Observation) {},
 	}
-	return fixture{deps: deps, staffID: staff.ID, personID: staff.PersonID, shiftID: shift.ID, membership: membership, workforce: work, people: people}
+	return fixture{deps: deps, staffID: staff.ID, personID: staff.PersonID, shiftID: shift.ID, membership: membership, workforce: work.Module, people: people.Module}
 }
 
 func (f fixture) assertOperational(t *testing.T) {

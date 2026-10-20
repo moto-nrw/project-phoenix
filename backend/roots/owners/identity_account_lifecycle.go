@@ -218,13 +218,16 @@ func (d staffDirectory) FindStaffByPerson(ctx context.Context, personID int64) (
 	var latestRetired schoolmembership.Staff
 	for _, member := range staff {
 		if !member.IsDeleted() {
-			return identityPorts.StaffMember{ID: member.ID, TenantID: member.TenantID, PersonID: member.PersonID}, true, nil
+			return identityPorts.StaffMember{ID: member.ID, TenantID: member.TenantID, PersonID: member.PersonID, StartedAt: member.CreatedAt}, true, nil
 		}
 		if member.ID > latestRetired.ID {
 			latestRetired = member
 		}
 	}
-	return identityPorts.StaffMember{ID: latestRetired.ID, TenantID: latestRetired.TenantID, PersonID: latestRetired.PersonID, Deleted: true}, true, nil
+	return identityPorts.StaffMember{
+		ID: latestRetired.ID, TenantID: latestRetired.TenantID, PersonID: latestRetired.PersonID, Deleted: true,
+		StartedAt: latestRetired.CreatedAt, RetiredAt: latestRetired.DeletedAt, Erased: latestRetired.PersonalDataErasedAt != nil,
+	}, true, nil
 }
 
 // CreateStaff creates the staff row at the school in context, which is the

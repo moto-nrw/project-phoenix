@@ -228,7 +228,7 @@ func createApprovedBookingAuditChild(
 		IsActive:                  true,
 	}
 	phase.TenantID = tenantID
-	require.NoError(t, TenantCommand1(t, ctx, db, enrollmentOwner.New().InsertPhase, phase))
+	require.NoError(t, insertEnrollmentPhase(t, ctx, db, phase))
 	request := &enrollmentOwner.Request{
 		PhaseID:           phase.ID,
 		GuardianFirstName: "Audit",
@@ -241,16 +241,15 @@ func createApprovedBookingAuditChild(
 		StatusToken:       fmt.Sprintf("booking-audit-%d-%d", studentID, time.Now().UnixNano()),
 		SubmittedAt:       time.Now(),
 	}
-	owner := enrollmentOwner.New()
 	ownerCtx := WithTenantRuntime(t, ctx, db)
-	require.NoError(t, TenantCommand1(t, ownerCtx, db, owner.InsertRequest, request))
+	require.NoError(t, insertEnrollmentRequest(t, ownerCtx, db, request))
 	child := &enrollmentOwner.RequestChild{
 		RequestID: request.ID, FirstName: "Audit", LastName: "Kind",
 		DateOfBirth: "2018-01-01", CustomData: []byte(`{}`),
 		Status: enrollmentOwner.ChildStatusApproved, ActivationMode: enrollmentOwner.ChildActivationImmediate,
 		CreatedStudentID: &studentID,
 	}
-	require.NoError(t, TenantCommand1(t, ownerCtx, db, owner.InsertChild, child))
+	require.NoError(t, insertEnrollmentChild(t, ownerCtx, db, child))
 	require.Equal(t, tenantID, child.TenantID)
 	return approvedBookingAuditChild{phase: phase, child: child}
 }

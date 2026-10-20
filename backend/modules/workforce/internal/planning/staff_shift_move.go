@@ -36,7 +36,7 @@ type MoveShiftInput struct {
 // MoveShift applies a move as one row update inside the caller's tenant
 // transaction. Keeping the row ID makes PUT retries naturally idempotent and
 // avoids the duplicate/lost-shift states of client-side create/delete.
-func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput) (*StaffShift, error) {
+func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput) (*workforce.ShiftRecord, error) {
 	if input.ShiftID <= 0 {
 		return nil, ErrShiftNotFound
 	}
@@ -48,106 +48,36 @@ func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput)
 	if err != nil {
 		return nil, err
 	}
-
-	lockIDs := []int64{input.SourceStaffID, input.TargetStaffID}
-	if existing.OriginShiftID != nil {
-		origin, err := s.loadOriginShift(ctx, *existing.OriginShiftID)
-		if err != nil {
-			return nil, err
-		}
-		lockIDs = append(lockIDs, origin.StaffID)
-	}
-	if err := s.lockStaffWritesOrdered(ctx, lockIDs); err != nil {
+	if err := s.lockMoveStaff(ctx, existing, input); err != nil {
 		return nil, err
 	}
 
 	// The pre-lock read only discovered the origin lock. All decisions and the
 	// idempotency check use the authoritative post-lock row.
-	existing, err = s.findShiftForMove(ctx, input.ShiftID)
-	if err != nil {
+	existing, alreadyApplied, err := s.reloadLockedMoveSource(ctx, input)
+	if err != nil || alreadyApplied {
+		return existing, err
+	}
+	if err := s.ensureMoveTargetStaff(ctx, input.TargetStaffID); err != nil {
 		return nil, err
 	}
-	if existing.StaffID != input.SourceStaffID {
-		if moveAlreadyApplied(existing, input) {
-			return existing, nil
-		}
-		return nil, fmt.Errorf("%w: source staff no longer owns shift", ErrShiftConflict)
-	}
-	if existing.Cancelled {
-		return nil, fmt.Errorf("%w: cancelled shifts cannot be moved", ErrShiftInvalid)
-	}
 
-	staff, err := s.staffRepo.FindByID(ctx, input.TargetStaffID)
-	if err != nil {
-		if isRecordNotFound(err) {
-			return nil, fmt.Errorf("%w: target staff member not found", ErrShiftInvalid)
-		}
-		return nil, fmt.Errorf("find target staff member for shift move: %w", err)
-	}
-	if staff == nil {
-		return nil, fmt.Errorf("%w: target staff member not found", ErrShiftInvalid)
-	}
-
-	moved := *existing
-	moved.StaffID = input.TargetStaffID
-	moved.Date = input.Date
-	moved.StartTime = input.StartTime
-	moved.EndTime = input.EndTime
-	moved.BreakMinutes = input.BreakMinutes
-	moved.ShiftTypeID = input.ShiftTypeID
-	if input.ActorStaffID > 0 {
-		moved.UpdatedBy = &input.ActorStaffID
-	}
-	moveChanged := staffShiftMoveChanged(existing, &moved)
-	if !moveChanged {
+	moved := movedShift(existing, input)
+	if !staffShiftMoveChanged(existing, &moved) {
 		return existing, nil
 	}
-
-	if err := moved.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrShiftInvalid, err.Error())
-	}
-	// A type assigned to another person is a fresh assignment, so an inactive
-	// type cannot hitchhike across staff. Same-person moves may retain their
-	// already-attached inactive type, matching ordinary edits.
-	if moved.StaffID != existing.StaffID || !sameShiftTypeID(moved.ShiftTypeID, existing.ShiftTypeID) {
-		if err := s.ensureShiftTypeActive(ctx, moved.ShiftTypeID); err != nil {
-			return nil, err
-		}
-	}
-	if err := s.validateMovedOrigin(ctx, existing, &moved); err != nil {
+	if err := s.validateMove(ctx, existing, &moved); err != nil {
 		return nil, err
 	}
-	if err := s.checkOverlap(ctx, &moved); err != nil {
+	if err := s.applyMoveSeriesRules(ctx, existing, &moved); err != nil {
 		return nil, err
 	}
 
-	vacatesSeriesOccurrence := existing.SeriesID != nil &&
-		(existing.StaffID != moved.StaffID || seriesOccurrenceDate(existing) != moved.Date)
-	if vacatesSeriesOccurrence {
-		if s.exceptionRepo == nil {
-			return nil, errors.New("series exception repository is required for shift move")
-		}
-		if err := s.recordSeriesException(ctx, existing, seriesOccurrenceDate(existing)); err != nil {
-			return nil, fmt.Errorf("record original series occurrence for shift move: %w", err)
-		}
-	}
-	if existing.SeriesID != nil {
-		if existing.StaffID == moved.StaffID {
-			if moveChanged {
-				moved.Detached = true
-			}
-		} else {
-			// A series belongs to its original staff member. The moved target row is
-			// standalone; the exception above keeps the original occurrence consumed.
-			moved.SeriesID = nil
-			moved.Detached = false
-			moved.SeriesOccurrenceDate = nil
-		}
-	}
-
-	if err := s.repo.Update(ctx, &moved); err != nil {
+	written, err := s.repo.UpdateStaffShift(ctx, ShiftCapability(&moved))
+	if err = staffShiftUpdateError(err); err != nil {
 		return nil, err
 	}
+	applyShiftToRow(&moved, written)
 	if err := s.logShiftMovedEvent(ctx, existing, &moved, input.ActorAccountID); err != nil {
 		return nil, err
 	}
@@ -161,12 +91,123 @@ func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput)
 	return &moved, nil
 }
 
+// lockMoveStaff locks the source, the target and — for a replacement — the
+// origin's staff in one stable order.
+func (s *staffShiftService) lockMoveStaff(ctx context.Context, existing *workforce.ShiftRecord, input MoveShiftInput) error {
+	lockIDs := []int64{input.SourceStaffID, input.TargetStaffID}
+	if existing.OriginShiftID != nil {
+		origin, err := s.loadOriginShift(ctx, *existing.OriginShiftID)
+		if err != nil {
+			return err
+		}
+		lockIDs = append(lockIDs, origin.StaffID)
+	}
+	return s.lockStaffWritesOrdered(ctx, lockIDs)
+}
+
+// reloadLockedMoveSource re-reads the shift under the lock. It reports
+// alreadyApplied with the stored row when a retry finds its own completed
+// cross-person move.
+func (s *staffShiftService) reloadLockedMoveSource(ctx context.Context, input MoveShiftInput) (*workforce.ShiftRecord, bool, error) {
+	existing, err := s.findShiftForMove(ctx, input.ShiftID)
+	if err != nil {
+		return nil, false, err
+	}
+	if existing.StaffID != input.SourceStaffID {
+		if moveAlreadyApplied(existing, input) {
+			return existing, true, nil
+		}
+		return nil, false, fmt.Errorf("%w: source staff no longer owns shift", ErrShiftConflict)
+	}
+	if existing.Cancelled {
+		return nil, false, fmt.Errorf("%w: cancelled shifts cannot be moved", ErrShiftInvalid)
+	}
+	return existing, false, nil
+}
+
+// ensureMoveTargetStaff rejects a move onto a staff member that does not exist.
+func (s *staffShiftService) ensureMoveTargetStaff(ctx context.Context, targetStaffID int64) error {
+	staff, err := s.staffRepo.FindByID(ctx, targetStaffID)
+	if err != nil {
+		if isRecordNotFound(err) {
+			return fmt.Errorf("%w: target staff member not found", ErrShiftInvalid)
+		}
+		return fmt.Errorf("find target staff member for shift move: %w", err)
+	}
+	if staff == nil {
+		return fmt.Errorf("%w: target staff member not found", ErrShiftInvalid)
+	}
+	return nil
+}
+
+// movedShift applies the requested slot to a copy of the stored row.
+func movedShift(existing *workforce.ShiftRecord, input MoveShiftInput) workforce.ShiftRecord {
+	moved := *existing
+	moved.StaffID = input.TargetStaffID
+	moved.Date = input.Date
+	moved.StartTime = input.StartTime
+	moved.EndTime = input.EndTime
+	moved.BreakMinutes = input.BreakMinutes
+	moved.ShiftTypeID = input.ShiftTypeID
+	if input.ActorStaffID > 0 {
+		moved.UpdatedBy = &input.ActorStaffID
+	}
+	return moved
+}
+
+// validateMove checks the moved row's shape, type, origin link and overlap.
+func (s *staffShiftService) validateMove(ctx context.Context, existing, moved *workforce.ShiftRecord) error {
+	if err := moved.Validate(); err != nil {
+		return fmt.Errorf("%w: %s", ErrShiftInvalid, err.Error())
+	}
+	// A type assigned to another person is a fresh assignment, so an inactive
+	// type cannot hitchhike across staff. Same-person moves may retain their
+	// already-attached inactive type, matching ordinary edits.
+	if moved.StaffID != existing.StaffID || !sameShiftTypeID(moved.ShiftTypeID, existing.ShiftTypeID) {
+		if err := s.ensureShiftTypeActive(ctx, moved.ShiftTypeID); err != nil {
+			return err
+		}
+	}
+	if err := s.validateMovedOrigin(ctx, existing, moved); err != nil {
+		return err
+	}
+	return s.checkOverlap(ctx, moved)
+}
+
+// applyMoveSeriesRules consumes a vacated series occurrence and sets the moved
+// row's series fields. The caller only reaches it with a changed slot.
+func (s *staffShiftService) applyMoveSeriesRules(ctx context.Context, existing, moved *workforce.ShiftRecord) error {
+	vacatesSeriesOccurrence := existing.SeriesID != nil &&
+		(existing.StaffID != moved.StaffID || seriesOccurrenceDate(existing) != moved.Date)
+	if vacatesSeriesOccurrence {
+		if s.exceptionRepo == nil {
+			return errors.New("series exception repository is required for shift move")
+		}
+		if err := s.recordSeriesException(ctx, existing, seriesOccurrenceDate(existing)); err != nil {
+			return fmt.Errorf("record original series occurrence for shift move: %w", err)
+		}
+	}
+	if existing.SeriesID == nil {
+		return nil
+	}
+	if existing.StaffID == moved.StaffID {
+		moved.Detached = true
+		return nil
+	}
+	// A series belongs to its original staff member. The moved target row is
+	// standalone; the exception above keeps the original occurrence consumed.
+	moved.SeriesID = nil
+	moved.Detached = false
+	moved.SeriesOccurrenceDate = nil
+	return nil
+}
+
 // logShiftMovedEvent appends the shift_moved Änderungsprotokoll row (#1884)
 // inside the caller's tenant tx (workforce.ShiftMovedEvent). Fail closed when the
 // audit is wired: an audit failure aborts the move. The audit is optional
 // only for unit tests constructed without audit wiring — production always
 // sets it.
-func (s *staffShiftService) logShiftMovedEvent(ctx context.Context, existing, moved *StaffShift, actorAccountID *int64) error {
+func (s *staffShiftService) logShiftMovedEvent(ctx context.Context, existing, moved *workforce.ShiftRecord, actorAccountID *int64) error {
 	if s.shiftMoveAudit == nil {
 		return nil
 	}
@@ -194,7 +235,7 @@ func (s *staffShiftService) logShiftMovedEvent(ctx context.Context, existing, mo
 }
 
 // shiftMoveSlot snapshots the audit-relevant slot of one shift state.
-func shiftMoveSlot(shift *StaffShift) map[string]any {
+func shiftMoveSlot(shift *workforce.ShiftRecord) map[string]any {
 	return map[string]any{
 		"staff_id":   shift.StaffID,
 		"date":       shift.Date.String(),
@@ -203,7 +244,7 @@ func shiftMoveSlot(shift *StaffShift) map[string]any {
 	}
 }
 
-func staffShiftMoveChanged(existing, moved *StaffShift) bool {
+func staffShiftMoveChanged(existing, moved *workforce.ShiftRecord) bool {
 	return existing.StaffID != moved.StaffID ||
 		existing.Date != moved.Date ||
 		!calendar.SameClockTime(existing.StartTime, moved.StartTime) ||
@@ -215,15 +256,16 @@ func staffShiftMoveChanged(existing, moved *StaffShift) bool {
 // seriesOccurrenceDate returns the immutable recurrence slot for a materialized
 // row. The Date fallback keeps mock-built and pre-migration in-memory rows safe;
 // migration 1.15.202 backfills every persisted series row.
-func seriesOccurrenceDate(shift *StaffShift) calendar.Date {
+func seriesOccurrenceDate(shift *workforce.ShiftRecord) calendar.Date {
 	if shift.SeriesOccurrenceDate != nil {
 		return *shift.SeriesOccurrenceDate
 	}
 	return shift.Date
 }
 
-func (s *staffShiftService) findShiftForMove(ctx context.Context, id int64) (*StaffShift, error) {
-	shift, err := s.repo.FindByID(ctx, id)
+func (s *staffShiftService) findShiftForMove(ctx context.Context, id int64) (*workforce.ShiftRecord, error) {
+	shift, err := s.repo.ReadShift(ctx, id)
+	err = shiftReadError("find by id", err, workforce.ErrStaffShiftNotFound)
 	if err != nil {
 		if isRecordNotFound(err) {
 			return nil, ErrShiftNotFound
@@ -236,7 +278,7 @@ func (s *staffShiftService) findShiftForMove(ctx context.Context, id int64) (*St
 	return shift, nil
 }
 
-func moveAlreadyApplied(shift *StaffShift, input MoveShiftInput) bool {
+func moveAlreadyApplied(shift *workforce.ShiftRecord, input MoveShiftInput) bool {
 	return shift.StaffID == input.TargetStaffID &&
 		shift.Date == input.Date &&
 		calendar.SameClockTime(shift.StartTime, input.StartTime) &&
@@ -246,7 +288,7 @@ func moveAlreadyApplied(shift *StaffShift, input MoveShiftInput) bool {
 		shift.SeriesID == nil
 }
 
-func (s *staffShiftService) validateMovedOrigin(ctx context.Context, existing, moved *StaffShift) error {
+func (s *staffShiftService) validateMovedOrigin(ctx context.Context, existing, moved *workforce.ShiftRecord) error {
 	if moved.OriginShiftID != nil {
 		return s.validateOriginLink(ctx, moved)
 	}
@@ -255,7 +297,8 @@ func (s *staffShiftService) validateMovedOrigin(ctx context.Context, existing, m
 	if moved.StaffID == existing.StaffID && moved.Date == existing.Date && !windowChanged {
 		return nil
 	}
-	covers, err := s.repo.FindByOriginShiftID(ctx, existing.ID)
+	covers, err := s.repo.ReadShifts(ctx, workforce.StaffShiftFilter{OriginShiftID: existing.ID, Order: shiftOrder(workforce.StaffShiftOrderStartTime)})
+	err = shiftReadError("find staff shifts by origin shift id", err, nil)
 	if err != nil {
 		return fmt.Errorf("check covers before shift move: %w", err)
 	}
@@ -265,12 +308,12 @@ func (s *staffShiftService) validateMovedOrigin(ctx context.Context, existing, m
 	return nil
 }
 
-func (s *staffShiftService) recordSeriesException(ctx context.Context, shift *StaffShift, date calendar.Date) error {
+func (s *staffShiftService) recordSeriesException(ctx context.Context, shift *workforce.ShiftRecord, date calendar.Date) error {
 	exception := &StaffShiftSeriesException{
 		SeriesID:  *shift.SeriesID,
 		Date:      date,
 		CreatedBy: shift.CreatedBy,
 	}
 	exception.TenantID = shift.TenantID
-	return s.exceptionRepo.Create(ctx, exception)
+	return shiftWriteError("create staff shift series exception", s.exceptionRepo.RecordSeriesException(ctx, workforce.StaffShiftSeriesException{ID: exception.ID, TenantID: exception.TenantID, SeriesID: exception.SeriesID, Date: exception.Date.String(), CreatedBy: exception.CreatedBy, CreatedAt: exception.CreatedAt}))
 }

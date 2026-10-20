@@ -98,52 +98,61 @@ func (r prefetchedStaffReader) ScheduleAssignment(_ context.Context, staffID int
 
 type prefetchedSessionReader struct{ p *monthPrefetch }
 
-func (r prefetchedSessionReader) ListOverlappingByStaffID(_ context.Context, staffID int64, from time.Time, to *time.Time) ([]*WorkSession, error) {
-	sessions := r.p.sessions[staffID]
-	result := make([]*WorkSession, 0, len(sessions))
-	for _, session := range sessions {
-		end := time.Now()
-		if session.CheckOutTime != nil {
-			end = *session.CheckOutTime
+func (r prefetchedSessionReader) ListOverlappingWorkSessions(_ context.Context, staffIDs []int64, from time.Time, to *time.Time) ([]workforce.WorkSession, error) {
+	result := make([]workforce.WorkSession, 0)
+	for _, staffID := range staffIDs {
+		for _, session := range r.p.sessions[staffID] {
+			end := time.Now()
+			if session.CheckOutTime != nil {
+				end = *session.CheckOutTime
+			}
+			if !end.After(from) || to != nil && !session.CheckInTime.Before(*to) {
+				continue
+			}
+			result = append(result, WorkSessionToCapability(session))
 		}
-		if !end.After(from) || to != nil && !session.CheckInTime.Before(*to) {
-			continue
-		}
-		result = append(result, session)
 	}
 	return result, nil
 }
 
 type prefetchedBreakReader struct{ p *monthPrefetch }
 
-func (r prefetchedBreakReader) GetBySessionID(_ context.Context, sessionID int64) ([]*WorkSessionBreak, error) {
-	return r.p.breaks[sessionID], nil
-}
-
-func (r prefetchedBreakReader) GetBySessionIDs(_ context.Context, sessionIDs []int64) (map[int64][]*WorkSessionBreak, error) {
-	result := make(map[int64][]*WorkSessionBreak, len(sessionIDs))
-	for _, sessionID := range sessionIDs {
-		result[sessionID] = r.p.breaks[sessionID]
+func (r prefetchedBreakReader) ListWorkSessionBreaks(_ context.Context, filter workforce.WorkSessionBreakFilter) ([]workforce.WorkSessionBreak, error) {
+	result := make([]workforce.WorkSessionBreak, 0)
+	ids := filter.SessionIDs
+	if filter.SessionID != 0 {
+		ids = []int64{filter.SessionID}
+	}
+	for _, id := range ids {
+		for _, entry := range r.p.breaks[id] {
+			result = append(result, WorkSessionBreakToCapability(entry))
+		}
 	}
 	return result, nil
 }
 
 type prefetchedAbsenceReader struct{ p *monthPrefetch }
 
-func (r prefetchedAbsenceReader) GetByStaffAndDateRange(_ context.Context, staffID int64, _, _ calendar.Date) ([]*StaffAbsence, error) {
-	return r.p.absences[staffID], nil
+func (r prefetchedAbsenceReader) ListStaffAbsences(_ context.Context, filter workforce.StaffAbsenceFilter) ([]workforce.StaffAbsence, error) {
+	values := r.p.absences[filter.StaffID]
+	result := make([]workforce.StaffAbsence, 0, len(values))
+	for _, value := range values {
+		result = append(result, StaffAbsenceToCapability(value))
+	}
+	return result, nil
 }
 
 type prefetchedAdjustmentReader struct{ p *monthPrefetch }
 
-func (r prefetchedAdjustmentReader) GetByStaffAndDateRange(_ context.Context, staffID int64, from, to calendar.Date) ([]*StaffBalanceAdjustment, error) {
-	adjustments := r.p.adjustments[staffID]
-	result := make([]*StaffBalanceAdjustment, 0, len(adjustments))
+func (r prefetchedAdjustmentReader) ListStaffBalanceAdjustments(_ context.Context, filter workforce.StaffBalanceAdjustmentFilter) ([]workforce.StaffBalanceAdjustment, error) {
+	from, to := calendar.Date(filter.EffectiveFrom), calendar.Date(filter.EffectiveTo)
+	adjustments := r.p.adjustments[filter.StaffID]
+	result := make([]workforce.StaffBalanceAdjustment, 0, len(adjustments))
 	for _, adjustment := range adjustments {
 		if adjustment.EffectiveDate.Before(from) || adjustment.EffectiveDate.After(to) {
 			continue
 		}
-		result = append(result, adjustment)
+		result = append(result, StaffBalanceAdjustmentToCapability(adjustment))
 	}
 	return result, nil
 }

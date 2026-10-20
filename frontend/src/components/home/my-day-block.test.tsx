@@ -150,6 +150,33 @@ describe("MyDayBlock (#2180)", () => {
     expect(screen.getByText("Sporthalle · 18 Kinder")).toBeInTheDocument();
   });
 
+  // #4350: dieselbe Zeile wie im Tagesplan. Kante in der Blockfarbe, Raum
+  // und Personal mit ihren Symbolen; getönt wird nichts, hier ist alles eigen.
+  it("zeigt die Symbole wie der Tagesplan, ohne Kante und ohne Tönung (#4350)", () => {
+    swr.data = [
+      block({
+        id: "9",
+        title: "Basteln",
+        roomName: "Kreativraum",
+        planningTrackColor: "#5080D8",
+        staffNames: [
+          { staffId: "1", displayName: "Julia Klein", isSubstitute: false },
+        ],
+      }),
+    ];
+
+    render(<MyDayBlock />);
+
+    const meta = screen.getByText(/Kreativraum/);
+    const icons = meta.querySelectorAll("[data-moto-duotone-tone]");
+    expect(icons).toHaveLength(2);
+    expect(meta).toHaveTextContent("Julia Klein");
+    const row = meta.closest("li")?.querySelector("div") as HTMLElement;
+    expect(row).not.toHaveClass("border-l-4");
+    expect(row.style.borderLeftColor).toBe("");
+    expect(row.style.backgroundColor).toBe("");
+  });
+
   it("setzt die Jetzt-Linie vor den Block, der als Nächstes zählt", () => {
     render(<MyDayBlock />);
 

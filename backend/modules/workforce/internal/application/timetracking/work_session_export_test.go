@@ -27,11 +27,11 @@ func (m *wsMockStaffRepository) StaffNames(ctx context.Context, ids []int64) (ma
 	return m.staffNamesFunc(ctx, ids)
 }
 
-func wsCreateTestServiceWithAbsenceRepo() (*workSessionService, *wsMockWorkSessionRepository, *wsMockWorkSessionBreakRepository, *wsMockWorkSessionEditRepository, *wsMockStaffAbsenceRepository, *wsMockGroupSupervisorRepository) {
+func wsCreateTestServiceWithAbsenceRepo() (*workSessionService, *wsMockWorkSessionRepository, *wsMockWorkSessionBreakRepository, *wsMockWorkSessionEditRepository, *wsMockAbsenceRecords, *wsMockGroupSupervisorRepository) {
 	sessionRepo := &wsMockWorkSessionRepository{}
 	breakRepo := &wsMockWorkSessionBreakRepository{}
 	auditRepo := &wsMockWorkSessionEditRepository{}
-	absenceRepo := &wsMockStaffAbsenceRepository{}
+	absenceRepo := &wsMockAbsenceRecords{}
 	supervisorRepo := &wsMockGroupSupervisorRepository{}
 
 	service := &workSessionService{

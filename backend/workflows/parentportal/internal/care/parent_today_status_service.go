@@ -57,18 +57,7 @@ func (s *Service) GetChildTodayStatus(ctx context.Context, accountID, studentID 
 		facts.AttendanceLoaded = true
 		applyAttendanceRows(&facts, rows)
 
-		if !facts.HasAbsence && facts.HasAttendanceToday && facts.CheckOut == "" && s.PickupSchedules != nil {
-			pickup, pickupErr := s.PickupSchedules.GetEffectivePickupTimeForDate(txCtx, studentID, today)
-			if pickupErr != nil {
-				s.Logger.Warn("parent_today_status_pickup_unreadable",
-					"student_id", studentID,
-					"error", pickupErr.Error(),
-				)
-			} else if pickup != nil && pickup.PickupTime != nil {
-				facts.PickupTime = hhmm(*pickup.PickupTime)
-			}
-		}
-
+		s.loadTodayPickup(txCtx, studentID, today, &facts)
 		tracks, trackErr := s.Attendance.HasAttendance(txCtx, AttendanceFilter{
 			FromDate: today.AddDays(-attendanceCultureLookbackDays).String(), UntilDate: today.String(),
 		})
@@ -77,22 +66,7 @@ func (s *Service) GetChildTodayStatus(ctx context.Context, accountID, studentID 
 		}
 		facts.SchoolTracksAttendance = tracks
 
-		// Ein nicht lesbarer Betreuungsplan darf die bereits geladene
-		// Anwesenheit nicht entwerten: wer nachweislich da ist, ist da, auch
-		// wenn wir seinen Plan nicht kennen. Deshalb ist dieser Fehler nicht
-		// fatal, er laesst nur CareDayResolved auf false.
-		expected, expErr := s.resolveExpectedArrival(txCtx, studentID, today)
-		if expErr != nil {
-			s.Logger.Warn("parent_today_status_care_plan_unreadable",
-				"student_id", studentID,
-				"error", expErr.Error(),
-			)
-			return nil
-		}
-		facts.CareDayResolved = expected.resolved
-		facts.IsCareDay = expected.isCareDay
-		facts.ExpectedArrival = expected.hhmm
-		return nil
+		return s.loadTodayCareDay(txCtx, studentID, today, &facts)
 	})
 	if txErr != nil {
 		s.Logger.Warn("parent_today_status_resolve_failed",
@@ -182,4 +156,38 @@ func planWeekdayOf(ctx context.Context, today calendar.Date) (int, bool, error) 
 		return 0, false, err
 	}
 	return weekday, weekday <= int(time.Friday), nil
+}
+
+func (s *Service) loadTodayPickup(txCtx context.Context, studentID int64, today calendar.Date, facts *todayStatusFacts) {
+	if !facts.HasAbsence && facts.HasAttendanceToday && facts.CheckOut == "" && s.PickupSchedules != nil {
+		pickup, pickupErr := s.PickupSchedules.GetEffectivePickupTimeForDate(txCtx, studentID, today)
+		if pickupErr != nil {
+			s.Logger.Warn("parent_today_status_pickup_unreadable",
+				"student_id", studentID,
+				"error", pickupErr.Error(),
+			)
+		} else if pickup != nil && pickup.PickupTime != nil {
+			facts.PickupTime = hhmm(*pickup.PickupTime)
+		}
+	}
+
+}
+
+func (s *Service) loadTodayCareDay(txCtx context.Context, studentID int64, today calendar.Date, facts *todayStatusFacts) error {
+	// Ein nicht lesbarer Betreuungsplan darf die bereits geladene
+	// Anwesenheit nicht entwerten: wer nachweislich da ist, ist da, auch
+	// wenn wir seinen Plan nicht kennen. Deshalb ist dieser Fehler nicht
+	// fatal, er laesst nur CareDayResolved auf false.
+	expected, expErr := s.resolveExpectedArrival(txCtx, studentID, today)
+	if expErr != nil {
+		s.Logger.Warn("parent_today_status_care_plan_unreadable",
+			"student_id", studentID,
+			"error", expErr.Error(),
+		)
+		return nil
+	}
+	facts.CareDayResolved = expected.resolved
+	facts.IsCareDay = expected.isCareDay
+	facts.ExpectedArrival = expected.hhmm
+	return nil
 }

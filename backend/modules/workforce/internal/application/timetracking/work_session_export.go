@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -72,16 +74,9 @@ func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, 
 		return nil, fmt.Errorf("failed to get sessions for export: %w", err)
 	}
 
-	// Load absences for the same date range
-	var absences []*StaffAbsence
-	if s.absenceRepo != nil {
-		absences, err = s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get absences for export: %w", err)
-		}
-		// Resolve the school's own Abwesenheitsarten so the export prints the
-		// wording the school entered, not the generic "Sonstige" (#2403).
-		StampAbsenceTypeLabels(ctx, s.absenceTypes, absences, s.getLogger())
+	absences, err := s.exportAbsences(ctx, staffID, from, to)
+	if err != nil {
+		return nil, err
 	}
 
 	// Build merged rows sorted by date
@@ -121,6 +116,23 @@ func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, 
 			ContentType: contentTypeCSV,
 		}, nil
 	}
+}
+
+// exportAbsences loads the absences of the export's date range, labelled
+// with the school's own Abwesenheitsarten so the export prints the wording
+// the school entered, not the generic "Sonstige" (#2403).
+func (s *workSessionService) exportAbsences(ctx context.Context, staffID int64, from, to calendar.Date) ([]*StaffAbsence, error) {
+	if s.absenceRepo == nil {
+		return nil, nil
+	}
+	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staffID, OverlapFrom: from.String(), OverlapTo: to.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}}})
+	absences := absencesToRecord(absenceValues)
+	err = rowReadError("get absences by staff and date range", err, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get absences for export: %w", err)
+	}
+	StampAbsenceTypeLabels(ctx, s.absenceTypes, absences, s.getLogger())
+	return absences, nil
 }
 
 // renderSessionPDF applies the shared print layout to the prepared session rows.

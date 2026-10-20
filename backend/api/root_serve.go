@@ -95,12 +95,12 @@ func composeServeRoot(
 		bookings         *enrollmentOwner.BookingProjection
 		settings         owners.SettingsOwner
 		calendar         *schoolcalendar.Records
-		workTime         *workforceModule.Module
+		workTime         *workforceCompose.WorkTime
 		people           owners.PeopleRows
 		peopleIdentity   *identityaccess.Module
 		guardian         peoplePorts.GuardianService
 		photoRuntime     owners.StudentPhotoRuntime
-		persons          *peopledirectory.Module
+		persons          *peopleCompose.Directory
 		timetableOwner   *timetable.Module
 		timetableRepos   owners.TimetableRepositories
 		carePlan         *carePlanModule.Module

@@ -19,7 +19,7 @@ func TestMain(m *testing.M) {
 func TestDirectoryDecoratesOnlyRequestedChildrenInTheTenant(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	people, err := peoplecompose.New(peoplecompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peoplecompose.Observation) {}})
+	people, err := peoplecompose.New(peoplecompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peoplecompose.Observation) {}}, nil)
 	require.NoError(t, err)
 	directory, err := composeStudentDirectory(t, db, people)
 	require.NoError(t, err)
@@ -49,7 +49,7 @@ func TestDirectoryIsOptionalButConfiguredOwnerFailuresAreNot(t *testing.T) {
 	require.Nil(t, directory)
 
 	db := testpkg.SetupTestDB(t)
-	people, err := peoplecompose.New(peoplecompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peoplecompose.Observation) {}})
+	people, err := peoplecompose.New(peoplecompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peoplecompose.Observation) {}}, nil)
 	require.NoError(t, err)
 	_, err = reviewbindings.NewStudentDirectory(people, nil)
 	require.Error(t, err)

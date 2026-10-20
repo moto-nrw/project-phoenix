@@ -37,26 +37,26 @@ var (
 	ErrStudentNotFound = errors.New("student not found")
 	// ErrNotGraduated refuses a purge for a child restored between the
 	// Abgänge list and the locked re-read.
-	ErrNotGraduated = errors.New("Kind ist kein Abgänger mehr und wurde nicht gelöscht. Bitte Liste neu laden.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrNotGraduated = errors.New("kind ist kein Abgänger mehr und wurde nicht gelöscht. Bitte Liste neu laden")
 	// ErrGraduatedUnderLock refuses an ordinary deletion for a child who
 	// graduated while the request was in flight; the adapter answers the
 	// same 404 the alumnus gate returns.
 	ErrGraduatedUnderLock   = errors.New("student graduated between snapshot and lock")
-	ErrPreviewChanged       = errors.New("Die Daten haben sich seit der Vorschau geändert. Bitte Auswirkungen erneut prüfen.")          //nolint:staticcheck // ST1005: user-facing German message
-	ErrConfirmationMismatch = errors.New("Der eingegebene Name stimmt nicht mit dem Kind überein.")                                     //nolint:staticcheck // ST1005: user-facing German message
-	ErrNotAcknowledged      = errors.New("Die Unwiderruflichkeit der Löschung muss bestätigt werden.")                                  //nolint:staticcheck // ST1005: user-facing German message
-	ErrInvalidReason        = errors.New("Ungültiger Löschgrund.")                                                                      //nolint:staticcheck // ST1005: user-facing German message
-	ErrAlumnus              = errors.New("Abgänger werden über den Jahrgangswechsel endgültig gelöscht.")                               //nolint:staticcheck // ST1005: user-facing German message
-	ErrRetentionNotEnded    = errors.New("Der Grund „Aufbewahrungsfrist abgelaufen“ gilt nur für Kinder, deren Betreuung beendet ist.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrPreviewChanged       = errors.New("die Daten haben sich seit der Vorschau geändert. Bitte Auswirkungen erneut prüfen")
+	ErrConfirmationMismatch = errors.New("der eingegebene Name stimmt nicht mit dem Kind überein")
+	ErrNotAcknowledged      = errors.New("die Unwiderruflichkeit der Löschung muss bestätigt werden")
+	ErrInvalidReason        = errors.New("ungültiger Löschgrund")
+	ErrAlumnus              = errors.New("abgänger werden über den Jahrgangswechsel endgültig gelöscht")
+	ErrRetentionNotEnded    = errors.New("der Grund „Aufbewahrungsfrist abgelaufen“ gilt nur für Kinder, deren Betreuung beendet ist")
 	// ErrCompanionWouldLoseDeparture refuses a deletion that would strand a
 	// linked child: their plan says "Anderes Kind" for a weekday this child
 	// covered and nothing else answers "mit wem".
-	ErrCompanionWouldLoseDeparture = errors.New("Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrCompanionWouldLoseDeparture = errors.New("ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen")
 	// ErrCompanionLockBusy is the retriable refusal when a linked child's row
 	// is held by a concurrent edit this transaction must not wait for.
-	ErrCompanionLockBusy         = errors.New("Ein verknüpftes Kind wird gerade an anderer Stelle bearbeitet. Bitte in einem Moment erneut speichern.") //nolint:staticcheck // ST1005: user-facing German message
-	ErrWithdrawalNotFound        = errors.New("Diese Abmeldung gibt es nicht oder nicht mehr.")                                                         //nolint:staticcheck // ST1005: user-facing German message
-	ErrWithdrawalAlreadyResolved = errors.New("Die Abmeldung wurde bereits erledigt oder ist nicht mehr aktuell.")                                      //nolint:staticcheck // ST1005: user-facing German message
+	ErrCompanionLockBusy         = errors.New("ein verknüpftes Kind wird gerade an anderer Stelle bearbeitet. Bitte in einem Moment erneut speichern")
+	ErrWithdrawalNotFound        = errors.New("diese Abmeldung gibt es nicht oder nicht mehr")
+	ErrWithdrawalAlreadyResolved = errors.New("die Abmeldung wurde bereits erledigt oder ist nicht mehr aktuell")
 )
 
 // Counts groups every child-owned or child-linked row affected by a permanent
@@ -564,27 +564,10 @@ func (w *Workflow) loadCounts(ctx context.Context, studentID, personID int64) (c
 	if err := w.loadEnrollmentRefs(ctx, studentID, &counts); err != nil {
 		return countSnapshot{}, err
 	}
-	rosterRemovals, err := w.deps.Timetable.CountStudentRosterRemovals(ctx, studentID)
+	counts.OtherRecords, err = w.countOtherStudentRecords(ctx, studentID)
 	if err != nil {
 		return countSnapshot{}, err
 	}
-	history, err := w.deps.Structure.CountStudentTransitionHistory(ctx, studentID)
-	if err != nil {
-		return countSnapshot{}, err
-	}
-	appointments, err := w.deps.CountAppointments(ctx, studentID)
-	if err != nil {
-		return countSnapshot{}, err
-	}
-	auditReferences, err := w.deps.CountAuditReferences(ctx, studentID)
-	if err != nil {
-		return countSnapshot{}, err
-	}
-	feedback, err := w.deps.CountFeedback(ctx, studentID)
-	if err != nil {
-		return countSnapshot{}, err
-	}
-	counts.OtherRecords = rosterRemovals + history + appointments + auditReferences + feedback
 	return counts, nil
 }
 
@@ -608,20 +591,9 @@ func (w *Workflow) lockCompanionGraph(ctx context.Context, subjectID int64) ([]i
 	for _, link := range links[subjectID] {
 		ids = append(ids, link.CompanionStudentID)
 	}
-	held := make(map[int64]bool, len(ids))
-	var maxHeld int64
-	for _, id := range ascending(ids) {
-		found, err := w.lockStudent(ctx, id, "update")
-		if err != nil {
-			return nil, err
-		}
-		if !found && id == subjectID {
-			return nil, ErrStudentNotFound
-		}
-		held[id] = true
-		if id > maxHeld {
-			maxHeld = id
-		}
+	held, maxHeld, err := w.lockInitialCompanions(ctx, subjectID, ids)
+	if err != nil {
+		return nil, err
 	}
 	links, err = w.deps.CarePlan.ListCompanionLinks(ctx, []int64{subjectID})
 	if err != nil {
@@ -686,23 +658,8 @@ func (w *Workflow) checkCompanionStranding(ctx context.Context, subjectID int64)
 		return err
 	}
 	for _, id := range removed {
-		// The rows are already held by lockCompanionGraph; this read only
-		// fetches the plan under the lock this transaction owns.
-		companion, err := w.deps.Directory.ReadEnrollmentStudent(ctx, id, "")
-		if errors.Is(err, peopledirectory.ErrStudentNotFound) {
-			continue // deleted or another tenant: nothing left to strand
-		}
-		if err != nil {
+		if err := w.requireCompanionUnstranded(ctx, id, removedDays[id], covered[id]); err != nil {
 			return err
-		}
-		if companion.DepartureCompanionNote != nil && strings.TrimSpace(*companion.DepartureCompanionNote) != "" {
-			continue // the free-text note carries the detail for every day
-		}
-		accompanied := accompaniedWeekdays(companion.AllowedDepartureModes, companion.DepartureDays)
-		for _, day := range removedDays[id] {
-			if accompanied[day] && !covered[id][day] {
-				return ErrCompanionWouldLoseDeparture
-			}
 		}
 	}
 	return nil

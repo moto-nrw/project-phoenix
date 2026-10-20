@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
@@ -19,12 +18,6 @@ import (
 // seams below are expressed in public values; this package adapts them to the
 // consumer-owned ports.
 
-// PasswordPolicy validates and hashes parent account passwords.
-type PasswordPolicy interface {
-	ValidatePasswordStrength(password string) error
-	HashPassword(password string) (string, error)
-}
-
 // FinancialAudit records the removal of a child's payer.
 type FinancialAudit interface {
 	RecordPayerRemoved(ctx context.Context, guardianProfileID, studentID, actorAccountID int64) error
@@ -35,7 +28,7 @@ type FinancialAudit interface {
 type LifecycleDependencies struct {
 	Staff     identityPorts.StaffDirectory
 	Audit     identityPorts.PreviewAudit
-	Passwords PasswordPolicy
+	Passwords identityPorts.PasswordPolicy
 	Guardians identityPorts.GuardianDirectory
 	Delivery  identityPorts.GuardianInvitationDelivery
 	// Caterers mails the caterer invitation; without it the module serves
@@ -51,7 +44,7 @@ type LifecycleDependencies struct {
 // newAccountLifecycle composes the lifecycle flows and the role
 // administration: offboarding removes roles through the administration, and
 // an assignment completes the school identity through the lifecycle.
-func newAccountLifecycle(service *application.Service, auth *application.AccountAuthentication, store *postgres.Store, sessions *SessionDependencies, deps *LifecycleDependencies, administration *application.AccountAdministration) (*application.AccountLifecycle, *application.RoleAdministration, error) {
+func newAccountLifecycle(service *application.Service, auth *application.AccountAuthentication, store *postgres.Store, sessions *identityPorts.SessionDependencies, deps *LifecycleDependencies, administration *application.AccountAdministration) (*application.AccountLifecycle, *application.RoleAdministration, error) {
 	if deps == nil {
 		return nil, nil, nil
 	}
@@ -65,7 +58,7 @@ func newAccountLifecycle(service *application.Service, auth *application.Account
 	case administration == nil:
 		return nil, nil, errors.New("identity access compose: the account administration is required")
 	}
-	runtime := tenantRuntime{attach: sessions.TenantRuntime, runner: newTransactionRunner()}
+	runtime := tenantRuntime{attach: sessions.TenantRuntime, runner: application.NewTransactionRunner()}
 	var lifecycle *application.AccountLifecycle
 	roles, err := newRoleAdministration(auth, runtime, postgres.NewRoleStore(store), administration, deps, func() *application.AccountLifecycle { return lifecycle })
 	if err != nil {
@@ -83,7 +76,7 @@ func newAccountLifecycle(service *application.Service, auth *application.Account
 		Guardians:   application.GuardianDirectory{Source: deps.Guardians},
 		Invitations: store,
 		Delivery:    application.GuardianInvitationDelivery{Source: deps.Delivery},
-		Enrollments: guardianEnrollments(deps.Enrollments),
+		Enrollments: application.GuardianEnrollments(deps.Enrollments),
 		Schools:     application.SchoolDirectory{Source: sessions.Schools},
 		Financial:   deps.Financial,
 		Runtime:     runtime,
@@ -96,15 +89,6 @@ func newAccountLifecycle(service *application.Service, auth *application.Account
 }
 
 // --- port adapters ---------------------------------------------------------
-
-// guardianEnrollments keeps the optional enrollment claim out of the flows:
-// a composition without it reports nothing to claim.
-func guardianEnrollments(source identityPorts.GuardianEnrollments) ports.GuardianEnrollments {
-	if source == nil {
-		return nil
-	}
-	return application.GuardianEnrollmentClaims{Source: source}
-}
 
 // --- engine methods -------------------------------------------------------
 

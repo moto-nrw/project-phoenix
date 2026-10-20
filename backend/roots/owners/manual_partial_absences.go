@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanBindingPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -16,7 +17,7 @@ type ManualPartialAbsenceDates struct {
 	source *carePlanCompose.ManualPartialAbsences
 }
 
-func NewManualPartialAbsenceDates(source carePlanCompose.PickupExceptionReader) *ManualPartialAbsenceDates {
+func NewManualPartialAbsenceDates(source carePlanBindingPorts.PickupExceptionReader) *ManualPartialAbsenceDates {
 	return &ManualPartialAbsenceDates{source: carePlanCompose.NewManualPartialAbsences(source)}
 }
 

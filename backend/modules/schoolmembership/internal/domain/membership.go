@@ -30,6 +30,9 @@ type Staff struct {
 	RotationAnchorDate    string
 	BirthdayDisplayOptOut bool
 	DeletedAt             *time.Time
+	// PersonalDataErasedAt marks a retired membership the automatic deletion
+	// of staff erased (#3963); no Wiederaufnahme continues it.
+	PersonalDataErasedAt *time.Time
 	// IsGuest marks an external caregiver without a moto account (#3823);
 	// GuestOrganization is the optional organization they come from.
 	IsGuest           bool
@@ -79,11 +82,12 @@ func (s Staff) WithEmployment(employment StaffEmployment) Staff {
 }
 
 type StaffFilter struct {
-	IDs            []int64
-	PersonIDs      []int64
-	TenantIDs      []int64
-	IncludeDeleted bool
-	MembershipOnly bool
+	IDs                   []int64
+	PersonIDs             []int64
+	TenantIDs             []int64
+	IncludeDeleted        bool
+	IncludeInactiveGuests bool
+	MembershipOnly        bool
 }
 
 type Teacher struct {

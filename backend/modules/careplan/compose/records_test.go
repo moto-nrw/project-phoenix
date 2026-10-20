@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	postgresNative "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
 	careplanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 type recordingStudentNames struct {
@@ -41,7 +41,7 @@ func TestCompanionFacadePreservesNamesIsolationAndQueryCount(t *testing.T) {
 	module, err := New(Dependencies{
 		StudentDirectory: testpkg.StudentDirectory{},
 		DB:               db, Observe: func(value Observation) { observations = append(observations, value) },
-		AmbientDB: TenantAmbientDatabase(db), People: people,
+		AmbientDB: postgresNative.TenantAmbientDatabase(db), People: people,
 		StatusStudents: emptyPeopleDirectory{}, StatusSlots: emptyStatusSlots{},
 		StudentLock:     func(context.Context, int64) error { return nil },
 		StudentNotFound: errors.New("student not found"),
@@ -223,7 +223,7 @@ func seedNamedCarePlanTables(t *testing.T, module *careplan.Module, ctx context.
 func assertNamedCarePlanTableCounts(t *testing.T, db *bun.DB, ctx context.Context, tenantID int64) {
 	t.Helper()
 	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
-		scoped, activeTenantID, databaseErr := carePlanDatabase(db)(txCtx)
+		scoped, activeTenantID, databaseErr := postgresNative.CarePlanDatabase(db)(txCtx)
 		require.NoError(t, databaseErr)
 		assert.Equal(t, tenantID, activeTenantID)
 		for _, table := range []string{
@@ -490,6 +490,6 @@ func TestCarePlanReadsRequireSchoolAndStoresRequireExistingTransaction(t *testin
 	for _, read := range reads {
 		require.Error(t, read())
 	}
-	_, _, err := carePlanDatabase(db)(tenant.WithTenantID(ctx, testpkg.Tenant(t)))
+	_, _, err := postgresNative.CarePlanDatabase(db)(tenant.WithTenantID(ctx, testpkg.Tenant(t)))
 	require.ErrorContains(t, err, "transaction is required")
 }

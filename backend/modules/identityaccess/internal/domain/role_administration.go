@@ -20,9 +20,9 @@ var (
 	// system role) already uses.
 	ErrRoleNameTaken = errors.New("role name already exists")
 
-	ErrRoleCaregiverNeedsProfile     = errors.New("Ein Lehrkraft-Konto hat kein Betreuungsprofil und kann nicht auf eine Betreuer-Rolle umgestellt werden") //nolint:staticcheck // ST1005: user-facing German message
-	ErrLehrkraftRoleImmutable        = errors.New("Ein Lehrkraft-Konto kann nicht umgestellt werden")                                                       //nolint:staticcheck // ST1005: user-facing German message
-	ErrRoleLehrkraftCaregiverProfile = errors.New("Das Konto hat ein Betreuungsprofil an dieser Schule und kann nicht auf Lehrkraft umgestellt werden")     //nolint:staticcheck // ST1005: user-facing German message
+	ErrRoleCaregiverNeedsProfile     = errors.New("ein Lehrkraft-Konto hat kein Betreuungsprofil und kann nicht auf eine Betreuer-Rolle umgestellt werden")
+	ErrLehrkraftRoleImmutable        = errors.New("ein Lehrkraft-Konto kann nicht umgestellt werden")
+	ErrRoleLehrkraftCaregiverProfile = errors.New("das Konto hat ein Betreuungsprofil an dieser Schule und kann nicht auf Lehrkraft umgestellt werden")
 )
 
 // ManagedRole is one auth.roles row as the administration reads and writes

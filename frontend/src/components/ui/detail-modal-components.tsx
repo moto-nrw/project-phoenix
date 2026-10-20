@@ -220,7 +220,7 @@ export function InfoText({ children }: InfoTextProps) {
 export const DetailIcons = {
   // Domain-flavored glyphs: self-colored via MotoDuotoneIcon, independent of
   // any wrapping accentColor (see InfoSection above).
-  person: <MotoDuotoneIcon icon={UserIcon} tone="blue" size="100%" />,
+  person: <MotoDuotoneIcon icon={UserIcon} tone="greenVivid" size="100%" />,
   group: <MotoDuotoneIcon icon={UsersThreeIcon} tone="greenDeep" size="100%" />,
   heart: <MotoDuotoneIcon icon={HeartIcon} tone="coral" size="100%" />,
   notes: <MotoDuotoneIcon icon={NotePencilIcon} tone="teal" size="100%" />,

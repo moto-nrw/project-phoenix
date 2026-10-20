@@ -2,7 +2,10 @@ package application
 
 import (
 	"context"
+	"errors"
 
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 )
 
@@ -13,31 +16,55 @@ import (
 
 // --- staff shifts ---
 
-func (s *Service) FindStaffShift(ctx context.Context, id int64) (result domain.StaffShift, err error) {
-	err = s.run(ctx, "find_staff_shift", func(ctx context.Context, stats *domain.OperationStats) error {
+// ReadShift owns the tenant-scoped read and returns the calculation record
+// directly to planning. The public engine maps it only at its outer boundary.
+func (s *Service) ReadShift(ctx context.Context, id int64) (*workforce.ShiftRecord, error) {
+	if id <= 0 {
+		return nil, &workforce.InvalidStaffShiftError{Reason: "staff shift ID is required"}
+	}
+	var value domain.StaffShift
+	err := s.run(ctx, "find_staff_shift", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
-		result, found, queryStats, err = s.store.FindStaffShift(ctx, id)
+		var err error
+		value, found, queryStats, err = s.store.FindStaffShift(ctx, id)
 		stats.Add(queryStats)
 		if err == nil && !found {
 			return domain.ErrStaffShiftNotFound
 		}
 		return err
 	})
-	return result, err
+	if err != nil {
+		if errors.Is(err, domain.ErrStaffShiftNotFound) {
+			return nil, transactionruntime.RecordErrors{}.MissingRecordError("find by id")
+		}
+		return nil, mapShiftError(err)
+	}
+	return shiftReadRecord(value), nil
 }
 
-func (s *Service) ListStaffShifts(ctx context.Context, filter domain.StaffShiftFilter) (result []domain.StaffShift, err error) {
-	if validationErr := filter.Validate(); validationErr != nil {
-		return nil, validationErr
+// ReadShifts owns filter validation, observation and the batched store read.
+func (s *Service) ReadShifts(ctx context.Context, filter workforce.StaffShiftFilter) ([]*workforce.ShiftRecord, error) {
+	selection := shiftFilterToDomain(filter)
+	if err := selection.Validate(); err != nil {
+		return nil, mapShiftError(err)
 	}
-	err = s.run(ctx, "list_staff_shifts", func(ctx context.Context, stats *domain.OperationStats) error {
+	var values []domain.StaffShift
+	err := s.run(ctx, "list_staff_shifts", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
-		result, queryStats, err = s.store.ListStaffShifts(ctx, filter)
+		var err error
+		values, queryStats, err = s.store.ListStaffShifts(ctx, selection)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	if values == nil {
+		return nil, mapShiftError(err)
+	}
+	result := make([]*workforce.ShiftRecord, 0, len(values))
+	for _, value := range values {
+		result = append(result, shiftReadRecord(value))
+	}
+	return result, mapShiftError(err)
 }
 
 func (s *Service) UsedStaffShiftWeeks(ctx context.Context, from, to string) (result []string, err error) {

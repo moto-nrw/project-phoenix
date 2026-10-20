@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"slices"
+
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -21,28 +24,9 @@ func sortStaffByName(staffMembers []OverviewStaff) {
 // staff members, then the UNCHANGED month math per staff member and month —
 // the export cannot drift from the Monatskarte by construction.
 func (s *staffOverviewService) GetMonthExportRows(ctx context.Context, year, month int) ([]MonthExportRow, error) {
-	today := s.today()
-	if year < 2000 || year > 2100 {
-		return nil, fmt.Errorf("%w: year out of range", ErrTimeExportInvalid)
-	}
-	if month < 0 || month > 12 {
-		return nil, fmt.Errorf("%w: month out of range", ErrTimeExportInvalid)
-	}
-	if year > today.Year() {
-		return nil, fmt.Errorf("%w: year %d lies in the future", ErrTimeExportInvalid, year)
-	}
-	if month != 0 && monthOf(today).before(monthKey{Year: year, Month: month}) {
-		return nil, fmt.Errorf("%w: month %04d-%02d lies in the future", ErrTimeExportInvalid, year, month)
-	}
-
-	firstKey := monthKey{Year: year, Month: month}
-	lastKey := firstKey
-	if month == 0 {
-		firstKey = monthKey{Year: year, Month: 1}
-		lastKey = monthKey{Year: year, Month: 12}
-		if todayKey := monthOf(today); todayKey.before(lastKey) && year == today.Year() {
-			lastKey = todayKey
-		}
+	firstKey, lastKey, err := exportMonthRange(year, month, s.today())
+	if err != nil {
+		return nil, err
 	}
 
 	staffMembers, err := s.activeStaff(ctx)
@@ -76,6 +60,34 @@ func (s *staffOverviewService) GetMonthExportRows(ctx context.Context, year, mon
 		}
 	}
 	return rows, nil
+}
+
+// exportMonthRange validates the requested export period and returns its
+// first and last month; month == 0 is the year, cut at the running month.
+func exportMonthRange(year, month int, today calendar.Date) (monthKey, monthKey, error) {
+	if year < 2000 || year > 2100 {
+		return monthKey{}, monthKey{}, fmt.Errorf("%w: year out of range", ErrTimeExportInvalid)
+	}
+	if month < 0 || month > 12 {
+		return monthKey{}, monthKey{}, fmt.Errorf("%w: month out of range", ErrTimeExportInvalid)
+	}
+	if year > today.Year() {
+		return monthKey{}, monthKey{}, fmt.Errorf("%w: year %d lies in the future", ErrTimeExportInvalid, year)
+	}
+	if month != 0 && monthOf(today).before(monthKey{Year: year, Month: month}) {
+		return monthKey{}, monthKey{}, fmt.Errorf("%w: month %04d-%02d lies in the future", ErrTimeExportInvalid, year, month)
+	}
+
+	firstKey := monthKey{Year: year, Month: month}
+	lastKey := firstKey
+	if month == 0 {
+		firstKey = monthKey{Year: year, Month: 1}
+		lastKey = monthKey{Year: year, Month: 12}
+		if todayKey := monthOf(today); todayKey.before(lastKey) && year == today.Year() {
+			lastKey = todayKey
+		}
+	}
+	return firstKey, lastKey, nil
 }
 
 // buildMonthExportRow copies a MonthSummary into the export shape. The only
@@ -154,14 +166,18 @@ func (s *workSessionService) DayExportRowsByStaffIDs(ctx context.Context, staffI
 		return result, nil
 	}
 
-	sessionsByStaff, err := s.repo.GetHistoryByStaffIDs(ctx, staffIDs, from, to)
+	sessionsByStaffRecords, err := s.repo.ListWorkSessions(ctx, workforce.WorkSessionFilter{StaffIDs: staffIDs, DateFrom: from.String(), DateTo: to.String(), Order: workSessionOrder(workforce.WorkSessionOrderStaffID, workforce.WorkSessionOrderDate, workforce.WorkSessionOrderCheckInTime)})
+	sessionsByStaff := workSessionsByStaff(sessionsByStaffRecords)
+	err = rowReadError("get history by staff IDs", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sessions for export: %w", err)
 	}
 
 	absencesByStaff := make(map[int64][]*StaffAbsence, len(staffIDs))
 	if s.absenceRepo != nil {
-		absencesByStaff, err = s.absenceRepo.GetByStaffIDsAndDateRange(ctx, staffIDs, from, to)
+		absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffIDs: staffIDs, OverlapFrom: from.String(), OverlapTo: to.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderStaffID}, {Field: workforce.StaffAbsenceOrderDateStart}}})
+		absencesByStaff = staffAbsencesByID(absenceValues)
+		err = rowReadError("get absences by staff IDs and date range", err, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get absences for export: %w", err)
 		}
@@ -212,7 +228,9 @@ func (s *workSessionService) buildDayExportSessionResponses(ctx context.Context,
 
 	breaksBySession := make(map[int64][]*WorkSessionBreak, len(sessions))
 	if len(sessionIDs) > 0 {
-		breaksBySession, err = s.breakRepo.GetBySessionIDs(ctx, sessionIDs)
+		breaksBySessionRecords, err := s.breakRepo.ListWorkSessionBreaks(ctx, workforce.WorkSessionBreakFilter{SessionIDs: sessionIDs})
+		breaksBySession = workBreaksBySession(breaksBySessionRecords)
+		err = rowReadError("get breaks by session IDs", err, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get breaks for export: %w", err)
 		}

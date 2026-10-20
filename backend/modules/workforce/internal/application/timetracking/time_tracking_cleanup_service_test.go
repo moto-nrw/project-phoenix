@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	api "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -41,7 +40,7 @@ func TestTimeTrackingCleanup_DeletesOldSessions(t *testing.T) {
 	students := api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
 	membership := api.MustNewSchoolMembership(testpkg.NewDatabase(t, db))
 	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
-	svc := timetracking.NewTimeTrackingCleanupService(workforceCompose.NewTimeTrackingTestRows(workTime).Sessions, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(workTime, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), nil, nil)
 
 	result, err := testpkg.TenantQuery0(t, ctx, db, svc.CleanupExpiredTimeTrackingData)
 	require.NoError(t, err)
@@ -86,7 +85,7 @@ func TestTimeTrackingCleanup_DeletesOldAbsences(t *testing.T) {
 	students := api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
 	membership := api.MustNewSchoolMembership(testpkg.NewDatabase(t, db))
 	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
-	svc := timetracking.NewTimeTrackingCleanupService(workforceCompose.NewTimeTrackingTestRows(workTime).Sessions, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(workTime, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), nil, nil)
 
 	result, err := testpkg.TenantQuery0(t, ctx, db, svc.CleanupExpiredTimeTrackingData)
 	require.NoError(t, err)
@@ -117,7 +116,7 @@ func TestTimeTrackingCleanup_PreviewLeavesDataIntact(t *testing.T) {
 	students := api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
 	membership := api.MustNewSchoolMembership(testpkg.NewDatabase(t, db))
 	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
-	svc := timetracking.NewTimeTrackingCleanupService(workforceCompose.NewTimeTrackingTestRows(workTime).Sessions, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(workTime, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), nil, nil)
 
 	preview, err := svc.PreviewExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -147,7 +146,7 @@ func TestTimeTrackingCleanup_PreviewOldestOnlyShowsExpiredRows(t *testing.T) {
 	students := api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
 	membership := api.MustNewSchoolMembership(testpkg.NewDatabase(t, db))
 	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
-	svc := timetracking.NewTimeTrackingCleanupService(workforceCompose.NewTimeTrackingTestRows(workTime).Sessions, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(workTime, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), nil, nil)
 
 	preview, err := svc.PreviewExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -179,7 +178,7 @@ func TestTimeTrackingCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	students := api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
 	membership := api.MustNewSchoolMembership(testpkg.NewDatabase(t, db))
 	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
-	svc := timetracking.NewTimeTrackingCleanupService(workforceCompose.NewTimeTrackingTestRows(workTime).Sessions, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(workTime, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -205,7 +204,7 @@ func TestTimeTrackingCleanup_AuditRequired(t *testing.T) {
 	students := api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
 	membership := api.MustNewSchoolMembership(testpkg.NewDatabase(t, db))
 	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
-	svc := timetracking.NewTimeTrackingCleanupService(workforceCompose.NewTimeTrackingTestRows(workTime).Sessions, api.NewStaffAbsenceRepository(workTime, membership, students), nil, nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(workTime, api.NewStaffAbsenceRepository(workTime, membership, students), nil, nil, nil)
 	_, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "audit repo not configured")
@@ -227,7 +226,7 @@ func TestTimeTrackingCleanup_UsesBusinessDatesNotCreatedAt(t *testing.T) {
 	students := api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
 	membership := api.MustNewSchoolMembership(testpkg.NewDatabase(t, db))
 	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
-	svc := timetracking.NewTimeTrackingCleanupService(workforceCompose.NewTimeTrackingTestRows(workTime).Sessions, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(workTime, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), nil, nil)
 
 	result, err := testpkg.TenantQuery0(t, ctx, db, svc.CleanupExpiredTimeTrackingData)
 	require.NoError(t, err)

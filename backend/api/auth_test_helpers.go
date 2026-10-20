@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -22,6 +20,7 @@ import (
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -84,11 +83,6 @@ func NewInvitationTestModule(db transactionruntime.Database, unit tenant.UnitOfW
 	return InvitationTestModule{Invitation: auth.Invitation, Auth: auth.Auth}, nil
 }
 
-// AccountMFARecords is the account MFA record port the composed module
-// consumes, named here so a behaviour test can decorate it without reaching
-// into the module's composition package.
-type AccountMFARecords = identityPorts.AccountMFARecords
-
 // AuthTestOption overrides a default of the composed test module: the
 // Identity & Access settings or the mail transport.
 type AuthTestOption func(*authTestSettings, *authTestMail)
@@ -103,7 +97,6 @@ type authTestSettings struct {
 	rateLimitEnabled bool
 	resetBackoff     []time.Duration
 	mfaBackoff       []time.Duration
-	mfaRecords       func(AccountMFARecords) AccountMFARecords
 	mfaCapability    identityaccess.AccountMFA
 	staffCreateErr   error
 	standingDemo     string
@@ -171,12 +164,6 @@ func WithAuthTestMFABackoff(backoff ...time.Duration) AuthTestOption {
 	return func(s *authTestSettings, _ *authTestMail) { s.mfaBackoff = backoff }
 }
 
-// WithAuthTestMFARecords wraps the account MFA record port, so a test can
-// make one statement fail and prove the flow refuses instead of degrading.
-func WithAuthTestMFARecords(decorate func(AccountMFARecords) AccountMFARecords) AuthTestOption {
-	return func(s *authTestSettings, _ *authTestMail) { s.mfaRecords = decorate }
-}
-
 // WithAuthTestMFACapability composes the module over the given account
 // second factor instead of the one over the repositories, so a test can
 // drive the login branches the gate decides between.
@@ -187,7 +174,7 @@ func WithAuthTestMFACapability(capability identityaccess.AccountMFA) AuthTestOpt
 // authTestRelyingParty is the passkey relying party the composed test module
 // runs its ceremonies under. The localhost value makes the module follow the
 // request's own origin, so every school subdomain works.
-var authTestRelyingParty = identityaccessCompose.PasskeyDependencies{
+var authTestRelyingParty = identityPorts.PasskeyDependencies{
 	RPID: "localhost", RPName: "moto",
 	TenantDomain: "localhost", OperatorFrontendURL: "http://operator.localhost",
 }
@@ -308,7 +295,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 			return source, deliveryModule.Runtime, logger
 		})
 	}
-	mfa.DecorateRecords, mfa.Capability = settingsOverrides.mfaRecords, settingsOverrides.mfaCapability
+	mfa.Capability = settingsOverrides.mfaCapability
 	guardianMail, enrollmentClaims, err := owners.GuardianInvitationDependencies(settings.Settings, organizations, owners.OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox},
 		parentPortal.ParentEnrollmentRequest, parentsURL, time.Duration(inviteHours)*time.Hour, logger)
 	if err != nil {

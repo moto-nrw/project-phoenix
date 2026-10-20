@@ -141,7 +141,7 @@ var moduleLegacyFileBudgets = map[string]int{}
 // announcement retention of modules/communication/composition), and by
 // ADR 0075 (the meal ordering rules) and ADR 0074 (the caterer flows and
 // the caterer portal).
-const moduleComposeBudgetTotal = 16856
+const moduleComposeBudgetTotal = 12561
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -151,59 +151,59 @@ const moduleComposeBudgetTotal = 16856
 // keeps its LOC counted. ADR 0075 raised modules/mealplan/compose and
 // workflows/parentportal/compose for the meal ordering rules.
 var moduleComposeBudgets = map[string]int{
-	"modules/appointments/compose":         67,
+	"modules/appointments/compose":         45,
 	"modules/auditlog/compose":             183,
-	"modules/careplan/compose":             2460,
-	"modules/careplan/requestfeed/compose": 68,
-	"modules/classday/compose":             461,
+	"modules/careplan/compose":             1646,
+	"modules/careplan/requestfeed/compose": 53,
+	"modules/classday/compose":             213,
 	// Raised by ADR 0073: the parent announcement retention.
 	"modules/communication/composition":               367,
-	"modules/dataimport/compose":                      202,
+	"modules/dataimport/compose":                      85,
 	"modules/dataimport/compose/imports":              29,
-	"modules/delivery/compose":                        759,
-	"modules/devicefleet/compose":                     353,
+	"modules/delivery/compose":                        363,
+	"modules/devicefleet/compose":                     219,
 	"modules/devicefleet/compose/repositoryadapter":   10,
-	"modules/devicescan/compose":                      1228,
+	"modules/devicescan/compose":                      531,
 	"modules/emergencysnapshot/compose":               13,
-	"modules/enrollment/compose":                      714,
-	"modules/exporttransfer/compose":                  234,
-	"modules/facilities/compose":                      222,
+	"modules/enrollment/compose":                      540,
+	"modules/exporttransfer/compose":                  168,
+	"modules/facilities/compose":                      184,
 	"modules/facilities/compose/repositoryadapter":    11,
-	"modules/feedback/compose":                        86,
-	"modules/filestorage/compose":                     341,
+	"modules/feedback/compose":                        61,
+	"modules/filestorage/compose":                     217,
 	"modules/grouplive/compose":                       14,
 	"modules/guardianlinkview/compose":                8,
-	"modules/identityaccess/compose":                  1773, // raised by ADR 0074
-	"modules/mealplan/compose":                        89,   // raised by ADR 0075
-	"modules/organizationtenancy/compose":             474,
+	"modules/identityaccess/compose":                  1357, // raised by ADR 0074
+	"modules/mealplan/compose":                        74,   // raised by ADR 0075
+	"modules/organizationtenancy/compose":             254,
 	"modules/parentrequestfeedprojection/compose":     11,
-	"modules/peopledirectory/compose":                 1168,
+	"modules/peopledirectory/compose":                 964,
 	"modules/presenceprojection/compose":              7,
 	"modules/requestreview/compose":                   12,
 	"modules/schedulerruntime/compose":                45,
-	"modules/schoolcalendar/compose":                  165,
-	"modules/schoolcalendar/portal/compose":           119,
+	"modules/schoolcalendar/compose":                  148,
+	"modules/schoolcalendar/portal/compose":           112,
 	"modules/schoolmembership/compose":                185,
 	"modules/schoolsetup/compose":                     56,
 	"modules/schoolstructure/compose":                 594,
-	"modules/settings/compose":                        380,
+	"modules/settings/compose":                        308,
 	"modules/studentdirectoryview/compose":            9,
 	"modules/studentpresence/compose":                 243,
 	"modules/studentpresence/compose/presenceservice": 110,
 	"modules/supervisiondashboard/compose":            11,
-	"modules/timetable/compose":                       1365,
+	"modules/timetable/compose":                       1179,
 	"modules/timetableblockdisplay/compose":           9,
 	"modules/timetableenrollmentprovenance/compose":   10,
 	"modules/timetableprojection/compose":             7,
-	"modules/transactionruntime/compose":              137,
-	"modules/workforce/compose":                       1164,
+	"modules/transactionruntime/compose":              133,
+	"modules/workforce/compose":                       919,
 	"workflows/catererportal/compose":                 36, // added by ADR 0074
 	"workflows/gradetransition/compose":               49,
 	"workflows/openroommove/compose":                  46,
 	"workflows/parentportal/compose":                  308, // raised by ADR 0075
 	"workflows/reminderdelivery/compose":              30,
 	"workflows/sessionend/compose":                    59,
-	"workflows/shiftplansync/compose":                 166,
+	"workflows/shiftplansync/compose":                 127,
 	"workflows/staffclock/compose":                    36,
 	"workflows/staffoffboarding/compose":              79,
 	"workflows/studentdeletion/compose":               74,

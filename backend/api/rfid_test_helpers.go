@@ -42,8 +42,8 @@ func NewRFIDTestPeople(db transactionruntime.Database) (peoplePorts.PersonDirect
 		return nil, err
 	}
 	return peopleCompose.NewPersonDirectory(peoplePorts.PersonDirectoryDependencies{
-		PersonDirectory:  peopleCompose.NewPersonWrites(owners.MustNewPeopleDirectory(db)),
-		StudentDirectory: peopleCompose.NewStudentDirectory(owners.MustNewPeopleDirectory(db)),
+		PersonDirectory:  owners.MustNewPeopleDirectory(db).PersonWrites,
+		StudentDirectory: owners.MustNewPeopleDirectory(db).StudentDirectory,
 		PersonRepo:       members.Person, TeacherRepo: members.Teacher,
 		StaffDirectory: peopleCompose.NewStaffDirectory(peoplePorts.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: members.Person, Staff: members.Staff, Teachers: members.Teacher, MayManageStaff: StaffAdministrationPermitted}),
 		AccountExists:  identityaccessCompose.AccountExists(accounts), StudentRepo: NewUnboundStudentRepository(db), RFIDRepo: owners.NewPeopleIdentityAccess(db, nil),

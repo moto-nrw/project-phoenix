@@ -20,7 +20,7 @@ import (
 // chi-resolved value ambiguous to read.
 const categoryIDParam = "categoryId"
 
-const msgInvalidCategoryID = "Ungültige Kategorie-ID"
+const msgInvalidCategoryID = "ungültige Kategorie-ID"
 
 // maxCategoryNameLength keeps a Kategorie label short enough to render in the
 // planner dropdowns and Termin badges. The column itself is unbounded TEXT.
@@ -137,7 +137,6 @@ func (rs *Resource) createCategory(ctx context.Context, req *CategoryRequest) (C
 func (rs *Resource) updateCategory(w http.ResponseWriter, r *http.Request) {
 	id, err := common.ParseIDParam(r, categoryIDParam)
 	if err != nil {
-		//nolint:staticcheck // ST1005: user-facing German message rendered verbatim
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(msgInvalidCategoryID)))
 		return
 	}

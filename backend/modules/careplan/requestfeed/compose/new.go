@@ -1,7 +1,6 @@
 package compose
 
 import (
-	"context"
 	"errors"
 	"time"
 
@@ -29,21 +28,7 @@ func New(dependencies Dependencies) (*requestfeed.Module, error) {
 	if dependencies.DB == nil || dependencies.Feed == nil || dependencies.FrontendURL == "" || dependencies.Now == nil || dependencies.NewToken == nil || dependencies.HashToken == nil {
 		return nil, errors.New("request feed compose: all dependencies are required")
 	}
-	database := func(ctx context.Context) (bun.IDB, error) {
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return nil, errors.New("request feed compose: transaction is required")
-		}
-		switch tx := transaction.(type) {
-		case bun.Tx:
-			return tx, nil
-		case *bun.Tx:
-			if tx != nil {
-				return tx, nil
-			}
-		}
-		return nil, errors.New("request feed compose: unsupported transaction")
-	}
+	database := postgres.NewDatabase(tenant.TransactionFromContext)
 	feed := dependencies.Feed(database)
 	service, err := application.New(
 		postgres.New(database, feed),

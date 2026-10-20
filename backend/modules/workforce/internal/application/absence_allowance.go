@@ -134,25 +134,9 @@ func (s *Service) PreviewAllowanceRebooking(ctx context.Context, staffID, absenc
 	if !absenceType.AllowanceEnabled || len(absenceIDs) == 0 {
 		return nil, nil
 	}
-	candidates := make([]domain.StaffAbsence, 0, len(absenceIDs))
-	firstYear, lastYear := 0, 0
-	for _, id := range absenceIDs {
-		absence, err := s.FindStaffAbsence(ctx, id)
-		if err != nil {
-			return nil, err
-		}
-		if absence.StaffID != staffID {
-			return nil, domain.ErrStaffAbsenceNotFound
-		}
-		start, end, err := absenceYears(absence)
-		if err != nil {
-			return nil, err
-		}
-		if firstYear == 0 || start < firstYear {
-			firstYear = start
-		}
-		lastYear = max(lastYear, end)
-		candidates = append(candidates, absence)
+	candidates, firstYear, lastYear, err := s.rebookingCandidates(ctx, staffID, absenceIDs)
+	if err != nil {
+		return nil, err
 	}
 	accounts, err := s.loadAllowanceAccounts(ctx, staffID, absenceType, firstYear, lastYear)
 	if err != nil {
@@ -170,6 +154,32 @@ func (s *Service) PreviewAllowanceRebooking(ctx context.Context, staffID, absenc
 		additional = append(additional, uses...)
 	}
 	return s.allowancePreviews(accounts, staffID, absenceTypeID, firstYear, lastYear, absenceIDs, additional)
+}
+
+// rebookingCandidates loads the staff member's absences to rebook and the
+// span of years they cover.
+func (s *Service) rebookingCandidates(ctx context.Context, staffID int64, absenceIDs []int64) ([]domain.StaffAbsence, int, int, error) {
+	candidates := make([]domain.StaffAbsence, 0, len(absenceIDs))
+	firstYear, lastYear := 0, 0
+	for _, id := range absenceIDs {
+		absence, err := s.FindStaffAbsence(ctx, id)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		if absence.StaffID != staffID {
+			return nil, 0, 0, domain.ErrStaffAbsenceNotFound
+		}
+		start, end, err := absenceYears(absence)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		if firstYear == 0 || start < firstYear {
+			firstYear = start
+		}
+		lastYear = max(lastYear, end)
+		candidates = append(candidates, absence)
+	}
+	return candidates, firstYear, lastYear, nil
 }
 
 func absenceYears(absence domain.StaffAbsence) (int, int, error) {
@@ -266,30 +276,8 @@ func (s *Service) SetAllowance(ctx context.Context, input domain.SetAbsenceTypeA
 	var result domain.AbsenceTypeAllowanceSummary
 	err = s.run(ctx, "set_staff_absence_type_allowance", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
-			if err := s.LockStaffAbsenceWrites(txCtx, input.StaffID); err != nil {
-				return fmt.Errorf("lock staff allowance writes: %w", err)
-			}
-			// A claim also feeds the carryover into the following year.
-			accounts, err := s.loadAllowanceAccounts(txCtx, input.StaffID, absenceType, input.Year, input.Year+1)
-			if err != nil {
+			if err := s.saveAllowance(txCtx, absenceType, input, stats); err != nil {
 				return err
-			}
-			if err := s.ensureAllowanceClaimCovers(accounts, input); err != nil {
-				return err
-			}
-			var oldDays *float64
-			if previous, found := accounts.entitlements[input.Year]; found {
-				oldDays = &previous
-			}
-			writeStats, err := s.store.UpsertStaffAbsenceTypeAllowance(txCtx, input)
-			stats.Add(writeStats)
-			if err != nil {
-				return fmt.Errorf("save absence type allowance: database error during upsert staff absence type allowance: %w", err)
-			}
-			auditStats, err := s.store.RecordStaffAbsenceTypeAllowanceChange(txCtx, input, oldDays)
-			stats.Add(auditStats)
-			if err != nil {
-				return fmt.Errorf("audit absence type allowance: database error during create: %w", err)
 			}
 			result, err = s.AllowanceSummary(txCtx, input.StaffID, input.AbsenceTypeID, input.Year)
 			return err
@@ -299,6 +287,38 @@ func (s *Service) SetAllowance(ctx context.Context, input domain.SetAbsenceTypeA
 		return domain.AbsenceTypeAllowanceSummary{}, err
 	}
 	return result, nil
+}
+
+// saveAllowance stores one claim under the staff member's absence write lock,
+// together with its audit row, once the changed claim still covers every
+// taken and requested day.
+func (s *Service) saveAllowance(ctx context.Context, absenceType domain.StaffAbsenceType, input domain.SetAbsenceTypeAllowance, stats *domain.OperationStats) error {
+	if err := s.LockStaffAbsenceWrites(ctx, input.StaffID); err != nil {
+		return fmt.Errorf("lock staff allowance writes: %w", err)
+	}
+	// A claim also feeds the carryover into the following year.
+	accounts, err := s.loadAllowanceAccounts(ctx, input.StaffID, absenceType, input.Year, input.Year+1)
+	if err != nil {
+		return err
+	}
+	if err := s.ensureAllowanceClaimCovers(accounts, input); err != nil {
+		return err
+	}
+	var oldDays *float64
+	if previous, found := accounts.entitlements[input.Year]; found {
+		oldDays = &previous
+	}
+	writeStats, err := s.store.UpsertStaffAbsenceTypeAllowance(ctx, input)
+	stats.Add(writeStats)
+	if err != nil {
+		return fmt.Errorf("save absence type allowance: database error during upsert staff absence type allowance: %w", err)
+	}
+	auditStats, err := s.store.RecordStaffAbsenceTypeAllowanceChange(ctx, input, oldDays)
+	stats.Add(auditStats)
+	if err != nil {
+		return fmt.Errorf("audit absence type allowance: database error during create: %w", err)
+	}
+	return nil
 }
 
 // ensureAllowanceClaimCovers keeps Kontingente from going negative (#3256):

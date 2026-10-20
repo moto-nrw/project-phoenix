@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Account lifecycle facts and decisions (#3225): the admin staff-view preview,
@@ -12,12 +14,24 @@ import (
 // contract the retained auth service established.
 
 // StaffMember is the users.staff fact the module reads through the staff
-// directory port.
+// directory port. FindStaffByPerson also reports when the membership was
+// created and retired, and Erased for a retired membership the automatic
+// deletion of staff erased, which no invitation continues.
 type StaffMember struct {
-	ID       int64
-	TenantID int64
-	PersonID int64
-	Deleted  bool
+	ID        int64
+	TenantID  int64
+	PersonID  int64
+	Deleted   bool
+	StartedAt time.Time
+	RetiredAt *time.Time
+	Erased    bool
+}
+
+// FormerEmployment is the retired membership an invitation to the person's
+// address would continue at the school (ADR 0021).
+type FormerEmployment struct {
+	StartedOn calendar.Date
+	EndedOn   calendar.Date
 }
 
 // PersonRecord is the users.persons fact the module reads and, for the school
@@ -132,11 +146,11 @@ type PermissionGrant struct {
 // --- school identity -------------------------------------------------------
 
 var (
-	ErrSchoolIdentityNamesRequired   = errors.New("Vor- und Nachname sind erforderlich, um ein Konto als Personal anzulegen")                                                //nolint:staticcheck // ST1005: user-facing German message
-	ErrSchoolIdentityPersonIsStudent = errors.New("Dieses Konto ist mit dem Datensatz eines Kindes verknüpft und kann nicht als Personal angelegt werden")                   //nolint:staticcheck // ST1005: user-facing German message
-	ErrSchoolIdentityTagUnknown      = errors.New("Der angegebene Transponder ist an dieser Schule nicht bekannt")                                                           //nolint:staticcheck // ST1005: user-facing German message
-	ErrSchoolIdentityTagConflict     = errors.New("Diese Person trägt an dieser Schule bereits einen anderen Transponder; dieser wird über die Personalverwaltung geändert") //nolint:staticcheck // ST1005: user-facing German message
-	ErrSchoolIdentityTagTaken        = errors.New("Dieser Transponder ist an dieser Schule bereits einer anderen Person zugeordnet")                                         //nolint:staticcheck // ST1005: user-facing German message
+	ErrSchoolIdentityNamesRequired   = errors.New("vor- und Nachname sind erforderlich, um ein Konto als Personal anzulegen")
+	ErrSchoolIdentityPersonIsStudent = errors.New("dieses Konto ist mit dem Datensatz eines Kindes verknüpft und kann nicht als Personal angelegt werden")
+	ErrSchoolIdentityTagUnknown      = errors.New("der angegebene Transponder ist an dieser Schule nicht bekannt")
+	ErrSchoolIdentityTagConflict     = errors.New("diese Person trägt an dieser Schule bereits einen anderen Transponder; dieser wird über die Personalverwaltung geändert")
+	ErrSchoolIdentityTagTaken        = errors.New("dieser Transponder ist an dieser Schule bereits einer anderen Person zugeordnet")
 )
 
 // RoleFacts are the classification facts of a role: its tier (base_role) and,
@@ -191,8 +205,8 @@ type SchoolIdentity struct {
 
 var (
 	ErrParentAccountNotFound = errors.New("parent account not found")
-	ErrEmailAlreadyExists    = errors.New("Diese E-Mail-Adresse ist bereits registriert") //nolint:staticcheck // ST1005: user-facing German message
-	ErrUsernameAlreadyExists = errors.New("Dieser Benutzername ist bereits vergeben")     //nolint:staticcheck // ST1005: user-facing German message
+	ErrEmailAlreadyExists    = errors.New("diese E-Mail-Adresse ist bereits registriert")
+	ErrUsernameAlreadyExists = errors.New("dieser Benutzername ist bereits vergeben")
 )
 
 // ParentAccount is one row of auth.accounts_parents.
@@ -219,7 +233,7 @@ var (
 	ErrCannotRemovePrimaryGuardian      = errors.New("the primary guardian cannot be removed by a parent")
 	ErrCannotRemoveStaffManagedGuardian = errors.New("staff-managed guardian contacts cannot be removed by a parent")
 	ErrCannotRemoveOwnAccess            = errors.New("a parent cannot remove their own access to a child")
-	ErrCannotRemovePayerGuardian        = errors.New("Diese Person ist als Zahler für das Kind eingetragen und kann nicht entfernt werden. Bitte wenden Sie sich an die Schule.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrCannotRemovePayerGuardian        = errors.New("diese Person ist als Zahler für das Kind eingetragen und kann nicht entfernt werden. Bitte wenden Sie sich an die Schule")
 	ErrInviteSocialWorkerManaged        = errors.New("a social-worker contact is managed by the school and cannot be invited to the parents portal")
 	ErrGuardianInvitationNotFound       = errors.New("invitation not found")
 	ErrGuardianInvitationExpired        = errors.New("invitation has expired")

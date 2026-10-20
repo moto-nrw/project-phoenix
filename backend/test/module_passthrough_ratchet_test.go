@@ -179,6 +179,8 @@ const modulePassthroughMaxBodyLines = 14
 // into internal/planning (#4240), and the root-facing seam and record types
 // into the owners' ports packages (#4174, #4182, #4210, #4227, #4236, #4238).
 var modulePassthroughMovedTrees = []struct{ path, owner string }{
+	{"roots/devicescanbinding/", "modules/devicescan"},
+	{"modules/devicescan/ports/", "modules/devicescan"},
 	{"workflows/parentportal/internal/care/owner_record_adapters.go", "workflows/parentportal"},
 	{"workflows/parentportal/internal/care/meal_plan_adapter.go", "workflows/parentportal"},
 	{"workflows/parentportal/internal/messaging/child_resolver.go", "workflows/parentportal"},
@@ -217,10 +219,8 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // for modules/communication and modules/schoolcalendar), by ADR 0074 (four
 // for modules/identityaccess, two for modules/mealplan) and by ADR 0075 (one
 // for workflows/parentportal).
-const modulePassthroughOwnerBudgetTotal = 2977
+const modulePassthroughOwnerBudgetTotal = 2715
 
-// ADR 0075 keeps modules/mealplan at its base: the engine methods of the meal
-// orders and their settling replace two rule delegations.
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
 // together (ADR 0061). Each entry started as the sum of the module's entries
@@ -231,40 +231,43 @@ const modulePassthroughOwnerBudgetTotal = 2977
 // readable. Shrink-only — an entry may fall or go, never rise, and no module
 // gets a new entry.
 var modulePassthroughOwnerBudgets = map[string]int{
-	"modules/appointments": 65,
+	"modules/appointments": 21,
 	"modules/auditlog":     1,
-	"modules/careplan":     289,
+	"modules/careplan":     285,
 	"modules/classday":     18,
 	// Raised by ADR 0073: the composition forwards the parent announcement
 	// retention to its service.
-	"modules/communication":       71,
-	"modules/dataimport":          1,
-	"modules/delivery":            15,
-	"modules/devicefleet":         58,
-	"modules/devicescan":          48,
-	"modules/enrollment":          35,
-	"modules/exporttransfer":      4,
-	"modules/facilities":          18,
-	"modules/feedback":            14,
-	"modules/filestorage":         27,
-	"modules/identityaccess":      560, // raised by ADR 0074
-	"modules/mealplan":            17,  // raised by ADR 0074
-	"modules/organizationtenancy": 60,
-	"modules/peopledirectory":     302,
+	"modules/communication":  71,
+	"modules/dataimport":     1,
+	"modules/delivery":       12,
+	"modules/devicefleet":    58,
+	"modules/devicescan":     41,
+	"modules/enrollment":     35,
+	"modules/exporttransfer": 1,
+	"modules/facilities":     18,
+	"modules/feedback":       14,
+	"modules/filestorage":    27,
+	// Raised by ADR 0074: the caterer flows.
+	"modules/identityaccess": 501,
+	// Raised by ADR 0074: the caterer supply.
+	"modules/mealplan":            17,
+	"modules/organizationtenancy": 42,
+	"modules/peopledirectory":     265,
 	"modules/requestreview":       17,
 	"modules/schedulerruntime":    4,
 	// Raised by ADR 0073: the feed cleanup keeps only the staff feed tombstones.
 	"modules/schoolcalendar":   45,
-	"modules/schoolmembership": 81,
+	"modules/schoolmembership": 80,
 	"modules/schoolsetup":      2,
 	"modules/schoolstructure":  70,
 	"modules/settings":         19,
 	"modules/studentpresence":  240,
-	"modules/timetable":        482,
-	"modules/workforce":        392,
+	"modules/timetable":        469,
+	"modules/workforce":        319,
 	"workflows/openroommove":   1,
-	"workflows/parentportal":   18, // raised by ADR 0075
-	"workflows/shiftplansync":  3,
+	// Raised by ADR 0075: the week change of the meal plan adapter.
+	"workflows/parentportal":  18,
+	"workflows/shiftplansync": 3,
 }
 
 func TestModulePassthroughRatchet(t *testing.T) {

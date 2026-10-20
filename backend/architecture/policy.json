@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 88,
+  "policy_epoch": 89,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -468,7 +468,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/devicescan/internal/ports",
+      "path": "modules/devicescan/ports",
       "owner": "process-device-scan",
       "role": "port",
       "internal_test_role": "module-internal-test",
@@ -2025,13 +2025,6 @@
       "path": "modules/timetable/ports",
       "owner": "timetable-activities",
       "role": "port",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/timetable/timetabletest",
-      "owner": "test-support",
-      "role": "test-support",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -3642,6 +3635,20 @@
       "path": "modules/communication/ports",
       "owner": "communication",
       "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/dataimport/internal/adapters/runtimebinding",
+      "owner": "data-import",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "roots/devicescanbinding",
+      "owner": "root-composition",
+      "role": "compose",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     }
@@ -5762,39 +5769,6 @@
       "target_role": "public"
     },
     {
-      "id": "data-import.compose.opening-references.workforce",
-      "description": "Bind opening-balance matching and duplicate detection to native tenant-scoped owner queries (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "data-import",
-      "source_role": "compose",
-      "target_owner": "workforce",
-      "target_role": "public"
-    },
-    {
-      "id": "data-import.compose.opening-references.people-directory",
-      "description": "Bind opening-balance matching and duplicate detection to native tenant-scoped owner queries (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "data-import",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "public"
-    },
-    {
-      "id": "data-import.compose.opening-references.school-membership",
-      "description": "Bind opening-balance matching and duplicate detection to native tenant-scoped owner queries (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "data-import",
-      "source_role": "compose",
-      "target_owner": "school-membership",
-      "target_role": "public"
-    },
-    {
       "id": "data-import.workflow-decision-test.audit-event-contract",
       "description": "Verify native import audit events and replay checkpoints (#2744).",
       "scopes": [
@@ -5848,28 +5822,6 @@
       "source_role": "application",
       "target_owner": "audit-platform",
       "target_role": "contract"
-    },
-    {
-      "id": "data-import.compose.production.school-structure.public",
-      "description": "Bind import reference lookups to native tenant-scoped owner queries (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "data-import",
-      "source_role": "compose",
-      "target_owner": "school-structure",
-      "target_role": "public"
-    },
-    {
-      "id": "data-import.compose.production.facilities.public",
-      "description": "Bind import reference lookups to native tenant-scoped owner queries (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "data-import",
-      "source_role": "compose",
-      "target_owner": "facilities",
-      "target_role": "public"
     },
     {
       "id": "data-import.adapter.file-rendering",
@@ -8193,17 +8145,6 @@
       "target_role": "public"
     },
     {
-      "id": "test-support.to.student-presence-compose",
-      "description": "Shared presence fixtures create records through the real owner module.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "test-support",
-      "source_role": "test-support",
-      "target_owner": "student-presence",
-      "target_role": "compose"
-    },
-    {
       "id": "test-support.to.timetable-public",
       "description": "Timetable test support returns the real public capability.",
       "scopes": [
@@ -8213,28 +8154,6 @@
       "source_role": "test-support",
       "target_owner": "timetable-activities",
       "target_role": "public"
-    },
-    {
-      "id": "test-support.to.timetable-compose",
-      "description": "Timetable test support constructs the real owner module.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "test-support",
-      "source_role": "test-support",
-      "target_owner": "timetable-activities",
-      "target_role": "compose"
-    },
-    {
-      "id": "test-support.to.timetable-port",
-      "description": "Timetable test support names the presence read filters the owner module it constructs takes (ADR 0058 addendum point 5, #4084).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "test-support",
-      "source_role": "test-support",
-      "target_owner": "timetable-activities",
-      "target_role": "port"
     },
     {
       "id": "meal-plan.compose.orm-sql",
@@ -10787,28 +10706,6 @@
       "source_owner": "file-storage",
       "source_role": "compose",
       "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "file-storage.compose.identity-public",
-      "description": "File Storage composition binds membership, role and shareable-role facts to the public Identity & Access capability (#2707).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "file-storage",
-      "source_role": "compose",
-      "target_owner": "identity-access",
-      "target_role": "public"
-    },
-    {
-      "id": "file-storage.compose.people-public",
-      "description": "File Storage composition resolves the names of the audience picker through the public People Directory query (#2707).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "file-storage",
-      "source_role": "compose",
-      "target_owner": "people-directory",
       "target_role": "public"
     },
     {
@@ -15776,6 +15673,240 @@
       "target_owner": "communication",
       "target_role": "port",
       "target_package": "modules/communication/ports"
+    },
+    {
+      "id": "appointments.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "appointments",
+      "source_role": "postgres",
+      "source_package": "modules/appointments/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "care-plan.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "postgres",
+      "source_package": "modules/careplan/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "device-fleet.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "postgres",
+      "source_package": "modules/devicefleet/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "device-fleet.application.compose-extraction.facilities.facilities",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "application",
+      "source_package": "modules/devicefleet/internal/application",
+      "target_owner": "facilities",
+      "target_role": "public",
+      "target_package": "modules/facilities"
+    },
+    {
+      "id": "enrollment.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "postgres",
+      "source_package": "modules/enrollment/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "enrollment.application.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "source_package": "modules/enrollment/internal/application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "facilities.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "postgres",
+      "source_package": "modules/facilities/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "facilities.application.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "application",
+      "source_package": "modules/facilities/internal/application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "file-storage.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "postgres",
+      "source_package": "modules/filestorage/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "file-storage.application.compose-extraction.identity-access.identityaccess",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "application",
+      "source_package": "modules/filestorage/internal/application",
+      "target_owner": "identity-access",
+      "target_role": "public",
+      "target_package": "modules/identityaccess"
+    },
+    {
+      "id": "file-storage.application.compose-extraction.people-directory.peopledirectory",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "application",
+      "source_package": "modules/filestorage/internal/application",
+      "target_owner": "people-directory",
+      "target_role": "public",
+      "target_package": "modules/peopledirectory"
+    },
+    {
+      "id": "identity-access.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "postgres",
+      "source_package": "modules/identityaccess/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "organization-tenancy.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "organization-tenancy",
+      "source_role": "postgres",
+      "source_package": "modules/organizationtenancy/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "people-directory.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "postgres",
+      "source_package": "modules/peopledirectory/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "school-calendar.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "postgres",
+      "source_package": "modules/schoolcalendar/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "timetable-activities.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "postgres",
+      "source_package": "modules/timetable/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "workforce.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "postgres",
+      "source_package": "modules/workforce/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "care-plan.postgres.compose-extraction.observation-port",
+      "description": "ADR 0058 #4084: exact-package successor for the existing owner observation port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "postgres",
+      "source_package": "modules/careplan/internal/adapters/postgres",
+      "target_owner": "care-plan",
+      "target_role": "port",
+      "target_package": "modules/careplan/internal/ports"
     }
   ],
   "relocations": [

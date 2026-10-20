@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	blockDisplayCompose "github.com/moto-nrw/project-phoenix/modules/timetableblockdisplay/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
@@ -19,7 +20,8 @@ import (
 // group names for the owner rows, the planning-track administration, the
 // tenant recurrence gate every recurrence writer serializes on (#3424 slice
 // S2), the template rows of the materialization and the roster reconciler
-// of the grade transitions (#405).
+// of the grade transitions (#405). BlockMetadata is the block display
+// projection naming each planned block's room and planning track (#4413).
 type TimetableOwner struct {
 	Repositories        TimetableRepositories
 	EducationGroupNames timetablePorts.EducationGroupNames
@@ -27,6 +29,7 @@ type TimetableOwner struct {
 	RecurrenceLock      timetable.RecurrenceWriteLock
 	TemplateRows        arrivalTimetable.TemplateRows
 	RosterReconciler    timetablePorts.RosterReconciler
+	BlockMetadata       timetablePorts.BlockDisplayMetadata
 }
 
 // BuildTimetableOwner binds the Timetable owner's retained rows. The
@@ -59,5 +62,6 @@ func BuildTimetableOwner(
 		// Reconciles already-materialized future timetable rosters when a
 		// grade transition graduates or restores students (#405).
 		RosterReconciler: arrivalTimetable.NewRosterReconciler(repos.ActivityInstance, repos.InstanceStudent, repos.StudentEnrollment, logger, now),
+		BlockMetadata:    arrivalTimetable.NewBlockDisplayMetadata(pool, blockDisplayCompose.List),
 	}, nil
 }

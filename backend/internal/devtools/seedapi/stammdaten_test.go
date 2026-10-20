@@ -160,6 +160,37 @@ func TestFixedSeeder_SeedStaff(t *testing.T) {
 	assert.Len(t, fs.staffIDs, len(DemoStaff))
 }
 
+func TestFixedSeeder_RetireFormerStaffRemovesActiveReferences(t *testing.T) {
+	t.Parallel()
+
+	retiredPath := ""
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(seedHTTPStatusOK)
+		switch r.Method {
+		case seedHTTPMethodDelete:
+			retiredPath = r.URL.Path
+			_, _ = w.Write([]byte(`{"status":"success"}`))
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	})
+	defer srv.Close()
+
+	client := newTestClient(srv.URL, false)
+	client.token = "test-token"
+	seeder := NewFixedSeeder(client, false, "")
+	former := DemoStaff[formerDemoStaffIndex]
+	formerKey := fmt.Sprintf("%s %s", former.FirstName, former.LastName)
+	seeder.staffIDs[formerKey] = 11
+	seeder.teacherIDs[formerKey] = 12
+
+	require.NoError(t, seeder.retireFormerStaff())
+	assert.Equal(t, "/api/staff/11", retiredPath)
+	assert.NotContains(t, seeder.staffIDs, formerKey)
+	assert.NotContains(t, seeder.teacherIDs, formerKey)
+}
+
 func TestFixedSeeder_SeedStaff_MissingPerson(t *testing.T) {
 	t.Parallel()
 
@@ -184,9 +215,14 @@ func TestFixedSeeder_SeedStaff_StringStaffID(t *testing.T) {
 	created := int64(0)
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
-		require.Equal(t, "/api/staff", r.URL.Path)
-		created++
-		_, _ = fmt.Fprintf(w, `{"status":"success","data":{"id":"%d","teacher_id":%d}}`, 9007199254740993+created, created)
+		switch r.Method {
+		case seedHTTPMethodPost:
+			require.Equal(t, "/api/staff", r.URL.Path)
+			created++
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"id":"%d","teacher_id":%d}}`, 9007199254740993+created, created)
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
 	})
 	defer srv.Close()
 

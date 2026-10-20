@@ -31,7 +31,7 @@ var (
 	ErrCareExitInvalidReason  = errors.New("care plan: invalid care exit reason")
 	ErrCareExitNoteRequired   = errors.New("care plan: care exit reason note is required")
 	ErrCareExitNoteNotAllowed = errors.New("care plan: care exit reason note is not allowed")
-	ErrCareExitNoteTooLong    = errors.New("Die Begründung ist zu lang. Bitte kürzen Sie sie.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrCareExitNoteTooLong    = errors.New("die Begründung ist zu lang. Bitte kürzen Sie sie")
 	ErrInvalidCareExit        = errors.New("invalid care exit")
 	ErrInvalidCompanion       = errors.New("invalid student companion")
 	ErrInvalidCareDocument    = errors.New("invalid student care document")
@@ -144,8 +144,23 @@ type CareExitSourceRemoval struct {
 	CreatedAt   time.Time       `json:"created_at"`
 }
 
+// CareRecordsQuery reads the care records of a child: its care exits, its
+// companions and its care documents.
 type CareRecordsQuery interface {
+	CareExitsQuery
+	CompanionsQuery
+	CareDocumentsQuery
+}
+
+// CareExitsQuery reads care exits and the removals recorded for them.
+type CareExitsQuery interface {
 	FindCareExits(context.Context, []int64) (map[int64]CareExit, error)
+	ListCareExitRemovals(context.Context, []int64) ([]CareExitRemoval, error)
+	ListCareExitSourceRemovals(context.Context, []int64) ([]CareExitSourceRemoval, error)
+}
+
+// CompanionsQuery reads the companion edges between children.
+type CompanionsQuery interface {
 	ListCompanionEdges(context.Context, int64) ([]CompanionEdge, error)
 	ListCompanionLinks(context.Context, []int64) (map[int64][]CompanionLink, error)
 	CompanionCountsExcluding(context.Context, []int64, int64) (map[int64]int, error)
@@ -153,20 +168,41 @@ type CareRecordsQuery interface {
 	CompanionIDsForWeekday(context.Context, []int64, int) (map[int64][]int64, error)
 	CompanionWeekdays(context.Context, int64) ([]int, error)
 	CountCompanionLinks(context.Context, int64) (int, error)
+}
+
+// CareDocumentsQuery reads care documents and their pending file cleanups.
+type CareDocumentsQuery interface {
 	FindCareDocument(context.Context, int64, int64, bool) (CareDocument, error)
 	ListCareDocuments(context.Context, int64, []string) ([]CareDocument, error)
 	ListPendingCareDocumentCleanup(context.Context, int64) ([]CareDocument, error)
 	ListDeletedCareDocuments(context.Context, int64, []string) ([]CareDocument, error)
 	ListCareDocumentCleanups(context.Context, *int64) ([]CareDocumentCleanup, error)
-	ListCareExitRemovals(context.Context, []int64) ([]CareExitRemoval, error)
-	ListCareExitSourceRemovals(context.Context, []int64) ([]CareExitSourceRemoval, error)
 }
 
+// CareRecordsCommand writes the care records of a child.
 type CareRecordsCommand interface {
+	CareExitsCommand
+	CompanionsCommand
+	CareDocumentsCommand
+}
+
+// CareExitsCommand writes care exits and the removals recorded for them.
+type CareExitsCommand interface {
 	UpsertCareExit(context.Context, CareExit) error
 	DeleteCareExits(context.Context, []int64) error
+	RecordCareExitRemovals(context.Context, []CareExitRemoval) error
+	RecordCareExitSourceRemovals(context.Context, []CareExitSourceRemoval) error
+	DiscardCareExitRemovals(context.Context, []int64) error
+}
+
+// CompanionsCommand writes the companion edges between children.
+type CompanionsCommand interface {
 	ReplaceCompanionEdges(context.Context, int64, []CompanionEdge) error
 	DeleteCompanionEdges(context.Context, []int64) error
+}
+
+// CareDocumentsCommand writes care documents and drives their file cleanup.
+type CareDocumentsCommand interface {
 	CreateCareDocument(context.Context, CareDocument) (CareDocument, error)
 	SoftDeleteCareDocument(context.Context, int64, int64) (time.Time, error)
 	MarkCareDocumentFileDeleted(context.Context, int64) error
@@ -174,9 +210,6 @@ type CareRecordsCommand interface {
 	CompleteCareDocumentCleanup(context.Context, int64) error
 	CompleteCareDocumentCleanupByFilename(context.Context, string) error
 	ActivateCareDocumentCleanup(context.Context, string) error
-	RecordCareExitRemovals(context.Context, []CareExitRemoval) error
-	RecordCareExitSourceRemovals(context.Context, []CareExitSourceRemoval) error
-	DiscardCareExitRemovals(context.Context, []int64) error
 }
 
 func (m *Module) FindCareExits(ctx context.Context, studentIDs []int64) (map[int64]CareExit, error) {

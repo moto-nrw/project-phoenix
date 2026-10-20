@@ -289,14 +289,19 @@ func (s *Service) run(ctx context.Context, operation string, fn func(context.Con
 	defer func() {
 		s.observe(ports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
 	}()
-	err = s.tx.RunAdmin(ctx, func(txCtx context.Context) error {
+	execute := func(txCtx context.Context) error {
 		current, runErr := fn(txCtx)
 		stats.Queries += current.Queries
 		stats.Rows = current.Rows
 		stats.StatementDuration += current.StatementDuration
 		stats.DuplicatePreventionConflicts += current.DuplicatePreventionConflicts
 		return runErr
-	})
+	}
+	if s.tx.HasTransaction(ctx) {
+		err = execute(ctx)
+	} else {
+		err = s.tx.RunAdmin(ctx, execute)
+	}
 	if err != nil {
 		stats.Rows = 0
 	}

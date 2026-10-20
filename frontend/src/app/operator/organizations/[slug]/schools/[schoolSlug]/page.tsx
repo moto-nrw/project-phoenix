@@ -23,6 +23,7 @@ import {
   summaryToSchool,
 } from "~/lib/operator/provisioning-helpers";
 import { EntityHeaderCard } from "~/components/operator/entity-header-card";
+import { BackLink } from "~/components/ui/back-link";
 import { AccountsTable } from "~/components/operator/accounts-table";
 import { DevicesTable } from "~/components/operator/devices-table";
 import { DeleteDeviceModal } from "~/components/operator/delete-device-modal";
@@ -508,16 +509,15 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     return null;
   }, [activeTab]);
 
+  const organizationBack = {
+    href: `/operator/organizations/${encodeURIComponent(slug)}`,
+    label: "Zurück zum Träger",
+  };
+
   if (!school && headLoadError) {
     return (
       <div className="w-full">
-        <Link
-          href={`/operator/organizations/${encodeURIComponent(slug)}`}
-          className="mb-4 inline-flex items-center gap-2 text-sm text-gray-600 transition-colors hover:text-gray-900"
-        >
-          <span aria-hidden>←</span>
-          <span>Zurück zum Träger</span>
-        </Link>
+        <BackLink {...organizationBack} className="mb-4" />
         <LoadErrorAlert error={headLoadError} />
       </div>
     );
@@ -535,12 +535,10 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     logger.warn("organization_not_found_by_slug", { slug });
     return (
       <div className="w-full">
-        <Link
+        <BackLink
           href="/operator/organizations"
-          className="text-sm text-gray-600 hover:text-gray-900"
-        >
-          ← Zurück zur Träger-Übersicht
-        </Link>
+          label="Zurück zu den Trägern"
+        />
         <div className="moto-content-surface mt-6 rounded-xl border p-6 text-center shadow-sm">
           <p className="text-gray-600">Träger nicht gefunden.</p>
         </div>
@@ -552,12 +550,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     logger.warn("school_not_found_by_slug", { slug, schoolSlug });
     return (
       <div className="w-full">
-        <Link
-          href={`/operator/organizations/${encodeURIComponent(slug)}`}
-          className="text-sm text-gray-600 hover:text-gray-900"
-        >
-          ← Zurück zu {organization.name}
-        </Link>
+        <BackLink {...organizationBack} />
         <div className="moto-content-surface mt-6 rounded-xl border p-6 text-center shadow-sm">
           <p className="text-gray-600">Schule nicht gefunden.</p>
         </div>
@@ -567,15 +560,8 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
 
   return (
     <div className="w-full">
-      <Link
-        href={`/operator/organizations/${encodeURIComponent(slug)}`}
-        className="mb-4 inline-flex items-center gap-2 text-sm text-gray-600 transition-colors hover:text-gray-900"
-      >
-        <span aria-hidden>←</span>
-        <span>Zurück zu {organization.name}</span>
-      </Link>
-
       <EntityHeaderCard
+        back={organizationBack}
         title={school.name}
         concept="schools"
         subdomain={school.subdomain}

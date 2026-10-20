@@ -158,6 +158,20 @@ func (r *Store) ChangeRequestsForReview(ctx context.Context, filters enrollment.
 		ColumnExpr(changeRequestColumns).
 		Where(`"change_request".tenant_id = ?`, tenantID).
 		Where(`"change_request".status IN (?)`, bun.List(filters.Statuses))
+	q = applyChangeRequestReviewFilters(q, filters)
+	err = q.
+		OrderExpr(`"change_request".id DESC`).
+		Limit(int64(filters.Limit)).
+		Scan(ctx, &rows)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list enrollment change requests for review: %w", err)
+	}
+	return rows, nil
+}
+
+// applyChangeRequestReviewFilters adds the search, decided-at range, keyset
+// and primary order of one review page.
+func applyChangeRequestReviewFilters(q *bun.SelectQuery, filters enrollment.ChangeRequestReviewFilters) *bun.SelectQuery {
 	if filters.Search != "" {
 		// The affected child is the pinned one when the request targets a
 		// single child, and every child of the enrollment otherwise — the same
@@ -191,12 +205,5 @@ func (r *Store) ChangeRequestsForReview(ctx context.Context, filters enrollment.
 	} else {
 		q = q.OrderExpr(`"change_request".created_at DESC`)
 	}
-	err = q.
-		OrderExpr(`"change_request".id DESC`).
-		Limit(int64(filters.Limit)).
-		Scan(ctx, &rows)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list enrollment change requests for review: %w", err)
-	}
-	return rows, nil
+	return q
 }

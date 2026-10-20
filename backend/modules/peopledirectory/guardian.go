@@ -27,14 +27,14 @@ var (
 	// non-admin: it reaches siblings the caller may not supervise.
 	ErrGuardianForceDeleteRequiresAdmin = errors.New("only administrators can fully delete a guardian linked to students")
 	// ErrGuardianDeletePreviewChanged reports that the links changed since
-	// the admin confirmed the preview. The text is rendered verbatim.
-	ErrGuardianDeletePreviewChanged = errors.New("Die Verknüpfungen haben sich seit der Vorschau geändert. Bitte erneut prüfen.") //nolint:staticcheck // ST1005: user-facing German message
+	// the admin confirmed the preview. The text is diagnostic detail.
+	ErrGuardianDeletePreviewChanged = errors.New("die Verknüpfungen haben sich seit der Vorschau geändert. Bitte erneut prüfen")
 	// ErrGuardianLinkConflict marks a delete that tripped the RESTRICT link
 	// constraint because a link was added after the check.
 	ErrGuardianLinkConflict = errors.New("guardian is linked to students")
 	// ErrPayerRemovalRequiresFinancial refuses to unlink the child's payer
-	// without the financial permission. The text is rendered verbatim.
-	ErrPayerRemovalRequiresFinancial = errors.New("Diese Person ist als Zahler für das Kind eingetragen. Zum Entfernen ist die Berechtigung für Bankverbindungen nötig. Bitte wenden Sie sich an die Schulleitung.") //nolint:staticcheck // ST1005: user-facing German message
+	// without the financial permission. The text is diagnostic detail.
+	ErrPayerRemovalRequiresFinancial = errors.New("diese Person ist als Zahler für das Kind eingetragen. Zum Entfernen ist die Berechtigung für Bankverbindungen nötig. Bitte wenden Sie sich an die Schulleitung")
 
 	// Payment input errors (#2608); each one maps to a German sentence in the
 	// HTTP adapter.
@@ -334,6 +334,14 @@ func (r GuardianPaymentRow) HasIBAN() bool { return r.IBAN != "" || r.IBANMasked
 
 // GuardianQuery reads guardians, their phone numbers and their links.
 type GuardianQuery interface {
+	GuardianProfileQuery
+	GuardianPhoneQuery
+	GuardianRelationshipQuery
+	GuardianPaymentQuery
+}
+
+// GuardianProfileQuery reads contact profiles and deletion impact.
+type GuardianProfileQuery interface {
 	FindGuardian(context.Context, int64) (Guardian, error)
 	ListGuardians(ctx context.Context, page, pageSize int) ([]Guardian, error)
 	ListGuardiansWithoutAccount(context.Context) ([]Guardian, error)
@@ -344,8 +352,16 @@ type GuardianQuery interface {
 	// the given one, ignoring case; ErrGuardianNotFound when there is none.
 	FindGuardianByEmail(context.Context, string) (Guardian, error)
 	GuardianDeleteImpact(context.Context, int64) (GuardianDeleteImpact, error)
+}
+
+// GuardianPhoneQuery reads guardian phone numbers.
+type GuardianPhoneQuery interface {
 	ListGuardianPhones(context.Context, int64) ([]GuardianPhone, error)
 	FindGuardianPhone(context.Context, int64) (GuardianPhone, error)
+}
+
+// GuardianRelationshipQuery reads guardian links and their account projections.
+type GuardianRelationshipQuery interface {
 	ListStudentGuardians(context.Context, int64) ([]GuardianWithLink, error)
 	ListGuardianStudents(context.Context, int64) ([]StudentWithLink, error)
 	FindGuardianLink(context.Context, int64) (GuardianLink, error)
@@ -362,6 +378,10 @@ type GuardianQuery interface {
 	// CountGuardianLinks counts the links per guardian; guardians without a
 	// link are absent from the result.
 	CountGuardianLinks(context.Context, []int64) (map[int64]int, error)
+}
+
+// GuardianPaymentQuery reads masked bank data and audited payment reports.
+type GuardianPaymentQuery interface {
 	GuardianPaymentMasked(context.Context, int64, GuardianPaymentActor) (GuardianPayment, error)
 	ListPaymentOverview(context.Context, GuardianPaymentActor) ([]GuardianPaymentRow, error)
 	ListPaymentExportRows(ctx context.Context, actor GuardianPaymentActor, format string) ([]GuardianPaymentRow, error)
@@ -370,21 +390,41 @@ type GuardianQuery interface {
 // GuardianCommand changes guardians, phone numbers, links and payment data.
 // Every command joins the caller's tenant transaction or opens one.
 type GuardianCommand interface {
+	GuardianProfileCommand
+	GuardianPhoneCommand
+	GuardianRelationshipCommand
+	GuardianPaymentCommand
+}
+
+// GuardianProfileCommand creates, edits and removes guardian profiles.
+type GuardianProfileCommand interface {
 	CreateGuardian(context.Context, GuardianInput) (Guardian, error)
 	UpdateGuardian(context.Context, int64, GuardianInput) error
 	// EvaluateGuardianDelete applies the two delete rules and reports whether
 	// links exist: a linked guardian needs force, a forced delete an admin.
 	EvaluateGuardianDelete(ctx context.Context, id int64, force, isAdmin bool) (bool, error)
 	DeleteGuardian(context.Context, GuardianDelete) error
+}
+
+// GuardianPhoneCommand changes guardian phone numbers and their primary marker.
+type GuardianPhoneCommand interface {
 	AddGuardianPhone(context.Context, int64, GuardianPhoneInput) (GuardianPhone, error)
 	UpdateGuardianPhone(context.Context, int64, GuardianPhoneUpdate) error
 	DeleteGuardianPhone(context.Context, int64) error
 	SetPrimaryGuardianPhone(context.Context, int64) error
+}
+
+// GuardianRelationshipCommand changes student-guardian relationships.
+type GuardianRelationshipCommand interface {
 	LinkGuardianToStudent(context.Context, LinkGuardian) (GuardianLink, error)
 	ValidateNewGuardians(context.Context, []NewStudentGuardian) error
 	AddGuardiansToStudent(context.Context, int64, []NewStudentGuardian) error
 	UpdateGuardianLink(context.Context, int64, GuardianLinkUpdate) error
 	RemoveGuardianFromStudent(context.Context, RemoveGuardian) error
+}
+
+// GuardianPaymentCommand reveals and changes audited payment data.
+type GuardianPaymentCommand interface {
 	RevealGuardianPayment(context.Context, int64, GuardianPaymentActor) (GuardianPayment, error)
 	UpdateGuardianPayment(context.Context, int64, GuardianPaymentInput) error
 	SetStudentPayer(context.Context, StudentPayer) error
@@ -394,38 +434,13 @@ type GuardianCommand interface {
 // facade. The composition root binds it once the legacy service graph
 // exists; the row-level reads never go through it.
 type GuardianProvider interface {
-	FindGuardian(context.Context, int64) (Guardian, error)
-	ListGuardians(ctx context.Context, page, pageSize int) ([]Guardian, error)
-	ListGuardiansWithoutAccount(context.Context) ([]Guardian, error)
-	ListInvitableGuardians(context.Context) ([]Guardian, error)
-	SearchGuardians(ctx context.Context, text string, limit int) ([]GuardianMatch, error)
-	FindGuardianByEmail(context.Context, string) (Guardian, error)
-	GuardianDeleteImpact(context.Context, int64) (GuardianDeleteImpact, error)
-	ListGuardianPhones(context.Context, int64) ([]GuardianPhone, error)
-	FindGuardianPhone(context.Context, int64) (GuardianPhone, error)
+	GuardianProfileQuery
+	GuardianPhoneQuery
+	GuardianPaymentQuery
+	GuardianCommand
 	ListStudentGuardians(context.Context, int64) ([]GuardianWithLink, error)
 	ListGuardianStudents(context.Context, int64) ([]StudentWithLink, error)
 	FindGuardianLink(context.Context, int64) (GuardianLink, error)
-	GuardianPaymentMasked(context.Context, int64, GuardianPaymentActor) (GuardianPayment, error)
-	ListPaymentOverview(context.Context, GuardianPaymentActor) ([]GuardianPaymentRow, error)
-	ListPaymentExportRows(ctx context.Context, actor GuardianPaymentActor, format string) ([]GuardianPaymentRow, error)
-
-	CreateGuardian(context.Context, GuardianInput) (Guardian, error)
-	UpdateGuardian(context.Context, int64, GuardianInput) error
-	EvaluateGuardianDelete(ctx context.Context, id int64, force, isAdmin bool) (bool, error)
-	DeleteGuardian(context.Context, GuardianDelete) error
-	AddGuardianPhone(context.Context, int64, GuardianPhoneInput) (GuardianPhone, error)
-	UpdateGuardianPhone(context.Context, int64, GuardianPhoneUpdate) error
-	DeleteGuardianPhone(context.Context, int64) error
-	SetPrimaryGuardianPhone(context.Context, int64) error
-	LinkGuardianToStudent(context.Context, LinkGuardian) (GuardianLink, error)
-	ValidateNewGuardians(context.Context, []NewStudentGuardian) error
-	AddGuardiansToStudent(context.Context, int64, []NewStudentGuardian) error
-	UpdateGuardianLink(context.Context, int64, GuardianLinkUpdate) error
-	RemoveGuardianFromStudent(context.Context, RemoveGuardian) error
-	RevealGuardianPayment(context.Context, int64, GuardianPaymentActor) (GuardianPayment, error)
-	UpdateGuardianPayment(context.Context, int64, GuardianPaymentInput) error
-	SetStudentPayer(context.Context, StudentPayer) error
 }
 
 // guardianEngine is the row-level half the composition supplies together

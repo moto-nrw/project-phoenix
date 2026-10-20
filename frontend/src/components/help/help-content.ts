@@ -503,7 +503,7 @@ function studentSearchTopic(
       },
     ],
     result:
-      "Sie sehen jetzt die Angaben des Kindes. Auf dem Handy wählen Sie `Zurück`. Am Computer nutzen Sie die Navigation oben.",
+      "Sie sehen jetzt die Angaben des Kindes. Über dem Namen steht `Zurück zur Kinderübersicht`. Damit kommen Sie zur Liste zurück.",
     differences: [
       "Haben Sie einen anderen Tag gewählt? Dann sehen Sie die geplante Anwesenheit. Ein aktueller Aufenthaltsort wird nicht gezeigt.",
       "Ansicht und Spalten bleiben auf diesem Gerät so, wie Sie sie gewählt haben.",
@@ -973,7 +973,7 @@ function ownGroupsTopic(
         "Bei offener Betreuung gibt es keine festen eigenen Gruppen in moto.",
       group: "gruppen",
       audience: ["caregiver", "lead"],
-      icon: "Users",
+      icon: "UsersThree",
       steps: [
         "Öffnen Sie `Alle Kinder`.",
         "Nutzen Sie die Suche oder die Filter für die benötigten Kinder.",
@@ -992,7 +992,7 @@ function ownGroupsTopic(
         "Ob Sie eigene Gruppen sehen, hängt von der Arbeitsweise Ihrer OGS ab.",
       group: "gruppen",
       audience: ["caregiver", "lead"],
-      icon: "Users",
+      icon: "UsersThree",
       steps: [
         "Prüfen Sie, ob `Meine Gruppen` oder `Weitere Gruppen` in der Seitenleiste steht.",
         "Ist einer der Bereiche vorhanden? Öffnen Sie dort die gewünschte Gruppe.",
@@ -1016,7 +1016,7 @@ function ownGroupsTopic(
     summary: "Öffnen Sie Ihre festen Gruppen und die zugehörigen Kinder.",
     group: "gruppen",
     audience: ["caregiver", "lead"],
-    icon: "Users",
+    icon: "UsersThree",
     steps: [
       "Öffnen Sie `Meine Gruppen` oder `Weitere Gruppen` in der Seitenleiste.",
       "Wählen Sie die gewünschte Gruppe.",
@@ -1264,6 +1264,7 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "`Läuft` heißt: der Block ist gerade aktiv. `Beendet` und `Nicht gestartet` können Sie nur ansehen.",
       "`Fällt aus` zeigt zusätzlich den Grund.",
       "Ein `Dienst` ist eine Aufgabe ohne Kinder, etwa die Busaufsicht. Er hat keinen Knopf `Starten`.",
+      "Blöcke, für die Sie eingeteilt sind, sind in ihrer Farbe hinterlegt. Das gilt auch für eine Vertretung.",
       "Welche Blöcke Sie sehen, legt Ihre OGS fest. Manche sehen den ganzen Tag der Schule, andere nur die eigene Einteilung.",
       "Ob Sie nur eigene oder alle Blöcke starten dürfen, legt Ihre OGS fest. Wer einen fremden Block startet, wird nicht zur Aufsicht.",
       ...(presenceMode === "unknown"
@@ -1760,6 +1761,9 @@ function findStaffTopic(presenceMode: HelpPresenceMode): HelpTopic {
     differences: [
       "Auch ohne Recht für Personalakten sehen Sie, wo die Person gerade ist. Die Karte öffnet dann keine Personalakte. Fragen Sie bei Bedarf Ihre Leitung.",
       "Möchten Sie der Person schreiben? Öffnen Sie den `Team-Chat`.",
+    ],
+    notes: [
+      "Hat jemand früher bei Ihnen gearbeitet? Wählen Sie in der Auswahl `Ehemalige`. Die Karte zeigt den Zeitraum in moto.",
     ],
     related: [HELP_TOPICS.teamChat, HELP_TOPICS.activeSupervision],
   };
@@ -2846,7 +2850,7 @@ function groupsCatalogTopic(groupMode: HelpGroupMode): HelpTopic {
       : "Legen Sie jede Gruppe an und geben Sie ihr Raum und Leitung.",
     group: "einrichten",
     audience: "lead",
-    icon: "Users",
+    icon: "UsersThree",
     steps: [],
     instructionGroups: [
       {
@@ -3000,7 +3004,7 @@ function createStudentTopic(): HelpTopic {
     summary: "Einzeln über ein Fenster. Viele auf einmal über eine Vorlage.",
     group: "einrichten",
     audience: "lead",
-    icon: "Student",
+    icon: "User",
     steps: [],
     instructionGroups: [
       {
@@ -3176,9 +3180,10 @@ function dataManagementTopic(): HelpTopic {
       "Wählen Sie die Kachel des Bereichs, den Sie pflegen möchten.",
     ],
     result:
-      "Jede Kachel führt in ihre Liste. Oben steht, wie viele Einträge es gibt.",
+      "Jede Kachel führt in ihren Bereich. Auf manchen Kacheln steht, wie viele Einträge es gibt.",
     notes: [
       "In der Seitenleiste erreichen Sie jeden Bereich auch direkt unter `Datenverwaltung`.",
+      "Der Info-Knopf neben dem Seitennamen erklärt kurz, was hierher gehört.",
       "Die Kacheln `Terminkategorien`, `Planungsspuren`, `Schichtarten` und `Abwesenheitsarten` sind kurze Stammdaten-Listen.",
     ],
     differences: [
@@ -4538,6 +4543,7 @@ function inviteStaffTopic(): HelpTopic {
     notes: [
       "Die `Rolle` bestimmt, was die Person später sehen und tun darf.",
       "Nach der Annahme steht die Person unter `Mitarbeiter` und lässt sich einer Gruppe zuweisen.",
+      "War die Person schon einmal bei Ihnen beschäftigt? Dann sagt moto das direkt unter der `E-Mail-Adresse`, mit dem, was zurückkommt und was nicht. Gruppen, Klassen und Vertretungen legen Sie nach der Annahme neu fest.",
       "Das Blatt `Hinweise` in der Vorlage erklärt jede Spalte.",
     ],
     differences: [
@@ -4715,10 +4721,10 @@ function removeStaffTopic(): HelpTopic {
       "Wählen Sie `Endgültig löschen`.",
     ],
     result:
-      "Der Zugang ist aus. Die Person steht in keiner Liste der OGS mehr.",
+      "Der Zugang ist aus. Unter `Mitarbeiter` finden Sie die Person nur noch mit der Auswahl `Ehemalige`.",
     notes: [
       "Anwesenheiten und Zeiterfassung bleiben bis zum Ende der Frist für die Zeiterfassung erhalten. So lange bleiben Ihre Auswertungen vollständig.",
-      "Danach löscht moto die Angaben der Person. Statt des Namens steht dann „Gelöscht Benutzer“. Die Frist sehen Sie unter `Einstellungen` und `Datenschutz` bei `Zeiterfassung aufbewahren`.",
+      "Danach löscht moto die Angaben der Person. Statt des Namens steht dann „Gelöscht Benutzer“, und unter `Ehemalige` steht die Person nicht mehr. Die Frist sehen Sie unter `Einstellungen` und `Datenschutz` bei `Zeiterfassung aufbewahren`.",
       "Sie können dieselbe Person später wieder einladen.",
     ],
     differences: [
@@ -6765,7 +6771,7 @@ function parentEnrollTopic(): HelpTopic {
     differences: [
       "Manche Anmeldungen sind `Nur bereits angemeldete Kinder`.",
       "An jeder Anmeldung steht `Anmeldung bis` mit der Frist.",
-      "Über dem Formular steht `Andere Anmeldung wählen`. Damit gehen Sie zurück.",
+      "Über dem Formular steht `Zurück zu Neue Anmeldung`. Damit wählen Sie eine andere Anmeldung.",
     ],
     troubleshootingDetails: [
       "moto sagt, aktuell sei keine Anmeldephase geöffnet? Dann wenden Sie sich an die OGS.",
@@ -7105,7 +7111,7 @@ function teacherClassDayTopic(): HelpTopic {
       "Die `Klassenansicht` zeigt Ihre Klassen und die Zahlen des Tages.",
     group: "klasse",
     audience: "teacher",
-    icon: "Users",
+    icon: "ChalkboardTeacher",
     steps: [
       "Melden Sie sich bei moto schule an.",
       "Sie landen in der `Klassenansicht`.",
@@ -7288,7 +7294,9 @@ function teacherSupervisionTopic(): HelpTopic {
       "Wählen Sie eine Aufsicht, um Einzelheiten zu sehen.",
     ],
     result: "Sie sehen Zeit, Raum und die Kinder Ihrer Aufsicht.",
-    notes: ["Mit `Alle Aufsichten heute` kommen Sie zurück zur Übersicht."],
+    notes: [
+      "Mit `Zurück zu allen Aufsichten heute` kommen Sie zurück zur Übersicht.",
+    ],
     differences: [
       "Eine Aufsicht trägt `Fällt aus`? Dann findet sie heute nicht statt.",
       "Vertreten Sie jemanden, steht das an der Aufsicht.",
@@ -7347,7 +7355,7 @@ function teacherSupervisionRosterTopic(): HelpTopic {
       "In einer laufenden Aufsicht sehen Sie Abholung und Notfallkontakt.",
     group: "aufsicht",
     audience: "teacher",
-    icon: "Users",
+    icon: "User",
     steps: [
       "Starten Sie Ihre Aufsicht.",
       "Wählen Sie ein Kind aus der Liste.",

@@ -26,6 +26,7 @@ import {
   staffService,
   type StaffDocumentDirectoryEntry,
   type Staff,
+  type FormerStaff,
 } from "~/lib/staff-api";
 import {
   getStaffDisplayType,
@@ -42,6 +43,7 @@ import { isAdmin, hasPermission } from "~/lib/auth-utils";
 import { useStaffPendingAbsences } from "~/lib/hooks/use-staff-pending-absences";
 import { SchoolOverviewSection } from "~/components/staff/school-overview-section";
 import { StaffAuditLog } from "~/components/staff/staff-audit-log";
+import { FormerStaffCards } from "~/components/staff/former-staff-cards";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
   StaffTimeAccountsTable,
@@ -285,6 +287,36 @@ function StaffPageContent() {
     staffError,
     "die Personalliste",
     mutateStaff,
+  );
+
+  // Ehemalige (#3403): eine Option im Status-Filter statt einer zweiten
+  // Liste. Geladen wird nur, wenn sie gewählt ist; ohne sie zeigt die Liste
+  // wie bisher nur aktives Personal.
+  const showFormer = view === "status" && locationFilter === "ehemalige";
+  const {
+    data: formerData,
+    isLoading: isFormerLoading,
+    error: formerError,
+    mutate: mutateFormer,
+  } = useSWRAuth<FormerStaff[]>(
+    canListStaff && showFormer ? "staff-former-list" : null,
+    async () =>
+      (await staffService.getFormerStaff()).sort(
+        (a, b) =>
+          a.lastName.localeCompare(b.lastName, "de-DE") ||
+          a.firstName.localeCompare(b.firstName, "de-DE"),
+      ),
+    { revalidateOnFocus: false },
+  );
+  const formerLoadError = useSwrLoadError(
+    formerError,
+    "die Liste der Ehemaligen",
+    mutateFormer,
+  );
+  const filteredFormer = (formerData ?? []).filter((member) =>
+    `${member.firstName} ${member.lastName}`
+      .toLocaleLowerCase("de-DE")
+      .includes(searchTerm.trim().toLocaleLowerCase("de-DE")),
   );
 
   const {
@@ -566,6 +598,11 @@ function StaffPageContent() {
           label: "Krank/Urlaub",
           icon: "M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636",
         },
+        {
+          value: "ehemalige",
+          label: "Ehemalige",
+          icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
+        },
       ],
     }),
     [locationFilter],
@@ -627,6 +664,7 @@ function StaffPageContent() {
         im_raum: "Im Raum",
         homeoffice: "Homeoffice",
         abwesend: "Krank/Urlaub",
+        ehemalige: "Ehemalige",
       };
       filters.push({
         id: "location",
@@ -652,6 +690,11 @@ function StaffPageContent() {
     // also die Zahl der Personen mit Unterlagen, nicht die Personalliste.
     // Ohne geladene Daten gibt es nichts zu zählen: „0 Personen“ läse sich
     // wie eine leere Schule, der Ladefehler steht darunter (#2514).
+    if (showFormer) {
+      if (formerError || formerData === undefined) return undefined;
+      const count = filteredFormer.length;
+      return `${count} ehemalige ${count === 1 ? "Person" : "Personen"}`;
+    }
     if (
       (view === "status" && staffError) ||
       (view === "documents" && documentDirectoryError) ||
@@ -724,8 +767,33 @@ function StaffPageContent() {
   // wo Mitarbeitende entstehen. Eine noch nicht geladene
   // Liste (staffData === undefined) ist kein Leerzustand.
   const staffFilterActive = searchTerm !== "" || locationFilter !== "all";
+  const formerEmptyState =
+    showFormer &&
+    !showSkeleton &&
+    !formerError &&
+    formerData !== undefined &&
+    filteredFormer.length === 0
+      ? {
+          title: "Keine Ehemaligen gefunden",
+          description: searchTerm
+            ? "Zu dieser Suche gibt es keine Person. Setzen Sie die Suche zurück, um alle zu sehen."
+            : "Hier erscheint, wer die Schule verlassen hat.",
+          icon: <MotoConceptIcon concept="staff" size={48} />,
+          action: searchTerm ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => setSearchTerm("")}
+            >
+              Suche zurücksetzen
+            </Button>
+          ) : undefined,
+        }
+      : null;
   const statusEmptyState =
     view === "status" &&
+    !showFormer &&
     !showSkeleton &&
     !staffError &&
     staffData !== undefined &&
@@ -818,7 +886,9 @@ function StaffPageContent() {
       // Der Ladefehler der Personalliste gehört ins Gerüst. Ihr Leerzustand
       // bleibt dagegen bei den Karten, damit unabhängige Bereiche sichtbar
       // bleiben.
-      error={view === "status" ? staffLoadError : null}
+      error={
+        showFormer ? formerLoadError : view === "status" ? staffLoadError : null
+      }
       overlays={
         <>
           {showCloseModal && (
@@ -953,6 +1023,7 @@ function StaffPageContent() {
           {/* Ohne Recht auf die Personalakte sind die Karten reine Anzeige. Der
               Grund steht einmal über der Liste statt auf jeder Karte (#3926). */}
           {view === "status" &&
+            !showFormer &&
             !canNavigateToStaff &&
             !staffError &&
             filteredStaff.length > 0 && (
@@ -963,8 +1034,27 @@ function StaffPageContent() {
               />
             )}
 
+          {/* Ehemalige (#3403): reine Anzeige, die Personalakte im Lesemodus
+              folgt mit #3405. */}
+          {showFormer &&
+            (isFormerLoading && !formerData ? (
+              <StaffCardsSkeleton />
+            ) : formerEmptyState ? (
+              <EmptyState {...formerEmptyState} />
+            ) : filteredFormer.length > 0 ? (
+              <>
+                <Alert
+                  type="info"
+                  announce="off"
+                  message="Hier stehen Personen, die früher bei Ihnen gearbeitet haben. Nur zur Information."
+                />
+                <FormerStaffCards members={filteredFormer} />
+              </>
+            ) : null)}
+
           {/* Staff Grid */}
           {view === "status" &&
+            !showFormer &&
             (statusEmptyState ? (
               <EmptyState {...statusEmptyState} />
             ) : filteredStaff.length > 0 ? (

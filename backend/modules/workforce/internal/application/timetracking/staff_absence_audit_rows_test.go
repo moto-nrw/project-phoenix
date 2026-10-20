@@ -5,8 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	api "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -14,8 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The absence audit rows the composition serves write the recorded audit back
-// into the caller's row, as the retained repository did (#3996).
+// The native audit command returns its persisted identity, tenant and timestamp.
 func TestStaffAbsenceAuditRowsWriteTheRecordedAuditBack(t *testing.T) {
 	t.Parallel()
 
@@ -24,7 +21,7 @@ func TestStaffAbsenceAuditRowsWriteTheRecordedAuditBack(t *testing.T) {
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Audit", "Actor")
 	ctx := testpkg.Ctx(t)
 	day := calendar.NewDate(2026, time.March, 2).String()
-	absence, err := workTime.CreateStaffAbsence(ctx, workforce.StaffAbsence{
+	absence, err := workTime.CreateStaffAbsence(ctx, &workforce.StaffAbsence{
 		StaffID:     staff.ID,
 		AbsenceType: workforce.AbsenceTypeVacation,
 		DateStart:   day,
@@ -35,14 +32,15 @@ func TestStaffAbsenceAuditRowsWriteTheRecordedAuditBack(t *testing.T) {
 	require.NoError(t, err)
 
 	fromStatus := workforce.AbsenceStatusRequested
-	audit := &timetracking.StaffAbsenceAudit{
+	audit := workforce.StaffAbsenceAudit{
 		AbsenceID:  absence.ID,
 		FromStatus: &fromStatus,
 		ToStatus:   workforce.AbsenceStatusApproved,
 		ActorID:    account.ID,
 		Note:       "approved",
 	}
-	require.NoError(t, workforceCompose.NewStaffAbsenceAuditRepository(workTime).Create(ctx, audit))
+	audit, err = workTime.RecordStaffAbsenceAudit(ctx, audit)
+	require.NoError(t, err)
 
 	assert.NotZero(t, audit.ID)
 	assert.Equal(t, staff.TenantID, audit.TenantID)
@@ -55,10 +53,11 @@ func TestStaffAbsenceAuditRowsRejectAnAuditWithoutAbsence(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
 
-	err := workforceCompose.NewStaffAbsenceAuditRepository(workTime).Create(testpkg.Ctx(t), &timetracking.StaffAbsenceAudit{
+	_, err := workTime.RecordStaffAbsenceAudit(testpkg.Ctx(t), workforce.StaffAbsenceAudit{
 		ToStatus: workforce.AbsenceStatusApproved,
 	})
 
 	require.Error(t, err)
+	assert.ErrorIs(t, err, workforce.ErrInvalidStaffAbsence)
 	assert.Contains(t, err.Error(), "absence_id is required")
 }

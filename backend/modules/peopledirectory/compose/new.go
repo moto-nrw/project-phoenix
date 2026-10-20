@@ -8,14 +8,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
 	internalports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 type Observation = internalports.Observation
@@ -81,32 +80,24 @@ type Dependencies struct {
 	GuardianProvider *GuardianDirectoryProvider
 }
 
-// New composes People Directory without Identity & Access account projections.
-// Graphs that need the parents-app reachability capability use
-// NewWithGuardianMemberships so those owner queries stay at the composition seam.
-func New(dependencies Dependencies) (*peopledirectory.Module, error) {
-	return NewWithGuardianMemberships(dependencies, nil)
+// Directory keeps the public capability and its native services in one owner
+// composition. Retained same-owner services use the native operations directly.
+type Directory struct {
+	*peopledirectory.Module
+	students         *application.StudentService
+	PersonWrites     peoplePorts.PersonWriter
+	StudentDirectory peoplePorts.StudentDirectoryAccess
 }
 
-// NewWithGuardianMemberships composes People Directory with the Identity &
-// Access projection that identifies active accounts, guardian roles, and
-// active school memberships. It is a constructor argument rather than a
-// Dependencies field: only the guardian reachability read needs it, while
-// all other People Directory graphs stay independent of Identity & Access.
-func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianMembershipQuery) (*peopledirectory.Module, error) {
+// New composes the public capability and native same-owner operations. The
+// optional guardian-account projection is supplied explicitly by its root.
+func New(dependencies Dependencies, memberships GuardianMembershipQuery) (*Directory, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil || dependencies.StudentDirectory == nil {
 		return nil, errors.New("people directory compose: all dependencies are required")
 	}
-	database := func(ctx context.Context) (bun.IDB, postgres.TenantScope, error) {
-		id, scopeErr := tenant.TenantFromContext(ctx)
-		raw, ok := tenant.TransactionFromContext(ctx)
-		return postgres.ResolveDatabase(raw, ok, id.Int64(), scopeErr, tenant.IsAdminTx(ctx))
-	}
+	database := postgres.NewDatabase()
 
-	observe := func(observation Observation) {
-		observation.Err = application.MapError(observation.Err)
-		dependencies.Observe(observation)
-	}
+	observe := application.NewObserver(dependencies.Observe)
 	service := application.New(postgres.New(database), transaction{}, observe)
 	var companions internalports.StudentCompanions
 	if dependencies.StudentCompanions != nil {
@@ -126,7 +117,7 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 	}
 	studentAudit := application.NewStudentAudit(auditLog, observe)
 	studentConsents := application.NewStudentConsents(dependencies.StudentConsentHistory, observe)
-	photoRuntime := studentPhotoPort(dependencies.StudentPhotos)
+	photoRuntime := application.StudentPhotoPort(dependencies.StudentPhotos)
 	now := dependencies.Now
 	if now == nil {
 		now = time.Now
@@ -137,12 +128,32 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 		noteStore, postgres.New(database),
 		postgres.NewStudentStore(database, dependencies.StudentDirectory, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery),
 		transaction{}, noteDeletionAudit, observe)
-	return newModule(application.NewEngine(application.EngineServices{
+	module, err := newModule(application.NewEngine(application.EngineServices{
 		Service: service, Students: students, Guardians: guardians,
 		StudentAudit: studentAudit, StudentConsents: studentConsents,
 		StudentPhotos: studentPhotos, StudentNotes: studentNotes, Observe: observe,
 		GuardianLifecycle: application.NewGuardianLifecycle(guardians, dependencies.GuardianRolePresets),
 	}), dependencies.GuardianProvider)
+	if err != nil {
+		return nil, err
+	}
+	return &Directory{
+		Module: module, students: students,
+		PersonWrites:     application.NewPersonRows(service),
+		StudentDirectory: application.NewStudentDirectoryRows(students, studentPhotos),
+	}, nil
+}
+
+// MustNewReads composes the People Directory unobserved and without its write
+// owners or audit seams, for the student reads and the row lock other owners'
+// compositions take. Composing only fails on a missing dependency, which is a
+// programming error at wiring time.
+func MustNewReads(db *bun.DB, students StudentDirectoryRows) *Directory {
+	module, err := New(Dependencies{DB: db, StudentDirectory: students, Observe: func(Observation) {}}, nil)
+	if err != nil {
+		panic(fmt.Sprintf("compose people directory reads: %v", err))
+	}
+	return module
 }
 
 type transaction struct{}
@@ -161,11 +172,11 @@ func (transaction) RegisterAfterCommit(ctx context.Context, callback func()) {
 }
 
 func (transaction) RunWrite(ctx context.Context, callback func(context.Context) error) error {
-	return tenant.NewTransactionRunner().RunInTx(ctx, callback)
+	return postgres.TransactionRunWriteBinding(ctx, callback, tenant.NewTransactionRunner().RunInTx)
 }
 
 func (transaction) RunRead(ctx context.Context, callback func(context.Context) error) error {
-	return tenant.NewTransactionRunner().RunInTx(ctx, callback)
+	return postgres.TransactionRunReadBinding(ctx, callback, tenant.NewTransactionRunner().RunInTx)
 }
 
 func (transaction) RunSavepoint(ctx context.Context, callback func(context.Context) error) error {
@@ -176,17 +187,5 @@ func (transaction) RunSavepoint(ctx context.Context, callback func(context.Conte
 // already in context would keep row-level security on, which is exactly
 // what a platform-wide read must escape.
 func (transaction) RunAdminRead(ctx context.Context, callback func(context.Context) error) error {
-	return tenant.WithinAdmin(tenant.ContextWithoutTransaction(ctx), callback)
-}
-
-// MustNewReads composes the People Directory unobserved and without its write
-// owners or audit seams, for the student reads and the row lock other owners'
-// compositions take. Composing only fails on a missing dependency, which is a
-// programming error at wiring time.
-func MustNewReads(db *bun.DB, students StudentDirectoryRows) *peopledirectory.Module {
-	module, err := New(Dependencies{DB: db, StudentDirectory: students, Observe: func(Observation) {}})
-	if err != nil {
-		panic(fmt.Sprintf("compose people directory reads: %v", err))
-	}
-	return module
+	return postgres.TransactionRunAdminReadBinding(ctx, callback, tenant.WithinAdmin)
 }

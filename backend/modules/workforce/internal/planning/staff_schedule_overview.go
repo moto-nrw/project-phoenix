@@ -72,14 +72,14 @@ type ShiftTypeMinutes struct {
 
 // StaffScheduleOverview is the batched weekly projection consumed by the
 // Dienstplan. It is deliberately read-only: no assignment is linked to or
-// generated from a StaffShift row.
+// generated from a workforce.ShiftRecord row.
 type StaffScheduleOverview struct {
 	From            calendar.Date
 	To              calendar.Date
 	DienstplanInUse bool
 	UsedWeeks       []calendar.Date
 	Staff           []*workforce.PlanStaff
-	Shifts          []*StaffShift
+	Shifts          []*workforce.ShiftRecord
 	Assignments     []StaffScheduleAssignment
 	WeeklySummaries []StaffWeeklySummary
 }
@@ -87,10 +87,6 @@ type StaffScheduleOverview struct {
 // Narrow read interfaces keep this projection independently testable while
 // the production repositories continue to implement the wider domain
 // interfaces used by mutation services.
-type StaffShiftRangeReader interface {
-	FindByDateRange(ctx context.Context, start, end calendar.Date) ([]*StaffShift, error)
-}
-
 type ActivityInstanceRangeReader interface {
 	FindByTenantAndDateRange(ctx context.Context, from, to calendar.Date) ([]*timetable.ScheduledInstance, error)
 }
@@ -131,7 +127,7 @@ type StaffPlanningProfilesReader interface {
 
 type StaffScheduleOverviewDependencies struct {
 	PlanningProfiles StaffPlanningProfilesReader
-	Shifts           StaffShiftRangeReader
+	Shifts           StaffShiftSource
 	Instances        ActivityInstanceRangeReader
 	InstanceStaff    InstanceStaffBatchReader
 	Rooms            RoomBatchReader
@@ -171,8 +167,8 @@ type staffScheduleOverviewData struct {
 	// Monday–Sunday span of every summarized week so weekly planned minutes
 	// include shifts outside a partial viewport (e.g. weekend shifts on a
 	// Mon–Fri request).
-	shifts           []*StaffShift
-	weekShifts       []*StaffShift
+	shifts           []*workforce.ShiftRecord
+	weekShifts       []*workforce.ShiftRecord
 	usedWeeks        []calendar.Date
 	visibleInstances []*timetable.ScheduledInstance
 	assignmentRows   []*timetable.InstanceStaff
@@ -224,7 +220,9 @@ func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, fro
 	// Load the full summarized weeks in one query; the viewport subset for the
 	// grid is filtered locally so weekly summaries never undercount shifts
 	// outside a partial requested range.
-	weekShifts, err := s.deps.Shifts.FindByDateRange(ctx, firstWeekFrom, lastWeekTo)
+	weekShiftsValue, err := s.deps.Shifts.ListStaffShifts(ctx, workforce.StaffShiftFilter{From: firstWeekFrom.String(), To: lastWeekTo.String(), Order: shiftOrder(workforce.StaffShiftOrderDate, workforce.StaffShiftOrderStaffID, workforce.StaffShiftOrderStartTime)})
+	err = shiftReadError("find staff shifts by date range", err, nil)
+	weekShifts := shiftsToRows(weekShiftsValue)
 	if err != nil {
 		return nil, fmt.Errorf("load staff shifts: %w", err)
 	}
@@ -351,7 +349,7 @@ func buildStaffScheduleAssignments(
 	visibleInstances []*timetable.ScheduledInstance,
 	rowsByInstance map[int64][]*timetable.InstanceStaff,
 	roomNames map[int64]string,
-	shiftIndex map[staffDateKey][]*StaffShift,
+	shiftIndex map[staffDateKey][]*workforce.ShiftRecord,
 	usedWeeks map[calendar.Date]bool,
 ) []StaffScheduleAssignment {
 	assignments := make([]StaffScheduleAssignment, 0)
@@ -423,8 +421,8 @@ func effectiveAssignmentRoomIDs(instances []*timetable.ScheduledInstance, rows [
 
 // shiftsWithinRange filters the full-week shift load back down to the
 // requested viewport for the grid payload and assignment coverage.
-func shiftsWithinRange(shifts []*StaffShift, from, to calendar.Date) []*StaffShift {
-	filtered := make([]*StaffShift, 0, len(shifts))
+func shiftsWithinRange(shifts []*workforce.ShiftRecord, from, to calendar.Date) []*workforce.ShiftRecord {
+	filtered := make([]*workforce.ShiftRecord, 0, len(shifts))
 	for _, shift := range shifts {
 		if shift == nil || shift.Date.Before(from) || shift.Date.After(to) {
 			continue
@@ -434,7 +432,7 @@ func shiftsWithinRange(shifts []*StaffShift, from, to calendar.Date) []*StaffShi
 	return filtered
 }
 
-func applyCoverage(assignment *StaffScheduleAssignment, dienstplanInUse bool, shifts []*StaffShift) {
+func applyCoverage(assignment *StaffScheduleAssignment, dienstplanInUse bool, shifts []*workforce.ShiftRecord) {
 	if assignment.IsAbsent {
 		assignment.CoverageStatus = CoverageStatusNotApplicable
 		assignment.CoverageReason = stringPointer(CoverageReasonAbsent)
@@ -507,84 +505,6 @@ func (s *staffScheduleOverviewService) buildWeeklySummaries(ctx context.Context,
 	return summaries, nil
 }
 
-// resolveWeeklyTargets mirrors the time-tracking Soll resolution: date-valid
-// staff_work_schedules rows win per staff; the assigned work-time model is
-// the fallback only when the schedule yields no target for any week at all.
-func (s *staffScheduleOverviewService) resolveWeeklyTargets(
-	ctx context.Context,
-	staff []*workforce.PlanStaff,
-	schedules []*workforce.ScheduleRow,
-	weekStarts []calendar.Date,
-) (map[staffDateKey]int, error) {
-	targets := make(map[staffDateKey]int)
-
-	holidaySet, err := s.holidayDatesForWeeks(ctx, weekStarts)
-	if err != nil {
-		return nil, err
-	}
-
-	entriesByStaff := scheduleRowsByStaff(schedules)
-
-	residual := make([]*workforce.PlanStaff, 0)
-	modelIDs := make([]int64, 0)
-	seenModels := make(map[int64]struct{})
-	for _, member := range staff {
-		if member == nil {
-			continue
-		}
-		found := false
-		if entries := entriesByStaff[member.ID]; len(entries) > 0 {
-			for _, weekStart := range weekStarts {
-				if target, ok := workforce.WeeklyTargetFromSchedule(entries, member.RotationAnchorDate, weekStart); ok {
-					for offset := 0; offset < 7; offset++ {
-						day := weekStart.AddDays(offset)
-						if holidaySet[day] {
-							dayTarget, _ := workforce.DailyTargetFromSchedule(entries, member.RotationAnchorDate, day)
-							target -= dayTarget
-						}
-					}
-					targets[staffDateKey{StaffID: member.ID, Date: weekStart}] = target
-					found = true
-				}
-			}
-		}
-		if found || member.WorkTimeModelID == nil {
-			continue
-		}
-		residual = append(residual, member)
-		if _, exists := seenModels[*member.WorkTimeModelID]; !exists {
-			seenModels[*member.WorkTimeModelID] = struct{}{}
-			modelIDs = append(modelIDs, *member.WorkTimeModelID)
-		}
-	}
-
-	if len(residual) == 0 || s.deps.WorkModels == nil {
-		return targets, nil
-	}
-	modelsByID, err := s.loadWorkTimeTemplates(ctx, modelIDs)
-	if err != nil {
-		return nil, err
-	}
-	for _, member := range residual {
-		model := modelsByID[*member.WorkTimeModelID]
-		if model == nil {
-			continue
-		}
-		anchor := templateAnchor(member, model)
-		for weekStart, target := range workforce.WeeklyTargetsFromTemplate(model, anchor, weekStarts) {
-			for offset := 0; offset < 7; offset++ {
-				day := weekStart.AddDays(offset)
-				if holidaySet[day] {
-					dayTarget, _ := workforce.DailyTargetFromTemplate(model, anchor, day)
-					target -= dayTarget
-				}
-			}
-			targets[staffDateKey{StaffID: member.ID, Date: weekStart}] = target
-		}
-	}
-	return targets, nil
-}
-
 // holidayDatesForWeeks loads the public holidays covering the given weeks.
 // A resolver error fails the overview read — a silently unreduced Soll
 // would fake minus hours in holiday weeks.
@@ -608,7 +528,7 @@ func (s *staffScheduleOverviewService) holidayDatesForWeeks(ctx context.Context,
 	return set, nil
 }
 
-func plannedShiftMinutes(shifts []*StaffShift) map[staffDateKey]int {
+func plannedShiftMinutes(shifts []*workforce.ShiftRecord) map[staffDateKey]int {
 	planned := make(map[staffDateKey]int)
 	for _, shift := range shifts {
 		if shift == nil || shift.Cancelled {
@@ -626,7 +546,7 @@ func plannedShiftMinutes(shifts []*StaffShift) map[staffDateKey]int {
 // plannedShiftMinutesByType splits the same minutes plannedShiftMinutes sums
 // by Schichtart (#3819). Key 0 collects the shifts without a Schichtart; real
 // ids are positive. Cancelled shifts are skipped for the same reason.
-func plannedShiftMinutesByType(shifts []*StaffShift) map[staffDateKey]map[int64]int {
+func plannedShiftMinutesByType(shifts []*workforce.ShiftRecord) map[staffDateKey]map[int64]int {
 	byType := make(map[staffDateKey]map[int64]int)
 	for _, shift := range shifts {
 		if shift == nil || shift.Cancelled {
@@ -677,7 +597,7 @@ func shiftTypeBreakdown(minutesByType map[int64]int) []ShiftTypeMinutes {
 // staffShiftNetMinutes is the planned working time of one shift: wall-clock
 // span minus the break duration (validation caps the break at the span, but
 // legacy rows are clamped defensively).
-func staffShiftNetMinutes(shift *StaffShift) int {
+func staffShiftNetMinutes(shift *workforce.ShiftRecord) int {
 	start := calendar.NormalizeWallClock(shift.StartTime)
 	end := calendar.NormalizeWallClock(shift.EndTime)
 	minutes := int(end.Sub(start)/time.Minute) - shift.BreakMinutes

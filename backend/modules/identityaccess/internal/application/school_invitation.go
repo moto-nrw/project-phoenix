@@ -4,12 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/mail"
 	"strings"
 	"time"
 
 	"github.com/gofrs/uuid"
-
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
@@ -23,6 +21,8 @@ const (
 	opResendInvitation = "resend invitation"
 	opRevokeInvitation = "revoke invitation"
 	opFetchInvitation  = "fetch invitation"
+
+	opFindFormerEmployment = "find former employment"
 )
 
 // maxInvitationEmailLength is the column limit an address must fit.
@@ -45,7 +45,7 @@ type SchoolInvitation struct {
 	roles     ports.RoleStore
 	policy    ports.RoleAssignmentPolicy
 	grants    ports.InvitationGrantPolicy
-	identity  ports.SchoolIdentity
+	identity  ports.InvitationIdentity
 	schools   ports.SchoolDirectory
 	owners    ports.InvitationOwnerTokens
 	passwords ports.PasswordPolicy
@@ -63,7 +63,7 @@ type SchoolInvitationDependencies struct {
 	Roles     ports.RoleStore
 	Policy    ports.RoleAssignmentPolicy
 	Grants    ports.InvitationGrantPolicy
-	Identity  ports.SchoolIdentity
+	Identity  ports.InvitationIdentity
 	Schools   ports.SchoolDirectory
 	Owners    ports.InvitationOwnerTokens
 	Passwords ports.PasswordPolicy
@@ -182,12 +182,11 @@ func (s *SchoolInvitation) logCreated(invitation domain.SchoolInvitation, create
 
 // validateRequest checks the address and the role the request asks for.
 func (s *SchoolInvitation) validateRequest(ctx context.Context, request domain.SchoolInvitationRequest) (string, domain.ManagedRole, error) {
-	email := strings.TrimSpace(strings.ToLower(request.Email))
+	email, err := invitationAddress(request.Email)
+	if err != nil {
+		return "", domain.ManagedRole{}, failed(opCreateInvitation, err)
+	}
 	switch {
-	case email == "":
-		return "", domain.ManagedRole{}, failed(opCreateInvitation, fmt.Errorf("email is required"))
-	case len(email) > maxInvitationEmailLength:
-		return "", domain.ManagedRole{}, failed(opCreateInvitation, fmt.Errorf("email address too long"))
 	case request.RoleID <= 0:
 		return "", domain.ManagedRole{}, failed(opCreateInvitation, fmt.Errorf("role id is required"))
 	case request.CreatedBy < 0:
@@ -195,11 +194,6 @@ func (s *SchoolInvitation) validateRequest(ctx context.Context, request domain.S
 	case request.TenantID < 0:
 		return "", domain.ManagedRole{}, failed(opCreateInvitation, fmt.Errorf("tenant id is invalid"))
 	}
-	parsed, err := mail.ParseAddress(email)
-	if err != nil {
-		return "", domain.ManagedRole{}, failed(opCreateInvitation, fmt.Errorf("invalid email address"))
-	}
-	email = parsed.Address
 
 	role, err := s.ensureRoleAssignable(ctx, request)
 	if err != nil {
@@ -329,38 +323,17 @@ func (s *SchoolInvitation) AcceptInvitation(ctx context.Context, token string, r
 		if fetchErr != nil {
 			return fetchErr
 		}
-		// A shared lock on the school serializes with the exclusive lock a
-		// soft delete takes, so the school cannot vanish under the acceptance.
-		if invitation.TenantID > 0 {
-			school, found, schoolErr := s.schools.LockSchoolShared(txCtx, invitation.TenantID)
-			if schoolErr != nil {
-				return failed(opAcceptInvitation, schoolErr)
-			}
-			if !found || school.Deleted {
-				return failed(opAcceptInvitation, domain.ErrInvitationTenantDeleted)
-			}
+		if err := s.requireInvitationSchool(txCtx, invitation); err != nil {
+			return err
 		}
 		invitationCtx := s.runtime.WithTenantID(txCtx, invitation.TenantID)
 		account, hasAccount, _, accountErr := findLoginAccountByEmail(invitationCtx, s.runtime, s.logins, invitation.Email)
 		if accountErr != nil {
 			return failed(opAcceptInvitation, accountErr)
 		}
-		var (
-			passwordHash string
-			restore      bool
-		)
-		if hasAccount {
-			var existingErr error
-			passwordHash, restore, existingErr = s.existingAccountCredential(txCtx, account, registration)
-			if existingErr != nil {
-				return existingErr
-			}
-		} else {
-			hash, hashErr := s.hashPassword(registration)
-			if hashErr != nil {
-				return hashErr
-			}
-			passwordHash = hash
+		passwordHash, restore, passwordErr := s.invitationPassword(txCtx, account, hasAccount, registration)
+		if passwordErr != nil {
+			return passwordErr
 		}
 		firstName, lastName, nameErr := registration.Names(invitation)
 		if nameErr != nil {
@@ -467,34 +440,8 @@ func (s *SchoolInvitation) grantAccess(
 	if err := s.roles.CreateAccountRole(ctx, account.ID, invitation.RoleID, invitation.TenantID); err != nil {
 		return domain.LoginAccount{}, failed("assign role", err)
 	}
-	role, found, err := s.roles.FindRoleIgnoringTenant(ctx, invitation.RoleID)
-	if err != nil {
-		return domain.LoginAccount{}, failed("provision school identity", err)
-	}
-	if !found {
-		return domain.LoginAccount{}, failed("provision school identity", domain.ErrRoleNotFound)
-	}
-	facts := *role.Facts()
-	lehrkraft := s.policy.IsLehrkraftSystemRole(&facts)
-	if err := s.assignCaregiverRole(ctx, account.ID, invitation, facts, lehrkraft); err != nil {
+	if err := s.provisionInvitationIdentity(ctx, invitation, account.ID, firstName, lastName); err != nil {
 		return domain.LoginAccount{}, err
-	}
-	var position string
-	if invitation.Position != nil {
-		position = *invitation.Position
-	}
-	if _, err := s.identity.EnsureSchoolIdentity(ctx, domain.SchoolIdentityInput{
-		AccountID: account.ID, TenantID: invitation.TenantID, Role: &facts,
-		FirstName: firstName, LastName: lastName, Position: position,
-		// The staff import created the person before the invitation went out;
-		// accepting reuses it instead of filing a second one (#2600).
-		PersonID: invitation.PersonID,
-		// A Lehrkraft never gets a caregiver profile, caregiver_enabled or
-		// not — the same invariant the role assignment applies (#1772).
-		CaregiverUpgrade: invitation.CaregiverEnabled && !lehrkraft,
-		CreatePerson:     true,
-	}); err != nil {
-		return domain.LoginAccount{}, failed("provision school identity", err)
 	}
 	redeemed, _, err := s.store.SpendSchoolInvitation(ctx, invitation.ID)
 	if err != nil {

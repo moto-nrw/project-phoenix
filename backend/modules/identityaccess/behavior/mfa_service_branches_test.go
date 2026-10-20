@@ -62,7 +62,7 @@ func TestMFAService_OperatorSetGlobalMFAOverride_NoneOnEmptyState(t *testing.T) 
 
 	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, operator.ID, acc.ID, identityaccess.MFAAdminOverrideNone, "no-op"))
 
-	_, found, err := nativeMFARecords(t, db).FindGlobalOverride(ctx, acc.ID)
+	_, found, err := mfaRecordRows(t, db).FindGlobalOverride(ctx, acc.ID)
 	require.NoError(t, err)
 	assert.False(t, found)
 }
@@ -155,13 +155,13 @@ func TestMFAService_SetMFAOverride_NoneClearsExistingRow(t *testing.T) {
 	perms := []string{"users:manage"}
 	require.NoError(t, svc.SetMFAOverride(ctx, 11, tenantID, acc.ID, identityaccess.MFAAdminOverrideForceOn, "harden", perms))
 
-	_, found, err := nativeMFARecords(t, db).FindTenantOverride(ctx, acc.ID, tenantID)
+	_, found, err := mfaRecordRows(t, db).FindTenantOverride(ctx, acc.ID, tenantID)
 	require.NoError(t, err)
 	require.True(t, found)
 
 	require.NoError(t, svc.SetMFAOverride(ctx, 11, tenantID, acc.ID, identityaccess.MFAAdminOverrideNone, "policy reverted", perms))
 
-	_, found, err = nativeMFARecords(t, db).FindTenantOverride(ctx, acc.ID, tenantID)
+	_, found, err = mfaRecordRows(t, db).FindTenantOverride(ctx, acc.ID, tenantID)
 	require.NoError(t, err)
 	assert.False(t, found, "none must DELETE the row, not leave it with a stale override value")
 }

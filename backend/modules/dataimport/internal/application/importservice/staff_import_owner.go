@@ -215,7 +215,7 @@ func (c *StaffImportConfig) createRecords(ctx context.Context, row importModels.
 		Birthday:  calendarDateString(optionalImportDate(row.Birthday)),
 	})
 	if err != nil {
-		return 0, fmt.Errorf("Person anlegen: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+		return 0, copyErrorf("Person anlegen: %w", err)
 	}
 
 	staff, err := c.Membership.CreateStaff(ctx, ports.CreateStaff{StaffFields: ports.StaffFields{
@@ -225,12 +225,12 @@ func (c *StaffImportConfig) createRecords(ctx context.Context, row importModels.
 		PersonnelNumber: importModels.OptionalCell(row.PersonnelNumber),
 	}})
 	if err != nil {
-		return 0, fmt.Errorf("Mitarbeiter anlegen: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+		return 0, copyErrorf("Mitarbeiter anlegen: %w", err)
 	}
 
 	if role := c.rolesByID[row.RoleID]; role != nil && c.RolePolicy.NeedsCaregiver(role) {
 		if _, err := c.Membership.CreateTeacher(ctx, ports.CreateTeacher{TeacherFields: ports.TeacherFields{StaffID: staff.ID, Role: row.Position}}); err != nil {
-			return 0, fmt.Errorf("Betreuungsprofil anlegen: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+			return 0, copyErrorf("Betreuungsprofil anlegen: %w", err)
 		}
 	}
 
@@ -273,7 +273,7 @@ func (c *StaffImportConfig) invite(ctx context.Context, personID int64, row impo
 	if err := ports.ObserveCommand(ctx, "identity-access", "create_invitation", func() error {
 		return c.Invitations.InviteStaff(ctx, req)
 	}); err != nil {
-		return fmt.Errorf("Einladung anlegen: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+		return copyErrorf("Einladung anlegen: %w", err)
 	}
 	return nil
 }
@@ -304,12 +304,12 @@ func (c *StaffImportConfig) writeMasterData(ctx context.Context, staffID int64, 
 	}
 	if err != nil {
 		if errors.Is(err, ports.ErrInvalidStaffRecord) {
-			return fmt.Errorf("Stammdaten ungültig: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+			return copyErrorf("Stammdaten ungültig: %w", err)
 		}
 		if created {
-			return fmt.Errorf("Stammdaten anlegen: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+			return copyErrorf("Stammdaten anlegen: %w", err)
 		}
-		return fmt.Errorf("Stammdaten aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+		return copyErrorf("Stammdaten aktualisieren: %w", err)
 	}
 	return nil
 }
@@ -371,7 +371,7 @@ func (c *StaffImportConfig) writeQualifications(ctx context.Context, staffID int
 		})
 	}
 	if _, err := c.Records.ReplaceStaffQualifications(ctx, staffID, rows); err != nil {
-		return fmt.Errorf("Qualifikationen speichern: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+		return copyErrorf("Qualifikationen speichern: %w", err)
 	}
 	return nil
 }
@@ -388,9 +388,9 @@ func (c *StaffImportConfig) Update(ctx context.Context, staffID int64, row impor
 		staff, err := c.Membership.FindStaff(ctx, staffID)
 		if err != nil {
 			if errors.Is(err, ports.ErrStaffNotFound) {
-				return errors.New("Mitarbeiter nicht gefunden") //nolint:staticcheck // ST1005: user-facing German message
+				return newCopyError("Mitarbeiter nicht gefunden")
 			}
-			return fmt.Errorf("Mitarbeiter laden: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+			return copyErrorf("Mitarbeiter laden: %w", err)
 		}
 		return c.updateRecords(ctx, staff, row)
 	})
@@ -400,14 +400,14 @@ func (c *StaffImportConfig) updateRecords(ctx context.Context, staff ports.Staff
 	person, err := c.Persons.FindPerson(ctx, staff.PersonID)
 	if err != nil {
 		if errors.Is(err, ports.ErrPersonNotFound) {
-			return errors.New("Person nicht gefunden") //nolint:staticcheck // ST1005: user-facing German message
+			return newCopyError("Person nicht gefunden")
 		}
-		return fmt.Errorf("Person laden: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+		return copyErrorf("Person laden: %w", err)
 	}
 	previous := indexedStaff{ID: staff.ID, PersonID: person.ID, PersonnelNumber: staff.PersonnelNumber, FirstName: person.FirstName, LastName: person.LastName}
 	if row.PersonnelNumber != "" {
 		if other, ok := c.staffByPersonnelNumber[strings.ToLower(row.PersonnelNumber)]; ok && other.ID != staff.ID {
-			return fmt.Errorf("Personalnummer '%s' ist bereits einer anderen Person zugeordnet", row.PersonnelNumber) //nolint:staticcheck // ST1005: user-facing German message
+			return copyErrorf("Personalnummer '%s' ist bereits einer anderen Person zugeordnet", row.PersonnelNumber)
 		}
 	}
 	person, err = c.patchStaffPerson(ctx, person, row)
@@ -452,7 +452,7 @@ func (c *StaffImportConfig) patchStaffPerson(ctx context.Context, person ports.P
 	}
 	updated, err := c.Persons.UpdatePerson(ctx, input)
 	if err != nil {
-		return ports.Person{}, fmt.Errorf("Person aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+		return ports.Person{}, copyErrorf("Person aktualisieren: %w", err)
 	}
 	return updated, nil
 }
@@ -481,7 +481,7 @@ func (c *StaffImportConfig) patchStaffMembership(ctx context.Context, staff port
 	}
 	updated, err := c.Membership.UpdateStaff(ctx, ports.UpdateStaff{ID: staff.ID, StaffFields: fields})
 	if err != nil {
-		return ports.Staff{}, fmt.Errorf("Mitarbeiter aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+		return ports.Staff{}, copyErrorf("Mitarbeiter aktualisieren: %w", err)
 	}
 	return updated, nil
 }
@@ -492,7 +492,7 @@ func (c *StaffImportConfig) patchStaffTeacher(ctx context.Context, staffID int64
 	}
 	teacher, err := c.Membership.FindTeacherByStaff(ctx, staffID)
 	if err != nil && !errors.Is(err, ports.ErrTeacherNotFound) {
-		return fmt.Errorf("Betreuungsprofil laden: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+		return copyErrorf("Betreuungsprofil laden: %w", err)
 	}
 	if err != nil || teacher.IsDeleted() || teacher.Role == position {
 		return nil
@@ -500,7 +500,7 @@ func (c *StaffImportConfig) patchStaffTeacher(ctx context.Context, staffID int64
 	if _, err := c.Membership.UpdateTeacher(ctx, ports.UpdateTeacher{ID: teacher.ID, TeacherFields: ports.TeacherFields{
 		StaffID: teacher.StaffID, Specialization: teacher.Specialization, Role: position, Qualifications: teacher.Qualifications,
 	}}); err != nil {
-		return fmt.Errorf("Betreuungsprofil aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+		return copyErrorf("Betreuungsprofil aktualisieren: %w", err)
 	}
 	return nil
 }
@@ -514,7 +514,7 @@ func (c *StaffImportConfig) patchStaffMasterData(ctx context.Context, staffID in
 			existing = &data
 		case errors.Is(err, ports.ErrStaffMasterDataNotFound):
 		default:
-			return fmt.Errorf("Stammdaten laden: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+			return copyErrorf("Stammdaten laden: %w", err)
 		}
 	}
 	return c.writeMasterData(ctx, staffID, existing, row)

@@ -22,10 +22,10 @@ const (
 
 // workSessionService implements WorkSessionService
 type workSessionService struct {
-	repo        WorkSessionRepository
-	breakRepo   WorkSessionBreakRepository
+	repo        WorkSessionRecords
+	breakRepo   WorkSessionBreakRecords
 	auditRepo   WorkSessionAudit
-	absenceRepo StaffAbsenceRepository
+	absenceRepo AbsenceRecords
 	// absenceTypes resolves school-defined Abwesenheitsarten for exports
 	// (#2403). Setter injection; nil in bare-constructed unit fixtures.
 	absenceTypes   AbsenceTypeReader
@@ -80,7 +80,7 @@ func (s *workSessionService) lockStaffBalanceWritesOrdered(ctx context.Context, 
 
 // NewWorkSessionService creates a new work session service
 
-func NewWorkSessionService(repo WorkSessionRepository, breakRepo WorkSessionBreakRepository, auditRepo WorkSessionAudit, absenceRepo StaffAbsenceRepository, supervisorRepo GroupSupervisorRepository, groupRepo GroupRepository, staffRepo WorkSessionStaff, scheduleRepo WorkSessionSchedules, workModelRepo WorkSessionTimeModels, settings settingsResolver, logger *slog.Logger, db DatabaseHandle, renderPDF TimeTrackingPDFRenderer, renderWorkbook TimeTrackingWorkbookRenderer, opts ...WorkSessionOption) WorkSessionService {
+func NewWorkSessionService(repo WorkSessionRecords, breakRepo WorkSessionBreakRecords, auditRepo WorkSessionAudit, absenceRepo AbsenceRecords, supervisorRepo GroupSupervisorRepository, groupRepo GroupRepository, staffRepo WorkSessionStaff, scheduleRepo WorkSessionSchedules, workModelRepo WorkSessionTimeModels, settings settingsResolver, logger *slog.Logger, db DatabaseHandle, renderPDF TimeTrackingPDFRenderer, renderWorkbook TimeTrackingWorkbookRenderer, opts ...WorkSessionOption) WorkSessionService {
 	service := &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, groupRepo: groupRepo, staffRepo: staffRepo, scheduleRepo: scheduleRepo, workModelRepo: workModelRepo, settings: settings, logger: logger, db: db, renderPDF: renderPDF, renderWorkbook: renderWorkbook}
 	for _, opt := range opts {
 		opt(service)
@@ -103,10 +103,12 @@ func (s *workSessionService) now() time.Time {
 // lookup here avoids a per-field repository method while retaining the
 // chronological block order required by the caller.
 func (s *workSessionService) listSessionsByStaffAndDate(ctx context.Context, staffID int64, date calendar.Date) ([]*WorkSession, error) {
-	sessions, err := s.repo.ListWithFilter(ctx, workforce.WorkSessionFilter{
+	sessionsRecords, err := s.repo.ListWorkSessions(ctx, workforce.WorkSessionFilter{
 		StaffID: staffID, Date: date.String(),
 		Order: []workforce.WorkSessionOrder{{Field: workforce.WorkSessionOrderCheckInTime}},
 	})
+	sessions := workSessionsToRecords(sessionsRecords)
+	err = rowReadError("list with options", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list work sessions by staff and date: %w", err)
 	}

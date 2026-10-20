@@ -36,7 +36,7 @@ type Resource struct {
 	Resets                PasswordResetRuntime
 	ParentService         PortalService
 	RequestSharing        parentService.RequestSharingService
-	CalendarService       calendarService.Service
+	CalendarService       calendarService.ParentCalendar
 	EnrollmentForms       EnrollmentForms
 	GuardianProfileLoader GuardianProfileLoader
 	SchoolService         SchoolDirectory
@@ -58,7 +58,7 @@ type ResourceConfig struct {
 	// Resets is the reset runtime the composition root binds (#3332).
 	Resets   PasswordResetRuntime
 	Parent   PortalService
-	Calendar calendarService.Service
+	Calendar calendarService.ParentCalendar
 	// Enrollment is the public form flow the composition root binds (#2734).
 	Enrollment            EnrollmentForms
 	GuardianProfileLoader GuardianProfileLoader

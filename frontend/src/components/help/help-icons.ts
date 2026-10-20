@@ -6,6 +6,7 @@ import {
   BankIcon as Landmark,
   BellRingingIcon as BellRing,
   BuildingsIcon as Building2,
+  ChalkboardTeacherIcon as ChalkboardTeacher,
   CalendarCheckIcon as CalendarCheck,
   CalendarDotsIcon as CalendarDays,
   CalendarPlusIcon as CalendarPlus,
@@ -46,7 +47,6 @@ import {
   SignOutIcon as LogOut,
   SlidersHorizontalIcon as SlidersHorizontal,
   SparkleIcon as Sparkles,
-  StudentIcon as Student,
   SunHorizonIcon as SunHorizon,
   TableIcon as Table,
   TimerIcon as Timer,
@@ -55,7 +55,9 @@ import {
   UserCircleIcon as UserCircle,
   UserFocusIcon as UserRoundSearch,
   UserPlusIcon as UserRoundPlus,
+  UserIcon as User,
   UsersIcon as Users,
+  UsersThreeIcon as UsersThree,
   WatchIcon as Watch,
 } from "@phosphor-icons/react/ssr";
 
@@ -72,6 +74,7 @@ export const HELP_ICONS = {
   Landmark,
   BellRing,
   Building2,
+  ChalkboardTeacher,
   CalendarCheck,
   CalendarDays,
   CalendarPlus,
@@ -111,7 +114,6 @@ export const HELP_ICONS = {
   LogOut,
   SlidersHorizontal,
   Sparkles,
-  Student,
   SunHorizon,
   Table,
   Timer,
@@ -121,7 +123,9 @@ export const HELP_ICONS = {
   NotePencil,
   UserRoundSearch,
   UserRoundPlus,
+  User,
   Users,
+  UsersThree,
   Watch,
 } as const satisfies Record<string, PhosphorIcon>;
 

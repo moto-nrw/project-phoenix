@@ -32,7 +32,7 @@ func TestStaffAbsenceDateRangeContract(t *testing.T) {
 			Status:      workforce.AbsenceStatusReported,
 			CreatedBy:   staff.ID,
 		}
-		absence, err := repo.CreateStaffAbsence(ctx, absence)
+		absence, err := repo.CreateStaffAbsence(ctx, &absence)
 		require.NoError(t, err)
 
 		absences, err := repo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{
@@ -78,7 +78,7 @@ func TestStaffAbsenceDateRangeContract(t *testing.T) {
 			Status:      workforce.AbsenceStatusApproved,
 			CreatedBy:   staff.ID,
 		}
-		_, err := repo.CreateStaffAbsence(ctx, absence)
+		_, err := repo.CreateStaffAbsence(ctx, &absence)
 		require.NoError(t, err)
 
 		// Query just for today should find the overlapping absence

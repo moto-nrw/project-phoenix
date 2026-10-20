@@ -280,14 +280,19 @@ type StaffAbsenceService interface {
 }
 
 func (s *staffAbsenceService) GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error) {
-	return s.absenceRepo.GetAbsenceMapForDate(ctx, calendar.TodayDate())
+	values, err := s.absenceRepo.StaffAbsenceMapForDate(ctx, calendar.TodayDate().String())
+	if err != nil {
+		return nil, rowReadError("get effective absences for date", err, nil)
+	}
+	return values, nil
 }
 
 func (s *staffAbsenceService) GetTodayAbsenceLabelMap(ctx context.Context) (map[int64]string, error) {
 	if s.absenceTypes == nil {
 		return map[int64]string{}, nil
 	}
-	typeIDs, err := s.absenceRepo.GetAbsenceTypeIDMapForDate(ctx, calendar.TodayDate())
+	typeIDs, err := s.absenceRepo.StaffAbsenceTypeIDMapForDate(ctx, calendar.TodayDate().String())
+	err = rowReadError("get effective absences for date", err, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -310,13 +315,13 @@ func (s *staffAbsenceService) GetTodayAbsenceLabelMap(ctx context.Context) (map[
 // staffAbsenceService implements StaffAbsenceService
 type staffAbsenceService struct {
 	runInTx         func(context.Context, func(context.Context) error) error
-	absenceRepo     StaffAbsenceRepository
-	workSessionRepo WorkSessionRepository
-	quotaRepo       StaffVacationQuotaRepository
+	absenceRepo     AbsenceRequestRecords
+	workSessionRepo WorkSessionRecords
+	quotaRepo       VacationQuotaRecords
 	// openingRepo carries the vacation takeover rows (#2132); supplied by
 	// WithVacationOpenings, nil in bare unit fixtures.
-	openingRepo StaffVacationOpeningRepository
-	auditRepo   StaffAbsenceAuditRepository
+	openingRepo VacationOpeningRecords
+	auditRepo   AbsenceAuditRecords
 	settings    monthSettingsResolver
 	// monthService provides the daily-target and closing-balance math for
 	// the comp_time overdraft guard; nil in bare-constructed unit tests.
@@ -408,10 +413,10 @@ func (s *staffAbsenceService) broadcastTimeTrackingChanged(ctx context.Context) 
 
 // NewStaffAbsenceService creates a new staff absence service
 func NewStaffAbsenceService(
-	absenceRepo StaffAbsenceRepository,
-	workSessionRepo WorkSessionRepository,
-	quotaRepo StaffVacationQuotaRepository,
-	auditRepo StaffAbsenceAuditRepository,
+	absenceRepo AbsenceRequestRecords,
+	workSessionRepo WorkSessionRecords,
+	quotaRepo VacationQuotaRecords,
+	auditRepo AbsenceAuditRecords,
 	settings monthSettingsResolver,
 	monthService WorkTimeMonthService,
 	opts ...StaffAbsenceOption,

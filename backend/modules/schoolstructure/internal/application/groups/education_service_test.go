@@ -389,7 +389,7 @@ func TestEducationService_DeleteGroup(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "Gruppe kann nicht")
+		assert.Contains(t, err.Error(), "gruppe kann nicht")
 	})
 
 	t.Run("returns error when group has an active handover", func(t *testing.T) {

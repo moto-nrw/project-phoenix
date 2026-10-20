@@ -343,7 +343,7 @@ describe("getParentHelpTopicForPath", () => {
       "Prüfen Sie oben die Anwesenheit sowie die heutige Ankunft und Abholung.",
     );
     expect(detailedArticle?.result).toBe(
-      "Sie sehen jetzt die Angaben des Kindes. Auf dem Handy wählen Sie `Zurück`. Am Computer nutzen Sie die Navigation oben.",
+      "Sie sehen jetzt die Angaben des Kindes. Über dem Namen steht `Zurück zur Kinderübersicht`. Damit kommen Sie zur Liste zurück.",
     );
     expect(binaryArticle?.differences).toContain(
       "Bei einfacher Anwesenheit sehen Sie keinen Raum. Sie sehen nur, ob das Kind da ist.",

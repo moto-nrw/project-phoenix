@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
+	rotationBindings "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application/rotation"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -33,7 +34,7 @@ type OperatorDependencies struct {
 	Logger        *slog.Logger
 }
 
-func newOperatorFlows(service *application.Service, store *postgres.Store, tokens *application.OperatorTokens, auth *application.AccountAuthentication, sessions *SessionDependencies, deps *OperatorDependencies, lifecycle *application.AccountLifecycle, mfa ports.OperatorMFAGate) (*application.OperatorAuthentication, *application.OperatorAccountAccess, error) {
+func newOperatorFlows(service *application.Service, store *postgres.Store, tokens *application.OperatorTokens, auth *application.AccountAuthentication, sessions *identityPorts.SessionDependencies, deps *OperatorDependencies, lifecycle *application.AccountLifecycle, mfa ports.OperatorMFAGate) (*application.OperatorAuthentication, *application.OperatorAccountAccess, error) {
 	if deps == nil {
 		return nil, nil, nil
 	}
@@ -54,7 +55,7 @@ func newOperatorFlows(service *application.Service, store *postgres.Store, token
 		Audit:       application.OperatorAudit{Source: deps.Audit},
 		Credentials: tokens,
 		Runtime:     runtime,
-		Rotation:    rotationPolicy{},
+		Rotation:    rotationBindings.RotationPolicy{},
 		Logger:      deps.Logger,
 	})
 	if err != nil {

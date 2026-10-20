@@ -216,6 +216,8 @@ export default function EndedCarePage() {
       loading={status === "loading"}
       error={loadError}
       back
+      backHref="/database/students"
+      backLabel="Zurück zu den Kinderdaten"
       overlays={
         <>
           {resumeTarget ? (

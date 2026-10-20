@@ -14,7 +14,7 @@ import (
 func TestCorrectionLogPreservesCursorBeforeVisibilityAndAccess(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	people, err := peoplecompose.New(peoplecompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peoplecompose.Observation) {}})
+	people, err := peoplecompose.New(peoplecompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peoplecompose.Observation) {}}, nil)
 	require.NoError(t, err)
 	visible := testpkg.CreateTestStudent(t, db, "Visible", "Correction", "1a")
 	hidden := testpkg.CreateTestStudent(t, db, "Former", "Correction", "1a")

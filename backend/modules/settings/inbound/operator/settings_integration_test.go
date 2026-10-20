@@ -492,7 +492,7 @@ func TestOperatorSetSchoolSettingValue_PresenceMode_BlockedByOpenAttendance(t *t
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	assert.Equal(t, http.StatusConflict, rr.Code)
-	assert.Contains(t, rr.Body.String(), "Moduswechsel")
+	assert.Contains(t, rr.Body.String(), "moduswechsel")
 }
 
 func TestOperatorSetSchoolSettingValue_PresenceMode_ForceBypassesOpenAttendance(t *testing.T) {

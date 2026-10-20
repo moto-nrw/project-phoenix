@@ -40,9 +40,7 @@ import {
   FileSpreadsheet,
   FileText,
 } from "lucide-react";
-import { IdentificationCardIcon, UsersIcon } from "@phosphor-icons/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { SectionHeader } from "~/components/ui/concept-section-header";
 import { RoomStatusBadge } from "~/components/rooms/room-status-badge";
 
@@ -572,9 +570,8 @@ function RoomsPageContent() {
                               {room.studentCount !== undefined &&
                                 room.studentCount > 0 && (
                                   <span className="flex items-center gap-1">
-                                    <MotoDuotoneIcon
-                                      icon={UsersIcon}
-                                      tone="neutral"
+                                    <MotoConceptIcon
+                                      concept="children"
                                       size={16}
                                     />
                                     {room.studentCount}{" "}
@@ -585,11 +582,7 @@ function RoomsPageContent() {
                                 )}
                               {room.supervisorName && (
                                 <span className="flex items-center gap-1">
-                                  <MotoDuotoneIcon
-                                    icon={IdentificationCardIcon}
-                                    tone="neutral"
-                                    size={16}
-                                  />
+                                  <MotoConceptIcon concept="staff" size={16} />
                                   {room.supervisorName}
                                 </span>
                               )}

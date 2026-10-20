@@ -64,24 +64,9 @@ func normalizePollOptions(in *Input) ([]*StaffParentAnnouncementOption, error) {
 	// explain extra step in the portal.
 	in.RequiresAcknowledgement = false
 
-	seen := make(map[string]bool, len(in.Options))
-	out := make([]*StaffParentAnnouncementOption, 0, len(in.Options))
-	for _, raw := range in.Options {
-		label := strings.TrimSpace(raw)
-		if label == "" {
-			continue
-		}
-		if len([]rune(label)) > maxPollLabelLen {
-			return nil, fmt.Errorf("%w: option label too long", ErrValidation)
-		}
-		key := strings.ToLower(label)
-		if seen[key] {
-			// Two identical options would split the same answer across two bars and
-			// make the result unreadable.
-			return nil, fmt.Errorf("%w: duplicate option %q", ErrValidation, label)
-		}
-		seen[key] = true
-		out = append(out, &StaffParentAnnouncementOption{Label: label, Position: len(out)})
+	out, err := pollOptionLabels(in.Options)
+	if err != nil {
+		return nil, err
 	}
 	if len(out) < minPollOptions {
 		return nil, fmt.Errorf("%w: a poll needs at least %d options", ErrValidation, minPollOptions)
@@ -212,20 +197,7 @@ func (s *service) pushPollReminder(ctx context.Context, a *StaffParentAnnounceme
 	if s.notifier == nil {
 		return nil, nil
 	}
-	accountIDs := make([]int64, 0, len(recipients))
-	seen := make(map[int64]struct{}, len(recipients))
-	localeByAccount := make(map[int64]string, len(recipients))
-	for _, r := range recipients {
-		if r.AccountID <= 0 {
-			continue
-		}
-		if _, exists := seen[r.AccountID]; exists {
-			continue
-		}
-		seen[r.AccountID] = struct{}{}
-		accountIDs = append(accountIDs, r.AccountID)
-		localeByAccount[r.AccountID] = s.deliveryPolicy.NormalizeLocale(r.PortalLocale)
-	}
+	accountIDs, localeByAccount := s.pollPushAudience(recipients)
 	if len(accountIDs) == 0 {
 		return nil, nil
 	}
@@ -302,30 +274,10 @@ func (s *service) enqueueReminderEmails(
 		return nil, nil
 	}
 	tenantID := a.GetTenantID()
-	if s.preferences != nil {
-		accountIDs := make([]int64, 0, len(recipients))
-		for _, r := range recipients {
-			if r.AccountID > 0 {
-				accountIDs = append(accountIDs, r.AccountID)
-			}
-		}
-		// Mirrors the publish path: honour an explicit opt-out, but do not require
-		// an opt-in (most families have no preference row at all).
-		remaining, err := s.preferences.FilterNotOptedOut(ctx, TypeParentAnnouncement, accountIDs)
-		if err != nil {
-			return nil, fmt.Errorf("announcement: filter opted-out reminder recipients: %w", err)
-		}
-		allowed := make(map[int64]struct{}, len(remaining))
-		for _, accountID := range remaining {
-			allowed[accountID] = struct{}{}
-		}
-		filtered := make([]*StaffAnnouncementPollReminderRecipient, 0, len(recipients))
-		for _, r := range recipients {
-			if _, ok := allowed[r.AccountID]; ok {
-				filtered = append(filtered, r)
-			}
-		}
-		recipients = filtered
+	var err error
+	recipients, err = s.reminderEmailRecipients(ctx, recipients)
+	if err != nil {
+		return nil, err
 	}
 	if len(recipients) == 0 {
 		return nil, nil
@@ -371,4 +323,74 @@ func (s *service) enqueueReminderEmails(
 		queuedAccountIDs = append(queuedAccountIDs, r.AccountID)
 	}
 	return queuedAccountIDs, nil
+}
+
+func pollOptionLabels(options []string) ([]*StaffParentAnnouncementOption, error) {
+	seen := make(map[string]bool, len(options))
+	out := make([]*StaffParentAnnouncementOption, 0, len(options))
+	for _, raw := range options {
+		label := strings.TrimSpace(raw)
+		if label == "" {
+			continue
+		}
+		if len([]rune(label)) > maxPollLabelLen {
+			return nil, fmt.Errorf("%w: option label too long", ErrValidation)
+		}
+		key := strings.ToLower(label)
+		if seen[key] {
+			// Two identical options would split the same answer across two bars and
+			// make the result unreadable.
+			return nil, fmt.Errorf("%w: duplicate option %q", ErrValidation, label)
+		}
+		seen[key] = true
+		out = append(out, &StaffParentAnnouncementOption{Label: label, Position: len(out)})
+	}
+	return out, nil
+}
+
+func (s *service) reminderEmailRecipients(ctx context.Context, recipients []*StaffAnnouncementPollReminderRecipient) ([]*StaffAnnouncementPollReminderRecipient, error) {
+	if s.preferences != nil {
+		accountIDs := make([]int64, 0, len(recipients))
+		for _, r := range recipients {
+			if r.AccountID > 0 {
+				accountIDs = append(accountIDs, r.AccountID)
+			}
+		}
+		// Mirrors the publish path: honour an explicit opt-out, but do not require
+		// an opt-in (most families have no preference row at all).
+		remaining, err := s.preferences.FilterNotOptedOut(ctx, TypeParentAnnouncement, accountIDs)
+		if err != nil {
+			return nil, fmt.Errorf("announcement: filter opted-out reminder recipients: %w", err)
+		}
+		allowed := make(map[int64]struct{}, len(remaining))
+		for _, accountID := range remaining {
+			allowed[accountID] = struct{}{}
+		}
+		filtered := make([]*StaffAnnouncementPollReminderRecipient, 0, len(recipients))
+		for _, r := range recipients {
+			if _, ok := allowed[r.AccountID]; ok {
+				filtered = append(filtered, r)
+			}
+		}
+		recipients = filtered
+	}
+	return recipients, nil
+}
+
+func (s *service) pollPushAudience(recipients []*StaffAnnouncementPollReminderRecipient) ([]int64, map[int64]string) {
+	accountIDs := make([]int64, 0, len(recipients))
+	seen := make(map[int64]struct{}, len(recipients))
+	localeByAccount := make(map[int64]string, len(recipients))
+	for _, r := range recipients {
+		if r.AccountID <= 0 {
+			continue
+		}
+		if _, exists := seen[r.AccountID]; exists {
+			continue
+		}
+		seen[r.AccountID] = struct{}{}
+		accountIDs = append(accountIDs, r.AccountID)
+		localeByAccount[r.AccountID] = s.deliveryPolicy.NormalizeLocale(r.PortalLocale)
+	}
+	return accountIDs, localeByAccount
 }

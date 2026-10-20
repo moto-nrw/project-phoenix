@@ -66,7 +66,7 @@ func TestStudentOwnerWritesRollbackWhenCallerCatchesFailure(t *testing.T) {
 				StudentDirectory: testpkg.StudentDirectory{},
 				DB:               db, Observe: func(peopleCompose.Observation) {},
 				StudentOwners: failingStudentOwner{StudentOwners: api.NewStudentOwners(membership, care), stage: stage, failure: failure},
-			})
+			}, nil)
 			require.NoError(t, err)
 			require.NoError(t, tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 				_, createErr := module.CreateStudent(txCtx, peopledirectory.StudentWrite{Record: peopledirectory.StudentRecord{
@@ -100,7 +100,7 @@ func TestStudentOwnerUpdatesRollbackWhenCallerCatchesFailure(t *testing.T) {
 					StudentDirectory: testpkg.StudentDirectory{},
 					DB:               db, Observe: func(peopleCompose.Observation) {},
 					StudentOwners: failingStudentOwner{StudentOwners: api.NewStudentOwners(membership, care), stage: stage, failure: failure},
-				})
+				}, nil)
 				require.NoError(t, err)
 				before, err := module.FindStudentRecord(ctx, student.ID)
 				require.NoError(t, err)

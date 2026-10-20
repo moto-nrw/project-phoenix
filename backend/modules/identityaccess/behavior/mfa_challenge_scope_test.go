@@ -48,7 +48,7 @@ func TestMFAService_ResendChallengeForScope_ForeignScope_RefusedBeforeSending(t 
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
-	before, err := nativeMFARecords(t, db).CountChallengesSince(ctx, accID, rateLimitWindowStart())
+	before, err := mfaRecordRows(t, db).CountChallengesSince(ctx, accID, rateLimitWindowStart())
 	require.NoError(t, err)
 
 	// …must not be re-drivable through the school resend endpoint.
@@ -58,7 +58,7 @@ func TestMFAService_ResendChallengeForScope_ForeignScope_RefusedBeforeSending(t 
 	assert.Empty(t, renewed)
 	assert.ErrorIs(t, err, identityaccess.ErrMFAUnsupportedScope)
 
-	after, err := nativeMFARecords(t, db).CountChallengesSince(ctx, accID, rateLimitWindowStart())
+	after, err := mfaRecordRows(t, db).CountChallengesSince(ctx, accID, rateLimitWindowStart())
 	require.NoError(t, err)
 	assert.Equal(t, before, after, "a refused scope must not consume a code from the rate-limit budget")
 }

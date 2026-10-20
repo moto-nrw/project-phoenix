@@ -176,38 +176,13 @@ func (l *AccountLifecycle) AcceptGuardianInvitation(ctx context.Context, token s
 		if fetchErr != nil {
 			return fetchErr
 		}
-		// A shared lock on the school serializes with the exclusive lock a
-		// soft delete takes, so the school cannot vanish under the acceptance.
-		if invitation.TenantID > 0 {
-			school, found, schoolErr := l.schools.LockSchoolShared(txCtx, invitation.TenantID)
-			if schoolErr != nil {
-				return failed(opGuardianInviteAccept, schoolErr)
-			}
-			if !found || school.Deleted {
-				return failed(opGuardianInviteAccept, domain.ErrInvitationTenantDeleted)
-			}
+		if err := l.requireInvitationSchool(txCtx, invitation); err != nil {
+			return err
 		}
 		invitationCtx := l.runtime.WithTenantID(txCtx, invitation.TenantID)
-		profile, found, profileErr := l.guardians.FindGuardianProfile(invitationCtx, invitation.GuardianProfileID)
-		if profileErr != nil {
-			return failed(opGuardianInviteAccept, profileErr)
-		}
-		if !found {
-			return failed(opGuardianInviteAccept, fmt.Errorf("guardian profile not found"))
-		}
-		email := strings.ToLower(strings.TrimSpace(profile.Email))
-		if email == "" {
-			return failed(opGuardianInviteAccept, fmt.Errorf("guardian profile missing email"))
-		}
-		account, accountErr := l.provisionGuardianAccount(invitationCtx, email, registration)
-		if accountErr != nil {
-			return accountErr
-		}
-		if grantErr := l.grantGuardianAccess(invitationCtx, invitation, profile, account); grantErr != nil {
-			return grantErr
-		}
-		if claimErr := l.claimGuardianEnrollments(invitationCtx, account.ID, email); claimErr != nil {
-			return claimErr
+		account, acceptErr := l.acceptGuardianAtSchool(invitationCtx, invitation, registration)
+		if acceptErr != nil {
+			return acceptErr
 		}
 		result = account
 		return nil
@@ -361,4 +336,44 @@ func (l *AccountLifecycle) redeemableGuardianInvitation(ctx context.Context, tok
 		return domain.GuardianInvitation{}, failed(opGuardianInviteFetch, err)
 	}
 	return invitation, nil
+}
+
+func (l *AccountLifecycle) requireInvitationSchool(txCtx context.Context, invitation domain.GuardianInvitation) error {
+	// A shared lock on the school serializes with the exclusive lock a
+	// soft delete takes, so the school cannot vanish under the acceptance.
+	if invitation.TenantID > 0 {
+		school, found, schoolErr := l.schools.LockSchoolShared(txCtx, invitation.TenantID)
+		if schoolErr != nil {
+			return failed(opGuardianInviteAccept, schoolErr)
+		}
+		if !found || school.Deleted {
+			return failed(opGuardianInviteAccept, domain.ErrInvitationTenantDeleted)
+		}
+	}
+	return nil
+}
+
+func (l *AccountLifecycle) acceptGuardianAtSchool(invitationCtx context.Context, invitation domain.GuardianInvitation, registration domain.GuardianRegistration) (domain.LoginAccount, error) {
+	profile, found, profileErr := l.guardians.FindGuardianProfile(invitationCtx, invitation.GuardianProfileID)
+	if profileErr != nil {
+		return domain.LoginAccount{}, failed(opGuardianInviteAccept, profileErr)
+	}
+	if !found {
+		return domain.LoginAccount{}, failed(opGuardianInviteAccept, fmt.Errorf("guardian profile not found"))
+	}
+	email := strings.ToLower(strings.TrimSpace(profile.Email))
+	if email == "" {
+		return domain.LoginAccount{}, failed(opGuardianInviteAccept, fmt.Errorf("guardian profile missing email"))
+	}
+	account, accountErr := l.provisionGuardianAccount(invitationCtx, email, registration)
+	if accountErr != nil {
+		return domain.LoginAccount{}, accountErr
+	}
+	if grantErr := l.grantGuardianAccess(invitationCtx, invitation, profile, account); grantErr != nil {
+		return domain.LoginAccount{}, grantErr
+	}
+	if claimErr := l.claimGuardianEnrollments(invitationCtx, account.ID, email); claimErr != nil {
+		return domain.LoginAccount{}, claimErr
+	}
+	return account, nil
 }

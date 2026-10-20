@@ -187,20 +187,7 @@ func (s *Store) FindParticipation(ctx context.Context, studentID int64, start, e
 		return domain.ParticipationData{}, stats, fmt.Errorf("meal plan postgres: find sick days: %w", err)
 	}
 
-	data := domain.ParticipationData{
-		Schedules: make([]domain.ParticipationSchedule, 0, len(schedules)),
-		Overrides: make([]domain.DayOverride, 0, len(overrides)),
-		SickDays:  make([]domain.SickDay, 0, len(sickDays)),
-	}
-	for _, schedule := range schedules {
-		data.Schedules = append(data.Schedules, domain.ParticipationSchedule{EffectiveFrom: schedule.EffectiveFrom, Weekdays: weekdaysFromRow(schedule)})
-	}
-	for _, override := range overrides {
-		data.Overrides = append(data.Overrides, domain.DayOverride{Date: override.Date, Participating: override.Participating})
-	}
-	for _, sick := range sickDays {
-		data.SickDays = append(data.SickDays, sick.absence())
-	}
+	data := participationValues(schedules, overrides, sickDays)
 	return data, stats, nil
 }
 
@@ -378,26 +365,8 @@ func (s *Store) FindDailyParticipation(ctx context.Context, studentIDs []int64, 
 		states[override.StudentID] = state
 	}
 
-	var sickDays []sickDayRow
-	if err := timedQuery(&stats, func() error {
-		return absenceHistory(db, &sickDays, tenantID).
-			DistinctOn(`"sickness_history".student_id, "sickness_history".status`).
-			Where(`"sickness_history".student_id IN (?)`, bun.List(studentIDs)).
-			Where(`"sickness_history".date = ?`, date).
-			Where(`"sickness_history".changed_at <= ?`, cutoff).
-			OrderExpr(`"sickness_history".student_id ASC`).
-			OrderExpr(`"sickness_history".status ASC`).
-			OrderExpr(`"sickness_history".changed_at DESC`).
-			OrderExpr(`"sickness_history".id DESC`).
-			Scan(ctx)
-	}); err != nil {
-		return nil, stats, fmt.Errorf("meal plan postgres: find daily sickness history: %w", err)
-	}
-	stats.Rows += int64(len(sickDays))
-	for _, sickDay := range sickDays {
-		state := states[sickDay.StudentID]
-		state.Absences = append(state.Absences, sickDay.absence())
-		states[sickDay.StudentID] = state
+	if err := loadDailySickness(ctx, db, tenantID, studentIDs, date, cutoff, states, &stats); err != nil {
+		return nil, stats, err
 	}
 	return states, stats, nil
 }
@@ -449,4 +418,47 @@ func timedQuery(stats *domain.OperationStats, query func() error) error {
 	stats.Queries++
 	stats.StatementDuration += time.Since(started)
 	return err
+}
+
+func participationValues(schedules []participationScheduleRow, overrides []participationOverrideRow, sickDays []sickDayRow) domain.ParticipationData {
+	data := domain.ParticipationData{
+		Schedules: make([]domain.ParticipationSchedule, 0, len(schedules)),
+		Overrides: make([]domain.DayOverride, 0, len(overrides)),
+		SickDays:  make([]domain.SickDay, 0, len(sickDays)),
+	}
+	for _, schedule := range schedules {
+		data.Schedules = append(data.Schedules, domain.ParticipationSchedule{EffectiveFrom: schedule.EffectiveFrom, Weekdays: weekdaysFromRow(schedule)})
+	}
+	for _, override := range overrides {
+		data.Overrides = append(data.Overrides, domain.DayOverride{Date: override.Date, Participating: override.Participating})
+	}
+	for _, sick := range sickDays {
+		data.SickDays = append(data.SickDays, sick.absence())
+	}
+	return data
+}
+
+func loadDailySickness(ctx context.Context, db bun.IDB, tenantID int64, studentIDs []int64, date domain.Date, cutoff time.Time, states map[int64]domain.DailyParticipation, stats *domain.OperationStats) error {
+	var sickDays []sickDayRow
+	if err := timedQuery(stats, func() error {
+		return absenceHistory(db, &sickDays, tenantID).
+			DistinctOn(`"sickness_history".student_id, "sickness_history".status`).
+			Where(`"sickness_history".student_id IN (?)`, bun.List(studentIDs)).
+			Where(`"sickness_history".date = ?`, date).
+			Where(`"sickness_history".changed_at <= ?`, cutoff).
+			OrderExpr(`"sickness_history".student_id ASC`).
+			OrderExpr(`"sickness_history".status ASC`).
+			OrderExpr(`"sickness_history".changed_at DESC`).
+			OrderExpr(`"sickness_history".id DESC`).
+			Scan(ctx)
+	}); err != nil {
+		return fmt.Errorf("meal plan postgres: find daily sickness history: %w", err)
+	}
+	stats.Rows += int64(len(sickDays))
+	for _, sickDay := range sickDays {
+		state := states[sickDay.StudentID]
+		state.Absences = append(state.Absences, sickDay.absence())
+		states[sickDay.StudentID] = state
+	}
+	return nil
 }

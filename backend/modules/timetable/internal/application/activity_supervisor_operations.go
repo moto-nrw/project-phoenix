@@ -278,6 +278,35 @@ func buildReplacementSupervisorIDs(
 		return nil, activityContract.ErrSupervisorNotFound
 	}
 
+	targetSupervisor, nextSupervisorIDs, replacementAlreadyAssigned := splitReplacementRoster(supervisors, supervisorID, replacementStaffID)
+
+	if targetSupervisor == nil {
+		return nil, activityContract.ErrSupervisorNotFound
+	}
+
+	if replacementStaffID == nil {
+		return nextSupervisorIDs, nil
+	}
+
+	if targetSupervisor.IsPrimary {
+		return primaryReplacementSupervisorIDs(nextSupervisorIDs, *replacementStaffID, replacementAlreadyAssigned), nil
+	}
+
+	if replacementAlreadyAssigned {
+		return nextSupervisorIDs, nil
+	}
+
+	return append(nextSupervisorIDs, *replacementStaffID), nil
+}
+
+// splitReplacementRoster separates the supervisor being replaced from the
+// staff IDs of the remaining roster and reports whether the replacement is
+// already among them.
+func splitReplacementRoster(
+	supervisors []*activityContract.SupervisorPlanned,
+	supervisorID int64,
+	replacementStaffID *int64,
+) (*activityContract.SupervisorPlanned, []int64, bool) {
 	var (
 		targetSupervisor  *activityContract.SupervisorPlanned
 		nextSupervisorIDs []int64
@@ -300,36 +329,24 @@ func buildReplacementSupervisorIDs(
 
 		nextSupervisorIDs = append(nextSupervisorIDs, supervisor.StaffID)
 	}
+	return targetSupervisor, nextSupervisorIDs, replacementAlreadyAssigned
+}
 
-	if targetSupervisor == nil {
-		return nil, activityContract.ErrSupervisorNotFound
+// primaryReplacementSupervisorIDs puts the replacement of a primary
+// supervisor first, moving it to the front when it is already assigned.
+func primaryReplacementSupervisorIDs(nextSupervisorIDs []int64, replacementStaffID int64, replacementAlreadyAssigned bool) []int64 {
+	if !replacementAlreadyAssigned {
+		return append([]int64{replacementStaffID}, nextSupervisorIDs...)
 	}
-
-	if replacementStaffID == nil {
-		return nextSupervisorIDs, nil
-	}
-
-	if targetSupervisor.IsPrimary {
-		if replacementAlreadyAssigned {
-			reordered := make([]int64, 0, len(nextSupervisorIDs))
-			reordered = append(reordered, *replacementStaffID)
-			for _, staffID := range nextSupervisorIDs {
-				if staffID == *replacementStaffID {
-					continue
-				}
-				reordered = append(reordered, staffID)
-			}
-			return reordered, nil
+	reordered := make([]int64, 0, len(nextSupervisorIDs))
+	reordered = append(reordered, replacementStaffID)
+	for _, staffID := range nextSupervisorIDs {
+		if staffID == replacementStaffID {
+			continue
 		}
-
-		return append([]int64{*replacementStaffID}, nextSupervisorIDs...), nil
+		reordered = append(reordered, staffID)
 	}
-
-	if replacementAlreadyAssigned {
-		return nextSupervisorIDs, nil
-	}
-
-	return append(nextSupervisorIDs, *replacementStaffID), nil
+	return reordered
 }
 
 // handlePrimaryDeletionInTx ensures a new primary is promoted when deleting a primary supervisor

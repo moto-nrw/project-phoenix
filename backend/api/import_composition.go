@@ -62,7 +62,7 @@ func newStudentImport(
 	persons peopledirectory.Capability, guardians importPorts.GuardianDirectory, carePlan careplan.Capability,
 	presence studentpresence.Capability, consentHistory consents.ConsentTransitions,
 ) importModels.RowImporter[importModels.StudentImportRow] {
-	references := dataImportCompose.NewReferences(groups, rooms)
+	references := owners.NewReferences(groups, rooms)
 	resolver := dataImportRetained.NewRelationshipResolver(references.Groups, references.Rooms)
 	return dataImportRetained.NewImportService(dataImportRetained.NewStudentImportConfig(
 		importPorts.StudentImportDeps{
@@ -136,7 +136,7 @@ func newOpeningBalanceImport(
 	membership schoolmembership.Capability, persons peopledirectory.Capability, workforce workforceModule.Capability,
 ) importModels.OpeningBalanceImportFactory {
 	deps.Transactions = runtime.Transactions
-	deps.References = dataImportCompose.NewOpeningReferences(membership, persons, workforce)
+	deps.References = owners.NewOpeningReferences(membership, persons, workforce)
 	return importModels.OpeningBalanceImportFactory(
 		func(effectiveDate timezone.Date, note string, decidedByStaffID int64) importModels.RowImporter[importModels.OpeningBalanceImportRow] {
 			config := dataImportRetained.NewOpeningBalanceImportConfig(deps, effectiveDate, note, decidedByStaffID)

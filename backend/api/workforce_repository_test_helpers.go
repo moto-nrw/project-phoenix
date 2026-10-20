@@ -17,11 +17,11 @@ import (
 // Timetable rows and the people from the timetable fixtures beside it.
 type WorkforceTestRepositories struct {
 	WorkSessionTestRepositories
-	StaffAbsenceType                workforceCapability.Capability
+	StaffAbsenceType                *workforceCompose.WorkTime
 	StaffAbsenceTypeAllowance       *workforceCompose.StaffAbsenceTypeAllowanceRepository
 	StaffAbsenceTypeAllowanceChange *workforceCompose.StaffAbsenceTypeAllowanceChangeRepository
 	StaffMonthSnapshot              workforceCapability.MonthSnapshots
-	StaffAbsenceAudit               workforceCompose.StaffAbsenceAuditRepository
+	StaffAbsenceAudit               workforceCompose.AbsenceAuditRecords
 }
 
 func NewWorkforceTestRepositoriesWithMembers(db transactionruntime.Database, members owners.MembershipTestRepositories, clocks ...func() time.Time) (WorkforceTestRepositories, error) {
@@ -46,5 +46,5 @@ func NewWorkforceTestRepositoriesWithMembers(db transactionruntime.Database, mem
 		StaffAbsenceTypeAllowance:       workforceCompose.NewStaffAbsenceTypeAllowanceRepository(db.Pool()),
 		StaffAbsenceTypeAllowanceChange: workforceCompose.NewStaffAbsenceTypeAllowanceChangeRepository(db.Pool()),
 		StaffMonthSnapshot:              workTime,
-		StaffAbsenceAudit:               workforceCompose.NewStaffAbsenceAuditRepository(workTime)}, nil
+		StaffAbsenceAudit:               workTime}, nil
 }

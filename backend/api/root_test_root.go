@@ -46,7 +46,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
@@ -56,7 +55,7 @@ import (
 // single-owner values the test roots hand out.
 func composeTestRoot(db transactionruntime.Database, logger *slog.Logger, cfg owners.ServiceConfig, clocks ...func() time.Time) (
 	env owners.RootEnvironment, mailSender email.Mailer, mailDispatcher email.Dispatcher, mailFrom email.Email, pushVAPID deliveryCompose.VAPIDConfig, hub *realtime.Hub, identity *identityaccess.Module, caller *owners.CallerRows, settings owners.SettingsOwner,
-	persons *peopledirectory.Module, services owners.PeopleServices, schedules owners.CarePlanSchedules, requests owners.CarePlanRequests,
+	persons *peopleCompose.Directory, services owners.PeopleServices, schedules owners.CarePlanSchedules, requests owners.CarePlanRequests,
 	active studentpresence.Presence, reports owners.PresenceReports, lifecycle owners.TimetableLifecycle, planning TimetablePlanning,
 	materialization timetable.MaterializationCapability, provisioning organizationtenancy.Provisioning,
 	activities activityContract.ActivityService, structureViews StructureServices, facilitiesRooms FacilitiesRooms,
@@ -67,7 +66,7 @@ func composeTestRoot(db transactionruntime.Database, logger *slog.Logger, cfg ow
 
 func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cfg owners.ServiceConfig, observe owners.RootObservers, clocks ...func() time.Time) (
 	env owners.RootEnvironment, mailSender email.Mailer, mailDispatcher email.Dispatcher, mailFrom email.Email, pushVAPID deliveryCompose.VAPIDConfig, hub *realtime.Hub, identity *identityaccess.Module, caller *owners.CallerRows, settings owners.SettingsOwner,
-	persons *peopledirectory.Module, services owners.PeopleServices, schedules owners.CarePlanSchedules, requests owners.CarePlanRequests,
+	persons *peopleCompose.Directory, services owners.PeopleServices, schedules owners.CarePlanSchedules, requests owners.CarePlanRequests,
 	active studentpresence.Presence, reports owners.PresenceReports, lifecycle owners.TimetableLifecycle, planning TimetablePlanning,
 	materialization timetable.MaterializationCapability, provisioning organizationtenancy.Provisioning,
 	activities activityContract.ActivityService, structureViews StructureServices, facilitiesRooms FacilitiesRooms,
@@ -97,7 +96,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 		membership       *schoolMembershipModule.Module
 		bookings         *enrollmentOwner.BookingProjection
 		calendar         *schoolcalendar.Records
-		workTime         *workforceModule.Module
+		workTime         *workforceCompose.WorkTime
 		people           owners.PeopleRows
 		peopleIdentity   *identityaccess.Module
 		guardian         peoplePorts.GuardianService
@@ -412,7 +411,7 @@ func NewTestCarePlanSchedules(db transactionruntime.Database, logger *slog.Logge
 // the schedules, the People Directory and its services, the caller rows and
 // the settings they read.
 func NewTestCareRequests(db transactionruntime.Database, logger *slog.Logger, clocks ...func() time.Time) (
-	owners.CarePlanRequests, owners.CarePlanSchedules, owners.PeopleServices, *owners.CallerRows, *peopledirectory.Module, settingsCompose.BatchSettingsService, error,
+	owners.CarePlanRequests, owners.CarePlanSchedules, owners.PeopleServices, *owners.CallerRows, *peopleCompose.Directory, settingsCompose.BatchSettingsService, error,
 ) {
 	_, _, _, _, _, _, _, caller, settings, persons, services, schedules, requests, _, _, _, _, _, _, _, _, _, _, _, _, _, _, err := composeTestRoot(db, logger, currentTestServiceConfig(), clocks...)
 	return requests, schedules, services, caller, persons, settings.Service, err

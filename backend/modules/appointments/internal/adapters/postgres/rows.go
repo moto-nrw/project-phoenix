@@ -3,6 +3,7 @@ package postgres
 import (
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/appointments/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -100,13 +101,13 @@ type appointmentRecipientStudentRow struct {
 	StudentID     int64     `bun:"student_id,notnull"`
 }
 
-func applyAppointmentFields(row *appointmentRow, fields domain.AppointmentFields) {
+func applyAppointmentFields(row *appointmentRow, fields appointments.AppointmentFields) {
 	row.OrganizerStaffID = fields.OrganizerStaffID
 	row.Title = fields.Title
 	row.Description = fields.Description
 	row.Location = fields.Location
-	row.StartDate = fields.StartDate
-	row.EndDate = fields.EndDate
+	row.StartDate = domain.Date(fields.StartDate)
+	row.EndDate = domain.Date(fields.EndDate)
 	row.StartTime = fields.StartTime
 	row.EndTime = fields.EndTime
 	row.AllDay = fields.AllDay
@@ -115,87 +116,87 @@ func applyAppointmentFields(row *appointmentRow, fields domain.AppointmentFields
 	row.NotifyGuardians = fields.NotifyGuardians
 }
 
-func appointmentToDomain(row appointmentRow) domain.Appointment {
-	return domain.Appointment{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+func appointmentToPublic(row appointmentRow) *appointments.Appointment {
+	return &appointments.Appointment{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		OrganizerStaffID: row.OrganizerStaffID, Title: row.Title, Description: row.Description, Location: row.Location,
-		StartDate: domain.Date(row.StartDate), EndDate: domain.Date(row.EndDate), StartTime: row.StartTime, EndTime: row.EndTime,
+		StartDate: appointments.Date(row.StartDate), EndDate: appointments.Date(row.EndDate), StartTime: row.StartTime, EndTime: row.EndTime,
 		AllDay: row.AllDay, DeliveryMode: row.DeliveryMode, OverviewVisibility: row.OverviewVisibility,
 		CancelledAt: row.CancelledAt, DeletedAt: row.DeletedAt, NotifyGuardians: row.NotifyGuardians, Revision: row.Revision}
 }
 
-func appointmentsToDomain(rows []appointmentRow) []domain.Appointment {
-	result := make([]domain.Appointment, 0, len(rows))
+func appointmentsToPublic(rows []appointmentRow) []*appointments.Appointment {
+	result := make([]*appointments.Appointment, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, appointmentToDomain(row))
+		result = append(result, appointmentToPublic(row))
 	}
 	return result
 }
 
-func targetsToDomain(rows []targetRow) []domain.AppointmentTarget {
-	result := make([]domain.AppointmentTarget, 0, len(rows))
+func targetsToPublic(rows []targetRow) []*appointments.AppointmentTarget {
+	result := make([]*appointments.AppointmentTarget, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, domain.AppointmentTarget{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		result = append(result, &appointments.AppointmentTarget{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 			AppointmentID: row.AppointmentID, TargetType: row.TargetType, TargetID: row.TargetID, TargetValue: row.TargetValue})
 	}
 	return result
 }
 
-func recurrenceRuleFromDomain(value domain.RecurrenceRule) recurrenceRuleRow {
+func recurrenceRuleFromPublic(value appointments.RecurrenceRule) recurrenceRuleRow {
 	return recurrenceRuleRow{
 		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 		AppointmentID: value.AppointmentID, Frequency: value.Frequency, IntervalCount: value.IntervalCount,
-		Weekdays: value.Weekdays, MonthDays: value.MonthDays, EndsOn: value.EndsOn,
+		Weekdays: value.Weekdays, MonthDays: value.MonthDays, EndsOn: storageDate(value.EndsOn),
 		OccurrenceCount: value.OccurrenceCount,
 	}
 }
 
-func recurrenceRuleToDomain(row recurrenceRuleRow) domain.RecurrenceRule {
-	return domain.RecurrenceRule{
+func recurrenceRuleToPublic(row recurrenceRuleRow) *appointments.RecurrenceRule {
+	return &appointments.RecurrenceRule{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		AppointmentID: row.AppointmentID, Frequency: row.Frequency, IntervalCount: row.IntervalCount,
-		Weekdays: row.Weekdays, MonthDays: row.MonthDays, EndsOn: row.EndsOn,
+		Weekdays: row.Weekdays, MonthDays: row.MonthDays, EndsOn: publicDate(row.EndsOn),
 		OccurrenceCount: row.OccurrenceCount,
 	}
 }
 
-func recurrenceRulesToDomain(rows []recurrenceRuleRow) []domain.RecurrenceRule {
-	result := make([]domain.RecurrenceRule, 0, len(rows))
+func recurrenceRulesToPublic(rows []recurrenceRuleRow) []*appointments.RecurrenceRule {
+	result := make([]*appointments.RecurrenceRule, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, recurrenceRuleToDomain(row))
+		result = append(result, recurrenceRuleToPublic(row))
 	}
 	return result
 }
 
-func occurrenceOverrideFromDomain(value domain.AppointmentOccurrenceOverride) occurrenceOverrideRow {
+func occurrenceOverrideFromPublic(value appointments.AppointmentOccurrenceOverride) occurrenceOverrideRow {
 	return occurrenceOverrideRow{
 		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
-		AppointmentID: value.AppointmentID, OccurrenceDate: value.OccurrenceDate, Cancelled: value.Cancelled,
+		AppointmentID: value.AppointmentID, OccurrenceDate: domain.Date(value.OccurrenceDate), Cancelled: value.Cancelled,
 		Title: value.Title, Description: value.Description, Location: value.Location,
-		StartDate: value.StartDate, EndDate: value.EndDate,
+		StartDate: storageDate(value.StartDate), EndDate: storageDate(value.EndDate),
 		StartTime: normalizedWallClockPtr(value.StartTime), EndTime: normalizedWallClockPtr(value.EndTime), AllDay: value.AllDay,
 	}
 }
 
-func occurrenceOverrideToDomain(row occurrenceOverrideRow) domain.AppointmentOccurrenceOverride {
-	return domain.AppointmentOccurrenceOverride{
+func occurrenceOverrideToPublic(row occurrenceOverrideRow) *appointments.AppointmentOccurrenceOverride {
+	return &appointments.AppointmentOccurrenceOverride{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-		AppointmentID: row.AppointmentID, OccurrenceDate: domain.Date(row.OccurrenceDate), Cancelled: row.Cancelled,
+		AppointmentID: row.AppointmentID, OccurrenceDate: appointments.Date(row.OccurrenceDate), Cancelled: row.Cancelled,
 		Title: row.Title, Description: row.Description, Location: row.Location,
-		StartDate: row.StartDate, EndDate: row.EndDate,
+		StartDate: publicDate(row.StartDate), EndDate: publicDate(row.EndDate),
 		StartTime: row.StartTime, EndTime: row.EndTime, AllDay: row.AllDay,
 	}
 }
 
-func occurrenceOverridesToDomain(rows []occurrenceOverrideRow) []domain.AppointmentOccurrenceOverride {
-	result := make([]domain.AppointmentOccurrenceOverride, 0, len(rows))
+func occurrenceOverridesToPublic(rows []occurrenceOverrideRow) []*appointments.AppointmentOccurrenceOverride {
+	result := make([]*appointments.AppointmentOccurrenceOverride, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, occurrenceOverrideToDomain(row))
+		result = append(result, occurrenceOverrideToPublic(row))
 	}
 	return result
 }
 
-func appointmentRecipientToDomain(row appointmentRecipientRow) domain.AppointmentRecipient {
-	return domain.AppointmentRecipient{
+func appointmentRecipientToPublic(row appointmentRecipientRow) *appointments.AppointmentRecipient {
+	return &appointments.AppointmentRecipient{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		AppointmentID: row.AppointmentID, RecipientType: row.RecipientType,
 		StaffID: row.StaffID, GuardianProfileID: row.GuardianProfileID,
@@ -203,25 +204,37 @@ func appointmentRecipientToDomain(row appointmentRecipientRow) domain.Appointmen
 	}
 }
 
-func appointmentRecipientsToDomain(rows []appointmentRecipientRow) []domain.AppointmentRecipient {
-	result := make([]domain.AppointmentRecipient, 0, len(rows))
+func appointmentRecipientsToPublic(rows []appointmentRecipientRow) []*appointments.AppointmentRecipient {
+	result := make([]*appointments.AppointmentRecipient, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, appointmentRecipientToDomain(row))
+		result = append(result, appointmentRecipientToPublic(row))
 	}
 	return result
 }
 
-func appointmentRecipientStudentToDomain(row appointmentRecipientStudentRow) domain.AppointmentRecipientStudent {
-	return domain.AppointmentRecipientStudent{
-		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-		RecipientID: row.RecipientID, StudentID: row.StudentID,
+func appointmentRecipientStudentsToPublic(rows []appointmentRecipientStudentRow) []*appointments.AppointmentRecipientStudent {
+	result := make([]*appointments.AppointmentRecipientStudent, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, &appointments.AppointmentRecipientStudent{
+			ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+			RecipientID: row.RecipientID, StudentID: row.StudentID,
+		})
 	}
+	return result
 }
 
-func appointmentRecipientStudentsToDomain(rows []appointmentRecipientStudentRow) []domain.AppointmentRecipientStudent {
-	result := make([]domain.AppointmentRecipientStudent, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, appointmentRecipientStudentToDomain(row))
+func storageDate(value *appointments.Date) *domain.Date {
+	if value == nil {
+		return nil
+	}
+	date := domain.Date(*value)
+	return &date
+}
+
+func storageDates(values []appointments.Date) []domain.Date {
+	result := make([]domain.Date, 0, len(values))
+	for _, value := range values {
+		result = append(result, domain.Date(value))
 	}
 	return result
 }

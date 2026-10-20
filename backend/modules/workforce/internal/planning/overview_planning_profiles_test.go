@@ -3,13 +3,15 @@ package planning
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/require"
 )
 
 func TestWeeksWithShiftsExcludesCancelledOnlyWeeks(t *testing.T) {
 	t.Parallel()
-	weeks := weeksWithShifts([]*StaffShift{
+	weeks := weeksWithShifts([]*workforce.ShiftRecord{
 		nil,
 		{Date: calendar.Date("2026-10-05"), Cancelled: true},
 		{Date: calendar.Date("2026-10-21")},

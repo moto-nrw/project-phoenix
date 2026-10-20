@@ -3,7 +3,6 @@ package compose
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/mealplan"
@@ -43,21 +42,7 @@ func New(dependencies Dependencies) (*mealplan.Module, error) {
 	if dependencies.DB == nil || dependencies.Settings == nil || dependencies.Observe == nil || dependencies.Now == nil || dependencies.Participants == nil || dependencies.StudentNames == nil || dependencies.Calendar == nil {
 		return nil, errors.New("meal plan compose: all dependencies are required")
 	}
-	store := postgres.New(func(ctx context.Context) (bun.IDB, int64, error) {
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return nil, 0, errors.New("meal plan postgres: transaction is required")
-		}
-		tx, ok := transaction.(bun.Tx)
-		if !ok {
-			return nil, 0, fmt.Errorf("meal plan postgres: unsupported transaction %T", transaction)
-		}
-		tenantID, err := tenant.TenantFromContext(ctx)
-		if err != nil {
-			return nil, 0, err
-		}
-		return tx, tenantID.Int64(), nil
-	})
+	store := postgres.New(postgres.NewDatabase(tenant.TransactionFromContext, tenant.TenantFromContext))
 	service := application.New(store, application.NewParticipantDirectory(dependencies.Participants, dependencies.StudentNames), application.NewSchoolCalendar(dependencies.Calendar), dependencies.Settings, TransactionFunc(tenant.NewTransactionRunner().RunInTx), dependencies.Observe, dependencies.Now)
 	return application.NewPublicModule(service), nil
 }

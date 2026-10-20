@@ -7,7 +7,7 @@ import (
 )
 
 // PersonWriter is the owner's person write path (#3349); the composition root
-// binds NewPersonWrites. Each call reflects the
+// binds Directory.PersonWrites. Each call reflects the
 // stored row back onto the caller's struct, so a handler that renders the
 // person it just wrote renders what was actually persisted.
 type PersonWriter interface {
@@ -27,7 +27,7 @@ type RFIDCards interface {
 }
 
 // StudentLocker is the owner's locked child read (#3349); the composition
-// root binds NewStudentDirectory.
+// root binds Directory.StudentDirectory.
 type StudentLocker interface {
 	// LockStudent re-reads one owned row and holds its lock for the caller's
 	// transaction. A child that is not there is userModels.ErrStudentRowMissing.

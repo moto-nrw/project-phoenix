@@ -118,33 +118,7 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	switch result.Status {
-	case LoginStatusMFARequired:
-		tde := result.TrustedDeviceEnabled
-		tdd := result.TrustedDeviceDays
-		render.JSON(w, r, LoginResponse{
-			Status:               string(LoginStatusMFARequired),
-			ChallengeToken:       result.ChallengeToken,
-			MaskedEmail:          result.MaskedEmail,
-			TrustedDeviceEnabled: &tde,
-			TrustedDeviceDays:    &tdd,
-		})
-		return
-	case LoginStatusMFAEnrollmentRequired:
-		render.JSON(w, r, LoginResponse{
-			Status:                string(LoginStatusMFAEnrollmentRequired),
-			AccessToken:           result.AccessToken,
-			MaskedEmail:           result.MaskedEmail,
-			MFAEnrollmentRequired: true,
-		})
-		return
-	}
-
-	render.JSON(w, r, LoginResponse{
-		Status:       string(LoginStatusAuthenticated),
-		AccessToken:  result.AccessToken,
-		RefreshToken: result.RefreshToken,
-	})
+	renderSchoolLogin(w, r, result)
 }
 
 // handleLoginError maps school-login service errors onto HTTP responses.
@@ -481,4 +455,34 @@ func (rs *Resource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.Requ
 		SameSite: http.SameSiteLaxMode,
 	})
 	return nil
+}
+
+func renderSchoolLogin(w http.ResponseWriter, r *http.Request, result *LoginResult) {
+	switch result.Status {
+	case LoginStatusMFARequired:
+		tde := result.TrustedDeviceEnabled
+		tdd := result.TrustedDeviceDays
+		render.JSON(w, r, LoginResponse{
+			Status:               string(LoginStatusMFARequired),
+			ChallengeToken:       result.ChallengeToken,
+			MaskedEmail:          result.MaskedEmail,
+			TrustedDeviceEnabled: &tde,
+			TrustedDeviceDays:    &tdd,
+		})
+		return
+	case LoginStatusMFAEnrollmentRequired:
+		render.JSON(w, r, LoginResponse{
+			Status:                string(LoginStatusMFAEnrollmentRequired),
+			AccessToken:           result.AccessToken,
+			MaskedEmail:           result.MaskedEmail,
+			MFAEnrollmentRequired: true,
+		})
+		return
+	}
+
+	render.JSON(w, r, LoginResponse{
+		Status:       string(LoginStatusAuthenticated),
+		AccessToken:  result.AccessToken,
+		RefreshToken: result.RefreshToken,
+	})
 }
