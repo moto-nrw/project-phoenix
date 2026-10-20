@@ -553,10 +553,10 @@ function stickyClasses(
   eveningRow = false,
 ): string {
   const offset = eveningRow
-    ? "top-[137px] h-[calc(100vh-137px)]"
+    ? "top-[153px] h-[calc(100vh-153px)]"
     : stripActive
-      ? "top-[105px] h-[calc(100vh-105px)]"
-      : "top-[57px] h-[calc(100vh-57px)]";
+      ? "top-[121px] h-[calc(100vh-121px)]"
+      : "top-[73px] h-[calc(100vh-73px)]";
   return `sticky ${offset} flex flex-col ${
     collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED
   } ${SIDEBAR_WIDTH_TRANSITION}`;
@@ -1982,7 +1982,7 @@ export function Sidebar({ className = "" }: SidebarProps) {
     <Suspense
       fallback={
         <aside className={asideClasses(collapsed, className)}>
-          <div className={`sticky top-[57px] ${SIDEBAR_NAV_PADDING}`}>
+          <div className={`sticky top-[73px] ${SIDEBAR_NAV_PADDING}`}>
             {/* Platzhalter im selben Raster wie die fertigen Zeilen: 40px
                 hoch, Icon an derselben Stelle — der Wechsel vom Platzhalter
                 zur Navigation verschiebt nichts. */}

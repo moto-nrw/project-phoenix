@@ -295,7 +295,10 @@ export function Header() {
       }`}
     >
       <div className="w-full px-4 sm:px-6 lg:px-8">
-        <div className="flex h-12 w-full items-center">
+        {/* Ab Desktop höher (#4345), auf dem Telefon bleibt die kompakte
+            Höhe aus #2827. Die klebenden Seitenleisten (top-[73px]) hängen
+            an dieser Höhe. */}
+        <div className="flex h-12 w-full items-center lg:h-16">
           {/* Left section: Logo + Brand + Context — must be allowed to
               shrink (min-w-0) so long tenant names / breadcrumbs truncate
               instead of pushing the header past the viewport (#2011) */}
