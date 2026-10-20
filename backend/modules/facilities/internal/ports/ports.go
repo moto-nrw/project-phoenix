@@ -4,20 +4,22 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/facilities"
+
 	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/domain"
 )
 
 type Store interface {
-	Create(context.Context, domain.CreateRoom) (domain.Room, domain.OperationStats, error)
-	Update(context.Context, domain.UpdateRoom) (domain.Room, domain.OperationStats, error)
+	Create(context.Context, facilities.CreateRoom) (facilities.Room, domain.OperationStats, error)
+	Update(context.Context, facilities.UpdateRoom) (facilities.Room, domain.OperationStats, error)
 	Delete(context.Context, int64) (domain.OperationStats, error)
-	FindByID(context.Context, int64, string) (domain.Room, bool, domain.OperationStats, error)
-	FindByName(context.Context, string) (domain.Room, bool, domain.OperationStats, error)
-	FindToilet(context.Context, int64) (domain.Room, bool, domain.OperationStats, error)
-	List(context.Context, domain.RoomFilter) ([]domain.Room, domain.OperationStats, error)
-	ListPage(context.Context, domain.RoomFilter, int, int) ([]domain.Room, int, domain.OperationStats, error)
-	ListByIDs(context.Context, []int64) ([]domain.Room, domain.OperationStats, error)
-	LockByIDs(context.Context, []int64) ([]domain.Room, domain.OperationStats, error)
+	FindByID(context.Context, int64, string) (facilities.Room, bool, domain.OperationStats, error)
+	FindByName(context.Context, string) (facilities.Room, bool, domain.OperationStats, error)
+	FindToilet(context.Context, int64) (facilities.Room, bool, domain.OperationStats, error)
+	List(context.Context, facilities.RoomFilter) ([]facilities.Room, domain.OperationStats, error)
+	ListPage(context.Context, facilities.RoomFilter, int, int) ([]facilities.Room, int, domain.OperationStats, error)
+	ListByIDs(context.Context, []int64) ([]facilities.Room, domain.OperationStats, error)
+	LockByIDs(context.Context, []int64) ([]facilities.Room, domain.OperationStats, error)
 }
 
 type Transaction interface {

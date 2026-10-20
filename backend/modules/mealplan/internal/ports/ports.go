@@ -4,12 +4,14 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/mealplan"
+
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
 )
 
 type Store interface {
 	FindWeek(context.Context, domain.Date, domain.Date) ([]domain.Entry, domain.OperationStats, error)
-	ReplaceDay(context.Context, domain.Date, []domain.Dish) (domain.OperationStats, error)
+	ReplaceDay(context.Context, domain.Date, []mealplan.Dish) (domain.OperationStats, error)
 	ClearDay(context.Context, domain.Date) (domain.OperationStats, error)
 	FindParticipation(context.Context, int64, domain.Date, domain.Date) (domain.ParticipationData, domain.OperationStats, error)
 	InsertParticipationSchedule(context.Context, int64, int64, domain.Date, []domain.Weekday) (domain.OperationStats, error)
@@ -19,7 +21,7 @@ type Store interface {
 }
 
 type Directory interface {
-	FindDailyCandidates(context.Context, domain.Date) ([]domain.DailyCandidate, domain.OperationStats, error)
+	FindDailyCandidates(context.Context, domain.Date) ([]mealplan.ParticipantCandidate, domain.OperationStats, error)
 }
 
 type Settings interface {

@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/ports"
 	"github.com/stretchr/testify/require"
@@ -21,13 +24,13 @@ type failingReadStore struct {
 	err error
 }
 
-func (s failingReadStore) FindByID(context.Context, int64, string) (domain.Room, bool, domain.OperationStats, error) {
-	return domain.Room{}, false, domain.OperationStats{Queries: 1}, s.err
+func (s failingReadStore) FindByID(context.Context, int64, string) (facilities.Room, bool, domain.OperationStats, error) {
+	return facilities.Room{}, false, domain.OperationStats{Queries: 1}, s.err
 }
 
-func (s deletionStore) FindByID(context.Context, int64, string) (domain.Room, bool, domain.OperationStats, error) {
+func (s deletionStore) FindByID(context.Context, int64, string) (facilities.Room, bool, domain.OperationStats, error) {
 	*s.steps = append(*s.steps, "room")
-	return domain.Room{Name: "Igelraum"}, true, domain.OperationStats{}, nil
+	return facilities.Room{Name: "Igelraum"}, true, domain.OperationStats{}, nil
 }
 
 func (s deletionStore) Delete(context.Context, int64) (domain.OperationStats, error) {
@@ -69,7 +72,7 @@ func TestDeleteTakesRecurrenceLockBeforeRoomLock(t *testing.T) {
 		func(ports.Observation) {},
 	)
 
-	err := service.Delete(context.Background(), time.Now().UnixNano())
+	err := service.DeleteRoom(testpkg.TenantContext(42), time.Now().UnixNano())
 
 	require.NoError(t, err)
 	require.Equal(t, []string{"recurrence", "room", "sessions", "offerings", "delete"}, steps)
@@ -84,8 +87,8 @@ func TestDeleteKeepsARoomSomeoneStillNeeds(t *testing.T) {
 		err   error
 		steps []string
 	}{
-		{name: "running session", usage: roomUsage{active: true}, err: domain.ErrInUse, steps: []string{"room", "sessions"}},
-		{name: "care offering", usage: roomUsage{required: true}, err: domain.ErrRequiredByOffering, steps: []string{"room", "sessions", "offerings"}},
+		{name: "running session", usage: roomUsage{active: true}, err: facilities.ErrRoomInUse, steps: []string{"room", "sessions"}},
+		{name: "care offering", usage: roomUsage{required: true}, err: facilities.ErrRoomRequiredByOffering, steps: []string{"room", "sessions", "offerings"}},
 		{name: "session read fails", usage: roomUsage{activeErr: failure}, err: failure, steps: []string{"room", "sessions"}},
 		{name: "offering read fails", usage: roomUsage{requiredErr: failure}, err: failure, steps: []string{"room", "sessions", "offerings"}},
 	}
@@ -97,7 +100,7 @@ func TestDeleteKeepsARoomSomeoneStillNeeds(t *testing.T) {
 			usage.steps = &steps
 			service := New(deletionStore{steps: &steps}, deletionTransaction{}, func(context.Context) error { return nil }, usage, func(ports.Observation) {})
 
-			err := service.Delete(context.Background(), time.Now().UnixNano())
+			err := service.DeleteRoom(testpkg.TenantContext(42), time.Now().UnixNano())
 
 			require.ErrorIs(t, err, tc.err)
 			require.Equal(t, tc.steps, steps, "the room is not deleted")
@@ -115,7 +118,7 @@ func TestFindByIDPreservesStoreFailure(t *testing.T) {
 		func(value ports.Observation) { observed = value },
 	)
 
-	room, err := service.FindByID(context.Background(), time.Now().UnixNano())
+	room, err := service.FindRoom(testpkg.TenantContext(42), time.Now().UnixNano())
 
 	require.Empty(t, room)
 	require.ErrorIs(t, err, failure)

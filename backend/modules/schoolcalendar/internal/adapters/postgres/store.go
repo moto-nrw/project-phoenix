@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/domain"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -90,21 +92,21 @@ func (s *Store) tenantDatabase(ctx context.Context, operation string) (bun.IDB, 
 
 // --- calendar periods ---
 
-func (s *Store) FindCalendarPeriod(ctx context.Context, id int64) (domain.CalendarPeriod, bool, domain.OperationStats, error) {
+func (s *Store) FindCalendarPeriod(ctx context.Context, id int64) (schoolcalendar.CalendarPeriod, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.CalendarPeriod{}, false, domain.OperationStats{}, err
+		return schoolcalendar.CalendarPeriod{}, false, domain.OperationStats{}, err
 	}
 	row := &calendarPeriodRow{}
 	query := withTenant(calendarPeriodSelect(db, row).Where(`"calendar_period".id = ?`, id), "calendar_period", tenantID)
 	found, stats, err := scanOne(ctx, query, "find calendar period")
 	if err != nil || !found {
-		return domain.CalendarPeriod{}, found, stats, err
+		return schoolcalendar.CalendarPeriod{}, found, stats, err
 	}
 	return calendarPeriodToDomain(*row), true, stats, nil
 }
 
-func (s *Store) ListCalendarPeriods(ctx context.Context, filter domain.CalendarPeriodFilter) ([]domain.CalendarPeriod, domain.OperationStats, error) {
+func (s *Store) ListCalendarPeriods(ctx context.Context, filter schoolcalendar.CalendarPeriodFilter) ([]schoolcalendar.CalendarPeriod, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -113,7 +115,7 @@ func (s *Store) ListCalendarPeriods(ctx context.Context, filter domain.CalendarP
 	query := withTenant(calendarPeriodSelect(db, &rows), "calendar_period", tenantID)
 	if filter.IDs != nil {
 		if len(filter.IDs) == 0 {
-			return []domain.CalendarPeriod{}, domain.OperationStats{}, nil
+			return []schoolcalendar.CalendarPeriod{}, domain.OperationStats{}, nil
 		}
 		query = query.Where(`"calendar_period".id IN (?)`, bun.List(filter.IDs))
 	}
@@ -139,7 +141,7 @@ func (s *Store) ListCalendarPeriods(ctx context.Context, filter domain.CalendarP
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.CalendarPeriod, 0, len(rows))
+	result := make([]schoolcalendar.CalendarPeriod, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, calendarPeriodToDomain(row))
 	}
@@ -147,13 +149,13 @@ func (s *Store) ListCalendarPeriods(ctx context.Context, filter domain.CalendarP
 	return result, stats, nil
 }
 
-func (s *Store) CreateCalendarPeriod(ctx context.Context, fields domain.CalendarPeriodFields, ifAbsent bool) (domain.CalendarPeriod, bool, domain.OperationStats, error) {
+func (s *Store) CreateCalendarPeriod(ctx context.Context, fields schoolcalendar.CalendarPeriodFields, ifAbsent bool) (schoolcalendar.CalendarPeriod, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.CalendarPeriod{}, false, domain.OperationStats{}, err
+		return schoolcalendar.CalendarPeriod{}, false, domain.OperationStats{}, err
 	}
 	if tenantID <= 0 {
-		return domain.CalendarPeriod{}, false, domain.OperationStats{}, errors.New("school calendar postgres: tenant is required to create a calendar period")
+		return schoolcalendar.CalendarPeriod{}, false, domain.OperationStats{}, errors.New("school calendar postgres: tenant is required to create a calendar period")
 	}
 	row := calendarPeriodRow{TenantID: tenantID}
 	applyCalendarPeriodFields(&row, fields)
@@ -166,19 +168,19 @@ func (s *Store) CreateCalendarPeriod(ctx context.Context, fields domain.Calendar
 	err = query.Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if ifAbsent && errors.Is(err, sql.ErrNoRows) {
-		return domain.CalendarPeriod{}, false, stats, nil
+		return schoolcalendar.CalendarPeriod{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.CalendarPeriod{}, false, stats, wrapCalendarPeriodWriteError("create", err)
+		return schoolcalendar.CalendarPeriod{}, false, stats, wrapCalendarPeriodWriteError("create", err)
 	}
 	stats.Rows = 1
 	return calendarPeriodToDomain(row), true, stats, nil
 }
 
-func (s *Store) UpdateCalendarPeriod(ctx context.Context, id int64, fields domain.CalendarPeriodFields) (domain.CalendarPeriod, domain.OperationStats, error) {
+func (s *Store) UpdateCalendarPeriod(ctx context.Context, id int64, fields schoolcalendar.CalendarPeriodFields) (schoolcalendar.CalendarPeriod, domain.OperationStats, error) {
 	db, tenantID, err := s.tenantDatabase(ctx, "update a calendar period")
 	if err != nil {
-		return domain.CalendarPeriod{}, domain.OperationStats{}, err
+		return schoolcalendar.CalendarPeriod{}, domain.OperationStats{}, err
 	}
 	row := calendarPeriodRow{ID: id}
 	applyCalendarPeriodFields(&row, fields)
@@ -192,10 +194,10 @@ func (s *Store) UpdateCalendarPeriod(ctx context.Context, id int64, fields domai
 	err = query.Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.CalendarPeriod{}, stats, domain.ErrCalendarPeriodNotFound
+		return schoolcalendar.CalendarPeriod{}, stats, schoolcalendar.ErrCalendarPeriodNotFound
 	}
 	if err != nil {
-		return domain.CalendarPeriod{}, stats, wrapCalendarPeriodWriteError("update", err)
+		return schoolcalendar.CalendarPeriod{}, stats, wrapCalendarPeriodWriteError("update", err)
 	}
 	stats.Rows = 1
 	return calendarPeriodToDomain(row), stats, nil
@@ -209,27 +211,27 @@ func (s *Store) DeleteCalendarPeriod(ctx context.Context, id int64) (domain.Oper
 	query := withTenant(db.NewDelete().Model((*calendarPeriodRow)(nil)).
 		ModelTableExpr(`schedule.calendar_periods AS "calendar_period"`).
 		Where(`"calendar_period".id = ?`, id), "calendar_period", tenantID)
-	stats, err := execDelete(ctx, query, "delete calendar period", domain.ErrCalendarPeriodNotFound)
+	stats, err := execDelete(ctx, query, "delete calendar period", schoolcalendar.ErrCalendarPeriodNotFound)
 	return stats, wrapCalendarPeriodRosterConflict(err)
 }
 
 // --- closing days ---
 
-func (s *Store) FindClosingDay(ctx context.Context, id int64) (domain.ClosingDay, bool, domain.OperationStats, error) {
+func (s *Store) FindClosingDay(ctx context.Context, id int64) (schoolcalendar.ClosingDay, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.ClosingDay{}, false, domain.OperationStats{}, err
+		return schoolcalendar.ClosingDay{}, false, domain.OperationStats{}, err
 	}
 	row := &closingDayRow{}
 	query := withTenant(closingDaySelect(db, row).Where(`"closing_day".id = ?`, id), "closing_day", tenantID)
 	found, stats, err := scanOne(ctx, query, "find closing day")
 	if err != nil || !found {
-		return domain.ClosingDay{}, found, stats, err
+		return schoolcalendar.ClosingDay{}, found, stats, err
 	}
 	return closingDayToDomain(*row), true, stats, nil
 }
 
-func (s *Store) ListClosingDays(ctx context.Context, filter domain.ClosingDayFilter) ([]domain.ClosingDay, domain.OperationStats, error) {
+func (s *Store) ListClosingDays(ctx context.Context, filter schoolcalendar.ClosingDayFilter) ([]schoolcalendar.ClosingDay, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -238,7 +240,7 @@ func (s *Store) ListClosingDays(ctx context.Context, filter domain.ClosingDayFil
 	query := withTenant(closingDaySelect(db, &rows), "closing_day", tenantID)
 	if filter.IDs != nil {
 		if len(filter.IDs) == 0 {
-			return []domain.ClosingDay{}, domain.OperationStats{}, nil
+			return []schoolcalendar.ClosingDay{}, domain.OperationStats{}, nil
 		}
 		query = query.Where(`"closing_day".id IN (?)`, bun.List(filter.IDs))
 	}
@@ -252,7 +254,7 @@ func (s *Store) ListClosingDays(ctx context.Context, filter domain.ClosingDayFil
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.ClosingDay, 0, len(rows))
+	result := make([]schoolcalendar.ClosingDay, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, closingDayToDomain(row))
 	}
@@ -260,13 +262,13 @@ func (s *Store) ListClosingDays(ctx context.Context, filter domain.ClosingDayFil
 	return result, stats, nil
 }
 
-func (s *Store) CreateClosingDay(ctx context.Context, fields domain.ClosingDayFields) (domain.ClosingDay, domain.OperationStats, error) {
+func (s *Store) CreateClosingDay(ctx context.Context, fields schoolcalendar.ClosingDayFields) (schoolcalendar.ClosingDay, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.ClosingDay{}, domain.OperationStats{}, err
+		return schoolcalendar.ClosingDay{}, domain.OperationStats{}, err
 	}
 	if tenantID <= 0 {
-		return domain.ClosingDay{}, domain.OperationStats{}, errors.New("school calendar postgres: tenant is required to create a closing day")
+		return schoolcalendar.ClosingDay{}, domain.OperationStats{}, errors.New("school calendar postgres: tenant is required to create a closing day")
 	}
 	row := closingDayRow{TenantID: tenantID, StartDate: calendarDate(fields.StartDate), EndDate: calendarDate(fields.EndDate), Reason: fields.Reason}
 	stats := domain.OperationStats{Queries: 1}
@@ -274,16 +276,16 @@ func (s *Store) CreateClosingDay(ctx context.Context, fields domain.ClosingDayFi
 	err = db.NewInsert().Model(&row).ModelTableExpr(`schedule.closing_days`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.ClosingDay{}, stats, fmt.Errorf("school calendar postgres: create closing day: %w", err)
+		return schoolcalendar.ClosingDay{}, stats, fmt.Errorf("school calendar postgres: create closing day: %w", err)
 	}
 	stats.Rows = 1
 	return closingDayToDomain(row), stats, nil
 }
 
-func (s *Store) UpdateClosingDay(ctx context.Context, id int64, fields domain.ClosingDayFields) (domain.ClosingDay, domain.OperationStats, error) {
+func (s *Store) UpdateClosingDay(ctx context.Context, id int64, fields schoolcalendar.ClosingDayFields) (schoolcalendar.ClosingDay, domain.OperationStats, error) {
 	db, tenantID, err := s.tenantDatabase(ctx, "update a closing day")
 	if err != nil {
-		return domain.ClosingDay{}, domain.OperationStats{}, err
+		return schoolcalendar.ClosingDay{}, domain.OperationStats{}, err
 	}
 	row := closingDayRow{ID: id, StartDate: calendarDate(fields.StartDate), EndDate: calendarDate(fields.EndDate), Reason: fields.Reason}
 	query := withTenant(db.NewUpdate().Model(&row).
@@ -296,10 +298,10 @@ func (s *Store) UpdateClosingDay(ctx context.Context, id int64, fields domain.Cl
 	err = query.Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.ClosingDay{}, stats, domain.ErrClosingDayNotFound
+		return schoolcalendar.ClosingDay{}, stats, schoolcalendar.ErrClosingDayNotFound
 	}
 	if err != nil {
-		return domain.ClosingDay{}, stats, fmt.Errorf("school calendar postgres: update closing day: %w", err)
+		return schoolcalendar.ClosingDay{}, stats, fmt.Errorf("school calendar postgres: update closing day: %w", err)
 	}
 	stats.Rows = 1
 	return closingDayToDomain(row), stats, nil
@@ -313,7 +315,7 @@ func (s *Store) DeleteClosingDay(ctx context.Context, id int64) (domain.Operatio
 	query := withTenant(db.NewDelete().Model((*closingDayRow)(nil)).
 		ModelTableExpr(`schedule.closing_days AS "closing_day"`).
 		Where(`"closing_day".id = ?`, id), "closing_day", tenantID)
-	return execDelete(ctx, query, "delete closing day", domain.ErrClosingDayNotFound)
+	return execDelete(ctx, query, "delete closing day", schoolcalendar.ErrClosingDayNotFound)
 }
 
 // --- dateframes ---
@@ -330,21 +332,21 @@ type dateframeRow struct {
 	Description   string    `bun:"description"`
 }
 
-func (s *Store) FindDateframe(ctx context.Context, id int64) (domain.Dateframe, bool, domain.OperationStats, error) {
+func (s *Store) FindDateframe(ctx context.Context, id int64) (schoolcalendar.Dateframe, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.Dateframe{}, false, domain.OperationStats{}, err
+		return schoolcalendar.Dateframe{}, false, domain.OperationStats{}, err
 	}
 	row := &dateframeRow{}
 	query := withTenant(dateframeSelect(db, row).Where(`"dateframe".id = ?`, id), "dateframe", tenantID)
 	found, stats, err := scanOne(ctx, query, "find dateframe")
 	if err != nil || !found {
-		return domain.Dateframe{}, found, stats, err
+		return schoolcalendar.Dateframe{}, found, stats, err
 	}
 	return dateframeToDomain(*row), true, stats, nil
 }
 
-func (s *Store) ListDateframes(ctx context.Context, filter domain.DateframeFilter) ([]domain.Dateframe, domain.OperationStats, error) {
+func (s *Store) ListDateframes(ctx context.Context, filter schoolcalendar.DateframeFilter) ([]schoolcalendar.Dateframe, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -353,7 +355,7 @@ func (s *Store) ListDateframes(ctx context.Context, filter domain.DateframeFilte
 	query := withTenant(dateframeSelect(db, &rows), "dateframe", tenantID)
 	if filter.IDs != nil {
 		if len(filter.IDs) == 0 {
-			return []domain.Dateframe{}, domain.OperationStats{}, nil
+			return []schoolcalendar.Dateframe{}, domain.OperationStats{}, nil
 		}
 		query = query.Where(`"dateframe".id IN (?)`, bun.List(filter.IDs))
 	}
@@ -365,7 +367,7 @@ func (s *Store) ListDateframes(ctx context.Context, filter domain.DateframeFilte
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.Dateframe, 0, len(rows))
+	result := make([]schoolcalendar.Dateframe, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, dateframeToDomain(row))
 	}
@@ -373,13 +375,13 @@ func (s *Store) ListDateframes(ctx context.Context, filter domain.DateframeFilte
 	return result, stats, nil
 }
 
-func (s *Store) CreateDateframe(ctx context.Context, fields domain.DateframeFields) (domain.Dateframe, domain.OperationStats, error) {
+func (s *Store) CreateDateframe(ctx context.Context, fields schoolcalendar.DateframeFields) (schoolcalendar.Dateframe, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.Dateframe{}, domain.OperationStats{}, err
+		return schoolcalendar.Dateframe{}, domain.OperationStats{}, err
 	}
 	if tenantID <= 0 {
-		return domain.Dateframe{}, domain.OperationStats{}, errors.New("school calendar postgres: tenant is required to create a dateframe")
+		return schoolcalendar.Dateframe{}, domain.OperationStats{}, errors.New("school calendar postgres: tenant is required to create a dateframe")
 	}
 	row := dateframeRow{TenantID: tenantID, StartDate: fields.StartDate, EndDate: fields.EndDate, Name: fields.Name, Description: fields.Description}
 	stats := domain.OperationStats{Queries: 1}
@@ -387,16 +389,16 @@ func (s *Store) CreateDateframe(ctx context.Context, fields domain.DateframeFiel
 	err = db.NewInsert().Model(&row).ModelTableExpr(`schedule.dateframes`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.Dateframe{}, stats, fmt.Errorf("school calendar postgres: create dateframe: %w", err)
+		return schoolcalendar.Dateframe{}, stats, fmt.Errorf("school calendar postgres: create dateframe: %w", err)
 	}
 	stats.Rows = 1
 	return dateframeToDomain(row), stats, nil
 }
 
-func (s *Store) UpdateDateframe(ctx context.Context, id int64, fields domain.DateframeFields) (domain.Dateframe, domain.OperationStats, error) {
+func (s *Store) UpdateDateframe(ctx context.Context, id int64, fields schoolcalendar.DateframeFields) (schoolcalendar.Dateframe, domain.OperationStats, error) {
 	db, tenantID, err := s.tenantDatabase(ctx, "update a dateframe")
 	if err != nil {
-		return domain.Dateframe{}, domain.OperationStats{}, err
+		return schoolcalendar.Dateframe{}, domain.OperationStats{}, err
 	}
 	row := dateframeRow{ID: id, StartDate: fields.StartDate, EndDate: fields.EndDate, Name: fields.Name, Description: fields.Description}
 	query := withTenant(db.NewUpdate().Model(&row).
@@ -409,10 +411,10 @@ func (s *Store) UpdateDateframe(ctx context.Context, id int64, fields domain.Dat
 	err = query.Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Dateframe{}, stats, domain.ErrDateframeNotFound
+		return schoolcalendar.Dateframe{}, stats, schoolcalendar.ErrDateframeNotFound
 	}
 	if err != nil {
-		return domain.Dateframe{}, stats, fmt.Errorf("school calendar postgres: update dateframe: %w", err)
+		return schoolcalendar.Dateframe{}, stats, fmt.Errorf("school calendar postgres: update dateframe: %w", err)
 	}
 	stats.Rows = 1
 	return dateframeToDomain(row), stats, nil
@@ -426,12 +428,12 @@ func (s *Store) DeleteDateframe(ctx context.Context, id int64) (domain.Operation
 	query := withTenant(db.NewDelete().Model((*dateframeRow)(nil)).
 		ModelTableExpr(`schedule.dateframes AS "dateframe"`).
 		Where(`"dateframe".id = ?`, id), "dateframe", tenantID)
-	return execDelete(ctx, query, "delete dateframe", domain.ErrDateframeNotFound)
+	return execDelete(ctx, query, "delete dateframe", schoolcalendar.ErrDateframeNotFound)
 }
 
 // filterDateframes applies the name and date-range conditions of a dateframe
 // filter.
-func filterDateframes(query *bun.SelectQuery, filter domain.DateframeFilter) *bun.SelectQuery {
+func filterDateframes(query *bun.SelectQuery, filter schoolcalendar.DateframeFilter) *bun.SelectQuery {
 	if filter.Name != "" {
 		query = query.Where(`"dateframe".name = ?`, filter.Name)
 	}
@@ -456,7 +458,7 @@ func filterDateframes(query *bun.SelectQuery, filter domain.DateframeFilter) *bu
 
 // orderAndPageDateframes applies the sort order (id ascending by default),
 // limit and offset of a dateframe filter.
-func orderAndPageDateframes(query *bun.SelectQuery, filter domain.DateframeFilter) (*bun.SelectQuery, error) {
+func orderAndPageDateframes(query *bun.SelectQuery, filter schoolcalendar.DateframeFilter) (*bun.SelectQuery, error) {
 	if len(filter.Sort) == 0 {
 		query = query.OrderExpr(`"dateframe".id ASC`)
 	}
@@ -482,7 +484,7 @@ func dateframeSelect(db bun.IDB, model any) *bun.SelectQuery {
 
 // orderDateframes appends one sort field. Every order expression is a
 // literal so the sortable columns stay a closed, statically visible set.
-func orderDateframes(query *bun.SelectQuery, sort domain.DateframeSort) (*bun.SelectQuery, error) {
+func orderDateframes(query *bun.SelectQuery, sort schoolcalendar.DateframeSort) (*bun.SelectQuery, error) {
 	switch {
 	case sort.Field == "id" && !sort.Descending:
 		return query.OrderExpr(`"dateframe".id ASC`), nil
@@ -505,8 +507,8 @@ func orderDateframes(query *bun.SelectQuery, sort domain.DateframeSort) (*bun.Se
 	}
 }
 
-func dateframeToDomain(row dateframeRow) domain.Dateframe {
-	return domain.Dateframe{
+func dateframeToDomain(row dateframeRow) schoolcalendar.Dateframe {
+	return schoolcalendar.Dateframe{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		StartDate: row.StartDate, EndDate: row.EndDate, Name: row.Name, Description: row.Description,
 	}
@@ -522,7 +524,7 @@ func closingDaySelect(db bun.IDB, model any) *bun.SelectQuery {
 	return db.NewSelect().Model(model).ModelTableExpr(`schedule.closing_days AS "closing_day"`)
 }
 
-func applyCalendarPeriodFields(row *calendarPeriodRow, fields domain.CalendarPeriodFields) {
+func applyCalendarPeriodFields(row *calendarPeriodRow, fields schoolcalendar.CalendarPeriodFields) {
 	row.Name = fields.Name
 	row.PeriodType = fields.PeriodType
 	row.StartDate = calendarDate(fields.StartDate)
@@ -532,8 +534,8 @@ func applyCalendarPeriodFields(row *calendarPeriodRow, fields domain.CalendarPer
 	row.IsActive = fields.IsActive
 }
 
-func calendarPeriodToDomain(row calendarPeriodRow) domain.CalendarPeriod {
-	return domain.CalendarPeriod{
+func calendarPeriodToDomain(row calendarPeriodRow) schoolcalendar.CalendarPeriod {
+	return schoolcalendar.CalendarPeriod{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		Name: row.Name, PeriodType: row.PeriodType,
 		StartDate: string(row.StartDate), EndDate: string(row.EndDate),
@@ -542,8 +544,8 @@ func calendarPeriodToDomain(row calendarPeriodRow) domain.CalendarPeriod {
 	}
 }
 
-func closingDayToDomain(row closingDayRow) domain.ClosingDay {
-	return domain.ClosingDay{
+func closingDayToDomain(row closingDayRow) schoolcalendar.ClosingDay {
+	return schoolcalendar.ClosingDay{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		StartDate: string(row.StartDate), EndDate: string(row.EndDate), Reason: row.Reason,
 	}
@@ -621,7 +623,7 @@ func wrapCalendarPeriodRosterConflict(err error) error {
 	}
 	for _, constraint := range calendarPeriodRosterConstraints {
 		if postgresError.Field('n') == constraint {
-			return fmt.Errorf("%w: %w", domain.ErrCalendarPeriodRosterConflict, err)
+			return fmt.Errorf("%w: %w", schoolcalendar.ErrCalendarPeriodRosterConflict, err)
 		}
 	}
 	return err
@@ -632,7 +634,7 @@ func wrapCalendarPeriodRosterConflict(err error) error {
 func wrapCalendarPeriodWriteError(operation string, err error) error {
 	var postgresError pgdriver.Error
 	if errors.As(err, &postgresError) && postgresError.IntegrityViolation() && postgresError.Field('n') == calendarPeriodNameConstraint {
-		return fmt.Errorf("%w: %w", domain.ErrCalendarPeriodNameConflict, err)
+		return fmt.Errorf("%w: %w", schoolcalendar.ErrCalendarPeriodNameConflict, err)
 	}
 	return fmt.Errorf("school calendar postgres: %s calendar period: %w", operation, err)
 }

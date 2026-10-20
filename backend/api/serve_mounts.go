@@ -635,12 +635,12 @@ func mountStudentRoutes(
 func mountPresenceRoutes(
 	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, errorReportDSN string,
 	deviceAuth *deviceauth.Authenticators, presence *studentpresence.Module, active studentpresence.Presence,
-	facilities *facilitiesModule.Module, timetableOwner timetableModule.Capability, timetableRepos timetableCompose.Repositories,
+	facilities facilitiesModule.Capability, timetableOwner timetableModule.Capability, timetableRepos timetableCompose.Repositories,
 	days owners.TimetableDays, persons peopledirectory.Capability, users peoplePorts.PersonDirectory, caller *owners.CallerRows,
 	settings settingsCompose.SettingsService, hub *realtime.Hub, emitter eventContract.Emitter,
 	groupLive grouplive.Query, dashboard supervisiondashboard.Query, yard FacilitiesYard, iot devicefleetCompose.IoTService,
 	activities activityContract.ActivityService, education schoolstructure.GroupManagement, pickups carePlanModule.PickupScheduleService,
-	timeTracking *workforceCompose.TimeTracking, rooms FacilitiesRooms, feedback *feedbackModule.Module,
+	timeTracking *workforceCompose.TimeTracking, rooms FacilitiesRooms, feedback feedbackModule.Capability,
 	organizations organizationtenancy.Query,
 ) error {
 	openRoomMove, err := newOpenRoomMove(facilities, timetableOwner, active, logger)
@@ -701,11 +701,11 @@ func teacherGroupIDs(education schoolstructure.GroupManagement) func(context.Con
 func newIoTResource(
 	db transactionruntime.Database, logger *slog.Logger, errorReportDSN string, deviceAuth *deviceauth.Authenticators,
 	presence *studentpresence.Module, openRoomMove openroommove.Command, sessionEnd sessionend.Command,
-	iot devicefleetCompose.IoTService, facilities *facilitiesModule.Module, active studentpresence.Presence,
+	iot devicefleetCompose.IoTService, facilities facilitiesModule.Capability, active studentpresence.Presence,
 	users peoplePorts.PersonDirectory, activities activityContract.ActivityService, timetableOwner timetableModule.Capability,
 	timetableRepos timetableCompose.Repositories, education schoolstructure.GroupManagement, pickups carePlanModule.PickupScheduleService,
 	settings settingsCompose.SettingsService, timeTracking *workforceCompose.TimeTracking, rooms FacilitiesRooms,
-	feedback *feedbackModule.Module, organizations organizationtenancy.Query, hub *realtime.Hub,
+	feedback feedbackModule.Capability, organizations organizationtenancy.Query, hub *realtime.Hub,
 ) (*iotAPI.Resource, error) {
 	errorReports, err := NewIoTErrorReportRelay(errorReportDSN)
 	if err != nil {
@@ -870,7 +870,7 @@ func newTimetableResource(
 // enrollment, settings, info-point displays and data administration under
 // /api.
 func mountSchoolRoutes(
-	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, facilities *facilitiesModule.Module, rooms FacilitiesRooms,
+	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, facilities facilitiesModule.Capability, rooms FacilitiesRooms,
 	settings settingsCompose.SettingsService, caller *owners.CallerRows, active studentpresence.Presence, users peoplePorts.PersonDirectory,
 	education schoolstructure.GroupManagement, renderer *lists.RendererService, activities activityContract.ActivityService,
 	timetableOwner timetableModule.Capability, iot devicefleetCompose.IoTService, calendar schoolcalendar.Calendar,
@@ -953,7 +953,7 @@ func newEnrollmentResource(
 func mountPeopleRoutes(
 	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, reports owners.PresenceReports, renderer *lists.RendererService,
 	persons *peopleCompose.Directory, guardians peoplePorts.GuardianService, identity *identityaccess.Module, caller *owners.CallerRows,
-	feedback *feedbackModule.Module, mealPlan *mealplanModule.Module, birthdays peopledirectory.Birthdays,
+	feedback feedbackModule.Capability, mealPlan mealplanModule.Capability, birthdays peopledirectory.Birthdays,
 	emergency emergencysnapshot.Query,
 ) {
 	tenant.Mount("/statistics", statisticsAPI.NewResource(reports.Statistics, statisticsHTTPRuntime(renderer), logger.With("handler", "statistics")).Router(ProtectedTenantRoutes))

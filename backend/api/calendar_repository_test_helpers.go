@@ -31,7 +31,7 @@ type federalStateResolver interface {
 // Care Plan catalog's care-offering guard, whose refusal is mapped onto the
 // calendar's own sentinel; a nil catalog guards nothing. Production roots
 // compose the module themselves.
-func NewSchoolCalendarWithAdministration(db transactionruntime.Database, settings federalStateResolver, lockRecurrence func(context.Context) error, careOfferings careplan.CareOfferingGuards) (*schoolcalendar.Module, error) {
+func NewSchoolCalendarWithAdministration(db transactionruntime.Database, settings federalStateResolver, lockRecurrence func(context.Context) error, careOfferings careplan.CareOfferingGuards) (schoolcalendar.Calendar, error) {
 	observe := func(schoolCalendarCompose.Observation) {}
 	records, err := schoolCalendarCompose.NewRecords(schoolCalendarCompose.RecordsDependencies{
 		DB: db.Pool(), Observe: observe,

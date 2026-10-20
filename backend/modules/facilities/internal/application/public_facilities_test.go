@@ -1,10 +1,12 @@
-package facilities_test
+package application
 
 import (
 	"context"
 	"errors"
 	"testing"
 	"time"
+
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/stretchr/testify/assert"
@@ -63,7 +65,7 @@ func (e *recordingEngine) ListRoomsByID(_ context.Context, ids []int64) ([]facil
 }
 
 func (e *recordingEngine) LockRoomsByID(_ context.Context, ids []int64) ([]facilities.Room, error) {
-	return e.ListRoomsByID(context.Background(), ids)
+	return e.ListRoomsByID(testpkg.TenantContext(42), ids)
 }
 
 func (e *recordingEngine) CreateRoom(_ context.Context, input facilities.CreateRoom) (facilities.Room, error) {
@@ -89,8 +91,8 @@ func (e *recordingEngine) ObserveRejection(operation string, _ time.Duration, _ 
 func TestModuleRejectsInvalidIdentifiersBeforeReachingTheEngine(t *testing.T) {
 	t.Parallel()
 	engine := &recordingEngine{}
-	module := facilities.NewModule(engine)
-	ctx := context.Background()
+	module := newTestModule(engine)
+	ctx := testpkg.TenantContext(42)
 
 	_, err := module.FindRoom(ctx, 0)
 	require.ErrorIs(t, err, facilities.ErrInvalidRoom)
@@ -105,9 +107,9 @@ func TestModuleRejectsInvalidIdentifiersBeforeReachingTheEngine(t *testing.T) {
 func TestModuleAnswersEmptyListWithoutPersistence(t *testing.T) {
 	t.Parallel()
 	engine := &recordingEngine{}
-	module := facilities.NewModule(engine)
+	module := newTestModule(engine)
 
-	rooms, err := module.ListRoomsByID(context.Background(), nil)
+	rooms, err := module.ListRoomsByID(testpkg.TenantContext(42), nil)
 	require.NoError(t, err)
 	assert.Empty(t, rooms)
 	assert.Zero(t, engine.calls)
@@ -116,8 +118,8 @@ func TestModuleAnswersEmptyListWithoutPersistence(t *testing.T) {
 func TestModuleForwardsValidReadsToTheEngine(t *testing.T) {
 	t.Parallel()
 	engine := &recordingEngine{}
-	module := facilities.NewModule(engine)
-	ctx := context.Background()
+	module := newTestModule(engine)
+	ctx := testpkg.TenantContext(42)
 
 	room, err := module.FindRoom(ctx, 42)
 	require.NoError(t, err)
@@ -133,9 +135,9 @@ func TestModuleForwardsValidReadsToTheEngine(t *testing.T) {
 func TestModuleForwardsRoomLocksToTheEngine(t *testing.T) {
 	t.Parallel()
 	engine := &recordingEngine{}
-	module := facilities.NewModule(engine)
+	module := newTestModule(engine)
 
-	rooms, err := module.LockRoomsByID(context.Background(), []int64{3, 5})
+	rooms, err := module.LockRoomsByID(testpkg.TenantContext(42), []int64{3, 5})
 	require.NoError(t, err)
 	assert.Len(t, rooms, 2)
 	assert.Equal(t, []int64{3, 5}, engine.listIDs)
@@ -151,10 +153,10 @@ func TestErrorCodeIsStable(t *testing.T) {
 
 func TestNewModulePanicsWithoutEngine(t *testing.T) {
 	t.Parallel()
-	assert.Panics(t, func() { facilities.NewModule(nil) })
+	assert.Panics(t, func() { newTestModule(nil) })
 }
 
 func TestNewRoomsPanicsWithoutEngine(t *testing.T) {
 	t.Parallel()
-	assert.Panics(t, func() { facilities.NewRooms(nil) })
+	assert.Panics(t, func() { newTestRooms(nil) })
 }
