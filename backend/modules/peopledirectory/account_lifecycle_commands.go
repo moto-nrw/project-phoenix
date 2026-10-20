@@ -3,15 +3,6 @@ package peopledirectory
 import (
 	"context"
 	"errors"
-	"strings"
-)
-
-// Invited guardians are reached by e-mail and spoken to in German until they
-// choose otherwise: the contact a guardian invitation creates carries these
-// preferences.
-const (
-	invitedGuardianContactMethod = "email"
-	invitedGuardianLanguage      = "de"
 )
 
 // SchoolIdentityPerson is the person an account's school identity chain
@@ -67,43 +58,6 @@ type AccountLifecycleCommand interface {
 	RenamePerson(ctx context.Context, personID int64, firstName, lastName *string) error
 }
 
-// CreateSchoolIdentityPerson trims and requires both names. Unlike
-// CreatePerson it caps neither name and stores the tag as given: the account
-// flows never capped a name, and the tag is the card's own ID, which the
-// foreign key has to match exactly.
-func (m *Module) CreateSchoolIdentityPerson(ctx context.Context, person SchoolIdentityPerson) (int64, error) {
-	firstName, lastName := normalizeNames(person.FirstName, person.LastName)
-	if firstName == "" || lastName == "" {
-		return 0, invalid("first name and last name are required")
-	}
-	if err := validateReferences(person.TagID, nil); err != nil {
-		return 0, err
-	}
-	created, err := m.engine.Create(ctx, CreatePerson{FirstName: firstName, LastName: lastName, TagID: person.TagID})
-	if err != nil {
-		return 0, err
-	}
-	return created.ID, nil
-}
-
-// CreateInvitedGuardian normalizes the contact like every guardian write and
-// records e-mail as the preferred contact method and German as the language.
-func (m *Module) CreateInvitedGuardian(ctx context.Context, guardian InvitedGuardian) (int64, error) {
-	email := guardian.Email
-	return m.engine.CreateGuardianContact(ctx, GuardianContactRecord{
-		FirstName: guardian.FirstName, LastName: guardian.LastName, Email: &email,
-		PreferredContactMethod: invitedGuardianContactMethod, LanguagePreference: invitedGuardianLanguage,
-	})
-}
-
-// CreateAccountPerson stores the names as the profile flow always did:
-// trimmed, but neither capped nor required to keep a character after the
-// trim.
-func (m *Module) CreateAccountPerson(ctx context.Context, accountID int64, firstName, lastName string) error {
-	_, err := m.createAsGiven(ctx, CreatePerson{FirstName: firstName, LastName: lastName, AccountID: &accountID})
-	return err
-}
-
 // ChildPerson is the person an enrollment approval creates for the child it
 // admits. Birthday is a calendar date in BirthdayLayout.
 type ChildPerson struct {
@@ -118,31 +72,6 @@ type EnrollmentPersonCommand interface {
 	// CreateChildPerson inserts the person at the school in context and
 	// returns it. Both names are required.
 	CreateChildPerson(context.Context, ChildPerson) (Person, error)
-}
-
-// CreateChildPerson stores the names as the approval always did: trimmed,
-// but neither capped nor required to keep a character after the trim.
-func (m *Module) CreateChildPerson(ctx context.Context, child ChildPerson) (Person, error) {
-	return m.createAsGiven(ctx, CreatePerson{FirstName: child.FirstName, LastName: child.LastName, Birthday: child.Birthday})
-}
-
-// createAsGiven is the create of the flows that predate the directory's name
-// rules: both names must be given, they are trimmed and not capped.
-func (m *Module) createAsGiven(ctx context.Context, person CreatePerson) (Person, error) {
-	if person.FirstName == "" || person.LastName == "" {
-		return Person{}, invalid("first name and last name are required")
-	}
-	person.FirstName, person.LastName = strings.TrimSpace(person.FirstName), strings.TrimSpace(person.LastName)
-	return m.engine.Create(ctx, person)
-}
-
-// RenamePerson refuses an empty name; the stored names are trimmed but not
-// capped, like the profile flow's own.
-func (m *Module) RenamePerson(ctx context.Context, personID int64, firstName, lastName *string) error {
-	if firstName != nil && *firstName == "" || lastName != nil && *lastName == "" {
-		return invalid("first name and last name are required")
-	}
-	return m.engine.RenamePerson(ctx, personID, firstName, lastName)
 }
 
 // PersonDetails are the names and the birthday of a person; Birthday is a
@@ -162,17 +91,6 @@ type PersonDetailsCommand interface {
 	SetPersonDetails(ctx context.Context, personID int64, details PersonDetails) error
 }
 
-// SetPersonDetails requires both names and stores them trimmed but not
-// capped, the way the staff record and the Stammdaten decision always wrote
-// them.
-func (m *Module) SetPersonDetails(ctx context.Context, personID int64, details PersonDetails) error {
-	if details.FirstName == "" || details.LastName == "" {
-		return invalid("first name and last name are required")
-	}
-	details.FirstName, details.LastName = strings.TrimSpace(details.FirstName), strings.TrimSpace(details.LastName)
-	return m.engine.SetPersonDetails(ctx, personID, details)
-}
-
 // PersonRemovalCommand removes a person of any school on an operator's
 // request.
 type PersonRemovalCommand interface {
@@ -181,13 +99,6 @@ type PersonRemovalCommand interface {
 	// The caller unlinks the card and the account first; a missing person
 	// is no error.
 	AnonymizeAndSoftDeletePerson(ctx context.Context, personID int64) error
-}
-
-func (m *Module) AnonymizeAndSoftDeletePerson(ctx context.Context, personID int64) error {
-	if personID <= 0 {
-		return invalid("person ID is required")
-	}
-	return m.engine.AnonymizeAndSoftDeletePerson(ctx, personID)
 }
 
 // GuardianLifecycleCommand are the guardian profile and relationship writes
@@ -217,24 +128,4 @@ type GuardianLifecycleCommand interface {
 	// permission and portal access follow through the foreign keys. A missing
 	// relationship is not an error.
 	DeleteStudentGuardianLink(ctx context.Context, linkID int64) error
-}
-
-func (m *Module) DeleteGuardianProfile(ctx context.Context, guardianID int64) error {
-	return m.engine.DeleteGuardianProfile(ctx, guardianID)
-}
-
-func (m *Module) LinkGuardianProfileToAccount(ctx context.Context, guardianID, accountID int64) error {
-	return m.engine.LinkGuardianProfileToAccount(ctx, guardianID, accountID)
-}
-
-func (m *Module) LinkInvitedGuardian(ctx context.Context, link InvitedGuardianLink) (bool, error) {
-	return m.engine.LinkInvitedGuardian(ctx, link)
-}
-
-func (m *Module) PromoteGuardianLinkToLegalGuardian(ctx context.Context, linkID int64) error {
-	return m.engine.PromoteGuardianLinkToLegalGuardian(ctx, linkID)
-}
-
-func (m *Module) DeleteStudentGuardianLink(ctx context.Context, linkID int64) error {
-	return m.engine.DeleteStudentGuardianLink(ctx, linkID)
 }

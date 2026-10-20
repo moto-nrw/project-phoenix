@@ -3,8 +3,6 @@ package timetable
 import (
 	"context"
 	"errors"
-	"regexp"
-	"slices"
 )
 
 // Pickup extensions (#3261) are the mirror of the automatic partial absence
@@ -26,8 +24,6 @@ var (
 	// candidate: cancelled, moved, or the child was added meanwhile.
 	ErrPickupExtensionBlockGone = errors.New("pickup extension block is no longer available")
 )
-
-var pickupClockPattern = regexp.MustCompile(`^([01][0-9]|2[0-3]):[0-5][0-9]$`)
 
 // PickupDayExtension records that the day pickup exception moves the pickup
 // later than the weekly time. Times are wall-clock "HH:MM".
@@ -124,57 +120,4 @@ type PickupExtensionCommand interface {
 type PickupExtensionCapability interface {
 	PickupExtensionQuery
 	PickupExtensionCommand
-}
-
-func validPickupClock(value string) bool { return pickupClockPattern.MatchString(value) }
-
-func (m *Module) RecordPickupDayExtension(ctx context.Context, input PickupDayExtension) error {
-	if input.StudentID <= 0 || input.PickupExceptionID <= 0 || !validDate(input.Date) ||
-		!validPickupClock(input.PreviousPickup) || !validPickupClock(input.Pickup) || input.Pickup <= input.PreviousPickup {
-		return m.reject("record_pickup_day_extension", ErrInvalidPickupExtension)
-	}
-	return m.engine.RecordPickupDayExtension(ctx, input)
-}
-
-func (m *Module) ClearPickupDayExtension(ctx context.Context, studentID int64, date string) error {
-	if studentID <= 0 || !validDate(date) {
-		return m.reject("clear_pickup_day_extension", ErrInvalidPickupExtension)
-	}
-	return m.engine.ClearPickupDayExtension(ctx, studentID, date)
-}
-
-func (m *Module) RecordPickupWeekdayExtension(ctx context.Context, input PickupWeekdayExtension) error {
-	if input.StudentID <= 0 || input.Weekday < 1 || input.Weekday > 5 || !validDate(input.EffectiveFrom) ||
-		!validPickupClock(input.PreviousPickup) || !validPickupClock(input.Pickup) || input.Pickup == input.PreviousPickup {
-		return m.reject("record_pickup_weekday_extension", ErrInvalidPickupExtension)
-	}
-	return m.engine.RecordPickupWeekdayExtension(ctx, input)
-}
-
-func (m *Module) ClearPickupWeekdayExtension(ctx context.Context, studentID int64, weekday int) error {
-	if studentID <= 0 || weekday < 1 || weekday > 5 {
-		return m.reject("clear_pickup_weekday_extension", ErrInvalidPickupExtension)
-	}
-	return m.engine.ClearPickupWeekdayExtension(ctx, studentID, weekday)
-}
-
-func (m *Module) ListOpenPickupExtensions(ctx context.Context, studentID int64) ([]PickupExtensionTask, error) {
-	if studentID < 0 {
-		return nil, m.reject("list_open_pickup_extensions", ErrInvalidPickupExtension)
-	}
-	return m.engine.ListOpenPickupExtensions(ctx, studentID)
-}
-
-func (m *Module) FindPickupExtensionStudent(ctx context.Context, taskID int64) (int64, error) {
-	if taskID <= 0 {
-		return 0, m.reject("find_pickup_extension_student", ErrInvalidPickupExtension)
-	}
-	return m.engine.FindPickupExtensionStudent(ctx, taskID)
-}
-
-func (m *Module) ResolvePickupExtension(ctx context.Context, taskID int64, blockIDs []int64) (PickupExtensionResolution, error) {
-	if taskID <= 0 || len(blockIDs) > 20 || slices.ContainsFunc(blockIDs, func(id int64) bool { return id <= 0 }) {
-		return PickupExtensionResolution{}, m.reject("resolve_pickup_extension", ErrInvalidPickupExtension)
-	}
-	return m.engine.ResolvePickupExtension(ctx, taskID, blockIDs)
 }

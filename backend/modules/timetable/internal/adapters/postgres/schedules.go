@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -27,10 +28,10 @@ type scheduleRow struct {
 	ValidFrom        *calendar.Date `bun:"valid_from"`
 }
 
-func (s *Store) FindSchedule(ctx context.Context, id int64) (domain.Schedule, bool, domain.OperationStats, error) {
+func (s *Store) FindSchedule(ctx context.Context, id int64) (timetable.Schedule, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.Schedule{}, false, domain.OperationStats{}, err
+		return timetable.Schedule{}, false, domain.OperationStats{}, err
 	}
 	row := scheduleRow{}
 	query := scheduleSelect(db, &row, tenantID).Where(`"schedule".id = ?`, id)
@@ -38,7 +39,7 @@ func (s *Store) FindSchedule(ctx context.Context, id int64) (domain.Schedule, bo
 	return scheduleToDomain(row), found, stats, err
 }
 
-func (s *Store) ListSchedules(ctx context.Context, filter domain.ScheduleFilter) ([]domain.Schedule, domain.OperationStats, error) {
+func (s *Store) ListSchedules(ctx context.Context, filter timetable.ScheduleFilter) ([]timetable.Schedule, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -56,7 +57,7 @@ func (s *Store) ListSchedules(ctx context.Context, filter domain.ScheduleFilter)
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.Schedule, 0, len(rows))
+	result := make([]timetable.Schedule, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, scheduleToDomain(row))
 	}
@@ -64,9 +65,9 @@ func (s *Store) ListSchedules(ctx context.Context, filter domain.ScheduleFilter)
 	return result, stats, nil
 }
 
-func (s *Store) FindTemplateStartTimes(ctx context.Context, groupIDs []int64) ([]domain.TemplateStartTime, domain.OperationStats, error) {
+func (s *Store) FindTemplateStartTimes(ctx context.Context, groupIDs []int64) ([]timetable.TemplateStartTime, domain.OperationStats, error) {
 	if len(groupIDs) == 0 {
-		return []domain.TemplateStartTime{}, domain.OperationStats{}, nil
+		return []timetable.TemplateStartTime{}, domain.OperationStats{}, nil
 	}
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
@@ -87,18 +88,18 @@ func (s *Store) FindTemplateStartTimes(ctx context.Context, groupIDs []int64) ([
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.TemplateStartTime, 0, len(rows))
+	result := make([]timetable.TemplateStartTime, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, domain.TemplateStartTime(row))
+		result = append(result, timetable.TemplateStartTime(row))
 	}
 	stats.Rows = int64(len(result))
 	return result, stats, nil
 }
 
-func (s *Store) CreateSchedule(ctx context.Context, fields domain.ScheduleFields) (domain.Schedule, domain.OperationStats, error) {
+func (s *Store) CreateSchedule(ctx context.Context, fields timetable.ScheduleInput) (timetable.Schedule, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.Schedule{}, domain.OperationStats{}, err
+		return timetable.Schedule{}, domain.OperationStats{}, err
 	}
 	row := scheduleRow{TenantID: tenantID}
 	applyScheduleFields(&row, fields)
@@ -107,16 +108,16 @@ func (s *Store) CreateSchedule(ctx context.Context, fields domain.ScheduleFields
 	err = db.NewInsert().Model(&row).ModelTableExpr(`activities.schedules`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.Schedule{}, stats, classifyWriteError("create schedule", err, &stats)
+		return timetable.Schedule{}, stats, classifyWriteError("create schedule", err, &stats)
 	}
 	stats.Rows = 1
 	return scheduleToDomain(row), stats, nil
 }
 
-func (s *Store) UpdateSchedule(ctx context.Context, id int64, fields domain.ScheduleFields) (domain.Schedule, bool, domain.OperationStats, error) {
+func (s *Store) UpdateSchedule(ctx context.Context, id int64, fields timetable.ScheduleInput) (timetable.Schedule, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.Schedule{}, false, domain.OperationStats{}, err
+		return timetable.Schedule{}, false, domain.OperationStats{}, err
 	}
 	row := scheduleRow{ID: id, TenantID: tenantID}
 	applyScheduleFields(&row, fields)
@@ -127,10 +128,10 @@ func (s *Store) UpdateSchedule(ctx context.Context, id int64, fields domain.Sche
 		Where("id = ?", id).Where("tenant_id = ?", tenantID).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Schedule{}, false, stats, nil
+		return timetable.Schedule{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.Schedule{}, false, stats, classifyWriteError("update schedule", err, &stats)
+		return timetable.Schedule{}, false, stats, classifyWriteError("update schedule", err, &stats)
 	}
 	stats.Rows = 1
 	return scheduleToDomain(row), true, stats, nil
@@ -187,15 +188,15 @@ func scheduleSelect(db bun.IDB, model any, tenantID int64) *bun.SelectQuery {
 		ColumnExpr(`"schedule".*`).Where(`"schedule".tenant_id = ?`, tenantID)
 }
 
-func applyScheduleFields(row *scheduleRow, fields domain.ScheduleFields) {
+func applyScheduleFields(row *scheduleRow, fields timetable.ScheduleInput) {
 	row.Weekday, row.TimeframeID = fields.Weekday, fields.TimeframeID
 	row.ActivityGroupID, row.WeekPattern = fields.ActivityGroupID, fields.WeekPattern
 	row.CalendarPeriodID = fields.CalendarPeriodID
 	row.ValidUntil, row.ValidFrom = (*calendar.Date)(fields.ValidUntil), (*calendar.Date)(fields.ValidFrom)
 }
 
-func scheduleToDomain(row scheduleRow) domain.Schedule {
-	return domain.Schedule{
+func scheduleToDomain(row scheduleRow) timetable.Schedule {
+	return timetable.Schedule{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		Weekday: row.Weekday, TimeframeID: row.TimeframeID, ActivityGroupID: row.ActivityGroupID,
 		WeekPattern: row.WeekPattern, CalendarPeriodID: row.CalendarPeriodID,

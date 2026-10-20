@@ -7,6 +7,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -85,7 +86,7 @@ func NewGuardianStore(database Database, memberships PortalMembershipQuery, link
 // ListLinksByAccount joins the two owned tables once: every link of every
 // profile of the account, in the tenant of the context or, inside an admin
 // transaction, across every tenant. Profile and link must share the tenant.
-func (s *GuardianStore) ListLinksByAccount(ctx context.Context, accountID int64) ([]domain.GuardianLink, domain.OperationStats, error) {
+func (s *GuardianStore) ListLinksByAccount(ctx context.Context, accountID int64) ([]peopledirectory.GuardianLink, domain.OperationStats, error) {
 	if s.links == nil {
 		return nil, domain.OperationStats{}, errGuardianLinksUnbound
 	}
@@ -108,7 +109,7 @@ func (s *GuardianStore) ListLinksByAccount(ctx context.Context, accountID int64)
 	if err != nil {
 		return nil, stats, fmt.Errorf("people directory postgres: list guardian links by account: %w", err)
 	}
-	result := make([]domain.GuardianLink, 0, len(rows))
+	result := make([]peopledirectory.GuardianLink, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, toDomainLink(row))
 	}
@@ -190,7 +191,7 @@ func (s *GuardianStore) CountLinks(ctx context.Context, guardianIDs []int64) (ma
 // guardian holds a portal account with an active school membership. What such
 // a link may do is decided by the caller from its permissions, exactly as for
 // ListLinksByAccount.
-func (s *GuardianStore) ListAccountLinksByStudents(ctx context.Context, studentIDs []int64) ([]domain.GuardianLink, domain.OperationStats, error) {
+func (s *GuardianStore) ListAccountLinksByStudents(ctx context.Context, studentIDs []int64) ([]peopledirectory.GuardianLink, domain.OperationStats, error) {
 	if s.memberships == nil {
 		return nil, domain.OperationStats{}, fmt.Errorf("people directory postgres: list account links by students: portal account queries are required")
 	}
@@ -227,7 +228,7 @@ func (s *GuardianStore) ListAccountLinksByStudents(ctx context.Context, studentI
 	if err != nil {
 		return nil, stats, fmt.Errorf("people directory postgres: list account links by students: %w", err)
 	}
-	result := make([]domain.GuardianLink, 0, len(rows))
+	result := make([]peopledirectory.GuardianLink, 0, len(rows))
 	if len(rows) == 0 {
 		return result, stats, nil
 	}
@@ -258,8 +259,8 @@ func toDomainGuardian(row guardianRow) domain.Guardian {
 	}
 }
 
-func toDomainLink(row guardianLinkRow) domain.GuardianLink {
-	return domain.GuardianLink{
+func toDomainLink(row guardianLinkRow) peopledirectory.GuardianLink {
+	return peopledirectory.GuardianLink{
 		ID: row.ID, TenantID: row.TenantID, StudentID: row.StudentID, GuardianProfileID: row.GuardianProfileID,
 		RelationshipType: row.RelationshipType, GuardianRole: row.GuardianRole,
 		IsPrimary: row.IsPrimary, IsEmergencyContact: row.IsEmergencyContact, CanPickup: row.CanPickup,

@@ -15,7 +15,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func buildPickupExtensionModule(t *testing.T, db *bun.DB, observers ...func(Observation)) *timetable.Module {
+func buildPickupExtensionModule(t *testing.T, db *bun.DB, observers ...func(Observation)) timetable.Owner {
 	return buildPickupExtensionModuleWithStudents(t, db, directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) {
 		return []directoryPorts.TargetStudent{}, nil
 	}), observers...)
@@ -23,17 +23,17 @@ func buildPickupExtensionModule(t *testing.T, db *bun.DB, observers ...func(Obse
 
 func buildPickupExtensionModuleWithStudents(
 	t *testing.T, db *bun.DB, students directoryPorts.StudentDirectory, observers ...func(Observation),
-) *timetable.Module {
+) timetable.Owner {
 	return buildPickupExtensionModuleWith(t, db, students, &fixedSessions{}, observers...)
 }
 
-func buildPickupExtensionModuleWithSessions(t *testing.T, db *bun.DB, sessions timetable.SessionFacts, observers ...func(Observation)) *timetable.Module {
+func buildPickupExtensionModuleWithSessions(t *testing.T, db *bun.DB, sessions timetable.SessionFacts, observers ...func(Observation)) timetable.Owner {
 	return buildPickupExtensionModuleWith(t, db, directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) {
 		return []directoryPorts.TargetStudent{}, nil
 	}), sessions, observers...)
 }
 
-func buildPickupExtensionModuleWith(t *testing.T, db *bun.DB, students directoryPorts.StudentDirectory, sessions timetable.SessionFacts, observers ...func(Observation)) *timetable.Module {
+func buildPickupExtensionModuleWith(t *testing.T, db *bun.DB, students directoryPorts.StudentDirectory, sessions timetable.SessionFacts, observers ...func(Observation)) timetable.Owner {
 	t.Helper()
 	observe := func(Observation) {}
 	if len(observers) > 0 {
@@ -48,7 +48,7 @@ func buildPickupExtensionModuleWith(t *testing.T, db *bun.DB, students directory
 	return module
 }
 
-func pickupExtensionInstance(t *testing.T, module *timetable.Module, ctx context.Context, fixture ownedActivityInstanceFixture, date, start, end, title string) timetable.ActivityInstance {
+func pickupExtensionInstance(t *testing.T, module timetable.Owner, ctx context.Context, fixture ownedActivityInstanceFixture, date, start, end, title string) timetable.ActivityInstance {
 	t.Helper()
 	input := ownedActivityInstanceInput(fixture, date, start, title)
 	input.EndTime = end
@@ -57,7 +57,7 @@ func pickupExtensionInstance(t *testing.T, module *timetable.Module, ctx context
 	return value
 }
 
-func pickupExtensionTask(t *testing.T, module *timetable.Module, ctx context.Context, studentID int64) timetable.PickupExtensionTask {
+func pickupExtensionTask(t *testing.T, module timetable.Owner, ctx context.Context, studentID int64) timetable.PickupExtensionTask {
 	t.Helper()
 	tasks, err := module.ListOpenPickupExtensions(ctx, studentID)
 	require.NoError(t, err)
@@ -779,7 +779,7 @@ func TestModuleRejectsInvalidPickupExtensions(t *testing.T) {
 	assert.Equal(t, "pickup_extension_block_gone", timetable.ErrorCode(timetable.ErrPickupExtensionBlockGone))
 }
 
-func pickupExtensionTemplate(t *testing.T, module *timetable.Module, ctx context.Context, categoryID int64, name, start, end string, weekday int) timetable.Group {
+func pickupExtensionTemplate(t *testing.T, module timetable.Owner, ctx context.Context, categoryID int64, name, start, end string, weekday int) timetable.Group {
 	t.Helper()
 	group, err := module.CreateGroup(ctx, timetable.GroupInput{
 		Name: fmt.Sprintf("%s %d", name, time.Now().UnixNano()), CategoryID: categoryID,

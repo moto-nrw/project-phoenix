@@ -120,11 +120,6 @@ type ParentFixtureProtocol struct {
 	ParentMessageRequestExcusedAbsence string
 	ParentMessageRequestSickAbsence    string
 }
-type parentFixtureProtocolEngine interface{ ParentFixtureProtocol() ParentFixtureProtocol }
-
-func (m *Module) ParentFixtureProtocol() ParentFixtureProtocol {
-	return m.engine.(parentFixtureProtocolEngine).ParentFixtureProtocol()
-}
 
 // ParentFixtureProtocols is the test-only scalar facet of a composed owner.
 type ParentFixtureProtocols interface{ ParentFixtureProtocol() ParentFixtureProtocol }

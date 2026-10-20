@@ -8,7 +8,7 @@ import (
 
 // ParentFixtureProtocol binds the model constants the compatibility contract
 // tests compare, without copying their values into the test or public DTO.
-func (Engine) ParentFixtureProtocol() peopledirectory.ParentFixtureProtocol {
+func (*Service) ParentFixtureProtocol() peopledirectory.ParentFixtureProtocol {
 	return peopledirectory.ParentFixtureProtocol{
 		ParentRequestTypeExcusedAbsence:    peopledirectory.ParentRequestTypeExcusedAbsence,
 		ParentRequestEventSubmitted:        peopledirectory.ParentRequestEventSubmitted,

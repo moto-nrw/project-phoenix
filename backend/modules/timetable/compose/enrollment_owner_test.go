@@ -285,7 +285,7 @@ func TestStudentEnrollmentListQueryBudgetStaysFlat(t *testing.T) {
 	}))
 }
 
-func createOwnedEnrollment(t *testing.T, module *timetable.Module, ctx context.Context, studentID, groupID int64, validFrom string) timetable.StudentEnrollment {
+func createOwnedEnrollment(t *testing.T, module timetable.Owner, ctx context.Context, studentID, groupID int64, validFrom string) timetable.StudentEnrollment {
 	t.Helper()
 	value, err := module.CreateStudentEnrollment(ctx, enrollmentInput(studentID, groupID, validFrom))
 	require.NoError(t, err)
@@ -308,28 +308,28 @@ func rollbackEnrollmentWrite(t *testing.T, ctx context.Context, write func(conte
 	require.ErrorIs(t, err, wantErr)
 }
 
-func assertEnrollmentValidFrom(t *testing.T, module *timetable.Module, ctx context.Context, id int64, want string) {
+func assertEnrollmentValidFrom(t *testing.T, module timetable.Owner, ctx context.Context, id int64, want string) {
 	t.Helper()
 	value, err := module.FindStudentEnrollment(ctx, id)
 	require.NoError(t, err)
 	assert.Equal(t, want, value.ValidFrom)
 }
 
-func assertEnrollmentValidUntil(t *testing.T, module *timetable.Module, ctx context.Context, id int64, want *string) {
+func assertEnrollmentValidUntil(t *testing.T, module timetable.Owner, ctx context.Context, id int64, want *string) {
 	t.Helper()
 	value, err := module.FindStudentEnrollment(ctx, id)
 	require.NoError(t, err)
 	assert.Equal(t, want, value.ValidUntil)
 }
 
-func assertEnrollmentCount(t *testing.T, module *timetable.Module, ctx context.Context, groupID int64, want int) {
+func assertEnrollmentCount(t *testing.T, module timetable.Owner, ctx context.Context, groupID int64, want int) {
 	t.Helper()
 	values, err := module.ListStudentEnrollments(ctx, timetable.StudentEnrollmentFilter{ActivityGroupIDs: []int64{groupID}})
 	require.NoError(t, err)
 	assert.Len(t, values, want)
 }
 
-func assertEnrollmentSource(t *testing.T, module *timetable.Module, ctx context.Context, id int64, want *int64) {
+func assertEnrollmentSource(t *testing.T, module timetable.Owner, ctx context.Context, id int64, want *int64) {
 	t.Helper()
 	value, err := module.FindStudentEnrollment(ctx, id)
 	require.NoError(t, err)
