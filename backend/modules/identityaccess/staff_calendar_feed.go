@@ -16,13 +16,3 @@ type StaffCalendarFeeds interface {
 	EnsureStaffCalendarFeedToken(ctx context.Context, accountID, tenantID int64, tokenHash string) (string, error)
 	RotateStaffCalendarFeedToken(ctx context.Context, accountID, tenantID int64, tokenHash string) (bool, error)
 }
-
-func (m *Module) FindStaffCalendarFeedOwner(ctx context.Context, tokenHash string) (StaffCalendarFeedOwner, bool, error) {
-	return m.engine.FindStaffCalendarFeedOwner(ctx, tokenHash)
-}
-func (m *Module) EnsureStaffCalendarFeedToken(ctx context.Context, accountID, tenantID int64, tokenHash string) (string, error) {
-	return m.engine.EnsureStaffCalendarFeedToken(ctx, accountID, tenantID, tokenHash)
-}
-func (m *Module) RotateStaffCalendarFeedToken(ctx context.Context, accountID, tenantID int64, tokenHash string) (bool, error) {
-	return m.engine.RotateStaffCalendarFeedToken(ctx, accountID, tenantID, tokenHash)
-}

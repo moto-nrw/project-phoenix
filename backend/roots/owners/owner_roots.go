@@ -51,7 +51,7 @@ func NewOperatorAuditLog(db transactionruntime.Database) OperatorAuditEntries {
 // role classes; enrollment owns the phases and applications; schools names
 // the schools.
 func NewParentPortalReads(
-	db transactionruntime.Database, people peopledirectory.Capability, identity *identityaccess.Module,
+	db transactionruntime.Database, people peopledirectory.Capability, identity identityaccess.Owner,
 	enrollment enrollmentCapability.Owner, schools organizationtenancy.Query,
 ) carePlanCompose.ParentPortalRepositories {
 	if schools == nil {
@@ -68,7 +68,7 @@ func NewParentPortalReads(
 // schools names the schools.
 func NewParentMessagingRepositories(
 	db transactionruntime.Database, groups schoolstructure.Query, membership schoolmembership.Capability,
-	identity *identityaccess.Module, enrollment enrollmentCapability.Owner, now func() time.Time,
+	identity identityaccess.Owner, enrollment enrollmentCapability.Owner, now func() time.Time,
 	schools organizationtenancy.Query,
 ) parentStore.MessagingRepositories {
 	if schools == nil {
@@ -77,7 +77,7 @@ func NewParentMessagingRepositories(
 	return ComposeParentMessagingRepositories(db, groups, membership, identity, enrollment, now).WithSchoolNames(ParentPortalSchools{Schools: schools})
 }
 
-func ComposeParentPortalReads(db transactionruntime.Database, people peopledirectory.Capability, identity *identityaccess.Module, enrollment enrollmentCapability.Owner) carePlanCompose.ParentPortalRepositories {
+func ComposeParentPortalReads(db transactionruntime.Database, people peopledirectory.Capability, identity identityaccess.Owner, enrollment enrollmentCapability.Owner) carePlanCompose.ParentPortalRepositories {
 	return carePlanCompose.NewParentPortalRepositories(carePlanCompose.ParentPortalDependencies{
 		DB: db.Pool(), Directory: ParentPortalDirectory{People: people},
 		AccountSchools: identity.ListActiveAccountSchoolIDs,
@@ -89,7 +89,7 @@ func ComposeParentPortalReads(db transactionruntime.Database, people peopledirec
 
 func ComposeParentMessagingRepositories(
 	db transactionruntime.Database, groups schoolstructure.Query, membership schoolmembership.Capability,
-	identity *identityaccess.Module, enrollment enrollmentCapability.Owner, now func() time.Time,
+	identity identityaccess.Owner, enrollment enrollmentCapability.Owner, now func() time.Time,
 ) parentStore.MessagingRepositories {
 	pool := db.Pool()
 	members := ParentStaffMembers{Membership: membership}.List

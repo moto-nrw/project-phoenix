@@ -17,26 +17,6 @@ func roleFacts(role *identityaccess.RoleFacts) *domain.RoleFacts {
 	return &facts
 }
 
-func (e engine) StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, previousToken, ipAddress, userAgent string) (*identityaccess.StaffPreviewSession, error) {
-	if e.lifecycle == nil {
-		return nil, errAccountLifecycleUnavailable
-	}
-	session, err := e.lifecycle.StartStaffPreview(e.attach(ctx), adminAccountID, tenantID, targetAccountID, previousToken, ipAddress, userAgent)
-	if err != nil {
-		return nil, lifecycleError(err)
-	}
-	result := identityaccess.StaffPreviewSession(*session)
-	return &result, nil
-}
-
-func (e engine) EndStaffPreview(ctx context.Context, previewToken, ipAddress, userAgent string) (int64, error) {
-	if e.lifecycle == nil {
-		return 0, errAccountLifecycleUnavailable
-	}
-	accountID, err := e.lifecycle.EndStaffPreview(e.attach(ctx), previewToken, ipAddress, userAgent)
-	return accountID, lifecycleError(err)
-}
-
 func (e engine) ListStaffPreviewCandidates(ctx context.Context, tenantID, excludeAccountID int64) (value0 []identityaccess.StaffPreviewCandidate, err error) {
 	if e.lifecycle == nil {
 		return nil, errAccountLifecycleUnavailable
@@ -57,22 +37,6 @@ func (e engine) ListStaffPreviewCandidates(ctx context.Context, tenantID, exclud
 		return err
 	})
 	return
-}
-
-func (e engine) PreviewStaffOffboarding(ctx context.Context, accountID int64) (identityaccess.StaffOffboardingPreview, error) {
-	if e.lifecycle == nil {
-		return identityaccess.StaffOffboardingPreview{}, errAccountLifecycleUnavailable
-	}
-	preview, err := e.lifecycle.PreviewStaffOffboarding(e.attach(ctx), accountID)
-	return identityaccess.StaffOffboardingPreview(preview), lifecycleError(err)
-}
-
-func (e engine) ExecuteStaffOffboarding(ctx context.Context, accountID int64, revision string) (identityaccess.StaffOffboardingResult, error) {
-	if e.lifecycle == nil {
-		return identityaccess.StaffOffboardingResult{}, errAccountLifecycleUnavailable
-	}
-	result, err := e.lifecycle.ExecuteStaffOffboarding(e.attach(ctx), accountID, revision)
-	return identityaccess.StaffOffboardingResult(result), lifecycleError(err)
 }
 
 func (e engine) EnsureSchoolIdentity(ctx context.Context, input identityaccess.SchoolIdentityInput) (value0 *identityaccess.SchoolIdentity, err error) {
@@ -99,14 +63,6 @@ func (e engine) EnsureSchoolIdentity(ctx context.Context, input identityaccess.S
 		return err
 	})
 	return
-}
-
-func (e engine) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
-	if e.lifecycle == nil {
-		return false, errAccountLifecycleUnavailable
-	}
-	hasProfile, err := e.lifecycle.profiles.HasLiveCaregiverProfile(e.attach(ctx), accountID)
-	return hasProfile, lifecycleError(err)
 }
 
 func parentAccount(value domain.ParentAccount) identityaccess.ParentAccount {
@@ -295,28 +251,6 @@ func (e engine) CreateGuardianInvitation(ctx context.Context, request identityac
 	return
 }
 
-func (e engine) ValidateGuardianInvitation(ctx context.Context, token string) (identityaccess.GuardianInvitationPreview, error) {
-	if e.lifecycle == nil {
-		return identityaccess.GuardianInvitationPreview{}, errAccountLifecycleUnavailable
-	}
-	preview, err := e.lifecycle.ValidateGuardianInvitation(e.attach(ctx), token)
-	if err != nil {
-		return identityaccess.GuardianInvitationPreview{}, invitationError(err)
-	}
-	return identityaccess.GuardianInvitationPreview(preview), nil
-}
-
-func (e engine) AcceptGuardianInvitation(ctx context.Context, token string, registration identityaccess.GuardianRegistration) (identityaccess.Account, error) {
-	if e.lifecycle == nil {
-		return identityaccess.Account{}, errAccountLifecycleUnavailable
-	}
-	account, err := e.lifecycle.AcceptGuardianInvitation(e.attach(ctx), token, domain.GuardianRegistration(registration))
-	if err != nil {
-		return identityaccess.Account{}, invitationError(err)
-	}
-	return identityaccess.Account{ID: account.ID, Email: account.Email}, nil
-}
-
 func (e engine) ResendGuardianInvitation(ctx context.Context, invitationID, actorAccountID int64) (err error) {
 	if e.lifecycle == nil {
 		return errAccountLifecycleUnavailable
@@ -361,13 +295,6 @@ func publicGuardianInvitations(invitations []domain.GuardianInvitation) []identi
 		result = append(result, identityaccess.GuardianInvitation(invitation))
 	}
 	return result
-}
-
-func (e engine) GuardianInvitationSchoolSlug(ctx context.Context, token string) string {
-	if e.lifecycle == nil {
-		return ""
-	}
-	return e.lifecycle.GuardianInvitationSchoolSlug(e.attach(ctx), token)
 }
 
 func (e engine) PendingInvitationStudentID(ctx context.Context, invitationID int64) (value0 int64, err error) {
@@ -419,29 +346,4 @@ func (e engine) RevokeAccess(ctx context.Context, req identityaccess.RevokeAcces
 		return err
 	})
 	return
-}
-
-var lifecycleSentinels = []struct {
-	internal error
-	public   error
-}{
-	{domain.ErrPreviewSelf, identityaccess.ErrPreviewSelf},
-	{domain.ErrPreviewTargetNotStaff, identityaccess.ErrPreviewTargetNotStaff},
-	{domain.ErrPreviewTokenInvalid, identityaccess.ErrPreviewTokenInvalid},
-	{domain.ErrStaffOffboardingConflict, identityaccess.ErrStaffOffboardingConflict},
-	{domain.ErrSchoolIdentityNamesRequired, identityaccess.ErrSchoolIdentityNamesRequired},
-	{domain.ErrSchoolIdentityPersonIsStudent, identityaccess.ErrSchoolIdentityPersonIsStudent},
-	{domain.ErrSchoolIdentityTagUnknown, identityaccess.ErrSchoolIdentityTagUnknown},
-	{domain.ErrSchoolIdentityTagConflict, identityaccess.ErrSchoolIdentityTagConflict},
-	{domain.ErrSchoolIdentityTagTaken, identityaccess.ErrSchoolIdentityTagTaken},
-	{domain.ErrParentAccountNotFound, identityaccess.ErrParentAccountNotFound},
-	{domain.ErrEmailAlreadyExists, identityaccess.ErrEmailAlreadyExists},
-	{domain.ErrUsernameAlreadyExists, identityaccess.ErrUsernameAlreadyExists},
-	{domain.ErrCannotRemovePrimaryGuardian, identityaccess.ErrCannotRemovePrimaryGuardian},
-	{domain.ErrCannotRemoveStaffManagedGuardian, identityaccess.ErrCannotRemoveStaffManagedGuardian},
-	{domain.ErrCannotRemoveOwnAccess, identityaccess.ErrCannotRemoveOwnAccess},
-	{domain.ErrCannotRemovePayerGuardian, identityaccess.ErrCannotRemovePayerGuardian},
-	{domain.ErrInviteSocialWorkerManaged, identityaccess.ErrInviteSocialWorkerManaged},
-	{domain.ErrGuardianInvitationNotFound, identityaccess.ErrGuardianInvitationNotFound},
-	{domain.ErrGuardianInvitationExpired, identityaccess.ErrGuardianInvitationExpired},
 }

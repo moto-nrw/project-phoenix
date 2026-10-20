@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
@@ -9,15 +10,21 @@ import (
 
 // FindRFIDCard receives the canonical tag from composition. It never performs
 // a tenantless lookup, including when the caller has an admin connection.
-func (s *Service) FindRFIDCard(ctx context.Context, tag string) (id string, found bool, err error) {
-	err = s.run(ctx, s.withinSchoolRead, "find_rfid_card", func(txCtx context.Context, stats *domain.OperationStats) error {
+func (s *Service) FindRFIDCard(ctx context.Context, tag string) (string, bool, error) {
+	tag = domain.NormalizeTagID(tag)
+	var id string
+	var found bool
+	err := s.run(ctx, s.withinSchoolRead, "find_rfid_card", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		var queryErr error
 		id, found, queryStats, queryErr = s.store.FindRFIDCard(txCtx, tag, s.tenantOf(txCtx))
 		stats.Add(queryStats)
 		return queryErr
 	})
-	return id, found, err
+	if err != nil {
+		return "", false, fmt.Errorf("identity access: find RFID card: %w", MapError(err))
+	}
+	return id, found, nil
 }
 
 // canonicalTagStore hands the lifecycle flows the same canonical tag lookup:

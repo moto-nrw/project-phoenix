@@ -7,7 +7,7 @@ import (
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
-type caregiverIdentity struct{ *identityaccess.Module }
+type caregiverIdentity struct{ identityaccess.Owner }
 
 func (c caregiverIdentity) FindCaregiverAccount(ctx context.Context, accountID int64) (*peoplePorts.CaregiverAccount, error) {
 	account, err := c.FindAccountMetadata(ctx, accountID)

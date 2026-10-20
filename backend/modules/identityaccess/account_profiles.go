@@ -29,23 +29,3 @@ type AccountProfiles interface {
 	FindAccountProfile(context.Context, int64) (bio, settings string, found bool, err error)
 	SetAccountBio(context.Context, int64, string) error
 }
-
-func (m *Module) FindAccountMetadata(ctx context.Context, accountID int64) (AccountMetadata, error) {
-	return m.engine.FindAccountMetadata(ctx, accountID)
-}
-
-func (m *Module) SetAccountUsername(ctx context.Context, accountID int64, username string) error {
-	return m.engine.SetAccountUsername(ctx, accountID, username)
-}
-
-func (m *Module) SetAccountAvatar(ctx context.Context, accountID int64, avatar string) error {
-	return m.engine.SetAccountAvatar(ctx, accountID, avatar)
-}
-
-func (m *Module) FindAccountProfile(ctx context.Context, accountID int64) (bio, settings string, found bool, err error) {
-	return m.engine.FindAccountProfile(ctx, accountID)
-}
-
-func (m *Module) SetAccountBio(ctx context.Context, accountID int64, bio string) error {
-	return m.engine.SetAccountBio(ctx, accountID, bio)
-}

@@ -372,3 +372,8 @@ func (s *AccountAuthentication) FindSchoolPortalTenant(ctx context.Context, acco
 	found, tenantID, err := s.findSchoolPortalTenant(bindRuntime(s.attach, ctx), accountID)
 	return found, tenantID, authenticationError(err)
 }
+
+// BindRuntime attaches the unit of work the session flows were composed with.
+func (s *AccountAuthentication) BindRuntime(ctx context.Context) context.Context {
+	return bindRuntime(s.attach, ctx)
+}

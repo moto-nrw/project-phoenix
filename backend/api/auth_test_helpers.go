@@ -28,8 +28,8 @@ type AuthTestModule struct {
 	// Auth and AccountAuthentication are the same composed Identity &
 	// Access module: the surfaces the behaviour tests drive consume it
 	// through the capabilities they were bound to (#3364).
-	Auth                  *identityaccess.Module
-	AccountAuthentication *identityaccess.Module
+	Auth                  identityaccess.Owner
+	AccountAuthentication identityaccess.Owner
 	DemoAccess            *identityaccess.DemoAccess
 	Invitation            InvitationCapability
 	GuardianInvitation    GuardianInvitationCapability
@@ -72,7 +72,7 @@ type InvitationTestModule struct {
 	// Auth is the composed Identity & Access module, for the invitation
 	// HTTP tests that mount the whole auth router and therefore need the
 	// account-lifecycle capability its unrelated routes bind (#3364).
-	Auth *identityaccess.Module
+	Auth identityaccess.Owner
 }
 
 func NewInvitationTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (InvitationTestModule, error) {
@@ -249,8 +249,8 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	var identityAccess *identityaccess.Module
-	durable := newAuthFixtureOutbox(owners.OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox, Runtime: deliveryModule.Runtime}, deliveryModule.Runtime, mailer, logger, func() *identityaccess.Module { return identityAccess })
+	var identityAccess identityaccess.Owner
+	durable := newAuthFixtureOutbox(owners.OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox, Runtime: deliveryModule.Runtime}, deliveryModule.Runtime, mailer, logger, func() identityaccess.Owner { return identityAccess })
 	if mail.outbox != nil {
 		durable = mail.outbox
 	}
@@ -356,7 +356,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 // identity chain rows of db the way the service graph does it, for behaviour tests
 // that exercise sessions, the account lifecycle or the role administration
 // without the whole factory (#3364).
-func IdentityAccessForTests(cfg IdentityAccessTestConfig, unit tenant.UnitOfWork, audit auditModels.Command, db transactionruntime.Database, logger *slog.Logger) (*identityaccess.Module, error) {
+func IdentityAccessForTests(cfg IdentityAccessTestConfig, unit tenant.UnitOfWork, audit auditModels.Command, db transactionruntime.Database, logger *slog.Logger) (identityaccess.Owner, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}

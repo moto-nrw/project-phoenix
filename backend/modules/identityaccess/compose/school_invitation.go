@@ -44,9 +44,8 @@ func newSchoolInvitation(
 		Passwords: deps.Passwords,
 		Delivery:  application.SchoolInvitationDelivery{Source: delivery},
 		Runtime:   tenantRuntime{attach: attach, runner: application.NewTransactionRunner()},
+		Attach:    attach,
 		Expiry:    deps.Expiry,
 		Logger:    deps.Logger,
 	})
 }
-
-// --- engine methods --------------------------------------------------------

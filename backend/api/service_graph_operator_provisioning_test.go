@@ -38,7 +38,7 @@ func buildOperatorProvisioning(t *testing.T, db *bun.DB) organizationtenancy.Pro
 
 // buildOperatorProvisioningWithIdentity returns the operator provisioning
 // with the Identity & Access module of the same composition.
-func buildOperatorProvisioningWithIdentity(t *testing.T, db *bun.DB) (organizationtenancy.Provisioning, *identityaccess.Module) {
+func buildOperatorProvisioningWithIdentity(t *testing.T, db *bun.DB) (organizationtenancy.Provisioning, identityaccess.Owner) {
 	t.Helper()
 	_, _, _, _, _, _, identity, _, _, _, _, _, _, _, _, _, _, _, provisioning, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), currentTestServiceConfig())
 	require.NoError(t, err, "Failed to create service graph")

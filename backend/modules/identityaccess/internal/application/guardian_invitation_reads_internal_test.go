@@ -17,7 +17,7 @@ func TestProvisionGuardianAccount_LocksExistingAccount(t *testing.T) {
 	f := newLifecycleFixture(t)
 	f.store.addAccount(40, "parent@example.test", "hash:secret", true)
 
-	account, err := f.lifecycle.provisionGuardianAccount(tenantContext(), "parent@example.test", domain.GuardianRegistration{})
+	account, err := f.lifecycle.provisionGuardianAccount(tenantContext(), "parent@example.test", identityaccess.GuardianRegistration{})
 	require.NoError(t, err)
 	require.Equal(t, int64(40), account.ID)
 	require.Contains(t, f.store.recorded(), "LockLoginAccountByEmail",

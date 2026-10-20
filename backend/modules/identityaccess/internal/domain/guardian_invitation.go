@@ -22,25 +22,6 @@ type GuardianInvitationRequest struct {
 	CreatedBy         int64
 }
 
-// GuardianInvitationPreview is the public-safe view of a redeemable
-// invitation: enough to pre-fill the accept page and brand it, and no
-// internal identifier.
-type GuardianInvitationPreview struct {
-	Email         string
-	FirstName     string
-	LastName      string
-	ExpiresAt     time.Time
-	SchoolName    string
-	SchoolSlug    string
-	SchoolLogoURL string
-}
-
-// GuardianRegistration is the form payload of the accept page.
-type GuardianRegistration struct {
-	Password        string
-	ConfirmPassword string
-}
-
 // Redeemable reports why the invitation can no longer be spent, and nil
 // while it can. An invitation awaiting or refused by a staff decision is
 // not a link anybody may redeem: its token stays frozen (#2172).

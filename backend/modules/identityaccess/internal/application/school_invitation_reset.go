@@ -15,7 +15,7 @@ func (s *SchoolInvitation) prepareInvitationReset(ctx context.Context, invitatio
 	if invitation.EmploymentAction != domain.EmploymentActionResume || (!invitation.ResetMasterData && !invitation.ResetQualifications && !invitation.ResetWorkTime) {
 		return unchanged, nil
 	}
-	former, found, err := s.identity.FindFormerEmployment(ctx, accountID)
+	former, found, err := s.identity.FindFormerEmploymentByAccount(ctx, accountID)
 	if err != nil {
 		return nil, failed("read former employment", err)
 	}

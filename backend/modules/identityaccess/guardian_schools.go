@@ -8,7 +8,3 @@ import "context"
 type GuardianSchools interface {
 	ListGuardianSchoolIDs(context.Context, int64) ([]int64, error)
 }
-
-func (m *Module) ListGuardianSchoolIDs(ctx context.Context, accountID int64) ([]int64, error) {
-	return m.engine.ListGuardianSchoolIDs(ctx, accountID)
-}

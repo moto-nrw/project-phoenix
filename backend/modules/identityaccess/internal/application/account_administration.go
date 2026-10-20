@@ -90,8 +90,13 @@ func (a *AccountAdministration) findOwnAccount(ctx context.Context, accountID in
 	return account, nil
 }
 
-func (a *AccountAdministration) AnonymizeAccountForDeletion(ctx context.Context, accountID int64, email string) error {
-	err := a.auth.sessions.run(ctx, a.auth.sessions.tx.RunPlatform, "anonymize_account_for_deletion", func(txCtx context.Context, stats *domain.OperationStats) error {
+func (a *AccountAdministration) AnonymizeAccountForDeletion(ctx context.Context, accountID int64, email string) (err error) {
+	if a == nil {
+		return errAccountAdministrationUnavailable
+	}
+	defer func() { err = administrationError(err) }()
+	ctx = bindRuntime(a.auth.attach, ctx)
+	err = a.auth.sessions.run(ctx, a.auth.sessions.tx.RunPlatform, "anonymize_account_for_deletion", func(txCtx context.Context, stats *domain.OperationStats) error {
 		queryStats, queryErr := a.store.AnonymizeAccountForDeletion(txCtx, accountID, email)
 		stats.Add(queryStats)
 		return queryErr
@@ -139,7 +144,12 @@ func (a *AccountAdministration) listManageableAccounts(ctx context.Context, filt
 // An organisation-scoped caller reads it administratively: the assignment
 // and mapping rows it has to join belong to several schools, and the
 // caller's own school transaction cannot see past its own.
-func (a *AccountAdministration) ListManageableAccountsByRole(ctx context.Context, roleName string) ([]domain.ManagedAccountRecord, error) {
+func (a *AccountAdministration) ListManageableAccountsByRole(ctx context.Context, roleName string) (_ []identityaccess.ManagedAccount, err error) {
+	if a == nil {
+		return nil, errAccountAdministrationUnavailable
+	}
+	defer func() { err = administrationError(err) }()
+	ctx = bindRuntime(a.auth.attach, ctx)
 	visibility, err := a.visibility(ctx)
 	if err != nil {
 		return nil, failed(opAccountsByRole, err)
@@ -154,7 +164,7 @@ func (a *AccountAdministration) ListManageableAccountsByRole(ctx context.Context
 		if listErr != nil {
 			return nil, failed(opAccountsByRole, listErr)
 		}
-		return accounts, nil
+		return publicManagedAccounts(accounts), nil
 	}
 	var accounts []domain.ManagedAccountRecord
 	if err := a.runtime.WithAdminTx(a.runtime.WithoutTransaction(ctx), func(adminCtx context.Context) error {
@@ -164,7 +174,7 @@ func (a *AccountAdministration) ListManageableAccountsByRole(ctx context.Context
 	}); err != nil {
 		return nil, failed(opAccountsByRole, err)
 	}
-	return accounts, nil
+	return publicManagedAccounts(accounts), nil
 }
 
 // UpdateManageableAccount writes the address and, when the caller supplied
@@ -194,7 +204,12 @@ func (a *AccountAdministration) updateManageableAccount(ctx context.Context, upd
 // ActivateAccount re-enables the account and clears the account-wide
 // session wipe a deactivation had scheduled: without that the reactivated
 // account's next login would be revoked by the standing intent.
-func (a *AccountAdministration) ActivateAccount(ctx context.Context, accountID int64) error {
+func (a *AccountAdministration) ActivateAccount(ctx context.Context, accountID int64) (err error) {
+	if a == nil {
+		return errAccountAdministrationUnavailable
+	}
+	defer func() { err = administrationError(err) }()
+	ctx = bindRuntime(a.auth.attach, ctx)
 	if err := a.setActive(ctx, accountID, true, opActivateAccount); err != nil {
 		return err
 	}
@@ -205,7 +220,12 @@ func (a *AccountAdministration) ActivateAccount(ctx context.Context, accountID i
 // DeactivateAccount disables the account and schedules the account-wide
 // session revocation. The revocation is requested after the flag committed,
 // so a refused deactivation leaves no standing wipe behind.
-func (a *AccountAdministration) DeactivateAccount(ctx context.Context, accountID int64) error {
+func (a *AccountAdministration) DeactivateAccount(ctx context.Context, accountID int64) (err error) {
+	if a == nil {
+		return errAccountAdministrationUnavailable
+	}
+	defer func() { err = administrationError(err) }()
+	ctx = bindRuntime(a.auth.attach, ctx)
 	if err := a.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		return a.setActive(txCtx, accountID, false, opDeactivateAccount)
 	}); err != nil {
@@ -331,31 +351,97 @@ func (a *AccountAdministration) markWipeCompleted(ctx context.Context, accountID
 	})
 }
 
-func (a *AccountAdministration) FindOwnAccount(ctx context.Context, accountID int64) (result domain.ManagedAccountRecord, err error) {
-	err = globalIdentityRead(ctx, a.runtime, func(txCtx context.Context) error { result, err = a.findOwnAccount(txCtx, accountID); return err })
-	return result, err
+func (a *AccountAdministration) FindOwnAccount(ctx context.Context, accountID int64) (identityaccess.ManagedAccount, error) {
+	if a == nil {
+		return identityaccess.ManagedAccount{}, errAccountAdministrationUnavailable
+	}
+	ctx = bindRuntime(a.auth.attach, ctx)
+	var result domain.ManagedAccountRecord
+	err := globalIdentityRead(ctx, a.runtime, func(txCtx context.Context) error {
+		var err error
+		result, err = a.findOwnAccount(txCtx, accountID)
+		return err
+	})
+	return publicManagedAccount(result), administrationError(err)
 }
 
-func (a *AccountAdministration) FindManageableAccount(ctx context.Context, accountID int64) (result domain.ManagedAccountRecord, err error) {
-	err = a.runtime.RunInTx(ctx, func(txCtx context.Context) error { result, err = a.findManageableAccount(txCtx, accountID); return err })
-	return result, err
+func (a *AccountAdministration) FindManageableAccount(ctx context.Context, accountID int64) (identityaccess.ManagedAccount, error) {
+	if a == nil {
+		return identityaccess.ManagedAccount{}, errAccountAdministrationUnavailable
+	}
+	ctx = bindRuntime(a.auth.attach, ctx)
+	var result domain.ManagedAccountRecord
+	err := a.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		var err error
+		result, err = a.findManageableAccount(txCtx, accountID)
+		return err
+	})
+	return publicManagedAccount(result), administrationError(err)
 }
 
-func (a *AccountAdministration) ListManageableAccounts(ctx context.Context, filter domain.AccountListFilter) (result []domain.ManagedAccountRecord, err error) {
-	err = a.runtime.RunInTx(ctx, func(txCtx context.Context) error { result, err = a.listManageableAccounts(txCtx, filter); return err })
-	return result, err
+func (a *AccountAdministration) ListManageableAccounts(ctx context.Context, filter identityaccess.AccountListFilter) ([]identityaccess.ManagedAccount, error) {
+	if a == nil {
+		return nil, errAccountAdministrationUnavailable
+	}
+	ctx = bindRuntime(a.auth.attach, ctx)
+	var result []domain.ManagedAccountRecord
+	err := a.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		var err error
+		result, err = a.listManageableAccounts(txCtx, domain.AccountListFilter{Email: filter.Email, Active: filter.Active})
+		return err
+	})
+	if err != nil {
+		return nil, administrationError(err)
+	}
+	return publicManagedAccounts(result), nil
 }
 
-func (a *AccountAdministration) UpdateManageableAccount(ctx context.Context, update domain.AccountIdentityUpdate) error {
-	return a.runtime.RunInTx(ctx, func(txCtx context.Context) error { return a.updateManageableAccount(txCtx, update) })
+func (a *AccountAdministration) UpdateManageableAccount(ctx context.Context, update identityaccess.AccountIdentityUpdate) error {
+	if a == nil {
+		return errAccountAdministrationUnavailable
+	}
+	ctx = bindRuntime(a.auth.attach, ctx)
+	return administrationError(a.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		return a.updateManageableAccount(txCtx, domain.AccountIdentityUpdate{AccountID: update.AccountID, Email: update.Email, Username: update.Username})
+	}))
 }
 
 func (a *AccountAdministration) setActive(ctx context.Context, accountID int64, active bool, op string) error {
 	return a.runtime.RunInTx(ctx, func(txCtx context.Context) error { return a.setActiveInTransaction(txCtx, accountID, active, op) })
 }
 
-func (a *AccountAdministration) ChangeAccountPassword(ctx context.Context, accountID int64, currentPassword, newPassword string) error {
+func (a *AccountAdministration) ChangeAccountPassword(ctx context.Context, accountID int64, currentPassword, newPassword string) (err error) {
+	if a == nil {
+		return errAccountAdministrationUnavailable
+	}
+	defer func() { err = administrationError(err) }()
+	ctx = bindRuntime(a.auth.attach, ctx)
 	return globalIdentityRead(ctx, a.runtime, func(txCtx context.Context) error {
 		return a.changeAccountPassword(txCtx, accountID, currentPassword, newPassword)
 	})
 }
+
+func publicManagedAccount(account domain.ManagedAccountRecord) identityaccess.ManagedAccount {
+	return identityaccess.ManagedAccount{
+		ID: account.ID, Email: account.Email, Username: account.Username, Active: account.Active,
+		CreatedAt: account.CreatedAt, UpdatedAt: account.UpdatedAt, LastLogin: account.LastLogin,
+	}
+}
+
+func publicManagedAccounts(accounts []domain.ManagedAccountRecord) []identityaccess.ManagedAccount {
+	result := make([]identityaccess.ManagedAccount, 0, len(accounts))
+	for _, account := range accounts {
+		result = append(result, publicManagedAccount(account))
+	}
+	return result
+}
+
+// administrationError translates a flow error to the public contract. The
+// administration reports no sentinel of its own: the account, credential
+// and password-policy outcomes it refuses on are the authentication
+// mapping's, which the lifecycle mapping chains to.
+func administrationError(err error) error {
+	return lifecycleError(err)
+}
+
+var errAccountAdministrationUnavailable = identityaccess.ErrAccountAdministrationUnavailable

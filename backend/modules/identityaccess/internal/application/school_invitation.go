@@ -52,6 +52,7 @@ type SchoolInvitation struct {
 	passwords       ports.PasswordPolicy
 	delivery        ports.SchoolInvitationDelivery
 	runtime         ports.Runtime
+	attach          func(context.Context) context.Context
 	expiry          time.Duration
 	now             func() time.Time
 	logger          *slog.Logger
@@ -71,8 +72,10 @@ type SchoolInvitationDependencies struct {
 	Passwords       ports.PasswordPolicy
 	Delivery        ports.SchoolInvitationDelivery
 	Runtime         ports.Runtime
-	Expiry          time.Duration
-	Logger          *slog.Logger
+	// Attach binds the composed unit of work ahead of every public flow.
+	Attach func(context.Context) context.Context
+	Expiry time.Duration
+	Logger *slog.Logger
 }
 
 func NewSchoolInvitation(deps SchoolInvitationDependencies) (*SchoolInvitation, error) {
@@ -93,7 +96,7 @@ func NewSchoolInvitation(deps SchoolInvitationDependencies) (*SchoolInvitation, 
 	return &SchoolInvitation{
 		employmentReset: deps.EmploymentReset, store: deps.Store, logins: deps.Logins, roles: deps.Roles, policy: deps.Policy, grants: deps.Grants,
 		identity: deps.Identity, schools: deps.Schools, owners: deps.Owners, passwords: deps.Passwords,
-		delivery: deps.Delivery, runtime: deps.Runtime, expiry: deps.Expiry, now: time.Now, logger: logger,
+		delivery: deps.Delivery, runtime: deps.Runtime, attach: deps.Attach, expiry: deps.Expiry, now: time.Now, logger: logger,
 	}, nil
 }
 
@@ -233,7 +236,7 @@ func (s *SchoolInvitation) ensureTargetAllowed(ctx context.Context, email string
 		tenantID = s.runtime.TenantID(ctx)
 	}
 	if tenantID <= 0 {
-		return failed(opCreateInvitation, domain.ErrEmailAlreadyExists)
+		return failed(opCreateInvitation, identityaccess.ErrEmailAlreadyExists)
 	}
 	member, _, err := s.logins.HasActiveAccountTenant(ctx, account.ID, tenantID)
 	if err != nil {

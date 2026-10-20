@@ -83,7 +83,7 @@ func NewPeopleDirectoryWithObserver(
 // Directory repositories read accounts and memberships through. A nil
 // observer composes it unobserved, which is what test graphs and CLI roots
 // use.
-func NewPeopleIdentityAccess(db transactionruntime.Database, observe IdentityAccessObserver) *identityaccess.Module {
+func NewPeopleIdentityAccess(db transactionruntime.Database, observe IdentityAccessObserver) identityaccess.Owner {
 	module, err := identityCompose.New(identityCompose.Dependencies{DB: db.Pool(), Observe: identityAccessObservation(observe)})
 	if err != nil {
 		panic(fmt.Sprintf("compose identity access: %v", err))

@@ -18,8 +18,7 @@ func newRoleAdministration(auth *application.AccountAuthentication, runtime inte
 		Identity:      application.LateSchoolIdentity{Current: identity},
 		Sessions:      auth,
 		Runtime:       runtime,
+		Attach:        auth.BindRuntime,
 		Logger:        deps.Logger,
 	})
 }
-
-// --- engine methods -------------------------------------------------------

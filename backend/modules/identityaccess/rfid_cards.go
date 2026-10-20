@@ -9,15 +9,3 @@ type RFIDCards interface {
 	RegisterRFIDCard(context.Context, string) error
 	ValidateRFIDTag(string) error
 }
-
-func (m *Module) LookupRFIDCard(ctx context.Context, tag string) (string, bool, bool, error) {
-	return m.engine.LookupRFIDCard(ctx, tag)
-}
-
-func (m *Module) RegisterRFIDCard(ctx context.Context, tag string) error {
-	return m.engine.RegisterRFIDCard(ctx, tag)
-}
-
-func (m *Module) ValidateRFIDTag(tag string) error {
-	return m.engine.ValidateRFIDTag(tag)
-}
