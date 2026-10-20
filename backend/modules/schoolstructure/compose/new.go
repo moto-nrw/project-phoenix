@@ -20,12 +20,12 @@ type Dependencies struct {
 	Observe func(Observation)
 }
 
-// New composes School Structure over the caller's authoritative transaction.
-func New(dependencies Dependencies) (*schoolstructure.Module, error) {
+// New composes the School Structure service, which is the whole Owner
+// surface, over the caller's authoritative transaction.
+func New(dependencies Dependencies) (schoolstructure.Owner, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("school structure compose: all dependencies are required")
 	}
 	store := postgres.New(postgres.NewAmbientDatabase(tenant.TransactionFromContext))
-	service := application.New(store, application.NewObserver(dependencies.Observe))
-	return schoolstructure.NewModule(application.NewEngine(service), application.NewTransitionRetention(store)), nil
+	return application.New(store, application.NewTransitionRetention(store), dependencies.Observe), nil
 }

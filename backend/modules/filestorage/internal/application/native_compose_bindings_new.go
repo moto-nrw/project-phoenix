@@ -4,7 +4,7 @@ import (
 	context "context"
 	fmt "fmt"
 
-	domain "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
+	filestorage "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	ports "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports"
 	identityaccess "github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peopledirectory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -22,17 +22,17 @@ func (i IdentityAdapter) ListAccountRoleIDs(ctx context.Context, accountID int64
 
 // ListShareableRoles drops the guardian tier: parents never reach the tenant
 // portal, so a folder shared with them would be shared with nobody.
-func (i IdentityAdapter) ListShareableRoles(ctx context.Context) ([]domain.AudienceRole, error) {
+func (i IdentityAdapter) ListShareableRoles(ctx context.Context) ([]filestorage.AudienceRole, error) {
 	roles, err := i.Module.ListSchoolRoles(ctx)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]domain.AudienceRole, 0, len(roles))
+	result := make([]filestorage.AudienceRole, 0, len(roles))
 	for _, role := range roles {
 		if role == nil || role.Name == "guardian" || (role.BaseRole != nil && *role.BaseRole == "guardian") {
 			continue
 		}
-		result = append(result, domain.AudienceRole{ID: role.ID, Name: role.Name})
+		result = append(result, filestorage.AudienceRole{ID: role.ID, Name: role.Name})
 	}
 	return result, nil
 }

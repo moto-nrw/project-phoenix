@@ -122,8 +122,8 @@
   {
     "module": "school-structure",
     "contract_package": "modules/schoolstructure",
-    "test_file": "modules/schoolstructure/schoolstructure_test.go",
-    "test": "TestModuleForwardsValidReadsToTheEngine"
+    "test_file": "modules/schoolstructure/public_contract_test.go",
+    "test": "TestPublicSchoolStructureContractReadsGroupsByID"
   },
   {
     "module": "security-runtime",

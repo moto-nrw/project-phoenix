@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -52,35 +53,35 @@ func New(database Database) *Store {
 	return &Store{database: database}
 }
 
-func (s *Store) Create(ctx context.Context, value domain.Announcement) (domain.Announcement, domain.OperationStats, error) {
+func (s *Store) Create(ctx context.Context, value communication.Announcement) (communication.Announcement, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
-		return domain.Announcement{}, domain.OperationStats{}, err
+		return communication.Announcement{}, domain.OperationStats{}, err
 	}
-	row := fromDomain(value)
+	row := fromPublic(value)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = db.NewInsert().Model(&row).ModelTableExpr("platform.announcements").Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.Announcement{}, stats, fmt.Errorf("communication postgres: create announcement: %w", err)
+		return communication.Announcement{}, stats, fmt.Errorf("communication postgres: create announcement: %w", err)
 	}
 	stats.Rows = 1
-	return toDomain(row), stats, nil
+	return toPublic(row), stats, nil
 }
 
-func (s *Store) Get(ctx context.Context, id int64) (domain.Announcement, domain.OperationStats, error) {
+func (s *Store) Get(ctx context.Context, id int64) (communication.Announcement, domain.OperationStats, error) {
 	return s.get(ctx, id, false)
 }
 
-func (s *Store) GetForMutation(ctx context.Context, id int64) (domain.Announcement, domain.OperationStats, error) {
+func (s *Store) GetForMutation(ctx context.Context, id int64) (communication.Announcement, domain.OperationStats, error) {
 	return s.get(ctx, id, true)
 }
 
-func (s *Store) get(ctx context.Context, id int64, forUpdate bool) (domain.Announcement, domain.OperationStats, error) {
+func (s *Store) get(ctx context.Context, id int64, forUpdate bool) (communication.Announcement, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
-		return domain.Announcement{}, domain.OperationStats{}, err
+		return communication.Announcement{}, domain.OperationStats{}, err
 	}
 	var row announcementRow
 	stats := domain.OperationStats{Queries: 1}
@@ -93,34 +94,34 @@ func (s *Store) get(ctx context.Context, id int64, forUpdate bool) (domain.Annou
 	err = query.Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Announcement{}, stats, domain.ErrAnnouncementNotFound
+		return communication.Announcement{}, stats, &communication.AnnouncementNotFoundError{AnnouncementID: id}
 	}
 	if err != nil {
-		return domain.Announcement{}, stats, fmt.Errorf("communication postgres: get announcement: %w", err)
+		return communication.Announcement{}, stats, fmt.Errorf("communication postgres: get announcement: %w", err)
 	}
 	stats.Rows = 1
-	return toDomain(row), stats, nil
+	return toPublic(row), stats, nil
 }
 
-func (s *Store) Update(ctx context.Context, value domain.Announcement) (domain.Announcement, domain.OperationStats, error) {
+func (s *Store) Update(ctx context.Context, value communication.Announcement) (communication.Announcement, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
-		return domain.Announcement{}, domain.OperationStats{}, err
+		return communication.Announcement{}, domain.OperationStats{}, err
 	}
-	row := fromDomain(value)
+	row := fromPublic(value)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = db.NewUpdate().Model(&row).ModelTableExpr(announcementTable).
 		WherePK().Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Announcement{}, stats, domain.ErrAnnouncementNotFound
+		return communication.Announcement{}, stats, &communication.AnnouncementNotFoundError{AnnouncementID: value.ID}
 	}
 	if err != nil {
-		return domain.Announcement{}, stats, fmt.Errorf("communication postgres: update announcement: %w", err)
+		return communication.Announcement{}, stats, fmt.Errorf("communication postgres: update announcement: %w", err)
 	}
 	stats.Rows = 1
-	return toDomain(row), stats, nil
+	return toPublic(row), stats, nil
 }
 
 func (s *Store) Delete(ctx context.Context, id int64) (domain.OperationStats, error) {
@@ -132,7 +133,7 @@ func (s *Store) Delete(ctx context.Context, id int64) (domain.OperationStats, er
 		Where(`"announcement".id = ?`, id), "delete announcement")
 }
 
-func (s *Store) List(ctx context.Context, includeInactive bool) ([]domain.Announcement, domain.OperationStats, error) {
+func (s *Store) List(ctx context.Context, includeInactive bool) ([]communication.Announcement, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -150,7 +151,7 @@ func (s *Store) List(ctx context.Context, includeInactive bool) ([]domain.Announ
 		return nil, stats, fmt.Errorf("communication postgres: list announcements: %w", err)
 	}
 	stats.Rows = int64(len(rows))
-	return toDomainList(rows), stats, nil
+	return toPublicList(rows), stats, nil
 }
 
 func (s *Store) Publish(ctx context.Context, id int64) (domain.OperationStats, error) {
@@ -205,12 +206,12 @@ func (s *Store) mark(ctx context.Context, userID, announcementID int64, dismisse
 	return stats, nil
 }
 
-func (s *Store) ViewStats(ctx context.Context, announcementID int64) (domain.AnnouncementStats, domain.OperationStats, error) {
+func (s *Store) ViewStats(ctx context.Context, announcementID int64) (communication.AnnouncementStats, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
-		return domain.AnnouncementStats{}, domain.OperationStats{}, err
+		return communication.AnnouncementStats{}, domain.OperationStats{}, err
 	}
-	result := domain.AnnouncementStats{AnnouncementID: announcementID}
+	result := communication.AnnouncementStats{AnnouncementID: announcementID}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = db.NewRaw(`SELECT
@@ -246,7 +247,7 @@ func execute(ctx context.Context, query executable, operation string) (domain.Op
 	return stats, nil
 }
 
-func fromDomain(value domain.Announcement) announcementRow {
+func fromPublic(value communication.Announcement) announcementRow {
 	return announcementRow{
 		ID: value.ID, Title: value.Title, Content: value.Content, Type: value.Type,
 		Severity: value.Severity, Version: value.Version, Active: value.Active,
@@ -257,8 +258,8 @@ func fromDomain(value domain.Announcement) announcementRow {
 	}
 }
 
-func toDomain(row announcementRow) domain.Announcement {
-	return domain.Announcement{
+func toPublic(row announcementRow) communication.Announcement {
+	return communication.Announcement{
 		ID: row.ID, Title: row.Title, Content: row.Content, Type: row.Type,
 		Severity: row.Severity, Version: row.Version, Active: row.Active,
 		PublishedAt: row.PublishedAt, ExpiresAt: row.ExpiresAt,
@@ -282,10 +283,10 @@ func zeroID(value *int64) int64 {
 	return *value
 }
 
-func toDomainList(rows []announcementRow) []domain.Announcement {
-	result := make([]domain.Announcement, 0, len(rows))
+func toPublicList(rows []announcementRow) []communication.Announcement {
+	result := make([]communication.Announcement, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, toDomain(row))
+		result = append(result, toPublic(row))
 	}
 	return result
 }

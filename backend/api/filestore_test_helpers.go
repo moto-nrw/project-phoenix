@@ -31,7 +31,7 @@ type UploadsBackend = filestorageCompose.ObjectBackend
 // object store: the public capability plus the settings service that switches
 // staff uploads. These are the staff file and attachment routes; parent
 // attachment access is composed and exercised by the parent-portal suite.
-func NewFileStoreTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, objects UploadsBackend) (*filestorageModule.Module, settingsCompose.SettingsService, error) {
+func NewFileStoreTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, objects UploadsBackend) (filestorageModule.Capability, settingsCompose.SettingsService, error) {
 	settings, err := owners.NewSettingsTestModule(db, unit)
 	if err != nil {
 		return nil, nil, err
