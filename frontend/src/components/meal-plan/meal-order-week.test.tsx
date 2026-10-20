@@ -82,7 +82,9 @@ describe("MealOrderWeek", () => {
     expect(screen.getAllByText(/Kinder mehr.*Kind weniger/)).not.toHaveLength(
       0,
     );
-    expect(screen.getAllByText(/^Offen bis /)).not.toHaveLength(0);
+    // An open day: the badge and its deadline beside it.
+    expect(screen.getAllByText("Offen")).not.toHaveLength(0);
+    expect(screen.getAllByText(/^bis /)).not.toHaveLength(0);
     expect(screen.getAllByText("OGS geschlossen")).not.toHaveLength(0);
   });
 
@@ -137,7 +139,8 @@ describe("MealOrderWeek", () => {
     });
 
     expect(await screen.findAllByText("Nicht bestellt")).not.toHaveLength(0);
-    expect(screen.queryByText(/^Offen bis /)).not.toBeInTheDocument();
+    expect(screen.queryByText("Offen")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^bis /)).not.toBeInTheDocument();
   });
 
   it("offers the month only with the lists permission", async () => {

@@ -110,4 +110,20 @@ describe("CatererSchoolOrders", () => {
       screen.queryByRole("button", { name: "Erhalten bestätigen" }),
     ).not.toBeInTheDocument();
   });
+
+  it("shows an open day with its deadline and nothing to confirm", async () => {
+    renderOrders({
+      school,
+      deliveryAddress: "",
+      rhythm: "daily",
+      detail: "total",
+      days: [day("2026-09-10", { status: "open", orderId: null })],
+    } as never);
+
+    expect(await screen.findAllByText("Offen")).not.toHaveLength(0);
+    expect(screen.getAllByText("bis Do., 10.09., 09:00")).not.toHaveLength(0);
+    expect(
+      screen.queryByRole("button", { name: "Erhalten bestätigen" }),
+    ).not.toBeInTheDocument();
+  });
 });
