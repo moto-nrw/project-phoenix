@@ -15,7 +15,7 @@ import (
 // provider re-checks the subscription before it sends (#4013).
 
 // NewDurableEmails binds the e-mail outbox's store to module.
-func NewDurableEmails(module *delivery.Module) DurableEmails {
+func NewDurableEmails(module delivery.Capability) DurableEmails {
 	return DurableEmails{DurableEmails: emailoutbox.DurableEmails{Module: module}}
 }
 

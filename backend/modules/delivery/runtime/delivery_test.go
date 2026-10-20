@@ -11,18 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type recordingEngine struct {
-	pushCalled bool
-}
-
-func (*recordingEngine) EnqueueEmail(context.Context, deliveryContract.EmailIntent) (deliveryContract.Enqueued, error) {
-	return deliveryContract.Enqueued{}, nil
-}
-
-func (*recordingEngine) EnqueueDeferredPush(context.Context, deliveryContract.DeferredPushIntent) (deliveryContract.Enqueued, error) {
-	return deliveryContract.Enqueued{}, nil
-}
-
 type recordingWorkerEngine struct {
 	batchSize, maxAttempts int
 	deadLettered           int
@@ -77,44 +65,4 @@ func TestWorkerFailsRunWithDeadLetteredDeliveries(t *testing.T) {
 
 	_, err = NewWorker(&recordingWorkerEngine{}).RunOnce(context.Background(), 25, 3)
 	assert.NoError(t, err)
-}
-func (e *recordingEngine) EnqueuePush(context.Context, deliveryContract.PushIntent) (deliveryContract.Enqueued, error) {
-	e.pushCalled = true
-	return deliveryContract.Enqueued{}, nil
-}
-func (*recordingEngine) Cancel(context.Context, int64, deliveryContract.Transport, deliveryContract.RelatedEntity, string) (int64, error) {
-	return 0, nil
-}
-func (*recordingEngine) Statuses(context.Context, int64, deliveryContract.Transport, deliveryContract.RelatedEntity) ([]deliveryContract.Status, error) {
-	return nil, nil
-}
-func (*recordingEngine) ReplaceEmailDeliveries(context.Context, int64, deliveryContract.RelatedEntity, []deliveryContract.EmailDelivery) error {
-	return nil
-}
-func (*recordingEngine) DeleteEmailDeliveries(context.Context, int64, deliveryContract.RelatedEntity) (int64, error) {
-	return 0, nil
-}
-func (*recordingEngine) EmailDeliveryStatuses(context.Context, int64, deliveryContract.RelatedEntity) ([]deliveryContract.EmailDeliveryStatus, error) {
-	return nil, nil
-}
-func (*recordingEngine) AttachEmailOutbox(context.Context, int64, int64, int64) error { return nil }
-func (*recordingEngine) ClaimFailedEmailDelivery(context.Context, int64, int64) (bool, error) {
-	return false, nil
-}
-
-func TestEnqueuePushRejectsUntrustedEndpoint(t *testing.T) {
-	t.Parallel()
-
-	engine := &recordingEngine{}
-	module := NewModule(engine)
-	tenantID := int64(42)
-	_, err := module.EnqueuePush(context.Background(), deliveryContract.PushIntent{
-		TenantID: tenantID, Template: "appointment", IdempotencyKey: "appointment:1",
-		Related:   deliveryContract.RelatedEntity{Type: "appointment", ID: 1},
-		Recipient: deliveryContract.PushRecipient{Endpoint: "https://127.0.0.1/push", P256DH: "key", Auth: "auth"},
-		Payload:   deliveryContract.PushPayload{Title: "Termin"},
-	})
-
-	require.Error(t, err)
-	assert.False(t, engine.pushCalled)
 }

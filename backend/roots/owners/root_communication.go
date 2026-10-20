@@ -40,7 +40,7 @@ func BuildParentEventEmitter(
 // (#1669), whose cancellation notices the instance lifecycle publishes
 // (#2601). File Storage hands it the attachment side at construction (#2890).
 func BuildParentAnnouncements(
-	env RootEnvironment, settings settingsCompose.BatchSettingsService, outbox *deliveryCompose.EmailOutbox, module *deliveryModule.Module,
+	env RootEnvironment, settings settingsCompose.BatchSettingsService, outbox *deliveryCompose.EmailOutbox, module deliveryModule.Capability,
 	notifications DeliveryNotifications, messaging parentStore.MessagingRepositories,
 	attachments communication.ParentAnnouncementAttachmentPurger,
 ) (communication.ParentAnnouncementCapability, error) {

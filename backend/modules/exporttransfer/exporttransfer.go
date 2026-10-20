@@ -99,23 +99,10 @@ type Status struct {
 	MissingSettings []string `json:"missing_settings,omitempty"`
 }
 
-type engine interface {
+// Capability is the Export Transfer capability compose.New returns.
+type Capability interface {
+	// Transfer sends the export and records the attempt.
 	Transfer(context.Context, Request) (Outcome, error)
+	// Status reports whether a transfer can be offered, and to where.
 	Status(context.Context) (Status, error)
-}
-
-// Module is the capability handle.
-type Module struct{ engine engine }
-
-// NewModule is called by the compose package; other callers use compose.New.
-func NewModule(engine engine) *Module { return &Module{engine: engine} }
-
-// Transfer sends the export and records the attempt.
-func (m *Module) Transfer(ctx context.Context, request Request) (Outcome, error) {
-	return m.engine.Transfer(ctx, request)
-}
-
-// Status reports whether a transfer can be offered, and to where.
-func (m *Module) Status(ctx context.Context) (Status, error) {
-	return m.engine.Status(ctx)
 }
