@@ -87,7 +87,7 @@ func TestMFAService_StartAndVerifyChallenge(t *testing.T) {
 	require.NotEmpty(t, tokenString)
 
 	// Active challenge row exists.
-	active, _, err := nativeMFARecords(t, db).FindActiveChallengeInScope(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant)
+	active, _, err := mfaRecordRows(t, db).FindActiveChallengeInScope(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant)
 	require.NoError(t, err)
 	require.NotNil(t, active)
 	assert.Equal(t, acc.ID, active.AccountID)

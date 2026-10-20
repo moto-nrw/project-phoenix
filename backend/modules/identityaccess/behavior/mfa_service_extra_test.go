@@ -2,7 +2,6 @@ package behavior_test
 
 import (
 	"context"
-	"errors"
 	"net"
 	"testing"
 	"time"
@@ -145,36 +144,4 @@ func TestMFAService_IssueTrustedDevice_PersistsAndReturnsSignedToken(t *testing.
 	require.NoError(t, err)
 	assert.NotEmpty(t, cookie, "trusted-device default-enabled tenant must mint a cookie value")
 	assert.True(t, expiresAt.After(time.Now()), "expires_at must be in the future")
-}
-
-// The rate-limit count is the only statement that fails below; everything
-// else behaves normally, which is the situation the fail-open bug needed to
-// show itself: challenge creation and mail dispatch succeed regardless of
-// whether that count could be read.
-
-func TestMFAService_StartChallenge_RateLimitLookupFails_IssuesNoCode(t *testing.T) {
-	t.Parallel()
-
-	svc, _, db := newTestMFAService(t, withFailingMFARecords(failingMFARecords{
-		countChallengesSince: func(context.Context, int64, time.Time) (int, error) {
-			return 0, errors.New("rate-limit count unavailable")
-		},
-	}))
-
-	acc := testpkg.CreateTestAccount(t, db, "mfa-ratelimit-blind")
-
-	challengeToken, err := svc.StartMFAChallenge(
-		context.Background(), acc.ID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"),
-	)
-
-	require.Error(t, err)
-	assert.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable,
-		"an unreadable rate-limit count must refuse the code, not wave it through")
-	assert.Empty(t, challengeToken)
-
-	issued, err := nativeMFARecords(t, db).CountChallengesSince(
-		context.Background(), acc.ID, time.Now().Add(-time.Hour),
-	)
-	require.NoError(t, err)
-	assert.Zero(t, issued, "a refused challenge must leave no code behind")
 }

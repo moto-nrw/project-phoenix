@@ -52,13 +52,6 @@ func requireDatabaseError(t *testing.T, err error, operation string) {
 	t.Fatalf("want the database error of %q, got %v", operation, err)
 }
 
-// isNotFound mirrors the base package's not-found check: the repository
-// not-found sentinel, bare or wrapped.
-func isNotFound(err error) bool {
-	var marker interface{ RepositoryNotFound() }
-	return errors.As(err, &marker)
-}
-
 type queryListRepository[T any] interface {
 	List(context.Context, *fixtures.QueryOptions) ([]T, error)
 }
@@ -115,12 +108,6 @@ type dateframeQueryRepository interface {
 	fixtures.
 		DateframeRecords
 	queryListRepository[*fixtures.Dateframe]
-}
-
-type recurrenceRuleQueryRepository interface {
-	fixtures.
-		RecurrenceRuleRecords
-	queryListRepository[*fixtures.RecurrenceRule]
 }
 
 type timeframeQueryRepository interface {

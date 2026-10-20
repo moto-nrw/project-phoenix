@@ -484,56 +484,6 @@ func toNative33(value []InstanceStudentKey) []records.InstanceStudentKey {
 	return result
 }
 
-func fromNative34(value *records.PlanningTrack) *PlanningTrack {
-	if value == nil {
-		return nil
-	}
-	return &PlanningTrack{*value}
-}
-
-func toNative34(value *PlanningTrack) *records.PlanningTrack {
-	if value == nil {
-		return nil
-	}
-	return &value.PlanningTrack
-}
-
-func fromNative35(value []*records.PlanningTrack) []*PlanningTrack {
-	if value == nil {
-		return nil
-	}
-	result := make([]*PlanningTrack, len(value))
-	for index, row := range value {
-		result[index] = fromNative34(row)
-	}
-	return result
-}
-
-func fromNative36(value *records.RecurrenceRule) *RecurrenceRule {
-	if value == nil {
-		return nil
-	}
-	return &RecurrenceRule{*value}
-}
-
-func toNative36(value *RecurrenceRule) *records.RecurrenceRule {
-	if value == nil {
-		return nil
-	}
-	return &value.RecurrenceRule
-}
-
-func fromNative37(value []*records.RecurrenceRule) []*RecurrenceRule {
-	if value == nil {
-		return nil
-	}
-	result := make([]*RecurrenceRule, len(value))
-	for index, row := range value {
-		result[index] = fromNative36(row)
-	}
-	return result
-}
-
 func fromNative41(value *records.StudentArrivalNote) *StudentArrivalNote {
 	if value == nil {
 		return nil
