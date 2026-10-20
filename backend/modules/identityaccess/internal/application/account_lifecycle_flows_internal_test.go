@@ -145,7 +145,7 @@ func TestStartStaffPreviewRefusesTargetsWithoutATenantPortal(t *testing.T) {
 	}{
 		{name: "no school", tenantID: 0, target: previewTarget, want: identityaccess.ErrTenantNotFound},
 		{name: "self", tenantID: lifecycleTenant, target: previewAdmin, want: identityaccess.ErrPreviewSelf},
-		{name: "unknown account", tenantID: lifecycleTenant, target: 404, want: domain.ErrAccountNotFound},
+		{name: "unknown account", tenantID: lifecycleTenant, target: 404, want: identityaccess.ErrAccountNotFound},
 		{name: "inactive account", tenantID: lifecycleTenant, target: previewTarget, want: identityaccess.ErrAccountInactive, arrange: func(f *lifecycleFixture) {
 			account := f.store.accounts[previewTarget]
 			account.Active = false
@@ -174,7 +174,7 @@ func TestStartStaffPreviewRefusesTargetsWithoutATenantPortal(t *testing.T) {
 			}
 			_, err := f.lifecycle.StartStaffPreview(context.Background(), previewAdmin, tc.tenantID, tc.target, "", "", "")
 			require.ErrorIs(t, err, tc.want)
-			var operation *OperationError
+			var operation *identityaccess.AuthenticationError
 			require.ErrorAs(t, err, &operation)
 			assert.Equal(t, "start staff preview", operation.Op)
 			assert.Empty(t, f.audit.started, "a refused preview writes no start event")

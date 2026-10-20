@@ -50,7 +50,7 @@ func TestBulkInvite_ValidatesTheRequest(t *testing.T) {
 	} {
 		_, err := f.lifecycle.BulkInviteToStudents(tenantContext(), req)
 		require.Error(t, err, name)
-		var validation *domain.GuardianInvitationValidationError
+		var validation *identityaccess.GuardianInvitationValidationError
 		require.ErrorAs(t, err, &validation, name)
 	}
 }
