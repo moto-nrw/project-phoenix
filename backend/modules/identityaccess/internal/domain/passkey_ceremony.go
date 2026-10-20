@@ -20,12 +20,6 @@ var (
 	// ErrPasskeyOriginInvalid refuses a ceremony started from a host that is
 	// not the portal's own.
 	ErrPasskeyOriginInvalid = errors.New("passkey origin is invalid")
-	// ErrPasskeySessionInvalid refuses a ceremony whose stored state does
-	// not match the request completing it.
-	ErrPasskeySessionInvalid = errors.New("passkey session is invalid")
-	// ErrPasskeyNotFound reports a revocation that matched no active
-	// credential of that account or operator.
-	ErrPasskeyNotFound = errors.New("passkey not found")
 )
 
 const (

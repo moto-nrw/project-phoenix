@@ -372,7 +372,7 @@ func TestOperatorPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.
 	}{
 		{
 			name:      "no pending ceremony",
-			wantErr:   domain.ErrPasskeySessionInvalid,
+			wantErr:   identityaccess.ErrPasskeySessionInvalid,
 			committed: true,
 		},
 		{
@@ -385,7 +385,7 @@ func TestOperatorPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.
 			session: &domain.OperatorPasskeySession{
 				SessionJSON: json.RawMessage(`{}`), ExpectedOrigin: "http://operator.localhost:3000",
 			},
-			wantErr:   domain.ErrPasskeySessionInvalid,
+			wantErr:   identityaccess.ErrPasskeySessionInvalid,
 			committed: true,
 		},
 		{
@@ -394,7 +394,7 @@ func TestOperatorPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.
 				OperatorID: &otherOperatorID, SessionJSON: json.RawMessage(`{}`),
 				ExpectedOrigin: "http://operator.localhost:3000",
 			},
-			wantErr:   domain.ErrPasskeySessionInvalid,
+			wantErr:   identityaccess.ErrPasskeySessionInvalid,
 			committed: true,
 		},
 		{
@@ -430,7 +430,7 @@ func TestOperatorPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.
 				ExpectedOrigin: "http://operator.localhost:3000",
 			},
 			operators: []domain.Operator{operator},
-			wantErr:   domain.ErrPasskeySessionInvalid,
+			wantErr:   identityaccess.ErrPasskeySessionInvalid,
 			committed: true,
 		},
 	}
@@ -473,7 +473,7 @@ func TestOperatorPasskeyFinishLoginRejectsInvalidSessionState(t *testing.T) {
 	}{
 		{
 			name:      "no pending ceremony",
-			wantErr:   domain.ErrPasskeySessionInvalid,
+			wantErr:   identityaccess.ErrPasskeySessionInvalid,
 			committed: true,
 		},
 		{
@@ -493,7 +493,7 @@ func TestOperatorPasskeyFinishLoginRejectsInvalidSessionState(t *testing.T) {
 			session: &domain.OperatorPasskeySession{
 				SessionJSON: json.RawMessage(`{}`), ExpectedOrigin: "http://operator.localhost:3000",
 			},
-			wantErr:   domain.ErrPasskeySessionInvalid,
+			wantErr:   identityaccess.ErrPasskeySessionInvalid,
 			committed: true,
 		},
 	}
@@ -546,20 +546,20 @@ func TestOperatorPasskeyFinishLoginCredentialLookup(t *testing.T) {
 		{
 			name:      "unknown credential",
 			store:     &fakeOperatorPasskeyStore{},
-			wantErr:   domain.ErrInvalidCredentials,
+			wantErr:   identityaccess.ErrInvalidCredentials,
 			committed: true,
 		},
 		{
 			name:      "operator gone",
 			store:     &fakeOperatorPasskeyStore{rows: []domain.OperatorPasskeyCredential{registered}},
-			wantErr:   domain.ErrInvalidCredentials,
+			wantErr:   identityaccess.ErrInvalidCredentials,
 			committed: true,
 		},
 		{
 			name:      "signature does not verify",
 			store:     &fakeOperatorPasskeyStore{rows: []domain.OperatorPasskeyCredential{registered}},
 			operators: []domain.Operator{operator},
-			wantErr:   domain.ErrInvalidCredentials,
+			wantErr:   identityaccess.ErrInvalidCredentials,
 			committed: true,
 		},
 	}
@@ -639,12 +639,12 @@ func TestOperatorPasskeyCredentialErrors(t *testing.T) {
 
 	err = failing.RevokeCredential(context.Background(), operator.ID, 2)
 	require.ErrorIs(t, err, errPasskeyStore, "a store failure is not a missing passkey")
-	require.NotErrorIs(t, err, domain.ErrPasskeyNotFound)
+	require.NotErrorIs(t, err, identityaccess.ErrPasskeyNotFound)
 
 	_, err = failing.passkeyUser(context.Background(), operator)
 	require.ErrorIs(t, err, errPasskeyStore)
 
 	gone := newOperatorPasskeyFlows(t, &fakeOperatorPasskeyStore{alreadyGone: true}, []domain.Operator{operator}, nil, nil, nil)
 	err = gone.RevokeCredential(context.Background(), operator.ID, 2)
-	require.ErrorIs(t, err, domain.ErrPasskeyNotFound, "a passkey that is gone, revoked or foreign is not found")
+	require.ErrorIs(t, err, identityaccess.ErrPasskeyNotFound, "a passkey that is gone, revoked or foreign is not found")
 }

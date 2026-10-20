@@ -138,31 +138,3 @@ type OperatorPasskeyFlows interface {
 	ListOperatorPasskeyCredentials(ctx context.Context, operatorID int64) ([]PasskeyCredentialSummary, error)
 	RevokeOperatorPasskeyCredential(ctx context.Context, operatorID, credentialID int64) error
 }
-
-func (m *Module) StartAccountPasskeyEnrollment(ctx context.Context, accountID, tenantID int64, ip net.IP) (PasskeyEnrollmentChallenge, error) {
-	return m.engine.StartAccountPasskeyEnrollment(ctx, accountID, tenantID, ip)
-}
-
-func (m *Module) BeginAccountPasskeyRegistration(ctx context.Context, request AccountPasskeyRegistrationStart) (PasskeyCeremonyOptions, error) {
-	return m.engine.BeginAccountPasskeyRegistration(ctx, request)
-}
-
-func (m *Module) FinishAccountPasskeyRegistration(ctx context.Context, request AccountPasskeyRegistrationFinish) (PasskeyCredentialSummary, error) {
-	return m.engine.FinishAccountPasskeyRegistration(ctx, request)
-}
-
-func (m *Module) BeginAccountPasskeyLogin(ctx context.Context, request AccountPasskeyLoginStart) (PasskeyCeremonyOptions, error) {
-	return m.engine.BeginAccountPasskeyLogin(ctx, request)
-}
-
-func (m *Module) FinishAccountPasskeyLogin(ctx context.Context, request AccountPasskeyLoginFinish) (PasskeyLoginResult, error) {
-	return m.engine.FinishAccountPasskeyLogin(ctx, request)
-}
-
-func (m *Module) ListAccountPasskeyCredentials(ctx context.Context, accountID int64) ([]PasskeyCredentialSummary, error) {
-	return m.engine.ListAccountPasskeyCredentials(ctx, accountID)
-}
-
-func (m *Module) RevokeAccountPasskeyCredential(ctx context.Context, accountID, credentialID int64) error {
-	return m.engine.RevokeAccountPasskeyCredential(ctx, accountID, credentialID)
-}

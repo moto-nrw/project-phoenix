@@ -413,4 +413,29 @@ describe("POST employment action", () => {
       );
     },
   );
+  it("forwards all reset choices without losing false values", async () => {
+    await POST(
+      createMockRequest("/api/invitations", {
+        method: "POST",
+        body: {
+          email: "former@example.com",
+          roleId: "2",
+          employmentAction: "resume",
+          resetMasterData: true,
+          resetQualifications: false,
+          resetWorkTime: true,
+        },
+      }),
+      createMockContext(),
+    );
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/auth/invitations",
+      "test-token",
+      expect.objectContaining({
+        reset_master_data: true,
+        reset_qualifications: false,
+        reset_work_time: true,
+      }),
+    );
+  });
 });

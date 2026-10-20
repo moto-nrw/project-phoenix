@@ -46,7 +46,7 @@ import (
 func NewWorker(
 	db transactionruntime.Database, logger *slog.Logger, tracer *observability.Tracer, hub *realtime.Hub,
 	settings settingsCompose.BatchSettingsService, audit auditCommand, fleet devicefleet.Capability,
-	carePlan *carePlanModule.Module, persons peopledirectory.Capability, people PeopleRows,
+	carePlan carePlanModule.Owner, persons peopledirectory.Capability, people PeopleRows,
 	organizations organizationtenancy.Query, identity *identityaccess.Module, rooms facilitiesModule.Capability,
 	timetableRepos timetableCompose.Repositories, workTime workforceModule.Capability, staffAdmin *workforceModule.StaffAdmin,
 	workforce WorkforcePlanning, active studentpresence.Presence, reports PresenceReports, lifecycle TimetableLifecycle,

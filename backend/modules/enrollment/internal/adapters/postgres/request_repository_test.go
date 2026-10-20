@@ -19,7 +19,7 @@ import (
 // setupRequestRepoTest gives us a request repo + a real phase row to
 // reference. The (request_id → phase_id) FK requires a phase to exist
 // before a request can be inserted.
-func setupRequestRepoTest(t *testing.T) (*bun.DB, *capability.Module, int64, int64) {
+func setupRequestRepoTest(t *testing.T) (*bun.DB, capability.Owner, int64, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)

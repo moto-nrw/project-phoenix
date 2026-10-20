@@ -65,7 +65,7 @@ import (
 // staff deletions and every owner's retention step.
 func workerRetentionOf(
 	db transactionruntime.Database, logger *slog.Logger, settings settingsCompose.BatchSettingsService, audit auditCommand,
-	fleet devicefleet.Capability, carePlan *carePlanModule.Module, parentMessages communication.ParentMessageCleanup,
+	fleet devicefleet.Capability, carePlan carePlanModule.Owner, parentMessages communication.ParentMessageCleanup,
 	rejected enrollmentOwner.RejectedEnrollmentCleaner, studentDeletion *studentdeletion.Workflow, identity *identityaccess.Module,
 	announcements communication.ParentAnnouncementCapability,
 ) (workerRetention, error) {
@@ -223,7 +223,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		persons          *peopleCompose.Directory
 		timetableOwner   timetable.Owner
 		timetableRepos   TimetableRepositories
-		carePlan         *carePlanModule.Module
+		carePlan         carePlanModule.Owner
 		appointments     appointmentsModule.Capability
 		operatorAuditLog OperatorAuditEntries
 		mealPlanSettings *mealplanCompose.Settings
@@ -382,7 +382,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 			identity, caller, err = BuildIdentityAccess(db, unit, env, tokens, organizations, persons, membership, settings.Service,
 				audit, operatorAuditLog, mailSender, mailDispatcher, mailFrom, delivery.Runtime, mailIdentity, delivery.Enqueuer(), people, portalReads.ParentEnrollmentRequest,
 				structure.Groups, staffGroups, arrivalTimetable.NewCallerActivityGroups(timetableRepos.ActivityGroup),
-				presence.SessionRecords, presence.Presence)
+				presence.SessionRecords, presence.Presence, workTime, calendar)
 			return
 		},
 		func() (err error) {

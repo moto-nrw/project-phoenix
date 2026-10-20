@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 )
 
@@ -87,58 +86,4 @@ type AccountPasskeyCommand interface {
 type AccountPasskeyRecords interface {
 	AccountPasskeyQuery
 	AccountPasskeyCommand
-}
-
-func (m *Module) ListActiveAccountPasskeys(ctx context.Context, accountID int64) ([]AccountPasskeyCredential, error) {
-	credentials, err := m.engine.ListActiveAccountPasskeys(ctx, accountID)
-	if err != nil {
-		return nil, fmt.Errorf("identity access: list active account passkeys: %w", err)
-	}
-	return credentials, nil
-}
-
-func (m *Module) FindActiveAccountPasskey(ctx context.Context, credentialID, userHandle []byte) (AccountPasskeyCredential, error) {
-	credential, err := m.engine.FindActiveAccountPasskey(ctx, credentialID, userHandle)
-	if err != nil {
-		return AccountPasskeyCredential{}, fmt.Errorf("identity access: find active account passkey: %w", err)
-	}
-	return credential, nil
-}
-
-func (m *Module) CreateAccountPasskey(ctx context.Context, credential AccountPasskeyCredential) (AccountPasskeyCredential, error) {
-	stored, err := m.engine.CreateAccountPasskey(ctx, credential)
-	if err != nil {
-		return AccountPasskeyCredential{}, fmt.Errorf("identity access: create account passkey: %w", err)
-	}
-	return stored, nil
-}
-
-func (m *Module) RecordAccountPasskeyUse(ctx context.Context, id int64, credentialJSON json.RawMessage, usedAt time.Time) error {
-	if err := m.engine.RecordAccountPasskeyUse(ctx, id, credentialJSON, usedAt); err != nil {
-		return fmt.Errorf("identity access: record account passkey use: %w", err)
-	}
-	return nil
-}
-
-func (m *Module) RevokeAccountPasskey(ctx context.Context, accountID, id int64, revokedAt time.Time) error {
-	if err := m.engine.RevokeAccountPasskey(ctx, accountID, id, revokedAt); err != nil {
-		return fmt.Errorf("identity access: revoke account passkey: %w", err)
-	}
-	return nil
-}
-
-func (m *Module) CreateAccountPasskeySession(ctx context.Context, session AccountPasskeySession) (AccountPasskeySession, error) {
-	stored, err := m.engine.CreateAccountPasskeySession(ctx, session)
-	if err != nil {
-		return AccountPasskeySession{}, fmt.Errorf("identity access: create account passkey session: %w", err)
-	}
-	return stored, nil
-}
-
-func (m *Module) ConsumeAccountPasskeySession(ctx context.Context, id, purpose string, consumedAt time.Time) (AccountPasskeySession, error) {
-	session, err := m.engine.ConsumeAccountPasskeySession(ctx, id, purpose, consumedAt)
-	if err != nil {
-		return AccountPasskeySession{}, fmt.Errorf("identity access: consume account passkey session: %w", err)
-	}
-	return session, nil
 }

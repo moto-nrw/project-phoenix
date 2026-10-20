@@ -94,12 +94,13 @@ type authTestMail struct {
 }
 
 type authTestSettings struct {
-	rateLimitEnabled bool
-	resetBackoff     []time.Duration
-	mfaBackoff       []time.Duration
-	mfaCapability    identityaccess.AccountMFA
-	staffCreateErr   error
-	standingDemo     string
+	invitationResetClock func() time.Time
+	rateLimitEnabled     bool
+	resetBackoff         []time.Duration
+	mfaBackoff           []time.Duration
+	mfaCapability        identityaccess.AccountMFA
+	staffCreateErr       error
+	standingDemo         string
 	// demoMaxActiveSchools is the demo capacity; the default leaves room
 	// for every demo school the tests of a package queue.
 	demoMaxActiveSchools int
@@ -314,6 +315,17 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	if err != nil {
 		return AuthTestModule{}, err
 	}
+	invitationDependencies := owners.InvitationDependencies(&owners.InvitationWiring{
+		Dispatcher: dispatcher, DefaultFrom: defaultFrom, Durable: durable, StaffURL: frontendURL, SchoolURL: schoolURL,
+		MailIdentity: identity, Expiry: time.Duration(inviteHours) * time.Hour,
+		Backoff: settingsOverrides.resetBackoff, Settings: settings.Settings,
+		Outbox:       owners.OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox},
+		WelcomeDelay: identityaccess.StaffWelcomeDelay,
+	}, codec, logger)
+	invitationDependencies.EmploymentReset, err = authTestInvitationReset(db, members, operatorPersons, operatorMembership, audits, settings.Settings, settingsOverrides.invitationResetClock)
+	if err != nil {
+		return AuthTestModule{}, err
+	}
 	identityAccess, err = owners.NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{
 		DB: db.Pool(), Observe: func(identityaccessCompose.Observation) {},
 		MFA: mfa, Lifecycle: lifecycle, Operators: operators, Demo: demo, TenantRuntime: unit,
@@ -323,13 +335,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 			Expiry: time.Duration(resetMinutes) * time.Minute, RateLimitEnabled: settingsOverrides.rateLimitEnabled,
 			Backoff: settingsOverrides.resetBackoff,
 		}, logger),
-		Invitations: owners.InvitationDependencies(&owners.InvitationWiring{
-			Dispatcher: dispatcher, DefaultFrom: defaultFrom, Durable: durable, StaffURL: frontendURL, SchoolURL: schoolURL,
-			MailIdentity: identity, Expiry: time.Duration(inviteHours) * time.Hour,
-			Backoff: settingsOverrides.resetBackoff, Settings: settings.Settings,
-			Outbox:       owners.OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox},
-			WelcomeDelay: identityaccess.StaffWelcomeDelay,
-		}, codec, logger),
+		Invitations: invitationDependencies,
 	}, sessionRepos, codec, settings.Settings, command, logger)
 	if err != nil {
 		return AuthTestModule{}, err

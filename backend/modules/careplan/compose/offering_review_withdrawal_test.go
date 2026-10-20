@@ -22,7 +22,7 @@ type offeringWithdrawalFixture struct {
 	care, lunch                                      careplan.CareOffering
 }
 
-func newOfferingWithdrawalFixture(t *testing.T, db *bun.DB, module *careplan.Module) offeringWithdrawalFixture {
+func newOfferingWithdrawalFixture(t *testing.T, db *bun.DB, module careplan.Owner) offeringWithdrawalFixture {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
 	studentID, childID, _ := insertOfferingChangeFixture(t, db, ctx, testpkg.Tenant(t))
@@ -39,7 +39,7 @@ func newOfferingWithdrawalFixture(t *testing.T, db *bun.DB, module *careplan.Mod
 	return fixture
 }
 
-func (f offeringWithdrawalFixture) request(t *testing.T, module *careplan.Module, accountID int64, offeringIDs ...int64) careplan.OfferingChangeRequest {
+func (f offeringWithdrawalFixture) request(t *testing.T, module careplan.Owner, accountID int64, offeringIDs ...int64) careplan.OfferingChangeRequest {
 	t.Helper()
 	offerings := make([]map[string]any, 0, len(offeringIDs))
 	for _, id := range offeringIDs {

@@ -35,25 +35,23 @@ type Dependencies struct {
 	StudentDirectory StudentDirectory
 }
 
-func New(dependencies Dependencies) (*careplan.Module, error) {
+func New(dependencies Dependencies) (careplan.Owner, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil || dependencies.AmbientDB == nil || dependencies.StatusStudents == nil || dependencies.StatusSlots == nil ||
 		dependencies.People == nil || dependencies.StudentLock == nil || dependencies.StudentNotFound == nil || dependencies.StudentDirectory == nil {
 		return nil, errors.New("care plan compose: database, observer, ambient database resolver, people directory, status-student directory, status-slot directory, student lock, and student directory are required")
 	}
 	postgres.BindCareLocks(dependencies.DB, dependencies.StudentLock, dependencies.StudentNotFound, dependencies.AmbientDB)
 	store := postgres.New(postgres.CarePlanDatabase(dependencies.DB))
-	queries := application.NewExceptionQueryService(store, dependencies.Observe)
-	statusDays := postgres.NewStatusDayStore(store, dependencies.StatusStudents, dependencies.StatusSlots)
-	module := careplan.NewModule(application.NewEngine(application.EngineDependencies{
+	return application.NewService(application.Dependencies{
 		OfferingBookings: NewOfferingBookings(),
-		Exceptions:       queries, Requests: postgres.NewRequestStore(store, dependencies.StudentDirectory), StatusDays: statusDays,
+		Store:            store, Requests: postgres.NewRequestStore(store, dependencies.StudentDirectory),
+		StatusDays:  postgres.NewStatusDayStore(store, dependencies.StatusStudents, dependencies.StatusSlots),
 		Withdrawals: postgres.NewDirectoryStore(store, dependencies.StudentDirectory), Observe: dependencies.Observe, People: dependencies.People,
 		Runtime: engineRuntime{db: dependencies.DB},
-	}))
-	return module, nil
+	}), nil
 }
 
-// engineRuntime binds the engine's tenant commands and locks to the tenant
+// engineRuntime binds the service's tenant commands and locks to the tenant
 // runtime and the database.
 type engineRuntime struct{ db *bun.DB }
 

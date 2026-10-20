@@ -9,12 +9,13 @@ import (
 
 // New binds Enrollment to the ambient transaction. It never falls back to an
 // unscoped pool when a caller forgets to establish its transaction.
-func New() *enrollment.Module {
-	return newWithOfferingStorageObserver(applicationNative.ObserveOfferingStorage())
+func New() enrollment.Owner {
+	return NewWithStore(newStore(), applicationNative.ObserveOfferingStorage())
 }
 
-func newWithOfferingStorageObserver(observe func(enrollment.OfferingStorageObservation)) *enrollment.Module {
-	return enrollment.NewModule(newStore(), tenant.NewTransactionRunner(), observe)
+// NewWithStore binds owner commands to a supplied store and the tenant runtime.
+func NewWithStore(store applicationNative.Store, observe func(enrollment.OfferingStorageObservation)) enrollment.Owner {
+	return applicationNative.NewService(store, tenant.NewTransactionRunner(), observe)
 }
 
 func newStore() *postgres.Store {

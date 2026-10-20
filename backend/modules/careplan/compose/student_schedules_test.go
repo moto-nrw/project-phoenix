@@ -57,7 +57,7 @@ func TestStudentScheduleCareExitIsAtomicAndRetryable(t *testing.T) {
 	assertStudentScheduleCounts(t, module, ctx, student.ID, 1)
 }
 
-func assertStudentScheduleCounts(t *testing.T, module *careplan.Module, ctx context.Context, studentID int64, want int) {
+func assertStudentScheduleCounts(t *testing.T, module careplan.Owner, ctx context.Context, studentID int64, want int) {
 	t.Helper()
 	filter := careplan.StudentScheduleFilter{StudentIDs: []int64{studentID}}
 	arrivals, err := module.ListArrivalSchedules(ctx, filter)

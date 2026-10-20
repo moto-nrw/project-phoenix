@@ -57,7 +57,7 @@ func (d offeringReviewDirectory) SearchStudentIDs(ctx context.Context, search st
 	return result, nil
 }
 
-type offeringReviewEnrollmentRows struct{ query *enrollment.Module }
+type offeringReviewEnrollmentRows struct{ query enrollment.Owner }
 type offeringReviewSelectionRows struct {
 	bookings careplan.OfferingBookingQueries
 }
@@ -158,7 +158,7 @@ func (c offeringReviewCourses) CourseGroups(ctx context.Context, refs []careplan
 func NewOfferingReviewDirectory(people OfferingReviewPeople) careplan.OfferingReviewDirectory {
 	return offeringReviewDirectory{reviewDirectory: reviewDirectory{people: people}, search: people}
 }
-func NewOfferingReviewEnrollment(query *enrollment.Module, bookings careplan.OfferingBookingQueries) careplan.OfferingReviewEnrollment {
+func NewOfferingReviewEnrollment(query enrollment.Owner, bookings careplan.OfferingBookingQueries) careplan.OfferingReviewEnrollment {
 	return offeringReviewEnrollment{offeringReviewChildReads: offeringReviewEnrollmentRows{query: query}, offeringReviewSelectionReads: offeringReviewSelectionRows{bookings: bookings}}
 }
 func NewOfferingReviewCourses(query timetable.CourseGroupQuery) careplan.OfferingReviewCourses {

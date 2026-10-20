@@ -163,7 +163,7 @@ func (r *RoleAdministration) DeleteRole(ctx context.Context, id int64) error {
 // AssignRoleToAccount assigns a role to an account at the tenant in context
 // and completes the school identity the role owes.
 func (r *RoleAdministration) AssignRoleToAccount(ctx context.Context, accountID, roleID int64) error {
-	var revoked []domain.AccountSession
+	var revoked []identityaccess.AccountSession
 	err := r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		// Serialize assignments with tenant-access revocation, which holds the
 		// same account lock while removing the tenant's roles and mapping.
@@ -293,7 +293,7 @@ func (r *RoleAdministration) accountHoldsLehrkraftRole(ctx context.Context, acco
 // RemoveRoleFromAccount removes a role from an account; removing a role the
 // account does not hold is a no-op.
 func (r *RoleAdministration) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int64) error {
-	var revoked []domain.AccountSession
+	var revoked []identityaccess.AccountSession
 	err := r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		if err := r.lockManageableAccount(txCtx, accountID, "remove role"); err != nil {
 			return err
@@ -543,7 +543,7 @@ func (r *RoleAdministration) requireCaregiverAssignmentProfile(txCtx context.Con
 	return nil
 }
 
-func (r *RoleAdministration) assignMissingAccountRole(txCtx context.Context, accountID, roleID int64) (revoked []domain.AccountSession, err error) {
+func (r *RoleAdministration) assignMissingAccountRole(txCtx context.Context, accountID, roleID int64) (revoked []identityaccess.AccountSession, err error) {
 	assigned, err := r.store.AccountHoldsRole(txCtx, accountID, roleID)
 	if err != nil {
 		return revoked, failed("check role assignment", err)

@@ -1,9 +1,6 @@
 package enrollment
 
 import (
-	"context"
-	"fmt"
-	"strings"
 	"time"
 )
 
@@ -31,14 +28,4 @@ type AccountRequestChild struct {
 	Status           string
 	StatusReason     *string
 	CreatedStudentID *int64
-}
-
-// AccountRequests reads linked requests and pre-account submissions matching the
-// account's identity email, supplied by the trusted parent workflow.
-// Cross-school callers must supply their authorized admin transaction.
-func (m *Module) AccountRequests(ctx context.Context, accountID int64, accountEmail string) ([]AccountRequest, error) {
-	if accountID <= 0 {
-		return nil, fmt.Errorf("parent: account_id must be positive")
-	}
-	return m.engine.AccountRequests(ctx, accountID, strings.ToLower(strings.TrimSpace(accountEmail)))
 }

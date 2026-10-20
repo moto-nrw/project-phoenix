@@ -336,7 +336,7 @@ func TestLoginWithMFAGate_PolicyInfraError_ReturnsMFAStatusUnavailable(t *testin
 		},
 	})
 
-	result, err := f.auth.LoginWithMFAGate(context.Background(), "user1@example.com", "secret", "127.0.0.1", "ua-test", "", "")
+	result, err := f.auth.loginWithMFAGate(context.Background(), "user1@example.com", "secret", "127.0.0.1", "ua-test", "", "")
 	assert.Nil(t, result, "the infra-error path must not issue tokens")
 	require.Error(t, err)
 
@@ -359,7 +359,7 @@ func TestLoginWithMFAGate_EnrollmentInfraError_ReturnsMFAStatusUnavailable(t *te
 		},
 	})
 
-	result, err := f.auth.LoginWithMFAGate(context.Background(), "user1@example.com", "secret", "127.0.0.1", "ua-test", "", "")
+	result, err := f.auth.loginWithMFAGate(context.Background(), "user1@example.com", "secret", "127.0.0.1", "ua-test", "", "")
 	assert.Nil(t, result, "the infra-error path must not issue tokens")
 	require.Error(t, err)
 

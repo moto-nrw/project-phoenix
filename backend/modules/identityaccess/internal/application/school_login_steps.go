@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -20,7 +21,7 @@ func (s *AccountAuthentication) schoolLoginTenant(ctx context.Context, account d
 		hasPortalRole = domain.HasSchoolPortalRole(metadata.Roles)
 		if !hasPortalRole {
 			s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "No school portal role at requested school")
-			return 0, failed("school login", domain.ErrAccountNoSchoolPortalRole)
+			return 0, failed("school login", identityaccess.ErrAccountNoSchoolPortalRole)
 		}
 	} else {
 		var resolvedTenantID int64
@@ -35,7 +36,7 @@ func (s *AccountAuthentication) schoolLoginTenant(ctx context.Context, account d
 	}
 	if !hasPortalRole || portalTenantID == 0 {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "No school portal role at any school")
-		return 0, failed("school login", domain.ErrAccountNoSchoolPortalRole)
+		return 0, failed("school login", identityaccess.ErrAccountNoSchoolPortalRole)
 	}
 
 	return portalTenantID, nil
@@ -49,7 +50,7 @@ func (s *AccountAuthentication) schoolLoginMFAVerdict(ctx context.Context, accou
 	if s.mfa.Configured() {
 		policy, policyErr := s.mfa.ResolvePolicy(ctx, accountID, portalTenantID)
 		if policyErr != nil {
-			return false, false, failed("check mfa required", domain.ErrMFAStatusUnavailable)
+			return false, false, failed("check mfa required", identityaccess.ErrMFAStatusUnavailable)
 		}
 		mfaRequired = policy.RequiredFor(roleNames)
 	}
@@ -57,7 +58,7 @@ func (s *AccountAuthentication) schoolLoginMFAVerdict(ctx context.Context, accou
 	if s.mfa.Configured() {
 		enrolled, err = s.mfa.HasEnrollment(ctx, accountID)
 		if err != nil {
-			return false, false, failed("check mfa enrollment", domain.ErrMFAStatusUnavailable)
+			return false, false, failed("check mfa enrollment", identityaccess.ErrMFAStatusUnavailable)
 		}
 	}
 	return mfaRequired, enrolled, nil
@@ -107,7 +108,7 @@ func (s *AccountAuthentication) requireSchoolMintMFAPolicy(ctx context.Context, 
 				slog.Int64("account_id", accountID),
 				slog.Int64("tenant_id", tenantID),
 				slog.String("error", policyErr.Error()))
-			return domain.ErrMFAStatusUnavailable
+			return identityaccess.ErrMFAStatusUnavailable
 		}
 		if policy.RequiredFor(payload.RoleNames) {
 			s.logger.Info("mfa requirement appeared during school login; refusing to mint",

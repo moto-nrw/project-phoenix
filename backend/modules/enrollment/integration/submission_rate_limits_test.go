@@ -24,7 +24,7 @@ func uniqueKeyValue(prefix string) string {
 	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
 }
 
-func setupRateLimitTest(t *testing.T) (*bun.DB, *enrollmentCapability.Module, int64) {
+func setupRateLimitTest(t *testing.T) (*bun.DB, enrollmentCapability.Owner, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
@@ -461,7 +461,7 @@ func TestSubmissionRateLimitRepository_CleanupExpired_ZeroAffectedIsNoError(t *t
 // tests by wrapping the runUnscoped + IncrementAttempts dance.
 func repoIncrement(
 	t *testing.T, db *bun.DB,
-	repo *enrollmentCapability.Module,
+	repo enrollmentCapability.Owner,
 	tenantID int64, keyType, keyValue string, window time.Duration,
 ) (*enrollmentCapability.SubmissionRateLimitState, error) {
 	t.Helper()

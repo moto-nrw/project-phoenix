@@ -172,7 +172,7 @@ func TestCareScheduleDuplicateConflictIsObserved(t *testing.T) {
 	assert.Error(t, observations[1].Err)
 }
 
-func seedNamedCarePlanTables(t *testing.T, module *careplan.Module, ctx context.Context, studentID, companionID, staffID, accountID int64) {
+func seedNamedCarePlanTables(t *testing.T, module careplan.Owner, ctx context.Context, studentID, companionID, staffID, accountID int64) {
 	t.Helper()
 	enrollmentID := studentID + 1_000_000
 	require.NoError(t, module.UpsertCareExit(ctx, careplan.CareExit{StudentID: studentID, Reason: careplan.CareExitReasonMovedAway}))
@@ -355,7 +355,7 @@ func TestCareRecordCommandsRollBackAndRetry(t *testing.T) {
 	t.Run("care document and cleanup intent", func(t *testing.T) { testCareDocumentRollbackAndRetry(t, db, module, ctx) })
 }
 
-func testCareExitRollbackAndRetry(t *testing.T, db *bun.DB, module *careplan.Module, ctx context.Context) {
+func testCareExitRollbackAndRetry(t *testing.T, db *bun.DB, module careplan.Owner, ctx context.Context) {
 	student := testpkg.CreateTestStudent(t, db, "Exit", "Rollback", "1a")
 	assertRollbackAndRetry(t, ctx,
 		func(commandCtx context.Context) error {
@@ -369,7 +369,7 @@ func testCareExitRollbackAndRetry(t *testing.T, db *bun.DB, module *careplan.Mod
 	)
 }
 
-func testCompanionRollbackAndRetry(t *testing.T, db *bun.DB, module *careplan.Module, ctx context.Context) {
+func testCompanionRollbackAndRetry(t *testing.T, db *bun.DB, module careplan.Owner, ctx context.Context) {
 	first := testpkg.CreateTestStudent(t, db, "Companion", "Rollback", "1a")
 	second := testpkg.CreateTestStudent(t, db, "Companion", "Retry", "1a")
 	assertRollbackAndRetry(t, ctx,
@@ -386,7 +386,7 @@ func testCompanionRollbackAndRetry(t *testing.T, db *bun.DB, module *careplan.Mo
 	)
 }
 
-func testRemovalLedgersRollbackAndRetry(t *testing.T, db *bun.DB, module *careplan.Module, ctx context.Context) {
+func testRemovalLedgersRollbackAndRetry(t *testing.T, db *bun.DB, module careplan.Owner, ctx context.Context) {
 	student := testpkg.CreateTestStudent(t, db, "Ledger", "Rollback", "1a")
 	enrollmentID := student.ID + 1_000_000
 	assertRollbackAndRetry(t, ctx,
@@ -405,7 +405,7 @@ func testRemovalLedgersRollbackAndRetry(t *testing.T, db *bun.DB, module *carepl
 	)
 }
 
-func removalLedgersPresent(t *testing.T, module *careplan.Module, ctx context.Context, studentID int64) bool {
+func removalLedgersPresent(t *testing.T, module careplan.Owner, ctx context.Context, studentID int64) bool {
 	removals, err := module.ListCareExitRemovals(ctx, []int64{studentID})
 	require.NoError(t, err)
 	sources, err := module.ListCareExitSourceRemovals(ctx, []int64{studentID})
@@ -413,7 +413,7 @@ func removalLedgersPresent(t *testing.T, module *careplan.Module, ctx context.Co
 	return len(removals) == 1 && len(sources) == 1
 }
 
-func testCareDocumentRollbackAndRetry(t *testing.T, db *bun.DB, module *careplan.Module, ctx context.Context) {
+func testCareDocumentRollbackAndRetry(t *testing.T, db *bun.DB, module careplan.Owner, ctx context.Context) {
 	student := testpkg.CreateTestStudent(t, db, "Document", "Rollback", "1a")
 	filename := fmt.Sprintf("care-record-rollback-%d.pdf", student.ID)
 	assertRollbackAndRetry(t, ctx,
@@ -435,7 +435,7 @@ func testCareDocumentRollbackAndRetry(t *testing.T, db *bun.DB, module *careplan
 	)
 }
 
-func careDocumentRecordsPresent(t *testing.T, module *careplan.Module, ctx context.Context, studentID int64) bool {
+func careDocumentRecordsPresent(t *testing.T, module careplan.Owner, ctx context.Context, studentID int64) bool {
 	values, err := module.ListCareDocuments(ctx, studentID, []string{"attest"})
 	require.NoError(t, err)
 	cleanups, err := module.ListCareDocumentCleanups(ctx, &studentID)

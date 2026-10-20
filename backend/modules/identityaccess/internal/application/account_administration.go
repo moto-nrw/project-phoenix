@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
@@ -244,11 +245,11 @@ func (a *AccountAdministration) changeAccountPassword(ctx context.Context, accou
 		return failed(opGetAccount, domain.ErrAccountNotFound)
 	}
 	if account.PasswordHash == "" {
-		return failed(opVerifyPassword, domain.ErrInvalidCredentials)
+		return failed(opVerifyPassword, identityaccess.ErrInvalidCredentials)
 	}
 	valid, verifyErr := a.verifier.VerifyPassword(currentPassword, account.PasswordHash)
 	if verifyErr != nil || !valid {
-		return failed(opVerifyPassword, domain.ErrInvalidCredentials)
+		return failed(opVerifyPassword, identityaccess.ErrInvalidCredentials)
 	}
 	if strengthErr := a.passwords.ValidatePasswordStrength(newPassword); strengthErr != nil {
 		return failed(opValidatePassword, strengthErr)
