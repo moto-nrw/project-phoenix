@@ -262,7 +262,7 @@ func (s *TemplateSplitService) createSuccessorSchedules(
 			ValidUntil:       activityDatePtr(segmentValidUntil),
 		}
 		sched.SetTenantID(tenantID)
-		if err := s.deps.ScheduleRepo.Create(ctx, sched); err != nil {
+		if err := createLegacySchedule(ctx, s.deps.ScheduleRepo, sched); err != nil {
 			return nil, &ports.ScheduleError{Op: "split template: create successor schedule", Err: err}
 		}
 		scheduleIDs = append(scheduleIDs, sched.ID)

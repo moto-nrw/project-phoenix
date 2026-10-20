@@ -3,28 +3,63 @@
 package application
 
 import (
+	"context"
+	"errors"
+	"fmt"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	models "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
+// nativeFixtureException writes fixture exceptions through the owner's
+// exception capability.
 type nativeFixtureException struct {
-	fixtureRecord[timetable.ActivityException, models.ActivityException]
+	exceptions timetable.ActivityExceptionCapability
 }
 
-func NativeExceptionRecords(rows ports.ActivityExceptionRecords) ports.NativeExceptionRecords {
-	return nativeFixtureException{fixtureRecord: fixtureRecord[timetable.ActivityException, models.ActivityException]{rows: rows, find: fixtureFind(rows.FindByID), encode: encodeFixtureException, decode: decodeFixtureException}}
+func NativeExceptionRecords(exceptions timetable.ActivityExceptionCapability) ports.NativeExceptionRecords {
+	return nativeFixtureException{exceptions: exceptions}
 }
-func encodeFixtureException(value *timetable.ActivityException) (*models.ActivityException, error) {
+
+func (r nativeFixtureException) Create(ctx context.Context, value *timetable.ActivityException) error {
 	if value == nil {
-		return nil, nil
+		return errors.New("activity exception cannot be nil or zero value")
 	}
-	return legacyActivityException(*value)
+	created, err := r.exceptions.CreateActivityException(ctx, fixtureExceptionInput(*value))
+	if err != nil {
+		return WrapDatabaseError("create", err)
+	}
+	*value = created
+	return nil
 }
-func decodeFixtureException(value *models.ActivityException) *timetable.ActivityException {
+
+func (r nativeFixtureException) Update(ctx context.Context, value *timetable.ActivityException) error {
 	if value == nil {
-		return nil
+		return errors.New("activity exception cannot be nil or zero value")
 	}
-	input := publicActivityExceptionInput(value)
-	return &timetable.ActivityException{ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt, ActivityGroupID: input.ActivityGroupID, ExceptionDate: input.ExceptionDate, ExceptionType: input.ExceptionType, StartTime: input.StartTime, EndTime: input.EndTime, RoomID: input.RoomID, Reason: input.Reason, CreatedBy: input.CreatedBy}
+	updated, err := r.exceptions.UpdateActivityException(ctx, value.ID, fixtureExceptionInput(*value))
+	if err != nil {
+		return legacyActivityExceptionError("update", err)
+	}
+	*value = updated
+	return nil
+}
+
+func (r nativeFixtureException) FindByID(ctx context.Context, id any) (*timetable.ActivityException, error) {
+	exceptionID, ok := LegacyGroupID(id)
+	if !ok {
+		return nil, WrapDatabaseError("find by id", fmt.Errorf("invalid activity exception id %T", id))
+	}
+	value, err := r.exceptions.FindActivityException(ctx, exceptionID)
+	if err != nil {
+		return nil, legacyActivityExceptionError("find by id", err)
+	}
+	return &value, nil
+}
+
+func fixtureExceptionInput(value timetable.ActivityException) timetable.ActivityExceptionInput {
+	return timetable.ActivityExceptionInput{
+		ActivityGroupID: value.ActivityGroupID, ExceptionDate: value.ExceptionDate, ExceptionType: value.ExceptionType,
+		StartTime: value.StartTime, EndTime: value.EndTime, RoomID: value.RoomID, Reason: value.Reason, CreatedBy: value.CreatedBy,
+	}
 }

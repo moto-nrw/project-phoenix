@@ -64,18 +64,16 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 
 	period.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, fixtures.FromCalendarPeriodRecords(repos.CalendarPeriod).Create(localCtx, period))
-	validFrom := activityContract.Date(friday)
-	localSchedule := &activityContract.Schedule{
+	validFrom := calendar.Date(friday).String()
+	_, err = repos.ActivitySchedule.CreateSchedule(localCtx, timetable.ScheduleInput{
 		Weekday: activityContract.WeekdayMonday, ActivityGroupID: localGroup.ID,
 		CalendarPeriodID: &period.ID, ValidFrom: &validFrom,
-	}
-	localSchedule.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.ActivitySchedule.Create(localCtx, localSchedule))
-	foreignSchedule := &activityContract.Schedule{
+	})
+	require.NoError(t, err)
+	_, err = repos.ActivitySchedule.CreateSchedule(foreignCtx, timetable.ScheduleInput{
 		Weekday: activityContract.WeekdayMonday, ActivityGroupID: foreignGroup.ID,
-	}
-	foreignSchedule.SetTenantID(foreignTenantID)
-	require.NoError(t, repos.ActivitySchedule.Create(foreignCtx, foreignSchedule))
+	})
+	require.NoError(t, err)
 
 	for _, date := range []calendar.Date{monday, nextMonday} {
 		groupID := localGroup.ID
@@ -115,14 +113,10 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 		shift.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, shiftRows.Create(localCtx, shift))
 	}
-	localException := fixtures.NewActivityException(func(fixtureRow *fixtures.ActivityException) {
-		fixtureRow.ActivityGroupID = localGroup.ID
-		fixtureRow.ExceptionDate = calendar.Date(friday)
-		fixtureRow.ExceptionType = fixtures.ActivityExceptionCancelled()
+	_, err = repos.ActivityException.CreateActivityException(localCtx, timetable.ActivityExceptionInput{
+		ActivityGroupID: localGroup.ID, ExceptionDate: calendar.Date(friday).String(), ExceptionType: timetable.ActivityExceptionCancelled,
 	})
-
-	localException.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, fixtures.FromActivityExceptionRecords(repos.ActivityException).Create(localCtx, localException))
+	require.NoError(t, err)
 
 	foreignGroupID := foreignGroup.ID
 	foreignInstance := fixtures.NewActivityInstance(func(fixtureRow *fixtures.ActivityInstance) {
@@ -144,22 +138,21 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	})
 	foreignAssignment.SetTenantID(foreignTenantID)
 	require.NoError(t, fixtures.FromInstanceStaffRecords(repos.InstanceStaff).Create(foreignCtx, foreignAssignment))
-	foreignException := fixtures.NewActivityException(func(fixtureRow *fixtures.ActivityException) {
-		fixtureRow.ActivityGroupID = foreignGroup.ID
-		fixtureRow.ExceptionDate = calendar.Date(wednesday)
-		fixtureRow.ExceptionType = fixtures.ActivityExceptionCancelled()
+	_, err = repos.ActivityException.CreateActivityException(foreignCtx, timetable.ActivityExceptionInput{
+		ActivityGroupID: foreignGroup.ID, ExceptionDate: calendar.Date(wednesday).String(), ExceptionType: timetable.ActivityExceptionCancelled,
 	})
-
-	foreignException.SetTenantID(foreignTenantID)
-	require.NoError(t, fixtures.FromActivityExceptionRecords(repos.ActivityException).Create(foreignCtx, foreignException))
+	require.NoError(t, err)
 
 	foreignInstances, err := fixtures.FromActivityInstanceRecords(repos.ActivityInstance).FindByActivityGroupAndDateRange(localCtx, foreignGroup.ID, calendar.Date(monday), calendar.Date(nextWednesday))
 	require.NoError(t, err)
 	assert.Empty(t, foreignInstances, "superuser test connection must still honor tenant filtering")
-	foreignExceptions, err := fixtures.FromActivityExceptionRecords(repos.ActivityException).FindByActivityGroupAndDateRange(localCtx, foreignGroup.ID, calendar.Date(monday), calendar.Date(nextWednesday))
+	foreignFrom, foreignTo := calendar.Date(monday).String(), calendar.Date(nextWednesday).String()
+	foreignExceptions, err := repos.ActivityException.ListActivityExceptions(localCtx, timetable.ActivityExceptionFilter{
+		ActivityGroupID: &foreignGroup.ID, FromDate: &foreignFrom, ToDate: &foreignTo,
+	})
 	require.NoError(t, err)
 	assert.Empty(t, foreignExceptions, "foreign exceptions must not cross the tenant boundary")
-	foreignSchedules, err := repos.ActivitySchedule.FindByGroupID(localCtx, foreignGroup.ID)
+	foreignSchedules, err := repos.ActivitySchedule.ListSchedules(localCtx, timetable.ScheduleFilter{GroupIDs: []int64{foreignGroup.ID}})
 	require.NoError(t, err)
 	assert.Empty(t, foreignSchedules, "foreign recurrence bounds must not cross the tenant boundary")
 

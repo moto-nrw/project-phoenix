@@ -407,7 +407,7 @@ func (s *TemplateService) createTemplateSchedules(
 			ValidFrom:        activityDatePtr(in.ScheduleValidFrom),
 		}
 		sched.SetTenantID(tenantID)
-		if err := s.deps.ActivityScheduleRepo.Create(ctx, sched); err != nil {
+		if err := createLegacySchedule(ctx, s.deps.ActivityScheduleRepo, sched); err != nil {
 			return nil, &ports.ScheduleError{Op: "create template: create schedule", Err: err}
 		}
 		scheduleIDs = append(scheduleIDs, sched.ID)

@@ -74,13 +74,13 @@ func (d *timetableData) ensureSpontaneousActivityCategory(ctx context.Context) (
 	if err := d.acquireSpontaneousLock(ctx, fmt.Sprintf("timetable:spontaneous-activity-category:%d", tenant.FromContext(ctx))); err != nil {
 		return nil, err
 	}
-	if existing, err := d.deps.Categories.FindByNameIncludingArchivedForShare(ctx, spontaneousCategoryName); err == nil && existing != nil {
+	if existing, err := d.deps.Categories.FindCategoryByNameForAssignment(ctx, spontaneousCategoryName); err == nil {
 		if existing.IsArchived() {
 			return nil, timetable.ErrSpontaneousCategoryArchived
 		}
-		return existing, nil
-	} else if err != nil && !domain.IsRecordNotFound(err) {
-		return nil, err
+		return legacyCategory(existing), nil
+	} else if !errors.Is(err, timetable.ErrCategoryNotFound) && !errors.Is(err, timetable.ErrInvalidCategory) {
+		return nil, legacyDatabaseError("find by name", err)
 	}
 	category := &activityContract.Category{
 		Name:        spontaneousCategoryName,
@@ -88,7 +88,7 @@ func (d *timetableData) ensureSpontaneousActivityCategory(ctx context.Context) (
 		Color:       "#83CD2D",
 	}
 	category.SetTenantID(tenant.FromContext(ctx))
-	if err := d.deps.Categories.Create(ctx, category); err != nil {
+	if err := createLegacyCategory(ctx, d.deps.Categories, category); err != nil {
 		return nil, err
 	}
 	return category, nil

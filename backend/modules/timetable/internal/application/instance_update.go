@@ -333,7 +333,7 @@ func (s *InstanceLifecycleService) consumeMovedSlot(ctx context.Context, orig ca
 	if orig.Date == req.Date && orig.StartHHMMSS == FormatTimeOfDay(req.StartTime) {
 		return nil // slot key unchanged — nothing vacated
 	}
-	existing, err := s.deps.ExceptionRepo.FindByActivityGroupAndDate(ctx, *orig.ActivityGroupID, calendar.Date(orig.Date))
+	existing, err := s.slotException(ctx, *orig.ActivityGroupID, calendar.Date(orig.Date))
 	if err != nil {
 		return &ports.ScheduleError{Op: "update instance: check slot exception", Err: err}
 	}
@@ -352,8 +352,7 @@ func (s *InstanceLifecycleService) consumeMovedSlot(ctx context.Context, orig ca
 		ExceptionType:   scheduleModel.ActivityExceptionCancelled,
 		Reason:          &reason,
 	}
-	exc.SetTenantID(tenant.FromContext(ctx))
-	if err := s.deps.ExceptionRepo.Create(ctx, exc); err != nil {
+	if err := s.createSlotException(ctx, exc); err != nil {
 		return &ports.ScheduleError{Op: "update instance: consume moved slot", Err: err}
 	}
 	s.getLogger().Info("moved instance: original slot consumed via cancelled exception",

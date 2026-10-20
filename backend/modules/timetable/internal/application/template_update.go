@@ -244,7 +244,7 @@ func (s *TemplateService) loadTemplateUpdateState(
 	if err != nil {
 		return templateUpdateState{}, err
 	}
-	previousSchedules, err := s.deps.ActivityScheduleRepo.FindByGroupID(ctx, in.TemplateID)
+	previousSchedules, err := groupSchedules(ctx, s.deps.ActivityScheduleRepo, in.TemplateID)
 	if err != nil {
 		return templateUpdateState{}, &ports.ScheduleError{Op: "update template: load previous schedules", Err: err}
 	}
@@ -598,7 +598,7 @@ func (s *TemplateService) loadEditableTemplateEnvelope(
 	ctx context.Context,
 	templateID int64,
 ) (*calendar.Date, *calendar.Date, error) {
-	existing, err := s.deps.ActivityScheduleRepo.FindByGroupID(ctx, templateID)
+	existing, err := groupSchedules(ctx, s.deps.ActivityScheduleRepo, templateID)
 	if err != nil {
 		return nil, nil, &ports.ScheduleError{Op: "update template: load schedules", Err: err}
 	}
@@ -661,7 +661,7 @@ func (s *TemplateService) replaceTemplateSchedules(
 	tenantID int64,
 	validFrom, validUntil *calendar.Date,
 ) error {
-	if err := s.deps.ActivityScheduleRepo.DeleteByGroupID(ctx, in.TemplateID); err != nil {
+	if err := deleteLegacyGroupSchedules(ctx, s.deps.ActivityScheduleRepo, in.TemplateID); err != nil {
 		return &ports.ScheduleError{Op: "update template: delete schedules", Err: err}
 	}
 	for _, weekday := range in.Weekdays {
@@ -676,7 +676,7 @@ func (s *TemplateService) replaceTemplateSchedules(
 			ValidUntil:       activityDatePtr(validUntil),
 		}
 		schedule.SetTenantID(tenantID)
-		if err := s.deps.ActivityScheduleRepo.Create(ctx, schedule); err != nil {
+		if err := createLegacySchedule(ctx, s.deps.ActivityScheduleRepo, schedule); err != nil {
 			return &ports.ScheduleError{Op: "update template: create schedule", Err: err}
 		}
 	}

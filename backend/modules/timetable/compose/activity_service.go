@@ -11,7 +11,7 @@ import (
 func NewService(
 	capability timetable.Capability,
 	groups ports.ActivityGroupRecords,
-	schedules ports.ActivityScheduleRecords,
+	schedules timetable.ScheduleCapability,
 	supervisors ports.PlannedSupervisorRecords,
 	enrollments ports.ActivityEnrollmentRecords,
 	occupancy application.ActivityOccupancy,

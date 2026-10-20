@@ -54,7 +54,7 @@ const materializeForTenantOp = "materialize for tenant"
 // materializationService is the concrete implementation.
 type materializationService struct {
 	groupRepo      ports.ActivityGroupRecords
-	scheduleRepo   ports.ActivityScheduleRecords
+	scheduleRepo   timetable.ScheduleQuery
 	enrollmentRepo ports.ActivityEnrollmentRecords
 	supervisorRepo ports.PlannedSupervisorRecords
 	periodRepo     ports.CalendarPeriodRecords
@@ -63,8 +63,8 @@ type materializationService struct {
 	studentRepo    ports.InstanceStudentRecords
 	careBounds     ports.CareBoundReader
 	nonWorkingDays timetable.NonWorkingDayCalendar // nil skips no holidays or closing days (#3594)
-	exceptionRepo  ports.ActivityExceptionRecords
-	timeframeRepo  ports.TimeframeRecords
+	exceptionRepo  timetable.ActivityExceptionQuery
+	timeframeRepo  timetable.TimeframeQuery
 	lock           timetable.RecurrenceWriteLock
 	transactions   ports.TenantTransactions
 	staffing       ports.StaffingAnnouncer
@@ -296,7 +296,7 @@ func (s *materializationService) loadMaterializationWorld(
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "materialize for tenant: load existing instances", Err: err}
 	}
-	exceptions, err := s.exceptionRepo.FindByDateRange(ctx, calendar.Date(from), calendar.Date(to))
+	exceptions, err := exceptionsInRange(ctx, s.exceptionRepo, timetable.ActivityExceptionFilter{}, calendar.Date(from).String(), calendar.Date(to).String(), "find by date range")
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "materialize for tenant: load exceptions", Err: err}
 	}
@@ -323,9 +323,13 @@ func (s *materializationService) loadMaterializationWorld(
 
 // loadTimeframes loads the tenant's timeframes in one query, keyed by id.
 func (s *materializationService) loadTimeframes(ctx context.Context, op string) (map[int64]*schedule.Timeframe, error) {
-	timeframes, err := s.timeframeRepo.ListAll(ctx)
+	listed, err := s.timeframeRepo.ListTimeframes(ctx, timetable.TimeframeFilter{})
 	if err != nil {
-		return nil, &ports.ScheduleError{Op: op, Err: err}
+		return nil, &ports.ScheduleError{Op: op, Err: WrapDatabaseError("list", err)}
+	}
+	timeframes, err := legacyTimeframes(listed)
+	if err != nil {
+		return nil, &ports.ScheduleError{Op: op, Err: WrapDatabaseError("list", err)}
 	}
 	timeframeByID := make(map[int64]*schedule.Timeframe, len(timeframes))
 	for _, tf := range timeframes {
@@ -486,7 +490,7 @@ func (s *materializationService) materializeTemplate(
 	world *materializationWorld,
 	result *timetable.MaterializationResult,
 ) error {
-	schedules, err := s.scheduleRepo.FindByGroupID(ctx, tmpl.ID)
+	schedules, err := groupSchedules(ctx, s.scheduleRepo, tmpl.ID)
 	if err != nil {
 		return &ports.ScheduleError{Op: "materialize template: load schedules", Err: err}
 	}
