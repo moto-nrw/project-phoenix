@@ -80,7 +80,7 @@ type SchoolIdentity interface {
 // membership it would continue for an account at the school in context.
 type InvitationIdentity interface {
 	SchoolIdentity
-	FindFormerEmployment(ctx context.Context, accountID int64) (domain.FormerEmployment, bool, error)
+	FindFormerEmploymentByAccount(ctx context.Context, accountID int64) (domain.FormerEmployment, bool, error)
 }
 
 // SessionRevocation revokes an account's sessions at the school on the

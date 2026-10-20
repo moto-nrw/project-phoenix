@@ -231,7 +231,7 @@ func (s *SchoolInvitation) ensureTargetAllowed(ctx context.Context, email string
 		tenantID = s.runtime.TenantID(ctx)
 	}
 	if tenantID <= 0 {
-		return failed(opCreateInvitation, domain.ErrEmailAlreadyExists)
+		return failed(opCreateInvitation, identityaccess.ErrEmailAlreadyExists)
 	}
 	member, _, err := s.logins.HasActiveAccountTenant(ctx, account.ID, tenantID)
 	if err != nil {

@@ -63,25 +63,10 @@ type CaregiverProfile struct {
 
 // --- staff preview ---------------------------------------------------------
 
-var (
-	ErrPreviewSelf           = errors.New("cannot preview your own account")
-	ErrPreviewTargetNotStaff = errors.New("account is not a staff member at this school")
-	ErrPreviewTokenInvalid   = errors.New("not a preview token of this session")
-)
-
 const (
 	AuthEventStaffPreviewStarted = "staff_preview_started"
 	AuthEventStaffPreviewEnded   = "staff_preview_ended"
 )
-
-// StaffPreviewSession is a short-lived, access-only token carrying the
-// target's identity plus the read-only / acting-admin claims.
-type StaffPreviewSession struct {
-	AccessToken     string
-	ExpiresIn       int64
-	TargetAccountID int64
-	TargetName      string
-}
 
 // StaffPreviewCandidate is one selectable staff member for the preview picker.
 type StaffPreviewCandidate struct {
@@ -112,29 +97,6 @@ type StaffPreviewEvent struct {
 }
 
 // --- staff offboarding -----------------------------------------------------
-
-var ErrStaffOffboardingConflict = errors.New("account access changed since offboarding preview")
-
-// StaffOffboardingPreview contains no credential material. The revision is an
-// exact encoding of the access decisions, not an authorization credential.
-type StaffOffboardingPreview struct {
-	AccountID         int64
-	ActiveMembership  bool
-	RoleIDs           []int64
-	Permissions       int64
-	Tokens            int64
-	PreserveGuardian  bool
-	DeactivateAccount bool
-	Revision          string
-}
-
-type StaffOffboardingResult struct {
-	RolesRevoked            int64
-	PermissionsRevoked      int64
-	TokensRevoked           int64
-	GuardianAccessPreserved bool
-	AccountDeactivated      bool
-}
 
 // PermissionGrant is one direct account permission row.
 type PermissionGrant struct {
@@ -204,12 +166,6 @@ type SchoolIdentity struct {
 
 // --- parent accounts -------------------------------------------------------
 
-var (
-	ErrParentAccountNotFound = errors.New("parent account not found")
-	ErrEmailAlreadyExists    = errors.New("diese E-Mail-Adresse ist bereits registriert")
-	ErrUsernameAlreadyExists = errors.New("dieser Benutzername ist bereits vergeben")
-)
-
 // ParentAccount is one row of auth.accounts_parents.
 type ParentAccount struct {
 	ID           int64
@@ -231,13 +187,7 @@ type ParentAccountFilter struct {
 // --- guardian relative access ---------------------------------------------
 
 var (
-	ErrCannotRemovePrimaryGuardian      = errors.New("the primary guardian cannot be removed by a parent")
-	ErrCannotRemoveStaffManagedGuardian = errors.New("staff-managed guardian contacts cannot be removed by a parent")
-	ErrCannotRemoveOwnAccess            = errors.New("a parent cannot remove their own access to a child")
-	ErrCannotRemovePayerGuardian        = errors.New("diese Person ist als Zahler für das Kind eingetragen und kann nicht entfernt werden. Bitte wenden Sie sich an die Schule")
-	ErrInviteSocialWorkerManaged        = errors.New("a social-worker contact is managed by the school and cannot be invited to the parents portal")
-	ErrGuardianInvitationNotFound       = errors.New("invitation not found")
-	ErrGuardianInvitationExpired        = errors.New("invitation has expired")
+	ErrGuardianInvitationNotFound = errors.New("invitation not found")
 )
 
 // GuardianInvitationValidationError marks input rejected by the guardian

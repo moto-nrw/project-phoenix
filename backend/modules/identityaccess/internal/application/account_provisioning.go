@@ -229,12 +229,12 @@ func (s *AccountProvisioning) ensureCredentialsFreeInTransaction(ctx context.Con
 	if _, found, _, err := findLoginAccountByEmail(ctx, s.runtime, s.logins, email); err != nil {
 		return failed(opRegisterAccount, err)
 	} else if found {
-		return failed(opRegisterAccount, domain.ErrEmailAlreadyExists)
+		return failed(opRegisterAccount, identityaccess.ErrEmailAlreadyExists)
 	}
 	if _, found, _, err := s.accounts.FindLoginAccountByUsername(ctx, username); err != nil {
 		return failed(opRegisterAccount, err)
 	} else if found {
-		return failed(opRegisterAccount, domain.ErrUsernameAlreadyExists)
+		return failed(opRegisterAccount, identityaccess.ErrUsernameAlreadyExists)
 	}
 	return nil
 }
@@ -387,8 +387,8 @@ var provisioningSentinels = []struct {
 	internal error
 	public   error
 }{
-	{domain.ErrEmailAlreadyExists, identityaccess.ErrEmailAlreadyExists},
-	{domain.ErrUsernameAlreadyExists, identityaccess.ErrUsernameAlreadyExists},
+	{identityaccess.ErrEmailAlreadyExists, identityaccess.ErrEmailAlreadyExists},
+	{identityaccess.ErrUsernameAlreadyExists, identityaccess.ErrUsernameAlreadyExists},
 	{domain.ErrTenantRequiredForRoleAssignment, identityaccess.ErrTenantRequiredForRoleAssignment},
 }
 

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -134,7 +135,7 @@ func (l *AccountLifecycle) parentRevokeDeletesLink(ctx context.Context, req doma
 		// The parent flow manages ANOTHER account's access. A parent must not
 		// be able to revoke their own link to the child.
 		if profile.AccountID != nil && *profile.AccountID == req.ActorAccountID {
-			return false, failed(opGuardianRevokeAccess, domain.ErrCannotRemoveOwnAccess)
+			return false, failed(opGuardianRevokeAccess, identityaccess.ErrCannotRemoveOwnAccess)
 		}
 		return l.cancelPendingStudentInvitations(ctx, req, profile)
 	}
@@ -150,7 +151,7 @@ func (l *AccountLifecycle) cancelPendingStudentInvitations(ctx context.Context, 
 			return false, failed(opGuardianRevokeAccess, err)
 		}
 		if len(openInvitations) == 0 {
-			return false, failed(opGuardianRevokeAccess, domain.ErrCannotRemoveStaffManagedGuardian)
+			return false, failed(opGuardianRevokeAccess, identityaccess.ErrCannotRemoveStaffManagedGuardian)
 		}
 		if err := l.expireInvitations(ctx, openInvitations, now); err != nil {
 			return false, failed(opGuardianRevokeAccess, err)

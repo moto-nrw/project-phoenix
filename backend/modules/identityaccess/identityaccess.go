@@ -394,6 +394,7 @@ type Module struct {
 }
 
 type ownerServices interface {
+	AccountLifecycle
 	SchoolInvitations
 	AccountAdministration
 	AccountProvisioning

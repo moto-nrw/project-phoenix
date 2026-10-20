@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -19,7 +20,12 @@ import (
 
 // PreviewStaffOffboarding locks the account before roles, permissions, tokens
 // or membership are touched, matching the login/refresh lock order.
-func (l *AccountLifecycle) PreviewStaffOffboarding(ctx context.Context, accountID int64) (result domain.StaffOffboardingPreview, err error) {
+func (l *AccountLifecycle) PreviewStaffOffboarding(ctx context.Context, accountID int64) (result identityaccess.StaffOffboardingPreview, err error) {
+	if l == nil {
+		return identityaccess.StaffOffboardingPreview{}, errAccountLifecycleUnavailable
+	}
+	defer func() { err = lifecycleError(err) }()
+	ctx = bindRuntime(l.auth.attach, ctx)
 	if accountID <= 0 || l.runtime.TenantID(ctx) <= 0 {
 		return result, errors.New("account and tenant are required for staff offboarding")
 	}
@@ -30,7 +36,12 @@ func (l *AccountLifecycle) PreviewStaffOffboarding(ctx context.Context, accountI
 	return result, err
 }
 
-func (l *AccountLifecycle) ExecuteStaffOffboarding(ctx context.Context, accountID int64, revision string) (result domain.StaffOffboardingResult, err error) {
+func (l *AccountLifecycle) ExecuteStaffOffboarding(ctx context.Context, accountID int64, revision string) (result identityaccess.StaffOffboardingResult, err error) {
+	if l == nil {
+		return identityaccess.StaffOffboardingResult{}, errAccountLifecycleUnavailable
+	}
+	defer func() { err = lifecycleError(err) }()
+	ctx = bindRuntime(l.auth.attach, ctx)
 	if accountID <= 0 || l.runtime.TenantID(ctx) <= 0 || revision == "" {
 		return result, errors.New("account, tenant and preview revision are required for staff offboarding")
 	}
@@ -59,13 +70,13 @@ func (l *AccountLifecycle) ExecuteStaffOffboarding(ctx context.Context, accountI
 		return err
 	})
 	if err != nil {
-		return domain.StaffOffboardingResult{}, err
+		return identityaccess.StaffOffboardingResult{}, err
 	}
 	return result, nil
 }
 
-func (l *AccountLifecycle) staffOffboardingSnapshot(ctx context.Context, accountID int64) (domain.StaffOffboardingPreview, error) {
-	preview := domain.StaffOffboardingPreview{AccountID: accountID}
+func (l *AccountLifecycle) staffOffboardingSnapshot(ctx context.Context, accountID int64) (identityaccess.StaffOffboardingPreview, error) {
+	preview := identityaccess.StaffOffboardingPreview{AccountID: accountID}
 	tenantID := l.runtime.TenantID(ctx)
 	account, found, _, err := findLoginAccount(ctx, l.runtime, l.logins, accountID, true)
 	if err != nil {
@@ -114,7 +125,7 @@ func (l *AccountLifecycle) staffOffboardingSnapshot(ctx context.Context, account
 	return preview, err
 }
 
-func (l *AccountLifecycle) revokeStaffGrants(txCtx context.Context, accountID int64, preview domain.StaffOffboardingPreview) (result domain.StaffOffboardingResult, err error) {
+func (l *AccountLifecycle) revokeStaffGrants(txCtx context.Context, accountID int64, preview identityaccess.StaffOffboardingPreview) (result identityaccess.StaffOffboardingResult, err error) {
 	for _, roleID := range preview.RoleIDs {
 		if err := l.admin.RemoveRoleFromAccount(txCtx, accountID, roleID); err != nil {
 			return result, err
@@ -126,7 +137,7 @@ func (l *AccountLifecycle) revokeStaffGrants(txCtx context.Context, accountID in
 		return result, err
 	}
 	if result.PermissionsRevoked != preview.Permissions {
-		return result, domain.ErrStaffOffboardingConflict
+		return result, identityaccess.ErrStaffOffboardingConflict
 	}
 	// Revoke even when direct permissions were the only staff grants. Role
 	// removal already revoked any tokens it encountered in this transaction.
@@ -138,7 +149,7 @@ func (l *AccountLifecycle) revokeStaffGrants(txCtx context.Context, accountID in
 	return result, nil
 }
 
-func staffOffboardingRevision(accountID, tenantID int64, updatedAt time.Time, preview domain.StaffOffboardingPreview, permissions []domain.PermissionGrant, tokenIDs, activeTenants []int64) (string, error) {
+func staffOffboardingRevision(accountID, tenantID int64, updatedAt time.Time, preview identityaccess.StaffOffboardingPreview, permissions []domain.PermissionGrant, tokenIDs, activeTenants []int64) (string, error) {
 	type permissionVersion struct {
 		ID, PermissionID int64
 		Granted          bool
@@ -170,13 +181,13 @@ func staffOffboardingRevision(accountID, tenantID int64, updatedAt time.Time, pr
 	return string(payload), err
 }
 
-func (l *AccountLifecycle) requireStaffOffboarding(txCtx context.Context, accountID int64, revision string, result *domain.StaffOffboardingResult) (domain.StaffOffboardingPreview, bool, error) {
+func (l *AccountLifecycle) requireStaffOffboarding(txCtx context.Context, accountID int64, revision string, result *identityaccess.StaffOffboardingResult) (identityaccess.StaffOffboardingPreview, bool, error) {
 	if !l.runtime.HasAfterCommitHooks(txCtx) {
-		return domain.StaffOffboardingPreview{}, false, errors.New("commit hooks are required for staff offboarding cleanup")
+		return identityaccess.StaffOffboardingPreview{}, false, errors.New("commit hooks are required for staff offboarding cleanup")
 	}
 	preview, err := l.staffOffboardingSnapshot(txCtx, accountID)
 	if err != nil {
-		return domain.StaffOffboardingPreview{}, false, err
+		return identityaccess.StaffOffboardingPreview{}, false, err
 	}
 	if !preview.ActiveMembership {
 		return preview, false, nil
@@ -186,7 +197,17 @@ func (l *AccountLifecycle) requireStaffOffboarding(txCtx context.Context, accoun
 		return preview, false, nil
 	}
 	if preview.Revision != revision {
-		return preview, false, domain.ErrStaffOffboardingConflict
+		return preview, false, identityaccess.ErrStaffOffboardingConflict
 	}
 	return preview, true, nil
+}
+
+// HasLiveCaregiverProfile reports whether the account's identity at the
+// school in context carries a live caregiver profile.
+func (l *AccountLifecycle) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
+	if l == nil {
+		return false, errAccountLifecycleUnavailable
+	}
+	hasProfile, err := l.profiles.HasLiveCaregiverProfile(bindRuntime(l.auth.attach, ctx), accountID)
+	return hasProfile, lifecycleError(err)
 }

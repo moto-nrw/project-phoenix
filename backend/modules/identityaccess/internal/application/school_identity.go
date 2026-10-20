@@ -292,12 +292,12 @@ func (l *AccountLifecycle) ensureIdentityStaff(ctx context.Context, in domain.Sc
 	return id, nil
 }
 
-// FindFormerEmployment reports the retired membership ensureIdentityStaff
+// FindFormerEmploymentByAccount reports the retired membership ensureIdentityStaff
 // would continue for the account at the school in context: the account's live
 // person there, with no live membership and a latest retired one the
 // automatic deletion of staff has not erased. Any other state starts a new
 // employment, so it reports nothing.
-func (l *AccountLifecycle) FindFormerEmployment(ctx context.Context, accountID int64) (domain.FormerEmployment, bool, error) {
+func (l *AccountLifecycle) FindFormerEmploymentByAccount(ctx context.Context, accountID int64) (domain.FormerEmployment, bool, error) {
 	person, found, err := l.staff.FindPersonByAccount(ctx, accountID)
 	if err != nil || !found || person.Deleted {
 		return domain.FormerEmployment{}, false, err

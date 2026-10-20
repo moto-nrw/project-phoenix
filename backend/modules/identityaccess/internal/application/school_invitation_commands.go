@@ -76,7 +76,7 @@ func (s *SchoolInvitation) findFormerEmployment(ctx context.Context, email strin
 	if !exists {
 		return domain.FormerEmployment{}, false, nil
 	}
-	former, found, err := s.identity.FindFormerEmployment(ctx, account.ID)
+	former, found, err := s.identity.FindFormerEmploymentByAccount(ctx, account.ID)
 	if err != nil {
 		return domain.FormerEmployment{}, false, failed(opFindFormerEmployment, err)
 	}
@@ -244,7 +244,7 @@ var invitationSentinels = []struct {
 	{domain.ErrPasswordMismatch, identityaccess.ErrInvitationPasswordMismatch},
 	{domain.ErrRoleGrantNotPermitted, identityaccess.ErrRoleGrantNotPermitted},
 	{domain.ErrLehrkraftNoCaregiver, identityaccess.ErrLehrkraftNoCaregiver},
-	{domain.ErrEmailAlreadyExists, identityaccess.ErrEmailAlreadyExists},
+	{identityaccess.ErrEmailAlreadyExists, identityaccess.ErrEmailAlreadyExists},
 	{domain.ErrRoleNotFound, identityaccess.ErrRoleNotAssignable},
 	{domain.ErrTransactionUnusable, identityaccess.ErrTransactionUnusable},
 }

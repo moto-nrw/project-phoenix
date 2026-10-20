@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -239,7 +240,7 @@ func TestInviteToStudent_SocialWorkerIsNeverUpgraded(t *testing.T) {
 	req := inviteRequest("sw@example.test")
 	req.ConfirmRoleUpgrade = true
 	_, err := f.lifecycle.InviteToStudent(tenantContext(), req)
-	require.ErrorIs(t, err, domain.ErrInviteSocialWorkerManaged)
+	require.ErrorIs(t, err, identityaccess.ErrInviteSocialWorkerManaged)
 	assert.Empty(t, f.guardians.promoted)
 	assert.Empty(t, f.invitations.rows)
 }
@@ -287,8 +288,8 @@ func TestApproveInvitation_Paths(t *testing.T) {
 		expired := pendingApproval(f, 10, false)
 		expired.ExpiresAt = time.Now().Add(-time.Minute)
 		f.invitations.rows[expired.ID] = expired
-		require.ErrorIs(t, f.lifecycle.ApproveInvitation(tenantContext(), expired.ID, relativeActor), domain.ErrGuardianInvitationExpired)
-		require.ErrorIs(t, f.lifecycle.RejectInvitation(tenantContext(), expired.ID, relativeActor), domain.ErrGuardianInvitationExpired)
+		require.ErrorIs(t, f.lifecycle.ApproveInvitation(tenantContext(), expired.ID, relativeActor), identityaccess.ErrGuardianInvitationExpired)
+		require.ErrorIs(t, f.lifecycle.RejectInvitation(tenantContext(), expired.ID, relativeActor), identityaccess.ErrGuardianInvitationExpired)
 	})
 
 	t.Run("no account links the child and sends the invitation", func(t *testing.T) {
@@ -335,7 +336,7 @@ func TestApproveInvitation_Paths(t *testing.T) {
 		f.invitations.rows[invitation.ID] = invitation
 
 		err := f.lifecycle.ApproveInvitation(tenantContext(), invitation.ID, relativeActor)
-		require.ErrorIs(t, err, domain.ErrInviteSocialWorkerManaged)
+		require.ErrorIs(t, err, identityaccess.ErrInviteSocialWorkerManaged)
 		assert.True(t, f.invitations.rows[invitation.ID].IsPendingApproval())
 		assert.Empty(t, f.delivery.emails)
 	})
@@ -502,7 +503,7 @@ func TestRevokeAccess(t *testing.T) {
 		link := f.guardians.addLink(domain.StudentGuardianLink{StudentID: relativeStudent, GuardianProfileID: profile.ID, IsPrimary: true})
 		req := domain.RevokeAccessRequest{StudentID: relativeStudent, GuardianProfileID: profile.ID, ActorAccountID: relativeActor, ByParent: true}
 
-		require.ErrorIs(t, f.lifecycle.RevokeAccess(tenantContext(), req), domain.ErrCannotRemovePrimaryGuardian)
+		require.ErrorIs(t, f.lifecycle.RevokeAccess(tenantContext(), req), identityaccess.ErrCannotRemovePrimaryGuardian)
 		req.ByParent = false
 		require.NoError(t, f.lifecycle.RevokeAccess(tenantContext(), req))
 		assert.Equal(t, []int64{link.ID}, f.guardians.deletedLinks)
@@ -515,7 +516,7 @@ func TestRevokeAccess(t *testing.T) {
 		link := f.guardians.addLink(domain.StudentGuardianLink{StudentID: relativeStudent, GuardianProfileID: profile.ID, IsPayer: true})
 		req := domain.RevokeAccessRequest{StudentID: relativeStudent, GuardianProfileID: profile.ID, ActorAccountID: relativeActor}
 
-		require.ErrorIs(t, f.lifecycle.RevokeAccess(tenantContext(), req), domain.ErrCannotRemovePayerGuardian)
+		require.ErrorIs(t, f.lifecycle.RevokeAccess(tenantContext(), req), identityaccess.ErrCannotRemovePayerGuardian)
 		assert.Empty(t, f.guardians.deletedLinks)
 
 		f.financial.err = errLifecycleBoom
@@ -538,7 +539,7 @@ func TestRevokeAccess(t *testing.T) {
 		err := f.lifecycle.RevokeAccess(tenantContext(), domain.RevokeAccessRequest{
 			StudentID: relativeStudent, GuardianProfileID: profile.ID, ActorAccountID: relativeActor, ByParent: true,
 		})
-		require.ErrorIs(t, err, domain.ErrCannotRemoveOwnAccess)
+		require.ErrorIs(t, err, identityaccess.ErrCannotRemoveOwnAccess)
 	})
 
 	t.Run("a parent cannot remove a staff-managed contact", func(t *testing.T) {
@@ -549,7 +550,7 @@ func TestRevokeAccess(t *testing.T) {
 		err := f.lifecycle.RevokeAccess(tenantContext(), domain.RevokeAccessRequest{
 			StudentID: relativeStudent, GuardianProfileID: profile.ID, ActorAccountID: relativeActor, ByParent: true,
 		})
-		require.ErrorIs(t, err, domain.ErrCannotRemoveStaffManagedGuardian)
+		require.ErrorIs(t, err, identityaccess.ErrCannotRemoveStaffManagedGuardian)
 		assert.Empty(t, f.guardians.deletedLinks)
 	})
 

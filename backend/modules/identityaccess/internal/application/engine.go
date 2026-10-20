@@ -57,6 +57,7 @@ func NewEngine(parts EngineParts) identityaccess.Engine {
 		OperatorAuthentication:      parts.OperatorAuth,
 		OperatorAccountAccess:       parts.AccountAccess,
 		lifecycle:                   parts.Lifecycle,
+		AccountLifecycle:            parts.Lifecycle,
 		roles:                       parts.Roles,
 		PasswordReset:               parts.Resets,
 		SchoolInvitation:            parts.Invitations,
@@ -98,8 +99,11 @@ type engine struct {
 	// dependencies.
 	*OperatorAuthentication
 	*OperatorAccountAccess
-	// lifecycle is nil when the module was composed without lifecycle
-	// dependencies.
+	// AccountLifecycle serves its public capability itself and reports it
+	// unavailable when the module was composed without lifecycle
+	// dependencies. lifecycle reaches the same flows for the engine
+	// operations the transaction register keys (#4469).
+	*AccountLifecycle
 	lifecycle *AccountLifecycle
 	// roles is nil when the module was composed without lifecycle
 	// dependencies.

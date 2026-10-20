@@ -127,35 +127,3 @@ type GuardianInvitationReads interface {
 	// in context whose link can still be spent.
 	ListRedeemableGuardianInvitations(ctx context.Context) ([]GuardianInvitation, error)
 }
-
-func (m *Module) CreateGuardianInvitation(ctx context.Context, request GuardianInvitationRequest) (GuardianInvitation, error) {
-	return m.engine.CreateGuardianInvitation(ctx, request)
-}
-
-func (m *Module) ValidateGuardianInvitation(ctx context.Context, token string) (GuardianInvitationPreview, error) {
-	return m.engine.ValidateGuardianInvitation(ctx, token)
-}
-
-func (m *Module) AcceptGuardianInvitation(ctx context.Context, token string, registration GuardianRegistration) (Account, error) {
-	return m.engine.AcceptGuardianInvitation(ctx, token, registration)
-}
-
-func (m *Module) ResendGuardianInvitation(ctx context.Context, invitationID, actorAccountID int64) error {
-	return m.engine.ResendGuardianInvitation(ctx, invitationID, actorAccountID)
-}
-
-func (m *Module) ListGuardianInvitations(ctx context.Context, guardianProfileID int64) ([]GuardianInvitation, error) {
-	return m.engine.ListGuardianInvitations(ctx, guardianProfileID)
-}
-
-func (m *Module) ListOpenGuardianInvitations(ctx context.Context, guardianProfileIDs []int64) ([]GuardianInvitation, error) {
-	return m.engine.ListOpenGuardianInvitations(ctx, guardianProfileIDs)
-}
-
-func (m *Module) ListRedeemableGuardianInvitations(ctx context.Context) ([]GuardianInvitation, error) {
-	return m.engine.ListRedeemableGuardianInvitations(ctx)
-}
-
-func (m *Module) GuardianInvitationSchoolSlug(ctx context.Context, token string) string {
-	return m.engine.GuardianInvitationSchoolSlug(ctx, token)
-}
