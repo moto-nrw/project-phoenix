@@ -13,8 +13,7 @@ vi.mock("~/components/enrollment/admin-enrollment-change-requests", () => ({
   }) => <div>Detail {changeRequestId}</div>,
 }));
 
-// Die Seite rendert seit der UI-Vereinheitlichung den BackButton, der den
-// Tenant-Router nutzt; ohne App-Router-Mount wirft er im Test.
+// Die Seite nutzt den Tenant-Router; ohne App-Router-Mount wirft er im Test.
 vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: vi.fn() }),
 }));

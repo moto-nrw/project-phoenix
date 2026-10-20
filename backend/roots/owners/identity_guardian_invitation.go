@@ -29,7 +29,7 @@ type GuardianEnrollmentClaims interface {
 // parents portal, never on the staff frontend) and the deployment's
 // fallback expiry. A root composed without the guardian mail passes
 // UnsentGuardianMail{} to the lifecycle instead.
-func GuardianInvitationDependencies(settings settingsCompose.SettingsService, schools organizationtenancy.Query, outbox MailResultOutbox, enrollments GuardianEnrollmentClaims, parentsURL string, fallbackExpiry time.Duration, logger *slog.Logger) (identityPorts.GuardianInvitationDelivery, identityPorts.GuardianEnrollments, error) {
+func GuardianInvitationDependencies(settings settingsCompose.SettingsService, schools organizationtenancy.SchoolQuery, outbox MailResultOutbox, enrollments GuardianEnrollmentClaims, parentsURL string, fallbackExpiry time.Duration, logger *slog.Logger) (identityPorts.GuardianInvitationDelivery, identityPorts.GuardianEnrollments, error) {
 	if schools == nil || outbox == nil || enrollments == nil {
 		return nil, nil, errors.New("identity access composition: the guardian invitation seams need the school directory, the e-mail outbox and the enrollment claim")
 	}

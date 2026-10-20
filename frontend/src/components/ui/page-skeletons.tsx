@@ -75,6 +75,7 @@ export function TenantPageHeaderSkeleton({
   stats = true,
   info = false,
   controls = false,
+  back,
 }: Readonly<{
   /** Platz für Avatar oder Konzept-Symbol links vom Titel. */
   leading?: boolean;
@@ -82,11 +83,17 @@ export function TenantPageHeaderSkeleton({
   stats?: boolean;
   /** Platz für den Info-Knopf neben dem Titel. */
   info?: boolean;
+  /**
+   * Der Rückweg über dem Titel, wie `TenantPage` ihn mit `back` setzt. Er
+   * steht schon während des Ladens als echter Link da, nicht als Platzhalter.
+   */
+  back?: React.ReactNode;
   /** Zweite Zeile für Suche, Filter oder Zeitnavigation. */
   controls?: boolean;
 }> = {}) {
   return (
     <header className="moto-content-surface rounded-2xl border p-5 shadow-sm">
+      {back}
       <div className="flex min-w-0 items-center gap-3">
         {leading && <Skeleton className="h-12 w-12 shrink-0 rounded-xl" />}
         <div className="min-w-0 flex-1">

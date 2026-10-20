@@ -125,22 +125,9 @@ func (w *Workflow) executeApply(ctx context.Context, actor Actor, transition sch
 		return result, err
 	}
 
-	// Graduate BEFORE promoting: a promotion can move children into a class
-	// that graduates in the same transition, and the graduation writes must
-	// never see a row the promotion already moved.
-	if len(graduates) > 0 {
-		graduated, err := w.deps.Membership.Graduate(ctx, studentIDsOf(graduates))
-		if err != nil {
-			return result, fmt.Errorf("failed to graduate students: %w", err)
-		}
-		result.StudentsGraduated = int(graduated)
-	}
-	promoted, err := w.applyPromotions(ctx, transition.Mappings, promotions)
-	if err != nil {
+	if err := w.applyCohortChanges(ctx, transition, promotions, graduates, &result); err != nil {
 		return result, err
 	}
-	result.StudentsPromoted = promoted
-
 	// The Klassenlehrer assignments and the class-list entries follow the
 	// same renames as the student rows; every rewrite lands in the
 	// transition's ledgers so the revert can replay it exactly.
@@ -151,44 +138,10 @@ func (w *Workflow) executeApply(ctx context.Context, actor Actor, transition sch
 		return result, err
 	}
 
-	// Drop the departed children from already-materialized rosters,
-	// archiving each removed row for the revert. MUST run before the
-	// offering-source resync: the resync would remove the same rows plainly,
-	// leaving this pass nothing to archive.
-	if len(graduates) > 0 {
-		if err := w.deps.Rosters.RemoveStudentsFromFutureRosters(ctx, transition.ID, studentIDsOf(graduates)); err != nil {
-			return result, fmt.Errorf("failed to reconcile graduated rosters: %w", err)
-		}
+	if err := w.finalizeAppliedTransition(ctx, actor, transition, graduates); err != nil {
+		return result, err
 	}
-
-	// The class writes changed Jahrgänge: re-reconcile every offering-sourced
-	// template so its grade-filtered roster follows the children. Runs under
-	// the recurrence gate inside the same transaction.
-	if err := w.deps.ResyncOfferingRosters(ctx, w.deps.Today()); err != nil {
-		return result, fmt.Errorf("failed to resync offering-sourced templates: %w", err)
-	}
-
-	// Record which instances already existed, AFTER the archive pass and
-	// while the gates still exclude every materializer. Everything inserted
-	// above this marker is built during the alumnus window and is the
-	// revert's to refill.
-	baseline, err := w.deps.Rosters.CurrentRosterBaseline(ctx)
-	if err != nil {
-		return result, fmt.Errorf("failed to record roster baseline: %w", err)
-	}
-	if err := w.deps.Structure.MarkTransitionApplied(ctx, transition.ID, actor.AccountID, w.deps.Now(), &baseline); err != nil {
-		if errors.Is(err, schoolstructure.ErrTransitionStateConflict) {
-			return result, fmt.Errorf("%w: transition has already been applied", ErrTransitionNotDraft)
-		}
-		return result, fmt.Errorf("failed to update transition status: %w", translateStructureError(err))
-	}
-
-	result.Status = schoolstructure.TransitionStatusApplied
-	result.CanRevert = true
-	if result.StudentsGraduated > 0 {
-		result.Warnings = append(result.Warnings,
-			fmt.Sprintf("%d students were marked as alumni and hidden from the app (graduates)", result.StudentsGraduated))
-	}
+	result = appliedTransitionResult(result)
 	return result, nil
 }
 
@@ -427,4 +380,70 @@ func (w *Workflow) applyPromotions(ctx context.Context, mappings []schoolstructu
 		promoted += count
 	}
 	return int(promoted), nil
+}
+
+func (w *Workflow) applyCohortChanges(ctx context.Context, transition schoolstructure.Transition, promotions, graduates []cohortStudent, result *Result) error {
+	// Graduate BEFORE promoting: a promotion can move children into a class
+	// that graduates in the same transition, and the graduation writes must
+	// never see a row the promotion already moved.
+	if len(graduates) > 0 {
+		graduated, err := w.deps.Membership.Graduate(ctx, studentIDsOf(graduates))
+		if err != nil {
+			return fmt.Errorf("failed to graduate students: %w", err)
+		}
+		result.StudentsGraduated = int(graduated)
+	}
+	promoted, err := w.applyPromotions(ctx, transition.Mappings, promotions)
+	if err != nil {
+		return err
+	}
+	result.StudentsPromoted = promoted
+
+	return nil
+}
+
+func (w *Workflow) finalizeAppliedTransition(ctx context.Context, actor Actor, transition schoolstructure.Transition, graduates []cohortStudent) error {
+	// Drop the departed children from already-materialized rosters,
+	// archiving each removed row for the revert. MUST run before the
+	// offering-source resync: the resync would remove the same rows plainly,
+	// leaving this pass nothing to archive.
+	if len(graduates) > 0 {
+		if err := w.deps.Rosters.RemoveStudentsFromFutureRosters(ctx, transition.ID, studentIDsOf(graduates)); err != nil {
+			return fmt.Errorf("failed to reconcile graduated rosters: %w", err)
+		}
+	}
+
+	// The class writes changed Jahrgänge: re-reconcile every offering-sourced
+	// template so its grade-filtered roster follows the children. Runs under
+	// the recurrence gate inside the same transaction.
+	if err := w.deps.ResyncOfferingRosters(ctx, w.deps.Today()); err != nil {
+		return fmt.Errorf("failed to resync offering-sourced templates: %w", err)
+	}
+
+	// Record which instances already existed, AFTER the archive pass and
+	// while the gates still exclude every materializer. Everything inserted
+	// above this marker is built during the alumnus window and is the
+	// revert's to refill.
+	baseline, err := w.deps.Rosters.CurrentRosterBaseline(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to record roster baseline: %w", err)
+	}
+	if err := w.deps.Structure.MarkTransitionApplied(ctx, transition.ID, actor.AccountID, w.deps.Now(), &baseline); err != nil {
+		if errors.Is(err, schoolstructure.ErrTransitionStateConflict) {
+			return fmt.Errorf("%w: transition has already been applied", ErrTransitionNotDraft)
+		}
+		return fmt.Errorf("failed to update transition status: %w", translateStructureError(err))
+	}
+
+	return nil
+}
+
+func appliedTransitionResult(result Result) Result {
+	result.Status = schoolstructure.TransitionStatusApplied
+	result.CanRevert = true
+	if result.StudentsGraduated > 0 {
+		result.Warnings = append(result.Warnings,
+			fmt.Sprintf("%d students were marked as alumni and hidden from the app (graduates)", result.StudentsGraduated))
+	}
+	return result
 }

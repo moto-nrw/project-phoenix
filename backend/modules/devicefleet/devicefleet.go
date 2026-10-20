@@ -156,6 +156,12 @@ type Display struct {
 
 // DeviceQuery answers device reads for every owner.
 type DeviceQuery interface {
+	DeviceLookup
+	DeviceOnlineStatus
+}
+
+// DeviceLookup resolves device records and fleet listings.
+type DeviceLookup interface {
 	FindDevice(context.Context, int64) (Device, error)
 	FindDeviceForUpdate(context.Context, int64) (Device, error)
 	FindDeviceByDeviceID(context.Context, string) (Device, error)
@@ -168,7 +174,10 @@ type DeviceQuery interface {
 	// dashboard's cross-tenant questions without a foreign join.
 	CountDevicesByTenant(context.Context) (map[int64]int, error)
 	ListDevicesByTenant(context.Context, []int64) ([]Device, error)
+}
 
+// DeviceOnlineStatus evaluates online status for device values.
+type DeviceOnlineStatus interface {
 	// DeviceOnlineWindow and the two predicates below are the owner's
 	// online/offline decision (#586, Rule 12): the row holds last_seen, this
 	// owner holds the rule and the per-tenant window.

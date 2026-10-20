@@ -60,59 +60,10 @@ func (c *command) EndSession(ctx context.Context, activeGroupID int64) (sessione
 	var result sessionend.Result
 	var note ports.Notification
 	err := c.deps.Runtime.WithinTenant(ctx, func(txCtx context.Context) error {
-		if activeGroupID <= 0 {
-			return fmt.Errorf("session end: invalid active group ID %d", activeGroupID)
-		}
-		group, err := c.deps.Presence.LockGroup(txCtx, activeGroupID)
-		if err != nil {
-			return presenceError(err)
-		}
-		if !group.IsOpen() {
-			return sessionend.ErrSessionAlreadyEnded
-		}
-		now := c.deps.Runtime.Now()
-
-		ended, err := c.deps.Presence.EndGroupSession(txCtx, activeGroupID, now)
-		if err != nil {
-			return presenceError(err)
-		}
-
-		completed, err := c.completeMirroredInstance(txCtx, activeGroupID, now)
+		var err error
+		result, note, err = c.endSessionInTx(txCtx, activeGroupID)
 		if err != nil {
 			return err
-		}
-
-		students, err := c.endedStudents(txCtx, ended.ClosedVisits)
-		if err != nil {
-			return err
-		}
-		activityName, err := c.activityName(txCtx, group.ActivityGroupID)
-		if err != nil {
-			return err
-		}
-		roomName, err := c.roomName(txCtx, group.RoomID)
-		if err != nil {
-			return err
-		}
-
-		note = ports.Notification{
-			TenantID:      c.deps.Runtime.TenantID(txCtx),
-			ActiveGroupID: activeGroupID,
-			Students:      students,
-			RoomID:        group.RoomID,
-			ActivityName:  activityName,
-			RoomName:      roomName,
-			Instance:      completed,
-		}
-		result = sessionend.Result{
-			ActiveGroupID:      activeGroupID,
-			EndedAt:            now,
-			StudentsCheckedOut: len(ended.ClosedVisits),
-			SupervisorsEnded:   len(ended.EndedSupervisorIDs),
-		}
-		if completed != nil {
-			id := completed.ID
-			result.MirroredInstanceID = &id
 		}
 		notifier := c.deps.Notifier
 		c.deps.Runtime.AfterCommit(txCtx, func() { notifier.SessionEnded(note) })
@@ -227,4 +178,62 @@ func (c *command) roomName(ctx context.Context, roomID int64) (string, error) {
 		return "", fmt.Errorf("session end: resolve room name: %w", err)
 	}
 	return room.Name, nil
+}
+
+func (c *command) endSessionInTx(txCtx context.Context, activeGroupID int64) (result sessionend.Result, note ports.Notification, err error) {
+	if activeGroupID <= 0 {
+		return result, note, fmt.Errorf("session end: invalid active group ID %d", activeGroupID)
+	}
+	group, err := c.deps.Presence.LockGroup(txCtx, activeGroupID)
+	if err != nil {
+		return result, note, presenceError(err)
+	}
+	if !group.IsOpen() {
+		return result, note, sessionend.ErrSessionAlreadyEnded
+	}
+	now := c.deps.Runtime.Now()
+
+	ended, err := c.deps.Presence.EndGroupSession(txCtx, activeGroupID, now)
+	if err != nil {
+		return result, note, presenceError(err)
+	}
+
+	completed, err := c.completeMirroredInstance(txCtx, activeGroupID, now)
+	if err != nil {
+		return result, note, err
+	}
+
+	students, err := c.endedStudents(txCtx, ended.ClosedVisits)
+	if err != nil {
+		return result, note, err
+	}
+	activityName, err := c.activityName(txCtx, group.ActivityGroupID)
+	if err != nil {
+		return result, note, err
+	}
+	roomName, err := c.roomName(txCtx, group.RoomID)
+	if err != nil {
+		return result, note, err
+	}
+
+	note = ports.Notification{
+		TenantID:      c.deps.Runtime.TenantID(txCtx),
+		ActiveGroupID: activeGroupID,
+		Students:      students,
+		RoomID:        group.RoomID,
+		ActivityName:  activityName,
+		RoomName:      roomName,
+		Instance:      completed,
+	}
+	result = sessionend.Result{
+		ActiveGroupID:      activeGroupID,
+		EndedAt:            now,
+		StudentsCheckedOut: len(ended.ClosedVisits),
+		SupervisorsEnded:   len(ended.EndedSupervisorIDs),
+	}
+	if completed != nil {
+		id := completed.ID
+		result.MirroredInstanceID = &id
+	}
+	return result, note, nil
 }

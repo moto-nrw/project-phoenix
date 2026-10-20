@@ -109,24 +109,7 @@ func (s *AccountAuthentication) DeleteAccountSessionsWithAudit(ctx context.Conte
 // without any transaction it runs independently.
 func (s *AccountAuthentication) ScheduleAccountWideRevoke(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) error {
 	if s.runtime.IsAdminTx(ctx) || (s.runtime.TenantID(ctx) == 0 && s.runtime.HasTransaction(ctx)) {
-		skip, err := s.shouldSkipAccountWideWipe(ctx, accountID, reason)
-		if err != nil {
-			return err
-		}
-		if skip {
-			if s.runtime.IsAdminTx(ctx) {
-				return s.MarkAccountWideWipeCompleted(ctx, accountID)
-			}
-			return nil
-		}
-		if _, err := s.deleteAllAccountSessionsInCtx(ctx, accountID, reason, ipAddress, userAgent); err != nil {
-			return err
-		}
-		s.queuePushCleanup(ctx, accountID, nil, reason)
-		if s.runtime.IsAdminTx(ctx) {
-			return s.MarkAccountWideWipeCompleted(ctx, accountID)
-		}
-		return nil
+		return s.revokeAccountWideInContext(ctx, accountID, reason, ipAddress, userAgent)
 	}
 	if s.runtime.HasAfterCommitHooks(ctx) {
 		if err := s.recordPendingAccountWideWipe(ctx, accountID, reason); err != nil {
@@ -192,21 +175,7 @@ func (s *AccountAuthentication) queuePushCleanup(ctx context.Context, accountID 
 
 func (s *AccountAuthentication) wipeAccountWideIndependently(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) error {
 	if s.runtime.IsAdminTx(ctx) {
-		skip, err := s.shouldSkipAccountWideWipe(ctx, accountID, reason)
-		if err != nil {
-			return err
-		}
-		if skip {
-			return s.MarkAccountWideWipeCompleted(ctx, accountID)
-		}
-		sessions, err := s.deleteAllAccountSessionsInCtx(ctx, accountID, reason, ipAddress, userAgent)
-		if err != nil {
-			return err
-		}
-		if err := s.cleanupPushAfterRevocation(ctx, accountID, sessions, reason); err != nil {
-			return err
-		}
-		return s.MarkAccountWideWipeCompleted(ctx, accountID)
+		return s.wipeAccountWideInAdmin(ctx, accountID, reason, ipAddress, userAgent)
 	}
 	adminCtx := s.runtime.Detach(ctx)
 	var sessions []domain.AccountSession
@@ -238,55 +207,9 @@ func (s *AccountAuthentication) finishScheduledAccountWideWipe(ctx context.Conte
 	var sessions []domain.AccountSession
 	pushReason := reason
 	run := func(txCtx context.Context) error {
-		claimed, err := s.audit.ClaimPendingAccountWideWipes(txCtx, accountID)
-		if err != nil {
-			return err
-		}
-		if len(claimed) == 0 && pendingRecorded {
-			// Reactivation or another worker already claimed the row.
-			return nil
-		}
-		cutoff := time.Time{}
-		if len(claimed) > 0 {
-			reason = pendingWipeReason(claimed, reason)
-			cutoff = pendingWipeCutoff(claimed)
-		}
-		skip, err := s.shouldSkipAccountWideWipe(txCtx, accountID, reason)
-		if err != nil {
-			return err
-		}
-		if skip {
-			return s.completeAccountWideWipes(txCtx, claimed)
-		}
-		if !cutoff.IsZero() {
-			if reason != "account_deactivated" {
-				if _, found, _, lockErr := findLoginAccount(txCtx, s.runtime, s.store, accountID, true); lockErr != nil {
-					return lockErr
-				} else if !found {
-					return domain.ErrAccountNotFound
-				}
-			}
-			sessions, err = s.sessions.RevokeAccountSessionsCreatedAtOrBefore(txCtx, accountID, cutoff)
-			if err != nil {
-				return err
-			}
-			if err := s.auditRevokedSessions(txCtx, sessions, reason, ipAddress, userAgent); err != nil {
-				return err
-			}
-			newer, newerErr := s.sessions.HasLiveAccountSessionsCreatedAfter(txCtx, accountID, cutoff)
-			if newerErr != nil {
-				return newerErr
-			}
-			if newer {
-				pushReason = "pending_wipe"
-			}
-			return s.completeAccountWideWipes(txCtx, claimed)
-		}
-		sessions, err = s.deleteAllAccountSessionsInCtx(txCtx, accountID, reason, ipAddress, userAgent)
-		if err != nil {
-			return err
-		}
-		return s.completeAccountWideWipes(txCtx, claimed)
+		var err error
+		sessions, pushReason, err = s.runScheduledAccountWipe(txCtx, accountID, reason, ipAddress, userAgent, pendingRecorded, pushReason)
+		return err
 	}
 	if s.runtime.IsAdminTx(ctx) {
 		if err := run(ctx); err != nil {
@@ -540,4 +463,105 @@ func (s *AccountAuthentication) withPushAdminTx(ctx context.Context, fn func(con
 		return fn(ctx)
 	}
 	return s.runtime.WithAdminTx(s.runtime.WithoutTransaction(ctx), fn)
+}
+
+func (s *AccountAuthentication) revokeAccountWideInContext(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) error {
+	skip, err := s.shouldSkipAccountWideWipe(ctx, accountID, reason)
+	if err != nil {
+		return err
+	}
+	if skip {
+		if s.runtime.IsAdminTx(ctx) {
+			return s.MarkAccountWideWipeCompleted(ctx, accountID)
+		}
+		return nil
+	}
+	if _, err := s.deleteAllAccountSessionsInCtx(ctx, accountID, reason, ipAddress, userAgent); err != nil {
+		return err
+	}
+	s.queuePushCleanup(ctx, accountID, nil, reason)
+	if s.runtime.IsAdminTx(ctx) {
+		return s.MarkAccountWideWipeCompleted(ctx, accountID)
+	}
+	return nil
+}
+
+func (s *AccountAuthentication) wipeAccountWideInAdmin(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) error {
+	skip, err := s.shouldSkipAccountWideWipe(ctx, accountID, reason)
+	if err != nil {
+		return err
+	}
+	if skip {
+		return s.MarkAccountWideWipeCompleted(ctx, accountID)
+	}
+	sessions, err := s.deleteAllAccountSessionsInCtx(ctx, accountID, reason, ipAddress, userAgent)
+	if err != nil {
+		return err
+	}
+	if err := s.cleanupPushAfterRevocation(ctx, accountID, sessions, reason); err != nil {
+		return err
+	}
+	return s.MarkAccountWideWipeCompleted(ctx, accountID)
+}
+
+func (s *AccountAuthentication) revokeSessionsBeforeCutoff(txCtx context.Context, accountID int64, reason, ipAddress, userAgent string, cutoff time.Time) (sessions []domain.AccountSession, pushReason string, err error) {
+	pushReason = reason
+	if reason != "account_deactivated" {
+		if _, found, _, lockErr := findLoginAccount(txCtx, s.runtime, s.store, accountID, true); lockErr != nil {
+			return sessions, pushReason, lockErr
+		} else if !found {
+			return sessions, pushReason, domain.ErrAccountNotFound
+		}
+	}
+	sessions, err = s.sessions.RevokeAccountSessionsCreatedAtOrBefore(txCtx, accountID, cutoff)
+	if err != nil {
+		return sessions, pushReason, err
+	}
+	if err := s.auditRevokedSessions(txCtx, sessions, reason, ipAddress, userAgent); err != nil {
+		return sessions, pushReason, err
+	}
+	newer, newerErr := s.sessions.HasLiveAccountSessionsCreatedAfter(txCtx, accountID, cutoff)
+	if newerErr != nil {
+		return sessions, pushReason, newerErr
+	}
+	if newer {
+		pushReason = "pending_wipe"
+	}
+	return sessions, pushReason, nil
+}
+
+func (s *AccountAuthentication) runScheduledAccountWipe(txCtx context.Context, accountID int64, reason, ipAddress, userAgent string, pendingRecorded bool, originalPushReason string) (sessions []domain.AccountSession, pushReason string, err error) {
+	pushReason = originalPushReason
+	claimed, err := s.audit.ClaimPendingAccountWideWipes(txCtx, accountID)
+	if err != nil {
+		return sessions, pushReason, err
+	}
+	if len(claimed) == 0 && pendingRecorded {
+		// Reactivation or another worker already claimed the row.
+		return sessions, pushReason, nil
+	}
+	cutoff := time.Time{}
+	if len(claimed) > 0 {
+		reason = pendingWipeReason(claimed, reason)
+		cutoff = pendingWipeCutoff(claimed)
+	}
+	skip, err := s.shouldSkipAccountWideWipe(txCtx, accountID, reason)
+	if err != nil {
+		return sessions, pushReason, err
+	}
+	if skip {
+		return sessions, pushReason, s.completeAccountWideWipes(txCtx, claimed)
+	}
+	if !cutoff.IsZero() {
+		sessions, pushReason, err = s.revokeSessionsBeforeCutoff(txCtx, accountID, reason, ipAddress, userAgent, cutoff)
+		if err != nil {
+			return sessions, pushReason, err
+		}
+		return sessions, pushReason, s.completeAccountWideWipes(txCtx, claimed)
+	}
+	sessions, err = s.deleteAllAccountSessionsInCtx(txCtx, accountID, reason, ipAddress, userAgent)
+	if err != nil {
+		return sessions, pushReason, err
+	}
+	return sessions, pushReason, s.completeAccountWideWipes(txCtx, claimed)
 }

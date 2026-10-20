@@ -532,7 +532,13 @@ export default function OpeningBalanceImportPage() {
 
   if (status === "loading") {
     return (
-      <TenantPage title="Eröffnungssalden" stats={statusLine} back>
+      <TenantPage
+        title="Eröffnungssalden"
+        stats={statusLine}
+        back
+        backHref="/database/personal"
+        backLabel="Zurück zum Personal"
+      >
         <SkeletonRegion label="Eröffnungssalden-Import wird geladen">
           <FormSkeleton fields={4} />
           <TableSkeleton rows={5} columns={4} />
@@ -557,7 +563,13 @@ export default function OpeningBalanceImportPage() {
     : `${importable} ${importable === 1 ? "Übernahme" : "Übernahmen"} buchen`;
 
   return (
-    <TenantPage title="Eröffnungssalden" stats={statusLine} back>
+    <TenantPage
+      title="Eröffnungssalden"
+      stats={statusLine}
+      back
+      backHref="/database/personal"
+      backLabel="Zurück zum Personal"
+    >
       {/* Der Erklärtext steht auf einer Fläche, nicht auf dem gemusterten
           Grund (BAUARTEN-SPEC, Teil 3). */}
       <SectionCard>

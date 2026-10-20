@@ -227,14 +227,8 @@ func (w *Workflow) snapshot(ctx context.Context, actor Actor, staffID int64) (Pr
 	if err != nil {
 		return Preview{}, err
 	}
-	// The unowned relationship read only chooses which account to lock. It
-	// authorizes no mutation; both links are checked again after owner locks.
-	if person.AccountID != nil {
-		p.AccountID = *person.AccountID
-		p.Access, err = w.deps.PreviewAccess(ctx, p.AccountID)
-		if err != nil {
-			return Preview{}, err
-		}
+	if err := w.previewPersonAccess(ctx, person, &p); err != nil {
+		return Preview{}, err
 	}
 	if err := w.deps.Workforce.Lock(ctx, staffID); err != nil {
 		return Preview{}, err
@@ -270,18 +264,10 @@ func (w *Workflow) snapshot(ctx context.Context, actor Actor, staffID int64) (Pr
 		return Preview{}, err
 	}
 	p.Blocked = len(supervisions) > 0 || p.Workforce.Blocked
-	// Revisions are comparison data, not bearer credentials. Never log them.
-	encoded, err := json.Marshal(struct {
-		Preview         Preview
-		TenantID        int64
-		PersonUpdatedAt time.Time
-		TagID           *string
-		Supervisions    []int64
-	}{p, actor.TenantID, lockedPerson.UpdatedAt, lockedPerson.TagID, supervisions})
+	p.Revision, err = offboardingRevision(p, actor, lockedPerson, supervisions)
 	if err != nil {
 		return Preview{}, err
 	}
-	p.Revision = string(encoded)
 	return p, nil
 }
 
@@ -329,4 +315,33 @@ func (w *Workflow) mutate(ctx context.Context, actor Actor, p Preview) (result R
 		w.deps.GroupAccessChanged(ctx)
 	}
 	return result, nil
+}
+
+func offboardingRevision(p Preview, actor Actor, lockedPerson peopledirectory.Person, supervisions []int64) (string, error) {
+	// Revisions are comparison data, not bearer credentials. Never log them.
+	encoded, err := json.Marshal(struct {
+		Preview         Preview
+		TenantID        int64
+		PersonUpdatedAt time.Time
+		TagID           *string
+		Supervisions    []int64
+	}{p, actor.TenantID, lockedPerson.UpdatedAt, lockedPerson.TagID, supervisions})
+	if err != nil {
+		return "", err
+	}
+	return string(encoded), nil
+}
+
+func (w *Workflow) previewPersonAccess(ctx context.Context, person peopledirectory.Person, p *Preview) error {
+	var err error
+	// The unowned relationship read only chooses which account to lock. It
+	// authorizes no mutation; both links are checked again after owner locks.
+	if person.AccountID != nil {
+		p.AccountID = *person.AccountID
+		p.Access, err = w.deps.PreviewAccess(ctx, p.AccountID)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

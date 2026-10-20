@@ -111,6 +111,46 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
+	rs.mountAuthRoutes(r, authRateLimiter, configureSession)
+	// The class-day surface, reachable with school tokens. Same handlers
+	// and permission gate as the (transitional) tenant-portal mount.
+	r.Mount("/class-day", rs.ClassDay.SchoolRouter(protectedSchoolRoutes))
+
+	// The assignment-bound supervision surface (#2527): the Betreuungsplan
+	// blocks this Lehrkraft is personally planned into today, and nothing
+	// else. Same operations handlers as the OGS portal, a narrower mantle —
+	// see timetable.SchoolSupervisionRouter.
+	if rs.Timetable != nil {
+		r.Mount("/supervisions", rs.Timetable.SchoolSupervisionRouter(protectedSchoolRoutes))
+	}
+
+	// Team-Chat for Lehrkräfte (#2208): the same 1:1 conversations as the
+	// OGS portal's /api/staff-messages, reached with a school token. One
+	// service, one thread store — a Lehrkraft and a Betreuungskraft read the
+	// same conversation from their respective portals.
+	if rs.StaffMessaging != nil {
+		r.Mount("/staff-messages", rs.StaffMessaging.SchoolRouter(protectedSchoolRoutes))
+	}
+
+	// Tagesinformationen for Lehrkräfte (#2208): the notices the OGS
+	// leadership addressed to "alle" or "nur Lehrkräfte", read and
+	// acknowledged with a school token behind staff_notices:read. Writing
+	// stays in the OGS portal.
+	if rs.StaffNotices != nil {
+		r.Mount("/staff-notices", rs.StaffNotices.SchoolRouter(protectedSchoolRoutes))
+	}
+
+	// Own notification decisions and devices (#2208): the same handlers as
+	// /api/notifications, narrowed to the school catalogue and recording
+	// devices with portal "school".
+	if rs.Notifications != nil {
+		r.Mount("/notifications", rs.Notifications.SchoolRouter())
+	}
+
+	return r
+}
+
+func (rs *Resource) mountAuthRoutes(r chi.Router, authRateLimiter func(http.Handler) http.Handler, configureSession func(chi.Router)) {
 	r.Route("/auth", func(r chi.Router) {
 		// Public auth routes. The school login issues a school-scope JWT
 		// pinned to the first school where the account holds a
@@ -153,40 +193,4 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 		})
 	})
 
-	// The class-day surface, reachable with school tokens. Same handlers
-	// and permission gate as the (transitional) tenant-portal mount.
-	r.Mount("/class-day", rs.ClassDay.SchoolRouter(protectedSchoolRoutes))
-
-	// The assignment-bound supervision surface (#2527): the Betreuungsplan
-	// blocks this Lehrkraft is personally planned into today, and nothing
-	// else. Same operations handlers as the OGS portal, a narrower mantle —
-	// see timetable.SchoolSupervisionRouter.
-	if rs.Timetable != nil {
-		r.Mount("/supervisions", rs.Timetable.SchoolSupervisionRouter(protectedSchoolRoutes))
-	}
-
-	// Team-Chat for Lehrkräfte (#2208): the same 1:1 conversations as the
-	// OGS portal's /api/staff-messages, reached with a school token. One
-	// service, one thread store — a Lehrkraft and a Betreuungskraft read the
-	// same conversation from their respective portals.
-	if rs.StaffMessaging != nil {
-		r.Mount("/staff-messages", rs.StaffMessaging.SchoolRouter(protectedSchoolRoutes))
-	}
-
-	// Tagesinformationen for Lehrkräfte (#2208): the notices the OGS
-	// leadership addressed to "alle" or "nur Lehrkräfte", read and
-	// acknowledged with a school token behind staff_notices:read. Writing
-	// stays in the OGS portal.
-	if rs.StaffNotices != nil {
-		r.Mount("/staff-notices", rs.StaffNotices.SchoolRouter(protectedSchoolRoutes))
-	}
-
-	// Own notification decisions and devices (#2208): the same handlers as
-	// /api/notifications, narrowed to the school catalogue and recording
-	// devices with portal "school".
-	if rs.Notifications != nil {
-		r.Mount("/notifications", rs.Notifications.SchoolRouter())
-	}
-
-	return r
 }

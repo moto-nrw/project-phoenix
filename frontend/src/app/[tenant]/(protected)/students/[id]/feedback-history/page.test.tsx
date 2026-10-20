@@ -39,11 +39,12 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/back-button", () => ({
-  BackButton: ({ referrer }: { referrer: string }) => (
-    <button type="button" data-testid="back-button" data-referrer={referrer}>
-      Zurück
-    </button>
+// Der Rückweg der Kopfkarte (TenantPage) als Link mit seinem Ziel.
+vi.mock("~/components/ui/back-link", () => ({
+  BackLink: ({ href, label }: { href: string; label: string }) => (
+    <a data-testid="back-button" href={href} data-referrer={href}>
+      {label}
+    </a>
   ),
 }));
 
@@ -240,7 +241,7 @@ describe("StudentFeedbackHistoryPage", () => {
         // from= still drives the detail page's own back button to the list.
         expect(backButton).toHaveAttribute(
           "data-referrer",
-          "/students/1?from=/students/search&tab=historie",
+          "/test-tenant/students/1?from=%2Fstudents%2Fsearch&tab=historie",
         );
       },
       { timeout: 2000 },

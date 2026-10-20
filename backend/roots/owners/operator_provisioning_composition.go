@@ -291,7 +291,7 @@ func (s provisioningSettings) DeviceOnlineWindowMinutes(ctx context.Context, ten
 // pwaUsageCounts serves the Delivery usage snapshot from the operator
 // dashboard projection.
 type pwaUsageCounts struct {
-	provisioning organizationtenancy.Provisioning
+	provisioning organizationtenancy.ProvisioningDashboard
 }
 
 func (c pwaUsageCounts) PWAUsage(ctx context.Context, tenantID int64, window time.Duration) ([]deliveryCompose.PWAUsageRow, error) {

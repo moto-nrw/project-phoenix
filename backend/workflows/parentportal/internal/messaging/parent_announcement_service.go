@@ -185,37 +185,13 @@ func (s *Service) stampAnnouncement(ctx context.Context, accountID, announcement
 	}
 	// Phase 1: resolve + authorize inside the admin tx, capturing what the write
 	// needs (tenant + ack requirement).
-	var announcementTenantID int64
-	var requiresAck bool
-	var announcementPublishedAt time.Time
-	var announcementSystemKind *string
+	var snapshot announcementStampSnapshot
 	if err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
-		a, err := s.AnnouncementRepo.FindByID(adminCtx, announcementID)
+		a, err := s.stampableAnnouncement(adminCtx, announcementID, accountID)
 		if err != nil {
-			return fmt.Errorf("parent: load announcement: %w", err)
+			return err
 		}
-		if a == nil || !announcementIsLive(a) {
-			return ErrAnnouncementNotFound
-		}
-		// Authorize audience membership BEFORE any other 4xx: an unmatched caller
-		// must always get 404 so a parent token cannot enumerate live announcement
-		// IDs (or their ack flags) by distinguishing ack-not-required (400) from
-		// not-found (404) responses across tenants.
-		matched, err := s.AnnouncementRepo.AccountMatchesAnnouncement(adminCtx, a.GetTenantID(), announcementID, accountID)
-		if err != nil {
-			return fmt.Errorf("parent: match announcement audience: %w", err)
-		}
-		if !matched {
-			return ErrAnnouncementNotFound
-		}
-		announcementTenantID = a.GetTenantID()
-		requiresAck = a.RequiresAcknowledgement
-		announcementSystemKind = a.SystemKind
-		// Capture published_at for the stale-version check, which is deferred
-		// until AFTER the parent-news flag check below so a disabled school
-		// collapses to 404 before a mismatch could surface a 409.
-		// announcementIsLive guarantees a.PublishedAt is non-nil here.
-		announcementPublishedAt = *a.PublishedAt
+		snapshot = announcementStampSnapshot{tenantID: a.GetTenantID(), requiresAck: a.RequiresAcknowledgement, publishedAt: *a.PublishedAt, systemKind: a.SystemKind}
 		return nil
 	}); err != nil {
 		return err
@@ -228,7 +204,7 @@ func (s *Service) stampAnnouncement(ctx context.Context, accountID, announcement
 	// OUTSIDE the admin tx because ResolveBoolForTenant opens its own tenant tx.
 	// Fails CLOSED: an unwired settings service or a resolve error excludes the
 	// school just like the feed does.
-	if !s.announcementVisibleForTenant(ctx, announcementTenantID, announcementID, announcementSystemKind) {
+	if !s.announcementVisibleForTenant(ctx, snapshot.tenantID, announcementID, snapshot.systemKind) {
 		return ErrAnnouncementNotFound
 	}
 	// Version check AFTER audience authorization AND the parent-news flag (both
@@ -238,10 +214,10 @@ func (s *Service) stampAnnouncement(ctx context.Context, accountID, announcement
 	// reused but published_at is re-stamped, so a mismatch means the client is
 	// acting on retracted wording — reject it rather than count a read/ack for
 	// text the guardian never saw.
-	if !announcementPublishedAt.Equal(expectedPublishedAt) {
+	if !snapshot.publishedAt.Equal(expectedPublishedAt) {
 		return ErrAnnouncementStale
 	}
-	if ack && !requiresAck {
+	if ack && !snapshot.requiresAck {
 		return ErrAnnouncementAckNotRequired
 	}
 	// Phase 2: stamp the read/ack row in a fresh admin tx. Phase 1 ran in an
@@ -254,28 +230,7 @@ func (s *Service) stampAnnouncement(ctx context.Context, accountID, announcement
 	// the client mark the retracted wording read/acknowledged locally while the DB
 	// and staff stats stay unchanged.
 	return s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
-		if ack {
-			applied, err := s.AnnouncementRepo.MarkAcknowledged(adminCtx, announcementTenantID, announcementID, accountID, expectedPublishedAt)
-			if err != nil {
-				return err
-			}
-			if !applied {
-				return ErrAnnouncementStale
-			}
-			s.Logger.Info("parent acknowledged announcement",
-				slog.Int64("account_id", accountID),
-				slog.Int64("announcement_id", announcementID),
-			)
-			return nil
-		}
-		applied, err := s.AnnouncementRepo.MarkRead(adminCtx, announcementTenantID, announcementID, accountID, expectedPublishedAt)
-		if err != nil {
-			return err
-		}
-		if !applied {
-			return ErrAnnouncementStale
-		}
-		return nil
+		return s.writeAnnouncementStamp(adminCtx, snapshot.tenantID, announcementID, accountID, expectedPublishedAt, ack)
 	})
 }
 
@@ -296,33 +251,9 @@ func (s *Service) RespondToAnnouncement(ctx context.Context, accountID, announce
 	var responseType string
 	var deadline *time.Time
 	if err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
-		a, err := s.AnnouncementRepo.FindByID(adminCtx, announcementID)
+		a, err := s.answerableAnnouncement(adminCtx, announcementID, accountID, studentID)
 		if err != nil {
-			return fmt.Errorf("parent: load announcement: %w", err)
-		}
-		if a == nil || !announcementIsLive(a) {
-			return ErrAnnouncementNotFound
-		}
-		// Authorize the CHILD, not just the account: AccountMayAnswerForStudent
-		// checks the guardian link and the poll's audience in one query, so a
-		// guardian can neither answer for someone else's child nor for a child the
-		// poll does not target.
-		allowed, err := s.AnnouncementRepo.AccountMayAnswerForStudent(adminCtx, a.GetTenantID(), announcementID, accountID, studentID)
-		if err != nil {
-			return fmt.Errorf("parent: check answer permission: %w", err)
-		}
-		if !allowed {
-			// A guardian outside the audience entirely must not be able to tell
-			// "wrong child" from "no such announcement", so both are 404 — but a
-			// guardian who IS in the audience gets the more useful child error.
-			matched, matchErr := s.AnnouncementRepo.AccountMatchesAnnouncement(adminCtx, a.GetTenantID(), announcementID, accountID)
-			if matchErr != nil {
-				return fmt.Errorf("parent: match announcement audience: %w", matchErr)
-			}
-			if !matched {
-				return ErrAnnouncementNotFound
-			}
-			return ErrChildNotAnswerable
+			return err
 		}
 		announcementTenantID = a.GetTenantID()
 		announcementPublishedAt = *a.PublishedAt
@@ -366,31 +297,7 @@ func (s *Service) RespondToAnnouncement(ctx context.Context, accountID, announce
 	// same statement, so a deadline that passes between here and the write cannot
 	// let a late answer through. A missed guard is a 409, never a silent 200.
 	return s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
-		// Poll authorization above uses a snapshot. Lock and re-read the student
-		// in this write transaction so a concurrent care exit cannot leave a new
-		// response behind after the child became read-only.
-		studentCtx := s.Runtime.WithTenantID(adminCtx, announcementTenantID)
-		student, err := s.StudentRepo.FindByIDForUpdate(studentCtx, studentID)
-		if err != nil {
-			return err
-		}
-		if student.CareEndedOn(s.todayDate()) {
-			return care.ErrChildCareEnded
-		}
-		applied, err := s.AnnouncementRepo.SetResponse(adminCtx, announcementTenantID, announcementID, studentID, accountID, optionIDs, expectedPublishedAt)
-		if err != nil {
-			return err
-		}
-		if !applied {
-			return ErrAnnouncementStale
-		}
-		s.Logger.Info("parent answered announcement poll",
-			slog.Int64("account_id", accountID),
-			slog.Int64("announcement_id", announcementID),
-			slog.Int64("student_id", studentID),
-			slog.Int("option_count", len(optionIDs)),
-		)
-		return nil
+		return s.writeAnnouncementResponse(adminCtx, announcementTenantID, announcementID, accountID, studentID, optionIDs, expectedPublishedAt)
 	})
 }
 
@@ -521,12 +428,7 @@ func (s *Service) announcementTenants(ctx context.Context, accountID int64) ([]i
 		if err != nil {
 			return err
 		}
-		for _, req := range requests {
-			if req == nil || req.WithdrawnAt != nil {
-				continue
-			}
-			add(req.TenantID)
-		}
+		addEnrollmentAnnouncementTenants(requests, add)
 		return nil
 	}); txErr != nil {
 		return nil, fmt.Errorf("parent: resolve news tenants: %w", txErr)
@@ -548,4 +450,11 @@ func announcementIsLive(a *ParentAnnouncement) bool {
 		return false
 	}
 	return true
+}
+
+type announcementStampSnapshot struct {
+	tenantID    int64
+	requiresAck bool
+	publishedAt time.Time
+	systemKind  *string
 }

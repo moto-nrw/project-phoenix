@@ -72,30 +72,10 @@ func (p *XLSXParser) ParseStudents(reader io.Reader) ([]importModels.StudentImpo
 		p.columnMapping[key] = i
 	}
 
-	// Parse data rows (skip header)
-	var studentRows []importModels.StudentImportRow
-	for rowNum := 2; rowNum <= len(rows); rowNum++ {
-		if rowNum-1 >= len(rows) {
-			break
-		}
-
-		values := normalizeXLSXRowValues(f, sheetName, rowNum, header, rows[rowNum-1])
-
-		// Skip empty rows
-		if isEmptyRow(values) {
-			continue
-		}
-
-		// Use shared mapping logic
-		mapper := NewColumnMapper(p.columnMapping, values)
-		row, err := MapStudentRow(mapper)
-		if err != nil {
-			return nil, rowError(rowNum, err)
-		}
-
-		studentRows = append(studentRows, row)
+	studentRows, err := p.parseStudentRows(f, sheetName, header, rows)
+	if err != nil {
+		return nil, err
 	}
-
 	// Validate that we have at least one data row
 	// Empty files (only headers) likely indicate user uploaded the template by mistake
 	if len(studentRows) == 0 {
@@ -193,4 +173,32 @@ func isDateNumberFormat(style *excelize.Style) bool {
 	default:
 		return false
 	}
+}
+
+func (p *XLSXParser) parseStudentRows(f *excelize.File, sheetName string, header []string, rows [][]string) ([]importModels.StudentImportRow, error) {
+	// Parse data rows (skip header)
+	var studentRows []importModels.StudentImportRow
+	for rowNum := 2; rowNum <= len(rows); rowNum++ {
+		if rowNum-1 >= len(rows) {
+			break
+		}
+
+		values := normalizeXLSXRowValues(f, sheetName, rowNum, header, rows[rowNum-1])
+
+		// Skip empty rows
+		if isEmptyRow(values) {
+			continue
+		}
+
+		// Use shared mapping logic
+		mapper := NewColumnMapper(p.columnMapping, values)
+		row, err := MapStudentRow(mapper)
+		if err != nil {
+			return nil, rowError(rowNum, err)
+		}
+
+		studentRows = append(studentRows, row)
+	}
+
+	return studentRows, nil
 }

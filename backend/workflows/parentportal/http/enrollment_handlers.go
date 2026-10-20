@@ -149,40 +149,10 @@ func (rs *Resource) getEnrollmentBootstrap(w http.ResponseWriter, r *http.Reques
 	}
 	schoolID := school.ID
 
-	// Restricted phases must only load for a caller who could actually
-	// submit them — the same guardian facts the picker (ListEnrollable) and
-	// the submit handler resolve. Without this, any parent-scoped JWT could
-	// bootstrap another school's hidden phase by guessing its id and read its
-	// form schema, offerings, and legal metadata (#1663).
-	//
-	// The two restricted audiences do NOT share one fact, so we forward both
-	// and let the service gate per audience (EnrolleeAudienceAccess):
-	// linked_parents needs any submit-permitted guardian relationship (an
-	// inactive child still qualifies — enrolling a new sibling is the point),
-	// while existing_students needs that relationship to point at a still
-	// enrolled (active/pending) child. Gating existing_students on the looser
-	// fact would serve a form whose submit can only fail with
-	// ErrChildNotEnrolled / ErrChildEnrollmentNotPermitted, for a phase the
-	// picker deliberately hides from this account.
-	//
-	// Open / new_students phases stay unrestricted (the zero access value is
-	// exactly the anonymous public gate), and a valid late-invite token still
-	// lifts the restriction inside the service.
-	status, statusErr := rs.ParentService.GetEnrollmentSubmitStatus(r.Context(), accountID, schoolID)
-	if statusErr != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(statusErr))
+	linkedParents, existingStudents, ok := rs.enrollmentBootstrapAudience(w, r, accountID, schoolID, school)
+	if !ok {
 		return
 	}
-	// A hidden school is excluded from cross-school discovery; that exclusion
-	// has to hold on the direct route too, or knowing the subdomain is enough
-	// to bootstrap its forms (#1663).
-	if !enrollmentSchoolReachable(school, status) {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("tenant not found")))
-		return
-	}
-	linkedParents := status != nil && status.HasSubmitPermission
-	existingStudents := status != nil && status.HasEnrolledSubmitPermission
-
 	var respond EnrollmentResponse
 	lateInviteToken := strings.TrimSpace(r.URL.Query().Get("late_invite"))
 	loadErr := withinTenant(r.Context(), schoolID, func(txCtx context.Context) error {
@@ -419,4 +389,42 @@ func (rs *Resource) respondParentEnrollment(w http.ResponseWriter, r *http.Reque
 	}
 
 	out.respond(w, r)
+}
+
+func (rs *Resource) enrollmentBootstrapAudience(w http.ResponseWriter, r *http.Request, accountID, schoolID int64, school *EnrollmentSchool) (bool, bool, bool) {
+	// Restricted phases must only load for a caller who could actually
+	// submit them — the same guardian facts the picker (ListEnrollable) and
+	// the submit handler resolve. Without this, any parent-scoped JWT could
+	// bootstrap another school's hidden phase by guessing its id and read its
+	// form schema, offerings, and legal metadata (#1663).
+	//
+	// The two restricted audiences do NOT share one fact, so we forward both
+	// and let the service gate per audience (EnrolleeAudienceAccess):
+	// linked_parents needs any submit-permitted guardian relationship (an
+	// inactive child still qualifies — enrolling a new sibling is the point),
+	// while existing_students needs that relationship to point at a still
+	// enrolled (active/pending) child. Gating existing_students on the looser
+	// fact would serve a form whose submit can only fail with
+	// ErrChildNotEnrolled / ErrChildEnrollmentNotPermitted, for a phase the
+	// picker deliberately hides from this account.
+	//
+	// Open / new_students phases stay unrestricted (the zero access value is
+	// exactly the anonymous public gate), and a valid late-invite token still
+	// lifts the restriction inside the service.
+	status, statusErr := rs.ParentService.GetEnrollmentSubmitStatus(r.Context(), accountID, schoolID)
+	if statusErr != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(statusErr))
+		return false, false, false
+	}
+	// A hidden school is excluded from cross-school discovery; that exclusion
+	// has to hold on the direct route too, or knowing the subdomain is enough
+	// to bootstrap its forms (#1663).
+	if !enrollmentSchoolReachable(school, status) {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("tenant not found")))
+		return false, false, false
+	}
+	linkedParents := status != nil && status.HasSubmitPermission
+	existingStudents := status != nil && status.HasEnrolledSubmitPermission
+
+	return linkedParents, existingStudents, true
 }

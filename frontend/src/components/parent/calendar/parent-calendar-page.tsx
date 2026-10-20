@@ -21,7 +21,6 @@ import {
   CheckCircleIcon,
   ClockIcon,
   MapPinIcon,
-  UserIcon,
   XIcon,
 } from "@phosphor-icons/react/ssr";
 import { CalendarSubscribePanel } from "~/components/calendar/calendar-subscribe-panel";
@@ -32,6 +31,7 @@ import {
 } from "~/components/parent/parent-page";
 import { AnchoredPopover } from "~/components/ui/anchored-popover";
 import { Button } from "~/components/ui/button";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   Drawer,
   DrawerContent,
@@ -999,7 +999,7 @@ function CalendarEventDetails({
           />
           {event.student_name ? (
             <DetailRow
-              icon={<UserIcon size={16} />}
+              icon={<MotoConceptIcon concept="children" size={16} />}
               label={t("forChild", { name: event.student_name })}
             />
           ) : null}

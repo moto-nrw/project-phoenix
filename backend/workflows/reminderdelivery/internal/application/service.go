@@ -108,50 +108,14 @@ func (s *service) Compute(ctx context.Context, scope reminder.Scope) (*reminder.
 	// Pickup and activity scopes are resolved independently so an activity-only
 	// tenant never pays for (or fails on) student-presence resolution, and a
 	// pickup-only tenant never resolves the room filter.
-	if pickupUpcoming || pickupOverdue {
-		studentIDs, serr := s.pickupScopeStudentIDs(ctx, scope, today)
-		if serr != nil {
-			return nil, serr
-		}
-		lead, lerr := s.leadMinutes(ctx, s.Settings.PickupLeadMinutes)
-		if lerr != nil {
-			return nil, lerr
-		}
-		pickupReminders, pickupNext, perr := s.pickupReminders(ctx, scope, studentIDs, today, nowMin, lead, pickupUpcoming, pickupOverdue)
-		if perr != nil {
-			return nil, perr
-		}
-		pickupPart = pickupReminders
-		nextChange = minFuture(nextChange, pickupNext)
+	pickupPart, nextChange, err = s.computePickupPart(ctx, scope, today, nowMin, pickupUpcoming, pickupOverdue, nextChange)
+	if err != nil {
+		return nil, err
 	}
-
-	if activityStart || activityOverdue {
-		// Admins see all activities (nil filter); caregivers are limited to the
-		// rooms they supervise.
-		var roomIDs []int64
-		if !scope.IsAdmin {
-			rooms, rerr := s.supervisedRoomIDs(ctx, scope)
-			if rerr != nil {
-				return nil, rerr
-			}
-			roomIDs = rooms
-		}
-		lead, lerr := s.leadMinutes(ctx, s.Settings.ActivityLeadMinutes)
-		if lerr != nil {
-			return nil, lerr
-		}
-		overdueThreshold, oerr := s.overdueThresholdMinutes(ctx)
-		if oerr != nil {
-			return nil, oerr
-		}
-		activityReminders, activityNext, aerr := s.activityReminders(ctx, scope, roomIDs, today, nowMin, lead, overdueThreshold, activityStart, activityOverdue)
-		if aerr != nil {
-			return nil, aerr
-		}
-		activityPart = activityReminders
-		nextChange = minFuture(nextChange, activityNext)
+	activityPart, nextChange, err = s.computeActivityPart(ctx, scope, today, nowMin, activityStart, activityOverdue, nextChange)
+	if err != nil {
+		return nil, err
 	}
-
 	return assembleResult(pickupPart, activityPart, nextChange), nil
 }
 
@@ -261,20 +225,7 @@ func (s *service) pickupReminders(ctx context.Context, scope reminder.Scope, stu
 		return nil, nextChange, nil
 	}
 
-	dueIDs := make([]int64, len(dues))
-	for i, d := range dues {
-		dueIDs[i] = d.id
-	}
-
-	// Hydrate display names for the due students only (all already read-gated).
-	infos, err := s.hydrateNames(ctx, readable, dueIDs)
-	if err != nil {
-		return nil, nextChange, err
-	}
-
-	out, dropped := buildPickupReminders(dues, infos)
-	s.logDroppedPickups(dropped)
-	return out, nextChange, nil
+	return s.renderDuePickups(ctx, readable, dues, nextChange)
 }
 
 // pickupWindow bundles the time-window parameters of one pickup evaluation.
@@ -564,27 +515,7 @@ func buildActivityReminders(
 		endMin := minutesOfDay(inst.EndTime)
 		diff := startMin - w.nowMin
 
-		// Track the boundaries at which this instance's reminder state flips, so
-		// the frontend can refetch exactly then instead of waiting for the poll:
-		//   upcoming: enters the window at startMin-lead, leaves it at startMin+1
-		//   overdue:  appears at startMin+overdueThreshold, disappears at endMin
-		// The upcoming exit is startMin+1, NOT startMin: at exactly startMin the
-		// diff is 0, which is still "upcoming" (diff >= 0); the reminder only
-		// disappears the first minute startMin is in the past. Scheduling startMin
-		// would refetch a minute early (nothing changed) and drop the real
-		// startMin+1 boundary — same reasoning as the pickup flip below.
-		if w.upcoming {
-			nextChange = minFuture(nextChange, futureBoundary(startMin-w.lead, w.nowMin))
-			nextChange = minFuture(nextChange, futureBoundary(startMin+1, w.nowMin))
-		}
-		if w.overdue {
-			overdueStart := startMin + w.overdueThreshold
-			if overdueStart < endMin {
-				nextChange = minFuture(nextChange, futureBoundary(overdueStart, w.nowMin))
-				nextChange = minFuture(nextChange, futureBoundary(endMin, w.nowMin))
-			}
-		}
-
+		nextChange = activityNextBoundary(startMin, endMin, w, nextChange)
 		switch {
 		case w.upcoming && diff >= 0 && diff <= w.lead:
 			out = append(out, reminder.Reminder{

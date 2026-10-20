@@ -88,23 +88,27 @@ func (s *sessionMirror) MirrorSession(ctx context.Context, group ports.Lifecycle
 		)
 		return
 	}
-	seen := make(map[int64]bool, len(supervisorIDs))
-	for _, id := range supervisorIDs {
-		if id <= 0 || seen[id] {
-			continue
-		}
-		seen[id] = true
-		if err := s.timetable.AddStaff(ctx, instance.ID, id); err != nil {
-			s.logger.WarnContext(ctx, "failed to mirror IoT session staff to timetable",
-				slog.Int64("instance_id", instance.ID),
-				slog.Int64("staff_id", id),
-				slog.String("error", err.Error()),
-			)
-		}
-	}
+	s.mirrorStaff(ctx, instance.ID, supervisorIDs)
 	if s.publish != nil {
 		s.publish(ctx, instance)
 	}
 }
 
 func mirrorClock(minutes int) string { return fmt.Sprintf("%02d:%02d:00", minutes/60, minutes%60) }
+
+func (s *sessionMirror) mirrorStaff(ctx context.Context, instanceID int64, supervisorIDs []int64) {
+	seen := make(map[int64]bool, len(supervisorIDs))
+	for _, id := range supervisorIDs {
+		if id <= 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		if err := s.timetable.AddStaff(ctx, instanceID, id); err != nil {
+			s.logger.WarnContext(ctx, "failed to mirror IoT session staff to timetable",
+				slog.Int64("instance_id", instanceID),
+				slog.Int64("staff_id", id),
+				slog.String("error", err.Error()),
+			)
+		}
+	}
+}

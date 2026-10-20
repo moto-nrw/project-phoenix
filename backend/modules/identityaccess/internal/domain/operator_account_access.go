@@ -226,7 +226,7 @@ func UnambiguousPersonIdentity(persons []AccountPersonIdentity) (AccountPersonId
 		}
 		// Same name: pick a stable representative so the outcome does not
 		// depend on row order.
-		if person.TenantID < selected.TenantID || (person.TenantID == selected.TenantID && person.ID < selected.ID) {
+		if personIdentityPrecedes(person, *selected) {
 			selected = &person
 		}
 	}
@@ -272,4 +272,8 @@ func SortTenantAccessBySchoolName(entries []AccountTenantAccess) {
 	slices.SortStableFunc(entries, func(left, right AccountTenantAccess) int {
 		return strings.Compare(left.SchoolName, right.SchoolName)
 	})
+}
+
+func personIdentityPrecedes(person, selected AccountPersonIdentity) bool {
+	return person.TenantID < selected.TenantID || (person.TenantID == selected.TenantID && person.ID < selected.ID)
 }

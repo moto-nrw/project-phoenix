@@ -503,7 +503,7 @@ function studentSearchTopic(
       },
     ],
     result:
-      "Sie sehen jetzt die Angaben des Kindes. Auf dem Handy wählen Sie `Zurück`. Am Computer nutzen Sie die Navigation oben.",
+      "Sie sehen jetzt die Angaben des Kindes. Über dem Namen steht `Zurück zur Kinderübersicht`. Damit kommen Sie zur Liste zurück.",
     differences: [
       "Haben Sie einen anderen Tag gewählt? Dann sehen Sie die geplante Anwesenheit. Ein aktueller Aufenthaltsort wird nicht gezeigt.",
       "Ansicht und Spalten bleiben auf diesem Gerät so, wie Sie sie gewählt haben.",
@@ -973,7 +973,7 @@ function ownGroupsTopic(
         "Bei offener Betreuung gibt es keine festen eigenen Gruppen in moto.",
       group: "gruppen",
       audience: ["caregiver", "lead"],
-      icon: "Users",
+      icon: "UsersThree",
       steps: [
         "Öffnen Sie `Alle Kinder`.",
         "Nutzen Sie die Suche oder die Filter für die benötigten Kinder.",
@@ -992,7 +992,7 @@ function ownGroupsTopic(
         "Ob Sie eigene Gruppen sehen, hängt von der Arbeitsweise Ihrer OGS ab.",
       group: "gruppen",
       audience: ["caregiver", "lead"],
-      icon: "Users",
+      icon: "UsersThree",
       steps: [
         "Prüfen Sie, ob `Meine Gruppen` oder `Weitere Gruppen` in der Seitenleiste steht.",
         "Ist einer der Bereiche vorhanden? Öffnen Sie dort die gewünschte Gruppe.",
@@ -1016,7 +1016,7 @@ function ownGroupsTopic(
     summary: "Öffnen Sie Ihre festen Gruppen und die zugehörigen Kinder.",
     group: "gruppen",
     audience: ["caregiver", "lead"],
-    icon: "Users",
+    icon: "UsersThree",
     steps: [
       "Öffnen Sie `Meine Gruppen` oder `Weitere Gruppen` in der Seitenleiste.",
       "Wählen Sie die gewünschte Gruppe.",
@@ -2846,7 +2846,7 @@ function groupsCatalogTopic(groupMode: HelpGroupMode): HelpTopic {
       : "Legen Sie jede Gruppe an und geben Sie ihr Raum und Leitung.",
     group: "einrichten",
     audience: "lead",
-    icon: "Users",
+    icon: "UsersThree",
     steps: [],
     instructionGroups: [
       {
@@ -3000,7 +3000,7 @@ function createStudentTopic(): HelpTopic {
     summary: "Einzeln über ein Fenster. Viele auf einmal über eine Vorlage.",
     group: "einrichten",
     audience: "lead",
-    icon: "Student",
+    icon: "User",
     steps: [],
     instructionGroups: [
       {
@@ -6644,7 +6644,7 @@ function parentEnrollTopic(): HelpTopic {
     differences: [
       "Manche Anmeldungen sind `Nur bereits angemeldete Kinder`.",
       "An jeder Anmeldung steht `Anmeldung bis` mit der Frist.",
-      "Über dem Formular steht `Andere Anmeldung wählen`. Damit gehen Sie zurück.",
+      "Über dem Formular steht `Zurück zu Neue Anmeldung`. Damit wählen Sie eine andere Anmeldung.",
     ],
     troubleshootingDetails: [
       "moto sagt, aktuell sei keine Anmeldephase geöffnet? Dann wenden Sie sich an die OGS.",
@@ -6984,7 +6984,7 @@ function teacherClassDayTopic(): HelpTopic {
       "Die `Klassenansicht` zeigt Ihre Klassen und die Zahlen des Tages.",
     group: "klasse",
     audience: "teacher",
-    icon: "Users",
+    icon: "ChalkboardTeacher",
     steps: [
       "Melden Sie sich bei moto schule an.",
       "Sie landen in der `Klassenansicht`.",
@@ -7167,7 +7167,9 @@ function teacherSupervisionTopic(): HelpTopic {
       "Wählen Sie eine Aufsicht, um Einzelheiten zu sehen.",
     ],
     result: "Sie sehen Zeit, Raum und die Kinder Ihrer Aufsicht.",
-    notes: ["Mit `Alle Aufsichten heute` kommen Sie zurück zur Übersicht."],
+    notes: [
+      "Mit `Zurück zu allen Aufsichten heute` kommen Sie zurück zur Übersicht.",
+    ],
     differences: [
       "Eine Aufsicht trägt `Fällt aus`? Dann findet sie heute nicht statt.",
       "Vertreten Sie jemanden, steht das an der Aufsicht.",
@@ -7226,7 +7228,7 @@ function teacherSupervisionRosterTopic(): HelpTopic {
       "In einer laufenden Aufsicht sehen Sie Abholung und Notfallkontakt.",
     group: "aufsicht",
     audience: "teacher",
-    icon: "Users",
+    icon: "User",
     steps: [
       "Starten Sie Ihre Aufsicht.",
       "Wählen Sie ein Kind aus der Liste.",

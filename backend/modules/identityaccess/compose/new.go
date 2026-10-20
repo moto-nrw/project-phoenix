@@ -91,23 +91,11 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	administration, err := newAccountAdministration(store, auth, dependencies.Sessions, dependencies.Lifecycle)
+	administration, lifecycle, roles, err := newLifecycleAndRoles(service, auth, store, dependencies)
 	if err != nil {
 		return nil, err
 	}
-	lifecycle, roles, err := newAccountLifecycle(service, auth, store, dependencies.Sessions, dependencies.Lifecycle, administration)
-	if err != nil {
-		return nil, err
-	}
-	resets, err := newPasswordReset(auth, store, dependencies.Sessions, dependencies.Resets)
-	if err != nil {
-		return nil, err
-	}
-	invitations, err := newSchoolInvitation(store, roles, lifecycle, dependencies.Sessions, dependencies.Lifecycle, dependencies.Invitations)
-	if err != nil {
-		return nil, err
-	}
-	provisioning, err := newAccountProvisioning(store, lifecycle, dependencies.Sessions, dependencies.Lifecycle)
+	resets, invitations, provisioning, err := newRegistrationFlows(auth, store, lifecycle, roles, dependencies)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +104,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	operatorPasskeys, accountPasskeys := newPasskeyRecords(service, store)
+	operatorPasskeys, accountPasskeys := application.NewOperatorPasskey(service, store), application.NewAccountPasskey(service, store)
 	flows, err = withPasskeyFlows(flows, service, auth, operatorAuth, accountPasskeys, operatorPasskeys,
 		dependencies.Sessions, dependencies.MFA)
 	if err != nil {
@@ -131,7 +119,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		return nil, err
 	}
 	e := application.NewEngine(application.EngineParts{
-		CalendarFeeds: newCalendarFeeds(service, store),
+		CalendarFeeds: application.NewCalendarFeeds(application.NewStaffCalendarFeeds(service, store), application.NewParentCalendarFeeds(service, store)),
 		Profiles:      application.NewAccountProfiles(service, store), GuardianSchools: application.NewGuardianSchools(service, store),
 		Service: service, MFA: operatorMFARecords, Tokens: tokens, RFIDCards: application.NewRFIDCards(service, store),
 		Passkeys: operatorPasskeys, AccountPasskeys: accountPasskeys, AccountRoleQueries: application.NewAccountRoleQueries(service, store, postgres.NewRoleStore(store)),
@@ -154,13 +142,37 @@ func NewGuardianInvitationReads(db *bun.DB) (identityaccess.GuardianInvitationRe
 	return application.NewGuardianInvitationReads(postgres.NewStore(db), newCommandTransactions(nil).RunRead), nil
 }
 
-func newPasskeyRecords(service *application.Service, store *postgres.Store) (*application.OperatorPasskey, *application.AccountPasskey) {
-	return application.NewOperatorPasskey(service, store), application.NewAccountPasskey(service, store)
-}
-
 func newCommandTransactions(attach func(context.Context) context.Context) application.CommandTransactions {
 	if attach == nil {
 		attach = func(ctx context.Context) context.Context { return ctx }
 	}
 	return application.NewCommandTransactions(attach, tenant.TransactionFromContext, tenant.FromContext, tenant.WithinCurrentTenant, tenant.WithinAdmin)
+}
+
+func newLifecycleAndRoles(service *application.Service, auth *application.AccountAuthentication, store *postgres.Store, dependencies Dependencies) (*application.AccountAdministration, *application.AccountLifecycle, *application.RoleAdministration, error) {
+	administration, err := newAccountAdministration(store, auth, dependencies.Sessions, dependencies.Lifecycle)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	lifecycle, roles, err := newAccountLifecycle(service, auth, store, dependencies.Sessions, dependencies.Lifecycle, administration)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return administration, lifecycle, roles, nil
+}
+
+func newRegistrationFlows(auth *application.AccountAuthentication, store *postgres.Store, lifecycle *application.AccountLifecycle, roles *application.RoleAdministration, dependencies Dependencies) (*application.PasswordReset, *application.SchoolInvitation, *application.AccountProvisioning, error) {
+	resets, err := newPasswordReset(auth, store, dependencies.Sessions, dependencies.Resets)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	invitations, err := newSchoolInvitation(store, roles, lifecycle, dependencies.Sessions, dependencies.Lifecycle, dependencies.Invitations)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	provisioning, err := newAccountProvisioning(store, lifecycle, dependencies.Sessions, dependencies.Lifecycle)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return resets, invitations, provisioning, nil
 }

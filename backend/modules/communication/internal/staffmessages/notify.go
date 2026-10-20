@@ -86,6 +86,30 @@ func (s *Service) notifyRecipients(ctx context.Context, thread *StaffMessageThre
 		return
 	}
 
+	candidates := s.reachablePushRecipients(ctx, thread, participants, senderAccountID)
+	if len(candidates) == 0 {
+		return
+	}
+
+	// The single enforcement point for "nothing without consent": build the
+	// relation-based candidate set first, then narrow it here — never the other
+	// way round.
+	optedIn, err := s.Preferences.FilterOptedIn(ctx, deliveryPorts.TypeStaffMessage, candidates)
+	if err != nil {
+		s.Logger.Warn("staffmessaging: filter opted-in recipients failed",
+			slog.Int64("thread_id", thread.ID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	if len(optedIn) == 0 {
+		return
+	}
+
+	s.sendStaffMessagePush(ctx, thread, messageID, optedIn)
+}
+
+func (s *Service) reachablePushRecipients(ctx context.Context, thread *StaffMessageThread, participants []int64, senderAccountID int64) []int64 {
 	// Zusaetzlich zur Einwilligung: nur an erreichbares Personal. Der Sendepfad
 	// prueft das bereits, aber eine Zustellung an ein inzwischen deaktiviertes
 	// Konto waere der teuerste Weg, das zu bemerken - ein Push landet auf einem
@@ -107,26 +131,11 @@ func (s *Service) notifyRecipients(ctx context.Context, thread *StaffMessageThre
 			candidates = append(candidates, id)
 		}
 	}
-	if len(candidates) == 0 {
-		return
-	}
+	return candidates
+}
 
-	// The single enforcement point for "nothing without consent": build the
-	// relation-based candidate set first, then narrow it here — never the other
-	// way round.
-	optedIn, err := s.Preferences.FilterOptedIn(ctx, deliveryPorts.TypeStaffMessage, candidates)
-	if err != nil {
-		s.Logger.Warn("staffmessaging: filter opted-in recipients failed",
-			slog.Int64("thread_id", thread.ID),
-			slog.String("error", err.Error()),
-		)
-		return
-	}
-	if len(optedIn) == 0 {
-		return
-	}
-
-	err = s.Notifier.Notify(ctx, deliveryPorts.NotificationEvent{
+func (s *Service) sendStaffMessagePush(ctx context.Context, thread *StaffMessageThread, messageID int64, optedIn []int64) {
+	err := s.Notifier.Notify(ctx, deliveryPorts.NotificationEvent{
 		Type:           deliveryPorts.TypeStaffMessage,
 		IdempotencyKey: fmt.Sprintf("staff-message:%d:%d", thread.ID, messageID),
 		RelatedType:    "staff_message_thread", RelatedID: thread.ID,

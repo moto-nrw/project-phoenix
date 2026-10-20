@@ -7,10 +7,9 @@ import {
   useRef,
   useState,
 } from "react";
-import Link from "next/link";
 import { XIcon } from "@phosphor-icons/react/ssr";
 import { useLocale, useTranslations } from "next-intl";
-import { ArrowLeft } from "lucide-react";
+import { BackLink } from "~/components/ui/back-link";
 import { parentPath } from "~/lib/parent-url";
 import {
   FormErrorAlert,
@@ -271,10 +270,9 @@ export function OgsConversation({
       ref={containerRef}
       className="flex min-h-[20rem] w-full flex-col gap-3 overflow-hidden"
     >
-      {showBack ? <BackBar /> : null}
-
       <section className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border shadow-sm">
         <div className="border-b border-gray-100 px-4 py-3 sm:px-5">
+          {showBack ? <BackBar /> : null}
           {loading ? (
             <div
               className="flex min-h-7 items-center justify-between gap-3"
@@ -668,20 +666,15 @@ function ConversationComposerSkeleton() {
   );
 }
 
-// Always-visible parents-portal back link. The kit BackButton/MobileBackButton
-// don't fit here: BackButton routes via useTenantRouter (the tenant portal) and
-// both are mobile-only by design, whereas this affordance must work on desktop in
-// the parents portal too. A plain Link to the portal-absolute path is the correct
-// primitive; the kit has no desktop, portal-agnostic back component to reuse.
+// Rückweg zum Posteingang der Elternnachrichten, auf jeder Breite. Er sitzt
+// in der Kopfkarte über dem Titel, wie auf jeder anderen Unterseite.
 function BackBar() {
   const tm = useTranslations("parentMessages");
   return (
-    <Link
+    <BackLink
       href={parentPath("/parents/messages")}
-      className="inline-flex h-8 w-fit items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-    >
-      <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-      {tm("back")}
-    </Link>
+      label={tm("back")}
+      className="mb-2"
+    />
   );
 }

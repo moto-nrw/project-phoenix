@@ -719,6 +719,7 @@
       "errorObjectPickup": "rregullimi i marrjes"
     },
     "back": "Kthehu te Fëmijët e mi",
+    "backSingle": "Kthehu te Fëmija im",
     "today": {
       "title": "Sot",
       "description": "Informacionet dhe detyrat më të rëndësishme për sot.",
@@ -990,7 +991,8 @@
       "holiday": "Përkujdesje gjatë pushimeve",
       "custom": "Tjetër"
     },
-    "backToPicker": "Zgjidh regjistrim tjetër",
+    "backToPicker": "Kthehu te zgjedhja",
+    "backToParentPicker": "Kthehu te Regjistrim i ri",
     "backToPortal": "Kthehu te portali i prindërve",
     "parentEmbeddedKicker": "Regjistrimi për kujdesin pas shkollës",
     "formEyebrow": "Plotësoni formularin",
@@ -1329,6 +1331,7 @@
     "changeRequestReplySending": "Duke dërguar…",
     "changeRequestReplySubmit": "Dërgo përgjigje",
     "backToStatus": "Kthehu te statusi",
+    "backToParentApp": "Kthehu te aplikacioni për prindër",
     "nameLabel": "Emri",
     "emailLabel": "E-mail",
     "phoneLabel": "Telefoni",
@@ -1968,7 +1971,7 @@
     "sent": "Dërguar",
     "readByOgs": "Lexuar nga OGS-ja",
     "aboutChild": "Për {name}",
-    "back": "Kthehu",
+    "back": "Kthehu te mesazhet",
     "composerPlaceholder": "Shkruani një mesazh për OGS-në",
     "composerLabel": "Mesazh",
     "send": "Dërgo",

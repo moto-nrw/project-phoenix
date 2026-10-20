@@ -8,6 +8,7 @@ import {
   PublicEnrollmentPageShell,
 } from "~/components/enrollment/public-enrollment-shell";
 import { useOneTimeQueryFlag } from "~/lib/hooks/use-one-time-query-flag";
+import { parentPath } from "~/lib/parent-url";
 
 interface PageProps {
   readonly params: Promise<{ token: string }>;
@@ -39,6 +40,7 @@ function ParentEnrollmentStatusPageContent({ params }: PageProps) {
         token={token}
         justSubmitted={justSubmitted}
         duplicateWarning={searchParams.get("duplicate_warning") === "1"}
+        parentAppHref={parentPath("/parents")}
       />
     </PublicEnrollmentPageShell>
   );

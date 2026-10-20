@@ -8,7 +8,7 @@ import (
 )
 
 type activeSchoolQuery struct {
-	schools organizationtenancy.Query
+	schools organizationtenancy.SchoolListQuery
 }
 
 func (q activeSchoolQuery) ListSchoolsByID(ctx context.Context, ids []int64) ([]presenceservice.School, error) {
@@ -23,6 +23,6 @@ func (q activeSchoolQuery) ListSchoolsByID(ctx context.Context, ids []int64) ([]
 	return result, nil
 }
 
-func NewActiveSchoolQuery(schools organizationtenancy.Query) presenceservice.SchoolQuery {
+func NewActiveSchoolQuery(schools organizationtenancy.SchoolListQuery) presenceservice.SchoolQuery {
 	return activeSchoolQuery{schools: schools}
 }

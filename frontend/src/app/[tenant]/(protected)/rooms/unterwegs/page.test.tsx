@@ -39,9 +39,12 @@ vi.mock("~/components/rooms/transit-students-section", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/mobile-back-button", () => ({
-  MobileBackButton: ({ href }: { href?: string }) => (
-    <div data-testid="back-button" data-href={href} />
+// Der Rückweg der Kopfkarte (TenantPage) als Link mit seinem Ziel.
+vi.mock("~/components/ui/back-link", () => ({
+  BackLink: ({ href, label }: { href: string; label: string }) => (
+    <a data-testid="back-button" href={href} data-href={href}>
+      {label}
+    </a>
   ),
 }));
 

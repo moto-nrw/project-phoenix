@@ -1587,7 +1587,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Termin bearbeiten Termin erstellen@1002",
     ],
     "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": [
-      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@604",
+      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@606",
     ],
     "src/components/database/grade-transitions/transition-editor.tsx": [
       "Jahrgangswechsel bearbeiten Neuer Jahrgangswechsel@266",

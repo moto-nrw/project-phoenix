@@ -347,12 +347,10 @@ func (s *AccountAuthentication) resolveRefreshHandoff(ctx context.Context, prese
 		if current.ReplacementToken == nil || current.RotatedAt.After(now) || now.Sub(*current.RotatedAt) > s.rotation.RecoveryGrace() {
 			return current, false, domain.ErrInvalidToken
 		}
-		if !proofValidated {
-			if !s.rotation.MatchesRecoveryProof(ctx, current.RecoveryProofHash) {
-				return current, false, domain.ErrInvalidToken
-			}
-			proofValidated = true
+		if err := s.requireAccountRecoveryProof(ctx, current.RecoveryProofHash, proofValidated); err != nil {
+			return current, false, err
 		}
+		proofValidated = true
 		next, err := s.sessions.FindAccountSessionForUpdate(ctx, *current.ReplacementToken)
 		if err != nil {
 			if errors.Is(err, domain.ErrAccountSessionNotFound) {
@@ -362,7 +360,7 @@ func (s *AccountAuthentication) resolveRefreshHandoff(ctx context.Context, prese
 		}
 		// Tenant 0 is the legacy pre-tenant-claim state whose first successor
 		// may carry the resolved tenant; modern lineage stays pinned.
-		if next.FamilyID != current.FamilyID || next.AccountID != current.AccountID || (current.TenantID != 0 && next.TenantID != current.TenantID) || next.Generation != current.Generation+1 {
+		if !sameAccountSessionLineage(current, next) {
 			return current, false, domain.ErrInvalidToken
 		}
 		current = next
@@ -524,4 +522,18 @@ func (s *AccountAuthentication) auditLogout(ctx context.Context, revoked domain.
 
 func (s *AccountAuthentication) validateTenantAccess(ctx context.Context, claims domain.RefreshClaims) error {
 	return globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error { return s.validateTenantAccessInTransaction(txCtx, claims) })
+}
+
+func (s *AccountAuthentication) requireAccountRecoveryProof(ctx context.Context, proofHash []byte, alreadyValidated bool) error {
+	if !alreadyValidated {
+		if !s.rotation.MatchesRecoveryProof(ctx, proofHash) {
+			return domain.ErrInvalidToken
+		}
+
+	}
+	return nil
+}
+
+func sameAccountSessionLineage(current, next domain.AccountSession) bool {
+	return next.FamilyID == current.FamilyID && next.AccountID == current.AccountID && (current.TenantID == 0 || next.TenantID == current.TenantID) && next.Generation == current.Generation+1
 }

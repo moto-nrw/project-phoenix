@@ -180,36 +180,14 @@ func (r *RoleAdministration) ReplaceRolePermissions(ctx context.Context, roleID 
 			return err
 		}
 
-		desired := make(map[int64]struct{}, len(permissionIDs))
-		for _, permissionID := range permissionIDs {
-			if permissionID <= 0 {
-				return failed(op, domain.ErrPermissionNotFound)
-			}
-			_, found, err := r.store.FindPermission(txCtx, permissionID)
-			if err != nil {
-				return failed(op, err)
-			}
-			if !found {
-				return failed(op, domain.ErrPermissionNotFound)
-			}
-			desired[permissionID] = struct{}{}
-		}
-
-		currentPermissions, err := r.store.ListRolePermissions(txCtx, roleID)
+		desired, err := r.desiredRolePermissions(txCtx, permissionIDs)
 		if err != nil {
-			return failed(op, err)
+			return err
 		}
-		current := make(map[int64]struct{}, len(currentPermissions))
-		for _, permission := range currentPermissions {
-			current[permission.ID] = struct{}{}
-			if _, keep := desired[permission.ID]; keep {
-				continue
-			}
-			if err := r.store.RemoveRolePermission(txCtx, roleID, permission.ID); err != nil {
-				return failed(op, err)
-			}
+		current, err := r.removeUnselectedPermissions(txCtx, roleID, desired)
+		if err != nil {
+			return err
 		}
-
 		for permissionID := range desired {
 			if _, assigned := current[permissionID]; assigned {
 				continue
@@ -284,4 +262,42 @@ func (r *RoleAdministration) GrantStaffDefaultPermission(ctx context.Context, ac
 			slog.Int64("account_id", accountID),
 			slog.String("error", err.Error()))
 	}
+}
+
+func (r *RoleAdministration) desiredRolePermissions(txCtx context.Context, permissionIDs []int64) (map[int64]struct{}, error) {
+	desired := make(map[int64]struct{}, len(permissionIDs))
+	for _, permissionID := range permissionIDs {
+		if permissionID <= 0 {
+			return nil, failed("replace role permissions", domain.ErrPermissionNotFound)
+		}
+		_, found, err := r.store.FindPermission(txCtx, permissionID)
+		if err != nil {
+			return nil, failed("replace role permissions", err)
+		}
+		if !found {
+			return nil, failed("replace role permissions", domain.ErrPermissionNotFound)
+		}
+		desired[permissionID] = struct{}{}
+	}
+
+	return desired, nil
+}
+
+func (r *RoleAdministration) removeUnselectedPermissions(txCtx context.Context, roleID int64, desired map[int64]struct{}) (map[int64]struct{}, error) {
+	currentPermissions, err := r.store.ListRolePermissions(txCtx, roleID)
+	if err != nil {
+		return nil, failed("replace role permissions", err)
+	}
+	current := make(map[int64]struct{}, len(currentPermissions))
+	for _, permission := range currentPermissions {
+		current[permission.ID] = struct{}{}
+		if _, keep := desired[permission.ID]; keep {
+			continue
+		}
+		if err := r.store.RemoveRolePermission(txCtx, roleID, permission.ID); err != nil {
+			return nil, failed("replace role permissions", err)
+		}
+	}
+
+	return current, nil
 }

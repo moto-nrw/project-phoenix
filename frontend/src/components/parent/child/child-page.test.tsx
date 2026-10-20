@@ -214,10 +214,9 @@ describe("ChildPage", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("Mia Schneider")).not.toBeInTheDocument();
     expect(screen.queryByTestId("child-selection")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Meine Kinder" })).toHaveAttribute(
-      "href",
-      "/parents/children",
-    );
+    expect(
+      screen.getByRole("link", { name: "Zurück zu Meine Kinder" }),
+    ).toHaveAttribute("href", "/parents/children");
     expect(screen.getByText("1a · Schule am Berg")).toBeInTheDocument();
     expect(screen.getByTestId("child-profile-icon")).toBeInTheDocument();
     expect(screen.queryByText("OGS")).not.toBeInTheDocument();
@@ -416,6 +415,9 @@ describe("ChildPage Fehlerweg (#2518)", () => {
       await screen.findByText(deMessages.parentChild.notFound),
     ).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Zurück zu Mein Kind" }),
+    ).toHaveAttribute("href", "/parents/children");
   });
 
   it("meldet einen Ladefehler der Betreuungsdaten über dem Profil", async () => {

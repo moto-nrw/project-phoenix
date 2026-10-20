@@ -150,7 +150,7 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
         title={t("formEyebrow")}
         description={t("parentEmbeddedDescription")}
         backHref={parentPath("/parents/anmeldung")}
-        backLabel={t("backToPicker")}
+        backLabel={t("backToParentPicker")}
       />
 
       {loading ? (

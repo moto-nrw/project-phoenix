@@ -78,19 +78,7 @@ var moduleFacadeNonRootDirs = map[string]bool{
 // width measured today:
 //
 //	cd backend && ../scripts/run-go-toolchain.sh go test ./test/ -run TestModuleFacadeWidthRatchet
-var moduleFacadeAllowlist = map[string]int{
-	"modules/communication/parent_announcements.go:ParentAnnouncementCapability": 16,
-	"modules/devicefleet/administration.go:Administration":                       22,
-	"modules/devicefleet/devicefleet.go:DeviceQuery":                             13,
-	"modules/identityaccess/account_authentication.go:AccountAuthentication":     14,
-	"modules/identityaccess/operator_tokens.go:OperatorTokenCommand":             13,
-	"modules/organizationtenancy/organizationtenancy.go:Query":                   20,
-	"modules/organizationtenancy/provisioning.go:Provisioning":                   33,
-	"modules/peopledirectory/guardian.go:GuardianCommand":                        16,
-	"modules/peopledirectory/guardian.go:GuardianProvider":                       31,
-	"modules/peopledirectory/guardian.go:GuardianQuery":                          19,
-	"modules/peopledirectory/student_directory.go:StudentDirectoryQuery":         16,
-}
+var moduleFacadeAllowlist = map[string]int{}
 
 func TestModuleFacadeWidthRatchet(t *testing.T) {
 	t.Parallel()

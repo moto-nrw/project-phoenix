@@ -1,6 +1,7 @@
 "use client";
 
 import { Skeleton } from "~/components/ui/skeleton";
+import { StudentHistoryLoadingBack } from "../student-history-loading-back";
 import { TenantPageHeaderSkeleton } from "~/components/ui/page-skeletons";
 
 // Mirrors the header block, den Zeitraum-Umschalter und die Karte mit
@@ -14,10 +15,8 @@ export function FeedbackHistorySkeleton() {
       data-testid="feedback-history-skeleton"
       className="w-full"
     >
-      <Skeleton className="mb-4 h-9 w-24 rounded-lg" />
-
       {/* Spiegelt die Kopfkarte des geladenen Zustands. */}
-      <TenantPageHeaderSkeleton leading />
+      <TenantPageHeaderSkeleton leading back={<StudentHistoryLoadingBack />} />
 
       <div className="mb-6">
         <Skeleton className="h-9 w-full max-w-md rounded-full" />

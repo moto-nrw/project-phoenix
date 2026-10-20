@@ -9,10 +9,13 @@ import { useSession } from "next-auth/react";
 import { getStartDateForTimeRange, toISODate } from "~/lib/date-helpers";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
-import { BackButton } from "~/components/ui/back-button";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
+import {
+  resolveStudentReferrer,
+  studentHistoryBack,
+} from "../student-referrer";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { FeedbackHistorySkeleton } from "./page-skeleton";
@@ -80,7 +83,7 @@ function StudentFeedbackHistoryPageContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const studentId = params.id as string;
-  const referrer = searchParams.get("from") ?? "/students/search";
+  const referrer = resolveStudentReferrer(searchParams.get("from"));
   useSession();
 
   const [student, setStudent] = useState<Student | null>(null);
@@ -280,23 +283,19 @@ function StudentFeedbackHistoryPageContent() {
         : notFound || !student
           ? "Kind nicht gefunden"
           : null;
-  // Im Fehlerfall führt der Rückweg auf die Liste, sonst auf die Kindakte in
-  // den Reiter, aus dem diese Unterseite geöffnet wurde.
-  const backReferrer =
-    errorMessage !== null || featureDisabled
-      ? referrer
-      : `/students/${studentId}?from=${referrer}&tab=historie`;
+  const back = studentHistoryBack(
+    studentId,
+    referrer,
+    errorMessage !== null || featureDisabled,
+  );
 
   return (
     <>
-      {/* tab=historie returns to the originating tab on the detail page
-          (this sub-page lives under Historie, issue #1501); from= still drives
-          the detail page's own back button to the list. */}
-      <BackButton referrer={backReferrer} />
-
       {/* Der Entitätskopf ist die Kopfkarte der Seite. Der Zeitraum ist eine
           Wertauswahl und steht deshalb als Aktion in der Titelzeile. */}
       <TenantPage
+        back
+        {...back}
         leading={<ConceptIconTile concept="feedback" variant="page" />}
         title={student?.name ?? "Feedbackhistorie"}
         stats={studentMeta || feedbackLine}

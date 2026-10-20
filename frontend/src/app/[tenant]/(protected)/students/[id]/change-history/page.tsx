@@ -2,10 +2,13 @@
 
 import React, { Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { BackButton } from "~/components/ui/back-button";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
+import {
+  resolveStudentReferrer,
+  studentHistoryBack,
+} from "../student-referrer";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
@@ -85,7 +88,7 @@ function StudentChangeHistoryPageContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const studentId = params.id as string;
-  const referrer = searchParams.get("from") ?? "/students/search";
+  const referrer = resolveStudentReferrer(searchParams.get("from"));
 
   const [student, setStudent] = useState<Student | null>(null);
   const [entries, setEntries] = useState<ChangeEntry[] | null>(null);
@@ -182,20 +185,15 @@ function StudentChangeHistoryPageContent() {
         .filter(Boolean)
         .join(" · ")
     : "";
-  // Im Fehlerfall führt der Rückweg auf die Liste, sonst auf die Kindakte in
-  // den Reiter, aus dem diese Unterseite geöffnet wurde.
   const failed = notFound || historyLoad.error !== null;
-  const backReferrer = failed
-    ? referrer
-    : `/students/${studentId}?from=${referrer}&tab=historie`;
+  const back = studentHistoryBack(studentId, referrer, failed);
 
   return (
     <>
-      {/* Mobiler Rückweg; auf dem Desktop führt die Breadcrumb zurück. */}
-      <BackButton referrer={backReferrer} />
-
       {/* Der Entitätskopf ist die Kopfkarte der Seite. */}
       <TenantPage
+        back
+        {...back}
         leading={<ConceptIconTile concept="changeHistory" variant="page" />}
         title={displayName || "Änderungsverlauf"}
         stats={studentMeta || entryLine}

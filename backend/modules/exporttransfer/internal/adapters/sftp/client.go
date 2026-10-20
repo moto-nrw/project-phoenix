@@ -261,25 +261,7 @@ func (c *Client) Prepare(ctx context.Context, target Target, filename string, da
 		return nil, fmt.Errorf("%w: %w", ErrConnect, err)
 	}
 
-	// Cancellation is enforced by closing the connection, not by an absolute
-	// deadline on it. A deadline would still be armed while the session is
-	// being torn down, and the SFTP client's receive loop would then sit in a
-	// read until it expired instead of returning at once.
-	stop := make(chan struct{})
-	go func() {
-		select {
-		case <-ctx.Done():
-			_ = conn.Close()
-		case <-stop:
-		}
-	}()
-
-	// The handshake itself does blocking I/O before any of our code runs
-	// again, so it gets its own deadline.
-	if deadline, ok := ctx.Deadline(); ok {
-		_ = conn.SetDeadline(deadline)
-	}
-
+	stop := watchUploadConnection(ctx, conn)
 	sshClient, client, err := c.newSFTPClient(conn, addr, target)
 	if err != nil {
 		close(stop)
@@ -512,4 +494,27 @@ func (c *Client) writeFile(client remoteFileOperations, remotePath string, data 
 		return fmt.Errorf("%w: wrote %d of %d bytes", ErrUpload, written, len(data))
 	}
 	return nil
+}
+
+func watchUploadConnection(ctx context.Context, conn net.Conn) chan struct{} {
+	// Cancellation is enforced by closing the connection, not by an absolute
+	// deadline on it. A deadline would still be armed while the session is
+	// being torn down, and the SFTP client's receive loop would then sit in a
+	// read until it expired instead of returning at once.
+	stop := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = conn.Close()
+		case <-stop:
+		}
+	}()
+
+	// The handshake itself does blocking I/O before any of our code runs
+	// again, so it gets its own deadline.
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = conn.SetDeadline(deadline)
+	}
+
+	return stop
 }

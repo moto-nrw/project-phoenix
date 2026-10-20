@@ -7,6 +7,7 @@
  * untereinander; bei zwanzig Kindern war das nicht mehr zu überblicken.
  */
 
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatDate } from "~/lib/date-helpers";
 import {
@@ -55,8 +56,11 @@ function CaseRow({
           selected ? "bg-gray-50" : ""
         }`}
       >
-        <span className="w-full truncate font-semibold text-gray-900">
-          {childCase.studentName}
+        <span className="flex w-full min-w-0 items-center gap-2">
+          <MotoConceptIcon concept="children" size={20} />
+          <span className="truncate font-semibold text-gray-900">
+            {childCase.studentName}
+          </span>
         </span>
         <span className="text-sm text-gray-600">
           {countLabel(childCase)}

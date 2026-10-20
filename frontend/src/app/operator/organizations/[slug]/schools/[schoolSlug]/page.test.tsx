@@ -346,6 +346,35 @@ describe("OperatorSchoolDetailPage", () => {
     ).toBeInTheDocument();
   });
 
+  // Derselbe Träger heißt in jedem Zustand gleich; ohne Träger geht es zur
+  // Trägerliste (#4364).
+  it("links back to the organization with one wording in every state", async () => {
+    setupSWR();
+    const { unmount } = await renderPage();
+
+    expect(
+      await screen.findByRole("link", { name: "Zurück zum Träger" }),
+    ).toHaveAttribute("href", "/operator/organizations/test-org");
+    unmount();
+
+    setupSWR({ schools: [{ ...mockSchool, slug: "other-school" }] });
+    const notFound = await renderPage();
+
+    await screen.findByText("Schule nicht gefunden.");
+    expect(
+      screen.getByRole("link", { name: "Zurück zum Träger" }),
+    ).toHaveAttribute("href", "/operator/organizations/test-org");
+    notFound.unmount();
+
+    setupSWR({ orgs: [{ ...mockOrg, slug: "other-org" }] });
+    await renderPage();
+
+    await screen.findByText("Träger nicht gefunden.");
+    expect(
+      screen.getByRole("link", { name: "Zurück zu den Trägern" }),
+    ).toHaveAttribute("href", "/operator/organizations");
+  });
+
   // --- Header actions ---
 
   it("toggles school active and revalidates tenant cache", async () => {

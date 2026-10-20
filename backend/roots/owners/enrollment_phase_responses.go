@@ -12,7 +12,7 @@ import (
 // phaseResponseRoster feeds the response overview (#3379) with the children
 // the school cares for today; Enrollment decides which of them it asks.
 type phaseResponseRoster struct {
-	query peopledirectory.StudentDirectoryQuery
+	query peopledirectory.StudentRosterQuery
 }
 
 func (d phaseResponseRoster) ListRunningStudents(ctx context.Context, today timezone.Date) ([]enrollmentOwner.PhaseResponseStudent, error) {
