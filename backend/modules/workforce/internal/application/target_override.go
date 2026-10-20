@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 )
 
@@ -68,30 +69,39 @@ func (s *Service) expandTargetOverrides(ctx context.Context, rows []domain.Staff
 // CreateStaffTargetOverride stores a new Sonderarbeitszeit. The staff balance
 // lock serializes it with every other Soll writer, so the overlap check and
 // the closed-month check see a stable picture.
-func (s *Service) CreateStaffTargetOverride(ctx context.Context, staffID int64, fields domain.StaffTargetOverrideFields, createdBy *int64) (result domain.StaffTargetOverride, err error) {
-	if validationErr := domain.ValidateStaffTargetOverrideFields(fields); validationErr != nil {
-		return result, validationErr
+func (s *Service) CreateStaffTargetOverride(ctx context.Context, staffID int64, fields workforce.StaffTargetOverrideFields, createdBy *int64) (workforce.StaffTargetOverride, error) {
+	if staffID <= 0 {
+		return workforce.StaffTargetOverride{}, invalid("staff ID is required")
+	}
+	storedFields := domain.StaffTargetOverrideFields(fields)
+	var result domain.StaffTargetOverride
+	var err error
+	if validationErr := domain.ValidateStaffTargetOverrideFields(storedFields); validationErr != nil {
+		return targetOverrideToPublic(result), MapError(validationErr)
 	}
 	err = s.run(ctx, "create_staff_target_override", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
-			if err := s.guardTargetOverrideWrite(txCtx, staffID, stats, fields); err != nil {
+			if err := s.guardTargetOverrideWrite(txCtx, staffID, stats, storedFields); err != nil {
 				return err
 			}
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.CreateStaffTargetOverride(txCtx, domain.StaffTargetOverride{
-				StaffID: staffID, StartDate: fields.StartDate, EndDate: fields.EndDate,
-				DailyMinutes: fields.DailyMinutes, WeekdayMinutes: fields.WeekdayMinutes, CreatedBy: createdBy,
+				StaffID: staffID, StartDate: storedFields.StartDate, EndDate: storedFields.EndDate,
+				DailyMinutes: storedFields.DailyMinutes, WeekdayMinutes: storedFields.WeekdayMinutes, CreatedBy: createdBy,
 			})
 			stats.Add(writeStats)
 			return err
 		})
 	})
-	return result, err
+	return targetOverrideToPublic(result), MapError(err)
 }
 
 // DeleteStaffTargetOverride removes a Sonderarbeitszeit outside closed months.
 func (s *Service) DeleteStaffTargetOverride(ctx context.Context, staffID, id int64) error {
-	return s.run(ctx, "delete_staff_target_override", func(ctx context.Context, stats *domain.OperationStats) error {
+	if staffID <= 0 || id <= 0 {
+		return invalid("staff ID and override ID are required")
+	}
+	return MapError(s.run(ctx, "delete_staff_target_override", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			current, err := s.lockedTargetOverride(txCtx, staffID, id, stats)
 			if err != nil {
@@ -107,7 +117,7 @@ func (s *Service) DeleteStaffTargetOverride(ctx context.Context, staffID, id int
 			}
 			return err
 		})
-	})
+	}))
 }
 
 // lockedTargetOverride takes the staff balance lock and loads the row the

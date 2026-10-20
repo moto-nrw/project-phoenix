@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/ports"
 )
@@ -115,7 +116,7 @@ func (a *StaffAdmin) StaffStammdaten(ctx context.Context, staffID int64) (StaffS
 	if err != nil {
 		return StaffStammdaten{}, err
 	}
-	return StaffStammdaten{Staff: subject, MasterData: masterData, Qualifications: qualifications}, nil
+	return StaffStammdaten{Staff: subject, MasterData: masterData, Qualifications: qualificationsToDomain(qualifications)}, nil
 }
 
 // UpdateStaffStammdatenPerson replaces the person section. A no-op submit
@@ -207,10 +208,10 @@ func (a *StaffAdmin) ReplaceStaffQualifications(ctx context.Context, staffID int
 			return nil, nil, err
 		}
 		apply := func() error {
-			_, err := a.records.ReplaceStaffQualifications(ctx, staffID, rows)
+			_, err := a.records.ReplaceStaffQualifications(ctx, staffID, qualificationsToPublic(rows))
 			return err
 		}
-		return domain.QualificationChanges(existing, rows), apply, nil
+		return domain.QualificationChanges(qualificationsToDomain(existing), rows), apply, nil
 	})
 }
 
@@ -251,14 +252,14 @@ func (a *StaffAdmin) UpdateStaffFinancial(ctx context.Context, staffID int64, in
 		}
 		apply := func() error {
 			if data == nil {
-				_, err := a.records.CreateStaffFinancialData(ctx, domain.StaffFinancialData{
+				_, err := a.records.CreateStaffFinancialData(ctx, workforce.StaffFinancialData{
 					StaffID: staffID, IBAN: section.IBAN, TaxID: section.TaxID, SocialSecurityNumber: section.SocialSecurityNumber,
 				})
 				return err
 			}
 			row := *data
 			row.IBAN, row.TaxID, row.SocialSecurityNumber = section.IBAN, section.TaxID, section.SocialSecurityNumber
-			_, err := a.records.UpdateStaffFinancialData(ctx, row)
+			_, err := a.records.UpdateStaffFinancialData(ctx, financialToPublic(row))
 			return err
 		}
 		return domain.FinancialChanges(data, section), apply, nil
@@ -311,7 +312,7 @@ func (a *StaffAdmin) upsertMasterData(ctx context.Context, staffID int64, existi
 		if err := fresh.Validate(); err != nil {
 			return fmt.Errorf("%w: %s", domain.ErrStaffStammdatenInvalid, err.Error())
 		}
-		_, err := a.records.CreateStaffMasterData(ctx, fresh)
+		_, err := a.records.CreateStaffMasterData(ctx, masterDataToPublic(fresh))
 		return err
 	}
 	row := *existing
@@ -319,7 +320,7 @@ func (a *StaffAdmin) upsertMasterData(ctx context.Context, staffID int64, existi
 	if err := row.Validate(); err != nil {
 		return fmt.Errorf("%w: %s", domain.ErrStaffStammdatenInvalid, err.Error())
 	}
-	_, err := a.records.UpdateStaffMasterData(ctx, row)
+	_, err := a.records.UpdateStaffMasterData(ctx, masterDataToPublic(row))
 	return err
 }
 
@@ -350,23 +351,23 @@ func (a *StaffAdmin) loadFinancialAudited(ctx context.Context, staffID, actorAcc
 // masterData reads the master data row; nil when the tab was never written.
 func (a *StaffAdmin) masterData(ctx context.Context, staffID int64) (*domain.StaffMasterData, error) {
 	row, err := a.records.FindStaffMasterData(ctx, staffID)
-	if errors.Is(err, domain.ErrStaffMasterDataNotFound) {
+	if errors.Is(err, workforce.ErrStaffMasterDataNotFound) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return &row, nil
+	return new(domain.StaffMasterData(row)), nil
 }
 
 // financial reads the bank and tax row; nil when none was written.
 func (a *StaffAdmin) financial(ctx context.Context, staffID int64) (*domain.StaffFinancialData, error) {
 	row, err := a.records.FindStaffFinancialData(ctx, staffID)
-	if errors.Is(err, domain.ErrStaffFinancialDataNotFound) {
+	if errors.Is(err, workforce.ErrStaffFinancialDataNotFound) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return &row, nil
+	return new(domain.StaffFinancialData(row)), nil
 }

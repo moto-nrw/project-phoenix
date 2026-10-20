@@ -16,7 +16,7 @@ import (
 
 // NewAbsenceTypeTestCapability builds the Workforce capability for the
 // absence-type routes; an optional clock pins its calendar day.
-func NewAbsenceTypeTestCapability(db transactionruntime.Database, clocks ...func() time.Time) *workforceCompose.WorkTime {
+func NewAbsenceTypeTestCapability(db transactionruntime.Database, clocks ...func() time.Time) workforceCompose.WorkTime {
 	membership, err := owners.NewSchoolMembership(db)
 	if err != nil {
 		panic(err)
