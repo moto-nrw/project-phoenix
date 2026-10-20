@@ -1,7 +1,6 @@
 package studentpresence
 
 import (
-	"context"
 	"errors"
 	"time"
 )
@@ -23,26 +22,4 @@ type CombinedGroupFilter struct {
 	Limit, Offset int
 	OpenOnly      bool
 	From, Until   *time.Time
-}
-
-func (m *Module) ListCombinedGroups(ctx context.Context, filter CombinedGroupFilter) ([]CombinedGroup, error) {
-	return m.engine.ListCombinedGroups(ctx, filter)
-}
-func (m *Module) EndCombination(ctx context.Context, id int64, at time.Time) error {
-	return m.engine.EndCombination(ctx, id, at)
-}
-
-func (m *Module) GetCombinedGroup(ctx context.Context, id int64) (CombinedGroup, error) {
-	return m.engine.GetCombinedGroup(ctx, id)
-}
-func (m *Module) RecordCombination(ctx context.Context, start time.Time, end *time.Time) (CombinedGroup, error) {
-	return m.engine.RecordCombination(ctx, start, end)
-}
-func (m *Module) ReviseCombination(ctx context.Context, id int64, start time.Time, end *time.Time) (CombinedGroup, error) {
-	return m.engine.ReviseCombination(ctx, id, start, end)
-}
-
-// DeleteCombination removes a combination if present; an absent identity is a no-op.
-func (m *Module) DeleteCombination(ctx context.Context, id int64) error {
-	return m.engine.DeleteCombination(ctx, id)
 }

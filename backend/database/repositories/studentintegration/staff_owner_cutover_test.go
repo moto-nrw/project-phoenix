@@ -29,17 +29,12 @@ import (
 // Inventory source literals rather than grep output: comments and the owner
 // tables are not callers. The Contract (#2754) removed the compatibility view
 // and its archive, so application code, fixtures and behavior tests alike must
-// not name them. Historical migrations, the operator-only backfill command and
-// the restore helper keep the name for the frozen Expand/Backfill/Cutover
-// contracts, which recreate the retired table inside disposable clones.
+// not name them. Only historical migrations keep the name.
 func TestStaffCutoverCallerInventory(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join("..", "..", "..")
 	exempt := map[string]bool{
-		"cmd/backfill.go":                         true, // operator-only backfill command
-		"cmd/backfill_test.go":                    true, // drives that command on a restored pre-cutover clone
-		"test/staff_storage_cutover.go":           true, // historical restore helper
-		"test/calendar_date_verification_test.go": true, // renamed-column registry of historical migrations
+		"test/calendar_date_verification_test.go":                              true, // renamed-column registry of historical migrations
 		"database/repositories/studentintegration/staff_owner_cutover_test.go": true, // this pattern
 	}
 	files, literals := 0, 0

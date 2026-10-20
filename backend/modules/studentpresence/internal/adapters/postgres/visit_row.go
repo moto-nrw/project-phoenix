@@ -3,7 +3,7 @@ package postgres
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/uptrace/bun"
 )
 
@@ -19,18 +19,18 @@ type visitRow struct {
 	ExitTime      *time.Time `bun:"exit_time"`
 }
 
-func visitRowFromRecord(row *ports.Visit) *visitRow {
+func visitRowFromRecord(row *studentpresence.Visit) *visitRow {
 	return &visitRow{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		StudentID: row.StudentID, ActiveGroupID: row.ActiveGroupID, EntryTime: row.EntryTime, ExitTime: row.ExitTime}
 }
 
-func (row *visitRow) record() *ports.Visit {
-	return &ports.Visit{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+func (row *visitRow) record() *studentpresence.Visit {
+	return &studentpresence.Visit{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		StudentID: row.StudentID, ActiveGroupID: row.ActiveGroupID, EntryTime: row.EntryTime, ExitTime: row.ExitTime}
 }
 
-func visitRecordsFromRows(rows []*visitRow) []*ports.Visit {
-	result := make([]*ports.Visit, 0, len(rows))
+func visitRecordsFromRows(rows []*visitRow) []*studentpresence.Visit {
+	result := make([]*studentpresence.Visit, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, row.record())
 	}

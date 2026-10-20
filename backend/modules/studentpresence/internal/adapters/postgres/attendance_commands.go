@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
@@ -131,7 +132,7 @@ func (s *Store) LockStudentAttendance(ctx context.Context, id int64) (ports.Stat
 	return stats, nil
 }
 
-func (s *Store) HasAttendance(ctx context.Context, filter ports.AttendanceFilter) (bool, ports.Stats, error) {
+func (s *Store) HasAttendance(ctx context.Context, filter studentpresence.AttendanceFilter) (bool, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return false, ports.Stats{}, err

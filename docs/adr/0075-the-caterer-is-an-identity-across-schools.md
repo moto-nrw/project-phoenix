@@ -126,7 +126,8 @@ Measured again after development contracted the registers and collapsed
 the Meal Plan facade on 2026-10-20 (#4451), the same code raises
 `modulePassthroughOwnerBudgets["modules/identityaccess"]` from 497 to 501
 and, with ADR 0076, `modulePassthroughOwnerBudgetTotal` from 2,119 to
-2,124. `modules/mealplan` needs no raise any more: its service serves the
+2,124 (from 2,024 to 2,029 after the Student Presence facade collapsed,
+#4481). `modules/mealplan` needs no raise any more: its service serves the
 public contract itself, so nothing forwards the supply.
 `moduleComposeBudgets["modules/identityaccess/compose"]` rises from 1,312 to
 1,357 (one more line imports the session dependencies, which development

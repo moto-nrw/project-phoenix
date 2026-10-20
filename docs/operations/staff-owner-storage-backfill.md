@@ -1,5 +1,9 @@
 # Staff owner storage Backfill (#2752)
 
+> **Historical.** The Contract migration of this move runs in every environment. The
+> backfill commands this runbook names (`backfill …`, `migrate backfill …`,
+> `migrate presence-backfill`) were removed in #4441; there is no manual step left.
+
 Migration `1.15.382` creates `platform.storage_backfill_checkpoints` and runs
 the first copy of `users.staff` into `users.staff_school_memberships` and
 `users.staff_employment_profiles`. `users.staff` remains the only application

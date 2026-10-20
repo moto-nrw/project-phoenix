@@ -74,7 +74,7 @@ func BuildServeRooms(db transactionruntime.Database) (facilitiesModule.Catalog, 
 // BuildFacilitiesModule composes Facilities with its room deletion: the
 // deletion asks Student Presence for open sessions and Care Plan's
 // care-offering catalog for the rooms its offerings need (#4010).
-func BuildFacilitiesModule(db transactionruntime.Database, observe func(facilitiesCompose.Observation), lock timetable.RecurrenceWriteLock, sessions *studentpresence.Module, offerings careplan.CareOfferingGuards) (facilitiesModule.Capability, error) {
+func BuildFacilitiesModule(db transactionruntime.Database, observe func(facilitiesCompose.Observation), lock timetable.RecurrenceWriteLock, sessions studentpresence.Owner, offerings careplan.CareOfferingGuards) (facilitiesModule.Capability, error) {
 	return facilitiesCompose.New(facilitiesCompose.Dependencies{
 		DB: db.Pool(), DeletionLock: lock.LockRecurrenceWrites,
 		Usage:   &RoomUsage{Sessions: sessions, Offerings: offerings},

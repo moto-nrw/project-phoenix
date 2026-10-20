@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
@@ -25,7 +26,7 @@ func (s *Store) RecordGroupActivity(ctx context.Context, id int64, at time.Time)
 		return stats, err
 	}
 	if stats.Rows == 0 {
-		return stats, fmt.Errorf("active group with id %d not found or already ended: %w", id, ports.ErrGroupNotOpen)
+		return stats, fmt.Errorf("active group with id %d not found or already ended: %w", id, studentpresence.ErrGroupNotOpen)
 	}
 	return stats, nil
 }
@@ -45,10 +46,10 @@ func (s *Store) DeleteGroup(ctx context.Context, id int64) (ports.Stats, error) 
 	return stats, err
 }
 
-func (s *Store) ReviseGroup(ctx context.Context, group ports.LiveGroup) (ports.LiveGroup, ports.Stats, error) {
+func (s *Store) ReviseGroup(ctx context.Context, group studentpresence.LiveGroup) (studentpresence.LiveGroup, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return ports.LiveGroup{}, ports.Stats{}, err
+		return studentpresence.LiveGroup{}, ports.Stats{}, err
 	}
 	started := time.Now()
 	var row liveGroupRow
@@ -61,16 +62,16 @@ func (s *Store) ReviseGroup(ctx context.Context, group ports.LiveGroup) (ports.L
 		group.DeviceID, group.RoomID, started, group.ID, tenantID).Scan(ctx, &row)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
-		return ports.LiveGroup{}, stats, fmt.Errorf("revise group: %w", err)
+		return studentpresence.LiveGroup{}, stats, fmt.Errorf("revise group: %w", err)
 	}
 	stats.Rows = 1
 	return row.record(), stats, nil
 }
 
-func (s *Store) RecordGroup(ctx context.Context, group ports.LiveGroup) (ports.LiveGroup, ports.Stats, error) {
+func (s *Store) RecordGroup(ctx context.Context, group studentpresence.LiveGroup) (studentpresence.LiveGroup, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return ports.LiveGroup{}, ports.Stats{}, err
+		return studentpresence.LiveGroup{}, ports.Stats{}, err
 	}
 	started := time.Now()
 	if group.CreatedAt.IsZero() {
@@ -89,7 +90,7 @@ func (s *Store) RecordGroup(ctx context.Context, group ports.LiveGroup) (ports.L
 		group.TimeoutMinutes, group.ActivityGroupID, group.DeviceID, group.RoomID).Scan(ctx, &row)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
-		return ports.LiveGroup{}, stats, fmt.Errorf("record group: %w", err)
+		return studentpresence.LiveGroup{}, stats, fmt.Errorf("record group: %w", err)
 	}
 	stats.Rows = 1
 	return row.record(), stats, nil
