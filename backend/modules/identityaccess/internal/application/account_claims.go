@@ -11,7 +11,7 @@ import (
 // (#2893) mints its read-only token from it after taking its own locks. A
 // missing or soft-deleted school is ErrTenantNotFound; a query failure
 // propagates.
-func (s *AccountAuthentication) LoadAccountClaims(ctx context.Context, accountID, tenantID int64) (*domain.AccountClaimsPayload, error) {
+func (s *AccountAuthentication) loadAccountClaims(ctx context.Context, accountID, tenantID int64) (*domain.AccountClaimsPayload, error) {
 	account, found, _, err := findLoginAccount(ctx, s.runtime, s.store, accountID, false)
 	if err != nil {
 		return nil, err

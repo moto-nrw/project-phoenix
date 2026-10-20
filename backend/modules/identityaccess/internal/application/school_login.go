@@ -6,25 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
-
-// LoginSchoolWithMFAGate authenticates a school-portal user and issues a
-// school-scope token pair bound to the first school where the account holds
-// a school-portal role (#2207). Unlike the parents portal, school tokens are
-// tenant-bound: the class-day surface runs under RLS. The MFA gate mirrors
-// the tenant login; challenges carry the school scope and enrollment tokens
-// only the school enrollment surface accepts.
-func (s *AccountAuthentication) LoginSchoolWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*domain.LoginResult, error) {
-	return s.loginSchoolWithMFAGate(ctx, email, password, ipAddress, userAgent, trustedDeviceCookie, "")
-}
-
-// LoginSchoolAtTenantWithMFAGate pins a school-portal login to the selected
-// school; direct school logins keep the first-eligible-school behaviour.
-func (s *AccountAuthentication) LoginSchoolAtTenantWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie, targetTenantSlug string) (*domain.LoginResult, error) {
-	return s.loginSchoolWithMFAGate(ctx, email, password, ipAddress, userAgent, trustedDeviceCookie, targetTenantSlug)
-}
 
 func (s *AccountAuthentication) loginSchoolWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie, targetTenantSlug string) (*domain.LoginResult, error) {
 	account, err := s.validateLoginCredentials(ctx, email, password, ipAddress, userAgent)
@@ -68,7 +53,7 @@ func (s *AccountAuthentication) loginSchoolWithMFAGate(ctx context.Context, emai
 // re-validates the school-portal role at the tenant carried in the
 // challenge, so a role revoked mid-challenge cannot be laundered into a
 // school session.
-func (s *AccountAuthentication) IssueSchoolTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error) {
+func (s *AccountAuthentication) issueSchoolTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error) {
 	account, err := s.loadActiveAccountForSchoolMint(ctx, "issue school tokens", accountID)
 	if err != nil {
 		return "", "", err
@@ -82,7 +67,7 @@ func (s *AccountAuthentication) IssueSchoolTokensForAuthenticatedAccount(ctx con
 	}
 	if !hasRole {
 		s.logFailedLogin(s.runtime.WithTenantID(ctx, tenantID), account.ID, ipAddress, userAgent, "No school portal role at school token issue")
-		return "", "", failed("issue school tokens", domain.ErrAccountNoSchoolPortalRole)
+		return "", "", failed("issue school tokens", identityaccess.ErrAccountNoSchoolPortalRole)
 	}
 	var claims *domain.AccountClaimsPayload
 	session, err := s.createRefreshSessionGuarded(ctx, account, tenantID, domain.ScopeSchool, s.schoolMintGuard(account.ID, tenantID, &claims), "")
@@ -99,7 +84,12 @@ func (s *AccountAuthentication) IssueSchoolTokensForAuthenticatedAccount(ctx con
 // SwitchSchool re-authenticates a school-portal session to another school
 // where the account holds a school-portal role. No MFA gate: the caller
 // already holds a school session whose second factor was settled at login.
-func (s *AccountAuthentication) SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent string) (string, string, error) {
+func (s *AccountAuthentication) SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent string) (_ string, _ string, err error) {
+	if s == nil {
+		return "", "", errAccountAuthenticationUnavailable
+	}
+	defer func() { err = authenticationError(err) }()
+	ctx = bindRuntime(s.attach, ctx)
 	account, err := s.loadActiveAccountForSchoolMint(ctx, "switch school", accountID)
 	if err != nil {
 		return "", "", err
@@ -123,7 +113,7 @@ func (s *AccountAuthentication) SwitchSchool(ctx context.Context, accountID int6
 		return "", "", err
 	}
 	if !hasRole {
-		return "", "", failed("switch school", domain.ErrAccountNoSchoolPortalRole)
+		return "", "", failed("switch school", identityaccess.ErrAccountNoSchoolPortalRole)
 	}
 	var claims *domain.AccountClaimsPayload
 	session, err := s.createRefreshSessionGuarded(ctx, account, targetTenantID, domain.ScopeSchool, s.schoolMintGuard(accountID, targetTenantID, &claims), "")
@@ -150,7 +140,7 @@ func (s *AccountAuthentication) loadActiveAccountForSchoolMint(ctx context.Conte
 		return domain.LoginAccount{}, failed(op, domain.ErrAccountNotFound)
 	}
 	if !account.Active {
-		return domain.LoginAccount{}, failed(op, domain.ErrAccountInactive)
+		return domain.LoginAccount{}, failed(op, identityaccess.ErrAccountInactive)
 	}
 	return account, nil
 }
@@ -234,7 +224,7 @@ func (s *AccountAuthentication) lockMFAPolicyForMint(ctx context.Context, accoun
 			slog.Int64("account_id", accountID),
 			slog.Int64("tenant_id", tenantID),
 			slog.String("error", err.Error()))
-		return domain.ErrMFAStatusUnavailable
+		return identityaccess.ErrMFAStatusUnavailable
 	}
 	return nil
 }
@@ -250,28 +240,28 @@ func (s *AccountAuthentication) checkSchoolMintPreconditions(ctx context.Context
 		return domain.LoginAccount{}, domain.ErrAccountNotFound
 	}
 	if !account.Active {
-		return domain.LoginAccount{}, domain.ErrAccountInactive
+		return domain.LoginAccount{}, identityaccess.ErrAccountInactive
 	}
 	school, found, err := s.schools.LockSchoolShared(ctx, tenantID)
 	if err != nil {
 		return domain.LoginAccount{}, fmt.Errorf("re-check school %d at school token mint: %w", tenantID, err)
 	}
 	if !found || !school.Live() {
-		return domain.LoginAccount{}, domain.ErrTenantNotFound
+		return domain.LoginAccount{}, identityaccess.ErrTenantNotFound
 	}
 	activeMapping, _, err := s.store.LockActiveTenantMappingShared(ctx, accountID, tenantID)
 	if err != nil {
 		return domain.LoginAccount{}, fmt.Errorf("re-check membership of account %d at school %d: %w", accountID, tenantID, err)
 	}
 	if !activeMapping {
-		return domain.LoginAccount{}, domain.ErrTenantAccessDenied
+		return domain.LoginAccount{}, identityaccess.ErrTenantAccessDenied
 	}
 	roles, _, err := s.store.ListAccountRolesAtTenant(ctx, accountID, tenantID, true)
 	if err != nil {
 		return domain.LoginAccount{}, fmt.Errorf("re-check school portal role of account %d at school %d: %w", accountID, tenantID, err)
 	}
 	if !domain.HasSchoolPortalRole(roles) {
-		return domain.LoginAccount{}, domain.ErrAccountNoSchoolPortalRole
+		return domain.LoginAccount{}, identityaccess.ErrAccountNoSchoolPortalRole
 	}
 	return account, nil
 }
@@ -287,11 +277,11 @@ func (s *AccountAuthentication) schoolRefreshMintGuard(accountID, tenantID int64
 		if err == nil {
 			return nil
 		}
-		if errors.Is(err, domain.ErrAccountNoSchoolPortalRole) {
+		if errors.Is(err, identityaccess.ErrAccountNoSchoolPortalRole) {
 			s.logRefreshDecision("refresh_session_rejected", "school_portal_role_revoked", accountID, tenantID)
-			return domain.ErrTenantAccessDenied
+			return identityaccess.ErrTenantAccessDenied
 		}
-		if errors.Is(err, domain.ErrTenantAccessDenied) {
+		if errors.Is(err, identityaccess.ErrTenantAccessDenied) {
 			s.logRefreshDecision("refresh_session_rejected", "tenant_access_revoked", accountID, tenantID)
 		}
 		return err
@@ -339,10 +329,10 @@ func (s *AccountAuthentication) loadSchoolMetadataForTenant(ctx context.Context,
 		return nil, txErr
 	}
 	if !schoolFound || !school.Live() {
-		return nil, failed("load school metadata", domain.ErrTenantNotFound)
+		return nil, failed("load school metadata", identityaccess.ErrTenantNotFound)
 	}
 	if !activeMapping {
-		return nil, failed("load school metadata", domain.ErrTenantAccessDenied)
+		return nil, failed("load school metadata", identityaccess.ErrTenantAccessDenied)
 	}
 	return metadata, nil
 }
@@ -400,7 +390,12 @@ func (s *AccountAuthentication) findSchoolPortalTenantForAccount(ctx context.Con
 // active, the mapping is active and the account holds a school-portal role.
 // A revoked fact answers (false, nil); lookup errors propagate so a database
 // blip is not a revocation.
-func (s *AccountAuthentication) HasSchoolPortalAccess(ctx context.Context, accountID, tenantID int64) (bool, error) {
+func (s *AccountAuthentication) HasSchoolPortalAccess(ctx context.Context, accountID, tenantID int64) (_ bool, err error) {
+	if s == nil {
+		return false, errAccountAuthenticationUnavailable
+	}
+	defer func() { err = authenticationError(err) }()
+	ctx = bindRuntime(s.attach, ctx)
 	account, found, _, err := findLoginAccount(ctx, s.runtime, s.store, accountID, false)
 	if err != nil {
 		return false, fmt.Errorf("look up account %d for school portal access: %w", accountID, err)
@@ -436,6 +431,6 @@ func (s *AccountAuthentication) HasSchoolPortalAccess(ctx context.Context, accou
 // FindSchoolPortalTenant is findSchoolPortalTenantForAccount for the
 // retained password-reset flow, which routes school-portal accounts to the
 // school reset link.
-func (s *AccountAuthentication) FindSchoolPortalTenant(ctx context.Context, accountID int64) (bool, int64, error) {
+func (s *AccountAuthentication) findSchoolPortalTenant(ctx context.Context, accountID int64) (bool, int64, error) {
 	return s.findSchoolPortalTenantForAccount(ctx, accountID)
 }

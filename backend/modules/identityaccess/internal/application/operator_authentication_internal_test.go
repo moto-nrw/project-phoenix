@@ -22,7 +22,7 @@ func TestOperatorLogin_WithoutGateIssuesTokenPairAndAudits(t *testing.T) {
 	f := newOperatorFixture(t)
 	operator := f.seedOperator(42)
 
-	result, err := f.auth.LoginWithMFAGate(context.Background(), " Operator42@Example.com ", "secret", "127.0.0.1", "ua", "")
+	result, err := f.auth.loginWithMFAGate(context.Background(), " Operator42@Example.com ", "secret", "127.0.0.1", "ua", "")
 	require.NoError(t, err)
 	assert.Equal(t, domain.LoginStatusAuthenticated, result.Status)
 	assert.NotEmpty(t, result.AccessToken)
@@ -55,7 +55,7 @@ func TestOperatorLogin_AuditFailureDoesNotFailLogin(t *testing.T) {
 	f.audit.err = errors.New("audit log service unavailable")
 	f.store.recordLoginErr = errors.New("stamp failed")
 
-	result, err := f.auth.LoginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "")
+	result, err := f.auth.loginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "")
 	require.NoError(t, err, "a failed audit row or login stamp is logged, never fatal")
 	assert.NotEmpty(t, result.AccessToken)
 	assert.Len(t, f.store.operatorSessionsOf(42), 1)
@@ -67,7 +67,7 @@ func TestOperatorLogin_CredentialFailures(t *testing.T) {
 		t.Parallel()
 		f := newOperatorFixture(t)
 		f.mfa.configured = true
-		_, err := f.auth.LoginWithMFAGate(context.Background(), "nobody@example.com", "secret", "", "", "")
+		_, err := f.auth.loginWithMFAGate(context.Background(), "nobody@example.com", "secret", "", "", "")
 		require.ErrorIs(t, err, identityaccess.ErrOperatorInvalidCredentials)
 		assert.Empty(t, f.mfa.calls, "the gate is never consulted before the password check")
 	})
@@ -76,7 +76,7 @@ func TestOperatorLogin_CredentialFailures(t *testing.T) {
 		f := newOperatorFixture(t)
 		f.mfa.configured = true
 		f.seedOperator(42)
-		_, err := f.auth.LoginWithMFAGate(context.Background(), "operator42@example.com", "wrong", "", "", "")
+		_, err := f.auth.loginWithMFAGate(context.Background(), "operator42@example.com", "wrong", "", "", "")
 		require.ErrorIs(t, err, identityaccess.ErrOperatorInvalidCredentials)
 		assert.Empty(t, f.mfa.calls)
 		assert.Empty(t, f.store.operatorSessionsOf(42))
@@ -85,14 +85,14 @@ func TestOperatorLogin_CredentialFailures(t *testing.T) {
 		t.Parallel()
 		f := newOperatorFixture(t)
 		f.store.addOperator(7, "inactive@example.com", "hash:secret", false)
-		_, err := f.auth.LoginWithMFAGate(context.Background(), "inactive@example.com", "secret", "", "", "")
+		_, err := f.auth.loginWithMFAGate(context.Background(), "inactive@example.com", "secret", "", "", "")
 		require.ErrorIs(t, err, identityaccess.ErrOperatorInactive)
 	})
 	t.Run("lookup failure propagates", func(t *testing.T) {
 		t.Parallel()
 		f := newOperatorFixture(t)
 		f.store.findOperatorErr = errDB
-		_, err := f.auth.LoginWithMFAGate(context.Background(), "operator@example.com", "secret", "", "", "")
+		_, err := f.auth.loginWithMFAGate(context.Background(), "operator@example.com", "secret", "", "", "")
 		require.ErrorIs(t, err, errDB)
 		require.NotErrorIs(t, err, identityaccess.ErrOperatorInvalidCredentials)
 	})
@@ -107,7 +107,7 @@ func TestOperatorLogin_MFAGate(t *testing.T) {
 		f.mfa.configured = true
 		f.mfa.enrolled = false
 
-		result, err := f.auth.LoginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "")
+		result, err := f.auth.loginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "")
 		require.NoError(t, err)
 		assert.Equal(t, domain.LoginStatusMFAEnrollmentRequired, result.Status, "operator MFA is mandatory: no full session before enrollment")
 		assert.Equal(t, "enroll:42:0:platform", result.AccessToken, "the enrollment token is platform-scoped")
@@ -126,7 +126,7 @@ func TestOperatorLogin_MFAGate(t *testing.T) {
 		f.mfa.enrolled = true
 		f.mfa.challenge = "challenge-xyz"
 
-		result, err := f.auth.LoginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "")
+		result, err := f.auth.loginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "")
 		require.NoError(t, err)
 		assert.Equal(t, domain.LoginStatusMFARequired, result.Status)
 		assert.Equal(t, "challenge-xyz", result.ChallengeToken)
@@ -143,7 +143,7 @@ func TestOperatorLogin_MFAGate(t *testing.T) {
 		f.mfa.enrolled = true
 		f.mfa.trustedCookie = "valid-cookie"
 
-		result, err := f.auth.LoginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "valid-cookie")
+		result, err := f.auth.loginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "valid-cookie")
 		require.NoError(t, err)
 		assert.Equal(t, domain.LoginStatusAuthenticated, result.Status)
 		assert.NotEmpty(t, result.RefreshToken)
@@ -157,7 +157,7 @@ func TestOperatorLogin_MFAGate(t *testing.T) {
 		f.mfa.enrolled = true
 		f.mfa.trustedCookie = "valid-cookie"
 
-		result, err := f.auth.LoginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "stale-cookie")
+		result, err := f.auth.loginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "stale-cookie")
 		require.NoError(t, err)
 		assert.Equal(t, domain.LoginStatusMFARequired, result.Status, "a non-verifiable cookie must not skip MFA")
 	})
@@ -168,7 +168,7 @@ func TestOperatorLogin_MFAGate(t *testing.T) {
 		f.mfa.configured = true
 		f.mfa.enrolledErr = errDB
 
-		_, err := f.auth.LoginWithMFAGate(context.Background(), "operator42@example.com", "secret", "", "", "")
+		_, err := f.auth.loginWithMFAGate(context.Background(), "operator42@example.com", "secret", "", "", "")
 		require.ErrorIs(t, err, errDB, "an infrastructure error never downgrades an enrolled operator to the enrollment flow")
 		assert.Empty(t, f.store.operatorSessionsOf(42))
 	})
@@ -180,7 +180,7 @@ func TestOperatorLogin_MFAGate(t *testing.T) {
 		f.mfa.enrolled = true
 		f.mfa.challengeErr = errDB
 
-		_, err := f.auth.LoginWithMFAGate(context.Background(), "operator42@example.com", "secret", "", "", "")
+		_, err := f.auth.loginWithMFAGate(context.Background(), "operator42@example.com", "secret", "", "", "")
 		require.ErrorIs(t, err, errDB)
 	})
 }
@@ -223,7 +223,7 @@ func TestIssueTokensForAuthenticatedOperator(t *testing.T) {
 // login mints a session for operator 42 and returns its persisted handle.
 func login(t *testing.T, f *operatorFixture) string {
 	t.Helper()
-	result, err := f.auth.LoginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "")
+	result, err := f.auth.loginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "")
 	require.NoError(t, err)
 	return decodeRefresh(t, result.RefreshToken).Token
 }
@@ -504,7 +504,7 @@ func TestChangeOperatorPassword(t *testing.T) {
 		assert.Len(t, f.audit.actions(domain.OperatorAuditActionTokenRevoked), 2, "one revocation entry per family")
 		assert.Equal(t, 1, f.runtime.adminTxCount, "the rotation and the revocations share one administrative transaction")
 
-		_, err := f.auth.LoginWithMFAGate(context.Background(), "operator42@example.com", "ChangedPass789!", "", "", "")
+		_, err := f.auth.loginWithMFAGate(context.Background(), "operator42@example.com", "ChangedPass789!", "", "", "")
 		require.NoError(t, err)
 	})
 	t.Run("wrong current password", func(t *testing.T) {

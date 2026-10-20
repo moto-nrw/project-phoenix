@@ -177,12 +177,12 @@ func (f *OperatorPasskeyFlows) verifyRegistration(ctx context.Context, request d
 	session, err := f.records.ConsumeSession(ctx, request.SessionID, domain.PasskeySessionPurposeRegistration, f.now())
 	if err != nil {
 		if errors.Is(err, identityaccess.ErrOperatorPasskeySessionNotFound) {
-			return domain.OperatorPasskeyCredential{}, rejectCeremony(domain.ErrPasskeySessionInvalid)
+			return domain.OperatorPasskeyCredential{}, rejectCeremony(identityaccess.ErrPasskeySessionInvalid)
 		}
 		return domain.OperatorPasskeyCredential{}, err
 	}
 	if session.OperatorID == nil || *session.OperatorID != request.OperatorID {
-		return domain.OperatorPasskeyCredential{}, rejectCeremony(domain.ErrPasskeySessionInvalid)
+		return domain.OperatorPasskeyCredential{}, rejectCeremony(identityaccess.ErrPasskeySessionInvalid)
 	}
 	var sessionData webauthn.SessionData
 	if err := json.Unmarshal(session.SessionJSON, &sessionData); err != nil {
@@ -290,7 +290,7 @@ func (f *OperatorPasskeyFlows) verifyLogin(ctx context.Context, request domain.O
 	session, err := f.records.ConsumeSession(ctx, request.SessionID, domain.PasskeySessionPurposeLogin, f.now())
 	if err != nil {
 		if errors.Is(err, identityaccess.ErrOperatorPasskeySessionNotFound) {
-			return verifiedOperatorPasskeyLogin{}, rejectCeremony(domain.ErrPasskeySessionInvalid)
+			return verifiedOperatorPasskeyLogin{}, rejectCeremony(identityaccess.ErrPasskeySessionInvalid)
 		}
 		return verifiedOperatorPasskeyLogin{}, err
 	}
@@ -317,11 +317,11 @@ func (f *OperatorPasskeyFlows) verifyLogin(ctx context.Context, request domain.O
 		return verifiedOperatorPasskeyLogin{}, readErr
 	}
 	if err != nil {
-		return verifiedOperatorPasskeyLogin{}, rejectCeremony(domain.ErrInvalidCredentials)
+		return verifiedOperatorPasskeyLogin{}, rejectCeremony(identityaccess.ErrInvalidCredentials)
 	}
 	matched, ok := user.(*webAuthnUser)
 	if !ok {
-		return verifiedOperatorPasskeyLogin{}, rejectCeremony(domain.ErrInvalidCredentials)
+		return verifiedOperatorPasskeyLogin{}, rejectCeremony(identityaccess.ErrInvalidCredentials)
 	}
 	credentialJSON, err := json.Marshal(credential)
 	if err != nil {
@@ -347,7 +347,7 @@ func (f *OperatorPasskeyFlows) ListCredentials(ctx context.Context, operatorID i
 func (f *OperatorPasskeyFlows) RevokeCredential(ctx context.Context, operatorID, credentialID int64) error {
 	if err := f.records.RevokeCredential(ctx, operatorID, credentialID, f.now()); err != nil {
 		if errors.Is(err, identityaccess.ErrOperatorPasskeyNotFound) {
-			return domain.ErrPasskeyNotFound
+			return identityaccess.ErrPasskeyNotFound
 		}
 		return err
 	}

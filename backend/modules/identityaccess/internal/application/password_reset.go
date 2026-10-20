@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -77,7 +78,13 @@ func NewPasswordReset(auth *AccountAuthentication, deps PasswordResetDependencie
 // unknown address, or an account without a role of the scope's portal,
 // yields no link and no error, so the response never reveals whether an
 // account exists. The rate limit counts only requests that would send.
-func (r *PasswordReset) InitiatePasswordReset(ctx context.Context, email string, scope domain.PasswordResetScope) (*domain.PasswordResetToken, error) {
+func (r *PasswordReset) InitiatePasswordReset(ctx context.Context, email string, portal identityaccess.PasswordResetScope) (_ *identityaccess.PasswordResetLink, err error) {
+	if r == nil {
+		return nil, errPasswordResetUnavailable
+	}
+	defer func() { err = passwordResetError(err) }()
+	ctx = bindRuntime(r.auth.attach, ctx)
+	scope := domain.PasswordResetScope(portal)
 	email = strings.TrimSpace(strings.ToLower(email))
 	account, found, _, err := findLoginAccountByEmail(ctx, r.runtime, r.logins, email)
 	if err != nil {
@@ -133,16 +140,17 @@ func (r *PasswordReset) InitiatePasswordReset(ctx context.Context, email string,
 	r.logger.Info("password reset token created",
 		slog.Int64("account_id", account.ID))
 
-	return &token, nil
+	link := PublicPasswordResetLink(token)
+	return &link, nil
 }
 
 func (r *PasswordReset) portalEligible(ctx context.Context, accountID int64, scope domain.PasswordResetScope) (bool, error) {
 	switch scope {
 	case domain.PasswordResetScopeParent:
-		eligible, _, err := r.auth.FindGuardianTenant(ctx, accountID)
+		eligible, _, err := r.auth.findGuardianTenant(ctx, accountID)
 		return eligible, err
 	case domain.PasswordResetScopeSchool:
-		eligible, _, err := r.auth.FindSchoolPortalTenant(ctx, accountID)
+		eligible, _, err := r.auth.findSchoolPortalTenant(ctx, accountID)
 		return eligible, err
 	default:
 		return true, nil
@@ -178,16 +186,21 @@ func (r *PasswordReset) checkRateLimitInTransaction(ctx context.Context, email s
 // ResetPassword sets the new password through a redeemable link. The
 // password change, the spent link and the revocation of every session at
 // the account's schools commit together.
-func (r *PasswordReset) ResetPassword(ctx context.Context, token, newPassword string) error {
+func (r *PasswordReset) ResetPassword(ctx context.Context, token, newPassword string) (err error) {
+	if r == nil {
+		return errPasswordResetUnavailable
+	}
+	defer func() { err = passwordResetError(err) }()
+	ctx = bindRuntime(r.auth.attach, ctx)
 	var link domain.PasswordResetToken
 	var found bool
-	err := globalIdentityRead(ctx, r.runtime, func(txCtx context.Context) error {
+	err = globalIdentityRead(ctx, r.runtime, func(txCtx context.Context) error {
 		var lookupErr error
 		link, found, _, lookupErr = r.store.FindRedeemablePasswordResetToken(txCtx, token, r.now())
 		return lookupErr
 	})
 	if err != nil || !found {
-		return failed("reset password", domain.ErrInvalidToken)
+		return failed("reset password", identityaccess.ErrInvalidToken)
 	}
 	if err := r.passwords.ValidatePasswordStrength(newPassword); err != nil {
 		return failed("reset password", err)
@@ -204,14 +217,14 @@ func (r *PasswordReset) ResetPassword(ctx context.Context, token, newPassword st
 			return setErr
 		}
 		if !updated {
-			return domain.ErrInvalidToken
+			return identityaccess.ErrInvalidToken
 		}
 		redeemed, _, redeemErr := r.store.RedeemPasswordResetToken(txCtx, link.ID)
 		if redeemErr != nil {
 			return redeemErr
 		}
 		if !redeemed {
-			return domain.ErrInvalidToken
+			return identityaccess.ErrInvalidToken
 		}
 		if _, revokeErr := r.auth.DeleteAccountSessionsWithAudit(txCtx, link.AccountID, "password_reset", "", ""); revokeErr != nil {
 			return fmt.Errorf("revoke tokens during password reset: %w", revokeErr)
@@ -225,12 +238,20 @@ func (r *PasswordReset) ResetPassword(ctx context.Context, token, newPassword st
 }
 
 // RecordPasswordResetDelivery stores the outcome of mailing a link.
-func (r *PasswordReset) RecordPasswordResetDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) error {
-	return recordPasswordResetDelivery(ctx, r.runtime, r.store, id, delivery)
+func (r *PasswordReset) RecordPasswordResetDelivery(ctx context.Context, id int64, delivery identityaccess.TokenDelivery) error {
+	if r == nil {
+		return errPasswordResetUnavailable
+	}
+	return passwordResetError(recordPasswordResetDelivery(bindRuntime(r.auth.attach, ctx), r.runtime, r.store, id, domain.TokenDelivery(delivery)))
 }
 
 // DeleteSpentPasswordResetTokens removes expired and used links.
 func (r *PasswordReset) DeleteSpentPasswordResetTokens(ctx context.Context) (value0 int, err error) {
+	if r == nil {
+		return 0, errPasswordResetUnavailable
+	}
+	defer func() { err = passwordResetError(err) }()
+	ctx = bindRuntime(r.auth.attach, ctx)
 	err = r.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
 		value0, err = r.inUnitDeleteSpentPasswordResetTokens(txCtx)
 		return err
@@ -248,6 +269,11 @@ func (r *PasswordReset) inUnitDeleteSpentPasswordResetTokens(ctx context.Context
 
 // DeleteStalePasswordResetWindows removes rate-limit windows older than a day.
 func (r *PasswordReset) DeleteStalePasswordResetWindows(ctx context.Context) (value0 int, err error) {
+	if r == nil {
+		return 0, errPasswordResetUnavailable
+	}
+	defer func() { err = passwordResetError(err) }()
+	ctx = bindRuntime(r.auth.attach, ctx)
 	err = r.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
 		value0, err = r.inUnitDeleteStalePasswordResetWindows(txCtx)
 		return err
@@ -271,4 +297,32 @@ type PasswordResetDelivery struct {
 
 func (d PasswordResetDelivery) DispatchPasswordReset(ctx context.Context, token domain.PasswordResetToken, recipient string, scope domain.PasswordResetScope, expiry time.Duration) error {
 	return d.Source.DispatchPasswordReset(ctx, PublicPasswordResetLink(token), recipient, identityaccess.PasswordResetScope(scope), expiry)
+}
+
+func PublicPasswordResetLink(token domain.PasswordResetToken) identityaccess.PasswordResetLink {
+	return identityaccess.PasswordResetLink{
+		ID: token.ID, AccountID: token.AccountID, Token: token.Token, Expiry: token.Expiry,
+		Delivery: identityaccess.TokenDelivery(token.Delivery), CreatedAt: token.CreatedAt,
+	}
+}
+
+var errPasswordResetUnavailable = identityaccess.ErrPasswordResetUnavailable
+
+// passwordResetError translates the rate-limit rejection to its public
+// shape and everything else like the authentication flows.
+func passwordResetError(err error) error { return recordMissing(translatePasswordResetError(err)) }
+
+func translatePasswordResetError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var operation *OperationError
+	if errors.As(err, &operation) && operation == err {
+		return &identityaccess.AuthenticationError{Op: operation.Op, Err: passwordResetError(operation.Err)}
+	}
+	var limited *domain.PasswordResetRateLimitError
+	if errors.As(err, &limited) {
+		return &identityaccess.PasswordResetRateLimitError{Attempts: limited.Attempts, RetryAt: limited.RetryAt}
+	}
+	return authenticationError(err)
 }

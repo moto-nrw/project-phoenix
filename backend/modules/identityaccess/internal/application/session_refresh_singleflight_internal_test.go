@@ -32,7 +32,7 @@ func TestAuthService_RefreshToken_ConcurrentSingleflight(t *testing.T) {
 		f := newAuthFixture(t)
 		f.seedStaff(1, 10, "user")
 		ctx := context.Background()
-		_, refreshToken, err := f.auth.LoginWithAudit(ctx, "user1@example.com", "secret", "", "", "")
+		_, refreshToken, err := f.auth.loginWithAudit(ctx, "user1@example.com", "secret", "", "", "")
 		require.NoError(t, err)
 
 		codec := &blockedRefreshCodec{release: make(chan struct{})}
@@ -46,7 +46,7 @@ func TestAuthService_RefreshToken_ConcurrentSingleflight(t *testing.T) {
 		results := make(chan result, concurrency)
 		for range concurrency {
 			go func() {
-				at, rt, e := f.auth.RefreshTokenWithAudit(ctx, refreshToken, "", "")
+				at, rt, e := f.auth.refreshTokenWithAudit(ctx, refreshToken, "", "")
 				results <- result{at, rt, e}
 			}()
 		}

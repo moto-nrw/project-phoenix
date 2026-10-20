@@ -8,6 +8,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
@@ -130,7 +131,7 @@ func (f *AccountMFAFlows) resolvePolicy(ctx context.Context, accountID, tenantID
 			slog.Int64("account_id", accountID),
 			slog.Int64("tenant_id", tenantID),
 			slog.String("error", err.Error()))
-		return domain.MFAPolicy{}, domain.ErrMFAStatusUnavailable
+		return domain.MFAPolicy{}, identityaccess.ErrMFAStatusUnavailable
 	}
 	if policy, decided := overridePolicy(global, tenantOverride, globalFound, tenantFound); decided {
 		return policy, nil
@@ -144,7 +145,7 @@ func (f *AccountMFAFlows) resolvePolicy(ctx context.Context, accountID, tenantID
 		f.logger.Warn("mfa_mode resolve failed; refusing login",
 			slog.Int64("tenant_id", tenantID),
 			slog.String("error", err.Error()))
-		return domain.MFAPolicy{}, domain.ErrMFAStatusUnavailable
+		return domain.MFAPolicy{}, identityaccess.ErrMFAStatusUnavailable
 	}
 	if !domain.KnownMFAMode(mode) {
 		f.logger.Warn("unknown mfa_mode value; treating as off", slog.String("value", mode))
@@ -179,7 +180,7 @@ func (f *AccountMFAFlows) HasEnrollment(ctx context.Context, accountID int64) (b
 		f.logger.Warn("mfa enrollment lookup failed; refusing login",
 			slog.Int64("account_id", accountID),
 			slog.String("error", err.Error()))
-		return false, domain.ErrMFAStatusUnavailable
+		return false, identityaccess.ErrMFAStatusUnavailable
 	}
 	return found && credential.ID > 0, nil
 }
@@ -192,7 +193,7 @@ func (f *AccountMFAFlows) HasEnrollment(ctx context.Context, accountID int64) (b
 // code behind.
 func (f *AccountMFAFlows) StartChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error) {
 	if scope != domain.MFAChallengeScopeTenant && scope != domain.MFAChallengeScopeSchool {
-		return "", domain.ErrMFAUnsupportedScope
+		return "", identityaccess.ErrMFAUnsupportedScope
 	}
 	account, found, err := f.records.FindAccountIdentity(ctx, accountID)
 	if err != nil {
@@ -202,7 +203,7 @@ func (f *AccountMFAFlows) StartChallenge(ctx context.Context, accountID, tenantI
 		return "", fmt.Errorf("look up account: %w", domain.ErrAccountNotFound)
 	}
 	if domain.MFALocked(account.MFALockedUntil, f.now()) {
-		return "", domain.ErrMFALocked
+		return "", identityaccess.ErrMFALocked
 	}
 
 	if err := f.requireChallengeRateLimit(ctx, accountID); err != nil {
@@ -232,14 +233,14 @@ func (f *AccountMFAFlows) StartChallenge(ctx context.Context, accountID, tenantI
 			slog.Int64("account_id", account.ID),
 			slog.String("error", err.Error()),
 		)
-		return "", domain.ErrMFAStatusUnavailable
+		return "", identityaccess.ErrMFAStatusUnavailable
 	}
 	if err := f.activateDeliveredChallenge(ctx, challenge); err != nil {
 		f.logger.Error("failed to activate delivered mfa challenge",
 			slog.Int64("challenge_id", challenge.ID),
 			slog.String("error", err.Error()),
 		)
-		return "", domain.ErrMFAStatusUnavailable
+		return "", identityaccess.ErrMFAStatusUnavailable
 	}
 
 	token, err := f.codec.IssueChallengeToken(domain.MFAChallengeClaims{
@@ -286,10 +287,10 @@ func (f *AccountMFAFlows) verifyChallengeBound(ctx context.Context, challengeTok
 	}
 	account, found, err := f.records.FindAccountIdentity(ctx, claims.AccountID)
 	if err != nil || !found {
-		return domain.VerifiedMFAChallenge{}, domain.ErrMFAChallengeTokenInvalid
+		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFAChallengeTokenInvalid
 	}
 	if domain.MFALocked(account.MFALockedUntil, f.now()) {
-		return domain.VerifiedMFAChallenge{}, domain.ErrMFALocked
+		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFALocked
 	}
 	// The token names the exact row it was minted for. "Newest active code
 	// for this account" would let two concurrent challenges — a tenant login
@@ -297,26 +298,26 @@ func (f *AccountMFAFlows) verifyChallengeBound(ctx context.Context, challengeTok
 	// token without the claim predates it and is refused rather than
 	// downgraded to the ambiguous lookup.
 	if claims.ChallengeID == 0 {
-		return domain.VerifiedMFAChallenge{}, domain.ErrMFAChallengeTokenInvalid
+		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFAChallengeTokenInvalid
 	}
 	active, activeFound, err := f.records.FindActiveChallengeForAccount(ctx, claims.ChallengeID, claims.AccountID)
 	if err != nil || !activeFound {
 		f.recordFailure(ctx, claims.AccountID, claims.TenantID, "no active challenge")
-		return domain.VerifiedMFAChallenge{}, domain.ErrMFACodeInvalid
+		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFACodeInvalid
 	}
 	// The scope check above trusts the JWT alone. Re-check it against the
 	// stored row so a forged or mixed-up pairing is refused before the code
 	// comparison rather than after it.
 	if active.Scope != expectedScope || (claims.TenantID > 0 && active.TenantID != claims.TenantID) {
 		f.recordFailure(ctx, claims.AccountID, claims.TenantID, "challenge portal mismatch")
-		return domain.VerifiedMFAChallenge{}, domain.ErrMFAUnsupportedScope
+		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFAUnsupportedScope
 	}
 
 	ok, verifyErr := f.codes.VerifyShortCode(code, active.CodeHash)
 	if verifyErr != nil || !ok {
 		f.handleFailedAttempt(ctx, account, claims.TenantID)
 		f.recordFailure(ctx, claims.AccountID, claims.TenantID, "code mismatch")
-		return domain.VerifiedMFAChallenge{}, domain.ErrMFACodeInvalid
+		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFACodeInvalid
 	}
 
 	if err := f.completeChallengeVerification(ctx, claims, account.ID, active.ID); err != nil {
@@ -338,10 +339,10 @@ func (f *AccountMFAFlows) verifyChallengeBound(ctx context.Context, challengeTok
 func (f *AccountMFAFlows) VerifyCodeForAccount(ctx context.Context, accountID, tenantID int64, code, expectedScope string) error {
 	account, found, err := f.records.FindAccountIdentity(ctx, accountID)
 	if err != nil || !found {
-		return domain.ErrMFACodeInvalid
+		return identityaccess.ErrMFACodeInvalid
 	}
 	if domain.MFALocked(account.MFALockedUntil, f.now()) {
-		return domain.ErrMFALocked
+		return identityaccess.ErrMFALocked
 	}
 	// The callers run inside a school context, so the zero school below lets
 	// the audit and the lockout fall back to the context. The tenantID
@@ -349,13 +350,13 @@ func (f *AccountMFAFlows) VerifyCodeForAccount(ctx context.Context, accountID, t
 	active, activeFound, err := f.records.FindActiveChallengeInScope(ctx, accountID, tenantID, expectedScope)
 	if err != nil || !activeFound {
 		f.recordFailure(ctx, accountID, 0, "no active challenge")
-		return domain.ErrMFACodeInvalid
+		return identityaccess.ErrMFACodeInvalid
 	}
 	ok, verifyErr := f.codes.VerifyShortCode(code, active.CodeHash)
 	if verifyErr != nil || !ok {
 		f.handleFailedAttempt(ctx, account, 0)
 		f.recordFailure(ctx, accountID, 0, "code mismatch")
-		return domain.ErrMFACodeInvalid
+		return identityaccess.ErrMFACodeInvalid
 	}
 	if err := f.records.ConsumeChallenge(ctx, active.ID, f.now()); err != nil {
 		f.logger.Warn("failed to mark challenge consumed; refusing verify",
@@ -363,7 +364,7 @@ func (f *AccountMFAFlows) VerifyCodeForAccount(ctx context.Context, accountID, t
 			slog.Int64("challenge_id", active.ID),
 			slog.String("error", err.Error()))
 		f.recordFailure(ctx, accountID, 0, "consume race")
-		return domain.ErrMFACodeInvalid
+		return identityaccess.ErrMFACodeInvalid
 	}
 	_ = f.records.ResetMFAAttempts(ctx, accountID)
 	f.recordAuthEvent(ctx, domain.AuthEvent{
@@ -378,10 +379,10 @@ func (f *AccountMFAFlows) VerifyCodeForAccount(ctx context.Context, accountID, t
 func (f *AccountMFAFlows) ResendChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error) {
 	claims, err := f.codec.ParseChallengeToken(challengeToken)
 	if err != nil {
-		return "", domain.ErrMFAChallengeTokenInvalid
+		return "", identityaccess.ErrMFAChallengeTokenInvalid
 	}
 	if claims.Scope != expectedScope {
-		return "", domain.ErrMFAUnsupportedScope
+		return "", identityaccess.ErrMFAUnsupportedScope
 	}
 	return f.resend(ctx, claims, ip)
 }
@@ -391,7 +392,7 @@ func (f *AccountMFAFlows) ResendChallengeForScope(ctx context.Context, challenge
 func (f *AccountMFAFlows) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
 	claims, err := f.codec.ParseChallengeToken(challengeToken)
 	if err != nil {
-		return "", domain.ErrMFAChallengeTokenInvalid
+		return "", identityaccess.ErrMFAChallengeTokenInvalid
 	}
 	return f.resend(ctx, claims, ip)
 }
@@ -450,7 +451,7 @@ func (f *AccountMFAFlows) lockoutDuration(ctx context.Context, tenantID int64) t
 func (f *AccountMFAFlows) Enroll(ctx context.Context, accountID int64) error {
 	existing, found, _ := f.records.FindCredential(ctx, accountID)
 	if found && existing.ID > 0 {
-		return domain.ErrMFAAlreadyEnrolled
+		return identityaccess.ErrMFAAlreadyEnrolled
 	}
 	if err := f.records.CreateCredential(ctx, domain.AccountMFACredential{
 		AccountID: accountID, Method: domain.MFAMethodEmail, EnrolledAt: f.now(),
@@ -592,7 +593,7 @@ func (f *AccountMFAFlows) RevokeTrustedDevice(ctx context.Context, accountID, te
 			return f.records.RevokeTrustedDevice(ctx, deviceID, f.now())
 		}
 	}
-	return domain.ErrMFAPermissionDenied
+	return identityaccess.ErrMFAPermissionDenied
 }
 
 func (f *AccountMFAFlows) trustedDeviceHint(ctx context.Context, tenantID int64) (bool, int) {
@@ -698,10 +699,10 @@ func (f *AccountMFAFlows) requireChallengeRateLimit(ctx context.Context, account
 		f.logger.Warn("mfa code rate-limit lookup failed; refusing to issue a code",
 			slog.Int64("account_id", accountID),
 			slog.String("error", err.Error()))
-		return domain.ErrMFAStatusUnavailable
+		return identityaccess.ErrMFAStatusUnavailable
 	}
 	if count >= domain.MFAEmailRateLimitMaxSent {
-		return domain.ErrMFARateLimited
+		return identityaccess.ErrMFARateLimited
 	}
 
 	return nil
@@ -733,7 +734,7 @@ func (f *AccountMFAFlows) completeChallengeVerification(ctx context.Context, cla
 			slog.Int64("challenge_id", challengeID),
 			slog.String("error", err.Error()))
 		f.recordFailure(ctx, claims.AccountID, claims.TenantID, "consume race")
-		return domain.ErrMFACodeInvalid
+		return identityaccess.ErrMFACodeInvalid
 	}
 	// One UPDATE, so a successful verify cannot clobber a concurrent failed
 	// verify's increment with stale in-memory state.
@@ -766,15 +767,15 @@ func newMFAEmailCode(codes ports.ShortCodeHasher) (string, string, error) {
 func (f *AccountMFAFlows) challengeClaims(challengeToken, expectedScope string, owner *challengeOwner) (domain.MFAChallengeClaims, error) {
 	claims, err := f.codec.ParseChallengeToken(challengeToken)
 	if err != nil {
-		return domain.MFAChallengeClaims{}, domain.ErrMFAChallengeTokenInvalid
+		return domain.MFAChallengeClaims{}, identityaccess.ErrMFAChallengeTokenInvalid
 	}
 	if claims.Scope != expectedScope {
-		return domain.MFAChallengeClaims{}, domain.ErrMFAUnsupportedScope
+		return domain.MFAChallengeClaims{}, identityaccess.ErrMFAUnsupportedScope
 	}
 	// A foreign challenge is refused while it is still redeemable by
 	// whoever it was minted for.
 	if owner != nil && (claims.AccountID != owner.accountID || claims.TenantID != owner.tenantID) {
-		return domain.MFAChallengeClaims{}, domain.ErrMFAChallengeTokenInvalid
+		return domain.MFAChallengeClaims{}, identityaccess.ErrMFAChallengeTokenInvalid
 	}
 	return claims, nil
 }

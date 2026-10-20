@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -31,7 +32,7 @@ func (l *AccountLifecycle) StartStaffPreview(ctx context.Context, adminAccountID
 	const op = "start staff preview"
 
 	if tenantID <= 0 {
-		return nil, failed(op, domain.ErrTenantNotFound)
+		return nil, failed(op, identityaccess.ErrTenantNotFound)
 	}
 	if targetAccountID == adminAccountID {
 		return nil, failed(op, domain.ErrPreviewSelf)
@@ -299,7 +300,7 @@ func (l *AccountLifecycle) staffPreviewIdentity(txCtx context.Context, tenantID,
 		return account, claims, failed(op, domain.ErrAccountNotFound)
 	}
 	if !account.Active {
-		return account, claims, failed(op, domain.ErrAccountInactive)
+		return account, claims, failed(op, identityaccess.ErrAccountInactive)
 	}
 
 	mapped, _, err := l.logins.LockActiveTenantMappingShared(txCtx, targetAccountID, tenantID)
@@ -307,7 +308,7 @@ func (l *AccountLifecycle) staffPreviewIdentity(txCtx context.Context, tenantID,
 		return account, claims, failed(op, err)
 	}
 	if !mapped {
-		return account, claims, failed(op, domain.ErrTenantAccessDenied)
+		return account, claims, failed(op, identityaccess.ErrTenantAccessDenied)
 	}
 
 	// Pin what the token is BUILT from, in the same account -> roles ->
@@ -320,7 +321,7 @@ func (l *AccountLifecycle) staffPreviewIdentity(txCtx context.Context, tenantID,
 		return account, claims, failed(op, err)
 	}
 
-	claims, err = l.auth.LoadAccountClaims(txCtx, targetAccountID, tenantID)
+	claims, err = l.auth.loadAccountClaims(txCtx, targetAccountID, tenantID)
 	if err != nil {
 		return account, claims, err
 	}
@@ -333,7 +334,7 @@ func (l *AccountLifecycle) staffPreviewIdentity(txCtx context.Context, tenantID,
 		return account, claims, failed(op, domain.ErrPreviewTargetNotStaff)
 	}
 	if domain.IsSchoolPortalOnly(claims.Roles) {
-		return account, claims, failed(op, domain.ErrMustUseSchoolPortal)
+		return account, claims, failed(op, identityaccess.ErrMustUseSchoolPortal)
 	}
 
 	return account, claims, nil
