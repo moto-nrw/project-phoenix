@@ -58,6 +58,7 @@ function useFormerEmployment(email: string): {
   useEffect(() => {
     if (!COMPLETE_ADDRESS.test(address)) return;
     let cancelled = false;
+    setAnswer(null);
     const controller = new AbortController();
     const timeoutID = window.setTimeout(
       () => controller.abort(),

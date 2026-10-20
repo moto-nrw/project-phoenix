@@ -700,6 +700,44 @@ describe("InvitationForm former employment hint", () => {
     });
   });
 
+  it("waits for a fresh lookup when returning to an address with a former employment", async () => {
+    mockFindFormerEmployment.mockImplementation((email: string) => {
+      if (email === "former@example.com") {
+        return Promise.resolve({
+          startedOn: "2024-08-01",
+          endedOn: "2026-07-31",
+          resumes: ["master_data"],
+          notReturning: ["staff_documents"],
+        });
+      }
+      return new Promise(() => undefined);
+    });
+
+    await typeEmail("former@example.com");
+    expect(
+      await screen.findByText("Diese Person war schon bei Ihnen beschäftigt"),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "other@example.com" },
+    });
+    await waitFor(() =>
+      expect(mockFindFormerEmployment).toHaveBeenCalledTimes(2),
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Adresse wird geprüft…")).toBeDisabled(),
+    );
+
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "former@example.com" },
+    });
+
+    expect(
+      screen.queryByText("Diese Person war schon bei Ihnen beschäftigt"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Adresse wird geprüft…")).toBeDisabled();
+  });
+
   it("keeps the dialog usable when the lookup fails", async () => {
     mockFindFormerEmployment.mockRejectedValue(new Error("network"));
     mockCreateInvitation.mockResolvedValue({
