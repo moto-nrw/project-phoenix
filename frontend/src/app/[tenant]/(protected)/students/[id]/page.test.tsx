@@ -90,12 +90,12 @@ vi.mock("~/components/ui/alert", () => ({
   ),
 }));
 
-// TenantPage owns the mobile back button.
-vi.mock("~/components/ui/mobile-back-button", () => ({
-  MobileBackButton: ({ href }: { href?: string }) => (
-    <button type="button" data-testid="back-button" data-referrer={href}>
-      Zurück
-    </button>
+// Der Rückweg der Kopfkarte (TenantPage) als Link mit seinem Ziel.
+vi.mock("~/components/ui/back-link", () => ({
+  BackLink: ({ href, label }: { href: string; label: string }) => (
+    <a data-testid="back-button" href={href} data-referrer={href}>
+      {label}
+    </a>
   ),
 }));
 
@@ -662,7 +662,7 @@ describe("StudentDetailPage", () => {
       ).toBeInTheDocument();
       expect(screen.getByTestId("back-button")).toHaveAttribute(
         "data-referrer",
-        "/students/search",
+        "/test-tenant/students/search",
       );
       expect(screen.getByRole("tablist")).toBeInTheDocument();
     });
@@ -761,7 +761,7 @@ describe("StudentDetailPage", () => {
       // den Referrer der Herkunftsliste.
       expect(screen.getByTestId("back-button")).toHaveAttribute(
         "data-referrer",
-        "/students/search",
+        "/test-tenant/students/search",
       );
     });
   });
@@ -1311,7 +1311,10 @@ describe("StudentDetailPage", () => {
       render(<StudentDetailPage />);
 
       const backButton = screen.getByTestId("back-button");
-      expect(backButton).toHaveAttribute("data-referrer", "/students/search");
+      expect(backButton).toHaveAttribute(
+        "data-referrer",
+        "/test-tenant/students/search",
+      );
     });
 
     it("falls back for an external referrer from URL params", () => {
@@ -1320,7 +1323,10 @@ describe("StudentDetailPage", () => {
       render(<StudentDetailPage />);
 
       const backButton = screen.getByTestId("back-button");
-      expect(backButton).toHaveAttribute("data-referrer", "/students/search");
+      expect(backButton).toHaveAttribute(
+        "data-referrer",
+        "/test-tenant/students/search",
+      );
     });
 
     it.each(["/messages", "/absences", "/ogs-groups"])(
@@ -1332,7 +1338,7 @@ describe("StudentDetailPage", () => {
 
         expect(screen.getByTestId("back-button")).toHaveAttribute(
           "data-referrer",
-          referrer,
+          `/test-tenant${referrer}`,
         );
       },
     );

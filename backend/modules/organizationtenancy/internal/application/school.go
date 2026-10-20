@@ -92,16 +92,8 @@ func (s *Service) changeSchoolDeletion(ctx context.Context, id int64, deleted bo
 		if !found {
 			return domain.ErrSchoolNotFound
 		}
-		if deleted && existing.IsDeleted() {
-			return domain.ErrSchoolAlreadyDeleted
-		}
-		if !deleted && !existing.IsDeleted() {
-			return domain.ErrSchoolNotDeleted
-		}
-		if !deleted {
-			if err := s.requireSchoolOrganization(txCtx, existing.OrganizationID, stats); err != nil {
-				return err
-			}
+		if err := s.requireSchoolDeletionChange(txCtx, existing, deleted, stats); err != nil {
+			return err
 		}
 		changeStats, changeErr := s.store.SetSchoolDeleted(txCtx, id, deleted)
 		stats.Add(changeStats)
@@ -198,4 +190,19 @@ func (s *Service) CountSchoolsByID(ctx context.Context, ids []int64) (result int
 		return err
 	})
 	return result, err
+}
+
+func (s *Service) requireSchoolDeletionChange(ctx context.Context, existing domain.School, deleted bool, stats *domain.OperationStats) error {
+	if deleted && existing.IsDeleted() {
+		return domain.ErrSchoolAlreadyDeleted
+	}
+	if !deleted && !existing.IsDeleted() {
+		return domain.ErrSchoolNotDeleted
+	}
+	if !deleted {
+		if err := s.requireSchoolOrganization(ctx, existing.OrganizationID, stats); err != nil {
+			return err
+		}
+	}
+	return nil
 }

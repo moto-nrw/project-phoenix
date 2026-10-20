@@ -154,22 +154,12 @@ func (s *Service) CreateCareScheduleRequest(ctx context.Context, accountID, stud
 	if err != nil {
 		return nil, MapCareRequestError(err, "validate care schedule request")
 	}
-	if (requested.Arrival && !capabilities.Arrival) ||
-		(requested.Pickup && !capabilities.Pickup) ||
-		(requested.DepartureMode && !capabilities.DepartureMode) ||
-		(requested.Scheduled && (!capabilities.Pickup || !capabilities.DepartureMode)) {
-		return nil, ErrCareRequestFieldDisabled
+	if err := requireCareRequestFields(requested, capabilities); err != nil {
+		return nil, err
 	}
 	view := &ChildCareSchedule{CanRequest: capabilities.Any(), RequestCapabilities: capabilities}
 	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
-		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
-		if err != nil {
-			return err
-		}
-		if student.CareEndedOn(s.todayDate()) {
-			return ErrChildCareEnded
-		}
-		if _, err := s.CareRequests.CreateRequest(txCtx, studentID, accountID, raw); err != nil {
+		if err := s.createLockedCareRequest(txCtx, studentID, accountID, raw); err != nil {
 			return err
 		}
 		return s.buildCareScheduleView(txCtx, view, accountID, studentID)
@@ -242,45 +232,7 @@ func (s *Service) buildCareScheduleView(ctx context.Context, view *ChildCareSche
 		return err
 	}
 
-	arrivalByDay := map[int]string{}
-	arrivalCareDays := map[int]bool{}
-	for _, a := range arrivals {
-		arrivalCareDays[a.Weekday] = true
-		if a.ExpectedArrival.IsZero() {
-			// Care day without a time: the class carries none yet (#2414).
-			continue
-		}
-		arrivalByDay[a.Weekday] = a.ExpectedArrival.Format("15:04")
-	}
-	pickupByDay := map[int]string{}
-	for _, p := range pickups {
-		pickupByDay[p.Weekday] = p.PickupTime.Format("15:04")
-	}
-	hasCarePlan := len(arrivals) > 0 || len(pickups) > 0
-
-	weekdays := make([]CareScheduleWeekday, 0, len(s.DeparturePolicy.DayOrder()))
-	for i, abbrev := range s.DeparturePolicy.DayOrder() {
-		wd := i + 1
-		status := careDayStatus(hasCarePlan, arrivalCareDays[wd], arrivalByDay[wd], pickupByDay[wd])
-		modes := student.AllowedDepartureModes[abbrev]
-		keys := make([]string, 0, len(modes))
-		for _, m := range modes {
-			keys = append(keys, string(m))
-		}
-		if len(keys) == 0 && status == CareDayScheduled {
-			// An empty configured set means the child goes home alone — surface
-			// that explicitly instead of an ambiguous empty list (matches the
-			// request-diff convention).
-			keys = []string{string(DepartureAlone)}
-		}
-		weekdays = append(weekdays, CareScheduleWeekday{
-			Weekday: wd,
-			Status:  status,
-			Arrival: arrivalByDay[wd],
-			Pickup:  pickupByDay[wd],
-			Modes:   keys,
-		})
-	}
+	weekdays := s.careScheduleWeekdays(student, arrivals, pickups)
 	view.Weekdays = weekdays
 
 	pending, diff, err := s.CareRequests.GetPendingForStudent(ctx, studentID)
@@ -434,3 +386,75 @@ type CareRequestDiffEntry = carerequests.DiffEntry
 
 // PickupChangeRequest is a guardian's one-day pickup change request.
 type PickupChangeRequest = carerequests.Request
+
+func requireCareRequestFields(requested carerequests.RequestedFieldGroups, capabilities CareScheduleRequestCapabilities) error {
+	if (requested.Arrival && !capabilities.Arrival) ||
+		(requested.Pickup && !capabilities.Pickup) ||
+		(requested.DepartureMode && !capabilities.DepartureMode) ||
+		(requested.Scheduled && (!capabilities.Pickup || !capabilities.DepartureMode)) {
+		return ErrCareRequestFieldDisabled
+	}
+	return nil
+}
+
+func (s *Service) createLockedCareRequest(txCtx context.Context, studentID, accountID int64, raw json.RawMessage) error {
+	student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+	if err != nil {
+		return err
+	}
+	if student.CareEndedOn(s.todayDate()) {
+		return ErrChildCareEnded
+	}
+	if _, err := s.CareRequests.CreateRequest(txCtx, studentID, accountID, raw); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Service) careScheduleWeekdays(student *PortalStudent, arrivals []*ArrivalSchedule, pickups []*PickupSchedule) []CareScheduleWeekday {
+	arrivalByDay, arrivalCareDays, pickupByDay := careScheduleTimes(arrivals, pickups)
+	hasCarePlan := len(arrivals) > 0 || len(pickups) > 0
+
+	weekdays := make([]CareScheduleWeekday, 0, len(s.DeparturePolicy.DayOrder()))
+	for i, abbrev := range s.DeparturePolicy.DayOrder() {
+		wd := i + 1
+		status := careDayStatus(hasCarePlan, arrivalCareDays[wd], arrivalByDay[wd], pickupByDay[wd])
+		modes := student.AllowedDepartureModes[abbrev]
+		keys := make([]string, 0, len(modes))
+		for _, m := range modes {
+			keys = append(keys, string(m))
+		}
+		if len(keys) == 0 && status == CareDayScheduled {
+			// An empty configured set means the child goes home alone — surface
+			// that explicitly instead of an ambiguous empty list (matches the
+			// request-diff convention).
+			keys = []string{string(DepartureAlone)}
+		}
+		weekdays = append(weekdays, CareScheduleWeekday{
+			Weekday: wd,
+			Status:  status,
+			Arrival: arrivalByDay[wd],
+			Pickup:  pickupByDay[wd],
+			Modes:   keys,
+		})
+	}
+	return weekdays
+}
+
+func careScheduleTimes(arrivals []*ArrivalSchedule, pickups []*PickupSchedule) (map[int]string, map[int]bool, map[int]string) {
+	arrivalByDay := map[int]string{}
+	arrivalCareDays := map[int]bool{}
+	for _, a := range arrivals {
+		arrivalCareDays[a.Weekday] = true
+		if a.ExpectedArrival.IsZero() {
+			// Care day without a time: the class carries none yet (#2414).
+			continue
+		}
+		arrivalByDay[a.Weekday] = a.ExpectedArrival.Format("15:04")
+	}
+	pickupByDay := map[int]string{}
+	for _, p := range pickups {
+		pickupByDay[p.Weekday] = p.PickupTime.Format("15:04")
+	}
+	return arrivalByDay, arrivalCareDays, pickupByDay
+}

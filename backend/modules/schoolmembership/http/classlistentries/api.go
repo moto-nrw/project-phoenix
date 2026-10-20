@@ -99,7 +99,7 @@ func (req *EntryRequest) Bind(_ *http.Request) error {
 	req.LastName = strings.TrimSpace(req.LastName)
 	req.SchoolClass = strings.TrimSpace(req.SchoolClass)
 	if req.FirstName == "" || req.LastName == "" || req.SchoolClass == "" {
-		return errors.New("Vorname, Nachname und Klasse sind erforderlich") //nolint:staticcheck // ST1005: user-facing German message
+		return errors.New("vorname, Nachname und Klasse sind erforderlich")
 	}
 	return nil
 }
@@ -121,7 +121,7 @@ type AssignRequest struct {
 // Bind validates the payload.
 func (req *AssignRequest) Bind(_ *http.Request) error {
 	if req.StudentID <= 0 {
-		return errors.New("student_id ist erforderlich") //nolint:staticcheck // ST1005: user-facing German message
+		return errors.New("student_id ist erforderlich")
 	}
 	return nil
 }

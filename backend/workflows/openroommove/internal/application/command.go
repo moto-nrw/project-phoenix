@@ -74,43 +74,7 @@ func (c *command) move(ctx context.Context, move openroommove.Move, result *open
 		return openroommove.ErrInvalidMove
 	}
 	return c.deps.Runtime.WithinTenant(ctx, func(txCtx context.Context) error {
-		room, err := c.loadRoom(txCtx, move.RoomID)
-		if err != nil {
-			return err
-		}
-		if !room.IsOpenRoom {
-			return openroommove.ErrRoomNotReleased
-		}
-
-		activityID, err := c.roomActivity(txCtx, room)
-		if err != nil {
-			return err
-		}
-		sessionID, err := c.deps.RoomSessions.EnsureOpenRoomSession(txCtx, room.ID, activityID)
-		if err != nil {
-			return err
-		}
-		outcome, err := c.deps.Moves.MoveIntoRoomSession(txCtx, sessionID, studentIDs, move.Actor)
-		if err != nil {
-			return err
-		}
-
-		locked, err := c.lockRoom(txCtx, move.RoomID)
-		if err != nil {
-			return err
-		}
-		if !locked.IsOpenRoom {
-			return openroommove.ErrRoomNotReleased
-		}
-
-		*result = openroommove.Result{
-			RoomID:        locked.ID,
-			RoomSessionID: sessionID,
-			Moved:         outcome.Moved,
-			Unchanged:     outcome.Unchanged,
-			Skipped:       outcome.Skipped,
-		}
-		return nil
+		return c.moveInTx(txCtx, move, result, studentIDs)
 	})
 }
 
@@ -267,4 +231,44 @@ func uniquePositive(ids []int64) []int64 {
 		result = append(result, id)
 	}
 	return result
+}
+
+func (c *command) moveInTx(txCtx context.Context, move openroommove.Move, result *openroommove.Result, studentIDs []int64) error {
+	room, err := c.loadRoom(txCtx, move.RoomID)
+	if err != nil {
+		return err
+	}
+	if !room.IsOpenRoom {
+		return openroommove.ErrRoomNotReleased
+	}
+
+	activityID, err := c.roomActivity(txCtx, room)
+	if err != nil {
+		return err
+	}
+	sessionID, err := c.deps.RoomSessions.EnsureOpenRoomSession(txCtx, room.ID, activityID)
+	if err != nil {
+		return err
+	}
+	outcome, err := c.deps.Moves.MoveIntoRoomSession(txCtx, sessionID, studentIDs, move.Actor)
+	if err != nil {
+		return err
+	}
+
+	locked, err := c.lockRoom(txCtx, move.RoomID)
+	if err != nil {
+		return err
+	}
+	if !locked.IsOpenRoom {
+		return openroommove.ErrRoomNotReleased
+	}
+
+	*result = openroommove.Result{
+		RoomID:        locked.ID,
+		RoomSessionID: sessionID,
+		Moved:         outcome.Moved,
+		Unchanged:     outcome.Unchanged,
+		Skipped:       outcome.Skipped,
+	}
+	return nil
 }

@@ -25,9 +25,9 @@ var (
 	// ErrCannotRemoveOwnAccess refuses a parent removing themselves.
 	ErrCannotRemoveOwnAccess = errors.New("a parent cannot remove their own access to a child")
 	// ErrCannotRemovePayerGuardian refuses removing the child's payer: that
-	// is a financial decision the parents portal never holds (#2608). German
-	// because the portal shows it verbatim.
-	ErrCannotRemovePayerGuardian = errors.New("Diese Person ist als Zahler für das Kind eingetragen und kann nicht entfernt werden. Bitte wenden Sie sich an die Schule.") //nolint:staticcheck // ST1005: user-facing German message
+	// is a financial decision the parents portal never holds (#2608). The text
+	// is diagnostic detail; the portal shows the code catalog.
+	ErrCannotRemovePayerGuardian = errors.New("diese Person ist als Zahler für das Kind eingetragen und kann nicht entfernt werden. Bitte wenden Sie sich an die Schule")
 	// ErrInviteSocialWorkerManaged refuses inviting a social-worker contact,
 	// which the school manages, into the parents portal.
 	ErrInviteSocialWorkerManaged = errors.New("a social-worker contact is managed by the school and cannot be invited to the parents portal")

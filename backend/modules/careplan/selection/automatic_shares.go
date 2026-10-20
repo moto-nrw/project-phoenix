@@ -22,23 +22,29 @@ func AutomaticShares(materialized []Selection, catalog map[int64]*Offering) map[
 			continue
 		}
 		share := AutomaticShare{AutomaticDays: slices.Clone(selected.AutomaticSelectedDays)}
-		target := catalog[id]
-		if target != nil {
-			withoutRules := unionDaysInOfferingOrder(target.AvailableDays, selected.ManualSelectedDays, autoLunchDaysForTarget(target, selections, catalog))
-			ruleDays := autoDaysForTarget(target, target.AutoAddTriggerOfferingIDs, selections, catalog)
-			ruleDays = slices.DeleteFunc(slices.Clone(ruleDays), func(day string) bool { return slices.Contains(withoutRules, day) })
-			if len(ruleDays) > 0 {
-				share.RuleDays = ruleDays
-				share.DaysWithoutRules = withoutRules
-				for _, triggerID := range target.AutoAddTriggerOfferingIDs {
-					triggerDays := autoDaysForTarget(target, []int64{triggerID}, selections, catalog)
-					if slices.ContainsFunc(triggerDays, func(day string) bool { return slices.Contains(ruleDays, day) }) {
-						share.TriggerIDs = append(share.TriggerIDs, triggerID)
-					}
-				}
-			}
+		if target := catalog[id]; target != nil {
+			addRuleShare(&share, target, selected, selections, catalog)
 		}
 		shares[id] = share
 	}
 	return shares
+}
+
+// addRuleShare records the automatic days only the auto-add rules contribute,
+// beyond manual days and required lunch, and the triggers that produce them.
+func addRuleShare(share *AutomaticShare, target *Offering, selected *Selection, selections map[int64]*Selection, catalog map[int64]*Offering) {
+	withoutRules := unionDaysInOfferingOrder(target.AvailableDays, selected.ManualSelectedDays, autoLunchDaysForTarget(target, selections, catalog))
+	ruleDays := autoDaysForTarget(target, target.AutoAddTriggerOfferingIDs, selections, catalog)
+	ruleDays = slices.DeleteFunc(slices.Clone(ruleDays), func(day string) bool { return slices.Contains(withoutRules, day) })
+	if len(ruleDays) == 0 {
+		return
+	}
+	share.RuleDays = ruleDays
+	share.DaysWithoutRules = withoutRules
+	for _, triggerID := range target.AutoAddTriggerOfferingIDs {
+		triggerDays := autoDaysForTarget(target, []int64{triggerID}, selections, catalog)
+		if slices.ContainsFunc(triggerDays, func(day string) bool { return slices.Contains(ruleDays, day) }) {
+			share.TriggerIDs = append(share.TriggerIDs, triggerID)
+		}
+	}
 }

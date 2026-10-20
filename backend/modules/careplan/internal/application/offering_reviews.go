@@ -94,6 +94,27 @@ func (s *OfferingReviews) ListPending(ctx context.Context, filter careplan.Reque
 		return nil, nil, err
 	}
 	today := s.reviewDay(filter)
+	visible, personIDs := visibleOfferingRows(rows, students, scope, today)
+	names, err := s.People.PersonNames(ctx, personIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("offering change: load student persons: %w", err)
+	}
+	reviews, diffErr := s.pendingReviews(ctx, visible, today)
+	if diffErr != nil {
+		s.Logger.Warn("offering change: preload pending diffs failed", slog.String("error", diffErr.Error()))
+	}
+	result := make([]*careplan.OfferingReviewItem, 0, len(visible))
+	for i := range visible {
+		row := visible[i]
+		name := names[students[row.StudentID].PersonID]
+		result = append(result, offeringReviewItem(row, today, name, reviews[row.ID], diffErr == nil))
+	}
+	return result, cursor, nil
+}
+
+// visibleOfferingRows keeps the rows of in-scope, current students and
+// collects their person IDs for the name lookup.
+func visibleOfferingRows(rows []careplan.OfferingChangeRequest, students map[int64]careplan.ReviewStudent, scope careplan.ReviewScope, today careplan.Date) ([]careplan.OfferingChangeRequest, []int64) {
 	visible := make([]careplan.OfferingChangeRequest, 0, len(rows))
 	personIDs := make([]int64, 0, len(rows))
 	for _, row := range rows {
@@ -106,31 +127,23 @@ func (s *OfferingReviews) ListPending(ctx context.Context, filter careplan.Reque
 			personIDs = append(personIDs, student.PersonID)
 		}
 	}
-	names, err := s.People.PersonNames(ctx, personIDs)
-	if err != nil {
-		return nil, nil, fmt.Errorf("offering change: load student persons: %w", err)
-	}
-	reviews, diffErr := s.pendingReviews(ctx, visible, today)
-	if diffErr != nil {
-		s.Logger.Warn("offering change: preload pending diffs failed", slog.String("error", diffErr.Error()))
-	}
-	result := make([]*careplan.OfferingReviewItem, 0, len(visible))
-	for i := range visible {
-		row := visible[i]
-		item := &careplan.OfferingReviewItem{Request: &row, RequestedEffectiveFrom: row.EffectiveFrom}
-		item.Request.EffectiveFrom = offeringAppliedDate(careplan.Date(row.EffectiveFrom), today, careplan.Date("")).String()
-		name := names[students[row.StudentID].PersonID]
-		item.StudentName = strings.TrimSpace(name.FirstName + " " + name.LastName)
-		if review := reviews[row.ID]; review != nil {
-			item.Request.EffectiveFrom = review.applied.String()
-			item.EarliestEffectiveFrom, item.LatestEffectiveFrom = review.earliest.String(), review.latest.String()
-			if diffErr == nil {
-				item.Diff, item.Unchanged, item.FullWithdrawal = review.diff, review.unchanged, review.withdrawal
-			}
+	return visible, personIDs
+}
+
+// offeringReviewItem builds one pending item; the diff lines are attached only
+// when the diff preload succeeded.
+func offeringReviewItem(row careplan.OfferingChangeRequest, today careplan.Date, name careplan.PersonName, review *offeringPendingReview, withDiff bool) *careplan.OfferingReviewItem {
+	item := &careplan.OfferingReviewItem{Request: &row, RequestedEffectiveFrom: row.EffectiveFrom}
+	item.Request.EffectiveFrom = offeringAppliedDate(careplan.Date(row.EffectiveFrom), today, careplan.Date("")).String()
+	item.StudentName = strings.TrimSpace(name.FirstName + " " + name.LastName)
+	if review != nil {
+		item.Request.EffectiveFrom = review.applied.String()
+		item.EarliestEffectiveFrom, item.LatestEffectiveFrom = review.earliest.String(), review.latest.String()
+		if withDiff {
+			item.Diff, item.Unchanged, item.FullWithdrawal = review.diff, review.unchanged, review.withdrawal
 		}
-		result = append(result, item)
 	}
-	return result, cursor, nil
+	return item
 }
 
 // PendingCount deliberately excludes catalog reads and selection materialization.
@@ -177,13 +190,7 @@ func (s *OfferingReviews) ListHistory(ctx context.Context, filter careplan.Reque
 	if err != nil {
 		return nil, nil, fmt.Errorf("offering change: load student persons for history: %w", err)
 	}
-	reviewerIDs := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		if row.ReviewedBy != nil && *row.ReviewedBy > 0 && !slices.Contains(reviewerIDs, *row.ReviewedBy) {
-			reviewerIDs = append(reviewerIDs, *row.ReviewedBy)
-		}
-	}
-	reviewers, err := s.People.ReviewerNames(ctx, reviewerIDs)
+	reviewers, err := s.People.ReviewerNames(ctx, offeringReviewerIDs(rows))
 	if err != nil {
 		return nil, nil, fmt.Errorf("offering change: load reviewers for history: %w", err)
 	}
@@ -200,20 +207,37 @@ func (s *OfferingReviews) ListHistory(ctx context.Context, filter careplan.Reque
 		}
 		name := names[student.PersonID]
 		item := &careplan.OfferingHistoryItem{Request: row, StudentName: strings.TrimSpace(name.FirstName + " " + name.LastName), ReviewerName: reviewerDisplayName(reviewers, row.ReviewedBy)}
-		if len(row.DecisionSnapshot) > 0 && strings.TrimSpace(string(row.DecisionSnapshot)) != "null" {
-			item.Diff, err = careplan.ParseOfferingReviewDecisionDiff(row.DecisionSnapshot)
-		} else {
-			item.Requested, err = s.requestedItems(ctx, row.Payload)
-		}
-		if err != nil {
-			s.Logger.Warn("offering change: resolve requested offerings for history failed",
-				slog.Int64("request_id", row.ID),
-				slog.String("error", err.Error()),
-			)
-		}
+		s.resolveHistoryDetail(ctx, item, row)
 		result = append(result, item)
 	}
 	return result, cursor, nil
+}
+
+func offeringReviewerIDs(rows []careplan.OfferingChangeRequest) []int64 {
+	reviewerIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		if row.ReviewedBy != nil && *row.ReviewedBy > 0 && !slices.Contains(reviewerIDs, *row.ReviewedBy) {
+			reviewerIDs = append(reviewerIDs, *row.ReviewedBy)
+		}
+	}
+	return reviewerIDs
+}
+
+// resolveHistoryDetail attaches the decision snapshot diff, or for rows
+// without one the requested offerings; a failure is logged, not returned.
+func (s *OfferingReviews) resolveHistoryDetail(ctx context.Context, item *careplan.OfferingHistoryItem, row *careplan.OfferingChangeRequest) {
+	var err error
+	if len(row.DecisionSnapshot) > 0 && strings.TrimSpace(string(row.DecisionSnapshot)) != "null" {
+		item.Diff, err = careplan.ParseOfferingReviewDecisionDiff(row.DecisionSnapshot)
+	} else {
+		item.Requested, err = s.requestedItems(ctx, row.Payload)
+	}
+	if err != nil {
+		s.Logger.Warn("offering change: resolve requested offerings for history failed",
+			slog.Int64("request_id", row.ID),
+			slog.String("error", err.Error()),
+		)
+	}
 }
 
 func (s *OfferingReviews) requestedItems(ctx context.Context, payload []byte) ([]careplan.OfferingRequestedItem, error) {

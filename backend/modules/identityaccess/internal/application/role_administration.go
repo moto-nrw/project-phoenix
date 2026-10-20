@@ -180,72 +180,19 @@ func (r *RoleAdministration) AssignRoleToAccount(ctx context.Context, accountID,
 		}
 		facts := role.Facts()
 
-		if !r.policy.IsLehrkraftSystemRole(facts) {
-			isLehrkraft, roleErr := r.accountHoldsLehrkraftRole(txCtx, accountID)
-			if roleErr != nil {
-				return failed("assign role", roleErr)
-			}
-			if isLehrkraft {
-				return failed("assign role", domain.ErrLehrkraftRoleImmutable)
-			}
+		if err := r.requireLehrkraftPreserved(txCtx, accountID, facts); err != nil {
+			return err
 		}
-
-		// Server-side mirror of the operator guards (#1772): the Lehrkraft
-		// role must not land on an account whose identity at this school
-		// carries a live caregiver profile — a direct call to the tenant RBAC
-		// endpoint would otherwise strand users.teachers and its group
-		// supervisions under a class_day-only JWT. Same rule as the operator
-		// school access and the invitation flow.
-		if r.policy.IsLehrkraftSystemRole(facts) {
-			hasProfile, profErr := r.profiles.HasLiveCaregiverProfile(txCtx, accountID)
-			if profErr != nil {
-				return failed("assign role", profErr)
-			}
-			if hasProfile {
-				return failed("assign role", domain.ErrRoleLehrkraftCaregiverProfile)
-			}
+		if err := r.requireNoCaregiverForLehrkraft(txCtx, accountID, facts); err != nil {
+			return err
 		}
-
-		// And the same swap in reverse (#1772): a Lehrkraft account has no
-		// users.teachers row by construction, so handing it a caregiver role
-		// here would grant the permissions without the profile they read
-		// through — no groups, no supervision, an empty caregiver landing
-		// page. The operator role change provisions the profile before it
-		// assigns the role and therefore passes; this command has no identity
-		// fields, so the switch belongs to offboarding plus a fresh account.
-		// Roles that legitimately run without a profile (admin) are
-		// unaffected.
-		if r.identityRoles.RoleNeedsCaregiverProfile(facts) {
-			isLehrkraft, roleErr := r.accountHoldsLehrkraftRole(txCtx, accountID)
-			if roleErr != nil {
-				return failed("assign role", roleErr)
-			}
-			if isLehrkraft {
-				hasProfile, profErr := r.profiles.HasLiveCaregiverProfile(txCtx, accountID)
-				if profErr != nil {
-					return failed("assign role", profErr)
-				}
-				if !hasProfile {
-					return failed("assign role", domain.ErrRoleCaregiverNeedsProfile)
-				}
-			}
+		if err := r.requireCaregiverAssignmentProfile(txCtx, accountID, facts); err != nil {
+			return err
 		}
-
-		assigned, err := r.store.AccountHoldsRole(txCtx, accountID, roleID)
+		revoked, err = r.assignMissingAccountRole(txCtx, accountID, roleID)
 		if err != nil {
-			return failed("check role assignment", err)
+			return err
 		}
-		if !assigned {
-			if err := r.store.CreateAccountRole(txCtx, accountID, roleID, r.runtime.TenantID(txCtx)); err != nil {
-				return failed("assign role to account", err)
-			}
-			tokens, err := r.sessions.DeleteAccountSessionsWithAudit(txCtx, accountID, "role_changed", "", "")
-			if err != nil {
-				return failed("revoke tokens after role assignment", err)
-			}
-			revoked = tokens
-		}
-
 		// Handing out a staff-tier role is the same act as inviting one, so it
 		// owes the same identity (#2222). Without this, the assignment is a
 		// way to produce an account that holds the role, logs in, and is not
@@ -531,4 +478,86 @@ func (RoleAssignmentPolicy) IsPlatformCaregiverRole(role *domain.RoleFacts) bool
 
 func (RoleAssignmentPolicy) ValidateAssignableSchoolRole(role *domain.RoleFacts, tenantID int64) error {
 	return identityaccess.ValidateAssignableSchoolRole(publicRoleFacts(role), tenantID)
+}
+
+func (r *RoleAdministration) requireLehrkraftPreserved(txCtx context.Context, accountID int64, facts *domain.RoleFacts) error {
+	if !r.policy.IsLehrkraftSystemRole(facts) {
+		isLehrkraft, roleErr := r.accountHoldsLehrkraftRole(txCtx, accountID)
+		if roleErr != nil {
+			return failed("assign role", roleErr)
+		}
+		if isLehrkraft {
+			return failed("assign role", domain.ErrLehrkraftRoleImmutable)
+		}
+	}
+
+	return nil
+}
+
+func (r *RoleAdministration) requireNoCaregiverForLehrkraft(txCtx context.Context, accountID int64, facts *domain.RoleFacts) error {
+	// Server-side mirror of the operator guards (#1772): the Lehrkraft
+	// role must not land on an account whose identity at this school
+	// carries a live caregiver profile — a direct call to the tenant RBAC
+	// endpoint would otherwise strand users.teachers and its group
+	// supervisions under a class_day-only JWT. Same rule as the operator
+	// school access and the invitation flow.
+	if r.policy.IsLehrkraftSystemRole(facts) {
+		hasProfile, profErr := r.profiles.HasLiveCaregiverProfile(txCtx, accountID)
+		if profErr != nil {
+			return failed("assign role", profErr)
+		}
+		if hasProfile {
+			return failed("assign role", domain.ErrRoleLehrkraftCaregiverProfile)
+		}
+	}
+
+	return nil
+}
+
+func (r *RoleAdministration) requireCaregiverAssignmentProfile(txCtx context.Context, accountID int64, facts *domain.RoleFacts) error {
+	// And the same swap in reverse (#1772): a Lehrkraft account has no
+	// users.teachers row by construction, so handing it a caregiver role
+	// here would grant the permissions without the profile they read
+	// through — no groups, no supervision, an empty caregiver landing
+	// page. The operator role change provisions the profile before it
+	// assigns the role and therefore passes; this command has no identity
+	// fields, so the switch belongs to offboarding plus a fresh account.
+	// Roles that legitimately run without a profile (admin) are
+	// unaffected.
+	if r.identityRoles.RoleNeedsCaregiverProfile(facts) {
+		isLehrkraft, roleErr := r.accountHoldsLehrkraftRole(txCtx, accountID)
+		if roleErr != nil {
+			return failed("assign role", roleErr)
+		}
+		if isLehrkraft {
+			hasProfile, profErr := r.profiles.HasLiveCaregiverProfile(txCtx, accountID)
+			if profErr != nil {
+				return failed("assign role", profErr)
+			}
+			if !hasProfile {
+				return failed("assign role", domain.ErrRoleCaregiverNeedsProfile)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (r *RoleAdministration) assignMissingAccountRole(txCtx context.Context, accountID, roleID int64) (revoked []domain.AccountSession, err error) {
+	assigned, err := r.store.AccountHoldsRole(txCtx, accountID, roleID)
+	if err != nil {
+		return revoked, failed("check role assignment", err)
+	}
+	if !assigned {
+		if err := r.store.CreateAccountRole(txCtx, accountID, roleID, r.runtime.TenantID(txCtx)); err != nil {
+			return revoked, failed("assign role to account", err)
+		}
+		tokens, err := r.sessions.DeleteAccountSessionsWithAudit(txCtx, accountID, "role_changed", "", "")
+		if err != nil {
+			return revoked, failed("revoke tokens after role assignment", err)
+		}
+		revoked = tokens
+	}
+
+	return revoked, nil
 }

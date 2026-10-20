@@ -101,9 +101,7 @@ const (
 // parameter opens the same set of children on the ordinary list endpoint — a
 // caller with plain users:read must not be able to reach it by adding a query
 // parameter (#2487).
-//
-//nolint:staticcheck // ST1005: user-facing German message
-var ErrCareStatusForbidden = errors.New("Beendete Betreuungen dürfen nur Personen mit der Berechtigung „Benutzer löschen“ sehen.")
+var ErrCareStatusForbidden = errors.New("beendete Betreuungen dürfen nur Personen mit der Berechtigung „Benutzer löschen“ sehen")
 
 // parseCareStatus resolves the care_status query parameter. An unknown value
 // is rejected rather than silently serving the operational list: a caller

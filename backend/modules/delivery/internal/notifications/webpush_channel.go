@@ -182,17 +182,11 @@ func (c *webPushChannel) DeliverDurably(ctx context.Context, event Event) (int, 
 			return err
 		}
 		for _, sub := range subs {
-			deepLink := event.DeepLink
-			if sub.Portal == deliveryModels.PushPortalSchool {
-				if _, err := schoolPushPayload(event); err != nil {
-					return err
-				}
-				deepLink = event.SchoolDeepLink
-				if deepLink == "" {
-					deepLink = "/school"
-				}
+			deepLink, err := pushIntentDeepLink(event, sub.Portal)
+			if err != nil {
+				return err
 			}
-			_, err := c.outbox.EnqueuePush(txCtx, PushIntent{
+			_, err = c.outbox.EnqueuePush(txCtx, PushIntent{
 				TenantID: event.Audience.TenantID, Template: event.Type,
 				IdempotencyKey: fmt.Sprintf("%s:subscription:%d", event.IdempotencyKey, sub.ID),
 				RelatedType:    event.RelatedType, RelatedID: event.RelatedID,
@@ -449,13 +443,7 @@ func (c *webPushChannel) sendAllSynchronously(ctx context.Context, event Event, 
 		case c.sendSlots <- struct{}{}:
 		case <-ctx.Done():
 			wg.Wait()
-			if succeeded {
-				return nil
-			}
-			if len(errs) > 0 {
-				return errors.Join(errs...)
-			}
-			return ctx.Err()
+			return synchronousPushResult(succeeded, errs, ctx.Err())
 		}
 
 		wg.Go(func() {
@@ -537,4 +525,28 @@ func pushOptionsForPriority(priority string) (ttl int, urgency webpush.Urgency) 
 	default:
 		return 86400, webpush.UrgencyNormal
 	}
+}
+
+func pushIntentDeepLink(event Event, portal string) (string, error) {
+	deepLink := event.DeepLink
+	if portal == deliveryModels.PushPortalSchool {
+		if _, err := schoolPushPayload(event); err != nil {
+			return "", err
+		}
+		deepLink = event.SchoolDeepLink
+		if deepLink == "" {
+			deepLink = "/school"
+		}
+	}
+	return deepLink, nil
+}
+
+func synchronousPushResult(succeeded bool, errs []error, contextErr error) error {
+	if succeeded {
+		return nil
+	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	return contextErr
 }

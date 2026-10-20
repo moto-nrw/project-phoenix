@@ -87,6 +87,50 @@ describe("TeamChatThread (#2517)", () => {
     api = stubApi();
   });
 
+  // Die Fläche des Schul-Portals trägt den Rückweg über dem Titel, auf jeder
+  // Breite und auch, wenn der Verlauf nicht lädt (#4364).
+  it("puts the back link above the title in the school portal frame", async () => {
+    api.fetchThread.mockResolvedValue(thread);
+    render(
+      <TeamChatThread
+        portal={portalFor(api)}
+        threadID="t1"
+        myAccountId="1"
+        back={{ href: "/nachrichten", label: "Zurück zu Nachrichten" }}
+      />,
+      { wrapper: Fresh },
+    );
+
+    await screen.findByText("Hallo");
+    const link = screen.getByRole("link", { name: "Zurück zu Nachrichten" });
+    expect(link).toHaveAttribute("href", "/nachrichten");
+    expect(
+      link.compareDocumentPosition(screen.getByRole("heading", { level: 1 })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(link.className).not.toMatch(/(^|\s)(sm|md|lg|xl):hidden/);
+  });
+
+  it("keeps the back link when the history fails to load", async () => {
+    api.fetchThread.mockRejectedValue(
+      new ApiError("thread kaputt", 500, { code: "general.server" }),
+    );
+    render(
+      <TeamChatThread
+        portal={portalFor(api)}
+        threadID="t1"
+        myAccountId="1"
+        back={{ href: "/nachrichten", label: "Zurück zu Nachrichten" }}
+      />,
+      { wrapper: Fresh },
+    );
+
+    await screen.findByText(catalogText("general.server", "die Unterhaltung"));
+    expect(
+      screen.getByRole("link", { name: "Zurück zu Nachrichten" }),
+    ).toHaveAttribute("href", "/nachrichten");
+  });
+
   it("shows a failed history load with the catalog text and retries", async () => {
     api.fetchThread
       .mockRejectedValueOnce(
@@ -98,7 +142,7 @@ describe("TeamChatThread (#2517)", () => {
         portal={portalFor(api)}
         threadID="t1"
         myAccountId="1"
-        backNav={null}
+        back={{ href: "/team-chat", label: "Zurück zum Team-Chat" }}
       />,
       { wrapper: Fresh },
     );
@@ -133,7 +177,7 @@ describe("TeamChatThread (#2517)", () => {
         portal={portalFor(api)}
         threadID="t1"
         myAccountId="1"
-        backNav={null}
+        back={{ href: "/team-chat", label: "Zurück zum Team-Chat" }}
       />,
       { wrapper: Fresh },
     );

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports"
@@ -110,15 +109,8 @@ func (s *Service) requireAnnouncement(ctx context.Context, announcementID int64)
 func (s *Service) UploadAttachment(ctx context.Context, announcementID int64, upload domain.Upload, actor domain.Actor) (attachment domain.Document, err error) {
 	err = s.run("upload_attachment", func(o *op) error {
 		tenantID := s.deps.Tx.TenantID(ctx)
-		if tenantID <= 0 {
-			return fmt.Errorf("%w: no tenant context", domain.ErrInvalid)
-		}
-		if err := requireActor(actor); err != nil {
+		if err := normalizeUpload(tenantID, actor, &upload); err != nil {
 			return err
-		}
-		upload.FilenameDisplay = strings.TrimSpace(upload.FilenameDisplay)
-		if upload.FilenameDisplay == "" {
-			return fmt.Errorf("%w: filename is required", domain.ErrInvalid)
 		}
 		if err := s.write(ctx, o, func(txCtx context.Context, o *op) error {
 			return s.checkAttachmentUpload(txCtx, o, announcementID, false)
@@ -269,46 +261,16 @@ func (s *Service) DeleteAttachment(ctx context.Context, announcementID, attachme
 		if err := requireActor(actor); err != nil {
 			return err
 		}
-		var document domain.Document
+		var deletedDocument domain.Document
 		if err := s.write(ctx, o, func(txCtx context.Context, o *op) error {
-			if err := s.requireEditableAnnouncement(txCtx, announcementID, true); err != nil {
-				return err
-			}
-			live, found, stats, err := s.deps.Attachments.FindForOwner(txCtx, announcementID, attachmentID, false)
-			o.add(stats)
-			if err != nil {
-				return err
-			}
-			if !found {
-				// Already soft-deleted: retry the byte removal instead of a
-				// 404 the caller cannot act on.
-				deleted, found, stats, err := s.deps.Attachments.FindForOwner(txCtx, announcementID, attachmentID, true)
-				o.add(stats)
-				if err != nil {
-					return err
-				}
-				if !found {
-					return domain.ErrAttachmentNotFound
-				}
-				document = deleted
-				return nil
-			}
-			deleted, stats, err := s.deps.Attachments.SoftDelete(txCtx, live.ID, actor.AccountID)
-			o.add(stats)
-			if err != nil {
-				return err
-			}
-			if err := s.deps.Announcements.ResetAnnouncementEngagement(txCtx, announcementID); err != nil {
-				return err
-			}
-			document = deleted
-			return s.record(txCtx, actor, ports.EventAttachmentDeleted, nil, &announcementID, &deleted.ID,
-				fmt.Sprintf("Anhang „%s“ von Elternmitteilung entfernt", deleted.FilenameDisplay))
+			document, err := s.deleteAttachmentRecord(txCtx, o, announcementID, attachmentID, actor)
+			deletedDocument = document
+			return err
 		}); err != nil {
 			return err
 		}
-		if document.BytesPresent() {
-			s.scheduleCleanup(ctx, s.attachments(), document, "delete")
+		if deletedDocument.BytesPresent() {
+			s.scheduleCleanup(ctx, s.attachments(), deletedDocument, "delete")
 		}
 		return nil
 	})
@@ -510,4 +472,40 @@ func (s *Service) CountAttachments(ctx context.Context, announcementID int64) (c
 		return err
 	})
 	return count, err
+}
+
+func (s *Service) deleteAttachmentRecord(txCtx context.Context, o *op, announcementID, attachmentID int64, actor domain.Actor) (document domain.Document, err error) {
+	if err := s.requireEditableAnnouncement(txCtx, announcementID, true); err != nil {
+		return document, err
+	}
+	live, found, stats, err := s.deps.Attachments.FindForOwner(txCtx, announcementID, attachmentID, false)
+	o.add(stats)
+	if err != nil {
+		return document, err
+	}
+	if !found {
+		// Already soft-deleted: retry the byte removal instead of a
+		// 404 the caller cannot act on.
+		deleted, found, stats, err := s.deps.Attachments.FindForOwner(txCtx, announcementID, attachmentID, true)
+		o.add(stats)
+		if err != nil {
+			return document, err
+		}
+		if !found {
+			return document, domain.ErrAttachmentNotFound
+		}
+		document = deleted
+		return document, nil
+	}
+	deleted, stats, err := s.deps.Attachments.SoftDelete(txCtx, live.ID, actor.AccountID)
+	o.add(stats)
+	if err != nil {
+		return document, err
+	}
+	if err := s.deps.Announcements.ResetAnnouncementEngagement(txCtx, announcementID); err != nil {
+		return document, err
+	}
+	document = deleted
+	return document, s.record(txCtx, actor, ports.EventAttachmentDeleted, nil, &announcementID, &deleted.ID,
+		fmt.Sprintf("Anhang „%s“ von Elternmitteilung entfernt", deleted.FilenameDisplay))
 }

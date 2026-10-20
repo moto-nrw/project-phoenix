@@ -89,23 +89,7 @@ func (rs *Resource) Router() chi.Router {
 			r.With(rs.runtime.RequireAnyPermission(permUsersCreate)).Post(routeImport, rs.ImportClassList)
 		})
 
-		// Staff (Mitarbeiter) import endpoints
-		r.Route("/teachers", func(r chi.Router) {
-			// Template download - the template carries no tenant data, so
-			// everyone who may import (users:create) gets it as well as the
-			// directory readers; the import page opens on users:create alone
-			// (#2906).
-			r.With(rs.runtime.RequireAnyPermission(permUsersRead, permUsersCreate), withTx).Get(routeTemplate, rs.DownloadStaffTemplate)
-
-			// Preview - requires UsersCreate
-			// Note: no withTx here — the handler owns its tenant transaction
-			// so the GDPR audit row is committed before the success response.
-			r.With(rs.runtime.RequireAnyPermission(permUsersCreate)).Post(routePreview, rs.PreviewStaffImport)
-
-			// Actual import - requires UsersCreate
-			// No withTx: the workflow commits bounded batches and checkpoints.
-			r.With(rs.runtime.RequireAnyPermission(permUsersCreate)).Post(routeImport, rs.ImportStaff)
-		})
+		rs.mountStaffImports(r, withTx)
 	})
 
 	return r
@@ -246,4 +230,24 @@ func renderBatchImportError[T any](runtime Runtime, w http.ResponseWriter, r *ht
 	}
 	runtime.Failure(w, r, Failure{Status: http.StatusInternalServerError, Cause: err,
 		Message: "Import fehlgeschlagen", Code: codeImportBatchFailed, Result: result})
+}
+
+func (rs *Resource) mountStaffImports(r chi.Router, withTx func(http.Handler) http.Handler) {
+	// Staff (Mitarbeiter) import endpoints
+	r.Route("/teachers", func(r chi.Router) {
+		// Template download - the template carries no tenant data, so
+		// everyone who may import (users:create) gets it as well as the
+		// directory readers; the import page opens on users:create alone
+		// (#2906).
+		r.With(rs.runtime.RequireAnyPermission(permUsersRead, permUsersCreate), withTx).Get(routeTemplate, rs.DownloadStaffTemplate)
+
+		// Preview - requires UsersCreate
+		// Note: no withTx here — the handler owns its tenant transaction
+		// so the GDPR audit row is committed before the success response.
+		r.With(rs.runtime.RequireAnyPermission(permUsersCreate)).Post(routePreview, rs.PreviewStaffImport)
+
+		// Actual import - requires UsersCreate
+		// No withTx: the workflow commits bounded batches and checkpoints.
+		r.With(rs.runtime.RequireAnyPermission(permUsersCreate)).Post(routeImport, rs.ImportStaff)
+	})
 }

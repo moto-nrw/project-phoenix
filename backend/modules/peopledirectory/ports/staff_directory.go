@@ -6,8 +6,8 @@ import (
 )
 
 // The staff write refusals. The staff directory raises them and the root's
-// staff membership runtime classifies them (#3753, #4007). The messages are
-// rendered verbatim and must not change.
+// staff membership runtime classifies them (#3753, #4007). Their messages are
+// diagnostic detail; clients show the code catalog.
 var (
 	// ErrStaffAdoptionNotPermitted indicates a staff-creation request landed on
 	// a person who already carries a live staff record, from a caller that may
@@ -18,17 +18,17 @@ var (
 	// Since #2906 the required authority is staff:manage — the same one
 	// PUT /api/staff/{id} needs. Admins hold it through the admin:* wildcard,
 	// so this refuses the direct-API case, not the staff form.
-	ErrStaffAdoptionNotPermitted = errors.New("Für das Ändern eines vorhandenen Mitarbeiter-Datensatzes fehlt die Berechtigung") //nolint:staticcheck // ST1005: user-facing German message
+	ErrStaffAdoptionNotPermitted = errors.New("für das Ändern eines vorhandenen Mitarbeiter-Datensatzes fehlt die Berechtigung")
 
 	// ErrStaffLehrkraftCaregiverProfile indicates a caregiver profile was
 	// requested for an account holding the Lehrkraft system role (#1772). That
 	// role is class_day:read only and is provisioned without a profile on
 	// purpose; the role-assignment paths refuse the same combination from the
 	// other direction (ErrRoleLehrkraftCaregiverProfile).
-	ErrStaffLehrkraftCaregiverProfile = errors.New("Ein Lehrkraft-Konto kann kein Betreuungsprofil erhalten") //nolint:staticcheck // ST1005: user-facing German message
+	ErrStaffLehrkraftCaregiverProfile = errors.New("ein Lehrkraft-Konto kann kein Betreuungsprofil erhalten")
 
 	// ErrStaffInUse indicates staff has attendance records or active supervisions
-	ErrStaffInUse = errors.New("Personal kann nicht gelöscht werden: Mitarbeiter/in hat aktive Aufsichten oder Anwesenheitseinträge") //nolint:staticcheck // ST1005: user-facing German message
+	ErrStaffInUse = errors.New("personal kann nicht gelöscht werden: Mitarbeiter/in hat aktive Aufsichten oder Anwesenheitseinträge")
 )
 
 // LehrkraftRoleQuery is the consumer-owned port over the Identity & Access

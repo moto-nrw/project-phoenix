@@ -1,5 +1,9 @@
 # #4082 root inventory proof
 
+> **Historical record.** State at `4f894e4146` (2026-10-18). #2580 and #4069 are closed;
+> counts, budgets and open issues below describe that state, not today.
+> Final state: [`backend/architecture/WORKPLAN.md`](../../backend/architecture/WORKPLAN.md#endstand).
+
 Every production file in `backend/api/*.go` (381 files, excluding the 131 `testhooks` test fixtures) classified at the closing commit of #4082. Each row is wiring only: binding, type mapping, error mapping, deployment configuration, route mounting, nil guards or calls into owner predicates and commands. No row branches on business state, defines user text, chooses permissions or writes across owners.
 
 | File | Classification |

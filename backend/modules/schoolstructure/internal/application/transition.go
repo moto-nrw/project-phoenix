@@ -76,63 +76,91 @@ func (s *Service) UpdateTransition(ctx context.Context, tenantID int64, update d
 		if tenantID <= 0 {
 			return errTenantRequired
 		}
-		current, found, queryStats, findErr := s.store.FindTransition(ctx, tenantID, update.ID, "")
-		stats.Add(queryStats)
+		current, findErr := s.findDraftTransition(ctx, tenantID, update.ID, stats)
 		if findErr != nil {
 			return findErr
 		}
-		if !found {
-			return domain.ErrTransitionNotFound
+		updated, mappings, validateErr := applyTransitionUpdate(current, update)
+		if validateErr != nil {
+			return validateErr
 		}
-		if current.Status != domain.TransitionStatusDraft {
-			return domain.ErrTransitionStateConflict
-		}
-		year := current.AcademicYear
-		if update.AcademicYear != nil {
-			validated, validateErr := domain.ValidateAcademicYear(*update.AcademicYear)
-			if validateErr != nil {
-				return validateErr
-			}
-			year = validated
-		}
-		notes := current.Notes
-		if update.Notes != nil {
-			notes = update.Notes
-		}
-		var mappings []domain.TransitionMappingInput
-		if update.Mappings != nil {
-			normalized, validateErr := domain.NormalizeMappings(update.Mappings)
-			if validateErr != nil {
-				return validateErr
-			}
-			mappings = normalized
-			if mappings == nil {
-				mappings = []domain.TransitionMappingInput{}
-			}
-		}
-		rows, writeStats, writeErr := s.store.UpdateTransitionFields(ctx, tenantID, update.ID, year, notes)
-		stats.Add(writeStats)
+		written, writeErr := s.writeTransitionUpdate(ctx, tenantID, update.ID, updated, mappings, stats)
 		if writeErr != nil {
 			return writeErr
 		}
-		if rows == 0 {
-			// The row was read as a draft moments ago; a zero-row update means
-			// it left the draft status in between.
-			return domain.ErrTransitionStateConflict
-		}
-		current.AcademicYear, current.Notes = year, notes
-		if update.Mappings != nil {
-			replaced, replaceStats, replaceErr := s.store.ReplaceMappings(ctx, tenantID, update.ID, mappings)
-			stats.Add(replaceStats)
-			if replaceErr != nil {
-				return replaceErr
-			}
-			current.Mappings = replaced
-		}
-		result = current
+		result = written
 		return nil
 	})
 	return result, err
+}
+
+// findDraftTransition reads the transition an update edits; only a draft may
+// be edited.
+func (s *Service) findDraftTransition(ctx context.Context, tenantID, id int64, stats *domain.OperationStats) (domain.Transition, error) {
+	current, found, queryStats, err := s.store.FindTransition(ctx, tenantID, id, "")
+	stats.Add(queryStats)
+	if err != nil {
+		return domain.Transition{}, err
+	}
+	if !found {
+		return domain.Transition{}, domain.ErrTransitionNotFound
+	}
+	if current.Status != domain.TransitionStatusDraft {
+		return domain.Transition{}, domain.ErrTransitionStateConflict
+	}
+	return current, nil
+}
+
+// applyTransitionUpdate validates the update and applies its year and notes
+// onto the current draft. The returned mappings replace the stored ones; nil
+// keeps them, an empty list clears them.
+func applyTransitionUpdate(current domain.Transition, update domain.TransitionUpdate) (domain.Transition, []domain.TransitionMappingInput, error) {
+	if update.AcademicYear != nil {
+		validated, err := domain.ValidateAcademicYear(*update.AcademicYear)
+		if err != nil {
+			return domain.Transition{}, nil, err
+		}
+		current.AcademicYear = validated
+	}
+	if update.Notes != nil {
+		current.Notes = update.Notes
+	}
+	if update.Mappings == nil {
+		return current, nil, nil
+	}
+	mappings, err := domain.NormalizeMappings(update.Mappings)
+	if err != nil {
+		return domain.Transition{}, nil, err
+	}
+	if mappings == nil {
+		mappings = []domain.TransitionMappingInput{}
+	}
+	return current, mappings, nil
+}
+
+// writeTransitionUpdate stores the updated fields and, when mappings is not
+// nil, replaces the stored mappings.
+func (s *Service) writeTransitionUpdate(ctx context.Context, tenantID, id int64, updated domain.Transition, mappings []domain.TransitionMappingInput, stats *domain.OperationStats) (domain.Transition, error) {
+	rows, writeStats, err := s.store.UpdateTransitionFields(ctx, tenantID, id, updated.AcademicYear, updated.Notes)
+	stats.Add(writeStats)
+	if err != nil {
+		return domain.Transition{}, err
+	}
+	if rows == 0 {
+		// The row was read as a draft moments ago; a zero-row update means
+		// it left the draft status in between.
+		return domain.Transition{}, domain.ErrTransitionStateConflict
+	}
+	if mappings == nil {
+		return updated, nil
+	}
+	replaced, replaceStats, err := s.store.ReplaceMappings(ctx, tenantID, id, mappings)
+	stats.Add(replaceStats)
+	if err != nil {
+		return domain.Transition{}, err
+	}
+	updated.Mappings = replaced
+	return updated, nil
 }
 
 func (s *Service) DeleteTransition(ctx context.Context, tenantID, id int64) error {

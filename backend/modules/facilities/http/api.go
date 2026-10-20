@@ -302,7 +302,7 @@ func (rs *Resource) deleteRoom(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := rs.rooms.DeleteRoom(r.Context(), id); err != nil {
 		if rs.runtime.ConstraintFailed(err) {
-			rs.runtime.Failure(w, r, FailureConflict, errors.New("Raum kann nicht gelöscht werden: Raum wird noch von Gruppen verwendet"), "conflict") //nolint:staticcheck // stable user-facing contract
+			rs.runtime.Failure(w, r, FailureConflict, errors.New("raum kann nicht gelöscht werden: Raum wird noch von Gruppen verwendet"), "conflict")
 			return
 		}
 		rs.failure(w, r, err)

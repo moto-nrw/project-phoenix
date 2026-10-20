@@ -39,7 +39,7 @@ func (d Date) String() string { return string(d) }
 // and silently move children between cohorts or show a time that was never
 // planned then (#1565 review). Slot-based lists remain available for past dates
 // — only pickup cohorts are refused. The handler maps this to HTTP 400.
-var ErrPickupCohortPastDate = errors.New("Ganztag-Listen sind nur für heute und künftige Tage verfügbar") //nolint:staticcheck // ST1005: user-facing German message
+var ErrPickupCohortPastDate = errors.New("Ganztag-Listen sind nur für heute und künftige Tage verfügbar")
 
 // ErrReconciliationFutureDate is returned when an Abgleich (reconciliation) list
 // is requested for a strictly-future date. Reconciliation compares the plan
@@ -48,7 +48,7 @@ var ErrPickupCohortPastDate = errors.New("Ganztag-Listen sind nur für heute und
 // the whole group is missing before the day has even started (#1565 review). Plan
 // and Ist lists stay available for future dates; only the merge is refused. The
 // handler maps this to HTTP 400.
-var ErrReconciliationFutureDate = errors.New("Ein Abgleich ist nur für heute und vergangene Tage möglich, nicht für künftige Tage") //nolint:staticcheck // ST1005: user-facing German message
+var ErrReconciliationFutureDate = errors.New("ein Abgleich ist nur für heute und vergangene Tage möglich, nicht für künftige Tage")
 
 // ErrListDrifted is returned by RenderList when the freshly rebuilt list no
 // longer matches the content signature the client verified in its preview
@@ -57,7 +57,7 @@ var ErrReconciliationFutureDate = errors.New("Ein Abgleich ist nur für heute un
 // the export would hand out a file the user never reviewed. The handler maps
 // this to HTTP 409 so the client can refresh the preview and ask the user to
 // re-check before exporting again (#1565 review pass 2).
-var ErrListDrifted = errors.New("Die Liste hat sich seit der Vorschau geändert. Bitte erneut prüfen und exportieren.") //nolint:staticcheck // ST1005: user-facing German message
+var ErrListDrifted = errors.New("die Liste hat sich seit der Vorschau geändert. Bitte erneut prüfen und exportieren")
 
 // ErrTimetableDisabled is returned before any list data is read when the
 // tenant has disabled timetable.enabled. The slot-list HTTP handlers map this

@@ -7,27 +7,48 @@ import (
 )
 
 type Query interface {
-	SupervisedRoomsOn(context.Context, string) ([]StaffRoomSupervision, error)
-	StaffIDsWithSupervisionOn(context.Context, string) ([]int64, error)
-	QueryGroupSupervisions(context.Context, GroupSupervisionFilter) ([]GroupSupervision, error)
-	ListGroupSupervisions(context.Context, int64) ([]GroupSupervision, error)
-	OccupiedActivityGroupIDs(context.Context, []int64) ([]int64, error)
-	QueryLiveGroups(context.Context, LiveGroupFilter) ([]LiveGroup, error)
+	GroupSupervisionQuery
+	LiveGroupQuery
 	OpenRoomSessionQuery
 	RoomHistoryQuery
 	RoomOccupancyQuery
-	ListLiveGroups(context.Context, []int64) ([]LiveGroup, error)
-	GetCombinedGroup(context.Context, int64) (CombinedGroup, error)
-	ListCombinedGroups(context.Context, CombinedGroupFilter) ([]CombinedGroup, error)
-	ListGroupMappings(context.Context, GroupMappingFilter) ([]GroupMapping, error)
-	RoomUtilization(context.Context, []StudentVisitWindow) ([]RoomUtilization, error)
-	LockStaffSupervision(context.Context, int64, string) ([]int64, error)
-	UnclaimedGroups(context.Context, string) ([]UnclaimedGroup, error)
+	CombinedGroupQuery
 	AttendanceQuery
 	ActivitySessionQuery
 	SessionAttendanceQuery
 	VisitQuery
 	PrivacyConsentQuery
+	PresenceRecordQuery
+}
+
+// GroupSupervisionQuery reads the staff supervisions of live groups.
+type GroupSupervisionQuery interface {
+	SupervisedRoomsOn(context.Context, string) ([]StaffRoomSupervision, error)
+	StaffIDsWithSupervisionOn(context.Context, string) ([]int64, error)
+	QueryGroupSupervisions(context.Context, GroupSupervisionFilter) ([]GroupSupervision, error)
+	ListGroupSupervisions(context.Context, int64) ([]GroupSupervision, error)
+	LockStaffSupervision(context.Context, int64, string) ([]int64, error)
+}
+
+// LiveGroupQuery reads the live room sessions and their room usage.
+type LiveGroupQuery interface {
+	OccupiedActivityGroupIDs(context.Context, []int64) ([]int64, error)
+	QueryLiveGroups(context.Context, LiveGroupFilter) ([]LiveGroup, error)
+	ListLiveGroups(context.Context, []int64) ([]LiveGroup, error)
+	UnclaimedGroups(context.Context, string) ([]UnclaimedGroup, error)
+	RoomUtilization(context.Context, []StudentVisitWindow) ([]RoomUtilization, error)
+}
+
+// CombinedGroupQuery reads combined groups and their group mappings.
+type CombinedGroupQuery interface {
+	GetCombinedGroup(context.Context, int64) (CombinedGroup, error)
+	ListCombinedGroups(context.Context, CombinedGroupFilter) ([]CombinedGroup, error)
+	ListGroupMappings(context.Context, GroupMappingFilter) ([]GroupMapping, error)
+}
+
+// PresenceRecordQuery reads a student's recorded presence for care exits
+// and the deletion preview.
+type PresenceRecordQuery interface {
 	ListOpenPresence(context.Context, []int64) ([]int64, error)
 	LatestPresenceDate(context.Context, int64) (*string, error)
 	CountAttendanceRecords(context.Context, int64) (int, error)
@@ -43,27 +64,9 @@ func (m *Module) LockStaffSupervision(ctx context.Context, staffID int64, date s
 }
 
 type Command interface {
-	SetSupervisionEnd(context.Context, int64, string, time.Time) (int64, error)
-	EndOpenGroupSupervisions(context.Context, int64, int64, string) (int, error)
-	RecordSupervision(context.Context, GroupSupervision) (GroupSupervision, error)
-	ReviseSupervision(context.Context, GroupSupervision) (GroupSupervision, error)
-	RemoveSupervision(context.Context, int64) error
-	EndStaffSupervisionsOn(context.Context, int64, string) (int, error)
-	EndSupervisionOn(context.Context, int64, string) (int, error)
-	RecordGroup(context.Context, LiveGroup) (LiveGroup, error)
-	ReviseGroup(context.Context, LiveGroup) (LiveGroup, error)
-	DeleteGroup(context.Context, int64) error
-	RecordGroupActivity(context.Context, int64, time.Time) error
-	LockRoomSessionWrites(context.Context, int64) error
-	RecordCombination(context.Context, time.Time, *time.Time) (CombinedGroup, error)
-	ReviseCombination(context.Context, int64, time.Time, *time.Time) (CombinedGroup, error)
-	DeleteCombination(context.Context, int64) error
-	EndCombination(context.Context, int64, time.Time) error
-	RecordGroupMapping(context.Context, int64, int64) (GroupMapping, error)
-	DeleteGroupMapping(context.Context, int64) error
-	AddGroupToCombination(context.Context, int64, int64) error
-	RemoveGroupFromCombination(context.Context, int64, int64) error
-	ClaimGroup(context.Context, GroupClaim) (ClaimedSupervision, error)
+	GroupSupervisionCommand
+	LiveGroupCommand
+	CombinedGroupCommand
 	AttendanceCommand
 	ActivitySessionCommand
 	SessionAttendanceCommand
@@ -72,11 +75,50 @@ type Command interface {
 	GroupRecovery
 	GroupSessionCommand
 	PrivacyConsentCommand
+	PresenceRecordCommand
+}
+
+// GroupSupervisionCommand writes the staff supervisions of live groups.
+type GroupSupervisionCommand interface {
+	SetSupervisionEnd(context.Context, int64, string, time.Time) (int64, error)
+	EndOpenGroupSupervisions(context.Context, int64, int64, string) (int, error)
+	RecordSupervision(context.Context, GroupSupervision) (GroupSupervision, error)
+	ReviseSupervision(context.Context, GroupSupervision) (GroupSupervision, error)
+	RemoveSupervision(context.Context, int64) error
+	EndStaffSupervisionsOn(context.Context, int64, string) (int, error)
+	EndSupervisionOn(context.Context, int64, string) (int, error)
+	ClaimGroup(context.Context, GroupClaim) (ClaimedSupervision, error)
+	LockGroupSupervisions(context.Context) error
+}
+
+// LiveGroupCommand writes the live room sessions.
+type LiveGroupCommand interface {
+	RecordGroup(context.Context, LiveGroup) (LiveGroup, error)
+	ReviseGroup(context.Context, LiveGroup) (LiveGroup, error)
+	DeleteGroup(context.Context, int64) error
+	RecordGroupActivity(context.Context, int64, time.Time) error
+	LockRoomSessionWrites(context.Context, int64) error
+}
+
+// CombinedGroupCommand writes combined groups and their group mappings.
+type CombinedGroupCommand interface {
+	RecordCombination(context.Context, time.Time, *time.Time) (CombinedGroup, error)
+	ReviseCombination(context.Context, int64, time.Time, *time.Time) (CombinedGroup, error)
+	DeleteCombination(context.Context, int64) error
+	EndCombination(context.Context, int64, time.Time) error
+	RecordGroupMapping(context.Context, int64, int64) (GroupMapping, error)
+	DeleteGroupMapping(context.Context, int64) error
+	AddGroupToCombination(context.Context, int64, int64) error
+	RemoveGroupFromCombination(context.Context, int64, int64) error
+}
+
+// PresenceRecordCommand locks, closes and restores recorded presence for
+// care exits and session recovery.
+type PresenceRecordCommand interface {
 	LockOpenPresence(context.Context, []int64) error
 	CloseOpenPresence(context.Context, []int64, time.Time) (int64, error)
 	LockOpenVisits(context.Context, int64) error
 	RestoreVisits(context.Context, []int64) error
-	LockGroupSupervisions(context.Context) error
 }
 
 // LatestPresenceDate returns the last attendance or visit day as YYYY-MM-DD.

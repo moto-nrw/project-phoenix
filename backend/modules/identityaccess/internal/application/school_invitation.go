@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
@@ -324,46 +323,17 @@ func (s *SchoolInvitation) AcceptInvitation(ctx context.Context, token string, r
 		if fetchErr != nil {
 			return fetchErr
 		}
-		// A shared lock on the school serializes with the exclusive lock a
-		// soft delete takes, so the school cannot vanish under the acceptance.
-		if invitation.TenantID > 0 {
-			school, found, schoolErr := s.schools.LockSchoolShared(txCtx, invitation.TenantID)
-			if schoolErr != nil {
-				return failed(opAcceptInvitation, schoolErr)
-			}
-			if !found || school.Deleted {
-				return failed(opAcceptInvitation, domain.ErrInvitationTenantDeleted)
-			}
+		if err := s.requireInvitationSchool(txCtx, invitation); err != nil {
+			return err
 		}
 		invitationCtx := s.runtime.WithTenantID(txCtx, invitation.TenantID)
 		account, hasAccount, _, accountErr := findLoginAccountByEmail(invitationCtx, s.runtime, s.logins, invitation.Email)
 		if accountErr != nil {
 			return failed(opAcceptInvitation, accountErr)
 		}
-		var (
-			passwordHash string
-			restore      bool
-		)
-		if hasAccount {
-			dormant, dormantErr := s.accountDormant(txCtx, account)
-			if dormantErr != nil {
-				return failed(opAcceptInvitation, dormantErr)
-			}
-			if dormant {
-				hash, hashErr := s.hashPassword(registration)
-				if hashErr != nil {
-					return hashErr
-				}
-				passwordHash, restore = hash, true
-			} else if ownerErr := s.verifyOwner(account, registration.OwnerAccessToken); ownerErr != nil {
-				return failed(opAcceptInvitation, ownerErr)
-			}
-		} else {
-			hash, hashErr := s.hashPassword(registration)
-			if hashErr != nil {
-				return hashErr
-			}
-			passwordHash = hash
+		passwordHash, restore, passwordErr := s.invitationPassword(txCtx, account, hasAccount, registration)
+		if passwordErr != nil {
+			return passwordErr
 		}
 		firstName, lastName, nameErr := registration.Names(invitation)
 		if nameErr != nil {
@@ -470,34 +440,8 @@ func (s *SchoolInvitation) grantAccess(
 	if err := s.roles.CreateAccountRole(ctx, account.ID, invitation.RoleID, invitation.TenantID); err != nil {
 		return domain.LoginAccount{}, failed("assign role", err)
 	}
-	role, found, err := s.roles.FindRoleIgnoringTenant(ctx, invitation.RoleID)
-	if err != nil {
-		return domain.LoginAccount{}, failed("provision school identity", err)
-	}
-	if !found {
-		return domain.LoginAccount{}, failed("provision school identity", domain.ErrRoleNotFound)
-	}
-	facts := *role.Facts()
-	lehrkraft := s.policy.IsLehrkraftSystemRole(&facts)
-	if err := s.assignCaregiverRole(ctx, account.ID, invitation, facts, lehrkraft); err != nil {
+	if err := s.provisionInvitationIdentity(ctx, invitation, account.ID, firstName, lastName); err != nil {
 		return domain.LoginAccount{}, err
-	}
-	var position string
-	if invitation.Position != nil {
-		position = *invitation.Position
-	}
-	if _, err := s.identity.EnsureSchoolIdentity(ctx, domain.SchoolIdentityInput{
-		AccountID: account.ID, TenantID: invitation.TenantID, Role: &facts,
-		FirstName: firstName, LastName: lastName, Position: position,
-		// The staff import created the person before the invitation went out;
-		// accepting reuses it instead of filing a second one (#2600).
-		PersonID: invitation.PersonID,
-		// A Lehrkraft never gets a caregiver profile, caregiver_enabled or
-		// not — the same invariant the role assignment applies (#1772).
-		CaregiverUpgrade: invitation.CaregiverEnabled && !lehrkraft,
-		CreatePerson:     true,
-	}); err != nil {
-		return domain.LoginAccount{}, failed("provision school identity", err)
 	}
 	redeemed, _, err := s.store.SpendSchoolInvitation(ctx, invitation.ID)
 	if err != nil {

@@ -10,7 +10,6 @@ import {
 } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ArrowLeft } from "lucide-react";
 import useSWR, { unstable_serialize, useSWRConfig } from "swr";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
@@ -22,7 +21,6 @@ import {
   LoadErrorAlert,
   errorAlertActions,
 } from "~/components/ui/form-error-alert";
-import { BackButton } from "~/components/ui/back-button";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -77,23 +75,12 @@ export function isMessageSnapshotUnavailable(
   );
 }
 
-function MessagesBackNav() {
-  const router = useTenantRouter();
-
-  return (
-    <>
-      <BackButton referrer="/messages" />
-      <button
-        type="button"
-        onClick={() => router.push("/messages")}
-        className="mb-4 hidden items-center gap-1 text-sm text-gray-500 hover:text-gray-900 md:flex"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Zurück zu Nachrichten
-      </button>
-    </>
-  );
-}
+/** Rückweg jeder Unterhaltung: der Posteingang der Elternnachrichten. */
+const MESSAGES_BACK = {
+  back: true,
+  backHref: "/messages",
+  backLabel: "Zurück zu Nachrichten",
+} as const;
 
 function MessageThreadContent() {
   const params = useParams();
@@ -405,7 +392,7 @@ function MessageThreadContent() {
     Boolean(thread) && !isLoading,
   );
 
-  // Skeleton only for a direct deep-link with no cached seed. The back nav
+  // Skeleton only for a direct deep-link with no cached seed. The back link
   // and card frame are real chrome and render immediately regardless; only
   // the header (guardian name, "Zum Kinderprofil") and message list are
   // data-bound and skeletonize. The composer stays real — its structural
@@ -431,24 +418,23 @@ function MessageThreadContent() {
     return (
       <TenantPage
         title="Unterhaltung"
+        {...MESSAGES_BACK}
         error={
           loadError
             ? {
                 message: formErrorMessage(shownLoadError) ?? "",
                 action: errorAlertActions(formErrorDetail(shownLoadError)),
-                keepContent: true,
               }
-            : { message: "Unterhaltung nicht gefunden.", keepContent: true }
+            : "Unterhaltung nicht gefunden."
         }
-      >
-        <MessagesBackNav />
-      </TenantPage>
+      />
     );
   }
 
   return (
     <TenantPage
       title={thread?.guardian_name ?? "Unterhaltung"}
+      {...MESSAGES_BACK}
       stats={statusLine}
       statsLoading={showSkeleton}
       actions={
@@ -483,8 +469,6 @@ function MessageThreadContent() {
         ) : null
       }
     >
-      <MessagesBackNav />
-
       <div
         ref={containerRef}
         className="flex min-h-[20rem] w-full flex-col overflow-hidden"

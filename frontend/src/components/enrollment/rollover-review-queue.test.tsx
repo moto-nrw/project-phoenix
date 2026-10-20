@@ -20,8 +20,8 @@ vi.mock("~/lib/enrollment-phase-api", async (importOriginal) => {
   };
 });
 
-vi.mock("~/components/ui/mobile-back-button", () => ({
-  MobileBackButton: () => null,
+vi.mock("~/components/ui/back-link", () => ({
+  BackLink: () => null,
 }));
 
 import { ToastProvider } from "~/contexts/ToastContext";

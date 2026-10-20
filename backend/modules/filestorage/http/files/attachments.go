@@ -27,10 +27,8 @@ import (
 // Beide Meldungen erreichen eine Person in der Schule und sagen, was als
 // Nächstes zu tun ist, nicht nur, dass etwas fehlgeschlagen ist.
 var (
-	//nolint:staticcheck // ST1005: user-facing German message
-	errAnnouncementPublished = errors.New("Die Mitteilung ist schon veröffentlicht. Ziehen Sie sie zurück, um Anhänge zu ändern.")
-	//nolint:staticcheck // ST1005: user-facing German message
-	errAttachmentLimit = errors.New("Diese Mitteilung hat schon die höchstmögliche Zahl an Anhängen.")
+	errAnnouncementPublished = errors.New("die Mitteilung ist schon veröffentlicht. Ziehen Sie sie zurück, um Anhänge zu ändern")
+	errAttachmentLimit       = errors.New("diese Mitteilung hat schon die höchstmögliche Zahl an Anhängen")
 )
 
 // AnnouncementAttachmentResponse is one attachment on the wire.

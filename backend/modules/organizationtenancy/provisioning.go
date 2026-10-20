@@ -12,25 +12,44 @@ import (
 // dashboard. Every write records an operator audit entry; clientIP is the
 // request address stored with it.
 type Provisioning interface {
+	OrganizationProvisioning
+	SchoolProvisioning
+	AccountProvisioning
+	DeviceProvisioning
+	PersonProvisioning
+	ProvisioningDashboard
+}
+
+// OrganizationProvisioning creates, edits and retires organizations for operators.
+type OrganizationProvisioning interface {
 	CreateOrganization(ctx context.Context, input *CreateOrganization, operatorID int64, clientIP net.IP) (*Organization, error)
 	ListOrganizations(ctx context.Context) ([]Organization, error)
 	UpdateOrganization(ctx context.Context, id int64, changes OrganizationChanges, operatorID int64, clientIP net.IP) (*Organization, error)
 	SoftDeleteOrganization(ctx context.Context, organizationID, operatorID int64, clientIP net.IP) error
 	RestoreOrganization(ctx context.Context, organizationID, operatorID int64, clientIP net.IP) error
+}
 
+// SchoolProvisioning creates, edits and retires schools for operators.
+type SchoolProvisioning interface {
 	CreateSchool(ctx context.Context, input *CreateSchool, operatorID int64, clientIP net.IP) (*School, error)
 	ListSchools(ctx context.Context) ([]*School, error)
 	UpdateSchool(ctx context.Context, id int64, changes SchoolChanges, operatorID int64, clientIP net.IP) (*School, error)
 	SoftDeleteSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error
 	RestoreSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error
+}
 
+// AccountProvisioning provisions and lists accounts for operators.
+type AccountProvisioning interface {
 	InviteSchoolAdmin(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, input SchoolAdminInvitationInput) (*SchoolAdminInvitation, error)
 	CreateSchoolAccount(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, input SchoolAccountInput) (*CreatedAccount, error)
 	ListSystemRoles(ctx context.Context) ([]SystemRole, error)
 	ListSchoolAccounts(ctx context.Context, schoolID int64) ([]SchoolAccount, error)
 	ListOrganizationAccounts(ctx context.Context, organizationID int64) ([]OrganizationAccount, error)
 	ListAllAccounts(ctx context.Context) ([]OrganizationAccount, error)
+}
 
+// DeviceProvisioning manages devices across schools for operators.
+type DeviceProvisioning interface {
 	ListAllDevices(ctx context.Context) ([]OperatorDevice, error)
 	ListSchoolDevices(ctx context.Context, schoolID int64) ([]OperatorDevice, error)
 	ListOrganizationDevices(ctx context.Context, organizationID int64) ([]OperatorDevice, error)
@@ -39,11 +58,17 @@ type Provisioning interface {
 	GetDeviceTransferStatus(ctx context.Context, id int64) (*DeviceTransferStatus, error)
 	TransferDevice(ctx context.Context, id, targetSchoolID, operatorID int64, clientIP net.IP) (*OperatorDevice, error)
 	DeleteDevice(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error
+}
 
+// PersonProvisioning lists and retires people for operators.
+type PersonProvisioning interface {
 	ListSchoolPersons(ctx context.Context, schoolID int64) ([]OperatorPerson, error)
 	ListOrganizationPersons(ctx context.Context, organizationID int64) ([]OperatorPerson, error)
 	SoftDeletePerson(ctx context.Context, personID int64, operatorID int64, clientIP net.IP) error
+}
 
+// ProvisioningDashboard reads operator dashboard totals and PWA usage.
+type ProvisioningDashboard interface {
 	GetProvisioningStats(ctx context.Context) (*ProvisioningStats, error)
 	ListOrganizationSummaries(ctx context.Context) ([]*OrganizationSummary, error)
 	ListSchoolSummaries(ctx context.Context) ([]*SchoolSummary, error)

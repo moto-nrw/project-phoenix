@@ -35,43 +35,15 @@ func (l *AccountLifecycle) ExecuteStaffOffboarding(ctx context.Context, accountI
 		return result, errors.New("account, tenant and preview revision are required for staff offboarding")
 	}
 	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		if !l.runtime.HasAfterCommitHooks(txCtx) {
-			return errors.New("commit hooks are required for staff offboarding cleanup")
-		}
-		preview, err := l.staffOffboardingSnapshot(txCtx, accountID)
-		if err != nil {
+		preview, proceed, err := l.requireStaffOffboarding(txCtx, accountID, revision, &result)
+		if err != nil || !proceed {
 			return err
 		}
-		if !preview.ActiveMembership {
-			return nil
-		}
-		if preview.PreserveGuardian && len(preview.RoleIDs) == 0 && preview.Permissions == 0 && preview.Tokens == 0 {
-			result.GuardianAccessPreserved = true
-			return nil
-		}
-		if preview.Revision != revision {
-			return domain.ErrStaffOffboardingConflict
-		}
-		for _, roleID := range preview.RoleIDs {
-			if err := l.admin.RemoveRoleFromAccount(txCtx, accountID, roleID); err != nil {
-				return err
-			}
+		result, err = l.revokeStaffGrants(txCtx, accountID, preview)
+		if err != nil {
+			return err
 		}
 		tenantID := l.runtime.TenantID(txCtx)
-		result.PermissionsRevoked, _, err = l.store.DeleteAccountPermissionGrants(txCtx, accountID, tenantID)
-		if err != nil {
-			return err
-		}
-		if result.PermissionsRevoked != preview.Permissions {
-			return domain.ErrStaffOffboardingConflict
-		}
-		// Revoke even when direct permissions were the only staff grants. Role
-		// removal already revoked any tokens it encountered in this transaction.
-		if err := l.auth.RevokeAllTokensWithReason(txCtx, accountID, "role_changed"); err != nil {
-			return err
-		}
-		result.RolesRevoked, result.TokensRevoked = int64(len(preview.RoleIDs)), preview.Tokens
-		result.GuardianAccessPreserved = preview.PreserveGuardian
 		if preview.PreserveGuardian {
 			return nil
 		}
@@ -138,6 +110,35 @@ func (l *AccountLifecycle) staffOffboardingSnapshot(ctx context.Context, account
 		return preview, err
 	}
 	preview.DeactivateAccount = !preview.PreserveGuardian && len(activeTenants) == 1 && activeTenants[0] == tenantID
+	preview.Revision, err = staffOffboardingRevision(accountID, tenantID, account.UpdatedAt, preview, permissions, tokenIDs, activeTenants)
+	return preview, err
+}
+
+func (l *AccountLifecycle) revokeStaffGrants(txCtx context.Context, accountID int64, preview domain.StaffOffboardingPreview) (result domain.StaffOffboardingResult, err error) {
+	for _, roleID := range preview.RoleIDs {
+		if err := l.admin.RemoveRoleFromAccount(txCtx, accountID, roleID); err != nil {
+			return result, err
+		}
+	}
+	tenantID := l.runtime.TenantID(txCtx)
+	result.PermissionsRevoked, _, err = l.store.DeleteAccountPermissionGrants(txCtx, accountID, tenantID)
+	if err != nil {
+		return result, err
+	}
+	if result.PermissionsRevoked != preview.Permissions {
+		return result, domain.ErrStaffOffboardingConflict
+	}
+	// Revoke even when direct permissions were the only staff grants. Role
+	// removal already revoked any tokens it encountered in this transaction.
+	if err := l.auth.RevokeAllTokensWithReason(txCtx, accountID, "role_changed"); err != nil {
+		return result, err
+	}
+	result.RolesRevoked, result.TokensRevoked = int64(len(preview.RoleIDs)), preview.Tokens
+	result.GuardianAccessPreserved = preview.PreserveGuardian
+	return result, nil
+}
+
+func staffOffboardingRevision(accountID, tenantID int64, updatedAt time.Time, preview domain.StaffOffboardingPreview, permissions []domain.PermissionGrant, tokenIDs, activeTenants []int64) (string, error) {
 	type permissionVersion struct {
 		ID, PermissionID int64
 		Granted          bool
@@ -148,7 +149,7 @@ func (l *AccountLifecycle) staffOffboardingSnapshot(ctx context.Context, account
 		Roles, Tokens, ActiveTenants []int64
 		Permissions                  []permissionVersion
 		Guardian                     bool
-	}{AccountID: accountID, TenantID: tenantID, AccountUpdatedAt: account.UpdatedAt, Roles: preview.RoleIDs, Guardian: preview.PreserveGuardian}
+	}{AccountID: accountID, TenantID: tenantID, AccountUpdatedAt: updatedAt, Roles: preview.RoleIDs, Guardian: preview.PreserveGuardian}
 	for _, permission := range permissions {
 		versions.Permissions = append(versions.Permissions, permissionVersion{permission.ID, permission.PermissionID, permission.Granted})
 	}
@@ -166,6 +167,26 @@ func (l *AccountLifecycle) staffOffboardingSnapshot(ctx context.Context, account
 	slices.Sort(versions.Tokens)
 	slices.Sort(versions.ActiveTenants)
 	payload, err := json.Marshal(versions)
-	preview.Revision = string(payload)
-	return preview, err
+	return string(payload), err
+}
+
+func (l *AccountLifecycle) requireStaffOffboarding(txCtx context.Context, accountID int64, revision string, result *domain.StaffOffboardingResult) (domain.StaffOffboardingPreview, bool, error) {
+	if !l.runtime.HasAfterCommitHooks(txCtx) {
+		return domain.StaffOffboardingPreview{}, false, errors.New("commit hooks are required for staff offboarding cleanup")
+	}
+	preview, err := l.staffOffboardingSnapshot(txCtx, accountID)
+	if err != nil {
+		return domain.StaffOffboardingPreview{}, false, err
+	}
+	if !preview.ActiveMembership {
+		return preview, false, nil
+	}
+	if preview.PreserveGuardian && len(preview.RoleIDs) == 0 && preview.Permissions == 0 && preview.Tokens == 0 {
+		result.GuardianAccessPreserved = true
+		return preview, false, nil
+	}
+	if preview.Revision != revision {
+		return preview, false, domain.ErrStaffOffboardingConflict
+	}
+	return preview, true, nil
 }

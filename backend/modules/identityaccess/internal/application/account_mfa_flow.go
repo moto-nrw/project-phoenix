@@ -132,15 +132,8 @@ func (f *AccountMFAFlows) resolvePolicy(ctx context.Context, accountID, tenantID
 			slog.String("error", err.Error()))
 		return domain.MFAPolicy{}, domain.ErrMFAStatusUnavailable
 	}
-	if globalFound {
-		if policy, decided := domain.OverrideVerdict(global.Override); decided {
-			return policy, nil
-		}
-	}
-	if tenantFound {
-		if policy, decided := domain.OverrideVerdict(tenantOverride.Override); decided {
-			return policy, nil
-		}
+	if policy, decided := overridePolicy(global, tenantOverride, globalFound, tenantFound); decided {
+		return policy, nil
 	}
 	mode, err := f.resolveMode(ctx, tenantID, inTx)
 	if err != nil {
@@ -212,31 +205,13 @@ func (f *AccountMFAFlows) StartChallenge(ctx context.Context, accountID, tenantI
 		return "", domain.ErrMFALocked
 	}
 
-	// The hard cap of three codes per fifteen minutes is an abuse defense,
-	// so a failed count refuses the send instead of waving it through:
-	// ignoring the error meant the cap silently stopped existing exactly
-	// when the database was least healthy.
-	since := f.now().Add(-domain.MFAEmailRateLimitWindow)
-	count, err := f.records.CountChallengesSince(ctx, accountID, since)
+	if err := f.requireChallengeRateLimit(ctx, accountID); err != nil {
+		return "", err
+	}
+	plainCode, codeHash, err := newMFAEmailCode(f.codes)
 	if err != nil {
-		f.logger.Warn("mfa code rate-limit lookup failed; refusing to issue a code",
-			slog.Int64("account_id", accountID),
-			slog.String("error", err.Error()))
-		return "", domain.ErrMFAStatusUnavailable
+		return "", err
 	}
-	if count >= domain.MFAEmailRateLimitMaxSent {
-		return "", domain.ErrMFARateLimited
-	}
-
-	plainCode, err := domain.GenerateEmailCode()
-	if err != nil {
-		return "", fmt.Errorf("generate email code: %w", err)
-	}
-	codeHash, err := f.codes.HashShortCode(plainCode)
-	if err != nil {
-		return "", fmt.Errorf("hash email code: %w", err)
-	}
-
 	// The portal and the school travel with the row, not only with the JWT:
 	// the enrollment-confirm and passkey-registration paths look a code up
 	// by account, and only these columns keep that lookup inside its portal.
@@ -305,17 +280,9 @@ func (f *AccountMFAFlows) VerifyChallengeForOwner(ctx context.Context, challenge
 }
 
 func (f *AccountMFAFlows) verifyChallengeBound(ctx context.Context, challengeToken, code, expectedScope string, owner *challengeOwner) (domain.VerifiedMFAChallenge, error) {
-	claims, err := f.codec.ParseChallengeToken(challengeToken)
+	claims, err := f.challengeClaims(challengeToken, expectedScope, owner)
 	if err != nil {
-		return domain.VerifiedMFAChallenge{}, domain.ErrMFAChallengeTokenInvalid
-	}
-	if claims.Scope != expectedScope {
-		return domain.VerifiedMFAChallenge{}, domain.ErrMFAUnsupportedScope
-	}
-	// A foreign challenge is refused while it is still redeemable by
-	// whoever it was minted for.
-	if owner != nil && (claims.AccountID != owner.accountID || claims.TenantID != owner.tenantID) {
-		return domain.VerifiedMFAChallenge{}, domain.ErrMFAChallengeTokenInvalid
+		return domain.VerifiedMFAChallenge{}, err
 	}
 	account, found, err := f.records.FindAccountIdentity(ctx, claims.AccountID)
 	if err != nil || !found {
@@ -352,31 +319,9 @@ func (f *AccountMFAFlows) verifyChallengeBound(ctx context.Context, challengeTok
 		return domain.VerifiedMFAChallenge{}, domain.ErrMFACodeInvalid
 	}
 
-	// Single use. The consume is one conditional UPDATE, so two concurrent
-	// verifications race on it: the loser must be refused, or both mint a
-	// session from one code. Any consume failure is treated the same way —
-	// without proof of single use we refuse.
-	now := f.now()
-	if err := f.records.ConsumeChallenge(ctx, active.ID, now); err != nil {
-		f.logger.Warn("failed to mark challenge consumed; refusing verify",
-			slog.Int64("account_id", claims.AccountID),
-			slog.Int64("challenge_id", active.ID),
-			slog.String("error", err.Error()))
-		f.recordFailure(ctx, claims.AccountID, claims.TenantID, "consume race")
-		return domain.VerifiedMFAChallenge{}, domain.ErrMFACodeInvalid
+	if err := f.completeChallengeVerification(ctx, claims, account.ID, active.ID); err != nil {
+		return domain.VerifiedMFAChallenge{}, err
 	}
-	// One UPDATE, so a successful verify cannot clobber a concurrent failed
-	// verify's increment with stale in-memory state.
-	if err := f.records.ResetMFAAttempts(ctx, account.ID); err != nil {
-		f.logger.Warn("failed to reset MFA attempts", slog.String("error", err.Error()))
-	}
-	if credential, credFound, credErr := f.records.FindCredential(ctx, claims.AccountID); credErr == nil && credFound && credential.ID > 0 {
-		_ = f.records.TouchCredential(ctx, credential.ID, now)
-	}
-	f.recordAuthEvent(ctx, domain.AuthEvent{
-		AccountID: claims.AccountID, TenantID: claims.TenantID, Type: domain.AuthEventMFAVerified,
-		Success: true, IPAddress: domain.MFAAuditFallbackIP,
-	})
 	return domain.VerifiedMFAChallenge{AccountID: claims.AccountID, Scope: claims.Scope, TenantID: claims.TenantID}, nil
 }
 
@@ -740,4 +685,96 @@ func (f *AccountMFAFlows) activateDeliveredChallenge(ctx context.Context, challe
 		f.recordAuthEvent(txCtx, domain.AuthEvent{AccountID: challenge.AccountID, TenantID: challenge.TenantID, Type: domain.AuthEventMFAEmailSent, Success: true, IPAddress: domain.MFAAuditIP(challenge.IPAddress), MFA: &domain.MFAEvidence{ChallengeID: challenge.ID}})
 		return nil
 	})
+}
+
+func (f *AccountMFAFlows) requireChallengeRateLimit(ctx context.Context, accountID int64) error {
+	// The hard cap of three codes per fifteen minutes is an abuse defense,
+	// so a failed count refuses the send instead of waving it through:
+	// ignoring the error meant the cap silently stopped existing exactly
+	// when the database was least healthy.
+	since := f.now().Add(-domain.MFAEmailRateLimitWindow)
+	count, err := f.records.CountChallengesSince(ctx, accountID, since)
+	if err != nil {
+		f.logger.Warn("mfa code rate-limit lookup failed; refusing to issue a code",
+			slog.Int64("account_id", accountID),
+			slog.String("error", err.Error()))
+		return domain.ErrMFAStatusUnavailable
+	}
+	if count >= domain.MFAEmailRateLimitMaxSent {
+		return domain.ErrMFARateLimited
+	}
+
+	return nil
+}
+
+func overridePolicy(global, tenantOverride domain.AccountMFAOverride, globalFound, tenantFound bool) (domain.MFAPolicy, bool) {
+	if globalFound {
+		if policy, decided := domain.OverrideVerdict(global.Override); decided {
+			return policy, true
+		}
+	}
+	if tenantFound {
+		if policy, decided := domain.OverrideVerdict(tenantOverride.Override); decided {
+			return policy, true
+		}
+	}
+	return domain.MFAPolicy{}, false
+}
+
+func (f *AccountMFAFlows) completeChallengeVerification(ctx context.Context, claims domain.MFAChallengeClaims, accountID, challengeID int64) error {
+	// Single use. The consume is one conditional UPDATE, so two concurrent
+	// verifications race on it: the loser must be refused, or both mint a
+	// session from one code. Any consume failure is treated the same way —
+	// without proof of single use we refuse.
+	now := f.now()
+	if err := f.records.ConsumeChallenge(ctx, challengeID, now); err != nil {
+		f.logger.Warn("failed to mark challenge consumed; refusing verify",
+			slog.Int64("account_id", claims.AccountID),
+			slog.Int64("challenge_id", challengeID),
+			slog.String("error", err.Error()))
+		f.recordFailure(ctx, claims.AccountID, claims.TenantID, "consume race")
+		return domain.ErrMFACodeInvalid
+	}
+	// One UPDATE, so a successful verify cannot clobber a concurrent failed
+	// verify's increment with stale in-memory state.
+	if err := f.records.ResetMFAAttempts(ctx, accountID); err != nil {
+		f.logger.Warn("failed to reset MFA attempts", slog.String("error", err.Error()))
+	}
+	if credential, credFound, credErr := f.records.FindCredential(ctx, claims.AccountID); credErr == nil && credFound && credential.ID > 0 {
+		_ = f.records.TouchCredential(ctx, credential.ID, now)
+	}
+	f.recordAuthEvent(ctx, domain.AuthEvent{
+		AccountID: claims.AccountID, TenantID: claims.TenantID, Type: domain.AuthEventMFAVerified,
+		Success: true, IPAddress: domain.MFAAuditFallbackIP,
+	})
+	return nil
+}
+
+func newMFAEmailCode(codes ports.ShortCodeHasher) (string, string, error) {
+	plainCode, err := domain.GenerateEmailCode()
+	if err != nil {
+		return "", "", fmt.Errorf("generate email code: %w", err)
+	}
+	codeHash, err := codes.HashShortCode(plainCode)
+	if err != nil {
+		return "", "", fmt.Errorf("hash email code: %w", err)
+	}
+
+	return plainCode, codeHash, nil
+}
+
+func (f *AccountMFAFlows) challengeClaims(challengeToken, expectedScope string, owner *challengeOwner) (domain.MFAChallengeClaims, error) {
+	claims, err := f.codec.ParseChallengeToken(challengeToken)
+	if err != nil {
+		return domain.MFAChallengeClaims{}, domain.ErrMFAChallengeTokenInvalid
+	}
+	if claims.Scope != expectedScope {
+		return domain.MFAChallengeClaims{}, domain.ErrMFAUnsupportedScope
+	}
+	// A foreign challenge is refused while it is still redeemable by
+	// whoever it was minted for.
+	if owner != nil && (claims.AccountID != owner.accountID || claims.TenantID != owner.tenantID) {
+		return domain.MFAChallengeClaims{}, domain.ErrMFAChallengeTokenInvalid
+	}
+	return claims, nil
 }

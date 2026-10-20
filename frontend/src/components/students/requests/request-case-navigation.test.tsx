@@ -168,6 +168,26 @@ describe("Anfragen: Liste und Detail", () => {
     expect(screen.getByText("excused-item-2")).toBeVisible();
   });
 
+  // #4359: Das Kind trägt in Liste und Detail das Kindsymbol aus dem
+  // Konzeptregister, damit der Name nicht als Elternteil gelesen wird.
+  it("kennzeichnet das Kind in Liste und Detail mit dem Kindsymbol", async () => {
+    mockListOpen.mockResolvedValue({
+      items: [item("1", "10", "Mia Muster")] as never,
+    });
+
+    render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+
+    const row = await screen.findByRole("button", { name: /^Mia Muster/ });
+    expect(
+      row.querySelector('svg[data-moto-duotone-tone="greenVivid"]'),
+    ).not.toBeNull();
+    const heading = screen.getByRole("heading", { name: "Mia Muster" });
+    expect(heading.previousElementSibling).toHaveAttribute(
+      "data-moto-duotone-tone",
+      "greenVivid",
+    );
+  });
+
   it("erklärt eine leere Liste, wenn die Person nicht entscheiden darf", async () => {
     mockListOpen.mockResolvedValue({ items: [], review_access: "none" });
 

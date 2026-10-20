@@ -23,9 +23,8 @@ const (
 	RefTable          = "users.student_data_change_requests"
 )
 
-// Staff-decision sentinels. The students routes render their text verbatim,
-// so the strings are part of the wire contract and predate the move of the
-// decision into Care Plan (#3354).
+// Staff-decision sentinels. The students routes send diagnostic detail; clients
+// show the code catalog. They predate the move into Care Plan (#3354).
 var (
 	// ErrReviewNotFound means no change request matched the id in the tenant,
 	// or its child is no longer one the school may decide for.

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -11,6 +12,20 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/devtools/simulate"
 	"github.com/spf13/cobra"
 )
+
+// simulationCopyError keeps the CLI's displayed prefix and wrapped cause.
+type simulationCopyError struct {
+	message string
+	cause   error
+}
+
+func (e *simulationCopyError) Error() string { return e.message }
+func (e *simulationCopyError) Unwrap() error { return e.cause }
+
+func simulationCopyErrorf(format string, args ...any) error {
+	formatted := fmt.Errorf(format, args...)
+	return &simulationCopyError{message: formatted.Error(), cause: errors.Unwrap(formatted)}
+}
 
 type simulateRoot struct {
 	client  simulate.ClientFactory
@@ -40,7 +55,7 @@ func (root simulateRoot) runFullDay(ctx context.Context, options simulate.FullDa
 	}
 	options.Client = root.client
 	if err := root.fullDay(ctx, options); err != nil {
-		return fmt.Errorf("Full-day simulation failed: %w", err) //nolint:staticcheck // Stable CLI error contract.
+		return simulationCopyErrorf("Full-day simulation failed: %w", err)
 	}
 	return nil
 }
@@ -54,7 +69,7 @@ func (root simulateRoot) runStatus(ctx context.Context, options simulate.StatusO
 	}
 	options.Client = root.client
 	if err := root.status(ctx, options); err != nil {
-		return fmt.Errorf("Status query failed: %w", err) //nolint:staticcheck // Stable CLI error contract.
+		return simulationCopyErrorf("Status query failed: %w", err)
 	}
 	return nil
 }
@@ -68,7 +83,7 @@ func (root simulateRoot) runLive(ctx context.Context, options simulate.LiveOptio
 	}
 	options.Client = root.client
 	if err := root.live(ctx, options); err != nil {
-		return fmt.Errorf("Live simulation failed: %w", err) //nolint:staticcheck // Stable CLI error contract.
+		return simulationCopyErrorf("Live simulation failed: %w", err)
 	}
 	return nil
 }

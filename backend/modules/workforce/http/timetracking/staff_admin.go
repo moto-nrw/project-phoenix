@@ -25,7 +25,7 @@ type StaffAdminResource struct {
 	OffboardingCleanup   workforce.DocumentCleanupQueue
 	documentFiles        workforce.StaffDocumentFileRecovery
 	WorkSessionService   workforce.AdminWorkSessions
-	StaffAbsenceService  workforce.StaffAbsences
+	StaffAbsenceService  workforce.AdminAbsences
 	WorkTimeMonthService workforce.WorkTimeMonths
 	BalanceAdjustService workforce.BalanceAdjustments
 	MonthCloseService    workforce.MonthClosing
@@ -56,7 +56,7 @@ type StaffAdminDependencies struct {
 	// DocumentFiles removes the stored staff document files; required.
 	DocumentFiles      workforce.StaffDocumentFileRecovery
 	WorkSessions       workforce.AdminWorkSessions
-	StaffAbsences      workforce.StaffAbsences
+	StaffAbsences      workforce.AdminAbsences
 	WorkTimeMonth      workforce.WorkTimeMonths
 	BalanceAdjustments workforce.BalanceAdjustments
 	MonthClosing       workforce.MonthClosing

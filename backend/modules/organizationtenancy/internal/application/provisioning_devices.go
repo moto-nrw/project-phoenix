@@ -75,28 +75,7 @@ func (p *Provisioning) listDevices(ctx context.Context, filter deviceFilter) ([]
 	if err != nil {
 		return nil, fmt.Errorf("load organizations for operator device listing: %w", err)
 	}
-	liveOrganizations := make(map[int64]string, len(organizations))
-	for _, organization := range organizations {
-		if organization.DeletedAt == nil {
-			liveOrganizations[organization.ID] = organization.Name
-		}
-	}
-	visible := make(map[int64]organizationtenancy.DashboardSchool, len(schools))
-	tenantIDs := make([]int64, 0, len(schools))
-	for _, school := range schools {
-		organizationName, live := liveOrganizations[school.OrganizationID]
-		if school.DeletedAt != nil || !live {
-			continue
-		}
-		if filter.schoolID != nil && school.ID != *filter.schoolID {
-			continue
-		}
-		if filter.organizationID != nil && school.OrganizationID != *filter.organizationID {
-			continue
-		}
-		visible[school.ID] = organizationtenancy.DashboardSchool{ID: school.ID, Name: school.Name, OrganizationID: school.OrganizationID, OrganizationName: organizationName}
-		tenantIDs = append(tenantIDs, school.ID)
-	}
+	visible, tenantIDs := visibleDeviceSchools(schools, organizations, filter)
 	if len(tenantIDs) == 0 {
 		return []organizationtenancy.OperatorDevice{}, nil
 	}
@@ -535,4 +514,30 @@ func apiKeyMode(manual bool) string {
 
 func conflict(kind organizationtenancy.ProvisioningConflictKind, message string) error {
 	return &organizationtenancy.ProvisioningConflictError{Kind: kind, Err: errors.New(message)}
+}
+
+func visibleDeviceSchools(schools []organizationtenancy.School, organizations []organizationtenancy.Organization, filter deviceFilter) (map[int64]organizationtenancy.DashboardSchool, []int64) {
+	liveOrganizations := make(map[int64]string, len(organizations))
+	for _, organization := range organizations {
+		if organization.DeletedAt == nil {
+			liveOrganizations[organization.ID] = organization.Name
+		}
+	}
+	visible := make(map[int64]organizationtenancy.DashboardSchool, len(schools))
+	tenantIDs := make([]int64, 0, len(schools))
+	for _, school := range schools {
+		organizationName, live := liveOrganizations[school.OrganizationID]
+		if school.DeletedAt != nil || !live {
+			continue
+		}
+		if filter.schoolID != nil && school.ID != *filter.schoolID {
+			continue
+		}
+		if filter.organizationID != nil && school.OrganizationID != *filter.organizationID {
+			continue
+		}
+		visible[school.ID] = organizationtenancy.DashboardSchool{ID: school.ID, Name: school.Name, OrganizationID: school.OrganizationID, OrganizationName: organizationName}
+		tenantIDs = append(tenantIDs, school.ID)
+	}
+	return visible, tenantIDs
 }

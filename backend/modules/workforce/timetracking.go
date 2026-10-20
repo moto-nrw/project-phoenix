@@ -504,33 +504,58 @@ type RebookingVacationYear struct {
 	RemainingAfter  float64 `json:"remaining_after"`
 }
 
-// StaffAbsences is the absence and vacation administration of the web app.
-type StaffAbsences interface {
+// VacationQuotaReader reads the vacation account both the staff member and
+// the administration show.
+type VacationQuotaReader interface {
+	VacationQuotaSummary(ctx context.Context, staffID int64, year int) (*VacationQuotaSummary, error)
+}
+
+// OwnAbsences serves the staff member's own absences and vacation requests.
+type OwnAbsences interface {
+	VacationQuotaReader
 	ListAbsences(ctx context.Context, staffID int64, filter StaffAbsenceListFilter) ([]*StaffAbsenceResponse, error)
-	AbsencesForRange(ctx context.Context, staffID int64, from, to string) ([]*StaffAbsenceResponse, error)
 	CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, request CreateAbsenceRequest) (*StaffAbsenceResponse, error)
-	CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request CreateAbsenceRequest) (*StaffAbsenceResponse, error)
 	UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request UpdateAbsenceRequest) (*StaffAbsenceResponse, error)
 	DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) error
-	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error
-	PreviewCompTimeBalance(ctx context.Context, staffID int64, start, end string, halfDay bool) (*CompTimeBalancePreview, error)
-	// RebookAbsences changes the type of stored absences with a reason; with
-	// DryRun it only reports the effects (#3258).
-	RebookAbsences(ctx context.Context, staffID, actorAccountID int64, request RebookAbsencesRequest) (*AbsenceRebookingResult, error)
 	RequestVacation(ctx context.Context, staffID int64, request RequestVacationRequest) (*StaffAbsenceResponse, error)
 	CancelAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64) error
 	ResubmitAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64, note string) (*StaffAbsenceResponse, error)
+}
+
+// AbsenceRequestReview serves the manager's decisions on vacation requests.
+type AbsenceRequestReview interface {
 	ApproveAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, note string) (*StaffAbsenceResponse, error)
 	DenyAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, reason string) (*StaffAbsenceResponse, error)
 	QuestionAbsence(ctx context.Context, absenceID, actorAccountID int64, note string) (*StaffAbsenceResponse, error)
 	ListPendingRequests(ctx context.Context) ([]*StaffAbsenceResponse, error)
 	ListAbsenceRequests(ctx context.Context, query AbsenceRequestListQuery) ([]*StaffAbsenceRequestItem, error)
-	VacationQuotaSummary(ctx context.Context, staffID int64, year int) (*VacationQuotaSummary, error)
-	UpsertVacationQuota(ctx context.Context, staffID int64, year int, entitled, carryover float64) error
+}
+
+// AdminAbsences serves the manager's absence bookings, rebookings and
+// vacation account changes for a staff member.
+type AdminAbsences interface {
+	VacationQuotaReader
+	AbsenceRequestReview
+	AbsencesForRange(ctx context.Context, staffID int64, from, to string) ([]*StaffAbsenceResponse, error)
+	CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request CreateAbsenceRequest) (*StaffAbsenceResponse, error)
+	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error
+	PreviewCompTimeBalance(ctx context.Context, staffID int64, start, end string, halfDay bool) (*CompTimeBalancePreview, error)
+	// RebookAbsences changes the type of stored absences with a reason; with
+	// DryRun it only reports the effects (#3258).
+	RebookAbsences(ctx context.Context, staffID, actorAccountID int64, request RebookAbsencesRequest) (*AbsenceRebookingResult, error)
 	// SetVacationQuota changes the entitlement with a reason (#3256).
 	SetVacationQuota(ctx context.Context, change VacationQuotaChange) error
 	SetVacationOpening(ctx context.Context, staffID, decidedBy int64, request SetVacationOpeningRequest) (*StaffVacationOpening, error)
 	DeleteVacationOpening(ctx context.Context, staffID, deletedBy int64, year int) error
+}
+
+// StaffAbsences is the absence and vacation administration of the web app:
+// the self-service and administration capabilities for composition, plus the
+// quota write of the opening-balance import.
+type StaffAbsences interface {
+	OwnAbsences
+	AdminAbsences
+	UpsertVacationQuota(ctx context.Context, staffID int64, year int, entitled, carryover float64) error
 }
 
 // AdjustmentView is one Stundenkonto transaction as the Monatskarte shows it.

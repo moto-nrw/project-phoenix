@@ -6,14 +6,15 @@ import { Eye, Info } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
 import {
-  PublicEnrollmentBackLink,
   PublicEnrollmentBrand,
   PublicEnrollmentLocaleSwitcher,
   PublicEnrollmentPageShell,
   PublicEnrollmentSteps,
   PublicInfoCard,
 } from "~/components/enrollment/public-enrollment-shell";
+import { BackLink } from "~/components/ui/back-link";
 import { useTenant } from "~/lib/tenant-context";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { isSupportedGradeLevelMax } from "~/lib/grade-level";
 import {
   fetchEnrollmentPreviewBootstrap,
@@ -37,6 +38,7 @@ function EnrollmentPreviewPageContent() {
   const schemaId = searchParams.get("schemaId");
   const isBasePreview = searchParams.get("base") === "1";
   const { tenant } = useTenant();
+  const tenantPath = useTenantAwarePath();
   const resolvedGradeLevelMax = tenant?.gradeLevelMax;
   const gradeLevelMax = isSupportedGradeLevelMax(resolvedGradeLevelMax)
     ? resolvedGradeLevelMax
@@ -143,9 +145,10 @@ function EnrollmentPreviewPageContent() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <section className="space-y-5">
           <div className="moto-content-surface rounded-2xl border p-5 shadow-sm sm:p-8">
-            <PublicEnrollmentBackLink href="/enrollment-form">
-              Zurück zu Anmeldeformularen
-            </PublicEnrollmentBackLink>
+            <BackLink
+              href={tenantPath("/enrollment-form")}
+              label="Zurück zu den Anmeldeformularen"
+            />
             <p className="text-moto-blue mt-6 text-sm font-semibold tracking-wide uppercase">
               Formularvorschau
             </p>

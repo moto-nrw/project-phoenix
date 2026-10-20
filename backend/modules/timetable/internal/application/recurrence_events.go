@@ -23,34 +23,42 @@ func (s *Service) GenerateRecurrenceEvents(ctx context.Context, id int64, start,
 		if start.After(end) {
 			return domain.ErrInvalidRecurrenceRange
 		}
-		if rule.IntervalCount <= 0 || (rule.Count != nil && *rule.Count < 0) {
-			return fmt.Errorf("invalid stored recurrence interval or count")
-		}
-		if rule.EndDate != nil && rule.EndDate.Before(start) {
-			events = []time.Time{}
-			return nil
-		}
-		if rule.EndDate != nil && rule.EndDate.Before(end) {
-			end = *rule.EndDate
-		}
-		switch rule.Frequency {
-		case "daily":
-			events = generateDailyEvents(&rule, start, end)
-		case "weekly":
-			events = generateWeeklyEvents(&rule, start, end)
-		case "monthly":
-			events = generateMonthlyEvents(&rule, start, end)
-		case "yearly":
-			events = generateYearlyEvents(&rule, start, end)
-		default:
-			return fmt.Errorf("unsupported frequency: %s", rule.Frequency)
-		}
-		if rule.Count != nil && len(events) > *rule.Count {
-			events = events[:*rule.Count]
-		}
-		return nil
+		var generateErr error
+		events, generateErr = recurrenceEventsBetween(&rule, start, end)
+		return generateErr
 	})
 	return events, err
+}
+
+// recurrenceEventsBetween expands a stored rule over [start, end], clipped to
+// the rule's end date and truncated to its count.
+func recurrenceEventsBetween(rule *domain.RecurrenceRule, start, end time.Time) ([]time.Time, error) {
+	if rule.IntervalCount <= 0 || (rule.Count != nil && *rule.Count < 0) {
+		return nil, fmt.Errorf("invalid stored recurrence interval or count")
+	}
+	if rule.EndDate != nil && rule.EndDate.Before(start) {
+		return []time.Time{}, nil
+	}
+	if rule.EndDate != nil && rule.EndDate.Before(end) {
+		end = *rule.EndDate
+	}
+	var events []time.Time
+	switch rule.Frequency {
+	case "daily":
+		events = generateDailyEvents(rule, start, end)
+	case "weekly":
+		events = generateWeeklyEvents(rule, start, end)
+	case "monthly":
+		events = generateMonthlyEvents(rule, start, end)
+	case "yearly":
+		events = generateYearlyEvents(rule, start, end)
+	default:
+		return nil, fmt.Errorf("unsupported frequency: %s", rule.Frequency)
+	}
+	if rule.Count != nil && len(events) > *rule.Count {
+		events = events[:*rule.Count]
+	}
+	return events, nil
 }
 
 // Helper functions for GenerateEvents

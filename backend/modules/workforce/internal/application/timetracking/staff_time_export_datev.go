@@ -115,14 +115,7 @@ func buildDatevLines(rows []MonthExportRow, status *PayrollExportConfiguration) 
 		StaffSkipped:           []DatevSkippedStaff{},
 		UnconfiguredCategories: []string{},
 	}
-	var configured []PayrollExportCategory
-	for _, category := range status.Categories {
-		if category.Number == "" || (category.UnitRequired && category.Unit == "") {
-			report.UnconfiguredCategories = append(report.UnconfiguredCategories, category.Label)
-			continue
-		}
-		configured = append(configured, category)
-	}
+	configured := configuredDatevCategories(status.Categories, report)
 
 	var lines []datevLine
 	exported := make(map[int64]bool)
@@ -143,25 +136,46 @@ func buildDatevLines(rows []MonthExportRow, status *PayrollExportConfiguration) 
 		if !row.IsClosed {
 			report.OpenMonth = true
 		}
-		for _, category := range configured {
-			minutes, days, useDays, ok := datevCategoryValue(category, row)
-			if !ok {
-				continue
-			}
-			line := datevLine{personnelNumber: row.PersonnelNumber, lohnart: category.Number}
-			if useDays {
-				d := days
-				line.days = &d
-			} else {
-				m := minutes
-				line.hoursMinutes = &m
-			}
-			lines = append(lines, line)
-		}
+		lines = appendDatevRowLines(lines, configured, row)
 	}
 	report.LineCount = len(lines)
 	report.StaffExported = len(exported)
 	return lines, report
+}
+
+// configuredDatevCategories keeps the categories with a Lohnartnummer (and a
+// unit where one is required) and reports the others as unconfigured.
+func configuredDatevCategories(categories []PayrollExportCategory, report *DatevExportReport) []PayrollExportCategory {
+	var configured []PayrollExportCategory
+	for _, category := range categories {
+		if category.Number == "" || (category.UnitRequired && category.Unit == "") {
+			report.UnconfiguredCategories = append(report.UnconfiguredCategories, category.Label)
+			continue
+		}
+		configured = append(configured, category)
+	}
+	return configured
+}
+
+// appendDatevRowLines appends one line per configured category with a value
+// for the staff member's row.
+func appendDatevRowLines(lines []datevLine, configured []PayrollExportCategory, row MonthExportRow) []datevLine {
+	for _, category := range configured {
+		minutes, days, useDays, ok := datevCategoryValue(category, row)
+		if !ok {
+			continue
+		}
+		line := datevLine{personnelNumber: row.PersonnelNumber, lohnart: category.Number}
+		if useDays {
+			d := days
+			line.days = &d
+		} else {
+			m := minutes
+			line.hoursMinutes = &m
+		}
+		lines = append(lines, line)
+	}
+	return lines
 }
 
 // datevHours renders minutes as decimal hours with a German comma ("160,00").

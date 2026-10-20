@@ -314,10 +314,8 @@ func (s *AccountAuthentication) persistSessionInTransaction(ctx context.Context,
 		if _, err := s.store.RecordAccountLogin(txCtx, account.ID, loginTime); err != nil {
 			return fmt.Errorf("update last login before token issuance: %w", err)
 		}
-		if retireFamilyID != "" {
-			if err := s.sessions.RetireAccountSessionFamily(txCtx, account.ID, retireFamilyID, loginTime.Add(s.rotation.RecoveryGrace())); err != nil {
-				return fmt.Errorf("retire replaced refresh-token family: %w", err)
-			}
+		if err := s.retireReplacedFamily(txCtx, account.ID, retireFamilyID, loginTime); err != nil {
+			return err
 		}
 		// The tenant comes from the database resolution, never from the
 		// context: login is a public route.
@@ -532,13 +530,7 @@ func (s *AccountAuthentication) loadPersonNamesFromMappedTenants(ctx context.Con
 	if err != nil {
 		return "", "", fmt.Errorf("list active tenants of account %d for person lookup: %w", accountID, err)
 	}
-	candidates := make([]int64, 0, len(tenantIDs))
-	for _, mappedTenantID := range tenantIDs {
-		if mappedTenantID != excludeTenantID && mappedTenantID > 0 {
-			candidates = append(candidates, mappedTenantID)
-		}
-	}
-	slices.Sort(candidates)
+	candidates := otherMappedTenants(tenantIDs, excludeTenantID)
 	var firstName, lastName string
 	for _, mappedTenantID := range candidates {
 		candidateFirst, candidateLast, err := s.loadPersonNames(s.runtime.WithTenantID(ctx, mappedTenantID), accountID)
@@ -749,4 +741,24 @@ func (s *AccountAuthentication) resolveAccountTenantDefault(ctx context.Context,
 		return err
 	})
 	return schoolID, organizationID, err
+}
+
+func otherMappedTenants(tenantIDs []int64, excludeTenantID int64) []int64 {
+	candidates := make([]int64, 0, len(tenantIDs))
+	for _, mappedTenantID := range tenantIDs {
+		if mappedTenantID != excludeTenantID && mappedTenantID > 0 {
+			candidates = append(candidates, mappedTenantID)
+		}
+	}
+	slices.Sort(candidates)
+	return candidates
+}
+
+func (s *AccountAuthentication) retireReplacedFamily(txCtx context.Context, accountID int64, retireFamilyID string, loginTime time.Time) error {
+	if retireFamilyID != "" {
+		if err := s.sessions.RetireAccountSessionFamily(txCtx, accountID, retireFamilyID, loginTime.Add(s.rotation.RecoveryGrace())); err != nil {
+			return fmt.Errorf("retire replaced refresh-token family: %w", err)
+		}
+	}
+	return nil
 }

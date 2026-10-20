@@ -12,7 +12,7 @@ import (
 
 // EnrollmentSchoolDirectory answers the enrollment flows.
 type EnrollmentSchoolDirectory struct {
-	Schools organizationtenancy.Query
+	Schools organizationtenancy.SchoolQuery
 }
 
 func (d EnrollmentSchoolDirectory) FindSchool(ctx context.Context, id int64) (*enrollmentOwner.School, error) {
@@ -27,7 +27,7 @@ func (d EnrollmentSchoolDirectory) FindSchool(ctx context.Context, id int64) (*e
 
 // SchoolContactDirectory answers the reply address of tenant-bound mail.
 type SchoolContactDirectory struct {
-	Schools organizationtenancy.Query
+	Schools organizationtenancy.SchoolQuery
 }
 
 func (d SchoolContactDirectory) FindSchoolContact(ctx context.Context, tenantID int64) (*deliveryCompose.SchoolContact, error) {
@@ -40,7 +40,7 @@ func (d SchoolContactDirectory) FindSchoolContact(ctx context.Context, tenantID 
 
 // SchoolNameDirectory answers the parent-message mail branding.
 type SchoolNameDirectory struct {
-	Schools organizationtenancy.Query
+	Schools organizationtenancy.SchoolQuery
 }
 
 func (d SchoolNameDirectory) FindSchoolName(ctx context.Context, id int64) (string, bool, error) {
@@ -50,7 +50,7 @@ func (d SchoolNameDirectory) FindSchoolName(ctx context.Context, id int64) (stri
 
 // displaySchoolDirectory answers the Device Fleet display tenant facts.
 type displaySchoolDirectory struct {
-	schools organizationtenancy.Query
+	schools organizationtenancy.SchoolQuery
 }
 
 func (d displaySchoolDirectory) FindDisplaySchool(ctx context.Context, tenantID int64) (devicefleetCompose.School, bool, error) {

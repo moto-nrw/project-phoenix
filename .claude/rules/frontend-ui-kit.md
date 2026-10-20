@@ -44,7 +44,7 @@ What that forbids in a page file: `max-w`, `mx-auto`, own root padding, a second
 
 **No mini-heading above the title.** The blue uppercase kicker is gone from the tenant portal: it meant six different things at once (sidebar area, entity type, a repeat of the title, wizard step, a date, a status), so it taught the reader nothing. Where the user is comes from the breadcrumbs and the sidebar. `SectionCard`'s `kicker` prop survives for the parents portal only.
 
-**Status line, not explanation.** The line under the title carries figures the page already loads — „116 Kinder · 107 zuhause · 9 krank", „29.07.2026 bis 27.08.2026 · 22 Betreuungstage". Use `TenantPageStats` for value/label pairs and `statsLoading` for the skeleton. An explanatory sentence in the head is a rule violation, not a nicety (`moto-einfache-sprache`, rule 8).
+**Status line, not explanation.** The line under the title carries figures the page already loads — „116 Kinder · 107 zuhause · 9 krank", „29.07.2026 bis 27.08.2026 · 22 Betreuungstage". Use `TenantPageStats` for value/label pairs and `statsLoading` for the skeleton. An explanatory sentence in the head is a rule violation, not a nicety (`moto-einfache-sprache`, rule 8). A figure a tile or card in the body already shows does not repeat in the status line; leave `stats` empty then. Text a person needs only to get to know the page goes into `TenantPage`'s `info` prop: an info button next to the title opens it as a popover (tap, click and keyboard, may carry a link), so it costs no card row in daily use (#4385). Text needed on every visit stays a `SectionCard`.
 
 **One tab component per position.** Page-level tabs go through `TenantPage`'s `tabs` prop. `ui/Tabs` is only for tabs INSIDE a card (the substitution slide-over's Bearbeiten/Verlauf), `SegmentedControl` for every value choice — Monat/Woche/Tag, A/B-Woche, target group, export range, list filter. A value switcher built from `ui/Tabs` is a violation, not a style choice: the ratchet `ui-kit/no-tabs-as-value-switcher` fails on it.
 
@@ -125,7 +125,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Semantic status pill (fixed tone set) | `StatusBadge` — tinted pill, `tone` = `blue` `green` `orange` `red` `gray` (brand hexes) | `~/components/ui/status-badge` |
 | Data-driven status pill (raw hex) | `StatusColorBadge` | `~/components/ui/status-color-badge` |
 | Empty / no-results state | `EmptyState` — optional icon, title, description, action slot | `~/components/ui/empty-state` |
-| Back navigation | `BackButton`, `MobileBackButton` | `~/components/ui/back-button`, `~/components/ui/mobile-back-button` |
+| Back navigation (Unterseite → Sammlung) | `TenantPage` mit `back` / `backHref` / `backLabel`; außerhalb des Gerüsts `TenantBackLink` (Tenant) oder `BackLink` (anderes Portal, fertiger Pfad). Ein Link mit Pfeil und Ziel als Text („Zurück zu den Räumen"), auf jeder Breite, über dem Titel; nie ein eigener Knopf im Inhalt (#4364). Eine Ansicht ohne eigene Adresse (Editor → Übersicht derselben Seite) nimmt `BackAction`, denselben Rückweg als Knopf (#4397) | `~/components/ui/tenant-page`, `~/components/ui/back-link` |
 | Link in the app shell (sidebar, bottom nav, breadcrumbs, header menus) | `NavLink` — `next/link` without viewport prefetch; prefetches on hover, focus, or touch start instead (#2976). | `~/components/ui/nav-link` |
 | Interner Link im Seiteninhalt | `NavigationLink` — meldet den Wechsel an die Portalhülle und verwirft die Meldung bei abgebrochenem Klick. `ButtonLink` nutzt dieselbe Meldung bei String-Zielen. Plain `next/link` bleibt richtig für externe Ziele, Downloads, neue Tabs und Bereiche ohne `PortalShell`. | `~/components/ui/navigation-link` |
 | Rückmeldung, dass ein Seitenwechsel läuft | `NavigationProgressBar` / `NavigationProgressProvider` — steckt bereits in `PortalShell`; `NavLink`, `NavigationLink` und `ButtonLink` melden den ausstehenden Wechsel selbst (#2828). Nicht nachbauen und keine eigene Ladehülle über mehrere Seiten legen. | `~/components/ui/navigation-progress` |
@@ -181,6 +181,22 @@ resolved hex, not the constant name.
 Green CTA shades (from `GROUP_ROOM_SHADES` in `location-helper.ts`): base `#83CD2D`, hover `#74B825`, active `#6DB118`, text `#3F6F12`. Note: the kit `Button` `variant="primary"` is **gray-900**, not green — green CTAs use the corresponding `moto-*` utilities or `LOCATION_COLORS` / `GROUP_ROOM_SHADES`, not copied hex classes.
 
 **Do NOT use the package color palette.** The `@moto-nrw/design-system` `@theme` ships a `steel` / `sage` / `warm` palette and `--color-brand-primary` (= sage `#7ba05b`). That is **not** the app's green. The app's brand green is `#83CD2D` (`LOCATION_COLORS.GROUP_ROOM` / the logo). Use `LOCATION_COLORS` for brand semantics and Tailwind `gray-*` for neutrals; never `bg-sage-*`, `bg-steel-*`, or `--color-brand-primary`, or you introduce a third, wrong green.
+
+### Concept icons — one symbol per domain concept
+
+`MOTO_CONCEPTS` in `lib/moto-concepts.ts` is the single source for which symbol and tone a concept gets. Render it with `<MotoConceptIcon concept="…" />` (`~/components/ui/moto-concept-icon`); never import the Phosphor glyph and pick a tone by hand. The people concepts:
+
+| Concept     | Key        | Phosphor glyph           | Tone         |
+| ----------- | ---------- | ------------------------ | ------------ |
+| Kind        | `children` | `UserIcon` (one head)    | `greenVivid` |
+| Eltern      | `parents`  | `UsersIcon` (two heads)  | `blue`       |
+| Gruppe      | `groups`   | `UsersThreeIcon` (three) | `greenDeep`  |
+| Personal    | `staff`    | `IdentificationCardIcon` | `orange`     |
+| Klassentag  | `classDay` | `ChalkboardTeacherIcon`  | `blue`       |
+
+- One head always means a child, two heads parents, three heads a group, also where the icon is monochrome (sidebar entries, tab triggers, help tiles in `HELP_ICONS`): keep the glyph, drop the tone.
+- Deliberate exceptions: the profile menu (`UserIcon` = the signed-in user) and the neutral gray meta icons on the child card (`tone="neutral"`, same glyph as the concept).
+- Need a new concept? Add it to `MOTO_CONCEPTS`; don't define a one-off glyph/tone pair.
 
 ### Spacing & padding
 

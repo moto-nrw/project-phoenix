@@ -22,29 +22,29 @@ var (
 
 	// ErrRoleNotAssignable is returned when the requested role does not exist
 	// (or is not a role that may be handed out for a school at all).
-	ErrRoleNotAssignable = errors.New("Die angegebene Rolle existiert nicht") //nolint:staticcheck // ST1005: user-facing German message
+	ErrRoleNotAssignable = newCopyError("Die angegebene Rolle existiert nicht")
 	// ErrRoleForeignTenant is returned when a tenant-scoped role belongs to a
 	// different school than the one being granted.
-	ErrRoleForeignTenant = errors.New("Diese Rolle existiert an der Zielschule nicht") //nolint:staticcheck // ST1005: user-facing German message
+	ErrRoleForeignTenant = newCopyError("Diese Rolle existiert an der Zielschule nicht")
 	// ErrRoleGuardianNotAssignable is returned for the guardian role, which is
 	// granted exclusively through the guardian invitation flow.
-	ErrRoleGuardianNotAssignable = errors.New("Sorgeberechtigten-Zugänge werden über den Einladungs-Flow für Sorgeberechtigte vergeben") //nolint:staticcheck // ST1005: user-facing German message
+	ErrRoleGuardianNotAssignable = newCopyError("Sorgeberechtigten-Zugänge werden über den Einladungs-Flow für Sorgeberechtigte vergeben")
 	// ErrRoleLegacyTeacherNotAssignable is returned for the retired teacher
 	// role; caregiver accounts use the user role instead.
-	ErrRoleLegacyTeacherNotAssignable = errors.New("Die alte Rolle 'teacher' wird nicht mehr vergeben; bitte die Rolle 'user' verwenden") //nolint:staticcheck // ST1005: user-facing German message
+	ErrRoleLegacyTeacherNotAssignable = newCopyError("Die alte Rolle 'teacher' wird nicht mehr vergeben; bitte die Rolle 'user' verwenden")
 
 	// ErrRoleCaregiverNeedsProfile refuses a caregiver role on a Lehrkraft
 	// account: it has person and staff records but deliberately no caregiver
 	// profile, so the caregiver permissions would own no groups (#1772).
-	ErrRoleCaregiverNeedsProfile = errors.New("Ein Lehrkraft-Konto hat kein Betreuungsprofil und kann nicht auf eine Betreuer-Rolle umgestellt werden") //nolint:staticcheck // ST1005: user-facing German message
+	ErrRoleCaregiverNeedsProfile = errors.New("ein Lehrkraft-Konto hat kein Betreuungsprofil und kann nicht auf eine Betreuer-Rolle umgestellt werden")
 	// ErrLehrkraftRoleImmutable keeps a Lehrkraft account from receiving any
 	// other role. Changing it goes through offboarding plus a new account.
-	ErrLehrkraftRoleImmutable = errors.New("Ein Lehrkraft-Konto kann nicht umgestellt werden") //nolint:staticcheck // ST1005: user-facing German message
+	ErrLehrkraftRoleImmutable = errors.New("ein Lehrkraft-Konto kann nicht umgestellt werden")
 	// ErrRoleLehrkraftCaregiverProfile refuses the Lehrkraft role on an
 	// account whose identity at the school still carries a live caregiver
 	// profile: the swap would strand the profile and its group supervisions
 	// under class_day-only permissions (#1772).
-	ErrRoleLehrkraftCaregiverProfile = errors.New("Das Konto hat ein Betreuungsprofil an dieser Schule und kann nicht auf Lehrkraft umgestellt werden") //nolint:staticcheck // ST1005: user-facing German message
+	ErrRoleLehrkraftCaregiverProfile = errors.New("das Konto hat ein Betreuungsprofil an dieser Schule und kann nicht auf Lehrkraft umgestellt werden")
 
 	// ErrRoleAdministrationUnavailable reports a module composed without the
 	// account-lifecycle dependencies the role administration needs.

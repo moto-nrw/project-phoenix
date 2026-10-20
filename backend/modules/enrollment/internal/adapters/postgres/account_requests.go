@@ -9,25 +9,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func (r *Store) AccountRequests(ctx context.Context, accountID int64, accountEmail string) ([]enrollment.AccountRequest, error) {
-	db, err := r.resolve(ctx)
-	if err != nil {
-		return nil, err
-	}
-	type row struct {
-		RequestID                int64           `bun:"request_id"`
-		TenantID                 int64           `bun:"tenant_id"`
-		StatusToken              string          `bun:"status_token"`
-		SubmittedAt              time.Time       `bun:"submitted_at"`
-		WithdrawnAt              *time.Time      `bun:"withdrawn_at"`
-		PhaseID                  int64           `bun:"phase_id"`
-		PhaseName                string          `bun:"phase_name"`
-		ServiceStartDate         enrollment.Date `bun:"service_start_date"`
-		ServiceEndDate           enrollment.Date `bun:"service_end_date"`
-		ShowStatusReasonToParent bool            `bun:"show_status_reason_to_parent"`
-	}
-
-	const requestQuery = `
+// accountRequestsQuery lists the requests of an account, or of its e-mail
+// address while the request is not yet bound to an account, newest first.
+const accountRequestsQuery = `
 		SELECT
 			req.id              AS request_id,
 			req.tenant_id       AS tenant_id,
@@ -52,8 +36,26 @@ func (r *Store) AccountRequests(ctx context.Context, accountID int64, accountEma
 		ORDER BY req.submitted_at DESC, req.id DESC
 	`
 
+func (r *Store) AccountRequests(ctx context.Context, accountID int64, accountEmail string) ([]enrollment.AccountRequest, error) {
+	db, err := r.resolve(ctx)
+	if err != nil {
+		return nil, err
+	}
+	type row struct {
+		RequestID                int64           `bun:"request_id"`
+		TenantID                 int64           `bun:"tenant_id"`
+		StatusToken              string          `bun:"status_token"`
+		SubmittedAt              time.Time       `bun:"submitted_at"`
+		WithdrawnAt              *time.Time      `bun:"withdrawn_at"`
+		PhaseID                  int64           `bun:"phase_id"`
+		PhaseName                string          `bun:"phase_name"`
+		ServiceStartDate         enrollment.Date `bun:"service_start_date"`
+		ServiceEndDate           enrollment.Date `bun:"service_end_date"`
+		ShowStatusReasonToParent bool            `bun:"show_status_reason_to_parent"`
+	}
+
 	var rows []row
-	if err := db.NewRaw(requestQuery, accountID, accountEmail, accountEmail).Scan(ctx, &rows); err != nil {
+	if err := db.NewRaw(accountRequestsQuery, accountID, accountEmail, accountEmail).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent: list enrollment requests: %w", err)
 	}
 	if len(rows) == 0 {
@@ -63,6 +65,20 @@ func (r *Store) AccountRequests(ctx context.Context, accountID int64, accountEma
 	for _, rr := range rows {
 		requestIDs = append(requestIDs, rr.RequestID)
 	}
+	childrenByRequest, err := accountRequestChildren(ctx, db, requestIDs)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]enrollment.AccountRequest, 0, len(rows))
+	for _, rr := range rows {
+		result = append(result, enrollment.AccountRequest{RequestID: rr.RequestID, TenantID: rr.TenantID, StatusToken: rr.StatusToken, SubmittedAt: rr.SubmittedAt, WithdrawnAt: rr.WithdrawnAt, PhaseID: rr.PhaseID, PhaseName: rr.PhaseName, ServiceStartDate: rr.ServiceStartDate, ServiceEndDate: rr.ServiceEndDate, ShowStatusReasonToParent: rr.ShowStatusReasonToParent, Children: childrenByRequest[rr.RequestID]})
+	}
+	return result, nil
+}
+
+// accountRequestChildren loads the children of the given requests, grouped by
+// request in sort order.
+func accountRequestChildren(ctx context.Context, db bun.IDB, requestIDs []int64) (map[int64][]enrollment.AccountRequestChild, error) {
 	type childRow struct {
 		RequestID        int64   `bun:"request_id"`
 		ChildID          int64   `bun:"child_id"`
@@ -92,13 +108,9 @@ func (r *Store) AccountRequests(ctx context.Context, accountID int64, accountEma
 	if err := db.NewRaw(childQuery, bun.List(requestIDs)).Scan(ctx, &children); err != nil {
 		return nil, fmt.Errorf("parent: list enrollment request children: %w", err)
 	}
-	childrenByRequest := make(map[int64][]enrollment.AccountRequestChild, len(rows))
+	childrenByRequest := make(map[int64][]enrollment.AccountRequestChild, len(requestIDs))
 	for _, c := range children {
 		childrenByRequest[c.RequestID] = append(childrenByRequest[c.RequestID], enrollment.AccountRequestChild{ChildID: c.ChildID, FirstName: c.FirstName, LastName: c.LastName, Status: c.Status, StatusReason: c.StatusReason, CreatedStudentID: c.CreatedStudentID})
 	}
-	result := make([]enrollment.AccountRequest, 0, len(rows))
-	for _, rr := range rows {
-		result = append(result, enrollment.AccountRequest{RequestID: rr.RequestID, TenantID: rr.TenantID, StatusToken: rr.StatusToken, SubmittedAt: rr.SubmittedAt, WithdrawnAt: rr.WithdrawnAt, PhaseID: rr.PhaseID, PhaseName: rr.PhaseName, ServiceStartDate: rr.ServiceStartDate, ServiceEndDate: rr.ServiceEndDate, ShowStatusReasonToParent: rr.ShowStatusReasonToParent, Children: childrenByRequest[rr.RequestID]})
-	}
-	return result, nil
+	return childrenByRequest, nil
 }

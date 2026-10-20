@@ -34,7 +34,7 @@ vi.mock("next-auth/react", () => ({
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
-  // BackButton (via useTenantRouter) braucht useRouter.
+  // useTenantRouter braucht useRouter.
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }));
 
@@ -195,6 +195,14 @@ describe("StaffImportPage", () => {
 
   afterEach(() => {
     cleanup();
+  });
+
+  it("führt zurück zum Personal", () => {
+    render(<StaffImportPage />);
+
+    expect(
+      screen.getByRole("link", { name: "Zurück zum Personal" }),
+    ).toHaveAttribute("href", expect.stringMatching(/\/database\/personal$/));
   });
 
   it("renders the instruction section", () => {

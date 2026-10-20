@@ -80,6 +80,12 @@ type OperatorTokenQuery interface {
 // The creates validate the link and return it with its identity and
 // timestamps.
 type OperatorTokenCommand interface {
+	OperatorInvitationCommand
+	OperatorEmailChangeCommand
+}
+
+// OperatorInvitationCommand issues, redeems and retires operator invitations.
+type OperatorInvitationCommand interface {
 	CreateOperatorInvitation(ctx context.Context, invitation OperatorInvitation) (OperatorInvitation, error)
 	// RedeemOperatorInvitation spends a redeemable invitation exactly once.
 	RedeemOperatorInvitation(ctx context.Context, token string) (OperatorInvitation, error)
@@ -93,7 +99,10 @@ type OperatorTokenCommand interface {
 	ExtendOperatorInvitation(ctx context.Context, id int64, expiresAt time.Time) error
 	RecordOperatorInvitationDelivery(ctx context.Context, id int64, delivery TokenDelivery) error
 	DeleteExpiredOperatorInvitations(ctx context.Context) (int, error)
+}
 
+// OperatorEmailChangeCommand issues and redeems operator e-mail changes.
+type OperatorEmailChangeCommand interface {
 	CreateOperatorEmailChange(ctx context.Context, change OperatorEmailChange) (OperatorEmailChange, error)
 	// RedeemOperatorEmailChange spends a redeemable link exactly once.
 	RedeemOperatorEmailChange(ctx context.Context, token string) (OperatorEmailChange, error)

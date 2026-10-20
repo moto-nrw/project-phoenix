@@ -64,7 +64,7 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 		}
 		if existing != nil {
 			if err := c.updateExistingGuardianProfile(ctx, *existing, data); err != nil {
-				return 0, fmt.Errorf("existing guardian profile aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+				return 0, copyErrorf("existing guardian profile aktualisieren: %w", err)
 			}
 			if err := c.createGuardianPhoneNumbers(ctx, existing.ID, data.PhoneNumbers); err != nil {
 				return existing.ID, fmt.Errorf("add phone numbers to existing guardian: %w", err)
@@ -155,7 +155,7 @@ func (c *StudentImportConfig) createGuardianPhoneNumbers(ctx context.Context, gu
 	}
 	existing, err := c.Guardians.ListGuardianPhones(ctx, guardianID)
 	if err != nil {
-		return fmt.Errorf("Telefonnummern laden: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+		return copyErrorf("Telefonnummern laden: %w", err)
 	}
 	existingNumbers := make(map[string]struct{}, len(existing))
 	for _, phone := range existing {
@@ -195,7 +195,7 @@ func (c *StudentImportConfig) mergeGuardianRelationships(ctx context.Context, st
 	}
 	existing, err := c.Guardians.ListStudentGuardians(ctx, studentID)
 	if err != nil {
-		return fmt.Errorf("Erziehungsberechtigte laden: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+		return copyErrorf("Erziehungsberechtigte laden: %w", err)
 	}
 	byGuardianID := make(map[int64]ports.GuardianLink, len(existing))
 	for _, entry := range existing {
@@ -221,7 +221,7 @@ func (c *StudentImportConfig) loadLinkedGuardianProfiles(ctx context.Context, ex
 	for _, entry := range existing {
 		phones, err := c.Guardians.ListGuardianPhones(ctx, entry.Guardian.ID)
 		if err != nil {
-			return nil, fmt.Errorf("Telefonnummern der Erziehungsberechtigten laden: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+			return nil, copyErrorf("Telefonnummern der Erziehungsberechtigten laden: %w", err)
 		}
 		var normalized []string
 		for _, phone := range phones {
@@ -247,7 +247,7 @@ func (c *StudentImportConfig) resolveLinkedGuardian(ctx context.Context, linked 
 		return 0, nil
 	}
 	if err := c.updateExistingGuardianProfile(ctx, *match, data); err != nil {
-		return 0, fmt.Errorf("existing guardian profile aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+		return 0, copyErrorf("existing guardian profile aktualisieren: %w", err)
 	}
 	if err := c.createGuardianPhoneNumbers(ctx, match.ID, data.PhoneNumbers); err != nil {
 		return 0, fmt.Errorf("add phone numbers to existing guardian: %w", err)

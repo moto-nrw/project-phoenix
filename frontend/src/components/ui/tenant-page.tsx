@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "~/components/ui/navigation-link";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Info } from "lucide-react";
 import type {
   InputHTMLAttributes,
   KeyboardEvent,
@@ -16,16 +16,19 @@ import {
   useState,
 } from "react";
 import { Alert } from "~/components/ui/alert";
+import { AnchoredPopover } from "~/components/ui/anchored-popover";
+import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import type { FormErrorDetail } from "~/components/ui/form-error";
 import { errorAlertActions } from "~/components/ui/form-error-alert";
-import { MobileBackButton } from "~/components/ui/mobile-back-button";
+import { BackLink } from "~/components/ui/back-link";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type { PageHeaderWithSearchProps } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -80,17 +83,27 @@ export interface TenantPageProps {
   readonly stats?: ReactNode;
   /** Zeigt statt der Statuszeile ein Skelett. */
   readonly statsLoading?: boolean;
+  /**
+   * Erklärung der Seite, die man zum Kennenlernen braucht, aber nicht jeden
+   * Tag liest. Sie liegt hinter einem Info-Knopf neben dem Titel und kostet
+   * im Alltag keine Zeile (#4385). Per Tipp, Klick und Tastatur erreichbar,
+   * deshalb auch für Text mit Link; ein Tooltip trägt nur reinen Text.
+   */
+  readonly info?: ReactNode;
   /** Aktionen rechts in der Titelzeile (Primäraktion, Export, Kebab). */
   readonly actions?: ReactNode;
   /** Element links vom Titel, zum Beispiel Avatar oder Konzept-Icon. */
   readonly leading?: ReactNode;
   /** Hebt den Titel eine Stufe an (Startseiten mit Begrüßung). */
   readonly prominent?: boolean;
-  /** Blendet den mobilen Zurück-Knopf ein (Unterseiten). */
+  /**
+   * Blendet den Rückweg über dem Titel ein (Unterseiten), auf jeder Breite.
+   * Eine Seite baut keinen eigenen Zurück-Knopf in den Inhalt.
+   */
   readonly back?: boolean;
-  /** Ziel des Zurück-Knopfs. Ohne Angabe die Datenverwaltung. */
+  /** Ziel des Rückwegs (Pfad ohne Schulpräfix). Ohne Angabe die Datenverwaltung. */
   readonly backHref?: string;
-  /** Vorlesbarer Text des Zurück-Knopfs, passend zum Ziel. */
+  /** Sichtbarer Text des Rückwegs, nennt das Ziel („Zurück zu den Räumen"). */
   readonly backLabel?: string;
 
   /** Suchfeld in der Kopfkarte. */
@@ -219,6 +232,62 @@ export interface TenantPageProps {
 }
 
 /**
+ * Der Info-Knopf neben dem Seitentitel. Ein Popover statt eines Tooltips:
+ * auf dem Telefon gibt es kein Hover, und die Erklärung darf einen Link
+ * tragen. Escape und ein Klick daneben schließen sie wieder.
+ *
+ * Beim Öffnen springt der Fokus in den Rahmen: er hängt am Ende des
+ * Dokuments, und ohne den Sprung erreichte die Tastatur seinen Link erst
+ * nach der ganzen Seite.
+ */
+function TenantPageInfo({
+  title,
+  children,
+}: Readonly<{ title: string; children: ReactNode }>) {
+  const [open, setOpen] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const label = `Erklärung zu ${title}`;
+
+  return (
+    <AnchoredPopover
+      open={open}
+      onOpenChange={setOpen}
+      ariaLabel={label}
+      initialFocusRef={contentRef}
+      preferredWidth={360}
+      renderTrigger={({ ref, open: expanded, panelId, toggle }) => (
+        <Button
+          ref={ref}
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={label}
+          aria-expanded={expanded}
+          aria-controls={expanded ? panelId : undefined}
+          onClick={toggle}
+          // Sichtbar 32 px wie die übrigen Symbolknöpfe; die Trefferfläche
+          // reicht per Pseudoelement auf 44 px, die Untergrenze für eine
+          // Touch-Fläche, ohne die Titelzeile höher zu machen.
+          className="relative shrink-0 text-gray-500 after:absolute after:-inset-1.5 after:content-['']"
+        >
+          <Info aria-hidden="true" className="h-[18px] w-[18px]" />
+        </Button>
+      )}
+    >
+      {() => (
+        <div
+          ref={contentRef}
+          tabIndex={-1}
+          className="p-4 text-sm leading-6 text-gray-700 outline-none"
+        >
+          {children}
+        </div>
+      )}
+    </AnchoredPopover>
+  );
+}
+
+/**
  * Ein Wert-Label-Paar der Statuszeile. Trennzeichen setzt `TenantPageStats`.
  *
  * Höchstens DREI Paare: die Statuszeile ist eine Orientierung, keine
@@ -270,10 +339,37 @@ export function TenantPageStats({
 const CONTROL_HEIGHT =
   "[&_button]:h-10 [&_select]:h-10 [&_input]:h-10 max-sm:[&_button]:h-11 max-sm:[&_select]:h-11 max-sm:[&_input]:h-11";
 
+/** Der Rückweg ohne eigenes Ziel: die Unterseiten der Datenverwaltung. */
+const DEFAULT_BACK_HREF = "/database";
+const DEFAULT_BACK_LABEL = "Zurück zur Datenverwaltung";
+
+/**
+ * `BackLink` im Tenant-Portal: löst den Pfad für die Schule auf. Das Gerüst
+ * setzt ihn über den Titel; nur eine Fläche ohne Kopfkarte (ein Skelett vor
+ * dem Gerüst) rendert ihn selbst.
+ */
+export function TenantBackLink({
+  href,
+  label,
+  className = "mb-2",
+}: Readonly<{ href?: string; label?: string; className?: string }>) {
+  const tenantPath = useTenantAwarePath();
+  return (
+    <BackLink
+      href={tenantPath(href ?? DEFAULT_BACK_HREF)}
+      // Ohne eigenen Text nennt der Rückweg die Datenverwaltung nur, wenn er
+      // auch dorthin führt.
+      label={label ?? (href ? "Zurück" : DEFAULT_BACK_LABEL)}
+      className={className}
+    />
+  );
+}
+
 export function TenantPage({
   title,
   stats,
   statsLoading = false,
+  info,
   actions,
   leading,
   prominent = false,
@@ -332,14 +428,7 @@ export function TenantPage({
           Flächenklasse auch dann zuverlässig, wenn Tailwind-Utilities in
           einer CSS-Layer stehen. */}
       <header className="moto-content-surface compact:p-4 rounded-2xl border p-5 shadow-sm max-sm:p-4">
-        {back && (
-          <MobileBackButton
-            href={backHref}
-            // Ohne eigenen Text würde der Standardtext „Zurück zur
-            // Datenverwaltung" ein falsches Ziel ansagen.
-            ariaLabel={backLabel ?? (backHref ? "Zurück" : undefined)}
-          />
-        )}
+        {back && <TenantBackLink href={backHref} label={backLabel} />}
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
           {/* `flex-1 basis-0`: der Titelblock nimmt, was die Aktionen übrig
               lassen, statt mit seiner natürlichen Breite zu ringen. Vorher
@@ -350,23 +439,28 @@ export function TenantPage({
           <div className="flex min-w-0 flex-1 basis-0 items-center gap-3 max-sm:min-w-[11rem]">
             {leading}
             <div className="min-w-0">
-              <h1
-                className={cn(
-                  "font-semibold tracking-tight text-balance text-gray-900",
-                  // Auch auf dem Telefon sichtbar: unter lg gibt es keine
-                  // Shell-Kopfzeile mehr (wie in der Eltern-App), die
-                  // Kopfkarte ist die einzige Trägerin des Seitennamens.
-                  // Der Desktop-Grad ist der Grundwert, Telefon und die
-                  // Dichte-Stufe kleiner Bildschirme ziehen ihn je eine
-                  // Stufe herunter (#2824). Beide Varianten schliessen
-                  // einander aus, es gilt also immer genau eine.
-                  prominent
-                    ? "compact:text-2xl text-[28px] leading-tight max-sm:text-2xl"
-                    : "compact:text-xl text-2xl leading-tight max-sm:text-xl",
+              <div className="flex items-center gap-1">
+                <h1
+                  className={cn(
+                    "min-w-0 font-semibold tracking-tight text-balance text-gray-900",
+                    // Auch auf dem Telefon sichtbar: unter lg gibt es keine
+                    // Shell-Kopfzeile mehr (wie in der Eltern-App), die
+                    // Kopfkarte ist die einzige Trägerin des Seitennamens.
+                    // Der Desktop-Grad ist der Grundwert, Telefon und die
+                    // Dichte-Stufe kleiner Bildschirme ziehen ihn je eine
+                    // Stufe herunter (#2824). Beide Varianten schliessen
+                    // einander aus, es gilt also immer genau eine.
+                    prominent
+                      ? "compact:text-2xl text-[28px] leading-tight max-sm:text-2xl"
+                      : "compact:text-xl text-2xl leading-tight max-sm:text-xl",
+                  )}
+                >
+                  {title}
+                </h1>
+                {info != null && (
+                  <TenantPageInfo title={title}>{info}</TenantPageInfo>
                 )}
-              >
-                {title}
-              </h1>
+              </div>
               {/* Ein div, kein p: `stats` ist beliebiges ReactNode, und
                   Seiten setzen Blockelemente hinein (das LocationBadge der
                   Kinderseite rendert ein div). In einem p wäre das ungültiges

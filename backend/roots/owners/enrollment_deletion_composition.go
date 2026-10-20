@@ -14,7 +14,9 @@ import (
 
 // enrollmentGuardianDirectory serves the deletion preview's guardians from
 // the People Directory.
-type enrollmentGuardianDirectory struct{ guardians peopledirectory.GuardianQuery }
+type enrollmentGuardianDirectory struct {
+	guardians peopledirectory.GuardianRelationshipQuery
+}
 
 func (d enrollmentGuardianDirectory) ListGuardiansByAccount(ctx context.Context, accountIDs []int64) ([]enrollmentCompose.DirectoryGuardian, error) {
 	guardians, err := d.guardians.ListGuardiansByAccount(ctx, accountIDs)

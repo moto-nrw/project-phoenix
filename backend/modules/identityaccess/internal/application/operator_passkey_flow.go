@@ -310,27 +310,7 @@ func (f *OperatorPasskeyFlows) verifyLogin(ctx context.Context, request domain.O
 	// assertion; a failed read is kept apart.
 	var readErr error
 	user, credential, err := relyingParty.ValidatePasskeyLogin(func(rawID, userHandle []byte) (webauthn.User, error) {
-		row, findErr := f.records.FindActiveCredential(ctx, rawID, userHandle)
-		if findErr != nil {
-			if !errors.Is(findErr, domain.ErrOperatorPasskeyNotFound) {
-				readErr = findErr
-			}
-			return nil, findErr
-		}
-		matchedCredentialID = row.ID
-		operator, findErr := f.operators.FindOperator(ctx, row.OperatorID)
-		if findErr != nil {
-			if !errors.Is(findErr, domain.ErrOperatorNotFound) {
-				readErr = findErr
-			}
-			return nil, findErr
-		}
-		passkeyUser, userErr := f.passkeyUser(ctx, operator)
-		if userErr != nil {
-			readErr = userErr
-			return nil, userErr
-		}
-		return passkeyUser, nil
+		return f.resolveLoginPasskeyUser(ctx, rawID, userHandle, &matchedCredentialID, &readErr)
 	}, sessionData, parsed)
 	if readErr != nil {
 		return verifiedOperatorPasskeyLogin{}, readErr
@@ -418,4 +398,28 @@ func newCeremonySession(sessionData *webauthn.SessionData) (string, json.RawMess
 		return "", nil, err
 	}
 	return sessionID.String(), sessionJSON, nil
+}
+
+func (f *OperatorPasskeyFlows) resolveLoginPasskeyUser(ctx context.Context, rawID, userHandle []byte, matchedCredentialID *int64, readErr *error) (webauthn.User, error) {
+	row, findErr := f.records.FindActiveCredential(ctx, rawID, userHandle)
+	if findErr != nil {
+		if !errors.Is(findErr, domain.ErrOperatorPasskeyNotFound) {
+			*readErr = findErr
+		}
+		return nil, findErr
+	}
+	*matchedCredentialID = row.ID
+	operator, findErr := f.operators.FindOperator(ctx, row.OperatorID)
+	if findErr != nil {
+		if !errors.Is(findErr, domain.ErrOperatorNotFound) {
+			*readErr = findErr
+		}
+		return nil, findErr
+	}
+	passkeyUser, userErr := f.passkeyUser(ctx, operator)
+	if userErr != nil {
+		*readErr = userErr
+		return nil, userErr
+	}
+	return passkeyUser, nil
 }

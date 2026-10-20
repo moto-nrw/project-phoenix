@@ -59,62 +59,66 @@ type EmailConfig MailRendererConfig
 // platform.EmailKindParentAnnouncement) and drained by the outbox worker.
 func NewAnnouncementRenderer(cfg EmailConfig) MailRenderer {
 	return NewMailRenderer(func(_ context.Context, row *MailIntent) (*MailMessage, error) {
-		recipient := row.Payload.String(emailPayloadRecipient)
-		if recipient == "" {
-			return nil, fmt.Errorf("%s payload missing recipient_email", row.Kind)
-		}
-		title := row.Payload.String(emailPayloadTitle)
-		schoolName := row.Payload.String(emailPayloadSchoolName)
-		first := row.Payload.String(emailPayloadFirstName)
-		last := row.Payload.String(emailPayloadLastName)
-		portalURL := row.Payload.String(emailPayloadPortalURL)
-		logoURL := row.Payload.String(emailPayloadLogoURL)
-		motoLogoURL := row.Payload.String(emailPayloadMotoLogoURL)
-
-		kicker := row.Payload.String(emailPayloadKicker)
-		if kicker == "" {
-			kicker = defaultEmailKicker
-		}
-		intro := row.Payload.String(emailPayloadIntro)
-		body := row.Payload.String(emailPayloadBody)
-		ackRequired := row.Payload.Bool(emailPayloadAckRequired)
-
-		subject := title
-		if schoolName != "" {
-			subject = fmt.Sprintf("%s: %s", schoolName, title)
-		}
-
-		content := NewMailContent(map[string]string{
-			"Title":             title,
-			"Intro":             intro,
-			"BrandKicker":       kicker,
-			"SchoolName":        schoolName,
-			"GuardianFirstName": first,
-			"GuardianLastName":  last,
-			"PortalURL":         portalURL,
-			"LogoURL":           logoURL,
-			"MotoLogoURL":       motoLogoURL,
-		}, map[string]bool{})
-		// The body and the acknowledgement notice are added ONLY for an
-		// Elternbrief. A Mitteilung mail stays title + link, and the rendered
-		// content must not even carry the keys — the mail is the least trusted
-		// channel, and that rule is pinned by TestAnnouncementRenderer_TitleAndLinkOnly.
-		if body != "" {
-			content.Strings["Body"] = body
-		}
-		if ackRequired {
-			content.Flags["AckRequired"] = true
-		}
-		if hasAttachment := row.Payload.Bool(emailPayloadHasAttachment); hasAttachment {
-			content.Flags["HasAttachment"] = true
-		}
-
-		return &MailMessage{
-			From:     cfg.DefaultFrom,
-			To:       NewMailAddress("", recipient),
-			Subject:  subject,
-			Template: "announcement-published.html",
-			Content:  content,
-		}, nil
+		return renderAnnouncementMail(cfg, row)
 	})
+}
+
+func renderAnnouncementMail(cfg EmailConfig, row *MailIntent) (*MailMessage, error) {
+	recipient := row.Payload.String(emailPayloadRecipient)
+	if recipient == "" {
+		return nil, fmt.Errorf("%s payload missing recipient_email", row.Kind)
+	}
+	title := row.Payload.String(emailPayloadTitle)
+	schoolName := row.Payload.String(emailPayloadSchoolName)
+	first := row.Payload.String(emailPayloadFirstName)
+	last := row.Payload.String(emailPayloadLastName)
+	portalURL := row.Payload.String(emailPayloadPortalURL)
+	logoURL := row.Payload.String(emailPayloadLogoURL)
+	motoLogoURL := row.Payload.String(emailPayloadMotoLogoURL)
+
+	kicker := row.Payload.String(emailPayloadKicker)
+	if kicker == "" {
+		kicker = defaultEmailKicker
+	}
+	intro := row.Payload.String(emailPayloadIntro)
+	body := row.Payload.String(emailPayloadBody)
+	ackRequired := row.Payload.Bool(emailPayloadAckRequired)
+
+	subject := title
+	if schoolName != "" {
+		subject = fmt.Sprintf("%s: %s", schoolName, title)
+	}
+
+	content := NewMailContent(map[string]string{
+		"Title":             title,
+		"Intro":             intro,
+		"BrandKicker":       kicker,
+		"SchoolName":        schoolName,
+		"GuardianFirstName": first,
+		"GuardianLastName":  last,
+		"PortalURL":         portalURL,
+		"LogoURL":           logoURL,
+		"MotoLogoURL":       motoLogoURL,
+	}, map[string]bool{})
+	// The body and the acknowledgement notice are added ONLY for an
+	// Elternbrief. A Mitteilung mail stays title + link, and the rendered
+	// content must not even carry the keys — the mail is the least trusted
+	// channel, and that rule is pinned by TestAnnouncementRenderer_TitleAndLinkOnly.
+	if body != "" {
+		content.Strings["Body"] = body
+	}
+	if ackRequired {
+		content.Flags["AckRequired"] = true
+	}
+	if hasAttachment := row.Payload.Bool(emailPayloadHasAttachment); hasAttachment {
+		content.Flags["HasAttachment"] = true
+	}
+
+	return &MailMessage{
+		From:     cfg.DefaultFrom,
+		To:       NewMailAddress("", recipient),
+		Subject:  subject,
+		Template: "announcement-published.html",
+		Content:  content,
+	}, nil
 }

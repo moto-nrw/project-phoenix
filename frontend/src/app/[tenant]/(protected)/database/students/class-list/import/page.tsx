@@ -372,7 +372,13 @@ export default function ClassListImportPage() {
 
   if (status === "loading" || !isReady) {
     return (
-      <TenantPage title="Klassenliste importieren" stats={statusLine} back>
+      <TenantPage
+        title="Klassenliste importieren"
+        stats={statusLine}
+        back
+        backHref="/database/students/class-list"
+        backLabel="Zurück zur Klassenliste"
+      >
         <SkeletonRegion label="Klassenlisten-Import wird geladen…">
           <FormSkeleton fields={2} />
         </SkeletonRegion>
@@ -381,7 +387,13 @@ export default function ClassListImportPage() {
   }
 
   return (
-    <TenantPage title="Klassenliste importieren" stats={statusLine} back>
+    <TenantPage
+      title="Klassenliste importieren"
+      stats={statusLine}
+      back
+      backHref="/database/students/class-list"
+      backLabel="Zurück zur Klassenliste"
+    >
       {/* Info Section */}
       <SectionCard title="Sammelimport für Klassenlisteneinträge" icon={Info}>
         <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">

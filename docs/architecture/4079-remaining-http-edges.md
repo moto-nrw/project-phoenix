@@ -1,5 +1,9 @@
 # #4079 owner HTTP cutover
 
+> **Historical record.** State at `c32e6f616c` (2026-10-18). #2580 and #4069 are closed;
+> counts, budgets and open issues below describe that state, not today.
+> Final state: [`backend/architecture/WORKPLAN.md`](../../backend/architecture/WORKPLAN.md#endstand).
+
 The implementation decision is **Option 1 for all 14 remaining exact keys**.
 It supersedes the alternatives and stops recorded by the earlier bounded
 slice. ADR 0056 makes Root the HTTP host; ADR 0053 point 2 covers the owner

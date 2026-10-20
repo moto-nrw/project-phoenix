@@ -1,5 +1,9 @@
 # Timetable contract cluster
 
+> **Historical record.** State at `02136938c4` (2026-10-18). #2580 and #4069 are closed;
+> counts, budgets and open issues below describe that state, not today.
+> Final state: [`backend/architecture/WORKPLAN.md`](../../backend/architecture/WORKPLAN.md#endstand).
+
 Refs #4004, #4076, #4086. Inventory base: `caee1cbd5b` on development.
 
 ## Result

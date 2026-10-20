@@ -309,8 +309,8 @@ func IsMissingStudent(err error) bool {
 }
 
 // TranslateStudentWriteError restates the owner's companion refusals in the
-// departure contract's user-facing sentinels, whose German text the routes
-// render as is.
+// departure contract's sentinels. Their German text is diagnostic detail;
+// clients show the code catalog.
 func TranslateStudentWriteError(err error) error {
 	switch {
 	case err == nil:

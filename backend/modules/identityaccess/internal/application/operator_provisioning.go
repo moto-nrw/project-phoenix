@@ -298,47 +298,9 @@ func (p *OperatorProvisioning) InitiateOperatorEmailChange(ctx context.Context, 
 	var change domain.OperatorEmailChange
 	var addressTaken bool
 	if err := p.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		// Lock the operator's row so two parallel requests serialize instead
-		// of both relying on the partial unique index to catch the conflict.
-		if _, lockErr := p.operators.FindOperatorForUpdate(txCtx, request.OperatorID); lockErr != nil {
-			return fmt.Errorf("lock operator row: %w", lockErr)
-		}
-		recent, countErr := p.tokens.CountEmailChangesCreatedAfter(txCtx, request.OperatorID, p.now().Add(-domain.OperatorEmailChangeRateWindow))
-		if countErr != nil {
-			return fmt.Errorf("check email change rate limit: %w", countErr)
-		}
-		if recent >= domain.OperatorEmailChangeRateLimit {
-			return domain.ErrOperatorEmailChangeRateLimited
-		}
-		current, reReadErr := p.operators.FindOperator(txCtx, request.OperatorID)
-		if reReadErr != nil {
-			return reReadErr
-		}
-		if current.PasswordHash != provenHash {
-			return domain.ErrOperatorPasswordMismatch
-		}
-		if _, findErr := p.operators.FindOperatorByEmail(txCtx, newEmail); findErr == nil {
-			addressTaken = true
-			return nil
-		} else if !errors.Is(findErr, domain.ErrOperatorNotFound) {
-			return fmt.Errorf("check operator email uniqueness: %w", findErr)
-		}
-		// Only now: a request that is going to be refused leaves the
-		// operator's existing link usable.
-		if revokeErr := p.tokens.RevokeEmailChanges(txCtx, request.OperatorID); revokeErr != nil {
-			return revokeErr
-		}
-		created, createErr := p.tokens.CreateEmailChange(txCtx, domain.OperatorEmailChange{
-			OperatorID: request.OperatorID,
-			NewEmail:   newEmail,
-			Token:      uuid.Must(uuid.NewV4()).String(),
-			Expiry:     p.now().Add(p.expiry.EmailChange),
-		})
-		if createErr != nil {
-			return createErr
-		}
-		change = created
-		return p.enqueueEmailChangeNotices(txCtx, change, operator, maskedNewEmail)
+		var err error
+		addressTaken, err = p.prepareOperatorEmailChange(txCtx, request, operator, provenHash, newEmail, maskedNewEmail, &change)
+		return err
 	}); err != nil {
 		return err
 	}
@@ -471,4 +433,47 @@ func (p *OperatorProvisioning) enqueueEmailChangeNotices(ctx context.Context, ch
 		return err
 	}
 	return p.changes.DispatchOperatorEmailChangeRequested(ctx, operator, maskedNewEmail)
+}
+
+func (p *OperatorProvisioning) prepareOperatorEmailChange(txCtx context.Context, request domain.OperatorEmailChangeRequest, operator domain.Operator, provenHash, newEmail, maskedNewEmail string, change *domain.OperatorEmailChange) (bool, error) {
+	// Lock the operator's row so two parallel requests serialize instead
+	// of both relying on the partial unique index to catch the conflict.
+	if _, lockErr := p.operators.FindOperatorForUpdate(txCtx, request.OperatorID); lockErr != nil {
+		return false, fmt.Errorf("lock operator row: %w", lockErr)
+	}
+	recent, countErr := p.tokens.CountEmailChangesCreatedAfter(txCtx, request.OperatorID, p.now().Add(-domain.OperatorEmailChangeRateWindow))
+	if countErr != nil {
+		return false, fmt.Errorf("check email change rate limit: %w", countErr)
+	}
+	if recent >= domain.OperatorEmailChangeRateLimit {
+		return false, domain.ErrOperatorEmailChangeRateLimited
+	}
+	current, reReadErr := p.operators.FindOperator(txCtx, request.OperatorID)
+	if reReadErr != nil {
+		return false, reReadErr
+	}
+	if current.PasswordHash != provenHash {
+		return false, domain.ErrOperatorPasswordMismatch
+	}
+	if _, findErr := p.operators.FindOperatorByEmail(txCtx, newEmail); findErr == nil {
+		return true, nil
+	} else if !errors.Is(findErr, domain.ErrOperatorNotFound) {
+		return false, fmt.Errorf("check operator email uniqueness: %w", findErr)
+	}
+	// Only now: a request that is going to be refused leaves the
+	// operator's existing link usable.
+	if revokeErr := p.tokens.RevokeEmailChanges(txCtx, request.OperatorID); revokeErr != nil {
+		return false, revokeErr
+	}
+	created, createErr := p.tokens.CreateEmailChange(txCtx, domain.OperatorEmailChange{
+		OperatorID: request.OperatorID,
+		NewEmail:   newEmail,
+		Token:      uuid.Must(uuid.NewV4()).String(),
+		Expiry:     p.now().Add(p.expiry.EmailChange),
+	})
+	if createErr != nil {
+		return false, createErr
+	}
+	*change = created
+	return false, p.enqueueEmailChangeNotices(txCtx, *change, operator, maskedNewEmail)
 }

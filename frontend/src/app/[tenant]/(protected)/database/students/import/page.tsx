@@ -533,7 +533,13 @@ export default function StudentImportPage() {
 
   if (status === "loading") {
     return (
-      <TenantPage title="Kinder importieren" stats={statusLine} back>
+      <TenantPage
+        title="Kinder importieren"
+        stats={statusLine}
+        back
+        backHref="/database/students"
+        backLabel="Zurück zu den Kinderdaten"
+      >
         <SkeletonRegion label="Kinder-Import wird geladen…">
           <FormSkeleton fields={2} />
         </SkeletonRegion>
@@ -542,7 +548,13 @@ export default function StudentImportPage() {
   }
 
   return (
-    <TenantPage title="Kinder importieren" stats={statusLine} back>
+    <TenantPage
+      title="Kinder importieren"
+      stats={statusLine}
+      back
+      backHref="/database/students"
+      backLabel="Zurück zu den Kinderdaten"
+    >
       {/* Info Section */}
       <SectionCard title="Import-Anleitung" icon={Info}>
         <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">

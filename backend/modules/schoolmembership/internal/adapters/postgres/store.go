@@ -303,37 +303,9 @@ func (s *Store) ListTeachers(ctx context.Context, filter domain.TeacherFilter) (
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []teacherRow{}
-	query := withTenant(teacherSelect(db, &rows), "teacher", scope)
-	if !filter.IncludeDeleted {
-		query = query.Where(`"teacher".deleted_at IS NULL`)
-	}
-	if filter.IDs != nil {
-		if len(filter.IDs) == 0 {
-			return []domain.Teacher{}, domain.OperationStats{}, nil
-		}
-		query = query.Where(`"teacher".id IN (?)`, bun.List(filter.IDs))
-	}
-	if filter.StaffIDs != nil {
-		if len(filter.StaffIDs) == 0 {
-			return []domain.Teacher{}, domain.OperationStats{}, nil
-		}
-		query = query.Where(`"teacher".staff_id IN (?)`, bun.List(filter.StaffIDs))
-	}
-	if filter.Specialization != "" {
-		query = query.Where(`LOWER("teacher".specialization) = LOWER(?)`, filter.Specialization)
-	}
-	if filter.SpecializationContains != "" {
-		query = query.Where(`"teacher".specialization ILIKE ?`, "%"+escapeLike(filter.SpecializationContains)+"%")
-	}
-	if filter.RoleContains != "" {
-		query = query.Where(`"teacher".role ILIKE ?`, "%"+escapeLike(filter.RoleContains)+"%")
-	}
-	if filter.HasQualifications != nil {
-		if *filter.HasQualifications {
-			query = query.Where(`"teacher".qualifications IS NOT NULL AND "teacher".qualifications <> ''`)
-		} else {
-			query = query.Where(`("teacher".qualifications IS NULL OR "teacher".qualifications = '')`)
-		}
+	query, ok := teacherListQuery(withTenant(teacherSelect(db, &rows), "teacher", scope), filter)
+	if !ok {
+		return []domain.Teacher{}, domain.OperationStats{}, nil
 	}
 	stats, err := scanAll(ctx, query.OrderExpr(`"teacher".id ASC`), "list teachers")
 	if err != nil {
@@ -483,39 +455,12 @@ func (s *Store) ListGuests(ctx context.Context, filter domain.GuestFilter) ([]do
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []guestRow{}
-	query := withTenant(guestSelect(db, &rows), "guest", scope)
-	if filter.IDs != nil {
-		if len(filter.IDs) == 0 {
-			return []domain.Guest{}, domain.OperationStats{}, nil
-		}
-		query = query.Where(`"guest".id IN (?)`, bun.List(filter.IDs))
+	query, ok, err := guestListQuery(withTenant(guestSelect(db, &rows), "guest", scope), filter)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
 	}
-	if filter.StaffIDs != nil {
-		if len(filter.StaffIDs) == 0 {
-			return []domain.Guest{}, domain.OperationStats{}, nil
-		}
-		query = query.Where(`"guest".staff_id IN (?)`, bun.List(filter.StaffIDs))
-	}
-	if filter.ActiveOn != "" {
-		activeOn, err := optionalDate(filter.ActiveOn, "active-on date")
-		if err != nil {
-			return nil, domain.OperationStats{}, err
-		}
-		query = query.Where(`("guest".start_date IS NULL OR "guest".start_date <= ?)`, activeOn).
-			Where(`("guest".end_date IS NULL OR "guest".end_date >= ?)`, activeOn)
-	}
-	if filter.OrganizationContains != "" {
-		query = query.Where(`"guest".organization ILIKE ?`, "%"+escapeLike(filter.OrganizationContains)+"%")
-	}
-	if filter.ExpertiseContains != "" {
-		query = query.Where(`"guest".activity_expertise ILIKE ?`, "%"+escapeLike(filter.ExpertiseContains)+"%")
-	}
-	if filter.HasOrganization != nil {
-		if *filter.HasOrganization {
-			query = query.Where(`"guest".organization IS NOT NULL`)
-		} else {
-			query = query.Where(`"guest".organization IS NULL`)
-		}
+	if !ok {
+		return []domain.Guest{}, domain.OperationStats{}, nil
 	}
 	stats, err := scanAll(ctx, query.OrderExpr(`"guest".id ASC`), "list guests")
 	if err != nil {

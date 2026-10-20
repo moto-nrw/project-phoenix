@@ -12,13 +12,13 @@ import {
   type EnrollmentFormPrefetchedData,
 } from "~/components/enrollment/enrollment-form";
 import {
-  PublicEnrollmentBackLink,
   PublicEnrollmentBrand,
   PublicEnrollmentLocaleSwitcher,
   PublicEnrollmentPageShell,
   PublicEnrollmentSteps,
   PublicInfoCard,
 } from "~/components/enrollment/public-enrollment-shell";
+import { BackLink } from "~/components/ui/back-link";
 import { useTenant } from "~/lib/tenant-context";
 import { formatDate } from "~/lib/date-helpers";
 import { isSupportedGradeLevelMax } from "~/lib/grade-level";
@@ -163,9 +163,10 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <section className="space-y-5">
           <div className="moto-content-surface rounded-2xl border p-5 shadow-sm sm:p-8">
-            <PublicEnrollmentBackLink href={tenantPath("/anmeldung")}>
-              {t("backToPicker")}
-            </PublicEnrollmentBackLink>
+            <BackLink
+              href={tenantPath("/anmeldung")}
+              label={t("backToPicker")}
+            />
             <p className="text-moto-blue mt-6 text-sm font-semibold tracking-wide uppercase">
               {t("formEyebrow")}
             </p>

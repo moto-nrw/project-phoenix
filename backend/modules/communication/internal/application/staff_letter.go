@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -224,29 +223,14 @@ func (s *service) queueLetterMailsAs(ctx context.Context, a *StaffParentAnnounce
 			slog.Int64("announcement_id", a.ID))
 		return 0, nil
 	}
-	tenantID := a.GetTenantID()
-	schoolName, err := s.repo.SchoolName(ctx, tenantID)
+	layout, err := s.letterMailLayout(ctx, a, spec)
 	if err != nil {
-		return 0, fmt.Errorf("announcement: resolve school name: %w", err)
+		return 0, err
 	}
-	logoURL := s.resolveSchoolLogoURL(ctx, tenantID)
-	motoLogoURL := s.deliveryPolicy.MotoLogoURL(s.parentsURL)
-	portalURL := s.letterPortalURL(a.ID)
-	kicker := spec.kicker
-	intro := spec.intro(schoolName)
-	body := spec.body
-
 	hasAttachment := s.hasAttachments(ctx, a.ID)
 
 	byAddress := make(map[string]*int64, len(recipients))
-	portalAccessByAddress := make(map[string]bool, len(recipients))
-	for _, r := range recipients {
-		if !canQueueLetterMail(r, a) || r.reachability == reachabilityExcluded {
-			continue
-		}
-		address := strings.ToLower(strings.TrimSpace(r.src.Email))
-		portalAccessByAddress[address] = portalAccessByAddress[address] || r.src.HasPortalAccess
-	}
+	portalAccessByAddress := letterRecipientPortalAccess(recipients, a)
 	queued := 0
 	accepted := 0
 	for _, r := range recipients {
@@ -260,31 +244,9 @@ func (s *service) queueLetterMailsAs(ctx context.Context, a *StaffParentAnnounce
 		}
 		recipientPortalURL := ""
 		if portalAccessByAddress[address] {
-			recipientPortalURL = portalURL
+			recipientPortalURL = layout.portalURL
 		}
-		row, err := s.outbox.Enqueue(ctx, MailEnqueueInput{
-			Kind: MailKindParentAnnouncement,
-			Payload: map[string]json.RawMessage{
-				emailPayloadRecipient:   JSONString(address),
-				emailPayloadFirstName:   JSONString(r.src.FirstName),
-				emailPayloadLastName:    JSONString(r.src.LastName),
-				emailPayloadTitle:       JSONString(spec.title),
-				emailPayloadSchoolName:  JSONString(schoolName),
-				emailPayloadPortalURL:   JSONString(recipientPortalURL),
-				emailPayloadLogoURL:     JSONString(logoURL),
-				emailPayloadMotoLogoURL: JSONString(motoLogoURL),
-				emailPayloadKicker:      JSONString(kicker),
-				emailPayloadIntro:       JSONString(intro),
-				emailPayloadBody:        JSONString(body),
-				emailPayloadAckRequired: JSONBool(spec.ackRequired && portalAccessByAddress[address]),
-				// Only for recipients who can actually reach the portal: a hint
-				// pointing somewhere the reader cannot go is worse than none.
-				emailPayloadHasAttachment: JSONBool(hasAttachment && portalAccessByAddress[address]),
-			},
-			RelatedEntityType: spec.relatedType,
-			RelatedEntityID:   a.ID,
-			IdempotencyKey:    spec.idempotencyKey(address),
-		}.Public())
+		row, err := s.enqueueLetterRecipient(ctx, a, r, layout, address, recipientPortalURL, portalAccessByAddress[address], spec, hasAttachment)
 		if err != nil {
 			return accepted, fmt.Errorf("announcement: enqueue e-mail: %w", err)
 		}
@@ -500,117 +462,18 @@ func (s *service) remindUnacknowledged(ctx context.Context, a *StaffParentAnnoun
 	return len(delivered), nil
 }
 
-// ResendFailedEmails re-queues the mails that ended up FAILED, and only those.
-//
-// It is deliberately a separate action from the reminder: "hat nicht bestätigt"
-// and "die Mail kam nie an" are different problems with different fixes, and
-// merging them into one button would send a nag to people whose only issue is a
-// wrong address. Recipients with no address are skipped — retrying changes
-// nothing until the school fixes the data.
-func (s *service) ResendFailedEmails(ctx context.Context, id int64) (int, error) {
-	a, err := s.repo.FindByID(ctx, id)
-	if err != nil {
-		return 0, fmt.Errorf("announcement: load for resend: %w", err)
-	}
-	if a == nil {
-		return 0, ErrNotFound
-	}
-	if !a.IsPublished() || !a.Active {
-		return 0, ErrNotPublished
-	}
-	if a.ExpiresAt != nil && !a.ExpiresAt.After(time.Now()) {
-		return 0, ErrNotPublished
-	}
-	if s.deliveries == nil || s.outbox == nil {
-		return 0, nil
-	}
+func (s *service) letterMailLayout(ctx context.Context, a *StaffParentAnnouncement, spec mailSpec) (letterMailLayout, error) {
 	tenantID := a.GetTenantID()
-	rows, err := s.deliveries.ListForEntity(ctx, tenantID, relatedEntityTypeAnnouncement, id)
-	if err != nil {
-		return 0, fmt.Errorf("announcement: load deliveries for resend: %w", err)
-	}
-
 	schoolName, err := s.repo.SchoolName(ctx, tenantID)
 	if err != nil {
-		return 0, fmt.Errorf("announcement: resolve school name: %w", err)
+		return letterMailLayout{}, fmt.Errorf("announcement: resolve school name: %w", err)
 	}
 	logoURL := s.resolveSchoolLogoURL(ctx, tenantID)
 	motoLogoURL := s.deliveryPolicy.MotoLogoURL(s.parentsURL)
 	portalURL := s.letterPortalURL(a.ID)
-	kicker := defaultEmailKicker
-	intro := ""
-	body := ""
-	if a.IsLetter() {
-		kicker = letterEmailKicker
-		intro = letterIntro
-		body = a.Body
-	}
+	kicker := spec.kicker
+	intro := spec.intro(schoolName)
+	body := spec.body
 
-	resent := 0
-	byAddress := NewMailReceiptIndex()
-	portalAccessByAddress := make(map[string]bool, len(rows))
-	for _, row := range rows {
-		if row.RecipientEmail != nil && row.Reachability == reachabilityOK {
-			address := strings.ToLower(strings.TrimSpace(*row.RecipientEmail))
-			portalAccessByAddress[address] = true
-		}
-	}
-	for _, row := range rows {
-		if row.EmailStatus != "failed" || row.RecipientEmail == nil || *row.RecipientEmail == "" {
-			continue
-		}
-		claimed, err := s.deliveries.ClaimFailedDelivery(ctx, tenantID, row.DeliveryID)
-		if err != nil {
-			return 0, fmt.Errorf("announcement: claim failed e-mail for resend: %w", err)
-		}
-		if !claimed {
-			continue
-		}
-		address := strings.ToLower(strings.TrimSpace(*row.RecipientEmail))
-		outboxRow, ok := byAddress[address]
-		if !ok {
-			recipientPortalURL := ""
-			if portalAccessByAddress[address] {
-				recipientPortalURL = portalURL
-			}
-			outboxRow, err = s.outbox.Enqueue(ctx, MailEnqueueInput{
-				Kind: MailKindParentAnnouncement,
-				Payload: map[string]json.RawMessage{
-					emailPayloadRecipient:   JSONString(address),
-					emailPayloadFirstName:   JSONString(row.FirstName),
-					emailPayloadLastName:    JSONString(row.LastName),
-					emailPayloadTitle:       JSONString(a.Title),
-					emailPayloadSchoolName:  JSONString(schoolName),
-					emailPayloadPortalURL:   JSONString(recipientPortalURL),
-					emailPayloadLogoURL:     JSONString(logoURL),
-					emailPayloadMotoLogoURL: JSONString(motoLogoURL),
-					emailPayloadKicker:      JSONString(kicker),
-					emailPayloadIntro:       JSONString(intro),
-					emailPayloadBody:        JSONString(body),
-					emailPayloadAckRequired: JSONBool(a.RequiresAcknowledgement && portalAccessByAddress[address]),
-				},
-				RelatedEntityType: relatedEntityTypeAnnouncement,
-				RelatedEntityID:   a.ID,
-				// A retry needs a key of its own, otherwise the original publication's
-				// key would swallow it as a duplicate and nothing would be sent.
-				IdempotencyKey: fmt.Sprintf("%s:retry:%d", letterIdempotencyKey(a, address), time.Now().UTC().UnixNano()),
-			}.Public())
-			if err != nil {
-				return 0, fmt.Errorf("announcement: resend failed e-mail: %w", err)
-			}
-			byAddress[address] = outboxRow
-			resent++
-		}
-		if outboxRow == nil || outboxRow.ID <= 0 {
-			return 0, fmt.Errorf("announcement: resend failed e-mail did not create an outbox row")
-		}
-		if err := s.deliveries.AttachOutbox(ctx, tenantID, row.DeliveryID, outboxRow.ID); err != nil {
-			return 0, fmt.Errorf("announcement: attach resend outbox row: %w", err)
-		}
-	}
-	s.logger.Info("parent announcement failed e-mails re-queued",
-		slog.Int64("announcement_id", id),
-		slog.Int("resent", resent),
-	)
-	return resent, nil
+	return letterMailLayout{schoolName: schoolName, logoURL: logoURL, motoLogoURL: motoLogoURL, portalURL: portalURL, kicker: kicker, intro: intro, body: body}, nil
 }

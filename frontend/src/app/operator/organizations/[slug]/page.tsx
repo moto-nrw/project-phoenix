@@ -3,7 +3,6 @@
 import { Suspense, use, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import useSWR from "swr";
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -22,6 +21,7 @@ import {
   summaryToSchool,
 } from "~/lib/operator/provisioning-helpers";
 import { EntityHeaderCard } from "~/components/operator/entity-header-card";
+import { BackLink } from "~/components/ui/back-link";
 import { AccountsTable } from "~/components/operator/accounts-table";
 import { DevicesTable } from "~/components/operator/devices-table";
 import { DeleteDeviceModal } from "~/components/operator/delete-device-modal";
@@ -57,6 +57,11 @@ import {
 } from "~/app/operator/provisioning/operator-entity-modals";
 
 const logger = createLogger({ component: "OperatorOrganizationDetailPage" });
+
+const ORGANIZATIONS_BACK = {
+  href: "/operator/organizations",
+  label: "Zurück zu den Trägern",
+} as const;
 
 const TAB_ITEMS = [
   { id: "schulen", label: "Schulen" },
@@ -481,13 +486,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   if (isLoading && !organization) {
     return (
       <div className="w-full">
-        <Link
-          href="/operator/organizations"
-          className="mb-4 inline-flex items-center gap-2 text-sm text-gray-600 transition-colors hover:text-gray-900"
-        >
-          <span aria-hidden>←</span>
-          <span>Zurück zur Träger-Übersicht</span>
-        </Link>
+        <BackLink {...ORGANIZATIONS_BACK} className="mb-4" />
         <SkeletonRegion label="Träger wird geladen">
           <DetailSkeleton sections={1} fieldsPerSection={4} />
         </SkeletonRegion>
@@ -498,13 +497,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   if (!organization && organizationsLoadError) {
     return (
       <div className="w-full">
-        <Link
-          href="/operator/organizations"
-          className="mb-4 inline-flex items-center gap-2 text-sm text-gray-600 transition-colors hover:text-gray-900"
-        >
-          <span aria-hidden>←</span>
-          <span>Zurück zur Träger-Übersicht</span>
-        </Link>
+        <BackLink {...ORGANIZATIONS_BACK} className="mb-4" />
         <LoadErrorAlert error={organizationsLoadError} />
       </div>
     );
@@ -514,12 +507,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     logger.warn("organization_not_found_by_slug", { slug });
     return (
       <div className="w-full">
-        <Link
-          href="/operator/organizations"
-          className="text-sm text-gray-600 hover:text-gray-900"
-        >
-          ← Zurück zur Träger-Übersicht
-        </Link>
+        <BackLink {...ORGANIZATIONS_BACK} />
         <div className="moto-content-surface mt-6 rounded-xl border p-6 text-center shadow-sm">
           <p className="text-gray-600">Träger nicht gefunden.</p>
         </div>
@@ -529,15 +517,8 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
 
   return (
     <div className="w-full">
-      <Link
-        href="/operator/organizations"
-        className="mb-4 inline-flex items-center gap-2 text-sm text-gray-600 transition-colors hover:text-gray-900"
-      >
-        <span aria-hidden>←</span>
-        <span>Zurück zur Träger-Übersicht</span>
-      </Link>
-
       <EntityHeaderCard
+        back={ORGANIZATIONS_BACK}
         title={organization.name}
         concept="organizations"
         subdomain={organization.slug}

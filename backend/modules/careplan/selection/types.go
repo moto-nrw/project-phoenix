@@ -57,31 +57,40 @@ func (r *AvailabilityRule) NormalizeAndValidate() error {
 		return fmt.Errorf("availability_rule.match must be %q or %q", "all", "any")
 	}
 	for i := range r.Conditions {
-		condition := &r.Conditions[i]
-		if condition.Source != "grade_level" {
-			return fmt.Errorf("availability_rule condition %d has unknown source %q", i+1, condition.Source)
+		if err := normalizeAvailabilityCondition(i+1, &r.Conditions[i]); err != nil {
+			return err
 		}
-		if condition.Operator != "in" && condition.Operator != "not_in" {
-			return fmt.Errorf("availability_rule condition %d has unknown operator %q", i+1, condition.Operator)
-		}
-		if len(condition.Value) == 0 {
-			return fmt.Errorf("availability_rule condition %d requires at least one value", i+1)
-		}
-		seen := make(map[int]struct{}, len(condition.Value))
-		values := make([]int, 0, len(condition.Value))
-		for _, grade := range condition.Value {
-			if grade < 1 || grade > 13 {
-				return fmt.Errorf("availability_rule condition %d contains invalid grade %d", i+1, grade)
-			}
-			if _, ok := seen[grade]; ok {
-				continue
-			}
-			seen[grade] = struct{}{}
-			values = append(values, grade)
-		}
-		slices.Sort(values)
-		condition.Value = values
 	}
+	return nil
+}
+
+// normalizeAvailabilityCondition validates one condition (position is
+// 1-based for the messages) and replaces its values with the sorted,
+// de-duplicated grades. The condition stays untouched when it is invalid.
+func normalizeAvailabilityCondition(position int, condition *AvailabilityCondition) error {
+	if condition.Source != "grade_level" {
+		return fmt.Errorf("availability_rule condition %d has unknown source %q", position, condition.Source)
+	}
+	if condition.Operator != "in" && condition.Operator != "not_in" {
+		return fmt.Errorf("availability_rule condition %d has unknown operator %q", position, condition.Operator)
+	}
+	if len(condition.Value) == 0 {
+		return fmt.Errorf("availability_rule condition %d requires at least one value", position)
+	}
+	seen := make(map[int]struct{}, len(condition.Value))
+	values := make([]int, 0, len(condition.Value))
+	for _, grade := range condition.Value {
+		if grade < 1 || grade > 13 {
+			return fmt.Errorf("availability_rule condition %d contains invalid grade %d", position, grade)
+		}
+		if _, ok := seen[grade]; ok {
+			continue
+		}
+		seen[grade] = struct{}{}
+		values = append(values, grade)
+	}
+	slices.Sort(values)
+	condition.Value = values
 	return nil
 }
 

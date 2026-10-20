@@ -1,7 +1,48 @@
-# Backend-Zielarchitektur #2580
+# Backend-Zielarchitektur #2580: Abschluss und Verlauf
 
-Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
-`gh issue list --search "2580 in:body" --state closed`.
+Die Migration ist abgeschlossen. #2580 und die Konsolidierung #4069 sind
+geschlossen. Die Belege stehen im
+[DoD-Kommentar zu #2580](https://github.com/moto-nrw/project-phoenix/issues/2580#issuecomment-6278786747)
+und im
+[Abschlusskommentar zu #4069](https://github.com/moto-nrw/project-phoenix/issues/4069#issuecomment-6278782071).
+Diese Datei ist keine Arbeitsliste mehr, sondern der Verlauf der Migration.
+
+## Endstand
+
+Stand `development` @ `7c00e51003` (20.10.2026). Maßgeblich ist die jeweilige
+Quelle im Code; die Tabelle hält nur den Endstand fest.
+
+| Register | Endstand | Quelle |
+|---|---:|---|
+| Ratchet-Keys | 0 | `backend/architecture/legacy.jsonl` |
+| Legacy-Composition | 0 | `legacy_composition` in `policy.json` |
+| Policy-Epoche | 88 | `policy_epoch` in `policy.json` |
+| Regeln mit `issue`-Feld oder Übergangsmarker | 0 von 919 | `rules` in `policy.json`, `TestPolicyTemporaryRulesRatchet` |
+| Composition-Surface | 0 | `scripts/backend-architecture.sh check` |
+| Legacy-LOC in `legacy/`-Bäumen und `legacy_*.go` | 0 und 0 | `backend/test/module_legacy_budget_ratchet_test.go` |
+| Compose-LOC | 12.489 in 54 Paketen | `moduleComposeBudgetTotal`, ebenda |
+| Pass-through-Methoden | 2.925 | `modulePassthroughOwnerBudgetTotal` in `backend/test/module_passthrough_ratchet_test.go` |
+
+Die Regeln, die weiter gelten, stehen in den Prinzip-ADRs 0066 bis 0071
+([Übersicht](README.md#architecture-principles)) und in `backend/CLAUDE.md`.
+
+## Folgearbeit außerhalb von #2580
+
+Den Stand zeigt jeweils das Issue:
+
+- #3423: Code-Shape-Register der Modul-Ratchets; die Pass-through-Entscheidung liegt in #4403.
+- #4408: ST1005-`nolint`-Direktiven.
+- #4407: Care-Resume bei unbekanntem oder ausgeschiedenem Kind.
+- #2809 und #2821: Träger-Portal an der Zielarchitektur.
+
+## Historischer Verlauf bis 19.10.2026
+
+Alles ab hier ist der Arbeitsstand während der Migration und bleibt
+unverändert erhalten. Zähler, Budgets, Epochen sowie „offen“ und „vergebbar“
+gelten für den jeweiligen Zwischenstand, nicht für heute. Die Tickets dieses
+Verlaufs sind geschlossen, soweit sie oben nicht als Folgearbeit stehen.
+Der frühere Kopf lautete: „Offene Tickets, geordnet nach Vergebbarkeit statt
+nach Chronologie.“
 
 Stand 19.10.2026 · Ratchet 0 · Composition 0 · Policy-Epoche 86 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 0 Legacy-Verzeichnisse und

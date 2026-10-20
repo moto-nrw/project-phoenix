@@ -27,7 +27,7 @@ vi.mock("next-auth/react", () => ({
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
-  // BackButton (via useTenantRouter) braucht useRouter.
+  // useTenantRouter braucht useRouter.
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }));
 
@@ -168,6 +168,14 @@ describe("StudentImportPage", () => {
 
   afterEach(() => {
     cleanup();
+  });
+
+  it("führt zurück zu den Kinderdaten", () => {
+    render(<StudentImportPage />);
+
+    expect(
+      screen.getByRole("link", { name: "Zurück zu den Kinderdaten" }),
+    ).toHaveAttribute("href", expect.stringMatching(/\/database\/students$/));
   });
 
   it("renders the page with instruction section", () => {

@@ -22,8 +22,8 @@ cmd/serve.go
      ├─ Adds global "env" attribute
      │
      ▼
- api.initializeModuleServices(db, publicAPIURL, logger, ...)
-     │  (owner compositions and the root's service graph)
+ api.composeProcess (api/server.go)
+     │  (process root → owner compositions)
      │
      ├─ logger.With("service", "active")      → Active Service
      ├─ logger.With("service", "auth")         → Auth Service
@@ -121,7 +121,7 @@ Compositions create scoped loggers with a `"service"` or `"component"` key. This
 When a composition builds a service, give it a scoped logger:
 
 ```go
-// In the owner's compose package (or a stage of the root's service graph)
+// In the owner's compose package
 myLogger := logger.With("service", "mydomain")
 
 myService := mydomain.NewService(myRepo, db, myLogger)
@@ -281,6 +281,6 @@ All `log.Printf` calls from these files route through slog as WARN level via `sl
 |------|---------|
 | `applog/applog.go` | Logger bootstrap (`New()`, `parseLevel()`, `SetDefault`) |
 | `applog/applog_test.go` | Logger unit tests (JSON output, level filtering, stdlib routing) |
-| `api/service_graph_compose*.go` | Scoped logger creation for the root's retained services |
+| `api/server.go` | Process root: hands the logger to the owner compositions |
 | `cmd/serve.go` | Entry point — calls `applog.New()` with viper config |
 | `.golangci.yml` | sloglint configuration (`no-mixed-args`, `snake` keys, `args-on-sep-lines`) |

@@ -126,38 +126,49 @@ func BuildAllowanceLedger(entitlements map[int]float64, carryoverUntil, today st
 		taken: map[int]float64{}, reserved: map[int]float64{}, booked: map[int64]map[int]float64{},
 	}
 	ordered := slices.Clone(uses)
-	slices.SortStableFunc(ordered, func(a, b AllowanceUse) int {
-		if c := strings.Compare(a.Day, b.Day); c != 0 {
-			return c
-		}
-		if a.Pending != b.Pending {
-			if a.Pending {
-				return 1
-			}
-			return -1
-		}
-		return compareInt64(a.AbsenceID, b.AbsenceID)
-	})
+	slices.SortStableFunc(ordered, compareAllowanceUses)
 	for _, use := range ordered {
-		year, err := strconv.Atoi(use.Day[:4])
-		if err != nil || use.Days <= 0 {
-			continue
-		}
-		open := use.Days
-		if previous := year - 1; carryoverUntil != "" {
-			expiresOn := AllowanceExpiresOn(previous, carryoverUntil)
-			if use.Day <= expiresOn && use.EnteredOn <= expiresOn {
-				if drawn := min(open, max(0, ledger.rawRemaining(previous))); drawn > 0 {
-					ledger.book(use, previous, drawn)
-					open -= drawn
-				}
-			}
-		}
-		if open > 0 {
-			ledger.book(use, year, open)
-		}
+		ledger.apply(use)
 	}
 	return ledger
+}
+
+// compareAllowanceUses orders bookings by day, stored before pending, then by
+// absence ID.
+func compareAllowanceUses(a, b AllowanceUse) int {
+	if c := strings.Compare(a.Day, b.Day); c != 0 {
+		return c
+	}
+	if a.Pending != b.Pending {
+		if a.Pending {
+			return 1
+		}
+		return -1
+	}
+	return compareInt64(a.AbsenceID, b.AbsenceID)
+}
+
+// apply books one use: days inside the previous year's carryover window first
+// draw on that year's rest, the remainder goes to the use's own year. Uses
+// with an unreadable year or no days are skipped.
+func (l AllowanceLedger) apply(use AllowanceUse) {
+	year, err := strconv.Atoi(use.Day[:4])
+	if err != nil || use.Days <= 0 {
+		return
+	}
+	open := use.Days
+	if previous := year - 1; l.carryoverUntil != "" {
+		expiresOn := AllowanceExpiresOn(previous, l.carryoverUntil)
+		if use.Day <= expiresOn && use.EnteredOn <= expiresOn {
+			if drawn := min(open, max(0, l.rawRemaining(previous))); drawn > 0 {
+				l.book(use, previous, drawn)
+				open -= drawn
+			}
+		}
+	}
+	if open > 0 {
+		l.book(use, year, open)
+	}
 }
 
 func compareInt64(a, b int64) int {

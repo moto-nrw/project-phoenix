@@ -47,14 +47,8 @@ func (s *Service) CreateGroupSubstitution(ctx context.Context, value domain.Grou
 	}
 	err = s.run(ctx, "create_group_substitution", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
-			if value.EndDate >= s.clock.Today() {
-				ids := []int64{value.SubstituteStaffID}
-				if value.RegularStaffID != nil {
-					ids = append(ids, *value.RegularStaffID)
-				}
-				if err := s.lockAssignmentStaff(txCtx, ids); err != nil {
-					return err
-				}
+			if err := s.lockSubstitutionStaff(txCtx, value); err != nil {
+				return err
 			}
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.CreateGroupSubstitution(txCtx, value)
@@ -71,14 +65,8 @@ func (s *Service) UpdateGroupSubstitution(ctx context.Context, value domain.Grou
 	}
 	err = s.run(ctx, "update_group_substitution", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
-			if value.EndDate >= s.clock.Today() {
-				ids := []int64{value.SubstituteStaffID}
-				if value.RegularStaffID != nil {
-					ids = append(ids, *value.RegularStaffID)
-				}
-				if err := s.lockAssignmentStaff(txCtx, ids); err != nil {
-					return err
-				}
+			if err := s.lockSubstitutionStaff(txCtx, value); err != nil {
+				return err
 			}
 			var found bool
 			var writeStats domain.OperationStats
@@ -91,6 +79,20 @@ func (s *Service) UpdateGroupSubstitution(ctx context.Context, value domain.Grou
 		})
 	})
 	return result, err
+}
+
+// lockSubstitutionStaff serializes a substitution write with the assignment
+// writes of its substitute and regular staff while it still runs today or
+// later.
+func (s *Service) lockSubstitutionStaff(ctx context.Context, value domain.GroupSubstitution) error {
+	if value.EndDate < s.clock.Today() {
+		return nil
+	}
+	ids := []int64{value.SubstituteStaffID}
+	if value.RegularStaffID != nil {
+		ids = append(ids, *value.RegularStaffID)
+	}
+	return s.lockAssignmentStaff(ctx, ids)
 }
 
 func (s *Service) DeleteGroupSubstitution(ctx context.Context, id int64) error {

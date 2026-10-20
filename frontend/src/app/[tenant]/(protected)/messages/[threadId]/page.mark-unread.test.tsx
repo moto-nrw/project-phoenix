@@ -88,8 +88,8 @@ vi.mock("~/lib/hooks/use-chat-viewport-lock", () => ({
   useChatViewportLock: () => ({ current: null }),
 }));
 
-vi.mock("~/components/ui/back-button", () => ({
-  BackButton: () => null,
+vi.mock("~/components/ui/back-link", () => ({
+  BackLink: () => null,
 }));
 
 vi.mock("~/components/messaging/pickup-request-detail-modal", () => ({

@@ -404,6 +404,26 @@ describe("OperatorOrganizationDetailPage", () => {
     ).toBeInTheDocument();
   });
 
+  // Ein Ziel, ein Wortlaut: jeder Zustand führt mit demselben Link zur
+  // Trägerliste (#4364).
+  it("links back to the organizations list from the header and when not found", async () => {
+    setupSWR();
+    const { unmount } = await renderPage();
+
+    expect(
+      await screen.findByRole("link", { name: "Zurück zu den Trägern" }),
+    ).toHaveAttribute("href", "/operator/organizations");
+    unmount();
+
+    setupSWR({ orgs: [{ ...mockOrg, slug: "other-org" }] });
+    await renderPage();
+
+    await screen.findByText("Träger nicht gefunden.");
+    expect(
+      screen.getByRole("link", { name: "Zurück zu den Trägern" }),
+    ).toHaveAttribute("href", "/operator/organizations");
+  });
+
   // --- Create school flow ---
 
   it("opens create school modal", async () => {

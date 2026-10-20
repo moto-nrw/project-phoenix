@@ -48,15 +48,7 @@ func (r *Store) ActiveDuplicateChildren(ctx context.Context, phaseID int64, guar
 		q = q.Where(`req.id <> ?`, excludedRequestID)
 	}
 
-	keys := make([]enrollment.DuplicateChildKey, 0, len(children))
-	for _, c := range children {
-		fn := strings.ToLower(strings.TrimSpace(c.FirstName))
-		ln := strings.ToLower(strings.TrimSpace(c.LastName))
-		if fn == "" || ln == "" {
-			continue
-		}
-		keys = append(keys, enrollment.DuplicateChildKey{FirstName: fn, LastName: ln})
-	}
+	keys := normalizedDuplicateKeys(children)
 	if len(keys) == 0 {
 		return nil, nil
 	}
@@ -76,6 +68,21 @@ func (r *Store) ActiveDuplicateChildren(ctx context.Context, phaseID int64, guar
 		out = append(out, enrollment.DuplicateChildKey{FirstName: rr.FirstName, LastName: rr.LastName})
 	}
 	return out, nil
+}
+
+// normalizedDuplicateKeys lower-cases and trims the child names, dropping
+// children without both names.
+func normalizedDuplicateKeys(children []enrollment.DuplicateChildKey) []enrollment.DuplicateChildKey {
+	keys := make([]enrollment.DuplicateChildKey, 0, len(children))
+	for _, c := range children {
+		fn := strings.ToLower(strings.TrimSpace(c.FirstName))
+		ln := strings.ToLower(strings.TrimSpace(c.LastName))
+		if fn == "" || ln == "" {
+			continue
+		}
+		keys = append(keys, enrollment.DuplicateChildKey{FirstName: fn, LastName: ln})
+	}
+	return keys
 }
 
 func (r *Store) HasActiveRequestForMatchedStudent(ctx context.Context, phaseID, studentID, excludeRequestChildID int64) (bool, error) {

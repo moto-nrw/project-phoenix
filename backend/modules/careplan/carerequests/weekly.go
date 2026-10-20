@@ -67,51 +67,69 @@ func weeklyEntries(changes []WeekdayChange, current *WeeklyPlan) []DiffEntry {
 		if day.Weekday < 1 || day.Weekday > 5 {
 			continue
 		}
-		name := weekdayNames[day.Weekday]
-		if day.Scheduled != nil {
-			entry := DiffEntry{Label: name + " · Betreuungstag", New: careDayLabel(*day.Scheduled), Weekday: day.Weekday, CareKind: KindScheduled}
-			if current != nil {
-				entry.Old = "Keine Angaben"
-				if current.ArrivalDays[day.Weekday] || current.PickupTimes[day.Weekday] != "" {
-					entry.Old = careDayLabel(true)
-				} else if len(current.ArrivalDays) > 0 || len(current.PickupTimes) > 0 {
-					entry.Old = careDayLabel(false)
-				}
-			}
-			entries = append(entries, entry)
-		}
-		if day.Mode != "" {
-			entry := DiffEntry{Label: name + " · Abholart", New: departureLabel(day.Mode), Weekday: day.Weekday, CareKind: KindDepartureMode, NewMode: day.Mode}
-			if current != nil {
-				modes := current.DepartureModes[weekdayKeys[day.Weekday]]
-				if len(modes) == 0 {
-					modes = []string{"alone"}
-				}
-				entry.OldModes = append([]string(nil), modes...)
-				labels := make([]string, 0, len(modes))
-				for _, mode := range modes {
-					labels = append(labels, departureLabel(mode))
-				}
-				entry.Old = strings.Join(labels, " / ")
-			}
-			entries = append(entries, entry)
-		}
-		if day.Arrival != "" {
-			entry := DiffEntry{Label: name + " · Bringzeit", New: day.Arrival, Weekday: day.Weekday, CareKind: KindArrival}
-			if current != nil {
-				entry.Old = dashIfEmpty(current.ArrivalTimes[day.Weekday])
-			}
-			entries = append(entries, entry)
-		}
-		if day.Pickup != "" {
-			entry := DiffEntry{Label: name + " · Abholzeit", New: day.Pickup, Weekday: day.Weekday, CareKind: KindPickup}
-			if current != nil {
-				entry.Old = dashIfEmpty(current.PickupTimes[day.Weekday])
-			}
-			entries = append(entries, entry)
-		}
+		entries = append(entries, weekdayEntries(day, current)...)
 	}
 	return entries
+}
+
+// weekdayEntries renders the requested fields of one weekday in the fixed
+// order care day, departure mode, arrival, pickup.
+func weekdayEntries(day WeekdayChange, current *WeeklyPlan) []DiffEntry {
+	name := weekdayNames[day.Weekday]
+	var entries []DiffEntry
+	if day.Scheduled != nil {
+		entries = append(entries, scheduledEntry(name, day, current))
+	}
+	if day.Mode != "" {
+		entries = append(entries, departureModeEntry(name, day, current))
+	}
+	if day.Arrival != "" {
+		entry := DiffEntry{Label: name + " · Bringzeit", New: day.Arrival, Weekday: day.Weekday, CareKind: KindArrival}
+		if current != nil {
+			entry.Old = dashIfEmpty(current.ArrivalTimes[day.Weekday])
+		}
+		entries = append(entries, entry)
+	}
+	if day.Pickup != "" {
+		entry := DiffEntry{Label: name + " · Abholzeit", New: day.Pickup, Weekday: day.Weekday, CareKind: KindPickup}
+		if current != nil {
+			entry.Old = dashIfEmpty(current.PickupTimes[day.Weekday])
+		}
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
+func scheduledEntry(name string, day WeekdayChange, current *WeeklyPlan) DiffEntry {
+	entry := DiffEntry{Label: name + " · Betreuungstag", New: careDayLabel(*day.Scheduled), Weekday: day.Weekday, CareKind: KindScheduled}
+	if current == nil {
+		return entry
+	}
+	entry.Old = "Keine Angaben"
+	if current.ArrivalDays[day.Weekday] || current.PickupTimes[day.Weekday] != "" {
+		entry.Old = careDayLabel(true)
+	} else if len(current.ArrivalDays) > 0 || len(current.PickupTimes) > 0 {
+		entry.Old = careDayLabel(false)
+	}
+	return entry
+}
+
+func departureModeEntry(name string, day WeekdayChange, current *WeeklyPlan) DiffEntry {
+	entry := DiffEntry{Label: name + " · Abholart", New: departureLabel(day.Mode), Weekday: day.Weekday, CareKind: KindDepartureMode, NewMode: day.Mode}
+	if current == nil {
+		return entry
+	}
+	modes := current.DepartureModes[weekdayKeys[day.Weekday]]
+	if len(modes) == 0 {
+		modes = []string{"alone"}
+	}
+	entry.OldModes = append([]string(nil), modes...)
+	labels := make([]string, 0, len(modes))
+	for _, mode := range modes {
+		labels = append(labels, departureLabel(mode))
+	}
+	entry.Old = strings.Join(labels, " / ")
+	return entry
 }
 
 func careDayLabel(scheduled bool) string {

@@ -126,34 +126,50 @@ func (s *Store) RecordCareOfferingBookings(ctx context.Context, childID int64, b
 	if err != nil {
 		return err
 	}
-	key := fmt.Sprintf("care-offering-bookings:%d:%d", tenantID, childID)
-	if _, err := db.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended(?, 0))`, key).Exec(ctx); err != nil {
+	if err := lockCareOfferingBookings(ctx, db, tenantID, childID); err != nil {
 		return err
 	}
 	for _, booking := range bookings {
-		if booking.TenantID != 0 && booking.TenantID != tenantID {
-			return fmt.Errorf("care offering booking tenant mismatch")
-		}
-		row := &careOfferingBookingRow{TenantID: tenantID, RequestChildID: childID, CareOfferingID: booking.CareOfferingID,
-			ManualSelectedDays: booking.ManualSelectedDays, AutomaticSelectedDays: booking.AutomaticSelectedDays,
-			ValidFrom: bookingDateToStorage(booking.ValidFrom), ValidUntil: bookingDateToStorage(booking.ValidUntil)}
-		var existing careOfferingBookingRow
-		err := db.NewSelect().Model(&existing).
-			Where("tenant_id = ? AND request_child_id = ? AND care_offering_id = ?", tenantID, childID, row.CareOfferingID).
-			Where("(valid_from = ?::date OR (valid_from IS NULL AND ?::date IS NULL))", row.ValidFrom, row.ValidFrom).
-			Where("(valid_until = ?::date OR (valid_until IS NULL AND ?::date IS NULL))", row.ValidUntil, row.ValidUntil).Scan(ctx)
-		if err == nil {
-			if !slices.Equal(existing.ManualSelectedDays, row.ManualSelectedDays) || !slices.Equal(existing.AutomaticSelectedDays, row.AutomaticSelectedDays) {
-				return careplan.ErrCareOfferingBookingConflict
-			}
-			continue
-		}
-		if !errors.Is(err, sql.ErrNoRows) {
+		if err := recordCareOfferingBooking(ctx, db, tenantID, childID, booking); err != nil {
 			return err
 		}
-		if _, err := db.NewInsert().Model(row).Exec(ctx); err != nil {
-			return fmt.Errorf("record effective care booking: %w", err)
+	}
+	return nil
+}
+
+// lockCareOfferingBookings serializes booking writes for one request child
+// within the surrounding transaction.
+func lockCareOfferingBookings(ctx context.Context, db bun.IDB, tenantID, childID int64) error {
+	key := fmt.Sprintf("care-offering-bookings:%d:%d", tenantID, childID)
+	_, err := db.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended(?, 0))`, key).Exec(ctx)
+	return err
+}
+
+// recordCareOfferingBooking inserts one booking unless an identical row for
+// the same offering and validity window exists; a differing row conflicts.
+func recordCareOfferingBooking(ctx context.Context, db bun.IDB, tenantID, childID int64, booking careplan.CareOfferingBooking) error {
+	if booking.TenantID != 0 && booking.TenantID != tenantID {
+		return fmt.Errorf("care offering booking tenant mismatch")
+	}
+	row := &careOfferingBookingRow{TenantID: tenantID, RequestChildID: childID, CareOfferingID: booking.CareOfferingID,
+		ManualSelectedDays: booking.ManualSelectedDays, AutomaticSelectedDays: booking.AutomaticSelectedDays,
+		ValidFrom: bookingDateToStorage(booking.ValidFrom), ValidUntil: bookingDateToStorage(booking.ValidUntil)}
+	var existing careOfferingBookingRow
+	err := db.NewSelect().Model(&existing).
+		Where("tenant_id = ? AND request_child_id = ? AND care_offering_id = ?", tenantID, childID, row.CareOfferingID).
+		Where("(valid_from = ?::date OR (valid_from IS NULL AND ?::date IS NULL))", row.ValidFrom, row.ValidFrom).
+		Where("(valid_until = ?::date OR (valid_until IS NULL AND ?::date IS NULL))", row.ValidUntil, row.ValidUntil).Scan(ctx)
+	if err == nil {
+		if !slices.Equal(existing.ManualSelectedDays, row.ManualSelectedDays) || !slices.Equal(existing.AutomaticSelectedDays, row.AutomaticSelectedDays) {
+			return careplan.ErrCareOfferingBookingConflict
 		}
+		return nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if _, err := db.NewInsert().Model(row).Exec(ctx); err != nil {
+		return fmt.Errorf("record effective care booking: %w", err)
 	}
 	return nil
 }
@@ -171,8 +187,7 @@ func (s *Store) replaceCareOfferingBookings(ctx context.Context, childID int64, 
 	if err != nil {
 		return err
 	}
-	key := fmt.Sprintf("care-offering-bookings:%d:%d", tenantID, childID)
-	if _, err := db.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended(?, 0))`, key).Exec(ctx); err != nil {
+	if err := lockCareOfferingBookings(ctx, db, tenantID, childID); err != nil {
 		return err
 	}
 	var future []careOfferingBookingRow
@@ -183,15 +198,7 @@ func (s *Store) replaceCareOfferingBookings(ctx context.Context, childID int64, 
 	if err := futureQuery.Scan(ctx); err != nil {
 		return err
 	}
-	var retained []int64
-	for _, row := range future {
-		for _, booking := range bookings {
-			if row.CareOfferingID == booking.CareOfferingID && sameBookingDate(row.ValidFrom, booking.ValidFrom) &&
-				sameBookingDate(row.ValidUntil, booking.ValidUntil) && slices.Equal(row.ManualSelectedDays, booking.ManualSelectedDays) && slices.Equal(row.AutomaticSelectedDays, booking.AutomaticSelectedDays) {
-				retained = append(retained, row.ID)
-			}
-		}
-	}
+	retained := retainedCareOfferingBookingIDs(future, bookings)
 	query := db.NewDelete().Model((*careOfferingBookingRow)(nil)).
 		Where("tenant_id = ? AND request_child_id = ?", tenantID, childID)
 	if effectiveFrom != nil {
@@ -204,15 +211,43 @@ func (s *Store) replaceCareOfferingBookings(ctx context.Context, childID int64, 
 		return fmt.Errorf("delete superseded care bookings: %w", err)
 	}
 	if effectiveFrom != nil {
-		if _, err := db.NewUpdate().Model((*careOfferingBookingRow)(nil)).
-			Set("valid_until = ?", calendarDate(*effectiveFrom)).Set("updated_at = CURRENT_TIMESTAMP").
-			Where("tenant_id = ? AND request_child_id = ?", tenantID, childID).
-			Where("valid_from IS NULL OR valid_from < ?", calendarDate(*effectiveFrom)).
-			Where("valid_until IS NULL OR valid_until > ?", calendarDate(*effectiveFrom)).Exec(ctx); err != nil {
-			return fmt.Errorf("close current care bookings: %w", err)
+		if err := closeCurrentCareOfferingBookings(ctx, db, tenantID, childID, *effectiveFrom); err != nil {
+			return err
 		}
 	}
 	return s.RecordCareOfferingBookings(ctx, childID, bookings)
+}
+
+// retainedCareOfferingBookingIDs returns the IDs of stored rows that match a
+// requested booking exactly, so the replacement keeps them in place.
+func retainedCareOfferingBookingIDs(stored []careOfferingBookingRow, bookings []careplan.CareOfferingBooking) []int64 {
+	var retained []int64
+	for _, row := range stored {
+		for _, booking := range bookings {
+			if sameCareOfferingBooking(row, booking) {
+				retained = append(retained, row.ID)
+			}
+		}
+	}
+	return retained
+}
+
+func sameCareOfferingBooking(row careOfferingBookingRow, booking careplan.CareOfferingBooking) bool {
+	return row.CareOfferingID == booking.CareOfferingID && sameBookingDate(row.ValidFrom, booking.ValidFrom) &&
+		sameBookingDate(row.ValidUntil, booking.ValidUntil) && slices.Equal(row.ManualSelectedDays, booking.ManualSelectedDays) && slices.Equal(row.AutomaticSelectedDays, booking.AutomaticSelectedDays)
+}
+
+// closeCurrentCareOfferingBookings ends every booking still valid on
+// effectiveFrom that started before it.
+func closeCurrentCareOfferingBookings(ctx context.Context, db bun.IDB, tenantID, childID int64, effectiveFrom careplan.Date) error {
+	if _, err := db.NewUpdate().Model((*careOfferingBookingRow)(nil)).
+		Set("valid_until = ?", calendarDate(effectiveFrom)).Set("updated_at = CURRENT_TIMESTAMP").
+		Where("tenant_id = ? AND request_child_id = ?", tenantID, childID).
+		Where("valid_from IS NULL OR valid_from < ?", calendarDate(effectiveFrom)).
+		Where("valid_until IS NULL OR valid_until > ?", calendarDate(effectiveFrom)).Exec(ctx); err != nil {
+		return fmt.Errorf("close current care bookings: %w", err)
+	}
+	return nil
 }
 
 func sameBookingDate(stored *calendarDate, requested *careplan.Date) bool {

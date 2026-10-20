@@ -72,4 +72,30 @@ describe("EntityHeaderCard", () => {
       container.querySelector("[data-moto-duotone-tone]"),
     ).not.toBeInTheDocument();
   });
+
+  it("puts the back link above the title, named after its target", () => {
+    render(
+      <EntityHeaderCard
+        title="Grundschule am Berg"
+        active
+        back={{
+          href: "/operator/organizations/traeger",
+          label: "Zurück zum Träger",
+        }}
+      />,
+    );
+
+    const link = screen.getByRole("link", { name: "Zurück zum Träger" });
+    expect(link).toHaveAttribute("href", "/operator/organizations/traeger");
+    expect(
+      link.compareDocumentPosition(screen.getByRole("heading", { level: 1 })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("renders no back link without a target", () => {
+    render(<EntityHeaderCard title="Org" active />);
+
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
 });

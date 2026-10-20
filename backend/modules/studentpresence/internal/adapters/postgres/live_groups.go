@@ -23,42 +23,8 @@ func (s *Store) QueryLiveGroups(ctx context.Context, filter ports.LiveGroupFilte
 	query := db.NewSelect().Table("active.groups").
 		Column("id", "tenant_id", "created_at", "updated_at", "start_time", "last_activity", "end_time", "timeout_minutes", "group_id", "device_id", "room_id").
 		Where("tenant_id = ?", tenantID)
-	if filter.IDs != nil {
-		query = query.Where("id IN (?)", bun.List(filter.IDs))
-	}
-	if filter.ActivityGroupIDs != nil {
-		query = query.Where("group_id IN (?)", bun.List(filter.ActivityGroupIDs))
-	}
-	if filter.RoomID != nil {
-		query = query.Where("room_id = ?", *filter.RoomID)
-	}
-	if filter.DeviceID != nil {
-		query = query.Where("device_id = ?", *filter.DeviceID)
-	}
-	if filter.DeviceManagedOnly {
-		query = query.Where("device_id IS NOT NULL")
-	}
-	if filter.LastActivityBefore != nil {
-		query = query.Where("last_activity < ?", *filter.LastActivityBefore)
-	}
-	if filter.EndedOnly {
-		query = query.Where("end_time IS NOT NULL")
-	}
-	if filter.Limit > 0 {
-		query = query.Limit(int64(filter.Limit))
-	}
-	if filter.Offset > 0 {
-		query = query.Offset(int64(filter.Offset))
-	}
-	if filter.OpenOnly {
-		query = query.Where("end_time IS NULL")
-	}
-	if filter.From != nil {
-		query = query.Where("(end_time IS NULL OR end_time >= ?)", *filter.From)
-	}
-	if filter.Until != nil {
-		query = query.Where("start_time <= ?", *filter.Until)
-	}
+	query = applyLiveGroupScopeFilter(query, filter)
+	query = applyLiveGroupWindowFilter(query, filter)
 	err = query.Order("id").Scan(ctx, &rows)
 	stats := ports.Stats{Queries: 1, Rows: int64(len(rows)), StatementDuration: time.Since(started)}
 	if err != nil {
@@ -103,39 +69,8 @@ func (s *Store) QueryGroupSupervisions(ctx context.Context, filter ports.GroupSu
 	query := db.NewSelect().Table("active.group_supervisors").
 		Column("id", "tenant_id", "group_id", "staff_id", "created_at", "updated_at", "role", "start_date", "end_date").
 		Where("tenant_id = ?", tenantID)
-	if filter.IDs != nil {
-		query = query.Where("id IN (?)", bun.List(filter.IDs))
-	}
-	if filter.GroupIDs != nil {
-		query = query.Where("group_id IN (?)", bun.List(filter.GroupIDs))
-	}
-	if filter.StaffIDs != nil {
-		query = query.Where("staff_id IN (?)", bun.List(filter.StaffIDs))
-	}
-	if filter.EndedBy != nil {
-		query = query.Where("end_date <= ?", *filter.EndedBy)
-	}
-	if filter.Limit > 0 {
-		query = query.Limit(int64(filter.Limit))
-	}
-	if filter.Offset > 0 {
-		query = query.Offset(int64(filter.Offset))
-	}
-	if filter.StaffID != nil {
-		query = query.Where("staff_id = ?", *filter.StaffID)
-	}
-	if filter.OpenOnly {
-		query = query.Where("end_date IS NULL")
-	}
-	if filter.StartedBefore != nil {
-		query = query.Where("start_date < ?", *filter.StartedBefore)
-	}
-	if filter.ActiveOn != nil {
-		query = query.Where("start_date <= ?", *filter.ActiveOn).Where("(end_date IS NULL OR end_date > ?)", *filter.ActiveOn)
-	}
-	if filter.ForUpdate {
-		query = query.For("UPDATE")
-	}
+	query = applyGroupSupervisionScopeFilter(query, filter)
+	query = applyGroupSupervisionStateFilter(query, filter)
 	err = query.Order("id").Scan(ctx, &result)
 	stats := ports.Stats{Queries: 1, Rows: int64(len(result)), StatementDuration: time.Since(started)}
 	if err != nil {
@@ -181,4 +116,97 @@ func (s *Store) SupervisedRoomsOn(ctx context.Context, date ports.Date) ([]ports
 		return nil, stats, fmt.Errorf("supervised rooms: %w", err)
 	}
 	return result, stats, nil
+}
+
+// applyLiveGroupScopeFilter narrows the live group listing to the requested
+// sessions, activity groups, rooms and devices, in the filter's clause order.
+func applyLiveGroupScopeFilter(query *bun.SelectQuery, filter ports.LiveGroupFilter) *bun.SelectQuery {
+	if filter.IDs != nil {
+		query = query.Where("id IN (?)", bun.List(filter.IDs))
+	}
+	if filter.ActivityGroupIDs != nil {
+		query = query.Where("group_id IN (?)", bun.List(filter.ActivityGroupIDs))
+	}
+	if filter.RoomID != nil {
+		query = query.Where("room_id = ?", *filter.RoomID)
+	}
+	if filter.DeviceID != nil {
+		query = query.Where("device_id = ?", *filter.DeviceID)
+	}
+	if filter.DeviceManagedOnly {
+		query = query.Where("device_id IS NOT NULL")
+	}
+	if filter.LastActivityBefore != nil {
+		query = query.Where("last_activity < ?", *filter.LastActivityBefore)
+	}
+	if filter.EndedOnly {
+		query = query.Where("end_time IS NOT NULL")
+	}
+	return query
+}
+
+// applyLiveGroupWindowFilter applies paging and the open/time-window clauses
+// of the live group listing.
+func applyLiveGroupWindowFilter(query *bun.SelectQuery, filter ports.LiveGroupFilter) *bun.SelectQuery {
+	if filter.Limit > 0 {
+		query = query.Limit(int64(filter.Limit))
+	}
+	if filter.Offset > 0 {
+		query = query.Offset(int64(filter.Offset))
+	}
+	if filter.OpenOnly {
+		query = query.Where("end_time IS NULL")
+	}
+	if filter.From != nil {
+		query = query.Where("(end_time IS NULL OR end_time >= ?)", *filter.From)
+	}
+	if filter.Until != nil {
+		query = query.Where("start_time <= ?", *filter.Until)
+	}
+	return query
+}
+
+// applyGroupSupervisionScopeFilter narrows the supervision listing to the
+// requested rows, groups and staff, and applies paging.
+func applyGroupSupervisionScopeFilter(query *bun.SelectQuery, filter ports.GroupSupervisionFilter) *bun.SelectQuery {
+	if filter.IDs != nil {
+		query = query.Where("id IN (?)", bun.List(filter.IDs))
+	}
+	if filter.GroupIDs != nil {
+		query = query.Where("group_id IN (?)", bun.List(filter.GroupIDs))
+	}
+	if filter.StaffIDs != nil {
+		query = query.Where("staff_id IN (?)", bun.List(filter.StaffIDs))
+	}
+	if filter.EndedBy != nil {
+		query = query.Where("end_date <= ?", *filter.EndedBy)
+	}
+	if filter.Limit > 0 {
+		query = query.Limit(int64(filter.Limit))
+	}
+	if filter.Offset > 0 {
+		query = query.Offset(int64(filter.Offset))
+	}
+	return query
+}
+
+// applyGroupSupervisionStateFilter applies the staff, open/active-day and
+// locking clauses of the supervision listing.
+func applyGroupSupervisionStateFilter(query *bun.SelectQuery, filter ports.GroupSupervisionFilter) *bun.SelectQuery {
+	if filter.StaffID != nil {
+		query = query.Where("staff_id = ?", *filter.StaffID)
+	}
+	if filter.OpenOnly {
+		query = query.Where("end_date IS NULL")
+	}
+	if filter.StartedBefore != nil {
+		query = query.Where("start_date < ?", *filter.StartedBefore)
+	}
+	if filter.ActiveOn != nil {
+		query = query.Where("start_date <= ?", *filter.ActiveOn).Where("(end_date IS NULL OR end_date > ?)", *filter.ActiveOn)
+	}
+	if filter.ForUpdate {
+		query = query.For("UPDATE")
+	}
+	return query
 }

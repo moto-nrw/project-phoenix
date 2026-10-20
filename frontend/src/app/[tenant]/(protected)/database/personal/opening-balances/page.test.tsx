@@ -134,6 +134,14 @@ describe("OpeningBalanceImportPage", () => {
     cleanup();
   });
 
+  it("führt zurück zum Personal", () => {
+    render(<OpeningBalanceImportPage />);
+
+    expect(
+      screen.getByRole("link", { name: "Zurück zum Personal" }),
+    ).toHaveAttribute("href", expect.stringMatching(/\/database\/personal$/));
+  });
+
   it("rendert die vier Schritte der Seite", () => {
     render(<OpeningBalanceImportPage />);
 

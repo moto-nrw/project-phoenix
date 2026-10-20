@@ -82,5 +82,5 @@ func TestEnsureSchoolIdentityReportsAnUnknownTagAsTheRetainedSentinel(t *testing
 		return ensureErr
 	})
 	require.ErrorIs(t, err, identityaccess.ErrSchoolIdentityTagUnknown)
-	require.Contains(t, err.Error(), "Der angegebene Transponder ist an dieser Schule nicht bekannt")
+	require.Contains(t, err.Error(), "der angegebene Transponder ist an dieser Schule nicht bekannt")
 }

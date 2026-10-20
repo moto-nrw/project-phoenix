@@ -33,7 +33,7 @@ func (req *passwordResetConfirmRequest) Bind(_ *http.Request) error {
 		validation.Field(&req.NewPassword, validation.Required, validation.Length(8, 0)),
 		validation.Field(&req.ConfirmPassword, validation.Required, validation.By(func(_ interface{}) error {
 			if req.NewPassword != req.ConfirmPassword {
-				return errors.New("Passwörter stimmen nicht überein") //nolint:staticcheck // ST1005: user-facing German message
+				return errors.New("passwörter stimmen nicht überein")
 			}
 			return nil
 		})),
@@ -73,7 +73,7 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 	if err := rs.Resets.Reset(r.Context(), req.Token, req.NewPassword); err != nil {
 		switch {
 		case rs.Resets.LinkUnusable(err):
-			common.RenderError(w, r, common.ErrorGone(errors.New("Der Link ist ungültig oder abgelaufen"))) //nolint:staticcheck // ST1005: user-facing German message
+			common.RenderError(w, r, common.ErrorGone(errors.New("der Link ist ungültig oder abgelaufen")))
 			return
 		case rs.Resets.TooWeak(err):
 			common.RenderError(w, r, common.ErrorInvalidRequest(ErrPasswordTooWeak))

@@ -18,7 +18,7 @@ const (
 
 // ErrDepartureExceptionNotCareDay refuses a day override where the school
 // does not run care. Such a value would have no schedule view to apply to.
-var ErrDepartureExceptionNotCareDay = errors.New("Die Abholart kann nur an einem Betreuungstag geändert werden.") //nolint:staticcheck // ST1005: user-facing German message
+var ErrDepartureExceptionNotCareDay = errors.New("die Abholart kann nur an einem Betreuungstag geändert werden")
 
 // DepartureException is the Abholart of one child on one day. It overrides
 // the weekly plan for that day only and is independent of the Gehzeit, which

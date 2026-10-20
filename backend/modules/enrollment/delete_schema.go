@@ -30,32 +30,12 @@ func (m *Module) DeleteUnusedSchema(ctx context.Context, id int64) (string, erro
 		if err != nil {
 			return fmt.Errorf("load source schema: %w", err)
 		}
-		schemas, err := m.engine.SchemaVersions(txCtx)
+		ids, err := m.schemaLineageIDs(txCtx, source.Name)
 		if err != nil {
-			return fmt.Errorf("list schema versions: %w", err)
+			return err
 		}
-		ids := make([]int64, 0)
-		for _, schema := range schemas {
-			if schema.Name == source.Name {
-				ids = append(ids, schema.ID)
-			}
-		}
-		if len(ids) == 0 {
-			return ErrFormSchemaNotFound
-		}
-		count, err := m.engine.CountPhaseSchemaReferences(txCtx, ids)
-		if err != nil {
-			return fmt.Errorf("check schema phase references: %w", err)
-		}
-		if count > 0 {
-			return ErrFormSchemaHasPhases
-		}
-		count, err = m.engine.CountRequestSchemaReferences(txCtx, ids)
-		if err != nil {
-			return fmt.Errorf("check schema request references: %w", err)
-		}
-		if count > 0 {
-			return ErrFormSchemaHasRequests
+		if err := m.ensureLineageUnreferenced(txCtx, ids); err != nil {
+			return err
 		}
 		if err := m.engine.DeleteSchemaLineage(txCtx, source.Name); err != nil {
 			return fmt.Errorf("delete schema: %w", err)
@@ -67,4 +47,43 @@ func (m *Module) DeleteUnusedSchema(ctx context.Context, id int64) (string, erro
 		return "", err
 	}
 	return name, nil
+}
+
+// schemaLineageIDs returns the IDs of every version of the named lineage, or
+// ErrFormSchemaNotFound when it holds none.
+func (m *Module) schemaLineageIDs(ctx context.Context, name string) ([]int64, error) {
+	schemas, err := m.engine.SchemaVersions(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list schema versions: %w", err)
+	}
+	ids := make([]int64, 0)
+	for _, schema := range schemas {
+		if schema.Name == name {
+			ids = append(ids, schema.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil, ErrFormSchemaNotFound
+	}
+	return ids, nil
+}
+
+// ensureLineageUnreferenced refuses a lineage that a phase or a request
+// still references; phases are checked first.
+func (m *Module) ensureLineageUnreferenced(ctx context.Context, ids []int64) error {
+	count, err := m.engine.CountPhaseSchemaReferences(ctx, ids)
+	if err != nil {
+		return fmt.Errorf("check schema phase references: %w", err)
+	}
+	if count > 0 {
+		return ErrFormSchemaHasPhases
+	}
+	count, err = m.engine.CountRequestSchemaReferences(ctx, ids)
+	if err != nil {
+		return fmt.Errorf("check schema request references: %w", err)
+	}
+	if count > 0 {
+		return ErrFormSchemaHasRequests
+	}
+	return nil
 }

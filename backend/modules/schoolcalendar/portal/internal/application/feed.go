@@ -470,29 +470,11 @@ func staffCalendarClock(value string) (time.Time, error) {
 // owns the token. Unauthenticated: the token is the only credential, so an
 // unknown token is a plain 404.
 func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (string, string, error) {
-	if s.cfg.AccountRepo == nil {
-		return "", "", fmt.Errorf("%w: calendar feed not configured", ErrInvalidRequest)
-	}
-	if strings.TrimSpace(token) == "" {
-		return "", "", ErrNotFound
-	}
-	// Only the token's hash is stored, so hash the presented raw token before the
-	// lookup (matching how it was persisted at generation/rotation).
-	account, err := s.cfg.AccountRepo.FindByCalendarFeedToken(ctx, s.feedTokenHash(token))
+	accountID, err := s.parentFeedAccountID(ctx, token)
 	if err != nil {
 		return "", "", err
 	}
-	if account == nil {
-		return "", "", ErrNotFound
-	}
-	// The public feed bypasses normal parent auth — the token is the only
-	// credential. A deactivated account must lose feed access immediately, so
-	// treat an inactive account like an unknown token (plain 404, no leak).
-	if !account.IsActive() {
-		return "", "", ErrNotFound
-	}
-
-	children, err := s.parentChildren(ctx, account.ID)
+	children, err := s.parentChildren(ctx, accountID)
 	if err != nil {
 		return "", "", err
 	}
@@ -501,97 +483,144 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 
 	var events []CalendarEvent
 	for tenantID, tenantChildren := range groupChildrenByTenant(children) {
-		tenantID := tenantID
-		tenantChildren := tenantChildren
+		var tenantEvents []CalendarEvent
 		if err := s.cfg.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
-			guardianProfileIDs := distinctGuardianProfileIDs(tenantChildren)
-			studentIDs := distinctChildStudentIDs(tenantChildren)
-			appointments, err := s.listAppointmentsVisibleToGuardians(txCtx, guardianProfileIDs, studentIDs, toCalendarDate(from), toCalendarDate(to))
-			if err != nil {
-				return err
-			}
-			ids := make([]int64, 0, len(appointments))
-			for _, appointment := range appointments {
-				ids = append(ids, appointment.ID)
-			}
-			recurrences, err := s.cfg.Appointments.FindRecurrenceRules(txCtx, ids)
-			if err != nil {
-				return err
-			}
-			recurrenceByID := make(map[int64]*appointmentcap.RecurrenceRule, len(recurrences))
-			for _, recurrence := range recurrences {
-				recurrenceByID[recurrence.AppointmentID] = recurrence
-			}
-			// Cancelled single occurrences become EXDATEs so subscribers drop
-			// them from the RRULE expansion.
-			cancelledOverrides, err := s.cfg.Appointments.FindCancelledOccurrenceOverrides(txCtx, ids)
-			if err != nil {
-				return err
-			}
-			overridesByID := make(map[int64][]*appointmentcap.AppointmentOccurrenceOverride, len(cancelledOverrides))
-			for _, override := range cancelledOverrides {
-				overridesByID[override.AppointmentID] = append(overridesByID[override.AppointmentID], override)
-			}
-			// Emit each live appointment with its REAL (unclamped) recurrence — the
-			// window only decides inclusion, never the RRULE horizon (see
-			// appointmentICSEvent for why a moving UNTIL would freeze subscribers).
-			emittedIDs := make(map[int64]struct{}, len(appointments))
-			for _, appointment := range appointments {
-				recurrence := recurrenceByID[appointment.ID]
-				// A count-bounded recurring series (ends_on IS NULL, occurrence_count
-				// set) can slip through applyAppointmentWindow, which treats a NULL
-				// ends_on as open-ended, even when all its occurrences are already
-				// before the feed's lookback. Skip any recurring appointment that
-				// produces no occurrence overlapping the feed window. hasOccurrenceInWindow
-				// checks overlap within a bounded window instead of expanding every
-				// day since the (possibly years-old) series start on each poll.
-				if recurrence != nil && !hasOccurrenceInWindow(appointment, recurrence, from, to) {
-					continue
-				}
-				events = append(events, appointmentICSEvent(appointment, recurrence, overridesByID[appointment.ID]))
-				emittedIDs[appointment.ID] = struct{}{}
-			}
-
-			// Cancelled or deleted appointments are re-exported as durable
-			// STATUS:CANCELLED tombstones (retained by cancellation/deletion time,
-			// independent of the date lookback) so even a long-offline subscriber
-			// still receives the cancellation and purges the stale event. Skip any
-			// already emitted above (a recently-cancelled appointment still inside
-			// the date window) to avoid a duplicate UID in the feed.
-			tombstoneCutoff := s.today().AddDays(-feedTombstoneDays).BerlinMidnight()
-			tombstones, err := s.listGuardianCancellationTombstones(txCtx, guardianProfileIDs, studentIDs, tombstoneCutoff)
-			if err != nil {
-				return err
-			}
-			tombstoneIDs := make([]int64, 0, len(tombstones))
-			for _, appointment := range tombstones {
-				if _, done := emittedIDs[appointment.ID]; done {
-					continue
-				}
-				tombstoneIDs = append(tombstoneIDs, appointment.ID)
-			}
-			tombstoneRecurrences, err := s.cfg.Appointments.FindRecurrenceRules(txCtx, tombstoneIDs)
-			if err != nil {
-				return err
-			}
-			tombstoneRecurrenceByID := make(map[int64]*appointmentcap.RecurrenceRule, len(tombstoneRecurrences))
-			for _, recurrence := range tombstoneRecurrences {
-				tombstoneRecurrenceByID[recurrence.AppointmentID] = recurrence
-			}
-			for _, appointment := range tombstones {
-				if _, done := emittedIDs[appointment.ID]; done {
-					continue
-				}
-				events = append(events, appointmentICSEvent(appointment, tombstoneRecurrenceByID[appointment.ID], nil))
-			}
-			return nil
+			var err error
+			tenantEvents, err = s.parentFeedTenantEvents(txCtx, tenantChildren, from, to)
+			return err
 		}); err != nil {
 			return "", "", err
 		}
+		events = append(events, tenantEvents...)
 	}
 
 	content, err := s.renderCalendar(ctx, "moto Termine", events)
 	return "moto-kalender.ics", content, err
+}
+
+// parentFeedAccountID resolves the active parent account a raw feed token
+// belongs to. An unknown token and an inactive account both read as not found.
+func (s *service) parentFeedAccountID(ctx context.Context, token string) (int64, error) {
+	if s.cfg.AccountRepo == nil {
+		return 0, fmt.Errorf("%w: calendar feed not configured", ErrInvalidRequest)
+	}
+	if strings.TrimSpace(token) == "" {
+		return 0, ErrNotFound
+	}
+	// Only the token's hash is stored, so hash the presented raw token before the
+	// lookup (matching how it was persisted at generation/rotation).
+	account, err := s.cfg.AccountRepo.FindByCalendarFeedToken(ctx, s.feedTokenHash(token))
+	if err != nil {
+		return 0, err
+	}
+	if account == nil {
+		return 0, ErrNotFound
+	}
+	// The public feed bypasses normal parent auth — the token is the only
+	// credential. A deactivated account must lose feed access immediately, so
+	// treat an inactive account like an unknown token (plain 404, no leak).
+	if !account.IsActive() {
+		return 0, ErrNotFound
+	}
+	return account.ID, nil
+}
+
+// parentFeedTenantEvents exports one tenant's appointments for the parent's
+// feed: the live appointments in the window, then the cancellation tombstones
+// not already emitted.
+func (s *service) parentFeedTenantEvents(ctx context.Context, tenantChildren []*ports.ChildSummary, from, to appointmentcap.Date) ([]CalendarEvent, error) {
+	guardianProfileIDs := distinctGuardianProfileIDs(tenantChildren)
+	studentIDs := distinctChildStudentIDs(tenantChildren)
+	appointments, err := s.listAppointmentsVisibleToGuardians(ctx, guardianProfileIDs, studentIDs, toCalendarDate(from), toCalendarDate(to))
+	if err != nil {
+		return nil, err
+	}
+	events, emittedIDs, err := s.parentFeedAppointments(ctx, appointments, from, to)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cancelled or deleted appointments are re-exported as durable
+	// STATUS:CANCELLED tombstones (retained by cancellation/deletion time,
+	// independent of the date lookback) so even a long-offline subscriber
+	// still receives the cancellation and purges the stale event. Skip any
+	// already emitted above (a recently-cancelled appointment still inside
+	// the date window) to avoid a duplicate UID in the feed.
+	tombstoneCutoff := s.today().AddDays(-feedTombstoneDays).BerlinMidnight()
+	tombstones, err := s.listGuardianCancellationTombstones(ctx, guardianProfileIDs, studentIDs, tombstoneCutoff)
+	if err != nil {
+		return nil, err
+	}
+	tombstoneEvents, err := s.parentFeedTombstones(ctx, tombstones, emittedIDs)
+	if err != nil {
+		return nil, err
+	}
+	return append(events, tombstoneEvents...), nil
+}
+
+// parentFeedAppointments renders the live appointments that have an
+// occurrence in the feed window and reports which appointment IDs it emitted.
+func (s *service) parentFeedAppointments(ctx context.Context, appointments []*appointmentcap.Appointment, from, to appointmentcap.Date) ([]CalendarEvent, map[int64]struct{}, error) {
+	ids := appointmentIDs(appointments)
+	recurrenceByID, err := s.recurrenceRulesByAppointment(ctx, ids)
+	if err != nil {
+		return nil, nil, err
+	}
+	// Cancelled single occurrences become EXDATEs so subscribers drop
+	// them from the RRULE expansion.
+	cancelledOverrides, err := s.cfg.Appointments.FindCancelledOccurrenceOverrides(ctx, ids)
+	if err != nil {
+		return nil, nil, err
+	}
+	overridesByID := make(map[int64][]*appointmentcap.AppointmentOccurrenceOverride, len(cancelledOverrides))
+	for _, override := range cancelledOverrides {
+		overridesByID[override.AppointmentID] = append(overridesByID[override.AppointmentID], override)
+	}
+	// Emit each live appointment with its REAL (unclamped) recurrence — the
+	// window only decides inclusion, never the RRULE horizon (see
+	// appointmentICSEvent for why a moving UNTIL would freeze subscribers).
+	var events []CalendarEvent
+	emittedIDs := make(map[int64]struct{}, len(appointments))
+	for _, appointment := range appointments {
+		recurrence := recurrenceByID[appointment.ID]
+		// A count-bounded recurring series (ends_on IS NULL, occurrence_count
+		// set) can slip through applyAppointmentWindow, which treats a NULL
+		// ends_on as open-ended, even when all its occurrences are already
+		// before the feed's lookback. Skip any recurring appointment that
+		// produces no occurrence overlapping the feed window. hasOccurrenceInWindow
+		// checks overlap within a bounded window instead of expanding every
+		// day since the (possibly years-old) series start on each poll.
+		if recurrence != nil && !hasOccurrenceInWindow(appointment, recurrence, from, to) {
+			continue
+		}
+		events = append(events, appointmentICSEvent(appointment, recurrence, overridesByID[appointment.ID]))
+		emittedIDs[appointment.ID] = struct{}{}
+	}
+	return events, emittedIDs, nil
+}
+
+// parentFeedTombstones renders the cancellation tombstones that were not
+// already emitted as live appointments.
+func (s *service) parentFeedTombstones(ctx context.Context, tombstones []*appointmentcap.Appointment, emittedIDs map[int64]struct{}) ([]CalendarEvent, error) {
+	tombstoneIDs := make([]int64, 0, len(tombstones))
+	for _, appointment := range tombstones {
+		if _, done := emittedIDs[appointment.ID]; done {
+			continue
+		}
+		tombstoneIDs = append(tombstoneIDs, appointment.ID)
+	}
+	recurrenceByID, err := s.recurrenceRulesByAppointment(ctx, tombstoneIDs)
+	if err != nil {
+		return nil, err
+	}
+	var events []CalendarEvent
+	for _, appointment := range tombstones {
+		if _, done := emittedIDs[appointment.ID]; done {
+			continue
+		}
+		events = append(events, appointmentICSEvent(appointment, recurrenceByID[appointment.ID], nil))
+	}
+	return events, nil
 }
 
 func feedURLs(portalURL, token string) (string, string) {
