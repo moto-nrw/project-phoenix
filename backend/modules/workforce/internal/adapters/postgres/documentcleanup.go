@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 func (s *Store) EnqueueDocumentCleanup(ctx context.Context, staffID int64, now time.Time) error {
@@ -17,7 +17,7 @@ func (s *Store) EnqueueDocumentCleanup(ctx context.Context, staffID int64, now t
 	return err
 }
 
-func (s *Store) ClaimDocumentCleanup(ctx context.Context, limit int, now time.Time) ([]domain.DocumentCleanupClaim, error) {
+func (s *Store) ClaimDocumentCleanup(ctx context.Context, limit int, now time.Time) ([]workforce.DocumentCleanupClaim, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, err
@@ -40,14 +40,14 @@ func (s *Store) ClaimDocumentCleanup(ctx context.Context, limit int, now time.Ti
 	if err != nil {
 		return nil, err
 	}
-	result := make([]domain.DocumentCleanupClaim, 0, len(rows))
+	result := make([]workforce.DocumentCleanupClaim, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, domain.DocumentCleanupClaim{StaffID: row.StaffID, Token: row.LeaseToken, Attempts: row.Attempts})
+		result = append(result, workforce.DocumentCleanupClaim{StaffID: row.StaffID, Token: row.LeaseToken, Attempts: row.Attempts})
 	}
 	return result, nil
 }
 
-func (s *Store) FinishDocumentCleanup(ctx context.Context, claim domain.DocumentCleanupClaim, success bool, now time.Time) (bool, error) {
+func (s *Store) FinishDocumentCleanup(ctx context.Context, claim workforce.DocumentCleanupClaim, success bool, now time.Time) (bool, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return false, err
@@ -67,12 +67,12 @@ func (s *Store) FinishDocumentCleanup(ctx context.Context, claim domain.Document
 	return rows == 1, err
 }
 
-func (s *Store) DocumentCleanupBacklog(ctx context.Context, now time.Time) (domain.DocumentCleanupBacklog, error) {
+func (s *Store) DocumentCleanupBacklog(ctx context.Context, now time.Time) (workforce.DocumentCleanupBacklog, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.DocumentCleanupBacklog{}, err
+		return workforce.DocumentCleanupBacklog{}, err
 	}
-	var result domain.DocumentCleanupBacklog
+	var result workforce.DocumentCleanupBacklog
 	err = db.NewRaw(`SELECT count(*) AS pending, COALESCE(EXTRACT(EPOCH FROM (?::timestamptz - min(created_at))), 0) AS oldest_age_seconds
 		FROM users.staff_offboarding_cleanup WHERE tenant_id = ? AND completed_at IS NULL`, now, scope.TenantID).Scan(ctx, &result)
 	return result, err

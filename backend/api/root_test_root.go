@@ -96,7 +96,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 		membership       schoolMembershipModule.Owner
 		bookings         *enrollmentOwner.BookingProjection
 		calendar         schoolcalendar.Days
-		workTime         *workforceCompose.WorkTime
+		workTime         workforceCompose.WorkTime
 		people           owners.PeopleRows
 		peopleIdentity   *identityaccess.Module
 		guardian         peoplePorts.GuardianService

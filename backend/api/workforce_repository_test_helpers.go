@@ -17,7 +17,7 @@ import (
 // Timetable rows and the people from the timetable fixtures beside it.
 type WorkforceTestRepositories struct {
 	WorkSessionTestRepositories
-	StaffAbsenceType                *workforceCompose.WorkTime
+	StaffAbsenceType                workforceCompose.WorkTime
 	StaffAbsenceTypeAllowance       *workforceCompose.StaffAbsenceTypeAllowanceRepository
 	StaffAbsenceTypeAllowanceChange *workforceCompose.StaffAbsenceTypeAllowanceChangeRepository
 	StaffMonthSnapshot              workforceCapability.MonthSnapshots

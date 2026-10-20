@@ -102,7 +102,7 @@ func BuildSchoolCalendarRecords(db transactionruntime.Database, observe func(sch
 
 // BuildServeWorkforce composes Workforce over School Membership; a
 // Sonderarbeitszeit never sets a target on a statutory holiday.
-func BuildServeWorkforce(db transactionruntime.Database, membership schoolmembership.Capability, calendar schoolcalendar.Days) (*workforceCompose.WorkTime, error) {
+func BuildServeWorkforce(db transactionruntime.Database, membership schoolmembership.Capability, calendar schoolcalendar.Days) (workforceCompose.WorkTime, error) {
 	return workforceCompose.New(workforceCompose.Dependencies{
 		LockStaffAssignment: WorkforceStaffAssignmentLock(membership),
 		DB:                  db.Pool(),
