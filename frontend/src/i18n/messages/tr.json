@@ -276,7 +276,7 @@
     "changes": "Sonradan değişiklikler",
     "closed": "OGS kapalı",
     "open": "Açık",
-    "openDeadline": "{date} tarihine kadar",
+    "deadline": "Son tarih",
     "ordered": "Sipariş edildi",
     "confirmed": "Yemek firması onayladı",
     "caption": "Bu haftanın siparişi",

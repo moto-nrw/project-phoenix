@@ -121,7 +121,7 @@ describe("CatererSchoolOrders", () => {
     } as never);
 
     expect(await screen.findAllByText("Offen")).not.toHaveLength(0);
-    expect(screen.getAllByText("bis Do., 10.09., 09:00")).not.toHaveLength(0);
+    expect(screen.getAllByText("Do., 10.09., 09:00")).not.toHaveLength(0);
     expect(
       screen.queryByRole("button", { name: "Erhalten bestätigen" }),
     ).not.toBeInTheDocument();

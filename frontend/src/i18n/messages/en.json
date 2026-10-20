@@ -276,7 +276,7 @@
     "changes": "Late changes",
     "closed": "OGS closed",
     "open": "Open",
-    "openDeadline": "until {date}",
+    "deadline": "Deadline",
     "ordered": "Ordered",
     "confirmed": "Confirmed by the caterer",
     "caption": "Order of this week",

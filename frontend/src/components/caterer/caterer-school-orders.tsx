@@ -26,17 +26,6 @@ function dayLabel(date: string): string {
   });
 }
 
-// An open day: the deadline wraps as text beside the badge, so it fits a
-// phone line too.
-function OpenUntil({ deadline }: Readonly<{ deadline: string }>) {
-  return (
-    <span className="inline-flex flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5">
-      <StatusBadge label="Offen" tone="gray" />
-      <span className="text-xs text-gray-600">bis {deadline}</span>
-    </span>
-  );
-}
-
 function dateTime(instant: string): string {
   return new Date(instant).toLocaleString("de-DE", {
     weekday: "short",
@@ -137,14 +126,22 @@ export function CatererSchoolOrders({
           ) : day.status === "unordered" ? (
             <StatusBadge label="Nicht bestellt" tone="gray" />
           ) : day.status === "open" ? (
-            <OpenUntil deadline={dateTime(day.deadline)} />
+            <StatusBadge label="Offen" tone="gray" />
           ) : day.status === "confirmed" ? (
             <StatusBadge label="Bestätigt" tone="green" />
           ) : (
             <StatusBadge label="Bestellt" tone="blue" />
           ),
-        // A line of its own on a phone: beside the day it has no room.
-        stacked: "field",
+        stacked: "meta",
+      },
+      {
+        key: "deadline",
+        header: "Frist",
+        className: "whitespace-nowrap",
+        render: (day) =>
+          day.closed || day.status === "unordered"
+            ? "–"
+            : dateTime(day.deadline),
       },
       {
         key: "total",

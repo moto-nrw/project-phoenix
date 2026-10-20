@@ -148,19 +148,22 @@ export function MealOrderWeek({
           ) : day.status === "unordered" ? (
             <StatusBadge label={t("unordered")} tone="gray" />
           ) : day.status === "open" ? (
-            <span className="inline-flex flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5">
-              <StatusBadge label={t("open")} tone="gray" />
-              <span className="text-xs text-gray-600">
-                {t("openDeadline", { date: dateTime(day.deadline) })}
-              </span>
-            </span>
+            <StatusBadge label={t("open")} tone="gray" />
           ) : day.status === "confirmed" ? (
             <StatusBadge label={t("confirmed")} tone="green" />
           ) : (
             <StatusBadge label={t("ordered")} tone="blue" />
           ),
-        // A line of its own on a phone: beside the day it has no room.
-        stacked: "field",
+        stacked: "meta",
+      },
+      {
+        key: "deadline",
+        header: t("deadline"),
+        className: "whitespace-nowrap",
+        render: (day) =>
+          day.closed || day.status === "unordered"
+            ? "–"
+            : dateTime(day.deadline),
       },
       {
         key: "total",

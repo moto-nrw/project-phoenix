@@ -276,7 +276,7 @@
     "changes": "Zmiany po terminie",
     "closed": "Świetlica zamknięta",
     "open": "Otwarte",
-    "openDeadline": "do {date}",
+    "deadline": "Termin",
     "ordered": "Zamówione",
     "confirmed": "Potwierdzone przez firmę cateringową",
     "caption": "Zamówienie na ten tydzień",

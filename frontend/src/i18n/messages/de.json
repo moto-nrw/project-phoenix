@@ -276,7 +276,7 @@
     "changes": "Nachmeldungen",
     "closed": "OGS geschlossen",
     "open": "Offen",
-    "openDeadline": "bis {date}",
+    "deadline": "Frist",
     "ordered": "Bestellt",
     "confirmed": "Vom Caterer bestätigt",
     "caption": "Bestellung dieser Woche",
