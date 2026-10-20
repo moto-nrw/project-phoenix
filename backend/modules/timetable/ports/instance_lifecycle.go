@@ -81,10 +81,10 @@ type LifecycleStudents interface {
 // default. Every other field is required.
 type InstanceLifecycleDependencies struct {
 	InstanceRepo        ActivityInstanceRecords
-	IdempotencyRepo     InstanceIdempotencyRecords
+	IdempotencyRepo     timetable.ActivityInstanceCommand
 	InstanceStaffRepo   InstanceStaffRecords
 	InstanceStudents    InstanceStudentRecords
-	ExceptionRepo       ActivityExceptionRecords
+	ExceptionRepo       timetable.ActivityExceptionCapability
 	CalendarPeriodRepo  CalendarPeriodRecords
 	RecoveryRepo        ActivityRecoveryRecords
 	ActivityGroupRepo   LifecycleActivityGroups

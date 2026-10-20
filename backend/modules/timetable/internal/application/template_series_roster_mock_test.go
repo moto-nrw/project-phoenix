@@ -13,6 +13,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
@@ -49,27 +50,20 @@ func (r *seriesMockGroupRepo) FindTemplateSeries(context.Context, int64) ([]*act
 }
 
 type seriesMockScheduleRepo struct {
-	ports.ActivityScheduleRecords
+	timetable.ScheduleCapability
 	byGroup map[int64][]*activityContract.Schedule
 	err     error
 }
 
-func (r *seriesMockScheduleRepo) FindByGroupID(_ context.Context, groupID int64) ([]*activityContract.Schedule, error) {
-	if r.err != nil {
-		return nil, r.err
-	}
-	return r.byGroup[groupID], nil
-}
-
-func (r *seriesMockScheduleRepo) FindByGroupIDs(_ context.Context, groupIDs []int64) ([]*activityContract.Schedule, error) {
+func (r *seriesMockScheduleRepo) ListSchedules(_ context.Context, filter timetable.ScheduleFilter) ([]timetable.Schedule, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
 	var schedules []*activityContract.Schedule
-	for _, groupID := range groupIDs {
+	for _, groupID := range filter.GroupIDs {
 		schedules = append(schedules, r.byGroup[groupID]...)
 	}
-	return schedules, nil
+	return publicTestSchedules(schedules), nil
 }
 
 type seriesMockEnrollmentRepo struct {

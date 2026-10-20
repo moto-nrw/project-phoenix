@@ -135,7 +135,7 @@ func (s *TemplateSplitService) capEndedSegment(
 	if err != nil {
 		return nil, err
 	}
-	cappedSchedules, err := s.deps.ScheduleRepo.CapValidUntil(ctx, templateID, effectiveDate.String())
+	cappedSchedules, err := capLegacySchedules(ctx, s.deps.ScheduleRepo, templateID, effectiveDate.String())
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "end template: cap schedules", Err: err}
 	}

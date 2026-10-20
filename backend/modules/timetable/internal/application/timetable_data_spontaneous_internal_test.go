@@ -38,17 +38,19 @@ func (f *spontaneousTemplates) Create(_ context.Context, group *activityContract
 
 type spontaneousCategories struct {
 	existing *activityContract.Category
-	created  []*activityContract.Category
+	created  []timetable.CreateCategory
 }
 
-func (f *spontaneousCategories) FindByNameIncludingArchivedForShare(context.Context, string) (*activityContract.Category, error) {
-	return f.existing, nil
+func (f *spontaneousCategories) FindCategoryByNameForAssignment(context.Context, string) (timetable.Category, error) {
+	if f.existing == nil {
+		return timetable.Category{}, timetable.ErrCategoryNotFound
+	}
+	return timetable.Category{ID: f.existing.ID, Name: f.existing.Name, ArchivedAt: f.existing.ArchivedAt}, nil
 }
 
-func (f *spontaneousCategories) Create(_ context.Context, category *activityContract.Category) error {
-	category.ID = 910
-	f.created = append(f.created, category)
-	return nil
+func (f *spontaneousCategories) CreateCategory(_ context.Context, input timetable.CreateCategory) (timetable.Category, error) {
+	f.created = append(f.created, input)
+	return timetable.Category{ID: 910, Name: input.Name, Description: input.Description, Color: input.Color}, nil
 }
 
 func spontaneousData(templates *spontaneousTemplates, categories *spontaneousCategories) *timetableData {

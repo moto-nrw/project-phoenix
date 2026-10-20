@@ -14,7 +14,7 @@ import (
 type ActivityService struct {
 	timetable       timetable.Capability
 	groupRepo       ports.ActivityGroupRecords
-	scheduleRepo    ports.ActivityScheduleRecords
+	scheduleRepo    timetable.ScheduleCapability
 	supervisorRepo  ports.PlannedSupervisorRecords
 	enrollmentRepo  ports.ActivityEnrollmentRecords
 	activeGroupRepo ActivityOccupancy
@@ -30,7 +30,7 @@ type ActivityOccupancy interface {
 func NewActivityService(
 	timetableCapability timetable.Capability,
 	groupRepo ports.ActivityGroupRecords,
-	scheduleRepo ports.ActivityScheduleRecords,
+	scheduleRepo timetable.ScheduleCapability,
 	supervisorRepo ports.PlannedSupervisorRecords,
 	enrollmentRepo ports.ActivityEnrollmentRecords,
 	activeGroupRepo ActivityOccupancy,
@@ -195,7 +195,7 @@ func (s *ActivityService) createSchedulesInTx(ctx context.Context, txService act
 			return &activityContract.ActivityError{Op: opValidateSchedule, Err: err}
 		}
 
-		if err := txService.(*ActivityService).scheduleRepo.Create(ctx, schedule); err != nil {
+		if err := createLegacySchedule(ctx, txService.(*ActivityService).scheduleRepo, schedule); err != nil {
 			return &activityContract.ActivityError{Op: "create schedule", Err: err}
 		}
 	}
@@ -360,7 +360,10 @@ func deleteGroupSupervisors(ctx context.Context, service *ActivityService, group
 
 // deleteGroupSchedules deletes all schedules for a group
 func deleteGroupSchedules(ctx context.Context, service *ActivityService, groupID int64) error {
-	return deleteGroupRows(ctx, groupID, service.scheduleRepo.FindByGroupID, func(row *activityContract.Schedule) int64 { return row.ID }, service.scheduleRepo.Delete)
+	return deleteGroupRows(ctx, groupID, func(ctx context.Context, id int64) ([]*activityContract.Schedule, error) {
+		return groupSchedules(ctx, service.scheduleRepo, id)
+	},
+		func(row *activityContract.Schedule) int64 { return row.ID }, func(ctx context.Context, id int64) error { return deleteLegacySchedule(ctx, service.scheduleRepo, id) })
 }
 
 // ListGroups lists activity groups with optional filters
@@ -465,7 +468,7 @@ func (s *ActivityService) GetGroupWithDetails(ctx context.Context, id int64) (*a
 	}
 
 	// Get schedules
-	schedules, err := s.scheduleRepo.FindByGroupID(ctx, id)
+	schedules, err := groupSchedules(ctx, s.scheduleRepo, id)
 	if err != nil {
 		return nil, nil, nil, &activityContract.ActivityError{Op: "get schedules", Err: err}
 	}

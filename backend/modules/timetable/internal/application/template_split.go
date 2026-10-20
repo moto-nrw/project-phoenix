@@ -46,13 +46,13 @@ import (
 // offering feed fails without it.
 type TemplateSplitDependencies struct {
 	GroupRepo            ports.ActivityGroupRecords
-	CategoryRepo         ports.ActivityCategoryRecords
+	CategoryRepo         timetable.CategoryQuery
 	PlanningTracks       ports.PlanningTrackAssignments
-	ScheduleRepo         ports.ActivityScheduleRecords
+	ScheduleRepo         timetable.ScheduleCapability
 	EnrollmentRepo       ports.ActivityEnrollmentRecords
 	SupervisorRepo       ports.PlannedSupervisorRecords
 	InstanceRepo         ports.ActivityInstanceRecords
-	TimeframeRepo        ports.TimeframeRecords
+	TimeframeRepo        timetable.TimeframeCapability
 	Materialization      timetable.MaterializationCapability
 	Deviations           ports.SeriesDeviations
 	CareOfferings        ports.CareOfferingChecks
@@ -573,7 +573,7 @@ func (s *TemplateSplitService) capSplitSource(
 	supervisors []*activityContract.SupervisorPlanned,
 	sourceValidUntil *calendar.Date,
 ) error {
-	if _, err := s.deps.ScheduleRepo.CapValidUntil(ctx, groupID, effectiveDate.String()); err != nil {
+	if _, err := capLegacySchedules(ctx, s.deps.ScheduleRepo, groupID, effectiveDate.String()); err != nil {
 		return &ports.ScheduleError{Op: "split template: cap schedules", Err: err}
 	}
 	if _, err := s.deps.EnrollmentRepo.CapActiveByGroup(ctx, groupID, activityContract.Date(effectiveDate)); err != nil {

@@ -29,18 +29,18 @@ type RepositoryDependencies struct {
 	Directories ports.RepositoryDirectories
 }
 
-// Repositories are the retained activities and schedule repositories of the
-// Timetable owner.
+// Repositories are the retained repositories of the Timetable owner; the
+// capability-typed entries are the owner capability itself.
 type Repositories struct {
-	ActivityCategory    ports.ActivityCategoryRecords
+	ActivityCategory    ports.CategoryRows
 	ActivityGroup       ports.ActivityGroupRecords
-	ActivitySchedule    ports.ActivityScheduleRecords
+	ActivitySchedule    timetable.ScheduleCapability
 	ActivitySupervisor  ports.PlannedSupervisorRecords
 	StudentEnrollment   ports.ActivityEnrollmentRecords
-	Timeframe           ports.TimeframeRecords
-	ActivityException   ports.ActivityExceptionRecords
+	Timeframe           timetable.TimeframeCapability
+	ActivityException   timetable.ActivityExceptionCapability
 	ActivityInstance    ports.ActivityInstanceRecords
-	InstanceIdempotency ports.InstanceIdempotencyRecords
+	InstanceIdempotency timetable.ActivityInstanceCommand
 	InstanceStaff       ports.InstanceStaffRecords
 	InstanceStudent     ports.InstanceStudentRecords
 }
@@ -51,15 +51,11 @@ type Repositories struct {
 func NewRepositories(dependencies RepositoryDependencies, reads application.PresenceReads) Repositories {
 	capability := dependencies.Timetable
 	rows := application.NewCapabilityRepositories(capability, dependencies.Calendar, dependencies.Directories)
-	instances := application.NewActivityInstanceRepositories(reads, capability, dependencies.Presence)
 	return Repositories{
-		ActivityCategory: rows.ActivityCategory, ActivityGroup: rows.ActivityGroup,
-		ActivitySchedule: rows.ActivitySchedule, ActivitySupervisor: rows.ActivitySupervisor,
-		StudentEnrollment: rows.StudentEnrollment, Timeframe: rows.Timeframe,
-		ActivityException: rows.ActivityException,
-		ActivityInstance:  instances.ActivityInstance, InstanceIdempotency: instances.InstanceIdempotency,
-		InstanceStaff:   rows.InstanceStaff,
-		InstanceStudent: application.NewInstanceStudentRepository(reads, capability, dependencies.Presence, dependencies.PartialAbsences),
+		ActivityCategory: capability, ActivitySchedule: capability, Timeframe: capability, ActivityException: capability, InstanceIdempotency: capability,
+		ActivityGroup: rows.ActivityGroup, ActivitySupervisor: rows.ActivitySupervisor, StudentEnrollment: rows.StudentEnrollment, InstanceStaff: rows.InstanceStaff,
+		ActivityInstance: application.NewActivityInstanceRepository(reads, capability, dependencies.Presence),
+		InstanceStudent:  application.NewInstanceStudentRepository(reads, capability, dependencies.Presence, dependencies.PartialAbsences),
 	}
 }
 

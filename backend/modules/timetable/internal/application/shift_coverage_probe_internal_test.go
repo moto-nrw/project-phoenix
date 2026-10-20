@@ -11,7 +11,6 @@ import (
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	activitiesModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/activityrecords"
 	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -241,6 +240,7 @@ type fakeCalendarPeriodReader struct {
 }
 
 type fakeActivityExceptionReader struct {
+	timetable.ActivityExceptionQuery
 	rows    []*scheduleModel.ActivityException
 	err     error
 	calls   int
@@ -250,34 +250,57 @@ type fakeActivityExceptionReader struct {
 }
 
 type fakeActivityScheduleReader struct {
+	timetable.ScheduleQuery
 	rows    []*activityContract.Schedule
 	err     error
 	calls   int
 	groupID int64
 }
 
-func (f *fakeActivityScheduleReader) FindTemplateStartTimesByGroupIDs(context.Context, []int64) ([]*activitiesModel.TemplateStartTime, error) {
+func (f *fakeActivityScheduleReader) FindTemplateStartTimes(context.Context, []int64) ([]timetable.TemplateStartTime, error) {
 	return nil, errors.New("not used by the shift-coverage probe")
 }
 
-func (f *fakeActivityScheduleReader) FindByGroupID(_ context.Context, groupID int64) ([]*activityContract.Schedule, error) {
+// ListSchedules serves the probe's one read, the schedules of one template.
+func (f *fakeActivityScheduleReader) ListSchedules(_ context.Context, filter timetable.ScheduleFilter) ([]timetable.Schedule, error) {
 	f.calls++
-	f.groupID = groupID
-	return f.rows, f.err
+	if len(filter.GroupIDs) == 1 {
+		f.groupID = filter.GroupIDs[0]
+	}
+	if f.err != nil {
+		return nil, f.err
+	}
+	return publicTestSchedules(f.rows), nil
 }
 
-func (f *fakeActivityExceptionReader) FindByDateRange(context.Context, calendar.Date, calendar.Date) ([]*scheduleModel.ActivityException, error) {
-	return nil, errors.New("not used by the shift-coverage probe")
-}
-
-func (f *fakeActivityExceptionReader) FindByActivityGroupAndDateRange(
-	_ context.Context,
-	groupID int64,
-	from, to calendar.Date,
-) ([]*scheduleModel.ActivityException, error) {
+// ListActivityExceptions serves the probe's one series read, which always
+// narrows to a template and a date window.
+func (f *fakeActivityExceptionReader) ListActivityExceptions(_ context.Context, filter timetable.ActivityExceptionFilter) ([]timetable.ActivityException, error) {
+	if filter.ActivityGroupID == nil || filter.FromDate == nil || filter.ToDate == nil {
+		return nil, errors.New("not used by the shift-coverage probe")
+	}
 	f.calls++
-	f.groupID, f.from, f.to = groupID, calendar.Date(from), calendar.Date(to)
-	return f.rows, f.err
+	from, err := calendar.ParseDate(*filter.FromDate)
+	if err != nil {
+		return nil, err
+	}
+	to, err := calendar.ParseDate(*filter.ToDate)
+	if err != nil {
+		return nil, err
+	}
+	f.groupID, f.from, f.to = *filter.ActivityGroupID, from, to
+	if f.err != nil {
+		return nil, f.err
+	}
+	result := make([]timetable.ActivityException, 0, len(f.rows))
+	for _, row := range f.rows {
+		input := publicActivityExceptionInput(row)
+		result = append(result, timetable.ActivityException{
+			ID: row.ID, ActivityGroupID: input.ActivityGroupID, ExceptionDate: input.ExceptionDate, ExceptionType: input.ExceptionType,
+			StartTime: input.StartTime, EndTime: input.EndTime, RoomID: input.RoomID, Reason: input.Reason, CreatedBy: input.CreatedBy,
+		})
+	}
+	return result, nil
 }
 
 func (f *fakeCalendarPeriodReader) FindByID(_ context.Context, nativeRecordID int64) (*scheduleModel.CalendarPeriod, error) {

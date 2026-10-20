@@ -24,15 +24,15 @@ type CareBoundReader interface {
 // announces nothing.
 type MaterializationDependencies struct {
 	GroupRepo      ActivityGroupRecords
-	ScheduleRepo   ActivityScheduleRecords
+	ScheduleRepo   timetable.ScheduleQuery
 	EnrollmentRepo ActivityEnrollmentRecords
 	SupervisorRepo PlannedSupervisorRecords
 	PeriodRepo     CalendarPeriodRecords
 	InstanceRepo   ActivityInstanceRecords
 	StaffRepo      InstanceStaffRecords
 	StudentRepo    InstanceStudentRecords
-	ExceptionRepo  ActivityExceptionRecords
-	TimeframeRepo  TimeframeRecords
+	ExceptionRepo  timetable.ActivityExceptionQuery
+	TimeframeRepo  timetable.TimeframeQuery
 	CareBounds     CareBoundReader
 	NonWorkingDays timetable.NonWorkingDayCalendar
 	RecurrenceLock timetable.RecurrenceWriteLock

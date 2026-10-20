@@ -5,11 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	activitiesModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/activityrecords"
 	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -34,18 +31,6 @@ type ConflictInstanceStaff interface {
 type ConflictInstanceStudents interface {
 	FindByInstanceID(ctx context.Context, instanceID int64) ([]*scheduleModels.InstanceStudent, error)
 	FindExpectedByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStudent, error)
-}
-
-// ConflictExceptions reads activity exceptions by window.
-type ConflictExceptions interface {
-	FindByDateRange(ctx context.Context, from, to calendar.Date) ([]*scheduleModels.ActivityException, error)
-	FindByActivityGroupAndDateRange(ctx context.Context, activityGroupID int64, from, to calendar.Date) ([]*scheduleModels.ActivityException, error)
-}
-
-// ConflictSchedules reads the template schedules of activity groups.
-type ConflictSchedules interface {
-	FindByGroupID(ctx context.Context, groupID int64) ([]*activityContract.Schedule, error)
-	FindTemplateStartTimesByGroupIDs(ctx context.Context, groupIDs []int64) ([]*activitiesModels.TemplateStartTime, error)
 }
 
 // ConflictShifts reads the Dienstplan rows of Workforce.
@@ -109,8 +94,8 @@ type ConflictDetectionDependencies struct {
 	Instances         ConflictInstances
 	InstanceStaff     ConflictInstanceStaff
 	InstanceStudents  ConflictInstanceStudents
-	Exceptions        ConflictExceptions
-	Schedules         ConflictSchedules
+	Exceptions        timetable.ActivityExceptionQuery
+	Schedules         timetable.ScheduleQuery
 	Shifts            ConflictShifts
 	Staff             ConflictStaffDirectory
 	CalendarPeriods   ConflictCalendarPeriods
