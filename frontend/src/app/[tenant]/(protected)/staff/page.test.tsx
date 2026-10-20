@@ -339,13 +339,15 @@ describe("StaffPage", () => {
         screen.getByText("In moto eingetragen vom 02.09.2024 bis 31.07.2026."),
       ).toBeInTheDocument();
       expect(
-        screen.getByText(/Personalakten sind für Ihr Konto nicht freigegeben/),
+        screen.getByText(/Öffnen Sie eine Karte für die Angaben von damals/),
       ).toBeInTheDocument();
       expect(screen.getByText("1 ehemalige Person")).toBeInTheDocument();
-      // Without personnel permissions the cards remain displays.
       expect(
-        screen.queryByRole("button", { name: /Grace Hopper/ }),
-      ).not.toBeInTheDocument();
+        screen.getByRole("link", { name: /Grace Hopper/ }),
+      ).toHaveAttribute(
+        "href",
+        "/test-tenant/staff/7?from=%2Fstaff%3Fstatus%3Dehemalige",
+      );
       expect(requestedKeys()).toContain(formerKey);
     });
 

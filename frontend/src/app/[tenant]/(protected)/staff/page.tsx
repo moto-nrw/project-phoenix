@@ -218,12 +218,13 @@ function StaffPageContent() {
     !canManageTimeTracking;
   // Die Personenkarte führt nur dann weiter, wenn dort auch etwas
   // freigeschaltet ist: das Profil mit Unterlagen oder Stammdaten, oder der
-  // Personal-Datensatz (Reiter „Konto", staff:manage, #2906). Seit #3115 ist
-  // die Personalakte die einzige Objektansicht; das Pane der Datenverwaltung
-  // gibt es nicht mehr.
+  // Personal-Datensatz (Reiter „Konto", users:read oder staff:manage,
+  // #2906). Seit #3115 ist die Personalakte die einzige Objektansicht; das
+  // Pane der Datenverwaltung gibt es nicht mehr.
   const profileTabAvailable =
     userIsAdmin || canAccessDocuments || canEditStammdaten;
-  const canNavigateToStaff = profileTabAvailable || canManageStaffRecords;
+  const canNavigateToStaff =
+    canReadUsers || profileTabAvailable || canManageStaffRecords;
 
   const searchParams = useSearchParams();
   // State variables for filters
