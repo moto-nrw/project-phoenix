@@ -115,24 +115,9 @@ func (r *PasswordReset) InitiatePasswordReset(ctx context.Context, email string,
 
 	var token domain.PasswordResetToken
 	err = r.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		if _, revokeErr := r.store.RevokePasswordResetTokens(txCtx, account.ID); revokeErr != nil {
-			r.logger.Error("failed to invalidate reset tokens, rolling back",
-				slog.Int64("account_id", account.ID),
-				slog.Any("error", revokeErr),
-			)
-			return revokeErr
-		}
-		now := r.now()
-		pending := domain.PasswordResetToken{AccountID: account.ID, Token: uuid.Must(uuid.NewV4()).String(), Expiry: now.Add(r.expiry)}
-		if validateErr := pending.Validate(now); validateErr != nil {
-			return validateErr
-		}
-		stored, _, insertErr := r.store.InsertPasswordResetToken(txCtx, pending)
-		if insertErr != nil {
-			return insertErr
-		}
-		token = stored
-		return r.delivery.DispatchPasswordReset(txCtx, token, account.Email, scope, r.expiry)
+		var issueErr error
+		token, issueErr = r.issueResetInAdmin(txCtx, account.ID, account.Email, scope)
+		return issueErr
 	})
 	if err != nil {
 		return nil, failed("initiate password reset transaction", err)
@@ -142,6 +127,28 @@ func (r *PasswordReset) InitiatePasswordReset(ctx context.Context, email string,
 
 	link := PublicPasswordResetLink(token)
 	return &link, nil
+}
+
+// issueResetInAdmin replaces the account's open links with a new one and
+// dispatches it inside the administrative transaction.
+func (r *PasswordReset) issueResetInAdmin(txCtx context.Context, accountID int64, email string, scope domain.PasswordResetScope) (domain.PasswordResetToken, error) {
+	if _, revokeErr := r.store.RevokePasswordResetTokens(txCtx, accountID); revokeErr != nil {
+		r.logger.Error("failed to invalidate reset tokens, rolling back",
+			slog.Int64("account_id", accountID),
+			slog.Any("error", revokeErr),
+		)
+		return domain.PasswordResetToken{}, revokeErr
+	}
+	now := r.now()
+	pending := domain.PasswordResetToken{AccountID: accountID, Token: uuid.Must(uuid.NewV4()).String(), Expiry: now.Add(r.expiry)}
+	if validateErr := pending.Validate(now); validateErr != nil {
+		return domain.PasswordResetToken{}, validateErr
+	}
+	stored, _, insertErr := r.store.InsertPasswordResetToken(txCtx, pending)
+	if insertErr != nil {
+		return domain.PasswordResetToken{}, insertErr
+	}
+	return stored, r.delivery.DispatchPasswordReset(txCtx, stored, email, scope, r.expiry)
 }
 
 func (r *PasswordReset) portalEligible(ctx context.Context, accountID int64, scope domain.PasswordResetScope) (bool, error) {
@@ -212,27 +219,33 @@ func (r *PasswordReset) ResetPassword(ctx context.Context, token, newPassword st
 	// The flow runs before authentication, so it holds the administrative
 	// transaction: the session revocation touches RLS-guarded auth.tokens.
 	err = r.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		updated, _, setErr := r.store.SetAccountPassword(txCtx, link.AccountID, hash)
-		if setErr != nil {
-			return setErr
-		}
-		if !updated {
-			return identityaccess.ErrInvalidToken
-		}
-		redeemed, _, redeemErr := r.store.RedeemPasswordResetToken(txCtx, link.ID)
-		if redeemErr != nil {
-			return redeemErr
-		}
-		if !redeemed {
-			return identityaccess.ErrInvalidToken
-		}
-		if _, revokeErr := r.auth.DeleteAccountSessionsWithAudit(txCtx, link.AccountID, "password_reset", "", ""); revokeErr != nil {
-			return fmt.Errorf("revoke tokens during password reset: %w", revokeErr)
-		}
-		return nil
+		return r.redeemResetInAdmin(txCtx, link, hash)
 	})
 	if err != nil {
 		return failed("reset password transaction", err)
+	}
+	return nil
+}
+
+// redeemResetInAdmin sets the new password, spends the link and revokes the
+// account's sessions inside the administrative transaction.
+func (r *PasswordReset) redeemResetInAdmin(txCtx context.Context, link domain.PasswordResetToken, hash string) error {
+	updated, _, setErr := r.store.SetAccountPassword(txCtx, link.AccountID, hash)
+	if setErr != nil {
+		return setErr
+	}
+	if !updated {
+		return identityaccess.ErrInvalidToken
+	}
+	redeemed, _, redeemErr := r.store.RedeemPasswordResetToken(txCtx, link.ID)
+	if redeemErr != nil {
+		return redeemErr
+	}
+	if !redeemed {
+		return identityaccess.ErrInvalidToken
+	}
+	if _, revokeErr := r.auth.DeleteAccountSessionsWithAudit(txCtx, link.AccountID, "password_reset", "", ""); revokeErr != nil {
+		return fmt.Errorf("revoke tokens during password reset: %w", revokeErr)
 	}
 	return nil
 }
