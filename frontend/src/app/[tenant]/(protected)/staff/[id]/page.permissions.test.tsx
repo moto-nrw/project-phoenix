@@ -19,6 +19,7 @@ const { mockRecordUpdate, mockUpdateTeacher, mockDeleteTeacher } = vi.hoisted(
 );
 const detailRequest = vi.hoisted(() => ({
   error: null as unknown,
+  endedOn: null as string | null,
   mutate: vi.fn(),
 }));
 
@@ -77,6 +78,8 @@ vi.mock("~/lib/database/service-factory", () => ({
 vi.mock("~/lib/swr", () => ({
   useTenantMutate: () => vi.fn(),
   useSWRAuth: (key: string | null, fetcher?: () => Promise<unknown>) => {
+    if (key?.startsWith("staff-history-"))
+      return { data: [], isLoading: false, error: null };
     if (key?.startsWith("staff-record-")) {
       return { data: staffRecord, isLoading: false, error: null };
     }
@@ -93,6 +96,8 @@ vi.mock("~/lib/swr", () => ({
       return {
         data: {
           id: "42",
+          startedOn: "2024-09-02",
+          endedOn: detailRequest.endedOn,
           name: "Mila Muster",
           firstName: "Mila",
           lastName: "Muster",
@@ -127,6 +132,7 @@ vi.mock("~/lib/staff-api", () => ({
     getDocumentProfile: vi.fn(),
   },
   staffAbsenceService: { getAbsences: vi.fn() },
+  staffHistoryService: { getHistory: vi.fn() },
 }));
 
 vi.mock("~/lib/staff-helpers", () => ({
@@ -192,9 +198,69 @@ vi.mock("./page-skeleton", () => ({
 }));
 
 describe("StaffDetailContent permissions", () => {
+  it.each(["konto", "klassen", "arbeitszeitmodell", "abwesenheiten"])(
+    "keeps former employment read-only for a direct %s bookmark",
+    (requestedTab) => {
+      detailRequest.endedOn = "2026-07-31";
+      searchParams.set("tab", requestedTab);
+      searchParams.set("from", "/staff?status=ehemalige&search=Mila");
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            id: "7",
+            token: "test-token",
+            roles: ["admin"],
+            permissions: ["admin:*"],
+          },
+          expires: "2099-01-01",
+        },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+      render(<StaffDetailContent />);
+      expect(screen.getByText("02.09.2024")).toBeInTheDocument();
+      expect(screen.getByText("31.07.2026")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Weitere Aktionen" }),
+      ).not.toBeInTheDocument();
+      for (const label of [
+        "Konto",
+        "Klassen",
+        "Arbeitszeitmodell",
+        "Abwesenheiten",
+      ])
+        expect(
+          screen.queryByRole("tab", { name: label }),
+        ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "Zurück zu den Mitarbeitenden" }),
+      ).toHaveAttribute(
+        "href",
+        "/test-tenant/staff?status=ehemalige&search=Mila",
+      );
+      fireEvent.click(screen.getByRole("tab", { name: "Stammdaten" }));
+      expect(
+        screen.queryByRole("button", { name: "Bearbeiten" }),
+      ).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("tab", { name: "Zeiterfassung" }));
+      expect(
+        screen.queryByRole("button", {
+          name: /nachtragen|öffnen|Buchen|Bearbeiten/,
+        }),
+      ).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("tab", { name: "Dokumente" }));
+      expect(
+        screen.getByText(
+          "Die Personaldokumente wurden beim Austritt endgültig gelöscht.",
+        ),
+      ).toBeInTheDocument();
+    },
+  );
   beforeEach(() => {
     vi.clearAllMocks();
     detailRequest.error = null;
+    detailRequest.endedOn = null;
+    searchParams.delete("from");
     searchParams.delete("tab");
     searchParams.delete("date");
     window.scrollTo = vi.fn();

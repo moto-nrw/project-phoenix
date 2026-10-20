@@ -331,7 +331,7 @@ func (a *StaffAdmin) loadFinancialAudited(ctx context.Context, staffID, actorAcc
 		return nil, errors.New("actor account id is required for financial reads")
 	}
 	// Existence (and tenant scope) check before anything is disclosed.
-	if err := a.subjects.StaffExists(ctx, staffID); err != nil {
+	if _, err := a.subjects.StaffWithPerson(ctx, staffID); err != nil {
 		return nil, err
 	}
 	data, err := a.financial(ctx, staffID)

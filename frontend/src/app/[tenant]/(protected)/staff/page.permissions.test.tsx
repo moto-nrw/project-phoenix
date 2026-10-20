@@ -35,7 +35,10 @@ const staffListRequest = vi.hoisted(() => ({
 }));
 
 vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
-vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(),
+  redirect: vi.fn(),
+}));
 vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: routerPush }),
 }));

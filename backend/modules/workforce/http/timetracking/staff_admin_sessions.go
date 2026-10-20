@@ -25,8 +25,20 @@ func (rs *StaffAdminResource) getStaffHistory(w http.ResponseWriter, r *http.Req
 
 	// Verify staff exists
 	if _, err := rs.PersonService.StaffByID(r.Context(), staffID); err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
-		return
+		if !common.IsNotFound(err) {
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+			return
+		}
+		// Retained employment reads use the personnel-record capability;
+		// session writes below still require a live membership.
+		if _, readErr := rs.PersonService.StaffStammdaten(r.Context(), staffID); readErr != nil {
+			if common.IsNotFound(readErr) {
+				common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
+			} else {
+				common.RenderError(w, r, common.ErrorInternalServer(readErr))
+			}
+			return
+		}
 	}
 
 	// Parse date range from query parameters
@@ -396,6 +408,10 @@ func (rs *StaffAdminResource) adminUpdateStaffSession(w http.ResponseWriter, r *
 		return
 	}
 
+	if !rs.requireBalanceAdjustmentStaff(w, r, targetStaffID) {
+		return
+	}
+
 	editorStaffID, err := rs.resolveEditorStaffID(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
@@ -436,6 +452,10 @@ func (rs *StaffAdminResource) adminCreateStaffSession(w http.ResponseWriter, r *
 	targetStaffID, err := common.ParseID(r)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	if !rs.requireBalanceAdjustmentStaff(w, r, targetStaffID) {
 		return
 	}
 

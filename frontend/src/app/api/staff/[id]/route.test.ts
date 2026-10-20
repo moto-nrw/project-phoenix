@@ -91,6 +91,28 @@ describe("GET /api/staff/[id]", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
+  it("preserves the former employment period for the detail page", async () => {
+    mockApiGet.mockResolvedValueOnce({
+      data: {
+        id: "42",
+        person_id: "70",
+        is_teacher: false,
+        started_on: "2024-09-02",
+        ended_on: "2026-07-31",
+      },
+    });
+    const response = await GET(
+      createMockRequest("/api/staff/42"),
+      createMockContext({ id: "42" }),
+    );
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as {
+      data: { started_on: string; ended_on: string };
+    };
+    expect(json.data.started_on).toBe("2024-09-02");
+    expect(json.data.ended_on).toBe("2026-07-31");
+  });
+
   it("returns 401 when not authenticated", async () => {
     mockAuth.mockResolvedValueOnce(null);
 

@@ -1761,10 +1761,16 @@ function findStaffTopic(presenceMode: HelpPresenceMode): HelpTopic {
     differences: [
       "Auch ohne Recht für Personalakten sehen Sie, wo die Person gerade ist. Die Karte öffnet dann keine Personalakte. Fragen Sie bei Bedarf Ihre Leitung.",
       "Möchten Sie der Person schreiben? Öffnen Sie den `Team-Chat`.",
+      "Unter `Ehemalige` können Sie frühere Beschäftigungen nur lesen. Die Personalakte zeigt den Zeitraum, Stammdaten und frühere Arbeitszeiten. Welche Angaben Sie sehen, hängt von Ihren Rechten ab.",
+      "Personaldokumente wurden beim Austritt endgültig gelöscht. Sie stehen auch in der früheren Personalakte nicht mehr bereit.",
+      "Mit `Zurück zu den Mitarbeitenden` kommen Sie wieder zur Auswahl `Ehemalige`. Eine Wiederaufnahme erfolgt beim Einladen.",
     ],
     notes: [
-      "Hat jemand früher bei Ihnen gearbeitet? Wählen Sie in der Auswahl `Ehemalige`. Die Karte zeigt den Zeitraum in moto.",
+      "Hat jemand früher bei Ihnen gearbeitet? Wählen Sie in der Auswahl `Ehemalige`. Die Karte zeigt den Zeitraum in moto. Öffnen Sie die Karte für die früheren Angaben.",
     ],
+    image: "/help/screens/personal-ehemalige.webp",
+    imageAlt:
+      "Frühere Beschäftigung mit Zeitraum. Die Angaben sind nur lesbar.",
     related: [HELP_TOPICS.teamChat, HELP_TOPICS.activeSupervision],
   };
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo, type ReactNode } from "react";
+import { Suspense, useState, useMemo, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
-import { redirect } from "next/navigation";
+import { redirect, useSearchParams } from "next/navigation";
 import { BellSimpleRingingIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { CollectionGrid } from "~/components/ui/collection-grid";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -225,9 +225,14 @@ function StaffPageContent() {
     userIsAdmin || canAccessDocuments || canEditStammdaten;
   const canNavigateToStaff = profileTabAvailable || canManageStaffRecords;
 
+  const searchParams = useSearchParams();
   // State variables for filters
-  const [searchTerm, setSearchTerm] = useState("");
-  const [locationFilter, setLocationFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState(
+    searchParams.get("search") ?? "",
+  );
+  const [locationFilter, setLocationFilter] = useState(
+    searchParams.get("status") === "ehemalige" ? "ehemalige" : "all",
+  );
   const [selectedView, setSelectedView] = useState<
     "status" | "accounts" | "audit" | "documents"
   >("status");
@@ -1034,8 +1039,7 @@ function StaffPageContent() {
               />
             )}
 
-          {/* Ehemalige (#3403): reine Anzeige, die Personalakte im Lesemodus
-              folgt mit #3405. */}
+          {/* Frühere Beschäftigungen öffnen dieselbe Personalakte im Lesemodus. */}
           {showFormer &&
             (isFormerLoading && !formerData ? (
               <StaffCardsSkeleton />
@@ -1046,9 +1050,17 @@ function StaffPageContent() {
                 <Alert
                   type="info"
                   announce="off"
-                  message="Hier stehen Personen, die früher bei Ihnen gearbeitet haben. Nur zur Information."
+                  message={
+                    canNavigateToStaff
+                      ? "Hier stehen Personen, die früher bei Ihnen gearbeitet haben. Öffnen Sie eine Karte für die Angaben von damals."
+                      : "Hier stehen Personen, die früher bei Ihnen gearbeitet haben. Personalakten sind für Ihr Konto nicht freigegeben."
+                  }
                 />
-                <FormerStaffCards members={filteredFormer} />
+                <FormerStaffCards
+                  members={filteredFormer}
+                  referrer={`/staff?${new URLSearchParams({ status: "ehemalige", ...(searchTerm ? { search: searchTerm } : {}) })}`}
+                  canOpen={canNavigateToStaff}
+                />
               </>
             ) : null)}
 
@@ -1186,5 +1198,15 @@ function StaffPageContent() {
 }
 
 export default function StaffPage() {
-  return <StaffPageContent />;
+  return (
+    <Suspense
+      fallback={
+        <TenantPage title="Mitarbeiter" statsLoading>
+          <StaffCardsSkeleton />
+        </TenantPage>
+      }
+    >
+      <StaffPageContent />
+    </Suspense>
+  );
 }

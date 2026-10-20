@@ -2,6 +2,7 @@ package staff_test
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -169,4 +170,31 @@ func TestListStaffFormerReportsLookupFailures(t *testing.T) {
 	h.allow("users:read")
 	h.roleMatchesErr = assert.AnError
 	assert.Equal(t, http.StatusInternalServerError, h.do(t, http.MethodGet, "/staff?employment=former&role=teacher", nil).Code)
+}
+
+func TestFormerEmploymentDetailRetainsPeriodAndPermissionGates(t *testing.T) {
+	t.Parallel()
+	h := withFormerPersons(newHarness(t, formerStaffFixture()))
+	h.allow("users:read")
+	rec := h.do(t, http.MethodGet, "/staff/2", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	payload := string(decode(t, rec).Data)
+	assert.Contains(t, payload, `"started_on":"2024-09-02"`)
+	assert.Contains(t, payload, `"ended_on":"2026-07-31"`)
+	assert.Contains(t, payload, `"first_name":"Grace"`)
+	rec = h.do(t, http.MethodGet, "/staff/6", nil)
+	assert.Equal(t, http.StatusNotFound, rec.Code, "erased employment must not reappear")
+	h = withFormerPersons(newHarness(t, formerStaffFixture()))
+	rec = h.do(t, http.MethodGet, "/staff/2", nil)
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+}
+
+func TestFormerEmploymentReadDoesNotHideLookupFailure(t *testing.T) {
+	t.Parallel()
+	members := formerStaffFixture()
+	members.listErr = errors.New("membership unavailable")
+	h := withFormerPersons(newHarness(t, members))
+	h.allow("users:read")
+	rec := h.do(t, http.MethodGet, "/staff/2", nil)
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 }

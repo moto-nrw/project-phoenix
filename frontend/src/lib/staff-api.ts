@@ -12,6 +12,8 @@ const logger = createLogger({ component: "StaffAPI" });
 
 // Backend response types (already mapped by the API route handler)
 export interface BackendStaffResponse {
+  started_on?: string;
+  ended_on?: string | null;
   id: string;
   name: string;
   firstName: string;
@@ -65,6 +67,8 @@ interface StaffSupervision {
 
 // Frontend types
 export interface Staff {
+  startedOn?: string;
+  endedOn?: string | null;
   id: string;
   name: string;
   firstName: string;
@@ -517,6 +521,8 @@ class StaffService {
     );
     return {
       id: staff.id,
+      startedOn: staff.started_on,
+      endedOn: staff.ended_on,
       name: staff.name,
       firstName: staff.firstName ?? staff.name?.split(" ")[0] ?? "",
       lastName:
@@ -572,11 +578,13 @@ class StaffService {
       data: Omit<
         Pick<Staff, "id" | "name" | "firstName" | "lastName">,
         "id"
-      > & { id: number };
+      > & { id: number; started_on?: string; ended_on?: string | null };
     };
     return {
       ...json.data,
       id: json.data.id.toString(),
+      startedOn: json.data.started_on,
+      endedOn: json.data.ended_on,
       hasRfid: false,
       isTeacher: false,
       isSupervising: false,
