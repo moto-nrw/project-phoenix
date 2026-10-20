@@ -5,7 +5,6 @@
 // der Tagesplan; die Startseite und "Als Nächstes" tönen nur (#4413).
 
 import type { CSSProperties } from "react";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-style";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
@@ -53,32 +52,6 @@ export function blockRowStyle(
  */
 export function OwnBlockHint({ mine }: Readonly<{ mine: boolean }>) {
   return mine ? <span className="sr-only"> · Mein Block</span> : null;
-}
-
-// Die Symbole sind Schmuck: der Text daneben sagt schon, was gemeint ist.
-const META_ICON = {
-  size: 14,
-  className: "mr-1 inline-block align-[-2px]",
-} as const;
-
-/** Raumsymbol vor dem Raumnamen, inline in einer Textzeile. */
-export function BlockRoom({ room }: Readonly<{ room: string }>) {
-  return (
-    <>
-      <MotoConceptIcon concept="rooms" {...META_ICON} />
-      {room}
-    </>
-  );
-}
-
-/** Personalsymbol vor den Namen, inline in einer Textzeile. */
-export function BlockStaff({ names }: Readonly<{ names: string }>) {
-  return (
-    <>
-      <MotoConceptIcon concept="staff" {...META_ICON} />
-      {names}
-    </>
-  );
 }
 
 /** Eingeteiltes Personal als eine Zeile, Vertretungen benannt. */

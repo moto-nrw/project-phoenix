@@ -1,16 +1,16 @@
 "use client";
 
+import { Fragment } from "react";
+
 import Link from "~/components/ui/navigation-link";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import { StatusBadge } from "~/components/ui/status-badge";
-import {
-  BlockRoom,
-  blockTintStyle,
-} from "~/components/timetable/block-row-parts";
+import { blockTintStyle } from "~/components/timetable/block-row-parts";
 import { useOperationalOverviewScope } from "~/lib/tenant-context";
 import { blockChildrenLabel, blockTimeRange } from "~/lib/block-children";
 import { formatMinutesAhead, minutesBetween } from "~/lib/home-clock";
@@ -156,7 +156,14 @@ export function DayFlowBlock() {
                         <span className="text-gray-500">
                           {[
                             block.roomName ? (
-                              <BlockRoom key="room" room={block.roomName} />
+                              <Fragment key="room">
+                                <MotoConceptIcon
+                                  concept="rooms"
+                                  size={14}
+                                  className="mr-1 inline-block align-[-2px]"
+                                />
+                                {block.roomName}
+                              </Fragment>
                             ) : null,
                             block.isDuty === true
                               ? "Dienst"

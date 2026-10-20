@@ -1,8 +1,9 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 import { Button, ButtonLink } from "~/components/ui/button";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -14,7 +15,6 @@ import { formatStatusDate } from "~/lib/date-helpers";
 import type { HomeBlockAccess, HomeBlockContext } from "~/lib/home-blocks";
 import { formatMinutesAhead } from "~/lib/home-clock";
 import { blockEndLine, blockTimeRange } from "~/lib/block-children";
-import { BlockRoom } from "~/components/timetable/block-row-parts";
 import {
   deriveHomeNow,
   nowActions,
@@ -244,7 +244,14 @@ function NowText({
           }
           detail={[
             block.roomName ? (
-              <BlockRoom key="room" room={block.roomName} />
+              <Fragment key="room">
+                <MotoConceptIcon
+                  concept="rooms"
+                  size={14}
+                  className="mr-1 inline-block align-[-2px]"
+                />
+                {block.roomName}
+              </Fragment>
             ) : null,
             blockEndLine(block),
             next
@@ -273,7 +280,14 @@ function NowText({
           detail={[
             blockTimeRange(block),
             block.roomName ? (
-              <BlockRoom key="room" room={block.roomName} />
+              <Fragment key="room">
+                <MotoConceptIcon
+                  concept="rooms"
+                  size={14}
+                  className="mr-1 inline-block align-[-2px]"
+                />
+                {block.roomName}
+              </Fragment>
             ) : null,
           ]}
         />

@@ -1,21 +1,18 @@
 "use client";
 
 import { ChevronRight } from "lucide-react";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import Link from "~/components/ui/navigation-link";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { BlockState } from "~/components/home/day-flow-block";
-import {
-  BlockRoom,
-  BlockStaff,
-  blockStaffNames,
-} from "~/components/timetable/block-row-parts";
+import { blockStaffNames } from "~/components/timetable/block-row-parts";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import {
   HomeCardLink,
@@ -263,10 +260,28 @@ function BlockRow({
   const meta: ReactNode[] = [
     block.status === "completed" ? "Beendet" : null,
     missed ? "Nicht gestartet" : null,
-    room ? <BlockRoom key="room" room={room} /> : null,
+    room ? (
+      <Fragment key="room">
+        <MotoConceptIcon
+          concept="rooms"
+          size={14}
+          className="mr-1 inline-block align-[-2px]"
+        />
+        {room}
+      </Fragment>
+    ) : null,
     block.groupName,
     children,
-    staff ? <BlockStaff key="staff" names={staff} /> : null,
+    staff ? (
+      <Fragment key="staff">
+        <MotoConceptIcon
+          concept="staff"
+          size={14}
+          className="mr-1 inline-block align-[-2px]"
+        />
+        {staff}
+      </Fragment>
+    ) : null,
   ].filter(Boolean);
 
   return (

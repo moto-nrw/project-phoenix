@@ -31,12 +31,11 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import {
-  BlockRoom,
-  BlockStaff,
   OwnBlockHint,
   blockRowStyle,
   blockStaffNames,
@@ -199,7 +198,16 @@ function TagesplanRow({
     instance.status === "completed" ? "Beendet" : null,
     missed ? "Nicht gestartet" : null,
     isDuty ? "Dienst" : null,
-    room ? <BlockRoom key="room" room={room} /> : null,
+    room ? (
+      <Fragment key="room">
+        <MotoConceptIcon
+          concept="rooms"
+          size={14}
+          className="mr-1 inline-block align-[-2px]"
+        />
+        {room}
+      </Fragment>
+    ) : null,
     instance.groupName,
     cancelled || isDuty ? null : childrenShort(instance),
   ].filter(Boolean);
@@ -245,7 +253,12 @@ function TagesplanRow({
         </span>
         {staff && !cancelled ? (
           <span className="block truncate text-xs text-gray-400">
-            <BlockStaff names={staff} />
+            <MotoConceptIcon
+              concept="staff"
+              size={14}
+              className="mr-1 inline-block align-[-2px]"
+            />
+            {staff}
           </span>
         ) : null}
       </span>

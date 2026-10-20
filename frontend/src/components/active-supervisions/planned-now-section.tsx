@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { ChevronDown, CircleAlert, Play } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
-  BlockRoom,
   OwnBlockHint,
   blockTintStyle,
 } from "~/components/timetable/block-row-parts";
@@ -235,11 +234,12 @@ export function PlannedNowSection({
                             {blockTimeRange(instance)}
                           </span>
                           <span>
-                            <BlockRoom
-                              room={
-                                instance.roomName ?? `Raum ${instance.roomId}`
-                              }
+                            <MotoConceptIcon
+                              concept="rooms"
+                              size={14}
+                              className="mr-1 inline-block align-[-2px]"
                             />
+                            {instance.roomName ?? `Raum ${instance.roomId}`}
                           </span>
                         </div>
                       </div>
