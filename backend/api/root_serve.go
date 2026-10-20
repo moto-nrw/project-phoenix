@@ -88,7 +88,7 @@ func composeServeRoot(
 		mailFrom         email.Email
 		pushVAPID        deliveryCompose.VAPIDConfig
 		organizations    organizationtenancy.Capability
-		groups           *schoolstructure.Module
+		groups           schoolstructure.Owner
 		rooms            *facilitiesModule.Rooms
 		membership       *schoolMembershipModule.Module
 		classListEntries *schoolMembershipModule.Module
@@ -106,7 +106,7 @@ func composeServeRoot(
 		carePlan         *carePlanModule.Module
 		appointments     appointmentsModule.Capability
 		operatorAuditLog owners.OperatorAuditEntries
-		communication    *communicationModule.Module
+		communication    communicationModule.Capability
 		mealPlanSettings *mealplanCompose.Settings
 		mealPlan         *mealplanModule.Module
 		feedbackSettings *feedbackCompose.Settings
@@ -161,7 +161,7 @@ func composeServeRoot(
 		chat             owners.CommunicationMessaging
 		calendarApp      calendarCompose.Application
 		parent           *parentportal.Portal
-		fileStore        *filestorageModule.Module
+		fileStore        filestorageModule.Capability
 		planExport       planexport.Service
 		workforce        owners.WorkforcePlanning
 		staffAdmin       *workforceModule.StaffAdmin

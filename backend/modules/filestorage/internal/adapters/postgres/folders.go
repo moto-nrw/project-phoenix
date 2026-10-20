@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/filestorage"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -91,7 +92,7 @@ func (s *FolderStore) Update(ctx context.Context, folder domain.Folder) (domain.
 		Scan(ctx, &row)
 	stats := measure(started, 1)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Folder{}, stats, domain.ErrNotFound
+		return domain.Folder{}, stats, filestorage.ErrNotFound
 	}
 	if err != nil {
 		return domain.Folder{}, stats, fmt.Errorf("file storage postgres: update folder: %w", classifyWriteError(err))
@@ -119,7 +120,7 @@ func (s *FolderStore) Delete(ctx context.Context, folderID int64) (domain.Operat
 		return stats, fmt.Errorf("file storage postgres: count deleted folders: %w", err)
 	}
 	if affected == 0 {
-		return stats, domain.ErrNotFound
+		return stats, filestorage.ErrNotFound
 	}
 	stats.Rows = affected
 	return stats, nil

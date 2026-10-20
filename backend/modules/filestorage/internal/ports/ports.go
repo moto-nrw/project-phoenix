@@ -8,6 +8,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/filestorage"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
 )
 
@@ -15,7 +16,7 @@ import (
 // (documents.folder_roles, documents.folder_accounts).
 type FolderStore interface {
 	Create(ctx context.Context, folder domain.Folder) (domain.Folder, domain.OperationStats, error)
-	// Update rewrites name and visibility; a missing folder is domain.ErrNotFound.
+	// Update rewrites name and visibility; a missing folder is filestorage.ErrNotFound.
 	Update(ctx context.Context, folder domain.Folder) (domain.Folder, domain.OperationStats, error)
 	// Delete removes the folder row; its files and share lists cascade. The
 	// caller queues cleanup intents for the bytes BEFORE calling this.
@@ -53,7 +54,7 @@ type DocumentStore interface {
 	// at domain.RequestCleanupRetryLimit.
 	ListDeletedPendingCleanupByOwner(ctx context.Context, ownerID int64) ([]domain.Document, domain.OperationStats, error)
 	// SoftDelete stamps deleted_at/deleted_by on a live row and returns it; a
-	// row that is missing or already deleted is domain.ErrNotFound.
+	// row that is missing or already deleted is filestorage.ErrNotFound.
 	SoftDelete(ctx context.Context, documentID, deletedBy int64) (domain.Document, domain.OperationStats, error)
 	// MarkBytesDeleted records that the stored object is gone.
 	MarkBytesDeleted(ctx context.Context, documentID int64) (domain.OperationStats, error)
@@ -88,7 +89,7 @@ type Object = interface {
 // {kind}/{tenant}/{stored name}; the adapter owns the layout.
 type Objects interface {
 	Save(ctx context.Context, tenantID int64, storedName string, source io.Reader) (int64, error)
-	// Open returns domain.ErrObjectNotFound when the bytes are gone.
+	// Open returns filestorage.ErrObjectNotFound when the bytes are gone.
 	Open(ctx context.Context, tenantID int64, storedName string) (Object, error)
 	// Remove deletes the object; a missing object counts as removed.
 	Remove(ctx context.Context, tenantID int64, storedName string) error
@@ -104,7 +105,7 @@ type Identity interface {
 	// ListShareableRoles returns the roles a folder can be shared with, by
 	// name: the school's own roles plus the system roles, without the
 	// guardian tier.
-	ListShareableRoles(ctx context.Context) ([]domain.AudienceRole, error)
+	ListShareableRoles(ctx context.Context) ([]filestorage.AudienceRole, error)
 	// ListActiveAccountIDs returns every account with an active mapping.
 	ListActiveAccountIDs(ctx context.Context) ([]int64, error)
 }

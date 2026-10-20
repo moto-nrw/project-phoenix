@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/filestorage"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -156,7 +157,7 @@ func (s *DocumentStore[R]) Create(ctx context.Context, document domain.NewDocume
 		return domain.Document{}, domain.OperationStats{}, err
 	}
 	if err := document.Validate(); err != nil {
-		return domain.Document{}, domain.OperationStats{}, fmt.Errorf("%w: %s", domain.ErrInvalid, err.Error())
+		return domain.Document{}, domain.OperationStats{}, fmt.Errorf("%w: %s", filestorage.ErrInvalid, err.Error())
 	}
 	row := s.table.newRow(tenantID, document)
 	started := time.Now()
@@ -269,7 +270,7 @@ func (s *DocumentStore[R]) SoftDelete(ctx context.Context, documentID, deletedBy
 		return domain.Document{}, stats, fmt.Errorf("file storage postgres: soft delete %s: %w", s.table.name, err)
 	}
 	if len(rows) == 0 {
-		return domain.Document{}, stats, domain.ErrNotFound
+		return domain.Document{}, stats, filestorage.ErrNotFound
 	}
 	return rows[0].document(), stats, nil
 }

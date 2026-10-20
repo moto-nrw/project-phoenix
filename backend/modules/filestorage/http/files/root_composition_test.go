@@ -16,7 +16,7 @@ import (
 
 // setupFileStoreModule returns the module with the tenant setting switch
 // the suites turn staff uploads on with.
-func setupFileStoreModule(t *testing.T, objects api.UploadsBackend) (*bun.DB, *filestorageModule.Module, func(context.Context, string, bool) error) {
+func setupFileStoreModule(t *testing.T, objects api.UploadsBackend) (*bun.DB, filestorageModule.Capability, func(context.Context, string, bool) error) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	files, settings, err := api.NewFileStoreTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), objects)
