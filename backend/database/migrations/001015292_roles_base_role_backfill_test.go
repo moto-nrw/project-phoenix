@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -104,4 +105,19 @@ func baseRoleOf(t *testing.T, db *testpkg.DB, roleID int64) string {
 	).Scan(context.Background(), &values))
 	require.Len(t, values, 1)
 	return values[0]
+}
+
+func strPtrValue(v string) *string { return &v }
+
+func createIdentityRepairRole(t *testing.T, db *testpkg.DB, tenantID int64, name string, baseRole *string) int64 {
+	t.Helper()
+	var id int64
+	err := db.NewRaw(`
+		INSERT INTO auth.roles (name, description, is_system, tenant_id, base_role, created_at, updated_at)
+		VALUES (?, 'Reparatur-Testrolle', FALSE, ?, ?, NOW(), NOW())
+		RETURNING id`,
+		fmt.Sprintf("%s-%d", name, tenantID), tenantID, baseRole,
+	).Scan(context.Background(), &id)
+	require.NoError(t, err)
+	return id
 }

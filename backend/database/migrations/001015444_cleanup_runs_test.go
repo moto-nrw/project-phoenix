@@ -24,20 +24,23 @@ func TestDeletionLogAcceptsRetentionRowsWithoutASubjectOnly(t *testing.T) {
 
 	// One table instead of a test per migration: each SetupTestDB call clones
 	// the database, and these rows only need the fully migrated schema.
-	for migration, deletionTypes := range map[string][]string{
-		"1.15.444": {
+	for _, migration := range []struct {
+		version       string
+		deletionTypes []string
+	}{
+		{"1.15.444", []string{
 			"unregistered_tag_scan_retention", "status_day_retention", "parent_message_retention",
 			"auth_event_retention", "data_access_log_retention", "deletion_log_retention",
-		},
-		"1.15.449": cleanupJobRetentionKinds,
-		"1.15.452": {settledEnrollmentRetentionKind},
-		"1.15.453": {staffSickNoteRetentionKind},
-		"1.15.460": {attendanceRetentionKind},
-		"1.15.464": {guardianRetentionKind},
-		"1.15.465": schoolContentRetentionKinds,
+		}},
+		{"1.15.449", cleanupJobRetentionKinds},
+		{"1.15.452", []string{settledEnrollmentRetentionKind}},
+		{"1.15.453", []string{staffSickNoteRetentionKind}},
+		{"1.15.460", []string{attendanceRetentionKind}},
+		{"1.15.464", []string{guardianRetentionKind}},
+		{"1.15.465", schoolContentRetentionKinds},
 	} {
-		for _, deletionType := range deletionTypes {
-			assert.NoError(t, insert(deletionType, nil, nil), "%s (%s) logs a data kind without a subject", deletionType, migration)
+		for _, deletionType := range migration.deletionTypes {
+			assert.NoError(t, insert(deletionType, nil, nil), "%s (%s) logs a data kind without a subject", deletionType, migration.version)
 		}
 	}
 
