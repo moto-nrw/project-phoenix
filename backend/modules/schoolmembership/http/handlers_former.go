@@ -1,6 +1,7 @@
 package staff
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -42,13 +43,10 @@ func (rs *Resource) listFormerStaff(w http.ResponseWriter, r *http.Request, filt
 		rs.internal(w, r, err)
 		return
 	}
-	roleMatches := map[int64]bool(nil)
-	if filters.filterByRole != "" {
-		roleMatches, err = rs.runtime.AccountsHoldingRole(ctx, accountIDsOf(persons), filters.filterByRole)
-		if err != nil {
-			rs.internal(w, r, err)
-			return
-		}
+	roleMatches, err := rs.formerRoleMatches(ctx, persons, filters.filterByRole)
+	if err != nil {
+		rs.internal(w, r, err)
+		return
 	}
 	teachers := map[int64]schoolmembership.Teacher{}
 	if filters.teachersOnly {
@@ -79,6 +77,13 @@ func (rs *Resource) listFormerStaff(w http.ResponseWriter, r *http.Request, filt
 		})
 	}
 	rs.respond(w, r, http.StatusOK, responses, "Former staff members retrieved successfully")
+}
+
+func (rs *Resource) formerRoleMatches(ctx context.Context, persons map[int64]*Person, role string) (map[int64]bool, error) {
+	if role == "" {
+		return nil, nil
+	}
+	return rs.runtime.AccountsHoldingRole(ctx, accountIDsOf(persons), role)
 }
 
 func matchesBatchRoleFilter(person *Person, role string, matches map[int64]bool) bool {
