@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Mail } from "lucide-react";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { Alert } from "~/components/ui/alert";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
@@ -14,6 +15,7 @@ import { createInvitation, findFormerEmployment } from "~/lib/invitation-api";
 import {
   FORMER_EMPLOYMENT_PART_LABELS,
   type CreateInvitationRequest,
+  type EmploymentAction,
   type FormerEmployment,
   type FormerEmploymentPart,
   type PendingInvitation,
@@ -35,13 +37,17 @@ const EMPTY_POSITIONS: readonly string[] = [];
 // would ask once per keystroke pause.
 const COMPLETE_ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const FORMER_EMPLOYMENT_DEBOUNCE_MS = 400;
+const FORMER_EMPLOYMENT_LOOKUP_TIMEOUT_MS = 5_000;
 
 /**
  * The former employment an invitation to the typed address would continue
  * at this school (ADR 0021, #3402), or null. A result belongs to the address
  * it was asked for, so it disappears as soon as the address changes.
  */
-function useFormerEmployment(email: string): FormerEmployment | null {
+function useFormerEmployment(email: string): {
+  formerEmployment: FormerEmployment | null;
+  pending: boolean;
+} {
   const current = email.trim().toLowerCase();
   const address = useDebounce(current, FORMER_EMPLOYMENT_DEBOUNCE_MS);
   const [answer, setAnswer] = useState<{
@@ -52,24 +58,38 @@ function useFormerEmployment(email: string): FormerEmployment | null {
   useEffect(() => {
     if (!COMPLETE_ADDRESS.test(address)) return;
     let cancelled = false;
-    findFormerEmployment(address)
+    setAnswer(null);
+    const controller = new AbortController();
+    const timeoutID = window.setTimeout(
+      () => controller.abort(),
+      FORMER_EMPLOYMENT_LOOKUP_TIMEOUT_MS,
+    );
+    findFormerEmployment(address, controller.signal)
       .then((formerEmployment) => {
         if (!cancelled) setAnswer({ address, formerEmployment });
       })
       .catch((err: unknown) => {
-        // Stays silent on purpose: the hint is extra information. Without
-        // it the dialog works as before, and sending the invitation reports
-        // its own errors on the form.
+        // Without a successful lookup there is no choice to offer. Keep the
+        // existing invitation behavior; sending reports its own form errors.
+        if (cancelled) return;
+        setAnswer({ address, formerEmployment: null });
         logger.warn("former_employment_lookup_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-      });
+      })
+      .finally(() => window.clearTimeout(timeoutID));
     return () => {
       cancelled = true;
+      window.clearTimeout(timeoutID);
+      controller.abort();
     };
   }, [address]);
 
-  return answer?.address === current ? answer.formerEmployment : null;
+  return {
+    formerEmployment:
+      answer?.address === current ? answer.formerEmployment : null,
+    pending: COMPLETE_ADDRESS.test(current) && answer?.address !== current,
+  };
 }
 
 function formerEmploymentParts(parts: readonly FormerEmploymentPart[]): string {
@@ -78,8 +98,14 @@ function formerEmploymentParts(parts: readonly FormerEmploymentPart[]): string {
 
 function FormerEmploymentHint({
   formerEmployment,
+  action,
+  onActionChange,
+  disabled,
 }: {
   readonly formerEmployment: FormerEmployment;
+  readonly action: EmploymentAction;
+  readonly onActionChange: (action: EmploymentAction) => void;
+  readonly disabled: boolean;
 }) {
   const resumes = formerEmploymentParts(formerEmployment.resumes);
   const notReturning = formerEmploymentParts(formerEmployment.notReturning);
@@ -90,9 +116,32 @@ function FormerEmploymentHint({
       message={`In moto eingetragen vom ${formatDate(formerEmployment.startedOn)} bis ${formatDate(formerEmployment.endedOn)}.`}
       details={
         <div className="mt-2 space-y-2">
-          {resumes ? (
+          <SegmentedControl
+            ariaLabel="Beschäftigung bei Rückkehr"
+            className="max-sm:grid-flow-row"
+            value={action}
+            onChange={onActionChange}
+            fullWidth
+            items={[
+              { value: "resume", label: "Wiederaufnahme", disabled },
+              { value: "new", label: "Neuaufnahme", disabled },
+            ]}
+          />
+          <p>
+            {action === "resume"
+              ? "Die frühere Beschäftigung wird fortgeführt."
+              : "Eine neue Beschäftigung beginnt. Die frühere bleibt beendet."}
+          </p>
+          {action === "new" ? (
             <p>
-              <span className="font-semibold">Kommt zurück:</span>{" "}
+              Stammdaten, Qualifikationen, Stundenkonto und Urlaub beginnen neu.
+            </p>
+          ) : null}
+          {action === "resume" && resumes ? (
+            <p>
+              <span className="font-semibold">
+                Kommt bei Wiederaufnahme zurück:
+              </span>{" "}
               <span>{resumes}</span>
             </p>
           ) : null}
@@ -133,7 +182,9 @@ export function InvitationForm({
   const showError = errors.show;
   const clearErrors = errors.clear;
 
-  const formerEmployment = useFormerEmployment(form.email);
+  const { formerEmployment, pending: checkingAddress } = useFormerEmployment(
+    form.email,
+  );
 
   const [successInfo, setSuccessInfo] = useState<{
     email: string;
@@ -185,7 +236,11 @@ export function InvitationForm({
 
   const handleChange =
     (key: keyof CreateInvitationRequest) => (value: string | undefined) => {
-      setForm((prev) => ({ ...prev, [key]: value }));
+      setForm((prev) => ({
+        ...prev,
+        ...(key === "email" ? { employmentAction: undefined } : {}),
+        [key]: value,
+      }));
     };
 
   const toOptional = (value?: string): string | undefined => {
@@ -205,6 +260,9 @@ export function InvitationForm({
         firstName: toOptional(form.firstName),
         lastName: toOptional(form.lastName),
         position: toOptional(form.position),
+        ...(formerEmployment
+          ? { employmentAction: form.employmentAction ?? "resume" }
+          : {}),
       });
 
       const link = inviteBaseUrl
@@ -233,7 +291,7 @@ export function InvitationForm({
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    void sendInvitation();
+    if (!checkingAddress) void sendInvitation();
   };
 
   const roleError = errors.fieldError("role_id");
@@ -288,7 +346,14 @@ export function InvitationForm({
         />
 
         {formerEmployment ? (
-          <FormerEmploymentHint formerEmployment={formerEmployment} />
+          <FormerEmploymentHint
+            formerEmployment={formerEmployment}
+            action={form.employmentAction ?? "resume"}
+            onActionChange={(employmentAction) =>
+              setForm((prev) => ({ ...prev, employmentAction }))
+            }
+            disabled={isSubmitting}
+          />
         ) : null}
 
         <div>
@@ -370,10 +435,14 @@ export function InvitationForm({
         <button
           type="submit"
           data-setup-tour="invite-submit"
-          disabled={isSubmitting || isLoadingRoles}
+          disabled={isSubmitting || isLoadingRoles || checkingAddress}
           className="w-full rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800 active:scale-98 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isSubmitting ? "Wird gesendet…" : "Einladung senden"}
+          {isSubmitting
+            ? "Wird gesendet…"
+            : checkingAddress
+              ? "Adresse wird geprüft…"
+              : "Einladung senden"}
         </button>
       </form>
     </div>

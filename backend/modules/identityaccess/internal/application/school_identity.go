@@ -282,7 +282,7 @@ func (l *AccountLifecycle) ensureIdentityStaff(ctx context.Context, in domain.Sc
 		return staff.ID, nil
 	}
 	var retiredStaffID *int64
-	if found {
+	if found && in.EmploymentAction != domain.EmploymentActionNew {
 		retiredStaffID = &staff.ID
 	}
 	id, err := l.staff.CreateStaff(ctx, in.TenantID, personID, retiredStaffID)

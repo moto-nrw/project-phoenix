@@ -95,6 +95,16 @@ func NewSchoolInvitation(deps SchoolInvitationDependencies) (*SchoolInvitation, 
 	}, nil
 }
 
+// invitationEmploymentAction keeps existing links, the staff import and the
+// operator's emergency path on Wiederaufnahme. Only a school invitation
+// carries an explicit choice to start a new employment (ADR 0021).
+func invitationEmploymentAction(request domain.SchoolInvitationRequest) domain.EmploymentAction {
+	if request.OperatorGrant || request.EmploymentAction == "" {
+		return domain.EmploymentActionResume
+	}
+	return request.EmploymentAction
+}
+
 func (s *SchoolInvitation) createInvitation(ctx context.Context, request domain.SchoolInvitationRequest) (result domain.SchoolInvitation, err error) {
 	email, role, err := s.validateRequest(ctx, request)
 	if err != nil {
@@ -108,6 +118,7 @@ func (s *SchoolInvitation) createInvitation(ctx context.Context, request domain.
 		TenantID: tenantID, Email: email, Token: uuid.Must(uuid.NewV4()).String(), RoleID: request.RoleID,
 		RoleName: role.Name, ExpiresAt: s.now().Add(s.expiry), FirstName: trimmed(request.FirstName),
 		LastName: trimmed(request.LastName), Position: trimmed(request.Position),
+		EmploymentAction: invitationEmploymentAction(request),
 		CaregiverEnabled: request.CaregiverEnabled, PersonID: request.PersonID,
 	}
 	if request.CreatedBy > 0 {
